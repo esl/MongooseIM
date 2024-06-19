@@ -123,8 +123,8 @@ one_client_just_logs_in(Config) ->
           {xmppPresenceReceived, 0 + user_alpha(1)},
           {xmppStanzaSent, 0 + user_alpha(3)},
           {xmppStanzaReceived, 0 + user_alpha(3)},
-          {sessionSuccessfulLogins, 0 + user_alpha(1)},
-          {sessionLogouts, 0 + user_alpha(1)}
+          {'sm_session.logins', 0 + user_alpha(1)},
+          {'sm_session.logouts', 0 + user_alpha(1)}
          ]).
 
 two_clients_just_log_in(Config) ->
@@ -139,8 +139,8 @@ two_clients_just_log_in(Config) ->
           {xmppPresenceReceived, 0 + user_alpha(2)},
           {xmppStanzaSent, 0 + user_alpha(6)},
           {xmppStanzaReceived, 0 + user_alpha(6)},
-          {sessionSuccessfulLogins, 0 + user_alpha(2)},
-          {sessionLogouts, 0 + user_alpha(2)}
+          {'sm_session.logins', 0 + user_alpha(2)},
+          {'sm_session.logouts', 0 + user_alpha(2)}
          ]).
 
 one_message_sent(Config) ->

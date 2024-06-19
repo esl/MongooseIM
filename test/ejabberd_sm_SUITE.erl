@@ -30,7 +30,7 @@ end_per_suite(Config) ->
 
 opts() ->
     #{instrumentation => config_parser_helper:default_config([instrumentation]),
-      hosts => [<<"localhost">>],
+      hosts => [<<"localhost">>, <<"otherhost">>],
       host_types => [],
       all_metrics_are_global => false}.
 

@@ -96,33 +96,33 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[HostType, modPresenceSubscriptions]` | spiral | Presence subscription is processed. |
-| `[HostType, modPresenceUnsubscriptions]` | spiral | Presence unsubscription is processed. |
-| `[HostType, modRosterGets]` | spiral | User's roster is fetched. |
-| `[HostType, modRosterPush]` | spiral | A roster update is pushed to a single session. |
-| `[HostType, modRosterSets]` | spiral | User's roster is updated. |
+| `[HostType, sm_presence_subscription, subscription_count]` | spiral | Presence subscription is processed. |
+| `[HostType, sm_presence_subscription, unsubscription_count]` | spiral | Presence unsubscription is processed. |
+| `[HostType, mod_roster_get, count]` | spiral | User's roster is fetched. |
+| `[HostType, mod_roster_push, count]` | spiral | A roster update is pushed to a single session. |
+| `[HostType, mod_roster_set, count]` | spiral | User's roster is updated. |
 
 ### Privacy lists
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[HostType, modPrivacyGets]` | spiral | IQ privacy `get` is processed. |
-| `[HostType, modPrivacyPush]` | spiral | Privacy list update is sent to a single session. |
-| `[HostType, modPrivacySets]` | spiral | IQ privacy `set` is processed. |
-| `[HostType, modPrivacySetsActive]` | spiral | Active privacy list is changed. |
-| `[HostType, modPrivacySetsDefault]` | spiral | Default privacy list is changed. |
-| `[HostType, modPrivacyStanzaAll]` | spiral | A packet is checked against the privacy list. |
-| `[HostType, modPrivacyStanzaDenied]` | spiral | Privacy list check resulted in `deny`. |
-| `[HostType, modPrivacyStanzaBlocked]` | spiral | Privacy list check resulted in `block`. |
+| `[HostType, mod_privacy_get, count]` | spiral | IQ privacy `get` is processed. |
+| `[HostType, mod_privacy_push_item, count]` | spiral | Privacy list update is sent to a single session. |
+| `[HostType, mod_privacy_set, count]` | spiral | IQ privacy `set` is processed. |
+| `[HostType, mod_privacy_set, active_count]` | spiral | Active privacy list is changed. |
+| `[HostType, mod_privacy_set, default_count]` | spiral | Default privacy list is changed. |
+| `[HostType, mod_privacy_check_packet, count]` | spiral | A packet is checked against the privacy list. |
+| `[HostType, mod_privacy_check_packet, denied_count]` | spiral | Privacy list check resulted in `deny`. |
+| `[HostType, mod_privacy_check_packet, blocked_count]` | spiral | Privacy list check resulted in `block`. |
 
 ### Other
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[HostType, sessionAuthFails]` | spiral | A client failed to authenticate. |
-| `[HostType, sessionCount]` | counter | Number of active sessions. |
-| `[HostType, sessionLogouts]` | spiral | A client session is closed. |
-| `[HostType, sessionSuccessfulLogins]` | spiral | A client session is opened. |
+| `[HostType, c2s_auth_failed, count]` | spiral | A client failed to authenticate. |
+| `[HostType, sm_session, count]` | counter | Number of active sessions. |
+| `[HostType, sm_session, logouts]` | spiral | A client session is closed. |
+| `[HostType, sm_session, logins]` | spiral | A client session is opened. |
 | `[HostType, xmppErrorIq]` | spiral | An `error` IQ is sent to a client. |
 | `[HostType, xmppErrorMessage]` | spiral | An `error` message is sent to a client. |
 | `[HostType, xmppErrorPresence]` | spiral | An `error` presence is sent to a client. |

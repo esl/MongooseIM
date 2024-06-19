@@ -119,8 +119,8 @@ For time-based metrics, you can choose to display multiple calculated values for
 Session count:                   <prefix>.global.totalSessionCount.value
 XMPP messages received:          <prefix>.<domain>.xmppMessageReceived.one
 XMPP messages sent:              <prefix>.<domain>.xmppMessageSent.one
-Successful logins:               <prefix>.<domain>.sessionSuccessfulLogins.one
-Logouts:                         <prefix>.<domain>.sessionLogouts.one
+Successful logins:               <prefix>.<domain>.sm_session.logins.one
+Logouts:                         <prefix>.<domain>.sm_session.logouts.one
 Authorization time:              <prefix>.<domain>.backends.auth.authorize.<value-type>
 RDBMS "simple" query time:       <prefix>.<domain>.backends.mongoose_rdbms.query.<value-type>
 RDBMS prepared query time:       <prefix>.<domain>.backends.mongoose_rdbms.execute.<value-type>

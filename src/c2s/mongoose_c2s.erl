@@ -87,7 +87,9 @@ instrumentation(global) ->
       #{metrics => #{byte_size => histogram}}}];
 instrumentation(HostType) ->
     [{c2s_message_processing_time, #{host_type => HostType},
-      #{metrics => #{byte_size => histogram}}}].
+      #{metrics => #{byte_size => histogram}}},
+     {c2s_auth_failed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -497,6 +499,8 @@ handle_sasl_failure(#c2s_data{host_type = HostType, lserver = LServer} = StateDa
     ?LOG_INFO(#{what => auth_failed, text => <<"Failed SASL authentication">>,
                 username => Username, lserver => LServer, c2s_state => StateData}),
     mongoose_hooks:auth_failed(HostType, LServer, Username),
+    mongoose_instrument:execute(c2s_auth_failed, #{host_type => HostType},
+                                #{count => 1, server => LServer, username => Username}),
     El = mongoose_c2s_stanzas:sasl_failure_stanza(ServerOut),
     NewSaslAcc = send_acc_from_server_jid(StateData, SaslAcc, El),
     maybe_retry_state(StateData, {wait_for_feature_before_auth, NewSaslAcc, Retries}).

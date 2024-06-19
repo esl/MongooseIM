@@ -290,7 +290,7 @@ declared_events() ->
     declared_backend_events() ++ declared_sm_events() ++ instrument_helper:declared_events(mod_roster).
 
 declared_sm_events() ->
-    [{sm_presence_subscription, #{}}].
+    [{sm_presence_subscription, #{host_type => host_type()}}].
 
 declared_backend_events() ->
     BackendMod = backend_mod(),

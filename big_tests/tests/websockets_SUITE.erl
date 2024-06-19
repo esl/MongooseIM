@@ -171,7 +171,7 @@ escape_attrs(Config) ->
 instrumentation_events() ->
     instrument_helper:declared_events(mod_websockets, [])
     ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ instrument_helper:declared_events(mongoose_c2s). %% For host_type()
+    ++ [{c2s_message_processing_time, #{host_type => domain_helper:host_type()}}].
 
 negative_instrumentation_events() ->
     [{Name, #{}} || Name <- negative_instrumentation_events_names()].

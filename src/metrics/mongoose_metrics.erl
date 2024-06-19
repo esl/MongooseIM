@@ -338,8 +338,7 @@ create_host_type_metrics() ->
 
 -spec create_host_type_metrics(mongooseim:host_type()) -> 'ok'.
 create_host_type_metrics(HostType) ->
-    lists:foreach(fun(Name) -> ensure_metric(HostType, Name, spiral) end, ?GENERAL_SPIRALS),
-    lists:foreach(fun(Name) -> ensure_metric(HostType, Name, counter) end, ?TOTAL_COUNTERS).
+    lists:foreach(fun(Name) -> ensure_metric(HostType, Name, spiral) end, ?GENERAL_SPIRALS).
 
 -spec create_host_type_hook_metrics() -> ok.
 create_host_type_hook_metrics() ->

@@ -1,6 +1,7 @@
 -module(mongoose_instrument_metrics_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-include("log_helper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -22,7 +23,10 @@ groups() ->
     [{prometheus, [parallel], [prometheus_skips_non_metric_event,
                                prometheus_gauge_is_created_and_updated,
                                prometheus_gauge_is_updated_separately_for_different_labels,
+                               prometheus_gauge_counter_is_created_and_updated,
+                               prometheus_gauge_counter_is_updated_separately_for_different_labels,
                                prometheus_counter_is_created_and_updated,
+                               prometheus_counter_cannot_be_decreased,
                                prometheus_counter_is_updated_separately_for_different_labels,
                                prometheus_histogram_is_created_and_updated,
                                prometheus_histogram_is_updated_separately_for_different_labels,
@@ -30,7 +34,10 @@ groups() ->
      {exometer, [parallel], [exometer_skips_non_metric_event,
                              exometer_gauge_is_created_and_updated,
                              exometer_gauge_is_updated_separately_for_different_labels,
+                             exometer_counter_is_created_and_updated,
+                             exometer_counter_is_updated_separately_for_different_labels,
                              exometer_spiral_is_created_and_updated,
+                             exometer_spiral_cannot_be_decreased,
                              exometer_spiral_is_updated_separately_for_different_labels,
                              exometer_histogram_is_created_and_updated,
                              exometer_histogram_is_updated_separately_for_different_labels,
@@ -38,6 +45,13 @@ groups() ->
      {exometer_global, [parallel], [multiple_exometer_metrics_are_updated]},
      {prometheus_and_exometer, [parallel], [prometheus_and_exometer_metrics_are_updated]}
     ].
+
+init_per_suite(Config) ->
+    log_helper:set_up(),
+    Config.
+
+end_per_suite(_Config) ->
+    log_helper:tear_down().
 
 init_per_group(Group, Config) ->
     [application:ensure_all_started(App) || App <- apps(Group)],
@@ -53,10 +67,11 @@ end_per_group(_Group, Config) ->
     mongoose_config:erase_opts().
 
 init_per_testcase(Case, Config) ->
+    log_helper:subscribe(),
     [{event, join_atoms(Case, event)} | Config].
 
 end_per_testcase(_Case, _Config) ->
-    ok.
+    log_helper:unsubscribe().
 
 apps(prometheus) -> [prometheus];
 apps(exometer) -> [exometer_core];
@@ -88,14 +103,36 @@ prometheus_gauge_is_created_and_updated(Config) ->
     ?assertEqual(undefined, prometheus_gauge:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
     ?assertEqual(1, prometheus_gauge:value(Metric, [?HOST_TYPE])),
-    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
-    ?assertEqual(2, prometheus_gauge:value(Metric, [?HOST_TYPE])).
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => -2}),
+    ?assertEqual(-2, prometheus_gauge:value(Metric, [?HOST_TYPE])).
 
 prometheus_gauge_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
     Metric = prom_name(Event, count),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => gauge}}),
     ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{count => gauge}}),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ok = mongoose_instrument:execute(Event, ?LABELS2, #{count => 2}),
+    ?assertEqual(1, prometheus_gauge:value(Metric, [?HOST_TYPE])),
+    ?assertEqual(2, prometheus_gauge:value(Metric, [?HOST_TYPE2])).
+
+prometheus_gauge_counter_is_created_and_updated(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, count),
+
+    %% Prometheus gauge used as a counter starts at zero and can be incremented/decremented
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => counter}}),
+    ?assertEqual(0, prometheus_gauge:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ?assertEqual(1, prometheus_gauge:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => -2}),
+    ?assertEqual(-1, prometheus_gauge:value(Metric, [?HOST_TYPE])).
+
+prometheus_gauge_counter_is_updated_separately_for_different_labels(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, count),
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => counter}}),
+    ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{count => counter}}),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
     ok = mongoose_instrument:execute(Event, ?LABELS2, #{count => 2}),
     ?assertEqual(1, prometheus_gauge:value(Metric, [?HOST_TYPE])),
@@ -112,6 +149,16 @@ prometheus_counter_is_created_and_updated(Config) ->
     ?assertEqual(1, prometheus_counter:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
     ?assertEqual(3, prometheus_counter:value(Metric, [?HOST_TYPE])).
+
+prometheus_counter_cannot_be_decreased(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, count),
+
+    %% Prometheus counter starts at zero, and cannot be decreased
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => -1}),
+    ?assertEqual(0, prometheus_counter:value(Metric, [?HOST_TYPE])),
+    ?assertLog(error, #{what := event_handler_failed}).
 
 prometheus_counter_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
@@ -197,6 +244,29 @@ exometer_gauge_is_updated_separately_for_different_labels(Config) ->
     ?assertEqual({ok, [{value, 1}]}, exometer:get_value(Metric1, value)),
     ?assertEqual({ok, [{value, 2}]}, exometer:get_value(Metric2, value)).
 
+exometer_counter_is_created_and_updated(Config) ->
+    Event = ?config(event, Config),
+    Metric = [?HOST_TYPE, Event, count],
+
+    %% Exometer counter starts at zero, and can be incremented/decremented
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => counter}}),
+    ?assertEqual({ok, [{value, 0}]}, exometer:get_value(Metric, value)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ?assertEqual({ok, [{value, 1}]}, exometer:get_value(Metric, value)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => -2}),
+    ?assertEqual({ok, [{value, -1}]}, exometer:get_value(Metric, value)).
+
+exometer_counter_is_updated_separately_for_different_labels(Config) ->
+    Event = ?config(event, Config),
+    Metric1 = [?HOST_TYPE, Event, count],
+    Metric2 = [<<"test_type">>, Event, count],
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => counter}}),
+    ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{count => counter}}),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ok = mongoose_instrument:execute(Event, ?LABELS2, #{count => 2}),
+    ?assertEqual({ok, [{value, 1}]}, exometer:get_value(Metric1, value)),
+    ?assertEqual({ok, [{value, 2}]}, exometer:get_value(Metric2, value)).
+
 exometer_spiral_is_created_and_updated(Config) ->
     Event = ?config(event, Config),
     Metric = [?HOST_TYPE, Event, count],
@@ -208,6 +278,16 @@ exometer_spiral_is_created_and_updated(Config) ->
     ?assertEqual({ok, [{count, 1}]}, exometer:get_value(Metric, count)),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
     ?assertEqual({ok, [{count, 3}]}, exometer:get_value(Metric, count)).
+
+exometer_spiral_cannot_be_decreased(Config) ->
+    Event = ?config(event, Config),
+    Metric = [?HOST_TYPE, Event, count],
+
+    %% Exometer spiral starts at zero, and cannot be decreased
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => -1}),
+    ?assertEqual({ok, [{count, 0}]}, exometer:get_value(Metric, count)),
+    ?assertLog(error, #{what := event_handler_failed}).
 
 exometer_spiral_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),

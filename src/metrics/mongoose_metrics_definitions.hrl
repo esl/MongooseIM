@@ -1,7 +1,4 @@
 -define(GENERAL_SPIRALS, [
-    sessionSuccessfulLogins,
-    sessionAuthFails,
-    sessionLogouts,
     xmppMessageSent,
     xmppMessageReceived,
     xmppMessageBounced,
@@ -16,22 +13,7 @@
     xmppErrorTotal,
     xmppErrorIq,
     xmppErrorMessage,
-    xmppErrorPresence,
-    modRosterSets,
-    modRosterGets,
-    modPresenceSubscriptions,
-    modPresenceUnsubscriptions,
-    modRosterPush,
-    modRegisterCount,
-    modUnregisterCount,
-    modPrivacySets,
-    modPrivacySetsActive,
-    modPrivacySetsDefault,
-    modPrivacyPush,
-    modPrivacyGets,
-    modPrivacyStanzaDenied,
-    modPrivacyStanzaBlocked,
-    modPrivacyStanzaAll
+    xmppErrorPresence
 ]).
 
 -define(GLOBAL_SPIRALS, [
@@ -39,10 +21,6 @@
     [data, xmpp, received, component],
     [data, xmpp, sent, s2s],
     [data, xmpp, sent, component]
-]).
-
--define(TOTAL_COUNTERS, [
-    sessionCount
 ]).
 
 -define(REPORT_INTERVAL, mongoose_metrics:get_report_interval()).

@@ -842,7 +842,7 @@ paths:
               metrics:
                 type: object
                 example:
-                  modRosterPush:
+                  mod_roster_push.count:
                     one: 0
                     count: 0
   /metrics/all/{metric}:
@@ -881,7 +881,7 @@ paths:
               metrics:
                 type: object
                 example:
-                  modRosterPush:
+                  mod_roster_push.count:
                     one: 0
                     count: 0
         404:

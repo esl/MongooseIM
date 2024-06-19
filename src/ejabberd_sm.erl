@@ -190,6 +190,8 @@ make_new_sid() ->
 open_session(HostType, SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
     ReplacedPIDs = check_for_sessions_to_replace(HostType, JID),
+    mongoose_instrument:execute(sm_session, #{host_type => HostType},
+                                #{jid => JID, logins => 1, count => 1}),
     mongoose_hooks:sm_register_connection(HostType, SID, JID, Info),
     ReplacedPIDs.
 
@@ -203,6 +205,9 @@ open_session(HostType, SID, JID, Priority, Info) ->
 close_session(Acc, SID, JID, Reason, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     ejabberd_sm_backend:delete_session(SID, LUser, LServer, LResource),
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_instrument:execute(sm_session, #{host_type => HostType},
+                                #{jid => JID, logouts => 1, count => -1}),
     mongoose_hooks:sm_remove_connection(Acc, SID, JID, Info, Reason).
 
 -spec store_info(jid:jid(), sid(), info_key(), any()) -> ok.
@@ -471,9 +476,11 @@ init([]) ->
 
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
     gen_hook:add_handler(node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50),
-    lists:foreach(fun(HostType) -> gen_hook:add_handlers(hooks(HostType)) end,
+    lists:foreach(fun(HostType) ->
+                          gen_hook:add_handlers(hooks(HostType)),
+                          mongoose_instrument:set_up(instrumentation(HostType))
+                  end,
                   ?ALL_HOST_TYPES),
-    mongoose_instrument:set_up(instrumentation()),
     %% Create metrics after backend has started, otherwise probe could have null value
     create_metrics(),
     {ok, #state{}}.
@@ -564,7 +571,8 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
-    mongoose_instrument:tear_down(instrumentation()).
+    [mongoose_instrument:tear_down(instrumentation(HostType)) || HostType <- ?ALL_HOST_TYPES],
+    ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -632,20 +640,21 @@ do_route(Acc, From, To, El) ->
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
     case is_privacy_allow(From, To, Acc, Packet) of
         true ->
-            execute_subscription_instrumentation(From, To, Type),
+            HostType = mongoose_acc:host_type(Acc),
+            execute_subscription_instrumentation(HostType, From, To, Type),
             Res = mongoose_hooks:roster_in_subscription(Acc, To, From, Type, Reason),
             mongoose_acc:get(hook, result, false, Res);
         false ->
             false
     end.
 
-execute_subscription_instrumentation(From, To, subscribed) ->
-    mongoose_instrument:execute(sm_presence_subscription, #{},
+execute_subscription_instrumentation(HostType, From, To, subscribed) ->
+    mongoose_instrument:execute(sm_presence_subscription, #{host_type => HostType},
                                 #{from_jid => From, to_jid => To, subscription_count => 1});
-execute_subscription_instrumentation(From, To, unsubscribed) ->
-    mongoose_instrument:execute(sm_presence_subscription, #{},
+execute_subscription_instrumentation(HostType, From, To, unsubscribed) ->
+    mongoose_instrument:execute(sm_presence_subscription, #{host_type => HostType},
                                 #{from_jid => From, to_jid => To, unsubscription_count => 1});
-execute_subscription_instrumentation(_From, _To, _Type) ->
+execute_subscription_instrumentation(_HostType, _From, _To, _Type) ->
     ok.
 
 -spec do_route_no_resource_presence(Type, From, To, Acc, Packet) -> boolean() when
@@ -982,7 +991,9 @@ get_cached_unique_count() ->
 sm_backend() ->
     mongoose_backend:get_backend_module(global, ?MODULE).
 
--spec instrumentation() -> [mongoose_instrument:spec()].
-instrumentation() ->
-    [{sm_presence_subscription, #{},
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{sm_session, #{host_type => HostType},
+      #{metrics => #{logins => spiral, logouts => spiral, count => counter}}},
+     {sm_presence_subscription, #{host_type => HostType},
       #{metrics => #{subscription_count => spiral, unsubscription_count => spiral}}}].

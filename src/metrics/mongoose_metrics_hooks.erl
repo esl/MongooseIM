@@ -15,10 +15,7 @@
 %%-------------------
 %% Internal exports
 %%-------------------
--export([sm_register_connection/3,
-         sm_remove_connection/3,
-         auth_failed/3,
-         user_send_packet/3,
+-export([user_send_packet/3,
          user_open_session/3,
          xmpp_bounce_message/3,
          xmpp_stanza_dropped/3,
@@ -32,10 +29,7 @@
 %% @doc Here will be declared which hooks should be registered
 -spec get_hooks(_) -> [gen_hook:hook_tuple(), ...].
 get_hooks(HostType) ->
-    [ {sm_register_connection, HostType, fun ?MODULE:sm_register_connection/3, #{}, 50},
-      {sm_remove_connection, HostType, fun ?MODULE:sm_remove_connection/3, #{}, 50},
-      {auth_failed, HostType, fun ?MODULE:auth_failed/3, #{}, 50},
-      {xmpp_stanza_dropped, HostType, fun ?MODULE:xmpp_stanza_dropped/3, #{}, 50},
+    [ {xmpp_stanza_dropped, HostType, fun ?MODULE:xmpp_stanza_dropped/3, #{}, 50},
       {xmpp_bounce_message, HostType, fun ?MODULE:xmpp_bounce_message/3, #{}, 50},
       {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 50}
       | c2s_hooks(HostType)].
@@ -44,34 +38,6 @@ get_hooks(HostType) ->
 c2s_hooks(HostType) ->
     [{user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 50},
      {user_open_session, HostType, fun ?MODULE:user_open_session/3, #{}, 50}].
-
--spec sm_register_connection(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: any(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-sm_register_connection(Acc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, sessionSuccessfulLogins, 1),
-    mongoose_metrics:update(HostType, sessionCount, 1),
-    {ok, Acc}.
-
--spec sm_remove_connection(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-sm_remove_connection(Acc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, sessionLogouts, 1),
-    mongoose_metrics:update(HostType, sessionCount, -1),
-    {ok, Acc}.
-
--spec auth_failed(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: any(),
-      Params :: #{server := jid:server()},
-      Extra :: map().
-auth_failed(Acc, #{server := Server}, _) ->
-    LServer = jid:nameprep(Server),
-    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
-    mongoose_metrics:update(HostType, sessionAuthFails, 1),
-    {ok, Acc}.
 
 -spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), map()) ->
     mongoose_c2s_hooks:result().
