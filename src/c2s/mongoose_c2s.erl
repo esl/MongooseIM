@@ -275,18 +275,16 @@ handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) -
 elem_size(#xmlstreamerror{name = Name}) ->
     byte_size(Name);
 elem_size(El) ->
-    try
-        exml:xml_size(patch_element(El))
-    catch _Class:Reason:Stacktrace ->
-        ?LOG_ERROR(#{what => failed_to_xml_size, element => El}),
-        0
-    end.
+    exml:xml_size(patch_element(El)).
 
 patch_element(El = #xmlstreamstart{attrs = Attrs}) ->
-    %% Skip `{<<\"from\">>, undefined}'
-    [{Name, Value} || {Name, Value} <- Attrs, Value =/= undefined];
+    Attrs2 = [{Name, patch_attr_value(Value)} || {Name, Value} <- Attrs],
+    El#xmlstreamstart{attrs = Attrs2};
 patch_element(El) ->
     El.
+
+patch_attr_value(undefined) -> <<>>;
+patch_attr_value(Bin) -> Bin.
 
 -spec maybe_pause(data(), integer()) -> any().
 maybe_pause(_StateData, Pause) when Pause > 0 ->
