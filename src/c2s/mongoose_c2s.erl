@@ -28,6 +28,9 @@
 
 -ignore_xref([get_ip/1, get_socket/1, instrumentation/1]).
 
+%% The pattern 'undefined' can never match the type binary()
+-dialyzer({no_match, patch_attr_value/1}).
+
 -record(c2s_data, {
           host_type :: undefined | mongooseim:host_type(),
           lserver = ?MYNAME :: jid:lserver(),
@@ -282,6 +285,7 @@ patch_element(El = #xmlstreamstart{attrs = Attrs}) ->
 patch_element(El) ->
     El.
 
+-spec patch_attr_value(undefined | binary()) -> binary().
 patch_attr_value(undefined) -> <<>>;
 patch_attr_value(Bin) -> Bin.
 
