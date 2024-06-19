@@ -818,4 +818,4 @@ proxy_info() ->
 instrumentation_events() ->
     instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
     ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ instrument_helper:declared_events(mongoose_c2s). %% For host_type()
+    ++ [{c2s_message_processing_time, #{host_type => domain_helper:host_type()}}].
