@@ -116,12 +116,12 @@ end_per_suite(Config) ->
 
 init_per_group(tagged_rdbms_queries, Config) ->
     ExtraConfig = stop_global_default_pool(),
-    instrument_helper:start(instrument_helper:declared_events(mongoose_wpool_rdbms, [host_type(), tag()])),
+    instrument_helper:start(declared_events(tagged_rdbms_queries)),
     start_local_host_type_pool(ExtraConfig),
     ExtraConfig ++ Config;
 init_per_group(global_rdbms_queries, Config) ->
     ExtraConfig = stop_global_default_pool(),
-    instrument_helper:start(instrument_helper:declared_events(mongoose_wpool_rdbms, [global, default])),
+    instrument_helper:start(declared_events(global_rdbms_queries)),
     restart_global_default_pool(ExtraConfig),
     [{tag, global} | Config].
 
@@ -152,6 +152,13 @@ end_per_testcase(test_incremental_upsert, Config) ->
     escalus:end_per_testcase(test_incremental_upsert, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+declared_events(tagged_rdbms_queries) ->
+    instrument_helper:declared_events(mongoose_wpool_rdbms, [host_type(), tag()]) ++
+    [{test_wrapped_request, #{pool_tag => tag()}}];
+declared_events(global_rdbms_queries) ->
+    instrument_helper:declared_events(mongoose_wpool_rdbms, [global, default]) ++
+    [{test_wrapped_request, #{pool_tag => global}}].
 
 %%--------------------------------------------------------------------
 %% Data for cases
@@ -262,6 +269,9 @@ like_texts() ->
          #{text => <<"żółć_"/utf8>>,
            not_matching => [<<"_ółć_"/utf8>>],
            matching => [<<"żół"/utf8>>, <<"ółć_"/utf8>>]}].
+
+wrapper_event_spec(Tag) ->
+    [{test_wrapped_request, #{pool_tag => Tag}, #{metrics => #{time => histogram, count => spiral}}}].
 
 %%--------------------------------------------------------------------
 %% Test cases
@@ -447,12 +457,14 @@ test_wrapped_request(Config) ->
     erase_table(Config),
     sql_prepare(Config, insert_one, test_types, [unicode],
                 <<"INSERT INTO test_types(unicode) VALUES (?)">>),
-    rpc(mim(), mongoose_metrics, ensure_metric, [global, [test_metric], histogram]),
+
+    Tag = ?config(tag, Config),
+    rpc(mim(), mongoose_instrument, set_up, [wrapper_event_spec(Tag)]),
+    Ref = make_ref(),
     WrapperFun = fun(SqlExecute) ->
-        {Time, Result} = timer:tc(SqlExecute),
-        mongoose_metrics:update(global, [test_metric], Time),
-        Result
-    end,
+                     mongoose_instrument:span(test_wrapped_request, #{pool_tag => Tag}, SqlExecute,
+                                              fun(Time, _Result) -> #{time => Time, count => 1, ref => Ref} end)
+                 end,
 
     % when
     sql_execute_wrapped_request_and_wait_response(Config, insert_one, [<<"check1">>], WrapperFun),
@@ -463,10 +475,9 @@ test_wrapped_request(Config) ->
             SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
             ?assertEqual({selected, [{<<"check1">>}]}, selected_to_sorted(SelectResult))
         end, ok, #{name => request_queries}),
-
-    {ok, Metric} = rpc(mim(), mongoose_metrics, get_metric_value, [global, [test_metric]]),
-    MetricValue = proplists:get_value(mean, Metric),
-    ?assert(MetricValue > 0).
+    Measurements = instrument_helper:wait_for(test_wrapped_request, #{pool_tag => Tag}),
+    instrument_helper:assert(test_wrapped_request, #{pool_tag => Tag}, Measurements,
+                             fun(#{time := T, count := 1, ref := Ref}) -> T > 0 end).
 
 test_failed_wrapper(Config) ->
     % given
