@@ -1891,8 +1891,8 @@ muc_light_sql_query_failed(Config) ->
             then_muc_light_message_is_received_by([Alice], M1),
             mam_helper:wait_for_room_archive_size(muc_light_host(), Room, 2),
             when_archive_query_is_sent(Alice, muc_light_helper:room_bin_jid(Room), Config),
-            Res = escalus:wait_for_stanza(Alice),
-            escalus:assert(is_iq_error, Res)
+            Error = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_error, [<<"wait">>, <<"internal-server-error">>], Error)
         end).
 
 pm_failed_to_decode_message_in_database(Config) ->
@@ -1912,8 +1912,8 @@ pm_sql_query_failed(Config) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
             mam_helper:wait_for_archive_size(Alice, 1),
             when_archive_query_is_sent(Alice, undefined, Config),
-            Res = escalus:wait_for_stanza(Alice),
-            escalus:assert(is_iq_error, Res)
+            Error = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_error, [<<"wait">>, <<"internal-server-error">>], Error)
         end).
 
 retrieve_form_fields(ConfigIn) ->
