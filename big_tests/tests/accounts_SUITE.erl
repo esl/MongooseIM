@@ -180,7 +180,11 @@ register(Config) ->
     [{Name1, _UserSpec1}, {Name2, _UserSpec2}] = escalus_users:get_users([alice, bob]),
     Config1 = escalus_fresh:create_users(Config, escalus:get_users([Name1, Name2])),
     assert_event(auth_register_user, escalus_users:get_jid(Config1, Name1)),
-    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name2)).
+    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name2)),
+    assert_event(auth_try_register, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_try_register, escalus_users:get_jid(Config1, Name2)),
+    assert_event(auth_does_user_exist, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_does_user_exist, escalus_users:get_jid(Config1, Name2)).
 
 unregister(Config) ->
     UserSpec = escalus_fresh:freshen_spec(Config, alice),
@@ -212,6 +216,7 @@ admin_notify(Config) ->
 
     rpc(mim(), ejabberd_auth, try_register, [mongoose_helper:make_jid(AdminU, AdminS), AdminP]),
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
+        assert_event(auth_authorize, escalus_users:get_jid(Config, admin)),
         escalus:create_users(Config, escalus:get_users([Name1, Name2])),
 
             Predicates = [
@@ -455,7 +460,21 @@ disable_watcher(Config) ->
 
 %% Instrumentation events
 
-assert_event(EventName, BinJid) ->
+assert_event(EventName, BinJid)
+    when EventName =:= auth_unregister_user; EventName =:= auth_register_user ->
     #jid{luser = LUser, lserver = LServer} = jid:from_binary(BinJid),
     instrument_helper:assert(EventName, #{host_type => host_type()},
-                             fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end).
+                             fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end);
+assert_event(EventName, BinJid)
+    when EventName =:= auth_authorize ->
+    #jid{lserver = LServer} = jid:from_binary(BinJid),
+    F = fun(#{time := Time, count := 1, server := Server}) ->
+           (Time > 0) and (Server =:= LServer)
+        end,
+    instrument_helper:assert(EventName, #{host_type => host_type()}, F);
+assert_event(EventName, BinJid) ->
+    #jid{luser = LUser, lserver = LServer} = jid:from_binary(BinJid),
+    F = fun(#{time := Time, count := 1, user := User, server := Server}) ->
+           (Time > 0) and (User =:= LUser) and (Server =:= LServer)
+        end,
+    instrument_helper:assert(EventName, #{host_type => host_type()}, F).
