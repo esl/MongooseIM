@@ -227,13 +227,14 @@ get_all_metrics_as_dicts(Config) ->
     check_node_result_is_valid(ParsedResult, false).
 
 get_by_name_metrics_as_dicts(Config) ->
-    Result = get_metrics_as_dicts_by_name([<<"_">>, <<"xmppStanzaSent">>], Config),
+    Name = [<<"c2s_element_in">>, <<"stanza_count">>],
+    Result = get_metrics_as_dicts_by_name([<<"_">> | Name], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     [_|_] = ParsedResult,
-    %% Only xmppStanzaSent type
-    lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
+    %% Only c2s_element_in type
+    lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_ | N]}) when N =:= Name ->
                           check_spiral_dict(Dict)
-            end, ParsedResult).
+                  end, ParsedResult).
 
 get_metrics_as_dicts_by_nonexistent_name(Config) ->
     Result = get_metrics_as_dicts_by_name([<<"not_existing">>], Config),
@@ -244,7 +245,7 @@ get_metrics_as_dicts_with_key_one(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"one">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [metric_host_type(), <<"xmppStanzaSent">>],
+    SentName = [metric_host_type(), <<"c2s_element_out">>, <<"stanza_count">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     ?assert(is_integer(One)).
 
@@ -289,17 +290,17 @@ get_cluster_metrics(Config) ->
     check_node_result_is_valid(Res2, true).
 
 get_by_name_cluster_metrics_as_dicts(Config) ->
-    Result = get_cluster_metrics_as_dicts_by_name([<<"_">>, <<"xmppStanzaSent">>], Config),
+    Name = [<<"c2s_element_in">>, <<"stanza_count">>],
+    Result = get_cluster_metrics_as_dicts_by_name([<<"_">> | Name], Config),
     NodeResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     Map = node_objects_to_map(NodeResult),
     %% Contains data for at least two nodes
     ?assert(maps:size(Map) > 1),
-    %% Only xmppStanzaSent type
+    %% Only c2s_element_in type
     maps:map(fun(_Node, [_|_] = NodeRes) ->
-        lists:foreach(fun(#{<<"dict">> := Dict,
-                            <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
+        lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_ | N]}) when N =:= Name ->
                               check_spiral_dict(Dict)
-                end, NodeRes) end, Map).
+                      end, NodeRes) end, Map).
 
 get_mim2_cluster_metrics(Config) ->
     Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
@@ -334,7 +335,7 @@ get_cluster_metrics_empty_args(Config) ->
     ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     [#{<<"node">> := Node, <<"result">> := ResList}] = ParsedResult,
     Map = dict_objects_to_map(ResList),
-    SentName = [<<"global">>, <<"xmppStanzaSent">>],
+    SentName = [<<"global">>, <<"c2s_element_in">>, <<"stanza_count">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     ?assert(is_integer(One)),
     %% Empty keys
@@ -369,8 +370,8 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     %% Check that result contains something
     Map = dict_objects_to_map(ResList),
     SentName = case MetricsAreGlobal of
-            true -> [<<"global">>, <<"xmppStanzaSent">>];
-            false -> [metric_host_type(), <<"xmppStanzaSent">>]
+            true -> [<<"global">>, <<"c2s_element_in">>, <<"stanza_count">>];
+            false -> [metric_host_type(), <<"c2s_element_in">>, <<"stanza_count">>]
         end,
     check_spiral_dict(maps:get(SentName, Map)),
     [#{<<"key">> := <<"value">>,<<"value">> := V}] =
