@@ -63,12 +63,10 @@ init() ->
     prepare_prefixes(),
     create_vm_metrics(),
     create_global_metrics(?GLOBAL_COUNTERS),
-    create_data_metrics(),
-    create_host_type_metrics().
+    create_data_metrics().
 
 -spec init_mongooseim_metrics() -> ok.
 init_mongooseim_metrics() ->
-    create_host_type_hook_metrics(),
     create_global_metrics(?MNESIA_COUNTERS),
     init_subscriptions().
 
@@ -331,23 +329,6 @@ create_vm_metrics() ->
                           FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
                           catch ensure_metric(global, Metric, FunSpecTuple)
                   end, ?VM_STATS).
-
--spec create_host_type_metrics() -> ok.
-create_host_type_metrics() ->
-    lists:foreach(fun create_host_type_metrics/1, ?ALL_HOST_TYPES).
-
--spec create_host_type_metrics(mongooseim:host_type()) -> 'ok'.
-create_host_type_metrics(HostType) ->
-    lists:foreach(fun(Name) -> ensure_metric(HostType, Name, spiral) end, ?GENERAL_SPIRALS).
-
--spec create_host_type_hook_metrics() -> ok.
-create_host_type_hook_metrics() ->
-    lists:foreach(fun create_host_type_hook_metrics/1, ?ALL_HOST_TYPES).
-
--spec create_host_type_hook_metrics(mongooseim:host_type()) -> 'ok'.
-create_host_type_hook_metrics(HostType) ->
-    Hooks = mongoose_metrics_hooks:get_hooks(HostType),
-    gen_hook:add_handlers(Hooks).
 
 ensure_metric(HostType, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(HostType, [Metric], Type, ShortType);
