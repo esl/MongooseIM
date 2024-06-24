@@ -424,7 +424,8 @@ muc_light_cases() ->
      muc_light_include_groupchat_messages_by_default,
      muc_light_chat_markers_are_archived_if_enabled,
      muc_light_chat_markers_are_not_archived_if_disabled,
-     muc_light_failed_to_decode_message_in_database
+     muc_light_failed_to_decode_message_in_database,
+     muc_light_sql_query_failed
     ].
 
 muc_rsm_cases() ->
@@ -487,7 +488,8 @@ prefs_cases() ->
 
 impl_specific() ->
     [check_user_exist,
-     pm_failed_to_decode_message_in_database].
+     pm_failed_to_decode_message_in_database,
+     pm_sql_query_failed].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -706,11 +708,33 @@ end_state(_, _, Config) ->
 init_per_testcase(CaseName, Config) ->
     case maybe_skip(CaseName, Config) of
         ok ->
+            maybe_setup_meck(CaseName),
             dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
             lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config, init_steps());
         {skip, Msg} ->
             {skip, Msg}
     end.
+
+maybe_setup_meck(muc_light_sql_query_failed) ->
+    ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [mongoose_rdbms, execute_successfully,
+              fun (_HostType, mam_muc_message_lookup_a_equ_limit, _Parameters) ->
+                      error(#{what => simulated_error});
+                  (HostType, Name, Parameters) ->
+                      meck:passthrough([HostType, Name, Parameters])
+              end]);
+maybe_setup_meck(pm_sql_query_failed) ->
+    ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [mongoose_rdbms, execute_successfully,
+              fun (_HostType, mam_message_lookup_a_equ_limit, _Parameters) ->
+                      error(#{what => simulated_error});
+                  (HostType, Name, Parameters) ->
+                      meck:passthrough([HostType, Name, Parameters])
+              end]);
+maybe_setup_meck(_) ->
+    ok.
 
 init_steps() ->
     [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
@@ -733,6 +757,11 @@ maybe_skip(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
                            C =:= pm_failed_to_decode_message_in_database ->
     skip_if(?config(configuration, Config) =:= elasticsearch,
             "elasticsearch does not support encodings");
+maybe_skip(C, Config) when C =:= muc_light_sql_query_failed;
+                           C =:= pm_sql_query_failed ->
+    skip_if(?config(configuration, Config) =:= elasticsearch orelse
+            ?config(configuration, Config) =:= cassandra,
+            "Not an SQL database");
 maybe_skip(C, Config) when C =:= muc_light_include_groupchat_filter;
                            C =:= muc_light_no_pm_stored_include_groupchat_filter;
                            C =:= muc_light_include_groupchat_messages_by_default ->
@@ -840,6 +869,10 @@ init_metrics(muc_archive_request, Config) ->
 init_metrics(_CaseName, Config) ->
     Config.
 
+end_per_testcase(CaseName, Config) when CaseName =:= pm_sql_query_failed;
+                                        CaseName =:= muc_light_sql_query_failed ->
+    teardown_meck(),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = muc_validate_mam_id, Config) ->
     unmock_mongoose_mam_id(mim()),
     escalus:end_per_testcase(CaseName, Config);
@@ -856,6 +889,9 @@ maybe_destroy_room(CaseName, Config) ->
 all_cases_with_room() ->
     muc_cases_with_room() ++ muc_fetch_specific_msgs_cases() ++ muc_configurable_archiveid_cases() ++
         muc_stanzaid_cases() ++ muc_retract_cases() ++ muc_metadata_cases() ++ muc_text_search_cases().
+
+teardown_meck() ->
+    rpc(mim(), meck, unload, []).
 
 %% Module configuration per testcase
 
@@ -1846,6 +1882,19 @@ muc_light_failed_to_decode_message_in_database(Config) ->
             assert_failed_to_decode_message(ArcMsg)
         end).
 
+muc_light_sql_query_failed(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            Room = muc_helper:fresh_room_name(),
+            given_muc_light_room(Room, Alice, []),
+            M1 = when_muc_light_message_is_sent(Alice, Room,
+                                                <<"Msg 1">>, <<"Id1">>),
+            then_muc_light_message_is_received_by([Alice], M1),
+            mam_helper:wait_for_room_archive_size(muc_light_host(), Room, 2),
+            when_archive_query_is_sent(Alice, muc_light_helper:room_bin_jid(Room), Config),
+            Error = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_error, [<<"wait">>, <<"internal-server-error">>], Error)
+        end).
+
 pm_failed_to_decode_message_in_database(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi">>)),
@@ -1856,6 +1905,15 @@ pm_failed_to_decode_message_in_database(Config) ->
             when_archive_query_is_sent(Alice, undefined, Config),
             [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Alice))),
             assert_failed_to_decode_message(ArcMsg)
+        end).
+
+pm_sql_query_failed(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+            mam_helper:wait_for_archive_size(Alice, 1),
+            when_archive_query_is_sent(Alice, undefined, Config),
+            Error = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_error, [<<"wait">>, <<"internal-server-error">>], Error)
         end).
 
 retrieve_form_fields(ConfigIn) ->
