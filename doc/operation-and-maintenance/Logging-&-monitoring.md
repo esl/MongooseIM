@@ -117,8 +117,8 @@ For time-based metrics, you can choose to display multiple calculated values for
 
 ```
 Session count:                   <prefix>.global.totalSessionCount.value
-XMPP messages received:          <prefix>.<domain>.xmppMessageReceived.one
-XMPP messages sent:              <prefix>.<domain>.xmppMessageSent.one
+Outgoing XMPP messages:          <prefix>.<domain>.c2s_element_out.message_count.one
+Incoming XMPP messages:          <prefix>.<domain>.c2s_element_in.message_count.one
 Successful logins:               <prefix>.<domain>.sm_session.logins.one
 Logouts:                         <prefix>.<domain>.sm_session.logouts.one
 Authorization time:              <prefix>.<domain>.backends.auth.authorize.<value-type>
