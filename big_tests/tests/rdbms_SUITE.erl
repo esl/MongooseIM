@@ -689,9 +689,9 @@ pool_probe_metrics_are_updated(Config) ->
     Tag = ?config(tag, Config),
     {Event, Labels} = case Tag of
                           global ->
-                              {rdbms_stats_global, #{pool_tag => default}};
+                              {mongoose_wpool_global_rdbms_stats, #{pool_tag => default}};
                           Tag ->
-                              {rdbms_stats, #{host_type => host_type(), pool_tag => Tag}}
+                              {mongoose_wpool_rdbms_stats, #{host_type => host_type(), pool_tag => Tag}}
                       end,
     #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
 
