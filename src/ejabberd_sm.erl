@@ -443,11 +443,13 @@ check_in_subscription(Acc, #{to := ToJID}, _) ->
       Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
       Extra :: map().
 bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
-    Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_instrument:execute(sm_message_bounced, #{host_type => HostType},
+                                #{count => 1, from_jid => From, to_jid => To, element => Packet}),
     E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
-    {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, E),
-    Acc3 = ejabberd_router:route(To, From, Acc2, Err),
-    {stop, Acc3}.
+    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
+    Acc2 = ejabberd_router:route(To, From, Acc1, Err),
+    {stop, Acc2}.
 
 -spec disconnect_removed_user(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
@@ -996,4 +998,6 @@ instrumentation(HostType) ->
     [{sm_session, #{host_type => HostType},
       #{metrics => #{logins => spiral, logouts => spiral, count => counter}}},
      {sm_presence_subscription, #{host_type => HostType},
-      #{metrics => #{subscription_count => spiral, unsubscription_count => spiral}}}].
+      #{metrics => #{subscription_count => spiral, unsubscription_count => spiral}}},
+     {sm_message_bounced, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
