@@ -35,8 +35,7 @@
          user_available/2,
          user_ping_response/5,
          vcard_set/4,
-         xmpp_send_element/3,
-         xmpp_stanza_dropped/4]).
+         xmpp_send_element/3]).
 
 %% sasl2 handlers
 -export([sasl2_stream_features/2,
@@ -64,8 +63,7 @@
          sm_filter_offline_message/4,
          sm_register_connection/4,
          sm_remove_connection/5,
-         unset_presence/3,
-         xmpp_bounce_message/1]).
+         unset_presence/3]).
 
 -export([roster_get/3,
          roster_get_jid_info/3,
@@ -451,19 +449,6 @@ xmpp_send_element(HostType, Acc, El) ->
     Params = #{el => El},
     run_hook_for_host_type(xmpp_send_element, HostType, Acc, Params).
 
-%%% @doc The `xmpp_stanza_dropped' hook is called to inform that
-%%% an xmpp stanza has been dropped.
--spec xmpp_stanza_dropped(Acc, From, To, Packet) -> Result when
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: any().
-xmpp_stanza_dropped(Acc, From, To, Packet) ->
-    Params = #{from => From, to => To, packet => Packet},
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(xmpp_stanza_dropped, HostType, Acc, Params).
-
 %% C2S related hooks
 
 -spec get_pep_recipients(C2SData, Feature) -> Result when
@@ -694,13 +679,6 @@ unset_presence(Acc, JID, Status) ->
     Params = #{jid => JID, status => Status},
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(unset_presence, HostType, Acc, Params).
-
--spec xmpp_bounce_message(Acc) -> Result when
-    Acc :: mongoose_acc:t(),
-    Result :: mongoose_acc:t().
-xmpp_bounce_message(Acc) ->
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(xmpp_bounce_message, HostType, Acc, #{}).
 
 %% Roster related hooks
 
