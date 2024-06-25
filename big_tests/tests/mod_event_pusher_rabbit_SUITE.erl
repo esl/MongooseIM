@@ -271,7 +271,7 @@ chat_message_received_event(Config) ->
               %% WHEN users chat
               escalus:send(Bob,
                            escalus_stanza:chat_to(Alice, <<"Oh, hi Alice!">>)),
-              escalus:wait_for_stanzas(Alice, 2),
+              escalus:assert(is_chat_message, [<<"Oh, hi Alice!">>], escalus:wait_for_stanza(Alice)),
               %% THEN  wait for chat message received events events from
               %% Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
@@ -312,7 +312,7 @@ chat_message_received_event_properly_formatted(Config) ->
               listen_to_chat_msg_recv_events_from_rabbit([AliceJID], Config),
               %% WHEN users chat
               escalus:send(Bob, escalus_stanza:chat_to(Alice, Message)),
-              escalus:wait_for_stanzas(Alice, 2),
+              escalus:assert(is_chat_message, [<<"Hi Alice!">>], escalus:wait_for_stanza(Alice)),
               %% THEN
               ?assertMatch(#{<<"from_user_id">> := BobFullJID,
                              <<"to_user_id">> := AliceFullJID,
