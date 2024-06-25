@@ -22,7 +22,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("assert_received_match.hrl").
 
--define(HOST, <<"localhost">>).
+-define(HOST_TYPE, <<"localhost">>).
 -define(AMQP_MOCK_MODULES, [amqp_connection, amqp_channel]).
 -define(MAX_QUEUE_LEN, 1000).
 
@@ -49,11 +49,11 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     unload_amqp(),
-    meck:unload(mongoose_metrics),
+    unload_metrics(),
     Config.
 
 init_per_testcase(_Case, Config) ->
-    WorkerOpts = [{host, ?HOST},
+    WorkerOpts = [{host_type, ?HOST_TYPE},
                   {amqp_client_opts, []},
                   {confirms, false},
                   {max_queue_len, ?MAX_QUEUE_LEN}],
@@ -184,11 +184,16 @@ mock_amqp() ->
                 end).
 
 mock_metrics() ->
-    meck:new(mongoose_metrics, [no_link, passthrough]),
-    meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end).
+    meck:new(mongoose_instrument, [no_link, passthrough]),
+    meck:expect(mongoose_instrument, execute, fun(_, _, _) -> ok end),
+    meck:expect(mongoose_instrument, span, fun(_Event, _Labels, Fun, Args, _MeasureF) -> apply(Fun, Args) end).
 
 unload_amqp() ->
     [meck:unload(M) || M <- ?AMQP_MOCK_MODULES].
+
+unload_metrics() ->
+    ?assert(meck:validate(mongoose_instrument)),
+    meck:unload(mongoose_instrument).
 
 random_pid() ->
     spawn(fun() -> ok end).

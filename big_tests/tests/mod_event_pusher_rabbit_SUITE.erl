@@ -108,6 +108,7 @@ suite() ->
 init_per_suite(Config) ->
     case is_rabbitmq_available() of
         true ->
+            instrument_helper:start(instrument_helper:declared_events(mongoose_wpool_rabbit, [domain(), event_pusher])),
             start_rabbit_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
@@ -118,6 +119,8 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     stop_rabbit_wpool(domain()),
+    assert_connection_events(),
+    instrument_helper:stop(),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
@@ -251,7 +254,10 @@ chat_message_sent_event(Config) ->
               %% THEN  wait for chat message sent events events from Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = BobChatMsgSentRK},
-                                    #amqp_msg{}}, timer:seconds(5))
+                                    #amqp_msg{}}, timer:seconds(5)),
+              instrument_helper:assert(mongoose_wpool_rabbit_messages_published,
+                                       #{host_type => domain(), pool_tag => event_pusher},
+                                       fun(#{count := 1, time := T, size := S}) -> T >= 0 andalso S >= 0 end)
       end).
 
 chat_message_received_event(Config) ->
@@ -694,3 +700,14 @@ is_rabbitmq_available() ->
         _Err ->
             false
     end.
+
+assert_connection_events() ->
+    instrument_helper:assert(mongoose_wpool_rabbit_connections,
+                             #{host_type => domain(), pool_tag => event_pusher},
+                             fun(#{active := 1, opened := 1}) -> true end),
+    Measurements = instrument_helper:wait_for(mongoose_wpool_rabbit_connections,
+                                              #{host_type => domain(), pool_tag => event_pusher}),
+    instrument_helper:assert(mongoose_wpool_rabbit_connections,
+                             #{host_type => domain(), pool_tag => event_pusher},
+                             Measurements,
+                             fun(#{active := -1, closed := 1}) -> true end).
