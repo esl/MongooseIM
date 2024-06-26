@@ -145,6 +145,24 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
 | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
 
+### Pool metrics
+
+For every RDBMS pool defined, an instance of these metrics are available.
+
+| Name                                                         | Type    | Description (when it gets incremented) |
+|--------------------------------------------------------------|---------|----------------------------------------|
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+
+When using a Rabbit worker pool, metrics defined in [mod_event_pusher_rabbit](../modules/mod_event_pusher_rabbit.md) are
+available.
+
 ### Extension-specific metrics
 
 Metrics specific to an extension, e.g. Message Archive Management, are described in respective module documentation pages.
@@ -182,7 +200,6 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, data, xmpp, received, component]` | spiral | A size (in bytes) of a data received from XMPP component. |
 | `[global, data, xmpp, sent, component]` | spiral | A size (in bytes) of a data sent to XMPP component. |
 | `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
-| `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 
 ### CETS system metrics
 
@@ -204,6 +221,22 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `conflict_nodes` | Nodes that replicate at least one of our local tables to a different list of nodes. |
 | `conflict_tables` | Tables that have conflicting replication destinations. |
 | `discovery_works` | Returns 1 if the last discovery attempt is successful (otherwise returns 0). |
+
+### Pool metrics
+
+For RDBMS global pool defined, an instance of these metrics are available.
+
+| Name                                                              | Type    | Description (when it gets incremented) |
+|-------------------------------------------------------------------|---------|----------------------------------------|
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+
 
 ### VM metrics
 

@@ -178,22 +178,18 @@ and for "received" events:
 The module provides some metrics related to RabbitMQ connections and messages
 as well. Provided metrics:
 
-| name                             | type      | description (when it gets incremented/decremented)                                                                                               |
-| ----                             | ----      | --------------------------------------                                                                                                           |
-| [`Host`, `connections_active`]   | spiral    | A connection to a RabbitMQ server is opened(+1)/closed(-1).                                                                                      |
-| [`Host`, `connections_opened`]   | spiral    | A connection to a RabbitMQ server is opened.                                                                                                     |
-| [`Host`, `connections_closed`]   | spiral    | A connection to a RabbitMQ server is closed.                                                                                                     |
-| [`Host`, `connection_failed` ]   | spiral    | A try to open a connection to a RabbitMQ server failed.                                                                                          |
-| [`Host`, `messages_published`]   | spiral    | A message to a RabbitMQ server is published.                                                                                                     |
-| [`Host`, `messages_failed`]      | spiral    | A message to a RabbitMQ server is rejected.                                                                                                      |
-| [`Host`, `messages_timeout`]     | spiral    | A message to a RabbitMQ server timed out (weren't confirmed by the server).                                                                      |
-| [`Host`, `message_publish_time`] | histogram | Amount of time it takes to publish a message to a RabbitMQ server and receive a confirmation. It's measured only for successful messages.        |
-| [`Host`, `message_payload_size`] | histogram | Size of a message (in bytes) that was published to a RabbitMQ server (including message properties). It's measured only for successful messages. |
+| name                                                             | type      | description (when it gets incremented/decremented)                                                                                               |
+|------------------------------------------------------------------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`HostType`, `mongoose_wpool_rabbit_connections_active`]         | counter   | A connection to a RabbitMQ server is opened(+1)/closed(-1).                                                                                      |
+| [`HostType`, `mongoose_wpool_rabbit_connections_opened`]         | spiral    | A connection to a RabbitMQ server is opened.                                                                                                     |
+| [`HostType`, `mongoose_wpool_rabbit_connections_closed`]         | spiral    | A connection to a RabbitMQ server is closed.                                                                                                     |
+| [`HostType`, `mongoose_wpool_rabbit_connections_failed` ]        | spiral    | A try to open a connection to a RabbitMQ server failed.                                                                                          |
+| [`HostType`, `mongoose_wpool_rabbit_messages_published_count`]   | spiral    | A message to a RabbitMQ server is published.                                                                                                     |
+| [`HostType`, `mongoose_wpool_rabbit_messages_published_failed`]  | spiral    | A message to a RabbitMQ server is rejected.                                                                                                      |
+| [`HostType`, `mongoose_wpool_rabbit_messages_published_timeout`] | spiral    | A message to a RabbitMQ server timed out (weren't confirmed by the server).                                                                      |
+| [`HostType`, `mongoose_wpool_rabbit_messages_published_time`]    | histogram | Amount of time it takes to publish a message to a RabbitMQ server and receive a confirmation. It's measured only for successful messages.        |
+| [`HostType`, `mongoose_wpool_rabbit_messages_published_size`]    | histogram | Size of a message (in bytes) that was published to a RabbitMQ server (including message properties). It's measured only for successful messages. |
 
-> All the above metrics have a prefix which looks as follows:  
-> `<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
-> For example a proper metric name would look like:
-> `localhost.backends.mod_event_pusher_rabbit.connections_active`
 
 ## Guarantees
 
