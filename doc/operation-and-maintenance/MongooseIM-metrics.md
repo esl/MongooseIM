@@ -141,6 +141,7 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
 | `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
 | `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
+| `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
 | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
 | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
 
@@ -180,7 +181,6 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, data, xmpp, sent, s2s]` | spiral | A size (in bytes) of a data sent via TCP and TLS (before encryption) Server-to-Server connections. |
 | `[global, data, xmpp, received, component]` | spiral | A size (in bytes) of a data received from XMPP component. |
 | `[global, data, xmpp, sent, component]` | spiral | A size (in bytes) of a data sent to XMPP component. |
-| `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
 | `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
 | `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 

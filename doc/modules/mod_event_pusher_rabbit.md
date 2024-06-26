@@ -5,7 +5,7 @@
 ## Module Description
 
 This module is a backend of [mod_event_pusher] that enables support for the
-RabbitMQ integration. Currently there are 5 available notifications:
+RabbitMQ integration. Currently, there are 5 available notifications:
 
 * **user presence changed** - Carries the user id (full jid by default) and
 a boolean field corresponding to the current user online status.
@@ -241,7 +241,7 @@ imply different behaviors of the system.
 ### Event messages queuing
 
 When `available_worker` strategy is in use all the event messages are queued in
-single worker pool manager process state. When different strategy is set e.g
+single worker pool manager process state. When different strategy is set e.g.
 `best_worker` those messages are placed in worker processes inboxes. Worker
 selection strategy can be set in `rabbit` pool configuration.
 
