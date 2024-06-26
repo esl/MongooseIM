@@ -153,10 +153,11 @@ authorize(Creds) ->
         end,
     HostType = mongoose_credentials:host_type(Creds),
     LServer = mongoose_credentials:lserver(Creds),
+    Modules = mongoose_credentials:auth_modules(Creds),
     Opts = #{default => {not_authorized, Creds},
              event_name => auth_authorize,
              event_meta => #{server => LServer}},
-    case call_auth_modules_for_host_type(HostType, F, Opts) of
+    case call_auth_modules_for_host_type(Modules, HostType, F, Opts) of
         Res = {ok, _Creds} -> Res;
         {not_authorized, _Creds} -> {error, not_authorized}
     end.
@@ -546,6 +547,12 @@ bind_host_type(HostType, F) when is_function(F, 2) ->
           mod_res() | [mod_res()].
 call_auth_modules_for_host_type(HostType, F, Opts) ->
     Modules = auth_modules_for_host_type(HostType),
+    call_auth_modules_for_host_type(Modules, HostType, F, Opts).
+
+-spec call_auth_modules_for_host_type([authmodule()], mongooseim:host_type(),
+                                      mod_fun() | mod_fold_fun(), call_opts()) ->
+          mod_res() | [mod_res()].
+call_auth_modules_for_host_type(Modules, HostType, F, Opts) ->
     case maps:find(event_name, Opts) of
         {ok, EventName} ->
             EventMeta = maps:get(event_meta, Opts, #{}),
