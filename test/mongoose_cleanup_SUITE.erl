@@ -125,7 +125,8 @@ start_component_if_needed(_) ->
     ok.
 
 stop_component_if_needed(true) ->
-    mongoose_component:stop();
+    mongoose_component:stop(),
+    mongoose_router:stop();
 stop_component_if_needed(_) ->
     ok.
 

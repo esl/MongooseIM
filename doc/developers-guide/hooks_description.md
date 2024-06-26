@@ -336,10 +336,8 @@ This is the perfect place to plug in custom security control.
 * user_stop_request
 * user_terminate
 * vcard_set
-* xmpp_bounce_message
 * xmpp_presend_element
 * xmpp_send_element
-* xmpp_stanza_dropped
 
 [privacy-lists]: http://xmpp.org/extensions/xep-0016.html
 [XEP-0012]: https://xmpp.org/extensions/xep-0012.html

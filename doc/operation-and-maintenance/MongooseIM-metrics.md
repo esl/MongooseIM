@@ -123,21 +123,26 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, sm_session, count]` | counter | Number of active sessions. |
 | `[HostType, sm_session, logouts]` | spiral | A client session is closed. |
 | `[HostType, sm_session, logins]` | spiral | A client session is opened. |
-| `[HostType, xmppErrorIq]` | spiral | An `error` IQ is sent to a client. |
-| `[HostType, xmppErrorMessage]` | spiral | An `error` message is sent to a client. |
-| `[HostType, xmppErrorPresence]` | spiral | An `error` presence is sent to a client. |
-| `[HostType, xmppErrorTotal]` | spiral | A stanza with `error` type is routed. |
-| `[HostType, xmppMessageBounced]` | spiral | A `service-unavailable` error is sent, because the message recipient if offline. |
-| `[HostType, xmppIqSent]` | spiral | An IQ is sent by a client. |
-| `[HostType, xmppMessageSent]` | spiral | A message is sent by a client |
-| `[HostType, xmppPresenceSent]` | spiral | A presence is sent by a client. |
-| `[HostType, xmppStanzaSent]` | spiral | A stanza is sent by a client. |
-| `[HostType, xmppIqReceived]` | spiral | An IQ is sent to a client. |
-| `[HostType, xmppMessageReceived]` | spiral | A message is sent to a client. |
-| `[HostType, xmppPresenceReceived]` | spiral | A presence is sent to a client. |
-| `[HostType, xmppStanzaReceived]` | spiral | A stanza is sent to a client. |
-| `[HostType, xmppStanzaCount]` | spiral | A stanza is sent to and by a client. |
-| `[HostType, xmppStanzaDropped]` | spiral | A stanza is dropped due to an AMP rule or a `filter_packet` processing flow. |
+| `[HostType, c2s_element_in, count]` | spiral | An XML element is received from a client. |
+| `[HostType, c2s_element_in, stanza_count]` | spiral | An XMPP stanza is received from a client. |
+| `[HostType, c2s_element_in, message_count]` | spiral | A message stanza is received from a client. |
+| `[HostType, c2s_element_in, iq_count]` | spiral | An IQ stanza is received from a client. |
+| `[HostType, c2s_element_in, presence_count]` | spiral | A presence stanza is received from a client. |
+| `[HostType, c2s_element_in, error_count]` | spiral | An error is received from a client. |
+| `[HostType, c2s_element_in, message_error_count]` | spiral | A message error is received from a client. |
+| `[HostType, c2s_element_in, iq_error_count]` | spiral | An IQ error is received from a client. |
+| `[HostType, c2s_element_in, presence_error_count]` | spiral | A presence error is received from a client. |
+| `[HostType, c2s_element_out, count]` | spiral | An XML element is sent to a client. |
+| `[HostType, c2s_element_out, stanza_count]` | spiral | An XMPP stanza is sent to a client. |
+| `[HostType, c2s_element_out, iq_count]` | spiral | An IQ stanza is sent to a client. |
+| `[HostType, c2s_element_out, message_count]` | spiral | A message stanza is sent to a client. |
+| `[HostType, c2s_element_out, presence_count]` | spiral | A presence stanza is sent to a client. |
+| `[HostType, c2s_element_out, error_count]` | spiral | An error is sent to a client. |
+| `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
+| `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
+| `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
+| `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
+| `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
 
 ### Extension-specific metrics
 

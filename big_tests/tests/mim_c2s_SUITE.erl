@@ -241,7 +241,7 @@ escalus_start(Cfg, FlatCDs) ->
 instrumentation_events() ->
     instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
     ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ instrument_helper:declared_events(mongoose_c2s). %% For host_type()
+    ++ [{c2s_message_processing_time, #{host_type => domain_helper:host_type()}}].
 
 tcp_instrumentation_events() ->
     [{c2s_tcp_data_sent, #{}},

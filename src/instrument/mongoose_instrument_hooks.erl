@@ -72,8 +72,6 @@ is_instrumented(user_receive_packet) -> false;
 is_instrumented(user_receive_message) -> false;
 is_instrumented(user_receive_presence) -> false;
 is_instrumented(user_receive_iq) -> false;
-is_instrumented(xmpp_bounce_message) -> false;
-is_instrumented(xmpp_stanza_dropped) -> false;
 is_instrumented(xmpp_send_element) -> false;
 is_instrumented(roster_get) -> false;
 is_instrumented(roster_set) -> false;

@@ -1,21 +1,3 @@
--define(GENERAL_SPIRALS, [
-    xmppMessageSent,
-    xmppMessageReceived,
-    xmppMessageBounced,
-    xmppPresenceSent,
-    xmppPresenceReceived,
-    xmppIqSent,
-    xmppIqReceived,
-    xmppStanzaSent,
-    xmppStanzaReceived,
-    xmppStanzaDropped,
-    xmppStanzaCount,
-    xmppErrorTotal,
-    xmppErrorIq,
-    xmppErrorMessage,
-    xmppErrorPresence
-]).
-
 -define(GLOBAL_SPIRALS, [
     [data, xmpp, received, s2s],
     [data, xmpp, received, component],

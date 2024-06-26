@@ -33,7 +33,9 @@ end_per_suite(Config) ->
     mongoose_config:erase_opts().
 
 opts() ->
-    #{all_metrics_are_global => false,
+    #{hosts => [],
+      host_types => [],
+      all_metrics_are_global => false,
       component_backend => mnesia,
       routing_modules => [xmpp_router_a, xmpp_router_b, xmpp_router_c],
       instrumentation => config_parser_helper:default_config([instrumentation])}.

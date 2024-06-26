@@ -35,10 +35,12 @@ host_types() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    instrument_helper:start([{router_stanza_dropped, #{host_type => host_type()}}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 modules() ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
@@ -80,9 +82,11 @@ routing_one2one_message_to_another_domain_gets_dropped(Config) ->
     F = fun(Alice, Bob, Bis) ->
           %% GIVEN Alice and Bis are on different domains
           %% WHEN A stanza is sent to another domain
-          escalus_client:send(Bis, escalus_stanza:chat_to(Alice, <<"Hello">>)),
+          Msg = escalus_stanza:chat_to(Alice, <<"Hello">>),
+          escalus_client:send(Bis, Msg),
           %% THEN Receiver does not receive a message
-          verify_alice_has_no_pending_messages(Alice, Bob)
+          verify_alice_has_no_pending_messages(Alice, Bob),
+          assert_stanza_dropped(Bis, Alice, Msg)
         end,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {alice_bis, 1}], F).
 
@@ -149,3 +153,12 @@ verify_alice_has_no_pending_messages(Alice, Bob) ->
     escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Forces to flush">>)),
     Stanza = escalus:wait_for_stanza(Alice),
     escalus:assert(is_chat_message, [<<"Forces to flush">>], Stanza).
+
+assert_stanza_dropped(Sender, Recipient, Stanza) ->
+    SenderJid = jid:from_binary(escalus_utils:get_jid(Sender)),
+    RecipientJid = jid:from_binary(escalus_utils:get_jid(Recipient)),
+    instrument_helper:assert(
+      router_stanza_dropped, #{host_type => host_type()},
+      fun(#{count := 1, from_jid := From, to_jid := To, stanza := DroppedStanza}) ->
+              From =:= SenderJid andalso To =:= RecipientJid andalso DroppedStanza =:= Stanza
+      end).
