@@ -212,7 +212,7 @@ admin_notify(Config) ->
 
     rpc(mim(), ejabberd_auth, try_register, [mongoose_helper:make_jid(AdminU, AdminS), AdminP]),
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
-        assert_event(auth_authorize, escalus_users:get_jid(Config, admin)),
+        assert_event(auth_authorize, escalus_utils:get_jid(Admin)),
         escalus:create_users(Config, escalus:get_users([Name1, Name2])),
 
             Predicates = [
