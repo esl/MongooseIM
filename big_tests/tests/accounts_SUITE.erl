@@ -4,14 +4,10 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("jid/include/jid.hrl").
 
--import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
-                             rpc/4]).
-
+-import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(mongoose_helper, [wait_for_user/3]).
-
+-import(auth_helper, [assert_event/2]).
 -import(domain_helper, [domain/0, host_type/0]).
 
 %%--------------------------------------------------------------------
@@ -457,24 +453,3 @@ enable_watcher(Config, Watcher) ->
 
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
-
-%% Instrumentation events
-
-assert_event(EventName, BinJid)
-    when EventName =:= auth_unregister_user; EventName =:= auth_register_user ->
-    #jid{luser = LUser, lserver = LServer} = jid:from_binary(BinJid),
-    instrument_helper:assert(EventName, #{host_type => host_type()},
-                             fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end);
-assert_event(EventName, BinJid)
-    when EventName =:= auth_authorize ->
-    #jid{lserver = LServer} = jid:from_binary(BinJid),
-    F = fun(#{time := Time, count := 1, server := Server}) ->
-           (Time > 0) and (Server =:= LServer)
-        end,
-    instrument_helper:assert(EventName, #{host_type => host_type()}, F);
-assert_event(EventName, BinJid) ->
-    #jid{luser = LUser, lserver = LServer} = jid:from_binary(BinJid),
-    F = fun(#{time := Time, count := 1, user := User, server := Server}) ->
-           (Time > 0) and (User =:= LUser) and (Server =:= LServer)
-        end,
-    instrument_helper:assert(EventName, #{host_type => host_type()}, F).

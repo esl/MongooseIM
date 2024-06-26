@@ -46,7 +46,7 @@ start(DeclaredEvents, NegativeEvents) ->
     ets_helper:new(?STATUS_TABLE),
     [ets:insert(?STATUS_TABLE, {Event, negative}) || Event <- NegativeEvents],
     [ets:insert(?STATUS_TABLE, {Event, untested}) || Event <- DeclaredEvents],
-    rpc(mim(), mongoose_instrument, add_handler,
+    ok = rpc(mim(), mongoose_instrument, add_handler,
         [event_table, #{declared_events => DeclaredEvents ++ NegativeEvents}]).
 
 -spec stop() -> ok.
