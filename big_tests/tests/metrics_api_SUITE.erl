@@ -18,6 +18,7 @@
 
 -import(distributed_helper, [mim/0, mim2/0, rpc/4]).
 -import(rest_helper, [assert_status/2, make_request/1]).
+-import(mongooseimctl_helper, [rpc_call/3]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -58,11 +59,16 @@ init_per_suite(Config) ->
     HostType = host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
-    escalus:init_per_suite(Config1).
+    Config2 = mongoose_helper:backup_and_set_config_option(Config1,
+                                                           [instrumentation, probe_interval], 1),
+    restart_sm_probes(),
+    escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    restart_sm_probes().
 
 init_per_group(GroupName, Config) ->
     metrics_helper:prepare_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
@@ -225,17 +231,13 @@ one_presence_error(Config) ->
         {'c2s_element_out.presence_error_count', 1}]).
 
 session_counters(Config) ->
-    Names = [totalSessionCount, uniqueSessionCount, nodeSessionCount],
     escalus:story
       (Config, [{alice, 2}, {bob, 1}],
        fun(_User11, _User12, _User2) ->
-            %% Force update
-            lists:foreach(fun metrics_helper:sample/1, Names),
             timer:sleep(timer:seconds(1)),
-
-            ?assertEqual(3, fetch_global_gauge_value(totalSessionCount, Config)),
-            ?assertEqual(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
-            ?assertEqual(3, fetch_global_gauge_value(nodeSessionCount, Config))
+            ?assertEqual(3, fetch_global_gauge_value('sm_total_sessions.count', Config)),
+            ?assertEqual(2, fetch_global_gauge_value('sm_unique_sessions.count', Config)),
+            ?assertEqual(3, fetch_global_gauge_value('sm_node_sessions.count', Config))
        end).
 
 node_uptime(Config) ->
@@ -491,3 +493,7 @@ request(Method, Path) ->
 request(Method, Path, Server) ->
     make_request(#{role => admin, method => Method, path => iolist_to_binary(Path),
                    return_headers => true, return_maps => true, server => Server}).
+
+restart_sm_probes() ->
+    rpc_call(ejabberd_sm, stop_probes, []),
+    rpc_call(ejabberd_sm, start_probes, []).

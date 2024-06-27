@@ -25,6 +25,7 @@
                          wait_for_counter/2,
                          wait_for_counter/3]).
 -import(domain_helper, [host_type/0]).
+-import(mongooseimctl_helper, [rpc_call/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -39,7 +40,8 @@ groups() ->
                             login_many,
                             auth_failed]},
      {session_global, [sequence], [session_global,
-                                   session_unique]}].
+                                   session_unique,
+                                   session_node]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -50,13 +52,21 @@ suite() ->
 
 init_per_suite(Config) ->
     instrument_helper:start([{sm_session, #{host_type => host_type()}},
-                             {c2s_auth_failed, #{host_type => host_type()}}]),
-    escalus:init_per_suite(Config).
+                             {c2s_auth_failed, #{host_type => host_type()}},
+                             {sm_total_sessions, #{}},
+                             {sm_unique_sessions, #{}},
+                             {sm_node_sessions, #{}}]),
+    Config1 = mongoose_helper:backup_and_set_config_option(Config,
+                                                           [instrumentation, probe_interval], 1),
+    restart_sm_probes(),
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config),
-    instrument_helper:stop().
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:stop(),
+    restart_sm_probes().
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
@@ -104,16 +114,20 @@ auth_failed(Config) ->
 
 session_global(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
-        metrics_helper:sample(totalSessionCount),
-        wait_for_counter(global, 1, totalSessionCount)
+        assert_sm_total_sessions(1)
         end).
 
 session_unique(Config) ->
     escalus:story(Config, [{alice, 2}], fun(_Alice1, _Alice2) ->
-        metrics_helper:sample(uniqueSessionCount),
-        metrics_helper:sample(totalSessionCount),
-        wait_for_counter(global, 1, uniqueSessionCount),
-        wait_for_counter(global, 2, totalSessionCount)
+        assert_sm_unique_sessions(1),
+        assert_sm_total_sessions(2)
+        end).
+
+session_node(Config) ->
+    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(_Alice1, _Alice2, _Bob) ->
+        assert_sm_node_sessions(3),
+        assert_sm_unique_sessions(2),
+        assert_sm_total_sessions(3)
         end).
 
 %% Instrumentation events
@@ -139,3 +153,21 @@ assert_c2s_auth_failed(UserSpec) ->
     UserName = proplists:get_value(username, UserSpec),
     F = fun(M) -> M =:= #{count => 1, server => Server, username => UserName} end,
     instrument_helper:assert(c2s_auth_failed, #{host_type => host_type()}, F).
+
+assert_sm_total_sessions(ExpectedCount) ->
+    assert_sm_sessions(ExpectedCount, sm_total_sessions).
+
+assert_sm_unique_sessions(ExpectedCount) ->
+    assert_sm_sessions(ExpectedCount, sm_unique_sessions).
+
+assert_sm_node_sessions(ExpectedCount) ->
+    assert_sm_sessions(ExpectedCount, sm_node_sessions).
+
+assert_sm_sessions(ExpectedCount, Event) ->
+    Measurements = instrument_helper:wait_for_new(Event, #{}),
+    F = fun(#{count := Count}) -> ExpectedCount =:= Count end,
+    instrument_helper:assert(Event, #{}, Measurements, F).
+
+restart_sm_probes() ->
+    rpc_call(ejabberd_sm, stop_probes, []),
+    rpc_call(ejabberd_sm, start_probes, []).
