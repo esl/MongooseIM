@@ -63,7 +63,9 @@
          session_cleanup/1,
          sessions_cleanup/1,
          terminate_session/2,
-         sm_backend/0
+         sm_backend/0,
+         start_probes/0,
+         stop_probes/0
         ]).
 
 %% Hook handlers
@@ -121,7 +123,6 @@
 
 %% default value for the maximum number of user connections
 -define(MAX_USER_SESSIONS, 100).
--define(UNIQUE_COUNT_CACHE, [cache, unique_sessions_number]).
 
 %%====================================================================
 %% API
@@ -312,15 +313,7 @@ get_session_pid(JID) ->
 
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
-    try
-        C = ejabberd_sm_backend:unique_count(),
-        mongoose_metrics:update(global, ?UNIQUE_COUNT_CACHE, C),
-        C
-    catch
-        _:_ ->
-            get_cached_unique_count()
-    end.
-
+    ejabberd_sm_backend:unique_count().
 
 -spec get_total_sessions_number() -> integer().
 get_total_sessions_number() ->
@@ -484,14 +477,11 @@ init([]) ->
                   end,
                   ?ALL_HOST_TYPES),
     %% Create metrics after backend has started, otherwise probe could have null value
-    create_metrics(),
+    start_probes(),
     {ok, #state{}}.
 
-create_metrics() ->
-    mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
-    mongoose_metrics:create_probe_metric(global, totalSessionCount, mongoose_metrics_probe_total_sessions),
-    mongoose_metrics:create_probe_metric(global, uniqueSessionCount, mongoose_metrics_probe_unique_sessions),
-    mongoose_metrics:create_probe_metric(global, nodeSessionCount, mongoose_metrics_probe_node_sessions).
+start_probes() ->
+    mongoose_instrument:set_up(instrumentation(global)).
 
 -spec hooks(binary()) -> [gen_hook:hook_tuple()].
 hooks(HostType) ->
@@ -574,7 +564,11 @@ handle_info(_Info, State) ->
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
     [mongoose_instrument:tear_down(instrumentation(HostType)) || HostType <- ?ALL_HOST_TYPES],
+    stop_probes(),
     ok.
+
+stop_probes() ->
+    mongoose_instrument:tear_down(instrumentation(global)).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -979,21 +973,19 @@ user_resources(UserStr, ServerStr) ->
     Resources = get_user_resources(JID),
     lists:sort(Resources).
 
--spec get_cached_unique_count() -> non_neg_integer().
-get_cached_unique_count() ->
-    case mongoose_metrics:get_metric_value(global, ?UNIQUE_COUNT_CACHE) of
-        {ok, DataPoints} ->
-            proplists:get_value(value, DataPoints);
-        _ ->
-            0
-    end.
-
 %% It is used from big tests
 -spec sm_backend() -> backend().
 sm_backend() ->
     mongoose_backend:get_backend_module(global, ?MODULE).
 
--spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+-spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
+instrumentation(global) ->
+    [{sm_total_sessions, #{},
+      #{probe => #{module => mongoose_metrics_probe_total_sessions}, metrics => #{count => gauge}}},
+     {sm_unique_sessions, #{},
+      #{probe => #{module => mongoose_metrics_probe_unique_sessions}, metrics => #{count => gauge}}},
+     {sm_node_sessions, #{},
+      #{probe => #{module => mongoose_metrics_probe_node_sessions}, metrics => #{count => gauge}}}];
 instrumentation(HostType) ->
     [{sm_session, #{host_type => HostType},
       #{metrics => #{logins => spiral, logouts => spiral, count => counter}}},

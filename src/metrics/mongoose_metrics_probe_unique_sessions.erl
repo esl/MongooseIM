@@ -14,12 +14,11 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mongoose_metrics_probe_unique_sessions).
--behaviour(mongoose_metrics_probe).
+-behaviour(mongoose_instrument_probe).
 
--export([sample/0, datapoints/0]).
+-export([probe/2]).
 
-datapoints() ->
-    [value].
-
-sample() ->
-    #{value => ejabberd_sm:get_unique_sessions_number()}.
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+    mongoose_instrument:measurements().
+probe(sm_unique_sessions, #{}) ->
+    #{count => ejabberd_sm:get_unique_sessions_number()}.
