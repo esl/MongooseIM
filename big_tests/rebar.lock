@@ -10,7 +10,7 @@
  {<<"csv">>,{pkg,<<"csve">>,<<"3.0.3">>},0},
  {<<"escalus">>,
   {git,"git@github.com:esl/escalus.git",
-       {ref,"e415d2ee2b784c9c6e6652aee66cc041ef8de9fc"}},
+       {ref,"f99d6efe1028f645d8a17c9ab3fb8e4adab69a76"}},
   0},
  {<<"esip">>,{pkg,<<"esip">>,<<"1.0.52">>},0},
  {<<"exml">>,{pkg,<<"hexml">>,<<"3.4.1">>},0},
