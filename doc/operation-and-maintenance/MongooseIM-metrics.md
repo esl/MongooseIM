@@ -151,14 +151,14 @@ For every RDBMS pool defined, an instance of these metrics are available.
 
 | Name                                                         | Type    | Description (when it gets incremented) |
 |--------------------------------------------------------------|---------|----------------------------------------|
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
-| `[HostType, mongoose_wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+| `[HostType, wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
 
 When using a Rabbit worker pool, metrics defined in [mod_event_pusher_rabbit](../modules/mod_event_pusher_rabbit.md) are
 available.
@@ -228,14 +228,14 @@ For RDBMS global pool defined, an instance of these metrics are available.
 
 | Name                                                              | Type    | Description (when it gets incremented) |
 |-------------------------------------------------------------------|---------|----------------------------------------|
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
-| `[global, mongoose_wpool_global_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+| `[global, wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
 
 
 ### VM metrics

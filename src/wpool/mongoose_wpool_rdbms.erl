@@ -44,17 +44,17 @@ make_wpool_opts(WpoolOpts0, RdbmsOpts) ->
 instrumentation(global, Tag) ->
     % Services use global pools. Since the same number of labels for a metric is expected, for an
     % event, global pool has to emit an event under a different name.
-    [{mongoose_wpool_global_rdbms_stats, #{pool_tag => Tag},
+    [{wpool_global_rdbms_stats, #{pool_tag => Tag},
       #{probe => #{module => ?MODULE}, metrics => ?INET_STATS_METRICS#{workers => counter}}}];
 instrumentation(HostType, Tag) ->
-    [{mongoose_wpool_rdbms_stats, #{host_type => HostType, pool_tag => Tag},
+    [{wpool_rdbms_stats, #{host_type => HostType, pool_tag => Tag},
       #{probe => #{module => ?MODULE}, metrics => ?INET_STATS_METRICS#{workers => counter}}}].
 
 -spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
     mongoose_instrument:measurements().
-probe(mongoose_wpool_global_rdbms_stats, #{pool_tag := Tag} = _Labels) ->
+probe(wpool_global_rdbms_stats, #{pool_tag := Tag} = _Labels) ->
     Stats = mongoose_metrics:get_rdbms_data_stats([{rdbms, global, Tag}]),
     proplists:to_map(Stats);
-probe(mongoose_wpool_rdbms_stats, #{host_type := HostType, pool_tag := Tag} = _Labels) ->
+probe(wpool_rdbms_stats, #{host_type := HostType, pool_tag := Tag} = _Labels) ->
     Stats = mongoose_metrics:get_rdbms_data_stats([{rdbms, HostType, Tag}]),
     proplists:to_map(Stats).

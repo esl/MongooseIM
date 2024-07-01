@@ -46,13 +46,6 @@
 -type publish_result() :: boolean() | timeout | {channel_exception, any(), any()}.
 
 %%%===================================================================
-%%% Metrics
-%%%===================================================================
-
--define(CONNECTIONS, mongoose_wpool_rabbit_connections).
--define(MESSAGES_PUBLISHED, mongoose_wpool_rabbit_messages_published).
-
-%%%===================================================================
 %%% API
 %%%===================================================================
 
@@ -66,9 +59,9 @@ start_link() ->
 
 -spec list_metrics(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
 list_metrics(HostType, Tag) ->
-    [{?CONNECTIONS, #{pool_tag => Tag, host_type => HostType},
+    [{wpool_rabbit_connections, #{pool_tag => Tag, host_type => HostType},
       #{metrics => #{active => counter, opened => spiral, closed => spiral, failed => spiral}}},
-     {?MESSAGES_PUBLISHED, #{pool_tag => Tag, host_type => HostType},
+     {wpool_rabbit_messages_published, #{pool_tag => Tag, host_type => HostType},
       #{metrics => #{count => spiral, failed => spiral, timeout => spiral, time => histogram,
                      size => histogram}}}].
 
@@ -137,7 +130,7 @@ do_handle_info(Req, State) ->
 handle_amqp_publish(Method, Payload, Opts = #{host_type := HostType,
                                               pool_tag := PoolTag}) ->
     PublishArgs = [Method, Payload, Opts],
-    Res = mongoose_instrument:span(?MESSAGES_PUBLISHED, #{host_type => HostType, pool_tag => PoolTag},
+    Res = mongoose_instrument:span(wpool_rabbit_messages_published, #{host_type => HostType, pool_tag => PoolTag},
                                    fun publish_message_and_wait_for_confirm/3,
                                    PublishArgs,
                                    fun(PublishTime, Result) ->
@@ -210,14 +203,14 @@ maybe_restart_rabbit_connection(#{connection := Conn, host_type := HostType,
 establish_rabbit_connection(AMQPOpts, HostType, PoolTag) ->
     case amqp_connection:start(AMQPOpts) of
         {ok, Connection} ->
-            mongoose_instrument:execute(?CONNECTIONS, #{host_type => HostType, pool_tag => PoolTag},
+            mongoose_instrument:execute(wpool_rabbit_connections, #{host_type => HostType, pool_tag => PoolTag},
                                         #{active => 1, opened => 1}),
             {ok, Channel} = amqp_connection:open_channel(Connection),
             ?LOG_DEBUG(#{what => rabbit_connection_established,
                          host_type => HostType, pool_tag => PoolTag, opts => AMQPOpts}),
             {Connection, Channel};
         {error, Error} ->
-            mongoose_instrument:execute(?CONNECTIONS, #{host_type => HostType, pool_tag => PoolTag},
+            mongoose_instrument:execute(wpool_rabbit_connections, #{host_type => HostType, pool_tag => PoolTag},
                                         #{failed => 1}),
             ?LOG_ERROR(#{what => rabbit_connection_failed, reason => Error,
                          host_type => HostType, pool_tag => PoolTag, opts => AMQPOpts}),
@@ -228,7 +221,7 @@ establish_rabbit_connection(AMQPOpts, HostType, PoolTag) ->
                               HostType :: mongooseim:host_type_or_global(), PoolTag :: atom()) ->
     ok | no_return().
 close_rabbit_connection(Connection, Channel, HostType, PoolTag) ->
-    mongoose_instrument:execute(?CONNECTIONS, #{host_type => HostType, pool_tag => PoolTag},
+    mongoose_instrument:execute(wpool_rabbit_connections, #{host_type => HostType, pool_tag => PoolTag},
                                 #{active => -1, closed => 1}),
     try amqp_channel:close(Channel)
     catch

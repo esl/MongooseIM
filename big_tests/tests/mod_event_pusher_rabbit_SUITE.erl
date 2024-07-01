@@ -255,7 +255,7 @@ chat_message_sent_event(Config) ->
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = BobChatMsgSentRK},
                                     #amqp_msg{}}, timer:seconds(5)),
-              instrument_helper:assert(mongoose_wpool_rabbit_messages_published,
+              instrument_helper:assert(wpool_rabbit_messages_published,
                                        #{host_type => domain(), pool_tag => event_pusher},
                                        fun(#{count := 1, time := T, size := S}) -> T >= 0 andalso S >= 0 end)
       end).
@@ -702,12 +702,12 @@ is_rabbitmq_available() ->
     end.
 
 assert_connection_events() ->
-    instrument_helper:assert(mongoose_wpool_rabbit_connections,
+    instrument_helper:assert(wpool_rabbit_connections,
                              #{host_type => domain(), pool_tag => event_pusher},
                              fun(#{active := 1, opened := 1}) -> true end),
-    Measurements = instrument_helper:wait_for(mongoose_wpool_rabbit_connections,
+    Measurements = instrument_helper:wait_for(wpool_rabbit_connections,
                                               #{host_type => domain(), pool_tag => event_pusher}),
-    instrument_helper:assert(mongoose_wpool_rabbit_connections,
+    instrument_helper:assert(wpool_rabbit_connections,
                              #{host_type => domain(), pool_tag => event_pusher},
                              Measurements,
                              fun(#{active := -1, closed := 1}) -> true end).
