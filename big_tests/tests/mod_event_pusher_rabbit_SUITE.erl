@@ -118,8 +118,9 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
+    assert_connection_event(),
     stop_rabbit_wpool(domain()),
-    assert_connection_events(),
+    assert_disconnection_event(),
     instrument_helper:stop(),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
@@ -701,10 +702,15 @@ is_rabbitmq_available() ->
             false
     end.
 
-assert_connection_events() ->
+assert_connection_event() ->
+    Measurements = instrument_helper:take(wpool_rabbit_connections,
+                                          #{host_type => domain(), pool_tag => event_pusher}),
     instrument_helper:assert(wpool_rabbit_connections,
                              #{host_type => domain(), pool_tag => event_pusher},
-                             fun(#{active := 1, opened := 1}) -> true end),
+                             Measurements,
+                             fun(#{active := 1, opened := 1}) -> true end).
+
+assert_disconnection_event() ->
     Measurements = instrument_helper:wait_for(wpool_rabbit_connections,
                                               #{host_type => domain(), pool_tag => event_pusher}),
     instrument_helper:assert(wpool_rabbit_connections,
