@@ -43,24 +43,29 @@ all() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    mongoose_config:set_opts(#{instrumentation =>
+                               config_parser_helper:default_config([instrumentation])}),
     mock_amqp(),
-    mock_metrics(),
     Config.
 
 end_per_suite(Config) ->
+    mongoose_config:erase_opts(),
     unload_amqp(),
-    unload_metrics(),
     Config.
 
 init_per_testcase(_Case, Config) ->
     WorkerOpts = [{host_type, ?HOST_TYPE},
+                  {pool_tag, test_tag},
                   {amqp_client_opts, []},
                   {confirms, false},
                   {max_queue_len, ?MAX_QUEUE_LEN}],
+    mongoose_instrument:start_link(),
+    mongoose_instrument:set_up(mongoose_wpool_rabbit:instrumentation(?HOST_TYPE, test_tag)),
     {ok, WorkerPid} = gen_server:start(mongoose_rabbit_worker, WorkerOpts, []),
     Config ++ [{worker_pid, WorkerPid}].
 
 end_per_testcase(_Case, Config) ->
+    mongoose_instrument:tear_down(mongoose_wpool_rabbit:instrumentation(?HOST_TYPE, test_tag)),
     exit(proplists:get_value(worker_pid, Config), kill),
     Config.
 
@@ -183,17 +188,8 @@ mock_amqp() ->
                    (_, _, _) -> ok
                 end).
 
-mock_metrics() ->
-    meck:new(mongoose_instrument, [no_link, passthrough]),
-    meck:expect(mongoose_instrument, execute, fun(_, _, _) -> ok end),
-    meck:expect(mongoose_instrument, span, fun(_Event, _Labels, Fun, Args, _MeasureF) -> apply(Fun, Args) end).
-
 unload_amqp() ->
     [meck:unload(M) || M <- ?AMQP_MOCK_MODULES].
-
-unload_metrics() ->
-    ?assert(meck:validate(mongoose_instrument)),
-    meck:unload(mongoose_instrument).
 
 random_pid() ->
     spawn(fun() -> ok end).
