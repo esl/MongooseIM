@@ -89,9 +89,15 @@
 -type mod_fold_fun() :: fun((authmodule(), mod_res()) -> continue |
                                                          {continue, mod_res()} |
                                                          {stop, mod_res()}).
--type call_opts() :: #{default => mod_res(), op => map, metric => atom()}.
+-type event_meta() :: #{user => jid:luser(), server => jid:lserver()}.
+-type event_name() ::
+        auth_authorize
+        | auth_check_password
+        | auth_try_register
+        | auth_does_user_exist.
 
--define(METRIC(Name), [backends, auth, Name]).
+-type call_opts() :: #{default => mod_res(), op => map,
+                       event_name => event_name(), event_meta => event_meta()}.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -102,7 +108,6 @@ start() ->
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
-    ensure_metrics(HostType),
     mongoose_instrument:set_up(instrumentation(HostType)),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
@@ -146,8 +151,13 @@ authorize(Creds) ->
                         {continue, {not_authorized, NewCreds}}
                 end
         end,
-    Opts = #{default => {not_authorized, Creds}, metric => authorize},
-    case call_auth_modules_with_creds(Creds, F, Opts) of
+    HostType = mongoose_credentials:host_type(Creds),
+    LServer = mongoose_credentials:lserver(Creds),
+    Modules = mongoose_credentials:auth_modules(Creds),
+    Opts = #{default => {not_authorized, Creds},
+             event_name => auth_authorize,
+             event_meta => #{server => LServer}},
+    case call_auth_modules_for_host_type(Modules, HostType, F, Opts) of
         Res = {ok, _Creds} -> Res;
         {not_authorized, _Creds} -> {error, not_authorized}
     end.
@@ -163,7 +173,9 @@ check_password(#jid{luser = LUser, lserver = LServer}, Password) ->
                     false -> continue
                 end
         end,
-    Opts = #{default => false, metric => check_password},
+    Opts = #{default => false,
+             event_name => auth_check_password,
+             event_meta => #{user => LUser, server => LServer}},
     call_auth_modules_for_domain(LServer, F, Opts).
 
 %% @doc Check if at least one authentication method accepts the user and the password.
@@ -181,7 +193,9 @@ check_password(#jid{luser = LUser, lserver = LServer}, Password, Digest, DigestG
                     false -> continue
                 end
         end,
-    Opts = #{default => false, metric => check_password},
+    Opts = #{default => false,
+             event_name => auth_check_password,
+             event_meta => #{user => LUser, server => LServer}},
     call_auth_modules_for_domain(LServer, F, Opts).
 
 -spec check_digest(binary(), fun((binary()) -> binary()), binary(), binary()) -> boolean().
@@ -204,7 +218,7 @@ set_password(#jid{luser = LUser, lserver = LServer}, Password) ->
                 end
         end,
     Opts = #{default => {error, not_allowed}},
-    case ejabberd_auth:does_user_exist(jid:make_bare(LUser, LServer)) of
+    case does_user_exist(jid:make_bare(LUser, LServer)) of
         true ->
             call_auth_modules_for_domain(LServer, F, Opts);
         false ->
@@ -240,7 +254,9 @@ do_try_register_if_does_not_exist(_, JID, Password) ->
                         continue
                 end
         end,
-    Opts = #{default => {error, not_allowed}, metric => try_register},
+    Opts = #{default => {error, not_allowed},
+             event_name => auth_try_register,
+             event_meta => #{user => LUser, server => LServer}},
     case is_user_number_below_limit(LServer) of
         true ->
             call_auth_modules_for_domain(LServer, F, Opts);
@@ -311,8 +327,9 @@ get_passterm_with_authmodule(HostType, #jid{luser = LUser, lserver = LServer}) -
 %% Returns 'false' in case of an error
 -spec does_user_exist(JID :: jid:jid() | error) -> boolean().
 does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
-    F = fun(HostType, Mod) -> does_user_exist_in_module(HostType, LUser, LServer, Mod) end,
-    case call_auth_modules_for_domain(LServer, F, #{default => false, metric => does_user_exist}) of
+    F = fun(HostType, Mod) -> does_user_exist_in_module(Mod, HostType, LUser, LServer) end,
+    case call_auth_modules_for_domain(LServer, F, #{default => false, event_name => auth_does_user_exist,
+                                                    event_meta => #{user => LUser, server => LServer}}) of
         {error, _Error} -> false;
         Result -> Result
     end;
@@ -335,8 +352,9 @@ on_does_user_exist(false, #{jid := Jid, request_type := stored}, #{host_type := 
 on_does_user_exist(false,
                    #{jid := #jid{luser = LUser, lserver = LServer}, request_type := with_anonymous},
                    #{host_type := HostType}) ->
-    F = fun(Mod) -> does_user_exist_in_module(HostType, LUser, LServer, Mod) end,
-    {ok, call_auth_modules_for_host_type(HostType, F, #{default => false, metric => does_user_exist})};
+    F = fun(Mod) -> does_user_exist_in_module(Mod, HostType, LUser, LServer) end,
+    {ok, call_auth_modules_for_host_type(HostType, F, #{default => false, event_name => auth_does_user_exist,
+                                                        event_meta => #{user => LUser, server => LServer}})};
 on_does_user_exist(Status, _, _) ->
     {ok, Status}.
 
@@ -346,13 +364,14 @@ on_does_user_exist(Status, _, _) ->
           boolean() | {error, any()}.
 does_stored_user_exist(HostType, #jid{luser = LUser, lserver = LServer}) ->
     F = fun(ejabberd_auth_anonymous) -> continue;
-           (Mod) -> does_user_exist_in_module(HostType, LUser, LServer, Mod)
+           (Mod) -> does_user_exist_in_module(Mod, HostType, LUser, LServer)
         end,
-    call_auth_modules_for_host_type(HostType, F, #{default => false, metric => does_user_exist});
+    call_auth_modules_for_host_type(HostType, F, #{default => false, event_name => auth_does_user_exist,
+                                                   event_meta => #{user => LUser, server => LServer}});
 does_stored_user_exist(_HostType, error) ->
     false.
 
-does_user_exist_in_module(HostType, LUser, LServer, Mod) ->
+does_user_exist_in_module(Mod, HostType, LUser, LServer) ->
     case mongoose_gen_auth:does_user_exist(Mod, HostType, LUser, LServer) of
         true -> {stop, true};
         false -> continue;
@@ -382,7 +401,7 @@ remove_user(#jid{luser = LUser, lserver = LServer}) ->
                     {error, _Error} -> continue
                 end
         end,
-    case ejabberd_auth:does_user_exist(JID) of
+    case does_user_exist(JID) of
         true ->
             case call_auth_modules_for_domain(LServer, F, #{default => {error, not_allowed}}) of
                 {ok, HostType} ->
@@ -465,11 +484,6 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
         end,
     mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
-ensure_metrics(Host) ->
-    Metrics = [authorize, check_password, try_register, does_user_exist],
-    [mongoose_metrics:ensure_metric(Host, ?METRIC(Metric), histogram)
-     || Metric <- Metrics].
-
 %% Library functions for reuse in ejabberd_auth_* modules
 -spec authorize_with_check_password(Module, Creds) -> {ok, Creds}
                                                     | {error, any()} when
@@ -519,15 +533,7 @@ call_auth_modules_for_domain(Domain, F, Opts = #{default := Default}) ->
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
             StepF = bind_host_type(HostType, F),
-            case maps:take(metric, Opts) of
-                {Metric, NewOpts} ->
-                    {Time, Result} = timer:tc(fun call_auth_modules_for_host_type/3,
-                                              [HostType, StepF, NewOpts]),
-                    mongoose_metrics:update(HostType, ?METRIC(Metric), Time),
-                    Result;
-                error ->
-                    call_auth_modules_for_host_type(HostType, StepF, Opts)
-            end;
+            call_auth_modules_for_host_type(HostType, StepF, Opts);
         {error, not_found} ->
             Default
     end.
@@ -541,31 +547,21 @@ bind_host_type(HostType, F) when is_function(F, 2) ->
           mod_res() | [mod_res()].
 call_auth_modules_for_host_type(HostType, F, Opts) ->
     Modules = auth_modules_for_host_type(HostType),
-    case maps:take(metric, Opts) of
-        {Metric, NewOpts} ->
-            {Time, Result} = timer:tc(fun call_auth_modules/3, [Modules, F, NewOpts]),
-            mongoose_metrics:update(HostType, ?METRIC(Metric), Time),
-            Result;
-        error ->
-            call_auth_modules(Modules, F, Opts)
-    end.
+    call_auth_modules_for_host_type(Modules, HostType, F, Opts).
 
--spec call_auth_modules_with_creds(mongoose_credentials:t(),
-                                   mod_fun() | mod_fold_fun(), call_opts()) ->
+-spec call_auth_modules_for_host_type([authmodule()], mongooseim:host_type(),
+                                      mod_fun() | mod_fold_fun(), call_opts()) ->
           mod_res() | [mod_res()].
-call_auth_modules_with_creds(Creds, F, Opts) ->
-    Modules = mongoose_credentials:auth_modules(Creds),
-    case maps:take(metric, Opts) of
-        {Metric, NewOpts} ->
-            HostType = mongoose_credentials:host_type(Creds),
-            {Time, Result} = timer:tc(fun call_auth_modules/3,
-                                      [Modules, F, NewOpts]),
-            mongoose_metrics:update(HostType, ?METRIC(Metric), Time),
-            Result;
+call_auth_modules_for_host_type(Modules, HostType, F, Opts) ->
+    case maps:find(event_name, Opts) of
+        {ok, EventName} ->
+            EventMeta = maps:get(event_meta, Opts, #{}),
+            mongoose_instrument:span(EventName, #{host_type => HostType},
+                fun call_auth_modules/3, [Modules, F, Opts],
+                fun(Time, _Result) -> EventMeta#{time => Time, count => 1} end);
         error ->
             call_auth_modules(Modules, F, Opts)
     end.
-
 
 %% @doc Perform a map or a fold operation with function F over the provided Modules
 -spec call_auth_modules([authmodule()], mod_fun() | mod_fold_fun(), call_opts()) ->
@@ -606,4 +602,12 @@ instrumentation(HostType) ->
     [{auth_register_user, #{host_type => HostType},
       #{metrics => #{count => spiral}}},
      {auth_unregister_user, #{host_type => HostType},
-      #{metrics => #{count => spiral}}}].
+      #{metrics => #{count => spiral}}},
+     {auth_authorize, #{host_type => HostType},
+      #{metrics => #{count => spiral, time => histogram}}},
+     {auth_check_password, #{host_type => HostType},
+      #{metrics => #{count => spiral, time => histogram}}},
+     {auth_try_register, #{host_type => HostType},
+      #{metrics => #{count => spiral, time => histogram}}},
+     {auth_does_user_exist, #{host_type => HostType},
+      #{metrics => #{count => spiral, time => histogram}}}].

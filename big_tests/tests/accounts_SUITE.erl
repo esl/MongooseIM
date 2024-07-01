@@ -4,14 +4,10 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("jid/include/jid.hrl").
 
--import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
-                             rpc/4]).
-
+-import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(mongoose_helper, [wait_for_user/3]).
-
+-import(auth_helper, [assert_event/2]).
 -import(domain_helper, [domain/0, host_type/0]).
 
 %%--------------------------------------------------------------------
@@ -180,7 +176,11 @@ register(Config) ->
     [{Name1, _UserSpec1}, {Name2, _UserSpec2}] = escalus_users:get_users([alice, bob]),
     Config1 = escalus_fresh:create_users(Config, escalus:get_users([Name1, Name2])),
     assert_event(auth_register_user, escalus_users:get_jid(Config1, Name1)),
-    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name2)).
+    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name2)),
+    assert_event(auth_try_register, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_try_register, escalus_users:get_jid(Config1, Name2)),
+    assert_event(auth_does_user_exist, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_does_user_exist, escalus_users:get_jid(Config1, Name2)).
 
 unregister(Config) ->
     UserSpec = escalus_fresh:freshen_spec(Config, alice),
@@ -212,6 +212,7 @@ admin_notify(Config) ->
 
     rpc(mim(), ejabberd_auth, try_register, [mongoose_helper:make_jid(AdminU, AdminS), AdminP]),
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
+        assert_event(auth_authorize, escalus_utils:get_jid(Admin)),
         escalus:create_users(Config, escalus:get_users([Name1, Name2])),
 
             Predicates = [
@@ -452,10 +453,3 @@ enable_watcher(Config, Watcher) ->
 
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
-
-%% Instrumentation events
-
-assert_event(EventName, BinJid) ->
-    #jid{luser = LUser, lserver = LServer} = jid:from_binary(BinJid),
-    instrument_helper:assert(EventName, #{host_type => host_type()},
-                             fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end).
