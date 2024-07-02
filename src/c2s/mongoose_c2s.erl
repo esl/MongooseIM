@@ -637,7 +637,7 @@ handle_info(StateData, _C2SState, {TcpOrSSl, _Socket, _Packet} = SocketData)
   when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
     handle_socket_data(StateData, SocketData);
 handle_info(StateData, C2SState, {Closed, _Socket} = SocketData)
-  when Closed =:= tcp_closed; Closed =:= ssl_closed ->
+  when Closed =:= tcp_closed; Closed =:= ssl_closed; Closed =:= websockets_closed ->
     handle_socket_closed(StateData, C2SState, SocketData);
 handle_info(StateData, C2SState, {Error, _Socket} = SocketData)
   when Error =:= tcp_error; Error =:= ssl_error ->
