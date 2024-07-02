@@ -374,8 +374,8 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
             false -> [metric_host_type(), <<"c2s_element_in">>, <<"stanza_count">>]
         end,
     check_spiral_dict(maps:get(SentName, Map)),
-    [#{<<"key">> := <<"value">>,<<"value">> := V}] =
-        maps:get([<<"global">>,<<"uniqueSessionCount">>], Map),
+    [#{<<"key">> := <<"value">>,<<"value">> := V} | _] =
+        maps:get([<<"global">>,<<"sm_unique_sessions">>,<<"count">>], Map),
     ?assert(is_integer(V)),
     HistObjects = maps:get([<<"global">>, <<"xmpp_stanza_size_received">>, <<"byte_size">>], Map),
     check_histogram(kv_objects_to_map(HistObjects)).

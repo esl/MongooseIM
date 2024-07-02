@@ -21,7 +21,6 @@
 %% API
 -export([init/0,
          init_mongooseim_metrics/0,
-         create_probe_metric/3,
          update/3,
          ensure_metric/3,
          get_metric_value/1,
@@ -73,12 +72,6 @@ init_subscriptions() ->
                 Interval = get_report_interval(),
                 subscribe_to_all(Name, Interval)
         end, Reporters).
-
--spec create_probe_metric(mongooseim:host_type_or_global(), atom(), module()) ->
-    ok | {ok, already_present} | {error, any()}.
-create_probe_metric(HostType, Name, Module) ->
-    {Metric, Spec} = ?PROBE(Name, Module),
-    ensure_metric(HostType, Metric, Spec).
 
 -spec update(HostType :: mongooseim:host_type_or_global(), Name :: term() | list(),
              Change :: term()) -> any().

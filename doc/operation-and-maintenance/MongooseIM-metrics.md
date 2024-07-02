@@ -172,10 +172,9 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
 | `[global, routingErrors]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
-| `[global, nodeSessionCount]` | value | A number of sessions connected to a given MongooseIM node. |
-| `[global, totalSessionCount]` | value | A number of sessions connected to a MongooseIM cluster. |
-| `[global, uniqueSessionCount]` | value | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
-| `[global, cache, unique_sessions_number]` | gauge | A cached value of `uniqueSessionCount`. It is automatically updated when a unique session count is calculated. |
+| `[global, sm_node_sessions, count]` | gauge | A number of sessions connected to a given MongooseIM node. |
+| `[global, sm_total_sessions, count]` | gauge | A number of sessions connected to a MongooseIM cluster. |
+| `[global, sm_unique_sessions, count]` | gauge | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
 | `[global, nodeUpTime]` | value | Node uptime. |
 | `[global, clusterSize]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS use `global.cets.system.joined_nodes` instead. |
 | `[global, tcpPortsUsed]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests, in order to detect connection leaks. |

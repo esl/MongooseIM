@@ -826,9 +826,9 @@ paths:
                   items:
                     type: string
                   example:
-                    - "nodeSessionCount"
-                    - "totalSessionCount"
-                    - "uniqueSessionCount"
+                    - "sm_node_sessions"
+                    - "sm_total_sessions"
+                    - "sm_unique_sessions"
   /metrics/all:
     get:
       description: Returns a list of metrics aggregated for all host types

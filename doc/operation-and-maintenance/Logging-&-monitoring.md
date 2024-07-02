@@ -116,7 +116,7 @@ We recommend the following metrics as a baseline for tracking your MongooseIM in
 For time-based metrics, you can choose to display multiple calculated values for a reporting period - we recommend tracking at least `max`, `median` and `mean`.
 
 ```
-Session count:                   <prefix>.global.totalSessionCount.value
+Session count:                   <prefix>.global.sm_total_sessions.count
 Outgoing XMPP messages:          <prefix>.<domain>.c2s_element_out.message_count.one
 Incoming XMPP messages:          <prefix>.<domain>.c2s_element_in.message_count.one
 Successful logins:               <prefix>.<domain>.sm_session.logins.one
