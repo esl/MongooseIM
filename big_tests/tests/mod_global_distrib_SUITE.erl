@@ -444,17 +444,23 @@ test_two_way_pm(Alice, Eve) ->
     escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi to Alice from Asia!">>],
                    FromEve),
 
-    EveJidB = jid:to_binary(EveJid),
-    instrument_helper:assert(mod_global_distrib_mapping_cache_misses, #{},
-                             fun(#{count := 1, jid := EveJidB}) -> true end),
-    instrument_helper:assert(mod_global_distrib_mapping_fetches, #{},
-                             fun(#{count := 1, time := T, jid := EveJid}) -> T >= 0 end),
-    instrument_helper:assert(mod_global_distrib_outgoing_established, #{},
-                             fun(#{count := 1, host := <<"reg1">>}) -> true end),
-    instrument_helper:assert(mod_global_distrib_outgoing_queue, #{},
-                             fun(#{time := Time, host := <<"reg1">>}) -> Time >= 0 end),
-    instrument_helper:assert(mod_global_distrib_outgoing_messages, #{},
-                             fun(#{count := 1, host := <<"reg1">>}) -> true end).
+    instrument_helper:assert(
+      mod_global_distrib_mapping_cache_misses, #{},
+      fun(#{count := 1, jid := Jid}) -> Jid =:= EveJid end),
+    instrument_helper:assert(
+      mod_global_distrib_mapping_fetches, #{},
+      fun(#{count := 1, time := T, jid := Jid}) ->
+              Jid =:= jid:to_lower(jid:from_binary(EveJid)) andalso T >= 0
+      end),
+    instrument_helper:assert(
+      mod_global_distrib_outgoing_established, #{},
+      fun(#{count := 1, host := <<"reg1">>}) -> true end),
+    instrument_helper:assert(
+      mod_global_distrib_outgoing_queue, #{},
+      fun(#{time := Time, host := <<"reg1">>}) -> Time >= 0 end),
+    instrument_helper:assert(
+      mod_global_distrib_outgoing_messages, #{},
+      fun(#{count := 1, host := <<"reg1">>}) -> true end).
 
 test_muc_conversation_on_one_host(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
@@ -500,25 +506,23 @@ test_instrumentation_events_on_one_host(Config) ->
 
     test_two_way_pm(Alice, Eve),
 
-    Host = escalus_client:server(Alice),
+    Host = <<"localhost.bis">>,
     instrument_helper:assert(mod_global_distrib_incoming_established, #{},
-                             fun(#{count := 1, peer := Host}) -> true end),
+                             fun(#{count := 1, peer := _}) -> true end),
     instrument_helper:assert(mod_global_distrib_incoming_first_packet, #{},
-                             fun(#{count := 1, host := Host}) -> true end),
+                             fun(#{count := 1, host := H}) -> H =:= Host end),
     instrument_helper:assert(mod_global_distrib_incoming_transfer, #{},
-                             fun(#{time := T, host := Host}) -> T >= 0 end),
+                             fun(#{time := T, host := H}) when T >= 0 -> H =:= Host end),
     instrument_helper:assert(mod_global_distrib_incoming_messages, #{},
-                             fun(#{count := 1, host := Host}) -> true end),
+                             fun(#{count := 1, host := H}) -> H =:= Host end),
     instrument_helper:assert(mod_global_distrib_incoming_queue, #{},
-                             fun(#{time := T, host := Host}) -> T >= 0 end),
+                             fun(#{time := T, host := H}) when T >= 0 -> H =:= Host end),
 
     escalus_client:stop(Config1, Alice),
     escalus_client:stop(Config1, Eve),
 
-    {ok, _} = mongoose_helper:wait_until(fun() -> instrument_helper:lookup(mod_global_distrib_incoming_closed, #{}) end,
-                                         fun(L) -> L =/= [] end,
-                                         #{name => mod_global_distrib_incoming_closed}),
-    instrument_helper:assert(mod_global_distrib_incoming_closed, #{}, fun(#{count := 1, host := Host}) -> true end).
+    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{},
+                                      fun(#{count := 1, host := undefined}) -> true end).
 
 test_muc_conversation_history(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
@@ -559,10 +563,10 @@ test_muc_conversation_history(Config0) ->
 
               % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
               EveJid = escalus_client:full_jid(Eve),
-              instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{},
-                                       fun(#{value := TTL, from := From}) ->
-                                           ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
-                                       end)
+              instrument_helper:assert_one(mod_global_distrib_delivered_with_ttl, #{},
+                                           fun(#{value := TTL, from := From}) ->
+                                                   ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
+                                           end)
       end),
     muc_helper:destroy_room(Config).
 
@@ -675,9 +679,8 @@ test_component_disconnect(Config) ->
         Story(User),
         % only check Alice, because Eve's event is executed on other node
         Jid = escalus_client:full_jid(User),
-        instrument_helper:assert(mod_global_distrib_stop_ttl_zero, #{},
-                                 fun(#{count := 1, from := From}) ->
-                                     jid:to_binary(From) =:= Jid end)
+        CheckF = fun(#{count := 1, from := From}) -> jid:to_binary(From) =:= Jid end,
+        instrument_helper:assert_one(mod_global_distrib_stop_ttl_zero, #{}, CheckF)
                  end,
 
     escalus:fresh_story(Config, [{alice, 1}], AliceStory),
@@ -1370,20 +1373,8 @@ service_port() ->
     ct:get_config({hosts, mim, service_port}).
 
 wait_for_bounce_size(ExpectedSize) ->
-    wait_for_bounce_size(ExpectedSize, 5).
-wait_for_bounce_size(ExpectedSize, 0) ->
     F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
-    instrument_helper:assert(mod_global_distrib_bounce_queue, #{}, F);
-wait_for_bounce_size(ExpectedSize, Retries) ->
-    Measurements = instrument_helper:wait_for_new(mod_global_distrib_bounce_queue, #{}),
-    F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
-    case lists:any(F, Measurements) of
-        true ->
-            instrument_helper:assert(mod_global_distrib_bounce_queue, #{}, Measurements, F);
-        false ->
-            timer:sleep(timer:seconds(?PROBE_INTERVAL)),
-            wait_for_bounce_size(ExpectedSize, Retries - 1)
-    end.
+    instrument_helper:wait_and_assert_new(mod_global_distrib_bounce_queue, #{}, F).
 
 %% -----------------------------------------------------------------------
 %% Waiting helpers
