@@ -189,19 +189,21 @@ unregister(Config) ->
     assert_event(auth_unregister_user, escalus_users:get_jid(Config, UserSpec)).
 
 already_registered(Config) ->
-    escalus_fresh:story(Config, [{alice, 1}], fun(Alice) ->
-        escalus:send(Alice, escalus_stanza:get_registration_fields()),
-        Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Stanza),
-        true = has_registered_element(Stanza)
+    escalus_fresh:story(Config, [{alice, 1}], fun already_registered_story/1).
 
-                                              end).
+already_registered_story(Alice) ->
+    AliceJid = escalus_utils:get_short_jid(Alice),
+    assert_event(auth_register_user, AliceJid), % one event expected
+    escalus:send(Alice, escalus_stanza:get_registration_fields()),
+    Stanza = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_iq_result, Stanza),
+    true = has_registered_element(Stanza),
+    assert_event(auth_register_user, AliceJid). % still one event - nothing new
+
 registration_conflict(Config) ->
     [Alice] = escalus_users:get_users([alice]),
     {ok, result, _Stanza} = escalus_users:create_user(Config, Alice),
     {ok, conflict, _Raw} = escalus_users:create_user(Config, Alice).
-
-
 
 admin_notify(Config) ->
     [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users([alice, bob]),

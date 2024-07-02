@@ -113,7 +113,8 @@
          assert_lookup_event/2,
          assert_flushed_event_if_async/2,
          assert_dropped_iq_event/2,
-         assert_event_with_jid/2
+         assert_event_with_jid/2,
+         assert_no_event_with_jid/2
         ]).
 
 -import(muc_light_helper,
@@ -3395,11 +3396,13 @@ muc_prefs_set_request(ConfigIn) ->
 muc_prefs_set_request_not_an_owner(ConfigIn) ->
     F = fun(Config, _Alice, Bob) ->
         Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
         escalus:send(Bob, stanza_to_room(stanza_prefs_set_request(<<"roster">>,
                                                                     [<<"romeo@montague.net">>],
                                                                     [<<"montague@montague.net">>],
                                                                     mam_ns_binary()), Room)),
-        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], escalus:wait_for_stanza(Bob))
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], escalus:wait_for_stanza(Bob)),
+        assert_no_event_with_jid(mod_mam_muc_get_prefs, RoomAddr)
     end,
     RoomOpts = [{persistent, true}],
     UserSpecs = [{alice, 1}, {bob, 1}],

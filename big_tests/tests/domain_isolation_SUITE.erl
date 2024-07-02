@@ -157,7 +157,7 @@ verify_alice_has_no_pending_messages(Alice, Bob) ->
 assert_stanza_dropped(Sender, Recipient, Stanza) ->
     SenderJid = jid:from_binary(escalus_utils:get_jid(Sender)),
     RecipientJid = jid:from_binary(escalus_utils:get_jid(Recipient)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       router_stanza_dropped, #{host_type => host_type()},
       fun(#{count := 1, from_jid := From, to_jid := To, stanza := DroppedStanza}) ->
               From =:= SenderJid andalso To =:= RecipientJid andalso DroppedStanza =:= Stanza
