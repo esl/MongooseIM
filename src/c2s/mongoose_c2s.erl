@@ -184,7 +184,6 @@ handle_event(internal, #xmlel{} = El, C2SState, StateData) ->
     handle_foreign_packet(StateData, C2SState, El);
 
 handle_event(info, Info, FsmState, StateData) ->
-    ?LOG_DEBUG(#{what => info_mongoose_c2s, info => io_lib:format("~p", [Info]), fsm_state => io_lib:format("~p", [FsmState]), data => io_lib:format("~p", [StateData])}),
     handle_info(StateData, FsmState, Info);
 
 handle_event(cast, Info, FsmState, StateData) ->
@@ -300,7 +299,6 @@ handle_stop_request(StateData = #c2s_data{host_type = HostType, lserver = LServe
 
 -spec handle_socket_closed(data(), state(), term()) -> fsm_res().
 handle_socket_closed(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, SocketClosed) ->
-
     Params = hook_arg(StateData, C2SState, info, SocketClosed, SocketClosed),
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),

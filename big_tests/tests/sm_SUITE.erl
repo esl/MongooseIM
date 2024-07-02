@@ -40,8 +40,8 @@
 -define(LONG_TIMEOUT, 3600).
 -define(SHORT_TIMEOUT, 1).
 -define(SMALL_SM_BUFFER, 3).
--define(PING_REQUEST_TIMEOUT, 1).
--define(PING_INTERVAL, 3).
+-define(PING_REQUEST_TIMEOUT, 2).
+-define(PING_INTERVAL, 5).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -150,21 +150,21 @@ parallel_unacknowledged_message_hook_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    NewConfig = dynamic_modules:save_modules(host_type(), Config),
-    mongoose_helper:inject_module(?MODULE),
-    escalus:init_per_suite(NewConfig).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
-    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(ws_tests, Config) ->
-    NewConfigWithSM = escalus_users:update_userspec(Config, geralt, stream_management, true),
+    NewConfig = dynamic_modules:save_modules(host_type(), Config),
+    mongoose_helper:inject_module(?MODULE),
+    NewConfigWithSM = escalus_users:update_userspec(NewConfig, geralt, stream_management, true),
     [{user, geralt} | NewConfigWithSM];
 
 init_per_group(tcp_tests, Config) ->
-    NewConfigWithSM = escalus_users:update_userspec(Config, alice, stream_management, true),
+    NewConfig = dynamic_modules:save_modules(host_type(), Config),
+    mongoose_helper:inject_module(?MODULE),
+    NewConfigWithSM = escalus_users:update_userspec(NewConfig, alice, stream_management, true),
     [{user, alice} | NewConfigWithSM];
 
 init_per_group(Group, Config) when Group =:= parallel_unacknowledged_message_hook;
@@ -183,6 +183,9 @@ init_per_group(Group, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
     Config.
 
+end_per_group(Group, Config) when Group =:= ws_tests; Group =:= tcp_tests ->
+    escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config);
 end_per_group(_Group, _Config) ->
     ok.
 
@@ -297,7 +300,7 @@ mod_ping_opts() ->
 %%--------------------------------------------------------------------
 
 server_announces_sm(Config) ->
-    UserSpec = escalus_fresh:freshen_spec(Config, geralt),
+    UserSpec = escalus_fresh:freshen_spec(Config, ?config(user, Config)),
     {ok, #client{props = Props}, Features} = escalus_connection:start(UserSpec,
                                                                       [start_stream]),
     true = escalus_session:can_use_stream_management(Props, Features).
@@ -952,7 +955,6 @@ resume_session(Config) ->
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         {_, SMID} = buffer_unacked_messages_and_die(Config, UserSpec, Bob, Texts),
         %% Resume the session.
-        io:format("SESSION DIED!!!\n"),
         User = connect_spec(UserSpec, {resume, SMID, 1}, manual),
         %% User receives the unacked messages from the previous
         %% interrupted session.
@@ -1071,7 +1073,6 @@ buffer_unacked_messages_and_die(Config, UserSpec, Bob, Texts) ->
 
 buffer_unacked_messages_and_die(Config, UserSpec, Bob, Texts, F) ->
     User = connect_spec(UserSpec, sr_presence, manual),
-    io:format("User: ~p\n", [User]),
     F(User),
     C2SPid = mongoose_helper:get_session_pid(User),
     %% Bobs sends some messages to User.
@@ -1080,7 +1081,6 @@ buffer_unacked_messages_and_die(Config, UserSpec, Bob, Texts, F) ->
     sm_helper:wait_for_messages(User, Texts),
     %% User's connection is violently terminated.
     escalus_client:kill_connection(Config, User),
-    io:format("Connection killed"),
     sm_helper:wait_until_resume_session(C2SPid),
     SMID = sm_helper:client_to_smid(User),
     {C2SPid, SMID}.

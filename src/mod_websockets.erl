@@ -92,6 +92,8 @@ init(Req, Opts = #{timeout := Timeout}) ->
     %% upgrade protocol
     {cowboy_websocket, Req1, AllModOpts, #{idle_timeout => Timeout}}.
 
+terminate(_Reason, _Req, #ws_state{fsm_pid = undefined} = State) ->
+    ok;
 terminate(_Reason, _Req, #ws_state{fsm_pid = FSM} = State) ->
     FSM ! {websockets_closed, undefined},
     ok.
