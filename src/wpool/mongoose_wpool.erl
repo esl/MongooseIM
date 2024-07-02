@@ -40,7 +40,7 @@
               send_request/2, send_request/3, send_request/4, send_request/5,
               is_configured/2, is_configured/1, is_configured/1, start/2, start/3,
               start/5, start_configured_pools/1, start_configured_pools/2, start_configured_pools/3,
-              stats/3, stop/1, stop/2]).
+              get_pools/0, stats/3, stop/1, stop/2]).
 
 -type pool_type() :: redis | http | rdbms | cassandra | elastic | generic | rabbit | ldap.
 

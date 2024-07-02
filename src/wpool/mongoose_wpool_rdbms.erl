@@ -2,7 +2,7 @@
 -behaviour(mongoose_wpool).
 -behaviour(mongoose_instrument_probe).
 
--include("mongoose_metrics_definitions.hrl").
+-include("mongoose.hrl").
 
 -export([init/0, start/4, stop/2]).
 -export([probe/2, instrumentation/2]).
@@ -45,16 +45,132 @@ instrumentation(global, Tag) ->
     % Services use global pools. Since the same number of labels for a metric is expected, for an
     % event, global pool has to emit an event under a different name.
     [{wpool_global_rdbms_stats, #{pool_tag => Tag},
-      #{probe => #{module => ?MODULE}, metrics => ?INET_STATS_METRICS#{workers => counter}}}];
+      #{probe => #{module => ?MODULE}, metrics => rdbms_data_stats_measurement_types()}}];
 instrumentation(HostType, Tag) ->
     [{wpool_rdbms_stats, #{host_type => HostType, pool_tag => Tag},
-      #{probe => #{module => ?MODULE}, metrics => ?INET_STATS_METRICS#{workers => counter}}}].
+      #{probe => #{module => ?MODULE}, metrics => rdbms_data_stats_measurement_types()}}].
 
 -spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
     mongoose_instrument:measurements().
 probe(wpool_global_rdbms_stats, #{pool_tag := Tag} = _Labels) ->
-    Stats = mongoose_metrics:get_rdbms_data_stats([{rdbms, global, Tag}]),
-    proplists:to_map(Stats);
+    get_rdbms_data_stats(global, Tag);
 probe(wpool_rdbms_stats, #{host_type := HostType, pool_tag := Tag} = _Labels) ->
-    Stats = mongoose_metrics:get_rdbms_data_stats([{rdbms, HostType, Tag}]),
-    proplists:to_map(Stats).
+    get_rdbms_data_stats(HostType, Tag).
+
+get_rdbms_data_stats(HostType, Tag) ->
+    PoolName = mongoose_wpool:make_pool_name(rdbms, HostType, Tag),
+    Wpool = wpool_pool:find_wpool(PoolName),
+    PoolSize = wpool_pool:wpool_get(size, Wpool),
+    RDBMSWorkers = [whereis(wpool_pool:worker_name(PoolName, I)) || I <- lists:seq(1, PoolSize)],
+    RDBMSConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- RDBMSWorkers],
+    Ports = [get_port_from_rdbms_connection(Conn) || Conn <- RDBMSConnections],
+    PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
+
+    Stats = merge_stats(PortStats),
+    Stats#{workers => length(RDBMSConnections)}.
+
+get_port_from_rdbms_connection({{ok, DB, Pid}, _WorkerPid}) when DB =:= mysql;
+    DB =:= pgsql ->
+    ProcState = sys:get_state(Pid),
+    get_port_from_proc_state(DB, ProcState);
+get_port_from_rdbms_connection({{ok, odbc, Pid}, WorkerPid}) ->
+    Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
+    [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
+get_port_from_rdbms_connection(_) ->
+    undefined.
+
+%% @doc Gets a socket from mysql/epgsql library Gen_server state
+get_port_from_proc_state(mysql, State) ->
+    %% -record(state, {server_version, connection_id, socket, sockmod, ssl_opts,
+    %%                 host, port, user, password, log_warnings,
+    %%                 ping_timeout,
+    %%                 query_timeout, query_cache_time,
+    %%                 affected_rows = 0, status = 0, warning_count = 0, insert_id = 0,
+    %%                 transaction_level = 0, ping_ref = undefined,
+    %%                 stmts = dict:new(), query_cache = empty, cap_found_rows = false}).
+    SockInfo = element(4, State),
+    get_port_from_sock(SockInfo);
+get_port_from_proc_state(pgsql, State) ->
+    %% -record(state, {mod,
+    %%                 sock,
+    %%                 data = <<>>,
+    %%                 backend,
+    %%                 handler,
+    %%                 codec,
+    %%                 queue = queue:new(),
+    %%                 async,
+    %%                 parameters = [],
+    %%                 types = [],
+    %%                 columns = [],
+    %%                 rows = [],
+    %%                 results = [],
+    %%                 batch = [],
+    %%                 sync_required,
+    %%                 txstatus,
+    %%                 complete_status :: undefined | atom() | {atom(), integer()},
+    %%                 repl_last_received_lsn,
+    %%                 repl_last_flushed_lsn,
+    %%                 repl_last_applied_lsn,
+    %%                 repl_feedback_required,
+    %%                 repl_cbmodule,
+    %%                 repl_cbstate,
+    %%                 repl_receiver}).
+    SockInfo = element(3, State),
+    get_port_from_sock(SockInfo).
+
+get_port_from_sock({sslsocket, {_, Port, _, _}, _}) ->
+    Port;
+get_port_from_sock(Port) ->
+    Port.
+
+merge_stats(Stats) ->
+    lists:foldl(fun(Stat, Acc) ->
+                    StatMap = maps:from_list(Stat),
+                    maps:merge_with(fun merge_stats_fun/3, Acc, StatMap)
+                end,
+                empty_inet_stats_measurements(),
+                Stats).
+
+merge_stats_fun(recv_max, V1, V2) ->
+    max(V1, V2);
+merge_stats_fun(send_max, V1, V2) ->
+    max(V1, V2);
+merge_stats_fun(_, V1, V2) ->
+    V1 + V2.
+
+inet_stats(Port) ->
+    try
+        {ok, Stats} = inet:getstat(Port, inet_stats()),
+        Stats
+    catch C:R:S ->
+        ?LOG_INFO(#{what => inet_stats_failed, class => C, reason => R, stacktrace => S}),
+        empty_inet_stats_measurements()
+    end.
+
+inet_stats() ->
+    [recv_oct,
+     recv_cnt,
+     recv_max,
+     send_oct,
+     send_max,
+     send_cnt,
+     send_pend].
+
+empty_inet_stats_measurements() ->
+    #{recv_oct => 0,
+      recv_cnt => 0,
+      recv_max => 0,
+      send_oct => 0,
+      send_max => 0,
+      send_cnt => 0,
+      send_pend => 0}.
+
+rdbms_data_stats_measurement_types() ->
+    #{workers => counter,
+      recv_oct => spiral,
+      recv_cnt => spiral,
+      recv_max => gauge,
+      send_oct => spiral,
+      send_max => gauge,
+      send_cnt => spiral,
+      send_pend => spiral}.
