@@ -42,15 +42,13 @@ end_per_group(_, _Config) ->
 init_per_testcase(_, Config) ->
     Config.
 
-check_instrumentation(Config) ->
-    instrument_helper:wait_for_new(cets_info, #{}),
-    instrument_helper:assert(cets_info, #{}, fun(Res) ->
-            %% Values are integers
-            lists:all(fun(Name) -> is_integer(maps:get(Name, Res)) end, instrumentation_metrics_names())
-            andalso
-            %% Check that there are no unknown fields
-            [] =:= maps:keys(maps:without(instrumentation_metrics_names(), Res))
-        end).
+check_instrumentation(_Config) ->
+    instrument_helper:wait_and_assert_new(cets_info, #{}, fun check_info/1).
+
+%% Check that values are integers and there are no unknown fields
+check_info(Res) ->
+    lists:all(fun(Name) -> is_integer(maps:get(Name, Res)) end, instrumentation_metrics_names())
+        andalso #{} =:= maps:without(instrumentation_metrics_names(), Res).
 
 instrumentation_metrics_names() ->
     [available_nodes,

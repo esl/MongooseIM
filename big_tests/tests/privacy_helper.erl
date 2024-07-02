@@ -266,25 +266,25 @@ send_and_check_blocked_message(Sender, Recipient) ->
 
 assert_privacy_get_event(Client) ->
     ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       mod_privacy_get, #{host_type => domain_helper:host_type()},
       fun(M) -> M =:= #{count => 1, jid => ClientJid} end).
 
 assert_privacy_set_event(Client, ExtraM) ->
     ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       mod_privacy_set, #{host_type => domain_helper:host_type()},
       fun(M) -> M =:= maps:merge(#{jid => ClientJid, count => 1}, ExtraM) end).
 
 assert_privacy_check_packet_event(Client, ExtraM) ->
     ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       mod_privacy_check_packet, #{host_type => domain_helper:host_type()},
       fun(M) -> M =:= maps:merge(#{jid => ClientJid, count => 1}, ExtraM) end).
 
 assert_privacy_push_item_event(Client, ExpCount) ->
     User = escalus_utils:get_username(Client),
     Server = escalus_utils:get_server(Client),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       mod_privacy_push_item, #{host_type => domain_helper:host_type()},
       fun(M) -> M =:= #{user => User, server => Server, count => ExpCount} end).

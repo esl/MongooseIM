@@ -3,12 +3,15 @@
 
 -module(instrument_helper).
 
--export([declared_events/1, declared_events/2,
-         start/1, start/2, stop/0,
-         assert/3, assert/4, filter/2,
-         assert_not_emitted/1, assert_not_emitted/2,
-         wait_for/2, wait_for_new/2,
-         lookup/2, take/2]).
+%% API for setup and teardown in test suites
+-export([declared_events/1, declared_events/2, start/1, start/2, stop/0]).
+
+%% API for assertions in test cases
+-export([assert/3, assert_one/3, assert_none/3, assert_not_emitted/2, assert_not_emitted/1,
+         wait_and_assert/3, wait_and_assert_new/3, assert/4]).
+
+%% Low-level API. Use only if the assertions are not enough
+-export([filter/2, wait_for/2, wait_for_new/2, lookup/2, take/2]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
@@ -20,8 +23,14 @@
 -type event_name() :: atom().
 -type labels() :: #{atom() => term()}.
 -type measurements() :: #{atom() => term()}.
+-type check_fun() :: fun((measurements()) -> boolean()).
+-type event_count() :: non_neg_integer() | positive.
+-type opts() :: #{take := boolean(),
+                  retries := non_neg_integer(),
+                  delay := non_neg_integer(),
+                  expected_count := event_count()}.
 
-%% API
+%% API for setup and teardown in test suites
 
 %% @doc Helper to get `DeclaredEvents' needed by `start/1'
 declared_events(Modules) ->
@@ -59,35 +68,56 @@ stop() ->
     verify_unlogged((Untested -- Logged) -- Negative),
     verify_logged_but_untested((Logged -- Tested) -- Negative).
 
--spec assert(event_name(), labels(), fun((measurements()) -> boolean())) -> ok.
+%% API for assertions in test cases
+
+%% @doc Checks that there is at least one matching event
+ -spec assert(event_name(), labels(), check_fun()) -> ok.
 assert(EventName, Labels, CheckF) ->
-    assert(EventName, Labels, lookup(EventName, Labels), CheckF).
+    assert(EventName, Labels, CheckF, #{}).
 
-%% @doc `CheckF' can return a boolean or fail with `function_clause', which means `false'.
-%% This is for convenience - you only have to code one clause.
--spec assert(event_name(), labels(), [measurements()], fun((measurements()) -> boolean())) -> ok.
-assert(EventName, Labels, MeasurementsList, CheckF) ->
-    case filter(CheckF, MeasurementsList) of
-        [] ->
-            ct:log("All measurements for event ~p with labels ~p:~n~p",
-                   [EventName, Labels, MeasurementsList]),
-            ct:fail("No instrumentation events matched");
-        Filtered ->
-            ct:log("Matching measurements for event ~p with labels ~p:~n~p",
-                   [EventName, Labels, Filtered]),
-            event_tested(EventName, Labels)
-    end.
+%% @doc Checks that there is exactly one matching event
+-spec assert_one(event_name(), labels(), check_fun()) -> ok.
+assert_one(EventName, Labels, CheckF) ->
+    assert(EventName, Labels, CheckF, #{expected_count => 1}).
 
+%% @doc Checks that there are no matching events
+-spec assert_none(event_name(), labels(), check_fun()) -> ok.
+assert_none(EventName, Labels, CheckF) ->
+    assert(EventName, Labels, CheckF, #{expected_count => 0}).
+
+-spec assert_not_emitted(event_name(), labels()) -> ok.
 assert_not_emitted(EventName, Labels) ->
-    case lookup(EventName, Labels) of
-        [] ->
-            ok;
-        Events ->
-            ct:fail("Measurements emitted but should not ~p", [Events])
-    end.
+    assert_none(EventName, Labels, fun(_) -> true end).
 
+-spec assert_not_emitted([{event_name(), labels()}]) -> ok.
 assert_not_emitted(Events) ->
-    [assert_not_emitted(Event, Label) || {Event, Label} <- Events].
+    [assert_not_emitted(Event, Label) || {Event, Label} <- Events],
+    ok.
+
+%% @doc Waits for a matching event
+-spec wait_and_assert(event_name(), labels(), check_fun()) -> ok.
+wait_and_assert(EventName, Labels, CheckF) ->
+    assert(EventName, Labels, CheckF, #{retries => 50, delay => 100}).
+
+%% @doc Removes previous events, and waits for a matching one
+-spec wait_and_assert_new(event_name(), labels(), check_fun()) -> ok.
+wait_and_assert_new(EventName, Labels, CheckF) ->
+    assert(EventName, Labels, CheckF, #{take => true, retries => 50, delay => 100}).
+
+%% @doc Assert that an expected number of events with `EventName' and `Labels' are present.
+%% Events are filtered by applying `CheckF' to the map of measurements.
+%% `CheckF' can return a boolean or fail with `function_clause', which means `false'.
+%% This is for convenience - you only have to code one clause.
+-spec assert(event_name(), labels(), check_fun(), opts()) -> ok.
+assert(EventName, Labels, CheckF, Opts) ->
+    FullOpts = #{take := Take} = maps:merge(default_opts(), Opts),
+    case Take of
+        true -> take(EventName, Labels);
+        false -> ok
+    end,
+    assert_loop(EventName, Labels, CheckF, FullOpts).
+
+%% Low-level API
 
 -spec filter(fun((measurements()) -> boolean()), [measurements()]) -> [measurements()].
 filter(CheckF, MeasurementsList) ->
@@ -118,6 +148,43 @@ take(EventName, Labels) ->
     [Measurements || {_, Measurements} <- rpc(mim(), ?HANDLER_MODULE, take, [EventName, Labels])].
 
 %% Internal functions
+
+-spec assert_loop(event_name(), labels(), check_fun(), opts()) -> ok.
+assert_loop(EventName, Labels, CheckF, Opts) ->
+    #{retries := Retries, expected_count := ExpectedCount, delay := Delay} = Opts,
+    All = lookup(EventName, Labels),
+    Filtered = filter(CheckF, All),
+    case check(Filtered, ExpectedCount) of
+        false when Retries > 0 ->
+            timer:sleep(Delay),
+            assert_loop(EventName, Labels, CheckF, Opts#{retries := Retries - 1});
+        CheckResult ->
+            assert_check_result(EventName, Labels, All, Filtered, CheckResult, ExpectedCount)
+    end.
+
+-spec default_opts() -> opts().
+default_opts() ->
+    #{take => false, retries => 0, delay => timer:seconds(1), expected_count => positive,
+      check_fun => fun(#{}) -> true end}.
+
+-spec check([measurements()], event_count()) -> boolean().
+check(Filtered, positive) ->
+    length(Filtered) > 0;
+check(Filtered, ExpectedCount) ->
+    length(Filtered) =:= ExpectedCount.
+
+-spec assert_check_result(event_name(), labels(), All :: [measurements()],
+                          Filtered :: [measurements()], CheckResult :: boolean(),
+                          event_count()) -> ok.
+assert_check_result(_EventName, _Labels, _All, [], true, _ExpectedCount) ->
+    ok; % don't mark events as tested
+assert_check_result(EventName, Labels, _All, Filtered, true, _ExpectedCount) ->
+    ct:log("Matching measurements for event ~p with labels ~p:~n~p", [EventName, Labels, Filtered]),
+    event_tested(EventName, Labels);
+assert_check_result(EventName, Labels, All, Filtered, false, ExpectedCount) ->
+    ct:log("All measurements for event ~p with labels ~p:~n~p", [EventName, Labels, All]),
+    ct:fail("Incorrect number of instrumentation events - matched: ~p, expected: ~p",
+            [length(Filtered), ExpectedCount]).
 
 %% Don't fail if some events are unlogged, because we don't have full test coverage (yet)
 verify_unlogged([]) -> ok;
