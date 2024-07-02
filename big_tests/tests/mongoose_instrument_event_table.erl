@@ -6,7 +6,7 @@
 -define(TABLE, ?MODULE).
 
 %% API
--export([lookup/2, take/2, all_keys/0]).
+-export([select/2, select_new/3, all_keys/0, timestamp/0]).
 
 %% mongoose_instrument callbacks
 -export([start/0, stop/0, set_up/3, handle_event/4]).
@@ -22,13 +22,16 @@ set_up(EventName, Labels, _Config) ->
     lists:member({EventName, Labels}, DeclaredEvents).
 
 handle_event(EventName, Labels, _Config, Measurements) ->
-    ets:insert(?TABLE, {{EventName, Labels}, Measurements}).
+    ets:insert(?TABLE, {{EventName, Labels}, Measurements, timestamp()}).
 
-lookup(EventName, Labels) ->
-    ets:lookup(?TABLE, {EventName, Labels}).
+select(EventName, Labels) ->
+    ets:select(?TABLE, [{{{EventName, Labels}, '$2', '$3'}, [], ['$2']}]).
 
-take(EventName, Labels) ->
-    ets:take(?TABLE, {EventName, Labels}).
+select_new(EventName, Labels, Timestamp) ->
+    ets:select(?TABLE, [{{{EventName, Labels}, '$2', '$3'}, [{'>=', '$3', Timestamp}], ['$2']}]).
+
+timestamp() ->
+    erlang:monotonic_time().
 
 all_keys() ->
     all_keys(?TABLE).
