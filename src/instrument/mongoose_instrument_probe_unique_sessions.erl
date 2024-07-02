@@ -13,12 +13,12 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%==============================================================================
--module(mongoose_metrics_probe_total_sessions).
+-module(mongoose_instrument_probe_unique_sessions).
 -behaviour(mongoose_instrument_probe).
 
 -export([probe/2]).
 
 -spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
     mongoose_instrument:measurements().
-probe(sm_total_sessions, #{}) ->
-    #{count => ejabberd_sm:get_total_sessions_number()}.
+probe(sm_unique_sessions, #{}) ->
+    #{count => ejabberd_sm:get_unique_sessions_number()}.
