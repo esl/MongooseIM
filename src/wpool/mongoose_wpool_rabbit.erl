@@ -28,4 +28,4 @@ stop(_, _) ->
 
 -spec instrumentation(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
 instrumentation(HostType, Tag) ->
-    mongoose_rabbit_worker:list_metrics(HostType, Tag).
+    mongoose_rabbit_worker:instrumentation(HostType, Tag).

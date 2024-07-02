@@ -27,7 +27,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, list_metrics/2]).
+-export([start_link/0, instrumentation/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2]).
@@ -57,8 +57,8 @@
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
--spec list_metrics(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
-list_metrics(HostType, Tag) ->
+-spec instrumentation(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
+instrumentation(HostType, Tag) ->
     [{wpool_rabbit_connections, #{pool_tag => Tag, host_type => HostType},
       #{metrics => #{active => counter, opened => spiral, closed => spiral, failed => spiral}}},
      {wpool_rabbit_messages_published, #{pool_tag => Tag, host_type => HostType},
