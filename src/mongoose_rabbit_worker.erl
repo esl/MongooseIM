@@ -150,20 +150,20 @@ handle_amqp_publish(Method, Payload, Opts = #{host_type := HostType,
 handle_publish_result(PublishTime, true, HostType, PoolTag, [Method, Payload, Opts]) ->
     ?LOG_DEBUG(#{what => rabbit_message_sent, host_type => HostType, tag => PoolTag,
                  method => Method, payload => Payload, opts => Opts}),
-    #{count => 1, time => PublishTime, size => byte_size(term_to_binary(Payload))};
+    #{count => 1, time => PublishTime, size => byte_size(term_to_binary(Payload)), payload => Payload};
 handle_publish_result(_PublishTime, false, HostType, PoolTag, [Method, Payload, Opts]) ->
     ?LOG_WARNING(#{what => rabbit_message_sent_failed, reason => negative_ack, host_type => HostType, tag => PoolTag,
                    method => Method, payload => Payload, opts => Opts}),
-    #{failed => 1};
+    #{failed => 1, payload => Payload};
 handle_publish_result(_PublishTime, {channel_exception, Error, Reason}, HostType, PoolTag, [Method, Payload, Opts]) ->
     ?LOG_ERROR(#{what => rabbit_message_sent_failed,
                  class => Error, reason => Reason, host_type => HostType, tag => PoolTag,
                  method => Method, payload => Payload, opts => Opts}),
-    #{failed => 1};
+    #{failed => 1, payload => Payload};
 handle_publish_result(_PublishTime, timeout, HostType, PoolTag, [Method, Payload, Opts]) ->
     ?LOG_ERROR(#{what => rabbit_message_sent_failed, reason => timeout, host_type => HostType, tag => PoolTag,
                  method => Method, payload => Payload, opts => Opts}),
-    #{timeout => 1}.
+    #{timeout => 1, payload => Payload}.
 
 -spec publish_message_and_wait_for_confirm(Method :: mongoose_amqp:method(),
                                            Payload :: mongoose_amqp:message(),
