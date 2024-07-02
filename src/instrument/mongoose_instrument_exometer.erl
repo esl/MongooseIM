@@ -83,6 +83,8 @@ exometer_metric_name(EventName, Labels, MetricName) ->
 %% This logic will need extending if we add more labels
 exometer_labels(#{function := Function}) ->
     [Function];
+exometer_labels(#{pool_tag := PoolTag}) ->
+    [PoolTag];
 exometer_labels(#{}) ->
     [].
 

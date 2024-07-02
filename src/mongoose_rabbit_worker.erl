@@ -27,7 +27,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, list_metrics/1]).
+-export([start_link/0, instrumentation/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2]).
@@ -37,28 +37,13 @@
 -type state() :: #{amqp_client_opts := mongoose_amqp:network_params(),
                    connection := pid(),
                    channel := pid(),
-                   host := binary(),
+                   host_type := mongooseim:host_type_or_global(),
                    pool_tag := atom(),
                    confirms := boolean(),
                    max_queue_len := non_neg_integer() | infinity}.
 
 -type worker_opts() :: state().
-
-%%%===================================================================
-%%% Metrics
-%%%===================================================================
-
--define(CONNECTIONS_ACTIVE_METRIC(Tag), [backends, Tag, connections_active]).
--define(CONNECTIONS_OPENED_METRIC(Tag), [backends, Tag, connections_opened]).
--define(CONNECTIONS_CLOSED_METRIC(Tag), [backends, Tag, connections_closed]).
--define(CONNECTIONS_FAILED_METRIC(Tag), [backends, Tag, connections_failed]).
--define(MESSAGES_PUBLISHED_METRIC(Tag), [backends, Tag, messages_published]).
--define(MESSAGES_FAILED_METRIC(Tag), [backends, Tag, messages_failed]).
--define(MESSAGES_TIMEOUT_METRIC(Tag), [backends, Tag, messages_timeout]).
--define(MESSAGE_PUBLISH_TIME_METRIC(Tag),
-        [backends, Tag, message_publish_time]).
--define(MESSAGE_PAYLOAD_SIZE_METRIC(Tag),
-        [backends, Tag, message_payload_size]).
+-type publish_result() :: boolean() | timeout | {channel_exception, any(), any()}.
 
 %%%===================================================================
 %%% API
@@ -72,16 +57,13 @@
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
-list_metrics(Tag) ->
-    [{?CONNECTIONS_ACTIVE_METRIC(Tag), spiral},
-     {?CONNECTIONS_OPENED_METRIC(Tag), spiral},
-     {?CONNECTIONS_CLOSED_METRIC(Tag), spiral},
-     {?CONNECTIONS_FAILED_METRIC(Tag), spiral},
-     {?MESSAGES_PUBLISHED_METRIC(Tag), spiral},
-     {?MESSAGES_FAILED_METRIC(Tag), spiral},
-     {?MESSAGES_TIMEOUT_METRIC(Tag), spiral},
-     {?MESSAGE_PUBLISH_TIME_METRIC(Tag), histogram},
-     {?MESSAGE_PAYLOAD_SIZE_METRIC(Tag), histogram}].
+-spec instrumentation(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
+instrumentation(HostType, Tag) ->
+    [{wpool_rabbit_connections, #{pool_tag => Tag, host_type => HostType},
+      #{metrics => #{active => counter, opened => spiral, closed => spiral, failed => spiral}}},
+     {wpool_rabbit_messages_published, #{pool_tag => Tag, host_type => HostType},
+      #{metrics => #{count => spiral, failed => spiral, timeout => spiral, time => histogram,
+                     size => histogram}}}].
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -103,8 +85,8 @@ handle_info(Req, State) ->
     maybe_handle_request(fun do_handle_info/2, [Req, State], {noreply, State}).
 
 terminate(_Reason, #{connection := Connection, channel := Channel,
-                     host := Host, pool_tag := PoolTag}) ->
-    close_rabbit_connection(Connection, Channel, Host, PoolTag),
+                     host_type := HostType, pool_tag := PoolTag}) ->
+    close_rabbit_connection(Connection, Channel, HostType, PoolTag),
     ok.
 
 %%%===================================================================
@@ -112,14 +94,14 @@ terminate(_Reason, #{connection := Connection, channel := Channel,
 %%%===================================================================
 
 do_init(Opts) ->
-    Host = proplists:get_value(host_type, Opts),
+    HostType = proplists:get_value(host_type, Opts),
     PoolTag = proplists:get_value(pool_tag, Opts),
     AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
     {Connection, Channel} =
-        establish_rabbit_connection(AMQPClientOpts, Host, PoolTag),
+        establish_rabbit_connection(AMQPClientOpts, HostType, PoolTag),
     IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
     MaxMsgQueueLen = proplists:get_value(max_queue_len, Opts),
-    {ok, #{host => Host, amqp_client_opts => AMQPClientOpts,
+    {ok, #{host_type => HostType, amqp_client_opts => AMQPClientOpts,
            connection => Connection, channel => Channel,
            confirms => IsConfirmEnabled, max_queue_len => MaxMsgQueueLen,
            pool_tag => PoolTag}}.
@@ -145,41 +127,48 @@ do_handle_info(Req, State) ->
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
                           Opts :: worker_opts()) -> {noreply, worker_opts()}.
-handle_amqp_publish(Method, Payload, Opts = #{host := Host,
+handle_amqp_publish(Method, Payload, Opts = #{host_type := HostType,
                                               pool_tag := PoolTag}) ->
-    {PublishTime, Result} =
-        timer:tc(fun publish_message_and_wait_for_confirm/3,
-                 [Method, Payload, Opts]),
-    case Result of
-        true ->
-            update_messages_published_metrics(Host, PoolTag, PublishTime,
-                                              Payload),
-            ?LOG_DEBUG(#{what => rabbit_message_sent,
-                         method => Method, payload => Payload, opts => Opts}),
-            {noreply, Opts};
-        false ->
-            update_messages_failed_metrics(Host, PoolTag),
-            ?LOG_WARNING(#{what => rabbit_message_sent_failed, reason => negative_ack,
-                           method => Method, payload => Payload, opts => Opts}),
-            {noreply, Opts};
-        {channel_exception, Error, Reason} ->
-            update_messages_failed_metrics(Host, PoolTag),
-            ?LOG_ERROR(#{what => rabbit_message_sent_failed,
-                         class => Error, reason => Reason,
-                         method => Method, payload => Payload, opts => Opts}),
+    PublishArgs = [Method, Payload, Opts],
+    Res = mongoose_instrument:span(wpool_rabbit_messages_published, #{host_type => HostType, pool_tag => PoolTag},
+                                   fun publish_message_and_wait_for_confirm/3,
+                                   PublishArgs,
+                                   fun(PublishTime, Result) ->
+                                       handle_publish_result(PublishTime, Result, HostType, PoolTag, PublishArgs)
+                                   end),
+    case Res of
+        {channel_exception, _, _} ->
             {FreshConn, FreshChann} = maybe_restart_rabbit_connection(Opts),
             {noreply, Opts#{connection := FreshConn, channel := FreshChann}};
-        timeout ->
-            update_messages_timeout_metrics(Host, PoolTag),
-            ?LOG_ERROR(#{what => rabbit_message_sent_failed, reason => timeout,
-                         method => Method, payload => Payload, opts => Opts}),
+        _ ->
             {noreply, Opts}
     end.
+
+-spec handle_publish_result(integer(), publish_result(), mongooseim:host_type_or_global(),
+                            mongoose_wpool:tag(), [_]) ->
+    mongoose_instrument:measurements().
+handle_publish_result(PublishTime, true, HostType, PoolTag, [Method, Payload, Opts]) ->
+    ?LOG_DEBUG(#{what => rabbit_message_sent, host_type => HostType, tag => PoolTag,
+                 method => Method, payload => Payload, opts => Opts}),
+    #{count => 1, time => PublishTime, size => byte_size(term_to_binary(Payload)), payload => Payload};
+handle_publish_result(_PublishTime, false, HostType, PoolTag, [Method, Payload, Opts]) ->
+    ?LOG_WARNING(#{what => rabbit_message_sent_failed, reason => negative_ack, host_type => HostType, tag => PoolTag,
+                   method => Method, payload => Payload, opts => Opts}),
+    #{failed => 1, payload => Payload};
+handle_publish_result(_PublishTime, {channel_exception, Error, Reason}, HostType, PoolTag, [Method, Payload, Opts]) ->
+    ?LOG_ERROR(#{what => rabbit_message_sent_failed,
+                 class => Error, reason => Reason, host_type => HostType, tag => PoolTag,
+                 method => Method, payload => Payload, opts => Opts}),
+    #{failed => 1, payload => Payload};
+handle_publish_result(_PublishTime, timeout, HostType, PoolTag, [Method, Payload, Opts]) ->
+    ?LOG_ERROR(#{what => rabbit_message_sent_failed, reason => timeout, host_type => HostType, tag => PoolTag,
+                 method => Method, payload => Payload, opts => Opts}),
+    #{timeout => 1, payload => Payload}.
 
 -spec publish_message_and_wait_for_confirm(Method :: mongoose_amqp:method(),
                                            Payload :: mongoose_amqp:message(),
                                            worker_opts()) ->
-    boolean() | timeout | channel_exception.
+    publish_result().
 publish_message_and_wait_for_confirm(Method, Payload,
                                      #{channel := Channel,
                                        confirms := IsConfirmEnabled}) ->
@@ -197,7 +186,7 @@ maybe_wait_for_confirms(Channel, true) ->
 maybe_wait_for_confirms(_, _) -> true.
 
 -spec maybe_restart_rabbit_connection(worker_opts()) -> {pid(), pid()}.
-maybe_restart_rabbit_connection(#{connection := Conn, host := Host,
+maybe_restart_rabbit_connection(#{connection := Conn, host_type := HostType,
                                   pool_tag := PoolTag,
                                   amqp_client_opts := AMQPOpts}) ->
     case is_process_alive(Conn) of
@@ -205,32 +194,35 @@ maybe_restart_rabbit_connection(#{connection := Conn, host := Host,
             {ok, Channel} = amqp_connection:open_channel(Conn),
             {Conn, Channel};
         false ->
-            establish_rabbit_connection(AMQPOpts, Host, PoolTag)
+            establish_rabbit_connection(AMQPOpts, HostType, PoolTag)
     end.
 
 -spec establish_rabbit_connection(Opts :: mongoose_amqp:network_params(),
-                                  Host :: jid:server(), PoolTag :: atom())
+                                  HostType :: mongooseim:host_type_or_global(), PoolTag :: atom())
     -> {pid(), pid()}.
-establish_rabbit_connection(AMQPOpts, Host, PoolTag) ->
+establish_rabbit_connection(AMQPOpts, HostType, PoolTag) ->
     case amqp_connection:start(AMQPOpts) of
         {ok, Connection} ->
-            update_success_connections_metrics(Host, PoolTag),
+            mongoose_instrument:execute(wpool_rabbit_connections, #{host_type => HostType, pool_tag => PoolTag},
+                                        #{active => 1, opened => 1}),
             {ok, Channel} = amqp_connection:open_channel(Connection),
             ?LOG_DEBUG(#{what => rabbit_connection_established,
-                         server => Host, pool_tag => PoolTag, opts => AMQPOpts}),
+                         host_type => HostType, pool_tag => PoolTag, opts => AMQPOpts}),
             {Connection, Channel};
         {error, Error} ->
-            update_failed_connections_metrics(Host, PoolTag),
+            mongoose_instrument:execute(wpool_rabbit_connections, #{host_type => HostType, pool_tag => PoolTag},
+                                        #{failed => 1}),
             ?LOG_ERROR(#{what => rabbit_connection_failed, reason => Error,
-                         server => Host, pool_tag => PoolTag, opts => AMQPOpts}),
+                         host_type => HostType, pool_tag => PoolTag, opts => AMQPOpts}),
             exit("connection to a Rabbit server failed")
     end.
 
 -spec close_rabbit_connection(Connection :: pid(), Channel :: pid(),
-                              Host :: jid:server(), PoolTag :: atom()) ->
+                              HostType :: mongooseim:host_type_or_global(), PoolTag :: atom()) ->
     ok | no_return().
-close_rabbit_connection(Connection, Channel, Host, PoolTag) ->
-    update_closed_connections_metrics(Host, PoolTag),
+close_rabbit_connection(Connection, Channel, HostType, PoolTag) ->
+    mongoose_instrument:execute(wpool_rabbit_connections, #{host_type => HostType, pool_tag => PoolTag},
+                                #{active => -1, closed => 1}),
     try amqp_channel:close(Channel)
     catch
         _Error:_Reason -> already_closed
@@ -249,45 +241,6 @@ maybe_enable_confirms(Channel, Opts) ->
         false ->
             false
     end.
-
--spec update_messages_published_metrics(Host :: jid:server(),
-                                        PoolTag :: atom(),
-                                        PublishTime :: non_neg_integer(),
-                                        Message :: mongoose_amqp:message()) ->
-    any().
-update_messages_published_metrics(Host, PoolTag, PublishTime, Payload) ->
-    mongoose_metrics:update(Host, ?MESSAGES_PUBLISHED_METRIC(PoolTag), 1),
-    mongoose_metrics:update(Host, ?MESSAGE_PUBLISH_TIME_METRIC(PoolTag),
-                            PublishTime),
-    mongoose_metrics:update(Host, ?MESSAGE_PAYLOAD_SIZE_METRIC(PoolTag),
-                            byte_size(term_to_binary(Payload))).
-
--spec update_messages_failed_metrics(Host :: jid:server(), PoolTag :: atom())
-    -> any().
-update_messages_failed_metrics(Host, PoolTag) ->
-    mongoose_metrics:update(Host, ?MESSAGES_FAILED_METRIC(PoolTag), 1).
-
--spec update_messages_timeout_metrics(Host :: jid:server(), PoolTag :: atom())
-    -> any().
-update_messages_timeout_metrics(Host, PoolTag) ->
-    mongoose_metrics:update(Host, ?MESSAGES_TIMEOUT_METRIC(PoolTag), 1).
-
--spec update_success_connections_metrics(Host :: jid:server(), PoolTag :: atom())
-    -> any().
-update_success_connections_metrics(Host, PoolTag) ->
-    mongoose_metrics:update(Host, ?CONNECTIONS_ACTIVE_METRIC(PoolTag), 1),
-    mongoose_metrics:update(Host, ?CONNECTIONS_OPENED_METRIC(PoolTag), 1).
-
--spec update_failed_connections_metrics(Host :: jid:server(), PoolTag :: atom())
-    -> any().
-update_failed_connections_metrics(Host, PoolTag) ->
-    mongoose_metrics:update(Host, ?CONNECTIONS_FAILED_METRIC(PoolTag), 1).
-
--spec update_closed_connections_metrics(Host :: jid:server(), PoolTag :: atom())
-    -> any().
-update_closed_connections_metrics(Host, PoolTag) ->
-    mongoose_metrics:update(Host, ?CONNECTIONS_ACTIVE_METRIC(PoolTag), -1),
-    mongoose_metrics:update(Host, ?CONNECTIONS_CLOSED_METRIC(PoolTag), 1).
 
 -spec maybe_handle_request(Callback :: function(), Args :: [term()],
                            Reply :: term()) -> term().

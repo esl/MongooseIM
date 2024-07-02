@@ -57,3 +57,10 @@
                            {send_pend,0}
                           ]).
 
+-define(INET_STATS_METRICS, #{recv_oct => spiral,
+                              recv_cnt => spiral,
+                              recv_max => gauge,
+                              send_oct => spiral,
+                              send_max => gauge,
+                              send_cnt => spiral,
+                              send_pend => spiral}).

@@ -89,7 +89,9 @@ rdbms_queries_cases() ->
      test_upsert_many1,
      test_upsert_many2,
      test_upsert_many1_replaces_existing,
-     test_upsert_many2_replaces_existing].
+     test_upsert_many2_replaces_existing,
+
+     pool_probe_metrics_are_updated].
 
 suite() ->
     escalus:suite().
@@ -104,22 +106,31 @@ init_per_suite(Config) ->
         true ->
             %% Warning: inject_module does not really work well with --rerun-big-tests flag
             mongoose_helper:inject_module(?MODULE),
-            escalus:init_per_suite(Config)
+            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
+            escalus:init_per_suite(Config1)
     end.
 
 end_per_suite(Config) ->
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
     escalus:end_per_suite(Config).
 
 init_per_group(tagged_rdbms_queries, Config) ->
     ExtraConfig = stop_global_default_pool(),
+    instrument_helper:start(declared_events(tagged_rdbms_queries)),
     start_local_host_type_pool(ExtraConfig),
     ExtraConfig ++ Config;
 init_per_group(global_rdbms_queries, Config) ->
+    ExtraConfig = stop_global_default_pool(),
+    instrument_helper:start(declared_events(global_rdbms_queries)),
+    restart_global_default_pool(ExtraConfig),
     [{tag, global} | Config].
 
 end_per_group(tagged_rdbms_queries, Config) ->
+    stop_local_host_type_pool(),
+    instrument_helper:stop(),
     restart_global_default_pool(Config);
 end_per_group(global_rdbms_queries, Config) ->
+    instrument_helper:stop(),
     Config.
 
 init_per_testcase(test_incremental_upsert, Config) ->
@@ -141,6 +152,13 @@ end_per_testcase(test_incremental_upsert, Config) ->
     escalus:end_per_testcase(test_incremental_upsert, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+declared_events(tagged_rdbms_queries) ->
+    instrument_helper:declared_events(mongoose_wpool_rdbms, [host_type(), tag()]) ++
+    [{test_wrapped_request, #{pool_tag => tag()}}];
+declared_events(global_rdbms_queries) ->
+    instrument_helper:declared_events(mongoose_wpool_rdbms, [global, default]) ++
+    [{test_wrapped_request, #{pool_tag => global}}].
 
 %%--------------------------------------------------------------------
 %% Data for cases
@@ -251,6 +269,9 @@ like_texts() ->
          #{text => <<"żółć_"/utf8>>,
            not_matching => [<<"_ółć_"/utf8>>],
            matching => [<<"żół"/utf8>>, <<"ółć_"/utf8>>]}].
+
+wrapper_event_spec(Tag) ->
+    [{test_wrapped_request, #{pool_tag => Tag}, #{metrics => #{time => histogram, count => spiral}}}].
 
 %%--------------------------------------------------------------------
 %% Test cases
@@ -436,12 +457,14 @@ test_wrapped_request(Config) ->
     erase_table(Config),
     sql_prepare(Config, insert_one, test_types, [unicode],
                 <<"INSERT INTO test_types(unicode) VALUES (?)">>),
-    rpc(mim(), mongoose_metrics, ensure_metric, [global, [test_metric], histogram]),
+
+    Tag = ?config(tag, Config),
+    rpc(mim(), mongoose_instrument, set_up, [wrapper_event_spec(Tag)]),
+    Ref = make_ref(),
     WrapperFun = fun(SqlExecute) ->
-        {Time, Result} = timer:tc(SqlExecute),
-        mongoose_metrics:update(global, [test_metric], Time),
-        Result
-    end,
+                     mongoose_instrument:span(test_wrapped_request, #{pool_tag => Tag}, SqlExecute,
+                                              fun(Time, _Result) -> #{time => Time, count => 1, ref => Ref} end)
+                 end,
 
     % when
     sql_execute_wrapped_request_and_wait_response(Config, insert_one, [<<"check1">>], WrapperFun),
@@ -452,10 +475,9 @@ test_wrapped_request(Config) ->
             SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
             ?assertEqual({selected, [{<<"check1">>}]}, selected_to_sorted(SelectResult))
         end, ok, #{name => request_queries}),
-
-    {ok, Metric} = rpc(mim(), mongoose_metrics, get_metric_value, [global, [test_metric]]),
-    MetricValue = proplists:get_value(mean, Metric),
-    ?assert(MetricValue > 0).
+    Measurements = instrument_helper:wait_for(test_wrapped_request, #{pool_tag => Tag}),
+    instrument_helper:assert(test_wrapped_request, #{pool_tag => Tag}, Measurements,
+                             fun(#{time := T, count := 1, ref := Ref}) -> T > 0 end).
 
 test_failed_wrapper(Config) ->
     % given
@@ -662,6 +684,22 @@ test_upsert_many2_replaces_existing(Config) ->
     {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert3 ++ Insert4, Update3),
     SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
     ?assertEqual({selected, [{<<"10">>}, {<<"10">>}]}, selected_to_binary(SelectResult)).
+
+pool_probe_metrics_are_updated(Config) ->
+    Tag = ?config(tag, Config),
+    {Event, Labels} = case Tag of
+                          global ->
+                              {wpool_global_rdbms_stats, #{pool_tag => default}};
+                          Tag ->
+                              {wpool_rdbms_stats, #{host_type => host_type(), pool_tag => Tag}}
+                      end,
+    #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
+
+    select_one_works_case(Config),
+
+    Measurements = instrument_helper:wait_for_new(Event, Labels),
+    F = fun(#{recv_oct := NewRecv, send_oct := NewSend}) -> NewRecv > Recv andalso NewSend > Send end,
+    instrument_helper:assert(Event, Labels, Measurements, F).
 
 %%--------------------------------------------------------------------
 %% Text searching
@@ -1273,6 +1311,9 @@ start_local_host_type_pool(Config) ->
     GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
     LocalHostTypePool = GlobalRdbmsPool#{scope := host_type(), tag := tag()},
     rpc(mim(), mongoose_wpool, start_configured_pools, [[LocalHostTypePool], [host_type()]]).
+
+stop_local_host_type_pool() ->
+    ok = rpc(mim(), mongoose_wpool, stop, [rdbms, host_type(), tag()]).
 
 escape_column(Name) ->
     case is_mysql() of

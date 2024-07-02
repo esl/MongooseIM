@@ -141,8 +141,27 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
 | `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
 | `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
+| `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
 | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
 | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
+
+### Pool metrics
+
+For every RDBMS pool defined, an instance of these metrics are available.
+
+| Name                                                         | Type    | Description (when it gets incremented) |
+|--------------------------------------------------------------|---------|----------------------------------------|
+| `[HostType, wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+
+When using a Rabbit worker pool, metrics defined in [mod_event_pusher_rabbit](../modules/mod_event_pusher_rabbit.md) are
+available.
 
 ### Extension-specific metrics
 
@@ -180,9 +199,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, data, xmpp, sent, s2s]` | spiral | A size (in bytes) of a data sent via TCP and TLS (before encryption) Server-to-Server connections. |
 | `[global, data, xmpp, received, component]` | spiral | A size (in bytes) of a data received from XMPP component. |
 | `[global, data, xmpp, sent, component]` | spiral | A size (in bytes) of a data sent to XMPP component. |
-| `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
 | `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
-| `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 
 ### CETS system metrics
 
@@ -204,6 +221,22 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `conflict_nodes` | Nodes that replicate at least one of our local tables to a different list of nodes. |
 | `conflict_tables` | Tables that have conflicting replication destinations. |
 | `discovery_works` | Returns 1 if the last discovery attempt is successful (otherwise returns 0). |
+
+### Pool metrics
+
+For RDBMS global pool defined, an instance of these metrics are available.
+
+| Name                                                              | Type    | Description (when it gets incremented) |
+|-------------------------------------------------------------------|---------|----------------------------------------|
+| `[global, wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+
 
 ### VM metrics
 

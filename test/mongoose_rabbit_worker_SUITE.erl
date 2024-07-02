@@ -22,7 +22,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("assert_received_match.hrl").
 
--define(HOST, <<"localhost">>).
+-define(HOST_TYPE, <<"localhost">>).
 -define(AMQP_MOCK_MODULES, [amqp_connection, amqp_channel]).
 -define(MAX_QUEUE_LEN, 1000).
 
@@ -43,24 +43,29 @@ all() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    mongoose_config:set_opts(#{instrumentation =>
+                               config_parser_helper:default_config([instrumentation])}),
     mock_amqp(),
-    mock_metrics(),
     Config.
 
 end_per_suite(Config) ->
+    mongoose_config:erase_opts(),
     unload_amqp(),
-    meck:unload(mongoose_metrics),
     Config.
 
 init_per_testcase(_Case, Config) ->
-    WorkerOpts = [{host, ?HOST},
+    WorkerOpts = [{host_type, ?HOST_TYPE},
+                  {pool_tag, test_tag},
                   {amqp_client_opts, []},
                   {confirms, false},
                   {max_queue_len, ?MAX_QUEUE_LEN}],
+    mongoose_instrument:start_link(),
+    mongoose_instrument:set_up(mongoose_wpool_rabbit:instrumentation(?HOST_TYPE, test_tag)),
     {ok, WorkerPid} = gen_server:start(mongoose_rabbit_worker, WorkerOpts, []),
     Config ++ [{worker_pid, WorkerPid}].
 
 end_per_testcase(_Case, Config) ->
+    mongoose_instrument:tear_down(mongoose_wpool_rabbit:instrumentation(?HOST_TYPE, test_tag)),
     exit(proplists:get_value(worker_pid, Config), kill),
     Config.
 
@@ -182,10 +187,6 @@ mock_amqp() ->
                 fun(_, {F, A}, _) when is_function(F) -> apply(F, A);
                    (_, _, _) -> ok
                 end).
-
-mock_metrics() ->
-    meck:new(mongoose_metrics, [no_link, passthrough]),
-    meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end).
 
 unload_amqp() ->
     [meck:unload(M) || M <- ?AMQP_MOCK_MODULES].
