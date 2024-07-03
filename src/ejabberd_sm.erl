@@ -27,6 +27,7 @@
 
 -behaviour(gen_server).
 -behaviour(gen_iq_component).
+-behaviour(mongoose_instrument_probe).
 
 
 %% API
@@ -63,7 +64,10 @@
          session_cleanup/1,
          sessions_cleanup/1,
          terminate_session/2,
-         sm_backend/0
+         sm_backend/0,
+         probe/2,
+         start_probes/0,
+         stop_probes/0
         ]).
 
 %% Hook handlers
@@ -85,7 +89,8 @@
 -export([do_route/4]).
 
 -ignore_xref([do_filter/3, do_route/4, get_unique_sessions_number/0,
-              get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0]).
+              get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0,
+              start_probes/0, stop_probes/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -121,7 +126,6 @@
 
 %% default value for the maximum number of user connections
 -define(MAX_USER_SESSIONS, 100).
--define(UNIQUE_COUNT_CACHE, [cache, unique_sessions_number]).
 
 %%====================================================================
 %% API
@@ -312,15 +316,7 @@ get_session_pid(JID) ->
 
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
-    try
-        C = ejabberd_sm_backend:unique_count(),
-        mongoose_metrics:update(global, ?UNIQUE_COUNT_CACHE, C),
-        C
-    catch
-        _:_ ->
-            get_cached_unique_count()
-    end.
-
+    ejabberd_sm_backend:unique_count().
 
 -spec get_total_sessions_number() -> integer().
 get_total_sessions_number() ->
@@ -483,15 +479,12 @@ init([]) ->
                           mongoose_instrument:set_up(instrumentation(HostType))
                   end,
                   ?ALL_HOST_TYPES),
-    %% Create metrics after backend has started, otherwise probe could have null value
-    create_metrics(),
+    %% Set up global metrics here to avoid registering global hooks
+    mongoose_instrument:set_up(instrumentation(global)),
     {ok, #state{}}.
 
-create_metrics() ->
-    mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
-    mongoose_metrics:create_probe_metric(global, totalSessionCount, mongoose_metrics_probe_total_sessions),
-    mongoose_metrics:create_probe_metric(global, uniqueSessionCount, mongoose_metrics_probe_unique_sessions),
-    mongoose_metrics:create_probe_metric(global, nodeSessionCount, mongoose_metrics_probe_node_sessions).
+start_probes() ->
+    mongoose_instrument:set_up(global_probes()).
 
 -spec hooks(binary()) -> [gen_hook:hook_tuple()].
 hooks(HostType) ->
@@ -573,8 +566,12 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
-    [mongoose_instrument:tear_down(instrumentation(HostType)) || HostType <- ?ALL_HOST_TYPES],
+    [mongoose_instrument:tear_down(instrumentation(HostType))
+     || HostType <- [global | ?ALL_HOST_TYPES]],
     ok.
+
+stop_probes() ->
+    mongoose_instrument:tear_down(global_probes()).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -979,21 +976,14 @@ user_resources(UserStr, ServerStr) ->
     Resources = get_user_resources(JID),
     lists:sort(Resources).
 
--spec get_cached_unique_count() -> non_neg_integer().
-get_cached_unique_count() ->
-    case mongoose_metrics:get_metric_value(global, ?UNIQUE_COUNT_CACHE) of
-        {ok, DataPoints} ->
-            proplists:get_value(value, DataPoints);
-        _ ->
-            0
-    end.
-
 %% It is used from big tests
 -spec sm_backend() -> backend().
 sm_backend() ->
     mongoose_backend:get_backend_module(global, ?MODULE).
 
--spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+-spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
+instrumentation(global) ->
+    global_probes();
 instrumentation(HostType) ->
     [{sm_session, #{host_type => HostType},
       #{metrics => #{logins => spiral, logouts => spiral, count => counter}}},
@@ -1001,3 +991,20 @@ instrumentation(HostType) ->
       #{metrics => #{subscription_count => spiral, unsubscription_count => spiral}}},
      {sm_message_bounced, #{host_type => HostType},
       #{metrics => #{count => spiral}}}].
+
+global_probes() ->
+    [{sm_total_sessions, #{},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
+     {sm_unique_sessions, #{},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
+     {sm_node_sessions, #{},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}}].
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+    mongoose_instrument:measurements().
+probe(sm_total_sessions, #{}) ->
+    #{count => get_total_sessions_number()};
+probe(sm_unique_sessions, #{}) ->
+    #{count => get_unique_sessions_number()};
+probe(sm_node_sessions, #{}) ->
+    #{count => get_node_sessions_number()}.

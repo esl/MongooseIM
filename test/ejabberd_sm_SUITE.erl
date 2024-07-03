@@ -50,7 +50,6 @@ tests() ->
      clean_up,
      too_many_sessions,
      unique_count,
-     unique_count_while_removing_entries,
      session_info_is_stored,
      session_info_is_updated_if_keys_match,
      session_info_is_updated_properly_if_session_conflicts,
@@ -384,20 +383,6 @@ unique_count(_C) ->
     USDict = get_unique_us_dict(UsersWithManyResources),
     UniqueCount = ejabberd_sm:get_unique_sessions_number(),
     UniqueCount = dict:size(USDict).
-
-
-unique_count_while_removing_entries(C) ->
-    unique_count(C),
-    UniqueCount = ejabberd_sm:get_unique_sessions_number(),
-    %% Register more sessions and mock the crash
-    UsersWithManyResources = generate_many_random_res(10, 3, [<<"localhost">>, <<"otherhost">>]),
-    [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
-    set_test_case_meck_unique_count_crash(?B(C)),
-    USDict = get_unique_us_dict(UsersWithManyResources),
-    %% Check if unique count equals prev cached value
-    UniqueCount = ejabberd_sm:get_unique_sessions_number(),
-    meck:unload(?B(C)),
-    true = UniqueCount /= dict:size(USDict) + UniqueCount.
 
 unload_meck() ->
     meck:unload(acl),
