@@ -12,7 +12,7 @@
 -export([start/0, stop/0, set_up/3, handle_event/4]).
 
 start() ->
-    ets_helper:new(?TABLE, [bag]). % repeating measurements are stored only once
+    ets_helper:new(?TABLE, [duplicate_bag]).
 
 stop() ->
     ets_helper:delete(?TABLE).
