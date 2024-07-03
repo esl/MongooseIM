@@ -40,7 +40,7 @@ To build a package run:
 
 Where:
 
-* `$PLATFORM` - an OS and an OS version name separated by "_" (e.g. centos_7,
+* `$PLATFORM` - an OS and an OS version name separated by "_" (e.g. rockylinux_8,
 debian_stretch),
 * `$VERSION` - a version of MongooseIM (for most cases version from the `VERSION`
 file will be suitable),
@@ -50,7 +50,7 @@ is built for the same source code but with the usage of changed build scripts),
 while compiling MongooseIM (please remember about concerning minimal erlang version
 specified in the `rebar.config` file and the esl-erlang package revision - e.g. 23.3.1-1),
 * `DOCKERFILE_PATH` - a dockerfile path which should be used to build a package
-for given platform (e.g. path of `Dockerfile_rpm` for `centos_7`),
+for given platform (e.g. path of `Dockerfile_rpm` for `rockylinux_8`),
 * `CONTEXT_PATH` - a root directory of the MongooseIM project (during building
 whole source code is copied to a building docker image container and the `_build`
 directory is erased),
@@ -63,9 +63,9 @@ container. The container instance is removed once the build finishes.
 A resulting package will be called:
 
 ```
-mongooseim_3.6.0-1~centos~7_amd64.rpm
+mongooseim_3.6.0-1~rockylinux~8_amd64.rpm
 ```
-For passed `version`: "3.6.0", `revision`: "1" and `platform`: "centos_7".
+For passed `version`: "3.6.0", `revision`: "1" and `platform`: "rockylinux_8".
 
 ## Sample configuration
 

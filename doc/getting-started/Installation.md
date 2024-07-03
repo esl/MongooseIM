@@ -22,7 +22,7 @@ The following sections describe the installation process for different operating
     sudo dpkg -i mongooseim_[version here].deb
     ```
 
-=== "CentOS / AlmaLinux / Rocky Linux"
+=== "CentOS compatible: AlmaLinux / Rocky Linux"
 
     An ODBC (RDBMS) driver must be installed on your machine to unpack and install from RPM packages. Enter the following command in a terminal window to install the latest unixODBC driver:
     

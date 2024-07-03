@@ -151,7 +151,7 @@ MSSQL can be used from MongooseIM through the ODBC layer with FreeTDS driver, so
 # Ubuntu
 $ sudo apt install freetds-dev tdsodbc
 
-# CentOS
+# CentOS compatible systems (Rocky, Alma)
 $ sudo yum install freetds
 
 # macOS
@@ -166,7 +166,7 @@ Add your database (`mongooseim` here) to the `/etc/odbc.ini` or `$HOME/.odbc.ini
 ; Ubuntu
 Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
 Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
-; CentOS
+; CentOS compatible
 ; Driver      = /usr/lib64/libtdsodbc.so.0
 ; Setup       = /usr/lib64/libtdsS.so
 ; macOS
