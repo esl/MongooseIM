@@ -70,7 +70,7 @@ all() ->
     ].
 
 groups() ->
-    G = [
+    [
          {pool_startup, [],
           [
            rabbit_pool_starts_with_default_config
@@ -103,8 +103,7 @@ groups() ->
            connections_events_are_executed,
            messages_published_events_are_executed
           ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 suite() ->
     escalus:suite().
@@ -263,10 +262,7 @@ chat_message_sent_event(Config) ->
               %% THEN  wait for chat message sent events events from Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = BobChatMsgSentRK},
-                                    #amqp_msg{}}, timer:seconds(5)),
-              instrument_helper:assert(wpool_rabbit_messages_published,
-                                       #{host_type => domain(), pool_tag => event_pusher},
-                                       fun(#{count := 1, time := T, size := S}) -> T >= 0 andalso S >= 0 end)
+                                    #amqp_msg{}}, timer:seconds(5))
       end).
 
 chat_message_received_event(Config) ->
@@ -471,16 +467,16 @@ messages_published_events_are_executed(Config) ->
             Msg = <<"Oh, hi Alice from the event's test!">>,
             escalus:send(Bob,
                          escalus_stanza:chat_to(Alice, Msg)),
-            %% THEN  wait for chat message sent events events from Rabbit.
+            %% THEN wait for chat message sent events from Rabbit.
             ?assertReceivedMatch({#'basic.deliver'{routing_key = BobChatMsgSentRK},
                                   #amqp_msg{}}, timer:seconds(5)),
             instrument_helper:assert(wpool_rabbit_messages_published,
                                      #{host_type => domain(), pool_tag => event_pusher},
                                      fun(#{count := 1, time := T, size := S, payload := P}) ->
-                                         {amqp_msg, _, BinData} = P,
-                                         T >= 0 andalso S >= 0 andalso
-                                         binary:match(BinData, Msg) /= nomatch
-                                     end)
+                                             {amqp_msg, _, BinData} = P,
+                                             T >= 0 andalso S >= 0 andalso
+                                                 binary:match(BinData, Msg) /= nomatch
+                                     end, #{expected_count => 2}) % for sender and receiver
         end).
 
 %%--------------------------------------------------------------------
@@ -756,17 +752,11 @@ is_rabbitmq_available() ->
     end.
 
 assert_connection_event(Tag) ->
-    Measurements = instrument_helper:wait_for(wpool_rabbit_connections,
-                                              #{host_type => domain(), pool_tag => Tag}),
-    instrument_helper:assert(wpool_rabbit_connections,
-                             #{host_type => domain(), pool_tag => Tag},
-                             Measurements,
-                             fun(#{active := 1, opened := 1}) -> true end).
+    instrument_helper:wait_and_assert(wpool_rabbit_connections,
+                                      #{host_type => domain(), pool_tag => Tag},
+                                      fun(#{active := 1, opened := 1}) -> true end).
 
 assert_disconnection_event(Tag) ->
-    Measurements = instrument_helper:wait_for(wpool_rabbit_connections,
-                                              #{host_type => domain(), pool_tag => Tag}),
-    instrument_helper:assert(wpool_rabbit_connections,
-                             #{host_type => domain(), pool_tag => Tag},
-                             Measurements,
-                             fun(#{active := -1, closed := 1}) -> true end).
+    instrument_helper:wait_and_assert(wpool_rabbit_connections,
+                                      #{host_type => domain(), pool_tag => Tag},
+                                      fun(#{active := -1, closed := 1}) -> true end).
