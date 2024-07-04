@@ -193,6 +193,7 @@ basic_group_names() ->
      muc_all,
      muc_light,
      prefs_cases,
+     muc_prefs_cases,
      impl_specific,
      disabled_text_search,
      disabled_complex_queries,
@@ -258,11 +259,11 @@ basic_groups() ->
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
                                 ++ muc_metadata_cases() ++ muc_fetch_specific_msgs_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
-            {muc_prefs_cases, [parallel], muc_prefs_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
+     {muc_prefs_cases,  [parallel], muc_prefs_cases()},
      {impl_specific,    [], impl_specific()},
      {disabled_text_search, [],
          [{mam04, [], disabled_text_search_cases()}]},
@@ -562,17 +563,6 @@ init_per_group(rsm04_comp, Config) ->
 init_per_group(with_rsm04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
     
-init_per_group(muc_prefs_cases, Config) ->
-    MamOpts = ?config(mam_meta_opts, Config),
-    #{backend := Backend, user_prefs_store := PrefsStore} = MamOpts,
-    case mam_prefs_backend_module(Backend, PrefsStore) of
-        {error, _} -> 
-            {skip, "Database not supported"};
-        MamPrefsBackendModule ->
-            Config1 = dynamic_modules:save_modules(host_type(), Config),
-            dynamic_modules:restart(host_type(), MamPrefsBackendModule, #{muc => true, pm => true}),
-            Config1
-    end;
 init_per_group(nostore, Config) ->
     Config;
 init_per_group(archived, Config) ->
@@ -649,16 +639,26 @@ required_modules_for_group(C, muc_light, Config) ->
       {mod_mam, Opts}], Config1};
 required_modules_for_group(C, BG, Config) when BG =:= muc_all;
                                                BG =:= muc_disabled_retraction ->
-    Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
-    MUCHost = subhost_pattern(muc_domain(Config)),
-    Opts = config_opts(Extra#{muc => #{host => MUCHost}}),
+    Opts = create_mam_opts(C, BG, Config),
     Config1 = maybe_set_wait(C, [muc], [{mam_meta_opts, Opts} | Config]),
     {[{mod_mam, Opts}], Config1};
+required_modules_for_group(C, BG, Config) when BG =:= muc_prefs_cases ->
+    Opts = create_mam_opts(C, BG, Config),
+    Config1 = maybe_set_wait(C, [muc], [{mam_meta_opts, Opts} | Config]),
+    #{backend := Backend, user_prefs_store := PrefsStore} = Opts,
+    MucPrefsBackendModule =  mam_prefs_backend_module(Backend, PrefsStore),
+    MucPrefsBackendModuleOpts = #{muc => true, pm => true},
+    {[{mod_mam, Opts}, {MucPrefsBackendModule, MucPrefsBackendModuleOpts}], Config1};
 required_modules_for_group(C, BG, Config) ->
     Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
     Opts = config_opts(Extra#{pm => #{}}),
     Config1 = maybe_set_wait(C, [pm], [{mam_meta_opts, Opts} | Config]),
     {[{mod_mam, Opts}], Config1}.
+
+create_mam_opts(C, BG, Config) ->
+    Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
+    MUCHost = subhost_pattern(muc_domain(Config)),
+    config_opts(Extra#{muc => #{host => MUCHost}}).
 
 maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
                                       C =:= rdbms_async_cache ->
@@ -723,6 +723,8 @@ mam_opts_for_base_group(_BG) ->
     #{}.
 
 init_state(_, muc_all, Config) ->
+    Config;
+init_state(_, muc_prefs_cases, Config) ->
     Config;
 init_state(C, muc_light, Config) ->
     clean_archives(Config),
