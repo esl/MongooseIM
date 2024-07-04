@@ -398,7 +398,7 @@ admin_list_contacts_story(Config, Alice, Bob) ->
     [#{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
        <<"name">> := BobName, <<"groups">> := ?DEFAULT_GROUPS}] =
         get_ok_value([data, roster, listContacts], Res),
-    roster_helper:assert_roster_event(Alice, mod_roster_get).
+    roster_helper:assert_roster_event(escalus_client:short_jid(Alice), mod_roster_get).
 
 admin_list_contacts_wrong_user(Config) ->
     % User with a non-existent domain
@@ -548,7 +548,7 @@ user_list_contacts_story(Config, Alice, Bob) ->
     [#{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
        <<"name">> := Name, <<"groups">> := ?DEFAULT_GROUPS}] =
         get_ok_value(?LIST_CONTACTS_PATH, Res),
-    roster_helper:assert_roster_event(Alice, mod_roster_get).
+    roster_helper:assert_roster_event(escalus_client:short_jid(Alice), mod_roster_get).
 
 user_get_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],

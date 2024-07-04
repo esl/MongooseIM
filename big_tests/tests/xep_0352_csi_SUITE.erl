@@ -208,6 +208,6 @@ given_client_is_inactive_but_sends_messages(Alice, Bob, N) ->
     {MsgsToAlice, MsgsToBob}.
 
 assert_event(Event, Client) ->
-    instrument_helper:assert(Event, #{host_type => host_type()},
-                             fun(#{count := 1, jid := JID}) ->
-                                 jid:to_binary(JID) =:= escalus_client:full_jid(Client) end).
+    instrument_helper:assert_one(
+      Event, #{host_type => host_type()},
+      fun(#{count := 1, jid := JID}) -> jid:to_binary(JID) =:= escalus_client:full_jid(Client) end).

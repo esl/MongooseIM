@@ -301,7 +301,7 @@ declared_backend_events() ->
 %% This works only for get_roster and get_subscription_lists because of the function arguments
 assert_backend_event(Client, Function) ->
     ClientJid = jid:from_binary(escalus_utils:get_short_jid(Client)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       backend_mod(), #{host_type => host_type(), function => Function},
       fun(#{count := 1, time := T, args := [_, User, Server]}) when T > 0 ->
               ClientJid =:= jid:make_bare(User, Server)

@@ -283,11 +283,10 @@ wait_for_pong_hook(Alice) ->
     end.
 
 assert_event(EventName, F) ->
-    instrument_helper:assert(EventName, #{host_type => host_type()}, F).
+    instrument_helper:assert_one(EventName, #{host_type => host_type()}, F).
 
 assert_no_event(EventName, User) ->
-    Events = instrument_helper:lookup(EventName, #{host_type => host_type()}),
-    EventsWithJid = lists:filter(fun(#{jid := Jid}) -> eq_jid(User, Jid) end, Events),
-    ?assertEqual([], EventsWithJid).
+    F = fun(#{jid := Jid}) -> eq_jid(User, Jid) end,
+    instrument_helper:assert_not_emitted(EventName, #{host_type => host_type()}, F).
 
 eq_jid(User, Jid) -> jid:from_binary(escalus_utils:get_jid(User)) =:= Jid.

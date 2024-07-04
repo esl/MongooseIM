@@ -133,8 +133,9 @@ amp_test_helper_code() ->
     "  end.\n".
 
 declared_events() ->
-    [
-     {mod_privacy_set, #{host_type => host_type()}} % tested by privacy helpers
+    [ % tested by privacy helpers
+     {mod_privacy_set, #{host_type => host_type()}},
+     {mod_privacy_get, #{host_type => host_type()}}
     ].
 
 end_per_suite(C) ->

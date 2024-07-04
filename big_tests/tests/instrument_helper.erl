@@ -8,7 +8,7 @@
 
 %% API for assertions in test cases
 -export([assert/3, assert_one/3, assert_not_emitted/3, assert_not_emitted/2, assert_not_emitted/1,
-         wait_and_assert/3, wait_and_assert_new/3, assert/4]).
+         wait_and_assert/3, wait_and_assert_new/3, assert/4, timestamp/0]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
@@ -22,7 +22,7 @@
 -type measurements() :: #{atom() => term()}.
 -type check_fun() :: fun((measurements()) -> boolean()).
 -type event_count() :: non_neg_integer() | positive.
--type opts() :: #{timestamp => integer(),
+-type opts() :: #{min_timestamp => integer(),
                   retries := non_neg_integer(),
                   delay := non_neg_integer(),
                   expected_count := event_count()}.
@@ -103,7 +103,7 @@ wait_and_assert(EventName, Labels, CheckF) ->
 %% @doc Waits for a matching event, ignoring past events.
 -spec wait_and_assert_new(event_name(), labels(), check_fun()) -> ok.
 wait_and_assert_new(EventName, Labels, CheckF) ->
-    assert(EventName, Labels, CheckF, #{timestamp => timestamp(), retries => 50, delay => 100}).
+    assert(EventName, Labels, CheckF, #{min_timestamp => timestamp(), retries => 50, delay => 100}).
 
 %% @doc Assert that an expected number of events with `EventName' and `Labels' are present.
 %% Events are filtered by applying `CheckF' to the map of measurements.
@@ -114,7 +114,33 @@ assert(EventName, Labels, CheckF, Opts) ->
     FullOpts = maps:merge(default_opts(), Opts),
     assert_loop(EventName, Labels, CheckF, FullOpts).
 
-%% Low-level API
+-spec timestamp() -> integer().
+timestamp() ->
+    rpc(mim(), ?HANDLER_MODULE, timestamp, []).
+
+%% Internal functions
+
+-spec default_opts() -> opts().
+default_opts() ->
+    #{retries => 0, delay => timer:seconds(1), expected_count => positive}.
+
+-spec assert_loop(event_name(), labels(), check_fun(), opts()) -> ok.
+assert_loop(EventName, Labels, CheckF, Opts) ->
+    #{retries := Retries, expected_count := ExpectedCount, delay := Delay} = Opts,
+    All = case Opts of
+              #{min_timestamp := Timestamp} ->
+                  select_new(EventName, Labels, Timestamp);
+              #{} ->
+                  select(EventName, Labels)
+          end,
+    Filtered = filter(CheckF, All),
+    case check(Filtered, ExpectedCount) of
+        false when Retries > 0 ->
+            timer:sleep(Delay),
+            assert_loop(EventName, Labels, CheckF, Opts#{retries := Retries - 1});
+        CheckResult ->
+            assert_check_result(EventName, Labels, All, Filtered, CheckResult, ExpectedCount)
+    end.
 
 -spec filter(fun((measurements()) -> boolean()), [measurements()]) -> [measurements()].
 filter(CheckF, MeasurementsList) ->
@@ -130,34 +156,6 @@ select(EventName, Labels) ->
 select_new(EventName, Labels, Timestamp) ->
     rpc(mim(), ?HANDLER_MODULE, select_new, [EventName, Labels, Timestamp]).
 
--spec timestamp() -> integer().
-timestamp() ->
-    rpc(mim(), ?HANDLER_MODULE, timestamp, []).
-
-%% Internal functions
-
--spec assert_loop(event_name(), labels(), check_fun(), opts()) -> ok.
-assert_loop(EventName, Labels, CheckF, Opts) ->
-    #{retries := Retries, expected_count := ExpectedCount, delay := Delay} = Opts,
-    All = case Opts of
-              #{timestamp := Timestamp} ->
-                  select_new(EventName, Labels, Timestamp);
-              #{} ->
-                  select(EventName, Labels)
-          end,
-    Filtered = filter(CheckF, All),
-    case check(Filtered, ExpectedCount) of
-        false when Retries > 0 ->
-            timer:sleep(Delay),
-            assert_loop(EventName, Labels, CheckF, Opts#{retries := Retries - 1});
-        CheckResult ->
-            assert_check_result(EventName, Labels, All, Filtered, CheckResult, ExpectedCount)
-    end.
-
--spec default_opts() -> opts().
-default_opts() ->
-    #{retries => 0, delay => timer:seconds(1), expected_count => positive}.
-
 -spec check([measurements()], event_count()) -> boolean().
 check(Filtered, positive) ->
     length(Filtered) > 0;
@@ -168,12 +166,13 @@ check(Filtered, ExpectedCount) ->
                           Filtered :: [measurements()], CheckResult :: boolean(),
                           event_count()) -> ok.
 assert_check_result(_EventName, _Labels, _All, [], true, _ExpectedCount) ->
-    ok; % don't mark events as tested
+    ok; % don't mark non-emitted events as tested
 assert_check_result(EventName, Labels, _All, Filtered, true, _ExpectedCount) ->
     ct:log("Matching measurements for event ~p with labels ~p:~n~p", [EventName, Labels, Filtered]),
     event_tested(EventName, Labels);
 assert_check_result(EventName, Labels, All, Filtered, false, ExpectedCount) ->
-    ct:log("All measurements for event ~p with labels ~p:~n~p", [EventName, Labels, All]),
+    ct:log("Assertion failed for event ~p with labels ~p.~nMatching measurements:~n~p~n~n"
+           "Other measurements:~n~p", [EventName, Labels, Filtered, All -- Filtered]),
     ct:fail("Incorrect number of instrumentation events - matched: ~p, expected: ~p",
             [length(Filtered), ExpectedCount]).
 
