@@ -342,15 +342,14 @@ set_nick(User, Nick) ->
 %% Instrumentation utilities
 
 wait_for_room_count(ExpectedCounts) ->
-    [Measurements | _] = instrument_helper:wait_for_new(mod_muc_rooms, labels()),
     F = fun(Counts) -> Counts =:= ExpectedCounts end,
-    instrument_helper:assert(mod_muc_rooms, labels(), [Measurements], F).
+    instrument_helper:wait_and_assert_new(mod_muc_rooms, labels(), F).
 
 assert_room_event(EventName, RoomJid) ->
     assert_event(EventName, fun(#{count := 1, jid := Jid}) -> Jid =:= RoomJid end).
 
 assert_event(EventName, F) ->
-    instrument_helper:assert(EventName, labels(), F).
+    instrument_helper:assert_one(EventName, labels(), F).
 
 count_rooms() ->
     rpc(mim(), mod_muc, probe, [mod_muc_rooms, labels()]).

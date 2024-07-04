@@ -231,12 +231,13 @@ messages_from_blocked_user_dont_arrive(Config) ->
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
+            TS = instrument_helper:timestamp(),
             message(User2, User1, <<"Hi!">>),
             ct:sleep(100),
             escalus_assert:has_no_stanzas(User1),
             privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>),
-            privacy_helper:assert_privacy_check_packet_event(User2, #{dir => out}),
-            privacy_helper:assert_privacy_check_packet_event(User1, #{dir => in, blocked_count => 1})
+            privacy_helper:assert_privacy_check_packet_event(User2, #{dir => out}, TS),
+            privacy_helper:assert_privacy_check_packet_event(User1, #{dir => in, blocked_count => 1}, TS)
         end).
 
 messages_from_unblocked_user_arrive_again(Config) ->
@@ -437,10 +438,11 @@ notify_blockee(Config) ->
 
 %%
 get_blocklist(User) ->
+    TS = instrument_helper:timestamp(),
     IQGet = get_blocklist_stanza(),
     escalus_client:send(User, IQGet),
     Result = escalus_client:wait_for_stanza(User),
-    privacy_helper:assert_privacy_get_event(User),
+    privacy_helper:assert_privacy_get_event(User, TS),
     Result.
 
 %%
@@ -589,6 +591,7 @@ get_blocklist_items(Items) ->
               end, Items).
 
 user_blocks(Blocker, Blockees) when is_list(Blockees) ->
+    TS = instrument_helper:timestamp(),
     BlockeeJIDs = [ escalus_utils:jid_to_lower(escalus_client:short_jid(B)) || B <- Blockees ],
     AddStanza = block_users_stanza(BlockeeJIDs),
     escalus_client:send(Blocker, AddStanza),
@@ -596,7 +599,7 @@ user_blocks(Blocker, Blockees) when is_list(Blockees) ->
     CheckPush = fun(E) -> is_xep191_push(<<"block">>, BlockeeJIDs, E) end,
     Preds = [is_iq_result, CheckPush],
     escalus:assert_many(Preds, Res),
-    privacy_helper:assert_privacy_set_event(Blocker, #{}).
+    privacy_helper:assert_privacy_set_event(Blocker, #{}, TS).
 
 blocklist_is_empty(BlockList) ->
     escalus:assert(is_iq_result, BlockList),
@@ -607,6 +610,7 @@ blocklist_contains_jid(BlockList, Client) ->
     escalus:assert(fun blocklist_result_has/2, [JID], BlockList).
 
 user_unblocks(Unblocker, Unblockees) when is_list(Unblockees) ->
+    TS = instrument_helper:timestamp(),
     UnblockeeJIDs = [ escalus_utils:jid_to_lower(escalus_client:short_jid(B)) || B <- Unblockees ],
     AddStanza = unblock_users_stanza(UnblockeeJIDs),
     escalus_client:send(Unblocker, AddStanza),
@@ -614,12 +618,13 @@ user_unblocks(Unblocker, Unblockees) when is_list(Unblockees) ->
     CheckPush = fun(E) -> is_xep191_push(<<"unblock">>, UnblockeeJIDs, E) end,
     Preds = [is_iq_result, CheckPush],
     escalus:assert_many(Preds, Res),
-    privacy_helper:assert_privacy_set_event(Unblocker, #{});
+    privacy_helper:assert_privacy_set_event(Unblocker, #{}, TS);
 user_unblocks(Unblocker, Unblockee) ->
+    TS = instrument_helper:timestamp(),
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Unblockee)),
     escalus_client:send(Unblocker, unblock_user_stanza(JID)),
     user_gets_remove_result(Unblocker, [JID]),
-    privacy_helper:assert_privacy_set_event(Unblocker, #{}).
+    privacy_helper:assert_privacy_set_event(Unblocker, #{}, TS).
 
 blocklist_doesnt_contain_jid(BlockList, Client) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),
@@ -642,32 +647,35 @@ message(From, To, MsgTxt) ->
 
 message_is_delivered(From, [To|_] = Tos, MessageText) ->
     BareTo = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
+    TS = instrument_helper:timestamp(),
     escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
     [ escalus:assert(is_chat_message, [MessageText], escalus:wait_for_stanza(C)) ||
         C <- Tos ],
-    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out}),
-    privacy_helper:assert_privacy_check_packet_event(To, #{dir => in});
+    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out}, TS),
+    privacy_helper:assert_privacy_check_packet_event(To, #{dir => in}, TS);
 message_is_delivered(From, To, MessageText) ->
     BareTo =  escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
+    TS = instrument_helper:timestamp(),
     escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
     escalus:assert(is_chat_message, [MessageText], escalus:wait_for_stanza(To)),
-    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out}),
-    privacy_helper:assert_privacy_check_packet_event(To, #{dir => in}).
+    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out}, TS),
+    privacy_helper:assert_privacy_check_packet_event(To, #{dir => in}, TS).
 
 message_is_blocked_by_recipient(From, To) ->
+    TS = instrument_helper:timestamp(),
     message_is_not_delivered(From, [To], <<"You blocked me!">>),
     privacy_helper:gets_error(From, <<"cancel">>, <<"service-unavailable">>),
-    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out}),
-    privacy_helper:assert_privacy_check_packet_event(To, #{dir => in, blocked_count => 1}).
+    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out}, TS),
+    privacy_helper:assert_privacy_check_packet_event(To, #{dir => in, blocked_count => 1}, TS).
 
 message_is_blocked_by_sender(From, To) ->
+    TS = instrument_helper:timestamp(),
     message_is_not_delivered(From, [To], <<"I blocked you!">>),
     client_gets_blocking_error(From),
-    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out, blocked_count => 1}).
+    privacy_helper:assert_privacy_check_packet_event(From, #{dir => out, blocked_count => 1}, TS).
 
 message_is_not_delivered(From, [To|_] = Tos, MessageText) ->
-    BareTo = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
-    escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
+    escalus:send(From, escalus_stanza:chat_to(To, MessageText)),
     clients_have_no_messages(Tos).
 
 clients_have_no_messages(Cs) when is_list (Cs) -> [ client_has_no_messages(C) || C <- Cs ].

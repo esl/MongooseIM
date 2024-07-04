@@ -10,17 +10,18 @@ assert_event(EventName, BinJid)
     F = fun(M) ->
             M =:= #{count => 1, user => LUser, server => LServer}
         end,
-    instrument_helper:assert(EventName, #{host_type => host_type()}, F);
+    instrument_helper:assert_one(EventName, #{host_type => host_type()}, F);
 assert_event(EventName, BinJid)
     when EventName =:= auth_authorize ->
     #jid{lserver = LServer} = jid:from_binary(BinJid),
     F = fun(#{time := Time, count := 1, server := Server}) ->
            (Time > 0) and (Server =:= LServer)
         end,
+    %% Note: this could match events from other tests because there is no user name
     instrument_helper:assert(EventName, #{host_type => host_type()}, F);
 assert_event(EventName, BinJid) ->
     #jid{luser = LUser, lserver = LServer} = jid:from_binary(BinJid),
     F = fun(#{time := Time, count := 1, user := User, server := Server}) ->
            (Time > 0) and (User =:= LUser) and (Server =:= LServer)
         end,
-    instrument_helper:assert(EventName, #{host_type => host_type()}, F).
+    instrument_helper:assert_one(EventName, #{host_type => host_type()}, F).

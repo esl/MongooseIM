@@ -356,8 +356,8 @@ subscribe_unsubscribe_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_subscribe, Bob),
-              assert_event(mod_pubsub_set_unsubscribe, Bob)
+              assert_events(mod_pubsub_set_subscribe, Bob, 2),
+              assert_events(mod_pubsub_set_unsubscribe, Bob, 2)
       end).
 
 subscribe_options_test(Config) ->
@@ -776,6 +776,7 @@ set_configuration_errors_test(Config) ->
                                               {expected_error_type, <<"modify">>}]),
               pubsub_tools:set_configuration(Alice, Node, BadOpts,
                                              [{expected_error_type, <<"modify">>}]),
+              assert_no_event(mod_pubsub_set_configure, Alice),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1061,7 +1062,7 @@ retrieve_user_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, []),
               pubsub_tools:delete_node(Alice, Node2, []),
 
-              assert_event(mod_pubsub_get_subscriptions, Bob)
+              assert_events(mod_pubsub_get_subscriptions, Bob, 3)
       end).
 
 retrieve_node_subscriptions_test(Config) ->
@@ -1132,7 +1133,8 @@ modify_node_subscriptions_test(Config) ->
                                        fun(#{errors := 1, jid := From}) ->
                                            BobJid =:= jid:to_binary(From)
                                        end),
-              assert_event(mod_pubsub_set_subscriptions, Alice)
+              assert_events(mod_pubsub_set_subscriptions, Alice, 2),
+              assert_no_event(mod_pubsub_set_subscriptions, Bob)
       end).
 
 process_subscription_requests_test(Config) ->
@@ -2028,17 +2030,22 @@ is_not_allowed_and_closed(IQError) ->
                                                   {element, <<"closed-node">>},
                                                   {attr, <<"xmlns">>}]).
 
+assert_no_event(EventName, Client) ->
+    assert_events(EventName, Client, 0).
+
 assert_event(EventName, Client) ->
+    assert_events(EventName, Client, 1).
+
+assert_events(EventName, Client, Count) ->
     ClientJid = escalus_utils:get_jid(Client),
     instrument_helper:assert(EventName, #{host_type => domain()},
                              fun(#{count := 1, jid := From, time := T}) ->
                                  T >= 0 andalso ClientJid =:= jid:to_binary(From)
-                             end).
+                             end, #{expected_count => Count}).
 
 assert_wait_for_event(EventName, Client) ->
     ClientJid = escalus_utils:get_jid(Client),
-    Measurements = instrument_helper:wait_for(EventName, #{host_type => domain()}),
-    instrument_helper:assert(EventName, #{host_type => domain()}, Measurements,
-                             fun(#{count := 1, jid := From, time := T}) ->
-                                 T >= 0 andalso ClientJid =:= jid:to_binary(From)
-                             end).
+    instrument_helper:wait_and_assert(EventName, #{host_type => domain()},
+                                      fun(#{count := 1, jid := From, time := T}) ->
+                                              T >= 0 andalso ClientJid =:= jid:to_binary(From)
+                                      end).

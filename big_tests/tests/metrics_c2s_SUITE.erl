@@ -80,8 +80,8 @@ login_story(Alice) ->
 
     %% Note: The first two events might originate from other tests because of unknown JID.
     %% It is acceptable, because the goal is to check that they are emitted when users log in.
-    assert_event(out, fun(#xmlel{name = Name}) -> Name =:= <<"stream:features">> end),
-    assert_event(in, fun(#xmlel{name = Name}) -> Name =:= <<"auth">> end),
+    assert_events(out, fun(#xmlel{name = Name}) -> Name =:= <<"stream:features">> end),
+    assert_events(in, fun(#xmlel{name = Name}) -> Name =:= <<"auth">> end),
 
     assert_event(out, AliceBareJid, #{},
                  fun(#xmlel{name = Name}) -> Name =:= <<"success">> end),
@@ -189,11 +189,11 @@ has_child(SubElName, El) ->
 
 assert_event(Dir, ClientOrJid, Measurements) ->
     Jid = jid:from_binary(escalus_utils:get_jid(ClientOrJid)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       event_name(Dir), #{host_type => host_type()},
       fun(M) -> M =:= Measurements#{jid => Jid, count => 1} end).
 
-assert_event(Dir, CheckElFun) ->
+assert_events(Dir, CheckElFun) ->
     instrument_helper:assert(
       event_name(Dir), #{host_type => host_type()},
       fun(M = #{element := El}) ->
@@ -202,7 +202,7 @@ assert_event(Dir, CheckElFun) ->
 
 assert_event(Dir, ClientOrJid, Measurements, CheckElFun) ->
     Jid = jid:from_binary(escalus_utils:get_jid(ClientOrJid)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       event_name(Dir), #{host_type => host_type()},
       fun(M = #{element := El}) ->
                maps:remove(element, M) =:= Measurements#{jid => Jid, count => 1}
@@ -217,7 +217,7 @@ event_name(in) -> c2s_element_in.
 assert_message_bounced_event(Sender, Recipient) ->
     FromJid = jid:from_binary(escalus_utils:get_jid(Sender)),
     ToJid = jid:from_binary(escalus_utils:get_jid(Recipient)),
-    instrument_helper:assert(
+    instrument_helper:assert_one(
       sm_message_bounced, #{host_type => host_type()},
       fun(#{count := 1, from_jid := From, to_jid := To}) ->
                From =:= FromJid andalso To =:= ToJid

@@ -5,7 +5,6 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
--include_lib("common_test/include/ct.hrl").
 
 gets_error(Who, Type) ->
     gets_error(Who, <<"cancel">>, Type).
@@ -29,31 +28,36 @@ send_set_list(Client, List) ->
 
 %% Sets the list on server.
 set_list(Client, {ListName, Target}) ->
+    TS = instrument_helper:timestamp(),
     Stanza = send_set_list(Client, {ListName, Target}),
-    verify_set_list_response(Client),
+    verify_set_list_response(Client, TS),
     verify_list(Client, ListName, Stanza);
 set_list(Client, ListName) ->
+    TS = instrument_helper:timestamp(),
     Stanza = send_set_list(Client, ListName),
-    verify_set_list_response(Client),
+    verify_set_list_response(Client, TS),
     verify_list(Client, ListName, Stanza).
 
 set_list(Client, ListName, NewItems) ->
+    TS = instrument_helper:timestamp(),
     PrivacyList = escalus_stanza:privacy_list(ListName, NewItems),
     Stanza = escalus_stanza:privacy_set_list(PrivacyList),
     escalus:send(Client, Stanza),
-    verify_set_list_response(Client),
+    verify_set_list_response(Client, TS),
     verify_list(Client, ListName, Stanza).
 
-verify_set_list_response(Client) ->
+verify_set_list_response(Client, TS) ->
     Responses = escalus:wait_for_stanzas(Client, 2),
     escalus:assert_many([is_iq_result, is_privacy_set], Responses),
-    assert_privacy_set_event(Client, #{}).
+    assert_privacy_set_event(Client, #{}, TS).
 
 verify_list(Client, ListName, Stanza) ->
+    TS = instrument_helper:timestamp(),
     GetStanza = escalus_stanza:privacy_get_lists([ListName]),
     escalus:send(Client, GetStanza),
     GetResultStanza = escalus:wait_for_stanza(Client),
-    escalus:assert(fun does_result_match_request/3, [Stanza, GetStanza], GetResultStanza).
+    escalus:assert(fun does_result_match_request/3, [Stanza, GetStanza], GetResultStanza),
+    assert_privacy_get_event(Client, TS).
 
 does_result_match_request(SetRequest, GetRequest, Result) ->
     escalus_pred:is_iq_result(GetRequest, Result) andalso
@@ -90,15 +94,17 @@ attr_match(Name, Value, Props) ->
 
 %% Make the list the active one.
 activate_list(Client, ListName) ->
+    TS = instrument_helper:timestamp(),
     escalus:send(Client, escalus_stanza:privacy_activate(ListName)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)),
-    assert_privacy_set_event(Client, #{active_count => 1}).
+    assert_privacy_set_event(Client, #{active_count => 1}, TS).
 
 %% Make the list the default one.
 set_default_list(Client, ListName) ->
+    TS = instrument_helper:timestamp(),
     escalus:send(Client, escalus_stanza:privacy_set_default(ListName)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)),
-    assert_privacy_set_event(Client, #{default_count => 1}).
+    assert_privacy_set_event(Client, #{default_count => 1}, TS).
 
 %% Is this iq a notification about a privacy list being changed?
 is_privacy_list_push(Iq) ->
@@ -255,36 +261,58 @@ does_user_process_crash(From, To, Type, Children, Message) ->
                    escalus:wait_for_stanza(To)).
 
 send_and_check_blocked_message(Sender, Recipient) ->
+    TS = instrument_helper:timestamp(),
     escalus_client:send(Sender, escalus_stanza:chat_to(Recipient, <<"Hi, blocker!">>)),
     timer:sleep(100),
     escalus_assert:has_no_stanzas(Recipient),
     privacy_helper:gets_error(Sender, <<"service-unavailable">>),
-    assert_privacy_check_packet_event(Sender, #{dir => out}),
-    assert_privacy_check_packet_event(Recipient, #{dir => in, denied_count => 1}).
+    assert_privacy_check_packet_event(Sender, #{dir => out}, TS),
+    assert_privacy_check_packet_event(Recipient, #{dir => in, denied_count => 1}, TS).
 
-%% Intrumentation events
+%% Instrumentation events
 
 assert_privacy_get_event(Client) ->
-    ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
-    instrument_helper:assert(
-      mod_privacy_get, #{host_type => domain_helper:host_type()},
-      fun(M) -> M =:= #{count => 1, jid => ClientJid} end).
+    assert_event(mod_privacy_get, measurements(Client)).
+
+assert_privacy_get_event(Client, TS) ->
+    assert_event(mod_privacy_get, measurements(Client), TS).
 
 assert_privacy_set_event(Client, ExtraM) ->
-    ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
-    instrument_helper:assert(
-      mod_privacy_set, #{host_type => domain_helper:host_type()},
-      fun(M) -> M =:= maps:merge(#{jid => ClientJid, count => 1}, ExtraM) end).
+    assert_event(mod_privacy_set, measurements(Client, ExtraM)).
+
+assert_privacy_set_event(Client, ExtraM, TS) ->
+    assert_event(mod_privacy_set, measurements(Client, ExtraM), TS).
 
 assert_privacy_check_packet_event(Client, ExtraM) ->
-    ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
-    instrument_helper:assert(
-      mod_privacy_check_packet, #{host_type => domain_helper:host_type()},
-      fun(M) -> M =:= maps:merge(#{jid => ClientJid, count => 1}, ExtraM) end).
+    assert_event(mod_privacy_check_packet, measurements(Client, ExtraM)).
+
+assert_privacy_check_packet_event(Client, ExtraM, TS) ->
+    assert_event(mod_privacy_check_packet, measurements(Client, ExtraM), TS).
 
 assert_privacy_push_item_event(Client, ExpCount) ->
+    assert_event(mod_privacy_push_item, push_item_measurements(Client, ExpCount)).
+
+assert_privacy_push_item_event(Client, ExpCount, TS) ->
+    assert_event(mod_privacy_push_item, push_item_measurements(Client, ExpCount), TS).
+
+measurements(Client, ExtraM) ->
+    maps:merge(measurements(Client), ExtraM).
+
+measurements(Client) ->
+    ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
+    #{jid => ClientJid, count => 1}.
+
+push_item_measurements(Client, ExpCount) ->
     User = escalus_utils:get_username(Client),
     Server = escalus_utils:get_server(Client),
-    instrument_helper:assert(
-      mod_privacy_push_item, #{host_type => domain_helper:host_type()},
-      fun(M) -> M =:= #{user => User, server => Server, count => ExpCount} end).
+    #{user => User, server => Server, count => ExpCount}.
+
+assert_event(Name, Measurements) ->
+    instrument_helper:assert_one(Name, labels(), fun(M) -> M =:= Measurements end).
+
+assert_event(Name, Measurements, TS) ->
+    instrument_helper:assert(Name, labels(), fun(M) -> M =:= Measurements end,
+                             #{expected_count => 1, min_timestamp => TS}).
+
+labels() ->
+    #{host_type => domain_helper:host_type()}.

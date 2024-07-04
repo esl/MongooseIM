@@ -475,9 +475,9 @@ test_wrapped_request(Config) ->
             SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
             ?assertEqual({selected, [{<<"check1">>}]}, selected_to_sorted(SelectResult))
         end, ok, #{name => request_queries}),
-    Measurements = instrument_helper:wait_for(test_wrapped_request, #{pool_tag => Tag}),
-    instrument_helper:assert(test_wrapped_request, #{pool_tag => Tag}, Measurements,
-                             fun(#{time := T, count := 1, ref := Ref}) -> T > 0 end).
+    instrument_helper:wait_and_assert(
+      test_wrapped_request, #{pool_tag => Tag},
+      fun(#{time := T, count := 1, ref := R}) -> R =:= Ref andalso T > 0 end).
 
 test_failed_wrapper(Config) ->
     % given
@@ -697,9 +697,8 @@ pool_probe_metrics_are_updated(Config) ->
 
     select_one_works_case(Config),
 
-    Measurements = instrument_helper:wait_for_new(Event, Labels),
     F = fun(#{recv_oct := NewRecv, send_oct := NewSend}) -> NewRecv > Recv andalso NewSend > Send end,
-    instrument_helper:assert(Event, Labels, Measurements, F).
+    instrument_helper:wait_and_assert_new(Event, Labels, F).
 
 %%--------------------------------------------------------------------
 %% Text searching

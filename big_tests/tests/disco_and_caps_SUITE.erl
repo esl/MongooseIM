@@ -235,5 +235,5 @@ urls(sales) -> [<<"sales@example.com">>].
 
 assert_roster_get_event(Client) ->
     ClientJid = jid:from_binary(escalus_client:full_jid(Client)),
-    instrument_helper:assert(mod_disco_roster_get, #{host_type => host_type()},
-                             fun(#{count := 1, jid := Jid}) -> ClientJid =:= Jid end).
+    instrument_helper:assert_one(mod_disco_roster_get, #{host_type => host_type()},
+                                 fun(#{count := 1, jid := Jid}) -> ClientJid =:= Jid end).

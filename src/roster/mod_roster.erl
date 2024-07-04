@@ -506,10 +506,11 @@ broadcast_item(#jid{luser = LUser, lserver = LServer}, ContactJid, Subscription)
     lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 push_item_without_version(HostType, JID, Resource, From, Item) ->
+    TargetJID = jid:replace_resource(JID, Resource),
     mongoose_instrument:execute(mod_roster_push, #{host_type => HostType},
-                                #{count => 1, jid => From}),
+                                #{count => 1, jid => TargetJID}),
     mongoose_hooks:roster_push(HostType, From, Item),
-    push_item_final(jid:replace_resource(JID, Resource), From, Item, not_found).
+    push_item_final(TargetJID, From, Item, not_found).
 
 push_item_version(JID, From, Item, RosterVersion) ->
     lists:foreach(fun(Resource) ->

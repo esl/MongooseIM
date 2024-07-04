@@ -135,24 +135,23 @@ session_node(Config) ->
 assert_sm_login_event(Client) ->
     JID = jid:from_binary(escalus_client:full_jid(Client)),
     F = fun(M) -> M =:= #{logins => 1, count => 1, jid => JID} end,
-    instrument_helper:assert(sm_session, #{host_type => host_type()}, F).
+    instrument_helper:assert_one(sm_session, #{host_type => host_type()}, F).
 
 assert_no_sm_login_event(UserSpec) ->
     LUser = jid:nodeprep(proplists:get_value(username, UserSpec)),
-    LoginEvents = instrument_helper:lookup(sm_session, #{host_type => host_type()}),
     F = fun(#{jid := JID}) -> jid:luser(JID) =:= LUser end,
-    ?assertEqual([], instrument_helper:filter(F, LoginEvents)).
+    instrument_helper:assert_not_emitted(sm_session, #{host_type => host_type()}, F).
 
 assert_sm_logout_event(Client) ->
     JID = jid:from_binary(escalus_client:full_jid(Client)),
     F = fun(M) -> M =:= #{logouts => 1, count => -1, jid => JID} end,
-    instrument_helper:assert(sm_session, #{host_type => host_type()}, F).
+    instrument_helper:assert_one(sm_session, #{host_type => host_type()}, F).
 
 assert_c2s_auth_failed(UserSpec) ->
     Server = proplists:get_value(server, UserSpec),
     UserName = proplists:get_value(username, UserSpec),
     F = fun(M) -> M =:= #{count => 1, server => Server, username => UserName} end,
-    instrument_helper:assert(c2s_auth_failed, #{host_type => host_type()}, F).
+    instrument_helper:assert_one(c2s_auth_failed, #{host_type => host_type()}, F).
 
 assert_sm_total_sessions(ExpectedCount) ->
     assert_sm_sessions(ExpectedCount, sm_total_sessions).
@@ -164,9 +163,8 @@ assert_sm_node_sessions(ExpectedCount) ->
     assert_sm_sessions(ExpectedCount, sm_node_sessions).
 
 assert_sm_sessions(ExpectedCount, Event) ->
-    Measurements = instrument_helper:wait_for_new(Event, #{}),
     F = fun(#{count := Count}) -> ExpectedCount =:= Count end,
-    instrument_helper:assert(Event, #{}, Measurements, F).
+    instrument_helper:wait_and_assert_new(Event, #{}, F).
 
 restart_sm_probes() ->
     rpc_call(ejabberd_sm, stop_probes, []),

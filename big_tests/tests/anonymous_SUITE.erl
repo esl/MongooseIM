@@ -89,7 +89,7 @@ connection_is_registered_with_login(Config) ->
         true = F(),
         escalus_connection:kill(Anna),
         mongoose_helper:wait_until(F, false),
-        assert_event(auth_anonymous_register_user, JID)
+        assert_event(auth_anonymous_unregister_user, JID)
     end).
 
 messages_story(Config) ->
@@ -110,5 +110,6 @@ host_type() ->
     domain_helper:anonymous_host_type().
 
 assert_event(EventName, #jid{luser = LUser, lserver = LServer}) ->
-    instrument_helper:assert(EventName, #{host_type => host_type()},
-                             fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end).
+    instrument_helper:assert_one(
+      EventName, #{host_type => host_type()},
+      fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end).
