@@ -287,7 +287,7 @@ build_pkg () {
   local esl_erlang_pkg_vsn=$2
   local project_root=$(git rev-parse --show-toplevel)
 
-  if [[ $platform == centos* ]] || [[ $platform == rockylinux* ]] || [[ $platform == almalinux* ]]; then
+  if [[ $platform == rockylinux* ]] || [[ $platform == almalinux* ]]; then
       local dockerfile_name="Dockerfile_rpm"
   elif [[ $platform == debian* ]] || [[ $platform == ubuntu* ]]; then
       local dockerfile_name="Dockerfile_deb"

@@ -34,7 +34,7 @@ Please install the driver:
 # Ubuntu
 $ sudo apt install freetds-dev tdsodbc
 
-# CentOS
+# CentOS compatible systems (Rocky, Alma)
 $ sudo yum install freetds
 
 # macOS
@@ -44,7 +44,8 @@ $ brew install freetds
 In case you are using an operating system different from Ubuntu or MacOS or have a custom FreeTDS installation,
 you may have to modify the `tools/setup-db.sh` script to use the proper paths.
 Find a configuration block starting with `[mongoose-mssql]` and change the `Driver` and `Setup`.
-For example, for CentOS change them to `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so` respectively.
+For example, for CentOS compatible systems change them to `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so`
+respectively.
 
 ## How to print the instructions
 
