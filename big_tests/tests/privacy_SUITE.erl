@@ -17,17 +17,16 @@
 -module(privacy_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("exml/include/exml.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
 -define(SLEEP_TIME, 50).
 
 -import(privacy_helper, [assert_privacy_get_event/1,
+                         assert_privacy_get_event/2,
                          assert_privacy_set_event/2,
-                         assert_privacy_check_packet_event/2,
-                         assert_privacy_push_item_event/2]).
+                         assert_privacy_check_packet_event/3,
+                         assert_privacy_push_item_event/2,
+                         assert_privacy_push_item_event/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -195,10 +194,11 @@ get_all_lists_with_active(Config) ->
 
         privacy_helper:set_and_activate(Alice, {<<"deny_client">>, Bob}),
 
+        TS = instrument_helper:timestamp(),
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
         escalus:assert(is_privacy_result_with_active, [<<"deny_client">>],
                        escalus:wait_for_stanza(Alice)),
-        assert_privacy_get_event(Alice)
+        assert_privacy_get_event(Alice, TS)
 
         end).
 
@@ -209,10 +209,11 @@ get_all_lists_with_default(Config) ->
         privacy_helper:set_list(Alice, {<<"allow_client">>, Bob}),
         privacy_helper:set_default_list(Alice, <<"allow_client">>),
 
+        TS = instrument_helper:timestamp(),
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
         escalus:assert(is_privacy_result_with_default,
                        escalus:wait_for_stanza(Alice)),
-        assert_privacy_get_event(Alice)
+        assert_privacy_get_event(Alice, TS)
 
         end).
 
@@ -243,13 +244,14 @@ get_existing_list(Config) ->
 
         privacy_helper:set_list(Alice, {<<"deny_client">>, Bob}),
 
+        TS = instrument_helper:timestamp(),
         escalus:send(Alice, escalus_stanza:privacy_get_lists([<<"deny_client">>])),
         Response = escalus:wait_for_stanza(Alice),
 
         <<"deny_client">> = exml_query:path(Response, [{element, <<"query">>},
                                                        {element, <<"list">>},
                                                        {attr, <<"name">>}]),
-        assert_privacy_get_event(Alice)
+        assert_privacy_get_event(Alice, TS)
 
         end).
 
@@ -391,9 +393,14 @@ remove_list(Config) ->
         privacy_helper:send_set_list(Alice, {<<"deny_client">>, Bob}),
 
         %% These are the pushed notification and iq result.
-        escalus_client:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([
+            fun privacy_helper:is_privacy_list_push/1,
+            is_iq_result
+        ], escalus_client:wait_for_stanzas(Alice, 2)),
+        assert_privacy_push_item_event(Alice, 1),
 
         %% Request list deletion by sending an empty list.
+        TS = instrument_helper:timestamp(),
         RemoveRequest = escalus_stanza:privacy_set_list(
                           escalus_stanza:privacy_list(<<"someList">>, [])),
         escalus_client:send(Alice, RemoveRequest),
@@ -403,7 +410,7 @@ remove_list(Config) ->
             fun privacy_helper:is_privacy_list_push/1,
             is_iq_result
         ], escalus_client:wait_for_stanzas(Alice, 2)),
-        assert_privacy_push_item_event(Alice, 1),
+        assert_privacy_push_item_event(Alice, 1, TS),
 
         escalus_client:send(Alice,
             escalus_stanza:privacy_get_lists([<<"someList">>])),
@@ -432,10 +439,11 @@ block_jid_message(Config) ->
         %% Blocking only applies to incoming messages, so Alice can still send
         %% Bob a message
         %% and Bob gets nothing
+        TS = instrument_helper:timestamp(),
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bobbb!">>)),
         escalus_assert:is_chat_message(<<"Hi, Bobbb!">>, escalus_client:wait_for_stanza(Bob)),
-        assert_privacy_check_packet_event(Alice, #{dir => out}),
-        assert_privacy_check_packet_event(Bob, #{dir => in})
+        assert_privacy_check_packet_event(Alice, #{dir => out}, TS),
+        assert_privacy_check_packet_event(Bob, #{dir => in}, TS)
 
         end).
 
