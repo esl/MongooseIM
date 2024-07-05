@@ -66,5 +66,5 @@ tools/pkg/scripts/smoke_templates.escript
 Testing command:
 
 ```bash
-PRESET=pkg pkg_PLATFORM=centos_7 ESL_ERLANG_PKG_VER=23.3.1-2 ./tools/test.sh
+PRESET=pkg pkg_PLATFORM=ubuntu_xenial ESL_ERLANG_PKG_VER=23.3.1-2 ./tools/test.sh
 ```

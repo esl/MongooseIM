@@ -408,7 +408,11 @@ lookup_messages(_Result, #{owner_jid := ArcJID} = Params, #{host_type := HostTyp
     Env = env_vars(HostType, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),
     Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),
-    {ok, mam_lookup:lookup(Env, Filter, ExdParams)}.
+    try
+        {ok, mam_lookup:lookup(Env, Filter, ExdParams)}
+    catch _Type:Reason ->
+        {ok, {error, Reason}}
+    end.
 
 lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
     mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order, OffsetLimit).

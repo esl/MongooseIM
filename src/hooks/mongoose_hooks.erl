@@ -953,7 +953,7 @@ mam_remove_archive(HostType, ArchiveID, Owner) ->
 -spec mam_lookup_messages(HostType, Params) -> Result when
       HostType :: mongooseim:host_type(),
       Params :: map(),
-      Result :: {ok, mod_mam:lookup_result()}.
+      Result :: {ok, mod_mam:lookup_result()} | {error,  Reason :: term()}.
 mam_lookup_messages(HostType, Params) ->
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
     run_hook_for_host_type(mam_lookup_messages, HostType, {ok, InitialLookupValue},
@@ -1074,7 +1074,7 @@ mam_muc_remove_archive(HostType, ArchiveID, Room) ->
 -spec mam_muc_lookup_messages(HostType, Params) -> Result when
       HostType :: mongooseim:host_type(),
       Params :: map(),
-      Result :: {ok, mod_mam:lookup_result()}.
+      Result :: {ok, mod_mam:lookup_result()} | {error,  Reason :: term()}.
 mam_muc_lookup_messages(HostType, Params) ->
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
     run_hook_for_host_type(mam_muc_lookup_messages, HostType, {ok, InitialLookupValue},

@@ -2,7 +2,7 @@
 
 Instructions provided in this page are verified for:
 
-* CentOS 7
+* Rocky Linux 8
 * Ubuntu 16.04 LTS (Xenial)
 * Ubuntu 18.04 LTS (Bionic)
 * macOS 13.3 (Ventura)
@@ -13,12 +13,12 @@ For any other OS versions, the instructions should still work, however, some ste
 
 To compile MongooseIM you need:
 
-=== "CentOS"
+=== "Rocky/Alma"
 
       *   Make: `make`,
-      *   C and C++ compiler: `gcc`, `gcc-c++`,
-      *   Erlang/OTP 24.0 or higher:
-        * `erlang` package, or,
+      *   C and C++ compiler: `gcc`, `g++`,
+      *   Erlang/OTP 26.0 or higher:
+        * `erlang` EPEL package, or,
         * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: `openssl` and `openssl-devel`,
@@ -48,12 +48,14 @@ To compile MongooseIM you need:
 
 ## Preparing the environment
 
-=== "centOS"
+=== "Rocky/Alma"
 
     Please install the required dependencies:
 
     ```bash
-    sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++ erlang
+    sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++
+    wget https://binaries2.erlang-solutions.com/rockylinux/8/esl-erlang_26.2.4_1~rockylinux~8_x86_64.rpm
+    sudo dnf -Uvh esl-erlang_26.2.4_1~rockylinux~8_x86_64.rpm
     ```
 
     Now, please proceed to the "Building" section.

@@ -306,7 +306,7 @@ Otherwise, the clients will keep disconnecting each other, because MongooseIM al
 
 ### Connect Gajim
 
-Gajim is available on Ubuntu, CentOS & Windows.
+Gajim is available on many Linux platforms, macOS & Windows.
 
 !!! Warning
     Gajim has an obsolete UX. However, it is still well maintained, and has a console that is extremely useful for debugging and testing/validation purposes at the XMPP protocol level.

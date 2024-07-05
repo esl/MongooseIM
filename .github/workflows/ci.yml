@@ -188,7 +188,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pkg: [centos_7, ubuntu_xenial]
+        pkg: [ubuntu_xenial]
     runs-on: ubuntu-22.04
     env:
       ESL_ERLANG_PKG_VER: "25.0.3"
