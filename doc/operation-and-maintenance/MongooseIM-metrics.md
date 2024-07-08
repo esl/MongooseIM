@@ -144,6 +144,7 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
 | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
 | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
+| `[HostType, router_no_route_found]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
 
 ### Pool metrics
 
@@ -171,7 +172,6 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[global, routingErrors]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
 | `[global, sm_node_sessions, count]` | gauge | A number of sessions connected to a given MongooseIM node. |
 | `[global, sm_total_sessions, count]` | gauge | A number of sessions connected to a MongooseIM cluster. |
 | `[global, sm_unique_sessions, count]` | gauge | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |

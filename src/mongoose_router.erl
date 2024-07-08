@@ -49,7 +49,6 @@ is_registered_route(LDomain) ->
 %% start/stop
 start() ->
     ets:new(?TABLE, [named_table, public, set, {read_concurrency, true}]),
-    mongoose_metrics:ensure_metric(global, routingErrors, spiral),
     mongoose_instrument:set_up(instrumentation()).
 
 stop() ->
@@ -85,4 +84,6 @@ instrumentation() ->
 -spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
 instrumentation(HostType) ->
     [{router_stanza_dropped, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {router_no_route_found, #{host_type => HostType},
       #{metrics => #{count => spiral}}}].
