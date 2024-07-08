@@ -29,7 +29,8 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([start_listener/1]).
+-export([start_listener/1,
+         instrumentation/1]).
 
 %% External exports
 -export([start/2,
@@ -132,6 +133,10 @@ start_listener(Opts) ->
 send_validity_from_s2s_out(Pid, IsValid, FromTo) when is_boolean(IsValid) ->
     Event = {validity_from_s2s_out, IsValid, FromTo},
     p1_fsm:send_event(Pid, Event).
+
+instrumentation(#{connection_type := s2s} = _Opts) ->
+    [{s2s_data_in, #{}, #{metrics => #{byte_size => spiral}}},
+     {s2s_data_out, #{}, #{metrics => #{byte_size => spiral}}}].
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm

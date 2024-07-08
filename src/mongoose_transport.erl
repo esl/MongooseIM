@@ -30,7 +30,7 @@
 
 -type options() :: #{max_stanza_size := stanza_size(),
                      hibernate_after := non_neg_integer(),
-                     channel => connection_type(),
+                     connection_type := connection_type(),
                      atom() => any()}.
 
 -export_type([socket_data/0, send_xml_input/0, peer/0, peername_return/0, peercert_return/0]).
@@ -77,9 +77,8 @@
 -spec accept(module(), gen_tcp:socket(),
              mongoose_tcp_listener:options(),
              mongoose_tcp_listener:connection_details()) -> ok.
-accept(Module, Socket, Opts, ConnectionDetails) ->
+accept(Module, Socket, #{connection_type := ConnectionType} = Opts, ConnectionDetails) ->
     Receiver = start_child(Socket, none, Opts),
-    ConnectionType = maps:get(connection_type, Opts),
     SocketData = #socket_data{sockmod = gen_tcp,
                               socket = Socket,
                               receiver = Receiver,
@@ -165,7 +164,7 @@ send_text(SocketData, Data) ->
                  connection_type = ConnectionType} = SocketData,
     case catch SockMod:send(Socket, Data) of
         ok ->
-            update_transport_metrics(byte_size(Data), sent, ConnectionType),
+            update_transport_metrics(Data, out, ConnectionType),
             ok;
         {error, timeout} ->
             ?LOG_INFO(#{what => socket_error, reason => timeout,
@@ -181,7 +180,6 @@ send_text(SocketData, Data) ->
 -spec send_element(socket_data(), exml:element()) -> ok.
 send_element(SocketData, El) ->
     BinEl = exml:to_binary(El),
-    mongoose_instrument:execute(c2s_tcp_data_sent, #{}, #{byte_size => byte_size(BinEl)}),
     send_text(SocketData, BinEl).
 
 -spec get_peer_certificate(socket_data()) -> mongoose_tls:cert().
@@ -389,37 +387,39 @@ deactivate_socket(#state{socket = Socket, sockmod = mongoose_tls}) ->
 -spec process_data(binary(), state()) -> state().
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
-                          dest_pid = DestPid} = State) ->
+                          dest_pid = DestPid,
+                          connection_type = ConnectionType} = State) ->
     ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Data, dest_pid => DestPid}),
     Size = byte_size(Data),
     {Events, NewParser} =
         case exml_stream:parse(Parser, Data) of
             {ok, NParser, Elems} ->
-                {[wrap_xml_elements_and_update_metrics(E) || E <- Elems], NParser};
+                {[wrap_xml_elements(E) || E <- Elems], NParser};
             {error, Reason} ->
                 {[{xmlstreamerror, Reason}], Parser}
         end,
     {NewShaperState, Pause} = mongoose_shaper:update(ShaperState, Size),
-    update_transport_metrics(Size, received, State#state.connection_type),
+    update_transport_metrics(Data, in, ConnectionType),
     [gen_fsm_compat:send_event(DestPid, Event) || Event <- Events],
     maybe_pause(Pause, State),
     State#state{parser = NewParser, shaper_state = NewShaperState}.
 
-wrap_xml_elements_and_update_metrics(#xmlel{} = E) ->
-    mongoose_instrument:execute(c2s_tcp_data_received, #{}, #{byte_size => exml:xml_size(E)}),
+wrap_xml_elements(#xmlel{} = E) ->
     {xmlstreamelement, E};
-wrap_xml_elements_and_update_metrics(E) ->
-    mongoose_instrument:execute(c2s_tcp_data_received, #{}, #{byte_size => exml:xml_size(E)}),
+wrap_xml_elements(E) ->
     E.
 
--spec update_transport_metrics(non_neg_integer(),
-                               sent | received,
+-spec update_transport_metrics(binary(),
+                               in | out,
                                connection_type()) -> ok.
-update_transport_metrics(_Size, _Action, undefined) ->
-    ok;
-update_transport_metrics(Size, Action, ConnectionType) ->
-    mongoose_metrics:update(global, [data, xmpp, Action, ConnectionType], Size),
-    ok.
+update_transport_metrics(Data, in, s2s) ->
+    mongoose_instrument:execute(s2s_data_in, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, out, s2s) ->
+    mongoose_instrument:execute(s2s_data_out, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, in, component) ->
+    mongoose_instrument:execute(component_data_in, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, out, component) ->
+    mongoose_instrument:execute(component_data_out, #{}, #{byte_size => byte_size(Data)}).
 
 -spec maybe_pause(Delay :: non_neg_integer(), state()) -> any().
 maybe_pause(_, #state{dest_pid = undefined}) ->

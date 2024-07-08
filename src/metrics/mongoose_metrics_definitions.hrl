@@ -1,10 +1,3 @@
--define(GLOBAL_SPIRALS, [
-    [data, xmpp, received, s2s],
-    [data, xmpp, received, component],
-    [data, xmpp, sent, s2s],
-    [data, xmpp, sent, component]
-]).
-
 -define(REPORT_INTERVAL, mongoose_metrics:get_report_interval()).
 
 -define(PROBE(Name, Module),

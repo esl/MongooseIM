@@ -182,23 +182,23 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 ### Data metrics
 
-| Metric name | Type | Description |
-| ----------- | ---- | ----------- |
-| `[global, xmpp_stanza_size_received, byte_size]` | histogram | A size (in bytes) of a received stanza after decryption. |
-| `[global, xmpp_stanza_size_sent, byte_size]` | histogram | A size (in bytes) of a sent stanza before encryption. |
-| `[global, c2s_tcp_data_received, byte_size]` | spiral | A size (in bytes) of unencrypted data received from a client via TCP channel. |
-| `[global, c2s_tcp_data_sent, byte_size]` | spiral | A size (in bytes) of unencrypted data sent to a client via TCP channel. |
-| `[global, c2s_tls_data_received, byte_size]` | spiral | A size (in bytes) of a data received from a client via TLS channel after decryption. |
-| `[global, c2s_tls_data_sent, byte_size]` | spiral | A size (in bytes) of a data sent to a client via TLS channel before encryption. |
-| `[global, mod_bosh_data_received, byte_size]` | spiral | A size (in bytes) of a data received from a client via BOSH connection. |
-| `[global, mod_bosh_data_sent, byte_size]` | spiral | A size (in bytes) of a data sent to a client via BOSH connection. |
-| `[global, mod_websocket_data_received, byte_size]` | spiral | A size (in bytes) of a data received from a client via WebSocket connection. |
-| `[global, mod_websocket_data_sent, byte_size]` | spiral | A size (in bytes) of a data sent to a client via WebSocket connection. |
-| `[global, data, xmpp, received, s2s]` | spiral | A size (in bytes) of a data received via TCP and TLS (after decryption) Server-to-Server connections. |
-| `[global, data, xmpp, sent, s2s]` | spiral | A size (in bytes) of a data sent via TCP and TLS (before encryption) Server-to-Server connections. |
-| `[global, data, xmpp, received, component]` | spiral | A size (in bytes) of a data received from XMPP component. |
-| `[global, data, xmpp, sent, component]` | spiral | A size (in bytes) of a data sent to XMPP component. |
-| `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
+| Metric name                                        | Type      | Description                                                                                                                                                                        |
+|----------------------------------------------------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[global, xmpp_stanza_size_received, byte_size]`   | histogram | A size (in bytes) of a received stanza after decryption.                                                                                                                           |
+| `[global, xmpp_stanza_size_sent, byte_size]`       | histogram | A size (in bytes) of a sent stanza before encryption.                                                                                                                              |
+| `[global, c2s_tcp_data_received, byte_size]`       | spiral    | A size (in bytes) of unencrypted data received from a client via TCP channel.                                                                                                      |
+| `[global, c2s_tcp_data_sent, byte_size]`           | spiral    | A size (in bytes) of unencrypted data sent to a client via TCP channel.                                                                                                            |
+| `[global, c2s_tls_data_received, byte_size]`       | spiral    | A size (in bytes) of a data received from a client via TLS channel after decryption.                                                                                               |
+| `[global, c2s_tls_data_sent, byte_size]`           | spiral    | A size (in bytes) of a data sent to a client via TLS channel before encryption.                                                                                                    |
+| `[global, mod_bosh_data_received, byte_size]`      | spiral    | A size (in bytes) of a data received from a client via BOSH connection.                                                                                                            |
+| `[global, mod_bosh_data_sent, byte_size]`          | spiral    | A size (in bytes) of a data sent to a client via BOSH connection.                                                                                                                  |
+| `[global, mod_websocket_data_received, byte_size]` | spiral    | A size (in bytes) of a data received from a client via WebSocket connection.                                                                                                       |
+| `[global, mod_websocket_data_sent, byte_size]`     | spiral    | A size (in bytes) of a data sent to a client via WebSocket connection.                                                                                                             |
+| `[global, s2s_data_in]`                            | spiral    | A size (in bytes) of a data received via TCP and TLS (after decryption) Server-to-Server connections.                                                                              |
+| `[global, s2s_data_out]`                           | spiral    | A size (in bytes) of a data sent via TCP and TLS (before encryption) Server-to-Server connections.                                                                                 |
+| `[global, component_data_in]`                      | spiral    | A size (in bytes) of a data received from XMPP component.                                                                                                                          |
+| `[global, component_data_in]`                      | spiral    | A size (in bytes) of a data sent to XMPP component.                                                                                                                                |
+| `[global, data, dist]`                             | proplist  | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
 
 ### CETS system metrics
 

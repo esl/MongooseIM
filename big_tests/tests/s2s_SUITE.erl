@@ -97,6 +97,8 @@ users() ->
 %%%===================================================================
 
 init_per_suite(Config) ->
+    Events = instrument_helper:declared_events(ejabberd_s2s_in, [#{connection_type => s2s}]),
+    instrument_helper:start(Events),
     mongoose_helper:inject_module(?MODULE, reload),
     Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config)),
     escalus:create_users(Config1, escalus:get_users(users())).
@@ -105,7 +107,8 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     s2s_helper:end_s2s(Config),
     escalus:delete_users(Config, escalus:get_users(users())),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(dialback, Config) ->
     %% Tell mnesia that mim and mim2 nodes are clustered
@@ -158,11 +161,7 @@ end_per_testcase(CaseName, Config) ->
 %%%===================================================================
 
 simple_message(Config) ->
-    %% check that metrics are bounced
-    MongooseMetrics = [{[global, data, xmpp, received, s2s], changed},
-                       {[global, data, xmpp, sent, s2s], changed}],
-    escalus:fresh_story([{mongoose_metrics, MongooseMetrics} | Config],
-                        [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
+    escalus:fresh_story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
 
         %% User on the main server sends a message to a user on a federated server
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
@@ -176,8 +175,11 @@ simple_message(Config) ->
 
         %% User on the main server receives the message
         Stanza2 = escalus:wait_for_stanza(Alice1, 10000),
-        escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2)
+        escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2),
 
+        % Instrumentation events are executed
+        instrument_helper:assert(s2s_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end),
+        instrument_helper:assert(s2s_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end)
     end).
 
 timeout_waiting_for_message(Config) ->
