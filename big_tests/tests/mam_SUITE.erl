@@ -615,9 +615,6 @@ do_init_per_group(C, ConfigIn) ->
             Config0
     end.
 
-end_per_group(muc_prefs_cases, Config) ->
-    dynamic_modules:restore_modules(Config),
-    Config;
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
     G == muc06; G == mam06; G == archived; G == muc_seq  ->
