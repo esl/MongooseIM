@@ -41,7 +41,7 @@
          handle_info/2,
          terminate/2,
          code_change/3,
-         format_status/2]).
+         format_status/1]).
 
 -type request() :: no_request_pending | {request_id(), mongoose_async_pools:task()}.
 -record(state, {
@@ -51,7 +51,7 @@
           request_callback :: mongoose_async_pools:request_callback(),
           aggregate_callback :: mongoose_async_pools:aggregate_callback(),
           verify_callback :: undefined | mongoose_async_pools:verify_callback(),
-          flush_elems = #{} :: map() | censored, % see format_status/2 for censored
+          flush_elems = #{} :: map() | censored, % see format_status/1 for censored
           flush_queue = queue:new() :: queue:queue(),
           flush_extra = #{} :: map(),
           total_retries = 3 :: non_neg_integer(),
@@ -158,9 +158,9 @@ terminate(Reason, State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-% Don't leak the tasks to logs, can contain private information
-format_status(_Opt, [_PDict, State | _]) ->
-    [{data, [{"State", State#state{flush_elems = censored}}]}].
+-spec format_status(gen_server:format_status()) -> gen_server:format_status().
+format_status(Status = #{state := State}) ->
+    Status#{state => State#state{flush_elems = censored}}.
 
 % If we don't have any request pending, it means that it is the first task submitted,
 % so aggregation is not needed.
