@@ -191,7 +191,7 @@ match_filter_name({<<"%u">>, [Value | _]}, NewUIDs) when Value /= <<"">> ->
   end;
 match_filter_name({Name, [Value | _]}, _NewUIDs) when Value /= <<"">> ->
   case binary:match(Value, <<"*">>) of
-    nomatch -> [eldap:equalityMatch(Name, Value)];
+    nomatch -> [eldap:equalityMatch(maybe_b2list(Name), maybe_b2list(Value))];
     _ -> [eldap:substrings(maybe_b2list(Name),
       generate_substring_list(Value))]
   end;

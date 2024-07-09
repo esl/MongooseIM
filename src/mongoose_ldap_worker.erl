@@ -72,18 +72,23 @@ call_eldap(Request, State) ->
             {Result, State}
     end.
 
+connect_opts(State = #{port := Port,
+                       root_dn := RootDN,
+                       password := Password}) ->
+    AnonAuth = RootDN =:= <<>> andalso Password =:= <<>>,
+    SSLConfig = case State of
+                    #{tls := TLSOptions} -> [{sslopts, just_tls:make_ssl_opts(TLSOptions)}];
+                    #{} -> []
+                end,
+    [{port, Port}, {anon_auth, AnonAuth}] ++ SSLConfig.
+
 connect(State = #{handle := none,
                   servers := Servers,
                   port := Port,
                   root_dn := RootDN,
                   password := Password,
                   connect_interval := ConnectInterval}) ->
-    AnonAuth = RootDN =:= <<>> andalso Password =:= <<>>,
-    SSLConfig = case State of
-                    #{tls := TLSOptions} -> [{sslopts, just_tls:make_ssl_opts(TLSOptions)}];
-                    #{} -> []
-                end,
-    case eldap:open(Servers, [{port, Port}, {anon_auth, AnonAuth}] ++ SSLConfig) of
+    case eldap:open(Servers, connect_opts(State)) of
         {ok, Handle} ->
             case eldap:simple_bind(Handle, RootDN, Password) of
                 ok ->

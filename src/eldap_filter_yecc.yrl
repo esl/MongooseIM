@@ -54,7 +54,7 @@ Erlang code.
 
 'and'(Value)                -> eldap:'and'(eldap_utils:maybe_b2list(Value)).
 'or'(Value)                 -> eldap:'or'(eldap_utils:maybe_b2list(Value)).
-'not'(Value)                -> eldap:'not'(eldap_utils:maybe_b2list(Value)).
+'not'(Value)                -> eldap:'not'(Value).
 equal(Desc, Value)          -> eldap:equalityMatch(Desc, eldap_utils:maybe_b2list(Value)).
 approx(Desc, Value)         -> eldap:approxMatch(Desc, eldap_utils:maybe_b2list(Value)).
 greater(Desc, Value)        -> eldap:greaterOrEqual(Desc, eldap_utils:maybe_b2list(Value)).
