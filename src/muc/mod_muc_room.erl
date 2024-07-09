@@ -899,7 +899,6 @@ can_send_broadcasts(Role, StateData) ->
     or ((StateData#state.config)#config.moderated == false).
 
 broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
-    Activity = get_user_activity(From, StateData),
     TS = erlang:system_time(microsecond),
     Affiliation = get_affiliation(From, StateData),
     EventData = #{from_nick => FromNick, from_jid => From,
