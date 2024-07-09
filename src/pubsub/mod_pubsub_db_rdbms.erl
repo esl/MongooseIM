@@ -139,7 +139,7 @@ init(_HostType, _Opts) ->
           "AND luser = ? AND lserver = ? AND lresource = ? AND sub_id = ?">>),
     mongoose_rdbms:prepare(pubsub_delete_all_subscriptions, pubsub_subscriptions,
         [nidx, luser, lserver, lresource],
-        <<"DELETE FROM pubsub_subscriptions"" WHERE nidx = ? "
+        <<"DELETE FROM pubsub_subscriptions WHERE nidx = ? "
           "AND luser = ? AND lserver = ? AND lresource = ?">>),
     mongoose_rdbms:prepare(pubsub_delete_all_subscriptions_id, pubsub_subscriptions, [nidx],
         <<"DELETE FROM pubsub_subscriptions WHERE nidx = ?">>),
