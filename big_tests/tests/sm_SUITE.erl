@@ -56,9 +56,10 @@ all() ->
 
 groups() ->
     [
-     {ws_tests, [], ws_tests()},
+     {ws_tests, [{repeat_until_any_fail, 100}], ws_tests()},
      {tcp_tests, [], tcp_tests()},
-     {parallel, [parallel], parallel_cases()},
+     {parallel, [parallel], parallel_cases() ++ [aggressively_pipelined_resume]},
+     {parallel_ws, [parallel], parallel_cases() ++ [aggressively_pipelined_resume_ws]},
      {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
      {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
      {stale_h, [], stale_h_cases()},
@@ -66,7 +67,7 @@ groups() ->
     ].
 
 ws_tests() ->
-    [{group, parallel},
+    [{group, parallel_ws},
      {group, parallel_manual_ack_freq_1},
      {group, manual_ack_freq_2},
      {group, stale_h},
@@ -108,7 +109,6 @@ parallel_cases() ->
      resume_session_kills_old_C2S_gracefully,
      carboncopy_works,
      carboncopy_works_after_resume,
-     aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
      messages_are_properly_flushed_during_resumption].
@@ -244,6 +244,8 @@ required_modules(Scope, Name) ->
     end.
 
 required_sm_opts(group, parallel) ->
+    #{ack_freq => never};
+required_sm_opts(group, parallel_ws) ->
     #{ack_freq => never};
 required_sm_opts(group, parallel_manual_ack_freq_1) ->
     #{ack_freq => 1,
@@ -1105,6 +1107,33 @@ aggressively_pipelined_resume(Config) ->
         Resume = escalus_stanza:resume(SMID, 2),
 
         escalus_client:send(User, [Stream, Auth, AuthStream, Resume]),
+        Messages = [escalus_connection:get_stanza(User, {get_resumed, I}) || I <- lists:seq(1, 6)],
+        escalus:assert(is_sm_resumed, [SMID], lists:last(Messages)),
+
+        escalus_connection:stop(User)
+    end).
+
+aggressively_pipelined_resume_ws(Config) ->
+    UserSpec = [{manual_ack, true} | escalus_fresh:create_fresh_user(Config, ?config(user, Config))],
+    UnackedMessages = three_texts(),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        {_, SMID} = buffer_unacked_messages_and_die(Config, UserSpec, Bob, UnackedMessages),
+        %% Resume the session.
+        User = escalus_connection:connect(UserSpec),
+
+        Username = proplists:get_value(username, UserSpec),
+        Password = proplists:get_value(password, UserSpec),
+        Payload = <<0:8,Username/binary,0:8,Password/binary>>,
+        Server = proplists:get_value(server, UserSpec),
+
+        Stream = escalus_stanza:ws_open(Server),
+        Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(Payload)}]),
+        Resume = escalus_stanza:resume(SMID, 2),
+
+        escalus_client:send(User, [Stream]),
+        escalus_client:send(User, [Auth]),
+        escalus_client:send(User, [Stream]),
+        escalus_client:send(User, [Resume]),
         Messages = [escalus_connection:get_stanza(User, {get_resumed, I}) || I <- lists:seq(1, 6)],
         escalus:assert(is_sm_resumed, [SMID], lists:last(Messages)),
 
