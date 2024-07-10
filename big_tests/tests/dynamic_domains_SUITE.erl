@@ -21,6 +21,7 @@ all() ->
      pm_messages,
      disconnected_on_domain_disabling,
      auth_domain_removal_is_triggered_on_hook,
+     no_route,
      {group, with_mod_dynamic_domains_test}].
 
 groups() ->
@@ -31,12 +32,14 @@ groups() ->
 init_per_suite(Config0) ->
     Config = cluster_nodes(?CLUSTER_NODES, Config0),
     insert_domains(?TEST_NODES, ?DOMAINS),
+    instrument_helper:start([{router_no_route_found, #{host_type => ?HOST_TYPE}}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config0) ->
     Config = escalus:end_per_suite(Config0),
     remove_domains(?TEST_NODES, ?DOMAINS),
-    uncluster_nodes(?CLUSTER_NODES, Config).
+    uncluster_nodes(?CLUSTER_NODES, Config),
+    instrument_helper:stop().
 
 init_per_group(with_mod_dynamic_domains_test, Config) ->
     MockedModules = [mod_dynamic_domains_test, mongoose_router],
@@ -57,11 +60,21 @@ end_per_group(with_mod_dynamic_domains_test, Config) ->
 end_per_group(_, Config) ->
     Config.
 
+init_per_testcase(no_route, Config) ->
+    RoutingModules = rpc(mim(), mongoose_router, default_routing_modules, []),
+    % S2S always "routes" a stanza (returns {done, Acc}), even if it can't connect to a remote server.
+    % In order for the router_no_route_found event to be executed, S2S has to be disabled.
+    RoutingModulesWithoutS2S = lists:droplast(RoutingModules),
+    NewConfig = mongoose_helper:backup_and_set_config_option(Config, routing_modules, RoutingModulesWithoutS2S),
+    escalus:init_per_testcase(no_route, NewConfig);
 init_per_testcase(CN, Config) ->
     Modules = proplists:get_value(reset_meck, Config, []),
     [rpc(mim(), meck, reset, [M]) || M <- Modules],
     escalus:init_per_testcase(CN, Config).
 
+end_per_testcase(no_route, Config) ->
+    mongoose_helper:restore_config(Config),
+    escalus:end_per_testcase(no_route, Config);
 end_per_testcase(CN, Config) ->
     escalus:end_per_testcase(CN, Config).
 
@@ -80,6 +93,21 @@ pm_messages(Config) ->
             escalus:assert(is_chat_message, [<<"OH, HAI!">>], escalus:wait_for_stanza(Bob)),
             escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hello there!">>)),
             escalus:assert(is_chat_message, [<<"Hello there!">>], escalus:wait_for_stanza(Alice))
+        end,
+    escalus:story(Config, [{alice3, 1}, {bob3, 1}], StoryFn).
+
+no_route(Config) ->
+    StoryFn =
+        fun(Alice, Bob) ->
+            % S2S is disabled, and Alice sends a stanza to a nonexistent server
+            Msg = escalus_stanza:chat_to(Bob, <<"OH, HAI!">>),
+            WrongJID = <<"bob@wrong_server.com">>,
+            WrongServerMsg = escalus_stanza:to(Msg, WrongJID),
+            escalus:send(Alice, WrongServerMsg),
+
+            escalus_assert:has_no_stanzas(Bob),
+            instrument_helper:wait_and_assert(router_no_route_found, #{host_type => ?HOST_TYPE},
+                fun(#{count := 1, to := To}) -> jid:to_binary(To) =:= WrongJID end)
         end,
     escalus:story(Config, [{alice3, 1}, {bob3, 1}], StoryFn).
 

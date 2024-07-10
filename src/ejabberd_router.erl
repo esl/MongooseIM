@@ -163,10 +163,10 @@ code_change(_OldVsn, State, _Extra) ->
             Acc    :: mongoose_acc:t(),
             Packet :: exml:element(),
             [xmpp_router:t()]) -> mongoose_acc:t().
-route(_From, _To, Acc, _Packet, []) ->
-    ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc}),
+route(_From, To, Acc, _Packet, []) ->
     HT = mongoose_acc:host_type(Acc),
-    mongoose_instrument:execute(router_no_route_found, #{host_type => HT}, #{count => 1}),
+    ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc, host_type => HT}),
+    mongoose_instrument:execute(router_no_route_found, #{host_type => HT}, #{count => 1, to => To}),
     mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
 route(OrigFrom, OrigTo, Acc0, OrigPacket, [M|Tail]) ->
     try xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc0, OrigPacket) of
