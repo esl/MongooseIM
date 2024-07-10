@@ -79,7 +79,8 @@ summaries(Directories, Filename) ->
 
 add_up_suite_results(SuiteSummaries) ->
     lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
-                        {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
+                        {ok, [{summary, Summary}]} = file:consult(Filename),
+                        [Ok, F, US, AS | _] = tuple_to_list(Summary),
                         {OkAcc + Ok, FAcc + F, USAcc + US, ASAcc + AS}
                 end, {0, 0, 0, 0}, SuiteSummaries).
 
