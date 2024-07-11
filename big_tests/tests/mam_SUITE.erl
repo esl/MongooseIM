@@ -614,9 +614,6 @@ do_init_per_group(C, ConfigIn) ->
             Config0
     end.
 
-end_per_group(muc_prefs_cases, Config) ->
-    dynamic_modules:restore_modules(Config),
-    Config;
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
     G == muc06; G == mam06; G == archived; G == muc_seq  ->
@@ -646,27 +643,18 @@ required_modules_for_group(C, muc_light, Config) ->
     {[{mod_muc_light, config_parser_helper:mod_config(mod_muc_light, #{backend => Backend})},
       {mod_mam, Opts}], Config1};
 required_modules_for_group(C, BG, Config) when BG =:= muc_all;
-                                               BG =:= muc_disabled_retraction ->
-    Opts = create_mam_opts(C, BG, Config),
+                                               BG =:= muc_disabled_retraction;
+                                               BG =:= muc_prefs_cases ->
+    Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
+    MUCHost = subhost_pattern(muc_domain(Config)),
+    Opts = config_opts(Extra#{muc => #{host => MUCHost}}),
     Config1 = maybe_set_wait(C, [muc], [{mam_meta_opts, Opts} | Config]),
     {[{mod_mam, Opts}], Config1};
-required_modules_for_group(C, BG, Config) when BG =:= muc_prefs_cases ->
-    Opts = create_mam_opts(C, BG, Config),
-    Config1 = maybe_set_wait(C, [muc], [{mam_meta_opts, Opts} | Config]),
-    #{backend := Backend, user_prefs_store := PrefsStore} = Opts,
-    MucPrefsBackendModule =  mam_prefs_backend_module(Backend, PrefsStore),
-    MucPrefsBackendModuleOpts = #{muc => true, pm => true},
-    {[{mod_mam, Opts}, {MucPrefsBackendModule, MucPrefsBackendModuleOpts}], Config1};
 required_modules_for_group(C, BG, Config) ->
     Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
     Opts = config_opts(Extra#{pm => #{}}),
     Config1 = maybe_set_wait(C, [pm], [{mam_meta_opts, Opts} | Config]),
     {[{mod_mam, Opts}], Config1}.
-
-create_mam_opts(C, BG, Config) ->
-    Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
-    MUCHost = subhost_pattern(muc_domain(Config)),
-    config_opts(Extra#{muc => #{host => MUCHost}}).
 
 maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
                                       C =:= rdbms_async_cache ->
