@@ -134,12 +134,27 @@ dirty_disconnect(Config) ->
     disconnect_component(Component1, Addr).
 
 register_one_component(Config) ->
+    TS = instrument_helper:timestamp(),
     %% Given one connected component
     CompOpts = ?config(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
+    % 1. start stream reply, 2. component handshake,
+    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+    % 1. start stream, 2. handshake reply,
+    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+
+    TS1 = instrument_helper:timestamp(),
     verify_component(Config, Component, ComponentAddr),
-    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end),
-    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end),
+
+    % Message from Alice
+    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS1}),
+    % Reply to Alice
+    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS1}),
+
     disconnect_component(Component, ComponentAddr).
 
 verify_component(Config, Component, ComponentAddr) ->
@@ -168,6 +183,7 @@ intercomponent_communication(Config) ->
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
 
+    TS = instrument_helper:timestamp(),
     %% When the first component sends a message the second component
     Msg0 = escalus_stanza:chat_to(CompAddr2, <<"intercomponent msg">>),
     escalus:send(Comp1, escalus_stanza:from(Msg0, CompAddr1)),
@@ -175,8 +191,10 @@ intercomponent_communication(Config) ->
     Reply0 = escalus:wait_for_stanza(Comp2),
     escalus:assert(is_chat_message, [<<"intercomponent msg">>], Reply0),
 
-    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end),
-    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end),
+    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS}),
+    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS}),
 
     disconnect_component(Comp1, CompAddr1),
     disconnect_component(Comp2, CompAddr2).
@@ -188,6 +206,7 @@ register_two_components(Config) ->
     CompOpts2 = ?config(component2, Config),
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
+    TS = instrument_helper:timestamp(),
 
     escalus:story(Config,
                   [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -222,8 +241,12 @@ register_two_components(Config) ->
             escalus:assert(is_chat_message, [<<"Alice-2-Comp1 msg">>], Reply4)
         end),
 
-    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end),
-    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end),
+    % Msg to Alice, msg to Bob
+    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+    % Msg from Bob, msg from Alice
+    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
 
     disconnect_component(Comp1, CompAddr1),
     disconnect_component(Comp2, CompAddr2).
