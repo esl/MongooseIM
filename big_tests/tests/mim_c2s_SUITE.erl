@@ -254,5 +254,5 @@ tls_instrumentation_events() ->
 common_instrumentation_events() ->
     HostType = domain_helper:host_type(),
     [{c2s_message_processing_time, #{host_type => HostType}},
-     {xmpp_stanza_size_received, #{}},
-     {xmpp_stanza_size_sent, #{}}].
+     {c2s_xmpp_stanza_size_received, #{}},
+     {c2s_xmpp_stanza_size_sent, #{}}].

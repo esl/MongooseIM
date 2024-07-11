@@ -164,7 +164,8 @@ send_text(SocketData, Data) ->
                  connection_type = ConnectionType} = SocketData,
     case catch SockMod:send(Socket, Data) of
         ok ->
-            update_transport_metrics(Data, out, ConnectionType),
+            update_transport_metrics(Data,
+                                     #{connection_type => ConnectionType, sockmod => SockMod, direction => out}),
             ok;
         {error, timeout} ->
             ?LOG_INFO(#{what => socket_error, reason => timeout,
@@ -178,7 +179,12 @@ send_text(SocketData, Data) ->
 
 
 -spec send_element(socket_data(), exml:element()) -> ok.
-send_element(SocketData, El) ->
+send_element(#socket_data{connection_type = s2s} = SocketData, El) ->
+    mongoose_instrument:execute(s2s_xmpp_stanza_size_out, #{}, #{byte_size => exml:xml_size(El)}),
+    BinEl = exml:to_binary(El),
+    send_text(SocketData, BinEl);
+send_element(#socket_data{connection_type = component} = SocketData, El) ->
+    mongoose_instrument:execute(component_xmpp_stanza_size_out, #{}, #{byte_size => exml:xml_size(El)}),
     BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl).
 
@@ -388,38 +394,55 @@ deactivate_socket(#state{socket = Socket, sockmod = mongoose_tls}) ->
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
                           dest_pid = DestPid,
+                          sockmod = SockMod,
                           connection_type = ConnectionType} = State) ->
     ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Data, dest_pid => DestPid}),
     Size = byte_size(Data),
     {Events, NewParser} =
         case exml_stream:parse(Parser, Data) of
             {ok, NParser, Elems} ->
-                {[wrap_xml_elements(E) || E <- Elems], NParser};
+                {[wrap_xml_elements_and_update_metrics(E, ConnectionType) || E <- Elems], NParser};
             {error, Reason} ->
                 {[{xmlstreamerror, Reason}], Parser}
         end,
     {NewShaperState, Pause} = mongoose_shaper:update(ShaperState, Size),
-    update_transport_metrics(Data, in, ConnectionType),
+    update_transport_metrics(Data, #{connection_type => ConnectionType, sockmod => SockMod, direction => in}),
     [gen_fsm_compat:send_event(DestPid, Event) || Event <- Events],
     maybe_pause(Pause, State),
     State#state{parser = NewParser, shaper_state = NewShaperState}.
 
-wrap_xml_elements(#xmlel{} = E) ->
+wrap_xml_elements_and_update_metrics(E, s2s) ->
+    mongoose_instrument:execute(s2s_xmpp_stanza_size_in, #{}, #{byte_size => exml:xml_size(E)}),
+    wrap_xml(E);
+wrap_xml_elements_and_update_metrics(E, component) ->
+    mongoose_instrument:execute(component_xmpp_stanza_size_in, #{}, #{byte_size => exml:xml_size(E)}),
+    wrap_xml(E).
+
+wrap_xml(#xmlel{} = E) ->
     {xmlstreamelement, E};
-wrap_xml_elements(E) ->
+wrap_xml(E) ->
     E.
 
 -spec update_transport_metrics(binary(),
-                               in | out,
-                               connection_type()) -> ok.
-update_transport_metrics(Data, in, s2s) ->
-    mongoose_instrument:execute(s2s_data_in, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, out, s2s) ->
-    mongoose_instrument:execute(s2s_data_out, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, in, component) ->
-    mongoose_instrument:execute(component_data_in, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, out, component) ->
-    mongoose_instrument:execute(component_data_out, #{}, #{byte_size => byte_size(Data)}).
+                               #{connection_type := connection_type(),
+                                 direction := in | out,
+                                 sockmod := socket_module()}) -> ok.
+update_transport_metrics(Data, #{connection_type := s2s, direction := in, sockmod := gen_tcp}) ->
+    mongoose_instrument:execute(s2s_tcp_data_in, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, #{connection_type := s2s, direction := in, sockmod := mongoose_tls}) ->
+    mongoose_instrument:execute(s2s_tls_data_in, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, #{connection_type := s2s, direction := out, sockmod := gen_tcp}) ->
+    mongoose_instrument:execute(s2s_tcp_data_out, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, #{connection_type := s2s, direction := out, sockmod := mongoose_tls}) ->
+    mongoose_instrument:execute(s2s_tls_data_out, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, #{connection_type := component, direction := in, sockmod := gen_tcp}) ->
+    mongoose_instrument:execute(component_tcp_data_in, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, #{connection_type := component, direction := in, sockmod := mongoose_tls}) ->
+    mongoose_instrument:execute(component_tls_data_in, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, #{connection_type := component, direction := out, sockmod := gen_tcp}) ->
+    mongoose_instrument:execute(component_tcp_data_out, #{}, #{byte_size => byte_size(Data)});
+update_transport_metrics(Data, #{connection_type := component, direction := out, sockmod := mongoose_tls}) ->
+    mongoose_instrument:execute(component_tls_data_out, #{}, #{byte_size => byte_size(Data)}).
 
 -spec maybe_pause(Delay :: non_neg_integer(), state()) -> any().
 maybe_pause(_, #state{dest_pid = undefined}) ->

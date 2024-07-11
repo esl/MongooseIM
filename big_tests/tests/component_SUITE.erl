@@ -138,21 +138,26 @@ register_one_component(Config) ->
     %% Given one connected component
     CompOpts = ?config(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
-    % 1. start stream reply, 2. component handshake,
-    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    % start stream reply
+    instrument_helper:assert(component_xmpp_stanza_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS}),
+    % 1. start stream, 2. component handshake
+    instrument_helper:assert(component_xmpp_stanza_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 2, min_timestamp => TS}),
-    % 1. start stream, 2. handshake reply,
-    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+    % 1. start stream reply, 2. handshake reply
+    instrument_helper:assert(component_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 2, min_timestamp => TS}),
 
     TS1 = instrument_helper:timestamp(),
     verify_component(Config, Component, ComponentAddr),
 
     % Message from Alice
-    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_stanza_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 1, min_timestamp => TS1}),
     % Reply to Alice
-    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_stanza_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 1, min_timestamp => TS1}),
 
     disconnect_component(Component, ComponentAddr).
@@ -191,9 +196,9 @@ intercomponent_communication(Config) ->
     Reply0 = escalus:wait_for_stanza(Comp2),
     escalus:assert(is_chat_message, [<<"intercomponent msg">>], Reply0),
 
-    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_stanza_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 1, min_timestamp => TS}),
-    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_stanza_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 1, min_timestamp => TS}),
 
     disconnect_component(Comp1, CompAddr1),
@@ -242,10 +247,10 @@ register_two_components(Config) ->
         end),
 
     % Msg to Alice, msg to Bob
-    instrument_helper:assert(component_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_stanza_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 2, min_timestamp => TS}),
     % Msg from Bob, msg from Alice
-    instrument_helper:assert(component_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_stanza_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 2, min_timestamp => TS}),
 
     disconnect_component(Comp1, CompAddr1),

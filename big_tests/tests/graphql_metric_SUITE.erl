@@ -253,7 +253,7 @@ get_metrics_as_dicts_with_nonexistent_key(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"not_existing">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    RecvName = [<<"global">>, <<"xmpp_stanza_size_received">>, <<"byte_size">>],
+    RecvName = [<<"global">>, <<"c2s_xmpp_stanza_size_received">>, <<"byte_size">>],
     [] = maps:get(RecvName, Map).
 
 get_metrics_as_dicts_empty_args(Config) ->
@@ -261,7 +261,7 @@ get_metrics_as_dicts_empty_args(Config) ->
     Result = get_metrics_as_dicts([], [<<"median">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    RecvName = [<<"global">>, <<"xmpp_stanza_size_received">>, <<"byte_size">>],
+    RecvName = [<<"global">>, <<"c2s_xmpp_stanza_size_received">>, <<"byte_size">>],
     [#{<<"key">> := <<"median">>, <<"value">> := Median}] = maps:get(RecvName, Map),
     ?assert(is_integer(Median)),
     %% Empty keys
@@ -377,7 +377,7 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     [#{<<"key">> := <<"value">>,<<"value">> := V} | _] =
         maps:get([<<"global">>,<<"sm_unique_sessions">>,<<"count">>], Map),
     ?assert(is_integer(V)),
-    HistObjects = maps:get([<<"global">>, <<"xmpp_stanza_size_received">>, <<"byte_size">>], Map),
+    HistObjects = maps:get([<<"global">>, <<"c2s_xmpp_stanza_size_received">>, <<"byte_size">>], Map),
     check_histogram(kv_objects_to_map(HistObjects)).
 
 check_histogram(Map) ->
