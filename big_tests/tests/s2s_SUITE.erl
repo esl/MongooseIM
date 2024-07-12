@@ -178,8 +178,8 @@ simple_message(Config) ->
         escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2),
 
         % Instrumentation events are executed
-        instrument_helper:assert(s2s_xmpp_stanza_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end),
-        instrument_helper:assert(s2s_xmpp_stanza_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end)
+        instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end),
+        instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end)
     end).
 
 timeout_waiting_for_message(Config) ->

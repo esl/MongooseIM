@@ -180,11 +180,11 @@ send_text(SocketData, Data) ->
 
 -spec send_element(socket_data(), exml:element()) -> ok.
 send_element(#socket_data{connection_type = s2s} = SocketData, El) ->
-    mongoose_instrument:execute(s2s_xmpp_stanza_size_out, #{}, #{byte_size => exml:xml_size(El)}),
+    mongoose_instrument:execute(s2s_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)}),
     BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl);
 send_element(#socket_data{connection_type = component} = SocketData, El) ->
-    mongoose_instrument:execute(component_xmpp_stanza_size_out, #{}, #{byte_size => exml:xml_size(El)}),
+    mongoose_instrument:execute(component_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)}),
     BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl).
 
@@ -412,10 +412,10 @@ process_data(Data, #state{parser = Parser,
     State#state{parser = NewParser, shaper_state = NewShaperState}.
 
 wrap_xml_elements_and_update_metrics(E, s2s) ->
-    mongoose_instrument:execute(s2s_xmpp_stanza_size_in, #{}, #{byte_size => exml:xml_size(E)}),
+    mongoose_instrument:execute(s2s_xmpp_element_size_in, #{}, #{byte_size => exml:xml_size(E)}),
     wrap_xml(E);
 wrap_xml_elements_and_update_metrics(E, component) ->
-    mongoose_instrument:execute(component_xmpp_stanza_size_in, #{}, #{byte_size => exml:xml_size(E)}),
+    mongoose_instrument:execute(component_xmpp_element_size_in, #{}, #{byte_size => exml:xml_size(E)}),
     wrap_xml(E).
 
 wrap_xml(#xmlel{} = E) ->

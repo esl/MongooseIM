@@ -135,8 +135,8 @@ send_validity_from_s2s_out(Pid, IsValid, FromTo) when is_boolean(IsValid) ->
     p1_fsm:send_event(Pid, Event).
 
 instrumentation(#{connection_type := s2s} = _Opts) ->
-    [{s2s_xmpp_stanza_size_in, #{}, #{metrics => #{byte_size => histogram}}},
-     {s2s_xmpp_stanza_size_out, #{}, #{metrics => #{byte_size => histogram}}},
+    [{s2s_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
+     {s2s_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
      {s2s_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
      {s2s_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
      {s2s_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},

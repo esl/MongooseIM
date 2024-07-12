@@ -144,8 +144,8 @@ start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).
 
 instrumentation(#{connection_type := component} = _Opts) ->
-    [{component_xmpp_stanza_size_in, #{}, #{metrics => #{byte_size => histogram}}},
-     {component_xmpp_stanza_size_out, #{}, #{metrics => #{byte_size => histogram}}},
+    [{component_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
+     {component_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
      {component_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
      {component_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
      {component_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
