@@ -93,7 +93,9 @@
                            user_leave/3,
                            stanza_blocking_set/1,
                            default_config/1,
-                           default_schema/0
+                           default_schema/0,
+                           eq_bjid/2,
+                           pos_int/1
                           ]).
 -import(config_parser_helper, [mod_config/2]).
 
@@ -103,6 +105,8 @@
 -define(ROOM2, <<"testroom2">>).
 
 -define(MUCHOST, (muc_light_helper:muc_host())).
+
+-define(CACHE_NAME, mod_muc_light_cache_localhost).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -203,6 +207,8 @@ suite() ->
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     Config2 = escalus:init_per_suite(Config1),
+    instrument_helper:start([{user_cache_lookup, #{host_type => host_type(),
+                                                   cache_name => ?CACHE_NAME}}]),
     escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
@@ -210,7 +216,8 @@ end_per_suite(Config) ->
     muc_light_helper:clear_db(HostType),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config1).
+    escalus:end_per_suite(Config1),
+    instrument_helper:stop().
 
 init_per_group(_GroupName, Config) ->
     Config.
@@ -515,11 +522,14 @@ unauthorized_stanza(Config) ->
 
 send_message(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            TS = instrument_helper:timestamp(),
             Msg = <<"Heyah!">>,
             Id = <<"MyID">>,
             Stanza = escalus_stanza:set_id(
                        escalus_stanza:groupchat_to(room_bin_jid(?ROOM), Msg), Id),
-            foreach_occupant([Alice, Bob, Kate], Stanza, gc_message_verify_fun(?ROOM, Msg, Id))
+            foreach_occupant([Alice, Bob, Kate], Stanza, gc_message_verify_fun(?ROOM, Msg, Id)),
+            assert_cache_miss_event(TS, 1, room_bin_jid(?ROOM)),
+            assert_cache_hit_event(TS, 2, room_bin_jid(?ROOM))
         end).
 
 change_subject(Config) ->
@@ -714,8 +724,10 @@ destroy_room_get_disco_items_one_left(Config) ->
 
 set_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            TS = instrument_helper:timestamp(),
             ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
-            change_room_config(Alice, [Alice, Bob, Kate], ConfigChange)
+            change_room_config(Alice, [Alice, Bob, Kate], ConfigChange),
+            assert_cache_miss_event(TS, 1, room_bin_jid(?ROOM))
         end).
 
 set_partial_config(Config) ->
@@ -768,6 +780,7 @@ assorted_config_doesnt_lead_to_duplication(Config) ->
 
 remove_and_add_users(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            TS = instrument_helper:timestamp(),
             AffUsersChanges1 = [{Bob, none}, {Kate, none}],
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
             verify_aff_bcast([{Alice, owner}], AffUsersChanges1),
@@ -775,7 +788,9 @@ remove_and_add_users(Config) ->
             AffUsersChanges2 = [{Bob, member}, {Kate, member}],
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges2)),
             verify_aff_bcast([{Alice, owner}, {Bob, member}, {Kate, member}], AffUsersChanges2),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            assert_cache_miss_event(TS, 1, room_bin_jid(?ROOM)),
+            assert_cache_hit_event(TS, 1, room_bin_jid(?ROOM))
         end).
 
 explicit_owner_change(Config) ->
@@ -1139,6 +1154,24 @@ assert_process_memory_not_growing(Pid, OldMemory, Counter) ->
                      Counter + 1
                  end,
   assert_process_memory_not_growing(Pid, Memory, NewCounter).
+
+assert_cache_hit_event(TS, Count, Jid) ->
+    assert_cache_event(TS, Count, Jid, hits).
+
+assert_cache_miss_event(TS, Count, Jid) ->
+    assert_cache_event(TS, Count, Jid, misses).
+
+assert_cache_event(TS, Count, BinJid, CacheResult) ->
+    F = fun(#{jid := Jid, CacheResult := 1, latency := T}) ->
+            eq_bjid(Jid, BinJid) andalso pos_int(T)
+        end,
+    instrument_helper:assert(
+        user_cache_lookup,
+        #{host_type => host_type(), cache_name => ?CACHE_NAME},
+        F,
+        % Due to implementation, for every lookup the event is raised two times
+        #{min_timestamp => TS, expected_count => Count * 2}
+    ).
 
 -spec custom_schema() -> [muc_light_helper:schema_item()].
 custom_schema() ->

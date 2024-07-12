@@ -299,3 +299,7 @@ stanza_blocking_set(BlocklistChanges) ->
                      children = [#xmlcdata{ content = Who }] }
              || {What, Action, Who} <- BlocklistChanges],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), muc_host()).
+
+eq_bjid(Jid, BinJid) -> Jid =:= jid:from_binary(BinJid).
+
+pos_int(T) -> is_integer(T) andalso T > 0.
