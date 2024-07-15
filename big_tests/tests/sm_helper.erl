@@ -277,7 +277,13 @@ send_initial_presence(User) ->
 
 process_initial_stanza(User) ->
     send_initial_presence(User),
-    escalus:assert(is_presence, escalus:wait_for_stanza(User)).
+    Message = escalus:wait_for_stanza(User),
+    case escalus_pred:is_iq(Message) of
+        true ->
+            Message2 = escalus:wait_for_stanza(User),
+            escalus:assert(is_presence, Message2);
+        false -> escalus:assert(is_presence, Message)
+    end.
 
 send_messages(Bob, Alice, Texts) ->
     [escalus:send(Bob, escalus_stanza:chat_to(Alice, Text))
