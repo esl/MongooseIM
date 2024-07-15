@@ -77,16 +77,16 @@ socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Da
     case fast_tls:recv_data(TlsSocket, Data) of
         {ok, DecryptedData} ->
             DataSize = byte_size(DecryptedData),
-            mongoose_instrument:execute(c2s_tls_data_received, #{}, #{byte_size => DataSize}),
+            mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => DataSize}),
             DecryptedData;
         {error, Reason} ->
             {error, Reason}
     end;
 socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
-    mongoose_instrument:execute(c2s_tls_data_received, #{}, #{byte_size => byte_size(Data)}),
+    mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => byte_size(Data)}),
     Data;
 socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
-    mongoose_instrument:execute(c2s_tcp_data_received, #{}, #{byte_size => byte_size(Data)}),
+    mongoose_instrument:execute(c2s_tcp_data_in, #{}, #{byte_size => byte_size(Data)}),
     Data.
 
 -spec socket_activate(state()) -> ok.
@@ -118,13 +118,13 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
 
 -spec send(transport(), ranch_transport:socket(), iodata()) -> ok | {error, term()}.
 send(fast_tls, Socket, Data) ->
-    mongoose_instrument:execute(c2s_tls_data_sent, #{}, #{byte_size => iolist_size(Data)}),
+    mongoose_instrument:execute(c2s_tls_data_out, #{}, #{byte_size => iolist_size(Data)}),
     fast_tls:send(Socket, Data);
 send(just_tls, Socket, Data) ->
-    mongoose_instrument:execute(c2s_tls_data_sent, #{}, #{byte_size => iolist_size(Data)}),
+    mongoose_instrument:execute(c2s_tls_data_out, #{}, #{byte_size => iolist_size(Data)}),
     just_tls:send(Socket, Data);
 send(ranch_tcp, Socket, Data) ->
-    mongoose_instrument:execute(c2s_tcp_data_sent, #{}, #{byte_size => iolist_size(Data)}),
+    mongoose_instrument:execute(c2s_tcp_data_out, #{}, #{byte_size => iolist_size(Data)}),
     ranch_tcp:send(Socket, Data).
 
 -spec get_peer_certificate(state(), mongoose_listener:options()) ->

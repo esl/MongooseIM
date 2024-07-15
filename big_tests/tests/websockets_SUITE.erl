@@ -177,7 +177,7 @@ negative_instrumentation_events() ->
     [{Name, #{}} || Name <- negative_instrumentation_events_names()].
 
 negative_instrumentation_events_names() ->
-    [c2s_tcp_data_sent,
-     c2s_tcp_data_received,
-     c2s_tls_data_sent,
-     c2s_tls_data_received].
+    [c2s_tcp_data_out,
+     c2s_tcp_data_in,
+     c2s_tls_data_out,
+     c2s_tls_data_in].

@@ -81,9 +81,9 @@ instrumentation() ->
 
 -spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
 instrumentation(global) ->
-    [{c2s_xmpp_stanza_size_sent, #{},
+    [{c2s_xmpp_element_size_out, #{},
       #{metrics => #{byte_size => histogram}}},
-     {c2s_xmpp_stanza_size_received, #{},
+     {c2s_xmpp_element_size_in, #{},
       #{metrics => #{byte_size => histogram}}}];
 instrumentation(HostType) ->
     [{c2s_message_processing_time, #{host_type => HostType},
@@ -283,7 +283,7 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    [mongoose_instrument:execute(c2s_xmpp_stanza_size_received, #{},
+    [mongoose_instrument:execute(c2s_xmpp_element_size_in, #{},
                                  #{byte_size => elem_size(El)})
      || El <- Elements],
     NewStateData = StateData#c2s_data{shaper = NewShaper},
@@ -1076,7 +1076,7 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El)
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
 send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
-    [mongoose_instrument:execute(c2s_xmpp_stanza_size_sent, #{}, #{byte_size => exml:xml_size(El)})
+    [mongoose_instrument:execute(c2s_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)})
       || El <- XmlElements],
     mongoose_c2s_socket:send_xml(Socket, XmlElements).
 
