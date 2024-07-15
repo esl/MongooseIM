@@ -115,7 +115,7 @@ init_per_group(dialback, Config) ->
     distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config);
 init_per_group(GroupName, Config) ->
     Config1 = s2s_helper:configure_s2s(GroupName, Config),
-    [{requires_tls, group_with_tls(GroupName)} | Config1].
+    [{requires_tls, group_with_tls(GroupName)}, {group, GroupName} | Config1].
 
 end_per_group(_GroupName, _Config) ->
     ok.
@@ -548,7 +548,10 @@ assert_events(TS, Config) ->
 in_element_event_count_per_group(Config) ->
     case proplists:get_value(requires_tls, Config) of
         true ->
-            18;
+            case proplists:get_value(group, Config) of
+                node1_tls_optional_node2_tls_required_trusted_with_cachain -> 19;
+                _ -> 18
+            end;
         false ->
             % Some of these steps happen asynchronously, so the order may be different.
             % Since S2S connections are unidirectional, mim1 acts both as initiating,
@@ -574,7 +577,10 @@ in_element_event_count_per_group(Config) ->
 out_element_event_count_per_group(Config) ->
     case proplists:get_value(requires_tls, Config) of
         true ->
-            10;
+            case proplists:get_value(group, Config) of
+                node1_tls_optional_node2_tls_required_trusted_with_cachain -> 9;
+                _ -> 10
+            end;
         false ->
             % Since S2S connections are unidirectional, mim1 acts both as initiating,
             % and receiving (and authoritative) server in the dialback procedure.
