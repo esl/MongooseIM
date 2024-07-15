@@ -95,7 +95,8 @@
                            default_config/1,
                            default_schema/0,
                            eq_bjid/2,
-                           pos_int/1
+                           pos_int/1,
+                           cache_name/0
                           ]).
 -import(config_parser_helper, [mod_config/2]).
 
@@ -105,8 +106,6 @@
 -define(ROOM2, <<"testroom2">>).
 
 -define(MUCHOST, (muc_light_helper:muc_host())).
-
--define(CACHE_NAME, mod_muc_light_cache_localhost).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -208,7 +207,7 @@ init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     Config2 = escalus:init_per_suite(Config1),
     instrument_helper:start([{user_cache_lookup, #{host_type => host_type(),
-                                                   cache_name => ?CACHE_NAME}}]),
+                                                   cache_name => cache_name()}}]),
     escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
@@ -1167,7 +1166,7 @@ assert_cache_event(TS, Count, BinJid, CacheResult) ->
         end,
     instrument_helper:assert(
         user_cache_lookup,
-        #{host_type => host_type(), cache_name => ?CACHE_NAME},
+        #{host_type => host_type(), cache_name => cache_name()},
         F,
         % Due to implementation, for every lookup the event is raised two times
         #{min_timestamp => TS, expected_count => Count * 2}

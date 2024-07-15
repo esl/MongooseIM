@@ -32,6 +32,14 @@ muc_host() ->
 muc_host_pattern() ->
     ct:get_config({hosts, mim, muc_light_service_pattern}).
 
+cache_name() ->
+    case domain_helper:host_type() of
+        <<"localhost">> ->
+            mod_muc_light_cache_localhost;
+        <<"test type">> ->
+            'mod_muc_light_cache_test type'
+    end.
+
 create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     DefaultConfig = default_internal_config(MUCHost),
     RoomUS = {RoomU, MUCHost},

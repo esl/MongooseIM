@@ -7,13 +7,17 @@
 
 -export([is_member/3, get_entry/3, merge_entry/4, delete_user/3, delete_domain/3]).
 
+%% Used by small tests
+-export([cache_name/2, key/1]).
+
+-ignore_xref([cache_name/2, key/1]).
+
 -spec is_member(mongooseim:host_type(), module(), jid:jid()) -> boolean().
 is_member(HostType, Module, Jid) ->
     CacheName = cache_name(HostType, Module),
     mongoose_instrument:span(user_cache_lookup, #{host_type => HostType, cache_name => CacheName},
                              fun segmented_cache:is_member/2, [CacheName, key(Jid)],
-                             fun(Time, Result) ->
-                                handle_is_member_result(Time, Result, Jid) end).
+                             fun(Time, Result) -> handle_is_member_result(Time, Result, Jid) end).
 
 handle_is_member_result(Time, false, Jid) ->
     #{misses => 1, latency => Time, jid => Jid};
@@ -25,8 +29,7 @@ get_entry(HostType, Module, Jid) ->
     CacheName = cache_name(HostType, Module),
     mongoose_instrument:span(user_cache_lookup, #{host_type => HostType, cache_name => CacheName},
                              fun segmented_cache:get_entry/2, [CacheName, key(Jid)],
-                             fun(Time, Result) ->
-                                handle_get_entry_result(Time, Result, Jid) end).
+                             fun(Time, Result) -> handle_get_entry_result(Time, Result, Jid) end).
 
 handle_get_entry_result(Time, not_found, Jid) ->
     #{misses => 1, latency => Time, jid => Jid};

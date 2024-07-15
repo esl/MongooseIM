@@ -43,8 +43,8 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    application:ensure_all_started(telemetry),
     meck:new(mongoose_metrics, [stub_all, no_link]),
+    meck:new(mongoose_instrument, [stub_all, no_link]),
     Config.
 
 end_per_suite(_Config) ->
@@ -113,7 +113,8 @@ shared_cache_inserts_in_shared_table(_) ->
     mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
     mongoose_user_cache:merge_entry(host_type(), ?mod(2), some_jid(), #{}),
-    ?assert(mongoose_user_cache:is_member(host_type(), ?mod(1), some_jid())).
+    CacheName = mongoose_user_cache:cache_name(host_type(), ?mod(1)),
+    ?assert(segmented_cache:is_member(CacheName, mongoose_user_cache:key(some_jid()))).
 
 aggregation_might_produce_noop_requests(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),
