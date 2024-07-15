@@ -44,10 +44,12 @@ groups() ->
 
 init_per_suite(Config) ->
     meck:new(mongoose_metrics, [stub_all, no_link]),
-    meck:new(mongoose_instrument, [stub_all, no_link]),
-    Config.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
-end_per_suite(_Config) ->
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts(),
     meck:unload().
 
 init_per_group(_, Config) ->
@@ -65,6 +67,9 @@ init_per_testcase(_TestCase, Config) ->
 end_per_testcase(_TestCase, _Config) ->
     meck:unload(gen_mod),
     ok.
+
+opts() ->
+    #{instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 cache_config() ->
     config_parser_helper:default_mod_config(mod_cache_users).
@@ -113,8 +118,7 @@ shared_cache_inserts_in_shared_table(_) ->
     mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
     mongoose_user_cache:merge_entry(host_type(), ?mod(2), some_jid(), #{}),
-    CacheName = mongoose_user_cache:cache_name(host_type(), ?mod(1)),
-    ?assert(segmented_cache:is_member(CacheName, mongoose_user_cache:key(some_jid()))).
+    ?assert(mongoose_user_cache:is_member(host_type(), ?mod(1), some_jid())).
 
 aggregation_might_produce_noop_requests(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),

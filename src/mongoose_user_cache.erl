@@ -7,11 +7,6 @@
 
 -export([is_member/3, get_entry/3, merge_entry/4, delete_user/3, delete_domain/3]).
 
-%% Used by small tests
--export([cache_name/2, key/1]).
-
--ignore_xref([cache_name/2, key/1]).
-
 -spec is_member(mongooseim:host_type(), module(), jid:jid()) -> boolean().
 is_member(HostType, Module, Jid) ->
     CacheName = cache_name(HostType, Module),
