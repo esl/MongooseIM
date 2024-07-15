@@ -30,16 +30,12 @@
          get_host_type_metric_names/1,
          get_global_metric_names/0,
          get_aggregated_values/1,
-         get_dist_data_stats/0,
-         get_up_time/0,
-         get_mnesia_running_db_nodes_count/0,
          remove_host_type_metrics/1,
          remove_all_metrics/0,
          get_report_interval/0
         ]).
 
--ignore_xref([get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0, get_up_time/0,
-              remove_host_type_metrics/1, get_report_interval/0,
+-ignore_xref([remove_host_type_metrics/1, get_report_interval/0,
               sample_metric/1, get_metric_value/1]).
 
 -define(PREFIXES, mongoose_metrics_prefixes).
@@ -56,13 +52,10 @@
 -spec init() -> ok.
 init() ->
     prepare_prefixes(),
-    create_vm_metrics(),
-    create_global_metrics(?GLOBAL_COUNTERS),
     create_data_metrics().
 
 -spec init_mongooseim_metrics() -> ok.
 init_mongooseim_metrics() ->
-    create_global_metrics(?MNESIA_COUNTERS),
     init_subscriptions().
 
 init_subscriptions() ->
@@ -117,18 +110,6 @@ get_aggregated_values(Metric) when is_list(Metric) ->
     exometer:aggregate([{{['_' | Metric], '_', '_'}, [], [true]}], [one, count, value]);
 get_aggregated_values(Metric) when is_atom(Metric) ->
     get_aggregated_values([Metric]).
-
-get_dist_data_stats() ->
-    DistStats = [dist_inet_stats(PortOrPid) || {_, PortOrPid} <- erlang:system_info(dist_ctrl)],
-    [{connections, length(DistStats)} | merge_stats(DistStats)].
-
--spec get_up_time() -> {value, integer()}.
-get_up_time() ->
-    {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)}.
-
--spec get_mnesia_running_db_nodes_count() -> {value, non_neg_integer()}.
-get_mnesia_running_db_nodes_count() ->
-    {value, length(mnesia:system_info(running_db_nodes))}.
 
 remove_host_type_metrics(HostType) ->
     HostTypeName = get_host_type_prefix(HostType),
@@ -186,53 +167,9 @@ name_by_all_metrics_are_global(HostType, Name) ->
 get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
-merge_stats(Stats) ->
-    OrdDict = lists:foldl(fun(Stat, Acc) ->
-        StatDict = orddict:from_list(Stat),
-        orddict:merge(fun merge_stats_fun/3, Acc, StatDict)
-    end, orddict:from_list(?EMPTY_INET_STATS), Stats),
-
-    orddict:to_list(OrdDict).
-
-merge_stats_fun(recv_max, V1, V2) ->
-    erlang:max(V1, V2);
-merge_stats_fun(send_max, V1, V2) ->
-    erlang:max(V1, V2);
-merge_stats_fun(_, V1, V2) ->
-    V1 + V2.
-
-dist_inet_stats(Pid) when is_pid(Pid) ->
-    try
-        {ok, {sslsocket, FD, _Pids}} = tls_sender:dist_tls_socket(Pid),
-        gen_tcp = element(1, FD),
-        inet_stats(element(2, FD))
-    catch C:R:S ->
-            ?LOG_INFO(#{what => dist_inet_stats_failed, class => C, reason => R, stacktrace => S}),
-            ?EMPTY_INET_STATS
-    end;
-dist_inet_stats(Port) ->
-    inet_stats(Port).
-
-inet_stats(Port) ->
-    try
-        {ok, Stats} = inet:getstat(Port, ?INET_STATS),
-        Stats
-    catch C:R:S ->
-            ?LOG_INFO(#{what => inet_stats_failed, class => C, reason => R, stacktrace => S}),
-            ?EMPTY_INET_STATS
-    end.
 
 remove_metric({Name, _, _}) ->
     exometer_admin:delete_entry(Name).
-
-create_global_metrics(Metrics) ->
-    lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end, Metrics).
-
-create_vm_metrics() ->
-    lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
-                          FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
-                          catch ensure_metric(global, Metric, FunSpecTuple)
-                  end, ?VM_STATS).
 
 ensure_metric(HostType, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(HostType, [Metric], Type, ShortType);
@@ -266,9 +203,7 @@ do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
 
 create_data_metrics() ->
     lists:foreach(fun(Metric) -> ensure_metric(global, Metric, spiral) end,
-        ?GLOBAL_SPIRALS),
-    lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end,
-        ?DATA_FUN_METRICS).
+        ?GLOBAL_SPIRALS).
 
 start_metrics_subscriptions(Reporter, MetricPrefix, Interval) ->
     [subscribe_metric(Reporter, Metric, Interval)
