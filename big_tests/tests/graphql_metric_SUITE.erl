@@ -119,38 +119,23 @@ type_to_keys(<<"counter">>) ->
 type_to_keys(<<"spiral">>) ->
     [<<"one">>, <<"count">>];
 type_to_keys(<<"gauge">>) ->
-    [<<"value">>];
-type_to_keys(<<"merged_inet_stats">>) ->
-    [<<"connections">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
-     <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>];
-type_to_keys(<<"rdbms_stats">>) ->
-    [<<"workers">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
-     <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>];
-type_to_keys(<<"vm_stats_memory">>) ->
-    [<<"atom_used">>, <<"binary">>, <<"ets">>,
-     <<"processes_used">>, <<"system">>, <<"total">>];
-type_to_keys(<<"vm_system_info">>) ->
-    [<<"ets_limit">>, <<"port_count">>, <<"port_limit">>,
-     <<"process_count">>, <<"process_limit">>];
-type_to_keys(<<"probe_queues">>) ->
-    [<<"fsm">>, <<"regular">>, <<"total">>].
+    [<<"value">>].
 
 cets_info_keys() ->
     [<<"available_nodes">>, <<"unavailable_nodes">>,
-    <<"remote_nodes_without_disco">>, <<"joined_nodes">>,
-    <<"remote_nodes_with_unknown_tables">>, <<"remote_unknown_tables">>,
-    <<"remote_nodes_with_missing_tables">>, <<"remote_missing_tables">>,
-    <<"conflict_nodes">>, <<"conflict_tables">>,
-    <<"discovered_nodes">>, <<"discovery_works">>].
+     <<"remote_nodes_without_disco">>, <<"joined_nodes">>,
+     <<"remote_nodes_with_unknown_tables">>, <<"remote_unknown_tables">>,
+     <<"remote_nodes_with_missing_tables">>, <<"remote_missing_tables">>,
+     <<"conflict_nodes">>, <<"conflict_tables">>,
+     <<"discovered_nodes">>, <<"discovery_works">>].
 
 get_by_name_global_erlang_metrics(Config) ->
     %% Filter by name works
-    Result = get_metrics([<<"global">>, <<"erlang">>], Config),
+    Result = get_metrics([<<"global">>, <<"system_info">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Info = maps:get([<<"global">>, <<"erlang">>, <<"system_info">>], Map),
-    %% VMSystemInfoMetric type
-    #{<<"type">> := <<"vm_system_info">>} = Info,
+    Info = maps:get([<<"global">>, <<"system_info">>, <<"port_count">>], Map),
+    #{<<"type">> := <<"counter">>} = Info,
     check_metric_by_type(Info),
     %% Other metrics are filtered out
     undef = maps:get(roster_reads_key(), Map, undef).
@@ -178,30 +163,27 @@ get_metrics_for_specific_host_type(Config) ->
     [_|_] = ParsedResult.
 
 get_process_queue_length(Config) ->
-    Result = get_metrics([<<"global">>, <<"processQueueLengths">>], Config),
+    Result = get_metrics([<<"global">>, <<"system_process_queue_lengths">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Lens = maps:get([<<"global">>, <<"processQueueLengths">>], Map),
-    %% ProbeQueuesMetric type
-    #{<<"type">> := <<"probe_queues">>} = Lens,
+    Lens = maps:get([<<"global">>, <<"system_process_queue_lengths">>, <<"total">>], Map),
+    #{<<"type">> := <<"counter">>} = Lens,
     check_metric_by_type(Lens).
 
 get_inet_stats(Config) ->
-    Result = get_metrics([<<"global">>, <<"data">>, <<"dist">>], Config),
+    Result = get_metrics([<<"global">>, <<"system_dist_data">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Stats = maps:get([<<"global">>, <<"data">>, <<"dist">>], Map),
-    %% MergedInetStatsMetric type
-    #{<<"type">> := <<"merged_inet_stats">>} = Stats,
+    Stats = maps:get([<<"global">>, <<"system_dist_data">>, <<"connections">>], Map),
+    #{<<"type">> := <<"counter">>} = Stats,
     check_metric_by_type(Stats).
 
 get_vm_stats_memory(Config) ->
     Result = get_metrics([<<"global">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Mem = maps:get([<<"global">>, <<"erlang">>, <<"memory">>], Map),
-    %% VMStatsMemoryMetric type
-    #{<<"type">> := <<"vm_stats_memory">>} = Mem,
+    Mem = maps:get([<<"global">>, <<"system_memory">>, <<"total">>], Map),
+    #{<<"type">> := <<"counter">>} = Mem,
     check_metric_by_type(Mem).
 
 get_cets_system(Config) ->
@@ -265,9 +247,9 @@ get_metrics_as_dicts_empty_args(Config) ->
     [#{<<"key">> := <<"median">>, <<"value">> := Median}] = maps:get(RecvName, Map),
     ?assert(is_integer(Median)),
     %% Empty keys
-    Result2 = get_metrics_as_dicts([<<"global">>, <<"erlang">>], [], Config),
+    Result2 = get_metrics_as_dicts([<<"global">>, <<"system_info">>], [], Config),
     ParsedResult2 = get_ok_value([data, metric, getMetricsAsDicts], Result2),
-    ?assertEqual(length(ParsedResult2), 2).
+    ?assertEqual(6, length(ParsedResult2)).
 
 get_metrics_as_dicts_empty_strings(Config) ->
     %% Name is an empty string
@@ -275,7 +257,7 @@ get_metrics_as_dicts_empty_strings(Config) ->
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     [] = ParsedResult,
     %% Key is an empty string
-    Result2 = get_metrics_as_dicts([<<"global">>, <<"erlang">>], [<<>>], Config),
+    Result2 = get_metrics_as_dicts([<<"global">>, <<"system_info">>], [<<>>], Config),
     ParsedResult2 = get_ok_value([data, metric, getMetricsAsDicts], Result2),
     [_|_] = ParsedResult2.
 
