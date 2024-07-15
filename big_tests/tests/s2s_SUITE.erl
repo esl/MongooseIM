@@ -69,7 +69,7 @@ essentials() ->
 
 all_tests() ->
     [connections_info, dns_discovery, dns_discovery_ip_fail, nonexistent_user,
-     unknown_domain, malformed_jid, dialback_with_wrong_key | essentials()].
+     unknown_domain, malformed_jid, dialback_with_wrong_key].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -114,7 +114,8 @@ init_per_group(dialback, Config) ->
     %% Tell mnesia that mim and mim2 nodes are clustered
     distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config);
 init_per_group(GroupName, Config) ->
-    s2s_helper:configure_s2s(GroupName, Config).
+    Config1 = s2s_helper:configure_s2s(GroupName, Config),
+    [{requires_tls, group_with_tls(GroupName)} | Config1].
 
 end_per_group(_GroupName, _Config) ->
     ok.
@@ -162,6 +163,7 @@ end_per_testcase(CaseName, Config) ->
 
 simple_message(Config) ->
     escalus:fresh_story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
+        TS = instrument_helper:timestamp(),
 
         %% User on the main server sends a message to a user on a federated server
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
@@ -178,8 +180,7 @@ simple_message(Config) ->
         escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2),
 
         % Instrumentation events are executed
-        instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end),
-        instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end)
+        assert_events(TS, Config)
     end).
 
 timeout_waiting_for_message(Config) ->
@@ -525,3 +526,93 @@ configure_secret_and_restart_s2s(NodeKey) ->
 
 shared_secret(mim) -> <<"f623e54a0741269be7dd">>; %% Some random key
 shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.
+
+assert_events(TS, Config) ->
+    instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => in_element_event_count_per_group(Config), min_timestamp => TS}),
+    instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => out_element_event_count_per_group(Config), min_timestamp => TS}),
+
+    {TCPInCount, TLSInCount} = in_data_event_count_per_group(Config),
+    instrument_helper:assert(s2s_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => TCPInCount, min_timestamp => TS}),
+    instrument_helper:assert(s2s_tls_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => TLSInCount, min_timestamp => TS}),
+
+    {TCPOutCount, TLSOutCount} = out_data_event_count_per_group(Config),
+    instrument_helper:assert(s2s_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => TCPOutCount, min_timestamp => TS}),
+    instrument_helper:assert(s2s_tls_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => TLSOutCount, min_timestamp => TS}).
+
+in_element_event_count_per_group(Config) ->
+    case proplists:get_value(requires_tls, Config) of
+        true ->
+            18;
+        false ->
+            % Some of these steps happen asynchronously, so the order may be different.
+            % Since S2S connections are unidirectional, mim1 acts both as initiating,
+            % and receiving (and authoritative) server in the dialback procedure.
+            %   1. Stream start response from fed1 (as initiating server)
+            %   2. Stream start form fed1 (as receiving server)
+            %   3. Dialback key (step 1, as receiving server)
+            %   4. Dialback verification request (step 2, as authoritative server)
+            %   5. Dialback result (step 4, as initiating server)
+            % New s2s process is started to verify fed1 as an authoritative server
+            % This process sends a new stream header, as it opens a new connection to fed1,
+            % now acting as an authoritative server. Also see comment on L360 in ejabberd_s2s.
+            %   6. Stream start response from fed1
+            %   7. Dialback verification response (step 3, as receiving server)
+            %   8. Message from federated Alice
+            % The number can be seen as the sum of all arrows from the dialback diagram, since mim
+            % acts as all three roles in the two dialback procedures that occur:
+            % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
+            % (6 arrows) + one for stream header response + one for the actual message
+            8
+    end.
+
+out_element_event_count_per_group(Config) ->
+    case proplists:get_value(requires_tls, Config) of
+        true ->
+            10;
+        false ->
+            % Since S2S connections are unidirectional, mim1 acts both as initiating,
+            % and receiving (and authoritative) server in the dialback procedure.
+            %   1. Dialback key (step 1, as initiating server)
+            %   2. Dialback verification response (step 3, as authoritative server)
+            %   3. Dialback request (step 2, as receiving server)
+            %   4. Message from Alice
+            %   5. Dialback result (step 4, as receiving server)
+            % The number calculation corresponds to in_element, however the stream headers are not
+            % sent as XML elements, but straight as text, and so these three events do not appear:
+            %  - open stream to fed1,
+            %  - stream response for fed1->mim stream,
+            %  - open stream to fed1 as authoritative server.
+            5
+    end.
+
+in_data_event_count_per_group(Config) ->
+    % See in_element_event_count_per_group for explanation for the numbers
+    case proplists:get_value(requires_tls, Config) of
+        true ->
+            {8, 10};
+        false ->
+            {8, 0}
+    end.
+
+out_data_event_count_per_group(Config) ->
+    % See out_element_event_count_per_group for explanation for the numbers
+    case proplists:get_value(requires_tls, Config) of
+        true ->
+            {7, 9};
+        false ->
+            {8, 0}
+    end.
+
+group_with_tls(both_tls_optional) -> true;
+group_with_tls(both_tls_required) -> true;
+group_with_tls(node1_tls_optional_node2_tls_required) -> true;
+group_with_tls(node1_tls_required_node2_tls_optional) -> true;
+group_with_tls(node1_tls_required_trusted_node2_tls_optional) -> true;
+group_with_tls(node1_tls_optional_node2_tls_required_trusted_with_cachain) -> true;
+group_with_tls(_GN) -> false.
