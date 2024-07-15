@@ -5,13 +5,13 @@
 -export([wait_for_accepting/0]).
 
 start() ->
-    case gen_tcp:listen(0,[{active, false},{packet,2}]) of
+    case gen_tcp:listen(0, [{active, false}, {packet, line}]) of
         {ok, ListenSock} ->
             spawn(?MODULE, server, [ListenSock, self()]),
             {ok, Port} = inet:port(ListenSock),
             {Port, ListenSock};
-        {error,Reason} ->
-            {error,Reason}
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 server(LS, Parent) ->
@@ -24,22 +24,18 @@ server(LS) ->
             loop(S),
             server(LS);
         Other ->
-            io:format("accept returned ~w - goodbye!~n",[Other]),
-            ok
+            ct:log("accept returned ~w - goodbye!~n",[Other])
     end.
 
 loop(S) ->
-    inet:setopts(S,[{active,once}]),
+    inet:setopts(S, [{active, once}]),
     receive
-        {tcp,S,_Data} ->
-            %Answer = process(Data), % Not implemented in this example
-            %gen_tcp:send(S,Answer),
-            %ct:print("~s",[Data]),
+        {tcp, S, Data} ->
+            ct:log("Carbon cache server received packet: ~p", [Data]),
             exometer:update([carbon, packets], 1),
             loop(S);
-        {tcp_closed,S} ->
-            io:format("Socket ~w closed [~w]~n",[S,self()]),
-            ok
+        {tcp_closed, S} ->
+            ct:log("Socket ~w closed [~w]~n", [S, self()])
     end.
 
 wait_for_accepting() ->
