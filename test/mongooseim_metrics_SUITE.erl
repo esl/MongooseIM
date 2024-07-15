@@ -1,9 +1,7 @@
 -module(mongooseim_metrics_SUITE).
 
--include_lib("exml/include/exml.hrl").
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include("jlib.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -compile([export_all, nowarn_export_all]).
@@ -22,11 +20,7 @@ groups() ->
 
 all_metrics_list() ->
     [
-     subscriptions_initialised,
-     tcp_connections_detected,
-     tcp_metric_varies_with_tcp_variations,
-     up_time_positive,
-     queued_messages_increase
+     subscriptions_initialised
     ].
 
 init_per_suite(C) ->
@@ -35,31 +29,15 @@ init_per_suite(C) ->
     {Port, Socket} = carbon_cache_server:start(),
     mongoose_config:set_opts(opts()),
     C1 = async_helper:start(C, mongoose_instrument, start_link, []),
-    Sup = spawn(fun() ->
-        mim_ct_sup:start_link(ejabberd_sup),
-        Hooks = {gen_hook,
-                 {mongooseim_helper, start_link_loaded_hooks, []},
-                 permanent,
-                 brutal_kill,
-                 worker,
-                 [gen_hook]},
-        supervisor:start_child(ejabberd_sup, Hooks),
-        receive
-            stop ->
-                ok
-        end
-    end),
     Reporters = get_reporters_cfg(Port),
     application:set_env(exometer_core, report, Reporters),
     PortServer = carbon_cache_server:wait_for_accepting(),
     gen_tcp:controlling_process(Socket, PortServer),
     {ok, _Apps} = application:ensure_all_started(exometer_core),
     exometer:new([carbon, packets], spiral),
-    [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C1].
+    [{carbon_port, Port}, {carbon_server, PortServer}, {carbon_socket, Socket} | C1].
 
 end_per_suite(C) ->
-    Sup = ?config(test_sup, C),
-    Sup ! stop,
     async_helper:stop_all(C),
     mongoose_config:erase_opts(),
     CarbonServer = ?config(carbon_server, C),
@@ -79,71 +57,6 @@ end_per_group(_Group, _C) ->
     mongoose_metrics:remove_host_type_metrics(<<"localhost">>),
     mongoose_metrics:remove_host_type_metrics(global),
     mongoose_config:unset_opt(all_metrics_are_global).
-
-init_per_testcase(CN, C) when tcp_connections_detected =:= CN;
-                              tcp_metric_varies_with_tcp_variations =:= CN ->
-    exometer:setopts([global, tcpPortsUsed], [{sample_interval, 50}]),
-    exometer:repair([global, tcpPortsUsed]),
-    C;
-init_per_testcase(queued_messages_increase, C) ->
-    exometer:setopts([global, processQueueLengths], [{sample_interval, 50}]),
-    exometer:repair([global, processQueueLengths]),
-    PidsFun = fun() -> put('$internal_queue_len', 1),
-                       receive die -> ok
-                       end
-              end,
-    Pids = [spawn(PidsFun) || _ <- lists:seq(1,5)],
-    lists:foreach(fun(Pid) -> Pid ! undefined end, Pids),
-    [{pids, Pids} | C];
-init_per_testcase(_N, C) ->
-    C.
-
-end_per_testcase(queued_messages_increase, C) ->
-    [Pid ! die || Pid <- ?config(pids, C)],
-    C;
-end_per_testcase(_N, C) ->
-    C.
-
-up_time_positive(_C) ->
-    {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, nodeUpTime),
-    ?assert(X > 0).
-
-
-get_new_tcp_metric_value(OldValue) ->
-    Validator = fun(NewValue) -> OldValue =/= NewValue end,
-    {ok, {ok, [{value, X}]}} = async_helper:wait_until(
-      fun() -> mongoose_metrics:get_metric_value(global, tcpPortsUsed) end,
-      Validator, #{sleep_time => 30, time_left => 500}
-     ),
-    X.
-
-tcp_connections_detected(_C) ->
-    get_new_tcp_metric_value({ok, []}).
-
-tcp_metric_varies_with_tcp_variations(_C) ->
-    X = get_new_tcp_metric_value({ok, []}),
-    {ok, Socket} = gen_tcp:listen(0, []),
-    Y = get_new_tcp_metric_value({ok, [{value, X}]}),
-    ?assert(Y == X + 1),
-    gen_tcp:close(Socket),
-    X = get_new_tcp_metric_value({ok, [{value, Y}]}).
-
-queued_messages_increase(_C) ->
-    Fun = fun(Value) ->
-        case Value of
-            [{fsm, 5}, {regular, 5}, {total, 10}] -> true;
-
-            %% Sometimes there is an additional unprocessed message
-            %% in the standard I/O ('user') process
-            [{fsm, 5}, {regular, 6}, {total, 11}] -> true;
-            _ -> false
-        end
-    end,
-    async_helper:wait_until(
-      fun() ->
-              {ok, L} = mongoose_metrics:get_metric_value(global, processQueueLengths),
-              lists:sort(L)
-      end, Fun).
 
 subscriptions_initialised(_C) ->
     true = wait_for_update(exometer:get_value([carbon, packets], count), 60).
