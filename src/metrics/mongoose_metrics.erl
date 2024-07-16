@@ -174,16 +174,6 @@ remove_metric({Name, _, _}) ->
 ensure_metric(HostType, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(HostType, [Metric], Type, ShortType);
 
-ensure_metric(HostType, Metric, Type, probe = ShortType) ->
-    PrefixedMetric = name_by_all_metrics_are_global(HostType, Metric),
-    {ShortType, Opts} = Type,
-    case exometer:info(PrefixedMetric, type) of
-        undefined ->
-            ExometerOpts = [{module, mongoose_metrics_probe}, {type, ShortType}] ++ Opts,
-            do_create_metric(PrefixedMetric, ad_hoc, ExometerOpts);
-        _ ->
-        {ok, already_present}
-    end;
 ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
     %% the split into ShortType and Type is needed because function metrics are
     %% defined as tuples (that is Type), while exometer:info returns only 'function'
