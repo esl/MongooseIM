@@ -24,8 +24,9 @@
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type(),
                     function => atom(),
+                    cache_name => atom(),
                     pool_tag => mongoose_wpool:tag()}. % to be extended
--type label_key() :: host_type | function | pool_tag. % to be extended
+-type label_key() :: host_type | function | cache_name | pool_tag. % to be extended
 -type label_value() :: mongooseim:host_type() | atom() | mongoose_wpool:tag(). % to be extended
 -type metrics() :: #{metric_name() => metric_type()}.
 -type metric_name() :: atom().
@@ -56,7 +57,7 @@
 -optional_callbacks([config_spec/0, start/0, stop/0]).
 
 -export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
-              spec/0, handlers/0, metric_name/0, metric_type/0, probe_config/0]).
+              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0]).
 
 %% API
 

@@ -43,11 +43,13 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    application:ensure_all_started(telemetry),
     meck:new(mongoose_metrics, [stub_all, no_link]),
-    Config.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
-end_per_suite(_Config) ->
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts(),
     meck:unload().
 
 init_per_group(_, Config) ->
@@ -65,6 +67,9 @@ init_per_testcase(_TestCase, Config) ->
 end_per_testcase(_TestCase, _Config) ->
     meck:unload(gen_mod),
     ok.
+
+opts() ->
+    #{instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 cache_config() ->
     config_parser_helper:default_mod_config(mod_cache_users).

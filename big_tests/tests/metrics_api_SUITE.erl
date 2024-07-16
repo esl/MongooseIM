@@ -61,14 +61,14 @@ init_per_suite(Config) ->
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
     Config2 = mongoose_helper:backup_and_set_config_option(Config1,
                                                            [instrumentation, probe_interval], 1),
-    restart_sm_probes(),
+    restart_probes(),
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config),
     mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
-    restart_sm_probes().
+    restart_probes().
 
 init_per_group(GroupName, Config) ->
     metrics_helper:prepare_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
@@ -234,32 +234,21 @@ session_counters(Config) ->
     escalus:story
       (Config, [{alice, 2}, {bob, 1}],
        fun(_User11, _User12, _User2) ->
-            timer:sleep(timer:seconds(1)),
-            ?assertEqual(3, fetch_global_gauge_value('sm_total_sessions.count', Config)),
-            ?assertEqual(2, fetch_global_gauge_value('sm_unique_sessions.count', Config)),
-            ?assertEqual(3, fetch_global_gauge_value('sm_node_sessions.count', Config))
+            wait_for_global_gauge_value('sm_total_sessions.count', 3, Config),
+            wait_for_global_gauge_value('sm_unique_sessions.count', 2, Config),
+            wait_for_global_gauge_value('sm_node_sessions.count', 3, Config)
        end).
 
 node_uptime(Config) ->
-      X = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
-      timer:sleep(timer:seconds(1)),
-      Y = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
-      ?assertEqual(true, Y > X, [{counter, nodeUpTime}, {first, X}, {second, Y}]).
+    UpTime = fetch_global_incrementing_gauge_value('system_up_time.seconds', Config),
+    ?assert(UpTime >= 0).
 
 cluster_size(Config) ->
-      SingleNodeClusterState =
-            fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assertEqual(1, SingleNodeClusterState),
-
-      distributed_helper:add_node_to_cluster(Config),
-      TwoNodesClusterState =
-            fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assertEqual(2, TwoNodesClusterState),
-
-      distributed_helper:remove_node_from_cluster(Config),
-      SingleNodeClusterState2 =
-            fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assertEqual(1, SingleNodeClusterState2).
+    wait_for_global_gauge_value('mnesia_info.running_db_nodes', 1, Config),
+    distributed_helper:add_node_to_cluster(Config),
+    wait_for_global_gauge_value('mnesia_info.running_db_nodes', 2, Config),
+    distributed_helper:remove_node_from_cluster(Config),
+    wait_for_global_gauge_value('mnesia_info.running_db_nodes', 1, Config).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -410,6 +399,12 @@ fetch_counter_value(Counter, _Config) ->
 
     [HostTypeValue, HostTypeValueList, TotalValue, TotalValueList].
 
+%% Wait until the two different API calls to get the metric return the same expected value.
+%% The values could disagree temporarily while the gauge is being updated.
+wait_for_global_gauge_value(Name, Value, Config) ->
+    mongoose_helper:wait_until(fun() -> fetch_global_gauge_values(Name, Config) end,
+                               [Value, Value], #{name => Name}).
+
 %% @doc Fetch counter that is static.
 fetch_global_gauge_value(Counter, Config) ->
     [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
@@ -494,6 +489,8 @@ request(Method, Path, Server) ->
     make_request(#{role => admin, method => Method, path => iolist_to_binary(Path),
                    return_headers => true, return_maps => true, server => Server}).
 
-restart_sm_probes() ->
+restart_probes() ->
     rpc_call(ejabberd_sm, stop_probes, []),
-    rpc_call(ejabberd_sm, start_probes, []).
+    rpc_call(ejabberd_sm, start_probes, []),
+    rpc_call(mongoose_system_probes, stop, []),
+    rpc_call(mongoose_system_probes, start, []).

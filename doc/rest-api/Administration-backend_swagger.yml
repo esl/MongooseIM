@@ -921,7 +921,7 @@ paths:
             properties:
               type: object
               example:
-                nodeUpTime:
+                system_up_time.seconds:
                   value: 6604
   /metrics/global/{metric}:
     parameters:
