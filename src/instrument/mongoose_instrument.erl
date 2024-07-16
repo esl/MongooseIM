@@ -57,7 +57,7 @@
 -optional_callbacks([config_spec/0, start/0, stop/0]).
 
 -export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
-              spec/0, handlers/0, metric_name/0, metric_type/0, probe_config/0]).
+              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0]).
 
 %% API
 

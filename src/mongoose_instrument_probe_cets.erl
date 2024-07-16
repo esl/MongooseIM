@@ -2,17 +2,9 @@
 -behaviour(mongoose_instrument_probe).
 -include("mongoose_logger.hrl").
 
--export([start/0, stop/0]).
-
 %% Probe callbacks
 -export([probe/2, instrumentation/0]).
--ignore_xref([stop/0, instrumentation/0]).
-
-start() ->
-    mongoose_instrument:set_up(instrumentation()).
-
-stop() ->
-    mongoose_instrument:tear_down(instrumentation()).
+-ignore_xref([instrumentation/0]).
 
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->

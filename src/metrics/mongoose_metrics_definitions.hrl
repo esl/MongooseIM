@@ -5,40 +5,6 @@
     [data, xmpp, sent, component]
 ]).
 
--define(REPORT_INTERVAL, mongoose_metrics:get_report_interval()).
-
--define(PROBE(Name, Module),
-        {Name,
-          {probe,
-           [{callback_module, Module},
-            {sample_interval, ?REPORT_INTERVAL}]}}).
-
--define(GLOBAL_COUNTERS,
-        [{nodeUpTime,
-          {function, mongoose_metrics, get_up_time, [],
-           tagged, [value]}},
-         ?PROBE(tcpPortsUsed, mongoose_metrics_probe_tcp),
-         ?PROBE(processQueueLengths, mongoose_metrics_probe_queues)
-        ]
-).
-
--define(MNESIA_COUNTERS,
-        [{clusterSize,
-          {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
-           tagged, [value]}}
-        ]
-).
-
--define(VM_STATS, [{[erlang, system_info], [function, erlang, system_info, ['$dp'], value],
-                    [port_count, port_limit, process_count, process_limit, ets_limit]},
-                   {[erlang, memory], [function, erlang, memory, ['$dp'], value],
-                    [total, processes_used, atom_used, binary, ets, system]}]).
-
--define(DATA_FUN_METRICS,
-        [{[data, dist],
-          {function, mongoose_metrics, get_dist_data_stats, [], proplist, [connections | ?INET_STATS]}}]).
-
-
 -define(INET_STATS, [recv_oct,
                      recv_cnt,
                      recv_max,

@@ -65,6 +65,7 @@ do_start() ->
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
+    mongoose_system_probes:start(),
     mongoose_router:start(),
     mongoose_wpool:ensure_started(),
     mongoose_wpool:start_configured_pools(),
@@ -98,6 +99,7 @@ prep_stop(State) ->
     mongoose_metrics:remove_all_metrics(),
     mongoose_graphql_commands:stop(),
     mongoose_router:stop(),
+    mongoose_system_probes:stop(),
     State.
 
 %% All the processes were killed when this function is called

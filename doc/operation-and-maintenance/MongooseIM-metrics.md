@@ -175,10 +175,10 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, sm_node_sessions, count]` | gauge | A number of sessions connected to a given MongooseIM node. |
 | `[global, sm_total_sessions, count]` | gauge | A number of sessions connected to a MongooseIM cluster. |
 | `[global, sm_unique_sessions, count]` | gauge | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
-| `[global, nodeUpTime]` | value | Node uptime. |
-| `[global, clusterSize]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS use `global.cets.system.joined_nodes` instead. |
-| `[global, tcpPortsUsed]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests, in order to detect connection leaks. |
-| `[global, processQueueLengths]` | probe | The number of queued messages in the internal message queue of every erlang process, and the internal queue of every fsm (ejabberd\_s2s). This is sampled every 30 seconds asynchronously. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is not able to process the data at the rate it was designed for. |
+| `[global, system_up_time, seconds]` | value | Node uptime. |
+| `[global, mnesia_info, running_db_nodes]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS, use `[global, cets_info, joined_nodes]` instead. |
+| `[global, system_tcp_ports, count]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
+| `[global, system_process_queue_lengths, total]` | probe | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
 
 ### Data metrics
 
@@ -198,7 +198,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, data, xmpp, sent, s2s]` | spiral | A size (in bytes) of a data sent via TCP and TLS (before encryption) Server-to-Server connections. |
 | `[global, data, xmpp, received, component]` | spiral | A size (in bytes) of a data received from XMPP component. |
 | `[global, data, xmpp, sent, component]` | spiral | A size (in bytes) of a data sent to XMPP component. |
-| `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
+| `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
 
 ### CETS system metrics
 
@@ -241,8 +241,8 @@ For RDBMS global pool defined, an instance of these metrics are available.
 
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
-| `[global, erlang, memory]` | proplist | A proplist with `total`, `processes_used`, `atom_used`, `binary`, `ets` and `system` memory stats. |
-| `[global, erlang, system_info]` | proplist | A proplist with `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_limit` stats. |
+| `[global, system_memory, Metric]` | gauge | Erlang memory statistics from [`erlang:memory/0`](https://www.erlang.org/doc/apps/erts/erlang.html#memory/0). `Metric` specifies the memory type, e.g. `total`, `processes_used`, `atom_used`, `binary`, `ets` or `system`. |
+| `[global, system_info, Metric]` | gauge | Erlang system statistics from [`erlang:system_info/1`](https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1). `Metric` can be `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_count` or `ets_limit`. |
 
 ## Backend metrics
 
