@@ -527,57 +527,53 @@ shared_secret(mim) -> <<"f623e54a0741269be7dd">>; %% Some random key
 shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.
 
 assert_events(TS, Config) ->
-    case proplists:get_value(requires_tls, Config) of
-        true ->
-            % for now, TLS tests are skipped, as they were flaky
-            ok;
-        false ->
-            % Some of these steps happen asynchronously, so the order may be different.
-            % Since S2S connections are unidirectional, mim1 acts both as initiating,
-            % and receiving (and authoritative) server in the dialback procedure.
-            %   1. Stream start response from fed1 (as initiating server)
-            %   2. Stream start from fed1 (as receiving server)
-            %   3. Dialback key (step 1, as receiving server)
-            %   4. Dialback verification request (step 2, as authoritative server)
-            %   5. Dialback result (step 4, as initiating server)
-            % New s2s process is started to verify fed1 as an authoritative server
-            % This process sends a new stream header, as it opens a new connection to fed1,
-            % now acting as an authoritative server. Also see comment on L360 in ejabberd_s2s.
-            %   6. Stream start response from fed1
-            %   7. Dialback verification response (step 3, as receiving server)
-            %   8. Message from federated Alice
-            % The number can be seen as the sum of all arrows from the dialback diagram, since mim
-            % acts as all three roles in the two dialback procedures that occur:
-            % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
-            % (6 arrows) + one for stream header response + one for the actual message
-            InElementCount = 8,
-            instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
-                #{expected_count => InElementCount, min_timestamp => TS}),
+    TLS = proplists:get_value(requires_tls, Config),
+    instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => element_count(in, TLS), min_timestamp => TS}),
+    instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => element_count(out, TLS), min_timestamp => TS}),
+    instrument_helper:assert(s2s_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{min_timestamp => TS}),
+    instrument_helper:assert(s2s_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{min_timestamp => TS}).
 
-            % Since S2S connections are unidirectional, mim1 acts both as initiating,
-            % and receiving (and authoritative) server in the dialback procedure.
-            %   1. Dialback key (step 1, as initiating server)
-            %   2. Dialback verification response (step 3, as authoritative server)
-            %   3. Dialback request (step 2, as receiving server)
-            %   4. Message from Alice
-            %   5. Dialback result (step 4, as receiving server)
-            % The number calculation corresponds to in_element, however the stream headers are not
-            % sent as XML elements, but straight as text, and so these three events do not appear:
-            %  - open stream to fed1,
-            %  - stream response for fed1->mim stream,
-            %  - open stream to fed1 as authoritative server.
-            OutElementCount = 5,
-            instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
-                #{expected_count => OutElementCount, min_timestamp => TS}),
-
-            TCPInCount = 8,
-            instrument_helper:assert(s2s_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
-                #{expected_count => TCPInCount, min_timestamp => TS}),
-
-            TCPOutCount = 8,
-            instrument_helper:assert(s2s_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
-                #{expected_count => TCPOutCount, min_timestamp => TS})
-    end.
+element_count(_Dir, true) ->
+    % TLS tests are not checking a specific number of events, because the numbers are flaky
+    positive;
+element_count(in, false) ->
+    % Some of these steps happen asynchronously, so the order may be different.
+    % Since S2S connections are unidirectional, mim1 acts both as initiating,
+    % and receiving (and authoritative) server in the dialback procedure.
+    %   1. Stream start response from fed1 (as initiating server)
+    %   2. Stream start from fed1 (as receiving server)
+    %   3. Dialback key (step 1, as receiving server)
+    %   4. Dialback verification request (step 2, as authoritative server)
+    %   5. Dialback result (step 4, as initiating server)
+    % New s2s process is started to verify fed1 as an authoritative server
+    % This process sends a new stream header, as it opens a new connection to fed1,
+    % now acting as an authoritative server. Also see comment on L360 in ejabberd_s2s.
+    %   6. Stream start response from fed1
+    %   7. Dialback verification response (step 3, as receiving server)
+    %   8. Message from federated Alice
+    % The number can be seen as the sum of all arrows from the dialback diagram, since mim
+    % acts as all three roles in the two dialback procedures that occur:
+    % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
+    % (6 arrows) + one for stream header response + one for the actual message
+    8;
+element_count(out, false) ->
+    % Since S2S connections are unidirectional, mim1 acts both as initiating,
+    % and receiving (and authoritative) server in the dialback procedure.
+    %   1. Dialback key (step 1, as initiating server)
+    %   2. Dialback verification response (step 3, as authoritative server)
+    %   3. Dialback request (step 2, as receiving server)
+    %   4. Message from Alice
+    %   5. Dialback result (step 4, as receiving server)
+    % The number calculation corresponds to in_element, however the stream headers are not
+    % sent as XML elements, but straight as text, and so these three events do not appear:
+    %  - open stream to fed1,
+    %  - stream response for fed1->mim stream,
+    %  - open stream to fed1 as authoritative server.
+    5.
 
 group_with_tls(both_tls_optional) -> true;
 group_with_tls(both_tls_required) -> true;
