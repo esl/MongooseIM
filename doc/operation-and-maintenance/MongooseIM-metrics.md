@@ -179,33 +179,36 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, mnesia_info, running_db_nodes]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS, use `[global, cets_info, joined_nodes]` instead. |
 | `[global, system_tcp_ports, count]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
 | `[global, system_process_queue_lengths, total]` | probe | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
+| `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
 
 ### Data metrics
+
+All metrics are in bytes, and refer to unencrypted data (before encryption or after decryption in case of TLS).
+
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
-| `[global, c2s_xmpp_element_size_in, byte_size]` | histogram | A size (in bytes) of a received stanza after decryption. |
-| `[global, c2s_xmpp_element_size_out, byte_size]` | histogram | A size (in bytes) of a sent stanza before encryption. |
-| `[global, c2s_tcp_data_in, byte_size]` | spiral | A size (in bytes) of unencrypted data received from a client via TCP channel. |
-| `[global, c2s_tcp_data_out, byte_size]` | spiral | A size (in bytes) of unencrypted data sent to a client via TCP channel. |
-| `[global, c2s_tls_data_in, byte_size]` | spiral | A size (in bytes) of a data received from a client via TLS channel after decryption. |
-| `[global, c2s_tls_data_out, byte_size]` | spiral | A size (in bytes) of a data sent to a client via TLS channel before encryption. |
-| `[global, mod_bosh_data_received, byte_size]` | spiral | A size (in bytes) of a data received from a client via BOSH connection. |
-| `[global, mod_bosh_data_sent, byte_size]` | spiral | A size (in bytes) of a data sent to a client via BOSH connection. |
-| `[global, mod_websocket_data_received, byte_size]` | spiral | A size (in bytes) of a data received from a client via WebSocket connection. |
-| `[global, mod_websocket_data_sent, byte_size]` | spiral | A size (in bytes) of a data sent to a client via WebSocket connection. |
-| `[global, s2s_xmpp_element_size_in, byte_size]` | histogram | A size (in bytes) of a received XML element after decryption. |
-| `[global, s2s_xmpp_element_size_out, byte_size]` | histogram | A size (in bytes) of a sent XML element before encryption. |
-| `[global, s2s_tcp_data_in, byte_size]` | spiral | A size (in bytes) of unencrypted data in from a client via TCP channel. |
-| `[global, s2s_tcp_data_out, byte_size]` | spiral | A size (in bytes) of unencrypted data out to a client via TCP channel. |
-| `[global, s2s_tls_data_in, byte_size]` | spiral | A size (in bytes) of a data in from a client via TLS channel after decryption. |
-| `[global, s2s_tls_data_out, byte_size]` | spiral | A size (in bytes) of a data out to a client via TLS channel before encryption. |
-| `[global, component_xmpp_element_size_in, byte_size]` | histogram | A size (in bytes) of a received XML element after decryption. |
-| `[global, component_xmpp_element_size_out, byte_size]` | histogram | A size (in bytes) of a sent XML element before encryption. |
-| `[global, component_tcp_data_in, byte_size]` | spiral | A size (in bytes) of unencrypted data in from a client via TCP channel. |
-| `[global, component_tcp_data_out, byte_size]` | spiral | A size (in bytes) of unencrypted data out to a client via TCP channel. |
-| `[global, component_tls_data_in, byte_size]` | spiral | A size (in bytes) of a data in from a client via TLS channel after decryption. |
-| `[global, component_tls_data_out, byte_size]` | spiral | A size (in bytes) of a data sent to a client via TLS channel before encryption. |
-| `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
+| `[global, c2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a client. |
+| `[global, c2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a client. |
+| `[global, c2s_tcp_data_in, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
+| `[global, c2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
+| `[global, c2s_tls_data_in, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
+| `[global, c2s_tls_data_out, byte_size]` | spiral | Amount of data sent to a client via TLS channel. |
+| `[global, mod_bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
+| `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
+| `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
+| `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
+| `[global, s2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
+| `[global, s2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
+| `[global, s2s_tcp_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
+| `[global, s2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
+| `[global, s2s_tls_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
+| `[global, s2s_tls_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
+| `[global, component_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a component. |
+| `[global, component_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a component. |
+| `[global, component_tcp_data_in, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
+| `[global, component_tcp_data_out, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
+| `[global, component_tls_data_in, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
+| `[global, component_tls_data_out, byte_size]` | spiral | Amount of data sent to a component via TLS channel. |
 
 ### CETS system metrics
 

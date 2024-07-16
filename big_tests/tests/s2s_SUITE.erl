@@ -536,7 +536,7 @@ assert_events(TS, Config) ->
             % Since S2S connections are unidirectional, mim1 acts both as initiating,
             % and receiving (and authoritative) server in the dialback procedure.
             %   1. Stream start response from fed1 (as initiating server)
-            %   2. Stream start form fed1 (as receiving server)
+            %   2. Stream start from fed1 (as receiving server)
             %   3. Dialback key (step 1, as receiving server)
             %   4. Dialback verification request (step 2, as authoritative server)
             %   5. Dialback result (step 4, as initiating server)
