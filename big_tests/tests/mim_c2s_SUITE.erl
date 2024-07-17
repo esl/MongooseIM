@@ -244,15 +244,15 @@ instrumentation_events() ->
     ++ [{c2s_message_processing_time, #{host_type => domain_helper:host_type()}}].
 
 tcp_instrumentation_events() ->
-    [{c2s_tcp_data_sent, #{}},
-     {c2s_tcp_data_received, #{}}].
+    [{c2s_tcp_data_out, #{}},
+     {c2s_tcp_data_in, #{}}].
 
 tls_instrumentation_events() ->
-    [{c2s_tls_data_sent, #{}},
-     {c2s_tls_data_received, #{}}].
+    [{c2s_tls_data_out, #{}},
+     {c2s_tls_data_in, #{}}].
 
 common_instrumentation_events() ->
     HostType = domain_helper:host_type(),
     [{c2s_message_processing_time, #{host_type => HostType}},
-     {xmpp_stanza_size_received, #{}},
-     {xmpp_stanza_size_sent, #{}}].
+     {c2s_xmpp_element_size_in, #{}},
+     {c2s_xmpp_element_size_out, #{}}].

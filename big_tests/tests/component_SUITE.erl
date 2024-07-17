@@ -86,6 +86,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(xep0114, Config) ->
+    instrument_helper:start(events()),
     Config1 = get_components(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(subdomain, Config) ->
@@ -102,6 +103,9 @@ init_per_group(distributed, Config) ->
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
+end_per_group(xep0114, Config) ->
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
+    instrument_helper:stop();
 end_per_group(subdomain, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, astrid])),
     restore_domain(Config);
@@ -130,14 +134,32 @@ dirty_disconnect(Config) ->
     disconnect_component(Component1, Addr).
 
 register_one_component(Config) ->
-    MongooseMetrics = [{[global, data, xmpp, received, component], changed},
-                       {[global, data, xmpp, sent, component], changed}],
-    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
+    TS = instrument_helper:timestamp(),
     %% Given one connected component
     CompOpts = ?config(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
-    escalus_mongooseim:post_story(PreStoryData),
+    % start stream reply
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS}),
+    % 1. start stream, 2. component handshake
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+    instrument_helper:assert(component_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+    % 1. start stream reply, 2. handshake reply
+    instrument_helper:assert(component_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+
+    TS1 = instrument_helper:timestamp(),
     verify_component(Config, Component, ComponentAddr),
+
+    % Message from Alice
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS1}),
+    % Reply to Alice
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS1}),
+
     disconnect_component(Component, ComponentAddr).
 
 verify_component(Config, Component, ComponentAddr) ->
@@ -165,14 +187,8 @@ intercomponent_communication(Config) ->
     CompOpts2 = ?config(component2, Config),
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
-    MongooseMetrics = [{[global, data, xmpp, received, component], changed},
-                       {[global, data, xmpp, sent, component], changed}],
 
-    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
-    %% note that there is no c2s communication happens and 
-    %% xmpp_stanza_size_sent/xmpp_stanza_size_received metrics are bounced
-    %% for the components communication
-
+    TS = instrument_helper:timestamp(),
     %% When the first component sends a message the second component
     Msg0 = escalus_stanza:chat_to(CompAddr2, <<"intercomponent msg">>),
     escalus:send(Comp1, escalus_stanza:from(Msg0, CompAddr1)),
@@ -180,7 +196,10 @@ intercomponent_communication(Config) ->
     Reply0 = escalus:wait_for_stanza(Comp2),
     escalus:assert(is_chat_message, [<<"intercomponent msg">>], Reply0),
 
-    escalus_mongooseim:post_story(PreStoryData),
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS}),
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS}),
 
     disconnect_component(Comp1, CompAddr1),
     disconnect_component(Comp2, CompAddr2).
@@ -192,10 +211,9 @@ register_two_components(Config) ->
     CompOpts2 = ?config(component2, Config),
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
-    MongooseMetrics = [{[global, data, xmpp, received, component], changed},
-                       {[global, data, xmpp, sent, component], changed}],
+    TS = instrument_helper:timestamp(),
 
-    escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
+    escalus:story(Config,
                   [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             %% When the first component sends a message to Alice
             Msg1 = escalus_stanza:chat_to(Alice, <<"Comp1-2-Alice msg">>),
@@ -227,6 +245,13 @@ register_two_components(Config) ->
             Reply4 = escalus:wait_for_stanza(Comp1),
             escalus:assert(is_chat_message, [<<"Alice-2-Comp1 msg">>], Reply4)
         end),
+
+    % Msg to Alice, msg to Bob
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
+    % Msg from Bob, msg from Alice
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 2, min_timestamp => TS}),
 
     disconnect_component(Comp1, CompAddr1),
     disconnect_component(Comp2, CompAddr2).
@@ -549,11 +574,12 @@ restore_domain(Config) ->
     ejabberd_node_utils:restart_application(mongooseim),
     Config.
 
+events() ->
+    instrument_helper:declared_events(ejabberd_service, [#{connection_type => component}]).
 
 %%--------------------------------------------------------------------
 %% Stanzas
 %%--------------------------------------------------------------------
-
 
 cluster_users() ->
     AllUsers = ct:get_config(escalus_users),

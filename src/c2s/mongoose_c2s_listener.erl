@@ -21,13 +21,13 @@
 
 -spec instrumentation(options()) -> [mongoose_instrument:spec()].
 instrumentation(_Opts) ->
-    [{c2s_tcp_data_sent, #{},
+    [{c2s_tcp_data_out, #{},
       #{metrics => #{byte_size => spiral}}},
-     {c2s_tls_data_sent, #{},
+     {c2s_tls_data_out, #{},
       #{metrics => #{byte_size => spiral}}},
-     {c2s_tcp_data_received, #{},
+     {c2s_tcp_data_in, #{},
       #{metrics => #{byte_size => spiral}}},
-     {c2s_tls_data_received, #{},
+     {c2s_tls_data_in, #{},
       #{metrics => #{byte_size => spiral}}}].
 
 %% mongoose_listener

@@ -16,7 +16,6 @@
 -module(mongoose_metrics).
 
 -include("mongoose.hrl").
--include("mongoose_metrics_definitions.hrl").
 
 %% API
 -export([init/0,
@@ -51,8 +50,7 @@
 
 -spec init() -> ok.
 init() ->
-    prepare_prefixes(),
-    create_data_metrics().
+    prepare_prefixes().
 
 -spec init_mongooseim_metrics() -> ok.
 init_mongooseim_metrics() ->
@@ -190,10 +188,6 @@ do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
         ok -> ok;
         {'EXIT', Error} -> {error, Error}
     end.
-
-create_data_metrics() ->
-    lists:foreach(fun(Metric) -> ensure_metric(global, Metric, spiral) end,
-        ?GLOBAL_SPIRALS).
 
 start_metrics_subscriptions(Reporter, MetricPrefix, Interval) ->
     [subscribe_metric(Reporter, Metric, Interval)
