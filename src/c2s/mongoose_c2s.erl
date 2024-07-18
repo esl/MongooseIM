@@ -640,7 +640,7 @@ handle_info(StateData, C2SState, {Closed, _Socket} = SocketData)
   when Closed =:= tcp_closed; Closed =:= ssl_closed; Closed =:= websockets_closed ->
     handle_socket_closed(StateData, C2SState, SocketData);
 handle_info(StateData, C2SState, {Error, _Socket} = SocketData)
-  when Error =:= tcp_error; Error =:= ssl_error ->
+  when Error =:= tcp_error; Error =:= ssl_error; Error =:= websockets_error ->
     handle_socket_error(StateData, C2SState, SocketData);
 handle_info(StateData, C2SState, Info) ->
     handle_foreign_event(StateData, C2SState, info, Info).
