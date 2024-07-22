@@ -277,12 +277,12 @@ send_initial_presence(User) ->
 
 process_initial_stanza(User) ->
     send_initial_presence(User),
-    Message = escalus:wait_for_stanza(User),
-    case escalus_pred:is_iq(Message) of
+    Stanza = escalus:wait_for_stanza(User),
+    case escalus_pred:is_iq(Stanza) of
         true ->
-            Message2 = escalus:wait_for_stanza(User),
-            escalus:assert(is_presence, Message2);
-        false -> escalus:assert(is_presence, Message)
+            Stanza2 = escalus:wait_for_stanza(User),
+            escalus:assert(is_presence, Stanza2);
+        false -> escalus:assert(is_presence, Stanza)
     end.
 
 send_messages(Bob, Alice, Texts) ->

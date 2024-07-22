@@ -670,14 +670,11 @@ ping_timeout(Config) ->
     escalus_session:session(escalus_session:bind(NewUser)),
     send_initial_presence(NewUser),
 
-    %% %% Check if the error stanza was handled by mod_ping.
+    %% Check if the error stanza was handled by mod_ping.
     %% There is a slight chance of more than one error stanza,
     %% so the processing happens in lists:foreach.
-    lists:foreach(fun(Stanza) -> 
-        escalus:assert(is_iq_error, Stanza),
-        ?assertNotEqual(undefined,
-            exml_query:subelement_with_name_and_ns(Stanza, <<"ping">>, <<"urn:xmpp:ping">>))
-     end, get_stanzas_filtered_by_mod_ping()),
+
+    check_stanzas_filtered_by_mod_ping(),
 
     %% stop the connection
     escalus_connection:stop(NewUser).
@@ -1406,6 +1403,15 @@ get_stanzas_filtered_by_mod_ping() ->
          {stop, drop} = _Result
         } <- History
     ].
+
+check_stanzas_filtered_by_mod_ping() ->
+    Stanzas = get_stanzas_filtered_by_mod_ping(),
+    lists:foreach(fun(Stanza) -> 
+        escalus:assert(is_iq_error, Stanza),
+        ?assertNotEqual(undefined,
+            exml_query:subelement_with_name_and_ns(Stanza, <<"ping">>, <<"urn:xmpp:ping">>))
+    end, Stanzas),
+    ?assert(length(Stanzas) > 0).
 %%--------------------------------------------------------------------
 %% IQ handler necessary for reproducing "replies_are_processed_by_resumed_session"
 %%--------------------------------------------------------------------
