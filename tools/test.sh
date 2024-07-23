@@ -14,7 +14,7 @@ DEFAULT_PRESET=internal_mnesia
 PRESET="${PRESET-$DEFAULT_PRESET}"
 SMALL_TESTS="${SMALL_TESTS:-true}"
 EUNIT_TESTS="${EUNIT_TESTS:-false}"
-COVER_ENABLED="${COVER_ENABLED:-true}"
+export COVER_ENABLED="${COVER_ENABLED:-true}"
 REBAR_CT_EXTRA_ARGS="${REBAR_CT_EXTRA_ARGS:-}"
 
 while getopts ":p:s:e:c:h:" opt; do

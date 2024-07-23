@@ -177,7 +177,6 @@ save_count(Test, Configs) ->
 
 run_test(Test, PresetsToRun, CoverOpts) ->
     {ConfigFiles, Props} = get_ct_config(Test),
-    prepare_cover(Props, CoverOpts),
     error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
     case get_presets(Props) of
         {ok, Presets} ->
@@ -234,7 +233,6 @@ preset_names(Presets) ->
     [Preset||{Preset, _} <- Presets].
 
 do_run_quick_test(Test, CoverOpts) ->
-    prepare_cover(Test, CoverOpts),
     load_test_modules(Test),
     Result = ct:run_test(Test),
     case Result of
@@ -344,44 +342,11 @@ call(Node, M, F, A) ->
             Result
     end.
 
-prepare_cover(Props, true) ->
-    io:format("Preparing cover~n"),
-    prepare(Props);
-prepare_cover(_, _) ->
-    ok.
-
 analyze_coverage(Props, true) ->
     analyze(Props, true);
 analyze_coverage(Props, ModuleList) when is_list(ModuleList) ->
     analyze(Props, ModuleList);
 analyze_coverage(_, _) ->
-    ok.
-
-prepare(Props) ->
-    Nodes = get_mongoose_nodes(Props),
-    maybe_compile_cover(Nodes).
-
-maybe_compile_cover([]) ->
-    io:format("cover: skip cover compilation~n", []),
-    ok;
-maybe_compile_cover(Nodes) ->
-    io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
-    import_code_paths(hd(Nodes)),
-
-    cover:start(Nodes),
-    Dir = call(hd(Nodes), code, lib_dir, [mongooseim, ebin]),
-
-    %% Time is in microseconds
-    {Time, Compiled} = timer:tc(fun() ->
-                            Results = cover:compile_beam_directory(Dir),
-                            Ok = [X || X = {ok, _} <- Results],
-                            NotOk = Results -- Ok,
-                            #{ok => length(Ok), failed => NotOk}
-                        end),
-    github_actions_fold("cover compiled output", fun() ->
-            io:format("cover: compiled ~p~n", [Compiled])
-        end),
-    report_progress("~nCover compilation took ~ts~n", [microseconds_to_string(Time)]),
     ok.
 
 analyze(Props, CoverOpts) ->
@@ -392,33 +357,34 @@ analyze(Props, CoverOpts) ->
 analyze(_Props, _CoverOpts, []) ->
     ok;
 analyze(_Props, CoverOpts, Nodes) ->
-    deduplicate_cover_server_console_prints(),
+    MainNode = hd(Nodes),
     %% Import small tests cover
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
+    Import = fun(File) ->
+            ok = rpc:call(MainNode, cover, import, [File])
+        end,
     report_time("Import cover data into run_common_test node", fun() ->
-            [cover:import(File) || File <- Files]
+            [Import(File) || File <- Files]
         end),
+    %% Gather cover data to the MainNode
+    {ExportedFiles, _} = report_time("Export cover data from each node", fun() ->
+			rpc:multicall(tl(Nodes), ejabberd_app, export_cover, ["/tmp"])
+		end),
+    report_time("Export cover data from each node", fun() ->
+                        [Import(File) || File <- ExportedFiles]
+		end),
     report_time("Export merged cover data", fun() ->
-			cover:export("/tmp/mongoose_combined.coverdata")
+			ok = rpc:call(MainNode, cover, export, ["/tmp/mongoose_combined.coverdata"])
 		end),
     case os:getenv("GITHUB_RUN_ID") of
         false ->
-            make_html(modules_to_analyze(CoverOpts));
+            make_html(MainNode, modules_to_analyze(MainNode, CoverOpts));
         _ ->
             ok
-    end,
-    case os:getenv("KEEP_COVER_RUNNING") of
-        "1" ->
-            io:format("Skip stopping cover~n"),
-            ok;
-        _ ->
-            report_time("Stopping cover on MongooseIM nodes", fun() ->
-                        cover:stop([node()|Nodes])
-                    end)
     end.
 
-make_html(Modules) ->
+make_html(MainNode, Modules) ->
     {ok, Root} = file:get_cwd(),
     SortScript = Root ++ "/priv/sorttable.js",
     os:cmd("cp " ++ SortScript ++ " " ++ ?CT_REPORT),
@@ -436,12 +402,11 @@ make_html(Modules) ->
     Fun = fun(Module, {CAcc, NCAcc}) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
-                  %% We assume that import_code_paths/1 was called earlier
-                  case cover:analyse(Module, module) of
+                  case rpc:call(MainNode, cover, analyse, [Module, module]) of
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([CoverageDir, FileName]),
-                          catch cover:analyse_to_file(Module, FilePathC, [html]),
+                          catch rpc:call(MainNode, cover, analyse_to_file, [Module, FilePathC, [html]]),
                           {CAcc + C, NCAcc + NC};
                       Reason ->
                           error_logger:error_msg("issue=cover_analyse_failed module=~p reason=~p",
@@ -503,9 +468,11 @@ module_list(undefined) ->
 module_list(ModuleList) ->
     [ list_to_atom(L) || L <- string:tokens(ModuleList, ", ") ].
 
-modules_to_analyze(true) ->
-    lists:usort(cover:imported_modules() ++ cover:modules());
-modules_to_analyze(ModuleList) when is_list(ModuleList) ->
+modules_to_analyze(MainNode, true) ->
+    Mods1 = rpc:call(MainNode, cover, imported_modules, []),
+    Mods2 = rpc:call(MainNode, cover, modules, []),
+    lists:usort(Mods1 ++ Mods2);
+modules_to_analyze(_MainNode, ModuleList) when is_list(ModuleList) ->
     ModuleList.
 
 add({X1, X2, X3, X4},
@@ -602,24 +569,6 @@ report_progress(Format, Args) ->
     Message = io_lib:format(Format, Args),
     file:write_file("/tmp/progress", Message, [append]).
 
-github_actions_fold(Description, Fun) ->
-    case os:getenv("GITHUB_RUN_ID") of
-        false ->
-            Fun();
-        _ ->
-            io:format("github_actions_fold:start:~ts~n", [Description]),
-            Result = Fun(),
-            io:format("github_actions_fold:end:~ts~n", [Description]),
-            Result
-    end.
-
-%% Import code paths from a running node.
-%% It allows cover:analyse/2 to find source file by calling
-%% Module:module_info(compiled).
-import_code_paths(FromNode) when is_atom(FromNode) ->
-    Paths = call(FromNode, code, get_path, []),
-    code:add_paths(Paths).
-
 %% Gets result of file operation and prints filename, if we have any issues.
 handle_file_error(FileName, {error, Reason}) ->
     error_logger:error_msg("issue=file_operation_error filename=~p reason=~p",
@@ -629,16 +578,6 @@ handle_file_error(_FileName, Other) ->
     Other.
 
 %% ------------------------------------------------------------------
-
-%% cover_server process is using io:format too much.
-%% This code removes duplicate io:formats.
-%%
-%% Example of a message we want to write only once:
-%% "Analysis includes data from imported files" from cover.erl in Erlang/R19
-deduplicate_cover_server_console_prints() ->
-    %% Set a new group leader for cover_server
-    CoverPid = whereis(cover_server),
-    dedup_proxy_group_leader:start_proxy_group_leader_for(CoverPid).
 
 ct_run_dirs() ->
     filelib:wildcard("ct_report/ct_run*").

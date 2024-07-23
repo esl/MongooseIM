@@ -28,9 +28,9 @@
 
 -behaviour(application).
 
--export([start/2, prep_stop/1, stop/1]).
+-export([start/2, prep_stop/1, stop/1, export_cover/1]).
 
--ignore_xref([prep_stop/1]).
+-ignore_xref([prep_stop/1, export_cover/1]).
 
 -include("mongoose.hrl").
 
@@ -41,6 +41,7 @@
 
 start(normal, _Args) ->
     try
+        maybe_start_cover(),
         do_start()
     catch Class:Reason:StackTrace ->
         %% Log a stacktrace because while proc_lib:crash_report/4 would report a crash reason,
@@ -187,3 +188,20 @@ delete_pid_file() ->
         PidFilename ->
             file:delete(PidFilename)
     end.
+
+maybe_start_cover() ->
+    case {os:getenv("MONGOOSE_COVER_ON_START"), whereis(cover_server)} of
+        {"true", undefined} ->
+            error_logger:warning_msg("Starting cover. It will slowdown the system.", []),
+            {ok, _} = cover:start(node()),
+            ok = cover:local_only(),
+            Dir = code:lib_dir(mongooseim, ebin),
+            cover:compile_beam_directory(Dir);
+        _ ->
+            ok
+    end.
+
+export_cover(IntoDir) ->
+    File = filename:join(IntoDir, "mongoose_" ++ atom_to_list(node()) ++ ".coverdata"),
+    cover:export(File),
+    File.

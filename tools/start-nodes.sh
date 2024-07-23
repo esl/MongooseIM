@@ -13,6 +13,10 @@ source tools/common-vars.sh
 # This script adds a marker into logs, so we would know which lines are new
 START_NODES_DATE=$(date)
 
+if [ "$COVER_ENABLED" = true ]; then
+  export MONGOOSE_COVER_ON_START=true
+fi
+
 async_helper() {
   local ret_val=0 output=""
   output="$("$@")" || ret_val="$?"
