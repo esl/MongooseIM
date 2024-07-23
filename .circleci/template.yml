@@ -3,6 +3,7 @@ version: 2.1
 references:
   - &OTP26 mongooseim/cimg-erlang:26.2.2
   - &OTP27 mongooseim/cimg-erlang:27.0
+  - &OTP_PKG_VER 26.2.4
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
@@ -711,49 +712,49 @@ workflows:
           executor: otp_27
           platform: rockylinux_8
           context: mongooseim-org
-          otp_package: "27.0"
+          otp_package: *OTP_PKG_VER
           filters: *all_tags
       - package:
           name: almalinux_8
           executor: otp_27
           platform: almalinux_8
           context: mongooseim-org
-          otp_package: "27.0"
+          otp_package: *OTP_PKG_VER
           filters: *all_tags
       - package:
           name: debian_bullseye
           executor: otp_27
           platform: debian_bullseye
           context: mongooseim-org
-          otp_package: "27.0"
+          otp_package: *OTP_PKG_VER
           filters: *all_tags
       - package:
           name: debian_buster
           executor: otp_27
           platform: debian_buster
           context: mongooseim-org
-          otp_package: "27.0"
+          otp_package: *OTP_PKG_VER
           filters: *all_tags
       - package:
           name: ubuntu_jammy
           executor: otp_27
           platform: ubuntu_jammy
           context: mongooseim-org
-          otp_package: "27.0"
+          otp_package: *OTP_PKG_VER
           filters: *all_tags
       - package:
           name: ubuntu_focal
           executor: otp_27
           platform: ubuntu_focal
           context: mongooseim-org
-          otp_package: "27.0"
+          otp_package: *OTP_PKG_VER
           filters: *all_tags
       - package:
           name: ubuntu_bionic
           executor: otp_27
           platform: ubuntu_bionic
           context: mongooseim-org
-          otp_package: "27.0"
+          otp_package: *OTP_PKG_VER
           filters: *all_tags
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:
