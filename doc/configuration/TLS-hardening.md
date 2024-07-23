@@ -63,7 +63,7 @@ The list below enumerates all components that use Fast TLS and describes how to 
 * `listen.c2s` - main user session abstraction + XMPP over TCP listener
     * Please consult the respective section in [Listener modules](listen.md#listenc2stlsprotocol_options-only-for-fast_tls).
 * `listen.s2s` - incoming S2S connections (XMPP Federation)
-    * Please consult the respective section in [Listener modules](listen.md#listens2stlsciphers).
+    * Please consult the respective section in [Listener modules](listen.md#tls-options-for-s2s).
 * `s2s` - outgoing S2S connections (XMPP Federation)
     * Please check [the documentation](s2s.md#s2sciphers) for `s2s_ciphers` option.
 * `mod_global_distrib` - Global Distribution module

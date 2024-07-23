@@ -42,7 +42,7 @@ to enable REST API.
 In order to get the client REST API up and running simply copy the provided example.
 For more details about possible configuration parameters please see the relevant
 documentation of the [listeners](../configuration/listen.md),
-in particular the [client REST API handlers](../configuration/listen.md#handler-types-rest-api-client)
+in particular the [client REST API handlers](../configuration/listen.md#handler-types-rest-api-client-mongoose_client_api)
 section.
 
 ## Smack library support
