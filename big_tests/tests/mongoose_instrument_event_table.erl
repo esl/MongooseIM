@@ -9,12 +9,12 @@
 -export([select/2, select_new/3, all_keys/0, timestamp/0]).
 
 %% mongoose_instrument callbacks
--export([start/0, stop/0, set_up/3, handle_event/4]).
+-export([start/1, stop/1, set_up/3, handle_event/4]).
 
-start() ->
+start(_Opts) ->
     ets_helper:new(?TABLE, [duplicate_bag]).
 
-stop() ->
+stop(_Opts) ->
     ets_helper:delete(?TABLE).
 
 set_up(EventName, Labels, _Config) ->
