@@ -88,5 +88,10 @@
   [instrumentation.exometer]
     all_metrics_are_global = true
 
+    [[instrumentation.exometer.report.graphite]]
+      host = "localhost"
+      interval = 15_000
+      prefix = "mim"
+
   [instrumentation.log]
     level = "info"

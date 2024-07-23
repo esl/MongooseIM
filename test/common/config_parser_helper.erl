@@ -93,11 +93,15 @@ options("miscellaneous") ->
                                               id => "G-12345678",
                                               secret => "Secret"
                                              }}}},
-     {instrumentation, config([instrumentation],
-                              #{probe_interval => 10,
-                                prometheus => #{},
-                                exometer => #{all_metrics_are_global => true},
-                                log => #{level => info}})},
+     {instrumentation,
+      config([instrumentation],
+             #{probe_interval => 10,
+               prometheus => #{},
+               exometer => #{all_metrics_are_global => true,
+                             report => #{'graphite:localhost:2003' => #{host => "localhost",
+                                                                        prefix => "mim",
+                                                                        interval => 15000}}},
+               log => #{level => info}})},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, mnesia},
@@ -1108,7 +1112,17 @@ default_config([instrumentation]) ->
 default_config([instrumentation, log]) ->
     #{level => debug};
 default_config([instrumentation, exometer]) ->
-    #{all_metrics_are_global => false};
+    #{all_metrics_are_global => false,
+      report => #{}};
+default_config([instrumentation, exometer, report, Name]) ->
+    Common = #{interval => 60000},
+    case atom_to_list(Name) of
+        "graphite:" ++ _ ->
+            Common#{module => exometer_report_graphite,
+                    port => 2003,
+                    connect_timeout => 5000,
+                    api_key => ""}
+    end;
 default_config([instrumentation, _]) ->
     #{};
 default_config([listen, http]) ->

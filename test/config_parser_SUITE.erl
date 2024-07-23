@@ -237,6 +237,7 @@ groups() ->
                              service_mongoose_system_metrics]},
      {instrumentation, [parallel], [instrumentation,
                                     instrumentation_exometer,
+                                    instrumentation_exometer_report_graphite,
                                     instrumentation_log]},
      {logs, [], log_cases()}
     ].
@@ -2952,8 +2953,44 @@ instrumentation_exometer(_Config) ->
     P = [instrumentation, exometer],
     T = fun(Opts) -> #{<<"instrumentation">> => #{<<"exometer">> => Opts}} end,
     ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P, default_config(P), T(#{<<"report">> => #{}})),
     ?cfg(P ++ [all_metrics_are_global], true, T(#{<<"all_metrics_are_global">> => true})),
-    ?err(T(#{<<"all_metrics_are_global">> => "yes"})).
+    ?err(T(#{<<"all_metrics_are_global">> => "yes"})),
+    ?err(T(#{<<"report">> => [1]})).
+
+instrumentation_exometer_report_graphite(_Config) ->
+    P = [instrumentation, exometer, report],
+    T = fun(Opts) -> #{<<"instrumentation">> =>
+                           #{<<"exometer">> =>
+                                 #{<<"report">> => #{<<"graphite">> => Opts}}}} end,
+    RequiredOpts = #{<<"host">> => <<"example.org">>},
+
+    %% Unique names are created dynamically, and they are used by exometer_report
+    Name = 'graphite:example.org:2003',
+    Name2 = 'graphite:example.org:2004',
+    Name3 = 'graphite:example.com:2003',
+
+    %% Test host and port with whole reporters
+    Res = T([RequiredOpts, RequiredOpts#{<<"port">> => 2004}, #{<<"host">> => <<"example.com">>}]),
+    ?cfg(P ++ [Name], config(P ++ [Name], #{host => "example.org"}), Res),
+    ?cfg(P ++ [Name2], config(P ++ [Name2], #{host => "example.org", port => 2004}), Res),
+    ?cfg(P ++ [Name3], config(P ++ [Name3], #{host => "example.com"}), Res),
+    ?err(T([RequiredOpts, RequiredOpts])), % duplicate name
+
+    %% Test individual options
+    ?cfg(P ++ [Name, connect_timeout], 3000, T([RequiredOpts#{<<"connect_timeout">> => 3000}])),
+    ?cfg(P ++ [Name, prefix], "mim", T([RequiredOpts#{<<"prefix">> => <<"mim">>}])),
+    ?cfg(P ++ [Name, env_prefix], "HOSTNAME", T([RequiredOpts#{<<"env_prefix">> => <<"HOSTNAME">>}])),
+    ?cfg(P ++ [Name, api_key], "key", T([RequiredOpts#{<<"api_key">> => <<"key">>}])),
+    ?cfg(P ++ [Name, interval], 10000, T([RequiredOpts#{<<"interval">> => 10000}])),
+    ?err(T([#{}])),
+    ?err(T([#{<<"host">> => <<>>}])),
+    ?err(T([RequiredOpts#{<<"port">> => -1}])),
+    ?err(T([RequiredOpts#{<<"connect_timeout">> => -1}])),
+    ?err(T([RequiredOpts#{<<"prefix">> => 1}])),
+    ?err(T([RequiredOpts#{<<"env_prefix">> => 1}])),
+    ?err(T([RequiredOpts#{<<"api_key">> => true}])),
+    ?err(T([RequiredOpts#{<<"interval">> => 0}])).
 
 %% Logs
 
