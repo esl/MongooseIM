@@ -192,4 +192,4 @@ These must **not** be enabled when using host types in `modules` or [`host_confi
 * [mod_push_service_mongoosepush](../modules/mod_push_service_mongoosepush.md)
 * [mod_shared_roster_ldap](../modules/mod_shared_roster_ldap.md)
 
-Please note, that [`s2s`](s2s.md) and the XMPP components (XEP-0114) mechanism, as configured in the [`listen.service` section](listen.md#xmpp-components-listenservice), do not support dynamic domains as well.
+Please note, that [`s2s`](s2s.md) and the XMPP components (XEP-0114) mechanism, as configured in the [`listen.service` section](listen-components.md), do not support dynamic domains as well.

@@ -4,7 +4,7 @@ The `acl` section is used to define **access classes** to which the connecting u
     * Key is the name of the access class,
     * Value is a TOML array of patterns - TOML tables, whose format is described below.
 * **Default:** no default - each access class needs to be specified explicitly.
-* **Example:** the `local` access class is used for the regular users connecting to the [C2S listener](listen.md#client-to-server-c2s-listenc2s). The pattern `{}` matches all users from the current server, because it is equivalent to `{match = "current_domain"}` (see below).
+* **Example:** the `local` access class is used for the regular users connecting to the [C2S listener](listen-c2s.md#client-to-server-c2s-listenc2s). The pattern `{}` matches all users from the current server, because it is equivalent to `{match = "current_domain"}` (see below).
 
 ```toml
   local = [{}]

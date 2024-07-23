@@ -27,7 +27,7 @@ with the word `Basic` followed by a space and a base64-encoded string.
 
 ### Global admin endpoint
 
-The authentication for global admin is optional because this endpoint shouldn't be exposed outside. The credentials set in the handler section in the config enables the authentication. Please see the [GraphQL handler](../configuration/listen.md#handler-types-graphql-api-mongoose_graphql_handler) section for more details.
+The authentication for global admin is optional because this endpoint shouldn't be exposed outside. The credentials set in the handler section in the config enables the authentication. Please see the [GraphQL handler](../configuration/listen-http.md#handler-types-graphql-api-mongoose_graphql_handler) section for more details.
 
 The base64-encoded string should have the form
 `LOGIN:PASSWORD`, where:

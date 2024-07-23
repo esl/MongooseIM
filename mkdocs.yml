@@ -70,7 +70,12 @@ nav:
   - Configuration:
       - 'Configuration Files': 'configuration/configuration-files.md'
       - 'Options: General': 'configuration/general.md'
-      - 'Options: Listen': 'configuration/listen.md'
+      - 'Options: Listen':
+          - 'General': 'configuration/listen-general.md'
+          - 'Client to server (C2S)': 'configuration/listen-c2s.md'
+          - 'Server to server (S2S)': 'configuration/listen-s2s.md'
+          - 'XMPP components': 'configuration/listen-components.md'
+          - 'HTTP-based services': 'configuration/listen-http.md'
       - 'Options: Auth': 'configuration/auth.md'
       - 'Options: Internal Databases': 'configuration/internal-databases.md'
       - 'Options: Outgoing connections': 'configuration/outgoing-connections.md'

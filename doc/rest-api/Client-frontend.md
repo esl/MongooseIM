@@ -36,13 +36,13 @@ Authorization: Basic YWxpY2VAbG9jYWxob3N0OnNlY3JldA==
 
 ## Configuration
 
-Handlers have to be configured as shown in the [REST API configuration example](../configuration/listen.md#example-6-client-rest-api)
+Handlers have to be configured as shown in the [REST API configuration example](../configuration/listen-http.md#example-6-client-rest-api)
 to enable REST API.
 
 In order to get the client REST API up and running simply copy the provided example.
 For more details about possible configuration parameters please see the relevant
-documentation of the [listeners](../configuration/listen.md),
-in particular the [client REST API handlers](../configuration/listen.md#handler-types-rest-api-client-mongoose_client_api)
+documentation of the [HTTP listeners](../configuration/listen-http.md),
+in particular the [client REST API handlers](../configuration/listen-http.md#handler-types-rest-api-client-mongoose_client_api)
 section.
 
 ## Smack library support
