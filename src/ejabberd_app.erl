@@ -195,7 +195,7 @@ maybe_start_cover() ->
             error_logger:warning_msg("Starting cover. It will slowdown the system.", []),
             {ok, _} = cover:start(node()),
             ok = cover:local_only(),
-            Dir = code:lib_dir(mongooseim, ebin),
+            Dir = filename:join(code:lib_dir(mongooseim), ebin),
             cover:compile_beam_directory(Dir);
         _ ->
             ok
