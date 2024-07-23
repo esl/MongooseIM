@@ -46,6 +46,7 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__PGSQL_VERSION__/${PGSQL_VERSION}/g" \
     -e "s/__MSSQL_SQL__/${MSSQL_SQL}/" \
     -e "s/__MSSQL_SETUP__/${MSSQL_SETUP}/" \
+    -e "s/__MSSQL_VERSION__/${MSSQL_VERSION}/" \
     -e "s/__REDIS_VERSION__/${REDIS_VERSION}/" \
     -e "s/__LDAP_SCHEMA__/${LDAP_SCHEMA}/" \
     -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
