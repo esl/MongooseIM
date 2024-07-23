@@ -198,3 +198,5 @@ nav:
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - 'Contributions to the Ecosystem': 'Contributions.md'
   - 'MongooseIM History': 'History.md'
+not_in_nav: |
+  user-guide/Supported-XEPs.md
