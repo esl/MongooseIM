@@ -5,6 +5,7 @@ references:
   - &OTP27 mongooseim/cimg-erlang:27.0
   - &OTP_PKG_VER 26.2.4
   - &OTP_PKG_VER_PREV 26.2.3
+  - &OTP_PKG_VER_PREV_2 26.2.1
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
@@ -727,7 +728,7 @@ workflows:
           executor: otp_27
           platform: debian_bullseye
           context: mongooseim-org
-          otp_package: *OTP_PKG_VER_PREV
+          otp_package: *OTP_PKG_VER_PREV_2
           filters: *all_tags
       - package:
           name: debian_buster
@@ -748,7 +749,7 @@ workflows:
           executor: otp_27
           platform: ubuntu_focal
           context: mongooseim-org
-          otp_package: *OTP_PKG_VER_PREV
+          otp_package: *OTP_PKG_VER_PREV_2
           filters: *all_tags
       - package:
           name: ubuntu_bionic
