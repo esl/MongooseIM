@@ -40,13 +40,19 @@ loop() ->
 
 stop_all(Config) ->
     Helpers = proplists:get_value(?MODULE, Config, []),
-    Refs = [stop(Pid) || {_, Pid} <- Helpers],
+    Refs = lists:flatmap(fun({_, Pid}) -> stop(Pid) end, Helpers),
     [wait(Ref) || Ref <- Refs].
 
 stop(Pid) ->
-    Ref = monitor(process, Pid),
+    Refs = [monitor(process, P) || P <- [Pid | links(Pid)]],
     Pid ! stop,
-    Ref.
+    Refs.
+
+links(Pid) ->
+    case erlang:process_info(Pid, links) of
+        undefined -> [];
+        {links, Links} -> Links
+    end.
 
 wait(Ref) ->
     receive
