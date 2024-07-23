@@ -152,7 +152,9 @@ setup_meck(suite) ->
     ok = rpc(mim(), meck, new, [ranch_tcp, [passthrough, no_link]]),
     ok = rpc(mim(), amp_test_helper, setup_meck, []);
 setup_meck(mam_failure) ->
-    ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {ok, {error, simulated}}]);
+    mongoose_helper:inject_module(mod_mam_rdbms_arch_simulated_error),
+    HostType = domain_helper:host_type(mim),
+    {started, ok} = dynamic_modules:start(HostType, mod_mam_rdbms_arch_simulated_error, #{});
 setup_meck(offline_failure) ->
     ok = rpc(mim(), meck, expect, [mod_offline_backend_module(), write_messages, 4, {error, simulated}]);
 setup_meck(_) -> ok.
@@ -172,7 +174,8 @@ end_per_group(GroupName, Config) ->
     end.
 
 teardown_meck(mam_failure) ->
-    rpc(mim(), meck, unload, [mod_mam_rdbms_arch]);
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:stop(HostType, mod_mam_rdbms_arch_simulated_error);
 teardown_meck(offline_failure) ->
     rpc(mim(), meck, unload, [mod_offline_backend_module()]);
 teardown_meck(suite) ->
