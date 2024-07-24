@@ -76,11 +76,11 @@ By setting this option to `kick_old`, we drop any old connections registered at 
 * **Default:** not set - no limit
 * **Example:** `max_fsm_queue = 1000`
 
-Message queue limit to prevent resource exhaustion; overrides the value set in the `general` section.
+Message queue limit to prevent resource exhaustion; overrides the value set in the [`general`](./general.md#generalmax_fsm_queue) section.
 
 ## Custom extension to the protocol
 
-In order to register a component for all virtual hosts served by the server (see `hosts` in the `general` section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
+In order to register a component for all virtual hosts served by the server (see [`hosts`](./general.md#generalhosts) in the [`general`](./general.md) section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html).
 
@@ -89,7 +89,7 @@ The `is_subdomain` attribute is optional and the default behaviour is as describ
 The following section configures a service listener, accepting connections from external components.
 The IP address is limited to loopback to prevent connections from different hosts.
 All components are allowed to connect, but they need to provide the password.
-The shaper named `fast` needs to be defined in the `shaper` section.
+The shaper named `fast` needs to be defined in the [`shaper`](./shaper.md) section.
 
 ```toml
 [[listen.service]]

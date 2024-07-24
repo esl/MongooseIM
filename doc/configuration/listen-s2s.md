@@ -4,7 +4,7 @@ Handles incoming server-to-server (S2S) connections (federation).
 The recommended port number for an S2S listener is 5269 [as registered in the XMPP protocol](https://tools.ietf.org/html/rfc6120#section-14.7).
 
 !!! Note
-    Many S2S options are configured in the `s2s` section of the configuration file, and they apply to both incoming and outgoing connections.
+    Many S2S options are configured in the [`s2s`](./s2s.md) section of the configuration file, and they apply to both incoming and outgoing connections.
 
 ## General s2s options
 
@@ -13,7 +13,7 @@ The recommended port number for an S2S listener is 5269 [as registered in the XM
 * **Default:** `"none"` - no shaper
 * **Example:** `shaper = "s2s_shaper"`
 
-Name of the rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data. The rule referenced here needs to be defined in the `access` config section and it should return the shaper name or the value `"none"`.
+Name of the rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data. The rule referenced here needs to be defined in the [`access`](./access.md) config section, and it should return the shaper name or the value `"none"`.
 
 ## TLS options for S2S
 
@@ -23,7 +23,7 @@ You can specify additional options of the TLS encryption in the `tls` subsection
 ## S2S listener configuration example
 
 The following section configures an S2S listener with some basic settings set up.
-The `s2s_shaper` access rule is used, which requires a definition in the `access` section.
+The `s2s_shaper` access rule is used, which requires a definition in the [`access`](./access.md) section.
 
 ```toml
 [[listen.s2s]]
