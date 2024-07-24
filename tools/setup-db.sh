@@ -234,7 +234,7 @@ function setup_db(){
         # Error 87(The parameter is incorrect.) occurred while opening file '/var/opt/mssql/data/master.mdf'
         MSSQL_SQL=$(cat32 priv/mssql2012.sql)
         MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
-        IMAGE=mcr.microsoft.com/mssql/server
+        IMAGE=mcr.microsoft.com/mssql/server:$MSSQL_VERSION
         $DOCKER run -d --name=$NAME \
             -p $MSSQL_PORT:1433 \
             --user root \

@@ -76,7 +76,7 @@ containers:
       - ENV_FILE_DHSERVER_DATA: "__MIM_DHSERVER__"
     entrypoint: *ENTRYPOINT
   - &mssql_container
-    image: mcr.microsoft.com/mssql/server
+    image: mcr.microsoft.com/mssql/server:__MSSQL_VERSION__
     environment:
       - ACCEPT_EULA: Y
       - SA_PASSWORD: "mongooseim_secret+ESL123"
