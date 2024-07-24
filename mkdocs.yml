@@ -74,7 +74,7 @@ nav:
           - 'General': 'configuration/listen-general.md'
           - 'Client to server (C2S)': 'configuration/listen-c2s.md'
           - 'Server to server (S2S)': 'configuration/listen-s2s.md'
-          - 'XMPP components': 'configuration/listen-components.md'
+          - 'XMPP components (service)': 'configuration/listen-components.md'
           - 'HTTP-based services': 'configuration/listen-http.md'
       - 'Options: Auth': 'configuration/auth.md'
       - 'Options: Internal Databases': 'configuration/internal-databases.md'
