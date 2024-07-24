@@ -47,14 +47,15 @@
 -type handlers() :: {[handler_fun()], config()}.
 -type execution_time() :: integer().
 -type measure_fun(Result) :: fun((execution_time(), Result) -> measurements()).
+-type handler_module_opts() :: #{atom() => any()}.
 
 -callback config_spec() -> mongoose_config_spec:config_section().
--callback start() -> ok.
--callback stop() -> ok.
+-callback start(handler_module_opts()) -> ok.
+-callback stop(handler_module_opts()) -> ok.
 -callback set_up(event_name(), labels(), config()) -> boolean().
 -callback handle_event(event_name(), labels(), config(), measurements()) -> any().
 
--optional_callbacks([config_spec/0, start/0, stop/0]).
+-optional_callbacks([config_spec/0, start/1, stop/1]).
 
 -export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
               spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0]).
@@ -169,7 +170,8 @@ remove_handler(Key) ->
 
 -spec init([]) -> {ok, state()}.
 init([]) ->
-    lists:foreach(fun start_handler/1, handler_modules()),
+    [start_handler(handler_module(Key), Opts)
+     || {Key, Opts = #{}} <- maps:to_list(mongoose_config:get_opt(instrumentation))],
     erlang:process_flag(trap_exit, true), % Make sure that terminate is called
     persistent_term:erase(?MODULE), % Prevent inconsistency when restarted after a kill
     {ok, #{events => #{}, probe_timers => #{}}}.
@@ -197,7 +199,7 @@ handle_call({add_handler, Key, ConfigOpts}, _From, State = #{events := Events}) 
         {error, not_found} ->
             mongoose_config:set_opt([instrumentation, Key], ConfigOpts),
             Module = handler_module(Key),
-            start_handler(Module),
+            start_handler(Module, ConfigOpts),
             NewEvents = update_handlers(Events, [], [Module]),
             update_if_persisted(Events, NewEvents),
             {reply, ok, State#{events := NewEvents}};
@@ -211,11 +213,12 @@ handle_call({remove_handler, Key}, _From, State = #{events := Events}) ->
         {error, not_found} ->
             {reply, {error, #{what => handler_not_configured, handler_key => Key}}, State};
         {ok, _} ->
+            ConfigOpts = mongoose_config:get_opt([instrumentation, Key]),
             mongoose_config:unset_opt([instrumentation, Key]),
             Module = handler_module(Key),
             NewEvents = update_handlers(Events, [Module], []),
             update_if_persisted(Events, NewEvents),
-            stop_handler(Module),
+            stop_handler(Module, ConfigOpts),
             {reply, ok, State#{events := NewEvents}}
     end;
 handle_call(persist, _From, State = #{events := Events}) ->
@@ -240,7 +243,9 @@ handle_info(Info, State) ->
 -spec terminate(any(), state()) -> ok.
 terminate(_Reason, _State) ->
     persistent_term:erase(?MODULE),
-    lists:foreach(fun stop_handler/1, handler_modules()).
+    [stop_handler(handler_module(Key), Opts)
+     || {Key, Opts = #{}} <- maps:to_list(mongoose_config:get_opt(instrumentation))],
+    ok.
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
@@ -409,17 +414,17 @@ config_spec(Key) ->
 all_handler_keys() ->
     [prometheus, exometer, log].
 
--spec start_handler(module()) -> ok.
-start_handler(Module) ->
-    case mongoose_lib:is_exported(Module, start, 0) of
-        true -> Module:start();
+-spec start_handler(module(), handler_module_opts()) -> ok.
+start_handler(Module, Opts) ->
+    case mongoose_lib:is_exported(Module, start, 1) of
+        true -> Module:start(Opts);
         false -> ok
     end.
 
--spec stop_handler(module()) -> ok.
-stop_handler(Module) ->
-    case mongoose_lib:is_exported(Module, stop, 0) of
-        true -> Module:stop();
+-spec stop_handler(module(), handler_module_opts()) -> ok.
+stop_handler(Module, Opts) ->
+    case mongoose_lib:is_exported(Module, stop, 1) of
+        true -> Module:stop(Opts);
         false -> ok
     end.
 

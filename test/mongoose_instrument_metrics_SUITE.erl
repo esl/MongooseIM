@@ -78,10 +78,14 @@ apps(exometer) -> [exometer_core];
 apps(exometer_global) -> [exometer_core];
 apps(prometheus_and_exometer) -> apps(prometheus) ++ apps(exometer).
 
-opts(prometheus) -> #{prometheus => #{}};
-opts(exometer) -> #{exometer => #{all_metrics_are_global => false}};
-opts(exometer_global) -> #{exometer => #{all_metrics_are_global => true}};
-opts(prometheus_and_exometer) -> maps:merge(opts(prometheus), opts(exometer)).
+opts(prometheus) ->
+    #{prometheus => #{}};
+opts(exometer) ->
+    #{exometer => #{all_metrics_are_global => false, report => #{}}};
+opts(exometer_global) ->
+    #{exometer => #{all_metrics_are_global => true, report => #{}}};
+opts(prometheus_and_exometer) ->
+    maps:merge(opts(prometheus), opts(exometer)).
 
 extra_config(exometer) -> [{prefix, ?HOST_TYPE}];
 extra_config(exometer_global) -> [{prefix, global}];

@@ -78,7 +78,6 @@ do_start() ->
     mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
     mongoose_listener:start(),
-    mongoose_metrics:init_mongooseim_metrics(),
     mongoose_instrument:persist(),
     gen_hook:reload_hooks(),
     update_status_file(started),
