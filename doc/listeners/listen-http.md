@@ -4,7 +4,7 @@ Manages all HTTP-based services, such as BOSH (HTTP long-polling), WebSocket, Gr
 It uses the [Cowboy](https://ninenines.eu/docs/en/cowboy/2.6/manual) web server.
 Recommended port number: 5280 for BOSH/WS.
 
-## General HTTP listeners option
+## Configuration options
 
 Following configuration option is used to set up an HTTP handler:
 

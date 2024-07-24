@@ -1,9 +1,9 @@
 # Client to server (C2S): `[[listen.c2s]]`
 
 Handles XMPP client-to-server (C2S) connections.
-The recommended [port number](./listen-general.md#listenport) for a C2S listener is 5222 [as registered in the XMPP protocol](https://tools.ietf.org/html/rfc6120#section-14.7).
+The recommended [port number](../configuration/listen.md#listenport) for a C2S listener is 5222 [as registered in the XMPP protocol](https://tools.ietf.org/html/rfc6120#section-14.7).
 
-## General C2S options
+## Configuration options
 
 The following options are supported for each C2S listener:
 
@@ -20,7 +20,7 @@ The rule that determines who is allowed to connect. By default, the rule is `"al
 * **Example:** `shaper = "c2s_shaper"`
 
 The rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
-The rule referenced here needs to be defined in the [`access`](./access.md) configuration section.
+The rule referenced here needs to be defined in the [`access`](../configuration/access.md) configuration section.
 The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
 
 ### `listen.c2s.max_connections`
@@ -68,7 +68,7 @@ newer software save a round trip.
 A subset of enabled methods to login with for this listener.
 This option allows to enable only some backends.
 It is useful, if you want to have several listeners for different type of users (for example, some users use PKI while other users use LDAP auth).
-Same syntax as for [`auth.methods`](./auth.md#authmethods) option.
+Same syntax as for [`auth.methods`](../configuration/auth.md#authmethods) option.
 
 ## TLS options for C2S
 

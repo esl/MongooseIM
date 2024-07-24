@@ -2,10 +2,10 @@ The `listen` section specifies how MongooseIM handles incoming connections.
 
 * **Syntax:** Each listener is specified in a subsection starting with `[[listen.type]]` where `type` is one of the allowed listener types, handling different types of incoming connections:
 
-    * [`c2s`](./listen-c2s.md) - client-to-server XMPP connections,
-    * [`s2s`](./listen-s2s.md) - server-to-server XMPP connections,
-    * [`service`](./listen-components.md) - XMPP connections from external components,
-    * [`http`](./listen-http.md) - HTTP connections from clients or other services.
+    * [`c2s`](../listeners/listen-c2s.md) - client-to-server XMPP connections,
+    * [`s2s`](../listeners/listen-s2s.md) - server-to-server XMPP connections,
+    * [`service`](../listeners/listen-components.md) - XMPP connections from external components,
+    * [`http`](../listeners/listen-http.md) - HTTP connections from clients or other services.
 
 The double-bracket syntax is used because there can be multiple listeners of a given type, so for each listener type there is a TOML array of one or more tables (subsections).
 

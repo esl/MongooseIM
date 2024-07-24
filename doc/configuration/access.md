@@ -48,7 +48,7 @@ It has the following logic:
 
 The `blocked` access class can be defined in the [`acl` section](acl.md) and match blacklisted users.
 
-For this rule to take effect, it needs to be referenced in the options of a [C2S listener](listen-c2s.md#listenc2saccess).
+For this rule to take effect, it needs to be referenced in the options of a [C2S listener](../listeners/listen-c2s.md#listenc2saccess).
 
 ### C2S Shaper
 
@@ -68,7 +68,7 @@ It has the following logic:
 
 The `admin` access class can be defined in the `acl` to specify admin users who will bypass the `normal` shaper.
 
-For this rule to take effect, it needs to be referenced in the options of a [C2S listener](listen-c2s.md#listenc2sshaper).
+For this rule to take effect, it needs to be referenced in the options of a [C2S listener](../listeners/listen-c2s.md#listenc2sshaper).
 
 ### S2S Shaper
 
@@ -82,7 +82,7 @@ The `s2s_shaper` rule is used to determine the shaper used to limit the incoming
 
 It assigns the `fast` shaper to all S2S connections.
 
-For this rule to take effect, it needs to be referenced in the options of an [S2S listener](listen-s2s.md#listens2sshaper).
+For this rule to take effect, it needs to be referenced in the options of an [S2S listener](../listeners/listen-s2s.md#listens2sshaper).
 
 ### MUC
 

@@ -8,7 +8,7 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
     This interface does not support [dynamic domains](../configuration/general.md#generalhost_types).
     Do not use them both at the same time.
 
-## General component options
+## Configuration options
 
 The following options are supported for each component listener under `listen.service` subsection:
 
@@ -32,7 +32,7 @@ The external component needs to authenticate with this password to connect.
 * **Example:** `shaper = "component_shaper"`
 
 The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
-Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper that needs to be defined in the [`shaper`](shaper.md) section.
+Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper that needs to be defined in the [`shaper`](../configuration/shaper.md) section.
 
 ### `listen.service.check_from`
 * **Syntax:** boolean
@@ -76,11 +76,11 @@ By setting this option to `kick_old`, we drop any old connections registered at 
 * **Default:** not set - no limit
 * **Example:** `max_fsm_queue = 1000`
 
-Message queue limit to prevent resource exhaustion; overrides the value set in the [`general`](./general.md#generalmax_fsm_queue) section.
+Message queue limit to prevent resource exhaustion; overrides the value set in the [`general`](../configuration/general.md#generalmax_fsm_queue) section.
 
 ## Custom extension to the protocol
 
-In order to register a component for all virtual hosts served by the server (see [`hosts`](./general.md#generalhosts) in the [`general`](./general.md) section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
+In order to register a component for all virtual hosts served by the server (see [`hosts`](../configuration/general.md#generalhosts) in the [`general`](../configuration/general.md) section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html).
 
@@ -89,7 +89,7 @@ The `is_subdomain` attribute is optional and the default behaviour is as describ
 The following section configures a service listener, accepting connections from external components.
 The IP address is limited to loopback to prevent connections from different hosts.
 All components are allowed to connect, but they need to provide the password.
-The shaper named `fast` needs to be defined in the [`shaper`](./shaper.md) section.
+The shaper named `fast` needs to be defined in the [`shaper`](../configuration/shaper.md) section.
 
 ```toml
 [[listen.service]]

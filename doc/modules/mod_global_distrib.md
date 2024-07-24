@@ -31,7 +31,7 @@ Following structures are stored in Redis:
 Example: `"user1@example.com/res" -> "dc2.example.com"`.
 * Domains of components and services registered on the globally distributed host are stored in per-node set structures where the key is `<local_host>#<node_name>#{domains}`, and the values are the domain names.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{domains}" -> {"muc1.example.com", "muc2.example.com"}`.
-* Domains of non-hidden components and services (see the [`XMPP Components`](../configuration/listen-components.md#xmpp-components-listenservice) documentation) are stored in per-node set structures where the key is `<local_host>#<node_name>#{public_domains}`, and the values are the domain names.
+* Domains of non-hidden components and services (see the [`XMPP Components`](../listeners/listen-components.md#xmpp-components-listenservice) documentation) are stored in per-node set structures where the key is `<local_host>#<node_name>#{public_domains}`, and the values are the domain names.
 * Declared endpoints available on a node are similarly stored in a per-node set structure where the key is `<local_host>#<node_name>#{endpoints}` and the values represent the TCP endpoints of the node.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{endpoints}" -> {"172.16.2.14#8231", "2001:0db8:85a3:0000:0000:8a2e:0370:7334#8882"}`.
 * Nodes that comprise a host are stored in a set structure with key `<local_host>#{nodes}` and values being the names of the nodes.

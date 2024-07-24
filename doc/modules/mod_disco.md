@@ -41,7 +41,7 @@ Keys and their values for each entry:
 * **Default:** `true`
 * **Example:** `users_can_see_hidden_services = false`
 
-MongooseIM node with this option set to `false` will exclude ["hidden components"](../configuration/listen-components.md#listenservicehidden_components)
+MongooseIM node with this option set to `false` will exclude ["hidden components"](../listeners/listen-components.md#listenservicehidden_components)
 from disco results sent to clients (identified by bare or full JID).
 Other entities, with empty username part in their JIDs (e.g. `component.example.com`),
 will still receive full disco results.

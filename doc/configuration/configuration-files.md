@@ -13,7 +13,7 @@ This [TOML](https://github.com/toml-lang/toml) file contains the configuration o
 The file is divided into the following sections:
 
 * [**general**](general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
-* [**listen**](listen-general.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
+* [**listen**](listen.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
 * [**auth**](auth.md) - Supported client authentication methods and their options.
 * [**internal_databases**](internal-databases.md) - Options for Mnesia and CETS. They are primarily used for clustering.
 * [**outgoing_pools**](outgoing-connections.md) - Outgoing connections to external services, including databases, message queues and HTTP services.
@@ -69,4 +69,4 @@ TLS is configured in one of two ways: some modules need a private key and certif
 
 In order to create private key & certificate bundle, you may simply concatenate them.
 
-More information about configuring TLS for these endpoints is available in the [listen section configuration](listen-c2s.md#tls-options-for-c2s) page.
+More information about configuring TLS for these endpoints is available in the [listen section configuration](../listeners/listen-c2s.md#tls-options-for-c2s) page.

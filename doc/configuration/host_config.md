@@ -208,7 +208,7 @@ c2s = [
 The `register` rule is defined only for `domain2.com`.
 
 !!! Note
-    Some access rules are checked outside of the context of any domain, e.g. the [access rule for external components](listen-components.md#listenserviceaccess) - defining them in `host_config` would have no effect.
+    Some access rules are checked outside of the context of any domain, e.g. the [access rule for external components](../listeners/listen-components.md#listenserviceaccess) - defining them in `host_config` would have no effect.
 
 ### `host_config.s2s`
 

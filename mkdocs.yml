@@ -70,12 +70,7 @@ nav:
   - Configuration:
       - 'Configuration Files': 'configuration/configuration-files.md'
       - 'Options: General': 'configuration/general.md'
-      - 'Options: Listen':
-          - 'General': 'configuration/listen-general.md'
-          - 'Client to server (C2S)': 'configuration/listen-c2s.md'
-          - 'Server to server (S2S)': 'configuration/listen-s2s.md'
-          - 'XMPP components (service)': 'configuration/listen-components.md'
-          - 'HTTP-based services': 'configuration/listen-http.md'
+      - 'Options: Listen': 'configuration/listen.md'
       - 'Options: Auth': 'configuration/auth.md'
       - 'Options: Internal Databases': 'configuration/internal-databases.md'
       - 'Options: Outgoing connections': 'configuration/outgoing-connections.md'
@@ -90,6 +85,11 @@ nav:
       - 'Erlang Cookie Security': 'configuration/Erlang-cookie-security.md'
       - 'TLS Hardening': 'configuration/TLS-hardening.md'
       - 'Database Backends Configuration': 'configuration/database-backends-configuration.md'
+  - 'Listeners':
+      - 'Client to server (C2S)': 'listeners/listen-c2s.md'
+      - 'Server to server (S2S)': 'listeners/listen-s2s.md'
+      - 'XMPP components (service)': 'listeners/listen-components.md'
+      - 'HTTP-based services': 'listeners/listen-http.md'
   - 'Authentication Methods':
       - 'RDBMS': 'authentication-methods/rdbms.md'
       - 'External': 'authentication-methods/external.md'

@@ -127,21 +127,21 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### c2s_port
 
 * **Type:** parameter
-* **Option:** [`listen.c2s.port`](listen-general.md#listenport)
+* **Option:** [`listen.c2s.port`](listen.md#listenport)
 * **Syntax:** integer
 * **Example:** `{c2s_port, "5222"}.`
 
 ### s2s_port
 
 * **Type:** parameter
-* **Option:** [`listen.s2s.port`](listen-general.md#listenport)
+* **Option:** [`listen.s2s.port`](listen.md#listenport)
 * **Syntax:** integer
 * **Example:** `{s2s_port, "5269"}.`
 
 ### cowboy_port
 
 * **Type:** parameter
-* **Option:** [`listen.http.port`](listen-general.md#listenport)
+* **Option:** [`listen.http.port`](listen.md#listenport)
 * **Syntax:** integer
 * **Example:** `{http_port, "5280"}.`
 
@@ -218,7 +218,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### tls_config
 
 * **Type:** block
-* **Option:** [`listen.c2s.tls.*`](listen-c2s.md#tls-options-for-c2s)
+* **Option:** [`listen.c2s.tls.*`](../listeners/listen-c2s.md#tls-options-for-c2s)
 * **Syntax:** TOML key-value pairs
 * **Example:**
 
