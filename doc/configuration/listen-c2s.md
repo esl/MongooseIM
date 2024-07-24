@@ -12,7 +12,7 @@ The following options are supported for each C2S listener:
 * **Default:** `"all"`
 * **Example:** `access = "c2s"`
 
-The rule that determines who is allowed to connect. By default the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
+The rule that determines who is allowed to connect. By default, the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
 ### `listen.c2s.shaper`
 * **Syntax:** string, rule name
@@ -49,7 +49,7 @@ Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackover
 * **Default:** `true`
 * **Example:** `backwards_compatible_session = false`
 
-Enables backward-compatible session establishement IQs. See https://www.rfc-editor.org/rfc/rfc6121.html#section-1.4:
+Enables backward-compatible session establishment IQs. See <https://www.rfc-editor.org/rfc/rfc6121.html#section-1.4>:
 
 > [RFC3921] specified one additional
 precondition: formal establishment of an instant messaging and
@@ -92,7 +92,7 @@ This option determines how clients are supposed to set up the TLS encryption:
 * **Default:** `"fast_tls"`
 * **Example:** `tls.module = "just_tls"`
 
-By default the TLS library used for C2S connections is `fast_tls`, which uses OpenSSL-based NIFs. It is possible to change it to `just_tls` - Erlang TLS implementation provided by OTP. Some TLS-related options described here have different formats for these two libraries.
+By default, the TLS library used for C2S connections is `fast_tls`, which uses OpenSSL-based NIFs. It is possible to change it to `just_tls` - Erlang TLS implementation provided by OTP. Some TLS-related options described here have different formats for these two libraries.
 
 ### `listen.c2s.tls.verify_mode`
 * **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`

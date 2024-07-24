@@ -17,7 +17,7 @@ The following options are supported for each component listener under `listen.se
 * **Default:** `"all"`
 * **Example:** `access = "component"`
 
-Determines who is allowed to send data to external components. By default the rule is `all`, which means that anyone can communicate with the components.
+Determines who is allowed to send data to external components. By default, the rule is `all`, which means that anyone can communicate with the components.
 
 ### `listen.service.password`
 * **Syntax:** string

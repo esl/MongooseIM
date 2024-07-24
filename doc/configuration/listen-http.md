@@ -159,7 +159,7 @@ Required to enable authentication for the admin API.
 * **Example:** `handlers = ["domain"]`
 
 The admin API consists of several handler modules, each of them implementing a subset of the functionality.
-By default all modules are enabled, so you don't need to change this option.
+By default, all modules are enabled, so you don't need to change this option.
 
 ## Handler types: REST API - Client - `mongoose_client_api`
 
@@ -173,7 +173,7 @@ The following options are supported for this handler:
 * **Example:** `handlers = ["messages", "sse"]`
 
 The client API consists of several handler modules, each of them implementing a subset of the functionality.
-By default all modules are enabled, so you don't need to change this option.
+By default, all modules are enabled, so you don't need to change this option.
 
 ### `listen.http.handlers.mongoose_client_api.docs`
 * **Syntax:** boolean
@@ -203,7 +203,7 @@ Maximum number of open connections. The default value of 1024 is set by the [Ran
 
 ## TLS (HTTPS) options
 
-By default the HTTP listener does not use TLS.
+By default, the HTTP listener does not use TLS.
 To use TLS (HTTPS), you need to add a TOML table (subsection) called `tls` to the config file with the `certfile` and `keyfile` options that specify the location of the certificate and private key files, respectively.
 If the keyfile is password-protected, `password` is required as well.
 If the certificate is signed by an intermediate CA, one will probably want to specify the CA chain with the `cacertfile` option.
