@@ -24,7 +24,7 @@
          handle_info/2,
          terminate/2,
          code_change/3,
-         format_status/2]).
+         format_status/1]).
 
 -record(state, {
           host_type :: mongooseim:host_type(),
@@ -34,7 +34,7 @@
           flush_interval_tref :: undefined | reference(),
           flush_callback = fun(_, _) -> ok end :: mongoose_async_pools:flush_callback(),
           prep_callback :: undefined | mongoose_async_pools:prep_callback(),
-          flush_queue = [] :: list() | censored, % see format_status/2 for censored
+          flush_queue = [] :: list() | censored, % see format_status/1 for censored
           flush_queue_length = 0 :: non_neg_integer(),
           flush_extra = #{} :: map()
          }).
@@ -112,8 +112,9 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % Don't leak the tasks to logs, can contain private information
-format_status(_Opt, [_PDict, State | _]) ->
-    [{data, [{"State", State#state{flush_queue = censored}}]}].
+-spec format_status(gen_server:format_status()) -> gen_server:format_status().
+format_status(Status = #{state := State}) ->
+    Status#{state => State#state{flush_queue = censored}}.
 
 %% Batched tasks callbacks
 handle_task(Task, State) ->
