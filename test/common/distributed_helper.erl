@@ -181,6 +181,10 @@ mim3() ->
 fed() ->
     rpc_spec(fed).
 
+-spec reg() -> rpc_spec().
+reg() ->
+    rpc_spec(reg).
+
 rpc_spec(NodeKey) ->
     #{node => get_or_fail({hosts, NodeKey, node})}.
 

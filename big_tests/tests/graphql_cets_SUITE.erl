@@ -3,7 +3,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, mim2/0, rpc/4]).
+-import(distributed_helper, [mim/0, mim2/0, reg/0, rpc/4]).
 -import(domain_helper, [host_type/1]).
 -import(mongooseimctl_helper, [rpc_call/3]).
 -import(graphql_helper, [execute_command/4, get_unauthorized/1, get_ok_value/2, get_not_loaded/1]).
@@ -44,6 +44,7 @@ cets_not_configured_test() ->
      get_system_info_not_configured_test].
 
 init_per_suite(Config) ->
+    block_node(),
     case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend], undefined]) of
         rdbms ->
             Config1 = escalus:init_per_suite(Config),
@@ -56,6 +57,7 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
+    unblock_node(),
     case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets, backend]]) of
         {ok, rdbms} ->
             ensure_bad_node_unregistered(),
@@ -63,6 +65,18 @@ end_per_suite(Config) ->
         _ ->
             ok
     end.
+
+block_node() ->
+    %% Cover at mim1 node connects to otherrnodes but it causes reg1 node to be listed
+    %% in confict_tables/conflict_nodes
+    #{node := Reg1} = reg(),
+    rpc(mim(), erlang, set_cookie, [Reg1, badbadcookie]),
+    rpc(mim(), erlang, disconnect_node, [Reg1]),
+    mongoose_helper:wait_until(fun() -> lists:member(Reg1, rpc(mim(), erlang, nodes, [])) end, false).
+
+unblock_node() ->
+    #{node := Reg1} = reg(),
+    rpc(mim(), erlang, set_cookie, [Reg1, rpc(mim(), erlang, get_cookie, [])]).
 
 init_per_group(admin_cets_http, Config) ->
     Config1 = graphql_helper:init_admin_handler(Config),
