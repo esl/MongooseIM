@@ -532,7 +532,7 @@ setup_mam(Backend) ->
                                               muc => #{host => HostPattern}})}]).
 
 meck_room() ->
-    RPCSpec = (mim())#{timeout => timer:seconds(10)}, % it takes long to compile this module
+    RPCSpec = (mim())#{timeout => timer:seconds(120)}, % it takes long to compile this module
     ok = rpc(RPCSpec, meck, new, [mod_muc_room, [no_link, passthrough]]).
 
 %% Meck will register a fake room right before a 'real' room is started
