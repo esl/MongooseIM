@@ -75,11 +75,13 @@ start_pool(HostType, PoolId, PoolOpts) ->
                   start => {?MODULE, start_link, [HostType, PoolId, PoolOpts]},
                   restart => transient,
                   type => supervisor},
+    mongoose_instrument:set_up(instrumentation(HostType, PoolId)),
     ejabberd_sup:start_child(ChildSpec).
 
 -spec stop_pool(mongooseim:host_type(), pool_id()) -> ok.
 stop_pool(HostType, PoolId) ->
     ?LOG_INFO(#{what => async_pool_stopping, host_type => HostType, pool_id => PoolId}),
+    mongoose_instrument:tear_down(instrumentation(HostType, PoolId)),
     ejabberd_sup:stop_child(sup_name(HostType, PoolId)).
 
 -spec pool_name(mongooseim:host_type(), pool_id()) -> pool_name().
@@ -137,7 +139,7 @@ gen_pool_name(HostType, PoolId) ->
 
 -spec process_pool_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> [wpool:option()].
 process_pool_opts(HostType, PoolId, #{pool_size := NumWorkers} = Opts) ->
-    WorkerModule = select_worker_module(HostType, PoolId, Opts),
+    WorkerModule = select_worker_module(Opts),
     WorkerOpts = make_worker_opts(HostType, PoolId, Opts),
     Worker = {WorkerModule, WorkerOpts},
     [{worker, Worker},
@@ -145,12 +147,9 @@ process_pool_opts(HostType, PoolId, #{pool_size := NumWorkers} = Opts) ->
      {worker_opt, [{spawn_opt, [{message_queue_data, off_heap}]}]},
      {worker_shutdown, 10000}].
 
-select_worker_module(HostType, PoolId, #{pool_type := batch}) ->
-    mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, timed_flushes], counter),
-    mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, batch_flushes], counter),
+select_worker_module(#{pool_type := batch}) ->
     mongoose_batch_worker;
-select_worker_module(HostType, PoolId, #{pool_type := aggregate}) ->
-    mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, async_request], counter),
+select_worker_module(#{pool_type := aggregate}) ->
     mongoose_aggregator_worker.
 
 -spec make_worker_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> map().
@@ -172,3 +171,9 @@ maybe_init_handler(HostType, PoolId, Opts = #{init_callback := InitFun}, Extra)
     Extra#{init_data => InitFun(HostType, PoolId, Opts)};
 maybe_init_handler(_, _, _, Extra) ->
     Extra.
+
+instrumentation(HostType, PoolId) ->
+    [{async_pool_flush, #{pool_id => PoolId, host_type => HostType},
+      #{metrics => #{timed => counter, batch => counter}}},
+     {async_pool_request, #{pool_id => PoolId, host_type => HostType},
+      #{metrics => #{count => counter}}}].
