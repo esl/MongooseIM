@@ -193,12 +193,11 @@ maybe_start_cover() ->
     case {os:getenv("MONGOOSE_COVER_ON_START"), whereis(cover_server)} of
         {"true", undefined} ->
             error_logger:warning_msg("Starting cover. It will slowdown the system.", []),
-            {ok, _} = cover:start(node()),
+            ok = cover:local_only(),
             %% We need to change group leader because application:stop/1 would stop cover otherwise.
             %% (Application master stops every process based on group_leader).
             %% The killing logic is in application_master:kill_children/1
             erlang:group_leader(whereis(user), whereis(cover_server)),
-            ok = cover:local_only(),
             Dir = filename:join(code:lib_dir(mongooseim), ebin),
             cover:compile_beam_directory(Dir);
         _ ->
