@@ -1,6 +1,5 @@
 -module(exometer_report_SUITE).
 
--include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -104,10 +103,9 @@ prefix(Config) ->
 
 opts(Group, Config) ->
     AllGlobal = Group =:= all_metrics_are_global,
-    InstrConfig = #{probe_interval => 1,
-                    exometer => #{all_metrics_are_global => AllGlobal,
+    InstrConfig = #{exometer => #{all_metrics_are_global => AllGlobal,
                                   report => get_reporters_cfg(Config)}},
-    #{hosts => [<<"localhost">>],
+    #{hosts => [?HOST_TYPE],
       host_types => [],
       internal_databases => #{},
       instrumentation => config_parser_helper:config([instrumentation], InstrConfig)}.
