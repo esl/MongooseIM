@@ -364,16 +364,19 @@ prepare(Props) ->
 maybe_compile_cover([]) ->
     io:format("cover: skip cover compilation~n", []),
     ok;
-maybe_compile_cover(Nodes) ->
+maybe_compile_cover([CoverNode|_] = Nodes) ->
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
     import_code_paths(hd(Nodes)),
 
-    cover:start(Nodes),
+    %% We use mim1 as a main node.
+    %% Only the main node supports meck
+    %% (other nodes should not use meck for the cover compiled modules).
+    {ok, _} = rpc:call(CoverNode, cover, start, [Nodes]),
     Dir = call(hd(Nodes), code, lib_dir, [mongooseim, ebin]),
 
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
-                            Results = cover:compile_beam_directory(Dir),
+                            Results = rpc:call(CoverNode, cover, compile_beam_directory, [Dir]),
                             Ok = [X || X = {ok, _} <- Results],
                             NotOk = Results -- Ok,
                             #{ok => length(Ok), failed => NotOk}
@@ -391,16 +394,16 @@ analyze(Props, CoverOpts) ->
 
 analyze(_Props, _CoverOpts, []) ->
     ok;
-analyze(_Props, CoverOpts, Nodes) ->
+analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
     deduplicate_cover_server_console_prints(),
     %% Import small tests cover
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
-            [cover:import(File) || File <- Files]
+            [rpc:call(CoverNode, cover, import, [File]) || File <- Files]
         end),
     report_time("Export merged cover data", fun() ->
-			cover:export("/tmp/mongoose_combined.coverdata")
+			rpc:call(CoverNode, cover, export, ["/tmp/mongoose_combined.coverdata"])
 		end),
     case os:getenv("GITHUB_RUN_ID") of
         false ->
@@ -414,7 +417,7 @@ analyze(_Props, CoverOpts, Nodes) ->
             ok;
         _ ->
             report_time("Stopping cover on MongooseIM nodes", fun() ->
-                        cover:stop([node()|Nodes])
+                        rpc:call(CoverNode, cover, stop, [Nodes])
                     end)
     end.
 
