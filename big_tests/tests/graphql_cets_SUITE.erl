@@ -68,15 +68,22 @@ end_per_suite(Config) ->
 
 block_node() ->
     %% Cover at mim1 node connects to otherrnodes but it causes reg1 node to be listed
-    %% in confict_tables/conflict_nodes
-    #{node := Reg1} = reg(),
-    rpc(mim(), erlang, set_cookie, [Reg1, badbadcookie]),
-    rpc(mim(), erlang, disconnect_node, [Reg1]),
-    mongoose_helper:wait_until(fun() -> lists:member(Reg1, rpc(mim(), erlang, nodes, [])) end, false).
+    %% in confict_tables/conflict_nodes.
+    %% Reg is undefined for dynamic domains (so we use try..catch).
+    try reg() of
+        #{node := Reg1} ->
+            rpc(mim(), erlang, set_cookie, [Reg1, badbadcookie]),
+            rpc(mim(), erlang, disconnect_node, [Reg1]),
+            mongoose_helper:wait_until(fun() -> lists:member(Reg1, rpc(mim(), erlang, nodes, [])) end, false)
+        catch _:_ -> ok
+    end.
 
 unblock_node() ->
-    #{node := Reg1} = reg(),
-    rpc(mim(), erlang, set_cookie, [Reg1, rpc(mim(), erlang, get_cookie, [])]).
+    try reg() of
+        #{node := Reg1} ->
+            rpc(mim(), erlang, set_cookie, [Reg1, rpc(mim(), erlang, get_cookie, [])])
+        catch _:_ -> ok
+    end.
 
 init_per_group(admin_cets_http, Config) ->
     Config1 = graphql_helper:init_admin_handler(Config),
