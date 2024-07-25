@@ -406,7 +406,7 @@ analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
 		end),
     case os:getenv("GITHUB_RUN_ID") of
         false ->
-            make_html(modules_to_analyze(CoverOpts));
+            make_html(CoverNode, modules_to_analyze(CoverNode, CoverOpts));
         _ ->
             ok
     end,
@@ -420,7 +420,7 @@ analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
                     end)
     end.
 
-make_html(Modules) ->
+make_html(CoverNode, Modules) ->
     {ok, Root} = file:get_cwd(),
     SortScript = Root ++ "/priv/sorttable.js",
     os:cmd("cp " ++ SortScript ++ " " ++ ?CT_REPORT),
@@ -439,11 +439,11 @@ make_html(Modules) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
                   %% We assume that import_code_paths/1 was called earlier
-                  case cover:analyse(Module, module) of
+                  case rpc:call(CoverNode, cover, analyse, [Module, module]) of
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([CoverageDir, FileName]),
-                          catch cover:analyse_to_file(Module, FilePathC, [html]),
+                          catch rpc:call(CoverNode, cover, analyse_to_file, [Module, FilePathC, [html]]),
                           {CAcc + C, NCAcc + NC};
                       Reason ->
                           error_logger:error_msg("issue=cover_analyse_failed module=~p reason=~p",
@@ -505,9 +505,9 @@ module_list(undefined) ->
 module_list(ModuleList) ->
     [ list_to_atom(L) || L <- string:tokens(ModuleList, ", ") ].
 
-modules_to_analyze(true) ->
-    lists:usort(cover:imported_modules() ++ cover:modules());
-modules_to_analyze(ModuleList) when is_list(ModuleList) ->
+modules_to_analyze(CoverNode, true) ->
+    lists:usort(rpc:call(CoverNode, cover, imported_modules, []) ++ rpc:call(CoverNode, cover, modules, []));
+modules_to_analyze(_CoverNode, ModuleList) when is_list(ModuleList) ->
     ModuleList.
 
 add({X1, X2, X3, X4},
