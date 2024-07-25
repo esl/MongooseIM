@@ -22,7 +22,8 @@
                        given_conversations_between/2,
                        assert_invalid_inbox_form_value_error/3,
                        assert_invalid_reset_inbox/4,
-                       extract_user_specs/1
+                       extract_user_specs/1,
+                       assert_async_request_event/2
                       ]).
 
 -define(ROOM3, <<"testroom3">>).
@@ -1474,9 +1475,3 @@ verify_hook_listener(RoomName) ->
     after 100 ->
               ct:pal("OK")
     end.
-
-assert_async_request_event(TS, ExpectedCount) ->
-    instrument_helper:assert(async_pool_request,
-        #{host_type => domain_helper:host_type(), pool_id => inbox},
-        fun(#{count := 1}) -> true end,
-        #{min_timestamp => TS, expected_count => ExpectedCount}).

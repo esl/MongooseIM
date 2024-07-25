@@ -72,7 +72,8 @@
          muc_domain/0,
          domain/0,
          to_bare_lower/1,
-         extract_user_specs/1
+         extract_user_specs/1,
+         assert_async_request_event/2
         ]).
 
 -import(muc_helper, [foreach_recipient/2]).
@@ -866,6 +867,12 @@ assert_invalid_form(User, Stanza, Field, Value) ->
 assert_message_content(Msg, Field, Value) ->
     ?assertNotEqual(nomatch, binary:match(Msg, Field)),
     ?assertNotEqual(nomatch, binary:match(Msg, Value)).
+
+assert_async_request_event(TS, ExpectedCount) ->
+    instrument_helper:assert(async_pool_request,
+        #{host_type => domain_helper:host_type(), pool_id => inbox},
+        fun(#{count := 1}) -> true end,
+        #{min_timestamp => TS, expected_count => ExpectedCount}).
 
 %% TODO: properly extract the specs from Bob
 extract_user_specs(User) ->
