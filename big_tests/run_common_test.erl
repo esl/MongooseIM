@@ -359,7 +359,8 @@ analyze_coverage(_, _) ->
 
 prepare(Props) ->
     Nodes = get_mongoose_nodes(Props),
-    maybe_compile_cover(Nodes).
+    maybe_compile_cover(Nodes),
+    block_nodes(Props).
 
 maybe_compile_cover([]) ->
     io:format("cover: skip cover compilation~n", []),
@@ -385,6 +386,7 @@ maybe_compile_cover([CoverNode|_] = Nodes) ->
     ok.
 
 analyze(Props, CoverOpts) ->
+    unblock_nodes(Props),
     io:format("Coverage analyzing~n"),
     Nodes = get_mongoose_nodes(Props),
     analyze(Props, CoverOpts, Nodes).
@@ -580,6 +582,9 @@ host_param(Name, {_, Params}) ->
     {Name, Param} = lists:keyfind(Name, 1, Params),
     Param.
 
+host_param(Name, {_, Params}, Default) ->
+    proplists:get_value(Name, Params, Default).
+
 report_time(Description, Fun) ->
 	report_progress("~nExecuting ~ts~n", [Description]),
 	Start = os:timestamp(),
@@ -746,3 +751,55 @@ cover_compile_dir(CoverNode, Dir) ->
 
 cover_call(CoverNode, Fun, Args) ->
     rpc:call(node(), cover, Fun, Args).
+
+block_nodes(Props) ->
+   [block_node(Node, BlockNode, Props) || {Node, BlockNode} <- block_nodes_specs(Props)],
+   ok.
+
+unblock_nodes(Props) ->
+   [unblock_node(Node, BlockNode, Props) || {Node, BlockNode} <- block_nodes_specs(Props)],
+   ok.
+
+%% Reads `blocks_hosts' parameter for the host from `test.config'.
+%% Returns a list of blocks to do like `[{mim, fed}]'.
+block_nodes_specs(Props) ->
+    EnabledHosts = [ H || H <- get_all_hosts(Props), is_test_host_enabled(host_name(H)) ],
+    [{host_name(H), BlockName}
+     || H <- EnabledHosts, BlockName <- host_param(blocks_hosts, H, []),
+        is_test_host_enabled(BlockName)].
+
+host_name_to_node(Name, Props) ->
+    Hosts = get_all_hosts(Props),
+    Host = proplists:get_value(Name, Hosts, []),
+    case proplists:get_value(node, Host) of
+        undefined ->
+            error({host_name_to_node_failed, Name, Props});
+        Node ->
+            Node
+    end.
+
+%% Do not allow node Name to talk to node BlockName
+block_node(Name, BlockName, Props) ->
+    Node = host_name_to_node(Name, Props),
+    BlockNode = host_name_to_node(BlockName, Props),
+    rpc_call(Node, erlang, set_cookie, [BlockNode, make_bad_cookie(Name, BlockNode)]),
+    rpc_call(Node, erlang, disconnect_node, [BlockNode]),
+    Cond = fun() -> lists:member(BlockNode, rpc_call(Node, erlang, nodes, [])) end,
+    mongoose_helper:wait_until(Cond, false).
+
+unblock_node(Name, BlockName, Props) ->
+    Node = host_name_to_node(Name, Props),
+    BlockNode = host_name_to_node(BlockName, Props),
+    DefCookie = rpc_call(Node, erlang, get_cookie, []),
+    rpc_call(Node, erlang, set_cookie, [BlockNode, DefCookie]).
+
+make_bad_cookie(Name, BlockName) ->
+    list_to_atom(atom_to_list(Name) ++ "_blocks_" ++ atom_to_list(BlockName)).
+
+rpc_call(Node, M, F, Args) ->
+    case rpc:call(Node, M, F, Args) of
+        {badrpc, Reason} ->
+            error({rpc_call_failed, Reason, Node, {M, F, Args}});
+        Res ->
+            Res
+    end.
