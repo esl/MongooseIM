@@ -74,8 +74,7 @@ end_per_testcase(Name, Config) when Name == address_please_returns_ip;
     stop_cets_discovery(),
     Config;
 end_per_testcase(_CaseName, _Config) ->
-    unmock(mim()),
-    unmock(mim2()).
+    unmock(mim()).
 
 %%--------------------------------------------------------------------
 %% Test cases

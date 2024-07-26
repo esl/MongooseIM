@@ -376,7 +376,7 @@ maybe_compile_cover([CoverNode|_] = Nodes) ->
 
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
-                            Results = rpc:call(CoverNode, cover, compile_beam_directory, [Dir]),
+                            Results = cover_compile_dir(CoverNode, Dir),
                             Ok = [X || X = {ok, _} <- Results],
                             NotOk = Results -- Ok,
                             #{ok => length(Ok), failed => NotOk}
@@ -399,10 +399,10 @@ analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
-            [rpc:call(CoverNode, cover, import, [File]) || File <- Files]
+            [cover_import(CoverNode, File) || File <- Files]
         end),
     report_time("Export merged cover data", fun() ->
-			rpc:call(CoverNode, cover, export, ["/tmp/mongoose_combined.coverdata"])
+                        cover_export(CoverNode, "/tmp/mongoose_combined.coverdata")
 		end),
     case os:getenv("GITHUB_RUN_ID") of
         false ->
@@ -416,7 +416,7 @@ analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
             ok;
         _ ->
             report_time("Stopping cover on MongooseIM nodes", fun() ->
-                        rpc:call(CoverNode, cover, stop, [Nodes])
+                        cover_stop(CoverNode, Nodes)
                     end)
     end.
 
@@ -439,11 +439,11 @@ make_html(CoverNode, Modules) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
                   %% We assume that import_code_paths/1 was called earlier
-                  case rpc:call(CoverNode, cover, analyse, [Module, module]) of
+                  case cover_analyse(CoverNode, Module) of
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([CoverageDir, FileName]),
-                          catch rpc:call(CoverNode, cover, analyse_to_file, [Module, FilePathC, [html]]),
+                          cover_analyse_to_html_file(CoverNode, Module, FilePathC),
                           {CAcc + C, NCAcc + NC};
                       Reason ->
                           error_logger:error_msg("issue=cover_analyse_failed module=~p reason=~p",
@@ -506,7 +506,7 @@ module_list(ModuleList) ->
     [ list_to_atom(L) || L <- string:tokens(ModuleList, ", ") ].
 
 modules_to_analyze(CoverNode, true) ->
-    lists:usort(rpc:call(CoverNode, cover, imported_modules, []) ++ rpc:call(CoverNode, cover, modules, []));
+    lists:usort(cover_all_modules(CoverNode));
 modules_to_analyze(_CoverNode, ModuleList) when is_list(ModuleList) ->
     ModuleList.
 
@@ -713,3 +713,27 @@ assert_preset_present(Preset, PresetConfs) ->
             error_logger:error_msg("Preset not found ~p~n", [Preset]),
             error({preset_not_found, Preset})
     end.
+
+cover_stop(CoverNode, Nodes) ->
+    cover_call(CoverNode, stop, [Nodes]).
+
+cover_all_modules(CoverNode) ->
+    cover_call(CoverNode, imported_modules, []) ++ rpc:call(CoverNode, cover, modules, []).
+
+cover_analyse_to_html_file(CoverNode, Module, FilePathC) ->
+    catch cover_call(CoverNode, analyse_to_file, [Module, FilePathC, [html]]).
+
+cover_analyse(CoverNode, Module) ->
+    cover_call(CoverNode, analyse, [Module, module]).
+
+cover_export(CoverNode, ToFile) ->
+    cover_call(CoverNode, export, [ToFile]).
+
+cover_import(CoverNode, FromFile) ->
+    cover_call(CoverNode, import, [FromFile]).
+
+cover_compile_dir(CoverNode, Dir) ->
+    cover_call(CoverNode, compile_beam_directory, [Dir]).
+
+cover_call(CoverNode, Fun, Args) ->
+    rpc:call(node(), cover, Fun, Args).
