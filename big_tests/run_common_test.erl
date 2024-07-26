@@ -364,16 +364,16 @@ prepare(Props) ->
 maybe_compile_cover([]) ->
     io:format("cover: skip cover compilation~n", []),
     ok;
-maybe_compile_cover(Nodes) ->
+maybe_compile_cover([CoverNode|_] = Nodes) ->
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
     import_code_paths(hd(Nodes)),
 
-    cover:start(Nodes),
+    cover_start(CoverNode, Nodes),
     Dir = call(hd(Nodes), code, lib_dir, [mongooseim, ebin]),
 
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
-                            Results = cover:compile_beam_directory(Dir),
+                            Results = cover_compile_dir(CoverNode, Dir),
                             Ok = [X || X = {ok, _} <- Results],
                             NotOk = Results -- Ok,
                             #{ok => length(Ok), failed => NotOk}
@@ -391,20 +391,19 @@ analyze(Props, CoverOpts) ->
 
 analyze(_Props, _CoverOpts, []) ->
     ok;
-analyze(_Props, CoverOpts, Nodes) ->
-    deduplicate_cover_server_console_prints(),
+analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
     %% Import small tests cover
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
-            [cover:import(File) || File <- Files]
+            [cover_import(CoverNode, File) || File <- Files]
         end),
     report_time("Export merged cover data", fun() ->
-			cover:export("/tmp/mongoose_combined.coverdata")
+                        cover_export(CoverNode, "/tmp/mongoose_combined.coverdata")
 		end),
     case os:getenv("GITHUB_RUN_ID") of
         false ->
-            make_html(modules_to_analyze(CoverOpts));
+            make_html(CoverNode, modules_to_analyze(CoverNode, CoverOpts));
         _ ->
             ok
     end,
@@ -414,11 +413,11 @@ analyze(_Props, CoverOpts, Nodes) ->
             ok;
         _ ->
             report_time("Stopping cover on MongooseIM nodes", fun() ->
-                        cover:stop([node()|Nodes])
+                        cover_stop(CoverNode, Nodes)
                     end)
     end.
 
-make_html(Modules) ->
+make_html(CoverNode, Modules) ->
     {ok, Root} = file:get_cwd(),
     SortScript = Root ++ "/priv/sorttable.js",
     os:cmd("cp " ++ SortScript ++ " " ++ ?CT_REPORT),
@@ -437,11 +436,11 @@ make_html(Modules) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
                   %% We assume that import_code_paths/1 was called earlier
-                  case cover:analyse(Module, module) of
+                  case cover_analyse(CoverNode, Module) of
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([CoverageDir, FileName]),
-                          catch cover:analyse_to_file(Module, FilePathC, [html]),
+                          cover_analyse_to_html_file(CoverNode, Module, FilePathC),
                           {CAcc + C, NCAcc + NC};
                       Reason ->
                           error_logger:error_msg("issue=cover_analyse_failed module=~p reason=~p",
@@ -503,9 +502,9 @@ module_list(undefined) ->
 module_list(ModuleList) ->
     [ list_to_atom(L) || L <- string:tokens(ModuleList, ", ") ].
 
-modules_to_analyze(true) ->
-    lists:usort(cover:imported_modules() ++ cover:modules());
-modules_to_analyze(ModuleList) when is_list(ModuleList) ->
+modules_to_analyze(CoverNode, true) ->
+    lists:usort(cover_all_modules(CoverNode));
+modules_to_analyze(_CoverNode, ModuleList) when is_list(ModuleList) ->
     ModuleList.
 
 add({X1, X2, X3, X4},
@@ -630,16 +629,6 @@ handle_file_error(_FileName, Other) ->
 
 %% ------------------------------------------------------------------
 
-%% cover_server process is using io:format too much.
-%% This code removes duplicate io:formats.
-%%
-%% Example of a message we want to write only once:
-%% "Analysis includes data from imported files" from cover.erl in Erlang/R19
-deduplicate_cover_server_console_prints() ->
-    %% Set a new group leader for cover_server
-    CoverPid = whereis(cover_server),
-    dedup_proxy_group_leader:start_proxy_group_leader_for(CoverPid).
-
 ct_run_dirs() ->
     filelib:wildcard("ct_report/ct_run*").
 
@@ -721,3 +710,39 @@ assert_preset_present(Preset, PresetConfs) ->
             error_logger:error_msg("Preset not found ~p~n", [Preset]),
             error({preset_not_found, Preset})
     end.
+
+assert_list(X) when is_list(X) -> X.
+
+%% We use mim1 as a main node.
+%% Only the main node supports meck
+%% (other nodes should not use meck for the cover compiled modules).
+cover_start(CoverNode, Nodes) ->
+    {ok, _} = cover_call(CoverNode, start, [Nodes]),
+    Node = node(),
+    Node = cover_call(CoverNode, get_main_node, []).
+
+cover_stop(CoverNode, Nodes) ->
+    cover_call(CoverNode, stop, [Nodes]).
+
+cover_all_modules(CoverNode) ->
+    List1 = assert_list(cover_call(CoverNode, imported_modules, [])),
+    List2 = assert_list(cover_call(CoverNode, modules, [])),
+    List1 ++ List2.
+
+cover_analyse_to_html_file(CoverNode, Module, FilePathC) ->
+    catch cover_call(CoverNode, analyse_to_file, [Module, FilePathC, [html]]).
+
+cover_analyse(CoverNode, Module) ->
+    cover_call(CoverNode, analyse, [Module, module]).
+
+cover_export(CoverNode, ToFile) ->
+    cover_call(CoverNode, export, [ToFile]).
+
+cover_import(CoverNode, FromFile) ->
+    cover_call(CoverNode, import, [FromFile]).
+
+cover_compile_dir(CoverNode, Dir) ->
+    cover_call(CoverNode, compile_beam_directory, [Dir]).
+
+cover_call(CoverNode, Fun, Args) ->
+    rpc:call(node(), cover, Fun, Args).
