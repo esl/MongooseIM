@@ -723,8 +723,8 @@ assert_list(X) when is_list(X) -> X.
 %% (other nodes should not use meck for the cover compiled modules).
 cover_start(CoverNode, Nodes) ->
     {ok, _} = cover_call(CoverNode, start, [Nodes]),
-    Node = node(),
-    Node = cover_call(CoverNode, get_main_node, []).
+    CoverNode = cover_call(CoverNode, get_main_node, []),
+    ok.
 
 cover_stop(CoverNode, Nodes) ->
     cover_call(CoverNode, stop, [Nodes]).
@@ -750,7 +750,7 @@ cover_compile_dir(CoverNode, Dir) ->
     cover_call(CoverNode, compile_beam_directory, [Dir]).
 
 cover_call(CoverNode, Fun, Args) ->
-    rpc:call(node(), cover, Fun, Args).
+    rpc:call(CoverNode, cover, Fun, Args).
 
 block_nodes(Props) ->
    [block_node(Node, BlockNode, Props) || {Node, BlockNode} <- block_nodes_specs(Props)],
