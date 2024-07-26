@@ -1,7 +1,7 @@
 site_name: MongooseIM Docs
 site_description: "Documentation for MongooseIM - a mobile messaging platform with focus on performance and scalability"
 site_author: "Erlang Solutions"
-site_url: https://esl.github.io/MongooseDocs/latest/
+site_url: https://esl.github.io/MongooseDocs/
 repo_url: https://github.com/esl/MongooseIM
 edit_uri: edit/master/doc/
 docs_dir: doc
