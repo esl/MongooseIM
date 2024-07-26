@@ -660,13 +660,13 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               %% Pause Alice until Eve is reconnected
               AliceNode = ct:get_config({hosts, mim, node}),
               C2sPid = mongoose_helper:get_session_pid(Alice, #{node => AliceNode}),
-              ok = rpc(asia_node, sys, suspend, [C2sPid]),
+              ok = rpc:call(node(C2sPid), sys, suspend, [C2sPid]),
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
               NewEve = connect_from_spec(EveSpec2, Config),
 
-              ok = rpc(asia_node, sys, resume, [C2sPid]),
+              ok = rpc:call(node(C2sPid), sys, resume, [C2sPid]),
 
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
