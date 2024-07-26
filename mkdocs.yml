@@ -24,6 +24,7 @@ theme:
     - navigation.instant
     - navigation.instant.progress
     - navigation.top
+    - toc.follow
 extra:
   version:
     provider: mike
