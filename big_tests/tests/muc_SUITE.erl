@@ -342,6 +342,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(room_registration_race_condition, Config) ->
+    %% We init meck once per group, because recompiling module after
+    %% each testcase is slow.
+    meck_room(),
     escalus_fresh:create_users(Config, [{alice, 1}]);
 
 init_per_group(moderator, Config) ->
@@ -423,7 +426,7 @@ handle_http_auth(Req) ->
     cowboy_req:reply(200, Headers, Resp, Req).
 
 end_per_group(room_registration_race_condition, Config) ->
-    rpc(mim(), meck, unload, []),
+    unload_meck(),
     escalus:delete_users(Config, escalus:get_users([bob, alice]));
 
 end_per_group(admin_membersonly, Config) ->
@@ -460,16 +463,13 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
 init_per_testcase(CaseName = create_already_registered_room, Config) ->
-    meck_room(),
     meck_room_start(),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
-    meck_room(),
     meck_room_start(),
     meck_room_route(),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
-    meck_room(),
     meck_room_start(),
     meck_room_route(),
     escalus:init_per_testcase(CaseName, Config);
@@ -532,8 +532,12 @@ setup_mam(Backend) ->
                                               muc => #{host => HostPattern}})}]).
 
 meck_room() ->
-    RPCSpec = (mim())#{timeout => timer:seconds(10)}, % it takes long to compile this module
+    RPCSpec = (mim())#{timeout => timer:seconds(120)}, % it takes long to compile this module
     ok = rpc(RPCSpec, meck, new, [mod_muc_room, [no_link, passthrough]]).
+
+unload_meck() ->
+    RPCSpec = (mim())#{timeout => timer:seconds(120)},
+    rpc(RPCSpec, meck, unload, []).
 
 %% Meck will register a fake room right before a 'real' room is started
 meck_room_start() ->
@@ -552,13 +556,10 @@ meck_room_route() ->
         end]).
 
 end_per_testcase(CaseName = create_already_registered_room, Config) ->
-    rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
-    rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
-    rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = send_non_anonymous_history, Config) ->
     destroy_room(Config),
