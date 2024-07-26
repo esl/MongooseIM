@@ -174,6 +174,6 @@ maybe_init_handler(_, _, _, Extra) ->
 
 instrumentation(HostType, PoolId) ->
     [{async_pool_flush, #{pool_id => PoolId, host_type => HostType},
-      #{metrics => #{timed => counter, batch => counter}}},
+      #{metrics => #{timed => spiral, batch => spiral}}},
      {async_pool_request, #{pool_id => PoolId, host_type => HostType},
-      #{metrics => #{count => counter}}}].
+      #{metrics => #{count => spiral}}}].
