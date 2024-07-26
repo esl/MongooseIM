@@ -23,7 +23,7 @@
                        assert_invalid_inbox_form_value_error/3,
                        assert_invalid_reset_inbox/4,
                        extract_user_specs/1,
-                       assert_async_request_event/2
+                       assert_async_request_event/1
                       ]).
 
 -define(ROOM3, <<"testroom3">>).
@@ -1363,7 +1363,7 @@ rest_api_bin_flush_user(Config) ->
         ?assertEqual(1, NumOfRows),
         check_inbox(Bob, [], #{box => bin})
     end),
-    assert_async_request_event(TS, 10).
+    assert_async_request_event(TS).
 
 rest_api_bin_flush_user_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
@@ -1390,7 +1390,7 @@ rest_api_bin_flush_all(Config) ->
         check_inbox(Bob, [], #{box => bin}),
         check_inbox(Kate, [], #{box => bin})
     end),
-    assert_async_request_event(TS, 10).
+    assert_async_request_event(TS).
 
 rest_api_bin_flush_all_errors(_Config) ->
     HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
@@ -1407,7 +1407,7 @@ timeout_cleaner_flush_all(Config) ->
         check_inbox(Bob, [], #{box => bin}),
         check_inbox(Kate, [], #{box => bin})
     end),
-    assert_async_request_event(TS, 10).
+    assert_async_request_event(TS).
 
 xmpp_bin_flush(Config) ->
     TS = instrument_helper:timestamp(),
@@ -1423,7 +1423,7 @@ xmpp_bin_flush(Config) ->
         escalus:assert(is_iq_result, [Iq], escalus:wait_for_stanza(Bob)),
         check_inbox(Bob, [], #{box => bin})
     end),
-    assert_async_request_event(TS, 10).
+    assert_async_request_event(TS).
 
 
 %% helpers

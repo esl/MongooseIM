@@ -1456,18 +1456,18 @@ assert_flushed_event_if_async(EventName, Config) ->
 assert_async_batch_flush_event(TS, ExpectedCount, PoolId) ->
     instrument_helper:assert(
         async_pool_flush,
-        #{host_type => domain_helper:host_type(), pool_id => PoolId},
+        #{host_type => host_type(), pool_id => PoolId},
         fun(#{batch := 1}) -> true end,
         #{min_timestamp => TS, expected_count => ExpectedCount}).
 
-assert_async_timed_flush_event(Config, TS, ExpectedCount, PoolId) ->
+assert_async_timed_flush_event(Config, TS, PoolId) ->
     case ?config(configuration, Config) of
         rdbms_async_pool ->
             instrument_helper:assert(
                 async_pool_flush,
-                #{host_type => domain_helper:host_type(), pool_id => PoolId},
+                #{host_type => host_type(), pool_id => PoolId},
                 fun(#{timed := 1}) -> true end,
-                #{min_timestamp => TS, expected_count => ExpectedCount});
+                #{min_timestamp => TS});
         _ ->
             ok
     end.

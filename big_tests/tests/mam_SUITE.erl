@@ -114,7 +114,7 @@
          assert_lookup_event/2,
          assert_flushed_event_if_async/2,
          assert_async_batch_flush_event/3,
-         assert_async_timed_flush_event/4,
+         assert_async_timed_flush_event/3,
          assert_dropped_iq_event/2,
          assert_event_with_jid/2,
          assert_no_event_with_jid/2
@@ -1749,8 +1749,8 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
             when_archive_query_is_sent(Bob, undefined, Config),
             then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config)
         end),
-    assert_async_timed_flush_event(Config, TS, 2, pm_mam),
-    assert_async_timed_flush_event(Config, TS, 2, muc_mam).
+    assert_async_timed_flush_event(Config, TS, pm_mam),
+    assert_async_timed_flush_event(Config, TS, muc_mam).
 
 muc_light_stored_in_pm_if_allowed_to(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
