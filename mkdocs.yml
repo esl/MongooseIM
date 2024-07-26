@@ -85,6 +85,11 @@ nav:
       - 'Erlang Cookie Security': 'configuration/Erlang-cookie-security.md'
       - 'TLS Hardening': 'configuration/TLS-hardening.md'
       - 'Database Backends Configuration': 'configuration/database-backends-configuration.md'
+  - 'Listeners':
+      - 'Client to server (C2S)': 'listeners/listen-c2s.md'
+      - 'Server to server (S2S)': 'listeners/listen-s2s.md'
+      - 'XMPP components (service)': 'listeners/listen-components.md'
+      - 'HTTP-based services': 'listeners/listen-http.md'
   - 'Authentication Methods':
       - 'RDBMS': 'authentication-methods/rdbms.md'
       - 'External': 'authentication-methods/external.md'
@@ -198,3 +203,5 @@ nav:
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - 'Contributions to the Ecosystem': 'Contributions.md'
   - 'MongooseIM History': 'History.md'
+not_in_nav: |
+  user-guide/Supported-XEPs.md

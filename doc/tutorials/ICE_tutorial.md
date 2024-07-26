@@ -45,7 +45,7 @@ We also have a RaspberryPi that is connected to a private network (so is behind 
 
 ### ICE notes
 
-The end result of this tutorial not only uses [MongooseICE](https://github.com/esl/MongooseICE) and [MongooseIM] servers but also uses custom version of [Mangosta-Android] and [DemoStreamerICE].
+The end result of this tutorial not only uses [MongooseICE](https://github.com/esl/MongooseICE) and [MongooseIM] servers but also uses custom version of [Mangosta-Android] and [DemoStreamerICE][ice_demo_client].
 Both projects are custom modified and custom made respectively in order to showcase the video streaming using the data relay capabilities provided by [MongooseICE](https://github.com/esl/MongooseICE).
 The streaming itself, along with the signalling protocol, were prepared only for the case of this demo and **are not a part of the platform**.
 Those components exist only to visualize what can be achieved with [MongooseICE](https://github.com/esl/MongooseICE) and what can be built on top of it.

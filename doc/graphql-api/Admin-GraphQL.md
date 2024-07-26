@@ -2,7 +2,7 @@
 
 The new GraphQL admin API contains all the commands available through the REST API, and the vast majority of the CLI (`mongooseimctl`) commands. Only commands that wouldn't have worked well with GraphQL style have been omitted.
 
-We can distinguish two levels of the administration. A global admin (has access to all commands), and the admin per domain (has access only to the own domain). Each of them is handled by a different endpoint. Please see the configuration [Listen](../../configuration/listen/#handler-types-graphql-api-mongoose_graphql_handler) section for more details.
+We can distinguish two levels of the administration. A global admin (has access to all commands), and the admin per domain (has access only to the own domain). Each of them is handled by a different endpoint. Please see the configuration [Listen](../listeners/listen-http.md#handler-types-graphql-api-mongoose_graphql_handler) section for more details.
 
 There is only one schema for both admin types. Admin per domain simply has no permissions to execute global commands or commands with not owned domain. The API documentation clearly says which commands are global.
 
@@ -27,7 +27,7 @@ with the word `Basic` followed by a space and a base64-encoded string.
 
 ### Global admin endpoint
 
-The authentication for global admin is optional because this endpoint shouldn't be exposed outside. The credentials set in the handler section in the config enables the authentication. Please see the [GraphQL handler](../configuration/listen.md#handler-types-graphql-api-mongoose_graphql_handler) section for more details.
+The authentication for global admin is optional because this endpoint shouldn't be exposed outside. The credentials set in the handler section in the config enables the authentication. Please see the [GraphQL handler](../listeners/listen-http.md#handler-types-graphql-api-mongoose_graphql_handler) section for more details.
 
 The base64-encoded string should have the form
 `LOGIN:PASSWORD`, where:

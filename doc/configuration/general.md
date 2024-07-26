@@ -49,7 +49,7 @@ In order to configure these host types independently, use the [`host_config` sec
 If you use the host type mechanism, make sure you only configure modules which support dynamic domains in the [`modules`](./Modules.md) or [`host_config.modules`](./host_config.md#host_configmodules) sections.
 MongooseIM will **not** start otherwise.
 Most of the modules are compatible with host types, but please read the particular extension module's page, or the [incompatible modules list](./Modules.md#modules-incompatible-with-dynamic-domains) to see which do not.
-Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured in the [`listen.service` section](listen.md#xmpp-components-listenservice), do not support dynamic domains.
+Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured in the [`listen.service` section](../listeners/listen-components.md#xmpp-components-listenservice), do not support dynamic domains.
 
 !!! Note
     At least one of `general.hosts` or `general.host_types` have to be provided.
