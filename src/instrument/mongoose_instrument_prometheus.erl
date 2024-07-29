@@ -82,7 +82,9 @@ initialize_metric(_Name, _LabelValues, _) ->
 metric_spec(EventName, LabelKeys, MetricName) ->
     [{name, full_metric_name(EventName, MetricName)},
      {help, metric_help(EventName, MetricName)},
-     {labels, LabelKeys}].
+     {labels, LabelKeys},
+     {duration_unit, false} % prevent unwanted implicit conversions, e.g. seconds -> microseconds
+    ].
 
 -spec histogram_buckets() -> [integer()].
 histogram_buckets() ->

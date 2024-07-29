@@ -54,7 +54,7 @@ end_per_suite(_Config) ->
     log_helper:tear_down().
 
 init_per_group(Group, Config) ->
-    [application:ensure_all_started(App) || App <- apps(Group)],
+    [{ok, _} = application:ensure_all_started(App) || App <- apps(Group)],
     mongoose_config:set_opts(#{hosts => [?HOST_TYPE],
                                host_types => [?HOST_TYPE2],
                                instrumentation => opts(Group)}),
@@ -62,9 +62,10 @@ init_per_group(Group, Config) ->
     mongoose_instrument:persist(),
     Config1 ++ extra_config(Group).
 
-end_per_group(_Group, Config) ->
+end_per_group(Group, Config) ->
     async_helper:stop_all(Config),
-    mongoose_config:erase_opts().
+    mongoose_config:erase_opts(),
+    lists:foreach(fun(App) -> ok = application:stop(App) end, apps(Group)).
 
 init_per_testcase(Case, Config) ->
     log_helper:subscribe(),
