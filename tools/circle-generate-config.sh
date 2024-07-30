@@ -35,6 +35,9 @@ CACERT=$(cat32 tools/ssl/ca/cacert.pem)
 
 CERTS_CACHE_KEY=$(cat certs_cache_key)
 
+# Matches plugins list in the rebar.config
+REBAR_PLUGINS_HASH=$(cat rebar.config | sed -n '/^{plugins/,/]}./p' | sha1sum | awk '{print $1}')
+
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
     -e "s/__MYSQL_SETUP__/${MYSQL_SETUP}/" \
@@ -69,5 +72,6 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__PYTHON2_BASE32_DEC__/${PYTHON2_BASE32_DEC}/" \
     -e "s/__PYTHON3_BASE32_DEC__/${PYTHON3_BASE32_DEC}/" \
     -e "s/__CERTS_CACHE_KEY__/${CERTS_CACHE_KEY}/" \
+    -e "s/__REBAR_PLUGINS_HASH__/${REBAR_PLUGINS_HASH}/" \
     .circleci/template.yml \
     > "$OUT_FILE"
