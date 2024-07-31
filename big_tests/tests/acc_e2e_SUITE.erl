@@ -63,7 +63,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [acc_test_helper_code(Config)]),
+    {Mod, Code} = dynamic_compile:from_string(acc_test_helper_code(Config)),
     rpc(mim(), code, load_binary, [Mod, "acc_test_helper.erl", Code]),
     recreate_table(),
     escalus:init_per_suite(Config).

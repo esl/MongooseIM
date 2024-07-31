@@ -178,9 +178,9 @@ stop_pool() ->
     rpc(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]).
 
 setup_modules() ->
-    {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),
+    {Mod, Code} = dynamic_compile:from_string(custom_module_code()),
     rpc(code, load_binary, [Mod, "mod_event_pusher_http_custom.erl", Code]),
-    {Mod2, Code2} = rpc(dynamic_compile, from_string, [custom_module_code_2()]),
+    {Mod2, Code2} = dynamic_compile:from_string(custom_module_code_2()),
     rpc(code, load_binary, [Mod2, "mod_event_pusher_http_custom_2.erl", Code2]),
     ok.
 
