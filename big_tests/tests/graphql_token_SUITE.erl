@@ -83,9 +83,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 required_modules() ->
-    KeyOpts = #{keys => #{token_secret => ram,
-                          provision_pre_shared => ram},
-                backend => ct_helper:get_internal_database()},
+    KeyOpts = #{keys => #{token_secret => ram, provision_pre_shared => ram}},
     KeyStoreOpts = config_parser_helper:mod_config(mod_keystore, KeyOpts),
     [{mod_keystore, KeyStoreOpts},
      {mod_auth_token, auth_token_opts()}].
