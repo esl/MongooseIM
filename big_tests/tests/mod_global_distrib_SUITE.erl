@@ -737,13 +737,13 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               %% Pause Alice until Eve is reconnected
               AliceNode = ct:get_config({hosts, mim, node}),
               C2sPid = mongoose_helper:get_session_pid(Alice, #{node => AliceNode}),
-              ok = rpc(asia_node, sys, suspend, [C2sPid]),
+              ok = rpc:call(node(C2sPid), sys, suspend, [C2sPid]),
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
               NewEve = connect_from_spec(EveSpec2, Config),
 
-              ok = rpc(asia_node, sys, resume, [C2sPid]),
+              ok = rpc:call(node(C2sPid), sys, resume, [C2sPid]),
 
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
@@ -1258,13 +1258,14 @@ execute_on_each_node(M, F, A) ->
     lists:map(fun({NodeName, _, _}) -> rpc(NodeName, M, F, A) end, get_hosts()).
 
 mock_inet() ->
-    %% We don't want to mock inet module itself to avoid strange networking issues
-    meck:new(mod_global_distrib_utils, [non_strict, passthrough, unstick]),
-    meck:expect(mod_global_distrib_utils, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
-                                                       (_, inet6) -> {error, "No ipv6 address"} end).
+    %% We can only mock MongooseIM modules on mim1.
+    %% Otherwise meck will freeze calling cover_server process.
+    meck:new(inet, [non_strict, passthrough, unstick]),
+    meck:expect(inet, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
+                                   (_, inet6) -> {error, "No ipv6 address"} end).
 
 unmock_inet(_Pids) ->
-    execute_on_each_node(meck, unload, [mod_global_distrib_utils]).
+    execute_on_each_node(meck, unload, [inet]).
 
 out_connection_sups(Node) ->
     Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),

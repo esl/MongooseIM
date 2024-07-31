@@ -218,7 +218,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### tls_config
 
 * **Type:** block
-* **Option:** [`listen.c2s.tls.*`](listen.md#tls-options-for-c2s)
+* **Option:** [`listen.c2s.tls.*`](../listeners/listen-c2s.md#tls-options-for-c2s)
 * **Syntax:** TOML key-value pairs
 * **Example:**
 

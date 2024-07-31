@@ -3,7 +3,7 @@ This module implements [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep
  allowing clients to connect to MongooseIM over regular HTTP long-lived connections.
 
 If you want to use BOSH, you must enable it both in the `listen` section of 
-`mongooseim.toml` ([Listener Modules](../configuration/listen.md))
+`mongooseim.toml` ([Listener Modules](../listeners/listen-http.md#handler-types-bosh-mod_bosh))
  and as a module.
 
 ## Options

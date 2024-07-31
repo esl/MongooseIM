@@ -7,9 +7,9 @@ This method uses the `SASL EXTERNAL` mechanism.
 
 ### Properly configure Client-to-server (C2S) listener
 
-A server must request the certificate from a client, so you'll need to enable `verify_peer` option and provide a path to CA chain that may be used for client's certificate check (`cafile` option).
+A server must request the certificate from a client, so you'll need to set [`verify_mode`](../listeners/listen-c2s.md#listenc2stlsverify_mode) option to `"peer"` and provide a path to CA chain that may be used for client's certificate check ([`cacertfile`](../listeners/listen-c2s.md#listenc2stlscacertfile) option).
 
-Please check the [Listener modules](../configuration/listen.md#client-to-server-c2s-listenc2s) page for more information or simply follow the examples at the end of this section.
+Please check the [Listener modules](../listeners/listen-c2s.md) page for more information or simply follow the examples at the end of this section.
 
 ### Properly configure `http` listener
 
@@ -17,10 +17,10 @@ SASL EXTERNAL authentication is also possible for WebSocketSecure and BOSH conne
 Similarly as in the `client-to-server` case, the server must request the certificate from the client.
 In this case it's enabled by adding the following options to the `tls` option of `listen.http` :
 
-* [`tls.verify_peer = true`](../configuration/listen.md#listenhttptlsverify_peer) - this is to tell Erlang's SSL to request the cert from the client
-* [`tls.cacertfile = "ca.pem"`](../configuration/listen.md#listenhttptlscacertfile) - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
+* [`tls.verify_mode = "peer"`](../listeners/listen-http.md#tls-https-options) - this is to tell Erlang's SSL to request the cert from the client
+* [`tls.cacertfile = "ca.pem"`](../listeners/listen-http.md#tls-https-options) - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
 
-Please check [Options: Listen](../configuration/listen.md#http-based-services-listenhttp) for more details regarding `http` listener configuration.
+Please check [HTTP-based services configuration](../listeners/listen-http.md#http-based-services-listenhttp) for more details regarding `http` listener configuration.
 
 ### Enable `SASL EXTERNAL` mechanism
 

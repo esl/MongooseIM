@@ -32,7 +32,7 @@ This is the typical definition of an XMPP shaper, which accepts the maximum data
 ```
 
 To make use of it, the [corresponding rule](access.md#c2s-shaper) should be defined in the `access` section.
-Finally, the C2S listener has to be configured to use the defined shaper - see the [C2S Example](listen.md#c2s-example).
+Finally, the C2S listener has to be configured to use the defined shaper - see the [C2S Example](../listeners/listen-c2s.md#c2s-listener-configuration-example).
 
 ### S2S Shaper
 
@@ -44,7 +44,7 @@ For S2S connections we need to increase the limit as they receive the accumulate
 ```
 
 To make use of it, the [corresponding rule](access.md#s2s-shaper) should be defined in the `access` section.
-Finally, the C2S listener has to be configured to use the defined shaper - see the [S2S Example](listen.md#s2s-example).
+Finally, the S2S listener has to be configured to use the defined shaper - see the [S2S Example](../listeners/listen-s2s.md#s2s-listener-configuration-example).
 
 ### MAM Shapers
 
