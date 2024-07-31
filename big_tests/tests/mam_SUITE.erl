@@ -113,6 +113,8 @@
          assert_archive_message_event/2,
          assert_lookup_event/2,
          assert_flushed_event_if_async/2,
+         assert_async_batch_flush_event/3,
+         assert_async_timed_flush_event/3,
          assert_dropped_iq_event/2,
          assert_event_with_jid/2,
          assert_no_event_with_jid/2
@@ -430,7 +432,8 @@ muc_light_cases() ->
      muc_light_chat_markers_are_archived_if_enabled,
      muc_light_chat_markers_are_not_archived_if_disabled,
      muc_light_failed_to_decode_message_in_database,
-     muc_light_sql_query_failed
+     muc_light_sql_query_failed,
+     muc_light_async_pools_batch_flush
     ].
 
 muc_rsm_cases() ->
@@ -503,13 +506,18 @@ muc_prefs_cases() ->
 impl_specific() ->
     [check_user_exist,
      pm_failed_to_decode_message_in_database,
-     pm_sql_query_failed].
+     pm_sql_query_failed,
+     async_pools_batch_flush].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrument_helper:declared_events(instrumented_modules())),
+    PoolIds = [pm_mam, muc_mam],
+    AsyncPoolsEvents = [{async_pool_flush, #{host_type => host_type(), pool_id => PoolId}}
+                        || PoolId <- PoolIds],
+    instrument_helper:start(
+        instrument_helper:declared_events(instrumented_modules()) ++ AsyncPoolsEvents),
     muc_helper:load_muc(),
     mongoose_helper:inject_module(mim(), ?MODULE, reload),
     mam_helper:prepare_for_suite(
@@ -568,7 +576,6 @@ init_per_group(rsm04_comp, Config) ->
     [{props, mam04_props()}|Config];
 init_per_group(with_rsm04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
-    
 init_per_group(nostore, Config) ->
     Config;
 init_per_group(archived, Config) ->
@@ -801,6 +808,10 @@ maybe_skip(C, Config) when C =:= easy_text_search_request;
                            C =:= muc_text_search_request ->
     skip_if(?config(configuration, Config) =:= cassandra,
             "full text search is not implemented for cassandra backend");
+maybe_skip(C, Config) when C =:= muc_light_async_pools_batch_flush;
+                           C =:= async_pools_batch_flush ->
+    skip_if(?config(configuration, Config) =/= rdbms_async_pool,
+            "only for async pool");
 maybe_skip(_C, _Config) ->
     ok.
 
@@ -904,6 +915,11 @@ required_modules(CaseName, Config) when CaseName =:= muc_light_service_discovery
                                         CaseName =:= muc_light_include_groupchat_filter ->
     Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
+    [{mod_mam, NewOpts}];
+required_modules(CaseName, Config) when CaseName =:= async_pools_batch_flush;
+                                        CaseName =:= muc_light_async_pools_batch_flush ->
+    Opts = #{async_writer := Async} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{async_writer := Async#{batch_size => 3, flush_interval => 5000}},
     [{mod_mam, NewOpts}];
 required_modules(muc_light_chat_markers_are_archived_if_enabled, Config) ->
     Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
@@ -1705,6 +1721,7 @@ muc_light_easy(Config) ->
         end).
 
 muc_light_shouldnt_modify_pm_archive(Config) ->
+    TS = instrument_helper:timestamp(),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
@@ -1731,7 +1748,9 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
             then_archive_response_is(Alice, [{message, Alice, <<"private hi!">>}], Config),
             when_archive_query_is_sent(Bob, undefined, Config),
             then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config)
-        end).
+        end),
+    assert_async_timed_flush_event(Config, TS, pm_mam),
+    assert_async_timed_flush_event(Config, TS, muc_mam).
 
 muc_light_stored_in_pm_if_allowed_to(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -1911,6 +1930,23 @@ muc_light_sql_query_failed(Config) ->
             escalus:assert(is_error, [<<"wait">>, <<"internal-server-error">>], Error)
         end).
 
+muc_light_async_pools_batch_flush(Config) ->
+    TS = instrument_helper:timestamp(),
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            Room = muc_helper:fresh_room_name(),
+            given_muc_light_room(Room, Alice, []),
+
+            M1 = when_muc_light_message_is_sent(Alice, Room,<<"Msg 1">>, <<"Id1">>),
+            then_muc_light_message_is_received_by([Alice], M1),
+
+            M2 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 2">>, <<"Id2">>),
+            then_muc_light_message_is_received_by([Alice], M2),
+
+            M3 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 3">>, <<"Id3">>),
+            then_muc_light_message_is_received_by([Alice], M3)
+        end),
+    assert_async_batch_flush_event(TS, 1, muc_mam).
+
 pm_failed_to_decode_message_in_database(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi">>)),
@@ -1931,6 +1967,16 @@ pm_sql_query_failed(Config) ->
             Error = escalus:wait_for_stanza(Alice),
             escalus:assert(is_error, [<<"wait">>, <<"internal-server-error">>], Error)
         end).
+
+async_pools_batch_flush(Config) ->
+    TS = instrument_helper:timestamp(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Msg 1">>)),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Msg 2">>)),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Msg 3">>)),
+            mam_helper:wait_for_archive_size(Alice, 3)
+        end),
+    assert_async_batch_flush_event(TS, 2, pm_mam).
 
 retrieve_form_fields(ConfigIn) ->
     escalus_fresh:story(ConfigIn, [{alice, 1}], fun(Alice) ->
@@ -3449,7 +3495,7 @@ muc_prefs_set_request(ConfigIn) ->
         %%     </never>
         %%   </prefs>
         %% </iq>
-        
+
         Room = ?config(room, Config),
         RoomAddr = room_address(Room),
         escalus:send(Alice, stanza_to_room(stanza_prefs_set_request(<<"roster">>,
@@ -3666,7 +3712,7 @@ muc_run_prefs_cases(DefaultPolicy, ConfigIn) ->
         maybe_wait_for_archive(Config),
 
         %% Get ALL messages using several queries if required
-        
+
         Room = ?config(room, Config),
         IQ = stanza_archive_request([{mam_ns, <<"urn:xmpp:mam:1">>}], <<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),

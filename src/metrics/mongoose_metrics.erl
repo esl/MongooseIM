@@ -19,8 +19,6 @@
 
 %% API
 -export([init/0,
-         update/3,
-         ensure_metric/3,
          get_metric_value/1,
          get_metric_values/1,
          get_metric_value/2,
@@ -36,10 +34,6 @@
 
 -define(PREFIXES, mongoose_metrics_prefixes).
 
--type metric_name() :: atom() | list(atom() | binary()).
--type short_metric_type() :: spiral | histogram | counter | gauge.
--type metric_type() :: tuple() | short_metric_type().
-
 %% ---------------------------------------------------------------------
 %% API
 %% ---------------------------------------------------------------------
@@ -47,20 +41,6 @@
 -spec init() -> ok.
 init() ->
     prepare_prefixes().
-
--spec update(HostType :: mongooseim:host_type_or_global(), Name :: term() | list(),
-             Change :: term()) -> any().
-update(HostType, Name, Change) when is_list(Name) ->
-    exometer:update(name_by_all_metrics_are_global(HostType, Name), Change);
-update(HostType, Name, Change) ->
-    update(HostType, [Name], Change).
-
--spec ensure_metric(mongooseim:host_type_or_global(), metric_name(), metric_type()) ->
-    ok | {ok, already_present} | {error, any()}.
-ensure_metric(HostType, Metric, Type) when is_tuple(Type) ->
-    ensure_metric(HostType, Metric, Type, element(1, Type));
-ensure_metric(HostType, Metric, Type) ->
-    ensure_metric(HostType, Metric, Type, Type).
 
 get_metric_value(HostType, Name) when is_list(Name) ->
     get_metric_value(name_by_all_metrics_are_global(HostType, Name));
@@ -142,23 +122,3 @@ name_by_all_metrics_are_global(HostType, Name) ->
 
 remove_metric({Name, _, _}) ->
     exometer_admin:delete_entry(Name).
-
-ensure_metric(HostType, Metric, Type, ShortType) when is_atom(Metric) ->
-    ensure_metric(HostType, [Metric], Type, ShortType);
-
-ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
-    %% the split into ShortType and Type is needed because function metrics are
-    %% defined as tuples (that is Type), while exometer:info returns only 'function'
-    PrefixedMetric = name_by_all_metrics_are_global(HostType, Metric),
-    case exometer:info(PrefixedMetric, type) of
-        undefined ->
-            do_create_metric(PrefixedMetric, Type, []);
-        ShortType -> {ok, already_present}
-    end.
-
-do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
-    case catch exometer:new(PrefixedMetric, ExometerType, ExometerOpts) of
-        {'EXIT', {exists, _}} -> {ok, already_present};
-        ok -> ok;
-        {'EXIT', Error} -> {error, Error}
-    end.
