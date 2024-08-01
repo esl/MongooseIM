@@ -175,7 +175,6 @@ opts() ->
     RoutingModules = [xmpp_router_a, xmpp_router_b, xmpp_router_c],
     #{hosts => [<<"localhost">>],
       host_types => [],
-      all_metrics_are_global => false,
       instrumentation => config_parser_helper:default_config([instrumentation]),
       component_backend => mnesia,
       routing_modules => xmpp_router:expand_routing_modules(RoutingModules)}.

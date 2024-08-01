@@ -59,7 +59,6 @@ end_per_testcase(_, _) ->
 opts() ->
     #{hosts => [<<"localhost">>],
       host_types => [],
-      all_metrics_are_global => false,
       {modules, <<"localhost">>} =>
           #{mod_privacy => config_parser_helper:default_mod_config(mod_privacy)},
       instrumentation => config_parser_helper:default_config([instrumentation])}.

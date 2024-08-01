@@ -96,7 +96,7 @@ prepare_prefixes() ->
 
 -spec all_metrics_are_global() -> boolean().
 all_metrics_are_global() ->
-    mongoose_config:get_opt(all_metrics_are_global).
+    mongoose_config:get_opt([instrumentation, exometer, all_metrics_are_global]).
 
 get_host_type_prefix(global) ->
     global;
