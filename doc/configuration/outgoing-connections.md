@@ -109,7 +109,7 @@ When MongooseIM fails to connect to the DB, it retries with an exponential backo
 * **Example:** `host = "localhost"`
 
 #### `outgoing_pools.rdbms.*.connection.port`
-* **Syntax:** string
+* **Syntax:** integer, between 0 and 65535
 * **Default:** `5432` for `pgsql`; `3306` for `mysql`
 * **Example:** `port = 5343`
 
@@ -204,7 +204,7 @@ There are two important limitations:
 * **Example:** `host = "redis.local"`
 
 ### `outgoing_pools.redis.*.connection.port`
-* **Syntax:** integer, between 0 and 65535, non-inclusive
+* **Syntax:** integer, between 0 and 65535
 * **Default:** `6379`
 * **Example:** `port = 9876`
 
