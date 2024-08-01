@@ -28,6 +28,6 @@ where `Base` is `base_time` and `Variance` is `variance`, as configured below.
 
 ```toml
 [auth.dummy]
-  base = 5
+  base_time = 5
   variance = 10
 ```
