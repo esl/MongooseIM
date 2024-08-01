@@ -7,8 +7,7 @@
 %% Expected configuration options for predefined configurations.
 %% For each clause there is a corresponding TOML file in config_parser_SUITE_data.
 options("host_types") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types,
       [<<"this is host type">>, <<"some host type">>,
@@ -57,8 +56,7 @@ options("host_types") ->
      {{replaced_wait_timeout, <<"this is host type">>}, 2000},
      {{replaced_wait_timeout, <<"yet another host type">>}, 2000}];
 options("miscellaneous") ->
-    [{all_metrics_are_global, false},
-     {http_server_name, "Apache"},
+    [{http_server_name, "Apache"},
      {default_server_domain, <<"localhost">>},
      {domain_certfile, #{<<"example.com">> => "priv/cert.pem",
                          <<"example.org">> => "priv/cert.pem"}},
@@ -116,8 +114,7 @@ options("miscellaneous") ->
      {{route_subdomains, <<"anonymous.localhost">>}, s2s},
      {{route_subdomains, <<"localhost">>}, s2s}];
 options("modules") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},
@@ -143,8 +140,7 @@ options("modules") ->
      {{replaced_wait_timeout, <<"dummy_host">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000}];
 options("mongooseim-pgsql") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts,
@@ -333,8 +329,7 @@ options("mongooseim-pgsql") ->
                 mam_shaper => #{max_rate => 1},
                 normal => #{max_rate => 1000}}}];
 options("outgoing_pools") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts,
@@ -400,8 +395,7 @@ options("outgoing_pools") ->
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost.bis">>}, 2000}];
 options("s2s_only") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},

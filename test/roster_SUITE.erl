@@ -64,7 +64,6 @@ end_per_testcase(_TC, C) ->
 opts() ->
     #{hosts => [host_type()],
       host_types => [],
-      all_metrics_are_global => false,
       {modules, host_type()} => #{mod_roster => config_parser_helper:default_mod_config(mod_roster)},
       instrumentation => config_parser_helper:default_config([instrumentation])}.
 

@@ -137,8 +137,7 @@ unset_opts() ->
     mongoose_config:erase_opts().
 
 opts() ->
-    #{all_metrics_are_global => false,
-      max_fsm_queue => 1024,
+    #{max_fsm_queue => 1024,
       instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 meck_db(odbc) ->

@@ -97,7 +97,6 @@ stop_modules(GroupOrCase, Config) ->
 opts() ->
     #{hosts => [?HOST],
       host_types => [],
-      all_metrics_are_global => false,
       s2s_backend => mnesia,
       {auth, ?HOST} => config_parser_helper:extra_auth(),
       {modules, ?HOST} => #{},

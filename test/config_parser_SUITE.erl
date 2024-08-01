@@ -76,7 +76,6 @@ groups() ->
                             default_server_domain,
                             registration_timeout,
                             language,
-                            all_metrics_are_global,
                             sm_backend,
                             component_backend,
                             s2s_backend,
@@ -395,11 +394,6 @@ language(_Config) ->
     ?cfg(language, <<"en">>, #{}), % default
     ?cfg(language, <<"pl">>, #{<<"general">> => #{<<"language">> => <<"pl">>}}),
     ?err(#{<<"general">> => #{<<"language">> => <<>>}}).
-
-all_metrics_are_global(_Config) ->
-    ?cfg(all_metrics_are_global, false, #{}), % default
-    ?cfg(all_metrics_are_global, true, #{<<"general">> => #{<<"all_metrics_are_global">> => true}}),
-    ?err(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}}).
 
 sm_backend(_Config) ->
     ?cfg(sm_backend, mnesia, #{}), % default
