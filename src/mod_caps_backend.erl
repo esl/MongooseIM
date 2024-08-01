@@ -29,7 +29,7 @@
     HostType :: mongooseim:host_type(),
     Opts :: gen_mod:module_opts().
 init(HostType, Opts) ->
-    TrackedFuns = [],
+    TrackedFuns = [read, write, delete_node],
     mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

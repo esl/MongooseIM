@@ -1,20 +1,13 @@
 -module(accounts_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
-
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
-
 -include_lib("exml/include/exml.hrl").
 
--import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
-                             rpc/4]).
-
+-import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(mongoose_helper, [wait_for_user/3]).
-
+-import(auth_helper, [assert_event/2]).
 -import(domain_helper, [domain/0, host_type/0]).
 
 %%--------------------------------------------------------------------
@@ -37,6 +30,7 @@ all() ->
 
 groups() ->
     [{register, [parallel], [register,
+                             unregister,
                              already_registered,
                              registration_conflict,
                              check_unregistered]},
@@ -68,13 +62,15 @@ change_password_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config1) ->
+    instrument_helper:start(instrument_helper:declared_events(ejabberd_auth)),
     ok = dynamic_modules:ensure_modules(host_type(), required_modules()),
     Config2 = [{mod_register_options, mod_register_options()} | Config1],
     escalus:init_per_suite([{escalus_user_db, xmpp} | Config2]).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 required_modules() ->
     [{mod_register, mod_register_options()}].
@@ -178,22 +174,36 @@ end_per_testcase(CaseName, Config) ->
 
 register(Config) ->
     [{Name1, _UserSpec1}, {Name2, _UserSpec2}] = escalus_users:get_users([alice, bob]),
-    escalus_fresh:create_users(Config, escalus:get_users([Name1, Name2])).
+    Config1 = escalus_fresh:create_users(Config, escalus:get_users([Name1, Name2])),
+    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name2)),
+    assert_event(auth_try_register, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_try_register, escalus_users:get_jid(Config1, Name2)),
+    assert_event(auth_does_user_exist, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_does_user_exist, escalus_users:get_jid(Config1, Name2)).
+
+unregister(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, alice),
+    escalus_users:create_user(Config, {alice, UserSpec}),
+    escalus_users:delete_user(Config, {alice, UserSpec}),
+    assert_event(auth_unregister_user, escalus_users:get_jid(Config, UserSpec)).
 
 already_registered(Config) ->
-    escalus_fresh:story(Config, [{alice, 1}], fun(Alice) ->
-        escalus:send(Alice, escalus_stanza:get_registration_fields()),
-        Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Stanza),
-        true = has_registered_element(Stanza)
+    escalus_fresh:story(Config, [{alice, 1}], fun already_registered_story/1).
 
-                                              end).
+already_registered_story(Alice) ->
+    AliceJid = escalus_utils:get_short_jid(Alice),
+    assert_event(auth_register_user, AliceJid), % one event expected
+    escalus:send(Alice, escalus_stanza:get_registration_fields()),
+    Stanza = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_iq_result, Stanza),
+    true = has_registered_element(Stanza),
+    assert_event(auth_register_user, AliceJid). % still one event - nothing new
+
 registration_conflict(Config) ->
     [Alice] = escalus_users:get_users([alice]),
     {ok, result, _Stanza} = escalus_users:create_user(Config, Alice),
     {ok, conflict, _Raw} = escalus_users:create_user(Config, Alice).
-
-
 
 admin_notify(Config) ->
     [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users([alice, bob]),
@@ -204,6 +214,7 @@ admin_notify(Config) ->
 
     rpc(mim(), ejabberd_auth, try_register, [mongoose_helper:make_jid(AdminU, AdminS), AdminP]),
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
+        assert_event(auth_authorize, escalus_utils:get_jid(Admin)),
         escalus:create_users(Config, escalus:get_users([Name1, Name2])),
 
             Predicates = [

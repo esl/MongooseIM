@@ -22,7 +22,8 @@
                        given_conversations_between/2,
                        assert_invalid_inbox_form_value_error/3,
                        assert_invalid_reset_inbox/4,
-                       extract_user_specs/1
+                       extract_user_specs/1,
+                       assert_async_request_event/1
                       ]).
 
 -define(ROOM3, <<"testroom3">>).
@@ -159,10 +160,13 @@ suite() ->
 
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
+    HostType = domain_helper:host_type(),
+    instrument_helper:start([{async_pool_request, #{host_type => HostType, pool_id => inbox}}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(GroupName, Config) when GroupName =:= regular; GroupName =:= async_pools ->
     HostType = domain_helper:host_type(),
@@ -1348,6 +1352,7 @@ bin_is_not_included_by_default(Config) ->
     end).
 
 rest_api_bin_flush_user(Config) ->
+    TS = instrument_helper:timestamp(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         create_room_and_make_users_leave(Alice, Bob, Kate),
         %% It is not in his bin anymore after triggering a bin flush
@@ -1357,7 +1362,8 @@ rest_api_bin_flush_user(Config) ->
         {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
         ?assertEqual(1, NumOfRows),
         check_inbox(Bob, [], #{box => bin})
-    end).
+    end),
+    assert_async_request_event(TS).
 
 rest_api_bin_flush_user_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
@@ -1373,6 +1379,7 @@ rest_api_bin_flush_user_errors(Config) ->
         rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/baduser/0/bin">>).
 
 rest_api_bin_flush_all(Config) ->
+    TS = instrument_helper:timestamp(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         create_room_and_make_users_leave(Alice, Bob, Kate),
         %% It is not in any bin anymore after triggering a bin flush
@@ -1382,7 +1389,8 @@ rest_api_bin_flush_all(Config) ->
         ?assertEqual(2, NumOfRows),
         check_inbox(Bob, [], #{box => bin}),
         check_inbox(Kate, [], #{box => bin})
-    end).
+    end),
+    assert_async_request_event(TS).
 
 rest_api_bin_flush_all_errors(_Config) ->
     HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
@@ -1392,14 +1400,17 @@ rest_api_bin_flush_all_errors(_Config) ->
         rest_helper:delete(admin, <<"/inbox/bad_host_type/0/bin">>).
 
 timeout_cleaner_flush_all(Config) ->
+    TS = instrument_helper:timestamp(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         create_room_and_make_users_leave(Alice, Bob, Kate),
         %% It is eventually not in any bin thanks to the periodic cleanouts
         check_inbox(Bob, [], #{box => bin}),
         check_inbox(Kate, [], #{box => bin})
-    end).
+    end),
+    assert_async_request_event(TS).
 
 xmpp_bin_flush(Config) ->
+    TS = instrument_helper:timestamp(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         create_room_and_make_users_leave(Alice, Bob, Kate),
         %% It is eventually not in any bin thanks to the periodic cleanouts
@@ -1411,7 +1422,8 @@ xmpp_bin_flush(Config) ->
         escalus:send(Bob, Iq),
         escalus:assert(is_iq_result, [Iq], escalus:wait_for_stanza(Bob)),
         check_inbox(Bob, [], #{box => bin})
-    end).
+    end),
+    assert_async_request_event(TS).
 
 
 %% helpers

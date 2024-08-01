@@ -4,12 +4,9 @@
 
 -include("mongoose_logger.hrl").
 
--define(PER_MESSAGE_FLUSH_TIME, [mod_mam_rdbms_async_pool_writer, per_message_flush_time]).
--define(FLUSH_TIME, [mod_mam_rdbms_async_pool_writer, flush_time]).
-
 -behaviour(gen_mod).
 
--export([start/2, stop/1, hooks/1, supported_features/0]).
+-export([start/2, stop/1, hooks/1, instrumentation/1, supported_features/0]).
 -export([archive_pm_message/3, mam_archive_sync/3]).
 -export([flush/2]).
 
@@ -35,8 +32,6 @@ mam_archive_sync(Result, _Params, #{host_type := HostType}) ->
 start(HostType, Opts) ->
     {PoolOpts, Extra} = make_pool_opts(pm, Opts),
     prepare_insert_queries(pm, Extra),
-    mongoose_metrics:ensure_metric(HostType, ?PER_MESSAGE_FLUSH_TIME, histogram),
-    mongoose_metrics:ensure_metric(HostType, ?FLUSH_TIME, histogram),
     mongoose_async_pools:start_pool(HostType, pm_mam, PoolOpts).
 
 -spec stop(mongooseim:host_type()) -> any().
@@ -49,6 +44,11 @@ hooks(HostType) ->
         {mam_archive_sync, HostType, fun ?MODULE:mam_archive_sync/3, #{}, 50},
         {mam_archive_message, HostType, fun ?MODULE:archive_pm_message/3, #{}, 50}
     ].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_mam_pm_flushed, #{host_type => HostType},
+      #{metrics => #{time_per_message => histogram, time => histogram, count => spiral}}}].
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -86,10 +86,13 @@ multi_name(Name, Times) ->
 
 %%% flush callbacks
 flush(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
-    {FlushTime, Result} = timer:tc(fun do_flush_pm/2, [Acc, Extra]),
-    mongoose_metrics:update(HostType, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
-    mongoose_metrics:update(HostType, ?FLUSH_TIME, FlushTime),
-    Result.
+    mongoose_instrument:span(mod_mam_pm_flushed, #{host_type => HostType},
+                             fun do_flush_pm/2, [Acc, Extra],
+                             fun(Time, _Result) ->
+                                     #{time => Time,
+                                       time_per_message => round(Time / MessageCount),
+                                       count => MessageCount}
+                             end).
 
 %% mam workers callbacks
 do_flush_pm(Acc, #{host_type := HostType, queue_length := MessageCount,
@@ -106,13 +109,12 @@ do_flush_pm(Acc, #{host_type := HostType, queue_length := MessageCount,
             process_list_results(Process, HostType)
     end,
     [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
-    mongoose_hooks:mam_flush_messages(HostType, MessageCount),
     ok.
 
 process_batch_result({updated, _Count}, _, _, _) ->
     ok;
 process_batch_result({error, Reason}, Rows, HostType, MessageCount) ->
-    mongoose_metrics:update(HostType, modMamDropped, MessageCount),
+    mongoose_instrument:execute(mod_mam_pm_dropped, #{host_type => HostType}, #{count => MessageCount}),
     Keys = [ maps:with([message_id, archive_id], Row) || Row <- Rows ],
     ?LOG_ERROR(#{what => archive_message_failed,
                  text => <<"archive_message batch query failed">>,
@@ -125,7 +127,7 @@ process_list_results(Results, HostType) ->
 process_single_result({{updated, _Count}, _}, _HostType) ->
     ok;
 process_single_result({{error, Reason}, #{message_id := MsgId, archive_id := ArcId}}, HostType) ->
-    mongoose_metrics:update(HostType, modMamDropped, 1),
+    mongoose_instrument:execute(mod_mam_pm_dropped, #{host_type => HostType}, #{count => 1}),
     ?LOG_ERROR(#{what => archive_message_failed,
                  text => <<"archive_message batch query failed">>,
                  message_id => MsgId, archive_id => ArcId, reason => Reason}).

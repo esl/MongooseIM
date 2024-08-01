@@ -170,12 +170,13 @@
 -type dirty_result() :: {ok, any()} | {error, any()}.
 -export_type([query_name/0, query_result/0, transaction_result/0]).
 
--type options() :: #{driver := pgsql | mysql | odbc,
+-type backend() :: pgsql | mysql | odbc.
+-type options() :: #{driver := backend(),
                      max_start_interval := pos_integer(),
                      query_timeout := pos_integer(),
                      atom() => any()}.
 
--export_type([options/0]).
+-export_type([options/0, backend/0]).
 
 %%%----------------------------------------------------------------------
 %%% API

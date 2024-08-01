@@ -816,18 +816,19 @@ paths:
                   items:
                     type: string
                   example:
-                    - "xmppErrorIq"
-                    - "xmppPresenceReceived"
-                    - "xmppMessageBounced"
+                    - c2s_element_in.stanza_count
+                    - c2s_element_in.error_count
+                    - c2s_element_out.stanza_count
+                    - c2s_element_out.error_count
               global:
                 schema:
                   type: array
                   items:
                     type: string
                   example:
-                    - "nodeSessionCount"
-                    - "totalSessionCount"
-                    - "uniqueSessionCount"
+                    - "sm_node_sessions"
+                    - "sm_total_sessions"
+                    - "sm_unique_sessions"
   /metrics/all:
     get:
       description: Returns a list of metrics aggregated for all host types
@@ -842,7 +843,7 @@ paths:
               metrics:
                 type: object
                 example:
-                  modRosterPush:
+                  mod_roster_push.count:
                     one: 0
                     count: 0
   /metrics/all/{metric}:
@@ -881,7 +882,7 @@ paths:
               metrics:
                 type: object
                 example:
-                  modRosterPush:
+                  mod_roster_push.count:
                     one: 0
                     count: 0
         404:
@@ -920,7 +921,7 @@ paths:
             properties:
               type: object
               example:
-                nodeUpTime:
+                system_up_time.seconds:
                   value: 6604
   /metrics/global/{metric}:
     parameters:

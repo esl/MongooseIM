@@ -24,20 +24,20 @@
            TrackedFuns :: [function_name()],
            Opts :: map()) -> ok.
 init(HostType, MainModule, TrackedFuns, Opts) ->
-    ensure_backend_metrics(MainModule, TrackedFuns),
     Backend = maps:get(backend, Opts, mnesia),
     BackendModule = backend_module(MainModule, Backend),
     persist_backend_name(HostType, MainModule, Backend, BackendModule),
-    ok.
+    try
+        mongoose_instrument:set_up(instrumentation(HostType, BackendModule, TrackedFuns))
+    catch error:#{what := event_already_registered} ->
+            %% The same backend can be initialized more than once because:
+            %% - either it is global, and a module initializes it for each host type
+            %% - or the module (or the entire app) was restarted
+            ok
+    end.
 
 backend_module(Module, Backend) ->
     list_to_atom(atom_to_list(Module) ++ "_" ++ atom_to_list(Backend)).
-
-call_metric(MainModule, FunName) ->
-    [backends, MainModule, calls, FunName].
-
-time_metric(MainModule, FunName) ->
-    [backends, MainModule, FunName].
 
 backend_key(HostType, MainModule) ->
     {backend_module, HostType, MainModule}.
@@ -45,16 +45,17 @@ backend_key(HostType, MainModule) ->
 backend_name_key(HostType, MainModule) ->
     {backend_name, HostType, MainModule}.
 
--spec ensure_backend_metrics(MainModule :: main_module(),
-                             FunNames :: [function_name()]) -> ok.
-ensure_backend_metrics(MainModule, FunNames) ->
-    EnsureFun = fun(FunName) ->
-                        CM = call_metric(MainModule, FunName),
-                        TM = time_metric(MainModule, FunName),
-                        mongoose_metrics:ensure_metric(global, CM, spiral),
-                        mongoose_metrics:ensure_metric(global, TM, histogram)
-                end,
-    lists:foreach(EnsureFun, FunNames).
+-spec instrumentation(host_type_or_global(), module(), [function_name()]) ->
+          [mongoose_instrument:spec()].
+instrumentation(HostType, BackendModule, FunNames) ->
+    [{BackendModule, labels(HostType, FunName),
+      #{metrics => #{count => spiral, time => histogram}}} || FunName <- FunNames].
+
+-spec labels(host_type_or_global(), function_name()) -> mongoose_instrument:labels().
+labels(global, FunName) ->
+    #{function => FunName};
+labels(HostType, FunName) ->
+    #{function => FunName, host_type => HostType}.
 
 persist_backend_name(HostType, MainModule, Backend, BackendModule) ->
     ModuleKey = backend_key(HostType, MainModule),
@@ -91,12 +92,9 @@ call(HostType, MainModule, FunName, Args) ->
                    Args :: [term()]) -> term().
 call_tracked(HostType, MainModule, FunName, Args) ->
     BackendModule = get_backend_module(HostType, MainModule),
-    CM = call_metric(MainModule, FunName),
-    TM = time_metric(MainModule, FunName),
-    mongoose_metrics:update(global, CM, 1),
-    {Time, Result} = timer:tc(BackendModule, FunName, Args),
-    mongoose_metrics:update(global, TM, Time),
-    Result.
+    mongoose_instrument:span(BackendModule, labels(HostType, FunName),
+                             BackendModule, FunName, Args,
+                             fun(Time, _Result) -> #{args => Args, time => Time, count => 1} end).
 
 -spec is_exported(HostType :: host_type_or_global(),
                   MainModule :: main_module(),

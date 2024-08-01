@@ -15,33 +15,31 @@ all() ->
      multiple_domains_one_stopped
     ].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    C.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []}]).
 
-end_per_suite(_C) ->
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]).
 
 init_per_testcase(_, Config) ->
-    mock_mongoose_metrics(),
-    Config1 = async_helper:start(Config, mongooseim_helper, start_link_loaded_hooks, []),
-    mongoose_config:set_opts(opts()),
-    Config1.
+    Config.
 
-end_per_testcase(_, C) ->
-    mongoose_modules:stop(),
-    mongoose_config:erase_opts(),
-    meck:unload(mongoose_metrics),
-    async_helper:stop_all(C),
+end_per_testcase(_, _Config) ->
+    [mongoose_modules:ensure_stopped(Host, mod_keystore) || Host <- hosts()],
     mnesia:delete_table(key).
 
 opts() ->
     maps:from_list([{hosts, hosts()},
                     {host_types, []},
-                    {all_metrics_are_global, false} |
+                    {instrumentation, config_parser_helper:default_config([instrumentation])} |
                     [{{modules, Host}, #{}} || Host <- hosts()]]).
 
 hosts() ->
@@ -134,12 +132,6 @@ ram_key() ->
 sized_ram_key(Size) ->
     mod_config(mod_keystore, #{keys => #{ram_key => ram},
                                ram_key_size => Size}).
-
-mock_mongoose_metrics() ->
-    meck:new(mongoose_metrics, []),
-    meck:expect(mongoose_metrics, create_generic_hook_metric, fun (_, _) -> ok end),
-    meck:expect(mongoose_metrics, increment_generic_hook_metric, fun (_, _) -> ok end),
-    ok.
 
 %% Use a function like this in your module which is a client of mod_keystore.
 -spec get_key(HostType, KeyName) -> Result when

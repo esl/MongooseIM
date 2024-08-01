@@ -17,12 +17,16 @@
 -module(privacy_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("exml/include/exml.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
 -define(SLEEP_TIME, 50).
+
+-import(privacy_helper, [assert_privacy_get_event/1,
+                         assert_privacy_get_event/2,
+                         assert_privacy_set_event/2,
+                         assert_privacy_check_packet_event/3,
+                         assert_privacy_push_item_event/2,
+                         assert_privacy_push_item_event/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -95,12 +99,14 @@ init_per_suite(Config0) ->
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     ModConfig = [{mod_privacy, config_parser_helper:mod_config_with_auto_backend(mod_privacy)}],
     dynamic_modules:ensure_modules(HostType, ModConfig),
+    instrument_helper:start(instrument_helper:declared_events(mod_privacy)),
     [{escalus_no_stanzas_after_story, true} | escalus:init_per_suite(Config1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(_GroupName, Config) ->
     Config.
@@ -178,7 +184,8 @@ get_all_lists(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
 
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
-        escalus:assert(is_privacy_result, escalus:wait_for_stanza(Alice))
+        escalus:assert(is_privacy_result, escalus:wait_for_stanza(Alice)),
+        assert_privacy_get_event(Alice)
 
         end).
 
@@ -187,9 +194,11 @@ get_all_lists_with_active(Config) ->
 
         privacy_helper:set_and_activate(Alice, {<<"deny_client">>, Bob}),
 
+        TS = instrument_helper:timestamp(),
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
         escalus:assert(is_privacy_result_with_active, [<<"deny_client">>],
-                       escalus:wait_for_stanza(Alice))
+                       escalus:wait_for_stanza(Alice)),
+        assert_privacy_get_event(Alice, TS)
 
         end).
 
@@ -200,9 +209,11 @@ get_all_lists_with_default(Config) ->
         privacy_helper:set_list(Alice, {<<"allow_client">>, Bob}),
         privacy_helper:set_default_list(Alice, <<"allow_client">>),
 
+        TS = instrument_helper:timestamp(),
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
         escalus:assert(is_privacy_result_with_default,
-                       escalus:wait_for_stanza(Alice))
+                       escalus:wait_for_stanza(Alice)),
+        assert_privacy_get_event(Alice, TS)
 
         end).
 
@@ -212,7 +223,8 @@ get_nonexistent_list(Config) ->
         escalus_client:send(Alice,
             escalus_stanza:privacy_get_lists([<<"public">>])),
         escalus_assert:is_privacy_list_nonexistent_error(
-            escalus_client:wait_for_stanza(Alice))
+            escalus_client:wait_for_stanza(Alice)),
+        assert_privacy_get_event(Alice)
 
         end).
 
@@ -222,7 +234,8 @@ get_many_lists(Config) ->
         Request = escalus_stanza:privacy_get_lists([<<"public">>, <<"private">>]),
         escalus_client:send(Alice, Request),
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_error(Response, <<"modify">>, <<"bad-request">>)
+        escalus_assert:is_error(Response, <<"modify">>, <<"bad-request">>),
+        assert_privacy_get_event(Alice)
 
         end).
 
@@ -231,12 +244,14 @@ get_existing_list(Config) ->
 
         privacy_helper:set_list(Alice, {<<"deny_client">>, Bob}),
 
+        TS = instrument_helper:timestamp(),
         escalus:send(Alice, escalus_stanza:privacy_get_lists([<<"deny_client">>])),
         Response = escalus:wait_for_stanza(Alice),
 
         <<"deny_client">> = exml_query:path(Response, [{element, <<"query">>},
                                                        {element, <<"list">>},
-                                                       {attr, <<"name">>}])
+                                                       {attr, <<"name">>}]),
+        assert_privacy_get_event(Alice, TS)
 
         end).
 
@@ -249,7 +264,8 @@ activate(Config) ->
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Response)
+        escalus:assert(is_iq_result, Response),
+        assert_privacy_set_event(Alice, #{active_count => 1})
 
         end).
 
@@ -260,7 +276,8 @@ activate_nonexistent(Config) ->
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Response)
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Response),
+        assert_privacy_set_event(Alice, #{active_count => 1})
 
         end).
 
@@ -271,7 +288,8 @@ deactivate(Config) ->
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Response)
+        escalus:assert(is_iq_result, Response),
+        assert_privacy_set_event(Alice, #{active_count => 1})
 
         end).
 
@@ -284,7 +302,8 @@ default(Config) ->
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Response)
+        escalus:assert(is_iq_result, Response),
+        assert_privacy_set_event(Alice, #{default_count => 1})
 
         end).
 
@@ -312,7 +331,8 @@ default_conflict(Config) ->
         %%       this is a bug and was filed to the esl redmine as Bug #7073
         %true = exmpp_iq:is_result(Response),
         %% but this should pass just fine
-        escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Response)
+        escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Response),
+        assert_privacy_set_event(Alice, #{default_count => 1})
 
         end).
 
@@ -323,7 +343,8 @@ default_nonexistent(Config) ->
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_error(Response, <<"cancel">>, <<"item-not-found">>)
+        escalus_assert:is_error(Response, <<"cancel">>, <<"item-not-found">>),
+        assert_privacy_set_event(Alice, #{default_count => 1})
 
         end).
 
@@ -334,7 +355,8 @@ no_default(Config) ->
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Response)
+        escalus:assert(is_iq_result, Response),
+        assert_privacy_set_event(Alice, #{default_count => 1})
 
         end).
 
@@ -357,7 +379,8 @@ set_list(Config) ->
         escalus:assert(fun privacy_helper:is_privacy_list_push/1,
                        escalus:wait_for_stanza(Alice2)),
         escalus:assert(fun privacy_helper:is_privacy_list_push/1,
-                       escalus:wait_for_stanza(Alice3))
+                       escalus:wait_for_stanza(Alice3)),
+        assert_privacy_push_item_event(Alice, 3)
 
         %% All in all, the spec requires the resources to reply
         %% (as to every iq), but it's omitted here.
@@ -370,9 +393,14 @@ remove_list(Config) ->
         privacy_helper:send_set_list(Alice, {<<"deny_client">>, Bob}),
 
         %% These are the pushed notification and iq result.
-        escalus_client:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([
+            fun privacy_helper:is_privacy_list_push/1,
+            is_iq_result
+        ], escalus_client:wait_for_stanzas(Alice, 2)),
+        assert_privacy_push_item_event(Alice, 1),
 
         %% Request list deletion by sending an empty list.
+        TS = instrument_helper:timestamp(),
         RemoveRequest = escalus_stanza:privacy_set_list(
                           escalus_stanza:privacy_list(<<"someList">>, [])),
         escalus_client:send(Alice, RemoveRequest),
@@ -382,6 +410,7 @@ remove_list(Config) ->
             fun privacy_helper:is_privacy_list_push/1,
             is_iq_result
         ], escalus_client:wait_for_stanzas(Alice, 2)),
+        assert_privacy_push_item_event(Alice, 1, TS),
 
         escalus_client:send(Alice,
             escalus_stanza:privacy_get_lists([<<"someList">>])),
@@ -405,18 +434,16 @@ block_jid_message(Config) ->
         privacy_helper:set_and_activate(Alice, {<<"deny_client_message">>, Bob}),
 
         %% Alice should NOT receive message, while Bob gets error message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
-        privacy_helper:gets_error(Bob, <<"service-unavailable">>),
-        timer:sleep(?SLEEP_TIME),
-        escalus_assert:has_no_stanzas(Alice),
+        privacy_helper:send_and_check_blocked_message(Bob, Alice),
 
         %% Blocking only applies to incoming messages, so Alice can still send
         %% Bob a message
         %% and Bob gets nothing
-        escalus_client:send(Alice, escalus_stanza:chat_to(
-                                     Bob, <<"Hi, Bobbb!">>)),
-        escalus_assert:is_chat_message(<<"Hi, Bobbb!">>,
-                                       escalus_client:wait_for_stanza(Bob))
+        TS = instrument_helper:timestamp(),
+        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bobbb!">>)),
+        escalus_assert:is_chat_message(<<"Hi, Bobbb!">>, escalus_client:wait_for_stanza(Bob)),
+        assert_privacy_check_packet_event(Alice, #{dir => out}, TS),
+        assert_privacy_check_packet_event(Bob, #{dir => in}, TS)
 
         end).
 
@@ -425,8 +452,7 @@ block_group_message(Config) ->
 
         %% Alice should receive message
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        escalus_assert:is_chat_message(<<"Hi!">>,
-            escalus_client:wait_for_stanza(Alice)),
+        escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Alice)),
 
         %% add Bob to Alices' group 'ignored'
         add_sample_contact(Alice, Bob, [<<"ignored">>], <<"Ugly Bastard">>),
@@ -435,10 +461,7 @@ block_group_message(Config) ->
         privacy_helper:set_and_activate(Alice, <<"deny_group_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, blocked group!">>)),
-        timer:sleep(?SLEEP_TIME),
-        escalus_assert:has_no_stanzas(Alice),
-        privacy_helper:gets_error(Bob, <<"service-unavailable">>)
+        privacy_helper:send_and_check_blocked_message(Bob, Alice)
 
         end).
 
@@ -459,10 +482,7 @@ block_subscription_message(Config) ->
         privacy_helper:set_and_activate(Alice, <<"deny_unsubscribed_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        timer:sleep(?SLEEP_TIME),
-        escalus_assert:has_no_stanzas(Alice),
-        privacy_helper:gets_error(Bob, <<"service-unavailable">>)
+        privacy_helper:send_and_check_blocked_message(Bob, Alice)
 
         end).
 
@@ -551,10 +571,7 @@ block_all_message(Config) ->
         privacy_helper:set_and_activate(Alice, <<"deny_all_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        timer:sleep(?SLEEP_TIME),
-        escalus_assert:has_no_stanzas(Alice),
-        privacy_helper:gets_error(Bob, <<"service-unavailable">>)
+        privacy_helper:send_and_check_blocked_message(Bob, Alice)
 
         end).
 

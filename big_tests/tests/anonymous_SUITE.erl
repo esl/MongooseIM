@@ -45,10 +45,12 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
+    instrument_helper:start(declared_events()),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_testcase(CaseName, Config0) ->
     NewUsers = escalus_ct:get_config(escalus_anon_users),
@@ -67,23 +69,27 @@ end_per_testcase(CaseName, Config) ->
 connection_is_registered_with_sasl_anon(Config) ->
     escalus:story(Config, [{jon, 1}], fun(Jon) ->
         JID = jid:from_binary(escalus_client:short_jid(Jon)),
+        assert_event(auth_anonymous_register_user, JID),
         OrigName = escalus_users:get_username(Config, jon),
         ?assertNotEqual(OrigName, JID#jid.luser),
         F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
         true = F(),
         escalus_connection:kill(Jon),
-        mongoose_helper:wait_until(F, false)
+        mongoose_helper:wait_until(F, false),
+        assert_event(auth_anonymous_unregister_user, JID)
     end).
 
 connection_is_registered_with_login(Config) ->
     escalus:story(Config, [{anna, 1}], fun(Anna) ->
         JID = jid:from_binary(escalus_client:short_jid(Anna)),
+        assert_event(auth_anonymous_register_user, JID),
         OrigName = escalus_users:get_username(Config, anna),
         ?assertEqual(OrigName, JID#jid.luser),
         F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
         true = F(),
         escalus_connection:kill(Anna),
-        mongoose_helper:wait_until(F, false)
+        mongoose_helper:wait_until(F, false),
+        assert_event(auth_anonymous_unregister_user, JID)
     end).
 
 messages_story(Config) ->
@@ -94,3 +100,16 @@ messages_story(Config) ->
         %% Below's dirty, but there is no other easy way...
         escalus_assert:is_chat_message(<<"Hi!">>, Stanza)
     end).
+
+%% Helpers
+
+declared_events() ->
+    instrument_helper:declared_events(ejabberd_auth_anonymous, [host_type()]).
+
+host_type() ->
+    domain_helper:anonymous_host_type().
+
+assert_event(EventName, #jid{luser = LUser, lserver = LServer}) ->
+    instrument_helper:assert_one(
+      EventName, #{host_type => host_type()},
+      fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end).

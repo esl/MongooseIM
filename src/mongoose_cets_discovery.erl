@@ -4,13 +4,10 @@
 
 -ignore_xref([start_link/1]).
 
-start_link(DiscoOpts) ->
-    Res = cets_discovery:start_link(DiscoOpts),
-    %% Ensure metrics are added after the disco start
-    mongoose_metrics_probe_cets:start(),
-    Res.
-
 -include("mongoose_logger.hrl").
+
+start_link(DiscoOpts) ->
+    cets_discovery:start_link(DiscoOpts).
 
 supervisor_specs() ->
     supervisor_specs(mongoose_config:get_opt([internal_databases, cets], disabled)).

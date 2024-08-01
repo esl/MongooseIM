@@ -35,13 +35,26 @@ all() -> [
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
-    AuthOpts = #{methods => [dummy],
-                 dummy => #{base_time => 5, variance => 10}},
-    mongoose_config:set_opts(#{{auth, ?HOST_TYPE} => AuthOpts}),
+    mongoose_config:set_opts(opts()),
     C.
 
 end_per_suite(_C) ->
     mongoose_config:erase_opts().
+
+opts() ->
+    Auth = #{methods => [dummy],
+             dummy => #{base_time => 5, variance => 10}},
+    #{{auth, ?HOST_TYPE} => Auth,
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
+
+init_per_testcase(_, C) ->
+    mongoose_instrument:start_link(),
+    mongoose_instrument:set_up(ejabberd_auth:instrumentation(?HOST_TYPE)),
+    C.
+
+end_per_testcase(_, C) ->
+    mongoose_instrument:tear_down(ejabberd_auth:instrumentation(?HOST_TYPE)),
+    C.
 
 %%--------------------------------------------------------------------
 %% Authentication tests
@@ -54,12 +67,10 @@ authorize(_Config) ->
 
 ejabberd_auth_interfaces(_Config) ->
     [meck:new(M, Opts) || {M, Opts} <-
-        [{mongoose_domain_api, []}, {ejabberd_auth_dummy, [passthrough]},
-         {mongoose_metrics, []}]],
+        [{mongoose_domain_api, []}, {ejabberd_auth_dummy, [passthrough]}]],
 
     meck:expect(mongoose_domain_api, get_domain_host_type,
                 fun(?DOMAIN) -> {ok, ?HOST_TYPE} end),
-    meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end),
 
     Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE, #{}),
     {ok, Creds2} = ejabberd_auth:authorize(Creds),

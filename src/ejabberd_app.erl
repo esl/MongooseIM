@@ -62,10 +62,11 @@ do_start() ->
     mongoose_graphql:init(),
     translate:start(),
     mongoose_graphql_commands:start(),
-    mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
+    mongoose_system_probes:start(),
+    mongoose_router:start(),
     mongoose_wpool:ensure_started(),
     mongoose_wpool:start_configured_pools(),
     %% ejabberd_sm is started separately because it may use one of the outgoing_pools
@@ -77,7 +78,7 @@ do_start() ->
     mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
     mongoose_listener:start(),
-    mongoose_metrics:init_mongooseim_metrics(),
+    mongoose_instrument:persist(),
     gen_hook:reload_hooks(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
@@ -95,12 +96,14 @@ prep_stop(State) ->
     broadcast_c2s_shutdown_sup(),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
-    mongoose_config:stop(),
     mongoose_graphql_commands:stop(),
+    mongoose_router:stop(),
+    mongoose_system_probes:stop(),
     State.
 
 %% All the processes were killed when this function is called
 stop(_State) ->
+    mongoose_config:stop(),
     ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION, node => node()}),
     delete_pid_file(),
     update_status_file(stopped),

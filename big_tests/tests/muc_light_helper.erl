@@ -32,6 +32,14 @@ muc_host() ->
 muc_host_pattern() ->
     ct:get_config({hosts, mim, muc_light_service_pattern}).
 
+cache_name() ->
+    case domain_helper:host_type() of
+        <<"localhost">> ->
+            mod_muc_light_cache_localhost;
+        <<"test type">> ->
+            'mod_muc_light_cache_test type'
+    end.
+
 create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     DefaultConfig = default_internal_config(MUCHost),
     RoomUS = {RoomU, MUCHost},
@@ -299,3 +307,7 @@ stanza_blocking_set(BlocklistChanges) ->
                      children = [#xmlcdata{ content = Who }] }
              || {What, Action, Who} <- BlocklistChanges],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), muc_host()).
+
+eq_bjid(Jid, BinJid) -> Jid =:= jid:from_binary(BinJid).
+
+pos_int(T) -> is_integer(T) andalso T > 0.

@@ -9,6 +9,11 @@
 -behaviour(mongoose_module_metrics).
 %% cowboy_loop is a long polling handler
 -behaviour(cowboy_loop).
+%% Implements mongoose_http_handler, but we cannot add the option
+%% because we would get conflicting config_spec/0 callback warning.
+%% config_spec/0 is not called by mongoose_http_handler, because
+%% mod_bosh is not in a list of configurable HTTP handlers.
+%%-behaviour(mongoose_http_handler).
 
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11.2"}]).
@@ -30,9 +35,12 @@
 %% For testing and debugging
 -export([get_session_socket/1, store_session/2]).
 
+%% mongoose_http_listener callbacks
+-export([instrumentation/0]).
+
 -export([config_metrics/1]).
 
--ignore_xref([get_session_socket/1, store_session/2]).
+-ignore_xref([get_session_socket/1, store_session/2, instrumentation/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -94,12 +102,21 @@ start(_HostType, Opts) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
+    mod_bosh_socket:stop_supervisor(),
     gen_hook:delete_handlers(hooks()),
     ok.
 
 -spec hooks() -> gen_hook:hook_list().
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
+
+%% mongoose_http_handler instrumentation
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
+    [{mod_bosh_data_sent, #{},
+      #{metrics => #{byte_size => spiral}}},
+     {mod_bosh_data_received, #{},
+      #{metrics => #{byte_size => spiral}}}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -178,9 +195,8 @@ info(forward_body, Req, S) ->
     forward_body(Req1, BodyElem, S#rstate{req_sid = Sid});
 info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
-    %% for BOSH 'data.xmpp.sent.raw' metric includes 'body' wrapping elements
-    %% and resending attempts
-    mongoose_metrics:update(global, [data, xmpp, sent, c2s, bosh], byte_size(BEl)),
+    %% 'mod_bosh_data_sent' metric includes 'body' wrapping elements and resending attempts
+    mongoose_instrument:execute(mod_bosh_data_sent, #{}, #{byte_size => byte_size(BEl)}),
     ?LOG_DEBUG(#{what => bosh_send, req_sid => S#rstate.req_sid, reply_body => BEl,
                  sid => exml_query:attr(El, <<"sid">>, <<"missing">>)}),
     Headers = bosh_reply_headers(),
@@ -304,8 +320,8 @@ forward_body(Req, #xmlel{} = Body, #rstate{opts = Opts} = S) ->
 
 -spec handle_request(pid(), event_type(), exml:element()) -> ok.
 handle_request(Socket, EventType, Body) ->
-    %% for BOSH 'data.xmpp.received.raw' metric includes 'body' wrapping elements
-    mongoose_metrics:update(global, [data, xmpp, received, c2s, bosh], exml:xml_size(Body)),
+    %% 'mod_bosh_data_received' metric includes 'body' wrapping elements
+    mongoose_instrument:execute(mod_bosh_data_received, #{}, #{byte_size => exml:xml_size(Body)}),
     mod_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
 
 

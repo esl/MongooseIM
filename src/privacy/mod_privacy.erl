@@ -31,7 +31,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod
--export([start/2, stop/1, hooks/1, deps/2, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, deps/2, config_spec/0, supported_features/0, instrumentation/1]).
 
 %% Hook handlers
 -export([process_iq_set/3,
@@ -41,7 +41,8 @@
          remove_user/3,
          remove_domain/3,
          updated_list/3,
-         disco_local_features/3]).
+         disco_local_features/3,
+         broadcast_item/5]).
 
 -export([user_send_message_or_presence/3,
          user_send_iq/3,
@@ -68,6 +69,11 @@
 -type list_name() :: binary() | none.
 -type list_item() :: #listitem{}.
 -type privacy_item_type() :: none | jid | group | subscription.
+
+-type check_params() :: #{jid := jid:jid(),
+                          privacy_list := mongoose_privacy:userlist(),
+                          from_to_name_type := {jid:jid(), jid:jid(), binary(), binary()},
+                          dir := mongoose_privacy:direction()}.
 
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
@@ -118,6 +124,17 @@ c2s_hooks(HostType) ->
      {user_receive_iq, HostType, fun ?MODULE:user_receive_iq/3, #{}, 10},
      {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50}
     ].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_privacy_push_item, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_privacy_check_packet, #{host_type => HostType},
+      #{metrics => #{count => spiral, denied_count => spiral, blocked_count => spiral}}},
+     {mod_privacy_get, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_privacy_set, #{host_type => HostType},
+      #{metrics => #{count => spiral, active_count => spiral, default_count => spiral}}}].
 
 %% ------------------------------------------------------------------
 %% Handlers
@@ -249,11 +266,16 @@ process_privacy_iq(Acc, HostType, get, ToJid, StateData) ->
     PrivacyList = get_handler(StateData),
     From = mongoose_acc:from_jid(Acc),
     {IQ, Acc1} = mongoose_iq:info(Acc),
+    mongoose_instrument:execute(mod_privacy_get, #{host_type => HostType},
+                                #{jid => From, count => 1}),
     mongoose_hooks:privacy_iq_get(HostType, Acc1, From, ToJid, IQ, PrivacyList);
 process_privacy_iq(Acc, HostType, set, ToJid, StateData) ->
     OldPrivList = get_handler(StateData),
     From = mongoose_acc:from_jid(Acc),
     {IQ, Acc1} = mongoose_iq:info(Acc),
+    Measurements = measure_privacy_set(IQ),
+    mongoose_instrument:execute(mod_privacy_set, #{host_type => HostType},
+                                Measurements#{jid => From}),
     Acc2 = mongoose_hooks:privacy_iq_set(HostType, Acc1, From, ToJid, IQ),
     case mongoose_acc:get(hook, result, undefined, Acc2) of
         {result, _, NewPrivList} ->
@@ -261,6 +283,14 @@ process_privacy_iq(Acc, HostType, set, ToJid, StateData) ->
             mongoose_c2s_acc:to_acc(Acc2, state_mod, {?MODULE, NewPrivList});
         _ ->
             Acc2
+    end.
+
+-spec measure_privacy_set(jlib:iq()) -> mongoose_instrument:measurements().
+measure_privacy_set(#iq{sub_el = SubEl}) ->
+    case xml:remove_cdata(SubEl#xmlel.children) of
+        [#xmlel{name = <<"active">>}] -> #{count => 1, active_count => 1};
+        [#xmlel{name = <<"default">>}] -> #{count => 1, default_count => 1};
+        _ -> #{count => 1}
     end.
 
 maybe_update_presence(Acc, StateData, OldList, NewList) ->
@@ -540,21 +570,26 @@ get_user_list(_,
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
--spec check_packet(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: #{jid := jid:jid(),
-                privacy_list := mongoose_privacy:userlist(),
-                from_to_name_type := {jid:jid(), jid:jid(), binary(), binary()},
-                dir := in | out},
-    Extra :: gen_hook:extra().
-check_packet(Acc, #{privacy_list := #userlist{list = []}}, _) ->
-    {ok, mongoose_acc:set(hook, result, allow, Acc)};
-check_packet(Acc,
-             #{jid := JID,
-               privacy_list := #userlist{list = List, needdb = NeedDb},
-               from_to_name_type := {From, To, Name, Type},
-               dir := Dir},
-             #{host_type := HostType}) ->
+-spec check_packet(mongoose_acc:t(), check_params(), gen_hook:extra()) -> {ok, mongoose_acc:t()}.
+check_packet(Acc, PrivacyList = #{jid := JID, dir := Dir}, #{host_type := HostType}) ->
+    CheckResult = do_check_packet(PrivacyList, HostType),
+    Measurements = measure_check_result(CheckResult),
+    mongoose_instrument:execute(mod_privacy_check_packet, #{host_type => HostType},
+                                Measurements#{jid => JID, dir => Dir}),
+    {ok, mongoose_acc:set(hook, result, CheckResult, Acc)}.
+
+-spec measure_check_result(mongoose_privacy:decision()) -> mongoose_instrument:measurements().
+measure_check_result(allow) -> #{count => 1};
+measure_check_result(deny) -> #{count => 1, denied_count => 1};
+measure_check_result(block) -> #{count => 1, blocked_count => 1}.
+
+-spec do_check_packet(check_params(), mongooseim:host_type()) -> mongoose_privacy:decision().
+do_check_packet(#{privacy_list := #userlist{list = []}}, _) ->
+    allow;
+do_check_packet(#{jid := JID,
+                  privacy_list := #userlist{list = List, needdb = NeedDb},
+                  from_to_name_type := {From, To, Name, Type},
+                  dir := Dir}, HostType) ->
     PType = packet_directed_type(Dir, packet_type(Name, Type)),
     LJID = case Dir of
                in -> jid:to_lower(From);
@@ -567,8 +602,7 @@ check_packet(Acc,
             false ->
                 {[], []}
         end,
-    CheckResult = check_packet_aux(List, PType, Type, LJID, Subscription, Groups),
-    {ok, mongoose_acc:set(hook, result, CheckResult, Acc)}.
+    check_packet_aux(List, PType, Type, LJID, Subscription, Groups).
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
@@ -916,9 +950,14 @@ binary_to_order_s(Order) ->
 
 broadcast_privacy_list(HostType, #jid{luser = LUser, lserver = LServer}, Name, UserList) ->
     Item = {privacy_list, UserList, Name},
+    broadcast_item(HostType, LUser, LServer, ?MODULE, Item).
+
+-spec broadcast_item(mongooseim:host_type(), jid:luser(), jid:lserver(), module(), tuple()) -> ok.
+broadcast_item(HostType, LUser, LServer, Module, Item) ->
     UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
-    mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
-    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
+    mongoose_instrument:execute(mod_privacy_push_item, #{host_type => HostType},
+                                #{count => length(UserPids), user => LUser, server => LServer}),
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, Module, Item) end, UserPids).
 
 roster_get_jid_info(HostType, ToJID, LJID) ->
     mongoose_hooks:roster_get_jid_info(HostType, ToJID, LJID).

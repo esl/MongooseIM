@@ -5,7 +5,8 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_rdbms_backend).
--export([escape_binary/1,
+-export([init/1,
+         escape_binary/1,
          escape_string/1,
          unescape_binary/1,
          connect/2,
@@ -36,6 +37,9 @@
 %% If not defined, generic escaping is used
 -optional_callbacks([escape_string/1]).
 
+-spec init(mongoose_rdbms:backend()) -> ok.
+init(Backend) ->
+    mongoose_backend:init(global, mongoose_rdbms, [query, execute], #{backend => Backend}).
 
 -spec escape_binary(binary()) -> mongoose_rdbms:sql_query_part().
 escape_binary(Binary) ->

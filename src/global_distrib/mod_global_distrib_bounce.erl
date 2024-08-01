@@ -20,6 +20,7 @@
 -behaviour(gen_mod).
 -behaviour(gen_server).
 -behaviour(mongoose_module_metrics).
+-behaviour(mongoose_instrument_probe).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -28,10 +29,12 @@
 -define(MESSAGE_STORE, mod_global_distrib_bounce_message_store).
 -define(MS_BY_TARGET, mod_global_distrib_bounce_message_store_by_target).
 
--export([start_link/0, start/2, stop/1, hooks/1, deps/2]).
+-export([start_link/0, start/2, stop/1, hooks/1, deps/2, instrumentation/1]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
 -export([maybe_store_message/3, reroute_messages/3]).
 -export([bounce_queue_size/0]).
+%% mongoose_instrument_probe callback
+-export([probe/2]).
 
 -ignore_xref([bounce_queue_size/0, start_link/0]).
 
@@ -43,9 +46,6 @@
 start(_HostType, _Opts) ->
     mod_global_distrib_utils:create_ets(?MESSAGE_STORE, ordered_set),
     mod_global_distrib_utils:create_ets(?MS_BY_TARGET, bag),
-    EvalDef = {[{l, [{t, [value, {v, 'Value'}]}]}], [value]},
-    QueueSizeDef = {function, ?MODULE, bounce_queue_size, [], eval, EvalDef},
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, QueueSizeDef),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
@@ -62,6 +62,16 @@ deps(_HostType, Opts) ->
 hooks(HostType) ->
     [{mod_global_distrib_unknown_recipient, HostType, fun ?MODULE:maybe_store_message/3, #{}, 80},
      {mod_global_distrib_known_recipient, HostType, fun ?MODULE:reroute_messages/3, #{}, 80}].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(_HostType) ->
+    [{?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, #{}, #{probe => #{module => ?MODULE},
+                                                metrics => #{size => gauge}}}].
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+    mongoose_instrument:measurements().
+probe(?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, #{}) ->
+    #{size => bounce_queue_size()}.
 
 -spec start_link() -> {ok, pid()} | {error, any()}.
 start_link() ->
@@ -113,7 +123,7 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket, _, _) ->
             ?LOG_IF(error, To#jid.luser == <<>>,
                     #{what => gd_message_to_component_ttl_zero,
                       gd_id => ID, acc => Acc0}),
-            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
+            mongoose_instrument:execute(?GLOBAL_DISTRIB_STOP_TTL_ZERO, #{}, #{count => 1, from => From}),
             {ok, FPacket};
         OldTTL ->
             ResendAfterMs = opt([bounce, resend_after_ms]),

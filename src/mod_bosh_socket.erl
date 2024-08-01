@@ -8,6 +8,7 @@
          start_link/5,
          start_supervisor/0,
          is_supervisor_started/0,
+         stop_supervisor/0,
          handle_request/2,
          pause/2]).
 
@@ -119,7 +120,7 @@ start_supervisor() ->
         {ChildId,
          {ejabberd_tmp_sup, start_link,
           [ChildId, ?MODULE]},
-         permanent,
+         transient,
          infinity,
          supervisor,
          [ejabberd_tmp_sup]},
@@ -139,6 +140,10 @@ start_supervisor() ->
 -spec is_supervisor_started() -> boolean().
 is_supervisor_started() ->
     is_pid(whereis(?BOSH_SOCKET_SUP)).
+
+-spec stop_supervisor() -> ok | {error, any()}.
+stop_supervisor() ->
+    ejabberd_sup:stop_child(?BOSH_SOCKET_SUP).
 
 -spec handle_request(Pid :: pid(),
                     {EventTag :: mod_bosh:event_type(),

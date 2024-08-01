@@ -35,6 +35,7 @@ end_per_suite(_Config) ->
     mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
+    [ok = application:stop(App) || App <- [prometheus_cowboy, prometheus_httpd, prometheus]],
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -186,7 +187,8 @@ minimal_config_opts() ->
       {auth, <<"localhost">>} => config_parser_helper:default_auth(),
       {modules, <<"localhost">>} => #{},
       {replaced_wait_timeout, <<"localhost">>} => 2000,
-      {s2s, <<"localhost">>} => config_parser_helper:default_s2s()}.
+      {s2s, <<"localhost">>} => config_parser_helper:default_s2s(),
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 start_slave_node(Config) ->
     SlaveNode = do_start_slave_node(),

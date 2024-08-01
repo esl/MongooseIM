@@ -30,6 +30,4 @@ execute(#{<<"type">> := <<"vm_system_info">>, <<"port_count">> := _}) ->
 execute(#{<<"type">> := <<"probe_queues">>, <<"fsm">> := _}) ->
     {ok, <<"ProbeQueuesMetric">>};
 execute(#{<<"type">> := <<"rdbms_stats">>, <<"workers">> := _}) ->
-    {ok, <<"RDBMSStatsMetric">>};
-execute(#{<<"type">> := <<"cets_system">>, <<"available_nodes">> := _}) ->
-    {ok, <<"CETSSystemMetric">>}.
+    {ok, <<"RDBMSStatsMetric">>}.

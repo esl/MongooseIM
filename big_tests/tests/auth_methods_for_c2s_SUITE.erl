@@ -5,11 +5,12 @@
 -include_lib("exml/include/exml.hrl").
 
 -import(distributed_helper, [mim/0, rpc/4]).
+-import(auth_helper, [assert_event/2]).
 
 all() ->
     [
      {group, two_methods_enabled},
-     {group, metrics}
+     {group, instrumentation}
     ].
 
 groups() ->
@@ -20,11 +21,14 @@ groups() ->
        cannot_login_with_not_allowed_method,
        can_login_to_another_listener
       ]},
-     {metrics, [],
+     {instrumentation, [],
       [
-       metrics_incremented_on_user_connect
+       instrumentation_incremented_on_user_connect
       ]}
     ].
+
+suite() ->
+    distributed_helper:require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).
@@ -32,17 +36,22 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(metrics, Config) ->
-    set_auth_mod(Config);
+init_per_group(instrumentation, Config) ->
+    Config2 = set_auth_mod(Config),
+    instrument_helper:start(events()),
+    Config2;
 init_per_group(_, Config0) ->
     Config1 = ejabberd_node_utils:init(Config0),
     ejabberd_node_utils:backup_config_file(Config1),
     Config2 = modify_config_and_restart(Config1),
+    instrument_helper:start(events()),
     escalus_cleaner:start(Config2).
 
-end_per_group(metrics, _Config) ->
+end_per_group(instrumentation, _Config) ->
+    instrument_helper:stop(),
     escalus_fresh:clean();
 end_per_group(_, Config) ->
+    instrument_helper:stop(),
     ejabberd_node_utils:restore_config_file(Config),
     ejabberd_node_utils:restart_application(mongooseim),
     escalus_fresh:clean().
@@ -93,24 +102,24 @@ can_login_to_another_listener(Config) ->
     TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
     Spec2 = [{port, TlsPort}, {ssl, true}, {ssl_opts, [{verify, verify_none}]},
              {password, <<"wrong">>} | Spec],
-    {ok, _, _} = escalus_connection:start(Spec2).
+    {ok, Conn, _} = escalus_connection:start(Spec2),
+    assert_event(auth_authorize, escalus_utils:get_jid(Conn)).
 
-metrics_incremented_on_user_connect(ConfigIn) ->
+instrumentation_incremented_on_user_connect(Config) ->
     F = fun(Alice, Bob) ->
                 Body = <<"Hello Bob">>,
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, Body)),
-                escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Bob))
+                escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Bob)),
+                assert_event(auth_authorize, escalus_utils:get_jid(Alice)),
+                assert_event(auth_authorize, escalus_utils:get_jid(Bob))
         end,
-    HostType = domain_helper:host_type(),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    MongooseMetrics = [{[HostTypePrefix, backends, auth, authorize], changed}],
-    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% Helpers
 %% If dummy backend is enabled, it is not possible to create new users
 %% (we check if an user does exist before registering the user).
 register_user(Config, Spec) ->
+    %% Calls backend module directly, so instrumentation is not called in this case.
     Mod = proplists:get_value(auth_mod, Config),
     #{username := User, server := Server,
       password := Password} = maps:from_list(Spec),
@@ -119,5 +128,7 @@ register_user(Config, Spec) ->
     HostType = domain_helper:host_type(),
     ok = rpc(mim(), Mod, try_register,
         [HostType, LUser, LServer, Password]),
-    fun() -> rpc(mim(), Mod, remove_user,
-                 [HostType, LUser, LServer]) end.
+    fun() -> rpc(mim(), Mod, remove_user, [HostType, LUser, LServer]) end.
+
+events() ->
+    [{auth_authorize, #{host_type => domain_helper:host_type()}}].

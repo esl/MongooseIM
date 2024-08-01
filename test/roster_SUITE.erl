@@ -27,7 +27,7 @@ all() -> [
     roster_case_insensitive
 ].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(jid),
@@ -38,9 +38,10 @@ init_per_suite(C) ->
     meck:new(mongoose_domain_api, [no_link]),
     meck:expect(mongoose_domain_api, get_domain_host_type, fun(_) -> {ok, host_type()} end),
     mongoose_config:set_opts(opts()),
-    C.
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
-end_per_suite(_C) ->
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
     mongoose_config:erase_opts(),
     meck:unload(),
     mnesia:stop(),
@@ -64,7 +65,8 @@ opts() ->
     #{hosts => [host_type()],
       host_types => [],
       all_metrics_are_global => false,
-      {modules, host_type()} => #{mod_roster => config_parser_helper:default_mod_config(mod_roster)}}.
+      {modules, host_type()} => #{mod_roster => config_parser_helper:default_mod_config(mod_roster)},
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%

@@ -32,14 +32,17 @@ all() ->
         check_with_bob_blocked,
         check_with_changing_stanza].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),
-    C.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
-end_per_suite(_C) ->
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),
@@ -47,20 +50,19 @@ end_per_suite(_C) ->
 
 init_per_testcase(_, C) ->
     mongooseim_helper:start_link_loaded_hooks(),
-    mongoose_config:set_opts(opts()),
     mongoose_modules:start(),
     C.
 
 end_per_testcase(_, _) ->
-    mongoose_modules:stop(),
-    mongoose_config:erase_opts().
+    mongoose_modules:stop().
 
 opts() ->
     #{hosts => [<<"localhost">>],
       host_types => [],
       all_metrics_are_global => false,
       {modules, <<"localhost">>} =>
-          #{mod_privacy => config_parser_helper:default_mod_config(mod_privacy)}}.
+          #{mod_privacy => config_parser_helper:default_mod_config(mod_privacy)},
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 check_with_allowed(_C) ->
     Acc = mongoose_acc:new(?ACC_PARAMS#{element => message()}),

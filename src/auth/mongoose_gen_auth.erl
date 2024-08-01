@@ -91,6 +91,8 @@
 
 -callback supported_features() -> [Feature::atom()].
 
+-callback instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+
 %% Implementation of check_password callbacks is required
 %% for the corresponding check_password interfaces of ejabberd_auth module.
 %%
@@ -119,6 +121,7 @@
                      remove_user/3,
                      remove_domain/2,
                      supported_features/0,
+                     instrumentation/1,
                      check_password/4,
                      check_password/6]).
 
@@ -128,11 +131,23 @@
 
 -spec start(ejabberd_auth:authmodule(), mongooseim:host_type()) -> ok.
 start(Mod, HostType) ->
+    case mongoose_lib:is_exported(Mod, instrumentation, 1) of
+        true ->
+            mongoose_instrument:set_up(Mod:instrumentation(HostType));
+        false ->
+            ok
+    end,
     Mod:start(HostType).
 
 -spec stop(ejabberd_auth:authmodule(), mongooseim:host_type()) -> ok.
 stop(Mod, HostType) ->
-    Mod:stop(HostType).
+    Mod:stop(HostType),
+    case mongoose_lib:is_exported(Mod, instrumentation, 1) of
+        true ->
+            mongoose_instrument:tear_down(Mod:instrumentation(HostType));
+        false ->
+            ok
+    end.
 
 -spec config_spec(ejabberd_auth:authmodule()) -> mongoose_config_spec:config_section().
 config_spec(Mod) ->

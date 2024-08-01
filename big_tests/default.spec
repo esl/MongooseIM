@@ -61,7 +61,6 @@
 {suites, "tests", mam_send_message_SUITE}.
 {suites, "tests", metrics_api_SUITE}.
 {suites, "tests", metrics_c2s_SUITE}.
-{suites, "tests", metrics_register_SUITE}.
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", mod_blocking_SUITE}.
@@ -108,6 +107,7 @@
 {suites, "tests", sic_SUITE}.
 {suites, "tests", smart_markers_SUITE}.
 {suites, "tests", sm_SUITE}.
+{suites, "tests", system_probes_SUITE}.
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", websockets_SUITE}.

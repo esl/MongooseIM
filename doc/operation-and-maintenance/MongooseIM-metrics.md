@@ -96,48 +96,73 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[HostType, modPresenceSubscriptions]` | spiral | Presence subscription is processed. |
-| `[HostType, modPresenceUnsubscriptions]` | spiral | Presence unsubscription is processed. |
-| `[HostType, modRosterGets]` | spiral | User's roster is fetched. |
-| `[HostType, modRosterPush]` | spiral | A roster update is pushed to a single session. |
-| `[HostType, modRosterSets]` | spiral | User's roster is updated. |
+| `[HostType, sm_presence_subscription, subscription_count]` | spiral | Presence subscription is processed. |
+| `[HostType, sm_presence_subscription, unsubscription_count]` | spiral | Presence unsubscription is processed. |
+| `[HostType, mod_roster_get, count]` | spiral | User's roster is fetched. |
+| `[HostType, mod_roster_push, count]` | spiral | A roster update is pushed to a single session. |
+| `[HostType, mod_roster_set, count]` | spiral | User's roster is updated. |
 
 ### Privacy lists
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[HostType, modPrivacyGets]` | spiral | IQ privacy `get` is processed. |
-| `[HostType, modPrivacyPush]` | spiral | Privacy list update is sent to a single session. |
-| `[HostType, modPrivacySets]` | spiral | IQ privacy `set` is processed. |
-| `[HostType, modPrivacySetsActive]` | spiral | Active privacy list is changed. |
-| `[HostType, modPrivacySetsDefault]` | spiral | Default privacy list is changed. |
-| `[HostType, modPrivacyStanzaAll]` | spiral | A packet is checked against the privacy list. |
-| `[HostType, modPrivacyStanzaDenied]` | spiral | Privacy list check resulted in `deny`. |
-| `[HostType, modPrivacyStanzaBlocked]` | spiral | Privacy list check resulted in `block`. |
+| `[HostType, mod_privacy_get, count]` | spiral | IQ privacy `get` is processed. |
+| `[HostType, mod_privacy_push_item, count]` | spiral | Privacy list update is sent to a single session. |
+| `[HostType, mod_privacy_set, count]` | spiral | IQ privacy `set` is processed. |
+| `[HostType, mod_privacy_set, active_count]` | spiral | Active privacy list is changed. |
+| `[HostType, mod_privacy_set, default_count]` | spiral | Default privacy list is changed. |
+| `[HostType, mod_privacy_check_packet, count]` | spiral | A packet is checked against the privacy list. |
+| `[HostType, mod_privacy_check_packet, denied_count]` | spiral | Privacy list check resulted in `deny`. |
+| `[HostType, mod_privacy_check_packet, blocked_count]` | spiral | Privacy list check resulted in `block`. |
 
 ### Other
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[HostType, sessionAuthFails]` | spiral | A client failed to authenticate. |
-| `[HostType, sessionCount]` | counter | Number of active sessions. |
-| `[HostType, sessionLogouts]` | spiral | A client session is closed. |
-| `[HostType, sessionSuccessfulLogins]` | spiral | A client session is opened. |
-| `[HostType, xmppErrorIq]` | spiral | An `error` IQ is sent to a client. |
-| `[HostType, xmppErrorMessage]` | spiral | An `error` message is sent to a client. |
-| `[HostType, xmppErrorPresence]` | spiral | An `error` presence is sent to a client. |
-| `[HostType, xmppErrorTotal]` | spiral | A stanza with `error` type is routed. |
-| `[HostType, xmppMessageBounced]` | spiral | A `service-unavailable` error is sent, because the message recipient if offline. |
-| `[HostType, xmppIqSent]` | spiral | An IQ is sent by a client. |
-| `[HostType, xmppMessageSent]` | spiral | A message is sent by a client |
-| `[HostType, xmppPresenceSent]` | spiral | A presence is sent by a client. |
-| `[HostType, xmppStanzaSent]` | spiral | A stanza is sent by a client. |
-| `[HostType, xmppIqReceived]` | spiral | An IQ is sent to a client. |
-| `[HostType, xmppMessageReceived]` | spiral | A message is sent to a client. |
-| `[HostType, xmppPresenceReceived]` | spiral | A presence is sent to a client. |
-| `[HostType, xmppStanzaReceived]` | spiral | A stanza is sent to a client. |
-| `[HostType, xmppStanzaCount]` | spiral | A stanza is sent to and by a client. |
-| `[HostType, xmppStanzaDropped]` | spiral | A stanza is dropped due to an AMP rule or a `filter_packet` processing flow. |
+| `[HostType, c2s_auth_failed, count]` | spiral | A client failed to authenticate. |
+| `[HostType, sm_session, count]` | counter | Number of active sessions. |
+| `[HostType, sm_session, logouts]` | spiral | A client session is closed. |
+| `[HostType, sm_session, logins]` | spiral | A client session is opened. |
+| `[HostType, c2s_element_in, count]` | spiral | An XML element is received from a client. |
+| `[HostType, c2s_element_in, stanza_count]` | spiral | An XMPP stanza is received from a client. |
+| `[HostType, c2s_element_in, message_count]` | spiral | A message stanza is received from a client. |
+| `[HostType, c2s_element_in, iq_count]` | spiral | An IQ stanza is received from a client. |
+| `[HostType, c2s_element_in, presence_count]` | spiral | A presence stanza is received from a client. |
+| `[HostType, c2s_element_in, error_count]` | spiral | An error is received from a client. |
+| `[HostType, c2s_element_in, message_error_count]` | spiral | A message error is received from a client. |
+| `[HostType, c2s_element_in, iq_error_count]` | spiral | An IQ error is received from a client. |
+| `[HostType, c2s_element_in, presence_error_count]` | spiral | A presence error is received from a client. |
+| `[HostType, c2s_element_out, count]` | spiral | An XML element is sent to a client. |
+| `[HostType, c2s_element_out, stanza_count]` | spiral | An XMPP stanza is sent to a client. |
+| `[HostType, c2s_element_out, iq_count]` | spiral | An IQ stanza is sent to a client. |
+| `[HostType, c2s_element_out, message_count]` | spiral | A message stanza is sent to a client. |
+| `[HostType, c2s_element_out, presence_count]` | spiral | A presence stanza is sent to a client. |
+| `[HostType, c2s_element_out, error_count]` | spiral | An error is sent to a client. |
+| `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
+| `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
+| `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
+| `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
+| `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
+| `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
+| `[HostType, router_no_route_found]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
+
+### Pool metrics
+
+For every RDBMS pool defined, an instance of these metrics are available.
+
+| Name                                                         | Type    | Description (when it gets incremented) |
+|--------------------------------------------------------------|---------|----------------------------------------|
+| `[HostType, wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[HostType, wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[HostType, wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+
+When using a Rabbit worker pool, metrics defined in [mod_event_pusher_rabbit](../modules/mod_event_pusher_rabbit.md) are
+available.
 
 ### Extension-specific metrics
 
@@ -147,37 +172,43 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[global, routingErrors]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
-| `[global, nodeSessionCount]` | value | A number of sessions connected to a given MongooseIM node. |
-| `[global, totalSessionCount]` | value | A number of sessions connected to a MongooseIM cluster. |
-| `[global, uniqueSessionCount]` | value | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
-| `[global, cache, unique_sessions_number]` | gauge | A cached value of `uniqueSessionCount`. It is automatically updated when a unique session count is calculated. |
-| `[global, nodeUpTime]` | value | Node uptime. |
-| `[global, clusterSize]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS use `global.cets.system.joined_nodes` instead. |
-| `[global, tcpPortsUsed]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests, in order to detect connection leaks. |
-| `[global, processQueueLengths]` | probe | The number of queued messages in the internal message queue of every erlang process, and the internal queue of every fsm (ejabberd\_s2s). This is sampled every 30 seconds asynchronously. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is not able to process the data at the rate it was designed for. |
+| `[global, sm_node_sessions, count]` | gauge | A number of sessions connected to a given MongooseIM node. |
+| `[global, sm_total_sessions, count]` | gauge | A number of sessions connected to a MongooseIM cluster. |
+| `[global, sm_unique_sessions, count]` | gauge | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
+| `[global, system_up_time, seconds]` | value | Node uptime. |
+| `[global, mnesia_info, running_db_nodes]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS, use `[global, cets_info, joined_nodes]` instead. |
+| `[global, system_tcp_ports, count]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
+| `[global, system_process_queue_lengths, total]` | probe | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
+| `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
 
 ### Data metrics
 
+All metrics are in bytes, and refer to unencrypted data (before encryption or after decryption in case of TLS).
+
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
-| `[global, data, xmpp, received, xml_stanza_size]` | histogram | A size (in bytes) of a received stanza after decryption. |
-| `[global, data, xmpp, sent, xml_stanza_size]` | histogram | A size (in bytes) of a sent stanza before encryption. |
-| `[global, data, xmpp, received, c2s, tcp]` | spiral | A size (in bytes) of unencrypted data received from a client via TCP channel. |
-| `[global, data, xmpp, sent, c2s, tcp]` | spiral | A size (in bytes) of unencrypted data sent to a client via TCP channel. |
-| `[global, data, xmpp, received, c2s, tls]` | spiral | A size (in bytes) of a data received from a client via TLS channel after decryption. |
-| `[global, data, xmpp, sent, c2s, tls]` | spiral | A size (in bytes) of a data sent to a client via TLS channel before encryption. |
-| `[global, data, xmpp, received, c2s, bosh]` | spiral | A size (in bytes) of a data received from a client via BOSH connection. |
-| `[global, data, xmpp, sent, c2s, bosh]` | spiral | A size (in bytes) of a data sent to a client via BOSH connection. |
-| `[global, data, xmpp, received, c2s, websocket]` | spiral | A size (in bytes) of a data received from a client via WebSocket connection. |
-| `[global, data, xmpp, sent, c2s, websocket]` | spiral | A size (in bytes) of a data sent to a client via WebSocket connection. |
-| `[global, data, xmpp, received, s2s]` | spiral | A size (in bytes) of a data received via TCP and TLS (after decryption) Server-to-Server connections. |
-| `[global, data, xmpp, sent, s2s]` | spiral | A size (in bytes) of a data sent via TCP and TLS (before encryption) Server-to-Server connections. |
-| `[global, data, xmpp, received, component]` | spiral | A size (in bytes) of a data received from XMPP component. |
-| `[global, data, xmpp, sent, component]` | spiral | A size (in bytes) of a data sent to XMPP component. |
-| `[HostType, data, xmpp, c2s, message, processing_time`] | histogram | Processing time for incomming c2s stanzas. |
-| `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
-| `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
+| `[global, c2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a client. |
+| `[global, c2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a client. |
+| `[global, c2s_tcp_data_in, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
+| `[global, c2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
+| `[global, c2s_tls_data_in, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
+| `[global, c2s_tls_data_out, byte_size]` | spiral | Amount of data sent to a client via TLS channel. |
+| `[global, mod_bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
+| `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
+| `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
+| `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
+| `[global, s2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
+| `[global, s2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
+| `[global, s2s_tcp_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
+| `[global, s2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
+| `[global, s2s_tls_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
+| `[global, s2s_tls_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
+| `[global, component_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a component. |
+| `[global, component_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a component. |
+| `[global, component_tcp_data_in, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
+| `[global, component_tcp_data_out, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
+| `[global, component_tls_data_in, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
+| `[global, component_tls_data_out, byte_size]` | spiral | Amount of data sent to a component via TLS channel. |
 
 ### CETS system metrics
 
@@ -200,12 +231,28 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `conflict_tables` | Tables that have conflicting replication destinations. |
 | `discovery_works` | Returns 1 if the last discovery attempt is successful (otherwise returns 0). |
 
+### Pool metrics
+
+For RDBMS global pool defined, an instance of these metrics are available.
+
+| Name                                                              | Type    | Description (when it gets incremented) |
+|-------------------------------------------------------------------|---------|----------------------------------------|
+| `[global, wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+| `[global, wpool_global_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+| `[global, wpool_global_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+
+
 ### VM metrics
 
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
-| `[global, erlang, memory]` | proplist | A proplist with `total`, `processes_used`, `atom_used`, `binary`, `ets` and `system` memory stats. |
-| `[global, erlang, system_info]` | proplist | A proplist with `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_limit` stats. |
+| `[global, system_memory, Metric]` | gauge | Erlang memory statistics from [`erlang:memory/0`](https://www.erlang.org/doc/apps/erts/erlang.html#memory/0). `Metric` specifies the memory type, e.g. `total`, `processes_used`, `atom_used`, `binary`, `ets` or `system`. |
+| `[global, system_info, Metric]` | gauge | Erlang system statistics from [`erlang:system_info/1`](https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1). `Metric` can be `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_count` or `ets_limit`. |
 
 ## Backend metrics
 

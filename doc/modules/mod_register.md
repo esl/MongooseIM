@@ -85,8 +85,8 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, modRegisterCount]` | spiral | A user registers via `mod_register` module. |
-| `[Host, modUnregisterCount]` | spiral | A user unregisters via `mod_register` module. |
+| `[Host, auth_register, count]` | spiral | A user registers via `mod_register` module. |
+| `[Host, auth_unregister, count]` | spiral | A user unregisters via `mod_register` module. |
 
 ## Entropy calculation algorithm
 

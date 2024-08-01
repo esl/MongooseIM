@@ -206,8 +206,8 @@ take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule, _A
     pass;
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule, Acc) ->
     send_error_and_drop(Packet, From, 'undefined-condition', Rule, Acc);
-take_action_for_matched_rule(Packet, From, #amp_rule{action = drop}, Acc) ->
-    update_metric_and_drop(Packet, From, Acc).
+take_action_for_matched_rule(_Packet, _From, #amp_rule{action = drop}, Acc) ->
+    update_metric_and_drop(Acc).
 
 -spec reply_to_sender(amp_rule(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
@@ -223,16 +223,16 @@ send_errors_and_drop(Packet, From, [], Acc) ->
     ?LOG_ERROR(#{what => empty_list_of_errors_generated,
                  text => <<"This shouldn't happen!">>,
                  exml_packet => Packet, from => From}),
-    update_metric_and_drop(Packet, From, Acc);
+    update_metric_and_drop(Acc);
 send_errors_and_drop(Packet, From, ErrorRules, Acc) ->
     {Errors, Rules} = lists:unzip(ErrorRules),
     ErrorResponse = amp:make_error_response(Errors, Rules, From, Packet),
     ejabberd_router:route(server_jid(From), From, ErrorResponse),
-    update_metric_and_drop(Packet, From, Acc).
+    update_metric_and_drop(Acc).
 
--spec update_metric_and_drop(exml:element(), jid:jid(), mongoose_acc:t()) -> drop.
-update_metric_and_drop(Packet, From, Acc) ->
-    mongoose_hooks:xmpp_stanza_dropped(Acc, From, mongoose_acc:to_jid(Acc), Packet),
+-spec update_metric_and_drop(mongoose_acc:t()) -> drop.
+update_metric_and_drop(Acc) ->
+    mongoose_router:drop_stanza(Acc),
     drop.
 
 -spec is_supported_rule(amp_rule_support()) -> boolean().

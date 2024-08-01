@@ -2,7 +2,7 @@
 
 -include("mongoose_config_spec.hrl").
 
--export([start_new_cache/3, stop_cache/2, handle_telemetry_event/4,
+-export([start_new_cache/3, stop_cache/2,
          config_spec/0, process_cache_config/1]).
 
 -export([is_member/3, get_entry/3, merge_entry/4, delete_user/3, delete_domain/3]).
@@ -10,12 +10,26 @@
 -spec is_member(mongooseim:host_type(), module(), jid:jid()) -> boolean().
 is_member(HostType, Module, Jid) ->
     CacheName = cache_name(HostType, Module),
-    segmented_cache:is_member(CacheName, key(Jid)).
+    mongoose_instrument:span(user_cache_lookup, #{host_type => HostType, cache_name => CacheName},
+                             fun segmented_cache:is_member/2, [CacheName, key(Jid)],
+                             fun(Time, Result) -> handle_is_member_result(Time, Result, Jid) end).
+
+handle_is_member_result(Time, false, Jid) ->
+    #{misses => 1, latency => Time, jid => Jid};
+handle_is_member_result(Time, true, Jid) ->
+    #{hits => 1, latency => Time, jid => Jid}.
 
 -spec get_entry(mongooseim:host_type(), module(), jid:jid()) -> term() | not_found.
 get_entry(HostType, Module, Jid) ->
     CacheName = cache_name(HostType, Module),
-    segmented_cache:get_entry(CacheName, key(Jid)).
+    mongoose_instrument:span(user_cache_lookup, #{host_type => HostType, cache_name => CacheName},
+                             fun segmented_cache:get_entry/2, [CacheName, key(Jid)],
+                             fun(Time, Result) -> handle_get_entry_result(Time, Result, Jid) end).
+
+handle_get_entry_result(Time, not_found, Jid) ->
+    #{misses => 1, latency => Time, jid => Jid};
+handle_get_entry_result(Time, _Entry, Jid) ->
+    #{hits => 1, latency => Time, jid => Jid}.
 
 -spec merge_entry(mongooseim:host_type(), module(), jid:jid(), map()) -> boolean().
 merge_entry(HostType, Module, Jid, Entry) ->
@@ -74,31 +88,17 @@ do_start_new_cache(HostType, Module, Opts) ->
              restart => permanent, shutdown => 5000,
              type => worker, modules => [segmented_cache]},
     {ok, _} = ejabberd_sup:start_child(Spec),
-    create_metrics(HostType, Module, CacheName),
+    mongoose_instrument:set_up(instrumentation(HostType, CacheName)),
     ok.
 
-create_metrics(HostType, Module, CacheName) ->
-    telemetry:attach(CacheName,
-                     [segmented_cache, CacheName, request, stop],
-                     fun ?MODULE:handle_telemetry_event/4,
-                     #{host_type => HostType, cache_name => CacheName, module => Module}),
-    mongoose_metrics:ensure_metric(HostType, [Module, hit], counter),
-    mongoose_metrics:ensure_metric(HostType, [Module, miss], counter),
-    mongoose_metrics:ensure_metric(HostType, [Module, latency], histogram).
-
-handle_telemetry_event([segmented_cache, CacheName, request, stop],
-                       #{duration := Latency},
-                       #{hit := Hit},
-                       #{host_type := HostType, cache_name := CacheName, module := Module}) ->
-    case Hit of
-        true -> mongoose_metrics:update(HostType, [Module, hit], 1);
-        false -> mongoose_metrics:update(HostType, [Module, miss], 1)
-    end,
-    mongoose_metrics:update(HostType, [Module, latency], Latency),
-    ok.
+instrumentation(HostType, CacheName) ->
+    [{user_cache_lookup, #{cache_name => CacheName, host_type => HostType},
+      #{metrics => #{hits => counter, misses => counter, latency => histogram}}}].
 
 -spec stop_cache(mongooseim:host_type(), module()) -> ok.
 stop_cache(HostType, Module) ->
+    CacheName = gen_mod:get_module_proc(HostType, Module),
+    mongoose_instrument:tear_down(instrumentation(HostType, CacheName)),
     case gen_mod:get_module_opt(HostType, Module, module, internal) of
         internal -> ok = ejabberd_sup:stop_child(cache_name(HostType, Module));
         _ConfiguredModule -> ok

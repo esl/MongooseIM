@@ -21,7 +21,8 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([start_listener/1]).
+-export([start_listener/1,
+         instrumentation/1]).
 
 %% cowboy_middleware API
 -export([execute/2]).
@@ -40,7 +41,7 @@
 -export([start_cowboy/4, start_cowboy/2, stop_cowboy/1]).
 
 -ignore_xref([behaviour_info/1, process/1, ref/1, reload_dispatch/1, start_cowboy/2,
-              start_cowboy/4, start_link/1, start_listener/2, start_listener/1, stop_cowboy/1]).
+              start_cowboy/4, start_link/1, start_listener/2, start_listener/1, stop/0, stop_cowboy/1]).
 
 -include("mongoose.hrl").
 
@@ -59,6 +60,10 @@
 %%--------------------------------------------------------------------
 %% mongoose_listener API
 %%--------------------------------------------------------------------
+
+-spec instrumentation(listener_options()) -> [mongoose_instrument:spec()].
+instrumentation(#{handlers := Handlers}) ->
+    [Spec || #{module := Module} <- Handlers, Spec <- mongoose_http_handler:instrumentation(Module)].
 
 -spec start_listener(listener_options()) -> ok.
 start_listener(Opts = #{proto := tcp}) ->

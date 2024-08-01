@@ -41,6 +41,12 @@ secondary_host_type() ->
 secondary_host_type(NodeKey) ->
     get_or_fail({hosts, NodeKey, secondary_host_type}).
 
+anonymous_host_type() ->
+    anonymous_host_type(mim).
+
+anonymous_host_type(NodeKey) ->
+    get_or_fail({hosts, NodeKey, anonymous_host_type}).
+
 make_metrics_prefix(HostType) ->
     metrics_helper:make_host_type_name(HostType).
 
