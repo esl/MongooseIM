@@ -1481,6 +1481,10 @@ assert_dropped_iq_event(Config, BinJid) ->
       EventName, labels(),
       fun(#{acc := #{stanza := #{from_jid := FromJid}}}) -> eq_bjid(FromJid, BinJid) end).
 
+assert_dropped_msg_event(EventName, TS) ->
+    instrument_helper:assert(
+      EventName, labels(), fun(#{count := 1}) -> true end, #{min_timestamp => TS}).
+
 assert_event_with_jid(EventName, BinJid) ->
     instrument_helper:assert_one(
       EventName, labels(), fun(#{count := 1, jid := Jid}) -> eq_bjid(Jid, BinJid) end).
