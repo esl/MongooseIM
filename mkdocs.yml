@@ -24,6 +24,7 @@ theme:
     - navigation.instant
     - navigation.instant.progress
     - navigation.top
+    - navigation.footer
     - content.tabs.link
     - toc.follow
 extra:
