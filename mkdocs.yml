@@ -90,6 +90,7 @@ nav:
       - 'Options: Access': 'configuration/access.md'
       - 'Options: S2S': 'configuration/s2s.md'
       - 'Options: Host config': 'configuration/host_config.md'
+      - 'Options: Instrumentation': 'configuration/instrumentation.md'
       - 'Release Options': 'configuration/release-options.md'
       - 'Erlang Cookie Security': 'configuration/Erlang-cookie-security.md'
       - 'TLS Hardening': 'configuration/TLS-hardening.md'

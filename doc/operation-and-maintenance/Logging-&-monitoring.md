@@ -71,33 +71,7 @@ To monitor MongooseIM during load testing, we recommend the following open sourc
 
 MongooseIM uses [a fork of Exometer library](https://github.com/esl/exometer_core) for collecting metrics.
 Exometer has many plug-in reporters that can send metrics to external services. We maintain [exometer_report_graphite](https://github.com/esl/exometer_report_graphite) and [exometer_report_statsd](https://github.com/esl/exometer_report_statsd) for Graphite and StatsD respectively.
-It is possible to enable them in MongooseIM via the `app.config` file.
-The file sits next to the `mongooseim.toml` file in the `rel/files` and `_REL_DIR_/etc` directories.
-
-Below you can find a sample configuration.
-It shows setting up a reporter connecting to graphite running on localhost.
-
-You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`, which sets the metrics' resolution, i.e. how often Exometer gathers and sends metrics through reporters.
-By default, the resolution is set to 60 seconds.
-
-```erlang
-...
-{exometer_core, [
-    {mongooseim_report_interval, 60000}, %% 60 seconds
-    {report, [
-        {reporters, [
-                     {exometer_report_graphite, [
-                                                 {prefix, "mongooseim"},
-                                                 {connect_timeout, 5000},
-                                                 {host, "127.0.0.1"},
-                                                 {port, 2003},
-                                                 {api_key, ""}
-                                                ]}
-                    ]}
-    ]}
-  ]}
-...
-```
+It is possible to enable them in MongooseIM in the [instrumentation section of the configuration file](../configuration/instrumentation.md#exometer-reporter-options).
 
 ### Run Graphite & Grafana in Docker - quick start
 
