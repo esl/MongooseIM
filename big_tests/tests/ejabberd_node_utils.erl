@@ -19,6 +19,7 @@
 -export([init/1, init/2,
          node_cwd/2,
          restart_application/1, restart_application/2,
+         ensure_started_application/1, ensure_started_application/2,
          call_fun/3, call_fun/4,
          call_ctl/2, call_ctl/3,
          call_ctl_with_args/3,
@@ -26,6 +27,7 @@
          backup_config_file/1, backup_config_file/2,
          restore_config_file/1, restore_config_file/2,
          modify_config_file/2, modify_config_file/4,
+         replace_config_file/1, replace_config_file/2,
          get_cwd/2]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -73,9 +75,18 @@ restart_application(ApplicationName) ->
 
 -spec restart_application(node(), atom()) -> ok.
 restart_application(Node, ApplicationName) ->
-    ok = ejabberd_node_utils:call_fun(Node, application, stop, [ApplicationName]),
-    ok = ejabberd_node_utils:call_fun(Node, application, start, [ApplicationName]).
+    ok = call_fun(Node, application, stop, [ApplicationName]),
+    ok = call_fun(Node, application, start, [ApplicationName]).
 
+-spec ensure_started_application(atom()) -> ok.
+ensure_started_application(ApplicationName) ->
+    Node = distributed_helper:mim(),
+    ensure_started_application(Node#{timeout => timer:seconds(30)}, ApplicationName).
+
+-spec ensure_started_application(node(), atom()) -> ok.
+ensure_started_application(Node, ApplicationName) ->
+    call_fun(Node, application, stop, [ApplicationName]),
+    ok = call_fun(Node, application, start, [ApplicationName]).
 
 -spec backup_config_file(ct_config()) -> ct_config().
 backup_config_file(Config) ->
@@ -166,7 +177,17 @@ modify_config_file(Host, VarsToChange, Config, Format) ->
 
     RPCSpec = distributed_helper:Host(),
     NewCfgPath = update_config_path(RPCSpec, Format),
-    ok = ejabberd_node_utils:call_fun(RPCSpec, file, write_file, [NewCfgPath, TemplatedConfig]).
+    ok = call_fun(RPCSpec, file, write_file, [NewCfgPath, TemplatedConfig]).
+
+-spec replace_config_file(binary()) -> ok.
+replace_config_file(TomlContent) ->
+    Node = distributed_helper:mim(),
+    replace_config_file(Node, TomlContent).
+
+-spec replace_config_file(distributed_helper:node_spec(), binary()) -> ok.
+replace_config_file(RPCSpec, TomlContent) ->
+    NewCfgPath = update_config_path(RPCSpec, toml),
+    ok = call_fun(RPCSpec, file, write_file, [NewCfgPath, TomlContent]).
 
 read_vars(File) ->
     {ok, Terms} = file:consult(File),
@@ -204,10 +225,10 @@ update_config_path(RPCSpec, Format) ->
     end.
 
 get_config_path(RPCSpec) ->
-    ejabberd_node_utils:call_fun(RPCSpec, os, getenv, ["EJABBERD_CONFIG_PATH"]).
+    call_fun(RPCSpec, os, getenv, ["EJABBERD_CONFIG_PATH"]).
 
 set_config_path(RPCSpec, Path) ->
-    ejabberd_node_utils:call_fun(RPCSpec, os, putenv, ["EJABBERD_CONFIG_PATH", Path]).
+    call_fun(RPCSpec, os, putenv, ["EJABBERD_CONFIG_PATH", Path]).
 
 vars_file(toml) -> "vars-toml.config".
 
