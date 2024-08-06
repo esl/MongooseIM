@@ -75,3 +75,10 @@ for each virtual XMPP domain):
             {name = "access_psk", type = "file", path = "priv/second_access_psk"},
             {name = "provision_psk", type = "file", path = "priv/second_provision_psk"}]
 ```
+
+Minimal configuration supporting mod_auth_token:
+
+```toml
+[modules.mod_keystore]
+  keys = [{name = "token_secret", type = "ram"}]
+```
