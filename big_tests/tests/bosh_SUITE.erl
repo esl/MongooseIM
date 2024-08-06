@@ -193,7 +193,7 @@ create_and_terminate_session(Config) ->
 
     % Assert that correct events have been executed
     [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
-     || {Event, Label} <- instrumentation_events(), Event =/= c2s_message_processing_time],
+     || {Event, Label} <- instrumentation_events(), Event =/= c2s_message_processed],
 
     %% Verify C2S listener is not used
     instrument_helper:assert_not_emitted(negative_instrumentation_events()),
@@ -954,7 +954,7 @@ wait_for_zero_bosh_sessions() ->
 instrumentation_events() ->
     instrument_helper:declared_events(mod_bosh, [])
     ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ [{c2s_message_processing_time, #{host_type => host_type()}}].
+    ++ [{c2s_message_processed, #{host_type => host_type()}}].
 
 negative_instrumentation_events() ->
     [{Name, #{}} || Name <- negative_instrumentation_events_names()].
