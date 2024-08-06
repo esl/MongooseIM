@@ -86,8 +86,8 @@ instrumentation(global) ->
      {c2s_xmpp_element_size_in, #{},
       #{metrics => #{byte_size => histogram}}}];
 instrumentation(HostType) ->
-    [{c2s_message_processing_time, #{host_type => HostType},
-      #{metrics => #{byte_size => histogram}}},
+    [{c2s_message_processed, #{host_type => HostType},
+      #{metrics => #{time => histogram}}},
      {c2s_auth_failed, #{host_type => HostType},
       #{metrics => #{count => spiral}}},
      {c2s_element_in, #{host_type => HostType},
@@ -810,7 +810,7 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"m
     Acc1 = mongoose_c2s_hooks:user_send_message(HostType, Acc, HookParams),
     Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
-    mongoose_instrument:execute(c2s_message_processing_time, #{host_type => HostType}, #{time => (TS1 - TS0)}),
+    mongoose_instrument:execute(c2s_message_processed, #{host_type => HostType}, #{time => (TS1 - TS0)}),
     Acc2;
 handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"iq">>) ->
     Acc1 = mongoose_c2s_hooks:user_send_iq(HostType, Acc, HookParams),
