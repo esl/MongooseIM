@@ -16,6 +16,7 @@
 
 %% test cases
 -export([
+         can_start_with_cluster_id_in_cets_only/1,
          all_nodes_in_the_cluster_have_the_same_cluster_id/1,
          id_persists_after_restart/1,
          same_cluster_id_in_backend_and_mnesia/1,
@@ -30,6 +31,7 @@
 
 all() ->
     [
+     {group, cets},
      {group, mnesia},
      {group, rdbms}
     ].
@@ -46,6 +48,7 @@ tests() ->
 
 groups() ->
     [
+     {cets, [], [can_start_with_cluster_id_in_cets_only]},
      {mnesia, [], [all_nodes_in_the_cluster_have_the_same_cluster_id]},
      {rdbms, [], tests()}
     ].
@@ -65,15 +68,21 @@ end_per_suite(_Config) ->
 group(_Groupname) ->
     [].
 
+init_per_group(rdbms, Config) ->
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
+        true -> Config;
+        false -> {skip, require_rdbms}
+    end;
+init_per_group(_, Config) ->
+    case not mongoose_helper:is_rdbms_enabled(host_type()) of
+        true ->
+            Config;
+        false -> {skip, require_no_rdbms}
+    end;
 init_per_group(mnesia, Config) ->
     case not mongoose_helper:is_rdbms_enabled(host_type()) of
         true -> Config;
         false -> {skip, require_no_rdbms}
-    end;
-init_per_group(_Groupname, Config) ->
-    case mongoose_helper:is_rdbms_enabled(host_type()) of
-        true -> Config;
-        false -> {skip, require_rdbms}
     end.
 
 end_per_group(_Groupname, _Config) ->
@@ -82,12 +91,19 @@ end_per_group(_Groupname, _Config) ->
 %%%===================================================================
 %%% Testcase specific setup/teardown
 %%%===================================================================
+init_per_testcase(can_start_with_cluster_id_in_cets_only, Config) ->
+    Config1 = ejabberd_node_utils:init(Config),
+    ejabberd_node_utils:backup_config_file(Config1),
+    Config1;
 init_per_testcase(all_nodes_in_the_cluster_have_the_same_cluster_id, Config) ->
     distributed_helper:add_node_to_cluster(mim2(), Config),
     Config;
 init_per_testcase(_TestCase, Config) ->
     Config.
 
+end_per_testcase(can_start_with_cluster_id_in_cets_only, Config) ->
+    ejabberd_node_utils:restore_config_file(Config),
+    ejabberd_node_utils:ensure_started_application(mongooseim);
 end_per_testcase(all_nodes_in_the_cluster_have_the_same_cluster_id, Config) ->
     distributed_helper:remove_node_from_cluster(mim2(), Config),
     Config;
@@ -97,6 +113,20 @@ end_per_testcase(_TestCase, _Config) ->
 %%%===================================================================
 %%% Individual Test Cases (from groups() definition)
 %%%===================================================================
+
+can_start_with_cluster_id_in_cets_only(_Config) ->
+    Toml = "[general]
+    hosts = [\"example.com\"]
+    default_server_domain = \"example.com\"
+    sm_backend = \"cets\"
+    s2s_backend = \"cets\"
+    component_backend = \"cets\"
+    [internal_databases.cets]
+    backend = \"file\"
+    node_list_file = \"etc/cets_disco.txt\"",
+    ejabberd_node_utils:replace_config_file(Toml),
+    ejabberd_node_utils:restart_application(mongooseim).
+
 all_nodes_in_the_cluster_have_the_same_cluster_id(_Config) ->
     {ok, ID_mim1} = mongoose_helper:successful_rpc(
                mim(), mongoose_cluster_id, get_cached_cluster_id, []),
