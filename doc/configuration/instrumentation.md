@@ -9,6 +9,7 @@ Instrumentation events are acted upon by handlers. Available instrumentation han
 * `log` - logs instrumentation events to disk.
 
 Enable them by adding a corresponding sections and possible configuration values.
+We recommend choosing either Prometheus or Exometer as a solution for exposing metrics.
 
 ## General options
 
@@ -84,9 +85,9 @@ A prefix to prepend all metric names with before they are sent to the graphite s
 Specifies an environmental variable name from which an additional prefix will be taken.
 In case both `prefix` and `env_prefix` are defined, it will be placed before the `prefix` and separated with a dot.
 
-## Example configuration
+## Example Prometheus configuration
 
-This configuration enables `prometheus`, `exometer` and `log` handlers:
+This configuration enables `prometheus`, and `log` handlers:
 ```toml
 [instrumentation]
   probe_interval = 10_000
@@ -94,13 +95,17 @@ This configuration enables `prometheus`, `exometer` and `log` handlers:
 [instrumentation.prometheus]
 
 [instrumentation.log]
+```
 
+## Example Exometer configuration
+
+This configuration enables `exometer` handler with two different Graphite reporters.
+```toml
 [[instrumentation.exometer.report.graphite]]
   host = "127.0.0.1"
   interval = 15_000
   prefix = "mongooseim"
   connect_timeout = 5000
-
 
 [[instrumentation.exometer.report.graphite]]
   host = "hosted_graphite.com"

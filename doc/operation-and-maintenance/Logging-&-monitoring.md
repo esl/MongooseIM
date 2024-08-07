@@ -59,19 +59,36 @@ Additionally, WombatOAM provides interfaces to feed the data to other OAM tools 
 
 For more information see: [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html).
 
-### graphite-collectd
+### OS level metrics: graphite-collectd
 
-To monitor MongooseIM during load testing, we recommend the following open source applications:
+To monitor MongooseIM node during load testing, we recommend the following open source applications:
 
 - [Grafana](https://grafana.com/) is used for data presentation.
-- [Graphite](http://graphiteapp.org/) is a server used for metrics storage.
+- [Prometheus](https://prometheus.io) is a server used for metrics storage. Alternatively, MongooseIM also works with [Graphite](http://graphiteapp.org/).
 - [collectd](http://collectd.org/) is a daemon running on the monitored nodes capturing data related to CPU and Memory usage, IO etc.
 
-### Plug-in Exometer reporters
+### Application metrics
+
+MongooseIM uses [Prometheus](https://prometheus.io/) as the default metrics solution, but also supports Exometer with Graphite exporter.
+Enable the chosen one in the [instrumentation section](../configuration/instrumentation.md).
+
+#### Prometheus
+
+MongooseIM exposes metrics in the Prometheus format by default.
+More information about configuration can be found in [the HTTP listeners section](../listeners/listen-http.md#handler-types-prometheus-mongoose_prometheus_handler).
+
+#### Exometer
 
 MongooseIM uses [a fork of Exometer library](https://github.com/esl/exometer_core) for collecting metrics.
 Exometer has many plug-in reporters that can send metrics to external services. We maintain [exometer_report_graphite](https://github.com/esl/exometer_report_graphite) and [exometer_report_statsd](https://github.com/esl/exometer_report_statsd) for Graphite and StatsD respectively.
 It is possible to enable them in MongooseIM in the [instrumentation section of the configuration file](../configuration/instrumentation.md#exometer-reporter-options).
+
+Moreover, Exometer metrics can be accessed through the GraphQL API.
+
+#### GraphQL metrics endpoint
+
+When using Exometer, the metrics can be accessed through <a href="../admin-graphql-doc.html#query-metric" target="_blank" rel="noopener noreferrer">a GraphQL query</a>.
+With Prometheus, this query will not work, however, the metrics will be available in the Prometheus format from [the configured endpoint](../listeners/listen-http.md#listenhttphandlerspath).
 
 ### Run Graphite & Grafana in Docker - quick start
 

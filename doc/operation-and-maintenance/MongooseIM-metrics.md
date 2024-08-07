@@ -1,8 +1,12 @@
 # MongooseIM metrics
 
 MongooseIM by default collects many metrics showing the user behaviour and general system statistics.
-They are managed by [exometer](https://github.com/Feuerlabs/exometer).
-MongooseIM uses [ESL's fork of this project](https://github.com/esl/exometer/tree/1.2.1-patched).
+
+Metrics are exposed in the [Prometheus](https://prometheus.io/) format, or they are managed by [ESL's fork of the Exometer project](https://github.com/esl/exometer/tree/1.2.1-patched).
+Both can be configured in the [instrumentation](../configuration/instrumentation.md) section.
+There are some differences between the two systems, when it comes to conventions, naming and metric types.
+
+In the default configuration file, Prometheus metrics are enabled, and available at the <http://127.0.0.1:9091/metrics> endpoint.
 
 All metrics are divided into the following groups:
 
