@@ -794,7 +794,7 @@ paths:
           description: "Other errors."
   /metrics/:
     get:
-      description: Returns a list of host type names and metric names
+      description: Returns a list of host type names and metric names. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -831,7 +831,7 @@ paths:
                     - "sm_unique_sessions"
   /metrics/all:
     get:
-      description: Returns a list of metrics aggregated for all host types
+      description: Returns a list of metrics aggregated for all host types. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -850,7 +850,7 @@ paths:
     parameters:
       - $ref: '#/parameters/metric'
     get:
-      description: Returns the metric value aggregated for all host types
+      description: Returns the metric value aggregated for all host types. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -870,7 +870,7 @@ paths:
     parameters:
       - $ref: '#/parameters/hostType'
     get:
-      description: Returns the values of all host-type metrics
+      description: Returns the values of all host-type metrics. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -892,7 +892,7 @@ paths:
       - $ref: '#/parameters/hostType'
       - $ref: '#/parameters/metric'
     get:
-      description: Returns the value of a host-type metric
+      description: Returns the value of a host-type metric. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -910,7 +910,7 @@ paths:
           description: There is no such metric
   /metrics/global:
     get:
-      description: Returns the values of all global metrics
+      description: Returns the values of all global metrics. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -927,7 +927,7 @@ paths:
     parameters:
       - $ref: '#/parameters/metric'
     get:
-      description: Returns the value of a global metric
+      description: Returns the value of a global metric. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
