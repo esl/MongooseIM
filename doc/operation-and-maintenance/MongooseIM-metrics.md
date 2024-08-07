@@ -10,160 +10,244 @@ In the default configuration file, Prometheus metrics are enabled, and available
 
 All metrics are divided into the following groups:
 
-* Per host type metrics: Gathered separately for every host type supported by the cluster.
+* [Per host type metrics](#per-host-type-metrics): Gathered separately for every host type supported by the cluster.
 
     !!! Warning
         If a cluster supports many (thousands or more) host types, performance issues might occur.
-        To avoid this, use global equivalents of the metrics with `all_metrics_are_global` config option.
+        To avoid this, when using Exometer, use global equivalents of the metrics with [`all_metrics_are_global` config option](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global).
 
-    * Hook metrics.
-    They are created for every [hook](../developers-guide/Hooks-and-handlers.md) and incremented on every call to it.
-
-* Global metrics: Metrics common for all host types.
+* [Global metrics](#global-metrics): Metrics common for all host types.
     * Data metrics.
     These are misc. metrics related to data transfers (e.g. sent and received stanza size statistics).
     * VM metrics. Basic Erlang VM statistics.
-* Backend metrics: Histograms with timings of calls to various backends.
+* [Backend metrics](#backend-metrics): Histograms with timings of calls to various backends.
 
 ## Metrics types
 
-### `spiral`
+=== "Prometheus"
 
-This kind of metric provides 2 values: `total` event count (e.g. stanzas processed) and a value in 60s window (`one` value).
-Dividing `one` value by 60 provides an average per-second value over last minute.
+    <h3>`counter`</h3>
+    
+    A monotonically increasing metric type. It is used for events like the number of stanzas processed by the system.
+    
+    **Example:**
+        ```
+        # TYPE c2s_element_in_message_count counter
+        # HELP c2s_element_in_message_count Event: c2s_element_in, Metric: message_count
+        c2s_element_in_message_count{host_type="localhost"} 0
+        ```
+    
+    <h3>`gauge`</h3>
+    
+    A metric that represents a current value in the system.
+    
+    **Example:**
+        ```
+        # TYPE mnesia_info_running_db_nodes gauge
+        # HELP mnesia_info_running_db_nodes Event: mnesia_info, Metric: running_db_nodes
+        mnesia_info_running_db_nodes 0
+        ```
 
-**Example:** `[{total, 1000}, {one, 20}]`
+    <h3>`histogram`</h3>
+    
+    A histogram collects values and groups them in buckets.
+    
+    **Example:**
+        ```
+        # TYPE c2s_xmpp_element_size_in_byte_size histogram
+        # HELP c2s_xmpp_element_size_in_byte_size Event: c2s_xmpp_element_size_in, Metric: byte_size
+        c2s_xmpp_element_size_in_byte_size_bucket{le="1"} 0
+        ...
+        c2s_xmpp_element_size_in_byte_size_bucket{le="1073741824"} 0
+        c2s_xmpp_element_size_in_byte_size_bucket{le="+Inf"} 0
+        ```
+    
+=== "Exometer"
+    
+    <h3>`spiral`</h3>
+    
+    This kind of metric provides 2 values: `total` event count (e.g. stanzas processed) and a value in 60s window (`one` value).
+    Dividing `one` value by 60 provides an average per-second value over last minute.
+    
+    **Example:** `[{total, 1000}, {one, 20}]`
+    
+    <h3>`counter`</h3>
+    
+    A simple monotonically increasing value. It consists of two properties:
+    
+    **Example:** `[{value, 12}, {ms_since_reset, 91761}]`
+    
+    <h3>`gauge`</h3>
+    
+    It is similar to a `counter` type but can be set to any value.
+    
+    * `value`
+    * `ms_since_reset` - Time in milliseconds elapsed from the last metric update.
+    
+    **Example:** `[{value, 12}, {ms_since_reset, 91761}]`
 
-### `value`
+    <h3>`histogram`</h3>
+    
+    A histogram collects values over a sliding window of 60s and exposes the following stats:
+    
+    * `n` - A number of samples.
+    * `mean` - An arithmetic mean.
+    * `min`
+    * `max`
+    * `median`
+    * `50`, `75`, `90`, `95`, `99`, `999` - 50th, 75th, 90th, 95th, 99th and 99.9th percentile
 
-A simple value.
-It is actually a one-element proplist: `[{value, N}]`.
-
-**Example:** `[{value, 256}]`
-
-### `gauge`
-
-It is similar to a `value` type but consists of two properties:
-
-* `value`
-* `ms_since_reset` - Time in milliseconds elapsed from the last metric update.
-
-**Example:** `[{value, 12}, {ms_since_reset, 91761}]`
-
-### `proplist`
-
-A metric which is a nonstandard proplist.
-You can find the lists of keys in metrics descriptions.
-
-**Example:** `[{total,295941736}, {processes_used,263766824}, {atom_used,640435}, {binary,1513152}, {ets,3942592}, {system,32182072}]`
-
-### `histogram`
-
-A histogram collects values over a sliding window of 60s and exposes the following stats:
-
-* `n` - A number of samples.
-* `mean` - An arithmetic mean.
-* `min`
-* `max`
-* `median`
-* `50`, `75`, `90`, `95`, `99`, `999` - 50th, 75th, 90th, 95th, 99th and 99.9th percentile
 
 ## Per host type metrics
 
-### Hook metrics
-
-There are more hook metrics than what is listed in this table, because they are automatically created for every new hook.
-As a result it makes more sense to maintain a list of the most relevant or useful items, rather than keeping this table fully in sync with the code.
-
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[HostType, anonymous_purge]` | spiral | An anonymous user disconnects. |
-| `[HostType, disco_info]` | spiral | An information about the server has been requested via Disco protocol. |
-| `[HostType, disco_local_features]` | spiral | A list of server features is gathered. |
-| `[HostType, disco_local_identity]` | spiral | A list of server identities is gathered. |
-| `[HostType, disco_local_items]` | spiral | A list of server's items (e.g. services) is gathered. |
-| `[HostType, disco_sm_features]` | spiral | A list of user's features is gathered. |
-| `[HostType, disco_sm_identity]` | spiral | A list of user's identities is gathered. |
-| `[HostType, disco_sm_items]` | spiral | A list of user's items is gathered. |
-| `[HostType, mam_lookup_messages]` | spiral | An archive lookup is performed. |
-| `[HostType, offline_message]` | spiral | A message was sent to an offline user. (Except for "error", "headline" and "groupchat" message types.) |
-| `[HostType, offline_groupchat_message]` | spiral | A groupchat message was sent to an offline user. |
-| `[HostType, privacy_updated_list]` | spiral | User's privacy list is updated. |
-| `[HostType, resend_offline_messages]` | spiral | A list of offline messages is gathered for delivery to a user's new connection. |
-| `[HostType, roster_get_subscription_lists]` |  spiral | Presence subscription lists (based on which presence updates are broadcasted) are gathered. |
-| `[HostType, roster_in_subscription]` | spiral | A presence with subscription update is processed. |
-| `[HostType, roster_out_subscription]` | spiral | A presence with subscription update is received from a client. |
-| `[HostType, sm_broadcast]` | spiral | A stanza is broadcasted to all of user's resources. |
-| `[HostType, unset_presence]` | spiral | A user disconnects or sends an `unavailable` presence. |
+Prometheus metrics have a `host_type` label associated with these metrics.
+Since Exometer doesn't support labels, the host types are part of the metric names.
 
 ### Presences & rosters
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[HostType, sm_presence_subscription, subscription_count]` | spiral | Presence subscription is processed. |
-| `[HostType, sm_presence_subscription, unsubscription_count]` | spiral | Presence unsubscription is processed. |
-| `[HostType, mod_roster_get, count]` | spiral | User's roster is fetched. |
-| `[HostType, mod_roster_push, count]` | spiral | A roster update is pushed to a single session. |
-| `[HostType, mod_roster_set, count]` | spiral | User's roster is updated. |
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `sm_presence_subscription_subscription_count` | counter | Presence subscription is processed. |
+    | `sm_presence_subscription_unsubscription_count` | counter | Presence unsubscription is processed. |
+    | `mod_roster_get_count` | counter | User's roster is fetched. |
+    | `mod_roster_push_count` | counter | A roster update is pushed to a single session. |
+    | `mod_roster_set_count` | counter | User's roster is updated. |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `[HostType, sm_presence_subscription, subscription_count]` | spiral | Presence subscription is processed. |
+    | `[HostType, sm_presence_subscription, unsubscription_count]` | spiral | Presence unsubscription is processed. |
+    | `[HostType, mod_roster_get, count]` | spiral | User's roster is fetched. |
+    | `[HostType, mod_roster_push, count]` | spiral | A roster update is pushed to a single session. |
+    | `[HostType, mod_roster_set, count]` | spiral | User's roster is updated. |
 
 ### Privacy lists
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[HostType, mod_privacy_get, count]` | spiral | IQ privacy `get` is processed. |
-| `[HostType, mod_privacy_push_item, count]` | spiral | Privacy list update is sent to a single session. |
-| `[HostType, mod_privacy_set, count]` | spiral | IQ privacy `set` is processed. |
-| `[HostType, mod_privacy_set, active_count]` | spiral | Active privacy list is changed. |
-| `[HostType, mod_privacy_set, default_count]` | spiral | Default privacy list is changed. |
-| `[HostType, mod_privacy_check_packet, count]` | spiral | A packet is checked against the privacy list. |
-| `[HostType, mod_privacy_check_packet, denied_count]` | spiral | Privacy list check resulted in `deny`. |
-| `[HostType, mod_privacy_check_packet, blocked_count]` | spiral | Privacy list check resulted in `block`. |
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `mod_privacy_get_count` | counter | IQ privacy `get` is processed. |
+    | `mod_privacy_push_item_count` | counter | Privacy list update is sent to a single session. |
+    | `mod_privacy_set_count` | counter | IQ privacy `set` is processed. |
+    | `mod_privacy_set_active_count` | counter | Active privacy list is changed. |
+    | `mod_privacy_set_default_count` | counter | Default privacy list is changed. |
+    | `mod_privacy_check_packet_count` | counter | A packet is checked against the privacy list. |
+    | `mod_privacy_check_packet_denied_count` | counter | Privacy list check resulted in `deny`. |
+    | `mod_privacy_check_packet_blocked_count` | counter | Privacy list check resulted in `block`. |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `[HostType, mod_privacy_get, count]` | spiral | IQ privacy `get` is processed. |
+    | `[HostType, mod_privacy_push_item, count]` | spiral | Privacy list update is sent to a single session. |
+    | `[HostType, mod_privacy_set, count]` | spiral | IQ privacy `set` is processed. |
+    | `[HostType, mod_privacy_set, active_count]` | spiral | Active privacy list is changed. |
+    | `[HostType, mod_privacy_set, default_count]` | spiral | Default privacy list is changed. |
+    | `[HostType, mod_privacy_check_packet, count]` | spiral | A packet is checked against the privacy list. |
+    | `[HostType, mod_privacy_check_packet, denied_count]` | spiral | Privacy list check resulted in `deny`. |
+    | `[HostType, mod_privacy_check_packet, blocked_count]` | spiral | Privacy list check resulted in `block`. |
 
 ### Other
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[HostType, c2s_auth_failed, count]` | spiral | A client failed to authenticate. |
-| `[HostType, sm_session, count]` | counter | Number of active sessions. |
-| `[HostType, sm_session, logouts]` | spiral | A client session is closed. |
-| `[HostType, sm_session, logins]` | spiral | A client session is opened. |
-| `[HostType, c2s_element_in, count]` | spiral | An XML element is received from a client. |
-| `[HostType, c2s_element_in, stanza_count]` | spiral | An XMPP stanza is received from a client. |
-| `[HostType, c2s_element_in, message_count]` | spiral | A message stanza is received from a client. |
-| `[HostType, c2s_element_in, iq_count]` | spiral | An IQ stanza is received from a client. |
-| `[HostType, c2s_element_in, presence_count]` | spiral | A presence stanza is received from a client. |
-| `[HostType, c2s_element_in, error_count]` | spiral | An error is received from a client. |
-| `[HostType, c2s_element_in, message_error_count]` | spiral | A message error is received from a client. |
-| `[HostType, c2s_element_in, iq_error_count]` | spiral | An IQ error is received from a client. |
-| `[HostType, c2s_element_in, presence_error_count]` | spiral | A presence error is received from a client. |
-| `[HostType, c2s_element_out, count]` | spiral | An XML element is sent to a client. |
-| `[HostType, c2s_element_out, stanza_count]` | spiral | An XMPP stanza is sent to a client. |
-| `[HostType, c2s_element_out, iq_count]` | spiral | An IQ stanza is sent to a client. |
-| `[HostType, c2s_element_out, message_count]` | spiral | A message stanza is sent to a client. |
-| `[HostType, c2s_element_out, presence_count]` | spiral | A presence stanza is sent to a client. |
-| `[HostType, c2s_element_out, error_count]` | spiral | An error is sent to a client. |
-| `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
-| `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
-| `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
-| `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
-| `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
-| `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
-| `[HostType, router_no_route_found]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `c2s_auth_failed_count` | counter | A client failed to authenticate. |
+    | `sm_session_count` | gauge | Number of active sessions. |
+    | `sm_session_logouts` | counter | A client session is closed. |
+    | `sm_session_logins` | counter | A client session is opened. |
+    | `c2s_element_in_count` | counter | An XML element is received from a client. |
+    | `c2s_element_in_stanza_count` | counter | An XMPP stanza is received from a client. |
+    | `c2s_element_in_message_count` | counter | A message stanza is received from a client. |
+    | `c2s_element_in_iq_count` | counter | An IQ stanza is received from a client. |
+    | `c2s_element_in_presence_count` | counter | A presence stanza is received from a client. |
+    | `c2s_element_in_error_count` | counter | An error is received from a client. |
+    | `c2s_element_in_message_error_count` | counter | A message error is received from a client. |
+    | `c2s_element_in_iq_error_count` | counter | An IQ error is received from a client. |
+    | `c2s_element_in_presence_error_count` | counter | A presence error is received from a client. |
+    | `c2s_element_out_count` | counter | An XML element is sent to a client. |
+    | `c2s_element_out_stanza_count` | counter | An XMPP stanza is sent to a client. |
+    | `c2s_element_out_iq_count` | counter | An IQ stanza is sent to a client. |
+    | `c2s_element_out_message_count` | counter | A message stanza is sent to a client. |
+    | `c2s_element_out_presence_count` | counter | A presence stanza is sent to a client. |
+    | `c2s_element_out_error_count` | counter | An error is sent to a client. |
+    | `c2s_element_out_iq_error_count` | counter | An IQ error is sent to a client. |
+    | `c2s_element_out_message_error_count` | counter | A message error is sent to a client. |
+    | `c2s_element_out_presence_error_count` | counter | A presence error is sent to a client. |
+    | `c2s_message_processed_time` | histogram | Processing time for incomming c2s stanzas. |
+    | `sm_message_bounced_count` | counter | A `service-unavailable` error is sent, because the message recipient is offline. |
+    | `router_stanza_dropped_count` | counter | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
+    | `router_no_route_found_count` | counter | It is not possible to route a stanza (all routing handlers failed). |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `[HostType, c2s_auth_failed, count]` | spiral | A client failed to authenticate. |
+    | `[HostType, sm_session, count]` | counter | Number of active sessions. |
+    | `[HostType, sm_session, logouts]` | spiral | A client session is closed. |
+    | `[HostType, sm_session, logins]` | spiral | A client session is opened. |
+    | `[HostType, c2s_element_in, count]` | spiral | An XML element is received from a client. |
+    | `[HostType, c2s_element_in, stanza_count]` | spiral | An XMPP stanza is received from a client. |
+    | `[HostType, c2s_element_in, message_count]` | spiral | A message stanza is received from a client. |
+    | `[HostType, c2s_element_in, iq_count]` | spiral | An IQ stanza is received from a client. |
+    | `[HostType, c2s_element_in, presence_count]` | spiral | A presence stanza is received from a client. |
+    | `[HostType, c2s_element_in, error_count]` | spiral | An error is received from a client. |
+    | `[HostType, c2s_element_in, message_error_count]` | spiral | A message error is received from a client. |
+    | `[HostType, c2s_element_in, iq_error_count]` | spiral | An IQ error is received from a client. |
+    | `[HostType, c2s_element_in, presence_error_count]` | spiral | A presence error is received from a client. |
+    | `[HostType, c2s_element_out, count]` | spiral | An XML element is sent to a client. |
+    | `[HostType, c2s_element_out, stanza_count]` | spiral | An XMPP stanza is sent to a client. |
+    | `[HostType, c2s_element_out, iq_count]` | spiral | An IQ stanza is sent to a client. |
+    | `[HostType, c2s_element_out, message_count]` | spiral | A message stanza is sent to a client. |
+    | `[HostType, c2s_element_out, presence_count]` | spiral | A presence stanza is sent to a client. |
+    | `[HostType, c2s_element_out, error_count]` | spiral | An error is sent to a client. |
+    | `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
+    | `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
+    | `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
+    | `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
+    | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
+    | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
+    | `[HostType, router_no_route_found, count]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
 
 ### Pool metrics
 
 For every RDBMS pool defined, an instance of these metrics are available.
+Prometheus metrics have a `host_type` and `pool_tag` labels associated with these metrics.
+Since Exometer doesn't support labels, the host types and tags are part of the metric names.
 
-| Name                                                         | Type    | Description (when it gets incremented) |
-|--------------------------------------------------------------|---------|----------------------------------------|
-| `[HostType, wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
-| `[HostType, wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
-| `[HostType, wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
-| `[HostType, wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
-| `[HostType, wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
-| `[HostType, wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
-| `[HostType, wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
-| `[HostType, wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `wpool_rdbms_stats_workers`   | gauge | Number of workers in the pool |
+    | `wpool_rdbms_stats_recv_oct`  | counter  | Number of bytes received |
+    | `wpool_rdbms_stats_recv_cnt`  | counter  | Number of packets received |
+    | `wpool_rdbms_stats_recv_max`  | gauge   | Size of the largest packet, in bytes |
+    | `wpool_rdbms_stats_send_oct`  | counter  | Number of bytes sent |
+    | `wpool_rdbms_stats_send_max`  | gauge   | Size of the largest packet |
+    | `wpool_rdbms_stats_send_cnt`  | counter  | Number of packets sent |
+    | `wpool_rdbms_stats_send_pend` | counter  | Number of bytes waiting to be sent |
+
+=== "Exometer"
+
+    | Name                                                         | Type    | Description (when it gets incremented) |
+    |--------------------------------------------------------------|---------|----------------------------------------|
+    | `[HostType, wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+    | `[HostType, wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+    | `[HostType, wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+    | `[HostType, wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
 
 When using a Rabbit worker pool, metrics defined in [mod_event_pusher_rabbit](../modules/mod_event_pusher_rabbit.md) are
 available.
@@ -174,111 +258,231 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 ## Global metrics
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[global, sm_node_sessions, count]` | gauge | A number of sessions connected to a given MongooseIM node. |
-| `[global, sm_total_sessions, count]` | gauge | A number of sessions connected to a MongooseIM cluster. |
-| `[global, sm_unique_sessions, count]` | gauge | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
-| `[global, system_up_time, seconds]` | value | Node uptime. |
-| `[global, mnesia_info, running_db_nodes]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS, use `[global, cets_info, joined_nodes]` instead. |
-| `[global, system_tcp_ports, count]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
-| `[global, system_process_queue_lengths, total]` | probe | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
-| `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `sm_node_sessions_count` | gauge | A number of sessions connected to a given MongooseIM node. |
+    | `sm_total_sessions_count` | gauge | A number of sessions connected to a MongooseIM cluster. |
+    | `sm_unique_sessions_count` | gauge | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
+    | `system_up_time_seconds` | gauge | Node uptime. |
+    | `mnesia_info_running_db_nodes` | gauge | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS, use `cets_info, joined_nodes` instead. |
+    | `system_tcp_ports_count` | gauge | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
+    | `system_process_queue_lengths_total` | gauge | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
+    | `system_dist_data_Metric` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `[global, sm_node_sessions, count]` | gauge | A number of sessions connected to a given MongooseIM node. |
+    | `[global, sm_total_sessions, count]` | gauge | A number of sessions connected to a MongooseIM cluster. |
+    | `[global, sm_unique_sessions, count]` | gauge | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
+    | `[global, system_up_time, seconds]` | gauge | Node uptime. |
+    | `[global, mnesia_info, running_db_nodes]` | gauge | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node (based on Mnesia). For CETS, use `[global, cets_info, joined_nodes]` instead. |
+    | `[global, system_tcp_ports, count]` | gauge | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
+    | `[global, system_process_queue_lengths, total]` | probe | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
+    | `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
 
 ### Data metrics
 
 All metrics are in bytes, and refer to unencrypted data (before encryption or after decryption in case of TLS).
 
-| Metric name | Type | Description |
-| ----------- | ---- | ----------- |
-| `[global, c2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a client. |
-| `[global, c2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a client. |
-| `[global, c2s_tcp_data_in, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
-| `[global, c2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
-| `[global, c2s_tls_data_in, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
-| `[global, c2s_tls_data_out, byte_size]` | spiral | Amount of data sent to a client via TLS channel. |
-| `[global, mod_bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
-| `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
-| `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
-| `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
-| `[global, s2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
-| `[global, s2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
-| `[global, s2s_tcp_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
-| `[global, s2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
-| `[global, s2s_tls_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
-| `[global, s2s_tls_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
-| `[global, component_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a component. |
-| `[global, component_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a component. |
-| `[global, component_tcp_data_in, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
-| `[global, component_tcp_data_out, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
-| `[global, component_tls_data_in, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
-| `[global, component_tls_data_out, byte_size]` | spiral | Amount of data sent to a component via TLS channel. |
+=== "Prometheus"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `c2s_xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from a client. |
+    | `c2s_xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to a client. |
+    | `c2s_tcp_data_in_byte_size` | counter | Amount of data received from a client via TCP channel. |
+    | `c2s_tcp_data_out_byte_size` | counter | Amount of data sent to a client via TCP channel. |
+    | `c2s_tls_data_in_byte_size` | counter | Amount of data received from a client via TLS channel. |
+    | `c2s_tls_data_out_byte_size` | counter | Amount of data sent to a client via TLS channel. |
+    | `mod_bosh_data_received_byte_size` | counter | Amount of data received from a client via BOSH connection. |
+    | `mod_bosh_data_sent_byte_size` | counter | Amount of data sent to a client via BOSH connection. |
+    | `mod_websocket_data_received_byte_size` | counter | Amount of data received from a client via WebSocket connection. |
+    | `mod_websocket_data_sent_byte_size` | counter | Amount of data sent to a client via WebSocket connection. |
+    | `s2s_xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from another XMPP server. |
+    | `s2s_xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to another XMPP server. |
+    | `s2s_tcp_data_in_byte_size` | counter | Amount of data received from another XMPP server via TCP channel. |
+    | `s2s_tcp_data_out_byte_size` | counter | Amount of data sent to another XMPP server via TCP channel. |
+    | `s2s_tls_data_in_byte_size` | counter | Amount of data received from another XMPP server via TLS channel. |
+    | `s2s_tls_data_out_byte_size` | counter | Amount of data sent to another XMPP server via TLS channel. |
+    | `component_xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from a component. |
+    | `component_xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to a component. |
+    | `component_tcp_data_in_byte_size` | counter | Amount of data received from a component via TCP channel. |
+    | `component_tcp_data_out_byte_size` | counter | Amount of data sent to a component via TCP channel. |
+    | `component_tls_data_in_byte_size` | counter | Amount of data received from a component via TLS channel. |
+    | `component_tls_data_out_byte_size` | counter | Amount of data sent to a component via TLS channel. |
+
+=== "Exometer"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `[global, c2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a client. |
+    | `[global, c2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a client. |
+    | `[global, c2s_tcp_data_in, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
+    | `[global, c2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
+    | `[global, c2s_tls_data_in, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
+    | `[global, c2s_tls_data_out, byte_size]` | spiral | Amount of data sent to a client via TLS channel. |
+    | `[global, mod_bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
+    | `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
+    | `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
+    | `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
+    | `[global, s2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
+    | `[global, s2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
+    | `[global, s2s_tcp_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
+    | `[global, s2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
+    | `[global, s2s_tls_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
+    | `[global, s2s_tls_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
+    | `[global, component_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a component. |
+    | `[global, component_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a component. |
+    | `[global, component_tcp_data_in, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
+    | `[global, component_tcp_data_out, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
+    | `[global, component_tls_data_in, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
+    | `[global, component_tls_data_out, byte_size]` | spiral | Amount of data sent to a component via TLS channel. |
 
 ### CETS system metrics
 
-| Metric name | Type | Description |
-| ----------- | ---- | ----------- |
-| `[global, cets, system]` | proplist | A proplist with a list of stats. Description is below. |
+=== "Prometheus"
 
-| Stat Name | Description |
-| ----------- | ----------- |
-| `available_nodes` | Available nodes (nodes that are connected to us and have the CETS disco process started). |
-| `unavailable_nodes` | Unavailable nodes (nodes that do not respond to our pings). |
-| `joined_nodes` | Joined nodes (nodes that have our local tables running). |
-| `discovered_nodes` | Discovered nodes (nodes that are extracted from the discovery backend). |
-| `remote_nodes_without_disco` | Nodes that have more tables registered than the local node. |
-| `remote_nodes_with_unknown_tables` | Nodes with unknown tables. |
-| `remote_unknown_tables` | Unknown remote tables. |
-| `remote_nodes_with_missing_tables` | Nodes that are available, but do not host some of our local tables. |
-| `remote_missing_tables` | Nodes that replicate at least one of our local tables to a different list of nodes. |
-| `conflict_nodes` | Nodes that replicate at least one of our local tables to a different list of nodes. |
-| `conflict_tables` | Tables that have conflicting replication destinations. |
-| `discovery_works` | Returns 1 if the last discovery attempt is successful (otherwise returns 0). |
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `cets_info_available_nodes` | gauge | Available nodes (nodes that are connected to us and have the CETS disco process started). |
+    | `cets_info_unavailable_nodes` | gauge | Unavailable nodes (nodes that do not respond to our pings). |
+    | `cets_info_joined_nodes` | gauge | Joined nodes (nodes that have our local tables running). |
+    | `cets_info_discovered_nodes` | gauge | Discovered nodes (nodes that are extracted from the discovery backend). |
+    | `cets_info_remote_nodes_without_disco` | gauge | Nodes that have more tables registered than the local node. |
+    | `cets_info_remote_nodes_with_unknown_tables` | gauge | Nodes with unknown tables. |
+    | `cets_info_remote_unknown_tables` | gauge | Unknown remote tables. |
+    | `cets_info_remote_nodes_with_missing_tables` | gauge | Nodes that are available, but do not host some of our local tables. |
+    | `cets_info_remote_missing_tables` | gauge | Nodes that replicate at least one of our local tables to a different list of nodes. |
+    | `cets_info_conflict_nodes` | gauge | Nodes that replicate at least one of our local tables to a different list of nodes. |
+    | `cets_info_conflict_tables` | gauge | Tables that have conflicting replication destinations. |
+    | `cets_info_discovery_works` | gauge | Returns 1 if the last discovery attempt is successful (otherwise returns 0). |
+
+=== "Exometer"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `[global, cets_info, available_nodes]` | gauge | Available nodes (nodes that are connected to us and have the CETS disco process started). |
+    | `[global, cets_info, unavailable_nodes]` | gauge | Unavailable nodes (nodes that do not respond to our pings). |
+    | `[global, cets_info, joined_nodes]` | gauge | Joined nodes (nodes that have our local tables running). |
+    | `[global, cets_info, discovered_nodes]` | gauge | Discovered nodes (nodes that are extracted from the discovery backend). |
+    | `[global, cets_info, remote_nodes_without_disco]` | gauge | Nodes that have more tables registered than the local node. |
+    | `[global, cets_info, remote_nodes_with_unknown_tables]` | gauge | Nodes with unknown tables. |
+    | `[global, cets_info, remote_unknown_tables]` | gauge | Unknown remote tables. |
+    | `[global, cets_info, remote_nodes_with_missing_tables]` | gauge | Nodes that are available, but do not host some of our local tables. |
+    | `[global, cets_info, remote_missing_tables]` | gauge | Nodes that replicate at least one of our local tables to a different list of nodes. |
+    | `[global, cets_info, conflict_nodes]` | gauge | Nodes that replicate at least one of our local tables to a different list of nodes. |
+    | `[global, cets_info, conflict_tables]` | gauge | Tables that have conflicting replication destinations. |
+    | `[global, cets_info, discovery_works]` | gauge | Returns 1 if the last discovery attempt is successful (otherwise returns 0). |
 
 ### Pool metrics
 
 For RDBMS global pool defined, an instance of these metrics are available.
+Prometheus metrics have a `pool_tag` label associated with these metrics.
+Since Exometer doesn't support labels, the tags are part of the metric names.
 
-| Name                                                              | Type    | Description (when it gets incremented) |
-|-------------------------------------------------------------------|---------|----------------------------------------|
-| `[global, wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
-| `[global, wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
-| `[global, wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
-| `[global, wpool_global_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
-| `[global, wpool_global_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
-| `[global, wpool_global_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
-| `[global, wpool_global_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
-| `[global, wpool_global_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+=== "Prometheus"
 
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `wpool_global_rdbms_stats_workers`   | gauge | Number of workers in the pool          |
+    | `wpool_global_rdbms_stats_recv_oct`  | counter  | Number of bytes received               |
+    | `wpool_global_rdbms_stats_recv_cnt`  | counter  | Number of packets received             |
+    | `wpool_global_rdbms_stats_recv_max`  | gauge   | Size of the largest packet, in bytes   |
+    | `wpool_global_rdbms_stats_send_oct`  | counter  | Number of bytes sent                   |
+    | `wpool_global_rdbms_stats_send_max`  | gauge   | Size of the largest packet             |
+    | `wpool_global_rdbms_stats_send_cnt`  | counter  | Number of packets sent                 |
+    | `wpool_global_rdbms_stats_send_pend` | counter  | Number of bytes waiting to be sent     |
+
+=== "Exometer"
+
+    | Name                                                              | Type    | Description (when it gets incremented) |
+    |-------------------------------------------------------------------|---------|----------------------------------------|
+    | `[global, wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
+    | `[global, wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
+    | `[global, wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
+    | `[global, wpool_global_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
+    | `[global, wpool_global_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
+    | `[global, wpool_global_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
+    | `[global, wpool_global_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
+    | `[global, wpool_global_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
 
 ### VM metrics
 
-| Metric name | Type | Description |
-| ----------- | ---- | ----------- |
-| `[global, system_memory, Metric]` | gauge | Erlang memory statistics from [`erlang:memory/0`](https://www.erlang.org/doc/apps/erts/erlang.html#memory/0). `Metric` specifies the memory type, e.g. `total`, `processes_used`, `atom_used`, `binary`, `ets` or `system`. |
-| `[global, system_info, Metric]` | gauge | Erlang system statistics from [`erlang:system_info/1`](https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1). `Metric` can be `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_count` or `ets_limit`. |
+=== "Prometheus"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `system_memory_Metric` | gauge | Erlang memory statistics from [`erlang:memory/0`](https://www.erlang.org/doc/apps/erts/erlang.html#memory/0). `Metric` specifies the memory type, e.g. `total`, `processes_used`, `atom_used`, `binary`, `ets` or `system`. |
+    | `system_info_Metric` | gauge | Erlang system statistics from [`erlang:system_info/1`](https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1). `Metric` can be `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_count` or `ets_limit`. |
+
+=== "Exometer"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `[global, system_memory, Metric]` | gauge | Erlang memory statistics from [`erlang:memory/0`](https://www.erlang.org/doc/apps/erts/erlang.html#memory/0). `Metric` specifies the memory type, e.g. `total`, `processes_used`, `atom_used`, `binary`, `ets` or `system`. |
+    | `[global, system_info, Metric]` | gauge | Erlang system statistics from [`erlang:system_info/1`](https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1). `Metric` can be `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_count` or `ets_limit`. |
 
 ## Backend metrics
 
 Some extension modules expose histograms with timings of calls made to their backends.
 Please check the documentation of modules that are enabled in your config file, in order to learn if they provide them.
 
-All module backend metrics names use the following convention: `[global, backends, Module, BackendAction]` and `[global, backends, Module, BackendAction, count]`.
-The former is a histogram of operation times. However, the time is not recorded if a backend operation exits with an exception.
-The latter is a number of calls (spiral metric), incremented for *every* call (even a failed one).
+Prometheus metrics have a `host_type` label associated with these metrics, as well as a `function` label describing the backend action.
+Since Exometer doesn't support labels, the host types and backend actions are part of the metric names.
 
-Besides these, following authentication metrics are always available:
+=== "Prometheus"
 
-* `[HostType, backends, auth, authorize]`
-* `[HostType, backends, auth, check_password]`
-* `[HostType, backends, auth, try_register]`
-* `[HostType, backends, auth, does_user_exist]`
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `BackendModule_count` | counter | Number of calls (spiral metric), incremented for *every* call (even a failed one). |
+    | `BackendModule_time` | histogram | Successful operation times. |
+
+=== "Exometer"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `[HostType, BackendModule, BackendAction, count]` | spiral | Number of calls (spiral metric), incremented for *every* call (even a failed one). |
+    | `[HostType, BackendModule, BackendAction, time]` | histogram | Successful operation times. |
+
+
+Besides these, following authentication metrics are always available.
+Prometheus metrics have a `host_type` label associated with these metrics.
+Since Exometer doesn't support labels, the host types are part of the metric names.
+
+=== "Prometheus"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `auth_register_user_count` | counter | A user registered sucessfully. |
+    | `auth_unregister_user_count` | counter | A user unregistered sucessfully. |
+    | `auth_authorize_count` | counter | A user tried to authorize. |
+    | `auth_authorize_time` | histogram | Time it took to authorize a user. |
+    | `auth_check_password_count` | counter | A password was checked. |
+    | `auth_check_password_time` | histogram | Time it took to check a password. |
+    | `auth_try_register_count` | counter | A user tried to register. |
+    | `auth_try_register_time` | histogram | Time it took to register a user. |
+    | `auth_does_user_exist_count` | counter | Whether a user exists was checked. |
+    | `auth_does_user_exist_time` | histogram | Time it took to check whether a user exists. |
+
+=== "Exometer"
+
+    | Metric name | Type | Description |
+    | ----------- | ---- | ----------- |
+    | `[HostType, auth_register_user, count]` | spiral | A user registered sucessfully. |
+    | `[HostType, auth_unregister_user, count]` | spiral | A user unregistered sucessfully. |
+    | `[HostType, auth_authorize, count]` | spiral | A user tried to authorize. |
+    | `[HostType, auth_authorize, time]` | histogram | Time it took to authorize a user. |
+    | `[HostType, auth_check_password, count]` | spiral | A password was checked. |
+    | `[HostType, auth_check_password, time]` | histogram | Time it took to check a password. |
+    | `[HostType, auth_try_register, count]` | spiral | A user tried to register. |
+    | `[HostType, auth_try_register, time]` | histogram | Time it took to register a user. |
+    | `[HostType, auth_does_user_exist, count]` | spiral | Whether a user exists was checked. |
+    | `[HostType, auth_does_user_exist, time]` | histogram | Time it took to check whether a user exists. |
 
 These are **total** times of respective operations.
 One operation usually requires only a single call to an auth backend but sometimes with e.g. 3 backends configured, the operation may fail for first 2 backends.
 In such case, these metrics will be updated with combined time of 2 failed and 1 successful request.
-
-Additionally, the RDBMS layer in MongooseIM exposes two more metrics, if RDBMS is configured:
-
-* `[global, backends, mongoose_rdbms, query]` - Execution time of a "simple" (not prepared) query by a DB driver.
-* `[global, backends, mongoose_rdbms, execute]` - Execution time of a prepared query by a DB driver.
