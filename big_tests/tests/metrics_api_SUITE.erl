@@ -74,7 +74,7 @@ init_per_group(GroupName, Config) ->
     metrics_helper:prepare_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
 
 end_per_group(GroupName, Config) ->
-    metrics_helper:finalise_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
+    metrics_helper:finalize_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
 
 init_per_testcase(cluster_size = CN, Config) ->
     case distributed_helper:has_mnesia(mim()) of
