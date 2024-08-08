@@ -116,7 +116,6 @@ end_per_suite(Config) ->
 
 init_per_testcase(CaseName, Config) ->
     meck:new(erlcloud_sns, [non_strict, passthrough]),
-    meck:new([mongoose_wpool, mongoose_metrics], [stub_all]),
     meck:expect(erlcloud_sns, new, fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end),
     meck:expect(mongoose_wpool, start, fun(_, _, _, _) -> {ok, mocked} end),
     meck:expect(mongoose_wpool, cast, fun(_, _, _, {M, F, A}) -> erlang:apply(M, F, A) end),

@@ -56,7 +56,7 @@ handle_get(Req, State = #{suffix := all}) ->
     Bindings = cowboy_req:bindings(Req),
     case get_metric_name(Bindings) of
         {metric, Metric} ->
-            case mongoose_metrics:get_aggregated_values(Metric) of
+            case mongoose_instrument_exometer:get_aggregated_values(Metric) of
                 [] ->
                     throw_error(not_found, <<"Metric not found">>);
                 Value ->
@@ -86,14 +86,14 @@ handle_get(Req, State) ->
 handle_get_values(Req, State, Bindings, HostType) ->
     case get_metric_name(Bindings) of
         {metric, Metric} ->
-            case mongoose_metrics:get_metric_value(HostType, Metric) of
+            case mongoose_instrument_exometer:get_metric_value(HostType, Metric) of
                 {ok, Value} ->
                     {jiffy:encode(#{metric => prepare_value(Value)}), Req, State};
                 _Other ->
                     throw_error(not_found, <<"Metric not found">>)
             end;
         all_metrics ->
-            case mongoose_metrics:get_metric_values(HostType) of
+            case mongoose_instrument_exometer:get_metric_values(HostType) of
                 [] ->
                     throw_error(not_found, <<"No metrics found">>);
                 Metrics ->
@@ -109,11 +109,11 @@ get_sum_metrics() ->
 
 -spec get_sum_metric([atom()]) -> map().
 get_sum_metric(Metric) ->
-    maps:from_list(mongoose_metrics:get_aggregated_values(Metric)).
+    maps:from_list(mongoose_instrument_exometer:get_aggregated_values(Metric)).
 
 -spec get_available_metrics(HostType :: mongooseim:host_type()) -> [any()].
 get_available_metrics(HostType) ->
-    mongoose_metrics:get_host_type_metric_names(HostType).
+    mongoose_instrument_exometer:get_host_type_metric_names(HostType).
 
 -spec get_available_host_type_metrics() -> {[any(), ...], [any()]}.
 get_available_host_type_metrics() ->
@@ -122,7 +122,7 @@ get_available_host_type_metrics() ->
     {HostTypes, Metrics}.
 
 get_available_global_metrics() ->
-    mongoose_metrics:get_global_metric_names().
+    mongoose_instrument_exometer:get_global_metric_names().
 
 -spec get_available_host_types() -> [mongooseim:host_type()].
 get_available_host_types() ->
