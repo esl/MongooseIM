@@ -53,8 +53,21 @@ Strategy to handle incoming stanzas. For details, please refer to
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| ``[HostType, mod_ping, ping_response]`` | spiral | Client responds to a ping. |
-| ``[HostType, mod_ping, ping_response_timeout]`` | spiral | Ping request timeouts without a response from client. |
-| ``[HostType, mod_ping, ping_response_time]`` | histogram | Response times (doesn't include timeouts). |
+Prometheus metrics have a `host_type` label associated with these metrics.
+Since Exometer doesn't support labels, the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    |------|------|----------------------------------------|
+    | `mod_ping_response_count` | counter | Client responds to a ping. |
+    | `mod_ping_response_time` | histogram | Ping request timeouts without a response from client. |
+    | `mod_ping_response_count` | counter | Response times (doesn't include timeouts). |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    |------|------|----------------------------------------|
+    | `[HostType, mod_ping_response, count]` | spiral | Client responds to a ping. |
+    | `[HostType, mod_ping_response, time]` | histogram | Ping request timeouts without a response from client. |
+    | `[HostType, mod_ping_response_timeout, count]` | spiral | Response times (doesn't include timeouts). |

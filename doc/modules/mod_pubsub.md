@@ -234,66 +234,198 @@ If you'd like to learn more about metrics in MongooseIM, please visit the [Mongo
 
 ### Overall PubSub action metrics
 
-For every PubSub action, like node creation, subscription, publication the following metrics are available:
+=== "Prometheus"
 
-* count - a spiral metric showing the number of given action invocations
-* errors - a spiral metric counting the errors for a given action
-* time - a histogram metric showing the time it took to finish the action in case of success
+    For every PubSub action, like node creation, subscription, publication the following metrics are available:
 
-Below there is a table describing all metrics related to PubSub actions
+    * count - a counter metric showing the number of given action invocations
+    * errors - a counter metric counting the errors for a given action
+    * time - a histogram metric showing the time it took to finish the action in case of success
 
-| Name | Description (when it gets incremented) |
-| ---- | -------------------------------------- |
-|`[HOST, pubsub, get, affiliations, TYPE]` | When node's affiliations are read |
-|`[HOST, pubsub, get, configure, TYPE]` | When node's configuration is read |
-|`[HOST, pubsub, get, default, TYPE]` | When node's defaults are read |
-|`[HOST, pubsub, get, items, TYPE]` | When node's items are read |
-|`[HOST, pubsub, get, options, TYPE]` | When node's options are read |
-|`[HOST, pubsub, get, subscriptions, TYPE]` | When node's subscriptions are read |
-|`[HOST, pubsub, set, affiliations, TYPE]` | When node's subscriptions are set |
-|`[HOST, pubsub, set, configure, TYPE]` | When node's configuration is set |
-|`[HOST, pubsub, set, create, TYPE]` | When node is created |
-|`[HOST, pubsub, set, delete, TYPE]` | When node is deleted |
-|`[HOST, pubsub, set, options, TYPE]` | When node's options are set |
-|`[HOST, pubsub, set, publish, TYPE]` | When an item is published |
-|`[HOST, pubsub, set, purge, TYPE]` | When node's items are purged |
-|`[HOST, pubsub, set, retract, TYPE]` | When node's items are retracted |
-|`[HOST, pubsub, set, subscribe, TYPE]` | When a subscriber subscribes to a node |
-|`[HOST, pubsub, set, subscriptions, TYPE]` | When a subscription is set (for instance accepted) |
-|`[HOST, pubsub, set, unsubscribe, TYPE]` | When a subscriber unsubscribes |
+    All PubSub metrics have a `host_type` label associated with them.
 
-Where:
+    Below there is a table describing all metrics related to PubSub actions
 
-* `HOST` is the XMPP host for which `mod_pubsub` is running. Can be set to `global` if all metrics are set to be global.
-* `TYPE` is one of the following `count`, `errors`, `time` (described above the table)
+    | Name | Description (when it gets incremented) |
+    | ---- | -------------------------------------- |
+    |`mod_pubsub_get_affiliations_TYPE` | When node's affiliations are read |
+    |`mod_pubsub_get_configure_TYPE` | When node's configuration is read |
+    |`mod_pubsub_get_default_TYPE` | When node's defaults are read |
+    |`mod_pubsub_get_items_TYPE` | When node's items are read |
+    |`mod_pubsub_get_options_TYPE` | When node's options are read |
+    |`mod_pubsub_get_subscriptions_TYPE` | When node's subscriptions are read |
+    |`mod_pubsub_set_affiliations_TYPE` | When node's subscriptions are set |
+    |`mod_pubsub_set_configure_TYPE` | When node's configuration is set |
+    |`mod_pubsub_set_create_TYPE` | When node is created |
+    |`mod_pubsub_set_delete_TYPE` | When node is deleted |
+    |`mod_pubsub_set_options_TYPE` | When node's options are set |
+    |`mod_pubsub_set_publish_TYPE` | When an item is published |
+    |`mod_pubsub_set_purge_TYPE` | When node's items are purged |
+    |`mod_pubsub_set_retract_TYPE` | When node's items are retracted |
+    |`mod_pubsub_set_subscribe_TYPE` | When a subscriber subscribes to a node |
+    |`mod_pubsub_set_subscriptions_TYPE` | When a subscription is set (for instance accepted) |
+    |`mod_pubsub_set_unsubscribe_TYPE` | When a subscriber unsubscribes |
+
+    Where:
+    
+    * `TYPE` is one of the following `count`, `errors`, `time` (described above the table)
+
+=== "Exometer"
+
+    For every PubSub action, like node creation, subscription, publication the following metrics are available:
+
+    * count - a spiral metric showing the number of given action invocations
+    * errors - a spiral metric counting the errors for a given action
+    * time - a histogram metric showing the time it took to finish the action in case of success
+
+    Below there is a table describing all metrics related to PubSub actions
+
+    | Name | Description (when it gets incremented) |
+    | ---- | -------------------------------------- |
+    |`[HOST, pubsub, get, affiliations, TYPE]` | When node's affiliations are read |
+    |`[HOST, pubsub, get, configure, TYPE]` | When node's configuration is read |
+    |`[HOST, pubsub, get, default, TYPE]` | When node's defaults are read |
+    |`[HOST, pubsub, get, items, TYPE]` | When node's items are read |
+    |`[HOST, pubsub, get, options, TYPE]` | When node's options are read |
+    |`[HOST, pubsub, get, subscriptions, TYPE]` | When node's subscriptions are read |
+    |`[HOST, pubsub, set, affiliations, TYPE]` | When node's subscriptions are set |
+    |`[HOST, pubsub, set, configure, TYPE]` | When node's configuration is set |
+    |`[HOST, pubsub, set, create, TYPE]` | When node is created |
+    |`[HOST, pubsub, set, delete, TYPE]` | When node is deleted |
+    |`[HOST, pubsub, set, options, TYPE]` | When node's options are set |
+    |`[HOST, pubsub, set, publish, TYPE]` | When an item is published |
+    |`[HOST, pubsub, set, purge, TYPE]` | When node's items are purged |
+    |`[HOST, pubsub, set, retract, TYPE]` | When node's items are retracted |
+    |`[HOST, pubsub, set, subscribe, TYPE]` | When a subscriber subscribes to a node |
+    |`[HOST, pubsub, set, subscriptions, TYPE]` | When a subscription is set (for instance accepted) |
+    |`[HOST, pubsub, set, unsubscribe, TYPE]` | When a subscriber unsubscribes |
+
+    Where:
+    
+    * `HOST` is the XMPP host for which `mod_pubsub` is running. Can be set to `global` if all metrics are set to be global.
+    * `TYPE` is one of the following `count`, `errors`, `time` (described above the table)
 
 ### Backend operations
 
-The are also more detailed metrics measuring execution time of backend operations.
+`mod_pubsub` also provides detailed [backend metrics](../operation-and-maintenance/MongooseIM-metrics.md#backend-metrics) measuring execution time of backend operations.
 
-Metrics for these actions may be found under `mod_pubsub_db` subkey.
+Prometheus metrics have a `host_type` and `function` labels associated with these metrics.
+Since Exometer doesn't support labels, the function as well as the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
 
-| Backend action | Description (when it gets incremented) |
-| ---- | -------------------------------------- |
-| `get_state` |  User's state for a specific node is fetched. |
-| `get_states` | Node's states are fetched. |
-| `get_states_by_lus` | Nodes' states for user + domain are fetched. |
-| `get_states_by_bare` | Nodes' states for bare JID are fetched. |
-| `get_states_by_full` | Nodes' states for full JID are fetched. |
-| `get_own_nodes_states` | State data for user's nodes is fetched. |
-| `create_node` | A node's owner is set. |
-| `del_node` | All data related to a node is removed. |
-| `get_items` | Node's items are fetched. |
-| `get_item` | A specific item from a node is fetched. |
-| `add_item` | An item is upserted into a node. |
-| `set_item` | An item is updated in a node. |
-| `del_item` | An item is deleted from a node. |
-| `del_items` | Specified items are deleted from a node. |
-| `set_node` | A node is upserted. |
-| `find_node_by_id` | A node is fetched by its ID. |
-| `find_nodes_by_key` | Nodes are fetched by key. |
-| `find_node_by_name` | A node is fetched by its name. |
-| `del_node` | A node is deleted. |
-| `get_subnodes` | Subnodes of a node are fetched. |
-| `get_subnodes_tree` | Full tree of subnodes of a node is fetched. |
-| `get_parentnodes_tree` | All parents of a node are fetched. |
+Backend in the action name can be either `rdbms` or `mnesia`.
+
+#### Cache backend
+
+=== "Prometheus"
+
+    | Backend action | Type | Function | Description (when it gets incremented) |
+    | -------------- | ---- | -------- | -------------------------------------- |
+    | `mod_pubsub_cache_Backend_count` | counter | `upsert_last_item` | Last item is upserted into a node. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `upsert_last_item` | Time to upsert last item into a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `delete_last_item` | Last item is deleted from a node. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `delete_last_item` | Time to delete last item from a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_last_item` | Last item from a node is fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_last_item` | Time to fetch the last item from a node. |
+
+=== "Exometer"
+
+    | Backend action | Type | Description (when it gets incremented) |
+    | -------------- | ---- | -------------------------------------- |
+    | `[HostType, mod_pubsub_cache_Backend, upsert_last_item, count]` | counter | Last item is upserted into a node. |
+    | `[HostType, mod_pubsub_cache_Backend, upsert_last_item, time]` | histogram | Time to upsert last item into a node. |
+    | `[HostType, mod_pubsub_cache_Backend, delete_last_item, count]` | counter | Last item is deleted from a node. |
+    | `[HostType, mod_pubsub_cache_Backend, delete_last_item, time]` | histogram | Time to delete last item from a node. |
+    | `[HostType, mod_pubsub_cache_Backend, get_last_item, count]` | counter | Last item from a node is fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_last_item, time]` | histogram | Time to fetch the last item from a node. |
+
+#### Database backend
+
+=== "Prometheus"
+
+    | Backend action | Type | Function | Description (when it gets incremented) |
+    | -------------- | ---- | -------- | -------------------------------------- |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_state` | User's state for a specific node is fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_state` | Time to fetch user's state for a specific node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_states` | Node's states are fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_states` | Time to fetch node's states. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_states_by_lus` | Nodes' states for user + domain are fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_states_by_lus` | Time to fetch the nodes' states for user + domain. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_states_by_bare` | Nodes' states for bare JID are fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_states_by_bare` | Time to fetch nodes' states for bare JID. |
+    | `mod_pubsub_cache_Backend_count` | counter | `create_node` | A node's owner is set. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `create_node` | Time to set a node's owner. |
+    | `mod_pubsub_cache_Backend_count` | counter | `del_node` | All data related to a node is removed. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `del_node` | Time to remove all data related to a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_items` | Node's items are fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_items` | Time to fetch node's items. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_item` | A specific item from a node is fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_item` | Time to fetch a specific item from a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `add_item` | An item is upserted into a node. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `add_item` | Time to upsert an item into a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `set_item` | An item is updated in a node. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `set_item` | Time to update an item in a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `del_item` | An item is deleted from a node. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `del_item` | Time to delete an item from a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `del_items` | Specified items are deleted from a node. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `del_items` | Time to delete specified items from a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `set_node` | A node is upserted. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `set_node` | Time to upsert a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `find_node_by_id` | A node is fetched by its ID. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `find_node_by_id` | Time to fetch a node by its ID. |
+    | `mod_pubsub_cache_Backend_count` | counter | `find_nodes_by_key` | Nodes are fetched by key. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `find_nodes_by_key` | Time to fetch nodes by key. |
+    | `mod_pubsub_cache_Backend_count` | counter | `find_node_by_name` | A node is fetched by its name. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `find_node_by_name` | Time to fetch a node by its name. |
+    | `mod_pubsub_cache_Backend_count` | counter | `delete_node` | A node is deleted. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `delete_node` | Time to delete a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_subnodes` | Subnodes of a node are fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_subnodes` | Time to fetch the subnodes of a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_subnodes_tree` | Full tree of subnodes of a node is fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_subnodes_tree` | Time to fetch the full tree of subnodes of a node. |
+    | `mod_pubsub_cache_Backend_count` | counter | `get_parentnodes_tree` | All parents of a node are fetched. |
+    | `mod_pubsub_cache_Backend_time` | histogram | `get_parentnodes_tree` | Time to fetch all parents of a node. |
+
+=== "Exometer"
+
+    | Backend action | Type | Description (when it gets incremented) |
+    | -------------- | ---- | -------------------------------------- |
+    | `[HostType, mod_pubsub_cache_Backend, get_state, count]` | counter | User's state for a specific node is fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_state, time]` | histogram | Time to fetch user's state for a specific node. |
+    | `[HostType, mod_pubsub_cache_Backend, get_states, count]` | counter | Node's states are fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_states, time]` | histogram | Time to fetch node's states. |
+    | `[HostType, mod_pubsub_cache_Backend, get_states_by_lus, count]` | counter | Nodes' states for user + domain are fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_states_by_lus, time]` | histogram | Time to fetch the nodes' states for user + domain. |
+    | `[HostType, mod_pubsub_cache_Backend, get_states_by_bare, count]` | counter | Nodes' states for bare JID are fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_states_by_bare, time]` | histogram | Time to fetch nodes' states for bare JID. |
+    | `[HostType, mod_pubsub_cache_Backend, create_node, count]` | counter | A node's owner is set. |
+    | `[HostType, mod_pubsub_cache_Backend, create_node, time]` | histogram | Time to set a node's owner. |
+    | `[HostType, mod_pubsub_cache_Backend, del_node, count]` | counter | All data related to a node is removed. |
+    | `[HostType, mod_pubsub_cache_Backend, del_node, time]` | histogram | Time to remove all data related to a node. |
+    | `[HostType, mod_pubsub_cache_Backend, get_items, count]` | counter | Node's items are fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_items, time]` | histogram | Time to fetch node's items. |
+    | `[HostType, mod_pubsub_cache_Backend, get_item, count]` | counter | A specific item from a node is fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_item, time]` | histogram | Time to fetch a specific item from a node. |
+    | `[HostType, mod_pubsub_cache_Backend, add_item, count]` | counter | An item is upserted into a node. |
+    | `[HostType, mod_pubsub_cache_Backend, add_item, time]` | histogram | Time to upsert an item into a node. |
+    | `[HostType, mod_pubsub_cache_Backend, set_item, count]` | counter | An item is updated in a node. |
+    | `[HostType, mod_pubsub_cache_Backend, set_item, time]` | histogram | Time to update an item in a node. |
+    | `[HostType, mod_pubsub_cache_Backend, del_item, count]` | counter | An item is deleted from a node. |
+    | `[HostType, mod_pubsub_cache_Backend, del_item, time]` | histogram | Time to delete an item from a node. |
+    | `[HostType, mod_pubsub_cache_Backend, del_items, count]` | counter | Specified items are deleted from a node. |
+    | `[HostType, mod_pubsub_cache_Backend, del_items, time]` | histogram | Time to delete specified items from a node. |
+    | `[HostType, mod_pubsub_cache_Backend, set_node, count]` | counter | A node is upserted. |
+    | `[HostType, mod_pubsub_cache_Backend, set_node, time]` | histogram | Time to upsert a node. |
+    | `[HostType, mod_pubsub_cache_Backend, find_node_by_id, count]` | counter | A node is fetched by its ID. |
+    | `[HostType, mod_pubsub_cache_Backend, find_node_by_id, time]` | histogram | Time to fetch a node by its ID. |
+    | `[HostType, mod_pubsub_cache_Backend, find_nodes_by_key, count]` | counter | Nodes are fetched by key. |
+    | `[HostType, mod_pubsub_cache_Backend, find_nodes_by_key, time]` | histogram | Time to fetch nodes by key. |
+    | `[HostType, mod_pubsub_cache_Backend, find_node_by_name, count]` | counter | A node is fetched by its name. |
+    | `[HostType, mod_pubsub_cache_Backend, find_node_by_name, time]` | histogram | Time to fetch a node by its name. |
+    | `[HostType, mod_pubsub_cache_Backend, delete_node, count]` | counter | A node is deleted. |
+    | `[HostType, mod_pubsub_cache_Backend, delete_node, time]` | histogram | Time to delete a node. |
+    | `[HostType, mod_pubsub_cache_Backend, get_subnodes, count]` | counter | Subnodes of a node are fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_subnodes, time]` | histogram | Time to fetch the subnodes of a node. |
+    | `[HostType, mod_pubsub_cache_Backend, get_subnodes_tree, count]` | counter | Full tree of subnodes of a node is fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_subnodes_tree, time]` | histogram | Time to fetch the full tree of subnodes of a node. |
+    | `[HostType, mod_pubsub_cache_Backend, get_parentnodes_tree, count]` | counter | All parents of a node are fetched. |
+    | `[HostType, mod_pubsub_cache_Backend, get_parentnodes_tree, time]` | histogram | Time to fetch all parents of a node. |
