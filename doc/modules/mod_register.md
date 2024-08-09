@@ -81,12 +81,7 @@ Deny registration from network 10.20.0.0 with mask 255.255.0.0.
 
 ## Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
-
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[Host, auth_register, count]` | spiral | A user registers via `mod_register` module. |
-| `[Host, auth_unregister, count]` | spiral | A user unregisters via `mod_register` module. |
+There are no metrics specific to this module.
 
 ## Entropy calculation algorithm
 

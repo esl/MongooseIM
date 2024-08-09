@@ -98,7 +98,7 @@ type MetricNodeResult {
 }
 
 """
-Allow admin to get the metric values
+Allow admin to get the metric values. Only works with Exometer enabled.
 """
 type MetricAdminQuery @protected{
     """

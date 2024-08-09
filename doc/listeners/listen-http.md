@@ -13,6 +13,7 @@ Following configuration option is used to set up an HTTP handler:
 
     * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
     * `mod_websockets` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
+    * `mongoose_prometheus_handler` - for [Prometheus]((https://prometheus.io/) metrics,
     * `mongoose_graphql_handler` - for GraphQL API,
     * `mongoose_admin_api`, `mongoose_client_api` - for REST API.
 
@@ -183,6 +184,12 @@ By default, all modules are enabled, so you don't need to change this option.
 The Swagger documentation of the client API is hosted at the `/api-docs` path.
 You can disable the hosted documentation by setting this option to `false`.
 
+## Handler types: Prometheus - `mongoose_prometheus_handler`
+
+Requires no additional options other than the [common handler options](#common-handler-options) in the listener section.
+In order to collect useful metrics, a `[prometheus]` section has to be added in [the instrumentation section](../configuration/instrumentation.md#).
+The default configuration available with MongooseIM is shown in [Example 7](#example-7-prometheus) below.
+
 ## Transport options
 
 The options listed below are used to modify the HTTP transport settings.
@@ -333,4 +340,19 @@ REST API for clients.
   [[listen.http.handlers.mongoose_client_api]]
     host = "_"
     path = "/api"
+```
+
+### Example 7. Prometheus
+
+Prometheus metrics endpoint.
+
+```toml
+[[listen.http]]
+  port = 9091
+
+  transport.num_acceptors = 10
+
+  [[listen.http.handlers.mongoose_prometheus_handler]]
+    host = "_"
+    path = "/metrics"
 ```
