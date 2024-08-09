@@ -176,13 +176,6 @@ Provides an ordered list of modules used for routing messages. All available mod
 
 The options listed below are used to configure more specific settings, that do not need to be changed in usual use cases.
 
-### `general.all_metrics_are_global`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `all_metrics_are_global = true`
-
-When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
-
 ### `general.http_server_name`
 * **Syntax:** string
 * **Default:** `"Cowboy"`

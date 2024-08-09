@@ -87,13 +87,6 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 "}.
 ```
 
-### all_metrics_are_global
-
-* **Type:** parameter
-* **Option:** [`general.all_metrics_are_global`](general.md#generalall_metrics_are_global)
-* **Syntax:** boolean
-* **Example:** `{all_metrics_are_global, "false"}.`
-
 ### s2s_addr
 
 * **Type:** block
