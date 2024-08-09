@@ -173,8 +173,22 @@ to [min.io][minio]
 
 ## Metrics
 
+This module provides [backend metrics](../operation-and-maintenance/MongooseIM-metrics.md#backend-metrics).
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Backend action | Description (when it gets incremented) |
-| ---- | -------------------------------------- |
-| `create_slot` | An upload slot is allocated. |
+Prometheus metrics have a `host_type` and `function` label associated with these metrics.
+Since Exometer doesn't support labels, the function as well as the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+=== "Prometheus"
+
+    | Backend action | Type | Function | Description (when it gets incremented) |
+    | -------------- | ---- | -------- | -------------------------------------- |
+    | `mod_http_upload_s3_count` | counter | `create_slot` | An upload slot is allocated. |
+    | `mod_http_upload_s3_time` | histogram | `create_slot` | Time spent on allocating a slot. |
+
+=== "Exometer"
+
+    | Backend action | Type | Description (when it gets incremented) |
+    | -------------- | ---- | -------------------------------------- |
+    | `[HostType, mod_http_upload_s3, create_slot, count]` | spiral | An upload slot is allocated. |
+    | `[HostType, mod_http_upload_s3, create_slot, time]` | histogram |  Time spent on allocating a slot. |

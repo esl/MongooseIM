@@ -27,9 +27,28 @@ Database backend to use.
 
 ## Metrics
 
+This module provides [backend metrics](../operation-and-maintenance/MongooseIM-metrics.md#backend-metrics).
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Backend operation | Description (when it gets incremented) |
-| ---- | -------------------------------------- |
-| `multi_get_data` | XML data is fetched from a DB. |
-| `multi_set_data` | XML data is stored in a DB. |
+Prometheus metrics have a `host_type` and `function` labels associated with these metrics.
+Since Exometer doesn't support labels, the function as well as the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+Backend in the action name can be either `rdbms` or `mnesia`.
+
+=== "Prometheus"
+
+    | Backend action | Type | Function | Description (when it gets incremented) |
+    | -------------- | ---- | -------- | -------------------------------------- |
+    | `mod_private_Backend_count` | counter | `multi_get_data` | XML data is fetched from a database. |
+    | `mod_private_Backend_time`  | histogram | `multi_get_data` | Time to fetch XML data from a database. |
+    | `mod_private_Backend_count` | counter | `multi_set_data` | XML data is stored in a database. |
+    | `mod_private_Backend_time`  | histogram | `multi_set_data` | Time to store XML data in a database. |
+
+=== "Exometer"
+
+    | Backend action | Type | Description (when it gets incremented) |
+    | -------------- | ---- | -------------------------------------- |
+    | `[HostType, mod_private_Backend, multi_get_data,  count]` | spiral | XML data is fetched from a database. |
+    | `[HostType, mod_private_Backend, multi_get_data,  time]`  | histogram | Time to fetch XML data from a database. |
+    | `[HostType, mod_private_Backend, multi_set_data,  count]` | spiral | XML data is stored in a database. |
+    | `[HostType, mod_private_Backend, multi_set_data,  time]`  | histogram | Time to store XML data in a database. |
