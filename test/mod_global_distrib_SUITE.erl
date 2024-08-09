@@ -159,12 +159,10 @@ fake_acc_to_component(From) ->
 %%--------------------------------------------------------------------
 
 set_meck() ->
-    meck:new(mongoose_metrics, [stub_all]),
     meck:new(mod_global_distrib_mapping_backend, [stub_all]),
     %% Simulate missing entries and inserts into Redis
     meck:expect(mod_global_distrib_mapping_backend, get_session, fun(_) -> error end),
     meck:expect(mod_global_distrib_mapping_backend, get_domain, fun(_) -> error end).
 
 unset_meck() ->
-    meck:unload(mod_global_distrib_mapping_backend),
-    meck:unload(mongoose_metrics).
+    meck:unload(mod_global_distrib_mapping_backend).

@@ -4505,11 +4505,6 @@ deep_hibernation_metrics_are_updated(Config) ->
     destroy_room(muc_host(), RoomName),
     forget_room(host_type(), muc_host(), RoomName).
 
-get_spiral_metric_count(Host, MetricName) ->
-    Result = rpc(mim(), mongoose_metrics, get_metric_value, [Host, MetricName]),
-    {ok, [{count, Count}, {one, _}]} = Result,
-    Count.
-
 given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),
     wait_for_hibernation(RoomPid),

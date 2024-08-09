@@ -115,9 +115,6 @@ stream_from_does_not_match_sasl_jid_results_in_stream_error(Config) ->
     end.
 
 two_users_can_log_and_chat(Config) ->
-    AliceHost = escalus_users:get_server(Config, alice),
-    HostType = domain_helper:domain_to_host_type(mim(), AliceHost),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),

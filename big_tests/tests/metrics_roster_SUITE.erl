@@ -18,7 +18,6 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(metrics_helper, [assert_counter/2, get_counter_value/1]).
 -import(domain_helper, [host_type/0]).
 -import(roster_helper, [assert_roster_event/2, assert_subscription_event/3]).
 
@@ -51,10 +50,7 @@ subscription_tests() -> [subscribe,
 
 init_per_suite(Config) ->
     instrument_helper:start(declared_events()),
-    MongooseMetrics = [{fun roster_rdbms_precondition/0, [global, data, rdbms, default],
-                        [{recv_oct, '>'}, {send_oct, '>'}]}
-                       ],
-    [{mongoose_metrics, MongooseMetrics} | escalus:init_per_suite(Config)].
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -277,11 +273,6 @@ remove_roster(Config, UserSpec) ->
     Extra = #{host_type => domain_helper:host_type()},
     Params = #{jid => jid:make_bare(Username, Server)},
     rpc(mim(), mod_roster, remove_user, [Acc, Params, Extra]).
-
-mongoose_metrics(ConfigIn, Metrics) ->
-    Predefined = proplists:get_value(mongoose_metrics, ConfigIn, []),
-    MongooseMetrics = Predefined ++ Metrics,
-    [{mongoose_metrics, MongooseMetrics} | ConfigIn].
 
 roster_rdbms_precondition() ->
     mod_roster_rdbms == rpc(mim(), mongoose_backend, get_backend_name, [domain_helper:host_type(), mod_roster]).
