@@ -170,12 +170,7 @@ exometer_labels(#{pool_tag := PoolTag}) ->
 exometer_labels(#{}) ->
     [].
 
--spec get_host_type_prefix(atom() | binary() | mongoose_instrument:labels()) ->
-    mongooseim:host_type_or_global().
-get_host_type_prefix(HostType) when is_binary(HostType) ->
-    get_host_type_prefix(#{host_type => HostType});
-get_host_type_prefix(global) ->
-    global;
+-spec get_host_type_prefix(mongoose_instrument:labels()) -> mongooseim:host_type_or_global().
 get_host_type_prefix(#{host_type := HostType}) ->
     case persistent_term:get(?PREFIXES, #{}) of
         #{HostType := Prefix} -> Prefix;
@@ -190,8 +185,10 @@ make_host_type_prefix(_HostType, true) ->
 make_host_type_prefix(HostType, false) ->
     binary:replace(HostType, <<" ">>, <<"_">>, [global]).
 
+get_metric_value(global, Name) when is_list(Name) ->
+    get_metric_value([get_host_type_prefix(#{}) | Name]);
 get_metric_value(HostType, Name) when is_list(Name) ->
-    get_metric_value([get_host_type_prefix(HostType) | Name]);
+    get_metric_value([get_host_type_prefix(#{host_type => HostType}) | Name]);
 get_metric_value(HostType, Name) ->
     get_metric_value(HostType, [Name]).
 
@@ -211,7 +208,7 @@ get_aggregated_values(Metric) when is_atom(Metric) ->
 get_host_type_metric_names(HostType) ->
     case all_metrics_are_global() of
         false ->
-            HostTypeName = get_host_type_prefix(HostType),
+            HostTypeName = get_host_type_prefix(#{host_type => HostType}),
             get_metric_names(HostTypeName);
         true ->
             []
