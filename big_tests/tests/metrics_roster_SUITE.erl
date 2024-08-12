@@ -274,9 +274,6 @@ remove_roster(Config, UserSpec) ->
     Params = #{jid => jid:make_bare(Username, Server)},
     rpc(mim(), mod_roster, remove_user, [Acc, Params, Extra]).
 
-roster_rdbms_precondition() ->
-    mod_roster_rdbms == rpc(mim(), mongoose_backend, get_backend_name, [domain_helper:host_type(), mod_roster]).
-
 declared_events() ->
     declared_backend_events() ++ declared_sm_events() ++ instrument_helper:declared_events(mod_roster).
 
