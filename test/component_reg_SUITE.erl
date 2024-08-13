@@ -34,8 +34,7 @@ end_per_suite(Config) ->
 
 opts() ->
     #{hosts => [],
-      host_types => [],
-      all_metrics_are_global => false,
+      host_types => [],   
       component_backend => mnesia,
       routing_modules => [xmpp_router_a, xmpp_router_b, xmpp_router_c],
       instrumentation => config_parser_helper:default_config([instrumentation])}.

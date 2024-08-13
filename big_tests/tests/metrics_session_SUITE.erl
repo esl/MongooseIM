@@ -17,13 +17,6 @@
 -module(metrics_session_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("stdlib/include/assert.hrl").
-
--import(metrics_helper, [assert_counter/2,
-                         assert_counter/3,
-                         get_counter_value/1,
-                         wait_for_counter/2,
-                         wait_for_counter/3]).
 -import(domain_helper, [host_type/0]).
 -import(mongooseimctl_helper, [rpc_call/3]).
 

@@ -19,8 +19,6 @@
 
 -include_lib("exml/include/exml.hrl").
 
--import(metrics_helper, [get_counter_value/1,
-                         wait_for_counter/2]).
 -import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------

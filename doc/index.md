@@ -36,7 +36,6 @@ MongooseIM is brought to you by [Erlang Solutions](https://www.erlang-solutions.
 We offer a set of additional server-side components:
 
 * [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html) is a powerful monitoring platform that comes with a dedicated MongooseIM plugin
-* mongoose_metrics is a internal module that provides various metrics about the server, if you use WombatOAM with MongooseIM plugin then you will see them otherwise you can use e.g. InfluxDB and Grafana to store and visualize them
 * Test suite is written with the help of these useful tools:
     * [escalus](https://github.com/esl/escalus): an XMPP client for Erlang
     * [amoc](https://github.com/esl/amoc): a load testing tool

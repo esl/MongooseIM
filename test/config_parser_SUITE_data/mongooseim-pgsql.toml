@@ -8,7 +8,6 @@
   default_server_domain = "localhost"
   registration_timeout = "infinity"
   language = "en"
-  all_metrics_are_global = false
   sm_backend = "mnesia"
   max_fsm_queue = 1000
 

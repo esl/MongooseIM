@@ -167,8 +167,7 @@ check_removed_config() ->
     ?assertError(badarg, mongoose_config:get_opts()).
 
 minimal_config_opts() ->
-    #{all_metrics_are_global => false,
-      default_server_domain => <<"localhost">>,
+    #{default_server_domain => <<"localhost">>,
       hide_service_name => false,
       host_types => [],
       hosts => [<<"localhost">>],

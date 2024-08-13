@@ -20,14 +20,14 @@
 -spec get_metrics(Name :: name()) -> {ok, [metric_result()]}.
 get_metrics(Name) ->
     PrepName = prepare_host_types(Name),
-    Values = mongoose_metrics:get_metric_values(PrepName),
+    Values = mongoose_instrument_exometer:get_metric_values(PrepName),
     {ok, lists:map(fun make_metric_result/1, Values)}.
 
 -spec get_metrics_as_dicts(Name :: name(), Keys :: [key()]) ->
     {ok, [metric_dict_result()]}.
 get_metrics_as_dicts(Name, Keys) ->
     PrepName = prepare_host_types(Name),
-    Values = mongoose_metrics:get_metric_values(PrepName),
+    Values = mongoose_instrument_exometer:get_metric_values(PrepName),
     {ok, [make_metric_dict_result(V, Keys) || V <- Values]}.
 
 -spec get_cluster_metrics_as_dicts(Name :: name(), Keys :: [key()],
@@ -37,7 +37,7 @@ get_cluster_metrics_as_dicts(Name, Keys, Nodes) ->
     PrepName = prepare_host_types(Name),
     Nodes2 = prepare_nodes_arg(Nodes),
     F = fun(Node) ->
-            case rpc:call(Node, mongoose_metrics, get_metric_values, [PrepName]) of
+            case rpc:call(Node, mongoose_instrument_exometer, get_metric_values, [PrepName]) of
             {badrpc, Reason} ->
                 [{[error, Reason], []}];
             Result ->

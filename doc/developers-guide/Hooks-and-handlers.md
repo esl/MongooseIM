@@ -171,8 +171,8 @@ There also exist functions `gen_hook:add_handler/5` and `gen_hook:delete_handler
 
 Every time a hook is run, a corresponding metric of the same name in the same host is incremented by one.
 There are some exceptions though as some metrics were implemented before the generic hook metrics.
-List of hooks not updating generic metrics can be found in the `mongoose_metrics:filter_hook/1` function.
-Such skipped hooks update metrics are defined in the `mongoose_metrics_hooks` module.
+List of hooks not updating generic metrics can be found in the `mongoose_instrument_hooks:is_instrumented/1` function.
+Such skipped hooks update metrics are defined in the `mongoose_instrument_hooks` module.
 
 ## Writing handlers
 
@@ -351,9 +351,9 @@ true
 (mongooseim@localhost)4> mongoose_logs:set_module_loglevel(mod_hook_example, info).
 ok
 (mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
-when=2022-12-15T12:37:16.109544+00:00 level=info what=first_handler pid=<0.1081.0> at=mod_hook_example:first_handler/3:41 value=5 result=7 extra=ExtraParam argument=2 
-when=2022-12-15T12:37:16.109809+00:00 level=info what=stopping_handler pid=<0.1081.0> at=mod_hook_example:stopping_handler/3:48 value=7 result=9 argument=2 
-when=2022-12-15T12:37:16.110028+00:00 level=info what=hook_finished pid=<0.1081.0> at=mod_hook_example:run_custom_hook/1:36 result_acc_{example,value}=9 result_acc_timestamp=1671107836109517 result_acc_stanza=undefined result_acc_ref=#Ref<0.4046106046.1908670465.111816> result_acc_origin_pid=<0.1081.0> result_acc_origin_location_mfa={mod_hook_example,run_custom_hook,1} result_acc_origin_location_line=32 result_acc_origin_location_file=/Users/paweldlugosz/Dev/Repos/MongooseIM/src/mod_hook_example.erl result_acc_non_strippable= result_acc_mongoose_acc=true result_acc_lserver=localhost result_acc_host_type=localhost result=9 
+when=2022-12-15T12:37:16.109544+00:00 level=info what=first_handler pid=<0.1081.0> at=mod_hook_example:first_handler/3:41 value=5 result=7 extra=ExtraParam argument=2
+when=2022-12-15T12:37:16.109809+00:00 level=info what=stopping_handler pid=<0.1081.0> at=mod_hook_example:stopping_handler/3:48 value=7 result=9 argument=2
+when=2022-12-15T12:37:16.110028+00:00 level=info what=hook_finished pid=<0.1081.0> at=mod_hook_example:run_custom_hook/1:36 result_acc_{example,value}=9 result_acc_timestamp=1671107836109517 result_acc_stanza=undefined result_acc_ref=#Ref<0.4046106046.1908670465.111816> result_acc_origin_pid=<0.1081.0> result_acc_origin_location_mfa={mod_hook_example,run_custom_hook,1} result_acc_origin_location_line=32 result_acc_origin_location_file=/Users/paweldlugosz/Dev/Repos/MongooseIM/src/mod_hook_example.erl result_acc_non_strippable= result_acc_mongoose_acc=true result_acc_lserver=localhost result_acc_host_type=localhost result=9
 ok
 ```
 
