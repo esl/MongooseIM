@@ -3,19 +3,19 @@
 main(Directories) ->
     {OkTests, FailedTests, UserSkipped, AutoSkipped} =
         add_up_suite_results(suite_summaries(Directories)),
-    {OkGroups, FailedGroups, EventuallyOkTests} =
+    {OkGroups, FailedGroups, EventuallyOkTests, EndPerTestcaseFailed} =
         add_up_group_results(group_summaries(Directories)),
-    verify_results(OkGroups, FailedGroups, EventuallyOkTests,
+    verify_results(OkGroups, FailedGroups, EventuallyOkTests, EndPerTestcaseFailed,
                    OkTests, FailedTests, UserSkipped, AutoSkipped).
 
-verify_results(0 = _OkGroups, 0 = _FailedGroups, 0 = _EventuallyOkTests,
+verify_results(0 = _OkGroups, 0 = _FailedGroups, 0 = _EventuallyOkTests, 0 = _EndPerTestcaseFailed,
                OkTests, FailedTests, UserSkipped, AutoSkipped) ->
     %% These are likely small tests - we're not writing
     %% groups.summaries files, therefore we get 0 for both group kinds.
     verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped);
-verify_results(OkGroups, FailedGroups, EventuallyOkTests,
+verify_results(OkGroups, FailedGroups, EventuallyOkTests, EndPerTestcaseFailed,
                OkTests, FailedTests, UserSkipped, AutoSkipped) ->
-    verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
+    verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests, EndPerTestcaseFailed,
                                OkTests, FailedTests, UserSkipped, AutoSkipped).
 
 verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped) ->
@@ -32,17 +32,18 @@ verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped) ->
             erlang:halt(FailedTests + AutoSkipped)
     end.
 
-verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
+verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests, EndPerTestcaseFailed,
                            OkTests, FailedTests, UserSkipped, AutoSkipped) ->
     io:format("CT results:~n"
               "    ~p groups passed~n"
               "    ~p groups failed~n"
               "    ~p tests eventually passed~n"
+              "    ~p tests with end_per_testcase failed~n"
               "    ~p tests passed~n"
               "    ~p tests failed~n"
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
-              [OkGroups, FailedGroups, EventuallyOkTests,
+              [OkGroups, FailedGroups, EventuallyOkTests, EndPerTestcaseFailed,
                OkTests, FailedTests, UserSkipped, AutoSkipped]),
     if
         OkTests =< 0 ->
@@ -85,9 +86,12 @@ add_up_suite_results(SuiteSummaries) ->
                 end, {0, 0, 0, 0}, SuiteSummaries).
 
 add_up_group_results(GroupSummaries) ->
-    lists:foldl(fun(Filename, {OkAcc, FAcc, EvOkAcc}) ->
+    lists:foldl(fun(Filename, {OkAcc, FAcc, EvOkAcc, EndPerTestcaseFailedAcc}) ->
                         {ok, Terms} = file:consult(Filename),
+                        Map = maps:from_list(Terms),
                         #{eventually_ok_tests := EvOk,
-                          groups_summary := {Ok, F}} = maps:from_list(Terms),
-                        {OkAcc + Ok, FAcc + F, EvOkAcc + EvOk}
-                end, {0, 0, 0}, GroupSummaries).
+                          groups_summary := {Ok, F}}
+                            = Map,
+                        EndPerTestcaseFailed = maps:get(end_per_testcase_failures, Map, 0),
+                        {OkAcc + Ok, FAcc + F, EvOkAcc + EvOk, EndPerTestcaseFailedAcc + EndPerTestcaseFailed}
+                end, {0, 0, 0, 0}, GroupSummaries).
