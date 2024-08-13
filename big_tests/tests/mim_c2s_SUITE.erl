@@ -241,7 +241,7 @@ escalus_start(Cfg, FlatCDs) ->
 instrumentation_events() ->
     instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
     ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ [{c2s_message_processing_time, #{host_type => domain_helper:host_type()}}].
+    ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}}].
 
 tcp_instrumentation_events() ->
     [{c2s_tcp_data_out, #{}},
@@ -253,6 +253,6 @@ tls_instrumentation_events() ->
 
 common_instrumentation_events() ->
     HostType = domain_helper:host_type(),
-    [{c2s_message_processing_time, #{host_type => HostType}},
+    [{c2s_message_processed, #{host_type => HostType}},
      {c2s_xmpp_element_size_in, #{}},
      {c2s_xmpp_element_size_out, #{}}].

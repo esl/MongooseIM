@@ -34,7 +34,7 @@ Service type, common values are `"stun"`, `"turn"`, `"ftp"`.
 Hostname or an IP address where the service is hosted.
 
 #### `modules.mod_extdisco.service.port`
-* **Syntax:** integer, between 0 and 65535, non-inclusive
+* **Syntax:** integer, between 0 and 65535
 * **Default:** none, this option is recommended
 * **Example:** `port = 3478`
 
