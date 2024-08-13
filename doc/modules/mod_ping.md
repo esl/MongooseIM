@@ -61,13 +61,13 @@ Since Exometer doesn't support labels, the host types, or word `global`, are par
     | Name | Type | Description (when it gets incremented) |
     |------|------|----------------------------------------|
     | `mod_ping_response_count` | counter | Client responds to a ping. |
-    | `mod_ping_response_time` | histogram | Ping request timeouts without a response from client. |
-    | `mod_ping_response_count` | counter | Response times (doesn't include timeouts). |
+    | `mod_ping_response_time` | histogram | Response times (doesn't include timeouts). |
+    | `mod_ping_response_count` | counter | Ping request timeouts without a response from client. |
 
 === "Exometer"
 
     | Name | Type | Description (when it gets incremented) |
     |------|------|----------------------------------------|
     | `[HostType, mod_ping_response, count]` | spiral | Client responds to a ping. |
-    | `[HostType, mod_ping_response, time]` | histogram | Ping request timeouts without a response from client. |
-    | `[HostType, mod_ping_response_timeout, count]` | spiral | Response times (doesn't include timeouts). |
+    | `[HostType, mod_ping_response, time]` | histogram | Response times (doesn't include timeouts). |
+    | `[HostType, mod_ping_response_timeout, count]` | spiral | Ping request timeouts without a response from client. |

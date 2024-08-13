@@ -212,7 +212,7 @@ Since Exometer doesn't support labels, the host types are part of the metric nam
     | `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
     | `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
     | `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
-    | `[HostType, c2s_message_processing_time`] | histogram | Processing time for incomming c2s stanzas. |
+    | `[HostType, c2s_message_processing_time`] | histogram | Processing time for incoming c2s stanzas. |
     | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
     | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
     | `[HostType, router_no_route_found, count]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
@@ -446,7 +446,7 @@ Since Exometer doesn't support labels, the host types and backend actions are pa
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
     | `[HostType, BackendModule, BackendAction, count]` | spiral | Number of calls (spiral metric), incremented for *every* call (even a failed one). |
-    | `[HostType, BackendModule, BackendAction, time]` | histogram | Successful operation times. |
+    | `[HostType, BackendModule, BackendAction, time]` | histogram | Times of successful operations. |
 
 
 Besides these, following authentication metrics are always available.
@@ -458,7 +458,7 @@ Since Exometer doesn't support labels, the host types are part of the metric nam
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
     | `auth_register_user_count` | counter | A user registered successfully. |
-    | `auth_unregister_user_count` | counter | A user unregistered sucessfully. |
+    | `auth_unregister_user_count` | counter | A user unregistered successfully. |
     | `auth_authorize_count` | counter | A user tried to authorize. |
     | `auth_authorize_time` | histogram | Time it took to authorize a user. |
     | `auth_check_password_count` | counter | A password was checked. |
@@ -472,8 +472,8 @@ Since Exometer doesn't support labels, the host types are part of the metric nam
 
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
-    | `[HostType, auth_register_user, count]` | spiral | A user registered sucessfully. |
-    | `[HostType, auth_unregister_user, count]` | spiral | A user unregistered sucessfully. |
+    | `[HostType, auth_register_user, count]` | spiral | A user registered successfully. |
+    | `[HostType, auth_unregister_user, count]` | spiral | A user unregistered successfully. |
     | `[HostType, auth_authorize, count]` | spiral | A user tried to authorize. |
     | `[HostType, auth_authorize, time]` | histogram | Time it took to authorize a user. |
     | `[HostType, auth_check_password, count]` | spiral | A password was checked. |
