@@ -119,7 +119,7 @@ Since Exometer doesn't support labels, the host types, or word `global`, are par
     | ---- | ---- | -------------------------------------- |
     | `mod_event_pusher_http_sent_count` | counter | An HTTP notification is sent successfully. |
     | `mod_event_pusher_http_sent_failure_count` | counter | An HTTP notification failed. |
-    | `mod_event_pusher_http_sent_response_time` | histogram | Does not include timings of failed requests. |
+    | `mod_event_pusher_http_sent_response_time` | histogram | Time taken to send HTTP notification. Does not include timings of failed requests. |
 
 === "Exometer"
 

@@ -181,7 +181,7 @@ Since Exometer doesn't support labels, the host types are part of the metric nam
     | `c2s_element_out_iq_error_count` | counter | An IQ error is sent to a client. |
     | `c2s_element_out_message_error_count` | counter | A message error is sent to a client. |
     | `c2s_element_out_presence_error_count` | counter | A presence error is sent to a client. |
-    | `c2s_message_processed_time` | histogram | Processing time for incomming c2s stanzas. |
+    | `c2s_message_processed_time` | histogram | Processing time for incoming c2s stanzas. |
     | `sm_message_bounced_count` | counter | A `service-unavailable` error is sent, because the message recipient is offline. |
     | `router_stanza_dropped_count` | counter | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
     | `router_no_route_found_count` | counter | It is not possible to route a stanza (all routing handlers failed). |
@@ -439,7 +439,7 @@ Since Exometer doesn't support labels, the host types and backend actions are pa
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
     | `BackendModule_count` | counter | Number of calls (spiral metric), incremented for *every* call (even a failed one). |
-    | `BackendModule_time` | histogram | Successful operation times. |
+    | `BackendModule_time` | histogram | Times of successful operations. |
 
 === "Exometer"
 
@@ -457,7 +457,7 @@ Since Exometer doesn't support labels, the host types are part of the metric nam
 
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
-    | `auth_register_user_count` | counter | A user registered sucessfully. |
+    | `auth_register_user_count` | counter | A user registered successfully. |
     | `auth_unregister_user_count` | counter | A user unregistered sucessfully. |
     | `auth_authorize_count` | counter | A user tried to authorize. |
     | `auth_authorize_time` | histogram | Time it took to authorize a user. |
