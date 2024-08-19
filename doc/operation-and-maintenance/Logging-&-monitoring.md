@@ -80,8 +80,8 @@ More information about configuration can be found in [the HTTP listeners section
 #### Exometer
 
 MongooseIM uses [a fork of Exometer library](https://github.com/esl/exometer_core) for collecting metrics.
-Exometer has many plug-in reporters that can send metrics to external services. We maintain [exometer_report_graphite](https://github.com/esl/exometer_report_graphite) and [exometer_report_statsd](https://github.com/esl/exometer_report_statsd) for Graphite and StatsD respectively.
-It is possible to enable them in MongooseIM in the [instrumentation section of the configuration file](../configuration/instrumentation.md#exometer-reporter-options).
+Exometer has many plug-in reporters that can send metrics to external services.
+We maintain [exometer_report_graphite](https://github.com/esl/exometer_report_graphite), which can be enabled in the [instrumentation section of the configuration file](../configuration/instrumentation.md#exometer-reporter-options).
 
 Moreover, Exometer metrics can be accessed through the GraphQL API.
 
