@@ -139,20 +139,20 @@ Backend in the action name can be either `rdbms`, `ldap` or `mnesia`.
 
     | Backend action | Type | Function | Description (when it gets incremented) |
     | -------------- | ---- | -------- | -------------------------------------- |
-    | `mod_private_Backend_count` | counter | `set_vcard` | A vCard is set in a database. |
-    | `mod_private_Backend_time`  | histogram | `set_vcard` | Time to set a vCard in a database. |
-    | `mod_private_Backend_count` | counter | `get_vcard` | A specific vCard is retrieved from a database. |
-    | `mod_private_Backend_time`  | histogram | `get_vcard` | Time to retrieve a specific vCard from a database. |
-    | `mod_private_Backend_count` | counter | `search` | A vCard search is performed. |
-    | `mod_private_Backend_time`  | histogram | `search` | Time to search a vCard. |
+    | `mod_vcard_Backend_count` | counter | `set_vcard` | A vCard is set in a database. |
+    | `mod_vcard_Backend_time`  | histogram | `set_vcard` | Time to set a vCard in a database. |
+    | `mod_vcard_Backend_count` | counter | `get_vcard` | A specific vCard is retrieved from a database. |
+    | `mod_vcard_Backend_time`  | histogram | `get_vcard` | Time to retrieve a specific vCard from a database. |
+    | `mod_vcard_Backend_count` | counter | `search` | A vCard search is performed. |
+    | `mod_vcard_Backend_time`  | histogram | `search` | Time to search a vCard. |
 
 === "Exometer"
 
     | Backend action | Type | Description (when it gets incremented) |
     | -------------- | ---- | -------------------------------------- |
-    | `[HostType, mod_private_Backend, set_vcard, count]` | spiral | A vCard is set in a database. |
-    | `[HostType, mod_private_Backend, set_vcard, time]`  | histogram | Time to set a vCard in a database. |
-    | `[HostType, mod_private_Backend, get_vcard, count]` | spiral | A specific vCard is retrieved from a database. |
-    | `[HostType, mod_private_Backend, get_vcard, time]`  | histogram | Time to retrieve a specific vCard from a database. |
-    | `[HostType, mod_private_Backend, search, count]` | spiral | A vCard search is performed. |
-    | `[HostType, mod_private_Backend, search, time]`  | histogram | Time to search a vCard. |
+    | `[HostType, mod_vcard_Backend, set_vcard, count]` | spiral | A vCard is set in a database. |
+    | `[HostType, mod_vcard_Backend, set_vcard, time]`  | histogram | Time to set a vCard in a database. |
+    | `[HostType, mod_vcard_Backend, get_vcard, count]` | spiral | A specific vCard is retrieved from a database. |
+    | `[HostType, mod_vcard_Backend, get_vcard, time]`  | histogram | Time to retrieve a specific vCard from a database. |
+    | `[HostType, mod_vcard_Backend, search, count]` | spiral | A vCard search is performed. |
+    | `[HostType, mod_vcard_Backend, search, time]`  | histogram | Time to search a vCard. |
