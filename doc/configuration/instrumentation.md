@@ -4,7 +4,7 @@ They are mainly used for the purpose of metrics.
 
 Instrumentation events are acted upon by handlers. Available instrumentation handlers are:
 
-* `prometheus` - exposes a metrics endpoint for [Prometheus](https://prometheus.io/).
+* `prometheus` - collects metrics for the purpose of [Prometheus](https://prometheus.io/). Endpoint to access them has to be configured in the [listener section](../listeners/listen-http.md#handler-types-prometheus-mongoose_prometheus_handler).
 * `exometer` - starts [Exometer](https://github.com/esl/exometer_core), a metrics server capable of exporting metrics using reporters. Currently available is a [Graphite](https://graphiteapp.org/) reporter.
 * `log` - logs instrumentation events to disk.
 
