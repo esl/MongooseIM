@@ -88,6 +88,19 @@ A prefix to prepend all metric names with before they are sent to the graphite s
 Specifies an environmental variable name from which an additional prefix will be taken.
 In case both `prefix` and `env_prefix` are defined, it will be placed before the `prefix` and separated with a dot.
 
+## Log handler options
+
+### `instrumentation.log.level`
+* **Syntax:** string, one of `"none"`, `"emergency"`, `"alert"`, `"critical"`, `"error"`, `"warning"`, `"notice"`, `"info"`, `"debug"`, `"all"`.
+* **Default:** `"debug"`
+* **Example:** `loglevel = "error"`
+
+Severity level at which all the events will be logged.
+
+!!! note
+    
+    In order for instrumentation events to appear in logs, the [`general.loglevel` option](../configuration/general.md#generalloglevel) has to be set to the same or lower level.
+
 ## Example Prometheus configuration
 
 This configuration enables `prometheus`, and `log` handlers:
