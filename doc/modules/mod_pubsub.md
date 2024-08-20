@@ -344,88 +344,88 @@ Backend in the action name can be either `rdbms` or `mnesia`.
 
     | Backend action | Type | Function | Description (when it gets incremented) |
     | -------------- | ---- | -------- | -------------------------------------- |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_state` | User's state for a specific node is fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_state` | Time to fetch user's state for a specific node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_states` | Node's states are fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_states` | Time to fetch node's states. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_states_by_lus` | Nodes' states for user + domain are fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_states_by_lus` | Time to fetch the nodes' states for user + domain. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_states_by_bare` | Nodes' states for bare JID are fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_states_by_bare` | Time to fetch nodes' states for bare JID. |
-    | `mod_pubsub_cache_Backend_count` | counter | `create_node` | A node's owner is set. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `create_node` | Time to set a node's owner. |
-    | `mod_pubsub_cache_Backend_count` | counter | `del_node` | All data related to a node is removed. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `del_node` | Time to remove all data related to a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_items` | Node's items are fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_items` | Time to fetch node's items. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_item` | A specific item from a node is fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_item` | Time to fetch a specific item from a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `add_item` | An item is upserted into a node. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `add_item` | Time to upsert an item into a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `set_item` | An item is updated in a node. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `set_item` | Time to update an item in a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `del_item` | An item is deleted from a node. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `del_item` | Time to delete an item from a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `del_items` | Specified items are deleted from a node. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `del_items` | Time to delete specified items from a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `set_node` | A node is upserted. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `set_node` | Time to upsert a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `find_node_by_id` | A node is fetched by its ID. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `find_node_by_id` | Time to fetch a node by its ID. |
-    | `mod_pubsub_cache_Backend_count` | counter | `find_nodes_by_key` | Nodes are fetched by key. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `find_nodes_by_key` | Time to fetch nodes by key. |
-    | `mod_pubsub_cache_Backend_count` | counter | `find_node_by_name` | A node is fetched by its name. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `find_node_by_name` | Time to fetch a node by its name. |
-    | `mod_pubsub_cache_Backend_count` | counter | `delete_node` | A node is deleted. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `delete_node` | Time to delete a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_subnodes` | Subnodes of a node are fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_subnodes` | Time to fetch the subnodes of a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_subnodes_tree` | Full tree of subnodes of a node is fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_subnodes_tree` | Time to fetch the full tree of subnodes of a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_parentnodes_tree` | All parents of a node are fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_parentnodes_tree` | Time to fetch all parents of a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_state` | User's state for a specific node is fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_state` | Time to fetch user's state for a specific node. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_states` | Node's states are fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_states` | Time to fetch node's states. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_states_by_lus` | Nodes' states for user + domain are fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_states_by_lus` | Time to fetch the nodes' states for user + domain. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_states_by_bare` | Nodes' states for bare JID are fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_states_by_bare` | Time to fetch nodes' states for bare JID. |
+    | `mod_pubsub_db_Backend_count` | counter | `create_node` | A node's owner is set. |
+    | `mod_pubsub_db_Backend_time` | histogram | `create_node` | Time to set a node's owner. |
+    | `mod_pubsub_db_Backend_count` | counter | `del_node` | All data related to a node is removed. |
+    | `mod_pubsub_db_Backend_time` | histogram | `del_node` | Time to remove all data related to a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_items` | Node's items are fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_items` | Time to fetch node's items. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_item` | A specific item from a node is fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_item` | Time to fetch a specific item from a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `add_item` | An item is upserted into a node. |
+    | `mod_pubsub_db_Backend_time` | histogram | `add_item` | Time to upsert an item into a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `set_item` | An item is updated in a node. |
+    | `mod_pubsub_db_Backend_time` | histogram | `set_item` | Time to update an item in a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `del_item` | An item is deleted from a node. |
+    | `mod_pubsub_db_Backend_time` | histogram | `del_item` | Time to delete an item from a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `del_items` | Specified items are deleted from a node. |
+    | `mod_pubsub_db_Backend_time` | histogram | `del_items` | Time to delete specified items from a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `set_node` | A node is upserted. |
+    | `mod_pubsub_db_Backend_time` | histogram | `set_node` | Time to upsert a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `find_node_by_id` | A node is fetched by its ID. |
+    | `mod_pubsub_db_Backend_time` | histogram | `find_node_by_id` | Time to fetch a node by its ID. |
+    | `mod_pubsub_db_Backend_count` | counter | `find_nodes_by_key` | Nodes are fetched by key. |
+    | `mod_pubsub_db_Backend_time` | histogram | `find_nodes_by_key` | Time to fetch nodes by key. |
+    | `mod_pubsub_db_Backend_count` | counter | `find_node_by_name` | A node is fetched by its name. |
+    | `mod_pubsub_db_Backend_time` | histogram | `find_node_by_name` | Time to fetch a node by its name. |
+    | `mod_pubsub_db_Backend_count` | counter | `delete_node` | A node is deleted. |
+    | `mod_pubsub_db_Backend_time` | histogram | `delete_node` | Time to delete a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_subnodes` | Subnodes of a node are fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_subnodes` | Time to fetch the subnodes of a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_subnodes_tree` | Full tree of subnodes of a node is fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_subnodes_tree` | Time to fetch the full tree of subnodes of a node. |
+    | `mod_pubsub_db_Backend_count` | counter | `get_parentnodes_tree` | All parents of a node are fetched. |
+    | `mod_pubsub_db_Backend_time` | histogram | `get_parentnodes_tree` | Time to fetch all parents of a node. |
 
 === "Exometer"
 
     | Backend action | Type | Description (when it gets incremented) |
     | -------------- | ---- | -------------------------------------- |
-    | `[HostType, mod_pubsub_cache_Backend, get_state, count]` | counter | User's state for a specific node is fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_state, time]` | histogram | Time to fetch user's state for a specific node. |
-    | `[HostType, mod_pubsub_cache_Backend, get_states, count]` | counter | Node's states are fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_states, time]` | histogram | Time to fetch node's states. |
-    | `[HostType, mod_pubsub_cache_Backend, get_states_by_lus, count]` | counter | Nodes' states for user + domain are fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_states_by_lus, time]` | histogram | Time to fetch the nodes' states for user + domain. |
-    | `[HostType, mod_pubsub_cache_Backend, get_states_by_bare, count]` | counter | Nodes' states for bare JID are fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_states_by_bare, time]` | histogram | Time to fetch nodes' states for bare JID. |
-    | `[HostType, mod_pubsub_cache_Backend, create_node, count]` | counter | A node's owner is set. |
-    | `[HostType, mod_pubsub_cache_Backend, create_node, time]` | histogram | Time to set a node's owner. |
-    | `[HostType, mod_pubsub_cache_Backend, del_node, count]` | counter | All data related to a node is removed. |
-    | `[HostType, mod_pubsub_cache_Backend, del_node, time]` | histogram | Time to remove all data related to a node. |
-    | `[HostType, mod_pubsub_cache_Backend, get_items, count]` | counter | Node's items are fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_items, time]` | histogram | Time to fetch node's items. |
-    | `[HostType, mod_pubsub_cache_Backend, get_item, count]` | counter | A specific item from a node is fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_item, time]` | histogram | Time to fetch a specific item from a node. |
-    | `[HostType, mod_pubsub_cache_Backend, add_item, count]` | counter | An item is upserted into a node. |
-    | `[HostType, mod_pubsub_cache_Backend, add_item, time]` | histogram | Time to upsert an item into a node. |
-    | `[HostType, mod_pubsub_cache_Backend, set_item, count]` | counter | An item is updated in a node. |
-    | `[HostType, mod_pubsub_cache_Backend, set_item, time]` | histogram | Time to update an item in a node. |
-    | `[HostType, mod_pubsub_cache_Backend, del_item, count]` | counter | An item is deleted from a node. |
-    | `[HostType, mod_pubsub_cache_Backend, del_item, time]` | histogram | Time to delete an item from a node. |
-    | `[HostType, mod_pubsub_cache_Backend, del_items, count]` | counter | Specified items are deleted from a node. |
-    | `[HostType, mod_pubsub_cache_Backend, del_items, time]` | histogram | Time to delete specified items from a node. |
-    | `[HostType, mod_pubsub_cache_Backend, set_node, count]` | counter | A node is upserted. |
-    | `[HostType, mod_pubsub_cache_Backend, set_node, time]` | histogram | Time to upsert a node. |
-    | `[HostType, mod_pubsub_cache_Backend, find_node_by_id, count]` | counter | A node is fetched by its ID. |
-    | `[HostType, mod_pubsub_cache_Backend, find_node_by_id, time]` | histogram | Time to fetch a node by its ID. |
-    | `[HostType, mod_pubsub_cache_Backend, find_nodes_by_key, count]` | counter | Nodes are fetched by key. |
-    | `[HostType, mod_pubsub_cache_Backend, find_nodes_by_key, time]` | histogram | Time to fetch nodes by key. |
-    | `[HostType, mod_pubsub_cache_Backend, find_node_by_name, count]` | counter | A node is fetched by its name. |
-    | `[HostType, mod_pubsub_cache_Backend, find_node_by_name, time]` | histogram | Time to fetch a node by its name. |
-    | `[HostType, mod_pubsub_cache_Backend, delete_node, count]` | counter | A node is deleted. |
-    | `[HostType, mod_pubsub_cache_Backend, delete_node, time]` | histogram | Time to delete a node. |
-    | `[HostType, mod_pubsub_cache_Backend, get_subnodes, count]` | counter | Subnodes of a node are fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_subnodes, time]` | histogram | Time to fetch the subnodes of a node. |
-    | `[HostType, mod_pubsub_cache_Backend, get_subnodes_tree, count]` | counter | Full tree of subnodes of a node is fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_subnodes_tree, time]` | histogram | Time to fetch the full tree of subnodes of a node. |
-    | `[HostType, mod_pubsub_cache_Backend, get_parentnodes_tree, count]` | counter | All parents of a node are fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_parentnodes_tree, time]` | histogram | Time to fetch all parents of a node. |
+    | `[HostType, mod_pubsub_db_Backend, get_state, count]` | counter | User's state for a specific node is fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_state, time]` | histogram | Time to fetch user's state for a specific node. |
+    | `[HostType, mod_pubsub_db_Backend, get_states, count]` | counter | Node's states are fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_states, time]` | histogram | Time to fetch node's states. |
+    | `[HostType, mod_pubsub_db_Backend, get_states_by_lus, count]` | counter | Nodes' states for user + domain are fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_states_by_lus, time]` | histogram | Time to fetch the nodes' states for user + domain. |
+    | `[HostType, mod_pubsub_db_Backend, get_states_by_bare, count]` | counter | Nodes' states for bare JID are fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_states_by_bare, time]` | histogram | Time to fetch nodes' states for bare JID. |
+    | `[HostType, mod_pubsub_db_Backend, create_node, count]` | counter | A node's owner is set. |
+    | `[HostType, mod_pubsub_db_Backend, create_node, time]` | histogram | Time to set a node's owner. |
+    | `[HostType, mod_pubsub_db_Backend, del_node, count]` | counter | All data related to a node is removed. |
+    | `[HostType, mod_pubsub_db_Backend, del_node, time]` | histogram | Time to remove all data related to a node. |
+    | `[HostType, mod_pubsub_db_Backend, get_items, count]` | counter | Node's items are fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_items, time]` | histogram | Time to fetch node's items. |
+    | `[HostType, mod_pubsub_db_Backend, get_item, count]` | counter | A specific item from a node is fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_item, time]` | histogram | Time to fetch a specific item from a node. |
+    | `[HostType, mod_pubsub_db_Backend, add_item, count]` | counter | An item is upserted into a node. |
+    | `[HostType, mod_pubsub_db_Backend, add_item, time]` | histogram | Time to upsert an item into a node. |
+    | `[HostType, mod_pubsub_db_Backend, set_item, count]` | counter | An item is updated in a node. |
+    | `[HostType, mod_pubsub_db_Backend, set_item, time]` | histogram | Time to update an item in a node. |
+    | `[HostType, mod_pubsub_db_Backend, del_item, count]` | counter | An item is deleted from a node. |
+    | `[HostType, mod_pubsub_db_Backend, del_item, time]` | histogram | Time to delete an item from a node. |
+    | `[HostType, mod_pubsub_db_Backend, del_items, count]` | counter | Specified items are deleted from a node. |
+    | `[HostType, mod_pubsub_db_Backend, del_items, time]` | histogram | Time to delete specified items from a node. |
+    | `[HostType, mod_pubsub_db_Backend, set_node, count]` | counter | A node is upserted. |
+    | `[HostType, mod_pubsub_db_Backend, set_node, time]` | histogram | Time to upsert a node. |
+    | `[HostType, mod_pubsub_db_Backend, find_node_by_id, count]` | counter | A node is fetched by its ID. |
+    | `[HostType, mod_pubsub_db_Backend, find_node_by_id, time]` | histogram | Time to fetch a node by its ID. |
+    | `[HostType, mod_pubsub_db_Backend, find_nodes_by_key, count]` | counter | Nodes are fetched by key. |
+    | `[HostType, mod_pubsub_db_Backend, find_nodes_by_key, time]` | histogram | Time to fetch nodes by key. |
+    | `[HostType, mod_pubsub_db_Backend, find_node_by_name, count]` | counter | A node is fetched by its name. |
+    | `[HostType, mod_pubsub_db_Backend, find_node_by_name, time]` | histogram | Time to fetch a node by its name. |
+    | `[HostType, mod_pubsub_db_Backend, delete_node, count]` | counter | A node is deleted. |
+    | `[HostType, mod_pubsub_db_Backend, delete_node, time]` | histogram | Time to delete a node. |
+    | `[HostType, mod_pubsub_db_Backend, get_subnodes, count]` | counter | Subnodes of a node are fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_subnodes, time]` | histogram | Time to fetch the subnodes of a node. |
+    | `[HostType, mod_pubsub_db_Backend, get_subnodes_tree, count]` | counter | Full tree of subnodes of a node is fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_subnodes_tree, time]` | histogram | Time to fetch the full tree of subnodes of a node. |
+    | `[HostType, mod_pubsub_db_Backend, get_parentnodes_tree, count]` | counter | All parents of a node are fetched. |
+    | `[HostType, mod_pubsub_db_Backend, get_parentnodes_tree, time]` | histogram | Time to fetch all parents of a node. |
