@@ -388,8 +388,9 @@ simple_result({atomic, Result}) -> Result;
 simple_result(Other) -> {error, {db_error, Other}}.
 
 execute_successfully(Pool, StatementName, Args) ->
-    Res = mongoose_rdbms:execute_successfully(Pool, StatementName, Args),
+    {Time, Res} = timer:tc(fun() -> mongoose_rdbms:execute_successfully(Pool, StatementName, Args) end),
     %% Convert args to tuple, because Erlang formats list as a string for domain_event_ids_between
     ?LOG_DEBUG(#{what => domain_sql_execute,
-                 statement_name => StatementName, args => list_to_tuple(Args), result => Res}),
+                 statement_name => StatementName, args => list_to_tuple(Args), result => Res,
+                 duration => round(Time / 1000)}),
     Res.
