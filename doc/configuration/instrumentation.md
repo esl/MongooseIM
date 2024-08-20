@@ -29,8 +29,9 @@ General options for the Exometer reporter:
 * **Default:** `false`
 * **Example:** `all_metrics_are_global = true`
 
-When enabled, all per-host metrics are merged into global equivalents.
-This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
+When enabled, all per host type metrics are merged into global equivalents.
+The option should be used if you have exceptionally many [host types](../configuration/general.md#generalhost_types) or [static hosts (static domains)](../configuration/general.md#generalhosts).
+It is recommended when the number of host types or static domains is in the hundreds, as it significantly reduces CPU usage and (especially) memory footprint in those setups.
 
 ## Exometer reporter options
 
