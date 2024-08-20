@@ -25,8 +25,6 @@
 
 -import(config_parser_helper, [mod_config_with_auto_backend/1]).
 
--define(SLEEP_TIME, 50).
-
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -71,7 +69,8 @@ effect_test_cases() ->
         messages_from_any_blocked_resource_dont_arrive,
         blocking_doesnt_interfere,
         blocking_propagates_to_resources,
-        iq_reply_doesnt_crash_user_process
+        iq_reply_doesnt_crash_user_process,
+        iq_with_to_attribute_is_treated_as_regular_one
     ].
 
 offline_test_cases() ->
@@ -84,7 +83,6 @@ offline_test_cases() ->
 
 error_test_cases() ->
     [blocker_cant_send_to_blockee].
-
 push_test_cases() ->
     [block_push_sent].
 
@@ -410,6 +408,23 @@ blocker_cant_send_to_blockee(Config) ->
             user_blocks(User1, [User2]),
             message(User1, User2, <<"I'm not talking to you!">>),
             client_gets_blocking_error(User1)
+        end).
+
+iq_with_to_attribute_is_treated_as_regular_one(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(User1, User2, User3) ->
+            %% Alice sends a blocking IQ addressed to Bob
+            Blockee = escalus_utils:jid_to_lower(escalus_client:short_jid(User3)),
+            St = block_users_stanza([Blockee]),
+            StanzaBlock = escalus_stanza:to(St, User2),
+            escalus_client:send(User1, StanzaBlock),
+            %% Bob should receive the blocking IQ sent by Alice
+            StanzaReceived = escalus:wait_for_stanza(User2),
+            escalus:assert(is_iq_set, StanzaReceived),
+            %% Alice shouldn't receive any response from the server
+            [] = escalus:wait_for_stanzas(User1, 1, 100),
+            escalus_assert:has_no_stanzas(User1)
         end).
 
 block_push_sent(Config) ->
