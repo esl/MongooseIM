@@ -1211,7 +1211,7 @@ resume_service(Node) ->
     ok = rpc(Node, sys, resume, [service_domain_db]).
 
 sync_local(Node) ->
-    pong = rpc(Node, service_domain_db, sync_local, []).
+    pong = rpc(Node#{timeout => timer:seconds(30)}, service_domain_db, sync_local, []).
 
 force_check_for_updates(Node) ->
     ok = rpc(Node, service_domain_db, force_check_for_updates, []).

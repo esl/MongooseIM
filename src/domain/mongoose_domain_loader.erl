@@ -106,6 +106,7 @@ check_for_updates({Min, Max},
 check_for_updates(MinMax = {Min, Max},
                   #{min_event_id := OldMin, max_event_id := OldMax})
   when is_integer(Min), is_integer(Max) ->
+    put(debug_last_check_for_updates_minmax, MinMax),
     {MinEventId, MaxEventId} = limit_max_id(OldMax, MinMax, 1000),
     check_if_id_is_still_relevant(OldMax, MinEventId),
     NewGapsFromBelow =
@@ -134,7 +135,9 @@ check_for_updates(MinMax = {Min, Max},
                 Ids = rows_to_ids(Rows),
                 ids_to_gaps(FromId, MaxEventId, Ids)
         end,
-    fix_gaps(NewGapsFromBelow ++ NewGapsFromThePage),
+    Gaps = NewGapsFromBelow ++ NewGapsFromThePage,
+    put(debug_last_gaps, list_to_tuple(Gaps)), %% Convert to a tuple so it could be printed
+    fix_gaps(Gaps),
     State2 = #{min_event_id => MinEventId, max_event_id => MaxEventId},
     mongoose_loader_state:set(State2),
     case MaxEventId < Max of

@@ -378,9 +378,11 @@ transaction(F, Retries, Errors) when Retries > 0 ->
     Result = rdbms_queries:sql_transaction(Pool, fun() -> F(Pool) end),
     case Result of
         {aborted, _} -> %% Restart any rolled back transaction
+            put(last_transaction_error, Result),
             timer:sleep(100), %% Small break before retry
             transaction(F, Retries - 1, [Result|Errors]);
         _ ->
+            erase(last_transaction_error),
             simple_result(Result)
     end.
 
