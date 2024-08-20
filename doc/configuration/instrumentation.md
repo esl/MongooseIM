@@ -96,11 +96,14 @@ In case both `prefix` and `env_prefix` are defined, it will be placed before the
 * **Default:** `"debug"`
 * **Example:** `loglevel = "error"`
 
-Severity level at which all the events will be logged.
+Base severity level at which all the events will be logged.
+Note that for some events, the level may be different, and this option overridden (for example lower for events meant only for debugging purposes).
 
 !!! note
     
     In order for instrumentation events to appear in logs, the [`general.loglevel` option](../configuration/general.md#generalloglevel) has to be set to the same or lower level.
+    However, this may make the logs overly verbose, as most of the events important for a MongooseIM operator are logged anyway with appropriete severity levels.
+    The main purpose of this option is debugging, and is not recommended for production systems, thus the default `"debug"` value.
 
 ## Example Prometheus configuration
 
