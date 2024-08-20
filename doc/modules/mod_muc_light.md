@@ -219,29 +219,29 @@ Backend in the action name can be either `rdbms` or `mnesia`.
 
     | Backend action | Type | Description (when it gets incremented) |
     | -------------- | ---- | -------------------------------------- |
-    | `[HostType, mod_muc_light_db_Backend, create_room,  count]` | counter   | A new room is stored in a DB. |
+    | `[HostType, mod_muc_light_db_Backend, create_room,  count]` | spiral   | A new room is stored in a DB. |
     | `[HostType, mod_muc_light_db_Backend, create_room,  time]`  | histogram | Time to store a new room in a DB. |
-    | `[HostType, mod_muc_light_db_Backend, destroy_room, count]` | counter   | Room data is removed from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, destroy_room, count]` | spiral   | Room data is removed from a DB. |
     | `[HostType, mod_muc_light_db_Backend, destroy_room, time]`  | histogram | Time to remove room data from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, room_exists,  count]` | counter   | A room existence is checked. |
+    | `[HostType, mod_muc_light_db_Backend, room_exists,  count]` | spiral   | A room existence is checked. |
     | `[HostType, mod_muc_light_db_Backend, room_exists,  time]`  | histogram | Time to check the existance of a room. |
-    | `[HostType, mod_muc_light_db_Backend, get_user_rooms, count]` | counter   | A list of rooms the user is a participant of is retrieved from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, get_user_rooms, count]` | spiral   | A list of rooms the user is a participant of is retrieved from a DB. |
     | `[HostType, mod_muc_light_db_Backend, get_user_rooms, time]`  | histogram | Time to retrieve a list of rooms the user is a participant of from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, get_user_rooms_count, count]` | counter   | The count of rooms the user is a participant of is retrieved from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, get_user_rooms_count, count]` | spiral   | The count of rooms the user is a participant of is retrieved from a DB. |
     | `[HostType, mod_muc_light_db_Backend, get_user_rooms_count, time]`  | histogram | Time to retrieve the count of rooms the user is a participant of from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, remove_user`, count]` | counter   | All MUC Light related user data is removed from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, remove_user`, count]` | spiral   | All MUC Light related user data is removed from a DB. |
     | `[HostType, mod_muc_light_db_Backend, remove_user`, time]`  | histogram | Time to remove all MUC Light related user data from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, remove_domain, count]` | counter   | All MUC Light related domain data is removed from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, remove_domain, count]` | spiral   | All MUC Light related domain data is removed from a DB. |
     | `[HostType, mod_muc_light_db_Backend, remove_domain, time]`  | histogram |Time to remove all MUC Light related domain data from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, get_config, count]` | counter   | A room config is retrieved from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, get_config, count]` | spiral   | A room config is retrieved from a DB. |
     | `[HostType, mod_muc_light_db_Backend, get_config, time]`  | histogram | Time to retrieve a room config from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, set_config, count]` | counter   | A room config is updated in a DB. |
+    | `[HostType, mod_muc_light_db_Backend, set_config, count]` | spiral   | A room config is updated in a DB. |
     | `[HostType, mod_muc_light_db_Backend, set_config, time]`  | histogram | Time to update a room config in a DB. |
-    | `[HostType, mod_muc_light_db_Backend, get_blocking, count]` | counter   | Blocking data is fetched from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, get_blocking, count]` | spiral   | Blocking data is fetched from a DB. |
     | `[HostType, mod_muc_light_db_Backend, get_blocking, time]`  | histogram | Time to fetch blocking data from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, set_blocking, count]` | counter   | Blocking data is updated in a DB. |
+    | `[HostType, mod_muc_light_db_Backend, set_blocking, count]` | spiral   | Blocking data is updated in a DB. |
     | `[HostType, mod_muc_light_db_Backend, set_blocking, time]`  | histogram | Time to update blocking data in a DB. |
-    | `[HostType, mod_muc_light_db_Backend, get_aff_users, count]` | counter   | Affiliated users list is fetched from a DB. |
+    | `[HostType, mod_muc_light_db_Backend, get_aff_users, count]` | spiral   | Affiliated users list is fetched from a DB. |
     | `[HostType, mod_muc_light_db_Backend, get_aff_users, time]`  | histogram | Time to fetch affiliated users list from a DB. |
-    | `[HostType, mod_muc_light_db_Backend, modify_aff_users, count]` | counter   | Affiliations in a room are updated in a DB. |
+    | `[HostType, mod_muc_light_db_Backend, modify_aff_users, count]` | spiral   | Affiliations in a room are updated in a DB. |
     | `[HostType, mod_muc_light_db_Backend, modify_aff_users, time]`  | histogram | Time to update affiliations in a room in a DB. |
