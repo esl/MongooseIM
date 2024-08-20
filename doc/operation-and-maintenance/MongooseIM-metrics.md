@@ -258,9 +258,11 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 ## Global metrics
 
+All of these metrics are updated periodically. The interval at which they are probed can be configured with the [`instrumentation.probe_interval` option].
+
 === "Prometheus"
 
-    | Name | Type | Description (when it gets incremented) |
+    | Name | Type | Description |
     | ---- | ---- | -------------------------------------- |
     | `sm_node_sessions_count` | gauge | A number of sessions connected to a given MongooseIM node. |
     | `sm_total_sessions_count` | gauge | A number of sessions connected to a MongooseIM cluster. |
@@ -273,7 +275,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 === "Exometer"
 
-    | Name | Type | Description (when it gets incremented) |
+    | Name | Type | Description |
     | ---- | ---- | -------------------------------------- |
     | `[global, sm_node_sessions, count]` | gauge | A number of sessions connected to a given MongooseIM node. |
     | `[global, sm_total_sessions, count]` | gauge | A number of sessions connected to a MongooseIM cluster. |
@@ -344,6 +346,8 @@ All metrics are in bytes, and refer to unencrypted data (before encryption or af
 
 ### CETS system metrics
 
+All of these metrics are updated periodically. The interval at which they are probed can be configured with the [`instrumentation.probe_interval` option].
+
 === "Prometheus"
 
     | Metric name | Type | Description |
@@ -384,10 +388,12 @@ For RDBMS global pool defined, an instance of these metrics are available.
 Prometheus metrics have a `pool_tag` label associated with these metrics.
 Since Exometer doesn't support labels, the tags are part of the metric names.
 
+All of these metrics are updated periodically. The interval at which they are probed can be configured with the [`instrumentation.probe_interval` option].
+
 === "Prometheus"
 
-    | Name | Type | Description (when it gets incremented) |
-    | ---- | ---- | -------------------------------------- |
+    | Name | Type | Description |
+    | ---- | ---- | ----------- |
     | `wpool_global_rdbms_stats_workers`   | gauge | Number of workers in the pool          |
     | `wpool_global_rdbms_stats_recv_oct`  | counter  | Number of bytes received               |
     | `wpool_global_rdbms_stats_recv_cnt`  | counter  | Number of packets received             |
@@ -399,8 +405,8 @@ Since Exometer doesn't support labels, the tags are part of the metric names.
 
 === "Exometer"
 
-    | Name                                                              | Type    | Description (when it gets incremented) |
-    |-------------------------------------------------------------------|---------|----------------------------------------|
+    | Name | Type | Description |
+    | ---- | ---- | ----------- |
     | `[global, wpool_global_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
     | `[global, wpool_global_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
     | `[global, wpool_global_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |

@@ -99,7 +99,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
     | `mod_global_distrib_mapping_cache_misses_count` | counter | Number of fetches of session table entries that hit the database. |
     | `mod_global_distrib_delivered_with_ttl_value` | histogram | A histogram of packets' TTL values recorded when the global routing layer decides to route them locally (but not due to TTL = 0). |
     | `mod_global_distrib_stop_ttl_zero_count` | counter | A number of packets that weren't processed by global routing due to TTL=0. |
-    | `mod_global_distrib_bounce_queue_size` | counter | A number of messages enqueued for rerouting (the value of this metric is individual per MongooseIM node!). |
+    | `mod_global_distrib_bounce_queue_size` | counter | A number of messages enqueued for rerouting (the value of this metric is individual per MongooseIM node!). This metric is updated periodically, every [`instrumentation.probe_interval`](../configuration/instrumentation.md#instrumentationprobe_interval). |
 
 === "Exometer"
 
