@@ -30,7 +30,8 @@
 -ignore_xref([erase_database/1, prepare_test_queries/0, get_enabled_dynamic/0,
               insert_full_event/2, insert_domain_settings_without_event/2]).
 
--import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
+-import(mongoose_rdbms, [prepare/4]).
+-include("mongoose_logger.hrl").
 
 -type event_id() :: non_neg_integer().
 -type domain() :: jid:lserver().
@@ -385,3 +386,10 @@ transaction(F, Retries, Errors) when Retries > 0 ->
 
 simple_result({atomic, Result}) -> Result;
 simple_result(Other) -> {error, {db_error, Other}}.
+
+execute_successfully(Pool, StatementName, Args) ->
+    Res = mongoose_rdbms:execute_successfully(Pool, StatementName, Args),
+    %% Convert args to tuple, because Erlang formats list as a string for domain_event_ids_between
+    ?LOG_DEBUG(#{what => domain_sql_execute,
+                 statement_name => StatementName, args => list_to_tuple(Args), result => Res}),
+    Res.
