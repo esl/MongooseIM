@@ -46,7 +46,7 @@ Backend in the action name can be either `rdbms` or `mnesia`.
     | `mod_last_Backend_count` | counter | `set_last_info` |  A timestamp is stored in the database. |
     | `mod_last_Backend_time` | histogram | `set_last_info` | Time spent storing a timestamp in the database. |
     | `mod_last_Backend_count` | counter | `session_cleanup` | A session is cleaned up from the database. |
-    | `mod_last_Backend_time` | histogram | `session_cleanup` | Time spent cleaning up a from the database. |
+    | `mod_last_Backend_time` | histogram | `session_cleanup` | Time spent cleaning up a session from the database. |
 
 === "Exometer"
 
@@ -57,4 +57,4 @@ Backend in the action name can be either `rdbms` or `mnesia`.
     | `[HostType, mod_last_Backend, set_last_info, count]` | counter |  A timestamp is stored in the database. |
     | `[HostType, mod_last_Backend, set_last_info, time]` | histogram | Time spent storing a timestamp in the database. |
     | `[HostType, mod_last_Backend, session_cleanup, count]` | counter | A session is cleaned up from the database. |
-    | `[HostType, mod_last_Backend, session_cleanup, time]` | histogram | Time spent cleaning up a from the database. |
+    | `[HostType, mod_last_Backend, session_cleanup, time]` | histogram | Time spent cleaning up a session from the database. |
