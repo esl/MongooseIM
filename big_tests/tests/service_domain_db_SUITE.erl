@@ -206,11 +206,12 @@ init_per_suite(Config) ->
     erase_database(mim()),
     Config2 = ejabberd_node_utils:init(mim(), Config1),
     mongoose_helper:inject_module(?MODULE),
-    enable_logging(),
+    %% If there are CI issues, use this to debug SQL queries:
+%   mim_loglevel:enable_logging([mim, mim2, mim3], [{mongoose_domain_sql, debug}]),
     escalus:init_per_suite([{service_setup, per_testcase} | Config2]).
 
 end_per_suite(Config) ->
-    disable_logging(),
+%   mim_loglevel:disable_logging([mim, mim2, mim3], [{mongoose_domain_sql, debug}]),
     [restart_domain_core(Node) || Node <- all_nodes()],
     dynamic_services:restore_services(Config),
     domain_helper:insert_configured_domains(),
@@ -1273,17 +1274,3 @@ dummy_auth_host_type() ->
 random_domain_name() ->
     Prefix = integer_to_binary(erlang:unique_integer([positive])),
     <<Prefix/binary, ".example.db">>.
-
-%% -----------------------------------------------------------------------
-%% Custom log levels for domain modules during the tests
-
-enable_logging() ->
-    mim_loglevel:enable_logging(test_hosts(), custom_loglevels()).
-
-disable_logging() ->
-    mim_loglevel:disable_logging(test_hosts(), custom_loglevels()).
-
-custom_loglevels() ->
-    [{mongoose_domain_sql, debug}].
-
-test_hosts() -> [mim, mim2, mim3].
