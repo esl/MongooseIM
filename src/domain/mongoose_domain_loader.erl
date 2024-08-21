@@ -266,7 +266,7 @@ fix_gaps(Gaps, Retries) when Retries > 0 ->
     %%
     %% There is no easy way to check for a reason.
     %%
-    %% fix_gaps tries to insert_dummy_event with a gap event id.
+    %% fix_gaps tries to insert_dummy_events with a gap event id.
     %% This makes the state of transaction for gap events obvious:
     %% - if this insert fails, this means the actual record finally
     %%   appears and we can read it.
@@ -277,7 +277,7 @@ fix_gaps(Gaps, Retries) when Retries > 0 ->
     %%
     %% RDBMS servers do not overwrite data when INSERT operation is used.
     %% i.e. only one insert for a key succeeded.
-    [catch mongoose_domain_sql:insert_dummy_event(Id) || Id <- Gaps],
+    catch mongoose_domain_sql:insert_dummy_events(Gaps),
     %% The gaps should be filled at this point
     Rows = lists:append([mongoose_domain_sql:select_updates_between(Id, Id) || Id <- Gaps]),
     ?LOG_WARNING(#{what => domain_fix_gaps, gaps => Gaps, rows => Rows}),
