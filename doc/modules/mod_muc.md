@@ -498,8 +498,8 @@ Since Exometer doesn't support labels, the host types, or word `global`, are par
   | `mod_muc_deep_hibernations_count` | counter | A room process is stopped (applies only to persistent rooms). |
   | `mod_muc_process_recreations_count` | counter | A room process is recreated from a persisted state. |
   | `mod_muc_hibernations_count` | counter | A room process becomes hibernated (garbage collected and put in wait state). |
-  | `mod_muc_rooms_hibernated` | gauge | How many rooms are in hibernated state. Does not include rooms in "deep hibernation". |
-  | `mod_muc_rooms_online` | gauge | How many rooms have running processes (includes rooms in a hibernated state). |
+  | `mod_muc_rooms_hibernated` | gauge | How many rooms are in hibernated state. Does not include rooms in "deep hibernation". This metric is updated periodically, every [`instrumentation.probe_interval`](../configuration/instrumentation.md#instrumentationprobe_interval). |
+  | `mod_muc_rooms_online` | gauge | How many rooms have running processes (includes rooms in a hibernated state). This metric is updated periodically, every [`instrumentation.probe_interval`](../configuration/instrumentation.md#instrumentationprobe_interval). |
 
 === "Exometer"
 
@@ -508,5 +508,5 @@ Since Exometer doesn't support labels, the host types, or word `global`, are par
   | `[HostType, mod_muc_deep_hibernations, count]` | spiral | A room process is stopped (applies only to persistent rooms). |
   | `[HostType, mod_muc_process_recreations, count]` | spiral | A room process is recreated from a persisted state. |
   | `[HostType, mod_muc_hibernations, count]` | spiral | A room process becomes hibernated (garbage collected and put in wait state). |
-  | `[HostType, mod_muc_rooms, hibernated]` | gauge | How many rooms are in hibernated state. Does not include rooms in "deep hibernation". |
-  | `[HostType, mod_muc_rooms, online]` | gauge | How many rooms have running processes (includes rooms in a hibernated state). |
+  | `[HostType, mod_muc_rooms, hibernated]` | gauge | How many rooms are in hibernated state. Does not include rooms in "deep hibernation". This metric is updated periodically, every [`instrumentation.probe_interval`](../configuration/instrumentation.md#instrumentationprobe_interval). |
+  | `[HostType, mod_muc_rooms, online]` | gauge | How many rooms have running processes (includes rooms in a hibernated state). This metric is updated periodically, every [`instrumentation.probe_interval`](../configuration/instrumentation.md#instrumentationprobe_interval). |

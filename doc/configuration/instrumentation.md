@@ -4,7 +4,7 @@ They are mainly used for the purpose of metrics.
 
 Instrumentation events are acted upon by handlers. Available instrumentation handlers are:
 
-* `prometheus` - exposes a metrics endpoint for [Prometheus](https://prometheus.io/).
+* `prometheus` - collects metrics for the purpose of [Prometheus](https://prometheus.io/). Endpoint to access them has to be configured in the [listener section](../listeners/listen-http.md#handler-types-prometheus-mongoose_prometheus_handler).
 * `exometer` - starts [Exometer](https://github.com/esl/exometer_core), a metrics server capable of exporting metrics using reporters. Currently available is a [Graphite](https://graphiteapp.org/) reporter.
 * `log` - logs instrumentation events to disk.
 
@@ -28,6 +28,10 @@ General options for the Exometer reporter:
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `all_metrics_are_global = true`
+
+When enabled, all per host type metrics are merged into global equivalents.
+The option should be used if you have exceptionally many [host types](../configuration/general.md#generalhost_types) or [static hosts (static domains)](../configuration/general.md#generalhosts).
+It is recommended when the number of host types or static domains is in the hundreds, as it significantly reduces CPU usage and (especially) memory footprint in those setups.
 
 ## Exometer reporter options
 
@@ -84,6 +88,22 @@ A prefix to prepend all metric names with before they are sent to the graphite s
 
 Specifies an environmental variable name from which an additional prefix will be taken.
 In case both `prefix` and `env_prefix` are defined, it will be placed before the `prefix` and separated with a dot.
+
+## Log handler options
+
+### `instrumentation.log.level`
+* **Syntax:** string, one of `"none"`, `"emergency"`, `"alert"`, `"critical"`, `"error"`, `"warning"`, `"notice"`, `"info"`, `"debug"`, `"all"`.
+* **Default:** `"debug"`
+* **Example:** `loglevel = "error"`
+
+Base severity level at which all the events will be logged.
+Note that for some events, the level may be different, and this option overridden (for example lower for events meant only for debugging purposes).
+
+!!! note
+    
+    In order for instrumentation events to appear in logs, the [`general.loglevel` option](../configuration/general.md#generalloglevel) has to be set to the same or lower level.
+    However, this may make the logs overly verbose, as most of the events important for a MongooseIM operator are logged anyway with appropriete severity levels.
+    The main purpose of this option is debugging, and is not recommended for production systems, thus the default `"debug"` value.
 
 ## Example Prometheus configuration
 
