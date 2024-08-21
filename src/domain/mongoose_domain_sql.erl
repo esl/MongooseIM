@@ -283,6 +283,8 @@ insert_full_event_mssql(EventId, Domain) ->
             mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events ON">>),
             try
                 execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+            catch Class:Reason:Stacktrace ->
+                {error, {Class, Reason, Stacktrace}}
             after
                 mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events OFF">>)
             end
@@ -373,14 +375,14 @@ transaction(F) ->
 %% (there is no logic, that would suffer by a restart of a transaction).
 transaction(_F, 0, Errors) ->
     {error, {db_error, Errors}};
-transaction(F, Retries, Errors) when Retries > 0 ->
+transaction(F, Tries, Errors) when Tries > 0 ->
     Pool = get_db_pool(),
     Result = rdbms_queries:sql_transaction(Pool, fun() -> F(Pool) end),
     case Result of
         {aborted, _} -> %% Restart any rolled back transaction
             put(last_transaction_error, Result),
             timer:sleep(100), %% Small break before retry
-            transaction(F, Retries - 1, [Result|Errors]);
+            transaction(F, Tries - 1, [Result|Errors]);
         _ ->
             erase(last_transaction_error),
             simple_result(Result)
