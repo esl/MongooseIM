@@ -102,7 +102,7 @@ sync_local() ->
 -spec ping(pid()) -> pong.
 ping(Pid) ->
     try
-        gen_server:call(Pid, ping)
+        gen_server:call(Pid, ping, timer:seconds(15))
     catch Class:Reason:Stacktrace ->
         Info = rpc:pinfo(Pid, [current_stacktrace, dictionary]),
         erlang:raise(Class, {Reason, Info}, Stacktrace)
