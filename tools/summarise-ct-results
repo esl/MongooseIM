@@ -88,10 +88,9 @@ add_up_suite_results(SuiteSummaries) ->
 add_up_group_results(GroupSummaries) ->
     lists:foldl(fun(Filename, {OkAcc, FAcc, EvOkAcc, EndPerTestcaseFailedAcc}) ->
                         {ok, Terms} = file:consult(Filename),
-                        Map = maps:from_list(Terms),
                         #{eventually_ok_tests := EvOk,
+                          end_per_testcase_failures := EndPerTestcaseFailed,
                           groups_summary := {Ok, F}}
-                            = Map,
-                        EndPerTestcaseFailed = maps:get(end_per_testcase_failures, Map, 0),
+                            = maps:from_list(Terms),
                         {OkAcc + Ok, FAcc + F, EvOkAcc + EvOk, EndPerTestcaseFailedAcc + EndPerTestcaseFailed}
                 end, {0, 0, 0, 0}, GroupSummaries).
