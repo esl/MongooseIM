@@ -19,7 +19,7 @@
          select_updates_between/2,
          get_enabled_dynamic/0,
          delete_events_older_than/1,
-         insert_dummy_event/1]).
+         insert_dummy_events/1]).
 
 %% interfaces only for integration tests
 -export([prepare_test_queries/0,
@@ -30,7 +30,8 @@
 -ignore_xref([erase_database/1, prepare_test_queries/0, get_enabled_dynamic/0,
               insert_full_event/2, insert_domain_settings_without_event/2]).
 
--import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
+-import(mongoose_rdbms, [prepare/4]).
+-include("mongoose_logger.hrl").
 
 -type event_id() :: non_neg_integer().
 -type domain() :: jid:lserver().
@@ -258,19 +259,24 @@ delete_events_older_than(Id) ->
             execute_successfully(Pool, domain_events_delete_older_than, [Id])
         end).
 
-insert_dummy_event(EventId) ->
-    insert_full_event(EventId, <<>>).
+insert_dummy_events(EventIds) ->
+    insert_full_events([{EventId, <<>>} || EventId <- EventIds]).
 
 insert_full_event(EventId, Domain) ->
+    [Res] = insert_full_events([{EventId, Domain}]),
+    Res.
+
+insert_full_events(EventIdDomain) ->
     case mongoose_rdbms:db_type() of
         mssql ->
-            insert_full_event_mssql(EventId, Domain);
+            insert_full_events_mssql(EventIdDomain);
         _ ->
             Pool = get_db_pool(),
-            execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+            [catch execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+             || {EventId, Domain} <- EventIdDomain]
     end.
 
-insert_full_event_mssql(EventId, Domain) ->
+insert_full_events_mssql(EventIdDomain) ->
     %% MSSQL does not allow to specify ids,
     %% that are supposed to be autoincremented, easily
     %% https://docs.microsoft.com/pl-pl/sql/t-sql/statements/set-identity-insert-transact-sql
@@ -281,7 +287,8 @@ insert_full_event_mssql(EventId, Domain) ->
             %% when trying to execute
             mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events ON">>),
             try
-                execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+                [catch execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+                 || {EventId, Domain} <- EventIdDomain]
             after
                 mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events OFF">>)
             end
@@ -372,16 +379,26 @@ transaction(F) ->
 %% (there is no logic, that would suffer by a restart of a transaction).
 transaction(_F, 0, Errors) ->
     {error, {db_error, Errors}};
-transaction(F, Retries, Errors) when Retries > 0 ->
+transaction(F, Tries, Errors) when Tries > 0 ->
     Pool = get_db_pool(),
     Result = rdbms_queries:sql_transaction(Pool, fun() -> F(Pool) end),
     case Result of
         {aborted, _} -> %% Restart any rolled back transaction
+            put(debug_last_transaction_error, Result),
             timer:sleep(100), %% Small break before retry
-            transaction(F, Retries - 1, [Result|Errors]);
+            transaction(F, Tries - 1, [Result|Errors]);
         _ ->
+            erase(debug_last_transaction_error),
             simple_result(Result)
     end.
 
 simple_result({atomic, Result}) -> Result;
 simple_result(Other) -> {error, {db_error, Other}}.
+
+execute_successfully(Pool, StatementName, Args) ->
+    {Time, Res} = timer:tc(fun() -> mongoose_rdbms:execute_successfully(Pool, StatementName, Args) end),
+    %% Convert args to tuple, because Erlang formats list as a string for domain_event_ids_between
+    ?LOG_DEBUG(#{what => domain_sql_execute,
+                 statement_name => StatementName, args => list_to_tuple(Args), result => Res,
+                 duration => round(Time / 1000)}),
+    Res.
