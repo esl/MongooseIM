@@ -637,6 +637,8 @@ iq_reply_doesnt_crash_user_process(Config) ->
             <<"Hello, Alice">>)
     end).
 
+%% This test checks an edge case where a privacy IQ is sent to another user
+%% This isn't allowed by the XEP, but the test ensures MIM handles it correctly
 iq_with_to_attribute_is_treated_as_regular_one(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],

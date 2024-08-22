@@ -410,6 +410,8 @@ blocker_cant_send_to_blockee(Config) ->
             client_gets_blocking_error(User1)
         end).
 
+%% This test checks an edge case where a blocking IQ is sent to another user
+%% This isn't allowed by the XEP, but the test ensures MIM handles it correctly
 iq_with_to_attribute_is_treated_as_regular_one(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
