@@ -76,7 +76,8 @@ blocking_test_cases() ->
      newly_blocked_presense_jid_by_new_list,
      newly_blocked_presense_jid_by_list_change,
      newly_blocked_presence_not_notify_self,
-     iq_reply_doesnt_crash_user_process
+     iq_reply_doesnt_crash_user_process,
+     iq_with_to_attribute_is_treated_as_regular_one
     ].
 
 allowing_test_cases() ->
@@ -635,6 +636,25 @@ iq_reply_doesnt_crash_user_process(Config) ->
             QueryWithPrivacyNS,
             <<"Hello, Alice">>)
     end).
+
+%% This test checks an edge case where a privacy IQ is sent to another user
+%% This isn't allowed by the XEP, but the test ensures MIM handles it correctly
+iq_with_to_attribute_is_treated_as_regular_one(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            %% Alice sends a privacy IQ addressed to Bob
+            St = escalus_stanza:privacy_set_list(
+                privacy_helper:privacy_list({<<"deny_jid_all">>, Kate})),
+            StanzaPriv = escalus_stanza:to(St, Bob),
+            escalus_client:send(Alice, StanzaPriv),
+            %% Bob should receive the privacy IQ sent by Alice
+            StanzaReceived = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_iq_set, StanzaReceived),
+            %% Alice shouldn't receive any response from the server
+            [] = escalus:wait_for_stanzas(Alice, 1, 100),
+            escalus_assert:has_no_stanzas(Alice)
+        end).
 
 block_jid_iq(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
