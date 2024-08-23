@@ -145,6 +145,10 @@ sse_should_not_get_timeout(Config) ->
         timer:sleep(2000),
         escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello again!">>)),
         sse_helper:wait_for_event(Stream),
+        timer:sleep(2000),
+        Message = binary:copy(<<"0">>, 2000),
+        escalus:send(Bob, escalus_stanza:chat(From, To, Message)),
+        sse_helper:wait_for_event(Stream),
         sse_helper:stop_sse(Stream)
     end).
 

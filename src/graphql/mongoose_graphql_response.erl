@@ -3,10 +3,10 @@
 -export([term_to_json/1, term_to_pretty_json/1]).
 
 term_to_json(Term) ->
-    jiffy:encode(fixup(Term)).
+    iolist_to_binary(jiffy:encode(fixup(Term))).
 
 term_to_pretty_json(Term) ->
-    jiffy:encode(fixup(Term), [pretty]).
+    iolist_to_binary(jiffy:encode(fixup(Term), [pretty])).
 
 %% Ground types
 fixup(Term) when is_number(Term) -> Term;
