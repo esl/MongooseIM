@@ -21,7 +21,7 @@ all() ->
 groups() ->
     [{admin, [parallel], admin_tests()},
      {user, [parallel], user_tests()},
-     {timeout, [], [sse_should_not_get_timeout]}].
+     {timeout, [parallel], [sse_should_not_get_timeout, sse_works_with_long_messages]}].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -145,7 +145,14 @@ sse_should_not_get_timeout(Config) ->
         timer:sleep(2000),
         escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello again!">>)),
         sse_helper:wait_for_event(Stream),
-        timer:sleep(2000),
+        sse_helper:stop_sse(Stream)
+    end).
+
+sse_works_with_long_messages(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = graphql_helper:execute_user_command_sse(<<"stanza">>, <<"subscribeForMessages">>, Alice, #{}, Config),
         Message = binary:copy(<<"0">>, 2000),
         escalus:send(Bob, escalus_stanza:chat(From, To, Message)),
         sse_helper:wait_for_event(Stream),
