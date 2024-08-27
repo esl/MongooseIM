@@ -94,7 +94,7 @@ run_small_tests() {
   tools/print-dots.sh stop
   SMALL_SUMMARIES_DIRS=( ${BASE}/_build/test/logs/ct_run* )
   SMALL_SUMMARIES_DIR=$(choose_newest_directory "${SMALL_SUMMARIES_DIRS[@]}")
-  ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
+  big_tests/_build/default/lib/ct_groups_summary_hook/priv/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
 run_eunit_tests() {
@@ -226,7 +226,7 @@ run_tests() {
   done
 
   echo "SUMMARIES_DIRS=$SUMMARIES_DIRS"
-  ${TOOLS}/summarise-ct-results ${SUMMARIES_DIRS}
+  big_tests/_build/default/lib/ct_groups_summary_hook/priv/summarise-ct-results ${SUMMARIES_DIRS}
   BIG_STATUS_BY_SUMMARY=$?
 
   echo
