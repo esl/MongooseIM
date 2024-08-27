@@ -31,12 +31,19 @@ EOL
 
 now=`date +'%Y-%m-%d_%H.%M.%S'`
 LOG_DIR_ROOT=${CT_REPORTS}/logs/${now}
+LOG_ZIP=${CT_REPORTS}/logs_${now}.zip
 for dev_node_logs_path in `find _build -name log -type d`; do
 	dev_node=$(basename $(dirname $(dirname $(dirname ${dev_node_logs_path}))))
-	LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/log
+        LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/
 	mkdir -p ${LOG_DIR}
 	cp ${dev_node_logs_path}/* ${LOG_DIR}
 done
 
 cp *.log ${LOG_DIR_ROOT}
 cp big_tests/*.log ${LOG_DIR_ROOT} || true
+
+# Zip to safe space
+zip -9 -r "$LOG_ZIP" "$LOG_DIR_ROOT"
+
+# Slightly faster than removing
+mv "$LOG_DIR_ROOT" /tmp/
