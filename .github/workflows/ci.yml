@@ -27,7 +27,7 @@ jobs:
         ## the full list of supported (prebuilt) OTP versions for ubuntu-22.04 runners
         ## can be found here:
         ##     https://builds.hex.pm/builds/otp/ubuntu-22.04/builds.txt
-        otp: [ '25.3.2.9', '26.2.2' ]
+        otp: [ '26.2.5.2', '27.0.1' ]
     runs-on: ubuntu-22.04
     env:
       PRESET: 'small_tests'
@@ -66,17 +66,17 @@ jobs:
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: [ '26.1.2' ]
+        otp: [ '27.0.1' ]
         include:
           - test-spec: "default.spec"
           - preset: elasticsearch_and_cassandra_mnesia
             test-spec: "mam.spec"
           - preset: ldap_mnesia
             test-spec: "default.spec"
-            otp: '25.3.2.6'
+            otp: '26.2.5.2'
           - preset: pgsql_mnesia
             test-spec: "default.spec"
-            otp: '25.3.2.6'
+            otp: '26.2.5.2'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -101,11 +101,11 @@ jobs:
       fail-fast: false
       matrix:
         preset: [pgsql_mnesia, mysql_redis, odbc_mssql_mnesia]
-        otp: [ '26.1.2' ]
+        otp: [ '27.0.1' ]
         test-spec: ["dynamic_domains.spec"]
         include:
           - preset: pgsql_mnesia
-            otp: '25.3.2.6'
+            otp: '26.2.5.2'
             test-spec: "dynamic_domains.spec"
     runs-on: ubuntu-22.04
     steps:
@@ -140,7 +140,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [ '25.2' ]
+        otp: [ '26.2.5.2' ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -156,7 +156,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [ '25.2' ]
+        otp: [ '26.2.5.2' ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -172,7 +172,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [ '25.2' ]
+        otp: [ '26.2.5.2' ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -191,7 +191,7 @@ jobs:
         pkg: [ubuntu_xenial]
     runs-on: ubuntu-22.04
     env:
-      ESL_ERLANG_PKG_VER: "25.0.3"
+      ESL_ERLANG_PKG_VER: "25.3.2"
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
       - uses: actions/checkout@v3
