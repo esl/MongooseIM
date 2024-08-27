@@ -62,3 +62,7 @@ cd "$OLD_DIR"
 
 # Slightly faster than removing
 mv "$LOG_DIR_ROOT" /tmp/
+
+# Compress ct_reports
+cd ${CT_REPORTS}/big
+zip -r ../big.zip .
