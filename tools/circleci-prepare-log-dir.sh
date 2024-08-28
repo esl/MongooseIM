@@ -39,7 +39,7 @@ PREFIX="${CT_REPORTS//\//_}"
 # Optimize naming, so it is easy to extract on MacOS just by clicking it
 # and with reasonable directory names
 LOG_DIR_ROOT=${CT_REPORTS}/logs/${PREFIX}_${now}
-LOG_ZIP=${CT_REPORTS_FULL}/logs_${PREFIX}_${now}.zip
+LOG_ZIP=${CT_REPORTS_FULL}/logs_${PREFIX}_${now}.tar.gz
 for dev_node_logs_path in `find _build -name log -type d`; do
 	dev_node=$(basename $(dirname $(dirname $(dirname ${dev_node_logs_path}))))
         LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/
@@ -56,7 +56,7 @@ OLD_DIR=$(pwd)
 cd "$LOG_DIR_ROOT/.."
 
 # Zip to safe space
-zip -9 -r "$LOG_ZIP" "$(basename "$LOG_DIR_ROOT")"
+tar -czvf "$LOG_ZIP" "$(basename "$LOG_DIR_ROOT")"
 
 cd "$OLD_DIR"
 
