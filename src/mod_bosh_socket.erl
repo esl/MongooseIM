@@ -202,7 +202,7 @@ init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
                             xml_socket => true,
                             max_stanza_size => 0,
                             hibernate_after => 0,
-                            c2s_state_timeout => 5000,
+                            state_timeout => 5000,
                             backwards_compatible_session => true,
                             proto => tcp},
     {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
