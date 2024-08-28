@@ -65,4 +65,4 @@ mv "$LOG_DIR_ROOT" /tmp/
 
 # Compress ct_reports
 cd ${CT_REPORTS}/big
-zip -r ../big.zip .
+tar -czvf ../big.tar.gz .
