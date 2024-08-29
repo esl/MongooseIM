@@ -65,4 +65,10 @@ mv "$LOG_DIR_ROOT" /tmp/
 
 # Compress ct_reports
 cd ${CT_REPORTS}/big
-tar -czvf ../big.tar.gz .
+# Ignore GDPR extracted logs
+# They are primarily empty files
+tar \
+    --exclude='./ct_run*/*.logs/last_link.html' \
+    --exclude='./ct_run*/*.logs/last_name' \
+    --exclude='./ct_run*/*.unzipped' \
+    -czvf ../big.tar.gz .
