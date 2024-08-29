@@ -35,7 +35,7 @@
 
 -record(state, { node_name, reader, writer,
                  current_line_num, out_file, url_file, group, suite,
-                 priv_dir, log_flags = [] }).
+                 log_flags = [] }).
 -include_lib("exml/include/exml.hrl").
 
 %% @doc Return a unique id for this CTH.
@@ -74,8 +74,7 @@ post_end_per_group(Group,_Config,Return,State) ->
 pre_init_per_testcase(TC,Config,State=#state{}) ->
     maybe_print_log_on_mim_node(testcase, starting, TC, State),
     Dog = test_server:timetrap(test_server:seconds(10)),
-    State2 = keep_priv_dir(Config, State),
-    State3 = ensure_initialized(Config, State2),
+    State3 = ensure_initialized(Config, State),
     State4 = pre_insert_line_numbers_into_report(State3, TC),
     test_server:timetrap_cancel(Dog),
     {Config, State4}.
@@ -174,17 +173,13 @@ ensure_initialized(Config, State=#state{node_name=Node, out_file=undefined}) ->
 ensure_initialized(_Config, State=#state{}) ->
     State.
 
-keep_priv_dir(Config, State) ->
-    PrivDir = proplists:get_value(priv_dir, Config),
-    State#state{priv_dir=PrivDir}.
-
 pre_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
 pre_insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
-                                             priv_dir=PrivDir, group=Group, suite=Suite}, TC) ->
+                                             group=Group, suite=Suite}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
-    add_log_link_to_line(PrivDir, UrlFile, CurrentLineNum2, Node, " when started"),
+    add_log_link_to_line(UrlFile, CurrentLineNum2, Node, " when started"),
     Message = io_lib:format(
         "<font color=gray>INIT suite=~p group=~p testcase=~p</font>~n",
         [Suite, Group, TC]),
@@ -195,9 +190,9 @@ post_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
 post_insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
-                                             group=Group, suite=Suite, priv_dir=PrivDir}, TC) ->
+                                             group=Group, suite=Suite}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
-    add_log_link_to_line(PrivDir, UrlFile, CurrentLineNum2, Node, " when finished"),
+    add_log_link_to_line(UrlFile, CurrentLineNum2, Node, " when finished"),
     %% Write a message after the main part
     Message = io_lib:format(
         "<font color=gray>DONE suite=~p group=~p testcase=~p</font>~n",
@@ -214,25 +209,22 @@ insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writ
 %% allows to add simple links.
 %%
 %% We can't add link with label (i.e. index.html#LABEL), because it would be escaped.
-%% Let's create an HTML file for each link we want to insert, and insert our custom
-%% redirect code inside.
 %%
 %% Args:
 %% `Heading' - some description for the link
-%% `PrivDir' - current log_private directory
-%% `LinkName' - filename where to write our redirect code inside log_private
 %% `UrlFile' - destination URL to redirect to
 %% `Label' - position in the document
-add_log_link_to_line(PrivDir, UrlFile, LogLine, Node, ExtraDescription) ->
+add_log_link_to_line(UrlFile, LogLine, Node, ExtraDescription) ->
     Label = "L" ++ integer_to_list(LogLine),
     Heading = "View log from node " ++ atom_to_list(Node) ++ ExtraDescription,
-    %% We need to invent something unique enough here :)
-    LinkName = atom_to_list(Node) ++ "_" ++ integer_to_list(LogLine) ++ ".html",
+    LinkText = atom_to_list(Node) ++ "#" ++ integer_to_list(LogLine),
     URL = UrlFile ++ "#" ++ Label,
-    RedirectCode = "<meta http-equiv='refresh' content='0; url=../" ++ URL ++ "' />",
-    WhereToWrite = filename:join(PrivDir, LinkName),
-    file:write_file(WhereToWrite, RedirectCode),
-    escalus_ct:add_log_link(Heading, LinkName, "text/html").
+    ct_add_link(Heading, URL, LinkText, "text/html").
+
+%% ct_logs:add_link/3 but without URL escaping
+ct_add_link(Heading, URL, LinkText, Type) ->
+    Link = io_lib:format(" <a href=\"~ts\" type=~tp>~ts</a>", [URL, Type, LinkText]),
+    ct_logs:log(Heading ++ binary_to_list(iolist_to_binary(Link)), "", []).
 
 open_out_file(OutFile) ->
     open_file_without_linking(node(), OutFile, [write, delayed_write]).
