@@ -91,10 +91,9 @@ run_small_tests() {
   fi
   export REBAR_CT_EXTRA_ARGS="$REBAR_CT_EXTRA_ARGS"
   make ct
+  RESULT="$?"
   tools/print-dots.sh stop
-  SMALL_SUMMARIES_DIRS=( ${BASE}/_build/test/logs/ct_run* )
-  SMALL_SUMMARIES_DIR=$(choose_newest_directory "${SMALL_SUMMARIES_DIRS[@]}")
-  big_tests/_build/default/lib/ct_groups_summary_hook/priv/summarise-ct-results ${SMALL_SUMMARIES_DIR}
+  return "$RESULT"
 }
 
 run_eunit_tests() {
