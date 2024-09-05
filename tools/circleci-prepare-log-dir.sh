@@ -11,29 +11,7 @@ IFS=$'\n\t'
 
 # Relative directory name
 CT_REPORTS=$(ct_reports_dir)
-mkdir -p ${CT_REPORTS}/small
-mkdir -p ${CT_REPORTS}/big
-
-if [ -d _build/test/logs ]; then
-	cp -Rp _build/test/logs/* ${CT_REPORTS}/small
-fi
-
-CT_REPORT=big_tests/ct_report
-
-if [ -d ${CT_REPORT} ] && [ "$(ls -A ${CT_REPORT})" ];  then
-	cp -Rp ${CT_REPORT}/* ${CT_REPORTS}/big
-fi
-
-cat > ${CT_REPORTS}/index.html << EOL
-<html>
-  <head></head>
-  <body>
-    <p><a href="small/index.html">Small tests (test/)</a></p>
-    <p><a href="big/index.html">Big tests (big_tests/)</a></p>
-  </body>
-</html>
-EOL
-
+mkdir -p "$CT_REPORTS"
 CT_REPORTS_FULL=$(cd "$CT_REPORTS" && pwd)
 
 now=`date +'%Y-%m-%d_%H.%M.%S'`
@@ -67,22 +45,25 @@ cd "$OLD_DIR"
 # Slightly faster than removing
 mv "$LOG_DIR_ROOT" /tmp/
 
-# Compress ct_reports
-if [ -f ${CT_REPORTS}/big/index.html ]; then
-  cd ${CT_REPORTS}/big
+# Compress big ct_reports
+BIG_REPORTS_DIR="$(pwd)/big_tests/ct_report"
+SMALL_REPORTS_DIR="$(pwd)/_build/test/logs"
+
+if [ -f ${BIG_REPORTS_DIR}/index.html ]; then
+  cd ${BIG_REPORTS_DIR}
   # Ignore GDPR extracted logs
   # They are primarily empty files
   tar \
     --exclude='./ct_run*/*.logs/last_link.html' \
     --exclude='./ct_run*/*.logs/last_name' \
     --exclude='./ct_run*/*.unzipped' \
-    -czvf ../big.tar.gz .
+    -czvf "${CT_REPORTS_FULL}/big.tar.gz" .
 fi
 
-if [ -f ${CT_REPORTS}/small/index.html ]; then
-  cd ${CT_REPORTS}/small
+if [ -f ${BIG_REPORTS_DIR}/index.html ]; then
+  cd ${BIG_REPORTS_DIR}
   tar \
     --exclude='./ct_run*/*.logs/last_link.html' \
     --exclude='./ct_run*/*.logs/last_name' \
-    -czvf ../small.tar.gz .
+    -czvf "${CT_REPORTS_FULL}/small.tar.gz" .
 fi
