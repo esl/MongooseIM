@@ -36,6 +36,7 @@ zip_reader_big_url() {
   local CT_REPORTS=${1:-}
   echo "https://esl.github.io/html-zip-reader/${CT_REPORTS}/big.tar.gz/"
 }
+
 zip_reader_small_url() {
   local CT_REPORTS=${1:-}
   echo "https://esl.github.io/html-zip-reader/${CT_REPORTS}/small.tar.gz/"

@@ -30,3 +30,12 @@ direct_s3_url() {
   echo "https://circleci-mim-results.s3.eu-central-1.amazonaws.com/${CT_REPORTS}"
 }
 
+zip_reader_big_url() {
+  local CT_REPORTS=${1:-}
+  echo "https://esl.github.io/html-zip-reader/${CT_REPORTS}/big.tar.gz/"
+}
+
+zip_reader_small_url() {
+  local CT_REPORTS=${1:-}
+  echo "https://esl.github.io/html-zip-reader/${CT_REPORTS}/small.tar.gz/"
+}

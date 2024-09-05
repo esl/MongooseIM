@@ -1,6 +1,10 @@
 #!/bin/bash
 
+if [[ "$NO_CIRCLECI" == "1" ]]; then
+source tools/helpers.sh
+else
 source tools/circleci-helpers.sh
+fi
 
 set -euo pipefail
 IFS=$'\n\t'
