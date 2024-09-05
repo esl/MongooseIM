@@ -64,11 +64,21 @@ cd "$OLD_DIR"
 mv "$LOG_DIR_ROOT" /tmp/
 
 # Compress ct_reports
-cd ${CT_REPORTS}/big
-# Ignore GDPR extracted logs
-# They are primarily empty files
-tar \
+if [ -f ${CT_REPORTS}/big/index.html ]; then
+  cd ${CT_REPORTS}/big
+  # Ignore GDPR extracted logs
+  # They are primarily empty files
+  tar \
     --exclude='./ct_run*/*.logs/last_link.html' \
     --exclude='./ct_run*/*.logs/last_name' \
     --exclude='./ct_run*/*.unzipped' \
     -czvf ../big.tar.gz .
+fi
+
+if [ -f ${CT_REPORTS}/small/index.html ]; then
+  cd ${CT_REPORTS}/small
+  tar \
+    --exclude='./ct_run*/*.logs/last_link.html' \
+    --exclude='./ct_run*/*.logs/last_name' \
+    -czvf ../small.tar.gz .
+fi
