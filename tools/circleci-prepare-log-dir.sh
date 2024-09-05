@@ -6,6 +6,8 @@ else
 source tools/circleci-helpers.sh
 fi
 
+REPO_DIR=$(pwd)
+
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -26,21 +28,19 @@ for dev_node_logs_path in `find _build -name log -type d`; do
 	dev_node=$(basename $(dirname $(dirname $(dirname ${dev_node_logs_path}))))
         LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/
 	mkdir -p ${LOG_DIR}
-	cp ${dev_node_logs_path}/* ${LOG_DIR}
+	mv ${dev_node_logs_path}/* ${LOG_DIR}
 done
 
-cp *.log ${LOG_DIR_ROOT}
-cp big_tests/*.log ${LOG_DIR_ROOT} || true
-
-OLD_DIR=$(pwd)
+mv *.log ${LOG_DIR_ROOT}
+mv big_tests/*.log ${LOG_DIR_ROOT} || true
 
 # cd so we don't include nested dirs in the archive (for example, PR/4366/236412)
 cd "$LOG_DIR_ROOT/.."
 
 # Zip to safe space
-tar -czvf "$LOG_ZIP" "$(basename "$LOG_DIR_ROOT")"
+tar -czf "$LOG_ZIP" "$(basename "$LOG_DIR_ROOT")"
 
-cd "$OLD_DIR"
+cd "$REPO_DIR"
 
 # Slightly faster than removing
 mv "$LOG_DIR_ROOT" /tmp/
@@ -57,13 +57,13 @@ if [ -f ${BIG_REPORTS_DIR}/index.html ]; then
     --exclude='./ct_run*/*.logs/last_link.html' \
     --exclude='./ct_run*/*.logs/last_name' \
     --exclude='./ct_run*/*.unzipped' \
-    -czvf "${CT_REPORTS_FULL}/big.tar.gz" .
+    -czf "${CT_REPORTS_FULL}/big.tar.gz" .
 fi
 
-if [ -f ${BIG_REPORTS_DIR}/index.html ]; then
-  cd ${BIG_REPORTS_DIR}
+if [ -f ${SMALL_REPORTS_DIR}/index.html ]; then
+  cd ${SMALL_REPORTS_DIR}
   tar \
     --exclude='./ct_run*/*.logs/last_link.html' \
     --exclude='./ct_run*/*.logs/last_name' \
-    -czvf "${CT_REPORTS_FULL}/small.tar.gz" .
+    -czf "${CT_REPORTS_FULL}/small.tar.gz" .
 fi
