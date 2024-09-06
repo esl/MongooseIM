@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# TODO: publish comment with errors to a separate dedicated issue on GitHub,
+# if Github Actions fails
+
 source tools/helpers.sh
 
 set -e
