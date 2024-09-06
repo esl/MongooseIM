@@ -46,12 +46,7 @@ while getopts ":p:s:e:c:h:" opt; do
 done
 
 source tools/common-vars.sh
-
-if [ ${CIRCLECI} ]; then
-source tools/circleci-helpers.sh
-else
 source tools/helpers.sh
-fi
 
 if [ "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)

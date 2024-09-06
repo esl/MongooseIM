@@ -29,4 +29,6 @@ prefix="GH/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}/${PRESET}.${RANDOM}/${dest_dir
 echo "directory '${dir}' is uploaded here:"
 echo "   https://esl.github.io/circleci-mim-results/s3_reports.html?prefix=${prefix}"
 
+# TODO: add links for tar.gz viewers
+
 time aws s3 cp "$dir" s3://circleci-mim-results/"${prefix}" --acl public-read --recursive --quiet
