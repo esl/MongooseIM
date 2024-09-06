@@ -72,7 +72,7 @@ function rewrite_log_links_to_s3
     local CT_REPORT=big_tests/ct_report
     local CT_REPORT_ABS=$(./tools/abs_dirpath.sh "$CT_REPORT")
     local CT_REPORTS=$(ct_reports_dir)
-    local BIG_TESTS_URL="$(zip_reader_big_url ${CT_REPORTS})"
+    local BIG_TESTS_URL="$(archive_reader_url big ${CT_REPORTS})"
     cp /tmp/ct_markdown /tmp/ct_markdown_original
     replace_string "$CT_REPORT_ABS" "$BIG_TESTS_URL" /tmp/ct_markdown
     # URL escape for s3_reports.html script
@@ -97,7 +97,7 @@ function small_suite_path
 function ct_run_url
 {
     local CT_REPORTS=$(ct_reports_dir)
-    local BIG_TESTS_URL="$(zip_reader_big_url ${CT_REPORTS})"
+    local BIG_TESTS_URL="$(archive_reader_url big ${CT_REPORTS})"
     local RUN_PART=$(echo "$(last_ct_run_name)" | sed "s/@/%40/g")
     echo "$BIG_TESTS_URL/$RUN_PART/index.html"
 }
@@ -105,7 +105,7 @@ function ct_run_url
 function ct_small_url
 {
     local CT_REPORTS=$(ct_reports_dir)
-    local SMALL_TESTS_URL="$(zip_reader_small_url ${CT_REPORTS})"
+    local SMALL_TESTS_URL="$(archive_reader_url small ${CT_REPORTS})"
     local SUFFIX=$(small_suite_path)
     echo "$SMALL_TESTS_URL/$SUFFIX"
 }
