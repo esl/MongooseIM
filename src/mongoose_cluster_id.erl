@@ -2,23 +2,18 @@
 
 -include("mongoose.hrl").
 
--export([
-         start/0,
-         get_cached_cluster_id/0,
-         get_backend_cluster_id/0
-        ]).
+-export([start/0, get_cached_cluster_id/0]).
 
 % For testing purposes only
--export([clean_table/0, clean_cache/0]).
+-export([clean_table/0, clean_cache/0, get_backend_cluster_id/0]).
 
 -ignore_xref([clean_table/0, clean_cache/0, get_backend_cluster_id/0]).
 
 -record(mongoose_cluster_id, {key :: atom(), value :: cluster_id()}).
 -type cluster_id() :: binary().
 -type maybe_cluster_id() :: {ok, cluster_id()} | {error, any()}.
--type mongoose_backend() :: rdbms
-                          | mnesia
-                          | cets.
+-type persistent_backend() :: rdbms | {error, none}.
+-type volatile_backend() :: mnesia | cets.
 
 -spec start() -> maybe_cluster_id().
 start() ->
@@ -26,23 +21,23 @@ start() ->
     %% Currently, we have to do an SQL query each time we restart MongooseIM
     %% application in the tests.
     init_cache(),
-    Backend = which_backend_available(),
-    IntBackend = which_volatile_backend_available(),
-    maybe_prepare_queries(Backend),
+    PersistentBackend = which_persistent_backend_enabled(),
+    VolatileBackend = which_volatile_backend_available(),
+    maybe_prepare_queries(PersistentBackend),
     cets_long:run_tracked(#{task => wait_for_any_backend,
-                            backend => Backend, volatile_backend => IntBackend},
-                          fun() -> wait_for_any_backend(Backend, IntBackend) end),
-    CachedRes = get_cached_cluster_id(IntBackend),
-    BackendRes = get_backend_cluster_id(),
+                            backend => PersistentBackend, volatile_backend => VolatileBackend},
+                          fun() -> wait_for_any_backend(PersistentBackend, VolatileBackend) end),
+    CachedRes = get_cached_cluster_id(VolatileBackend),
+    BackendRes = get_backend_cluster_id(PersistentBackend),
     case {CachedRes, BackendRes} of
         {{ok, ID}, {ok, ID}} ->
             {ok, ID};
         {{ok, ID}, {error, _}} ->
-            set_new_cluster_id(ID, Backend);
+            persist_cluster_id(ID, PersistentBackend);
         {{error, _}, {ok, ID}} ->
-            set_new_cluster_id(ID, IntBackend);
+            cache_cluster_id(ID, VolatileBackend);
         {{error, _}, {error, _}} ->
-            make_and_set_new_cluster_id();
+            make_and_set_new_cluster_id(PersistentBackend, VolatileBackend);
         {{ok, CachedID}, {ok, BackendID}} ->
             ?LOG_ERROR(#{what => cluster_id_setup_conflict,
                          text => <<"Mnesia and Backend have different cluster IDs">>,
@@ -53,12 +48,14 @@ start() ->
 
 %% If RDBMS is available before CETS - it is enough for us to continue
 %% the starting procedure
-wait_for_any_backend(Backend, IntBackend) ->
+wait_for_any_backend(PersistentBackend, VolatileBackend) ->
     Alias = erlang:alias([reply]),
-    Pids = lists:append([wait_for_backend_promise(B, Alias) || B <- lists:sort([Backend, IntBackend])]),
+    Pids = lists:append([wait_for_backend_promise(B, Alias)
+                         || B <- lists:sort([PersistentBackend, VolatileBackend])]),
     wait_for_first_reply(Alias),
     %% Interrupt other waiting calls to reduce the logging noise
     [erlang:exit(Pid, shutdown) || Pid <- Pids],
+    clear_pending_replies(Alias),
     ok.
 
 wait_for_first_reply(Alias) ->
@@ -67,9 +64,13 @@ wait_for_first_reply(Alias) ->
             ok
     end.
 
-wait_for_backend_promise(mnesia, Alias) ->
-    Alias ! {ready, Alias},
-    [];
+clear_pending_replies(Alias) ->
+    receive
+        {ready, Alias} -> clear_pending_replies(Alias)
+    after
+        0 -> ok
+    end.
+
 wait_for_backend_promise(cets, Alias) ->
     [spawn(fun() ->
             %% We have to do it, because we want to read from across the cluster
@@ -81,7 +82,10 @@ wait_for_backend_promise(rdbms, Alias) ->
     [spawn(fun() ->
             cets_long:run_tracked(#{task => wait_for_rdbms}, fun() -> wait_for_rdbms() end),
             Alias ! {ready, Alias}
-        end)].
+        end)];
+wait_for_backend_promise(_, Alias) ->
+    Alias ! {ready, Alias},
+    [].
 
 wait_for_rdbms() ->
     case get_backend_cluster_id(rdbms) of
@@ -121,16 +125,14 @@ get_cached_cluster_id(cets) ->
 %% ====================================================================
 -spec get_backend_cluster_id() -> maybe_cluster_id().
 get_backend_cluster_id() ->
-    get_backend_cluster_id(which_backend_available()).
+    get_backend_cluster_id(which_persistent_backend_enabled()).
 
--spec set_new_cluster_id(cluster_id()) -> maybe_cluster_id().
-set_new_cluster_id(ID) ->
-    set_new_cluster_id(ID, which_backend_available()).
-
--spec make_and_set_new_cluster_id() -> maybe_cluster_id().
-make_and_set_new_cluster_id() ->
-    NewID = make_cluster_id(),
-    set_new_cluster_id(NewID).
+-spec make_and_set_new_cluster_id(persistent_backend(), volatile_backend()) ->
+    maybe_cluster_id().
+make_and_set_new_cluster_id(PersistentBackend, VolatileBackend) ->
+    NewID = make_cluster_id(PersistentBackend),
+    persist_cluster_id(NewID, PersistentBackend),
+    cache_cluster_id(NewID, VolatileBackend).
 
 %% ====================================================================
 %% Internal functions
@@ -149,31 +151,36 @@ init_cache(cets) ->
     cets:start(cets_cluster_id, #{}),
     cets_discovery:add_table(mongoose_cets_discovery, cets_cluster_id).
 
--spec maybe_prepare_queries(mongoose_backend()) -> ok.
-maybe_prepare_queries(mnesia) -> ok;
+-spec maybe_prepare_queries(persistent_backend()) -> any().
 maybe_prepare_queries(rdbms) ->
     mongoose_rdbms:prepare(cluster_insert_new, mongoose_cluster_id, [v],
         <<"INSERT INTO mongoose_cluster_id(k,v) VALUES ('cluster_id', ?)">>),
     mongoose_rdbms:prepare(cluster_select, mongoose_cluster_id, [],
-        <<"SELECT v FROM mongoose_cluster_id WHERE k='cluster_id'">>),
+        <<"SELECT v FROM mongoose_cluster_id WHERE k='cluster_id'">>);
+maybe_prepare_queries(_) ->
     ok.
 
 -spec execute_cluster_insert_new(binary()) -> mongoose_rdbms:query_result().
 execute_cluster_insert_new(ID) ->
     mongoose_rdbms:execute_successfully(global, cluster_insert_new, [ID]).
 
--spec make_cluster_id() -> cluster_id().
-make_cluster_id() ->
-    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
+%% If there's no persistent backend, cluster IDs will be recreated on every cluster restart,
+%% hence prefix them as ephemeral to re-classify them later.
+-spec make_cluster_id(persistent_backend()) -> cluster_id().
+make_cluster_id(rdbms) ->
+    uuid:uuid_to_string(uuid:get_v4(), binary_standard);
+make_cluster_id({error, none}) ->
+    <<"ephemeral-", (uuid:uuid_to_string(uuid:get_v4(), binary_standard))/binary>>.
 
-%% Which backend is enabled
--spec which_backend_available() -> mongoose_backend().
-which_backend_available() ->
+%% Which persistent backend is enabled
+-spec which_persistent_backend_enabled() -> persistent_backend().
+which_persistent_backend_enabled() ->
     case mongoose_wpool:get_pool_settings(rdbms, global, default) of
-        undefined -> which_volatile_backend_available();
+        undefined -> {error, none};
         _ -> rdbms
     end.
 
+-spec which_volatile_backend_available() -> volatile_backend().
 which_volatile_backend_available() ->
     case mongoose_config:get_opt(internal_databases) of
         #{cets := _} ->
@@ -182,11 +189,10 @@ which_volatile_backend_available() ->
             mnesia
     end.
 
--spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
-set_new_cluster_id(ID, rdbms) ->
+-spec persist_cluster_id(cluster_id(), persistent_backend()) -> maybe_cluster_id().
+persist_cluster_id(ID, rdbms) ->
     try execute_cluster_insert_new(ID) of
         {updated, 1} ->
-            set_new_cluster_id(ID, which_volatile_backend_available()),
             {ok, ID}
     catch
         Class:Reason:Stacktrace ->
@@ -196,7 +202,11 @@ set_new_cluster_id(ID, rdbms) ->
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, {Class, Reason}}
     end;
-set_new_cluster_id(ID, mnesia) ->
+persist_cluster_id(ID, {error, none}) ->
+    {ok, ID}.
+
+-spec cache_cluster_id(cluster_id(), volatile_backend()) -> maybe_cluster_id().
+cache_cluster_id(ID, mnesia) ->
     T = fun() -> mnesia:write(#mongoose_cluster_id{key = cluster_id, value = ID}) end,
     case mnesia:transaction(T) of
         {atomic, ok} ->
@@ -204,12 +214,12 @@ set_new_cluster_id(ID, mnesia) ->
         {aborted, Reason} ->
             {error, Reason}
     end;
-set_new_cluster_id(ID, cets) ->
+cache_cluster_id(ID, cets) ->
     cets:insert_serial(cets_cluster_id, {cluster_id, ID}),
     {ok, ID}.
 
 %% Get cluster ID
--spec get_backend_cluster_id(mongoose_backend()) -> maybe_cluster_id().
+-spec get_backend_cluster_id(persistent_backend()) -> maybe_cluster_id().
 get_backend_cluster_id(rdbms) ->
     try mongoose_rdbms:execute_successfully(global, cluster_select, []) of
         {selected, [{ID}]} -> {ok, ID};
@@ -221,15 +231,13 @@ get_backend_cluster_id(rdbms) ->
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, {Class, Reason}}
     end;
-get_backend_cluster_id(mnesia) ->
-    get_cached_cluster_id(mnesia);
-get_backend_cluster_id(cets) ->
-    get_cached_cluster_id(cets).
+get_backend_cluster_id({error, none}) ->
+    {error, no_value_in_backend}.
 
 clean_table() ->
-    clean_table(which_backend_available()).
+    clean_table(which_persistent_backend_enabled()).
 
--spec clean_table(mongoose_backend()) -> ok | {error, any()}.
+-spec clean_table(persistent_backend()) -> ok | {error, any()}.
 clean_table(rdbms) ->
     SQLQuery = [<<"TRUNCATE TABLE mongoose_cluster_id;">>],
     try mongoose_rdbms:sql_query(global, SQLQuery) of

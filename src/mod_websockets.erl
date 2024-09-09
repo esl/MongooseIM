@@ -222,7 +222,7 @@ maybe_start_fsm([#xmlel{ name = <<"open">> }],
         max_stanza_size => 0,
         xml_socket => true,
         hibernate_after => 0,
-        c2s_state_timeout => StateTimeout,
+        state_timeout => StateTimeout,
         backwards_compatible_session => BackwardsCompatible,
         port => Port, ip_tuple => IPTuple, proto => tcp},
     do_start_fsm(Opts, State);

@@ -46,12 +46,7 @@ while getopts ":p:s:e:c:h:" opt; do
 done
 
 source tools/common-vars.sh
-
-if [ ${CIRCLECI} ]; then
-source tools/circleci-helpers.sh
-else
 source tools/helpers.sh
-fi
 
 if [ "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)
@@ -91,10 +86,9 @@ run_small_tests() {
   fi
   export REBAR_CT_EXTRA_ARGS="$REBAR_CT_EXTRA_ARGS"
   make ct
+  RESULT="$?"
   tools/print-dots.sh stop
-  SMALL_SUMMARIES_DIRS=( ${BASE}/_build/test/logs/ct_run* )
-  SMALL_SUMMARIES_DIR=$(choose_newest_directory "${SMALL_SUMMARIES_DIRS[@]}")
-  ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
+  return "$RESULT"
 }
 
 run_eunit_tests() {
@@ -226,7 +220,7 @@ run_tests() {
   done
 
   echo "SUMMARIES_DIRS=$SUMMARIES_DIRS"
-  ${TOOLS}/summarise-ct-results ${SUMMARIES_DIRS}
+  big_tests/_build/default/lib/ct_groups_summary_hook/priv/summarise-ct-results ${SUMMARIES_DIRS}
   BIG_STATUS_BY_SUMMARY=$?
 
   echo

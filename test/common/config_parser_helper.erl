@@ -1154,7 +1154,7 @@ default_config([listen, http, tls]) ->
 default_config([listen, c2s]) ->
     (common_xmpp_listener_config())#{module => mongoose_c2s_listener,
                                      max_connections => infinity,
-                                     c2s_state_timeout => 5000,
+                                     state_timeout => 5000,
                                      reuse_port => false,
                                      backwards_compatible_session => true,
                                      access => all,

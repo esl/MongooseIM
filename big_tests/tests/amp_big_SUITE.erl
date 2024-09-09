@@ -115,7 +115,7 @@ deliver_test_cases(drop) ->
 
 init_per_suite(Config) ->
     ConfigWithHooks = [{ct_hooks, [{multiple_config_cth, fun tests_with_config/1}]} | Config],
-    {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [amp_test_helper_code()]),
+    {Mod, Code} = dynamic_compile:from_string(amp_test_helper_code()),
     rpc(mim(), code, load_binary, [Mod, "amp_test_helper.erl", Code]),
     setup_meck(suite),
     instrument_helper:start(declared_events()),

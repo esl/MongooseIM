@@ -299,7 +299,7 @@ xmpp_listener_extra(<<"c2s">>) ->
                                                validate = non_empty},
                        <<"max_connections">> => #option{type = int_or_infinity,
                                                         validate = positive},
-                       <<"c2s_state_timeout">> => #option{type = int_or_infinity,
+                       <<"state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative},
                        <<"reuse_port">> => #option{type = boolean},
                        <<"backwards_compatible_session">> => #option{type = boolean},
@@ -311,7 +311,7 @@ xmpp_listener_extra(<<"c2s">>) ->
              defaults = #{<<"access">> => all,
                           <<"shaper">> => none,
                           <<"max_connections">> => infinity,
-                          <<"c2s_state_timeout">> => 5000,
+                          <<"state_timeout">> => 5000,
                           <<"reuse_port">> => false,
                           <<"backwards_compatible_session">> => true}
             };

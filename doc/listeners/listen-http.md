@@ -84,11 +84,11 @@ Maximum allowed incoming stanza size in bytes.
 
 ### `listen.http.handlers.mod_websockets.c2s_state_timeout`
 
-Same as the [C2S option](listen-c2s.md#listenc2sc2s_state_timeout)
+Same as the [C2S option](listen-c2s.md#listenc2sstate_timeout).
 
 ### `listen.http.handlers.mod_websockets.backwards_compatible_session`
 
-Same as the [C2S option](listen-c2s.md#listenc2sbackwards_compatible_session)
+Same as the [C2S option](listen-c2s.md#listenc2sbackwards_compatible_session).
 
 ## Handler types: GraphQL API - `mongoose_graphql_handler`
 

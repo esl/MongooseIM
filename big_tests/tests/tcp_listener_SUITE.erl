@@ -42,7 +42,7 @@ end_per_suite(_Config) ->
     teardown_meck().
 
 setup_meck() ->
-    {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [tcp_listener_helper_code()]),
+    {Mod, Code} = dynamic_compile:from_string(tcp_listener_helper_code()),
     rpc(mim(), code, load_binary, [Mod, "tcp_listener_helper.erl", Code]),
     ok = rpc(mim(), meck, new, [mongoose_tcp_listener, [passthrough, no_link]]),
     ok = rpc(mim(), tcp_listener_helper, setup_meck, []).

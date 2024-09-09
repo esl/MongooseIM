@@ -150,9 +150,17 @@ user_send_message_or_presence(Acc, #{c2s_data := StateData}, _Extra) ->
 user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case mongoose_iq:info(Acc) of
         {#iq{xmlns = ?NS_PRIVACY, type = Type} = IQ, Acc1} when Type == get; Type == set ->
-            do_user_send_iq(Acc1, StateData, HostType, IQ);
+            handle_privacy_iq(Acc1, StateData, HostType, IQ);
         _ ->
             do_privacy_check_send(Acc, StateData)
+    end.
+
+handle_privacy_iq(Acc1, StateData, HostType, IQ) ->
+    case exml_query:attr(mongoose_acc:element(Acc1), <<"to">>) of
+        undefined ->
+            do_user_send_iq(Acc1, StateData, HostType, IQ);
+        _ ->
+            do_privacy_check_send(Acc1, StateData)
     end.
 
 -spec user_receive_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->

@@ -30,10 +30,10 @@ The value of the access rule needs to be either the shaper name or the string `"
 
 Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
 
-### `listen.c2s.c2s_state_timeout`
+### `listen.c2s.state_timeout`
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `5000`
-* **Example:** `c2s_state_timeout = 10_000`
+* **Example:** `state_timeout = 10_000`
 
 Timeout value (in milliseconds) used by the C2S state machine when waiting for the connecting client to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
 

@@ -67,7 +67,7 @@
 -type listener_opts() :: #{shaper := atom(),
                            max_stanza_size := non_neg_integer(),
                            backwards_compatible_session := boolean(),
-                           c2s_state_timeout := non_neg_integer(),
+                           state_timeout := non_neg_integer(),
                            port := inet:port_number(),
                            ip_tuple := inet:ip_address(),
                            proto := tcp,
@@ -1083,7 +1083,7 @@ send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
 
 state_timeout(#c2s_data{listener_opts = LOpts}) ->
     state_timeout(LOpts);
-state_timeout(#{c2s_state_timeout := Timeout}) ->
+state_timeout(#{state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.
 
 -spec replace_resource(data(), binary()) -> data().

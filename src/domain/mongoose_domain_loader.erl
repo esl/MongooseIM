@@ -106,6 +106,7 @@ check_for_updates({Min, Max},
 check_for_updates(MinMax = {Min, Max},
                   #{min_event_id := OldMin, max_event_id := OldMax})
   when is_integer(Min), is_integer(Max) ->
+    put(debug_last_check_for_updates_minmax, MinMax),
     {MinEventId, MaxEventId} = limit_max_id(OldMax, MinMax, 1000),
     check_if_id_is_still_relevant(OldMax, MinEventId),
     NewGapsFromBelow =
@@ -134,7 +135,9 @@ check_for_updates(MinMax = {Min, Max},
                 Ids = rows_to_ids(Rows),
                 ids_to_gaps(FromId, MaxEventId, Ids)
         end,
-    fix_gaps(NewGapsFromBelow ++ NewGapsFromThePage),
+    Gaps = NewGapsFromBelow ++ NewGapsFromThePage,
+    put(debug_last_gaps, list_to_tuple(Gaps)), %% Convert to a tuple so it could be printed
+    fix_gaps(Gaps),
     State2 = #{min_event_id => MinEventId, max_event_id => MaxEventId},
     mongoose_loader_state:set(State2),
     case MaxEventId < Max of
@@ -263,7 +266,7 @@ fix_gaps(Gaps, Retries) when Retries > 0 ->
     %%
     %% There is no easy way to check for a reason.
     %%
-    %% fix_gaps tries to insert_dummy_event with a gap event id.
+    %% fix_gaps tries to insert_dummy_events with a gap event id.
     %% This makes the state of transaction for gap events obvious:
     %% - if this insert fails, this means the actual record finally
     %%   appears and we can read it.
@@ -274,7 +277,7 @@ fix_gaps(Gaps, Retries) when Retries > 0 ->
     %%
     %% RDBMS servers do not overwrite data when INSERT operation is used.
     %% i.e. only one insert for a key succeeded.
-    [catch mongoose_domain_sql:insert_dummy_event(Id) || Id <- Gaps],
+    catch mongoose_domain_sql:insert_dummy_events(Gaps),
     %% The gaps should be filled at this point
     Rows = lists:append([mongoose_domain_sql:select_updates_between(Id, Id) || Id <- Gaps]),
     ?LOG_WARNING(#{what => domain_fix_gaps, gaps => Gaps, rows => Rows}),

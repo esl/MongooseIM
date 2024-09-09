@@ -95,12 +95,18 @@ sync_local() ->
     true = is_pid(LocalPid),
     Nodes = [node(Pid) || Pid <- all_members()],
     %% Ping from all nodes in the cluster
-    [pong = rpc:call(Node, ?MODULE, ping, [LocalPid]) || Node <- Nodes],
+    {Results, []} = rpc:multicall(Nodes, ?MODULE, ping, [LocalPid]),
+    [pong = Res || Res <- Results],
     pong.
 
 -spec ping(pid()) -> pong.
 ping(Pid) ->
-    gen_server:call(Pid, ping).
+    try
+        gen_server:call(Pid, ping, timer:seconds(15))
+    catch Class:Reason:Stacktrace ->
+        Info = rpc:pinfo(Pid, [current_stacktrace, dictionary]),
+        erlang:raise(Class, {Reason, Info}, Stacktrace)
+    end.
 
 %% ---------------------------------------------------------------------------
 %% Server callbacks
