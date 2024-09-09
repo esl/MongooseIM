@@ -7,6 +7,7 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1,
                          get_err_msg/1, get_err_code/1]).
+-import(domain_helper, [host_type/0]).
 
 suite() ->
     MIM2NodeName = maps:get(node, distributed_helper:mim2()),
@@ -96,8 +97,7 @@ get_all_metrics(Config) ->
     Result = get_metrics(Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    ReadsKey = [<<"global">>, <<"backends">>, <<"mod_roster">>, <<"read_roster_version">>],
-    Reads = maps:get(ReadsKey, Map),
+    Reads = maps:get(roster_reads_key(), Map),
     %% Histogram integer keys have p prefix
     check_histogram_p(Reads),
     %% HistogramMetric type
@@ -119,41 +119,26 @@ type_to_keys(<<"counter">>) ->
 type_to_keys(<<"spiral">>) ->
     [<<"one">>, <<"count">>];
 type_to_keys(<<"gauge">>) ->
-    [<<"value">>];
-type_to_keys(<<"merged_inet_stats">>) ->
-    [<<"connections">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
-     <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>];
-type_to_keys(<<"rdbms_stats">>) ->
-    [<<"workers">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
-     <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>];
-type_to_keys(<<"vm_stats_memory">>) ->
-    [<<"atom_used">>, <<"binary">>, <<"ets">>,
-     <<"processes_used">>, <<"system">>, <<"total">>];
-type_to_keys(<<"vm_system_info">>) ->
-    [<<"ets_limit">>, <<"port_count">>, <<"port_limit">>,
-     <<"process_count">>, <<"process_limit">>];
-type_to_keys(<<"probe_queues">>) ->
-    [<<"fsm">>, <<"regular">>, <<"total">>];
-type_to_keys(<<"cets_system">>) ->
+    [<<"value">>].
+
+cets_info_keys() ->
     [<<"available_nodes">>, <<"unavailable_nodes">>,
-    <<"remote_nodes_without_disco">>, <<"joined_nodes">>,
-    <<"remote_nodes_with_unknown_tables">>, <<"remote_unknown_tables">>,
-    <<"remote_nodes_with_missing_tables">>, <<"remote_missing_tables">>,
-    <<"conflict_nodes">>, <<"conflict_tables">>,
-    <<"discovered_nodes">>, <<"discovery_works">>].
+     <<"remote_nodes_without_disco">>, <<"joined_nodes">>,
+     <<"remote_nodes_with_unknown_tables">>, <<"remote_unknown_tables">>,
+     <<"remote_nodes_with_missing_tables">>, <<"remote_missing_tables">>,
+     <<"conflict_nodes">>, <<"conflict_tables">>,
+     <<"discovered_nodes">>, <<"discovery_works">>].
 
 get_by_name_global_erlang_metrics(Config) ->
     %% Filter by name works
-    Result = get_metrics([<<"global">>, <<"erlang">>], Config),
+    Result = get_metrics([<<"global">>, <<"system_info">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Info = maps:get([<<"global">>, <<"erlang">>, <<"system_info">>], Map),
-    %% VMSystemInfoMetric type
-    #{<<"type">> := <<"vm_system_info">>} = Info,
+    Info = maps:get([<<"global">>, <<"system_info">>, <<"port_count">>], Map),
+    #{<<"type">> := <<"counter">>} = Info,
     check_metric_by_type(Info),
-    ReadsKey = [<<"global">>, <<"backends">>, <<"mod_roster">>, <<"read_roster_version">>],
     %% Other metrics are filtered out
-    undef = maps:get(ReadsKey, Map, undef).
+    undef = maps:get(roster_reads_key(), Map, undef).
 
 get_metrics_by_name_empty_args(Config) ->
     Result = get_metrics([], Config),
@@ -178,37 +163,45 @@ get_metrics_for_specific_host_type(Config) ->
     [_|_] = ParsedResult.
 
 get_process_queue_length(Config) ->
-    Result = get_metrics([<<"global">>, <<"processQueueLengths">>], Config),
+    Result = get_metrics([<<"global">>, <<"system_process_queue_lengths">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Lens = maps:get([<<"global">>, <<"processQueueLengths">>], Map),
-    %% ProbeQueuesMetric type
-    #{<<"type">> := <<"probe_queues">>} = Lens,
+    Lens = maps:get([<<"global">>, <<"system_process_queue_lengths">>, <<"total">>], Map),
+    #{<<"type">> := <<"counter">>} = Lens,
     check_metric_by_type(Lens).
 
 get_inet_stats(Config) ->
-    Result = get_metrics([<<"global">>, <<"data">>, <<"dist">>], Config),
+    Result = get_metrics([<<"global">>, <<"system_dist_data">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Stats = maps:get([<<"global">>, <<"data">>, <<"dist">>], Map),
-    %% MergedInetStatsMetric type
-    #{<<"type">> := <<"merged_inet_stats">>} = Stats,
+    Stats = maps:get([<<"global">>, <<"system_dist_data">>, <<"connections">>], Map),
+    #{<<"type">> := <<"counter">>} = Stats,
     check_metric_by_type(Stats).
 
 get_vm_stats_memory(Config) ->
     Result = get_metrics([<<"global">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Mem = maps:get([<<"global">>, <<"erlang">>, <<"memory">>], Map),
-    %% VMStatsMemoryMetric type
-    #{<<"type">> := <<"vm_stats_memory">>} = Mem,
+    Mem = maps:get([<<"global">>, <<"system_memory">>, <<"total">>], Map),
+    #{<<"type">> := <<"counter">>} = Mem,
     check_metric_by_type(Mem).
 
 get_cets_system(Config) ->
-    Result = get_metrics([<<"global">>, <<"cets">>, <<"system">>], Config),
+    Result = get_metrics([<<"global">>, <<"cets_info">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
-    [#{<<"type">> := <<"cets_system">>} = Sys] = ParsedResult,
-    check_metric_by_type(Sys).
+    Names = lists:sort(lists:map(fun(Metric) -> check_cets_metric(Metric) end, ParsedResult)),
+    Names = lists:sort(cets_info_keys()).
+
+check_cets_metric(Metric) ->
+    check_metric_by_type(Metric),
+    #{<<"name">> := [<<"global">>, <<"cets_info">>, Name]} = Metric,
+    case lists:member(Name, cets_info_keys()) of
+        true ->
+            ok;
+        false ->
+            ct:fail({check_cets_metric, Metric})
+    end,
+    Name.
 
 get_all_metrics_as_dicts(Config) ->
     Result = get_metrics_as_dicts(Config),
@@ -216,13 +209,14 @@ get_all_metrics_as_dicts(Config) ->
     check_node_result_is_valid(ParsedResult, false).
 
 get_by_name_metrics_as_dicts(Config) ->
-    Result = get_metrics_as_dicts_by_name([<<"_">>, <<"xmppStanzaSent">>], Config),
+    Name = [<<"c2s_element_in">>, <<"stanza_count">>],
+    Result = get_metrics_as_dicts_by_name([<<"_">> | Name], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     [_|_] = ParsedResult,
-    %% Only xmppStanzaSent type
-    lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
+    %% Only c2s_element_in type
+    lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_ | N]}) when N =:= Name ->
                           check_spiral_dict(Dict)
-            end, ParsedResult).
+                  end, ParsedResult).
 
 get_metrics_as_dicts_by_nonexistent_name(Config) ->
     Result = get_metrics_as_dicts_by_name([<<"not_existing">>], Config),
@@ -233,7 +227,7 @@ get_metrics_as_dicts_with_key_one(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"one">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [metric_host_type(), <<"xmppStanzaSent">>],
+    SentName = [metric_host_type(), <<"c2s_element_out">>, <<"stanza_count">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     ?assert(is_integer(One)).
 
@@ -241,21 +235,21 @@ get_metrics_as_dicts_with_nonexistent_key(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"not_existing">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"xml_stanza_size">>],
-    [] = maps:get(SentName, Map).
+    RecvName = [<<"global">>, <<"c2s_xmpp_element_size_in">>, <<"byte_size">>],
+    [] = maps:get(RecvName, Map).
 
 get_metrics_as_dicts_empty_args(Config) ->
     %% Empty name
     Result = get_metrics_as_dicts([], [<<"median">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"xml_stanza_size">>],
-    [#{<<"key">> := <<"median">>, <<"value">> := Median}] = maps:get(SentName, Map),
+    RecvName = [<<"global">>, <<"c2s_xmpp_element_size_in">>, <<"byte_size">>],
+    [#{<<"key">> := <<"median">>, <<"value">> := Median}] = maps:get(RecvName, Map),
     ?assert(is_integer(Median)),
     %% Empty keys
-    Result2 = get_metrics_as_dicts([<<"global">>, <<"erlang">>], [], Config),
+    Result2 = get_metrics_as_dicts([<<"global">>, <<"system_info">>], [], Config),
     ParsedResult2 = get_ok_value([data, metric, getMetricsAsDicts], Result2),
-    ?assertEqual(length(ParsedResult2), 2).
+    ?assertEqual(6, length(ParsedResult2)).
 
 get_metrics_as_dicts_empty_strings(Config) ->
     %% Name is an empty string
@@ -263,7 +257,7 @@ get_metrics_as_dicts_empty_strings(Config) ->
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     [] = ParsedResult,
     %% Key is an empty string
-    Result2 = get_metrics_as_dicts([<<"global">>, <<"erlang">>], [<<>>], Config),
+    Result2 = get_metrics_as_dicts([<<"global">>, <<"system_info">>], [<<>>], Config),
     ParsedResult2 = get_ok_value([data, metric, getMetricsAsDicts], Result2),
     [_|_] = ParsedResult2.
 
@@ -278,17 +272,17 @@ get_cluster_metrics(Config) ->
     check_node_result_is_valid(Res2, true).
 
 get_by_name_cluster_metrics_as_dicts(Config) ->
-    Result = get_cluster_metrics_as_dicts_by_name([<<"_">>, <<"xmppStanzaSent">>], Config),
+    Name = [<<"c2s_element_in">>, <<"stanza_count">>],
+    Result = get_cluster_metrics_as_dicts_by_name([<<"_">> | Name], Config),
     NodeResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     Map = node_objects_to_map(NodeResult),
     %% Contains data for at least two nodes
     ?assert(maps:size(Map) > 1),
-    %% Only xmppStanzaSent type
+    %% Only c2s_element_in type
     maps:map(fun(_Node, [_|_] = NodeRes) ->
-        lists:foreach(fun(#{<<"dict">> := Dict,
-                            <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
+        lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_ | N]}) when N =:= Name ->
                               check_spiral_dict(Dict)
-                end, NodeRes) end, Map).
+                      end, NodeRes) end, Map).
 
 get_mim2_cluster_metrics(Config) ->
     Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
@@ -323,7 +317,7 @@ get_cluster_metrics_empty_args(Config) ->
     ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     [#{<<"node">> := Node, <<"result">> := ResList}] = ParsedResult,
     Map = dict_objects_to_map(ResList),
-    SentName = [<<"global">>, <<"xmppStanzaSent">>],
+    SentName = [<<"global">>, <<"c2s_element_in">>, <<"stanza_count">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     ?assert(is_integer(One)),
     %% Empty keys
@@ -358,15 +352,14 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     %% Check that result contains something
     Map = dict_objects_to_map(ResList),
     SentName = case MetricsAreGlobal of
-            true -> [<<"global">>, <<"xmppStanzaSent">>];
-            false -> [metric_host_type(), <<"xmppStanzaSent">>]
+            true -> [<<"global">>, <<"c2s_element_in">>, <<"stanza_count">>];
+            false -> [metric_host_type(), <<"c2s_element_in">>, <<"stanza_count">>]
         end,
     check_spiral_dict(maps:get(SentName, Map)),
-    [#{<<"key">> := <<"value">>,<<"value">> := V}] =
-        maps:get([<<"global">>,<<"uniqueSessionCount">>], Map),
+    [#{<<"key">> := <<"value">>,<<"value">> := V} | _] =
+        maps:get([<<"global">>,<<"sm_unique_sessions">>,<<"count">>], Map),
     ?assert(is_integer(V)),
-    HistObjects = maps:get([<<"global">>, <<"data">>, <<"xmpp">>,
-                            <<"sent">>, <<"xml_stanza_size">>], Map),
+    HistObjects = maps:get([<<"global">>, <<"c2s_xmpp_element_size_in">>, <<"byte_size">>], Map),
     check_histogram(kv_objects_to_map(HistObjects)).
 
 check_histogram(Map) ->
@@ -474,7 +467,7 @@ values_are_integers(Map, Keys) ->
     end.
 
 metric_host_type() ->
-    binary:replace(domain_helper:host_type(), <<" ">>, <<"_">>, [global]).
+    binary:replace(host_type(), <<" ">>, <<"_">>, [global]).
 
 is_cets_enabled() ->
     case rpc(mim(), mongoose_config, lookup_opt, [[internal_databases, cets]]) of
@@ -483,3 +476,7 @@ is_cets_enabled() ->
         _ ->
             false
     end.
+
+roster_reads_key() ->
+    RosterBackend = rpc(mim(), mongoose_backend, get_backend_module, [host_type(), mod_roster]),
+    [metric_host_type(), atom_to_binary(RosterBackend), <<"read_roster_version">>, <<"time">>].

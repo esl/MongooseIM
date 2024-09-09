@@ -15,21 +15,23 @@
 
 all() -> [{group, mnesia}, {group, redis}, {group, cets}].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     application:ensure_all_started(exometer_core),
-    F = fun() ->
-        ejabberd_sm_backend_sup:start_link(),
-        receive stop -> ok end
-    end,
-    Pid = spawn(F),
-    [{pid, Pid} | C].
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, [{ejabberd_sm_backend_sup, start_link, []},
+                                {mongoose_instrument, start_link, []}]).
 
-end_per_suite(C) ->
-    Pid = ?config(pid, C),
-    Pid ! stop,
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts(),
     application:stop(exometer),
     application:stop(exometer_core).
+
+opts() ->
+    #{instrumentation => config_parser_helper:default_config([instrumentation]),
+      hosts => [<<"localhost">>, <<"otherhost">>],
+      host_types => []}.
 
 groups() ->
     [{mnesia, [], tests()},
@@ -47,7 +49,6 @@ tests() ->
      clean_up,
      too_many_sessions,
      unique_count,
-     unique_count_while_removing_entries,
      session_info_is_stored,
      session_info_is_updated_if_keys_match,
      session_info_is_updated_properly_if_session_conflicts,
@@ -114,8 +115,7 @@ should_meck_c2s(_) -> true.
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
     terminate_sm(),
-    unload_meck(),
-    mongoose_config:erase_opts().
+    unload_meck().
 
 open_session(C) ->
     {Sid, USR} = generate_random_user(<<"localhost">>),
@@ -383,20 +383,6 @@ unique_count(_C) ->
     UniqueCount = ejabberd_sm:get_unique_sessions_number(),
     UniqueCount = dict:size(USDict).
 
-
-unique_count_while_removing_entries(C) ->
-    unique_count(C),
-    UniqueCount = ejabberd_sm:get_unique_sessions_number(),
-    %% Register more sessions and mock the crash
-    UsersWithManyResources = generate_many_random_res(10, 3, [<<"localhost">>, <<"otherhost">>]),
-    [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
-    set_test_case_meck_unique_count_crash(?B(C)),
-    USDict = get_unique_us_dict(UsersWithManyResources),
-    %% Check if unique count equals prev cached value
-    UniqueCount = ejabberd_sm:get_unique_sessions_number(),
-    meck:unload(?B(C)),
-    true = UniqueCount /= dict:size(USDict) + UniqueCount.
-
 unload_meck() ->
     meck:unload(acl),
     meck:unload(gen_hook),
@@ -618,7 +604,7 @@ is_redis_running() ->
     end.
 
 setup_sm(Config) ->
-    mongoose_config:set_opts(opts(Config)),
+    mongoose_config:set_opt(sm_backend, sm_backend(?config(backend, Config))),
     set_meck(),
     ejabberd_sm:start_link(),
     case ?config(backend, Config) of
@@ -631,13 +617,8 @@ setup_sm(Config) ->
     end.
 
 terminate_sm() ->
-    gen_server:stop(ejabberd_sm).
-
-opts(Config) ->
-    #{hosts => [<<"localhost">>],
-      host_types => [],
-      all_metrics_are_global => false,
-      sm_backend => sm_backend(?config(backend, Config))}.
+    gen_server:stop(ejabberd_sm),
+    mongoose_config:unset_opt(sm_backend).
 
 sm_backend(ejabberd_sm_redis) -> redis;
 sm_backend(ejabberd_sm_mnesia) -> mnesia;

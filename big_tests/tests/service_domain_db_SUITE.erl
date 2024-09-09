@@ -254,7 +254,7 @@ end_per_group(_GroupName, Config) ->
     end.
 
 init_per_testcase(rest_cannot_enable_deleting, Config) ->
-    HostType = <<"type1">>,
+    HostType = dummy_auth_host_type(),
     Server = start_domain_removal_hook(HostType),
     init_per_testcase(generic, [{server, Server}, {host_type, HostType} | Config]);
 init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->

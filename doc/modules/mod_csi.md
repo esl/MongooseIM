@@ -25,7 +25,19 @@ Buffer size for messages queued when session was `inactive`.
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[Host, modCSIInactive]` | spiral | A client becomes inactive. |
-| `[Host, modCSIActive]` | spiral | A client becomes active. |
+Prometheus metrics have a `host_type` label associated with these metrics.
+Since Exometer doesn't support labels, the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    |------|------|----------------------------------------|
+    | `mod_csi_active_count` | counter | A client becomes active. |
+    | `mod_csi_inactive_count` | counter | A client becomes inactive. |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    |------|------|----------------------------------------|
+    | `[HostType, mod_csi_active, count]` | spiral | A client becomes active. |
+    | `[HostType, mod_csi_inactive, count]` | spiral | A client becomes inactive. |

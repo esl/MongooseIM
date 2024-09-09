@@ -317,7 +317,12 @@ story_with_room(Config, RoomOpts, [{Owner, _}|_] = UserSpecs, StoryFun) ->
         StoryFun2 = fun(Args) -> apply(StoryFun, [Config2 | Args]) end,
         escalus_story:story_with_client_list(Config2, UserSpecs, StoryFun2)
     after
-        mam_helper:destroy_room(Config2)
+        case dynamic_modules:get_current_modules(domain_helper:host_type()) of
+            #{mod_mam_muc := _} ->
+                mam_helper:destroy_room(Config2);
+            #{} ->
+                ok
+        end
     end.
 
 %%--------------------------------------------------------------------
@@ -333,3 +338,21 @@ change_nick_form_iq(Nick) ->
 
 set_nick(User, Nick) ->
     escalus:send_iq_and_wait_for_result(User, change_nick_form_iq(Nick)).
+
+%% Instrumentation utilities
+
+wait_for_room_count(ExpectedCounts) ->
+    F = fun(Counts) -> Counts =:= ExpectedCounts end,
+    instrument_helper:wait_and_assert_new(mod_muc_rooms, labels(), F).
+
+assert_room_event(EventName, RoomJid) ->
+    assert_event(EventName, fun(#{count := 1, jid := Jid}) -> Jid =:= RoomJid end).
+
+assert_event(EventName, F) ->
+    instrument_helper:assert_one(EventName, labels(), F).
+
+count_rooms() ->
+    rpc(mim(), mod_muc, probe, [mod_muc_rooms, labels()]).
+
+labels() ->
+    #{host_type => domain_helper:host_type()}.

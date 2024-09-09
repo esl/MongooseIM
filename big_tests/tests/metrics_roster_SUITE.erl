@@ -17,15 +17,9 @@
 -module(metrics_roster_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
-
--import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
-                             rpc/4]).
-
--import(metrics_helper, [assert_counter/2,
-                         get_counter_value/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(domain_helper, [host_type/0]).
+-import(roster_helper, [assert_roster_event/2, assert_subscription_event/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -37,8 +31,8 @@ all() ->
     ].
 
 groups() ->
-    [{roster, [sequence], roster_tests()},
-     {subscriptions, [sequence], subscription_tests()}].
+    [{roster, [parallel], roster_tests()},
+     {subscriptions, [parallel], subscription_tests()}].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -47,33 +41,21 @@ roster_tests() -> [get_roster,
                    add_contact,
                    roster_push].
 
-%%  WARNING: Side-effects & test interference
-%%  subscribe affects subsequent tests
-%%  by sending a directed presence before the roster push
-%%  in add_sample_contact/2
-%%  TODO: investigate, fix.
-
-subscription_tests() -> [unsubscribe,
-                         decline_subscription,
-                         subscribe].
+subscription_tests() -> [subscribe,
+                         unsubscribe,
+                         decline_subscription].
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-
 init_per_suite(Config) ->
-
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {fun roster_rdbms_precondition/0, [global, data, rdbms, default],
-                        [{recv_oct, '>'}, {send_oct, '>'}]},
-                       {[global, backends, mod_roster, get_subscription_lists], changed}
-                       ],
-    [{mongoose_metrics, MongooseMetrics} | escalus:init_per_suite(Config)].
+    instrument_helper:start(declared_events()),
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
@@ -112,21 +94,18 @@ end_rosters_remove(Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-get_roster(ConfigIn) ->
-    Metrics =
-        [{['_', modRosterGets], 1},
-         {[global, backends, mod_roster, get_roster], changed}
-        ],
-    Config = mongoose_metrics(ConfigIn, Metrics),
-
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
+get_roster(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Presences trigger 'get_subscription_lists' events
+        assert_backend_event(Alice, get_subscription_lists),
+        assert_backend_event(Bob, get_subscription_lists),
         escalus_client:send(Alice, escalus_stanza:roster_get()),
-        escalus_client:wait_for_stanza(Alice)
+        escalus_client:wait_for_stanza(Alice),
+        assert_backend_event(Alice, get_roster),
+        assert_roster_event(Alice, mod_roster_get)
         end).
 
-add_contact(ConfigIn) ->
-    Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1}]),
-
+add_contact(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
@@ -135,15 +114,13 @@ add_contact(ConfigIn) ->
                                                               [<<"friends">>],
                                                               <<"Bobby">>)),
         Received = escalus_client:wait_for_stanza(Alice),
+        assert_roster_event(Alice, mod_roster_set),
         escalus_client:send(Alice, escalus_stanza:iq_result(Received)),
         escalus_client:wait_for_stanza(Alice)
 
         end).
 
-roster_push(ConfigIn) ->
-    Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1},
-                                         {['_', modRosterPush], 2}]),
-
+roster_push(Config) ->
     escalus:fresh_story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
 
         %% add contact
@@ -152,18 +129,18 @@ roster_push(ConfigIn) ->
                                                               [<<"friends">>],
                                                               <<"Bobby">>)),
         Received = escalus_client:wait_for_stanza(Alice1),
+        assert_roster_event(Alice1, mod_roster_set),
+        assert_roster_event(Alice1, mod_roster_push),
         escalus_client:send(Alice1, escalus_stanza:iq_result(Received)),
         escalus_client:wait_for_stanza(Alice1),
 
         Received2 = escalus_client:wait_for_stanza(Alice2),
+        assert_roster_event(Alice2, mod_roster_push),
         escalus_client:send(Alice2, escalus_stanza:iq_result(Received2))
 
         end).
 
-
-subscribe(ConfigIn) ->
-    Config = mongoose_metrics(ConfigIn, [{['_', modPresenceSubscriptions], 1}]),
-
+subscribe(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
@@ -193,16 +170,14 @@ subscribe(ConfigIn) ->
 
         %% Alice receives subscribed
         escalus_client:wait_for_stanzas(Alice, 3),
+        assert_subscription_event(Bob, Alice, fun(#{subscription_count := 1}) -> true end),
 
         %% Bob receives roster push
         escalus_client:wait_for_stanza(Bob)
 
-
         end).
 
-decline_subscription(ConfigIn) ->
-    Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
-
+decline_subscription(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
@@ -221,15 +196,14 @@ decline_subscription(ConfigIn) ->
         %% Bob refuses subscription
         escalus_client:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"unsubscribed">>)),
 
-        %% Alice receives subscribed
-        escalus_client:wait_for_stanzas(Alice, 2)
+        %% Alice receives unsubscribed
+        escalus_client:wait_for_stanzas(Alice, 2),
+        assert_subscription_event(Bob, Alice, fun(#{unsubscription_count := 1}) -> true end)
 
         end).
 
 
-unsubscribe(ConfigIn) ->
-    Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
-
+unsubscribe(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
@@ -272,8 +246,8 @@ unsubscribe(ConfigIn) ->
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReqA2)),
 
         %% Bob receives unsubscribe
-
-        escalus_client:wait_for_stanzas(Bob, 2)
+        escalus_client:wait_for_stanzas(Bob, 2),
+        assert_subscription_event(Bob, Alice, fun(#{unsubscription_count := 1}) -> true end)
 
     end).
 
@@ -300,10 +274,26 @@ remove_roster(Config, UserSpec) ->
     Params = #{jid => jid:make_bare(Username, Server)},
     rpc(mim(), mod_roster, remove_user, [Acc, Params, Extra]).
 
-mongoose_metrics(ConfigIn, Metrics) ->
-    Predefined = proplists:get_value(mongoose_metrics, ConfigIn, []),
-    MongooseMetrics = Predefined ++ Metrics,
-    [{mongoose_metrics, MongooseMetrics} | ConfigIn].
+declared_events() ->
+    declared_backend_events() ++ declared_sm_events() ++ instrument_helper:declared_events(mod_roster).
 
-roster_rdbms_precondition() ->
-    mod_roster_rdbms == rpc(mim(), mongoose_backend, get_backend_name, [domain_helper:host_type(), mod_roster]).
+declared_sm_events() ->
+    [{sm_presence_subscription, #{host_type => host_type()}}].
+
+declared_backend_events() ->
+    BackendMod = backend_mod(),
+    HostType = host_type(),
+    Functions = [get_roster, get_subscription_lists],
+    [{BackendMod, #{host_type => HostType, function => Function}} || Function <- Functions].
+
+%% This works only for get_roster and get_subscription_lists because of the function arguments
+assert_backend_event(Client, Function) ->
+    ClientJid = jid:from_binary(escalus_utils:get_short_jid(Client)),
+    instrument_helper:assert_one(
+      backend_mod(), #{host_type => host_type(), function => Function},
+      fun(#{count := 1, time := T, args := [_, User, Server]}) when T > 0 ->
+              ClientJid =:= jid:make_bare(User, Server)
+      end).
+
+backend_mod() ->
+    rpc(mim(), mongoose_backend, get_backend_module, [host_type(), mod_roster]).

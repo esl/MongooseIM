@@ -46,9 +46,28 @@ to disable this error message.
 
 ## Metrics
 
+This module provides [backend metrics](../operation-and-maintenance/MongooseIM-metrics.md#backend-metrics).
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Backend action | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `pop_messages` | histogram | Offline messages for a user are retrieved and deleted from a DB. |
-| `write_messages` | histogram | New offline messages to a user are written in a DB. |
+Prometheus metrics have a `host_type` and `function` labels associated with these metrics.
+Since Exometer doesn't support labels, the function as well as the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+Backend in the action name can be either `rdbms` or `mnesia`.
+
+=== "Prometheus"
+
+    | Backend action | Type | Function | Description (when it gets incremented) |
+    | -------------- | ---- | -------- | -------------------------------------- |
+    | `mod_offline_Backend_count` | counter | `pop_messages` | Offline messages for a user are retrieved and deleted from a DB. |
+    | `mod_offline_Backend_time` | histogram | `pop_messages` | Time spent retrieving and deleting offline messages for a user from a DB. |
+    | `mod_offline_Backend_count` | counter | `write_messages` |  New offline messages to a user are written in a DB. |
+    | `mod_offline_Backend_time` | histogram | `write_messages` | Time spent writing a new offline messages to a user in a DB. |
+
+=== "Exometer"
+
+    | Backend action | Type | Description (when it gets incremented) |
+    | -------------- | ---- | -------------------------------------- |
+    | `[HostType, mod_offline_Backend, pop_messages, count]` | spiral | Offline messages for a user are retrieved and deleted from a DB. |
+    | `[HostType, mod_offline_Backend, pop_messages, time]` | histogram | Time spent retrieving and deleting offline messages for a user from a DB. |
+    | `[HostType, mod_offline_Backend, write_messages, count]` | spiral |  New offline messages to a user are written in a DB. |
+    | `[HostType, mod_offline_Backend, write_messages, time]` | histogram | Time spent writing a new offline messages to a user in a DB. |

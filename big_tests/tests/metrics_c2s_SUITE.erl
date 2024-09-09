@@ -17,39 +17,26 @@
 -module(metrics_c2s_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
+-include_lib("exml/include/exml.hrl").
 
--define(WAIT_TIME, 100).
-
--import(metrics_helper, [get_counter_value/1,
-                         wait_for_counter/2]).
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, single},
-     {group, multiple},
-     {group, drop},
-     {group, errors},
-     {group, count}].
+    [{group, events}].
 
 groups() ->
-    [{single, [sequence], [message_one,
-                           stanza_one,
-                           presence_one,
-                           presence_direct_one,
-                           iq_one]},
-     {multiple, [sequence], [messages]},
-     {drop, [sequence], [bounced
-                        ]},
-     {errors, [sequence], [error_total,
-                           error_mesg,
-                           error_iq,
-                           error_presence]},
-     {count, [sequence], [stanza_count]}].
+    [{events, [parallel], [login,
+                           message,
+                           message_error,
+                           presence,
+                           presence_error,
+                           iq,
+                           iq_error,
+                           message_bounced]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -59,20 +46,19 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    HostType = domain_helper:host_type(),
+    HostType = host_type(),
+    instrument_helper:start([{c2s_element_in, #{host_type => HostType}},
+                             {c2s_element_out, #{host_type => HostType}},
+                             {sm_message_bounced, #{host_type => HostType}}]),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
-
-init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob])).
-
-end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -81,188 +67,156 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
-%% Message tests
+%% Tests
 %%--------------------------------------------------------------------
 
+login(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun login_story/1).
 
-message_one(Config) ->
-    {value, MesgSent} = get_counter_value(xmppMessageSent),
-    {value, MesgReceived} = get_counter_value(xmppMessageReceived),
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+login_story(Alice) ->
+    AliceBareJid = escalus_client:short_jid(Alice),
 
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
+    %% Note: The first two events might originate from other tests because of unknown JID.
+    %% It is acceptable, because the goal is to check that they are emitted when users log in.
+    assert_events(out, fun(#xmlel{name = Name}) -> Name =:= <<"stream:features">> end),
+    assert_events(in, fun(#xmlel{name = Name}) -> Name =:= <<"auth">> end),
 
-        wait_for_counter(MesgSent + 1, xmppMessageSent),
-        wait_for_counter(MesgReceived + 1, xmppMessageReceived)
+    assert_event(out, AliceBareJid, #{},
+                 fun(#xmlel{name = Name}) -> Name =:= <<"success">> end),
+    assert_event(out, AliceBareJid, #{},
+                 fun(#xmlel{name = Name}) -> Name =:= <<"stream:features">> end),
+    assert_event(in, AliceBareJid, #{stanza_count => 1, iq_count => 1},
+                 fun(El) -> escalus_pred:is_iq_set(El) andalso has_child(<<"bind">>, El) end),
+    assert_event(out, Alice, #{stanza_count => 1, iq_count => 1},
+                 fun(El) -> escalus_pred:is_iq_result(El) andalso has_child(<<"bind">>, El) end),
+    assert_event(in, Alice, #{stanza_count => 1, iq_count => 1},
+                 fun(El) -> escalus_pred:is_iq_set(El) andalso has_child(<<"session">>, El) end),
+    assert_event(out, Alice, #{stanza_count => 1, iq_count => 1},
+                 fun(El) -> escalus_pred:is_iq_result(El) andalso has_child(<<"session">>, El) end),
+    assert_event(in, Alice, #{stanza_count => 1, presence_count => 1},
+                 fun escalus_pred:is_presence/1),
+    assert_event(out, Alice, #{stanza_count => 1, presence_count => 1},
+                 fun escalus_pred:is_presence/1).
 
-        end).
+message(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun message_story/2).
 
-stanza_one(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {value, StanzaSent} = get_counter_value(xmppStanzaSent),
-        {value, StanzaReceived} = get_counter_value(xmppStanzaReceived),
+message_story(Alice, Bob) ->
+    Msg = escalus_stanza:chat_to(Bob, <<"Hi!">>),
+    escalus_client:send(Alice, Msg),
+    MsgToBob = escalus_client:wait_for_stanza(Bob),
+    escalus:assert(is_chat_message, MsgToBob),
+    assert_event(in, Alice, #{stanza_count => 1, message_count => 1, element => Msg}),
+    assert_event(out, Bob, #{stanza_count => 1, message_count => 1, element => MsgToBob}).
 
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
+message_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun message_error_story/1).
 
-        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
-        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived)
+message_error_story(Alice) ->
+    StrangerJid = <<"stranger@", (escalus_client:server(Alice))/binary>>,
+    Msg = escalus_stanza:chat_to(StrangerJid, <<"Hi!">>),
+    escalus_client:send(Alice, Msg),
+    Error = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
+    assert_event(in, Alice, #{stanza_count => 1, message_count => 1, element => Msg}),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, message_error_count => 1,
+                               element => Error}).
 
-        end).
+presence(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun presence_story/2).
 
-presence_one(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        {value, PresenceSent} = get_counter_value(xmppPresenceSent),
-        {value, PresenceReceived} = get_counter_value(xmppPresenceReceived),
-        {value, StanzaSent} = get_counter_value(xmppStanzaSent),
-        {value, StanzaReceived} = get_counter_value(xmppStanzaReceived),
+presence_story(Alice, Bob) ->
+    Presence = escalus_stanza:presence_direct(Bob, <<"unavailable">>),
+    escalus:send(Alice, Presence),
+    PresenceToBob = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_presence, PresenceToBob),
+    assert_event(in, Alice, #{stanza_count => 1, presence_count => 1, element => Presence}),
+    assert_event(out, Bob, #{stanza_count => 1, presence_count => 1, element => PresenceToBob}).
 
-        escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
-        escalus:wait_for_stanza(Alice),
+presence_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun presence_error_story/1).
 
-        wait_for_counter(PresenceSent + 1, xmppPresenceSent),
-        wait_for_counter(PresenceReceived + 1, xmppPresenceReceived),
-        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
-        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived)
+presence_error_story(Alice) ->
+    Presence = escalus_stanza:presence(<<"unbelievable">>),
+    escalus:send(Alice, Presence),
+    Error = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Error),
+    assert_event(in, Alice, #{stanza_count => 1, presence_count => 1, element => Presence}),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, presence_error_count => 1,
+                               element => Error}).
 
-        end).
+iq(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun iq_story/1).
 
-presence_direct_one(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {value, PresenceSent} = get_counter_value(xmppPresenceSent),
-        {value, PresenceReceived} = get_counter_value(xmppPresenceReceived),
-        {value, StanzaSent} = get_counter_value(xmppStanzaSent),
-        {value, StanzaReceived} = get_counter_value(xmppStanzaReceived),
+iq_story(Alice) ->
+    Request = escalus_stanza:roster_get(),
+    escalus_client:send(Alice, Request),
+    Response = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_iq_result, [Request], Response),
+    assert_event(in, Alice, #{stanza_count => 1, iq_count => 1, element => Request}),
+    assert_event(out, Alice, #{stanza_count => 1, iq_count => 1, element => Response}).
 
-        Presence = escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"available">>),
-        escalus:send(Alice, Presence),
-        escalus:wait_for_stanza(Bob),
+iq_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun iq_error_story/1).
 
-        wait_for_counter(PresenceSent + 1, xmppPresenceSent),
-        wait_for_counter(PresenceReceived + 1, xmppPresenceReceived),
-        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
-        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived)
+iq_error_story(Alice) ->
+    Request = escalus_stanza:iq_get(<<"bad-ns">>, []),
+    escalus:send(Alice, Request),
+    Error = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
+    assert_event(in, Alice, #{stanza_count => 1, iq_count => 1, element => Request}),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, iq_error_count => 1,
+                               element => Error}).
 
-        end).
+message_bounced(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun message_bounced_story/3).
 
-iq_one(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        {value, IqSent} = get_counter_value(xmppIqSent),
-        {value, IqReceived} = get_counter_value(xmppIqReceived),
-        {value, StanzaSent} = get_counter_value(xmppStanzaSent),
-        {value, StanzaReceived} = get_counter_value(xmppStanzaReceived),
+message_bounced_story(Config, Alice, Bob) ->
+    mongoose_helper:logout_user(Config, Bob),
+    escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
+    Error = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, message_error_count => 1,
+                               element => Error}),
+    assert_message_bounced_event(Alice, Bob).
 
-        escalus_client:send(Alice,
-                            escalus_stanza:roster_get()),
-        escalus_client:wait_for_stanza(Alice),
+%% C2S instrumentation events
 
-        wait_for_counter(IqSent + 1, xmppIqSent),
-        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
-        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived),
-        wait_for_counter(IqReceived + 1, xmppIqReceived)
+has_child(SubElName, El) ->
+    exml_query:subelement(El, SubElName) =/= undefined.
 
-        end).
+assert_event(Dir, ClientOrJid, Measurements) ->
+    Jid = jid:from_binary(escalus_utils:get_jid(ClientOrJid)),
+    instrument_helper:assert_one(
+      event_name(Dir), #{host_type => host_type()},
+      fun(M) -> M =:= Measurements#{jid => Jid, count => 1} end).
 
-messages(Config) ->
-    {value, MesgSent} = get_counter_value(xmppMessageSent),
-    {value, MesgReceived} = get_counter_value(xmppMessageReceived),
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+assert_events(Dir, CheckElFun) ->
+    instrument_helper:assert(
+      event_name(Dir), #{host_type => host_type()},
+      fun(M = #{element := El}) ->
+               maps:remove(element, M) =:= #{count => 1} andalso CheckElFun(El)
+      end).
 
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Alice),
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Alice),
+assert_event(Dir, ClientOrJid, Measurements, CheckElFun) ->
+    Jid = jid:from_binary(escalus_utils:get_jid(ClientOrJid)),
+    instrument_helper:assert_one(
+      event_name(Dir), #{host_type => host_type()},
+      fun(M = #{element := El}) ->
+               maps:remove(element, M) =:= Measurements#{jid => Jid, count => 1}
+                  andalso CheckElFun(El)
+      end).
 
-        wait_for_counter(MesgSent + 4, xmppMessageSent),
-        wait_for_counter(MesgReceived + 4, xmppMessageReceived)
+event_name(out) -> c2s_element_out;
+event_name(in) -> c2s_element_in.
 
-        end).
+%% SM instrumentation events
 
-bounced(Config) ->
-    {value, MesgBounced} = get_counter_value(xmppMessageBounced),
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-
-        escalus_client:stop(Config, Bob),
-        timer:sleep(?WAIT_TIME),
-
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        wait_for_counter(MesgBounced + 1, xmppMessageBounced)
-
-        end).
-
-stanza_count(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {value, OldStanzaCount} = get_counter_value(xmppStanzaCount),
-
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Alice),
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Alice),
-
-        {value, StanzaCount} = get_counter_value(xmppStanzaCount),
-        true = StanzaCount >= OldStanzaCount + 4
-
-        end).
-
-
-%%-----------------------------------------------------
-%% Error tests
-%%-----------------------------------------------------
-
-error_total(Config) ->
-    {value, Errors} = get_counter_value(xmppErrorTotal),
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-
-        escalus_client:stop(Config, Bob),
-        timer:sleep(?WAIT_TIME),
-
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        wait_for_counter(Errors + 1, xmppErrorTotal)
-
-        end).
-
-error_mesg(Config) ->
-    {value, Errors} = get_counter_value(xmppErrorMessage),
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-
-        escalus_client:stop(Config, Bob),
-        timer:sleep(?WAIT_TIME),
-
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        wait_for_counter(Errors + 1, xmppErrorMessage)
-
-        end).
-
-error_presence(Config) ->
-    {value, Errors} = get_counter_value(xmppErrorPresence),
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-
-        escalus:send(Alice, escalus_stanza:presence_direct(
-                              escalus_client:short_jid(Bob), <<"available">>)),
-        escalus:wait_for_stanza(Bob),
-
-        ErrorElt = escalus_stanza:error_element(<<"cancel">>, <<"gone">>),
-        Presence = escalus_stanza:presence_direct(escalus_client:short_jid(Alice),
-                                                  <<"error">>, [ErrorElt]),
-        escalus:send(Bob, Presence),
-
-        wait_for_counter(Errors + 1, xmppErrorPresence)
-
-        end).
-
-error_iq(Config) ->
-    {value, Errors} = get_counter_value(xmppErrorIq),
-
-    Users = escalus_config:get_config(escalus_users, Config),
-    Alice = escalus_users:get_user_by_name(alice, Users),
-    escalus_users:create_user(Config, Alice),
-    wait_for_counter(Errors + 1, xmppErrorIq).
+assert_message_bounced_event(Sender, Recipient) ->
+    FromJid = jid:from_binary(escalus_utils:get_jid(Sender)),
+    ToJid = jid:from_binary(escalus_utils:get_jid(Recipient)),
+    instrument_helper:assert_one(
+      sm_message_bounced, #{host_type => host_type()},
+      fun(#{count := 1, from_jid := From, to_jid := To}) ->
+               From =:= FromJid andalso To =:= ToJid
+      end).

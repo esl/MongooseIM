@@ -27,7 +27,7 @@
 -define(DOMAIN_TAB, mod_global_distrib_domain_cache_tab).
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
 
--export([start/2, stop/1, hooks/1, deps/2]).
+-export([start/2, stop/1, hooks/1, deps/2, instrumentation/1]).
 -export([for_domain/1, insert_for_domain/1, insert_for_domain/2, insert_for_domain/3,
          cache_domain/2, delete_for_domain/1, all_domains/0, public_domains/0]).
 -export([for_jid/1, insert_for_jid/1, cache_jid/2, delete_for_jid/1, clear_cache/1]).
@@ -48,10 +48,8 @@
 
 -spec for_domain(Domain :: binary()) -> {ok, Host :: jid:lserver()} | error.
 for_domain(Domain) when is_binary(Domain) ->
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
-    {Time, R} = timer:tc(ets_cache, lookup, [?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end]),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, Time),
-    R.
+    mongoose_instrument:span(?GLOBAL_DISTRIB_MAPPING_FETCHES, #{}, fun() -> get_domain(Domain) end,
+                             fun(Time, _Result) -> #{count => 1, time => Time, domain => Domain} end).
 
 -spec insert_for_domain(Domain :: binary()) -> ok.
 insert_for_domain(Domain) when is_binary(Domain) ->
@@ -78,10 +76,8 @@ delete_for_domain(Domain) when is_binary(Domain) ->
 -spec for_jid(jid:jid() | jid:ljid()) -> {ok, Host :: jid:lserver()} | error.
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
-    {Time, R} = timer:tc(fun do_lookup_jid/1, [Jid]),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, Time),
-    R.
+    mongoose_instrument:span(?GLOBAL_DISTRIB_MAPPING_FETCHES, #{}, fun() -> do_lookup_jid(Jid) end,
+                             fun(Time, _Result) -> #{count => 1, time => Time, jid => Jid} end).
 
 -spec insert_for_jid(jid:jid() | jid:ljid()) -> ok.
 insert_for_jid(Jid) ->
@@ -136,10 +132,6 @@ hosts() ->
 start(_HostType, Opts = #{cache := CacheOpts}) ->
     mod_global_distrib_mapping_backend:start(Opts#{backend => redis}),
 
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, histogram),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, spiral),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, spiral),
-
     #{cache_missed := CacheMissed,
       domain_lifetime_seconds := DomainLifetimeSec,
       jid_lifetime_seconds := JidLifeTimeSec,
@@ -162,6 +154,11 @@ stop(_HostType) ->
 deps(_HostType, Opts) ->
     [{mod_global_distrib_utils, Opts, hard},
      {mod_global_distrib_receiver, Opts, hard}].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(_HostType) ->
+    [{?GLOBAL_DISTRIB_MAPPING_FETCHES, #{}, #{metrics => #{count => spiral, time => histogram}}},
+     {?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, #{}, #{metrics => #{count => spiral}}}].
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
@@ -242,7 +239,8 @@ opt(Key) ->
 
 -spec get_session(Key :: binary()) -> {ok, term()} | error.
 get_session(Key) ->
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, #{},
+                                #{count => 1, jid => Key}),
     mod_global_distrib_mapping_backend:get_session(Key).
 
 -spec put_session(Key :: binary()) -> ok.
@@ -257,7 +255,8 @@ delete_session(Key) ->
 
 -spec get_domain(Key :: binary()) -> {ok, term()} | error.
 get_domain(Key) ->
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, #{},
+                                #{count => 1, domain => Key}),
     mod_global_distrib_mapping_backend:get_domain(Key).
 
 -spec put_domain(Key :: binary(), IsHidden :: boolean()) -> ok.

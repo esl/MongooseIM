@@ -45,8 +45,7 @@ do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, Handler) ->
                     Acc2 = mongoose_packet_handler:process(Handler, Acc1, From, To, Packet),
                     restore_acc_fields(OrigAcc, Acc2);
                 drop ->
-                    mongoose_hooks:xmpp_stanza_dropped(Acc0, OrigFrom,
-                                                       OrigTo, OrigPacket),
+                    mongoose_router:drop_stanza(Acc0),
                     Acc0
             end
     end.

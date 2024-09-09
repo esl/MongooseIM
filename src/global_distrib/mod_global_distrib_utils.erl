@@ -28,8 +28,7 @@
 -export([
          opt/2, host_type/0, create_ets/1, create_ets/2,
          cast_or_call/2, cast_or_call/3, cast_or_call/4,
-         any_binary_to_atom/1, resolve_endpoints/1,
-         binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
+         any_binary_to_atom/1, resolve_endpoints/1, recipient_to_worker_key/2,
          server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2,
          parse_address/1
         ]).
@@ -46,20 +45,6 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-
--spec binary_to_metric_atom(binary()) -> atom().
-binary_to_metric_atom(Binary) ->
-    List = lists:filtermap(fun
-                               ($.) -> {true, $_};
-                               ($ ) -> {true, $_};
-                               (C) when C > 31, C < 127 -> {true, C};
-                               (_) -> false
-                           end,
-                           unicode:characters_to_list(Binary)),
-    list_to_atom(List).
-
-ensure_metric(Metric, Type) ->
-    mongoose_metrics:ensure_subscribed_metric(global, Metric, Type).
 
 -spec any_binary_to_atom(binary()) -> atom().
 any_binary_to_atom(Binary) ->

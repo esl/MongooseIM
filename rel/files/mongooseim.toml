@@ -5,9 +5,6 @@
   default_server_domain = {{{default_server_domain}}}
   registration_timeout = "infinity"
   language = "en"
-  {{#all_metrics_are_global}}
-  all_metrics_are_global = {{{all_metrics_are_global}}}
-  {{/all_metrics_are_global}}
   {{#sm_backend}}
   sm_backend = {{{sm_backend}}}
   {{/sm_backend}}
@@ -117,6 +114,16 @@
     host = "_"
     path = "/api/graphql"
     schema_endpoint = "user"
+{{#http_prometheus_endpoint}}
+
+[[listen.http]]
+  {{{http_prometheus_endpoint}}}
+  transport.num_acceptors = 10
+
+  [[listen.http.handlers.mongoose_prometheus_handler]]
+    host = "_"
+    path = "/metrics"
+{{/http_prometheus_endpoint}}
 
 [[listen.c2s]]
   port = {{{c2s_port}}}
@@ -258,6 +265,8 @@
   {{/bosh_backend}}
 
 [modules.mod_carboncopy]
+
+{{{instrumentation}}}
 
 [shaper.normal]
   max_rate = 1000

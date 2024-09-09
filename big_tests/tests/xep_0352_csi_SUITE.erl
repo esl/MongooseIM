@@ -35,6 +35,7 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrument_helper:declared_events(mod_csi)),
     NewConfig = dynamic_modules:save_modules(host_type(), Config),
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     dynamic_modules:ensure_modules(
@@ -45,7 +46,8 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(_, Config) ->
     escalus_users:update_userspec(Config, alice, stream_management, true).
@@ -91,7 +93,8 @@ alice_gets_msgs_after_activate(Config, N) ->
         csi_helper:given_client_is_inactive_and_no_messages_arrive(Alice),
         Msgs = csi_helper:given_messages_are_sent(Alice, Bob, N),
         csi_helper:given_client_is_active(Alice),
-        csi_helper:then_client_receives_message(Alice, Msgs)
+        csi_helper:then_client_receives_message(Alice, Msgs),
+        assert_event(mod_csi_active, Alice)
     end).
 
 inactive_twice_does_not_reset_buffer(Config) ->
@@ -184,6 +187,7 @@ alice_gets_message_after_buffer_overflow(Config) ->
 bob_gets_msgs_from_inactive_alice(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_client_is_inactive_but_sends_messages(Alice, Bob, 1),
+        assert_event(mod_csi_inactive, Alice),
         escalus:assert(is_chat_message, escalus:wait_for_stanza(Bob))
     end).
 
@@ -201,5 +205,9 @@ given_client_is_inactive_but_sends_messages(Alice, Bob, N) ->
     MsgsToAlice = csi_helper:given_messages_are_sent(Alice, Bob, N),
     MsgsToBob = csi_helper:gen_msgs(<<"Hi, Bob">>, N),
     csi_helper:send_msgs(Alice, Bob, MsgsToBob),
-    timer:sleep(1),
     {MsgsToAlice, MsgsToBob}.
+
+assert_event(Event, Client) ->
+    instrument_helper:assert_one(
+      Event, #{host_type => host_type()},
+      fun(#{count := 1, jid := JID}) -> jid:to_binary(JID) =:= escalus_client:full_jid(Client) end).

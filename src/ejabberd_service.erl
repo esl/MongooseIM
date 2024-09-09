@@ -32,7 +32,8 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([start_listener/1]).
+-export([start_listener/1,
+         instrumentation/1]).
 
 %% External exports
 -export([start/2,
@@ -141,6 +142,14 @@ start_link(SockData, Opts) ->
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).
+
+instrumentation(#{connection_type := component} = _Opts) ->
+    [{component_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
+     {component_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
+     {component_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
+     {component_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
+     {component_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
+     {component_tls_data_out, #{}, #{metrics => #{byte_size => spiral}}}].
 
 %%%----------------------------------------------------------------------
 %%% mongoose_packet_handler callback
@@ -425,7 +434,6 @@ send_text(StateData, Text) ->
 -spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
     mongoose_transport:send_element(StateData#state.socket, El).
-
 
 -spec new_id() -> string().
 new_id() ->

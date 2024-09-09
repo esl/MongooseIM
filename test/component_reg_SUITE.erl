@@ -9,34 +9,35 @@
 all() ->
     [ registering, registering_with_local ].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     mongoose_config:set_opts(opts()),
     meck:new(mongoose_domain_api, [no_link]),
-    meck:expect(mongoose_domain_api, get_host_type,
-                fun(_) -> {error, not_found} end),
+    meck:expect(mongoose_domain_api, get_host_type, fun(_) -> {error, not_found} end),
     application:ensure_all_started(exometer_core),
-    mongooseim_helper:start_link_loaded_hooks(),
-    ejabberd_router:start_link(),
-    C.
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []},
+                                {ejabberd_router, start_link, []}]).
 
-init_per_testcase(_, C) ->
+init_per_testcase(_, Config) ->
     mongoose_router:start(),
-    mongooseim_helper:start_link_loaded_hooks(),
-    C.
+    Config.
 
-end_per_suite(_C) ->
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     meck:unload(),
     mongoose_config:erase_opts().
 
 opts() ->
-    #{all_metrics_are_global => false,
+    #{hosts => [],
+      host_types => [],   
       component_backend => mnesia,
-      routing_modules => [xmpp_router_a, xmpp_router_b, xmpp_router_c]}.
+      routing_modules => [xmpp_router_a, xmpp_router_b, xmpp_router_c],
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 registering(_C) ->
     Dom = <<"aaa.bbb.com">>,

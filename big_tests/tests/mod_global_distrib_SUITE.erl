@@ -21,10 +21,10 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -define(HOSTS_REFRESH_INTERVAL, 200). %% in ms
+-define(PROBE_INTERVAL, 1). %% seconds
 
 -import(domain_helper, [domain/0]).
 -import(config_parser_helper, [config/2, mod_config/2]).
@@ -50,7 +50,7 @@ groups() ->
           [
            test_pm_between_users_at_different_locations,
            test_pm_between_users_before_available_presence,
-           test_component_disconnect ,
+           test_component_disconnect,
            test_component_on_one_host,
            test_components_in_different_regions,
            test_hidden_component_disco_in_different_region,
@@ -65,6 +65,7 @@ groups() ->
 
            %% with node 2 disabled
            test_muc_conversation_on_one_host,
+           test_instrumentation_events_on_one_host,
            test_global_disco
           ]},
          {hosts_refresher, [],
@@ -127,17 +128,29 @@ init_per_suite(Config) ->
                     ok
             end,
             enable_logging(),
-            escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config]);
+            instrument_helper:start(events()),
+            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], ?PROBE_INTERVAL),
+            escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config1]);
         Result ->
             ct:pal("Redis check result: ~p", [Result]),
             {skip, "GD Redis default pool not available"}
     end.
 
+events() ->
+    % because mod_global_distrib starts instrumentation manually, it doesn't export instrumentation/1
+    Specs = rpc(europe_node1, mod_global_distrib, instrumentation, []),
+    GDEvents = [{Event, Labels} || {Event, Labels, _Config} <- Specs],
+    OtherModules = [mod_global_distrib_bounce, mod_global_distrib_hosts_refresher,
+                    mod_global_distrib_mapping, mod_global_distrib_receiver],
+    GDEvents ++ lists:append([instrument_helper:declared_events(M) || M <- OtherModules]).
+
 end_per_suite(Config) ->
     disable_logging(),
     escalus_fresh:clean(),
     rpc(europe_node2, mongoose_cluster, leave, []),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:stop().
 
 init_per_group(start_checks, Config) ->
     NodeName = europe_node1,
@@ -249,9 +262,9 @@ end_per_group_generic(Config) ->
     dynamic_modules:restore_modules(#{timeout => timer:seconds(30)}, Config).
 
 init_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
-       CaseName == test_muc_conversation_history ->
-    %% There is no helper to load MUC on node2
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_instrumentation_events_on_one_host;
+       CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
+    %% There is no helper to load MUC, or count instrumentation events on node2
     %% For now it's easier to hide node2
     %% TODO: Do it right at some point!
     hide_node(europe_node2, Config),
@@ -297,8 +310,8 @@ end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_di
     catch escalus_users:delete_users(Config, [{mim_eve, MimEveSpec}]),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
-       CaseName == test_muc_conversation_history ->
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_instrumentation_events_on_one_host;
+       CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
     refresh_mappings(europe_node2, "by_end_per_testcase,testcase=" ++ atom_to_list(CaseName)),
     muc_helper:unload_muc(),
     generic_end_per_testcase(CaseName, Config);
@@ -428,7 +441,25 @@ test_two_way_pm(Alice, Eve) ->
     escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi to Eve from Europe1!">>],
                    FromAlice),
     escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi to Alice from Asia!">>],
-                   FromEve).
+                   FromEve),
+
+    instrument_helper:assert(
+      mod_global_distrib_mapping_cache_misses, #{},
+      fun(#{count := 1, jid := Jid}) -> Jid =:= EveJid end),
+    instrument_helper:assert(
+      mod_global_distrib_mapping_fetches, #{},
+      fun(#{count := 1, time := T, jid := Jid}) ->
+              Jid =:= jid:to_lower(jid:from_binary(EveJid)) andalso T >= 0
+      end),
+    instrument_helper:assert(
+      mod_global_distrib_outgoing_established, #{},
+      fun(#{count := 1, host := <<"reg1">>}) -> true end),
+    instrument_helper:assert(
+      mod_global_distrib_outgoing_queue, #{},
+      fun(#{time := Time, host := <<"reg1">>}) -> Time >= 0 end),
+    instrument_helper:assert(
+      mod_global_distrib_outgoing_messages, #{},
+      fun(#{count := 1, host := <<"reg1">>}) -> true end).
 
 test_muc_conversation_on_one_host(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
@@ -465,6 +496,33 @@ test_muc_conversation_on_one_host(Config0) ->
       end),
     muc_helper:destroy_room(Config).
 
+test_instrumentation_events_on_one_host(Config) ->
+    % testing is done with mim1 and reg1, and without mim2, so that we don't miss any events that could have been
+    % emitted there
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {eve, 1}]),
+    {ok, Alice} = escalus_client:start(Config1, alice, <<"res1">>),
+    {ok, Eve} = escalus_client:start(Config1, eve, <<"res1">>),
+
+    test_two_way_pm(Alice, Eve),
+
+    Host = <<"localhost.bis">>,
+    instrument_helper:assert(mod_global_distrib_incoming_established, #{},
+                             fun(#{count := 1, peer := _}) -> true end),
+    instrument_helper:assert(mod_global_distrib_incoming_first_packet, #{},
+                             fun(#{count := 1, host := H}) -> H =:= Host end),
+    instrument_helper:assert(mod_global_distrib_incoming_transfer, #{},
+                             fun(#{time := T, host := H}) when T >= 0 -> H =:= Host end),
+    instrument_helper:assert(mod_global_distrib_incoming_messages, #{},
+                             fun(#{count := 1, host := H}) -> H =:= Host end),
+    instrument_helper:assert(mod_global_distrib_incoming_queue, #{},
+                             fun(#{time := T, host := H}) when T >= 0 -> H =:= Host end),
+
+    escalus_client:stop(Config1, Alice),
+    escalus_client:stop(Config1, Eve),
+
+    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{},
+                                      fun(#{count := 1, host := undefined}) -> true end).
+
 test_muc_conversation_history(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
     Config = muc_helper:given_fresh_room(Config0, AliceSpec, []),
@@ -500,7 +558,14 @@ test_muc_conversation_history(Config0) ->
               %% the service MAY then send discussion history, the room subject,
               %% live messages, presence updates, and other in-room traffic.
               receive_n_muc_messages(Eve, 3),
-              wait_for_subject(Eve)
+              wait_for_subject(Eve),
+
+              % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
+              EveJid = escalus_client:full_jid(Eve),
+              instrument_helper:assert_one(mod_global_distrib_delivered_with_ttl, #{},
+                                           fun(#{value := TTL, from := From}) ->
+                                                   ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
+                                           end)
       end),
     muc_helper:destroy_room(Config).
 
@@ -604,10 +669,21 @@ test_component_disconnect(Config) ->
     Story = fun(User) ->
                     escalus:send(User, escalus_stanza:chat_to(Addr, <<"Hi!">>)),
                     Error = escalus:wait_for_stanza(User, 5000),
-                    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error)
+                    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
+                    instrument_helper:assert(mod_global_distrib_outgoing_closed, #{},
+                                             fun(#{count := 1, host := <<"reg1">>}) -> true end)
             end,
 
-    [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]].
+    AliceStory = fun(User) ->
+        Story(User),
+        % only check Alice, because Eve's event is executed on other node
+        Jid = escalus_client:full_jid(User),
+        CheckF = fun(#{count := 1, from := From}) -> jid:to_binary(From) =:= Jid end,
+        instrument_helper:assert_one(mod_global_distrib_stop_ttl_zero, #{}, CheckF)
+                 end,
+
+    escalus:fresh_story(Config, [{alice, 1}], AliceStory),
+    escalus:fresh_story(Config, [{eve, 1}], Story).
 
 test_location_disconnect(Config) ->
     try
@@ -849,7 +925,9 @@ test_messages_bounced_in_order(Config) ->
               %% Make sure all messages land in bounce storage
               delete_mapping(europe_node1, Eve),
 
-              Seq = lists:seq(1, 100),
+              wait_for_bounce_size(0),
+
+              Seq = lists:seq(1, 99),
               lists:foreach(
                 fun(I) ->
                         Stanza = escalus_stanza:chat_to(Eve, integer_to_binary(I)),
@@ -857,9 +935,17 @@ test_messages_bounced_in_order(Config) ->
                 end,
                 Seq),
 
+              wait_for_bounce_size(99),
+
               %% Restore the mapping so that bounce eventually succeeds
               ?assertEqual(undefined, get_mapping(europe_node1, Eve)),
               set_mapping(europe_node1, Eve, <<"reg1">>),
+
+              %% Test used to work if the mapping is restored while Alice was still sending the 100 stanzas.
+              %% This may actually be a race condition, and it should work like in the
+              %% test_in_order_messages_on_multiple_connections_with_bounce testcase:
+              %% Make sure that the last message is sent when the mapping is known
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"100">>)),
 
               lists:foreach(
                 fun(I) ->
@@ -1286,6 +1372,9 @@ bare_client(Client) ->
 service_port() ->
     ct:get_config({hosts, mim, service_port}).
 
+wait_for_bounce_size(ExpectedSize) ->
+    F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
+    instrument_helper:wait_and_assert_new(mod_global_distrib_bounce_queue, #{}, F).
 
 %% -----------------------------------------------------------------------
 %% Waiting helpers

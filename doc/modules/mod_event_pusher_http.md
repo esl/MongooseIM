@@ -110,10 +110,23 @@ Below is an example of what the body of an HTTP POST request can look like:
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[Host, mod_event_pusher_http, sent]` | spiral | An HTTP notification is sent successfully. |
-| `[Host, mod_event_pusher_http, failed]` | spiral | An HTTP notification failed. |
-| `[Host, mod_event_pusher_http, response_time]` | histogram | Does not include timings of failed requests. |
+Prometheus metrics have a `host_type` label associated with these metrics.
+Since Exometer doesn't support labels, the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `mod_event_pusher_http_sent_count` | counter | An HTTP notification is sent successfully. |
+    | `mod_event_pusher_http_sent_failure_count` | counter | An HTTP notification failed. |
+    | `mod_event_pusher_http_sent_response_time` | histogram | Time taken to send HTTP notification. Does not include timings of failed requests. |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `[Host, mod_event_pusher_http_sent, count]` | spiral | An HTTP notification is sent successfully. |
+    | `[Host, mod_event_pusher_http_sent, failure_count]` | spiral | An HTTP notification failed. |
+    | `[Host, mod_event_pusher_http_sent, response_time]` | histogram | Time taken to send HTTP notification. Does not include timings of failed requests. |
 
 [mod_event_pusher]: ./mod_event_pusher.md

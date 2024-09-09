@@ -7,8 +7,7 @@
 %% Expected configuration options for predefined configurations.
 %% For each clause there is a corresponding TOML file in config_parser_SUITE_data.
 options("host_types") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types,
       [<<"this is host type">>, <<"some host type">>,
@@ -28,6 +27,7 @@ options("host_types") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
+     {instrumentation, default_config([instrumentation])},
      {{s2s, <<"another host type">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"some host type">>}, default_s2s()},
@@ -56,8 +56,7 @@ options("host_types") ->
      {{replaced_wait_timeout, <<"this is host type">>}, 2000},
      {{replaced_wait_timeout, <<"yet another host type">>}, 2000}];
 options("miscellaneous") ->
-    [{all_metrics_are_global, false},
-     {http_server_name, "Apache"},
+    [{http_server_name, "Apache"},
      {default_server_domain, <<"localhost">>},
      {domain_certfile, #{<<"example.com">> => "priv/cert.pem",
                          <<"example.org">> => "priv/cert.pem"}},
@@ -92,6 +91,15 @@ options("miscellaneous") ->
                                               id => "G-12345678",
                                               secret => "Secret"
                                              }}}},
+     {instrumentation,
+      config([instrumentation],
+             #{probe_interval => 10,
+               prometheus => #{},
+               exometer => #{all_metrics_are_global => true,
+                             report => #{'graphite:localhost:2003' => #{host => "localhost",
+                                                                        prefix => "mim",
+                                                                        interval => 15000}}},
+               log => #{level => info}})},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, mnesia},
@@ -106,8 +114,7 @@ options("miscellaneous") ->
      {{route_subdomains, <<"anonymous.localhost">>}, s2s},
      {{route_subdomains, <<"localhost">>}, s2s}];
 options("modules") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},
@@ -125,6 +132,7 @@ options("modules") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
+     {instrumentation, default_config([instrumentation])},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, all_modules()},
@@ -132,8 +140,7 @@ options("modules") ->
      {{replaced_wait_timeout, <<"dummy_host">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000}];
 options("mongooseim-pgsql") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts,
@@ -260,6 +267,7 @@ options("mongooseim-pgsql") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
+     {instrumentation, config([instrumentation], #{exometer => #{}, log => #{}})},
      {{outgoing_pools, <<"anonymous.localhost">>},
       [host_pool_config(
          #{tag => special,
@@ -321,8 +329,7 @@ options("mongooseim-pgsql") ->
                 mam_shaper => #{max_rate => 1},
                 normal => #{max_rate => 1000}}}];
 options("outgoing_pools") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts,
@@ -377,6 +384,7 @@ options("outgoing_pools") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
+     {instrumentation, default_config([instrumentation])},
      {{auth, <<"anonymous.localhost">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{auth, <<"localhost.bis">>}, default_auth()},
@@ -387,8 +395,7 @@ options("outgoing_pools") ->
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost.bis">>}, 2000}];
 options("s2s_only") ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
+    [{default_server_domain, <<"localhost">>},
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},
@@ -404,6 +411,7 @@ options("s2s_only") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
+     {instrumentation, default_config([instrumentation])},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, #{}},
@@ -1093,6 +1101,24 @@ extra_service_listener_config() ->
       conflict_behaviour => disconnect,
       connection_type => component}.
 
+default_config([instrumentation]) ->
+    #{probe_interval => 15};
+default_config([instrumentation, log]) ->
+    #{level => debug};
+default_config([instrumentation, exometer]) ->
+    #{all_metrics_are_global => false,
+      report => #{}};
+default_config([instrumentation, exometer, report, Name]) ->
+    Common = #{interval => 60000},
+    case atom_to_list(Name) of
+        "graphite:" ++ _ ->
+            Common#{module => exometer_report_graphite,
+                    port => 2003,
+                    connect_timeout => 5000,
+                    api_key => ""}
+    end;
+default_config([instrumentation, _]) ->
+    #{};
 default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),

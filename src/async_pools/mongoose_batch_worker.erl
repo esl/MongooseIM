@@ -61,7 +61,8 @@ init(#{host_type := HostType,
 -spec handle_call(term(), {pid(), term()}, state()) -> {reply, term(), state()}.
 handle_call(sync, _From, State = #state{host_type = HostType, pool_id = PoolId,
                                         flush_queue = [_|_]}) ->
-    mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, timed_flushes], 1),
+    mongoose_instrument:execute(async_pool_flush, #{host_type => HostType, pool_id => PoolId},
+                                #{timed => 1}),
     {reply, ok, run_flush(State)};
 handle_call(sync, _From, State = #state{flush_queue = []}) ->
     {reply, skipped, State};
@@ -84,7 +85,8 @@ handle_cast(Msg, State) ->
 handle_info({timeout, TimerRef, flush}, State = #state{flush_interval_tref = TimerRef,
                                                        host_type = HostType,
                                                        pool_id = PoolId}) ->
-    mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, timed_flushes], 1),
+    mongoose_instrument:execute(async_pool_flush, #{host_type => HostType, pool_id => PoolId},
+                                #{timed => 1}),
     {noreply, run_flush(State)};
 handle_info({garbage_collect, asynchronous_gc_triggered, true}, State) ->
     {noreply, State};
@@ -154,7 +156,8 @@ maybe_run_flush(#state{host_type = HostType,
     case Length >= MaxSize of
         false -> State;
         true ->
-            mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, batch_flushes], 1),
+            mongoose_instrument:execute(async_pool_flush, #{host_type => HostType, pool_id => PoolId},
+                                        #{batch => 1}),
             run_flush(State)
     end.
 

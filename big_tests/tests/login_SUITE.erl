@@ -277,7 +277,7 @@ log_one_scram_sha224(Config) ->
 log_one_scram_sha256(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
 
- log_one_scram_sha384(Config) ->
+log_one_scram_sha384(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-384">>} | Config]).
 
 log_one_scram_sha512(Config) ->

@@ -24,6 +24,7 @@ theme:
     - navigation.instant
     - navigation.instant.progress
     - navigation.top
+    - navigation.footer
     - content.tabs.link
     - toc.follow
 extra:
@@ -46,6 +47,11 @@ markdown_extensions:
   - admonition
   - pymdownx.tabbed:
       alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - toc:
+      permalink: true
 
 nav:
   - 'Home': 'index.md'
@@ -87,6 +93,7 @@ nav:
       - 'Options: Access': 'configuration/access.md'
       - 'Options: S2S': 'configuration/s2s.md'
       - 'Options: Host config': 'configuration/host_config.md'
+      - 'Options: Instrumentation': 'configuration/instrumentation.md'
       - 'Release Options': 'configuration/release-options.md'
       - 'Erlang Cookie Security': 'configuration/Erlang-cookie-security.md'
       - 'TLS Hardening': 'configuration/TLS-hardening.md'

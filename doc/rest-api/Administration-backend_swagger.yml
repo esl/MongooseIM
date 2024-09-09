@@ -794,7 +794,7 @@ paths:
           description: "Other errors."
   /metrics/:
     get:
-      description: Returns a list of host type names and metric names
+      description: Returns a list of host type names and metric names. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -816,21 +816,22 @@ paths:
                   items:
                     type: string
                   example:
-                    - "xmppErrorIq"
-                    - "xmppPresenceReceived"
-                    - "xmppMessageBounced"
+                    - c2s_element_in.stanza_count
+                    - c2s_element_in.error_count
+                    - c2s_element_out.stanza_count
+                    - c2s_element_out.error_count
               global:
                 schema:
                   type: array
                   items:
                     type: string
                   example:
-                    - "nodeSessionCount"
-                    - "totalSessionCount"
-                    - "uniqueSessionCount"
+                    - "sm_node_sessions"
+                    - "sm_total_sessions"
+                    - "sm_unique_sessions"
   /metrics/all:
     get:
-      description: Returns a list of metrics aggregated for all host types
+      description: Returns a list of metrics aggregated for all host types. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -842,14 +843,14 @@ paths:
               metrics:
                 type: object
                 example:
-                  modRosterPush:
+                  mod_roster_push.count:
                     one: 0
                     count: 0
   /metrics/all/{metric}:
     parameters:
       - $ref: '#/parameters/metric'
     get:
-      description: Returns the metric value aggregated for all host types
+      description: Returns the metric value aggregated for all host types. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -869,7 +870,7 @@ paths:
     parameters:
       - $ref: '#/parameters/hostType'
     get:
-      description: Returns the values of all host-type metrics
+      description: Returns the values of all host-type metrics. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -881,7 +882,7 @@ paths:
               metrics:
                 type: object
                 example:
-                  modRosterPush:
+                  mod_roster_push.count:
                     one: 0
                     count: 0
         404:
@@ -891,7 +892,7 @@ paths:
       - $ref: '#/parameters/hostType'
       - $ref: '#/parameters/metric'
     get:
-      description: Returns the value of a host-type metric
+      description: Returns the value of a host-type metric. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -909,7 +910,7 @@ paths:
           description: There is no such metric
   /metrics/global:
     get:
-      description: Returns the values of all global metrics
+      description: Returns the values of all global metrics. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:
@@ -920,13 +921,13 @@ paths:
             properties:
               type: object
               example:
-                nodeUpTime:
+                system_up_time.seconds:
                   value: 6604
   /metrics/global/{metric}:
     parameters:
       - $ref: '#/parameters/metric'
     get:
-      description: Returns the value of a global metric
+      description: Returns the value of a global metric. Only works with Exometer enabled.
       tags:
         - "Metrics"
       responses:

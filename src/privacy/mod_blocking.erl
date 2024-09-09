@@ -308,10 +308,8 @@ broadcast_blocking_command(Acc, LUser, LServer, UserList, _Changed, unblock_all)
     broadcast_blocking_command(Acc, LUser, LServer, UserList, [], unblock);
 broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
     Item = {blocking, UserList, Type, Changed},
-    UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
     HostType = mongoose_acc:host_type(Acc),
-    mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
-    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
+    mod_privacy:broadcast_item(HostType, LUser, LServer, ?MODULE, Item).
 
 -spec blocking_query_response([mod_privacy:list_name()]) -> exml:element().
 blocking_query_response(Lst) ->

@@ -1,9 +1,8 @@
 -module(mongoose_wpool_rabbit).
 -behaviour(mongoose_wpool).
 
--export([init/0]).
--export([start/4]).
--export([stop/2]).
+% mongoose_wpool callbacks
+-export([init/0, start/4, stop/2, instrumentation/2]).
 
 -spec init() -> ok | {error, any()}.
 init() ->
@@ -26,3 +25,7 @@ start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
 -spec stop(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> ok.
 stop(_, _) ->
     ok.
+
+-spec instrumentation(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
+instrumentation(HostType, Tag) ->
+    mongoose_rabbit_worker:instrumentation(HostType, Tag).

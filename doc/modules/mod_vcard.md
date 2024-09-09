@@ -127,10 +127,32 @@ An array of search fields, which values should be Base64-encoded by MongooseIM b
 
 ## Metrics
 
+This module provides [backend metrics](../operation-and-maintenance/MongooseIM-metrics.md#backend-metrics).
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Backend action | Description (when it gets incremented)   |
-|----------------|------------------------------------------|
-| `set_vcard`    | A vCard is set in a DB.                  |
-| `get_vcard`    | A specific vCard is retrieved from a DB. |
-| `search`       | A vCard search is performed.             |
+Prometheus metrics have a `host_type` and `function` labels associated with these metrics.
+Since Exometer doesn't support labels, the function as well as the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+Backend in the action name can be either `rdbms`, `ldap` or `mnesia`.
+
+=== "Prometheus"
+
+    | Backend action | Type | Function | Description (when it gets incremented) |
+    | -------------- | ---- | -------- | -------------------------------------- |
+    | `mod_vcard_Backend_count` | counter | `set_vcard` | A vCard is set in a database. |
+    | `mod_vcard_Backend_time`  | histogram | `set_vcard` | Time to set a vCard in a database. |
+    | `mod_vcard_Backend_count` | counter | `get_vcard` | A specific vCard is retrieved from a database. |
+    | `mod_vcard_Backend_time`  | histogram | `get_vcard` | Time to retrieve a specific vCard from a database. |
+    | `mod_vcard_Backend_count` | counter | `search` | A vCard search is performed. |
+    | `mod_vcard_Backend_time`  | histogram | `search` | Time to search a vCard. |
+
+=== "Exometer"
+
+    | Backend action | Type | Description (when it gets incremented) |
+    | -------------- | ---- | -------------------------------------- |
+    | `[HostType, mod_vcard_Backend, set_vcard, count]` | spiral | A vCard is set in a database. |
+    | `[HostType, mod_vcard_Backend, set_vcard, time]`  | histogram | Time to set a vCard in a database. |
+    | `[HostType, mod_vcard_Backend, get_vcard, count]` | spiral | A specific vCard is retrieved from a database. |
+    | `[HostType, mod_vcard_Backend, get_vcard, time]`  | histogram | Time to retrieve a specific vCard from a database. |
+    | `[HostType, mod_vcard_Backend, search, count]` | spiral | A vCard search is performed. |
+    | `[HostType, mod_vcard_Backend, search, time]`  | histogram | Time to search a vCard. |

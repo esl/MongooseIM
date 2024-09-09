@@ -9,6 +9,8 @@
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
+-export([instrumentation/0, instrumentation/1]).
+
 %% gen_statem callbacks
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
@@ -24,7 +26,10 @@
 -export([replace_resource/2, generate_random_resource/0]).
 -export([verify_user/4, maybe_open_session/3]).
 
--ignore_xref([get_ip/1, get_socket/1]).
+-ignore_xref([get_ip/1, get_socket/1, instrumentation/1]).
+
+%% The pattern 'undefined' can never match the type binary()
+-dialyzer({no_match, patch_attr_value/1}).
 
 -record(c2s_data, {
           host_type :: undefined | mongooseim:host_type(),
@@ -69,6 +74,30 @@
                            term() => term()}.
 
 -export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0, listener_opts/0]).
+
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
+    lists:flatmap(fun instrumentation/1, [global | ?ALL_HOST_TYPES]).
+
+-spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
+instrumentation(global) ->
+    [{c2s_xmpp_element_size_out, #{},
+      #{metrics => #{byte_size => histogram}}},
+     {c2s_xmpp_element_size_in, #{},
+      #{metrics => #{byte_size => histogram}}}];
+instrumentation(HostType) ->
+    [{c2s_message_processed, #{host_type => HostType},
+      #{metrics => #{time => histogram}}},
+     {c2s_auth_failed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {c2s_element_in, #{host_type => HostType},
+      #{metrics => maps:from_list([{Metric, spiral} || Metric <- element_spirals()])}},
+     {c2s_element_out, #{host_type => HostType},
+      #{metrics => maps:from_list([{Metric, spiral} || Metric <- element_spirals()])}}].
+
+element_spirals() ->
+    [count, stanza_count, message_count, iq_count, presence_count,
+     error_count, message_error_count, iq_error_count, presence_error_count].
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -117,6 +146,7 @@ handle_event(internal, #xmlstreamerror{name = <<"element too big">> = Err}, _, S
 handle_event(internal, #xmlstreamerror{name = Err}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(StateData#c2s_data.lang, Err));
 handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, SaslAcc, Retries}, StateData) ->
+    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_TLS ->
             handle_starttls(StateData, El, SaslAcc, Retries);
@@ -124,6 +154,7 @@ handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_bef
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature_before_auth, SaslAcc, Retries}, StateData) ->
+    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
             handle_auth_start(StateData, El, SaslAcc, Retries);
@@ -131,6 +162,7 @@ handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature_before_
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_response, SaslAcc, Retries}, StateData) ->
+    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
             handle_auth_continue(StateData, El, SaslAcc, Retries);
@@ -138,6 +170,7 @@ handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_respon
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"abort">>} = El, {wait_for_sasl_response, SaslAcc, Retries}, StateData) ->
+    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
             handle_sasl_abort(StateData, SaslAcc, Retries);
@@ -145,6 +178,7 @@ handle_event(internal, #xmlel{name = <<"abort">>} = El, {wait_for_sasl_response,
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_auth, _} = C2SState, StateData) ->
+    execute_element_event(c2s_element_in, El, StateData),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND} = IQ ->
             handle_bind_resource(StateData, C2SState, El, IQ);
@@ -154,6 +188,7 @@ handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_aut
             maybe_retry_state(StateData, C2SState)
     end;
 handle_event(internal, #xmlel{name = <<"iq">>} = El, wait_for_session_establishment = C2SState, StateData) ->
+    execute_element_event(c2s_element_in, El, StateData),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_SESSION} = IQ ->
             handle_session_establishment(StateData, C2SState, El, IQ);
@@ -161,6 +196,7 @@ handle_event(internal, #xmlel{name = <<"iq">>} = El, wait_for_session_establishm
             handle_foreign_packet(StateData, C2SState, El)
     end;
 handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData) ->
+    execute_element_event(c2s_element_in, El, StateData),
     case verify_from(El, StateData#c2s_data.jid) of
         false ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_from());
@@ -247,11 +283,28 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], Size),
+    [mongoose_instrument:execute(c2s_xmpp_element_size_in, #{},
+                                 #{byte_size => elem_size(El)})
+     || El <- Elements],
     NewStateData = StateData#c2s_data{shaper = NewShaper},
     MaybePauseTimeout = maybe_pause(NewStateData, Pause),
     StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}.
+
+elem_size(#xmlstreamerror{name = Name}) ->
+    byte_size(Name);
+elem_size(El) ->
+    exml:xml_size(patch_element(El)).
+
+patch_element(El = #xmlstreamstart{attrs = Attrs}) ->
+    Attrs2 = [{Name, patch_attr_value(Value)} || {Name, Value} <- Attrs],
+    El#xmlstreamstart{attrs = Attrs2};
+patch_element(El) ->
+    El.
+
+-spec patch_attr_value(undefined | binary()) -> binary().
+patch_attr_value(undefined) -> <<>>;
+patch_attr_value(Bin) -> Bin.
 
 -spec maybe_pause(data(), integer()) -> any().
 maybe_pause(_StateData, Pause) when Pause > 0 ->
@@ -461,6 +514,8 @@ handle_sasl_failure(#c2s_data{host_type = HostType, lserver = LServer} = StateDa
     ?LOG_INFO(#{what => auth_failed, text => <<"Failed SASL authentication">>,
                 username => Username, lserver => LServer, c2s_state => StateData}),
     mongoose_hooks:auth_failed(HostType, LServer, Username),
+    mongoose_instrument:execute(c2s_auth_failed, #{host_type => HostType},
+                                #{count => 1, server => LServer, username => Username}),
     El = mongoose_c2s_stanzas:sasl_failure_stanza(ServerOut),
     NewSaslAcc = send_acc_from_server_jid(StateData, SaslAcc, El),
     maybe_retry_state(StateData, {wait_for_feature_before_auth, NewSaslAcc, Retries}).
@@ -755,7 +810,7 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"m
     Acc1 = mongoose_c2s_hooks:user_send_message(HostType, Acc, HookParams),
     Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
-    mongoose_metrics:update(HostType, [data, xmpp, c2s, message, processing_time], (TS1 - TS0)),
+    mongoose_instrument:execute(c2s_message_processed, #{host_type => HostType}, #{time => (TS1 - TS0)}),
     Acc2;
 handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"iq">>) ->
     Acc1 = mongoose_c2s_hooks:user_send_iq(HostType, Acc, HookParams),
@@ -1014,13 +1069,14 @@ do_send_element(StateData = #c2s_data{host_type = undefined}, Acc, El) ->
 do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El) ->
     Res = send_xml(StateData, El),
     Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
+    execute_element_event(c2s_element_out, El, StateData),
     mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
 send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
-    [mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], exml:xml_size(El))
+    [mongoose_instrument:execute(c2s_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)})
       || El <- XmlElements],
     mongoose_c2s_socket:send_xml(Socket, XmlElements).
 
@@ -1188,3 +1244,32 @@ merge_states(S0 = #c2s_data{}, S1 = #c2s_data{}) ->
       state_mod = S0#c2s_data.state_mod,
       info = S0#c2s_data.info
      }.
+
+%% Instrumentation helpers
+
+-spec execute_element_event(mongoose_instrument:event_name(), exml:element(), data()) -> ok.
+execute_element_event(EventName, El, #c2s_data{host_type = HostType, jid = Jid}) ->
+    Metrics = measure_element(El#xmlel.name, exml_query:attr(El, <<"type">>)),
+    Measurements = case Jid of
+                       undefined -> Metrics#{element => El};
+                       _ -> Metrics#{element => El, jid => Jid}
+                   end,
+    mongoose_instrument:execute(EventName, #{host_type => HostType}, Measurements).
+
+-spec measure_element(binary(), binary() | undefined) -> mongoose_instrument:measurements().
+measure_element(<<"message">>, <<"error">>) ->
+    #{count => 1, stanza_count => 1, error_count => 1, message_error_count => 1};
+measure_element(<<"iq">>, <<"error">>) ->
+    #{count => 1, stanza_count => 1, error_count => 1, iq_error_count => 1};
+measure_element(<<"presence">>, <<"error">>) ->
+    #{count => 1, stanza_count => 1, error_count => 1, presence_error_count => 1};
+measure_element(<<"message">>, _Type) ->
+    #{count => 1, stanza_count => 1, message_count => 1};
+measure_element(<<"iq">>, _Type) ->
+    #{count => 1, stanza_count => 1, iq_count => 1};
+measure_element(<<"presence">>, _Type) ->
+    #{count => 1, stanza_count => 1, presence_count => 1};
+measure_element(<<"stream:error">>, _Type) ->
+    #{count => 1, error_count => 1};
+measure_element(_Name, _Type) ->
+    #{count => 1}.

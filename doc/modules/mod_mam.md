@@ -408,29 +408,69 @@ This module can be used to add extra lookup parameters to MAM lookup queries.
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[HostType, modMamArchiveRemoved]` | spiral | User's entire archive is removed. |
-| `[HostType, modMamArchived]` | spiral | A message is stored in user's archive. |
-| `[HostType, modMamDropped]` | spiral | A message couldn't be stored in the DB (and got dropped). |
-| `[HostType, modMamDroppedIQ]` | spiral | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
-| `[HostType, modMamFlushed]` | spiral | Message was stored in a DB asynchronously. |
-| `[HostType, modMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result. |
-| `[HostType, modMamLookups]` | spiral | A MAM lookup is performed. |
-| `[HostType, modMamPrefsGets]` | spiral | Archiving preferences have been requested by a client. |
-| `[HostType, modMamPrefsSets]` | spiral | Archiving preferences have been updated by a client. |
-| `[HostType, modMucMamArchiveRemoved]` | spiral | Room's entire archive is removed. |
-| `[HostType, modMucMamArchived]` | spiral | A message is stored in room's archive. |
-| `[HostType, modMucMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result from MUC room. |
-| `[HostType, modMucMamLookups]` | spiral | A MAM lookup in MUC room is performed. |
-| `[HostType, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
-| `[HostType, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
-| `[HostType, mod_mam_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
-| `[HostType, mod_mam_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
-| `[HostType, mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
-| `[HostType, mod_mam_muc_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
+Prometheus metrics have a `host_type` label associated with these metrics.
+Since Exometer doesn't support labels, the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
 
-| Backend action | Description (when it gets incremented) |
-| -------------- | ---------------------------------------|
-| `lookup` | A lookup in an archive. |
-| `archive` | One message is saved in an archive. |
+=== "Prometheus"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `mod_mam_pm_archive_message_count` | counter | A PM message is stored in user's archive. |
+    | `mod_mam_pm_archive_message_time` | histogram | Time it took to archive a user's message. |
+    | `mod_mam_pm_lookup_count` | counter | Any MAM PM lookup is performed. |
+    | `mod_mam_pm_lookup_simple` | counter | A simple MAM PM lookup is performed. |
+    | `mod_mam_pm_lookup_size` | histogram | MAM PM lookup size (row count). |
+    | `mod_mam_pm_lookup_time` | histogram | MAM PM lookup time. |
+    | `mod_mam_pm_dropped_iq_count` | counter | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
+    | `mod_mam_pm_dropped_count` | counter | A message couldn't be stored in the DB (and got dropped). |
+    | `mod_mam_pm_remove_archive_count` | counter | User's PM archive is removed. |
+    | `mod_mam_pm_get_prefs_count` | counter | Archiving preferences have been requested by a client. |
+    | `mod_mam_pm_set_prefs_count` | counter | Archiving preferences have been updated by a client. |
+    | `mod_mam_muc_archive_message_count` | counter | A message is stored in room's archive. |
+    | `mod_mam_muc_archive_message_time` | histogram | Time it took to archive a MUC message. |
+    | `mod_mam_muc_lookup_count` | counter | Any MAM lookup in MUC room is performed. |
+    | `mod_mam_muc_lookup_size` | histogram | MAM MUC lookup size (row count). |
+    | `mod_mam_muc_lookup_time` | histogram | MAM MUC lookup time. |
+    | `mod_mam_muc_dropped_iq_count` | counter | MAM MUC IQ has been dropped due to: high query frequency/invalid syntax or type. |
+    | `mod_mam_muc_dropped_count` | counter | A MUC message couldn't be stored in the DB (and got dropped). |
+    | `mod_mam_muc_remove_archive_count` | counter | Room's entire archive is removed. |
+    | `mod_mam_muc_get_prefs_count` | counter | MUC archiving preferences have been requested by a client. |
+    | `mod_mam_muc_set_prefs_count` | counter | MUC archiving preferences have been updated by a client. |
+    | `mod_mam_pm_flushed_count` | counter | Async MAM worker flushed buffered messages. |
+    | `mod_mam_pm_flushed_time` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
+    | `mod_mam_pm_flushed_time_per_message` | histogram | Average time per message insert measured in an async MAM worker. |
+    | `mod_mam_muc_flushed_count` | counter | Async MUC MAM worker flushed buffered messages. |
+    | `mod_mam_muc_flushed_time` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
+    | `mod_mam_muc_flushed_time_per_message` | histogram | Average time per message insert measured in an async MUC MAM worker. |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `[HostType, mod_mam_pm_archive_message, count]` | spiral | A PM message is stored in user's archive. |
+    | `[HostType, mod_mam_pm_archive_message, time]` | histogram | Time it took to archive a user's message. |
+    | `[HostType, mod_mam_pm_lookup, count]` | spiral | Any MAM PM lookup is performed. |
+    | `[HostType, mod_mam_pm_lookup_simple` | spiral | A simple MAM PM lookup is performed. |
+    | `[HostType, mod_mam_pm_lookup, size]` | histogram | MAM PM lookup size (row count). |
+    | `[HostType, mod_mam_pm_lookup, time]` | histogram | MAM PM lookup time. |
+    | `[HostType, mod_mam_pm_dropped_iq, count]` | spiral | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
+    | `[HostType, mod_mam_pm_dropped, count]` | spiral | A message couldn't be stored in the DB (and got dropped). |
+    | `[HostType, mod_mam_pm_remove_archive, count]` | spiral | User's PM archive is removed. |
+    | `[HostType, mod_mam_pm_get_prefs, count]` | spiral | Archiving preferences have been requested by a client. |
+    | `[HostType, mod_mam_pm_set_prefs, count]` | spiral | Archiving preferences have been updated by a client. |
+    | `[HostType, mod_mam_muc_archive_message, count]` | spiral | A message is stored in room's archive. |
+    | `[HostType, mod_mam_muc_archive_message, time]` | histogram | Time it took to archive a MUC message. |
+    | `[HostType, mod_mam_muc_lookup, count]` | spiral | Any MAM lookup in MUC room is performed. |
+    | `[HostType, mod_mam_muc_lookup, size]` | histogram | MAM MUC lookup size (row count). |
+    | `[HostType, mod_mam_muc_lookup, time]` | histogram | MAM MUC lookup time. |
+    | `[HostType, mod_mam_muc_dropped_iq, count]` | spiral | MAM MUC IQ has been dropped due to: high query frequency/invalid syntax or type. |
+    | `[HostType, mod_mam_muc_dropped, count]` | spiral | A MUC message couldn't be stored in the DB (and got dropped). |
+    | `[HostType, mod_mam_muc_remove_archive, count]` | spiral | Room's entire archive is removed. |
+    | `[HostType, mod_mam_muc_get_prefs, count]` | spiral | MUC archiving preferences have been requested by a client. |
+    | `[HostType, mod_mam_muc_set_prefs, count]` | spiral | MUC archiving preferences have been updated by a client. |
+    | `[HostType, mod_mam_pm_flushed, count]` | spiral | Async MAM worker flushed buffered messages. |
+    | `[HostType, mod_mam_pm_flushed, time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
+    | `[HostType, mod_mam_pm_flushed, time_per_message]` | histogram | Average time per message insert measured in an async MAM worker. |
+    | `[HostType, mod_mam_muc_flushed, count]` | spiral | Async MUC MAM worker flushed buffered messages. |
+    | `[HostType, mod_mam_muc_flushed, time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
+    | `[HostType, mod_mam_muc_flushed, time_per_message]` | histogram | Average time per message insert measured in an async MUC MAM worker. |

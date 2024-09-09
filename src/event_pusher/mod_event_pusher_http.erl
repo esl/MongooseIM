@@ -39,7 +39,7 @@
 -include("jlib.hrl").
 
 %% API
--export([start/2, stop/1, config_spec/0, push_event/2]).
+-export([start/2, stop/1, config_spec/0, push_event/2, instrumentation/1]).
 
 %% config spec callbacks
 -export([fix_path/1]).
@@ -48,13 +48,10 @@
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 
--define(SENT_METRIC, [mod_event_pusher_http, sent]).
--define(FAILED_METRIC, [mod_event_pusher_http, failed]).
--define(RESPONSE_METRIC, [mod_event_pusher_http, response_time]).
+-define(SENT_METRIC, mod_event_pusher_http_sent).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
-    ensure_metrics(HostType),
+start(_HostType, _Opts) ->
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
@@ -79,6 +76,10 @@ handler_config_spec() ->
                           <<"path">> => <<>>,
                           <<"callback_module">> => mod_event_pusher_http_defaults}
             }.
+
+instrumentation(HostType) ->
+    [{?SENT_METRIC, #{host_type => HostType},
+      #{metrics => #{count => spiral, response_time => histogram, failure_count => spiral}}}].
 
 push_event(Acc, #chat_event{direction = Dir, from = From, to = To, packet = Packet}) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -113,33 +114,17 @@ make_req(Acc, Dir, Domain, Sender, Receiver, Message, Opts) ->
                 sender => Sender, receiver => Receiver, direction => Dir,
                 server => Domain, pool_name => PoolName, acc => Acc},
     ?LOG_INFO(LogMeta),
-    T0 = os:timestamp(),
-    {Res, Elapsed} = case mongoose_http_client:post(HostType, PoolName, Path, Headers, Body) of
-                         {ok, _} ->
-                             {ok, timer:now_diff(os:timestamp(), T0)};
-                         {error, Reason} ->
-                             {{error, Reason}, 0}
-                     end,
-    record_result(HostType, Res, Elapsed, LogMeta),
-    ok.
+    mongoose_instrument:span(?SENT_METRIC, #{host_type => HostType},
+                             fun mongoose_http_client:post/5, [HostType, PoolName, Path, Headers, Body],
+                             fun(Time, Result) -> handle_post_result(Time, Result, LogMeta) end).
 
-ensure_metrics(HostType) ->
-    mongoose_metrics:ensure_metric(HostType, ?SENT_METRIC, spiral),
-    mongoose_metrics:ensure_metric(HostType, ?FAILED_METRIC, spiral),
-    mongoose_metrics:ensure_metric(HostType, ?RESPONSE_METRIC, histogram),
-    ok.
-
-record_result(HostType, ok, Elapsed, _LogMeta) ->
-    mongoose_metrics:update(HostType, ?SENT_METRIC, 1),
-    mongoose_metrics:update(HostType, ?RESPONSE_METRIC, Elapsed),
-    ok;
-record_result(HostType, {error, Reason}, _, LogMeta) ->
-    mongoose_metrics:update(HostType, ?FAILED_METRIC, 1),
+handle_post_result(Time, {ok, {Code, _Body}}, #{sender := Sender}) ->
+    #{count => 1, response_time => Time, sender => Sender, response_code => Code};
+handle_post_result(_Time, {error, Reason}, LogMeta = #{sender := Sender}) ->
     ?LOG_WARNING(LogMeta#{what => event_pusher_http_req_failed,
                           text => <<"mod_event_pusher_http HTTP call failed">>,
-                          reason => Reason
-                  }),
-    ok.
+                          reason => Reason}),
+    #{failure_count => 1, sender => Sender}.
 
 %% @doc Strip initial slash (it is added by mongoose_http_client)
 fix_path(<<"/", R/binary>>) ->

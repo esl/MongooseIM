@@ -230,7 +230,8 @@ make_async_request(Request, #state{host_type = HostType, pool_id = PoolId,
         drop ->
             State;
         ReqId ->
-            mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, async_request], 1),
+            mongoose_instrument:execute(async_pool_request, #{host_type => HostType, pool_id => PoolId},
+                                        #{count => 1}),
             State#state{async_request = {ReqId, Request}}
     end.
 

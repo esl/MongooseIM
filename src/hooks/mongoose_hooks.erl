@@ -35,8 +35,7 @@
          user_available/2,
          user_ping_response/5,
          vcard_set/4,
-         xmpp_send_element/3,
-         xmpp_stanza_dropped/4]).
+         xmpp_send_element/3]).
 
 %% sasl2 handlers
 -export([sasl2_stream_features/2,
@@ -56,8 +55,7 @@
          privacy_get_user_list/2,
          privacy_iq_get/6,
          privacy_iq_set/5,
-         privacy_updated_list/3,
-         privacy_list_push/5]).
+         privacy_updated_list/3]).
 
 -export([offline_groupchat_message/4,
          offline_message/4,
@@ -65,8 +63,7 @@
          sm_filter_offline_message/4,
          sm_register_connection/4,
          sm_remove_connection/5,
-         unset_presence/3,
-         xmpp_bounce_message/1]).
+         unset_presence/3]).
 
 -export([roster_get/3,
          roster_get_jid_info/3,
@@ -94,7 +91,6 @@
          mam_remove_archive/3,
          mam_lookup_messages/2,
          mam_archive_message/2,
-         mam_flush_messages/2,
          mam_archive_sync/1,
          mam_retraction/3]).
 
@@ -106,7 +102,6 @@
          mam_muc_remove_archive/3,
          mam_muc_lookup_messages/2,
          mam_muc_archive_message/2,
-         mam_muc_flush_messages/2,
          mam_muc_archive_sync/1,
          mam_muc_retraction/3]).
 
@@ -454,19 +449,6 @@ xmpp_send_element(HostType, Acc, El) ->
     Params = #{el => El},
     run_hook_for_host_type(xmpp_send_element, HostType, Acc, Params).
 
-%%% @doc The `xmpp_stanza_dropped' hook is called to inform that
-%%% an xmpp stanza has been dropped.
--spec xmpp_stanza_dropped(Acc, From, To, Packet) -> Result when
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: any().
-xmpp_stanza_dropped(Acc, From, To, Packet) ->
-    Params = #{from => From, to => To, packet => Packet},
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(xmpp_stanza_dropped, HostType, Acc, Params).
-
 %% C2S related hooks
 
 -spec get_pep_recipients(C2SData, Feature) -> Result when
@@ -622,17 +604,6 @@ privacy_updated_list(HostType, OldList, NewList) ->
     Params = #{old_list => OldList, new_list => NewList},
     run_hook_for_host_type(privacy_updated_list, HostType, false, Params).
 
--spec privacy_list_push(HostType, LUser, LServer, Item, SessionCount) -> Result when
-    HostType :: mongooseim:host_type(),
-    LUser :: jid:luser(),
-    LServer :: jid:lserver(),
-    Item :: term(),
-    SessionCount :: non_neg_integer(),
-    Result :: any().
-privacy_list_push(HostType, LUser, LServer, Item, SessionCount) ->
-    Params = #{luse => LUser, lserver => LServer, item => Item, session_count => SessionCount},
-    run_hook_for_host_type(privacy_list_push, HostType, ok, Params).
-
 %% Session management related hooks
 
 -spec offline_groupchat_message(Acc, From, To, Packet) -> Result when
@@ -708,13 +679,6 @@ unset_presence(Acc, JID, Status) ->
     Params = #{jid => JID, status => Status},
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(unset_presence, HostType, Acc, Params).
-
--spec xmpp_bounce_message(Acc) -> Result when
-    Acc :: mongoose_acc:t(),
-    Result :: mongoose_acc:t().
-xmpp_bounce_message(Acc) ->
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(xmpp_bounce_message, HostType, Acc, #{}).
 
 %% Roster related hooks
 
@@ -1005,14 +969,6 @@ mam_lookup_messages(HostType, Params) ->
 mam_archive_message(HostType, Params) ->
     run_hook_for_host_type(mam_archive_message, HostType, ok, Params).
 
-%%% @doc The `mam_flush_messages' hook is run after the async bulk write
-%%% happens for messages despite the result of the write.
--spec mam_flush_messages(HostType :: mongooseim:host_type(),
-                         MessageCount :: integer()) -> ok.
-mam_flush_messages(HostType, MessageCount) ->
-    Params = #{count => MessageCount},
-    run_hook_for_host_type(mam_flush_messages, HostType, ok, Params).
-
 %% @doc Waits until all pending messages are written
 -spec mam_archive_sync(HostType :: mongooseim:host_type()) -> ok.
 mam_archive_sync(HostType) ->
@@ -1132,14 +1088,6 @@ mam_muc_lookup_messages(HostType, Params) ->
     Result :: ok | {error, timeout}.
 mam_muc_archive_message(HostType, Params) ->
     run_hook_for_host_type(mam_muc_archive_message, HostType, ok, Params).
-
-%%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write
-%%% happens for MUC messages despite the result of the write.
--spec mam_muc_flush_messages(HostType :: mongooseim:host_type(),
-                             MessageCount :: integer()) -> ok.
-mam_muc_flush_messages(HostType, MessageCount) ->
-    Params = #{count => MessageCount},
-    run_hook_for_host_type(mam_muc_flush_messages, HostType, ok, Params).
 
 %% @doc Waits until all pending messages are written
 -spec mam_muc_archive_sync(HostType :: mongooseim:host_type()) -> ok.

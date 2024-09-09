@@ -18,6 +18,7 @@
 
 -import(distributed_helper, [mim/0, mim2/0, rpc/4]).
 -import(rest_helper, [assert_status/2, make_request/1]).
+-import(mongooseimctl_helper, [rpc_call/3]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -58,17 +59,22 @@ init_per_suite(Config) ->
     HostType = host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
-    escalus:init_per_suite(Config1).
+    Config2 = mongoose_helper:backup_and_set_config_option(Config1,
+                                                           [instrumentation, probe_interval], 1),
+    restart_probes(),
+    escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    restart_probes().
 
 init_per_group(GroupName, Config) ->
     metrics_helper:prepare_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
 
 end_per_group(GroupName, Config) ->
-    metrics_helper:finalise_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
+    metrics_helper:finalize_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
 
 init_per_testcase(cluster_size = CN, Config) ->
     case distributed_helper:has_mnesia(mim()) of
@@ -100,7 +106,8 @@ non_existent_metrics(_Config) ->
     assert_status(404, request(<<"GET">>, "/metrics/global/" ++ IncompleteName)),
     assert_status(404, request(<<"GET">>, "/metrics/global/badMetric")),
     assert_status(404, request(<<"GET">>, "/metrics/host_type/badHostType")),
-    assert_status(404, request(<<"GET">>, "/metrics/host_type/badHostType/xmppStanzaCount")),
+    assert_status(404, request(<<"GET">>,
+                               "/metrics/host_type/badHostType/c2s_element_out.stanza_count")),
     assert_status(404, request(<<"GET">>, ["/metrics/", HostType, "/", GlobalMetricName])),
     assert_status(404, request(<<"GET">>, ["/metrics/", HostType, "/badMetric"])).
 
@@ -115,32 +122,32 @@ one_client_just_logs_in(Config) ->
         (Config, metrics_helper:userspec(1, Config),
          fun(_User1) -> end_of_story end,
          %% A list of metrics and their expected relative increase
-         [{xmppIqSent, 0 + user_alpha(2)},
-          {xmppIqReceived, 0 + user_alpha(2)},
-          {xmppMessageSent, 0},
-          {xmppMessageReceived, 0},
-          {xmppPresenceSent, 0 + user_alpha(1)},
-          {xmppPresenceReceived, 0 + user_alpha(1)},
-          {xmppStanzaSent, 0 + user_alpha(3)},
-          {xmppStanzaReceived, 0 + user_alpha(3)},
-          {sessionSuccessfulLogins, 0 + user_alpha(1)},
-          {sessionLogouts, 0 + user_alpha(1)}
+         [{'c2s_element_in.iq_count', 0 + user_alpha(2)},
+          {'c2s_element_out.iq_count', 0 + user_alpha(2)},
+          {'c2s_element_in.message_count', 0},
+          {'c2s_element_out.message_count', 0},
+          {'c2s_element_in.presence_count', 0 + user_alpha(1)},
+          {'c2s_element_out.presence_count', 0 + user_alpha(1)},
+          {'c2s_element_in.stanza_count', 0 + user_alpha(3)},
+          {'c2s_element_out.stanza_count', 0 + user_alpha(3)},
+          {'sm_session.logins', 0 + user_alpha(1)},
+          {'sm_session.logouts', 0 + user_alpha(1)}
          ]).
 
 two_clients_just_log_in(Config) ->
     instrumented_story
         (Config, metrics_helper:userspec(1, 1, Config),
          fun(_User1, _User2) -> end_of_story end,
-         [{xmppIqSent, 0 + user_alpha(4)},
-          {xmppIqReceived, 0 + user_alpha(4)},
-          {xmppMessageSent, 0},
-          {xmppMessageReceived, 0},
-          {xmppPresenceSent, 0 + user_alpha(2)},
-          {xmppPresenceReceived, 0 + user_alpha(2)},
-          {xmppStanzaSent, 0 + user_alpha(6)},
-          {xmppStanzaReceived, 0 + user_alpha(6)},
-          {sessionSuccessfulLogins, 0 + user_alpha(2)},
-          {sessionLogouts, 0 + user_alpha(2)}
+         [{'c2s_element_in.iq_count', 0 + user_alpha(4)},
+          {'c2s_element_out.iq_count', 0 + user_alpha(4)},
+          {'c2s_element_in.message_count', 0},
+          {'c2s_element_out.message_count', 0},
+          {'c2s_element_in.presence_count', 0 + user_alpha(2)},
+          {'c2s_element_out.presence_count', 0 + user_alpha(2)},
+          {'c2s_element_in.stanza_count', 0 + user_alpha(6)},
+          {'c2s_element_out.stanza_count', 0 + user_alpha(6)},
+          {'sm_session.logins', 0 + user_alpha(2)},
+          {'sm_session.logouts', 0 + user_alpha(2)}
          ]).
 
 one_message_sent(Config) ->
@@ -151,8 +158,8 @@ one_message_sent(Config) ->
                escalus_client:send(User1, Chat),
                escalus_client:wait_for_stanza(User2)
        end,
-       [{xmppMessageSent,     1},
-        {xmppMessageReceived, 1}]).
+       [{'c2s_element_in.message_count', 1},
+        {'c2s_element_out.message_count', 1}]).
 
 one_direct_presence_sent(Config) ->
     Userspec = metrics_helper:userspec(1, 1, Config),
@@ -163,10 +170,10 @@ one_direct_presence_sent(Config) ->
                escalus:send(User1, Presence),
                escalus:wait_for_stanza(User2)
         end,
-       [{xmppPresenceSent, 1 + user_alpha(2)},
-        {xmppPresenceReceived, 1 + user_alpha(2)},
-        {xmppStanzaSent, 1 + user_alpha(6)},
-        {xmppStanzaReceived, 1 + user_alpha(6)}]).
+       [{'c2s_element_in.presence_count', 1 + user_alpha(2)},
+        {'c2s_element_out.presence_count', 1 + user_alpha(2)},
+        {'c2s_element_in.stanza_count', 1 + user_alpha(6)},
+        {'c2s_element_out.stanza_count', 1 + user_alpha(6)}]).
 
 one_iq_sent(Config) ->
     instrumented_story
@@ -176,11 +183,11 @@ one_iq_sent(Config) ->
                escalus_client:send(User1, RosterIq),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{xmppIqSent, 3},
-        {xmppIqReceived, 3},
-        {modRosterGets, 1},
-        {xmppStanzaSent, 1 + user_alpha(3)},
-        {xmppStanzaReceived, 1 + user_alpha(3)}]).
+       [{'c2s_element_in.iq_count', 3},
+        {'c2s_element_out.iq_count', 3},
+        {'mod_roster_get.count', 1},
+        {'c2s_element_in.stanza_count', 1 + user_alpha(3)},
+        {'c2s_element_out.stanza_count', 1 + user_alpha(3)}]).
 
 one_message_error(Config) ->
     instrumented_story
@@ -191,10 +198,10 @@ one_message_error(Config) ->
                escalus_client:send(User1, Chat),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{xmppErrorTotal, 1},
-        {xmppErrorIq, 0},
-        {xmppErrorMessage, 1},
-        {xmppErrorPresence, 0}]).
+       [{'c2s_element_out.error_count', 1},
+        {'c2s_element_out.iq_error_count', 0},
+        {'c2s_element_out.message_error_count', 1},
+        {'c2s_element_out.presence_error_count', 0}]).
 
 one_iq_error(Config) ->
     instrumented_story
@@ -204,10 +211,10 @@ one_iq_error(Config) ->
                escalus_client:send(User1, BadIQ),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{xmppErrorTotal, 1},
-        {xmppErrorIq, 1},
-        {xmppErrorMessage, 0},
-        {xmppErrorPresence, 0}]).
+       [{'c2s_element_out.error_count', 1},
+        {'c2s_element_out.iq_error_count', 1},
+        {'c2s_element_out.message_error_count', 0},
+        {'c2s_element_out.presence_error_count', 0}]).
 
 one_presence_error(Config) ->
     instrumented_story
@@ -218,45 +225,30 @@ one_presence_error(Config) ->
                escalus_client:send(User1, BadPres),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{xmppErrorTotal, 1},
-        {xmppErrorIq, 0},
-        {xmppErrorMessage, 0},
-        {xmppErrorPresence, 1}]).
+       [{'c2s_element_out.error_count', 1},
+        {'c2s_element_out.iq_error_count', 0},
+        {'c2s_element_out.message_error_count', 0},
+        {'c2s_element_out.presence_error_count', 1}]).
 
 session_counters(Config) ->
-    Names = [totalSessionCount, uniqueSessionCount, nodeSessionCount],
     escalus:story
       (Config, [{alice, 2}, {bob, 1}],
        fun(_User11, _User12, _User2) ->
-            %% Force update
-            lists:foreach(fun metrics_helper:sample/1, Names),
-            timer:sleep(timer:seconds(1)),
-
-            ?assertEqual(3, fetch_global_gauge_value(totalSessionCount, Config)),
-            ?assertEqual(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
-            ?assertEqual(3, fetch_global_gauge_value(nodeSessionCount, Config))
+            wait_for_global_gauge_value('sm_total_sessions.count', 3, Config),
+            wait_for_global_gauge_value('sm_unique_sessions.count', 2, Config),
+            wait_for_global_gauge_value('sm_node_sessions.count', 3, Config)
        end).
 
 node_uptime(Config) ->
-      X = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
-      timer:sleep(timer:seconds(1)),
-      Y = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
-      ?assertEqual(true, Y > X, [{counter, nodeUpTime}, {first, X}, {second, Y}]).
+    UpTime = fetch_global_incrementing_gauge_value('system_up_time.seconds', Config),
+    ?assert(UpTime >= 0).
 
 cluster_size(Config) ->
-      SingleNodeClusterState =
-            fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assertEqual(1, SingleNodeClusterState),
-
-      distributed_helper:add_node_to_cluster(Config),
-      TwoNodesClusterState =
-            fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assertEqual(2, TwoNodesClusterState),
-
-      distributed_helper:remove_node_from_cluster(Config),
-      SingleNodeClusterState2 =
-            fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assertEqual(1, SingleNodeClusterState2).
+    wait_for_global_gauge_value('mnesia_info.running_db_nodes', 1, Config),
+    distributed_helper:add_node_to_cluster(Config),
+    wait_for_global_gauge_value('mnesia_info.running_db_nodes', 2, Config),
+    distributed_helper:remove_node_from_cluster(Config),
+    wait_for_global_gauge_value('mnesia_info.running_db_nodes', 1, Config).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -352,9 +344,9 @@ metrics_msg_flow(_Config) ->
 user_alpha(NumberOfUsers) ->
     %% This represents the overhead of logging in N users via escalus:story/3
     %% For each user,
-    %%     xmppStanza(sent|received)
+    %%     c2s_element_(in|out).stanza_count
     %%     and
-    %%     xmppPresence(sent|received)
+    %%     c2s_element_(in|out).presence_count
     %% will be bumped by +1 at login.
     NumberOfUsers.
 
@@ -406,6 +398,12 @@ fetch_counter_value(Counter, _Config) ->
     #{<<"metrics">> := #{Metric := #{<<"count">> := TotalValueList}}} = B4,
 
     [HostTypeValue, HostTypeValueList, TotalValue, TotalValueList].
+
+%% Wait until the two different API calls to get the metric return the same expected value.
+%% The values could disagree temporarily while the gauge is being updated.
+wait_for_global_gauge_value(Name, Value, Config) ->
+    mongoose_helper:wait_until(fun() -> fetch_global_gauge_values(Name, Config) end,
+                               [Value, Value], #{name => Name}).
 
 %% @doc Fetch counter that is static.
 fetch_global_gauge_value(Counter, Config) ->
@@ -490,3 +488,9 @@ request(Method, Path) ->
 request(Method, Path, Server) ->
     make_request(#{role => admin, method => Method, path => iolist_to_binary(Path),
                    return_headers => true, return_maps => true, server => Server}).
+
+restart_probes() ->
+    rpc_call(ejabberd_sm, stop_probes, []),
+    rpc_call(ejabberd_sm, start_probes, []),
+    rpc_call(mongoose_system_probes, stop, []),
+    rpc_call(mongoose_system_probes, start, []).

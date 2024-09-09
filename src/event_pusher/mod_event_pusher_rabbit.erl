@@ -54,7 +54,6 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    initialize_metrics(HostType),
     create_exchanges(HostType),
     ok.
 
@@ -100,11 +99,6 @@ push_event(Acc, _) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
--spec initialize_metrics(mongooseim:host_type()) -> [ok | {ok | error, term()}].
-initialize_metrics(HostType) ->
-    [mongoose_metrics:ensure_metric(HostType, Name, Type)
-     || {Name, Type} <- mongoose_rabbit_worker:list_metrics(?POOL_TAG)].
 
 -spec create_exchanges(mongooseim:host_type()) -> ok.
 create_exchanges(HostType) ->

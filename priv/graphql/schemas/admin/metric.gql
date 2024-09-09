@@ -13,25 +13,10 @@ enum MetricType {
   spiral
   "Consists of value and time in milliseconds elapsed from the last metric update"
   gauge
-  "TCP/IP connection statistics from the 'inet' module"
-  merged_inet_stats
-  "Metrics of the relational database management system"
-  rdbms_stats
-  "Metrics of the virtual machine memory"
-  vm_stats_memory
-  "Information about virtual machine"
-  vm_system_info
-  "Information about process queue length"
-  probe_queues
-  "Information about CETS status"
-  cets_system
 }
 
 "Type of metric result"
-union MetricResult = HistogramMetric | CounterMetric | SpiralMetric
-                   | GaugeMetric | MergedInetStatsMetric | RDBMSStatsMetric
-                   | VMStatsMemoryMetric | VMSystemInfoMetric
-                   | ProbeQueuesMetric | CETSSystemMetric
+union MetricResult = HistogramMetric | CounterMetric | SpiralMetric | GaugeMetric
 
 type HistogramMetric {
   "Metric name"
@@ -93,132 +78,6 @@ type SpiralMetric {
   count: Int
 }
 
-type MergedInetStatsMetric {
-  "Metric name"
-  name: [String]
-  "Metric type"
-  type: MetricType
-  "Number of connections"
-  connections: Int
-  "Number of packets received by the socket"
-  recv_cnt: Int
-  "Size of the largest packet, in bytes, received by the socket"
-  recv_max: Int
-  "Number of bytes received by the socket"
-  recv_oct: Int
-  "Number of packets sent from the socket"
-  send_cnt: Int
-  "Size of the largest packet, in bytes, sent from the socket"
-  send_max: Int
-  "Number of bytes sent from the socket"
-  send_oct: Int
-  "Number of bytes waiting to be sent by the socket"
-  send_pend: Int
-}
-
-type RDBMSStatsMetric {
-  "Metric name"
-  name: [String]
-  "Metric type"
-  type: MetricType
-  "Number of workers"
-  workers: Int
-  "Number of packets received by the socket"
-  recv_cnt: Int
-  "Size of the largest packet, in bytes, received by the socket"
-  recv_max: Int
-  "Number of bytes received by the socket"
-  recv_oct: Int
-  "Number of packets sent from the socket"
-  send_cnt: Int
-  "Size of the largest packet, in bytes, sent from the socket"
-  send_max: Int
-  "Number of bytes sent from the socket"
-  send_oct: Int
-  "Number of bytes waiting to be sent by the socket"
-  send_pend: Int
-}
-
-type VMStatsMemoryMetric {
-  "Metric name"
-  name: [String]
-  "Metric type"
-  type: MetricType
-  "The total amount of memory in bytes currently allocated (processes_used + system)"
-  total: Int
-  "The total amount of memory in bytes allocated for Erlang processes"
-  processes_used: Int
-  "The total amount of memory in bytes allocated for atoms"
-  atom_used: Int
-  "The total amount of memory in bytes allocated for binaries"
-  binary: Int
-  "The total amount of memory in bytes allocated for ETS tables"
-  ets: Int
-  "The total amount of memory in bytes allocated for the emulator"
-  system: Int
-}
-
-type VMSystemInfoMetric {
-  "Metric name"
-  name: [String]
-  "Metric type"
-  type: MetricType
-  "Current number of open Erlang ports"
-  port_count: Int
-  "Maximum allowed number of open Erlang ports"
-  port_limit: Int
-  "Current number of Erlang processes"
-  process_count: Int
-  "Maximum allowed number of Erlang processes"
-  process_limit: Int
-  "Maximum number of ETS tables"
-  ets_limit: Int
-}
-
-type ProbeQueuesMetric {
-  "Metric name"
-  name: [String]
-  "Metric type"
-  type: MetricType
-  "Number of messages in p1_fsm queue"
-  fsm: Int
-  "Number of messages in the erlang process message queues"
-  regular: Int
-  "Total number of messages (fsm + regular)"
-  total: Int
-}
-
-type CETSSystemMetric {
-  "Metric name"
-  name: [String]
-  "Metric type"
-  type: MetricType
-  "Number of available nodes"
-  available_nodes: Int
-  "Number of unavailable nodes"
-  unavailable_nodes: Int
-  "Number of joined nodes"
-  joined_nodes: Int
-  "Number of nodes without CETS discovery"
-  remote_nodes_without_disco: Int
-  "Number of nodes with unknown tables"
-  remote_nodes_with_unknown_tables: Int
-  "Number of unknown tables"
-  remote_unknown_tables: Int
-  "Number of nodes with missing tables"
-  remote_nodes_with_missing_tables: Int
-  "Number of missing tables"
-  remote_missing_tables: Int
-  "Number of nodes with conflict tables (replication destinations do not match)"
-  conflict_nodes: Int
-  "Number of conflict tables (replication destinations do not match)"
-  conflict_tables: Int
-  "Number of nodes returned from the discovery backend"
-  discovered_nodes: Int
-  "Status of discovery backend: 1 if it works, 0 if not"
-  discovery_works: Int
-}
-
 type MetricDictEntry {
   "The name of the metric key (i.e. one, count, value)"
   key: String
@@ -239,7 +98,7 @@ type MetricNodeResult {
 }
 
 """
-Allow admin to get the metric values
+Allow admin to get the metric values. Only works with Exometer enabled.
 """
 type MetricAdminQuery @protected{
     """

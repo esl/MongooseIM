@@ -55,8 +55,8 @@
 
 -export([is_app_running/1]). % we have to mock it in some tests
 
--ignore_xref([loaded_modules_with_opts/0,
-              loaded_modules_with_opts/1, hosts_and_opts_with_module/1]).
+-ignore_xref([loaded_modules_with_opts/0, loaded_modules_with_opts/1,
+              hosts_with_module/1, hosts_and_opts_with_module/1]).
 
 -include("mongoose.hrl").
 
@@ -67,11 +67,12 @@
 -type opt_value() :: mongoose_config:value().
 -type module_opts() ::  #{opt_key() => opt_value()}.
 
--callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
--callback stop(HostType :: host_type()) -> any().
--callback hooks(HostType :: host_type()) -> gen_hook:hook_list().
+-callback start(host_type(), module_opts()) -> any().
+-callback stop(host_type()) -> any().
+-callback hooks(host_type()) -> gen_hook:hook_list().
 -callback supported_features() -> [module_feature()].
 -callback config_spec() -> mongoose_config_spec:config_section().
+-callback instrumentation(host_type()) -> [mongoose_instrument:spec()].
 
 %% Optional callback specifying module dependencies.
 %% The dependent module can specify parameters with which the dependee should be
@@ -86,7 +87,7 @@
 %% function).
 -callback deps(host_type(), module_opts()) -> gen_mod_deps:deps().
 
--optional_callbacks([hooks/1, config_spec/0, supported_features/0, deps/2]).
+-optional_callbacks([hooks/1, config_spec/0, supported_features/0, instrumentation/1, deps/2]).
 
 %% @doc This function should be called by mongoose_modules only.
 %% To start a new module at runtime, use mongoose_modules:ensure_module/3 instead.
@@ -101,6 +102,7 @@ start_module_for_host_type(HostType, Module, Opts) ->
         lists:map(fun mongoose_service:assert_loaded/1,
                   get_required_services(HostType, Module, Opts)),
         check_dynamic_domains_support(HostType, Module),
+        run_for_instrumentation(HostType, fun mongoose_instrument:set_up/1, Module),
         Res = Module:start(HostType, Opts),
         run_for_hooks(HostType, fun gen_hook:add_handlers/1, Module),
         {links, LinksAfter} = erlang:process_info(self(), links),
@@ -149,6 +151,12 @@ start_module_for_host_type(HostType, Module, Opts) ->
 run_for_hooks(HostType, Fun, Module) ->
     case erlang:function_exported(Module, hooks, 1) of
         true -> Fun(Module:hooks(HostType));
+        false -> ok
+    end.
+
+run_for_instrumentation(HostType, Fun, Module) ->
+    case erlang:function_exported(Module, instrumentation, 1) of
+        true -> Fun(Module:instrumentation(HostType));
         false -> ok
     end.
 
@@ -203,7 +211,8 @@ stop_module_for_host_type(HostType, Module) ->
                          host_type => HostType, stop_module => Module,
                          class => Class, reason => Reason, stacktrace => Stacktrace}),
             erlang:raise(Class, Reason, Stacktrace)
-    end.
+    end,
+    run_for_instrumentation(HostType, fun mongoose_instrument:tear_down/1, Module).
 
 -spec does_module_support(module(), module_feature()) -> boolean().
 does_module_support(Module, Feature) ->

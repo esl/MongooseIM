@@ -45,7 +45,8 @@ init_per_suite(Config) ->
     lists:foreach(fun setup_meck/1, meck_mods()),
     async_helper:start(Config, [{mim_ct_sup, start_link, [ejabberd_sup]},
                                 {mongooseim_helper, start_link_loaded_hooks, []},
-                                {mongoose_domain_sup, start_link, []}]).
+                                {mongoose_domain_sup, start_link, []},
+                                {mongoose_instrument, start_link, []}]).
 
 end_per_suite(Config) ->
     async_helper:stop_all(Config),
@@ -73,11 +74,16 @@ end_per_group(Group, Config) ->
 init_per_testcase(s2s, Config) ->
     mongoose_config:set_opt(s2s_backend, ?config(backend, Config)),
     Config;
+init_per_testcase(auth_anonymous, Config) ->
+    mongoose_gen_auth:start(ejabberd_auth_anonymous, ?HOST),
+    Config;
 init_per_testcase(TestCase, Config) ->
     start_component_if_needed(?config(needs_component, Config)),
     start_modules(TestCase, Config),
     Config.
 
+end_per_testcase(auth_anonymous, _Config) ->
+    mongoose_gen_auth:stop(ejabberd_auth_anonymous, ?HOST);
 end_per_testcase(TestCase, Config) ->
     stop_modules(TestCase, Config),
     stop_component_if_needed(?config(needs_component, Config)).
@@ -91,10 +97,10 @@ stop_modules(GroupOrCase, Config) ->
 opts() ->
     #{hosts => [?HOST],
       host_types => [],
-      all_metrics_are_global => false,
       s2s_backend => mnesia,
       {auth, ?HOST} => config_parser_helper:extra_auth(),
-      {modules, ?HOST} => #{}}.
+      {modules, ?HOST} => #{},
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 meck_mods() ->
     [exometer, mod_bosh_socket, mongoose_bin, ejabberd_sm, ejabberd_local].
@@ -118,7 +124,8 @@ start_component_if_needed(_) ->
     ok.
 
 stop_component_if_needed(true) ->
-    mongoose_component:stop();
+    mongoose_component:stop(),
+    mongoose_router:stop();
 stop_component_if_needed(_) ->
     ok.
 
@@ -167,7 +174,6 @@ notify_self_hook_for_host_type(Acc, #{node := Node}, #{self := Self, host_type :
 auth_anonymous(_Config) ->
     HostType = ?HOST,
     {U, S, R, JID, SID} = get_fake_session(),
-    ejabberd_auth_anonymous:start(HostType),
     Info = #{auth_module => cyrsasl_anonymous},
     ejabberd_auth_anonymous:register_connection(#{},
                                                 #{sid => SID, jid => JID, info => Info},

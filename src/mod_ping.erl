@@ -30,7 +30,8 @@
          user_send_iq/3,
          user_ping_response/3,
          filter_local_packet/3,
-         iq_ping/5]).
+         iq_ping/5,
+         instrumentation/1]).
 
 %% Record that will be stored in the c2s state when the server pings the client,
 %% in order to indentify the possible client's answer.
@@ -52,10 +53,12 @@ c2s_hooks(HostType) ->
      {user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 100}
     ].
 
-ensure_metrics(HostType) ->
-    mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response], spiral),
-    mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response_timeout], spiral),
-    mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response_time], histogram).
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_ping_response, #{host_type => HostType},
+      #{metrics => #{count => spiral, time => histogram}}},
+     {mod_ping_response_timeout, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
 
 %%====================================================================
 %% gen_mod callbacks
@@ -63,7 +66,6 @@ ensure_metrics(HostType) ->
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{send_pings := SendPings, iqdisc := IQDisc}) ->
-    ensure_metrics(HostType),
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_PING, ejabberd_sm, fun ?MODULE:iq_ping/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(
@@ -213,14 +215,15 @@ handle_ping_action(HostType, Reason) ->
 
 -spec user_ping_response(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{response := timeout | jlib:iq(), time_delta := non_neg_integer()},
+    Params :: #{response := timeout | jlib:iq(), time_delta := non_neg_integer(), jid := jid:jid()},
     Extra :: #{host_type := mongooseim:host_type()}.
-user_ping_response(Acc, #{response := timeout}, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, [mod_ping, ping_response_timeout], 1),
+user_ping_response(Acc, #{response := timeout, jid := Jid}, #{host_type := HostType}) ->
+    mongoose_instrument:execute(mod_ping_response_timeout, #{host_type => HostType},
+                                #{count => 1, jid => Jid}),
     {ok, Acc};
-user_ping_response(Acc, #{time_delta := TDelta}, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, [mod_ping, ping_response_time], TDelta),
-    mongoose_metrics:update(HostType, [mod_ping, ping_response], 1),
+user_ping_response(Acc, #{time_delta := TDelta, jid := Jid}, #{host_type := HostType}) ->
+    mongoose_instrument:execute(mod_ping_response, #{host_type => HostType},
+                                #{count => 1, time => TDelta, jid => Jid}),
     {ok, Acc}.
 
 %%====================================================================

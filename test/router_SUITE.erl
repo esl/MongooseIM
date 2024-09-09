@@ -18,38 +18,27 @@ groups() ->
     [
      {routing, [], [
                     basic_routing,
-                    do_not_reroute_errors
+                    do_not_reroute_errors,
+                    routing_error_out_of_modules
                    ]}
     ].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    {ok, _} = application:ensure_all_started(exometer_core),
-    C.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []},
+                                {mongoose_router, start, []},
+                                {ejabberd_router, start_link, []}]).
 
-end_per_suite(_C) ->
+end_per_suite(Config) ->
     meck:unload(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
-    application:stop(exometer_core),
-    ok.
-
-init_per_group(routing, Config) ->
-    mongoose_config:set_opts(opts()),
-    mongooseim_helper:start_link_loaded_hooks(),
-    ejabberd_router:start_link(),
-    Config.
-
-end_per_group(routing, _Config) ->
+    async_helper:stop_all(Config),
     mongoose_config:erase_opts().
-
-init_per_testcase(_CaseName, Config) ->
-    Config.
-
-end_per_testcase(_CaseName, _Config) ->
-    ok.
 
 %% ---------------------------------------------------------------
 %% Test cases
@@ -63,7 +52,7 @@ basic_routing(_C) ->
     %% module 'c' routes everything
     setup_routing_module(xmpp_router_c, none, all),
     %% send messages from 1 to 5
-    lists:map(fun(I) -> route(msg(I)) end, [1,2,3,4,5]),
+    lists:map(fun(I) -> #{} = route(msg(I)) end, [1,2,3,4,5]),
     meck:validate(xmpp_router_a),
     meck:unload(xmpp_router_a),
     meck:validate(xmpp_router_b),
@@ -92,7 +81,19 @@ do_not_reroute_errors(_) ->
                 fun(From0, To0, Acc0, Packet0) -> {From0, To0, Acc0, Packet0} end),
     meck:expect(xmpp_router_a, route, fun resend_as_error/4),
     ejabberd_router:route(From, To, Acc, Stanza),
-    ok.
+    meck:validate(xmpp_router_a),
+    meck:unload(xmpp_router_a).
+
+routing_error_out_of_modules(_C) ->
+    %% all modules don't route anything for this test
+    setup_routing_module(xmpp_router_a, none, 2),
+    setup_routing_module(xmpp_router_b, none, 2),
+    setup_routing_module(xmpp_router_c, none, 2),
+
+    %% router should return an error
+    Res = route(msg(1)),
+    [{error, out_of_modules}] = mongoose_acc:get(router, result, Res).
+
 
 %% ---------------------------------------------------------------
 %% Helpers
@@ -150,7 +151,7 @@ route(I) ->
                               element => I,
                               from_jid => FromJID,
                               to_jid => ToJID }),
-    #{} = ejabberd_router:route(FromJID, ToJID, Acc, I).
+    ejabberd_router:route(FromJID, ToJID, Acc, I).
 
 verify(L) ->
     receive
@@ -172,6 +173,8 @@ resend_as_error(From0, To0, Acc0, Packet0) ->
 
 opts() ->
     RoutingModules = [xmpp_router_a, xmpp_router_b, xmpp_router_c],
-    #{all_metrics_are_global => false,
+    #{hosts => [<<"localhost">>],
+      host_types => [],
+      instrumentation => config_parser_helper:default_config([instrumentation]),
       component_backend => mnesia,
       routing_modules => xmpp_router:expand_routing_modules(RoutingModules)}.

@@ -1,13 +1,10 @@
 -module(mongoose_rdbms_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
--include("mongoose.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
--define(_eq(E, I), ?_assertEqual(E, I)).
 -define(eq(E, I), ?assertEqual(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
 
 -define(KEEPALIVE_INTERVAL, 1).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
@@ -20,10 +17,13 @@ all() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(exometer_core),
-    Config.
+    set_opts(),
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
-end_per_suite(_Config) ->
+end_per_suite(Config) ->
     meck:unload(),
+    async_helper:stop_all(Config),
+    unset_opts(),
     application:stop(exometer_core).
 
 groups() ->
@@ -39,13 +39,13 @@ tests() ->
 init_per_group(odbc, Config) ->
     case code:ensure_loaded(eodbc) of
         {module, eodbc} ->
-            mongoose_backend:init(global, mongoose_rdbms, [], #{backend => odbc}),
+            mongoose_rdbms_backend:init(odbc),
             [{db_type, odbc} | Config];
         _ ->
             {skip, no_odbc_application}
     end;
 init_per_group(Group, Config) ->
-    mongoose_backend:init(global, mongoose_rdbms, [], #{backend => Group}),
+    mongoose_rdbms_backend:init(Group),
     [{db_type, Group} | Config].
 
 end_per_group(_, Config) ->
@@ -55,7 +55,6 @@ end_per_group(_, Config) ->
 
 init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     DbType = ?config(db_type, Config),
-    set_opts(),
     meck_db(DbType),
     meck_connection_error(DbType),
     meck_rand(),
@@ -63,7 +62,6 @@ init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     [{db_opts, ServerOpts#{query_timeout => 5000, keepalive_interval => 2, max_start_interval => 10}} | Config];
 init_per_testcase(_, Config) ->
     DbType = ?config(db_type, Config),
-    set_opts(),
     meck_db(DbType),
     ServerOpts = server_opts(DbType),
     [{db_opts, ServerOpts#{query_timeout => 5000, keepalive_interval => ?KEEPALIVE_INTERVAL,
@@ -73,11 +71,9 @@ end_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_unload_rand(),
     Db = ?config(db_type, Config),
     meck_config_and_db_unload(Db),
-    unset_opts(),
     Config;
 end_per_testcase(_, Config) ->
     meck_config_and_db_unload(?config(db_type, Config)),
-    unset_opts(),
     Config.
 
 %% Test cases
@@ -141,8 +137,8 @@ unset_opts() ->
     mongoose_config:erase_opts().
 
 opts() ->
-    #{all_metrics_are_global => false,
-      max_fsm_queue => 1024}.
+    #{max_fsm_queue => 1024,
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 meck_db(odbc) ->
     meck:new(eodbc, [no_link]),

@@ -52,10 +52,13 @@ suite() ->
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     {ok, _} = application:ensure_all_started(cache_tab),
-    Config.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []}]).
 
 end_per_suite(Config) ->
-    Config.
+    mongoose_config:erase_opts(),
+    async_helper:stop_all(Config).
 
 init_per_group(_GroupName, Config) ->
     Config.
@@ -65,23 +68,20 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(_CaseName, Config) ->
     set_meck(),
-    mongoose_config:set_opts(opts()),
     mongoose_domain_sup:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
-    mongooseim_helper:start_link_loaded_hooks(),
     mongoose_modules:start(),
     Config.
 
 end_per_testcase(_CaseName, Config) ->
     mongoose_modules:stop(),
-    mongoose_config:erase_opts(),
     unset_meck(),
     Config.
 
 opts() ->
     maps:from_list([{hosts, hosts()},
                     {host_types, []},
-                    {all_metrics_are_global, false} |
+                    {instrumentation, config_parser_helper:default_config([instrumentation])} |
                     [{{modules, HostType}, modules(HostType)} || HostType <- hosts()]]).
 
 hosts() ->
@@ -159,12 +159,10 @@ fake_acc_to_component(From) ->
 %%--------------------------------------------------------------------
 
 set_meck() ->
-    meck:new(mongoose_metrics, [stub_all]),
     meck:new(mod_global_distrib_mapping_backend, [stub_all]),
     %% Simulate missing entries and inserts into Redis
     meck:expect(mod_global_distrib_mapping_backend, get_session, fun(_) -> error end),
     meck:expect(mod_global_distrib_mapping_backend, get_domain, fun(_) -> error end).
 
 unset_meck() ->
-    meck:unload(mod_global_distrib_mapping_backend),
-    meck:unload(mongoose_metrics).
+    meck:unload(mod_global_distrib_mapping_backend).

@@ -5,7 +5,7 @@
 ## Module Description
 
 This module is a backend of [mod_event_pusher] that enables support for the
-RabbitMQ integration. Currently there are 5 available notifications:
+RabbitMQ integration. Currently, there are 5 available notifications:
 
 * **user presence changed** - Carries the user id (full jid by default) and
 a boolean field corresponding to the current user online status.
@@ -176,24 +176,39 @@ and for "received" events:
 ## Metrics
 
 The module provides some metrics related to RabbitMQ connections and messages
-as well. Provided metrics:
+as well.
 
-| name                             | type      | description (when it gets incremented/decremented)                                                                                               |
-| ----                             | ----      | --------------------------------------                                                                                                           |
-| [`Host`, `connections_active`]   | spiral    | A connection to a RabbitMQ server is opened(+1)/closed(-1).                                                                                      |
-| [`Host`, `connections_opened`]   | spiral    | A connection to a RabbitMQ server is opened.                                                                                                     |
-| [`Host`, `connections_closed`]   | spiral    | A connection to a RabbitMQ server is closed.                                                                                                     |
-| [`Host`, `connection_failed` ]   | spiral    | A try to open a connection to a RabbitMQ server failed.                                                                                          |
-| [`Host`, `messages_published`]   | spiral    | A message to a RabbitMQ server is published.                                                                                                     |
-| [`Host`, `messages_failed`]      | spiral    | A message to a RabbitMQ server is rejected.                                                                                                      |
-| [`Host`, `messages_timeout`]     | spiral    | A message to a RabbitMQ server timed out (weren't confirmed by the server).                                                                      |
-| [`Host`, `message_publish_time`] | histogram | Amount of time it takes to publish a message to a RabbitMQ server and receive a confirmation. It's measured only for successful messages.        |
-| [`Host`, `message_payload_size`] | histogram | Size of a message (in bytes) that was published to a RabbitMQ server (including message properties). It's measured only for successful messages. |
+Prometheus metrics have `host_type` and `pool_tag` labels associated with these metrics.
+Since Exometer doesn't support labels, the pool tag, as well as the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
 
-> All the above metrics have a prefix which looks as follows:  
-> `<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
-> For example a proper metric name would look like:
-> `localhost.backends.mod_event_pusher_rabbit.connections_active`
+=== "Prometheus"
+
+    | Name                                                             | Type      | Description (when it gets incremented/decremented)                                                                                               |
+    |------------------------------------------------------------------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+    | `wpool_rabbit_connections_active`         | gauge   | A connection to a RabbitMQ server is opened(+1)/closed(-1).                                                                                      |
+    | `wpool_rabbit_connections_opened`         | counter    | A connection to a RabbitMQ server is opened.                                                                                                     |
+    | `wpool_rabbit_connections_closed`         | counter    | A connection to a RabbitMQ server is closed.                                                                                                     |
+    | `wpool_rabbit_connections_failed`         | counter    | A try to open a connection to a RabbitMQ server failed.                                                                                          |
+    | `wpool_rabbit_messages_published_count`   | counter    | A message to a RabbitMQ server is published.                                                                                                     |
+    | `wpool_rabbit_messages_published_failed`  | counter    | A message to a RabbitMQ server is rejected.                                                                                                      |
+    | `wpool_rabbit_messages_published_timeout` | counter    | A message to a RabbitMQ server timed out (weren't confirmed by the server).                                                                      |
+    | `wpool_rabbit_messages_published_time`    | histogram | Amount of time it takes to publish a message to a RabbitMQ server and receive a confirmation. It's measured only for successful messages.        |
+    | `wpool_rabbit_messages_published_size`    | histogram | Size of a message (in bytes) that was published to a RabbitMQ server (including message properties). It's measured only for successful messages. |
+
+=== "Exometer"
+
+    | Name                                                             | Type      | Description (when it gets incremented/decremented)                                                                                               |
+    |------------------------------------------------------------------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+    | `[HostType, PoolTag, wpool_rabbit_connections_active]`         | counter   | A connection to a RabbitMQ server is opened(+1)/closed(-1).                                                                                      |
+    | `[HostType, PoolTag, wpool_rabbit_connections_opened]`         | spiral    | A connection to a RabbitMQ server is opened.                                                                                                     |
+    | `[HostType, PoolTag, wpool_rabbit_connections_closed]`         | spiral    | A connection to a RabbitMQ server is closed.                                                                                                     |
+    | `[HostType, PoolTag, wpool_rabbit_connections_failed]`        | spiral    | A try to open a connection to a RabbitMQ server failed.                                                                                          |
+    | `[HostType, PoolTag, wpool_rabbit_messages_published_count]`   | spiral    | A message to a RabbitMQ server is published.                                                                                                     |
+    | `[HostType, PoolTag, wpool_rabbit_messages_published_failed]`  | spiral    | A message to a RabbitMQ server is rejected.                                                                                                      |
+    | `[HostType, PoolTag, wpool_rabbit_messages_published_timeout]` | spiral    | A message to a RabbitMQ server timed out (weren't confirmed by the server).                                                                      |
+    | `[HostType, PoolTag, wpool_rabbit_messages_published_time]`    | histogram | Amount of time it takes to publish a message to a RabbitMQ server and receive a confirmation. It's measured only for successful messages.        |
+    | `[HostType, PoolTag, wpool_rabbit_messages_published_size]`    | histogram | Size of a message (in bytes) that was published to a RabbitMQ server (including message properties). It's measured only for successful messages. |
+
 
 ## Guarantees
 
@@ -241,7 +256,7 @@ imply different behaviors of the system.
 ### Event messages queuing
 
 When `available_worker` strategy is in use all the event messages are queued in
-single worker pool manager process state. When different strategy is set e.g
+single worker pool manager process state. When different strategy is set e.g.
 `best_worker` those messages are placed in worker processes inboxes. Worker
 selection strategy can be set in `rabbit` pool configuration.
 

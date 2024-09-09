@@ -30,6 +30,7 @@
                   observer_cli,
                   pa,
                   public_key,
+                  prometheus_cowboy,
                   ranch,
                   recon,
                   runtime_tools,

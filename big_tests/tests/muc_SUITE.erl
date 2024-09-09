@@ -45,7 +45,10 @@
          disco_service_story/1,
          story_with_room/4,
          change_nick_form_iq/1,
-         set_nick/2
+         set_nick/2,
+         assert_room_event/2,
+         wait_for_room_count/1,
+         count_rooms/0
          ]).
 
 -import(domain_helper, [host_type/0, domain/0]).
@@ -262,7 +265,8 @@ groups() ->
                              ]},
          {owner_no_parallel, [], [
                                   room_creation_not_allowed,
-                                  create_instant_persistent_room
+                                  create_instant_persistent_room,
+                                  probe_metrics_are_updated
                                  ]},
          {room_management, [], [
                                 create_and_destroy_room,
@@ -327,19 +331,23 @@ suite() ->
 init_per_suite(Config) ->
     %% For mocking with unnamed functions
     mongoose_helper:inject_module(?MODULE),
+    instrument_helper:start(instrument_helper:declared_events(mod_muc)),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
+    Config4 = backup_and_set_config_option(Config3, [instrumentation, probe_interval], 1),
     dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
     muc_helper:load_muc(),
     mongoose_helper:ensure_muc_clean(),
-    Config3.
+    Config4.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     mongoose_helper:ensure_muc_clean(),
     muc_helper:unload_muc(),
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
+    restore_config_option(Config, [instrumentation, probe_interval]),
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(room_registration_race_condition, Config) ->
     %% We init meck once per group, because recompiling module after
@@ -3079,6 +3087,20 @@ disco_items_nonpublic(ConfigIn) ->
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
     end).
 
+probe_metrics_are_updated(Config) ->
+    #{online := Online, hibernated := Hibernated} = InitialCount = count_rooms(),
+    RoomName = fresh_room_name(),
+
+    %% Reported counts should be increased after room creation
+    Story = fun(Alice) ->
+                    given_fresh_room_is_hibernated(Alice, RoomName, [{membersonly, false}]),
+                    wait_for_room_count(#{online => Online + 1, hibernated => Hibernated + 1})
+            end,
+    escalus:fresh_story(Config, [{alice, 1}], Story),
+
+    %% Reported counts should be back to initial values
+    wait_for_room_count(InitialCount),
+    destroy_room(muc_host(), RoomName).
 
 create_and_destroy_room(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
@@ -4308,14 +4330,12 @@ room_with_participants_is_hibernated(Config) ->
 hibernation_metrics_are_updated(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        given_fresh_room_is_hibernated(Alice, RoomName, [{membersonly, false}]),
-
-        OnlineRooms = rpc(mim(), mod_muc, online_rooms_number, []),
-        true = OnlineRooms > 0,
-        HibernationsCnt = get_spiral_metric_count(global, [mod_muc, hibernations]),
-        true = HibernationsCnt > 0,
-        HibernatedRooms = rpc(mim(), mod_muc, hibernated_rooms_number, []),
-        true = HibernatedRooms > 0
+        Result = given_fresh_room_is_hibernated(Alice, RoomName, [{membersonly, false}]),
+        {ok, RoomJid, _Pid} = Result,
+        #{online := OnlineRooms, hibernated := HibernatedRooms} = count_rooms(),
+        ?assert(OnlineRooms > 0),
+        ?assert(HibernatedRooms > 0),
+        assert_room_event(mod_muc_hibernations, RoomJid)
     end),
 
     destroy_room(muc_host(), RoomName).
@@ -4468,30 +4488,22 @@ can_found_in_db_when_stopped(Config) ->
 deep_hibernation_metrics_are_updated(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {ok, _, Pid} = given_fresh_room_is_hibernated(
-                         Alice, RoomName, [{persistentroom, true}]),
+        {ok, RoomJid, Pid} = given_fresh_room_is_hibernated(
+                               Alice, RoomName, [{persistentroom, true}]),
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
-        DeepHibernations = get_spiral_metric_count(global, [mod_muc, deep_hibernations]),
-        true = DeepHibernations > 0,
+        assert_room_event(mod_muc_deep_hibernations, RoomJid),
 
         Unavailable = escalus:wait_for_stanza(Alice),
         escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable),
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
-
-        Recreations = get_spiral_metric_count(global, [mod_muc, process_recreations]),
-        true = Recreations > 0
+        assert_room_event(mod_muc_process_recreations, RoomJid)
 
     end),
 
     destroy_room(muc_host(), RoomName),
     forget_room(host_type(), muc_host(), RoomName).
-
-get_spiral_metric_count(Host, MetricName) ->
-    Result = rpc(mim(), mongoose_metrics, get_metric_value, [Host, MetricName]),
-    {ok, [{count, Count}, {one, _}]} = Result,
-    Count.
 
 given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),

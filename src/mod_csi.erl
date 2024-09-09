@@ -9,7 +9,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
--export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, instrumentation/1]).
 
 %% Hook handlers
 -export([c2s_stream_features/3,
@@ -32,8 +32,8 @@
 -type csi_state() :: #csi_state{}.
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
-    ensure_metrics(HostType).
+start(_HostType, _Opts) ->
+    ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
@@ -52,9 +52,12 @@ hooks(HostType) ->
      {reroute_unacked_messages, HostType, fun ?MODULE:reroute_unacked_messages/3, #{}, 70}
     ].
 
-ensure_metrics(HostType) ->
-    mongoose_metrics:ensure_metric(HostType, [modCSIInactive], spiral),
-    mongoose_metrics:ensure_metric(HostType, [modCSIActive], spiral).
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_csi_active, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_csi_inactive, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -182,7 +185,8 @@ handle_csi_request(Acc, _, _) ->
 -spec handle_inactive_request(mongoose_acc:t(), params()) -> mongoose_acc:t().
 handle_inactive_request(Acc, #{c2s_data := C2SData} = _Params) ->
     HostType = mongoose_c2s:get_host_type(C2SData),
-    mongoose_metrics:update(HostType, modCSIInactive, 1),
+    JID = mongoose_c2s:get_jid(C2SData),
+    mongoose_instrument:execute(mod_csi_inactive, #{host_type => HostType}, #{count => 1, jid => JID}),
     case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
         {error, not_found} ->
             BMax = gen_mod:get_module_opt(HostType, ?MODULE, buffer_max),
@@ -196,7 +200,8 @@ handle_inactive_request(Acc, #{c2s_data := C2SData} = _Params) ->
 -spec handle_active_request(mongoose_acc:t(), params()) -> mongoose_acc:t().
 handle_active_request(Acc, #{c2s_data := C2SData}) ->
     HostType = mongoose_c2s:get_host_type(C2SData),
-    mongoose_metrics:update(HostType, modCSIActive, 1),
+    JID = mongoose_c2s:get_jid(C2SData),
+    mongoose_instrument:execute(mod_csi_active, #{host_type => HostType}, #{count => 1, jid => JID}),
     case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
         {ok, Csi = #csi_state{state = inactive, buffer = Buffer}} ->
             NewCsi = Csi#csi_state{state = active, buffer = []},

@@ -18,7 +18,7 @@ Typical services are already specified in the example configuration file.
 
 ## service_mongoose_system_metrics
 
-MongooseIM system metrics are being gathered to analyse the trends and needs of our users, improve MongooseIM, and get to know where to focus our efforts.
+MongooseIM system metrics are being gathered to analyze the trends and needs of our users, improve MongooseIM, and get to know where to focus our efforts.
 See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-Privacy-Policy.md) for more details.
 
 ### `services.service_mongoose_system_metrics.report`

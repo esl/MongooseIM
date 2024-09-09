@@ -91,15 +91,18 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(Group, Config) when Group == clustered orelse Group == mnesia ->
+init_per_group(clustered, Config) ->
     Node2 = mim2(),
     Config1 = add_node_to_cluster(Node2, Config),
     case is_sm_distributed() of
         true ->
-            escalus:create_users(Config1, escalus:get_users([alice, clusterguy]));
+            instrument_helper:start([{system_dist_data, #{}}]),
+            Config2 = mongoose_helper:backup_and_set_config_option(
+                        Config1, [instrumentation, probe_interval], 1),
+            restart(mongoose_system_probes),
+            escalus:create_users(Config2, escalus:get_users([alice, clusterguy]));
         {false, Backend} ->
             ct:pal("Backend ~p doesn't support distributed tests", [Backend]),
-            Node2 = mim2(),
             remove_node_from_cluster(Node2, Config1),
             {skip, nondistributed_sm}
     end;
@@ -116,10 +119,13 @@ init_per_group(Group, _Config) when Group == clustering_two orelse Group == clus
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
-end_per_group(Group, Config) when Group == clustered orelse Group == mnesia ->
+end_per_group(clustered, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
     Node2 = mim2(),
-    remove_node_from_cluster(Node2, Config);
+    remove_node_from_cluster(Node2, Config),
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    restart(mongoose_system_probes),
+    instrument_helper:stop();
 
 %% Users are gone after mnesia cleaning
 %% hence there is no need to delete them manually
@@ -164,10 +170,10 @@ end_per_testcase(CaseName, Config) ->
 %% Message tests
 %%--------------------------------------------------------------------
 
-one_to_one_message(ConfigIn) ->
+one_to_one_message(Config) ->
     %% Given Alice connected to node one and ClusterGuy connected to node two
-    Metrics = [{[global, data, dist], [{recv_oct, '>'}, {send_oct, '>'}]}],
-    Config = [{mongoose_metrics, Metrics} | ConfigIn],
+    #{send_oct := InitialSendOct, recv_oct := InitialRecvOct}
+        = rpc(mim(), mongoose_system_probes, probe, [system_dist_data, #{}]),
     escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
         %% When Alice sends a message to ClusterGuy
         Msg1 = escalus_stanza:chat_to(ClusterGuy, <<"Hi!">>),
@@ -182,7 +188,12 @@ one_to_one_message(ConfigIn) ->
         %% Then Alice also receives it
         Stanza2 = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_chat_message, [<<"Oh hi!">>], Stanza2)
-    end).
+    end),
+    instrument_helper:wait_and_assert(
+      system_dist_data, #{},
+      fun(#{send_oct := SendOct, recv_oct := RecvOct}) ->
+              SendOct > InitialSendOct andalso RecvOct > InitialRecvOct
+      end).
 
 %%--------------------------------------------------------------------
 %% Manage cluster commands tests
@@ -469,3 +480,7 @@ wait_for_process_to_stop(Pid, Timeout) ->
     after Timeout ->
             ct:fail(wait_for_process_to_stop_timeout)
     end.
+
+restart(Module) ->
+    rpc(mim(), Module, stop, []),
+    rpc(mim(), Module, start, []).

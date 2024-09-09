@@ -45,6 +45,7 @@
          hooks/1,
          config_spec/0,
          supported_features/0,
+         instrumentation/1,
          process_iq/5,
          get_roster_entry/4,
          item_to_map/1,
@@ -161,6 +162,12 @@ config_spec() ->
       }.
 
 supported_features() -> [dynamic_domains].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_roster_get, #{host_type => HostType}, #{metrics => #{count => spiral}}},
+     {mod_roster_set, #{host_type => HostType}, #{metrics => #{count => spiral}}},
+     {mod_roster_push, #{host_type => HostType}, #{metrics => #{count => spiral}}}].
 
 hooks(HostType) ->
     [{roster_get, HostType, fun ?MODULE:get_user_roster/3, #{}, 50},
@@ -364,6 +371,8 @@ group_el(Name) ->
 -spec process_iq_set(mongooseim:host_type(), jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
 process_iq_set(HostType, From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
+    mongoose_instrument:execute(mod_roster_set, #{host_type => HostType},
+                                #{count => 1, jid => From}),
     mongoose_hooks:roster_set(HostType, From, To, SubEl),
     lists:foreach(fun(El) -> process_item_set(HostType, From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
@@ -497,8 +506,11 @@ broadcast_item(#jid{luser = LUser, lserver = LServer}, ContactJid, Subscription)
     lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 push_item_without_version(HostType, JID, Resource, From, Item) ->
+    TargetJID = jid:replace_resource(JID, Resource),
+    mongoose_instrument:execute(mod_roster_push, #{host_type => HostType},
+                                #{count => 1, jid => TargetJID}),
     mongoose_hooks:roster_push(HostType, From, Item),
-    push_item_final(jid:replace_resource(JID, Resource), From, Item, not_found).
+    push_item_final(TargetJID, From, Item, not_found).
 
 push_item_version(JID, From, Item, RosterVersion) ->
     lists:foreach(fun(Resource) ->
@@ -962,6 +974,8 @@ get_roster_old(HostType, DestServer, JID) ->
                             lserver => DestServer,
                             host_type => HostType,
                             element => undefined }),
+    mongoose_instrument:execute(mod_roster_get, #{host_type => HostType},
+                                #{count => 1, jid => JID}),
     mongoose_hooks:roster_get(A, JID, false).
 
 -spec item_to_map(roster()) -> map().

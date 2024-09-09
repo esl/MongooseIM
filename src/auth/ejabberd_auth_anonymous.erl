@@ -44,7 +44,8 @@
          does_user_exist/3,
          supports_sasl_module/2,
          get_registered_users/3,
-         supported_features/0
+         supported_features/0,
+         instrumentation/1
         ]).
 
 %% Internal
@@ -129,6 +130,8 @@ register_connection(Acc,
                     #{host_type := HostType})
   when AuthModule =:= ejabberd_auth_anonymous; % login_anon
        AuthModule =:= cyrsasl_anonymous -> % sasl_anon
+    mongoose_instrument:execute(auth_anonymous_register_user, #{host_type => HostType},
+                                #{count => 1, user => LUser, server => LServer}),
     mongoose_hooks:register_user(HostType, LServer, LUser),
     US = {LUser, LServer},
     ejabberd_auth_anonymous_backend:add_connection(HostType, SID, US),
@@ -141,7 +144,10 @@ register_connection(Acc, _Params, _Extra) ->
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
-unregister_connection(Acc, #{sid := SID, jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
+unregister_connection(Acc, #{sid := SID, jid := #jid{luser = LUser, lserver = LServer}},
+                      #{host_type := HostType}) ->
+    mongoose_instrument:execute(auth_anonymous_unregister_user, #{host_type => HostType},
+                                #{count => 1, user => LUser, server => LServer}),
     purge_hook(does_anonymous_user_exist(HostType, LUser, LServer), HostType, LUser, LServer),
     remove_connection(HostType, SID, LUser, LServer),
     {ok, Acc}.
@@ -280,3 +286,10 @@ anonymous_protocol(HostType) ->
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{auth_anonymous_register_user, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {auth_anonymous_unregister_user, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].

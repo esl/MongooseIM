@@ -27,6 +27,7 @@
 
 -behaviour(gen_server).
 -behaviour(gen_iq_component).
+-behaviour(mongoose_instrument_probe).
 
 
 %% API
@@ -63,7 +64,10 @@
          session_cleanup/1,
          sessions_cleanup/1,
          terminate_session/2,
-         sm_backend/0
+         sm_backend/0,
+         probe/2,
+         start_probes/0,
+         stop_probes/0
         ]).
 
 %% Hook handlers
@@ -85,7 +89,8 @@
 -export([do_route/4]).
 
 -ignore_xref([do_filter/3, do_route/4, get_unique_sessions_number/0,
-              get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0]).
+              get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0,
+              start_probes/0, stop_probes/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -121,7 +126,6 @@
 
 %% default value for the maximum number of user connections
 -define(MAX_USER_SESSIONS, 100).
--define(UNIQUE_COUNT_CACHE, [cache, unique_sessions_number]).
 
 %%====================================================================
 %% API
@@ -190,6 +194,8 @@ make_new_sid() ->
 open_session(HostType, SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
     ReplacedPIDs = check_for_sessions_to_replace(HostType, JID),
+    mongoose_instrument:execute(sm_session, #{host_type => HostType},
+                                #{jid => JID, logins => 1, count => 1}),
     mongoose_hooks:sm_register_connection(HostType, SID, JID, Info),
     ReplacedPIDs.
 
@@ -203,6 +209,9 @@ open_session(HostType, SID, JID, Priority, Info) ->
 close_session(Acc, SID, JID, Reason, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     ejabberd_sm_backend:delete_session(SID, LUser, LServer, LResource),
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_instrument:execute(sm_session, #{host_type => HostType},
+                                #{jid => JID, logouts => 1, count => -1}),
     mongoose_hooks:sm_remove_connection(Acc, SID, JID, Info, Reason).
 
 -spec store_info(jid:jid(), sid(), info_key(), any()) -> ok.
@@ -307,15 +316,7 @@ get_session_pid(JID) ->
 
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
-    try
-        C = ejabberd_sm_backend:unique_count(),
-        mongoose_metrics:update(global, ?UNIQUE_COUNT_CACHE, C),
-        C
-    catch
-        _:_ ->
-            get_cached_unique_count()
-    end.
-
+    ejabberd_sm_backend:unique_count().
 
 -spec get_total_sessions_number() -> integer().
 get_total_sessions_number() ->
@@ -438,11 +439,13 @@ check_in_subscription(Acc, #{to := ToJID}, _) ->
       Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
       Extra :: map().
 bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
-    Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_instrument:execute(sm_message_bounced, #{host_type => HostType},
+                                #{count => 1, from_jid => From, to_jid => To, element => Packet}),
     E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
-    {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, E),
-    Acc3 = ejabberd_router:route(To, From, Acc2, Err),
-    {stop, Acc3}.
+    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
+    Acc2 = ejabberd_router:route(To, From, Acc1, Err),
+    {stop, Acc2}.
 
 -spec disconnect_removed_user(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
@@ -471,17 +474,17 @@ init([]) ->
 
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
     gen_hook:add_handler(node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50),
-    lists:foreach(fun(HostType) -> gen_hook:add_handlers(hooks(HostType)) end,
+    lists:foreach(fun(HostType) ->
+                          gen_hook:add_handlers(hooks(HostType)),
+                          mongoose_instrument:set_up(instrumentation(HostType))
+                  end,
                   ?ALL_HOST_TYPES),
-    %% Create metrics after backend has started, otherwise probe could have null value
-    create_metrics(),
+    %% Set up global metrics here to avoid registering global hooks
+    mongoose_instrument:set_up(instrumentation(global)),
     {ok, #state{}}.
 
-create_metrics() ->
-    mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
-    mongoose_metrics:create_probe_metric(global, totalSessionCount, mongoose_metrics_probe_total_sessions),
-    mongoose_metrics:create_probe_metric(global, uniqueSessionCount, mongoose_metrics_probe_unique_sessions),
-    mongoose_metrics:create_probe_metric(global, nodeSessionCount, mongoose_metrics_probe_node_sessions).
+start_probes() ->
+    mongoose_instrument:set_up(global_probes()).
 
 -spec hooks(binary()) -> [gen_hook:hook_tuple()].
 hooks(HostType) ->
@@ -563,7 +566,12 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
+    [mongoose_instrument:tear_down(instrumentation(HostType))
+     || HostType <- [global | ?ALL_HOST_TYPES]],
     ok.
+
+stop_probes() ->
+    mongoose_instrument:tear_down(global_probes()).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -631,11 +639,22 @@ do_route(Acc, From, To, El) ->
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
     case is_privacy_allow(From, To, Acc, Packet) of
         true ->
+            HostType = mongoose_acc:host_type(Acc),
+            execute_subscription_instrumentation(HostType, From, To, Type),
             Res = mongoose_hooks:roster_in_subscription(Acc, To, From, Type, Reason),
             mongoose_acc:get(hook, result, false, Res);
         false ->
             false
     end.
+
+execute_subscription_instrumentation(HostType, From, To, subscribed) ->
+    mongoose_instrument:execute(sm_presence_subscription, #{host_type => HostType},
+                                #{from_jid => From, to_jid => To, subscription_count => 1});
+execute_subscription_instrumentation(HostType, From, To, unsubscribed) ->
+    mongoose_instrument:execute(sm_presence_subscription, #{host_type => HostType},
+                                #{from_jid => From, to_jid => To, unsubscription_count => 1});
+execute_subscription_instrumentation(_HostType, _From, _To, _Type) ->
+    ok.
 
 -spec do_route_no_resource_presence(Type, From, To, Acc, Packet) -> boolean() when
       Type :: binary(),
@@ -957,16 +976,35 @@ user_resources(UserStr, ServerStr) ->
     Resources = get_user_resources(JID),
     lists:sort(Resources).
 
--spec get_cached_unique_count() -> non_neg_integer().
-get_cached_unique_count() ->
-    case mongoose_metrics:get_metric_value(global, ?UNIQUE_COUNT_CACHE) of
-        {ok, DataPoints} ->
-            proplists:get_value(value, DataPoints);
-        _ ->
-            0
-    end.
-
 %% It is used from big tests
 -spec sm_backend() -> backend().
 sm_backend() ->
     mongoose_backend:get_backend_module(global, ?MODULE).
+
+-spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
+instrumentation(global) ->
+    global_probes();
+instrumentation(HostType) ->
+    [{sm_session, #{host_type => HostType},
+      #{metrics => #{logins => spiral, logouts => spiral, count => counter}}},
+     {sm_presence_subscription, #{host_type => HostType},
+      #{metrics => #{subscription_count => spiral, unsubscription_count => spiral}}},
+     {sm_message_bounced, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
+
+global_probes() ->
+    [{sm_total_sessions, #{},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
+     {sm_unique_sessions, #{},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
+     {sm_node_sessions, #{},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}}].
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+    mongoose_instrument:measurements().
+probe(sm_total_sessions, #{}) ->
+    #{count => get_total_sessions_number()};
+probe(sm_unique_sessions, #{}) ->
+    #{count => get_unique_sessions_number()};
+probe(sm_node_sessions, #{}) ->
+    #{count => get_node_sessions_number()}.

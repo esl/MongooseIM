@@ -45,6 +45,7 @@ groups() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
+    instrument_helper:start(instrumentation_events()),
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_stopped(HostType, [mod_presence]),
@@ -53,6 +54,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite([{escalus_overrides, EscalusOverrides} | Config1 ]).
 
 end_per_suite(Config) ->
+    instrument_helper:stop(),
     dynamic_modules:restore_modules(Config),
     mongoose_helper:restore_config(Config),
     escalus:end_per_suite(Config).
@@ -113,22 +115,18 @@ stream_from_does_not_match_sasl_jid_results_in_stream_error(Config) ->
     end.
 
 two_users_can_log_and_chat(Config) ->
-    AliceHost = escalus_users:get_server(Config, alice),
-    HostType = domain_helper:domain_to_host_type(mim(), AliceHost),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {[global, data, xmpp, received, c2s, tcp], changed},
-                       {[global, data, xmpp, sent, c2s, tcp], changed},
-                       {[HostTypePrefix, data, xmpp, c2s, message, processing_time], changed},
-                       {[global, data, xmpp, received, c2s, tls], 0},
-                       {[global, data, xmpp, sent, c2s, tls], 0}],
-    escalus:fresh_story([{mongoose_metrics, MongooseMetrics} | Config],
+    escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Bob)),
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Alice))
+        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Alice)),
+
+        % Assert that correct events have been executed
+        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
+                                                   (#{time := Time}) -> Time > 0 end)
+         || {Event, Label} <- tcp_instrumentation_events() ++ common_instrumentation_events()],
+        instrument_helper:assert_not_emitted(tls_instrumentation_events())
     end).
 
 too_big_stanza_is_rejected(Config) ->
@@ -236,3 +234,22 @@ escalus_start(Cfg, FlatCDs) ->
     Clients = lists:reverse(RClients),
     [ escalus_assert:has_no_stanzas(Client) || Client <- Clients ],
     Clients.
+
+instrumentation_events() ->
+    instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
+    ++ instrument_helper:declared_events(mongoose_c2s, [global])
+    ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}}].
+
+tcp_instrumentation_events() ->
+    [{c2s_tcp_data_out, #{}},
+     {c2s_tcp_data_in, #{}}].
+
+tls_instrumentation_events() ->
+    [{c2s_tls_data_out, #{}},
+     {c2s_tls_data_in, #{}}].
+
+common_instrumentation_events() ->
+    HostType = domain_helper:host_type(),
+    [{c2s_message_processed, #{host_type => HostType}},
+     {c2s_xmpp_element_size_in, #{}},
+     {c2s_xmpp_element_size_out, #{}}].
