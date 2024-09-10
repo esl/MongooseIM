@@ -32,17 +32,18 @@
 
 all() ->
     [{group, valid_queries},
-     {group, invalid_queries}].
+     {group, invalid_queries},
+     {group, sessions_cleanup}].
 
 groups() ->
     [{valid_queries, [sequence], valid_test_cases()},
-     {invalid_queries, invalid_test_cases()}].
+     {invalid_queries, invalid_test_cases()},
+     {sessions_cleanup, [], [sessions_cleanup]}].
 
 valid_test_cases() -> [online_user_query,
                        last_online_user,
                        last_offline_user,
-                       last_server,
-                       sessions_cleanup].
+                       last_server].
 
 invalid_test_cases() -> [user_not_subscribed_receives_error].
 
@@ -51,6 +52,7 @@ suite() ->
 
 init_per_suite(Config0) ->
     mongoose_helper:inject_module(distributed_helper:mim2(), ?MODULE, reload),
+    distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config0),
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     dynamic_modules:ensure_modules(HostType, required_modules()),
@@ -73,6 +75,8 @@ init_per_group(valid_queries, Config0) ->
     mongoose_helper:kick_everyone(),
     Config2;
 init_per_group(invalid_queries, Config) ->
+    Config;
+init_per_group(sessions_cleanup, Config) ->
     Config.
 
 end_per_group(_GroupName, _Config) ->
@@ -194,9 +198,11 @@ sessions_cleanup(_Config) ->
             distributed_helper:rpc(LongNode2, ?MODULE, create_sessions,
                                    [HostType, Server, NumberOfUsers])
         end),
+    NumberOfUsers = length(Sessions),
     measure("node cleanup", fun() ->
-            distributed_helper:rpc(LongNode1, mongoose_hooks, node_cleanup,
-                                   [Node2Atom])
+            Res = distributed_helper:rpc(LongNode1, mongoose_hooks,
+                                         node_cleanup, [Node2Atom]),
+            ct:pal("node_cleanup result ~p", [Res])
         end),
     {ok, #{timestamp := TS, status := Status} = Data} =
         distributed_helper:rpc(Node1, mod_last_api, get_last, [Jid3]),
