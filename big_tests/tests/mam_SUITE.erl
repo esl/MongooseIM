@@ -239,10 +239,12 @@ is_skipped(_, _) ->
 basic_groups() ->
     [
      {mam_all, [parallel],
-           [{mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
+           [{mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()
+                                ++ [{stream_management, [], stream_management_cases()}]},
             {mam06, [parallel], mam_cases() ++ [retrieve_form_fields_extra_features]
                                 ++ stanzaid_cases() ++ retract_cases()
-                                ++ metadata_cases() ++ fetch_specific_msgs_cases()},
+                                ++ metadata_cases() ++ fetch_specific_msgs_cases()
+                                ++ [{stream_management, [], stream_management_cases()}]},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
@@ -513,6 +515,11 @@ impl_specific() ->
      pm_sql_query_failed,
      async_pools_batch_flush].
 
+stream_management_cases() ->
+    [reconnect_ack,
+     reconnect_no_ack,
+     reconnect_no_ack_different_resource].
+
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
@@ -582,6 +589,13 @@ init_per_group(with_rsm04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 init_per_group(nostore, Config) ->
     Config;
+init_per_group(stream_management, Config) ->
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    DefaultSMConfig = config_parser_helper:default_mod_config(mod_stream_management),
+    MnesiaOrCets = ct_helper:get_internal_database(),
+    SMConfig = DefaultSMConfig#{backend => MnesiaOrCets},
+    dynamic_modules:ensure_modules(host_type(), [{mod_stream_management, SMConfig}]),
+    Config1;
 init_per_group(archived, Config) ->
     Config;
 init_per_group(muc04, Config) ->
@@ -683,6 +697,8 @@ end_per_group(G, Config) when G == drop_msg;
                               G == muc_drop_msg ->
     teardown_meck(),
     Config;
+end_per_group(stream_management, Config) ->
+    dynamic_modules:restore_modules(Config);
 end_per_group(muc_configurable_archiveid, Config) ->
     dynamic_modules:restore_modules(Config),
     Config;
@@ -3853,6 +3869,139 @@ check_user_exist(Config) ->
               [HostType, mongoose_helper:make_jid(AdminU, <<"fake-domain">>), stored]),
   %% cleanup
   ok = rpc(mim(), ejabberd_auth, remove_user, [JID]).
+
+reconnect_no_ack(Config) ->
+    %% Connect Bob and Alice
+    Bob = sm_helper:connect_fresh(Config, bob, presence),
+    Alice = sm_helper:connect_fresh(Config, alice, sr_presence, manual),
+    AliceJid = escalus_client:full_jid(Alice),
+    BobJid = escalus_client:full_jid(Bob),
+    sm_helper:ack_initial_presence(Alice),
+
+    % 1. Bob sends a msg to Alice
+    Body = <<"OH, HAI! Msg 1">>,
+    escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
+    mam_helper:wait_for_archive_size(Alice, 1),
+
+    % 2. Alice receives, and does not acknowledge
+    % She may get the ack request before the message for some reason
+    Resp = [_, _] = escalus_client:wait_for_stanzas(Alice, 2),
+    escalus:assert_many([fun(Msg) -> escalus_pred:is_chat_message_from_to(BobJid, AliceJid, Body, Msg) end,
+                         fun(SMRequest) -> escalus_pred:is_sm_ack_request(SMRequest) end],
+                        Resp),
+
+    % 3. Alice disconnects abruptly
+    C2SPid = mongoose_helper:get_session_pid(Alice),
+    escalus_connection:kill(Alice),
+    sm_helper:wait_until_resume_session(C2SPid),
+    sm_helper:assert_alive_resources(Alice, 1),
+
+    % 4. Alice reconnects
+    NewAlice = sm_helper:connect_same(Alice, session),
+
+    % We have to send presence by hand, because the message may be received first
+    sm_helper:send_initial_presence(NewAlice),
+    % Current behaviour - unacked stanza is rerouted when a quick reconnection occurs
+    % there is no delay element, or any indication of retransmission
+    NewResp = [_, _] = escalus_client:wait_for_stanzas(NewAlice, 2),
+    escalus:assert_many([fun(Msg) -> escalus_pred:is_chat_message_from_to(BobJid, AliceJid, Body, Msg) end,
+                         fun(Presence) -> escalus_pred:is_presence(Presence) end],
+                        NewResp),
+
+    AliceUsername = escalus_client:username(NewAlice),
+    AliceServer = escalus_client:server(NewAlice),
+
+    % There is only one message in MAM, even though it was resent
+    ?assertEqual(1, mam_helper:archive_size(AliceServer, AliceUsername)),
+
+    escalus_connection:stop(Bob),
+    escalus_connection:stop(Alice).
+
+reconnect_ack(Config) ->
+    % Connect Bob and Alice
+    Bob = sm_helper:connect_fresh(Config, bob, presence),
+    Alice = sm_helper:connect_fresh(Config, alice, sr_presence, manual),
+    AliceJid = escalus_client:full_jid(Alice),
+    BobJid = escalus_client:full_jid(Bob),
+    sm_helper:ack_initial_presence(Alice),
+
+    % 1. Bob sends a msg to Alice
+    Body = <<"OH, HAI! Msg 1">>,
+    escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
+    mam_helper:wait_for_archive_size(Alice, 1),
+
+    % 2. Alice receives, and acknowledges
+    Resp = [_, _] = escalus_client:wait_for_stanzas(Alice, 2),
+    escalus:assert_many([fun(Msg) -> escalus_pred:is_chat_message_from_to(BobJid, AliceJid, Body, Msg) end,
+                         fun(SMRequest) -> escalus_pred:is_sm_ack_request(SMRequest) end],
+                        Resp),
+    escalus_connection:send(Alice, escalus_stanza:sm_ack(2)),
+
+    % 3. Alice disconnects abruptly
+    C2SPid = mongoose_helper:get_session_pid(Alice),
+    escalus_connection:kill(Alice),
+    sm_helper:wait_until_resume_session(C2SPid),
+    sm_helper:assert_alive_resources(Alice, 1),
+
+    % 4. Alice reconnects
+    NewAlice = sm_helper:connect_same(Alice, presence),
+
+    % 5. Check no new messages received
+    timer:sleep(timer:seconds(1)),
+    escalus_assert:has_no_stanzas(NewAlice),
+
+    % No new messages in MAM as well
+    AliceUsername = escalus_client:username(NewAlice),
+    AliceServer = escalus_client:server(NewAlice),
+    ?assertEqual(1, mam_helper:archive_size(AliceServer, AliceUsername)),
+
+    escalus_connection:stop(Bob),
+    escalus_connection:stop(Alice).
+
+reconnect_no_ack_different_resource(Config) ->
+    %% Connect Bob and Alice
+    Bob = sm_helper:connect_fresh(Config, bob, presence),
+    Spec = escalus_fresh:create_fresh_user(Config, {alice, 2}),
+    Alice = sm_helper:connect_spec(Spec, sr_presence, manual),
+    AliceJid = escalus_client:full_jid(Alice),
+    BobJid = escalus_client:full_jid(Bob),
+    sm_helper:ack_initial_presence(Alice),
+
+    % 1. Bob sends a msg to Alice
+    Body = <<"OH, HAI! Msg 1">>,
+    escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
+    mam_helper:wait_for_archive_size(Alice, 1),
+
+    % 2. Alice receives, and does not acknowledge
+    Resp = [_, _] = escalus_client:wait_for_stanzas(Alice, 2),
+    escalus:assert_many([fun(Msg) -> escalus_pred:is_chat_message_from_to(BobJid, AliceJid, Body, Msg) end,
+                         fun(SMRequest) -> escalus_pred:is_sm_ack_request(SMRequest) end],
+                        Resp),
+
+    % 3. Alice disconnects abruptly
+    C2SPid = mongoose_helper:get_session_pid(Alice),
+    escalus_connection:kill(Alice),
+    sm_helper:wait_until_resume_session(C2SPid),
+    sm_helper:assert_alive_resources(Alice, 1),
+
+    % 4. Alice reconnects a different resource
+    NewAlice = sm_helper:connect_spec([{resource, <<"mam_sm_test_2nd_resource">>} | Spec], presence, manual),
+
+    % 2nd resource doesn't get the stanza, only the delayed presence.
+    Presence = escalus:wait_for_stanza(NewAlice),
+    escalus:assert(is_presence, Presence),
+
+    % 5. Check no new messages received
+    timer:sleep(timer:seconds(1)),
+    escalus_assert:has_no_stanzas(NewAlice),
+
+    % No new messages in MAM as well
+    AliceUsername = escalus_client:username(NewAlice),
+    AliceServer = escalus_client:server(NewAlice),
+    ?assertEqual(1, mam_helper:archive_size(AliceServer, AliceUsername)),
+
+    escalus_connection:stop(Bob),
+    escalus_connection:stop(Alice).
 
 %% This function supports only one device, one user.
 %% We don't send initial presence to avoid presence broadcasts between resources

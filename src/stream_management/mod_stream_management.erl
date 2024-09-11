@@ -352,8 +352,7 @@ maybe_notify_unacknowledged_msg(Acc, Jid) ->
 
 -spec notify_unacknowledged_msg(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 notify_unacknowledged_msg(Acc, Jid) ->
-    NewAcc = mongoose_hooks:unacknowledged_message(Acc, Jid),
-    mongoose_acc:strip(NewAcc).
+    mongoose_hooks:unacknowledged_message(Acc, Jid).
 
 -spec reroute_unacked_messages(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
