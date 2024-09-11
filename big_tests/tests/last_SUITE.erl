@@ -20,6 +20,9 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("jid/include/jid.hrl").
+%% Import LOCATION macro
+-include_lib("kernel/include/logger.hrl").
 
 -import(config_parser_helper, [mod_config_with_auto_backend/2]).
 
@@ -29,11 +32,13 @@
 
 all() ->
     [{group, valid_queries},
-     {group, invalid_queries}].
+     {group, invalid_queries},
+     {group, sessions_cleanup}].
 
 groups() ->
     [{valid_queries, [sequence], valid_test_cases()},
-     {invalid_queries, invalid_test_cases()}].
+     {invalid_queries, invalid_test_cases()},
+     {sessions_cleanup, [], [sessions_cleanup]}].
 
 valid_test_cases() -> [online_user_query,
                        last_online_user,
@@ -43,9 +48,11 @@ valid_test_cases() -> [online_user_query,
 invalid_test_cases() -> [user_not_subscribed_receives_error].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim, mim2]) ++ escalus:suite().
 
 init_per_suite(Config0) ->
+    mongoose_helper:inject_module(distributed_helper:mim2(), ?MODULE, reload),
+    distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config0),
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     dynamic_modules:ensure_modules(HostType, required_modules()),
@@ -68,6 +75,8 @@ init_per_group(valid_queries, Config0) ->
     mongoose_helper:kick_everyone(),
     Config2;
 init_per_group(invalid_queries, Config) ->
+    Config;
+init_per_group(sessions_cleanup, Config) ->
     Config.
 
 end_per_group(_GroupName, _Config) ->
@@ -170,41 +179,83 @@ user_not_subscribed_receives_error(Config) ->
         ok
     end).
 
-%% This test is disabled on CI, because it puts the system in an inconsistent state.
-%% The sessions are created with Pids from the test node, which is incorrect.
-%% This incorrectly generates 'sm_session' events, leading to inconsistent session count metrics.
+%% Runs sessions_cleanup and check if it was done by checking last_seen timestamp.
 sessions_cleanup(_Config) ->
-    N = distributed_helper:mim(),
+    %% 345 would test 3 types of insert queries (insert 1, 10, 100).
+    %% For load testing, increase NumberOfUsers to big number like 500000
+    %% and check "node cleanup" time.
+    NumberOfUsers = 345,
+    Node1 = distributed_helper:mim(),
+    Node2 = distributed_helper:mim2(),
+    #{node := Node2Atom} = Node2,
+    LongNode1 = Node1#{timeout => timer:minutes(1)},
+    LongNode2 = Node2#{timeout => timer:minutes(1)},
     HostType = domain_helper:host_type(),
     Server = domain_helper:domain(),
-    CreateUser = fun(Name) ->
-        SID = {erlang:system_time(microsecond), spawn(fun() -> ok end)},
-        JID = mongoose_helper:make_jid(Name, Server, <<"res">>),
-        Priority = 0,
-        Info = #{},
-        distributed_helper:rpc(N, ejabberd_sm, open_session, [HostType, SID, JID, Priority, Info])
-        end,
-    Names = [<<"user", (list_to_binary((integer_to_list(X))))/binary>> || X <- lists:seq(1, 345)],
-    measure("create users", fun() ->
-            lists:foreach(CreateUser, Names)
+    OldTS = 1714000000,
+    Jid3 = create_user_and_set_lastseen(Node1, Server, <<"user3">>, OldTS),
+    Sessions = measure("create users", fun() ->
+            distributed_helper:rpc(LongNode2, ?MODULE, create_sessions,
+                                   [HostType, Server, NumberOfUsers])
         end),
-    %% Check that user3 is properly updated
-    %% User should be registered if we want to use mod_last_api
-    {ok, _} = distributed_helper:rpc(N, mongoose_account_api, register_user, [<<"user3">>, Server, <<"secret123">>]),
-    Jid3 = mongoose_helper:make_jid(<<"user3">>, Server, <<>>),
-    {ok, _} = distributed_helper:rpc(N, mod_last_api, set_last, [Jid3, 1714000000, <<"old status">>]),
-    {ok, #{timestamp := 1714000000}} = distributed_helper:rpc(N, mod_last_api, get_last, [Jid3]),
+    NumberOfUsers = length(Sessions),
     measure("node cleanup", fun() ->
-            distributed_helper:rpc(N#{timeout => timer:minutes(1)}, mongoose_hooks, node_cleanup, [node()])
+            Res = distributed_helper:rpc(LongNode1, mongoose_hooks,
+                                         node_cleanup, [Node2Atom]),
+            ct:pal("node_cleanup result ~p", [Res])
         end),
-    {ok, #{timestamp := TS, status := Status} = Data} = distributed_helper:rpc(N, mod_last_api, get_last, [Jid3]),
-    ?assertNotEqual(TS, 1714000000, Data),
+    {ok, #{timestamp := TS, status := Status} = Data} =
+        distributed_helper:rpc(Node1, mod_last_api, get_last, [Jid3]),
+    ?assertNotEqual(TS, OldTS, Data),
     ?assertEqual(Status, <<>>, Data),
-    {ok, _} = distributed_helper:rpc(N, mongoose_account_api, unregister_user, [<<"user3">>, Server]).
+    {ok, _} = distributed_helper:rpc(Node1, mongoose_account_api, unregister_user,
+                                     [<<"user3">>, Server]),
+    measure("close sessions", fun() ->
+            distributed_helper:rpc(LongNode2, ?MODULE, close_sessions,
+                                   [HostType, Sessions])
+        end).
 
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
+
+create_sessions(HostType, Server, NumberOfUsers) ->
+    [create_session(HostType, Server, Num)
+     || Num <- lists:seq(1, NumberOfUsers)].
+
+close_sessions(HostType, Sessions) ->
+    lists:foreach(fun(Session) -> close_session(HostType, Session) end, Sessions).
+
+create_session(HostType, Server, Num) ->
+    Name = <<"user", (list_to_binary((integer_to_list(Num))))/binary>>,
+    SID = {erlang:system_time(microsecond), spawn(fun() -> ok end)},
+    JID = jid:make(Name, Server, <<"res">>),
+    Priority = 0,
+    Info = #{},
+    ejabberd_sm:open_session(HostType, SID, JID, Priority, Info),
+    #{sid => SID, jid => JID}.
+
+close_session(HostType, #{sid := SID, jid := JID}) ->
+    #jid{lserver = LServer} = JID,
+    Reason = normal,
+    Acc = mongoose_acc:new(#{location => ?LOCATION,
+                             host_type => HostType,
+                             lserver => LServer}),
+    Info = #{},
+    ejabberd_sm:close_session(Acc, SID, JID, Reason, Info).
+
+create_user_and_set_lastseen(Node, Server, User, TS) ->
+    Jid = mongoose_helper:make_jid(User, Server, <<>>),
+    %% User should be registered if we want to use mod_last_api
+    %% Check that user3's last seen timestamp is properly updated
+    {ok, _} = distributed_helper:rpc(Node, mongoose_account_api, register_user,
+                                     [User, Server, <<"secret123">>]),
+    {ok, _} = distributed_helper:rpc(Node, mod_last_api, set_last,
+                                     [Jid, TS, <<"old status">>]),
+    {ok, #{timestamp := TS}} =
+        distributed_helper:rpc(Node, mod_last_api, get_last, [Jid]),
+    Jid.
+
 get_last_activity(Stanza) ->
     S = exml_query:path(Stanza, [{element, <<"query">>}, {attr, <<"seconds">>}]),
     list_to_integer(binary_to_list(S)).
@@ -227,6 +278,6 @@ required_modules() ->
     [{mod_last, mod_config_with_auto_backend(mod_last, #{iqdisc => one_queue})}].
 
 measure(Text, F) ->
-    {Time, _} = timer:tc(F),
+    {Time, Val} = timer:tc(F),
     ct:pal("Time  ~ts = ~p", [Text, Time]),
-    ok.
+    Val.
