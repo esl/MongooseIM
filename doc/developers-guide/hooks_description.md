@@ -65,7 +65,7 @@ mongoose_hooks:filter_packet({From, To, Acc, Packet})
 mongoose_hooks:filter_local_packet({From, To, Acc, Packet})
 ```
 
-These hooks are run when the packet is being [routed](../Stanza-routing/#3-message-routing) by `ejaberd_router:route/4`, which is the most general function used to route stanzas across the entire cluster. For example, `mongoose_c2s` calls it after calling the `user_send_message` or `user_send_iq` hook, and multiple modules use it for sending replies and errors.
+These hooks are run when the packet is being [routed](Stanza-routing.md#3-message-routing) by `ejaberd_router:route/4`, which is the most general function used to route stanzas across the entire cluster. For example, `mongoose_c2s` calls it after calling the `user_send_message` or `user_send_iq` hook, and multiple modules use it for sending replies and errors.
 
 * `filter_packet` is run by `mongoose_router_global` for all routed packets. It is called at the start of the routing procedure.
 * `filter_local_packet` is run by `mongoose_local_delivery` when the packet is being routed to a domain hosted by the local server.

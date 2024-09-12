@@ -90,5 +90,5 @@ make xeplist
 
 ## Examples of generated content
 
-* [Markdown table](../../user-guide/Supported-XEPs/)
+* [Markdown table](../user-guide/Supported-XEPs.md)
 * [DOAP file](https://raw.githubusercontent.com/esl/MongooseDocs/gh-pages/latest/mongooseim.doap)

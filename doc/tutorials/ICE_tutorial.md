@@ -60,7 +60,7 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 ### Configuration
 
 You can find MongooseIM installation instructions on [this page](../getting-started/Quick-setup.md).
-Once you have it installed, you need to modify the [`mongooseim.toml`](../../configuration/configuration-files/#mongooseimtoml) config file:
+Once you have it installed, you need to modify the [`mongooseim.toml`](../configuration/configuration-files.md#mongooseimtoml) config file:
 ```toml
 [general]
   hosts = ["localhost", "myxmpp.com"]

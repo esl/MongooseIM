@@ -413,7 +413,7 @@ You know `mongooseimctl`, with basic server management commands such as:
 * `start`, `restart`, `stop`, `status`, `live`, `foreground`
 * `get_loglevel`
 
-Other commands shown above correspond to the [GraphQL Admin API](../../graphql-api/Admin-GraphQL/) operations, and they are grouped into the following categories:
+Other commands shown above correspond to the [GraphQL Admin API](../graphql-api/Admin-GraphQL.md) operations, and they are grouped into the following categories:
 
 * `account` contains `registerUser`, `checkUser`, `listUsers`, `removeUser`
 * `roster` contains `addContact`, `subscription`, `listContacts`, `setMutualSubscription`
