@@ -146,5 +146,5 @@ Run `./mongooseimctl domain` to get more information about all supported operati
 
 You can manage domains with one of our API's:
 
-* The [GraphQL API](../../graphql-api/Admin-GraphQL) has the same funtionality as the command line interface. The <a href="../../graphql-api/admin-graphql-doc.html#query-domain">queries</a> and <a href="../../graphql-api/admin-graphql-doc.html#mutation-domain">mutations</a> for domains are grouped under the `domain` category.
-* The [REST API](../../rest-api/Administration-backend) (deprecated) supports domain management as well. See <a href="../../swagger/index.html#/Dynamic_domains">Dynamic Domains</a> for details.
+* The [GraphQL API](../graphql-api/Admin-GraphQL.md) has the same funtionality as the command line interface. The <a href="../../graphql-api/admin-graphql-doc.html#query-domain">queries</a> and <a href="../../graphql-api/admin-graphql-doc.html#mutation-domain">mutations</a> for domains are grouped under the `domain` category.
+* The [REST API](../rest-api/Administration-backend.md) (deprecated) supports domain management as well. See <a href="../../swagger/index.html#/Dynamic_domains">Dynamic Domains</a> for details.

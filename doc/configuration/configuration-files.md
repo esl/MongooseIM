@@ -30,7 +30,7 @@ The section names above are links to the detailed documentation of each section.
 !!! Warning
     It is recommended to use the same configuration file for all nodes in the cluster, but there is no protection against using different option values for each node, because it can happen in two cases:
 
-    * During a [rolling upgrade](../../operation-and-maintenance/Rolling-upgrade) procedure, when nodes are restarted one by one with new configuration.
+    * During a [rolling upgrade](../operation-and-maintenance/Rolling-upgrade.md) procedure, when nodes are restarted one by one with new configuration.
     * When you need different network-specific parameters (e.g. listening IP addresses) for each node.
 
 ## vm.args

@@ -19,7 +19,7 @@ Next, depending on the type of the stanza, one of the following hooks is called:
 * `user_send_iq` for IQ (info/query) stanzas,
 * `user_send_xmlel` for other XML elements.
 
-Each hook can be handled by multiple modules subscribed to it. Those modules do various complementary tasks, like storing the message in an archive, sending carbon copies, checking the stanza against privacy lists etc. It is possible for a handler to immediately stop routing at this point, preventing execution of any subsequent handlers or hooks. See [hooks description](../hooks_description/#hooks-called-for-session_established) for more information.
+Each hook can be handled by multiple modules subscribed to it. Those modules do various complementary tasks, like storing the message in an archive, sending carbon copies, checking the stanza against privacy lists etc. It is possible for a handler to immediately stop routing at this point, preventing execution of any subsequent handlers or hooks. See [hooks description](hooks_description.md#hooks-called-for-session_established) for more information.
 
 ## 3. Message routing
 
@@ -28,7 +28,7 @@ The stanza is routed by `ejabberd_router:route/3`, which passes it through a cha
 1. `Mod:filter/3`, which either drops the stanza, stopping the routing chain, or returns it for further processing, modifying it if necessary.
 2. `Mod:route/3`, which either handles the stanza, stopping the routing chain, or returns it for further processing, modifying it if necessary.
 
-A list of routing modules can be set in the [`routing_modules`](../../configuration/general#generalrouting_modules) option.
+A list of routing modules can be set in the [`routing_modules`](../configuration/general.md#generalrouting_modules) option.
 The default behaviour is the following:
 
 * `mongoose_router_global`: runs a global `filter_packet` hook.
