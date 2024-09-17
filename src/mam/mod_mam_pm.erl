@@ -49,7 +49,8 @@
          filter_packet/3,
          remove_user/3,
          determine_amp_strategy/3,
-         sm_filter_offline_message/3]).
+         sm_filter_offline_message/3,
+         filter_unacknowledged_messages/3]).
 
 %% ejabberd handlers
 -export([process_mam_iq/5]).
@@ -272,6 +273,11 @@ get_personal_data(Acc, #{jid := ArcJID}, #{host_type := HostType}) ->
     Schema = ["id", "from", "message"],
     Entries = mongoose_hooks:get_mam_pm_gdpr_data(HostType, ArcJID),
     {ok, [{mam_pm, Schema, Entries} | Acc]}.
+
+-spec filter_unacknowledged_messages(Buffer :: [mongoose_acc:t()], Params :: map(), Extra :: map()) ->
+    {ok, [mongoose_acc:t()]}.
+filter_unacknowledged_messages(Buffer, _, _) ->
+    {ok, [acc_with_perm_mam_id(Acc) || Acc <- Buffer]}.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -531,6 +537,15 @@ return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc) ->
         true -> mongoose_acc:set_permanent(mam, mam_id, ExtMessId, Acc)
     end.
 
+-spec acc_with_perm_mam_id(Acc :: mongoose_acc:t()) -> Acc :: mongoose_acc:t().
+acc_with_perm_mam_id(Acc) ->
+    case mongoose_acc:get(mam, mam_id, undefined, Acc) of
+        undefined ->
+            Acc;
+        MamID ->
+            mongoose_acc:set_permanent(mam, mam_id, MamID, Acc)
+    end.
+
 is_interesting(LocJID, RemJID) ->
     HostType = jid_to_host_type(LocJID),
     ArcID = archive_id_int(HostType, LocJID),
@@ -732,7 +747,8 @@ hooks(HostType) ->
         {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 20},
         {sm_filter_offline_message, HostType, fun ?MODULE:sm_filter_offline_message/3, #{}, 50},
-        {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
+        {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50},
+        {filter_unacknowledged_messages, HostType, fun ?MODULE:filter_unacknowledged_messages/3, #{}, 50}
     ].
 
 add_iq_handlers(HostType, Opts) ->
