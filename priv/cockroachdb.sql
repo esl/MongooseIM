@@ -15,6 +15,7 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 --
+
 USE mongooseim;
 
 CREATE TYPE test_enum_char AS ENUM('A','B', 'C');
@@ -140,13 +141,13 @@ CREATE TABLE privacy_list (
     server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     name text NOT NULL,
-    id UUID UNIQUE DEFAULT gen_random_uuid(),
+    id SERIAL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     PRIMARY KEY (server, username, name)
 );
 
 CREATE TABLE privacy_list_data (
-    id UUID REFERENCES privacy_list(id) ON DELETE CASCADE,
+    id bigint REFERENCES privacy_list(id) ON DELETE CASCADE,
     t character(1) NOT NULL,
     value text NOT NULL,
     action character(1) NOT NULL,
@@ -215,7 +216,7 @@ CREATE TABLE mam_config(
 );
 
 CREATE TABLE mam_server_user(
-  id UUID UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
+  id SERIAL UNIQUE PRIMARY KEY,
   server    varchar(250) NOT NULL,
   user_name varchar(250) NOT NULL
 );
@@ -244,7 +245,7 @@ CREATE INDEX i_mam_muc_message_sender_id ON mam_muc_message USING BTREE (sender_
 CREATE INDEX i_mam_muc_message_room_id_sender_id_origin_id ON mam_muc_message USING BTREE (room_id, sender_id, origin_id);
 
 CREATE TABLE offline_message(
-    id UUID UNIQUE PRIMARY Key DEFAULT gen_random_uuid(),
+    id SERIAL UNIQUE PRIMARY Key,
     timestamp BIGINT NOT NULL,
     expire    BIGINT,
     server    varchar(250)    NOT NULL,
@@ -264,27 +265,27 @@ CREATE TABLE auth_token(
 );
 
 CREATE TABLE muc_light_rooms(
-    id UUID              NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-    luser VARCHAR(250)   NOT NULL,
-    lserver VARCHAR(250) NOT NULL,
-    version VARCHAR(20)  NOT NULL,
+    id BIGSERIAL            NOT NULL UNIQUE,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    version VARCHAR(20)     NOT NULL,
     PRIMARY KEY (lserver, luser)
 );
 
 CREATE TABLE muc_rooms(
-    id UUID                 NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    id BIGSERIAL            NOT NULL UNIQUE,
     muc_host VARCHAR(250)   NOT NULL,
-    room_name VARCHAR(250)  NOT NULL,
+    room_name VARCHAR(250)       NOT NULL,
     options JSON            NOT NULL,
     PRIMARY KEY (muc_host, room_name)
 );
 
 CREATE TABLE muc_room_aff(
-    room_id UUID          NOT NULL REFERENCES muc_rooms(id),
-    luser VARCHAR(250)    NOT NULL,
-    lserver VARCHAR(250)  NOT NULL,
-    resource VARCHAR(250) NOT NULL,
-    aff SMALLINT          NOT NULL
+    room_id BIGINT          NOT NULL REFERENCES muc_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    resource VARCHAR(250)   NOT NULL,
+    aff SMALLINT            NOT NULL
 );
 
 CREATE INDEX i_muc_room_aff_id ON muc_room_aff (room_id);
@@ -298,17 +299,17 @@ CREATE TABLE muc_registered(
 );
 
 CREATE TABLE muc_light_occupants(
-    room_id UUID         NOT NULL REFERENCES muc_light_rooms(id),
-    luser VARCHAR(250)   NOT NULL,
-    lserver VARCHAR(250) NOT NULL,
-    aff SMALLINT         NOT NULL
+    room_id BIGINT          NOT NULL REFERENCES muc_light_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    aff SMALLINT            NOT NULL
 );
 
 CREATE INDEX i_muc_light_occupants_id ON muc_light_occupants (room_id);
 CREATE INDEX i_muc_light_occupants_us ON muc_light_occupants (lserver, luser);
 
 CREATE TABLE muc_light_config(
-    room_id UUID            NOT NULL REFERENCES muc_light_rooms(id),
+    room_id BIGINT          NOT NULL REFERENCES muc_light_rooms(id),
     opt VARCHAR(100)        NOT NULL,
     val VARCHAR(250)        NOT NULL
 );
@@ -341,7 +342,7 @@ CREATE INDEX i_inbox_us_box ON inbox USING BTREE(lserver, luser, box);
 CREATE INDEX i_inbox_box ON inbox (box) WHERE (box = 'bin');
 
 CREATE TABLE pubsub_nodes (
-    nidx               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nidx               BIGSERIAL PRIMARY KEY,
     p_key VARCHAR(250) NOT NULL,
     name VARCHAR(250)  NOT NULL,
     type VARCHAR(250)  NOT NULL,
@@ -466,7 +467,7 @@ CREATE TABLE domain_admins(
 -- Mapping from domain hostname to host_type.
 -- Column id is used for ordering only.
 CREATE TABLE domain_settings (
-    id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    id BIGSERIAL NOT NULL UNIQUE,
     domain VARCHAR(250) NOT NULL,
     host_type VARCHAR(250) NOT NULL,
     status SMALLINT NOT NULL DEFAULT 1,
@@ -478,7 +479,7 @@ CREATE TABLE domain_settings (
 -- inserted, enabled or disabled.
 -- Column id is used for ordering and not related to domain_settings.id.
 CREATE TABLE domain_events (
-    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    id BIGSERIAL NOT NULL,
     domain VARCHAR(250) NOT NULL,
     PRIMARY KEY(id)
 );
