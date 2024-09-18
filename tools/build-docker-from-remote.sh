@@ -24,6 +24,3 @@ docker rm -f $CID
 
 # Build a final image
 docker build -f Dockerfile.member -t mongooseim .
-
-cd ..
-rm -rf mongooseim-docker
