@@ -17,7 +17,7 @@ if [ -n "$CIRCLE_PULL_REQUEST" ]; then
     # TODO: Possibly change it to something else during Tide integration
     PR_NUMBER=${CIRCLE_PULL_REQUEST##*/}
     DOCKERHUB_TAG="PR-${PR_NUMBER}"
-elif [ ${CIRCLE_BRANCH} == 'master' ]; then
+elif [ "${CIRCLE_BRANCH}" == 'master' ]; then
     DOCKERHUB_TAG="latest";
 fi
 
@@ -25,6 +25,13 @@ echo "Tag: ${DOCKERHUB_TAG}"
 
 export IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
 
-git clone https://github.com/esl/mongooseim-docker.git
-cd mongooseim-docker
-git checkout $MIM_DOCKER_VERSION
+if [ -d mongooseim-docker ]; then
+    # We already have mongooseim-docker, just fetch the required version
+    cd mongooseim-docker
+    git fetch
+    git checkout "$MIM_DOCKER_VERSION"
+else
+    git clone https://github.com/esl/mongooseim-docker.git
+    cd mongooseim-docker
+    git checkout "$MIM_DOCKER_VERSION"
+fi
