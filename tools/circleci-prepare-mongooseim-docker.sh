@@ -23,7 +23,7 @@ fi
 
 echo "Tag: ${DOCKERHUB_TAG}"
 
-export IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
+export IMAGE_TAG=${DOCKERHUB_ORG}/${DOCKERHUB_REPO}:${DOCKERHUB_TAG}
 
 if [ -d mongooseim-docker ]; then
     # We already have mongooseim-docker, just fetch the required version

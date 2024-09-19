@@ -41,14 +41,14 @@ The following sections describe the installation process for different operating
 In order to install MongooseIM using Docker, simply run the following command:
 
 ```bash
-docker pull mongooseim/mongooseim
+docker pull erlangsolutions/mongooseim
 ```
 
 This will download the latest release.
 You can use tags to download an exact version.
 
 We build Docker images for every release marked with a git tag, as well as for every Pull Request.
-You can see all of them on [DockerHub](https://hub.docker.com/r/mongooseim/mongooseim).
+You can see all of them on [DockerHub](https://hub.docker.com/r/erlangsolutions/mongooseim).
 In order to learn more about how the images are built, please visit the [source code repository](https://github.com/esl/mongooseim-docker).
 
 The `mongooseimctl` command is available in `/usr/lib/mongooseim/bin/mongooseimctl` in the container.

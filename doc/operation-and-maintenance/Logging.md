@@ -260,7 +260,7 @@ Run MongooseIM daemon:
 
 ```bash
 docker run -d -t -h mongooseim -v mongooseim-logs:/usr/lib/mongooseim/log \
-    --network logging --name mongooseim -p 5222:5222 mongooseim/mongooseim:latest
+    --network logging --name mongooseim -p 5222:5222 erlangsolutions/mongooseim:latest
 ```
 
 The next part is based on [Filebeat's docs](https://www.elastic.co/guide/en/beats/filebeat/current/running-on-docker.html).

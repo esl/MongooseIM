@@ -32,7 +32,7 @@ extra:
     provider: mike
   social:
     - icon: fontawesome/brands/docker
-      link: https://hub.docker.com/r/mongooseim/mongooseim/
+      link: https://hub.docker.com/r/erlangsolutions/mongooseim/
     - icon: fontawesome/brands/github
       link: https://github.com/esl/MongooseIM
 plugins:
