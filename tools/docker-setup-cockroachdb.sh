@@ -1,7 +1,7 @@
 #!/bin/bash
 
 certs_dir="certs"
-lifetime="--lifetime=1h"
+lifetime="--lifetime=10h"
 default_listen_addr_host="127.0.0.1"
 advertise_addr_host=$default_listen_addr_host
 

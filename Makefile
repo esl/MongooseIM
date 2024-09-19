@@ -59,7 +59,7 @@ $(DEVNODES): certs configure.out rel/vars-toml.config
 
 maybe_clean_certs:
 	if [ "$$SKIP_CERT_BUILD" != 1 ]; then \
-		if ! openssl x509 -checkend 3600 -noout -in tools/ssl/ca/cacert.pem ; then \
+		if ! openssl x509 -checkend 36000 -noout -in tools/ssl/ca/cacert.pem ; then \
 			cd tools/ssl && make clean_certs; \
 		fi \
 	fi
