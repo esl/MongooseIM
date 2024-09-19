@@ -22,6 +22,14 @@ Alternatively, it is possible to build a docker image based on any commit availa
 ./tools/build-docker-from-remote.sh $COMMIT_HASH
 ```
 
+Check the image information:
+
+```bash
+docker inspect docker.io/library/mongooseim
+```
+
+You can also push `"docker.io/library/mongooseim"` to some registry.
+
 ## Running docker image
 
 Full tutorial on running a docker image is available on [mongooseim-docker](https://github.com/esl/mongooseim-docker) GitHub. Here only simple and one-node configuration will be presented. In order to run it execute:
