@@ -637,7 +637,9 @@ all_modules() ->
                                               resume_timeout => 600,
                                               stale_h => #{enabled => true,
                                                            geriatric => 3600,
-                                                           repeat_after => 1800}})
+                                                           repeat_after => 1800}}),
+      mod_fast =>
+          mod_config(mod_fast, #{})
     }.
 
 custom_mod_event_pusher_http() ->

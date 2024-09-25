@@ -21,7 +21,8 @@ load_all_sasl2_modules(HostType) ->
                {mod_sasl2, default_mod_config(mod_sasl2)},
                {mod_csi, default_mod_config(mod_csi)},
                {mod_carboncopy, default_mod_config(mod_carboncopy)},
-               {mod_stream_management, mod_config(mod_stream_management, SMOpts)}],
+               {mod_stream_management, mod_config(mod_stream_management, SMOpts)},
+               {mod_fast, default_mod_config(mod_fast)}],
     dynamic_modules:ensure_modules(HostType, Modules).
 
 apply_steps(Steps, Config) ->
