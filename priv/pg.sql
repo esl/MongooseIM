@@ -499,3 +499,24 @@ CREATE TABLE caps (
     features text NOT NULL,
     PRIMARY KEY (node, sub_node)
 );
+
+-- XEP-0484: Fast Authentication Streamlining Tokens
+-- Module: mod_fast
+CREATE TABLE fast_tokens(
+     server VARCHAR(250) NOT NULL,
+     username VARCHAR(250) NOT NULL,
+     -- Device installation ID (User-Agent ID)
+     -- Unique for each device
+     -- https://xmpp.org/extensions/xep-0388.html#initiation
+     user_agent_id VARCHAR(250) NOT NULL,
+
+     -- slots
+     current_token VARCHAR(250) NOT NULL,
+     current_expire BIGINT NOT NULL, -- seconds unix timestamp
+     current_count INT NOT NULL, -- replay counter
+
+     new_token VARCHAR(250) NOT NULL,
+     new_expire BIGINT NOT NULL, -- seconds unix timestamp
+     new_count INT NOT NULL,
+     PRIMARY KEY(server, username, user_agent_id)
+);

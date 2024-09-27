@@ -65,6 +65,7 @@ mechanisms() ->
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
+    ?LOG_ERROR(#{what => sasl2_startttt, elleee => El, sasla_acc => SaslAcc}),
     AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
     SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
     case exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}]) of
@@ -82,21 +83,52 @@ sasl2_start(SaslAcc, #{stanza := El}, _) ->
 
 -spec sasl2_success(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
-sasl2_success(SaslAcc, _, #{host_type := HostType}) ->
+sasl2_success(SaslAcc, C2SStateData, #{host_type := HostType}) ->
+    #{c2s_data := C2SData} = C2SStateData,
+    #jid{luser = LUser, lserver = LServer} = mongoose_c2s:get_jid(C2SData),
     case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
         undefined ->
             {ok, SaslAcc};
         #{request := Request} ->
             AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
             %% Attach Token to the response to be used to authentificate
-            Response = make_fast_token_response(Request, AgentId),
+            Response = make_fast_token_response(HostType, LServer, LUser, Request, AgentId),
             SaslAcc2 = mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Response, success),
             {ok, SaslAcc2}
     end.
 
-make_fast_token_response(Request, AgentId) ->
-    Expire = <<"2020-03-12T14:36:15Z">>,
-    Token = <<"WXZzciBwYmFmdmZnZiBqdmd1IGp2eXFhcmZm">>,
+%% Generate expirable auth token and store it in DB
+make_fast_token_response(HostType, LServer, LUser, Request, AgentId) ->
+    TTLSeconds = 100000,
+    NowTS = utc_now_as_seconds(),
+    ExpireTS = NowTS + TTLSeconds,
+    Expire = seconds_to_datetime(ExpireTS),
+    Token = base64:encode(crypto:strong_rand_bytes(25)),
+    store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token),
     #xmlel{name = <<"token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST}, {<<"expire">>, Expire},
                     {<<"token">>, Token}]}.
+
+utc_now_as_seconds() ->
+    datetime_to_seconds(calendar:universal_time()).
+
+-spec datetime_to_seconds(calendar:datetime()) -> non_neg_integer().
+datetime_to_seconds(DateTime) ->
+    calendar:datetime_to_gregorian_seconds(DateTime).
+
+-spec seconds_to_datetime(non_neg_integer()) -> calendar:datetime().
+seconds_to_datetime(Seconds) ->
+    calendar:gregorian_seconds_to_datetime(Seconds).
+
+-spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: binary(),
+        ExpireTS :: integer(),
+        Token :: binary().
+store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) ->
+    ?LOG_ERROR(#{what => store_new_token, host_type => HostType,
+                 lserver => LServer, luser => LUser,
+                 expire_ts => ExpireTS, token => Token, agent_id => AgentId}),
+    ok.
