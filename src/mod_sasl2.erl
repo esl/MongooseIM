@@ -36,7 +36,8 @@
 -export([get_inline_request/2, get_inline_request/3, put_inline_request/3,
          append_inline_response/3, update_inline_request/4,
          get_state_data/1, set_state_data/2,
-         request_block_future_stream_features/1]).
+         request_block_future_stream_features/1,
+         get_mod_state/1]).
 
 -type maybe_binary() :: undefined | binary().
 -type status() :: pending | success | failure.

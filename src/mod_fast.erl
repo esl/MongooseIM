@@ -51,25 +51,32 @@ fast() ->
            children = mechanisms_elems(mechanisms())}.
 
 mechanisms_elems(Mechs) ->
-    [#xmlel{name = <<"fast">>,
+    [#xmlel{name = <<"mechanism">>,
            children = [#xmlcdata{content = Mech}]} || Mech <- Mechs].
 
 mechanisms() ->
-    [<<"HT-SHA-256-ENDP">>, <<"HT-SHA-256-EXPR">>, <<"HT-SHA-256-NONE">>].
+    %% Mechanisms described in
+    %% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html
+    [% <<"HT-SHA-256-ENDP">>,
+     % <<"HT-SHA-256-EXPR">>,
+     %% Channel binding: none
+     <<"HT-SHA-256-NONE">>].
 
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
+    AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
+    SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
     case exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}]) of
         undefined ->
-            {ok, SaslAcc};
+            {ok, SaslAcc2};
         Request ->
             Mech = exml_query:attr(Request, <<"mechanism">>),
             case Mech of
-                <<"HT-SHA-256-ENDP">> ->
-                    {ok, mod_sasl2:put_inline_request(SaslAcc, ?MODULE, Request)};
+                <<"HT-SHA-256-NONE">> ->
+                    {ok, mod_sasl2:put_inline_request(SaslAcc2, ?MODULE, Request)};
                 _ ->
-                     {ok, SaslAcc}
+                     {ok, SaslAcc2}
             end
     end.
 
@@ -80,12 +87,14 @@ sasl2_success(SaslAcc, _, #{host_type := HostType}) ->
         undefined ->
             {ok, SaslAcc};
         #{request := Request} ->
-            Response = make_fast_token_response(Request),
+            AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
+            %% Attach Token to the response to be used to authentificate
+            Response = make_fast_token_response(Request, AgentId),
             SaslAcc2 = mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Response, success),
             {ok, SaslAcc2}
     end.
 
-make_fast_token_response(Request) ->
+make_fast_token_response(Request, AgentId) ->
     Expire = <<"2020-03-12T14:36:15Z">>,
     Token = <<"WXZzciBwYmFmdmZnZiBqdmd1IGp2eXFhcmZm">>,
     #xmlel{name = <<"token">>,

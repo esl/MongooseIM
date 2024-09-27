@@ -9,6 +9,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
 -define(NS_SASL_2, <<"urn:xmpp:sasl:2">>).
+-define(NS_BIND_2, <<"urn:xmpp:bind:0">>).
 -define(NS_FAST, <<"urn:xmpp:fast:0">>).
 
 %%--------------------------------------------------------------------
@@ -77,20 +78,98 @@ server_announces_fast(Config) ->
 request_token_with_initial_authentication(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
              receive_features, has_no_more_stanzas],
-    #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
+    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
     Expire = exml_query:attr(Fast, <<"expire">>),
     Token = exml_query:attr(Fast, <<"token">>),
-    ct:fail({Expire, Token}).
+    auth_with_token(Token, Config, Spec),
+    ok.
+%   ct:fail({Expire, Token}).
 
 auth_and_request_token(Config, Client, Data) ->
-    Extra = [request_token()],
-    bind2_SUITE:plain_auth(Config, Client, Data, [], Extra).
+    Extra = [request_token(), user_agent()],
+    auth_with_method(Config, Client, Data, [], Extra, <<"PLAIN">>).
 
-%% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-ENDP'/>
+auth_using_token(Config, Client, Data) ->
+    Extra = [user_agent()],
+    auth_with_method(Config, Client, Data, [], Extra, <<"HT-SHA-256-NONE">>).
+
+%% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
 request_token() ->
     #xmlel{name = <<"request-token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST},
-                    {<<"mechanism">>, <<"HT-SHA-256-ENDP">>}]}.
+                    {<<"mechanism">>, <<"HT-SHA-256-NONE">>}]}.
+
+auth_with_token(Token, Config, Spec) ->
+    Spec2 = [{secret_token, Token} | Spec],
+    Steps = [connect_tls, start_stream_get_features,
+             {?MODULE, auth_using_token},
+             receive_features, has_no_more_stanzas],
+    Data = #{spec => Spec2},
+    #{answer := Success} = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
+    ?assertMatch(#xmlel{name = <<"success">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success).
+
+user_agent() ->
+  #xmlel{name = <<"user-agent">>,
+         attrs = [{<<"id">>, <<"d4565fa7-4d72-4749-b3d3-740edbf87770">>}],
+         children = [cdata_elem(<<"software">>, <<"AwesomeXMPP">>),
+                     cdata_elem(<<"device">>, <<"Kiva's Phone">>)]}.
+
+cdata_elem(Name, Value) ->
+    #xmlel{name = Name,
+           children = [#xmlcdata{content = Value}]}.
+
+%% See bind2_SUITE:plain_auth
+auth_with_method(_Config, Client, Data, BindElems, Extra, Method) ->
+    %% we need proof of posesion mechanism
+    InitEl = case Method of
+        <<"PLAIN">> ->
+            sasl2_helper:plain_auth_initial_response(Client);
+        <<"HT-SHA-256-NONE">> ->
+            ht_auth_initial_response(Client)
+        end,
+    BindEl = #xmlel{name = <<"bind">>,
+                  attrs = [{<<"xmlns">>, ?NS_BIND_2}],
+                  children = BindElems},
+    Authenticate = auth_elem(Method, [InitEl, BindEl | Extra]),
+    escalus:send(Client, Authenticate),
+    Answer = escalus_client:wait_for_stanza(Client),
+    ct:pal("Answer ~p", [Answer]),
+    Identifier = exml_query:path(Answer, [{element, <<"authorization-identifier">>}, cdata]),
+    #jid{lresource = LResource} = jid:from_binary(Identifier),
+    {Client, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}.
+
+auth_elem(Mech, Children) ->
+    #xmlel{name = <<"authenticate">>,
+           attrs = [{<<"xmlns">>, ?NS_SASL_2}, {<<"mechanism">>, Mech}],
+           children = Children}.
+
+%% Creates "Initiator First Message"
+%% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html#section-3.1
+%%
+%% The HT mechanism starts with the initiator-msg, send by the initiator to the
+%% responder. The following lists the ABNF grammar for the initiator-msg:
+%%
+%% initiator-msg = authcid NUL initiator-hashed-token
+%% authcid = 1*SAFE ; MUST accept up to 255 octets
+%% initiator-hashed-token = 1*OCTET
+%%
+%% NUL    = %0x00 ; The null octet
+%% SAFE   = UTF8-encoded string
+ht_auth_initial_response(#client{props = Props}) ->
+    %% authcid is the username before "@" sign.
+    Username = proplists:get_value(username, Props),
+    Token = proplists:get_value(secret_token, Props),
+    CBData = <<>>,
+    ToHash = <<"Initiator", CBData/binary>>,
+    InitiatorHashedToken = crypto:mac(hmac, sha256, Token, ToHash),
+    Payload = <<Username/binary, 0, InitiatorHashedToken/binary>>,
+    initial_response_elem(Payload).
+
+initial_response_elem(Payload) ->
+    Encoded = base64:encode(Payload),
+    #xmlel{name = <<"initial-response">>,
+           children = [#xmlcdata{content = Encoded}]}.
