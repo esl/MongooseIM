@@ -44,24 +44,49 @@ mech_step(#state{creds = Creds, agent_id = AgentId}, SerializedToken) ->
     case mod_fast:read_tokens(HostType, LServer, LUser, AgentId) of
         {ok, TokenData} ->
             ?LOG_ERROR(#{what => mech_step, token_data => TokenData}),
-            {error, <<"not-authorized">>};
+            CBData = <<>>,
+            case handle_auth(TokenData, InitiatorHashedToken, CBData) of
+                true ->
+                    {ok, mongoose_credentials:extend(Creds,
+                                                     [{username, LUser},
+                                                      {auth_module, ?MODULE}])};
+                false ->
+                    {error, <<"not-authorized">>}
+            end;
         {error, _Reason} ->
             {error, <<"not-authorized">>}
     end.
-%   case mod_auth_token:authenticate(HostType, SerializedToken) of
-%       % Validating access token
-%       {ok, AuthModule, User} ->
-%           {ok, mongoose_credentials:extend(Creds,
-%                                            [{username, User},
-%                                             {auth_module, AuthModule}])};
-%       % Validating refresh token and returning new tokens
-%       {ok, AuthModule, User, AccessToken} ->
-%           {ok, mongoose_credentials:extend(Creds,
-%                                            [{username, User},
-%                                             {auth_module, AuthModule},
-%                                             {sasl_success_response, AccessToken}])};
-%       {error, {Username, _}} ->
-%           {error, <<"not-authorized">>, Username};
-%       {error, _Reason} ->
-%           {error, <<"not-authorized">>}
-%   end.
+
+
+%% For every client using FAST, have two token slots - 'current' and 'new'.
+%% Whenever generating a new token, always place it into the 'new' slot.
+%% During authentication, first check against the token
+%% in the 'new' slot (if any).
+%% If successful, move the token from the 'new' slot to the 'current' slot
+%% (overwrite any existing token in that slot).
+%%
+%% If the client's provided token does not match the token in the 'new' slot,
+%% or if the 'new' slot is empty, compare against the token
+%% in the 'current' slot (if any).
+handle_auth(#{
+        now_timestamp := NowTimestamp,
+        current_token := CurrentToken,
+        current_expire := CurrentExpire,
+        current_count := CurrentCount,
+        new_token := NewToken,
+        new_expire := NewExpire,
+        new_count := NewCount
+    }, InitiatorHashedToken, CBData) ->
+    ToHash = <<"Initiator", CBData/binary>>,
+    Token1 = {NewToken, NewExpire, NewCount},
+    Token2 = {CurrentToken, CurrentExpire, CurrentCount},
+    Shared = {NowTimestamp, ToHash, InitiatorHashedToken},
+    case check_token(Token1, Shared) of
+        true ->
+            true;
+        false ->
+            check_token(Token2, Shared)
+    end.
+
+check_token({Token, Expire, Count}, {NowTimestamp, ToHash, InitiatorHashedToken}) ->
+    crypto:mac(hmac, sha256, Token, ToHash) =:= InitiatorHashedToken.

@@ -105,7 +105,8 @@ make_fast_token_response(HostType, LServer, LUser, Request, AgentId) ->
     NowTS = utc_now_as_seconds(),
     ExpireTS = NowTS + TTLSeconds,
     Expire = seconds_to_binary(ExpireTS),
-    Token = base64:encode(crypto:strong_rand_bytes(25)),
+%   Token = base64:encode(crypto:strong_rand_bytes(25)),
+    Token = <<"WXZzciBwYmFmdmZnZiBqdmd1IGp2eXFhcmZm">>,
     store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token),
     #xmlel{name = <<"token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST}, {<<"expire">>, Expire},
@@ -140,6 +141,7 @@ read_tokens(HostType, LServer, LUser, AgentId) ->
     ?LOG_ERROR(#{what => read_tokens, host_type => HostType,
                  lserver => LServer, luser => LUser, agent_id => AgentId}),
     Data = #{
+        now_timestamp => utc_now_as_seconds(),
         current_token => <<"WXZzciBwYmFmdmZnZiBqdmd1IGp2eXFhcmZm">>,
         current_expire => utc_now_as_seconds() + 1000000,
         current_count => 0,
