@@ -39,20 +39,29 @@ mech_step(#state{creds = Creds, agent_id = AgentId}, SerializedToken) ->
     ?LOG_ERROR(#{what => cyrsasl_ht_sha256_none, creds => Creds, ser_token => SerializedToken, parts => Parts, agent_id => AgentId}),
     [Username, InitiatorHashedToken] = Parts,
     HostType = mongoose_credentials:host_type(Creds),
-    case mod_auth_token:authenticate(HostType, SerializedToken) of
-        % Validating access token
-        {ok, AuthModule, User} ->
-            {ok, mongoose_credentials:extend(Creds,
-                                             [{username, User},
-                                              {auth_module, AuthModule}])};
-        % Validating refresh token and returning new tokens
-        {ok, AuthModule, User, AccessToken} ->
-            {ok, mongoose_credentials:extend(Creds,
-                                             [{username, User},
-                                              {auth_module, AuthModule},
-                                              {sasl_success_response, AccessToken}])};
-        {error, {Username, _}} ->
-            {error, <<"not-authorized">>, Username};
+    LServer = mongoose_credentials:lserver(Creds),
+    LUser = jid:nodeprep(Username),
+    case mod_fast:read_tokens(HostType, LServer, LUser, AgentId) of
+        {ok, TokenData} ->
+            ?LOG_ERROR(#{what => mech_step, token_data => TokenData}),
+            {error, <<"not-authorized">>};
         {error, _Reason} ->
             {error, <<"not-authorized">>}
     end.
+%   case mod_auth_token:authenticate(HostType, SerializedToken) of
+%       % Validating access token
+%       {ok, AuthModule, User} ->
+%           {ok, mongoose_credentials:extend(Creds,
+%                                            [{username, User},
+%                                             {auth_module, AuthModule}])};
+%       % Validating refresh token and returning new tokens
+%       {ok, AuthModule, User, AccessToken} ->
+%           {ok, mongoose_credentials:extend(Creds,
+%                                            [{username, User},
+%                                             {auth_module, AuthModule},
+%                                             {sasl_success_response, AccessToken}])};
+%       {error, {Username, _}} ->
+%           {error, <<"not-authorized">>, Username};
+%       {error, _Reason} ->
+%           {error, <<"not-authorized">>}
+%   end.

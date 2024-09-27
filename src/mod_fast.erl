@@ -18,6 +18,8 @@
          sasl2_start/3,
          sasl2_success/3]).
 
+-export([read_tokens/4]).
+
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     ok.
@@ -102,12 +104,17 @@ make_fast_token_response(HostType, LServer, LUser, Request, AgentId) ->
     TTLSeconds = 100000,
     NowTS = utc_now_as_seconds(),
     ExpireTS = NowTS + TTLSeconds,
-    Expire = seconds_to_datetime(ExpireTS),
+    Expire = seconds_to_binary(ExpireTS),
     Token = base64:encode(crypto:strong_rand_bytes(25)),
     store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token),
     #xmlel{name = <<"token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST}, {<<"expire">>, Expire},
                     {<<"token">>, Token}]}.
+
+-spec seconds_to_binary(integer()) -> binary().
+seconds_to_binary(Secs) ->
+    Opts = [{offset, "Z"}, {unit, second}],
+    list_to_binary(calendar:system_time_to_rfc3339(Secs, Opts)).
 
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
@@ -115,10 +122,6 @@ utc_now_as_seconds() ->
 -spec datetime_to_seconds(calendar:datetime()) -> non_neg_integer().
 datetime_to_seconds(DateTime) ->
     calendar:datetime_to_gregorian_seconds(DateTime).
-
--spec seconds_to_datetime(non_neg_integer()) -> calendar:datetime().
-seconds_to_datetime(Seconds) ->
-    calendar:gregorian_seconds_to_datetime(Seconds).
 
 -spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) -> ok
    when HostType :: mongooseim:host_type(),
@@ -132,3 +135,16 @@ store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) ->
                  lserver => LServer, luser => LUser,
                  expire_ts => ExpireTS, token => Token, agent_id => AgentId}),
     ok.
+
+read_tokens(HostType, LServer, LUser, AgentId) ->
+    ?LOG_ERROR(#{what => read_tokens, host_type => HostType,
+                 lserver => LServer, luser => LUser, agent_id => AgentId}),
+    Data = #{
+        current_token => <<"WXZzciBwYmFmdmZnZiBqdmd1IGp2eXFhcmZm">>,
+        current_expire => utc_now_as_seconds() + 1000000,
+        current_count => 0,
+        new_token => <<"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF">>,
+        new_expire => utc_now_as_seconds() + 1000000,
+        new_count => 0
+    },
+    {ok, Data}.
