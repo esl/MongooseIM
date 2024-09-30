@@ -34,6 +34,7 @@ format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                        | {error, binary()}.
 mech_step(#state{creds = Creds, agent_id = AgentId}, SerializedToken) ->
+    Mech = mechanism(),
     %% SerializedToken is base64 decoded.
     Parts = binary:split(SerializedToken, <<0>>),
     ?LOG_ERROR(#{what => cyrsasl_ht_sha256_none, creds => Creds, ser_token => SerializedToken, parts => Parts, agent_id => AgentId}),
@@ -45,7 +46,7 @@ mech_step(#state{creds = Creds, agent_id = AgentId}, SerializedToken) ->
         {ok, TokenData} ->
             ?LOG_ERROR(#{what => mech_step, token_data => TokenData}),
             CBData = <<>>,
-            case handle_auth(TokenData, InitiatorHashedToken, CBData) of
+            case handle_auth(TokenData, InitiatorHashedToken, CBData, Mech) of
                 true ->
                     {ok, mongoose_credentials:extend(Creds,
                                                      [{username, LUser},
@@ -73,14 +74,16 @@ handle_auth(#{
         current_token := CurrentToken,
         current_expire := CurrentExpire,
         current_count := CurrentCount,
+        current_mech := CurrentMech,
         new_token := NewToken,
         new_expire := NewExpire,
-        new_count := NewCount
-    }, InitiatorHashedToken, CBData) ->
+        new_count := NewCount,
+        new_mech := NewMech
+    }, InitiatorHashedToken, CBData, Mech) ->
     ToHash = <<"Initiator", CBData/binary>>,
-    Token1 = {NewToken, NewExpire, NewCount},
-    Token2 = {CurrentToken, CurrentExpire, CurrentCount},
-    Shared = {NowTimestamp, ToHash, InitiatorHashedToken},
+    Token1 = {NewToken, NewExpire, NewCount, NewMech},
+    Token2 = {CurrentToken, CurrentExpire, CurrentCount, CurrentMech},
+    Shared = {NowTimestamp, ToHash, InitiatorHashedToken, Mech},
     case check_token(Token1, Shared) of
         true ->
             true;
@@ -88,8 +91,10 @@ handle_auth(#{
             check_token(Token2, Shared)
     end.
 
-check_token({Token, Expire, Count}, {NowTimestamp, ToHash, InitiatorHashedToken})
+%% Mech of the token in DB should match the mech the client is using.
+check_token({Token, Expire, Count, Mech},
+            {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
     when is_binary(Token) ->
     crypto:mac(hmac, sha256, Token, ToHash) =:= InitiatorHashedToken;
-check_token({undefined, _Expire, _Count}, _) ->
+check_token(_, _) ->
     false.

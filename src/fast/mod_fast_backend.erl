@@ -1,7 +1,7 @@
 -module(mod_fast_backend).
 
 -export([init/2,
-         store_new_token/6,
+         store_new_token/7,
          read_tokens/4,
          remove_user/3,
          remove_domain/2]).
@@ -10,13 +10,14 @@
 
 -callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
--callback store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) -> ok
+-callback store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) -> ok
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: mod_token:agent_id(),
         ExpireTS :: mod_token:seconds(),
-        Token :: mod_token:token().
+        Token :: mod_token:token(),
+        Mech :: mod_token:mechanism().
 
 -callback read_tokens(HostType, LServer, LUser, AgentId) ->
       {ok, mod_fast:tokens_data()} | {error, not_found}
@@ -38,15 +39,16 @@ init(HostType, Opts) ->
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) -> ok
+-spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) -> ok
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: mod_token:agent_id(),
         ExpireTS :: mod_token:seconds(),
-        Token :: mod_token:token().
-store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) ->
-    Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token],
+        Token :: mod_token:token(),
+        Mech :: mod_token:mechanism().
+store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
+    Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->

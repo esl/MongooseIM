@@ -27,6 +27,7 @@ groups() ->
       [
        server_announces_fast,
        request_token_with_initial_authentication,
+       request_token_with_unknown_mechanism_type,
        token_auth_fails_when_token_is_wrong,
        token_auth_fails_when_token_is_not_found
       ]}
@@ -93,6 +94,17 @@ request_token_with_initial_authentication(Config) ->
     auth_with_token(true, Token, Config, Spec),
     ok.
 
+request_token_with_unknown_mechanism_type(Config0) ->
+    Config = [{ht_mech, <<"HT-WEIRD-ONE">>} | Config0],
+    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+             receive_features, has_no_more_stanzas],
+    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"success">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
+    ?assertEqual(undefined, Fast),
+    ok.
+
 token_auth_fails_when_token_is_wrong(Config) ->
     %% New token is not set, but we try to login with a wrong one
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
@@ -113,7 +125,8 @@ token_auth_fails_when_token_is_not_found(Config) ->
     ok.
 
 auth_and_request_token(Config, Client, Data) ->
-    Extra = [request_token(), user_agent()],
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [request_token(Mech), user_agent()],
     auth_with_method(Config, Client, Data, [], Extra, <<"PLAIN">>).
 
 auth_using_token(Config, Client, Data) ->
@@ -121,10 +134,10 @@ auth_using_token(Config, Client, Data) ->
     auth_with_method(Config, Client, Data, [], Extra, <<"HT-SHA-256-NONE">>).
 
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
-request_token() ->
+request_token(Mech) ->
     #xmlel{name = <<"request-token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST},
-                    {<<"mechanism">>, <<"HT-SHA-256-NONE">>}]}.
+                    {<<"mechanism">>, Mech}]}.
 
 auth_with_token(Success, Token, Config, Spec) ->
     Spec2 = [{secret_token, Token} | Spec],

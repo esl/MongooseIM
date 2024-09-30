@@ -31,22 +31,26 @@
 %% Base64 encoded token
 -type token() :: binary().
 -type agent_id() :: binary().
+-type mechanism() :: binary().
 
 -type validity_type() :: days | hours | minutes | seconds.
 -type period() :: #{value := non_neg_integer(),
                     unit := days | hours | minutes | seconds}.
 -type token_type() :: access.
 
--export_type([tokens_data/0, seconds/0, counter/0, token/0, agent_id/0]).
+-export_type([tokens_data/0, seconds/0, counter/0, token/0, agent_id/0,
+              mechanism/0]).
 
 -type tokens_data() :: #{
         now_timestamp := seconds(),
         current_token := token() | undefined,
         current_expire := seconds() | undefined,
         current_count := counter() | undefined,
-        new_token := token(),
-        new_expire := seconds(),
-        new_count := counter()
+        current_mech := mechanism() | undefined,
+        new_token := token() | undefined,
+        new_expire := seconds() | undefined,
+        new_count := counter() | undefined,
+        new_mech := mechanism() | undefined
     }.
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -168,13 +172,14 @@ sasl2_success(SaslAcc, C2SStateData, #{host_type := HostType}) ->
     end.
 
 %% Generate expirable auth token and store it in DB
-make_fast_token_response(HostType, LServer, LUser, _Request, AgentId) ->
+make_fast_token_response(HostType, LServer, LUser, Request, AgentId) ->
+    Mech = exml_query:attr(Request, <<"mechanism">>),
     TTLSeconds = get_ttl_seconds(HostType),
     NowTS = ?MODULE:utc_now_as_seconds(),
     ExpireTS = NowTS + TTLSeconds,
     Expire = seconds_to_binary(ExpireTS),
     Token = ?MODULE:generate_unique_token(),
-    store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token),
+    store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech),
     #xmlel{name = <<"token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST}, {<<"expire">>, Expire},
                     {<<"token">>, Token}]}.
@@ -211,15 +216,16 @@ generate_unique_token() ->
 datetime_to_seconds(DateTime) ->
     calendar:datetime_to_gregorian_seconds(DateTime).
 
--spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) -> ok
+-spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) -> ok
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: agent_id(),
         ExpireTS :: seconds(),
-        Token :: token().
-store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) ->
-    mod_fast_backend:store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token).
+        Token :: token(),
+        Mech :: mechanism().
+store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
+    mod_fast_backend:store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech).
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->
    {ok, tokens_data()} | {error, not_found}
