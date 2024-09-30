@@ -35,8 +35,13 @@ groups() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config1 = load_modules(Config),
-    escalus:init_per_suite(Config1).
+    case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
+        false ->
+            {skip, "No RDBMS enabled"};
+        true ->
+             Config1 = load_modules(Config),
+             escalus:init_per_suite(Config1)
+    end.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -72,7 +77,6 @@ server_announces_fast(Config) ->
                                       {element, <<"inline">>},
                                       {element_with_ns, <<"fast">>, ?NS_FAST}]),
     ?assertNotEqual(undefined, Fast),
-    ct:fail(Fast),
     ok.
 
 request_token_with_initial_authentication(Config) ->
@@ -86,7 +90,6 @@ request_token_with_initial_authentication(Config) ->
     Token = exml_query:attr(Fast, <<"token">>),
     auth_with_token(Token, Config, Spec),
     ok.
-%   ct:fail({Expire, Token}).
 
 auth_and_request_token(Config, Client, Data) ->
     Extra = [request_token(), user_agent()],
