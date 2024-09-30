@@ -78,7 +78,7 @@ config_spec() ->
 validity_periods_spec() ->
     #section{
        items = #{<<"access">> => validity_period_spec()},
-       defaults = #{<<"access">> => #{value => 1, unit => hours}},
+       defaults = #{<<"access">> => #{value => 3, unit => days}},
        include = always
       }.
 
@@ -221,10 +221,11 @@ datetime_to_seconds(DateTime) ->
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) ->
     mod_fast_backend:store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token).
 
--spec read_tokens(HostType, LServer, LUser, AgentId) -> {ok, tokens_data()}
+-spec read_tokens(HostType, LServer, LUser, AgentId) ->
+   {ok, tokens_data()} | {error, not_found}
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
-        AgentId :: binary().
+        AgentId :: agent_id().
 read_tokens(HostType, LServer, LUser, AgentId) ->
     mod_fast_backend:read_tokens(HostType, LServer, LUser, AgentId).

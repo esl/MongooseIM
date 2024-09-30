@@ -20,7 +20,7 @@ mechanism() ->
 mech_new(_Host, Creds, SocketData = #{sasl_state := SaslState}) ->
     SaslModState = mod_sasl2:get_mod_state(SaslState),
     case SaslModState of
-        #{id := AgentId} ->
+        #{encoded_id := AgentId} ->
             {ok, #state{creds = Creds, agent_id = AgentId}};
         _ ->
             {error, <<"not-sasl2">>}

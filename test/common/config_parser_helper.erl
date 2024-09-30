@@ -637,9 +637,7 @@ all_modules() ->
                                               resume_timeout => 600,
                                               stale_h => #{enabled => true,
                                                            geriatric => 3600,
-                                                           repeat_after => 1800}}),
-      mod_fast =>
-          mod_config(mod_fast, #{})
+                                                           repeat_after => 1800}})
     }.
 
 custom_mod_event_pusher_http() ->
@@ -869,6 +867,9 @@ default_mod_config(mod_auth_token) ->
     #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
                            refresh => #{unit => days, value => 25}}};
+default_mod_config(mod_fast) ->
+    #{backend => rdbms,
+      validity_period => #{access => #{unit => days, value => 3}}};
 default_mod_config(mod_bind2) ->
     #{};
 default_mod_config(mod_blocking) ->

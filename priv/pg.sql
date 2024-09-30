@@ -511,9 +511,9 @@ CREATE TABLE fast_tokens(
      user_agent_id VARCHAR(250) NOT NULL,
 
      -- slots
-     current_token VARCHAR(250) NOT NULL,
-     current_expire BIGINT NOT NULL, -- seconds unix timestamp
-     current_count INT NOT NULL, -- replay counter
+     current_token VARCHAR(250),
+     current_expire BIGINT, -- seconds unix timestamp
+     current_count INT, -- replay counter
 
      new_token VARCHAR(250) NOT NULL,
      new_expire BIGINT NOT NULL, -- seconds unix timestamp

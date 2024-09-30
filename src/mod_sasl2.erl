@@ -46,6 +46,7 @@
                             status := status()}.
 -type mod_state() :: #{authenticated := boolean(),
                        id := not_provided | uuid:uuid(),
+                       encoded_id := not_provided | binary(),
                        software := not_provided | binary(),
                        device := not_provided | binary()}.
 -type c2s_state_data() :: #{c2s_state := mongoose_c2s:state(),
@@ -393,7 +394,8 @@ get_initial_response(El) ->
 
 -spec init_mod_state(not_provided | exml:element()) -> invalid_agent | mod_state().
 init_mod_state(not_provided) ->
-    #{authenticated => false, id => not_provided, software => not_provided, device => not_provided};
+    #{authenticated => false, id => not_provided, software => not_provided, device => not_provided,
+      encoded_id => not_provided};
 init_mod_state(El) ->
     MaybeId = exml_query:attr(El, <<"id">>, not_provided),
     case if_provided_then_is_not_invalid_uuid_v4(MaybeId) of
@@ -402,7 +404,8 @@ init_mod_state(El) ->
         Value ->
             Software = exml_query:path(El, [{element, <<"software">>}, cdata], not_provided),
             Device = exml_query:path(El, [{element, <<"device">>}, cdata], not_provided),
-            #{authenticated => false, id => Value, software => Software, device => Device}
+            #{authenticated => false, id => Value, software => Software, device => Device,
+              encoded_id => MaybeId}
     end.
 
 -spec if_provided_then_is_not_invalid_uuid_v4(not_provided | binary()) ->

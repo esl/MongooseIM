@@ -21,9 +21,17 @@ load_all_sasl2_modules(HostType) ->
                {mod_sasl2, default_mod_config(mod_sasl2)},
                {mod_csi, default_mod_config(mod_csi)},
                {mod_carboncopy, default_mod_config(mod_carboncopy)},
-               {mod_stream_management, mod_config(mod_stream_management, SMOpts)},
-               {mod_fast, default_mod_config(mod_fast)}],
+               {mod_stream_management, mod_config(mod_stream_management, SMOpts)}]
+        ++ rdbms_mods(),
     dynamic_modules:ensure_modules(HostType, Modules).
+
+rdbms_mods() ->
+    case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
+        true ->
+            [{mod_fast, mod_config(mod_fast, #{backend => rdbms})}];
+        false ->
+            []
+    end.
 
 apply_steps(Steps, Config) ->
     apply_steps(Steps, Config, undefined, #{}).
