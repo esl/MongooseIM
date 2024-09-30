@@ -16,31 +16,99 @@
 %% hooks handlers
 -export([sasl2_stream_features/3,
          sasl2_start/3,
-         sasl2_success/3]).
+         sasl2_success/3,
+         remove_user/3,
+         remove_domain/3]).
 
 -export([read_tokens/4]).
 
+%% For mocking
+-export([utc_now_as_seconds/0,
+         generate_unique_token/0]).
+
+-type seconds() :: integer().
+-type counter() :: non_neg_integer().
+%% Base64 encoded token
+-type token() :: binary().
+-type agent_id() :: binary().
+
+-type validity_type() :: days | hours | minutes | seconds.
+-type period() :: #{value := non_neg_integer(),
+                    unit := days | hours | minutes | seconds}.
+-type token_type() :: access.
+
+-export_type([tokens_data/0, seconds/0, counter/0, token/0, agent_id/0]).
+
+-type tokens_data() :: #{
+        now_timestamp := seconds(),
+        current_token := token() | undefined,
+        current_expire := seconds() | undefined,
+        current_count := counter() | undefined,
+        new_token := token(),
+        new_expire := seconds(),
+        new_count := counter()
+    }.
+
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
+    mod_fast_backend:init(HostType, Opts),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
+stop(_HostType) ->
     ok.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{sasl2_stream_features, HostType, fun ?MODULE:sasl2_stream_features/3, #{}, 50},
      {sasl2_start, HostType, fun ?MODULE:sasl2_start/3, #{}, 50},
-     {sasl2_success, HostType, fun ?MODULE:sasl2_success/3, #{}, 50}].
+     {sasl2_success, HostType, fun ?MODULE:sasl2_success/3, #{}, 50},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-        defaults = #{}
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {module, ?MODULE}},
+                 <<"validity_period">> => validity_periods_spec()},
+       defaults = #{<<"backend">> => rdbms}
     }.
 
+validity_periods_spec() ->
+    #section{
+       items = #{<<"access">> => validity_period_spec()},
+       defaults = #{<<"access">> => #{value => 1, unit => hours}},
+       include = always
+      }.
+
+validity_period_spec() ->
+    #section{
+       items = #{<<"value">> => #option{type = integer,
+                                        validate = non_negative},
+                 <<"unit">> => #option{type = atom,
+                                       validate = {enum, [days, hours, minutes, seconds]}}
+                },
+       required = all
+      }.
+
 supported_features() -> [dynamic_domains].
+
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
+    mod_fast_backend:remove_user(HostType, LUser, LServer),
+    {ok, Acc}.
+
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_domain_api:remove_domain_acc(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
+    mod_fast_backend:remove_domain(HostType, Domain),
+    {ok, Acc}.
 
 -spec sasl2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
     {ok, Acc} when Acc :: [exml:element()].
@@ -100,27 +168,46 @@ sasl2_success(SaslAcc, C2SStateData, #{host_type := HostType}) ->
     end.
 
 %% Generate expirable auth token and store it in DB
-make_fast_token_response(HostType, LServer, LUser, Request, AgentId) ->
-    TTLSeconds = 100000,
-    NowTS = utc_now_as_seconds(),
+make_fast_token_response(HostType, LServer, LUser, _Request, AgentId) ->
+    TTLSeconds = get_ttl_seconds(HostType),
+    NowTS = ?MODULE:utc_now_as_seconds(),
     ExpireTS = NowTS + TTLSeconds,
     Expire = seconds_to_binary(ExpireTS),
-%   Token = base64:encode(crypto:strong_rand_bytes(25)),
-    Token = <<"WXZzciBwYmFmdmZnZiBqdmd1IGp2eXFhcmZm">>,
+    Token = ?MODULE:generate_unique_token(),
     store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token),
     #xmlel{name = <<"token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST}, {<<"expire">>, Expire},
                     {<<"token">>, Token}]}.
 
--spec seconds_to_binary(integer()) -> binary().
+-spec seconds_to_binary(seconds()) -> binary().
 seconds_to_binary(Secs) ->
     Opts = [{offset, "Z"}, {unit, second}],
     list_to_binary(calendar:system_time_to_rfc3339(Secs, Opts)).
 
+-spec utc_now_as_seconds() -> seconds().
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
 
--spec datetime_to_seconds(calendar:datetime()) -> non_neg_integer().
+-spec get_ttl_seconds(mongooseim:host_type()) -> seconds().
+get_ttl_seconds(HostType) ->
+    #{value := Value, unit := Unit} = get_validity_period(HostType, access),
+    period_to_seconds(Value, Unit).
+
+-spec get_validity_period(mongooseim:host_type(), token_type()) -> period().
+get_validity_period(HostType, Type) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, [validity_period, Type]).
+
+-spec period_to_seconds(non_neg_integer(), validity_type()) -> seconds().
+period_to_seconds(Days, days) -> 24 * 3600 * Days;
+period_to_seconds(Hours, hours) -> 3600 * Hours;
+period_to_seconds(Minutes, minutes) -> 60 * Minutes;
+period_to_seconds(Seconds, seconds) -> Seconds.
+
+-spec generate_unique_token() -> token().
+generate_unique_token() ->
+    base64:encode(crypto:strong_rand_bytes(25)).
+
+-spec datetime_to_seconds(calendar:datetime()) -> seconds().
 datetime_to_seconds(DateTime) ->
     calendar:datetime_to_gregorian_seconds(DateTime).
 
@@ -128,25 +215,16 @@ datetime_to_seconds(DateTime) ->
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
-        AgentId :: binary(),
-        ExpireTS :: integer(),
-        Token :: binary().
+        AgentId :: agent_id(),
+        ExpireTS :: seconds(),
+        Token :: token().
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token) ->
-    ?LOG_ERROR(#{what => store_new_token, host_type => HostType,
-                 lserver => LServer, luser => LUser,
-                 expire_ts => ExpireTS, token => Token, agent_id => AgentId}),
-    ok.
+    mod_fast_backend:store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token).
 
+-spec read_tokens(HostType, LServer, LUser, AgentId) -> {ok, tokens_data()}
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: binary().
 read_tokens(HostType, LServer, LUser, AgentId) ->
-    ?LOG_ERROR(#{what => read_tokens, host_type => HostType,
-                 lserver => LServer, luser => LUser, agent_id => AgentId}),
-    Data = #{
-        now_timestamp => utc_now_as_seconds(),
-        current_token => <<"WXZzciBwYmFmdmZnZiBqdmd1IGp2eXFhcmZm">>,
-        current_expire => utc_now_as_seconds() + 1000000,
-        current_count => 0,
-        new_token => <<"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF">>,
-        new_expire => utc_now_as_seconds() + 1000000,
-        new_count => 0
-    },
-    {ok, Data}.
+    mod_fast_backend:read_tokens(HostType, LServer, LUser, AgentId).
