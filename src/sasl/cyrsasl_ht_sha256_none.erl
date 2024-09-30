@@ -88,5 +88,8 @@ handle_auth(#{
             check_token(Token2, Shared)
     end.
 
-check_token({Token, Expire, Count}, {NowTimestamp, ToHash, InitiatorHashedToken}) ->
-    crypto:mac(hmac, sha256, Token, ToHash) =:= InitiatorHashedToken.
+check_token({Token, Expire, Count}, {NowTimestamp, ToHash, InitiatorHashedToken})
+    when is_binary(Token) ->
+    crypto:mac(hmac, sha256, Token, ToHash) =:= InitiatorHashedToken;
+check_token({undefined, _Expire, _Count}, _) ->
+    false.

@@ -61,12 +61,12 @@ read_tokens(HostType, LServer, LUser, AgentId) ->
                      NewToken, NewExpire, NewCount}]} ->
             Data = #{
                 now_timestamp => mod_fast:utc_now_as_seconds(),
-                current_token => CurrentToken,
+                current_token => null_as_undefined(CurrentToken),
                 current_expire => maybe_to_integer(CurrentExpire),
                 current_count => maybe_to_integer(CurrentCount),
                 new_token => null_as_undefined(NewToken),
-                new_expire => null_as_undefined(NewExpire),
-                new_count => null_as_undefined(NewCount)
+                new_expire => maybe_to_integer(NewExpire),
+                new_count => maybe_to_integer(NewCount)
             },
             {ok, Data};
         Other ->

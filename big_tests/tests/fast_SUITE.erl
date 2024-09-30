@@ -26,7 +26,9 @@ groups() ->
      {basic, [parallel],
       [
        server_announces_fast,
-       request_token_with_initial_authentication
+       request_token_with_initial_authentication,
+       token_auth_fails_when_token_is_wrong,
+       token_auth_fails_when_token_is_not_found
       ]}
     ].
 
@@ -88,7 +90,26 @@ request_token_with_initial_authentication(Config) ->
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
     Expire = exml_query:attr(Fast, <<"expire">>),
     Token = exml_query:attr(Fast, <<"token">>),
-    auth_with_token(Token, Config, Spec),
+    auth_with_token(true, Token, Config, Spec),
+    ok.
+
+token_auth_fails_when_token_is_wrong(Config) ->
+    %% New token is not set, but we try to login with a wrong one
+    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+             receive_features, has_no_more_stanzas],
+    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"success">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    Token = <<"wrongtoken">>,
+    auth_with_token(false, Token, Config, Spec),
+    ok.
+
+token_auth_fails_when_token_is_not_found(Config) ->
+    %% New token is not set
+    Steps = [start_new_user, receive_features, has_no_more_stanzas],
+    #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    Token = <<"wrongtoken">>,
+    auth_with_token(false, Token, Config, Spec),
     ok.
 
 auth_and_request_token(Config, Client, Data) ->
@@ -105,15 +126,30 @@ request_token() ->
            attrs = [{<<"xmlns">>, ?NS_FAST},
                     {<<"mechanism">>, <<"HT-SHA-256-NONE">>}]}.
 
-auth_with_token(Token, Config, Spec) ->
+auth_with_token(Success, Token, Config, Spec) ->
     Spec2 = [{secret_token, Token} | Spec],
-    Steps = [connect_tls, start_stream_get_features,
-             {?MODULE, auth_using_token},
-             receive_features, has_no_more_stanzas],
+    Steps = steps(Success),
     Data = #{spec => Spec2},
-    #{answer := Success} = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
-    ?assertMatch(#xmlel{name = <<"success">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success).
+    #{answer := Answer} = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
+    case Success of
+        true ->
+            ?assertMatch(#xmlel{name = <<"success">>,
+                                attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Answer);
+        false ->
+            ?assertMatch(#xmlel{name = <<"failure">>,
+                                attrs = [{<<"xmlns">>, ?NS_SASL_2}],
+                                children = [#xmlel{name = <<"not-authorized">>}]},
+                         Answer)
+    end.
+
+steps(true) ->
+    [connect_tls, start_stream_get_features,
+     {?MODULE, auth_using_token},
+     receive_features,
+     has_no_more_stanzas];
+steps(false) ->
+    [connect_tls, start_stream_get_features,
+     {?MODULE, auth_using_token}].
 
 user_agent() ->
   #xmlel{name = <<"user-agent">>,
@@ -140,10 +176,15 @@ auth_with_method(_Config, Client, Data, BindElems, Extra, Method) ->
     Authenticate = auth_elem(Method, [InitEl, BindEl | Extra]),
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
-    ct:pal("Answer ~p", [Answer]),
+    ct:log("Answer ~p", [Answer]),
     Identifier = exml_query:path(Answer, [{element, <<"authorization-identifier">>}, cdata]),
-    #jid{lresource = LResource} = jid:from_binary(Identifier),
-    {Client, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}.
+    case Identifier of
+        undefined ->
+            {Client, Data#{answer => Answer}};
+        _ ->
+            #jid{lresource = LResource} = jid:from_binary(Identifier),
+            {Client, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}
+    end.
 
 auth_elem(Mech, Children) ->
     #xmlel{name = <<"authenticate">>,

@@ -570,8 +570,8 @@ CREATE TABLE fast_tokens(
      current_token VARCHAR(250),
      current_expire BIGINT, -- seconds unix timestamp
      current_count INT, -- replay counter
-     new_token VARCHAR(250) NOT NULL,
-     new_expire BIGINT NOT NULL, -- seconds unix timestamp
-     new_count INT NOT NULL,
+     new_token VARCHAR(250),
+     new_expire BIGINT, -- seconds unix timestamp
+     new_count INT,
      PRIMARY KEY(server, username, user_agent_id)
 );
