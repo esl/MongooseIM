@@ -172,10 +172,16 @@ prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
                      IncrementalField :: none | binary()) ->
     {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
 prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
-    SQL = upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField),
+    InsertFieldsTransformed = transform_fields(HostType, InsertFields),
+    UpdatesTransformed = transform_fields(HostType, Updates),
+    UniqueKeyFieldsTransformed = transform_fields(HostType, UniqueKeyFields),
+    IncrementalFieldTransformed = transform_fields(HostType, IncrementalField),
+    SQL = upsert_query(HostType, Table, InsertFieldsTransformed, UpdatesTransformed,
+                       UniqueKeyFieldsTransformed, IncrementalFieldTransformed),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
-    Fields = prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields),
+    Fields = prepared_upsert_fields(InsertFieldsTransformed, UpdatesTransformed,
+                                    UniqueKeyFieldsTransformed),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
 prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
@@ -206,10 +212,15 @@ prepared_upsert_many_fields(RecordCount, InsertFields, Updates, _UniqueKeyFields
                           UniqueKeyFields :: [binary()]) ->
     {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
 prepare_upsert_many(HostType, RecordCount, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
-    SQL = upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKeyFields),
+    InsertFieldsTransformed = transform_fields(HostType, InsertFields),
+    UpdatesTransformed = transform_fields(HostType, Updates),
+    UniqueKeyFieldsTransformed = transform_fields(HostType, UniqueKeyFields),
+    SQL = upsert_query_many(HostType, RecordCount, Table, InsertFieldsTransformed,
+                            UpdatesTransformed, UniqueKeyFieldsTransformed),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
-    Fields = prepared_upsert_many_fields(RecordCount, InsertFields, Updates, UniqueKeyFields),
+    Fields = prepared_upsert_many_fields(RecordCount, InsertFieldsTransformed,
+                                         UpdatesTransformed, UniqueKeyFieldsTransformed),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
 upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
@@ -457,3 +468,27 @@ limit_offset_args(Limit, Offset) ->
 
 limit_offset_args(mssql, Limit, Offset) -> [Offset, Limit];
 limit_offset_args(_, Limit, Offset) -> [Limit, Offset].
+
+transform_fields(_, none) ->
+    none;
+transform_fields(HostType, Fields) when is_list(Fields) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        pgsql ->
+            lists:map(fun(Element) -> transform_field(Element) end, Fields);
+        _ ->
+            Fields
+    end;
+transform_fields(HostType, Field) when is_binary(Field) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        pgsql ->
+            transform_field(Field);
+        _ -> 
+            Field
+    end.
+
+transform_field({_, Field, _} = Element) ->
+    erlang:setelement(2, Element, transform_field(Field));
+transform_field(Field) when is_binary(Field)->
+    <<"\"", Field/binary, "\"">>;
+transform_field(Element) ->
+    Element.
