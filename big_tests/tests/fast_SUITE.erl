@@ -84,7 +84,7 @@ server_announces_fast(Config) ->
 
 request_token_with_initial_authentication(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
-             receive_features, has_no_more_stanzas],
+             receive_features],
     #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
@@ -97,7 +97,7 @@ request_token_with_initial_authentication(Config) ->
 request_token_with_unknown_mechanism_type(Config0) ->
     Config = [{ht_mech, <<"HT-WEIRD-ONE">>} | Config0],
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
-             receive_features, has_no_more_stanzas],
+             receive_features],
     #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
@@ -108,7 +108,7 @@ request_token_with_unknown_mechanism_type(Config0) ->
 token_auth_fails_when_token_is_wrong(Config) ->
     %% New token is not set, but we try to login with a wrong one
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
-             receive_features, has_no_more_stanzas],
+             receive_features],
     #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
@@ -118,7 +118,7 @@ token_auth_fails_when_token_is_wrong(Config) ->
 
 token_auth_fails_when_token_is_not_found(Config) ->
     %% New token is not set
-    Steps = [start_new_user, receive_features, has_no_more_stanzas],
+    Steps = [start_new_user, receive_features],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     Token = <<"wrongtoken">>,
     auth_with_token(false, Token, Config, Spec),
