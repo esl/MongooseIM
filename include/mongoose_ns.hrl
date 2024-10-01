@@ -85,6 +85,7 @@
 -define(NS_SESSION,             <<"urn:ietf:params:xml:ns:xmpp-session">>).
 -define(NS_BIND,                <<"urn:ietf:params:xml:ns:xmpp-bind">>).
 -define(NS_BIND_2,              <<"urn:xmpp:bind:0">>).
+-define(NS_FAST,                <<"urn:xmpp:fast:0">>).
 
 -define(NS_FEATURE_IQAUTH,      <<"http://jabber.org/features/iq-auth">>).
 -define(NS_FEATURE_IQREGISTER,  <<"http://jabber.org/features/iq-register">>).

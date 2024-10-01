@@ -20,7 +20,8 @@
          get_info/1, set_info/2,
          get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
--export([get_auth_mechs/1, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
+-export([get_auth_mechs/1, get_auth_mechs_to_announce/1,
+         c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
 -export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1]).
 -export([set_jid/2, set_auth_module/2, state_timeout/1, handle_state_after_packet/3]).
 -export([replace_resource/2, generate_random_resource/0]).
@@ -1157,6 +1158,18 @@ create_data(#{host_type := HostType, jid := Jid}) ->
 -spec get_auth_mechs(data()) -> [mongoose_c2s_sasl:mechanism()].
 get_auth_mechs(#c2s_data{host_type = HostType} = StateData) ->
     [M || M <- cyrsasl:listmech(HostType), filter_mechanism(StateData, M)].
+
+%% Mechanisms without XEP-0484 token mechanisms
+%% (HT mechanisms are announced as inlined instead)
+-spec get_auth_mechs_to_announce(data()) -> [mongoose_c2s_sasl:mechanism()].
+get_auth_mechs_to_announce(StateData) ->
+    [M || M <- get_auth_mechs(StateData), not skip_announce_mechanism(M)].
+
+-spec skip_announce_mechanism(binary()) -> boolean().
+skip_announce_mechanism(<<"HT-SHA-256-ENDP">>) -> true;
+skip_announce_mechanism(<<"HT-SHA-256-EXPR">>) -> true;
+skip_announce_mechanism(<<"HT-SHA-256-NONE">>) -> true;
+skip_announce_mechanism(_) -> false.
 
 -spec filter_mechanism(data(), binary()) -> boolean().
 filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-1-PLUS">>) ->

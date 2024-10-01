@@ -48,7 +48,10 @@ start(C2SData, SaslAcc, Mech, ClientIn) ->
             {error, SaslAcc, #{type => policy_violation, text => <<"Use of STARTTLS required">>}};
         _ ->
             AuthMech = mongoose_c2s:get_auth_mechs(C2SData),
-            SocketData = #{socket => Socket, auth_mech => AuthMech, listener_opts => LOpts},
+            %% Provide SaslAcc for readonly access, so the cyrsasl mechanism
+            %% has more visibility to initialize the mechanism state.
+            SocketData = #{socket => Socket, auth_mech => AuthMech, listener_opts => LOpts,
+                           sasl_state => SaslAcc},
             CyrSaslState = get_cyrsasl_state_from_acc(SaslAcc),
             CyrSaslResult = cyrsasl:server_start(CyrSaslState, Mech, ClientIn, SocketData),
             handle_sasl_step(C2SData, CyrSaslResult, SaslAcc)
