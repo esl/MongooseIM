@@ -137,11 +137,14 @@ CREATE TABLE privacy_default_list (
     PRIMARY KEY (server, username)
 );
 
+
+CREATE SEQUENCE privacy_list_id_sequence;
+
 CREATE TABLE privacy_list (
     server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     name text NOT NULL,
-    id SERIAL UNIQUE,
+    id INT UNIQUE DEFAULT nextval('privacy_list_id_sequence'),
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     PRIMARY KEY (server, username, name)
 );
@@ -215,8 +218,11 @@ CREATE TABLE mam_config(
   PRIMARY KEY(user_id, remote_jid)
 );
 
+
+CREATE SEQUENCE mam_server_user_id;
+
 CREATE TABLE mam_server_user(
-  id SERIAL UNIQUE PRIMARY KEY,
+  id INT UNIQUE PRIMARY KEY DEFAULT nextval('mam_server_user_id'),
   server    varchar(250) NOT NULL,
   user_name varchar(250) NOT NULL
 );
@@ -244,8 +250,11 @@ CREATE TABLE mam_muc_message(
 CREATE INDEX i_mam_muc_message_sender_id ON mam_muc_message USING BTREE (sender_id);
 CREATE INDEX i_mam_muc_message_room_id_sender_id_origin_id ON mam_muc_message USING BTREE (room_id, sender_id, origin_id);
 
+
+CREATE SEQUENCE offline_message_id;
+
 CREATE TABLE offline_message(
-    id SERIAL UNIQUE PRIMARY Key,
+    id INT UNIQUE PRIMARY Key DEFAULT nextval('offline_message_id'),
     timestamp BIGINT NOT NULL,
     expire    BIGINT,
     server    varchar(250)    NOT NULL,
@@ -264,18 +273,24 @@ CREATE TABLE auth_token(
     seq_no  BIGINT  NOT NULL
 );
 
+
+CREATE SEQUENCE muc_light_rooms_id;
+
 CREATE TABLE muc_light_rooms(
-    id BIGSERIAL            NOT NULL UNIQUE,
+    id BIGINT               NOT NULL UNIQUE DEFAULT nextval('muc_light_rooms_id'),
     luser VARCHAR(250)      NOT NULL,
     lserver VARCHAR(250)    NOT NULL,
     version VARCHAR(20)     NOT NULL,
     PRIMARY KEY (lserver, luser)
 );
 
+
+CREATE SEQUENCE muc_rooms_id;
+
 CREATE TABLE muc_rooms(
-    id BIGSERIAL            NOT NULL UNIQUE,
+    id BIGINT               NOT NULL UNIQUE DEFAULT nextval('muc_rooms_id'),
     muc_host VARCHAR(250)   NOT NULL,
-    room_name VARCHAR(250)       NOT NULL,
+    room_name VARCHAR(250)  NOT NULL,
     options JSON            NOT NULL,
     PRIMARY KEY (muc_host, room_name)
 );
@@ -341,8 +356,11 @@ CREATE INDEX i_inbox_timestamp ON inbox USING BTREE(lserver, luser, timestamp);
 CREATE INDEX i_inbox_us_box ON inbox USING BTREE(lserver, luser, box);
 CREATE INDEX i_inbox_box ON inbox (box) WHERE (box = 'bin');
 
+
+CREATE SEQUENCE pubsub_nodes_nidx;
+
 CREATE TABLE pubsub_nodes (
-    nidx               BIGSERIAL PRIMARY KEY,
+    nidx               BIGINT PRIMARY KEY DEFAULT nextval('pubsub_nodes_nidx'),
     p_key VARCHAR(250) NOT NULL,
     name VARCHAR(250)  NOT NULL,
     type VARCHAR(250)  NOT NULL,
@@ -464,22 +482,27 @@ CREATE TABLE domain_admins(
      PRIMARY KEY(domain)
 );
 
+
+CREATE SEQUENCE domain_settings_id_sequence;
+
 -- Mapping from domain hostname to host_type.
 -- Column id is used for ordering only.
 CREATE TABLE domain_settings (
-    id BIGSERIAL NOT NULL UNIQUE,
+    id BIGINT NOT NULL UNIQUE DEFAULT nextval('domain_settings_id_sequence'),
     domain VARCHAR(250) NOT NULL,
     host_type VARCHAR(250) NOT NULL,
     status SMALLINT NOT NULL DEFAULT 1,
     PRIMARY KEY(domain)
 );
 
+CREATE SEQUENCE domain_events_id_sequence;
+
 -- A new record is inserted into domain_events, each time
 -- domain_settings table is updated: i.e. when a domain is removed,
 -- inserted, enabled or disabled.
 -- Column id is used for ordering and not related to domain_settings.id.
 CREATE TABLE domain_events (
-    id BIGSERIAL NOT NULL,
+    id BIGINT NOT NULL UNIQUE DEFAULT nextval('domain_events_id_sequence'),
     domain VARCHAR(250) NOT NULL,
     PRIMARY KEY(id)
 );
