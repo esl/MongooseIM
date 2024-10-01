@@ -386,13 +386,13 @@ init_per_group(disco_rsm_with_offline, Config) ->
 init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
     PoolOpts = #{strategy => available_worker, workers => 5},
-    ConnOpts = #{host => "http://localhost:8080", path_prefix => <<"/muc/auth/">>,
+    ConnOpts = #{host => "http://localhost:8081", path_prefix => <<"/muc/auth/">>,
                  request_timeout => 2000},
     Pool = config([outgoing_pools, http, muc_http_auth_test],
                   #{opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool]]),
     case G of
-        http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
+        http_auth -> http_helper:start(8081, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok
     end,
     ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
