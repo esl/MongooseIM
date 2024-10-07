@@ -128,8 +128,10 @@ groups() ->
                          pool_rdbms,
                          pool_rdbms_connection_odbc,
                          pool_rdbms_connection_pgsql,
+                         pool_rdbms_connection_cockroachdb,
                          pool_rdbms_connection_mysql,
                          pool_rdbms_connection_tls_pgsql,
+                         pool_rdbms_connection_tls_cockroachdb,
                          pool_rdbms_connection_tls_mysql,
                          pool_http,
                          pool_http_connection,
@@ -928,6 +930,24 @@ pool_rdbms_connection_pgsql(_Config) ->
 pool_rdbms_connection_tls_pgsql(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],
     Required = raw_sql_opts(pgsql),
+    T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Required#{<<"tls">> => Opts}) end,
+    M = tls_ca_raw(),
+    ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts, tls], (tls_ca())#{required => false}),
+         T(M)),
+    ?cfg(P ++ [required], true, T(M#{<<"required">> => true})),
+    ?err(T(M#{<<"required">> => <<"maybe">>})),
+    test_just_tls_client(P, T).
+
+pool_rdbms_connection_cockroachdb(_Config) ->
+    P = [outgoing_pools, 1, conn_opts],
+    T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Opts) end,
+    Required = raw_sql_opts(cockroachdb),
+    test_pool_rdbms_connection_common_opts(P, T, Required),
+    test_pool_rdbms_connection_sql_opts(P, T, Required, sql_opts(cockroachdb, 26257)).
+
+pool_rdbms_connection_tls_cockroachdb(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    Required = raw_sql_opts(cockroachdb),
     T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Required#{<<"tls">> => Opts}) end,
     M = tls_ca_raw(),
     ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts, tls], (tls_ca())#{required => false}),

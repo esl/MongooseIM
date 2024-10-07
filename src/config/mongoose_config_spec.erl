@@ -590,7 +590,7 @@ outgoing_pool_connection(<<"rdbms">>) ->
                  % odbc
                  <<"settings">> => #option{type = string},
 
-                 % mysql, pgsql
+                 % mysql, pgsql, cockroachdb
                  <<"host">> => #option{type = string,
                                        validate = non_empty},
                  <<"database">> => #option{type = string,
