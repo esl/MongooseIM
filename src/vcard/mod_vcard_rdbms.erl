@@ -360,17 +360,17 @@ column_to_id(<<"lorgunit">>)  -> "U".
 
 search_columns() ->
     [<<"username">>,
-     <<"fn">>,         <<"lfn">>,
-     <<"family">>,     <<"lfamily">>,
-     <<"given">>,      <<"lgiven">>,
-     <<"middle">>,     <<"lmiddle">>,
-     <<"nickname">>,   <<"lnickname">>,
-     <<"bday">>,       <<"lbday">>,
-     <<"ctry">>,       <<"lctry">>,
-     <<"locality">>,   <<"llocality">>,
-     <<"email">>,      <<"lemail">>,
-     <<"orgname">>,    <<"lorgname">>,
-     <<"orgunit">>,    <<"lorgunit">>].
+     <<"fn">>,       <<"lfn">>,
+     <<"family">>,   <<"lfamily">>,
+     <<"given">>,    <<"lgiven">>,
+     <<"middle">>,   <<"lmiddle">>,
+     <<"nickname">>, <<"lnickname">>,
+     <<"bday">>,     <<"lbday">>,
+     <<"ctry">>,     <<"lctry">>,
+     <<"locality">>, <<"llocality">>,
+     <<"email">>,    <<"lemail">>,
+     <<"orgname">>,  <<"lorgname">>,
+     <<"orgunit">>,  <<"lorgunit">>].
 
 search_args(User, Search) ->
     [User,

@@ -43,7 +43,7 @@ Persistent Data:
 * RDBMS - MongooseIM has a strong backend support for relational databases.
  Reliable and battle proven, they are a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Never loose your data.
- Use MySQL, MariaDB, PostgreSQL, or MS SQL Server.
+ Use MySQL, MariaDB, PostgreSQL, CockroachDB, or MS SQL Server.
 
 * Cassandra - Only for MAM (Message Archive Management).
 
@@ -121,6 +121,35 @@ psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
 You should also configure the Postgres database in the `mongooseim.toml` file.
+Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options)
+and [general database options](general.md#database-settings)
+for more information.
+
+### CockroachDB
+
+**Can be used for:**
+
+* users (credentials)
+* vcards
+* roster
+* private storage
+* privacy/block lists
+* last activity
+* mam (message archive management)
+* muc_light rooms
+
+**Setup**
+
+The schema files can be found in the `priv` directory.
+The default schema is defined in the `cockroachdb.sql` file.
+
+You can use the following command to apply it on localhost:
+
+```bash
+psql -h localhost -U user -p 26257 -c "CREATE DATABASE mongooseim;"
+psql -h localhost -U user -p 26257 -q -d mongooseim -f cockroachdb.sql
+```
+You should also configure the CockroachDB database in the `mongooseim.toml` file.
 Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options)
 and [general database options](general.md#database-settings)
 for more information.

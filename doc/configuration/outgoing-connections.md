@@ -74,7 +74,7 @@ For example:
 ### RDBMS options
 
 #### `outgoing_pools.rdbms.*.connection.driver`
-* **Syntax:** string, one of `"pgsql"`, `"mysql"` or `"odbc"` (a supported driver)
+* **Syntax:** string, one of `"pgsql"`, `"mysql"`, `"cockroachdb"` or `"odbc"` (a supported driver)
 * **Default:** none - this option is mandatory
 * **Example:** `driver = "psgql"`
 
@@ -101,34 +101,34 @@ How long MongooseIM will wait for the database to answer for a query.
 
 When MongooseIM fails to connect to the DB, it retries with an exponential backoff. This option limits the backoff time for faster reconnection when the DB becomes reachable again.
 
-### Options for `pgsql` and `mysql`
+### Options for `pgsql`, `cockroachdb` and `mysql`
 
 #### `outgoing_pools.rdbms.*.connection.host`
 * **Syntax:** string
-* **Default:** no default; required for `pgsql` and `mysql`
+* **Default:** no default; required for `pgsql`, `cockroachdb` and `mysql`
 * **Example:** `host = "localhost"`
 
 #### `outgoing_pools.rdbms.*.connection.port`
 * **Syntax:** integer, between 0 and 65535
-* **Default:** `5432` for `pgsql`; `3306` for `mysql`
+* **Default:** `5432` for `pgsql`; `26257` for `cockroachdb`; `3306` for `mysql`
 * **Example:** `port = 5343`
 
 #### `outgoing_pools.rdbms.*.connection.database`
 * **Syntax:** string
-* **Default:** no default; required for `pgsql` and `mysql`
+* **Default:** no default; required for `pgsql`, `cockroachdb` and `mysql`
 * **Example:** `database = "mim-db"`
 
 #### `outgoing_pools.rdbms.*.connection.username`
 * **Syntax:** string
-* **Default:** no default; required for `pgsql` and `mysql`
+* **Default:** no default; required for `pgsql`, `cockroachdb` and `mysql`
 * **Example:** `username = "mim-user"`
 
 #### `outgoing_pools.rdbms.*.connection.password`
 * **Syntax:** string
-* **Default:** no default; required for `pgsql` and `mysql`
+* **Default:** no default; required for `pgsql`, `cockroachdb` and `mysql`
 * **Example:** `password = "mim-password"`
 
-To enable TLS, you need to include the [TLS section](#tls-options) in the connection options. There is one additonal option for PostgreSQL:
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options. There is one additonal option for PostgreSQL and CockroachDB:
 
 #### `outgoing_pools.rdbms.*.connection.tls.required`
 * **Syntax:** boolean
