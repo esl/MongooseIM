@@ -266,6 +266,7 @@ PRESETS_ARRAY=(
 SRC_TESTSPEC="default.spec"
 
 DBS_ARRAY=(
+    cockroachdb
     mysql
     pgsql
     cassandra

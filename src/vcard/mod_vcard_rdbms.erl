@@ -240,8 +240,8 @@ filters_to_args(Filters, LimitType, Limit) ->
        limit    -> Args ++ [Limit]
    end.
 
-search_sql_binary(pgsql, Filters, LimitType) ->
-    iolist_to_binary(search_sql_pgsql(Filters, LimitType));
+search_sql_binary(cockroachdb, Filters, LimitType) ->
+    iolist_to_binary(search_sql_cockroachdb(Filters, LimitType));
 search_sql_binary(_, Filters, LimitType) ->
     iolist_to_binary(search_sql(Filters, LimitType)).
 
@@ -255,7 +255,7 @@ search_sql(Filters, LimitType) ->
        "FROM vcard_search ">>,
         RestrictionSQL, LimitSQL].
 
-search_sql_pgsql(Filters, LimitType) ->
+search_sql_cockroachdb(Filters, LimitType) ->
     {TopSQL, LimitSQL} = limit_type_to_sql(LimitType),
     RestrictionSQL = filters_to_sql(Filters),
     [<<"SELECT ">>, TopSQL,

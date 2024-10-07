@@ -104,7 +104,7 @@ execute_upsert(HostType, PoolTag, Name, InsertParams, UpdateParams, UniqueKeyVal
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
@@ -127,7 +127,7 @@ execute_upsert_many(HostType, PoolTag, Name, InsertParams, UpdateParams) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
@@ -143,7 +143,7 @@ request_upsert(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
             mongoose_rdbms:execute_request(HostType, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
@@ -227,7 +227,7 @@ upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, Incrementa
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             upsert_mysql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
         {odbc, mssql} ->
             upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields);
@@ -238,7 +238,7 @@ upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKey
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             upsert_many_mysql_query(RecordCount, Table, InsertFields);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
         {odbc, mssql} ->
             upsert_many_mssql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
@@ -473,14 +473,14 @@ transform_fields(_, none) ->
     none;
 transform_fields(HostType, Fields) when is_list(Fields) ->
     case mongoose_rdbms:db_engine(HostType) of
-        pgsql ->
+        cockroachdb ->
             lists:map(fun(Element) -> transform_field(Element) end, Fields);
         _ ->
             Fields
     end;
 transform_fields(HostType, Field) when is_binary(Field) ->
     case mongoose_rdbms:db_engine(HostType) of
-        pgsql ->
+        cockroachdb ->
             transform_field(Field);
         _ -> 
             Field

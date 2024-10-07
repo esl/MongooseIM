@@ -258,7 +258,7 @@ prepare_select_nodes_by_owner() ->
         {mysql, _} ->
             mongoose_rdbms:prepare(pubsub_select_nodes_by_owner, pubsub_nodes, [owners],
                 <<"SELECT name, type FROM pubsub_nodes WHERE owners = convert(?, JSON);">>);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:prepare(pubsub_select_nodes_by_owner, pubsub_nodes, [owners],
                 <<"SELECT name, type FROM pubsub_nodes WHERE owners ::json->>0 like ? "
                   "AND JSON_ARRAY_LENGTH(owners) = 1">>);
@@ -522,7 +522,7 @@ execute_get_user_items(LU, LS) ->
 -spec execute_select_nodes_by_owner(LJID :: binary()) -> mongoose_rdbms:query_result().
 execute_select_nodes_by_owner(LJID) ->
     case mongoose_rdbms:db_engine(global) of
-        pgsql ->
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute_successfully(global,
                 pubsub_select_nodes_by_owner, [LJID]);
         _ ->
