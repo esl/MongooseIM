@@ -1,14 +1,15 @@
-# [MongooseIM 6.3.0](https://github.com/esl/MongooseIM/releases/tag/6.3.0) - 2024-10-XX
+# [MongooseIM 6.3.0](https://github.com/esl/MongooseIM/releases/tag/6.3.0) - 2024-10-22
 
 ## Highlights
 - Improved instrumentation with better configurability, Prometheus support and user-friendly features
 - Docker images are smaller and free of reported vulnerabilities
 - Improved WebSocket's stream management support
 - Erlang 27 compatibility
+- Added support for CockroachDB as a new RDBMS
 - Various improvements and fixes
 
 ## Added
-- Instrumentation (#4226, #4223)
+- Instrumentation (#4223, #4226)
   - Modules:
     - `mod_mam` (#4224, #4253, #4265, #4352)
     - `mod_muc` (#4268)
@@ -25,6 +26,12 @@
      - Session (#4305)
      - C2S (#4310)
      - Roster (#4295)
+     - Unified names (#4287)
+  - Tests:
+     - Unit (#4227)
+     - CETS (#4296)
+     - Prometheus endpoint (#4335)
+     - More specific assertions for events (#4312)
   - `async_pools` (#4337)
   - `mongoose_wpool` (#4306)
   - `mongoose_backend` (#4282)
@@ -37,13 +44,13 @@
   - Authentication events (#4311)
   - Session management (#4313)
   - Global probes and counters (#4317)
-  - Documentation (#4355, #4358, #4360)
-  - Misc (#4228, #4249, #4287, #4312, #4324, #4335, #4363, #4227, #4368, #4296)
-- Improved stream management support for WebSockets (#4303)
+  - Documentation (#4355, #4358, #4360, #4382)
+  - Misc (#4228, #4249, #4324, #4368)
 - Erlang doctor utilities (#4264)
 - Error text when message with given ID is not found (#4302)
 - Error IQ when SQL query fails in MAM (#4308)
 - Erlang 27 support (#4334, #4331, #4338, #4348, #4345)
+- CockroachDB support (#4378)
 
 ## Changed
 - Upgraded CETS to the latest version (#4271)
@@ -52,6 +59,7 @@
 - Moved Exometer reporters config to `mongooseim.toml` (#4326)
 - Upgraded `fast_tls` (#4330)
 - Privacy IQs sent to users are treated as regular stanzas (#4361)
+- Renaming `c2s_state_timeout` option (#4363)
 - Moved docker repository to 'erlangsolutions' organization (#4372)
 - Docker image to the one based on Ubuntu 24.10 (#4375)
 
@@ -60,6 +68,7 @@
 - Package building scripts (#4273)
 - S2S DNS discovery (#4278)
 - Timestamps for MUC legacy messages (#4294)
+- Improved stream management support for WebSockets (#4303)
 - GraphQL SSE crash with large stanza payloads (#4364)
 - Double message in MAM bug (#4374)
 - Building docker image locally (#4377)
@@ -70,18 +79,18 @@
 - Old `mongoose_metrics` module (#4353)
 
 ## Other
-- Documentation improvements (#4266, #4277, #4327, #4341, #4354, #4356, #4376)
+- Documentation improvements (#4266, #4277, #4327, #4341, #4354, #4356, #4376, #4383)
 - Testing improvements/fixes (#4267, #4270, #4279, #4286, #4307, #4315, #4321, #4339, #4342, #4351, #4357, #4362, #4373)
 - CI improvements/fixes (#4276, #4329, #4346, #4350, #4365, #4366, #4367, #4369, #4370)
 
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.0)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-04-12..2024-10-15)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-04-12..2024-10-22)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-04-12&to=2024-10-15&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-04-12&to=2024-10-22&type=c)
 
-- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.0+sort%3Acreated-asc)
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.0+sort%3Aupdated-desc)
 
 # [MongooseIM 6.2.1](https://github.com/esl/MongooseIM/releases/tag/6.2.1) - 2024-04-12
 
