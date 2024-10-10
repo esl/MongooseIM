@@ -915,7 +915,7 @@ abort_on_driver_error({error, "Failed sending data on socket" ++ _}) -> %% mysql
 abort_on_driver_error(_) ->
     continue.
 
--spec db_engine(mongooseim:host_type_or_global()) -> odbc | mysql | pgsql | cockroachdb | undefined.
+-spec db_engine(mongooseim:host_type_or_global()) -> backend() | undefined.
 db_engine(_HostType) ->
     try mongoose_backend:get_backend_name(global, ?MODULE)
     catch error:badarg -> undefined end.
