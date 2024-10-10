@@ -15,6 +15,10 @@ function wait_for_db {
             ./tools/wait-for-it.sh -p 5432
         ;;
 
+        cockroachdb)
+            ./tools/wait-for-it.sh -p 26257
+        ;;
+
         mssql)
             ./tools/wait-for-it.sh -p 1433
             ./tools/wait-for-it.sh -p 1434 # SCHEMA_READY_PORT

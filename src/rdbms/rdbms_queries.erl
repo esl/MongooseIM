@@ -104,7 +104,7 @@ execute_upsert(HostType, PoolTag, Name, InsertParams, UpdateParams, UniqueKeyVal
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
@@ -127,7 +127,7 @@ execute_upsert_many(HostType, PoolTag, Name, InsertParams, UpdateParams) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
@@ -143,7 +143,7 @@ request_upsert(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
             mongoose_rdbms:execute_request(HostType, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
@@ -172,10 +172,16 @@ prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
                      IncrementalField :: none | binary()) ->
     {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
 prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
-    SQL = upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField),
+    InsertFieldsTransformed = format_fields_for_db(HostType, InsertFields),
+    UpdatesTransformed = format_fields_for_db(HostType, Updates),
+    UniqueKeyFieldsTransformed = format_fields_for_db(HostType, UniqueKeyFields),
+    IncrementalFieldTransformed = format_fields_for_db(HostType, IncrementalField),
+    SQL = upsert_query(HostType, Table, InsertFieldsTransformed, UpdatesTransformed,
+                       UniqueKeyFieldsTransformed, IncrementalFieldTransformed),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
-    Fields = prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields),
+    Fields = prepared_upsert_fields(InsertFieldsTransformed, UpdatesTransformed,
+                                    UniqueKeyFieldsTransformed),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
 prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
@@ -206,17 +212,22 @@ prepared_upsert_many_fields(RecordCount, InsertFields, Updates, _UniqueKeyFields
                           UniqueKeyFields :: [binary()]) ->
     {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
 prepare_upsert_many(HostType, RecordCount, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
-    SQL = upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKeyFields),
+    InsertFieldsTransformed = format_fields_for_db(HostType, InsertFields),
+    UpdatesTransformed = format_fields_for_db(HostType, Updates),
+    UniqueKeyFieldsTransformed = format_fields_for_db(HostType, UniqueKeyFields),
+    SQL = upsert_query_many(HostType, RecordCount, Table, InsertFieldsTransformed,
+                            UpdatesTransformed, UniqueKeyFieldsTransformed),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
-    Fields = prepared_upsert_many_fields(RecordCount, InsertFields, Updates, UniqueKeyFields),
+    Fields = prepared_upsert_many_fields(RecordCount, InsertFieldsTransformed,
+                                         UpdatesTransformed, UniqueKeyFieldsTransformed),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
 upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             upsert_mysql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
         {odbc, mssql} ->
             upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields);
@@ -227,7 +238,7 @@ upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKey
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             upsert_many_mysql_query(RecordCount, Table, InsertFields);
-        {pgsql, _} ->
+        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
             upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
         {odbc, mssql} ->
             upsert_many_mssql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
@@ -457,3 +468,25 @@ limit_offset_args(Limit, Offset) ->
 
 limit_offset_args(mssql, Limit, Offset) -> [Offset, Limit];
 limit_offset_args(_, Limit, Offset) -> [Limit, Offset].
+
+format_fields_for_db(_, none) ->
+    none;
+format_fields_for_db(HostType, Fields) when is_list(Fields) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        cockroachdb ->
+            lists:map(fun(Element) -> transform_field(Element) end, Fields);
+        _ ->
+            Fields
+    end;
+format_fields_for_db(HostType, Field) when is_binary(Field) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        cockroachdb ->
+            transform_field(Field);
+        _ -> 
+            Field
+    end.
+
+transform_field({_, Field, _} = Element) ->
+    erlang:setelement(2, Element, transform_field(Field));
+transform_field(Field) when is_binary(Field)->
+    <<"\"", Field/binary, "\"">>.

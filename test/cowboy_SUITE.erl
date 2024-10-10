@@ -20,7 +20,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(SERVER, "http://localhost:8080").
+-define(SERVER, "http://localhost:8081").
 
 -import(ejabberd_helper, [use_config_file/2,
                           start_ejabberd_with_config/2]).
@@ -128,7 +128,7 @@ ws_request_bad_protocol(_Config) ->
 ws_requests_xmpp(_Config) ->
     %% Given
     Host = "localhost",
-    Port = 8080,
+    Port = 8081,
     Protocol = <<"xmpp">>,
     BinaryPing = ws_tx_frame(<<"ping">>, 2),
     BinaryPong = ws_rx_frame(<<"pong">>, 2),
@@ -151,7 +151,7 @@ ws_requests_xmpp(_Config) ->
 ws_requests_other(_Config) ->
     %% Given
     Host = "localhost",
-    Port = 8080,
+    Port = 8081,
     Protocol = <<"other">>,
     TextPing = ws_tx_frame(<<"ping">>, 1),
     TextPong = ws_rx_frame(<<"pong">>, 1),
@@ -181,7 +181,7 @@ mixed_requests(_Config) ->
     TextPong = ws_rx_frame(<<"pong">>, 1),
 
     Host = "localhost",
-    Port = 8080,
+    Port = 8081,
 
     HTTPHost = ?SERVER,
     Path = <<"/">>,
@@ -245,7 +245,7 @@ start_cowboy() ->
                 }]),
     {ok, _Pid} = cowboy:start_clear(http_listener,
                                     #{num_acceptors => 20,
-                                      socket_opts => [{port, 8080}]},
+                                      socket_opts => [{port, 8081}]},
                                     #{env => #{dispatch => Dispatch}}).
 
 stop_cowboy() ->

@@ -178,11 +178,12 @@ search(HostType, LServer, Data) ->
         _ ->
             Limit = mod_vcard:get_results_limit(HostType),
             LimitType = limit_type(Limit),
+            DBEngine = mongoose_rdbms:db_engine(HostType),
             StmtName = filters_to_statement_name(Filters, LimitType),
             case mongoose_rdbms:prepared(StmtName) of
                 false ->
                     %% Create a new type of a query
-                    SQL = search_sql_binary(Filters, LimitType),
+                    SQL = search_sql_binary(DBEngine, Filters, LimitType),
                     Columns = filters_to_columns(Filters, LimitType),
                     mongoose_rdbms:prepare(StmtName, vcard_search, Columns, SQL);
                 true ->
@@ -194,12 +195,12 @@ search(HostType, LServer, Data) ->
                     record_to_items(Rs);
                 Error ->
                     ?LOG_ERROR(#{what => vcard_db_search_failed, statement => StmtName,
-                                 sql_query => search_sql_binary(Filters, LimitType),
+                                 sql_query => search_sql_binary(DBEngine, Filters, LimitType),
                                  reason => Error, host => LServer}),
                     []
             catch Class:Error:Stacktrace ->
                     ?LOG_ERROR(#{what => vcard_db_search_failed, statement => StmtName,
-                                 sql_query => search_sql_binary(Filters, LimitType),
+                                 sql_query => search_sql_binary(DBEngine, Filters, LimitType),
                                  class => Class, stacktrace => Stacktrace,
                                  reason => Error, host => LServer}),
                     []
@@ -239,7 +240,9 @@ filters_to_args(Filters, LimitType, Limit) ->
        limit    -> Args ++ [Limit]
    end.
 
-search_sql_binary(Filters, LimitType) ->
+search_sql_binary(cockroachdb, Filters, LimitType) ->
+    iolist_to_binary(search_sql_cockroachdb(Filters, LimitType));
+search_sql_binary(_, Filters, LimitType) ->
     iolist_to_binary(search_sql(Filters, LimitType)).
 
 search_sql(Filters, LimitType) ->
@@ -249,6 +252,16 @@ search_sql(Filters, LimitType) ->
      <<" username, server, fn, family, given, middle, "
        "nickname, bday, ctry, locality, "
        "email, orgname, orgunit "
+       "FROM vcard_search ">>,
+        RestrictionSQL, LimitSQL].
+
+search_sql_cockroachdb(Filters, LimitType) ->
+    {TopSQL, LimitSQL} = limit_type_to_sql(LimitType),
+    RestrictionSQL = filters_to_sql(Filters),
+    [<<"SELECT ">>, TopSQL,
+     <<" \"username\", \"server\", \"fn\", \"family\", \"given\", \"middle\", "
+       "\"nickname\", \"bday\", \"ctry\", \"locality\", "
+       "\"email\", \"orgname\", \"orgunit\" "
        "FROM vcard_search ">>,
         RestrictionSQL, LimitSQL].
 

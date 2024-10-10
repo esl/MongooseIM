@@ -54,6 +54,26 @@ containers:
       - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
       - ENV_FILE_KEY_DATA: "__MIM_KEY__"
     entrypoint: *ENTRYPOINT
+  - &cockroachdb_container
+    image: cockroachdb/cockroach:__COCKROACHDB_VERSION__
+    environment:
+      - COCKROACH_DATABASE: mongooseim
+      - OLD_ENTRYPOINT: "chmod 777 /start.sh && /start.sh"
+      - ENV_FILE_SETUP_PATH: "/start.sh"
+      - ENV_FILE_SETUP_DATA: "__COCKROACHDB_SETUP__"
+      - ENV_FILE_SQL_PATH: "/docker-entrypoint-initdb.d/init.sql"
+      - ENV_FILE_SQL_DATA: "__COCKROACHDB_SQL__"
+      - ENV_FILE_USER_PATH: "/docker-entrypoint-initdb.d/create_user.sql"
+      - ENV_FILE_USER_DATA: "__COCKROACHDB_USER_SQL__"
+      - ENV_FILE_CACERT_PATH: "/tmp/ca.key"
+      - ENV_FILE_CACERT_DATA: "__DB_CAKEY__"
+      - ENV_FILE_CAKEY_PATH: "/tmp/ca.crt"
+      - ENV_FILE_CAKEY_DATA: "__DB_CACERT__"
+      - ENV_FILE_CERT_PATH: "/tmp/client.mongooseim.crt"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/tmp/client.mongooseim.key"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+    entrypoint: *ENTRYPOINT
   - &ldap_container
     image: osixia/openldap:__LDAP_VERSION__
     environment:
@@ -185,6 +205,11 @@ executors:
       - image: *OTP27
       - *redis_container
       - *pgsql_container
+  otp_27_cockroachdb_redis:
+    docker:
+      - image: *OTP27
+      - *redis_container
+      - *cockroachdb_container
   otp_26_ldap_redis:
     docker:
       - image: *OTP26
@@ -552,7 +577,8 @@ jobs:
       preset:
         type: enum
         enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
-               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, pgsql_cets]
+               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, pgsql_cets,
+               cockroachdb_cets]
         description: Preset to run
         default: internal_mnesia
       db:
@@ -844,6 +870,15 @@ workflows:
             - otp_27_docker
           filters: *all_tags
       - big_tests_in_docker:
+          name: cockroachdb_cets_27
+          executor: otp_27_cockroachdb_redis
+          context: mongooseim-org
+          preset: cockroachdb_cets
+          db: "mnesia cockroachdb cets"
+          requires:
+            - otp_27_docker
+          filters: *all_tags
+      - big_tests_in_docker:
           name: pgsql_cets_27
           executor: otp_27_pgsql_redis
           context: mongooseim-org
@@ -966,6 +1001,7 @@ workflows:
             - small_tests_27
             - internal_mnesia_27
             - pgsql_cets_27
+            - cockroachdb_cets_27
             - pgsql_mnesia_27
             - mysql_redis_27
             - mssql_mnesia_27

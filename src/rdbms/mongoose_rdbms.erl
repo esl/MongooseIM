@@ -170,7 +170,7 @@
 -type dirty_result() :: {ok, any()} | {error, any()}.
 -export_type([query_name/0, query_result/0, transaction_result/0]).
 
--type backend() :: pgsql | mysql | odbc.
+-type backend() :: pgsql | mysql | odbc | cockroachdb.
 -type options() :: #{driver := backend(),
                      max_start_interval := pos_integer(),
                      query_timeout := pos_integer(),
@@ -193,13 +193,15 @@ process_options(Opts) ->
 process_tls_options(Opts = #{driver := mysql, tls := #{required := _}}) ->
     error(#{what => invalid_rdbms_tls_options, options => Opts,
             text => <<"The 'required' option is not supported for MySQL">>});
-process_tls_options(Opts = #{driver := pgsql, tls := TLSOpts}) ->
+process_tls_options(Opts = #{driver := Driver, tls := TLSOpts}) when Driver =:= pgsql;
+                                                                     Driver =:= cockroachdb ->
     Opts#{tls := maps:merge(#{required => false}, TLSOpts)};
 process_tls_options(Opts) ->
     Opts.
 
 ensure_db_port(Opts = #{port := _}) -> Opts;
 ensure_db_port(Opts = #{driver := pgsql}) -> Opts#{port => 5432};
+ensure_db_port(Opts = #{driver := cockroachdb}) -> Opts#{port => 26257};
 ensure_db_port(Opts = #{driver := mysql}) -> Opts#{port => 3306}.
 
 -spec prepare(
@@ -913,7 +915,7 @@ abort_on_driver_error({error, "Failed sending data on socket" ++ _}) -> %% mysql
 abort_on_driver_error(_) ->
     continue.
 
--spec db_engine(mongooseim:host_type_or_global()) -> odbc | mysql | pgsql | undefined.
+-spec db_engine(mongooseim:host_type_or_global()) -> backend() | undefined.
 db_engine(_HostType) ->
     try mongoose_backend:get_backend_name(global, ?MODULE)
     catch error:badarg -> undefined end.

@@ -70,7 +70,8 @@ get_rdbms_data_stats(HostType, Tag) ->
     Stats#{workers => length(RDBMSConnections)}.
 
 get_port_from_rdbms_connection({{ok, DB, Pid}, _WorkerPid}) when DB =:= mysql;
-    DB =:= pgsql ->
+                                                                 DB =:= pgsql;
+                                                                 DB =:= cockroachdb ->
     ProcState = sys:get_state(Pid),
     get_port_from_proc_state(DB, ProcState);
 get_port_from_rdbms_connection({{ok, odbc, Pid}, WorkerPid}) ->
@@ -90,7 +91,7 @@ get_port_from_proc_state(mysql, State) ->
     %%                 stmts = dict:new(), query_cache = empty, cap_found_rows = false}).
     SockInfo = element(4, State),
     get_port_from_sock(SockInfo);
-get_port_from_proc_state(pgsql, State) ->
+get_port_from_proc_state(Driver, State) when Driver =:= pgsql; Driver =:= cockroachdb ->
     %% -record(state, {mod,
     %%                 sock,
     %%                 data = <<>>,

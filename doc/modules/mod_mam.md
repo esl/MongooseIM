@@ -9,7 +9,7 @@ MongooseIM is compatible with MAM 0.4-1.1.0.
 
 Configure MAM with different storage backends:
 
-* RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
+* RDBMS (databases like MySQL, PostgreSQL, CockroachDB, MS SQL Server)
 * Cassandra (NoSQL)
 * ElasticSearch (NoSQL)
 

@@ -226,7 +226,7 @@ binary_values() ->
     binary:copy(<<0>>, 100000),
     null
     ] ++
-    case is_odbc() orelse is_pgsql() of
+    case is_odbc() orelse is_pgsql() orelse is_cockroachdb() of
         true ->
             [];
         false ->
@@ -1276,6 +1276,9 @@ is_pgsql() ->
 
 is_mysql() ->
     db_engine() == mysql.
+
+is_cockroachdb() ->
+    db_engine() == cockroachdb.
 
 stop_global_default_pool() ->
     Pools = rpc(mim(), mongoose_config, get_opt, [outgoing_pools]),

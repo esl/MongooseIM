@@ -447,7 +447,7 @@ prepare_count_users(HostType) ->
             prepare(auth_count_users_estimate, 'information_schema.tables', [],
                     <<"SELECT table_rows FROM information_schema.tables "
                       "WHERE table_name = 'users'">>);
-        {true, pgsql} ->
+        {true, Driver} when Driver =:= pgsql; Driver =:= cockroachdb ->
             prepare_count_users(),
             prepare(auth_count_users_estimate, pg_class, [],
                     <<"SELECT reltuples::numeric FROM pg_class "
@@ -516,7 +516,7 @@ execute_count_users(HostType, LServer, #{}) ->
           mongoose_rdbms:db_engine(LServer)} of
         {true, mysql} ->
             execute_successfully(HostType, auth_count_users_estimate, []);
-        {true, pgsql} ->
+        {true, Driver} when Driver =:= pgsql; Driver =:= cockroachdb ->
             case execute_successfully(HostType, auth_count_users_estimate, []) of
                 {selected,[{<<"-1">>}]} ->
                     execute_successfully(HostType, auth_count_users, [LServer]);
