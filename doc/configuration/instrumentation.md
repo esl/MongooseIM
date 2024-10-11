@@ -92,7 +92,7 @@ In case both `prefix` and `env_prefix` are defined, it will be placed before the
 ## Log handler options
 
 ### `instrumentation.log.level`
-* **Syntax:** string, one of `"none"`, `"emergency"`, `"alert"`, `"critical"`, `"error"`, `"warning"`, `"notice"`, `"info"`, `"debug"`, `"all"`.
+* **Syntax:** string, one of `"emergency"`, `"alert"`, `"critical"`, `"error"`, `"warning"`, `"notice"`, `"info"`, `"debug"`, `"all"`.
 * **Default:** `"debug"`
 * **Example:** `loglevel = "error"`
 
@@ -110,7 +110,7 @@ Note that for some events, the level may be different, and this option overridde
 This configuration enables `prometheus`, and `log` handlers:
 ```toml
 [instrumentation]
-  probe_interval = 10_000
+  probe_interval = 60
 
 [instrumentation.prometheus]
 
