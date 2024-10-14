@@ -15,6 +15,10 @@ PGSQL_SQL=$(cat32 priv/pg.sql)
 PGSQL_HBA=$(cat32 tools/db_configs/pgsql/pg_hba.conf)
 PGSQL_SETUP=$(cat32 tools/docker-setup-postgres.sh)
 
+COCKROACH_SQL=$(cat32 priv/cockroachdb.sql)
+COCKROACH_USER_SQL=$(cat32 tools/db_configs/cockroachdb/create_user.sql)
+COCKROACH_SETUP=$(cat32 tools/docker-setup-cockroachdb.sh)
+
 MSSQL_SQL=$(cat32 priv/mssql2012.sql)
 MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
 
@@ -32,6 +36,7 @@ MIM_PRIV_KEY=$(cat32 tools/ssl/mongooseim/privkey.pem)
 MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
 INJECT_FILES=$(cat32 tools/inject-files.sh)
 CACERT=$(cat32 tools/ssl/ca/cacert.pem)
+CAKEY=$(cat32 tools/ssl/ca/cakey.pem)
 
 CERTS_CACHE_KEY=$(cat certs_cache_key)
 
@@ -47,6 +52,10 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__PGSQL_HBA__/${PGSQL_HBA}/" \
     -e "s/__PGSQL_SETUP__/${PGSQL_SETUP}/" \
     -e "s/__PGSQL_VERSION__/${PGSQL_VERSION}/g" \
+    -e "s/__COCKROACHDB_USER_SQL__/${COCKROACH_USER_SQL}/" \
+    -e "s/__COCKROACHDB_SQL__/${COCKROACH_SQL}/" \
+    -e "s/__COCKROACHDB_SETUP__/${COCKROACH_SETUP}/" \
+    -e "s/__COCKROACHDB_VERSION__/${COCKROACHDB_VERSION}/" \
     -e "s/__MSSQL_SQL__/${MSSQL_SQL}/" \
     -e "s/__MSSQL_SETUP__/${MSSQL_SETUP}/" \
     -e "s/__MSSQL_VERSION__/${MSSQL_VERSION}/" \
@@ -69,6 +78,7 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MIM_DHSERVER__/${MIM_DHSERVER}/" \
     -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
     -e "s/__DB_CACERT__/${CACERT}/" \
+    -e "s/__DB_CAKEY__/${CAKEY}/" \
     -e "s/__PYTHON2_BASE32_DEC__/${PYTHON2_BASE32_DEC}/" \
     -e "s/__PYTHON3_BASE32_DEC__/${PYTHON3_BASE32_DEC}/" \
     -e "s/__CERTS_CACHE_KEY__/${CERTS_CACHE_KEY}/" \

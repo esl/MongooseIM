@@ -579,7 +579,7 @@ outgoing_pool_connection(<<"rabbit">>) ->
 outgoing_pool_connection(<<"rdbms">>) ->
     #section{
        items = #{<<"driver">> => #option{type = atom,
-                                         validate = {enum, [odbc, pgsql, mysql]}},
+                                         validate = {enum, [odbc, pgsql, mysql, cockroachdb]}},
                  <<"keepalive_interval">> => #option{type = integer,
                                                      validate = positive},
                  <<"query_timeout">> => #option{type = integer,
@@ -590,7 +590,7 @@ outgoing_pool_connection(<<"rdbms">>) ->
                  % odbc
                  <<"settings">> => #option{type = string},
 
-                 % mysql, pgsql
+                 % mysql, pgsql, cockroachdb
                  <<"host">> => #option{type = string,
                                        validate = non_empty},
                  <<"database">> => #option{type = string,

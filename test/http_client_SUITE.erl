@@ -30,7 +30,7 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    http_helper:start(8080, '_', fun process_request/1),
+    http_helper:start(8081, '_', fun process_request/1),
     Pid = self(),
     spawn(fun() ->
                   register(test_helper, self()),
@@ -61,12 +61,12 @@ init_per_testcase(TC, Config) ->
     Config.
 
 pool_opts(request_timeout_test) ->
-    #{conn_opts => #{host => "http://localhost:8080", request_timeout => 10}};
+    #{conn_opts => #{host => "http://localhost:8081", request_timeout => 10}};
 pool_opts(pool_timeout_test) ->
     #{opts => #{workers => 1, max_overflow => 0, strategy => available_worker, call_timeout => 10},
-      conn_opts => #{host => "http://localhost:8080", request_timeout => 5000}};
+      conn_opts => #{host => "http://localhost:8081", request_timeout => 5000}};
 pool_opts(_TC) ->
-    #{conn_opts => #{host => "http://localhost:8080", request_timeout => 1000}}.
+    #{conn_opts => #{host => "http://localhost:8081", request_timeout => 1000}}.
 
 end_per_testcase(_TC, _Config) ->
     mongoose_wpool:stop(http, global, pool()).

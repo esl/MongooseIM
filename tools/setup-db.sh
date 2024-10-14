@@ -105,6 +105,43 @@ function setup_db(){
         mkdir -p ${PGSQL_ODBC_CERT_DIR}
         cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
 
+    elif [ "$db" = 'cockroachdb' ]; then
+        NAME=$(db_name cockroachdb)
+        COCKROACHDB_PORT=${COCKROACHDB_PORT:-26257}
+
+        echo "Configuring CockroachDB with SSL"
+        $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
+
+        COCKROACH_SQL=$(cat32 priv/cockroachdb.sql)
+        COCKROACH_USER_SQL=$(cat32 tools/db_configs/cockroachdb/create_user.sql)
+        COCKROACH_SETUP=$(cat32 tools/docker-setup-cockroachdb.sh)
+
+        DB_CACERT=$(cat32 tools/ssl/ca/cacert.pem)
+        DB_CAKEY=$(cat32 tools/ssl/ca/cakey.pem)
+        MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
+        MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+
+        IMAGE=cockroachdb/cockroach:$COCKROACHDB_VERSION
+        $DOCKER run -d --name=$NAME \
+                    -p $COCKROACHDB_PORT:26257 \
+                    -e COCKROACH_DATABASE=mongooseim \
+                    -e OLD_ENTRYPOINT="chmod 777 /start.sh && /start.sh" \
+                    -e ENV_FILE_SETUP_PATH="/start.sh" \
+                    -e ENV_FILE_SETUP_DATA="$COCKROACH_SETUP" \
+                    -e ENV_FILE_SQL_PATH="/docker-entrypoint-initdb.d/init.sql" \
+                    -e ENV_FILE_SQL_DATA="$COCKROACH_SQL" \
+                    -e ENV_FILE_USER_PATH="/docker-entrypoint-initdb.d/create_user.sql" \
+                    -e ENV_FILE_USER_DATA="$COCKROACH_USER_SQL" \
+                    -e ENV_FILE_CACERT_PATH="/tmp/ca.key" \
+                    -e ENV_FILE_CACERT_DATA="$DB_CAKEY" \
+                    -e ENV_FILE_CAKEY_PATH="/tmp/ca.crt" \
+                    -e ENV_FILE_CAKEY_DATA="$DB_CACERT" \
+                    -e ENV_FILE_CERT_PATH="/tmp/client.mongooseim.crt" \
+                    -e ENV_FILE_CERT_DATA="$MIM_CERT" \
+                    -e ENV_FILE_KEY_PATH="/tmp/client.mongooseim.key" \
+                    -e ENV_FILE_KEY_DATA="$MIM_KEY" \
+                    --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
+
     elif [ "$db" = 'cassandra' ]; then
         NAME=$(db_name cassandra)
         PROXY_NAME=$(db_name cassandra-proxy)
