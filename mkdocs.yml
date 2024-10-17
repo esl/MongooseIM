@@ -38,6 +38,7 @@ extra:
 plugins:
   - include-markdown
   - search:
+      separator: '[\s\-_,:!=\[\]()"/<>]+|\.(?!\d)|&[lg]t;'
       lang: en
 extra_css: [css/custom.css]
 markdown_extensions:
