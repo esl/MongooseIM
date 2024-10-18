@@ -9,7 +9,7 @@
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{<<"level">> => #option{type = atom, validate = loglevel}},
+    #section{items = #{<<"level">> => #option{type = atom, validate = instrumentation_loglevel}},
              defaults = #{<<"level">> => debug}}.
 
 -spec set_up(mongoose_instrument:event_name(), mongoose_instrument:labels(),

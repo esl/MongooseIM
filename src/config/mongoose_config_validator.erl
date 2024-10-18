@@ -46,6 +46,7 @@ validate(V, atom, module) -> validate_module(V);
 validate(V, atom, {module, Prefix}) ->
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ atom_to_list(V)));
 validate(V, atom, loglevel) -> validate_loglevel(V);
+validate(V, atom, instrumentation_loglevel) -> validate_instrumentation_loglevel(V);
 validate(V, atom, pool_name) -> validate_non_empty_atom(V);
 validate(V, atom, shaper) -> validate_non_empty_atom(V);
 validate(V, atom, access_rule) -> validate_non_empty_atom(V);
@@ -64,6 +65,12 @@ validate_section([_|_], non_empty) -> ok;
 validate_section(L, any) when is_list(L) -> ok.
 
 %% validators
+%% 
+validate_instrumentation_loglevel(none) ->
+    error(#{what => validate_instrumentation_loglevel_failed,
+            value => none});
+validate_instrumentation_loglevel(Level) ->
+    validate_loglevel(Level).
 
 validate_loglevel(Level) ->
     mongoose_logs:loglevel_keyword_to_number(Level).
