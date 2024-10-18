@@ -2941,6 +2941,7 @@ instrumentation_log(_Config) ->
     T = fun(Opts) -> #{<<"instrumentation">> => #{<<"log">> => Opts}} end,
     ?cfg(P, default_config(P), T(#{})),
     ?cfg(P ++ [level], info, T(#{<<"level">> => <<"info">>})),
+    ?err(T(#{<<"level">> => <<"none">>})),
     ?err(T(#{<<"level">> => <<"insane">>})).
 
 instrumentation_exometer(_Config) ->

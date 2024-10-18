@@ -107,7 +107,7 @@ Note that for some events, the level may be different, and this option overridde
 
 ## Example Prometheus configuration
 
-This configuration enables `prometheus`, and `log` handlers:
+This configuration enables `prometheus`, and `log` handlers, setting the periodic measurement (probe) interval to 60 seconds:
 ```toml
 [instrumentation]
   probe_interval = 60
