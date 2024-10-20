@@ -53,6 +53,7 @@
          deny_config_change_that_conflicts_with_schema/1,
          assorted_config_doesnt_lead_to_duplication/1,
          remove_and_add_users/1,
+         multiple_owner_change/1,
          explicit_owner_change/1,
          implicit_owner_change/1,
          edge_case_owner_change/1,
@@ -179,6 +180,7 @@ groups() ->
                               assorted_config_doesnt_lead_to_duplication,
                               remove_and_add_users,
                               explicit_owner_change,
+                              multiple_owner_change,
                               implicit_owner_change,
                               edge_case_owner_change,
                               adding_wrongly_named_user_triggers_infinite_loop
@@ -791,6 +793,21 @@ remove_and_add_users(Config) ->
             assert_cache_miss_event(TS, 1, room_bin_jid(?ROOM)),
             assert_cache_hit_event(TS, 1, room_bin_jid(?ROOM))
         end).
+
+multiple_owner_change(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    TS = instrument_helper:timestamp(),
+    AffUsersChanges1 = [{Bob, none}, {Kate, none}],
+    escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
+    verify_aff_bcast([{Alice, owner}], AffUsersChanges1),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+    AffUsersChanges2 = [{Bob, owner}, {Kate, owner}],
+    escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges2)),
+    verify_aff_bcast([{Alice, owner}, {Bob, owner}, {Kate, owner}], AffUsersChanges2),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+    assert_cache_miss_event(TS, 1, room_bin_jid(?ROOM)),
+    assert_cache_hit_event(TS, 1, room_bin_jid(?ROOM))
+                                                           end).
 
 explicit_owner_change(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
