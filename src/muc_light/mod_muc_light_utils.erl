@@ -68,8 +68,7 @@ change_aff_users(AffUsers, AffUsersChangesAssorted) ->
         _ ->
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
-                        [fun maybe_demote_old_owner/1,
-                         fun maybe_select_new_owner/1])
+                        [fun maybe_select_new_owner/1])
     end.
 
 -spec aff2b(Aff :: aff()) -> binary().
@@ -207,25 +206,6 @@ select_promotion(_OldMembers, _JoiningUsers, [U | _]) ->
     {U, promote_demoted_owner};
 select_promotion(_, _, _) ->
     false.
-
--spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
-    change_aff_success() | {error, bad_request()}.
-maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
-    Owners = [U || {U, owner} <- AU],
-    PromotedOwners = [U || {U, owner} <- AUC],
-    OldOwners = Owners -- PromotedOwners,
-    case {Owners, OldOwners} of
-        _ when length(Owners) =< 1 ->
-            {ok, AU, AUC, JoiningUsers, LeavingUsers};
-        {[_, _], [OldOwner]} ->
-            NewAU = lists:keyreplace(OldOwner, 1, AU, {OldOwner, member}),
-            NewAUC = [{OldOwner, member} | AUC],
-            {ok, NewAU, NewAUC, JoiningUsers, LeavingUsers};
-        _ ->
-            {error, {bad_request, <<"Failed to demote old owner">>}}
-    end;
-maybe_demote_old_owner(Error) ->
-    Error.
 
 -spec apply_aff_users_change(AffUsers :: aff_users(),
                              AffUsersChanges :: aff_users()) ->
