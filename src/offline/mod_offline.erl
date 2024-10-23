@@ -469,12 +469,7 @@ remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type :
     Params :: map(),
     Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
-    case mongoose_lib:is_exported(mod_offline_backend, remove_domain, 2) of
-         true ->
-            mod_offline_backend:remove_domain(HostType, Domain);
-        false ->
-            ok
-    end,
+    mod_offline_backend:remove_domain(HostType, Domain),
     {ok, Acc}.
 
 -spec disco_features(Acc, Params, Extra) -> {ok, Acc} when
