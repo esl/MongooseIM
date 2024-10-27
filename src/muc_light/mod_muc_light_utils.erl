@@ -24,7 +24,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([change_aff_users/2]).
+-export([change_aff_users/3]).
 -export([b2aff/1, aff2b/1]).
 -export([light_aff_to_muc_role/1]).
 -export([room_limit_reached/2]).
@@ -57,19 +57,25 @@
 %% API
 %%====================================================================
 
--spec change_aff_users(CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
+-spec change_aff_users(HostType :: mongooseim:host_type(), CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
     change_aff_success() | {error, bad_request()}.
-change_aff_users(AffUsers, AffUsersChangesAssorted) ->
+change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
     case {lists:keyfind(owner, 2, AffUsers), lists:keyfind(owner, 2, AffUsersChangesAssorted)} of
         {false, false} -> % simple, no special cases
             apply_aff_users_change(AffUsers, AffUsersChangesAssorted);
         {false, {_, _}} -> % ownerless room!
             {error, {bad_request, <<"Ownerless room">>}};
         _ ->
+            MultipleAdmin = mongoose_hooks:should_allow_multiple_admin(HostType),
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
-                        [fun maybe_select_new_owner/1])
+                        change_aff_functions(MultipleAdmin))
     end.
+
+change_aff_functions(false)->
+    [fun maybe_demote_old_owner/1, fun maybe_select_new_owner/1];
+change_aff_functions(true)->
+    [fun maybe_select_new_owner/1].
 
 -spec aff2b(Aff :: aff()) -> binary().
 aff2b(owner) -> <<"owner">>;
@@ -206,6 +212,25 @@ select_promotion(_OldMembers, _JoiningUsers, [U | _]) ->
     {U, promote_demoted_owner};
 select_promotion(_, _, _) ->
     false.
+
+-spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
+    change_aff_success() | {error, bad_request()}.
+maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
+    Owners = [U || {U, owner} <- AU],
+    PromotedOwners = [U || {U, owner} <- AUC],
+    OldOwners = Owners -- PromotedOwners,
+    case {Owners, OldOwners} of
+        _ when length(Owners) =< 1 ->
+            {ok, AU, AUC, JoiningUsers, LeavingUsers};
+        {[_, _], [OldOwner]} ->
+            NewAU = lists:keyreplace(OldOwner, 1, AU, {OldOwner, member}),
+            NewAUC = [{OldOwner, member} | AUC],
+            {ok, NewAU, NewAUC, JoiningUsers, LeavingUsers};
+        _ ->
+            {error, {bad_request, <<"Failed to demote old owner">>}}
+    end;
+maybe_demote_old_owner(Error) ->
+    Error.
 
 -spec apply_aff_users_change(AffUsers :: aff_users(),
                              AffUsersChanges :: aff_users()) ->

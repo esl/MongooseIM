@@ -752,7 +752,7 @@ modify_aff_users_transaction(HostType, RoomUS, RoomID, AffUsersChanges,
                              CheckFun, PrevVersion, Version) ->
     {selected, AffUsersDB} = select_affs_by_room_id(HostType, RoomID),
     AffUsers = decode_affs(AffUsersDB),
-    case mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanges) of
+    case mod_muc_light_utils:change_aff_users(HostType, AffUsers, AffUsersChanges) of
         {ok, NewAffUsers, AffUsersChanged, JoiningUsers, _LeavingUsers} ->
             case CheckFun(RoomUS, NewAffUsers) of
                 ok ->

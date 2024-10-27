@@ -126,9 +126,9 @@ get_user_rooms_count(_HostType, UserUS) ->
                   UserUS :: jid:simple_bare_jid(),
                   Version :: binary()) ->
     mod_muc_light_db_backend:remove_user_return() | {error, term()}.
-remove_user(_HostType, UserUS, Version) ->
+remove_user(HostType, UserUS, Version) ->
     mnesia:dirty_delete(muc_light_blocking, UserUS),
-    {atomic, Res} = mnesia:transaction(fun remove_user_transaction/2, [UserUS, Version]),
+    {atomic, Res} = mnesia:transaction(fun remove_user_transaction/3, [HostType, UserUS, Version]),
     Res.
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver(), jid:lserver()) -> ok.
@@ -210,9 +210,9 @@ get_aff_users(_HostType, RoomUS) ->
                        ExternalCheck :: external_check_fun(),
                        Version :: binary()) ->
     mod_muc_light_db_backend:modify_aff_users_return().
-modify_aff_users(_HostType, RoomUS, AffUsersChanges, ExternalCheck, Version) ->
-    {atomic, Res} = mnesia:transaction(fun modify_aff_users_transaction/4,
-                                       [RoomUS, AffUsersChanges, ExternalCheck, Version]),
+modify_aff_users(HostType, RoomUS, AffUsersChanges, ExternalCheck, Version) ->
+    {atomic, Res} = mnesia:transaction(fun modify_aff_users_transaction/5,
+                                       [HostType, RoomUS, AffUsersChanges, ExternalCheck, Version]),
     Res.
 
 %% ------------------------ Misc ------------------------
@@ -311,13 +311,15 @@ destroy_room_transaction(RoomUS) ->
             mnesia:delete({muc_light_room, RoomUS})
     end.
 
--spec remove_user_transaction(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
+-spec remove_user_transaction(HostType :: mongooseim:host_type(),
+                              UserUS :: jid:simple_bare_jid(),
+                              Version :: binary()) ->
     mod_muc_light_db_backend:remove_user_return().
-remove_user_transaction(UserUS, Version) ->
+remove_user_transaction(HostType, UserUS, Version) ->
     lists:map(
       fun(#muc_light_user_room{ room = RoomUS }) ->
               {RoomUS, modify_aff_users_transaction(
-                         RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
+                        HostType, RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
       end, mnesia:read(muc_light_user_room, UserUS)).
 
 %% ------------------------ Configuration manipulation ------------------------
@@ -345,17 +347,18 @@ dirty_get_blocking_raw(UserUS) ->
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec modify_aff_users_transaction(RoomUS :: jid:simple_bare_jid(),
+-spec modify_aff_users_transaction(HostType :: mongooseim:host_type(),
+                                   RoomUS :: jid:simple_bare_jid(),
                                    AffUsersChanges :: aff_users(),
                                    ExternalCheck :: external_check_fun(),
                                    Version :: binary()) ->
     mod_muc_light_db_backend:modify_aff_users_return().
-modify_aff_users_transaction(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
+modify_aff_users_transaction(HostType, RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     case mnesia:wread({muc_light_room, RoomUS}) of
         [] ->
             {error, not_exists};
         [#muc_light_room{ aff_users = AffUsers } = RoomRec] ->
-            case mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanges) of
+            case mod_muc_light_utils:change_aff_users(HostType, AffUsers, AffUsersChanges) of
                 {ok, NewAffUsers, _, _, _} = ChangeResult ->
                     verify_externally_and_submit(
                       RoomUS, RoomRec, ChangeResult, ExternalCheck(RoomUS, NewAffUsers), Version);
