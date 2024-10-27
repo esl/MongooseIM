@@ -658,7 +658,7 @@ process_create_aff_users_if_valid(HostType, Creator, AffUsers) ->
     case lists:any(fun ({User, _}) when User =:= Creator -> true;
                        ({_, Aff}) -> Aff =:= none end, AffUsers) of
         false ->
-            process_create_aff_users(Creator, AffUsers, equal_occupants(HostType));
+            process_create_aff_users(HostType, Creator, AffUsers, equal_occupants(HostType));
         true ->
             {error, bad_request}
     end.
@@ -666,11 +666,11 @@ process_create_aff_users_if_valid(HostType, Creator, AffUsers) ->
 equal_occupants(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, equal_occupants).
 
--spec process_create_aff_users(Creator :: jid:simple_bare_jid(), AffUsers :: aff_users(),
+-spec process_create_aff_users(HostType :: host_type(), Creator :: jid:simple_bare_jid(), AffUsers :: aff_users(),
                                EqualOccupants :: boolean()) ->
     {ok, aff_users()} | {error, bad_request}.
-process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
-    case mod_muc_light_utils:change_aff_users([{Creator, creator_aff(EqualOccupants)}], AffUsers) of
+process_create_aff_users(HostType, Creator, AffUsers, EqualOccupants) ->
+    case mod_muc_light_utils:change_aff_users(HostType, [{Creator, creator_aff(EqualOccupants)}], AffUsers) of
         {ok, FinalAffUsers, _ChangedAffUsers, _JoiningUsers, _LeavingUsers} -> {ok, FinalAffUsers};
         Error -> Error
     end.
