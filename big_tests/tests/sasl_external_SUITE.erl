@@ -111,6 +111,7 @@ init_per_group(ca_signed, Config) ->
      {verify_mode, "\n  tls.verify_mode = \"peer\""} | Config];
 init_per_group(self_signed, Config) ->
     [{signed, self},
+     {ssl_options, "\n  tls.disconnect_on_failure = false"},
      {verify_mode, "\n  tls.verify_mode = \"selfsigned_peer\""} | Config];
 init_per_group(standard, Config) ->
     modify_config_and_restart("\"standard\"", Config),
