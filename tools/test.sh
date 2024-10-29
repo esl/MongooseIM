@@ -278,7 +278,7 @@ build_pkg () {
   cd tools/pkg
 
   local platform=$1
-  local esl_erlang_pkg_vsn=$2
+  local erlang_version=$2
   local project_root=$(git rev-parse --show-toplevel)
 
   if [[ $platform == rockylinux* ]] || [[ $platform == almalinux* ]]; then
@@ -302,7 +302,7 @@ build_pkg () {
     --platform $platform \
     --version $version \
     --revision $revision \
-    --erlang_version $esl_erlang_pkg_vsn \
+    --erlang_version $erlang_version \
     --dockerfile_path "$project_root/tools/pkg/$dockerfile_name" \
     --context_path $project_root \
     --built_packages_directory "$project_root/tools/pkg/packages"
@@ -331,7 +331,7 @@ elif [ "$PRESET" == "edoc_only" ]; then
   tools/print-dots.sh stop
   exit ${RESULT}
 elif [ "$PRESET" == "pkg" ]; then
-  build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
+  build_pkg $pkg_PLATFORM $pkg_OTP_VERSION
 elif [ "$PRESET" == "small_tests" ]; then
   time maybe_run_small_tests
   SMALL_RESULT=$?
