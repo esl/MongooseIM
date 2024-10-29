@@ -1183,7 +1183,8 @@ handle_new_user(From, Nick, Packet, StateData, Attrs) ->
     case exml_query:path(Packet, [{element, <<"x">>}]) of
         undefined ->
             Response = kick_stanza_for_old_protocol(Attrs),
-            ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Response);
+            ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Response),
+            StateData;
         _ ->
             add_new_user(From, Nick, Packet, StateData)
     end.
