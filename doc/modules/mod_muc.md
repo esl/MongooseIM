@@ -436,7 +436,7 @@ To address that problem MongooseIM has 2 levels of MUC rooms memory optimisation
 
 ### Room's process hibernation
 
-By default the room's process is hibernated by the Erlang VM 90 seconds after the last activity.
+By default, the room's process is hibernated by the Erlang VM 90 seconds after the last activity.
 This timeout can be modified by `hibernate_timeout` option.
 
 ### Room deep hibernation
@@ -444,8 +444,9 @@ This timeout can be modified by `hibernate_timeout` option.
 MongooseIM introduces an additional option of deep hibernation for unused rooms.
 This optimisation works only for persistent rooms as only these can be restored on demand.
 The improvement works as follows:
+
 1. All room processes are traversed at a chosen `hibernated_room_check_interval`.
-1. If a `hibernated_room_timeout` is exceeded, a "stop" signal is sent to a unused room.
+1. If a `hibernated_room_timeout` is exceeded, a "stop" signal is sent to an unused room.
 1. The room's process is stopped only if there are no online users or if the only one is its owner.
 If the owner is online, a presence of a type unavailable is sent to it indicating that the room's process is being terminated.
 
