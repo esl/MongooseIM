@@ -23,7 +23,7 @@ BuildRequires:     gcc
 BuildRequires:     gcc-c++
 BuildRequires:     openssl
 BuildRequires:     openssl-devel
-BuildRequires:     esl-erlang
+BuildRequires:     systemd-rpm-macros
 
 %description
 MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large
@@ -49,6 +49,10 @@ chrpath -d %{buildroot}/usr/lib/mongooseim/lib/crypto-*/priv/lib/otp_test_engine
 install -p -D -m 0644 %{SOURCE0} %{buildroot}%{_unitdir}/mongooseim.service
 
 %pre
+if ! [ -d %{_localstatedir}/lock ]; then
+    # /var/lock links to non-existing /run/lock on Rocky Linux 9
+    mkdir -m 755 `readlink -f %{_localstatedir}/lock`
+fi
 getent group mongooseim >/dev/null || groupadd mongooseim
 getent passwd mongooseim >/dev/null || adduser -g mongooseim mongooseim
 exit 0
