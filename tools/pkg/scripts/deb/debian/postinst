@@ -40,7 +40,7 @@ setup()
 
 case "$1" in
     configure)
-	adduser --quiet --system --shell /bin/sh --group --home $PKG_ROOT $NAME 2>/dev/null
+	useradd --system --shell /bin/sh --home-dir $PKG_ROOT --create-home $NAME
 	setup "$@"
     ;;
 
