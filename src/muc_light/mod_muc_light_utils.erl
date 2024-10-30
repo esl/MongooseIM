@@ -66,7 +66,7 @@ change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
         {false, {_, _}} -> % ownerless room!
             {error, {bad_request, <<"Ownerless room">>}};
         _ ->
-            MultipleAdmin = mongoose_hooks:should_allow_multiple_admin(HostType),
+            MultipleAdmin = allow_multiple_admin(HostType),
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
                         change_aff_functions(MultipleAdmin))
@@ -322,3 +322,6 @@ run_forget_room_hook({Room, MucHost}) ->
             ?LOG_ERROR(#{what => run_forget_room_hook_skipped,
                          room => Room, muc_host => MucHost})
     end.
+
+allow_multiple_admin(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, allow_multiple_admin).

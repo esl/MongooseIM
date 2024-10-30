@@ -570,6 +570,7 @@ all_modules() ->
                                       max_occupants => 50,
                                       rooms_in_rosters => true,
                                       rooms_per_page => 5,
+                                      allow_multiple_admin => true,
                                       rooms_per_user => 10}),
       mod_push_service_mongoosepush =>
           #{api_version => <<"v3">>,
@@ -976,6 +977,7 @@ default_mod_config(mod_muc_light) ->
       max_occupants => infinity,
       rooms_per_page => 10,
       rooms_in_rosters => false,
+      allow_multiple_admin => true,
       config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
                         {<<"subject">>, <<>>, subject, binary}]};
 default_mod_config(mod_muc_log) ->

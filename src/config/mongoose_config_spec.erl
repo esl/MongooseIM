@@ -760,7 +760,6 @@ configurable_modules() ->
      mod_mam,
      mod_muc,
      mod_muc_light,
-     mod_muc_light_multiple_admin,
      mod_muc_log,
      mod_offline,
      mod_offline_chatmarkers,
