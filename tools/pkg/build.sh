@@ -72,9 +72,11 @@ for (( i = 0; i < $len - 1; i++ )); do
     i=$((i+1))
 done
 
-dockerfile_platform=${platform/_/:}
+builder_image="erlangsolutions/erlang:${platform}-${erlang_version}"
+target_image="${platform/-/:}"
 docker build -t mongooseim-${platform}:${version}-${revision} \
-    --build-arg dockerfile_platform=${dockerfile_platform} \
+    --build-arg builder_image=${builder_image} \
+    --build-arg target_image=${target_image} \
     --build-arg version=${version} \
     --build-arg revision=${revision} \
     --build-arg erlang_version=${erlang_version} \

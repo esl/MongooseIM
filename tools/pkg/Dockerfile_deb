@@ -1,7 +1,8 @@
 # vi: ft=dockerfile
-ARG dockerfile_platform
+ARG builder_image
+ARG target_image
 
-FROM $dockerfile_platform AS builder
+FROM $builder_image AS builder
 
 # Install build deps
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,7 +14,7 @@ ARG erlang_version
 # Fix locales
 RUN locale-gen en_US.UTF-8
 
-# Copy source code and put building files
+# Copy source code and put building files in proper directories
 # The .dockerignore file in root dir ensures only needed files
 # including not commited changes are used to build the package
 WORKDIR /root/
@@ -21,29 +22,27 @@ COPY . ./mongooseim
 
 RUN cp -r ./mongooseim/tools/pkg/scripts/deb .
 
-ARG dockerfile_platform
-RUN ./deb/install_erlang.sh
-
 ARG version
 ARG revision
 
 RUN ./deb/build_package.sh $version $revision $erlang_version
 
 # Create image for sharing and validation of built package
-FROM $dockerfile_platform
+FROM $target_image AS target
 
 # Copy built package from previous image and install it with required dependencies
-RUN apt-get update && apt-get -y install openssl procps netcat && apt-get -y clean
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get -y install openssl procps && apt-get -y clean
 WORKDIR /root/
 COPY --from=builder /root/*.deb .
 
 # Install mongooseim with required dependencies
-RUN apt-get update; dpkg -i *.deb; apt-get install -y -f
+RUN apt-get update && dpkg -i *.deb && apt-get install -y -f
 
 # Simple check if MiM works
-COPY --from=builder /root/mongooseim/tools/wait-for-it.sh .
-COPY --from=builder /root/mongooseim/tools/pkg/scripts/smoke_test.sh .
-COPY --from=builder /root/mongooseim/tools/pkg/scripts/smoke_templates.escript .
+COPY tools/wait-for-it.sh .
+COPY tools/pkg/scripts/smoke_test.sh .
+COPY tools/pkg/scripts/smoke_templates.escript .
 
 RUN ./smoke_test.sh
 
