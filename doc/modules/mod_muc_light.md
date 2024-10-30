@@ -109,6 +109,14 @@ Specifies maximal number of rooms returned for a single Disco request.
 
 When enabled, rooms the user occupies are included in their roster.
 
+### `modules.mod_muc_light.allow_multiple_admin`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `allow_multiple_admin = false`
+
+When enabled, admin will be able to add one or more person as admin.
+If disabled, only admin can have admin rites!
+
 ### `modules.mod_muc_light.config_schema`
   * **Syntax:** an array of `config_schema` items, as described below
   * **Default:**
