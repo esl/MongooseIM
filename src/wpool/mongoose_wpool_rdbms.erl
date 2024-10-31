@@ -45,10 +45,10 @@ instrumentation(global, Tag) ->
     % Services use global pools. Since the same number of labels for a metric is expected, for an
     % event, global pool has to emit an event under a different name.
     [{wpool_global_rdbms_stats, #{pool_tag => Tag},
-      #{probe => #{module => ?MODULE}, metrics => rdbms_data_stats_measurement_types()}}];
+      #{probe => #{module => ?MODULE}, metrics => gauges([workers | inet_stats()])}}];
 instrumentation(HostType, Tag) ->
     [{wpool_rdbms_stats, #{host_type => HostType, pool_tag => Tag},
-      #{probe => #{module => ?MODULE}, metrics => rdbms_data_stats_measurement_types()}}].
+      #{probe => #{module => ?MODULE}, metrics => gauges([workers | inet_stats()])}}].
 
 -spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
     mongoose_instrument:measurements().
@@ -166,12 +166,6 @@ empty_inet_stats_measurements() ->
       send_cnt => 0,
       send_pend => 0}.
 
-rdbms_data_stats_measurement_types() ->
-    #{workers => counter,
-      recv_oct => spiral,
-      recv_cnt => spiral,
-      recv_max => gauge,
-      send_oct => spiral,
-      send_max => gauge,
-      send_cnt => spiral,
-      send_pend => spiral}.
+-spec gauges([mongoose_instrument:metric_name()]) -> mongoose_instrument:metrics().
+gauges(Keys) ->
+    maps:from_keys(Keys, gauge).
