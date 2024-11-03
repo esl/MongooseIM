@@ -35,8 +35,7 @@
          user_available/2,
          user_ping_response/5,
          vcard_set/4,
-         xmpp_send_element/3,
-         should_allow_multiple_admin/1]).
+         xmpp_send_element/3]).
 
 %% sasl2 handlers
 -export([sasl2_stream_features/2,
@@ -1376,12 +1375,6 @@ mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
 mod_global_distrib_unknown_recipient(GlobalHost, Info) ->
     run_hook_for_host_type(mod_global_distrib_unknown_recipient, GlobalHost, Info, #{}).
 
-
--spec should_allow_multiple_admin(HostType) -> Result when
-  HostType :: mongooseim:host_type(),
-  Result :: boolean().
-should_allow_multiple_admin(HostType) ->
-  run_hook_for_host_type(should_allow_multiple_admin, HostType, true, #{}).
 
 %%%----------------------------------------------------------------------
 %%% Internal functions

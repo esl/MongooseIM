@@ -111,11 +111,11 @@ When enabled, rooms the user occupies are included in their roster.
 
 ### `modules.mod_muc_light.allow_multiple_admin`
 * **Syntax:** boolean
-* **Default:** `true`
+* **Default:** `false`
 * **Example:** `allow_multiple_admin = false`
 
 When enabled, admin will be able to add one or more person as admin.
-If disabled, only admin can have admin rites!
+If disabled, only admin can have admin rights!
 
 ### `modules.mod_muc_light.config_schema`
   * **Syntax:** an array of `config_schema` items, as described below

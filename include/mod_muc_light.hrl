@@ -15,7 +15,7 @@
 -define(DEFAULT_MAX_OCCUPANTS, infinity).
 -define(DEFAULT_ROOMS_PER_PAGE, 10).
 -define(DEFAULT_ROOMS_IN_ROSTERS, false).
--define(DEFAULT_ALLOW_MULTIPLE_ADMIN, true).
+-define(DEFAULT_ALLOW_MULTIPLE_ADMIN, false).
 
 -type aff() :: owner | member | none.
 -type aff_user() :: {jid:simple_bare_jid(), aff()}.
