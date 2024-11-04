@@ -75,7 +75,9 @@ groups() ->
         {tls, [parallel], auth_bind_pipelined_cases() ++
                           protocol_test_cases() ++
                           cipher_test_cases()},
-        {just_tls, tls_groups()},
+        {verify_peer, [], [verify_peer_disconnects_when_client_has_no_cert,
+                           verify_peer_ignores_when_client_has_no_cert]},
+        {just_tls, [{group, verify_peer} | tls_groups()]},
         {fast_tls, tls_groups()},
         {session_replacement, [], [same_resource_replaces_session,
                                    clean_close_of_replaced_session,
@@ -207,6 +209,10 @@ end_per_testcase(replaced_session_cannot_terminate_different_nodes = CaseName, C
     distributed_helper:remove_node_from_cluster(mim2(), Config),
     mongoose_helper:restore_config(Config),
     escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(verify_peer_disconnects_when_client_has_no_cert, Config) ->
+    mongoose_helper:restore_config(Config),
+    catch escalus_event:stop(Config),
+    catch escalus_cleaner:stop(Config);
 end_per_testcase(CaseName, Config) ->
     mongoose_helper:restore_config(Config),
     escalus:end_per_testcase(CaseName, Config).
@@ -214,6 +220,46 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+
+verify_peer_disconnects_when_client_has_no_cert(Config) ->
+    %% Server disconnects only when `disconnect_on_failure` is set to `true`.
+    %% It is true by default, so we make sure `disconnect_on_failure` is not in config.
+    %% `verify_mode` needs to be set to `peer`.
+    ServerTLSOpts0 = tls_opts(starttls_required, Config),
+    ServerTLSOpts = maps:remove(disconnect_on_failure, ServerTLSOpts0#{verify_mode => peer}),
+    configure_c2s_listener(Config, #{tls => ServerTLSOpts}),
+    process_flag(trap_exit, true),
+    UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
+    UserSpec = [{ssl_opts, [{verify, verify_none}]}|UserSpec0],
+    try
+        escalus_connection:start(UserSpec) of
+        {error, {connection_step_failed, {{escalus_session, maybe_use_ssl}, _, _}, _}} ->
+            ok;
+        _Result ->
+            error({client_connected, Config})
+    catch
+        C:E ->
+            error({C, E, Config})
+    end.
+
+verify_peer_ignores_when_client_has_no_cert(Config) ->
+    %% Server bypasses TLS client cert verification when `disconnect_on_failure` is set to `false`.
+    ServerTLSOpts0 = tls_opts(starttls_required, Config),
+    ServerTLSOpts = ServerTLSOpts0#{disconnect_on_failure => false},
+    configure_c2s_listener(Config, #{tls => ServerTLSOpts}),
+    process_flag(trap_exit, true),
+    UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
+    UserSpec = [{ssl_opts, [{verify, verify_none}]}|UserSpec0],
+    try
+        escalus_connection:start(UserSpec) of
+            {ok, _, _} ->
+                ok;
+            Other ->
+                error({client_disconnected, Config, Other})
+    catch
+        C:E ->
+            error({C, E, Config})
+    end.
 
 bad_xml(Config) ->
     %% given
@@ -709,7 +755,8 @@ configure_c2s_listener(Config, ExtraC2SOpts, RemovedC2SKeys) ->
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
 tls_opts(Mode, Config) ->
-    ExtraOpts = #{mode => Mode, cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
+    ExtraOpts = #{mode => Mode, verify_mode => none,
+                  cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
     Module = proplists:get_value(tls_module, Config, fast_tls),
     maps:merge(default_c2s_tls(Module), ExtraOpts).
 
