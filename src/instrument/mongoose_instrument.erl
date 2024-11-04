@@ -46,6 +46,7 @@
 -type handler_key() :: atom(). % key in the `instrumentation' section of the config file
 -type handler_fun() :: fun((event_name(), labels(), config(), measurements()) -> any()).
 -type handlers() :: {[handler_fun()], config()}.
+-type handler_map() :: #{labels() => handlers()}.
 -type execution_time() :: integer().
 -type measure_fun(Result) :: fun((execution_time(), Result) -> measurements()).
 -type handler_module_opts() :: #{atom() => any()}.
@@ -274,16 +275,45 @@ set_up_and_register_event(EventName, Labels, Config, Events) ->
             {ExistingLabels, _, _} = maps:next(maps:iterator(HandlerMap)),
             case label_keys(ExistingLabels) of
                 LabelKeys ->
-                    Handlers = do_set_up(EventName, Labels, Config),
-                    Events#{EventName := HandlerMap#{Labels => Handlers}};
+                    handle_metrics_config(EventName, Labels, Config, HandlerMap, Events);
                 ExistingKeys ->
                     {error, #{what => inconsistent_labels,
                               event_name => EventName, labels => Labels,
                               existing_label_keys => ExistingKeys}}
             end;
         #{} ->
+            handle_metrics_config(EventName, Labels, Config, new, Events)
+    end.
+
+-spec handle_metrics_config(event_name(), labels(), config(), handler_map() | new, event_map()) ->
+          event_map() | {error, map()}.
+handle_metrics_config(EventName, Labels, Config, HandlerMap, Events) ->
+    case filter_improper_probe_metrics(Config) of
+        {ok, _} ->
             Handlers = do_set_up(EventName, Labels, Config),
-            Events#{EventName => #{Labels => Handlers}}
+            case HandlerMap of
+                new ->
+                    Events#{EventName => #{Labels => Handlers}};
+                _ ->
+                    Events#{EventName := HandlerMap#{Labels => Handlers}}
+            end;
+        {error, FilteredMetrics} ->
+            {error, #{what => non_gauge_metrics_in_probe,
+                      event_name => EventName, labels => Labels,
+                      improper_metrics => FilteredMetrics}}
+    end.
+
+-spec filter_improper_probe_metrics(config()) -> {ok, #{}} | {error, metrics()}.
+filter_improper_probe_metrics(Config) ->
+    case Config of
+        #{probe := _, metrics := Metrics} ->
+            FilteredMetrics = maps:filter(fun(_, V) -> V =/= gauge end, Metrics),
+            case map_size(FilteredMetrics) of
+                0 -> {ok, FilteredMetrics};
+                _ -> {error, FilteredMetrics}
+            end;
+        _ ->
+          {ok, #{}}
     end.
 
 -spec do_set_up(event_name(), labels(), config()) -> handlers().

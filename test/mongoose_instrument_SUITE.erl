@@ -37,6 +37,7 @@ api_test_cases() ->
      set_up_and_span_with_error,
      span_fails_when_not_set_up,
      set_up_probe,
+     set_up_probe_with_incorrect_metric_type,
      set_up_failing_probe,
      set_up_and_tear_down_probe,
      unexpected_events,
@@ -223,6 +224,19 @@ set_up_probe(Config) ->
     {ok, History2} = async_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
                                              fun(L) -> length(L) > 1 end),
     ?assertEqual([ExpectedEvent, ExpectedEvent], History2).
+
+set_up_probe_with_incorrect_metric_type(Config) ->
+    Event = ?config(event, Config),
+    Cfg = #{metrics => #{test_metric => gauge},
+            probe => #{module => ?MODULE, interval => 1}},
+    Cfg1 = #{metrics => ImproperMetrics = #{test_metric => spiral},
+             probe => #{module => ?MODULE, interval => 1}},
+    Specs = [{Event, #{key => value1}, Cfg},
+             {Event, #{key => value2}, Cfg1}],
+    ?assertError(#{what := non_gauge_metrics_in_probe, improper_metrics := ImproperMetrics},
+                 mongoose_instrument:set_up(Event, ?LABELS, Cfg1)),
+    ?assertError(#{what := non_gauge_metrics_in_probe, improper_metrics := ImproperMetrics},
+                 mongoose_instrument:set_up(Specs)).
 
 set_up_failing_probe(Config) ->
     Event = ?config(event, Config),
