@@ -2,11 +2,12 @@ version: 2.1
 
 references:
   # Latest OTP release version number (on the right): https://www.erlang.org/downloads
-  # Available cimg-erlang images: https://hub.docker.com/r/mongooseim/cimg-erlang/tags
+  # Available cimg-erlang images: https://hub.docker.com/r/erlangsolutions/erlang/tags?name=cimg
   # You could need to trigger a pipeline to create a Docker image:
   # https://github.com/esl/cimg-erlang#trigger-build-using-trigger-pipeline-on-circleci
-  - &OTP26 mongooseim/cimg-erlang:26.2.5.2
-  - &OTP27 mongooseim/cimg-erlang:27.0.1
+  - &LATEST_OTP_VERSION 27.1.2
+  - &OTP26 erlangsolutions/erlang:cimg-26.2.5.4
+  - &OTP27 erlangsolutions/erlang:cimg-27.1.2
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
@@ -689,14 +690,15 @@ jobs:
         type: executor
       platform:
         type: enum
-        enum: [rockylinux_9, rockylinux_8, almalinux_9, almalinux_8, debian_bullseye, debian_buster, ubuntu_xenial, ubuntu_focal, ubuntu_bionic, ubuntu_jammy]
+        enum: [debian-bookworm, debian-bullseye, debian-buster, ubuntu-oracular, ubuntu-noble, ubuntu-jammy, ubuntu-focal, rockylinux-9, rockylinux-8, almalinux-9, almalinux-8]
         description: Platform type
-      otp_package:
+      otp_version:
         type: string
-        description: Version of the Erlang package to install
+        description: Version of Erlang/OTP to use
+        default: *LATEST_OTP_VERSION
     environment:
       pkg_PLATFORM: <<parameters.platform>>
-      ESL_ERLANG_PKG_VER: <<parameters.otp_package>>
+      pkg_OTP_VERSION: <<parameters.otp_version>>
       PRESET: pkg
     steps:
       - checkout
@@ -735,55 +737,72 @@ workflows:
           filters: &release_tags
             tags:
               only: /^\d+\.\d+\.\d+/
-      # ============= PACKAGES =============
+#       # ============= PACKAGES =============
       - package:
-          name: rockylinux_8
+          name: debian-bookworm
           executor: otp_27
-          platform: rockylinux_8
+          platform: debian-bookworm
           context: mongooseim-org
-          otp_package: "26.2.4"
           filters: *all_tags
       - package:
-          name: almalinux_8
+          name: debian-bullseye
           executor: otp_27
-          platform: almalinux_8
+          platform: debian-bullseye
           context: mongooseim-org
-          otp_package: "26.2.4"
           filters: *all_tags
       - package:
-          name: debian_bullseye
+          name: debian-buster
           executor: otp_27
-          platform: debian_bullseye
+          platform: debian-buster
           context: mongooseim-org
-          otp_package: "26.2.1"
           filters: *all_tags
       - package:
-          name: debian_buster
+          name: ubuntu-oracular
           executor: otp_27
-          platform: debian_buster
+          platform: ubuntu-oracular
           context: mongooseim-org
-          otp_package: "26.2.3"
           filters: *all_tags
       - package:
-          name: ubuntu_jammy
+          name: ubuntu-noble
           executor: otp_27
-          platform: ubuntu_jammy
+          platform: ubuntu-noble
           context: mongooseim-org
-          otp_package: "26.2.3"
           filters: *all_tags
       - package:
-          name: ubuntu_focal
+          name: ubuntu-jammy
           executor: otp_27
-          platform: ubuntu_focal
+          platform: ubuntu-jammy
           context: mongooseim-org
-          otp_package: "26.2.1"
           filters: *all_tags
       - package:
-          name: ubuntu_bionic
+          name: ubuntu-focal
           executor: otp_27
-          platform: ubuntu_bionic
+          platform: ubuntu-focal
           context: mongooseim-org
-          otp_package: "26.2.3"
+          filters: *all_tags
+      - package:
+          name: rockylinux-9
+          executor: otp_27
+          platform: rockylinux-9
+          context: mongooseim-org
+          filters: *all_tags
+      - package:
+          name: rockylinux-8
+          executor: otp_27
+          platform: rockylinux-8
+          context: mongooseim-org
+          filters: *all_tags
+      - package:
+          name: almalinux-9
+          executor: otp_27
+          platform: almalinux-9
+          context: mongooseim-org
+          filters: *all_tags
+      - package:
+          name: almalinux-8
+          executor: otp_27
+          platform: almalinux-8
+          context: mongooseim-org
           filters: *all_tags
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:

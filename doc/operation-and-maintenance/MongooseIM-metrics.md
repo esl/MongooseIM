@@ -27,20 +27,20 @@ All metrics are divided into the following groups:
 === "Prometheus"
 
     <h3>`counter`</h3>
-    
+
     A monotonically increasing metric type. It is used for events like the number of stanzas processed by the system.
-    
+
     **Example:**
         ```
         # TYPE c2s_element_in_message_count counter
         # HELP c2s_element_in_message_count Event: c2s_element_in, Metric: message_count
         c2s_element_in_message_count{host_type="localhost"} 0
         ```
-    
+
     <h3>`gauge`</h3>
-    
+
     A metric that represents a current value in the system.
-    
+
     **Example:**
         ```
         # TYPE mnesia_info_running_db_nodes gauge
@@ -49,9 +49,9 @@ All metrics are divided into the following groups:
         ```
 
     <h3>`histogram`</h3>
-    
+
     A histogram collects values and groups them in buckets.
-    
+
     **Example:**
         ```
         # TYPE c2s_xmpp_element_size_in_byte_size histogram
@@ -61,35 +61,35 @@ All metrics are divided into the following groups:
         c2s_xmpp_element_size_in_byte_size_bucket{le="1073741824"} 0
         c2s_xmpp_element_size_in_byte_size_bucket{le="+Inf"} 0
         ```
-    
+
 === "Exometer"
-    
+
     <h3>`spiral`</h3>
-    
+
     This kind of metric provides 2 values: `total` event count (e.g. stanzas processed) and a value in 60s window (`one` value).
     Dividing `one` value by 60 provides an average per-second value over last minute.
-    
+
     **Example:** `[{total, 1000}, {one, 20}]`
-    
+
     <h3>`counter`</h3>
-    
+
     A simple monotonically increasing value. It consists of two properties:
-    
+
     **Example:** `[{value, 12}, {ms_since_reset, 91761}]`
-    
+
     <h3>`gauge`</h3>
-    
+
     It is similar to a `counter` type but can be set to any value.
-    
+
     * `value`
     * `ms_since_reset` - Time in milliseconds elapsed from the last metric update.
-    
+
     **Example:** `[{value, 12}, {ms_since_reset, 91761}]`
 
     <h3>`histogram`</h3>
-    
+
     A histogram collects values over a sliding window of 60s and exposes the following stats:
-    
+
     * `n` - A number of samples.
     * `mean` - An arithmetic mean.
     * `min`
@@ -228,26 +228,26 @@ Since Exometer doesn't support labels, the host types and tags are part of the m
     | Name | Type | Description (when it gets incremented) |
     | ---- | ---- | -------------------------------------- |
     | `wpool_rdbms_stats_workers`   | gauge | Number of workers in the pool |
-    | `wpool_rdbms_stats_recv_oct`  | counter  | Number of bytes received |
-    | `wpool_rdbms_stats_recv_cnt`  | counter  | Number of packets received |
-    | `wpool_rdbms_stats_recv_max`  | gauge   | Size of the largest packet, in bytes |
-    | `wpool_rdbms_stats_send_oct`  | counter  | Number of bytes sent |
-    | `wpool_rdbms_stats_send_max`  | gauge   | Size of the largest packet |
-    | `wpool_rdbms_stats_send_cnt`  | counter  | Number of packets sent |
-    | `wpool_rdbms_stats_send_pend` | counter  | Number of bytes waiting to be sent |
+    | `wpool_rdbms_stats_recv_oct`  | gauge | Number of bytes received |
+    | `wpool_rdbms_stats_recv_cnt`  | gauge | Number of packets received |
+    | `wpool_rdbms_stats_recv_max`  | gauge | Size of the largest packet, in bytes |
+    | `wpool_rdbms_stats_send_oct`  | gauge | Number of bytes sent |
+    | `wpool_rdbms_stats_send_max`  | gauge | Size of the largest packet |
+    | `wpool_rdbms_stats_send_cnt`  | gauge | Number of packets sent |
+    | `wpool_rdbms_stats_send_pend` | gauge | Number of bytes waiting to be sent |
 
 === "Exometer"
 
     | Name                                                         | Type    | Description (when it gets incremented) |
     |--------------------------------------------------------------|---------|----------------------------------------|
-    | `[HostType, wpool_rdbms_stats, PoolTag, workers]`   | counter | Number of workers in the pool          |
-    | `[HostType, wpool_rdbms_stats, PoolTag, recv_oct]`  | spiral  | Number of bytes received               |
-    | `[HostType, wpool_rdbms_stats, PoolTag, recv_cnt]`  | spiral  | Number of packets received             |
-    | `[HostType, wpool_rdbms_stats, PoolTag, recv_max]`  | gauge   | Size of the largest packet, in bytes   |
-    | `[HostType, wpool_rdbms_stats, PoolTag, send_oct]`  | spiral  | Number of bytes sent                   |
-    | `[HostType, wpool_rdbms_stats, PoolTag, send_max]`  | gauge   | Size of the largest packet             |
-    | `[HostType, wpool_rdbms_stats, PoolTag, send_cnt]`  | spiral  | Number of packets sent                 |
-    | `[HostType, wpool_rdbms_stats, PoolTag, send_pend]` | spiral  | Number of bytes waiting to be sent     |
+    | `[HostType, wpool_rdbms_stats, PoolTag, workers]`   | gauge | Number of workers in the pool          |
+    | `[HostType, wpool_rdbms_stats, PoolTag, recv_oct]`  | gauge | Number of bytes received               |
+    | `[HostType, wpool_rdbms_stats, PoolTag, recv_cnt]`  | gauge | Number of packets received             |
+    | `[HostType, wpool_rdbms_stats, PoolTag, recv_max]`  | gauge | Size of the largest packet, in bytes   |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_oct]`  | gauge | Number of bytes sent                   |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_max]`  | gauge | Size of the largest packet             |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_cnt]`  | gauge | Number of packets sent                 |
+    | `[HostType, wpool_rdbms_stats, PoolTag, send_pend]` | gauge | Number of bytes waiting to be sent     |
 
 When using a Rabbit worker pool, metrics defined in [mod_event_pusher_rabbit](../modules/mod_event_pusher_rabbit.md) are
 available.

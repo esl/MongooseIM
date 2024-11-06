@@ -41,16 +41,20 @@
           {ok, mongoose_tls:tls_socket()} | {error, any()}.
 tcp_to_tls(TCPSocket, Options) ->
     inet:setopts(TCPSocket, [{active, false}]),
-    {Ref, SSLOpts} = format_opts_with_ref(Options, false),
-    Ret = case Options of
-              #{connect := true} ->
-                  % Currently unused as ejabberd_s2s_out uses fast_tls,
-                  % and outgoing pools use Erlang SSL directly
-                  ssl:connect(TCPSocket, SSLOpts);
-              #{} ->
-                  ssl:handshake(TCPSocket, SSLOpts, 5000)
-          end,
-    VerifyResults = receive_verify_results(Ref),
+    {Ref1, Ret} = case Options of
+                    #{connect := true} ->
+                        % Currently unused as ejabberd_s2s_out uses fast_tls,
+                        % and outgoing pools use Erlang SSL directly
+                        % Do not set `fail_if_no_peer_cert_opt` for SSL client
+                        % as it is a server only option.
+                        {Ref, SSLOpts} = format_opts_with_ref(Options, false),
+                        {Ref, ssl:connect(TCPSocket, SSLOpts)};
+                    #{} ->
+                        FailIfNoPeerCert = fail_if_no_peer_cert_opt(Options),
+                        {Ref, SSLOpts} = format_opts_with_ref(Options, FailIfNoPeerCert),
+                        {Ref, ssl:handshake(TCPSocket, SSLOpts, 5000)}
+                 end,
+    VerifyResults = receive_verify_results(Ref1),
     case Ret of
         {ok, SSLSocket} ->
             {ok, #tls_socket{ssl_socket = SSLSocket, verify_results = VerifyResults}};
@@ -106,13 +110,15 @@ get_peer_certificate(#tls_socket{verify_results = [Err | _]}) ->
 %% -callback close(tls_socket()) -> ok.
 close(#tls_socket{ssl_socket = SSLSocket}) -> ssl:close(SSLSocket).
 
-%% @doc Prepare SSL options for direct use of ssl:connect/2 or ssl:handshake/2
-%% The `disconnect_on_failure' option is not supported
+%% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
+%% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
 make_ssl_opts(Opts) ->
     {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, false),
     SSLOpts.
 
+%% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
+%% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_cowboy_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
 make_cowboy_ssl_opts(Opts) ->
     FailIfNoPeerCert = fail_if_no_peer_cert_opt(Opts),
@@ -156,6 +162,8 @@ error_to_list(_Error) ->
 verify_opt(#{verify_mode := none}) -> verify_none;
 verify_opt(#{}) -> verify_peer.
 
+%% accept empty peer certificate if explicitly requested not to fail
+fail_if_no_peer_cert_opt(#{disconnect_on_failure := false}) -> false;
 fail_if_no_peer_cert_opt(#{verify_mode := peer}) -> true;
 fail_if_no_peer_cert_opt(#{verify_mode := selfsigned_peer}) -> true;
 fail_if_no_peer_cert_opt(#{}) -> false.

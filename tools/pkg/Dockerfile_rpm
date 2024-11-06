@@ -1,27 +1,15 @@
 # vi: ft=dockerfile
-ARG dockerfile_platform
+ARG builder_image
+ARG target_image
 
-# Source container is useful for preparing code for the actual build.
-FROM $dockerfile_platform AS source
-COPY . /SOURCE
-# Separate the main code from the testing code.
-# So that any changes in the testing code do not trigger cache invalidation in the builder.
-RUN mkdir /TESTS \
-    && mv /SOURCE/tools/pkg/scripts/smoke_test.sh /TESTS/ \
-    && mv /SOURCE/tools/pkg/scripts/smoke_templates.escript /TESTS/
-
-FROM $dockerfile_platform AS builder
+FROM $builder_image AS builder
 
 # Install the build dependencies
-RUN yum install -y epel-release
-RUN yum install -y rpm-build rpmdevtools git make zlib-devel unixODBC-devel gcc gcc-c++ openssl openssl-devel chrpath
+RUN dnf install -y rpm-build rpmdevtools git make zlib-devel unixODBC-devel gcc gcc-c++ \
+    openssl openssl-devel chrpath glibc-locale-source systemd-rpm-macros
 
 # Fix locale setup
 # See https://github.com/CentOS/sig-cloud-instance-images/issues/71#issuecomment-266957519
-ARG dockerfile_platform
-RUN if [ "$dockerfile_platform" == "rockylinux:8" ] || [ "$dockerfile_platform" == "almalinux:8" ]; then \
-    dnf install -y glibc-locale-source; \
-    fi
 RUN localedef -i en_US -f UTF-8 en_US.UTF-8
 
 ARG erlang_version
@@ -32,8 +20,7 @@ ARG erlang_version
 # including not commited changes are used to build the package
 RUN rpmdev-setuptree
 WORKDIR /root/rpmbuild
-COPY --from=source /SOURCE ./BUILD/mongooseim
-RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/install_erlang.sh
+COPY . ./BUILD/mongooseim
 
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.spec ./SPECS/.
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.service \
@@ -45,16 +32,17 @@ ARG revision
 RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/build_package.sh $version $revision $erlang_version
 
 # Create image for sharing and validation of built package
-FROM $dockerfile_platform
+FROM $target_image AS target
 
 # Copy built package from previous image and install it with required dependencies
 WORKDIR /root/
 COPY --from=builder /root/mongooseim*.rpm .
-RUN yum -y update; yum install -y mongooseim*.rpm
+RUN dnf -y update && dnf install -y mongooseim*.rpm
 
 # Simple check if MiM works
-COPY --from=builder /root/rpmbuild/BUILD/mongooseim/tools/wait-for-it.sh .
-COPY --from=source /TESTS/* ./
+COPY tools/wait-for-it.sh .
+COPY tools/pkg/scripts/smoke_test.sh .
+COPY tools/pkg/scripts/smoke_templates.escript .
 
 RUN ./smoke_test.sh
 
