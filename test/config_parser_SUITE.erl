@@ -2361,7 +2361,7 @@ mod_muc_light(_Config) ->
     ?errh(T(#{<<"all_can_invite">> => #{}})),
     ?errh(T(#{<<"max_occupants">> => <<"seven">>})),
     ?errh(T(#{<<"rooms_per_page">> => false})),
-    ?errh(T(#{<<"allow_multiple_admin">> => true})),
+    ?errh(T(#{<<"allow_multiple_admin">> => <<"true">>})),
     ?errh(T(#{<<"rooms_in_rosters">> => [1, 2, 3]})).
 
 mod_muc_light_config_schema(_Config) ->
