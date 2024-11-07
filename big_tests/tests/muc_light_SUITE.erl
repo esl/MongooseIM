@@ -301,7 +301,7 @@ muc_light_opts(block_user) ->
 muc_light_opts(blocking_disabled) ->
     #{blocking => false};
 muc_light_opts(multiple_owner_change) ->
-    #{allow_multiple_admin => true};
+    #{allow_multiple_owners => true};
 muc_light_opts(_) ->
     #{}.
 

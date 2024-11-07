@@ -66,10 +66,10 @@ change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
         {false, {_, _}} -> % ownerless room!
             {error, {bad_request, <<"Ownerless room">>}};
         _ ->
-            MultipleAdmin = allow_multiple_admin(HostType),
+            MultipleOwners = allow_multiple_owners(HostType),
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
-                        change_aff_functions(MultipleAdmin))
+                        change_aff_functions(MultipleOwners))
     end.
 
 change_aff_functions(false)->
@@ -323,5 +323,5 @@ run_forget_room_hook({Room, MucHost}) ->
                          room => Room, muc_host => MucHost})
     end.
 
-allow_multiple_admin(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light, allow_multiple_admin).
+allow_multiple_owners(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, allow_multiple_owners).

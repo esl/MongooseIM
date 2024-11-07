@@ -2344,8 +2344,8 @@ mod_muc_light(_Config) ->
           T(#{<<"rooms_per_page">> => 10})),
     ?cfgh(P ++ [rooms_in_rosters], true,
           T(#{<<"rooms_in_rosters">> => true})),
-   ?cfgh(P ++ [allow_multiple_admin], true,
-         T(#{<<"allow_multiple_admin">> => true})),
+   ?cfgh(P ++ [allow_multiple_owners], true,
+         T(#{<<"allow_multiple_owners">> => true})),
     ?errh(T(#{<<"backend">> => <<"frontend">>})),
     ?errh(T(#{<<"host">> => <<"what is a domain?!">>})),
     ?errh(T(#{<<"host">> => <<"invalid..com">>})),
@@ -2361,7 +2361,7 @@ mod_muc_light(_Config) ->
     ?errh(T(#{<<"all_can_invite">> => #{}})),
     ?errh(T(#{<<"max_occupants">> => <<"seven">>})),
     ?errh(T(#{<<"rooms_per_page">> => false})),
-    ?errh(T(#{<<"allow_multiple_admin">> => <<"true">>})),
+    ?errh(T(#{<<"allow_multiple_owners">> => <<"true">>})),
     ?errh(T(#{<<"rooms_in_rosters">> => [1, 2, 3]})).
 
 mod_muc_light_config_schema(_Config) ->

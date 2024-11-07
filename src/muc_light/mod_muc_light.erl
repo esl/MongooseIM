@@ -231,7 +231,7 @@ config_spec() ->
                  <<"rooms_per_page">> => #option{type = int_or_infinity,
                                                  validate = positive},
                  <<"rooms_in_rosters">> => #option{type = boolean},
-                 <<"allow_multiple_admin">> => #option{type = boolean},
+                 <<"allow_multiple_owners">> => #option{type = boolean},
                  <<"config_schema">> => #list{items = config_schema_spec(),
                                               process = fun ?MODULE:process_config_schema/1}
                 },
@@ -246,7 +246,7 @@ config_spec() ->
                     <<"max_occupants">> => ?DEFAULT_MAX_OCCUPANTS,
                     <<"rooms_per_page">> => ?DEFAULT_ROOMS_PER_PAGE,
                     <<"rooms_in_rosters">> => ?DEFAULT_ROOMS_IN_ROSTERS,
-                    <<"allow_multiple_admin">> => ?DEFAULT_ALLOW_MULTIPLE_ADMIN,
+                    <<"allow_multiple_owners">> => ?DEFAULT_ALLOW_MULTIPLE_OWNERS,
                     <<"config_schema">> => default_schema()}
       }.
 
