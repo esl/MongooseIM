@@ -300,7 +300,7 @@ muc_light_opts(block_user) ->
     #{all_can_invite => true};
 muc_light_opts(blocking_disabled) ->
     #{blocking => false};
-muc_light_opts(allow_multiple_admin) ->
+muc_light_opts(multiple_owner_change) ->
     #{allow_multiple_admin => true};
 muc_light_opts(_) ->
     #{}.
