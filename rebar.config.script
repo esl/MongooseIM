@@ -43,7 +43,7 @@ fun() ->
         end
 end,
 
-FirstApps = [kernel, lager],
+FirstApps = [kernel],
 RequiredApps = [mongooseim, inets, tools, compiler],
 OptionalApps = [{nksip, [nkservice, nkpacket, nklib]}],
 
