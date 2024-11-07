@@ -72,10 +72,6 @@ change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
                         change_aff_functions(MultipleOwners))
     end.
 
-change_aff_functions(false)->
-    [fun maybe_demote_old_owner/1, fun maybe_select_new_owner/1];
-change_aff_functions(true)->
-    [fun maybe_select_new_owner/1].
 
 -spec aff2b(Aff :: aff()) -> binary().
 aff2b(owner) -> <<"owner">>;
@@ -160,6 +156,12 @@ filter_out_loop(_HostType, _FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, [
     [].
 
 %% ---------------- Affiliations manipulation ----------------
+
+-spec change_aff_functions(AllowMultipleOwners :: boolean()) -> [fun(), ...].
+change_aff_functions(_AllowMultipleOwners = false)->
+    [fun maybe_demote_old_owner/1, fun maybe_select_new_owner/1];
+change_aff_functions(_AllowMultipleOwners = true)->
+    [fun maybe_select_new_owner/1].
 
 -spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
     change_aff_success() | {error, bad_request()}.
