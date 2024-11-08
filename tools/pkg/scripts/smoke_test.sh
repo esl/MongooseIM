@@ -81,6 +81,9 @@ if [ ${registered} -ne ${expected} ]; then
     exit 1
 fi
 
+echo "Checking if MongooseIM has logged any errors"
+grep -wr 'error' /var/log/mongooseim && exit 1 || true
+
 echo "Stopping mongooseim via 'mongooseimctl stop'"
 mongooseimctl stop
 
