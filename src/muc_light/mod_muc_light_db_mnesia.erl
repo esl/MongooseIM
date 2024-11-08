@@ -317,10 +317,12 @@ destroy_room_transaction(RoomUS) ->
     mod_muc_light_db_backend:remove_user_return().
 remove_user_transaction(HostType, UserUS, Version) ->
     lists:map(
-      fun(#muc_light_user_room{ room = RoomUS }) ->
-              {RoomUS, modify_aff_users_transaction(
-                        HostType, RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
-      end, mnesia:read(muc_light_user_room, UserUS)).
+        fun(#muc_light_user_room{room = RoomUS}) ->
+            Res = modify_aff_users_transaction(
+                HostType, RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version),
+            {RoomUS, Res}
+        end,
+        mnesia:read(muc_light_user_room, UserUS)).
 
 %% ------------------------ Configuration manipulation ------------------------
 
