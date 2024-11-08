@@ -51,14 +51,14 @@ group_is_compatible(_, _) -> true.
 base_groups() ->
     [{basic, [parallel], basic_tests()},
      {service_config, [parallel], service_config_tests()},
-     {node_config, [parallel, {repeat_until_any_fail, 100}], node_config_tests()},
+     {node_config, [parallel], node_config_tests()},
      {node_affiliations, [parallel], node_affiliations_tests()},
      {manage_subscriptions, [parallel], manage_subscriptions_tests()},
      {collection, [sequence], collection_tests()},
      {collection_config, [parallel], collection_config_tests()},
      {debug_calls, [parallel], debug_calls_tests()},
      {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
-     {hometree_specific, [sequence, {repeat_until_any_fail, 100}], hometree_specific_tests()},
+     {hometree_specific, [sequence], hometree_specific_tests()},
      {last_item_cache, [parallel], last_item_cache_tests()}].
 
 basic_tests() ->

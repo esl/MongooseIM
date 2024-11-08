@@ -39,7 +39,7 @@ all() ->
 
 groups() ->
     [
-     {global_rdbms_queries, [{repeat_until_any_fail, 100}], rdbms_queries_cases()},
+     {global_rdbms_queries, [], rdbms_queries_cases()},
      {tagged_rdbms_queries, [], rdbms_queries_cases()}
     ].
 
@@ -77,7 +77,7 @@ rdbms_queries_cases() ->
      insert_batch_with_null_case,
      test_cast_insert,
      test_request_insert,
-     %test_wrapped_request,
+     test_wrapped_request,
      test_failed_wrapper,
      test_request_transaction,
      test_restart_transaction_with_execute,
