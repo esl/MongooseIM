@@ -570,7 +570,6 @@ all_modules() ->
                                       max_occupants => 50,
                                       rooms_in_rosters => true,
                                       rooms_per_page => 5,
-                                      allow_multiple_owners => false,
                                       rooms_per_user => 10}),
       mod_push_service_mongoosepush =>
           #{api_version => <<"v3">>,

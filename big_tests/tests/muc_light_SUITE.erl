@@ -55,6 +55,7 @@
          remove_and_add_users/1,
          multiple_owner_change/1,
          explicit_owner_change/1,
+         explicit_owner_handover/1,
          implicit_owner_change/1,
          edge_case_owner_change/1,
          adding_wrongly_named_user_triggers_infinite_loop/1
@@ -180,6 +181,7 @@ groups() ->
                               assorted_config_doesnt_lead_to_duplication,
                               remove_and_add_users,
                               explicit_owner_change,
+                              explicit_owner_handover,
                               multiple_owner_change,
                               implicit_owner_change,
                               edge_case_owner_change,
@@ -798,17 +800,10 @@ remove_and_add_users(Config) ->
 
 multiple_owner_change(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-            TS = instrument_helper:timestamp(),
-            AffUsersChanges1 = [{Bob, none}, {Kate, none}],
-            escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
-            verify_aff_bcast([{Alice, owner}], AffUsersChanges1),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-            AffUsersChanges2 = [{Bob, owner}, {Kate, owner}],
+            AffUsersChanges2 = [{Bob, owner}],
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges2)),
-            verify_aff_bcast([{Alice, owner}, {Bob, owner}, {Kate, owner}], AffUsersChanges2),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-            assert_cache_miss_event(TS, 1, room_bin_jid(?ROOM)),
-            assert_cache_hit_event(TS, 1, room_bin_jid(?ROOM))
+            verify_aff_bcast([{Alice, owner}, {Bob, owner}, {Kate, member}], AffUsersChanges2),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
         end).
 
 explicit_owner_change(Config) ->
@@ -818,6 +813,16 @@ explicit_owner_change(Config) ->
             verify_aff_bcast([{Kate, owner}], AffUsersChanges1),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
         end).
+
+explicit_owner_handover(Config) ->
+    % check that Alice looses ownership when Kate is set to owner
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        ReqAffUsersChanges = [{Kate, owner}],
+        escalus:send(Alice, stanza_aff_set(?ROOM, ReqAffUsersChanges)),
+        ExpectedAffUserChanges = [{Alice, member} | ReqAffUsersChanges],
+        verify_aff_bcast([{Kate, owner}, {Alice, member}, {Bob, member}], ExpectedAffUserChanges),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+    end).
 
 implicit_owner_change(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
