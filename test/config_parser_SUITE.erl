@@ -94,6 +94,7 @@ groups() ->
                            listen_c2s_just_tls,
                            listen_s2s,
                            listen_s2s_tls,
+                           listen_s2s_cacertfile_verify,
                            listen_service,
                            listen_http,
                            listen_http_tls,
@@ -508,11 +509,18 @@ listen_c2s_fast_tls(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
                                        <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
-    ?cfg(P, default_c2s_tls(fast_tls), T(#{})),
+    M = tls_ca_raw(),
+    ?cfg(P, maps:merge(default_c2s_tls(fast_tls), tls_ca()), T(M)),
     test_fast_tls_server(P, T),
-    ?cfg(P ++ [mode], tls, T(#{<<"mode">> => <<"tls">>})),
-    ?err(T(#{<<"mode">> => <<"stopttls">>})),
-    ?err(T(#{<<"module">> => <<"slow_tls">>})).
+    %% we do not require `cacertfile` when `verify_mode` is `none`
+    ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
+    %% we require `cacertfile` when `verify_mode` is `peer` (which is the default)
+    ?cfg(P ++ [cacertfile], "priv/ca.pem", T(M#{<<"verify_mode">> => <<"peer">>})),
+    ?err([#{reason := missing_cacertfile}], T(#{})),
+    ?err([#{reason := missing_cacertfile}], T(#{<<"verify_mode">> => <<"peer">>})),
+    ?cfg(P ++ [mode], tls, T(M#{<<"mode">> => <<"tls">>})),
+    ?err(T(M#{<<"mode">> => <<"stopttls">>})),
+    ?err(T(M#{<<"module">> => <<"slow_tls">>})).
 
 listen_c2s_just_tls(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
@@ -544,6 +552,28 @@ listen_s2s_tls(_Config) ->
     P = [listen, 1, tls],
     ?cfg(P, default_config([listen, s2s, tls]), T(#{})),
     test_fast_tls_server(P, T).
+
+listen_s2s_cacertfile_verify(_Config) ->
+    T = fun(UseStartTLS, Opts) ->
+            maps:merge(#{<<"s2s">> => #{<<"use_starttls">> => UseStartTLS}},
+            listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts})) end,
+    P = [listen, 1, tls],
+    ConfigWithCA = maps:merge(default_config([listen, s2s, tls]), tls_ca()),
+    %% no checking of `cacertfile` when `use_starttls` is `false` or `optional`
+    ?cfg(P, default_config([listen, s2s, tls]), T(<<"false">>, #{})),
+    ?cfg(P, default_config([listen, s2s, tls]), T(<<"optional">>, #{})),
+    %% `cacertfile` is required when `use_starttls` is `required` or `optional`
+    ?cfg(P, ConfigWithCA, T(<<"required">>, tls_ca_raw())),
+    ?cfg(P, ConfigWithCA, T(<<"required_trusted">>, tls_ca_raw())),
+    ?err([#{reason := missing_cacertfile}], T(<<"required">>, #{})),
+    ?err([#{reason := missing_cacertfile}], T(<<"required_trusted">>, #{})),
+    %% setting `verify_mode` to `none` turns off `cacertfile` validation
+    VerifyModeNone = #{verify_mode => none},
+    VerifyModeNoneRaw = #{<<"verify_mode">> => <<"none">>},
+    ConfigWithVerifyModeNone = maps:merge(default_config([listen, s2s, tls]),
+                                          #{verify_mode => none}),
+    ?cfg(P, ConfigWithVerifyModeNone, T(<<"required">>, VerifyModeNoneRaw)),
+    ?cfg(P, ConfigWithVerifyModeNone, T(<<"required_trusted">>, VerifyModeNoneRaw)).
 
 listen_service(_Config) ->
     T = fun(Opts) -> listen_raw(service, maps:merge(#{<<"port">> => 8888,
@@ -1197,12 +1227,13 @@ test_just_tls_client_sni(ParentP, ParentT) ->
 
 test_fast_tls_server(P, T) ->
     ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
-    ?cfg(P ++ [certfile], "priv/cert.pem", T(#{<<"certfile">> => <<"priv/cert.pem">>})),
-    ?cfg(P ++ [cacertfile], "priv/ca.pem", T(tls_ca_raw())),
+    M = tls_ca_raw(),
+    ?cfg(P ++ [certfile], "priv/cert.pem", T(M#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfg(P ++ [cacertfile], "priv/ca.pem", T(M)),
     ?cfg(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
-         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfg(P ++ [dhfile], "priv/dh.pem", T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
-    ?cfg(P ++ [protocol_options], ["nosslv2"], T(#{<<"protocol_options">> => [<<"nosslv2">>]})),
+         T(M#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P ++ [protocol_options], ["nosslv2"], T(M#{<<"protocol_options">> => [<<"nosslv2">>]})),
     ?err(T(#{<<"verify_mode">> => <<"selfsigned_peer">>})), % value only for just_tls
     ?err(T(#{<<"crl_files">> => [<<"priv/cert.pem">>]})), % option only for just_tls
     ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
