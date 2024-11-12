@@ -24,7 +24,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([change_aff_users/2]).
+-export([change_aff_users/3]).
 -export([b2aff/1, aff2b/1]).
 -export([light_aff_to_muc_role/1]).
 -export([room_limit_reached/2]).
@@ -57,20 +57,21 @@
 %% API
 %%====================================================================
 
--spec change_aff_users(CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
+-spec change_aff_users(HostType :: mongooseim:host_type(), CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
     change_aff_success() | {error, bad_request()}.
-change_aff_users(AffUsers, AffUsersChangesAssorted) ->
+change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
     case {lists:keyfind(owner, 2, AffUsers), lists:keyfind(owner, 2, AffUsersChangesAssorted)} of
         {false, false} -> % simple, no special cases
             apply_aff_users_change(AffUsers, AffUsersChangesAssorted);
         {false, {_, _}} -> % ownerless room!
             {error, {bad_request, <<"Ownerless room">>}};
         _ ->
+            MultipleOwners = allow_multiple_owners(HostType),
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
-                        [fun maybe_demote_old_owner/1,
-                         fun maybe_select_new_owner/1])
+                        change_aff_functions(MultipleOwners))
     end.
+
 
 -spec aff2b(Aff :: aff()) -> binary().
 aff2b(owner) -> <<"owner">>;
@@ -155,6 +156,12 @@ filter_out_loop(_HostType, _FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, [
     [].
 
 %% ---------------- Affiliations manipulation ----------------
+
+-spec change_aff_functions(AllowMultipleOwners :: boolean()) -> [fun(), ...].
+change_aff_functions(_AllowMultipleOwners = false)->
+    [fun maybe_demote_old_owner/1, fun maybe_select_new_owner/1];
+change_aff_functions(_AllowMultipleOwners = true)->
+    [fun maybe_select_new_owner/1].
 
 -spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
     change_aff_success() | {error, bad_request()}.
@@ -317,3 +324,6 @@ run_forget_room_hook({Room, MucHost}) ->
             ?LOG_ERROR(#{what => run_forget_room_hook_skipped,
                          room => Room, muc_host => MucHost})
     end.
+
+allow_multiple_owners(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, allow_multiple_owners).

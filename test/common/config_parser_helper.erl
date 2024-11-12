@@ -976,6 +976,7 @@ default_mod_config(mod_muc_light) ->
       max_occupants => infinity,
       rooms_per_page => 10,
       rooms_in_rosters => false,
+      allow_multiple_owners => false,
       config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
                         {<<"subject">>, <<>>, subject, binary}]};
 default_mod_config(mod_muc_log) ->

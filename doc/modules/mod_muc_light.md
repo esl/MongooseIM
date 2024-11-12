@@ -109,6 +109,21 @@ Specifies maximal number of rooms returned for a single Disco request.
 
 When enabled, rooms the user occupies are included in their roster.
 
+### `modules.mod_muc_light.allow_multiple_owners`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `allow_multiple_owners = true`
+
+When enabled, owner can add one or more people as owners.
+If disabled, there can only be one owner.
+This option may be useful for creating a subset of users with admin rights, instead of giving rights for all members,
+which can be done with the [all_can_configure](#modulesmod_muc_lightall_can_configure) and
+[all_can_invite](#modulesmod_muc_lightall_can_invite) options.
+
+!!! Warning
+    This is a custom option, not compatible with our [MUC Light XEP](../open-extensions/muc_light.md).
+    If a client is adhering to the XEP, its behaviour may be unexpected, and this option should not be enabled.
+
 ### `modules.mod_muc_light.config_schema`
   * **Syntax:** an array of `config_schema` items, as described below
   * **Default:**

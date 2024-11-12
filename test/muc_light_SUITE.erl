@@ -164,7 +164,7 @@ filter_room_packet_handler(Acc, _Params, _Extra) ->
 prop_aff_change_success() ->
     ?FORALL({AffUsers, Changes, Joining, Leaving, WithOwner}, change_aff_params(),
             begin
-                case mod_muc_light_utils:change_aff_users(AffUsers, Changes) of
+                case mod_muc_light_utils:change_aff_users(host_type(), AffUsers, Changes) of
                     {ok, NewAffUsers0, AffUsersChanged, Joining0, Leaving0} ->
                         Joining = lists:sort(Joining0),
                         Leaving = lists:sort(Leaving0),
@@ -178,7 +178,7 @@ prop_aff_change_success() ->
                         % are there no owners or there is exactly one?
                         true = validate_owner(NewAffUsers0, false, WithOwner),
                         % changes list applied to old list should produce the same result
-                        {ok, NewAffUsers1, _, _, _} = mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanged),
+                        {ok, NewAffUsers1, _, _, _} = mod_muc_light_utils:change_aff_users(host_type(), AffUsers, AffUsersChanged),
                         NewAffUsers0 = NewAffUsers1,
                         true;
                     _ ->
@@ -198,7 +198,7 @@ prop_aff_change_bad_request() ->
     ?FORALL({AffUsers, Changes}, bad_change_aff(),
             begin
                 {error, {bad_request, _}} =
-                    mod_muc_light_utils:change_aff_users(AffUsers, Changes),
+                    mod_muc_light_utils:change_aff_users(host_type(), AffUsers, Changes),
                 true
             end).
 
