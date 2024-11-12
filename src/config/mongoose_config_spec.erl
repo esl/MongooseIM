@@ -9,12 +9,14 @@
          tls/2]).
 
 %% callbacks for the 'process' step
--export([process_root/1,
+-export([process_dynamic_domains/1,
+         process_s2s/1,
          process_host/1,
          process_general/1,
          process_listener/2,
          process_c2s_tls/1,
          process_c2s_just_tls/1,
+         process_c2s_fast_tls/1,
          process_just_tls/1,
          process_fast_tls/1,
          process_sasl_external/1,
@@ -106,7 +108,7 @@ root() ->
                 },
        defaults = #{<<"internal_databases">> => default_internal_databases()},
        required = [<<"general">>],
-       process = fun ?MODULE:process_root/1,
+       process = [fun ?MODULE:process_dynamic_domains/1, fun ?MODULE:process_s2s/1],
        wrap = none,
        format_items = list
       }.
@@ -701,7 +703,7 @@ tls(c2s, just_tls) ->
                                                                 validate = filename}}},
              process = fun ?MODULE:process_c2s_just_tls/1};
 tls(c2s, fast_tls) ->
-    #section{}.
+    #section{process = fun ?MODULE:process_c2s_fast_tls/1}.
 
 server_name_indication() ->
     #section{items = #{<<"enabled">> => #option{type = boolean},
@@ -938,8 +940,9 @@ s2s_address() ->
 
 %% Callbacks for 'process'
 
+%% Callback for root level `process` function
 %% Check that all auth methods and modules enabled for any host type support dynamic domains
-process_root(Items) ->
+process_dynamic_domains(Items) ->
     case proplists:lookup(host_types, Items) of
         {_, [_|_] = HostTypes} ->
             HTItems = lists:filter(fun(Item) -> is_host_type_item(Item, HostTypes) end, Items),
@@ -974,6 +977,48 @@ extract_modules(KVs) ->
     lists:usort(lists:flatmap(fun({{modules, _}, Modules}) -> maps:keys(Modules);
                                  (_) -> []
                               end, KVs)).
+
+%% Callback for root level `process` function
+%% Ensure that CA Certificate file (`cacertfile` option) is provided for s2s listeners
+%% if user configured s2s `use_starttls` as `required` or `required_trusted`
+%% for at least one host, host_type or globally.
+process_s2s(Items) ->
+    UseStartTlsValues = lists:flatmap(fun({{s2s, _}, S2S}) -> [maps:get(use_starttls, S2S)];
+                                          (_) -> [] end, Items),
+    case lists:any(fun is_starttls_required/1, UseStartTlsValues) of
+        true ->
+            check_s2s_verify_mode_cacertfile(Items);
+        _ ->
+            Items
+    end.
+
+is_starttls_required(required) ->
+    true;
+is_starttls_required(required_trusted) ->
+    true;
+is_starttls_required(_) ->
+    false.
+
+check_s2s_verify_mode_cacertfile(Items) ->
+    case lists:keyfind(listen, 1, Items) of
+        false ->
+            Items;
+        {_, ListenItems} ->
+            S2S = [Item || Item <- ListenItems, maps:get(module, Item) == ejabberd_s2s_in],
+            lists:foreach(fun verify_s2s_tls/1, S2S),
+            Items
+    end.
+
+verify_s2s_tls(#{tls := #{cacertfile := _}} = Item) ->
+    Item;
+verify_s2s_tls(#{tls := #{verify_mode := none}} = Item) ->
+    Item;
+verify_s2s_tls(_) ->
+    error(#{what => missing_cacertfile,
+            text => <<"You need to provide CA certificate (cacertfile) "
+                       "or disable peer verification (set `verify_mode` to `none`) "
+                       "in the `s2s.listen` sections when any of the s2s sections "
+                       "contains use_starttls as `required` or `required_trusted`.">>}).
 
 is_host_type_item({{_, HostType}, _}, HostTypes) ->
     HostType =:= global orelse lists:member(HostType, HostTypes);
@@ -1044,6 +1089,17 @@ process_fast_tls(M) ->
 fast_tls_defaults() ->
     #{ciphers => mongoose_tls:default_ciphers(),
       protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
+
+process_c2s_fast_tls(M = #{module := just_tls}) ->
+    M;
+process_c2s_fast_tls(M = #{cacertfile := _}) ->
+    M;
+process_c2s_fast_tls(M = #{verify_mode := none}) ->
+    M;
+process_c2s_fast_tls(_) ->
+    error(#{what => missing_cacertfile,
+            text => <<"You need to provide CA certificate (cacertfile) "
+                      "or disable peer verification (verify_mode)">>}).
 
 process_listener([item, Type | _], Opts) ->
     mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type),
