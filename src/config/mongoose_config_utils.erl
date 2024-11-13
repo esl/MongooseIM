@@ -33,10 +33,4 @@ merge_sections(BasicSection, ExtraSection) ->
     BasicSection#section{items = maps:merge(Items1, Items2),
                          required = Required1 ++ Required2,
                          defaults = maps:merge(Defaults1, Defaults2),
-                         process = merge_process_functions(Process1, Process2)}.
-
-merge_process_functions(Process1, Process2) ->
-    fun(Path, V) ->
-            V1 = mongoose_config_parser_toml:process(Path, V, Process1),
-            mongoose_config_parser_toml:process(Path, V1, Process2)
-    end.
+                         process = lists:flatten([Process1, Process2])}.
