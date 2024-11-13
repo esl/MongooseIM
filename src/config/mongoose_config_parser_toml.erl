@@ -30,8 +30,9 @@
 -type list_processor() :: fun((path(), [config_part()]) -> config_part())
                         | fun(([config_part()]) -> config_part()).
 
--type processor() :: fun((path(), config_part()) -> config_part())
-                   | fun((config_part()) -> config_part()).
+-type processor() :: processor_fun() | [processor_fun()].
+-type processor_fun() :: fun((path(), config_part()) -> config_part())
+                       | fun((config_part()) -> config_part()).
 
 -type step() ::
         parse        % Recursive processing (section/list) or type conversion (leaf option)
@@ -213,6 +214,8 @@ process_spec(#option{process = Process}) -> Process.
 
 -spec process(path(), config_part(), undefined | processor()) -> config_part().
 process(_Path, V, undefined) -> V;
+process(Path, V, Functions) when is_list(Functions) ->
+    lists:foldl(fun(F, Value) -> process(Path, Value, F) end, V, Functions);
 process(_Path, V, F) when is_function(F, 1) -> F(V);
 process(Path, V, F) when is_function(F, 2) -> F(Path, V).
 
