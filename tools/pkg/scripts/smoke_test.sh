@@ -2,7 +2,7 @@
 
 # Use bash "strict mode"
 # Based on http://redsymbol.net/articles/unofficial-bash-strict-mode/
-set -eu pipefail
+set -euo pipefail
 IFS=$'\n\t'
 
 echo "Check that print_install_dir works"
@@ -74,12 +74,15 @@ mongooseimctl account registerUser --username user --domain localhost --password
 
 echo "Checking if 2 users are registered on host 'localhost'"
 expected=2
-registered=$(_build/mim1/rel/mongooseim/bin/mongooseimctl account countUsers \
+registered=$(mongooseimctl account countUsers \
              --domain localhost | grep -o '"countUsers" : [0-9]*' | awk '{print $3}')
 if [ ${registered} -ne ${expected} ]; then
     echo "registered value is ${registered} but expected ${expected}"
     exit 1
 fi
+
+echo "Checking if MongooseIM has logged any errors"
+grep -wr 'error' /var/log/mongooseim && exit 1 || true
 
 echo "Stopping mongooseim via 'mongooseimctl stop'"
 mongooseimctl stop
