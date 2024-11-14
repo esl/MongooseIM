@@ -5,9 +5,6 @@
 
 -export([parse_file/1]).
 
-%% Utilities for section manipulation
--export([process/3]).
-
 -ifdef(TEST).
 -export([process/1,
          extract_errors/1]).
@@ -27,11 +24,9 @@
 -type config_error() :: #{class := error, what := atom(), text := string(), any() => any()}.
 -type config() :: top_level_config() | config_error().
 
--type list_processor() :: fun((path(), [config_part()]) -> config_part())
-                        | fun(([config_part()]) -> config_part()).
-
--type processor() :: fun((path(), config_part()) -> config_part())
-                   | fun((config_part()) -> config_part()).
+-type processor() :: processor_fun() | [processor_fun()].
+-type processor_fun() :: fun((path(), config_part()) -> config_part())
+                       | fun((config_part()) -> config_part()).
 
 -type step() ::
         parse        % Recursive processing (section/list) or type conversion (leaf option)
@@ -54,7 +49,7 @@
 
 -export_type([toml_key/0, toml_value/0, toml_section/0,
               option_value/0, config/0, config_error/0, config_part/0,
-              list_processor/0, processor/0, path/0]).
+              processor/0, path/0]).
 
 -spec parse_file(FileName :: string()) -> mongoose_config_parser:state().
 parse_file(FileName) ->
@@ -205,14 +200,15 @@ validate(Value, #option{type = Type, validate = Validator}) ->
     mongoose_config_validator:validate(Value, Type, Validator).
 
 -spec process_spec(mongoose_config_spec:config_section() |
-                   mongoose_config_spec:config_list()) -> undefined | list_processor();
-                  (mongoose_config_spec:config_option()) -> undefined | processor().
+                   mongoose_config_spec:config_list() |
+                   mongoose_config_spec:config_option()) -> processor().
 process_spec(#section{process = Process}) -> Process;
 process_spec(#list{process = Process}) -> Process;
 process_spec(#option{process = Process}) -> Process.
 
--spec process(path(), config_part(), undefined | processor()) -> config_part().
-process(_Path, V, undefined) -> V;
+-spec process(path(), config_part(), processor()) -> config_part().
+process(Path, V, Functions) when is_list(Functions) ->
+    lists:foldl(fun(F, Value) -> process(Path, Value, F) end, V, Functions);
 process(_Path, V, F) when is_function(F, 1) -> F(V);
 process(Path, V, F) when is_function(F, 2) -> F(Path, V).
 
