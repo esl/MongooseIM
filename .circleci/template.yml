@@ -707,6 +707,15 @@ jobs:
           name: Build package
           command: |
             ./tools/test.sh -p pkg -s false
+      - run:
+          name: Install packages necessary for signing
+          command: |
+            tools/circle-install-packages.sh \
+            'dpkg-sig rpm'
+      - run:
+          name: Sign package
+          command: |
+            ./tools/pkg/sign.sh
       - when:
           condition:
             matches:
