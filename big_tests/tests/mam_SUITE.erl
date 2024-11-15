@@ -3666,7 +3666,7 @@ muc_prefs_set_request_not_an_owner(ConfigIn) ->
                                                                     [<<"montague@montague.net">>],
                                                                     mam_ns_binary()), Room)),
         escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], escalus:wait_for_stanza(Bob)),
-        assert_no_event_with_jid(mod_mam_muc_get_prefs, RoomAddr)
+        assert_no_event_with_jid(mod_mam_muc_set_prefs, RoomAddr)
     end,
     RoomOpts = [{persistent, true}],
     UserSpecs = [{alice, 1}, {bob, 1}],
