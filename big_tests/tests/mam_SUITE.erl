@@ -173,6 +173,7 @@ rdbms_configs(true, mnesia) ->
     ];
 rdbms_configs(true, cets) ->
     [rdbms,
+     rdbms_no_prefs,
      rdbms_easy,
      rdbms_async_pool,
      rdbms_async_cache,
@@ -199,6 +200,7 @@ basic_group_names() ->
      muc_light,
      prefs_cases,
      muc_prefs_cases,
+     no_prefs_cases,
      impl_specific,
      disabled_text_search,
      disabled_complex_queries,
@@ -233,6 +235,10 @@ groups() ->
      || C <- configurations(), {G, Props, Tests} <- basic_groups(),
         not is_skipped(C, G)].
 
+is_skipped(rdbms_no_prefs, G) ->
+    G =:= prefs_cases orelse G =:= muc_prefs_cases;
+is_skipped(_, no_prefs_cases) ->
+    true;
 is_skipped(_, _) ->
     false.
 
@@ -275,6 +281,7 @@ basic_groups() ->
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
      {muc_prefs_cases,  [parallel], muc_prefs_cases()},
+     {no_prefs_cases,   [parallel], no_prefs_cases()},
      {impl_specific,    [], impl_specific()},
      {disabled_text_search, [],
          [{mam04, [], disabled_text_search_cases()}]},
@@ -508,6 +515,9 @@ muc_prefs_cases() ->
      muc_messages_filtered_when_prefs_default_policy_is_always,
      muc_messages_filtered_when_prefs_default_policy_is_never,
      muc_messages_filtered_when_prefs_default_policy_is_roster].
+
+no_prefs_cases() ->
+    [prefs_disabled_set_request].
 
 impl_specific() ->
     [check_user_exist,
@@ -762,6 +772,9 @@ mam_opts_for_conf(rdbms_easy) ->
     EasyOpts = #{db_jid_format => mam_jid_rfc,
                  db_message_format => mam_message_xml},
     maps:merge(EasyOpts, mam_opts_for_conf(rdbms));
+mam_opts_for_conf(rdbms_no_prefs) ->
+    #{async_writer => #{enabled => false},
+      cache_users => false};
 mam_opts_for_conf(rdbms) ->
     #{user_prefs_store => rdbms,
       async_writer => #{enabled => false},
@@ -3545,6 +3558,18 @@ prefs_set_request(Config) ->
         ?assert_equal(ResultIQ1, ResultIQ2),
         ok
         end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
+
+prefs_disabled_set_request(Config) ->
+    F = fun(Alice) ->
+        escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
+                                                     [<<"romeo@montague.net">>],
+                                                     [<<"montague@montague.net">>],
+                                                     mam_ns_binary())),
+        escalus:assert(is_error, [<<"cancel">>, <<"feature-not-implemented">>],
+                       escalus:wait_for_stanza(Alice)),
+        assert_event_with_jid(mod_mam_pm_set_prefs, escalus_utils:get_short_jid(Alice))
+    end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
 query_get_request(Config) ->
