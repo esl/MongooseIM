@@ -88,11 +88,11 @@ do_start() ->
 %% before shutting down the processes of the application.
 prep_stop(State) ->
     mongoose_deprecations:stop(),
-    broadcast_c2s_shutdown_listeners(),
+    suspend_listeners(ranch_listeners()),
+    broadcast_c2s_shutdown_sup(),
     mongoose_listener:stop(),
     mongoose_modules:stop(),
     mongoose_service:stop(),
-    broadcast_c2s_shutdown_sup(),
     mongoose_wpool:stop(),
     mongoose_graphql_commands:stop(),
     mongoose_router:stop(),
@@ -114,21 +114,14 @@ stop(_State) ->
 %%% Internal functions
 %%%
 
--spec broadcast_c2s_shutdown_listeners() -> ok.
-broadcast_c2s_shutdown_listeners() ->
+suspend_listeners(Listeners) ->
+    lists:foreach(fun ranch:suspend_listener/1, Listeners).
+
+ranch_listeners() ->
     Children = supervisor:which_children(mongoose_listener_sup),
-    Listeners = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
-    lists:foreach(
-        fun(Listener) ->
-            ranch:suspend_listener(Listener),
-            [mongoose_c2s:exit(Pid, system_shutdown) || Pid <- ranch:procs(Listener, connections)],
-            mongoose_lib:wait_until(
-                fun() ->
-                    length(ranch:procs(Listener, connections))
-                end,
-                0)
-        end,
-        Listeners).
+    Listeners1 = [ejabberd_cowboy:ref(Listener) || {Listener, _, _, [ejabberd_cowboy]} <- Children],
+    Listeners2 = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
+    Listeners1 ++ Listeners2.
 
 -spec broadcast_c2s_shutdown_sup() -> ok.
 broadcast_c2s_shutdown_sup() ->
