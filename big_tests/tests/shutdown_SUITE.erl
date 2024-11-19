@@ -51,12 +51,17 @@ end_per_testcase(Name, Config) ->
 
 shutdown(Config) ->
     UserSpec = escalus_users:get_userspec(Config, geralt_s),
-    {ok, _Alice, _} = escalus_connection:start(UserSpec),
+    {ok, Alice, _} = escalus_connection:start(UserSpec),
     logger_ct_backend:capture(error),
     ejabberd_node_utils:restart_application(mongooseim),
     logger_ct_backend:stop_capture(),
-    FilterFun = fun(_, WMsg) -> re:run(WMsg, "event_not_registered") /= nomatch end,
-    [] = logger_ct_backend:recv(FilterFun).
+    FilterFun = fun(_, Msg) -> re:run(Msg, "event_not_registered") /= nomatch end,
+    [] = logger_ct_backend:recv(FilterFun),
+    %% Ensure that Alice gets a shutdown stanza
+    escalus:assert(is_stream_error, [<<"system-shutdown">>, <<>>],
+                   escalus_client:wait_for_stanza(Alice)),
+    escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
+    true = escalus_connection:wait_for_close(Alice, timer:seconds(1)).
 
 client_tries_to_connect_before_listener_stop(Config) ->
     %% Ensures that user would not be able to connect while we are stopping
