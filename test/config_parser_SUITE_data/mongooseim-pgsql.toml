@@ -86,6 +86,7 @@
   tls.mode = "starttls"
   tls.certfile = "priv/dc1.pem"
   tls.dhfile = "priv/dh.pem"
+  tls.cacertfile = "priv/ca.pem"
 
 [[listen.c2s]]
   port = 5223
