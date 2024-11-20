@@ -4,15 +4,19 @@ set -e
 cd tools/pkg/packages
 PACKAGE_NAME=$(ls)
 
-GPG_KEY_NAME="Test User"
-GPG_KEY_EMAIL="testuser@example.com"
+GPG_KEY_NAME="MongooseIM"
+GPG_KEY_EMAIL="mongooseim@erlang-solutions.com"
+
+if [ -z "$GPG_PASS" ]; then
+    echo "Error: GPG_PASS environment variable is not set."
+    exit 1
+fi
 
 GPG_KEY_ID=$(gpg --list-keys --with-colons "$GPG_KEY_EMAIL" 2>/dev/null | grep '^pub' | cut -d':' -f5)
 
 if [ -z "$GPG_KEY_ID" ]; then
     GPG_BATCH_FILE=$(mktemp)
     cat > "$GPG_BATCH_FILE" <<EOF
-        %no-protection
         %echo Generating a basic OpenPGP key
         Key-Type: default
         Subkey-Type: default
@@ -20,12 +24,12 @@ if [ -z "$GPG_KEY_ID" ]; then
         Subkey-Curve: Ed25519
         Name-Real: $GPG_KEY_NAME
         Name-Email: $GPG_KEY_EMAIL
-        Expire-Date: 0
+        Expire-Date: 1y
         %commit
         %echo Done
 EOF
 
-    gpg --batch --generate-key "$GPG_BATCH_FILE"
+    gpg --batch --passphrase "$GPG_PASS" --pinentry-mode loopback --generate-key "$GPG_BATCH_FILE"
     rm -f "$GPG_BATCH_FILE"
 
     GPG_KEY_ID=$(gpg --list-keys --with-colons "$GPG_KEY_EMAIL" | grep '^pub' | cut -d':' -f5)
@@ -34,10 +38,9 @@ fi
 if [[ "$PACKAGE_NAME" == *.deb ]]; then
     echo "Signing DEB package: $PACKAGE_NAME"
 
-    dpkg-sig --sign builder \
-        -k "$GPG_KEY_ID" \
-        --gpg-options "--batch --yes --pinentry-mode loopback" \
-        "$PACKAGE_NAME"
+    dpkg-sig --sign builder -g "--no-tty --pinentry-mode loopback --passphrase $GPG_PASS" \
+         -k "$GPG_KEY_ID" \
+         $PACKAGE_NAME
 
     # Verify the signature
     dpkg-sig --verify "$PACKAGE_NAME"
@@ -51,11 +54,20 @@ elif [[ "$PACKAGE_NAME" == *.rpm ]]; then
     rpm --import public.key
     rm -f public.key
 
-    echo "%__gpg $(which gpg)" >> ~/.rpmmacros
-    echo "%_gpg_path $HOME/.gnupg" >> ~/.rpmmacros
-    echo "%_gpg_name $GPG_KEY_EMAIL" >> ~/.rpmmacros
-    echo "%_signature gpg" >> ~/.rpmmacros
+    # Configure RPM macros
+    cat > ~/.rpmmacros <<EOF
+          %__gpg $(which gpg)
+          %_gpg_path $HOME/.gnupg
+          %_gpg_name $GPG_KEY_EMAIL
+          %_signature gpg
+          %_gpg_pass $GPG_PASS
+          %__gpg_sign_cmd %{__gpg} gpg --no-verbose --no-armor --batch \
+            --pinentry-mode loopback --passphrase "%{_gpg_pass}" \
+            --no-secmem-warning -u "%{_gpg_name}" \
+            -sbo %{__signature_filename} %{__plaintext_filename}
+EOF
 
+    echo "Signing the RPM package..."
     rpm --addsign "$PACKAGE_NAME"
 
     # Verify the signature
@@ -67,7 +79,5 @@ else
     echo "Unknown package type: $PACKAGE_NAME"
     exit 1
 fi
-
-rm -rf ~/.gnupg
 
 echo "Package signing process completed."
