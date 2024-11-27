@@ -114,15 +114,15 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(tagged_rdbms_queries, Config) ->
-    ExtraConfig = stop_global_default_pool(),
-    instrument_helper:start(declared_events(tagged_rdbms_queries)),
+    ExtraConfig = stop_global_default_pool() ++ [{scope, host_type()}, {tag, tag()}],
+    instrument_helper:start(declared_events(ExtraConfig)),
     start_local_host_type_pool(ExtraConfig),
     ExtraConfig ++ Config;
 init_per_group(global_rdbms_queries, Config) ->
-    ExtraConfig = stop_global_default_pool(),
-    instrument_helper:start(declared_events(global_rdbms_queries)),
+    ExtraConfig = stop_global_default_pool() ++ [{scope, global}, {tag, default}],
+    instrument_helper:start(declared_events(ExtraConfig)),
     restart_global_default_pool(ExtraConfig),
-    [{tag, global} | Config].
+    ExtraConfig ++ Config.
 
 end_per_group(tagged_rdbms_queries, Config) ->
     stop_local_host_type_pool(),
@@ -149,15 +149,18 @@ end_per_testcase(CaseName, Config)
 end_per_testcase(test_incremental_upsert, Config) ->
     erase_inbox(Config),
     escalus:end_per_testcase(test_incremental_upsert, Config);
+end_per_testcase(Case = test_wrapped_request, Config) ->
+    Tag = ?config(tag, Config),
+    ok = rpc(mim(), mongoose_instrument, tear_down, [wrapper_event_spec(Tag)]),
+    escalus:end_per_testcase(Case, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
-declared_events(tagged_rdbms_queries) ->
-    instrument_helper:declared_events(mongoose_wpool_rdbms, [host_type(), tag()]) ++
-    [{test_wrapped_request, #{pool_tag => tag()}}];
-declared_events(global_rdbms_queries) ->
-    instrument_helper:declared_events(mongoose_wpool_rdbms, [global, default]) ++
-    [{test_wrapped_request, #{pool_tag => global}}].
+declared_events(Config) ->
+    Scope = ?config(scope, Config),
+    Tag = ?config(tag, Config),
+    instrument_helper:declared_events(mongoose_wpool_rdbms, [Scope, Tag]) ++
+    [{test_wrapped_request, #{pool_tag => Tag}}].
 
 %%--------------------------------------------------------------------
 %% Data for cases
@@ -368,11 +371,11 @@ read_prep_boolean_case(Config) ->
 
 select_current_timestamp_case(Config) ->
     ok = rpc(mim(), mongoose_rdbms_timestamp, prepare, []),
-    Res = case ?config(tag, Config) of
-              global ->
+    Res = case {?config(scope, Config), ?config(tag, Config)} of
+              {global, default} ->
                   rpc(mim(), mongoose_rdbms_timestamp, select, []);
-              Tag ->
-                  rpc(mim(), mongoose_rdbms_timestamp, select, [host_type(), Tag])
+              {Scope, Tag} ->
+                  rpc(mim(), mongoose_rdbms_timestamp, select, [Scope, Tag])
           end,
     assert_is_integer(Res).
 
@@ -686,11 +689,11 @@ test_upsert_many2_replaces_existing(Config) ->
 
 pool_probe_metrics_are_updated(Config) ->
     Tag = ?config(tag, Config),
-    {Event, Labels} = case Tag of
+    {Event, Labels} = case ?config(scope, Config) of
                           global ->
-                              {wpool_global_rdbms_stats, #{pool_tag => default}};
-                          Tag ->
-                              {wpool_rdbms_stats, #{host_type => host_type(), pool_tag => Tag}}
+                              {wpool_global_rdbms_stats, #{pool_tag => Tag}};
+                          Scope ->
+                              {wpool_rdbms_stats, #{host_type => Scope, pool_tag => Tag}}
                       end,
     #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
 
@@ -717,10 +720,12 @@ tag() ->
     extra_tag.
 
 scope_and_tag(Config) ->
-    case ?config(tag, Config) of
-        global -> [host_type()];
-        Tag -> [host_type(), Tag]
-    end.
+    skip_default_tag([?config(scope, Config), ?config(tag, Config)]).
+
+skip_default_tag([Scope, default]) ->
+    [Scope];
+skip_default_tag(ScopeAndTag) ->
+    ScopeAndTag.
 
 sql_query(Config, Query) ->
     ScopeAndTag = scope_and_tag(Config),
@@ -1284,7 +1289,7 @@ stop_global_default_pool() ->
     [GlobalRdbmsPool] = [Pool || Pool = #{type := rdbms, scope := global, tag := default} <- Pools],
     ok = rpc(mim(), mongoose_wpool, stop, [rdbms, global, default]),
     Extra = maybe_stop_service_domain_db(),
-    [{tag, tag()}, {global_default_rdbms_pool, GlobalRdbmsPool} | Extra].
+    [{global_default_rdbms_pool, GlobalRdbmsPool} | Extra].
 
 restart_global_default_pool(Config) ->
     GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
