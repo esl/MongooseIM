@@ -82,6 +82,7 @@ rdbms_queries_cases() ->
      test_request_transaction,
      test_restart_transaction_with_execute,
      test_restart_transaction_with_execute_eventually_passes,
+     prepare_without_execute_does_not_cause_inconsistency,
      test_failed_transaction_with_execute_wrapped,
      test_failed_wrapper_transaction,
      test_incremental_upsert,
@@ -135,6 +136,14 @@ end_per_group(global_rdbms_queries, Config) ->
 init_per_testcase(test_incremental_upsert, Config) ->
     erase_inbox(Config),
     escalus:init_per_testcase(test_incremental_upsert, Config);
+init_per_testcase(Case = prepare_without_execute_does_not_cause_inconsistency, Config) ->
+    case is_pgsql() orelse is_cockroachdb() of
+        true ->
+            erase_inbox(Config),
+            escalus:init_per_testcase(Case, Config);
+        false ->
+            {skip, "Test for a Postgres-specific issue"}
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -146,6 +155,10 @@ end_per_testcase(CaseName, Config)
          CaseName =:= test_failed_wrapper_transaction ->
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(Case = prepare_without_execute_does_not_cause_inconsistency, Config) ->
+    erase_inbox(Config),
+    rpc(mim(), meck, unload, []),
+    escalus:end_per_testcase(Case, Config);
 end_per_testcase(test_incremental_upsert, Config) ->
     erase_inbox(Config),
     escalus:end_per_testcase(test_incremental_upsert, Config);
@@ -541,6 +554,31 @@ test_restart_transaction_with_execute_eventually_passes(Config) ->
     {atomic, ok} = sql_transaction(Config, F),
     called_times(3),
     ok.
+
+prepare_without_execute_does_not_cause_inconsistency(Config) ->
+    prepare_insert_int8(Config),
+    Args = [rdbms, ?config(scope, Config), ?config(tag, Config)],
+    Pool = rpc(mim(), mongoose_wpool, make_pool_name, Args),
+    [Key1, Key2] = make_hash_keys(2, Pool),
+
+    %% Simulate a call to 'prepare' with missing subsequent 'execute'
+    ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4, ok]),
+    ok = call_worker(Args, Key1, {sql_execute, insert_int8, [1]}),
+
+    %% Insert the data using a different worker
+    Insert = <<"INSERT INTO inbox VALUES ('alice', 'localhost', 'bob@localhost', "
+               "'msg-id', 'inbox', 'content', 14, 0, 0)">>,
+    {updated, 1} = call_worker(Args, Key2, {sql_query, Insert}),
+
+    %% Make sure that worker 1 is not stuck in the previous transaction after 'prepare'
+    {selected, [{<<"14">>}]} = call_worker(Args, Key1, {sql_query, <<"SELECT timestamp FROM inbox">>}).
+
+%% Send the SQL command to a particular DB worker
+call_worker(Args, HashKey, Operation) ->
+    TS = rpc(mim(), erlang, monotonic_time, [millisecond]),
+    Command = {sql_cmd, Operation, TS},
+    rpc(mim(), mongoose_wpool, call, Args ++ [HashKey, Command]).
 
 test_failed_transaction_with_execute_wrapped(Config) ->
     % given
@@ -1394,3 +1432,24 @@ check_like_not_matching_prep(SelName, Config, _TextValue, NotMatching, Info) ->
                         SelectResult,
                         Info#{pattern => NotMatching,
                               select_result => SelectResult}).
+
+%% Generate a list of Num numerical keys resolving to different Pool workers using hash_worker
+make_hash_keys(Num, Pool) ->
+    Workers = rpc(mim(), wpool_pool, get_workers, [Pool]),
+    if Num =< length(Workers) ->
+            lists:reverse(make_hash_keys(Num, Pool, Workers, 1, []));
+       true ->
+            ct:fail("Not enough workers in ~p (needed: ~p, actual: ~p)",
+                    [Pool, Num, length(Workers)])
+    end.
+
+make_hash_keys(RemainingNum, Pool, Workers, Key, Acc) when RemainingNum > 0 ->
+    Worker = rpc(mim(), wpool_pool, hash_worker, [Pool, Key]),
+    case lists:member(Worker, Workers) of
+        true ->
+            make_hash_keys(RemainingNum - 1, Pool, Workers -- [Worker], Key + 1, [Key | Acc]);
+        false ->
+            make_hash_keys(RemainingNum, Pool, Workers, Key + 1, Acc)
+    end;
+make_hash_keys(0, _WorkerNum, _Workers, _Key, Acc) ->
+    Acc.
