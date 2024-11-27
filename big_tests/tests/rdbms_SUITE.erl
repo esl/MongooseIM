@@ -104,8 +104,7 @@ init_per_suite(Config) ->
          orelse mongoose_helper:is_rdbms_enabled(host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
         true ->
-            %% Warning: inject_module does not really work well with --rerun-big-tests flag
-            mongoose_helper:inject_module(?MODULE),
+            mongoose_helper:inject_module(?MODULE, reload),
             Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
             escalus:init_per_suite(Config1)
     end.
