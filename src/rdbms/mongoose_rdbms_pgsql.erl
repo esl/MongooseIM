@@ -70,8 +70,15 @@ prepare(Connection, Name, _Table, _Fields, Statement) ->
     BinName = [atom_to_binary(Name, latin1)],
     ReplacedStatement = replace_question_marks(Statement),
     case epgsql:parse(Connection, BinName, ReplacedStatement, []) of
-        {ok, _} -> epgsql:describe(Connection, statement, BinName);
-        Error   -> Error
+        {ok, PreparedStatement} ->
+            %% If the statement is not executed for some reason, the transaction would remain open.
+            %% The safest way to fix this is to issue the Sync message.
+            %% Performance impact is minimal, because 'prepare' is called only once.
+            %% See https://www.postgresql.org/docs/current/protocol-flow.html for details
+            ok = epgsql:sync(Connection),
+            {ok, PreparedStatement};
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
