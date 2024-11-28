@@ -623,7 +623,8 @@ do_route(Acc, From, To, El) ->
                     do_route_offline(Name, mongoose_acc:stanza_type(Acc),
                                      From, To, Acc, El);
                 Pid when is_pid(Pid) ->
-                    ?LOG_DEBUG(#{what => sm_route_to_pid, session_pid => Pid, acc => Acc}),
+                    ?LOG_DEBUG(#{what => sm_route_to_pid, session_pid => Pid,
+                                 session_node => node(Pid), acc => Acc}),
                     mongoose_c2s:route(Pid, Acc),
                     Acc
             end
