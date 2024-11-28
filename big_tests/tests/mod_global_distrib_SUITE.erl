@@ -697,7 +697,6 @@ test_location_disconnect(Config) ->
                   ok = rpc(asia_node, application, stop, [mongooseim]),
                   %% TODO: Stopping mongooseim alone should probably stop connections too
                   ok = rpc(asia_node, application, stop, [ranch]),
-
                   escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again!">>)),
                   Error = escalus:wait_for_stanza(Alice),
                   escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error)
@@ -1433,10 +1432,14 @@ custom_loglevels() ->
      {mod_global_distrib_connection, debug},
     %% to check if gc or refresh is triggered
      {mod_global_distrib_server_mgr, info},
-   %% To debug incoming connections
+    %% To debug incoming connections
 %    {mod_global_distrib_receiver, info},
-   %% to debug global session set/delete
-     {mod_global_distrib_mapping, debug}
+    %% to debug global session set/delete
+     {mod_global_distrib_mapping, debug},
+    %% To log make_error_reply calls
+     {jlib, debug},
+    %% to log sm_route
+     {ejabberd_sm, debug}
     ].
 
 test_hosts() -> [mim, mim2, reg].
