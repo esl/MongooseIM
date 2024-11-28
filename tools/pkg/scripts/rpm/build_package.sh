@@ -21,4 +21,4 @@ os_version=$VERSION_ID
 package_os_file_name=${os}~${os_version}
 
 mv ~/rpmbuild/RPMS/${arch}/mongooseim-${version}-${revision}.${arch}.rpm \
-    ~/mongooseim_${version}_${revision}_otp_${otp_version}~${package_os_file_name}_${package_name_arch}.rpm
+    ~/rpmbuild/mongooseim_${version}_${revision}_otp_${otp_version}~${package_os_file_name}_${package_name_arch}.rpm

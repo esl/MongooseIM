@@ -80,6 +80,9 @@ docker build -t mongooseim-${platform}:${version}-${revision} \
     --build-arg version=${version} \
     --build-arg revision=${revision} \
     --build-arg erlang_version=${erlang_version} \
+    --secret id=GPG_PUBLIC_KEY \
+    --secret id=GPG_PRIVATE_KEY \
+    --secret id=GPG_PASS \
     -f ${dockerfile_path} \
     $context_path
 

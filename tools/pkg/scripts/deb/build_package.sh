@@ -38,7 +38,7 @@ date=$(date -R)
 sed -i "s#@DATE@#${date}#g" mongooseim/DEBIAN/changelog
 
 chown $USER:$USER -R mongooseim
-dpkg-deb -Zxz --build mongooseim ./
+dpkg --build mongooseim ./
 
 source /etc/os-release
 os=$ID
