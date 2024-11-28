@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # vi: ft=dockerfile
 ARG builder_image
 ARG target_image
@@ -6,7 +7,7 @@ FROM $builder_image AS builder
 
 # Install the build dependencies
 RUN dnf install -y rpm-build rpmdevtools git make zlib-devel unixODBC-devel gcc gcc-c++ \
-    openssl openssl-devel chrpath glibc-locale-source systemd-rpm-macros
+    openssl openssl-devel chrpath glibc-locale-source systemd-rpm-macros rpm-sign
 
 # Fix locale setup
 # See https://github.com/CentOS/sig-cloud-instance-images/issues/71#issuecomment-266957519
@@ -31,12 +32,18 @@ ARG revision
 
 RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/build_package.sh $version $revision $erlang_version
 
+# Sign the built package with the keys provided
+RUN --mount=type=secret,id=GPG_PUBLIC_KEY,env=GPG_PUBLIC_KEY \
+    --mount=type=secret,id=GPG_PRIVATE_KEY,env=GPG_PRIVATE_KEY \
+    --mount=type=secret,id=GPG_PASS,env=GPG_PASS \
+    ./BUILD/mongooseim/tools/pkg/sign.sh
+
 # Create image for sharing and validation of built package
 FROM $target_image AS target
 
 # Copy built package from previous image and install it with required dependencies
 WORKDIR /root/
-COPY --from=builder /root/mongooseim*.rpm .
+COPY --from=builder /root/rpmbuild/mongooseim*.rpm .
 RUN dnf -y update && dnf install -y mongooseim*.rpm
 
 # Simple check if MiM works

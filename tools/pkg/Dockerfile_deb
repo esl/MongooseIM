@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # vi: ft=dockerfile
 ARG builder_image
 ARG target_image
@@ -7,7 +8,15 @@ FROM $builder_image AS builder
 # Install build deps
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
-RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev curl
+RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev curl gpg wget gnupg
+
+# The signing script requires debsigs version 0.2 or higher, which is unavailable in
+# package repositories of Ubuntu versions earlier than 24.10 and Debian versions earlier than 13.
+# TODO: Switch to installing debsigs via apt once support for these older versions is dropped.
+RUN wget http://ftp.de.debian.org/debian/pool/main/d/debsigs/debsigs_0.2.2-1_all.deb && \
+    dpkg -i debsigs_0.2.2-1_all.deb && \
+    rm debsigs_0.2.2-1_all.deb && \
+    which debsigs
 
 ARG erlang_version
 
@@ -26,6 +35,12 @@ ARG version
 ARG revision
 
 RUN ./deb/build_package.sh $version $revision $erlang_version
+
+# Sign the built package with the keys provided
+RUN --mount=type=secret,id=GPG_PUBLIC_KEY,env=GPG_PUBLIC_KEY \
+    --mount=type=secret,id=GPG_PRIVATE_KEY,env=GPG_PRIVATE_KEY \
+    --mount=type=secret,id=GPG_PASS,env=GPG_PASS \
+    ./mongooseim/tools/pkg/sign.sh
 
 # Create image for sharing and validation of built package
 FROM $target_image AS target
