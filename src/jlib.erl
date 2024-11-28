@@ -120,14 +120,16 @@ make_result_iq_reply_attrs(Attrs) ->
 -spec make_error_reply(exml:element() | mongoose_acc:t(),
                        xmlcdata() | exml:element()) ->
     exml:element() | {mongoose_acc:t(), exml:element() | {error, {already_an_error, _, _}}}.
-make_error_reply(#xmlel{name = Name, attrs = Attrs,
-                        children = SubTags}, Error) ->
-    NewAttrs = make_error_reply_attrs(Attrs),
-    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
+make_error_reply(#xmlel{} = Elem, Error) ->
+    ?LOG_DEBUG(#{what => make_error_reply,
+                 exml_packet => Elem, error_element => Error}),
+    make_error_reply_from_element(Elem, Error);
 make_error_reply(Acc, Error) ->
     make_error_reply(Acc, mongoose_acc:element(Acc), Error).
 
 make_error_reply(Acc, Packet, Error) ->
+    ?LOG_DEBUG(#{what => make_error_reply,
+                 acc => Acc, error_element => Error}),
     case mongoose_acc:get(flag, error, false, Acc) of
         true ->
             ?LOG_ERROR(#{what => error_reply_to_error, exml_packet => Packet,
@@ -135,8 +137,13 @@ make_error_reply(Acc, Packet, Error) ->
             {Acc, {error, {already_an_error, Packet, Error}}};
         _ ->
             {mongoose_acc:set(flag, error, true, Acc),
-             make_error_reply(Packet, Error)}
+             make_error_reply_from_element(Packet, Error)}
     end.
+
+make_error_reply_from_element(#xmlel{name = Name, attrs = Attrs,
+                                     children = SubTags}, Error) ->
+    NewAttrs = make_error_reply_attrs(Attrs),
+    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
 
 -spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
 make_error_reply_attrs(Attrs) ->
