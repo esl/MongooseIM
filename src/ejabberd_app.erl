@@ -34,6 +34,8 @@
 
 -include("mongoose.hrl").
 
+-type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
+
 
 %%%
 %%% Application API
@@ -86,10 +88,12 @@ do_start() ->
 %% @doc Prepare the application for termination.
 %% This function is called when an application is about to be stopped,
 %% before shutting down the processes of the application.
-prep_stop(State) ->
+prep_stop(_State) ->
     mongoose_deprecations:stop(),
-    suspend_listeners(ranch_listeners()),
-    broadcast_c2s_shutdown_sup(),
+    TypedListeners = get_typed_listeners(),
+    suspend_listeners(TypedListeners),
+    StoppedCount = broadcast_c2s_shutdown_sup(),
+    StoppedCount2 = broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners),
     mongoose_listener:stop(),
     mongoose_modules:stop(),
     mongoose_service:stop(),
@@ -97,12 +101,13 @@ prep_stop(State) ->
     mongoose_graphql_commands:stop(),
     mongoose_router:stop(),
     mongoose_system_probes:stop(),
-    State.
+    #{stopped_count => StoppedCount + StoppedCount2}.
 
 %% All the processes were killed when this function is called
-stop(_State) ->
+stop(#{stopped_count := StoppedCount}) ->
     mongoose_config:stop(),
-    ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION, node => node()}),
+    ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION,
+                  node => node(), stopped_sessions_count => StoppedCount}),
     delete_pid_file(),
     update_status_file(stopped),
     %% We cannot stop other applications inside of the stop callback
@@ -114,17 +119,32 @@ stop(_State) ->
 %%% Internal functions
 %%%
 
-suspend_listeners(Listeners) ->
-    lists:foreach(fun ranch:suspend_listener/1, Listeners).
+-spec suspend_listeners(typed_listeners()) -> ok.
+suspend_listeners(TypedListeners) ->
+    [ranch:suspend_listener(Ref) || {_Type, Ref} <- TypedListeners],
+    ok.
 
-ranch_listeners() ->
+-spec get_typed_listeners() -> typed_listeners().
+get_typed_listeners() ->
     Children = supervisor:which_children(mongoose_listener_sup),
-    Listeners1 = [ejabberd_cowboy:ref(Listener) || {Listener, _, _, [ejabberd_cowboy]} <- Children],
-    Listeners2 = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
+    Listeners1 = [{cowboy, ejabberd_cowboy:ref(Listener)}
+                  || {Listener, _, _, [ejabberd_cowboy]} <- Children],
+    Listeners2 = [{ranch, Ref}
+                  || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
     Listeners1 ++ Listeners2.
 
--spec broadcast_c2s_shutdown_sup() -> ok.
+-spec broadcast_c2s_shutdown_sup() -> StoppedCount :: non_neg_integer().
 broadcast_c2s_shutdown_sup() ->
+    %% Websocket c2s connections have two processes per user:
+    %% - one is websocket Cowboy process.
+    %% - one is under mongoose_c2s_sup.
+    %%
+    %% Regular XMPP connections are not under mongoose_c2s_sup,
+    %% they are under the Ranch listener, which is a child of mongoose_listener_sup.
+    %%
+    %% We could use ejabberd_sm to get both Websocket and regular XMPP sessions,
+    %% but waiting till the list size is zero is much more computationally
+    %% expensive in that case.
     Children = supervisor:which_children(mongoose_c2s_sup),
     lists:foreach(
         fun({_, Pid, _, _}) ->
@@ -136,7 +156,25 @@ broadcast_c2s_shutdown_sup() ->
               Res = supervisor:count_children(mongoose_c2s_sup),
               proplists:get_value(active, Res)
         end,
-        0).
+        0),
+    length(Children).
+
+%% Based on https://ninenines.eu/docs/en/ranch/2.1/guide/connection_draining/
+-spec broadcast_c2s_shutdown_to_regular_c2s_connections(typed_listeners()) ->
+    non_neg_integer().
+broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
+    Refs = [Ref || {ranch, Ref} <- TypedListeners],
+    StoppedCount = lists:foldl(
+        fun(Ref, Count) ->
+            Conns = ranch:procs(Ref, connections),
+            [mongoose_c2s:exit(Pid, system_shutdown) || Pid <- Conns],
+            length(Conns) + Count
+        end, 0, Refs),
+    lists:foreach(
+        fun(Ref) ->
+            ok = ranch:wait_for_connections(Ref, '==', 0)
+        end, Refs),
+    StoppedCount.
 
 %%%
 %%% PID file
