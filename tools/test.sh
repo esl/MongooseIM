@@ -145,6 +145,7 @@ run_test_preset() {
   cd ${BASE}/big_tests
   local MAKE_RESULT=0
   TESTSPEC=${TESTSPEC:-default.spec}
+  maybe_select_suites
   if [ "$COVER_ENABLED" = "true" ]; then
     make cover_test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET CT_HOOKS=$CT_HOOKS
     MAKE_RESULT=$?
@@ -155,6 +156,14 @@ run_test_preset() {
   cd -
   tools/print-dots.sh stop
   return ${MAKE_RESULT}
+}
+
+maybe_select_suites() {
+    if command -v circleci; then
+        circleci tests glob tests/*_SUITE.erl | \
+            circleci tests run --command=">selected_suites xargs -d' ' -I {} basename {} .erl"
+        escript ../tools/select_suites_to_run.erl $TESTSPEC $(<selected_suites)
+    fi
 }
 
 print_running_nodes() {
