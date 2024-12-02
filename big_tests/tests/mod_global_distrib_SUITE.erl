@@ -688,19 +688,26 @@ test_component_disconnect(Config) ->
 test_location_disconnect(Config) ->
     try
         escalus:fresh_story(
-          Config, [{alice, 1}, {eve, 1}],
-          fun(Alice, Eve) ->
+          Config, [{alice, 1}, {eve, 1}, {adam, 1}],
+          fun(Alice, Eve, Adam) ->
                   escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
-
                   escalus_client:wait_for_stanza(Eve),
 
+                  escalus_client:send(Alice, escalus_stanza:chat_to(Adam, <<"Hi, Adam, from Europe1!">>)),
+                  escalus_client:wait_for_stanza(Adam),
+
+                  print_sessions_debug_info(asia_node),
                   ok = rpc(asia_node, application, stop, [mongooseim]),
                   %% TODO: Stopping mongooseim alone should probably stop connections too
                   ok = rpc(asia_node, application, stop, [ranch]),
 
                   escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again!">>)),
                   Error = escalus:wait_for_stanza(Alice),
-                  escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error)
+                  escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
+
+                  escalus_client:send(Alice, escalus_stanza:chat_to(Adam, <<"Hi, Adam, again!">>)),
+                  Error2 = escalus:wait_for_stanza(Alice),
+                  escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error2)
           end)
     after
         rpc(asia_node, application, start, [ranch]),
@@ -1410,6 +1417,27 @@ can_connect_to_port(Port) ->
             false
     end.
 
+%% Prints information about the active sessions
+print_sessions_debug_info(NodeName) ->
+    Node = rpc(NodeName, erlang, node, []),
+    Nodes = rpc(NodeName, erlang, nodes, []),
+    ct:log("name=~p, erlang_node=~p, other_nodes=~p", [NodeName, Node, Nodes]),
+
+    Children = rpc(NodeName, supervisor, which_children, [mongoose_c2s_sup]),
+    ct:log("C2S processes under a supervisour ~p", [Children]),
+
+    Sessions = rpc(NodeName, ejabberd_sm, get_full_session_list, []),
+    ct:log("C2S processes in the session manager ~p", [Sessions]),
+
+    Sids = [element(2, Session) || Session <- Sessions],
+    Pids = [Pid || {_, Pid} <- Sids],
+    PidNodes = [{Pid, node(Pid)} || Pid <- Pids],
+    ct:log("Pids on nodes ~p", [PidNodes]),
+
+    Info = [{Pid, rpc:call(Node, erlang, process_info, [Pid])} || {Pid, Node} <- PidNodes],
+    ct:log("Processes info ~p", [Info]),
+    ok.
+
 %% -----------------------------------------------------------------------
 %% Custom log levels for GD modules during the tests
 
@@ -1433,10 +1461,14 @@ custom_loglevels() ->
      {mod_global_distrib_connection, debug},
     %% to check if gc or refresh is triggered
      {mod_global_distrib_server_mgr, info},
-   %% To debug incoming connections
+    %% To debug incoming connections
 %    {mod_global_distrib_receiver, info},
-   %% to debug global session set/delete
-     {mod_global_distrib_mapping, debug}
+    %% to debug global session set/delete
+     {mod_global_distrib_mapping, debug},
+    %% To log make_error_reply calls
+     {jlib, debug},
+    %% to log sm_route
+     {ejabberd_sm, debug}
     ].
 
 test_hosts() -> [mim, mim2, reg].

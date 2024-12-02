@@ -121,6 +121,7 @@
 {suites, "tests", cets_disco_SUITE}.
 {suites, "tests", start_node_id_SUITE}.
 {suites, "tests", tr_util_SUITE}.
+{suites, "tests", shutdown_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.

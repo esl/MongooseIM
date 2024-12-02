@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 
-%% Intercepts filter_packet hook with maybe_reroute callback.
+%% Intercepts filter_packet hook.
 -module(mod_global_distrib).
 -author('konrad.zemek@erlang-solutions.com').
 
@@ -28,7 +28,7 @@
 
 -export([deps/2, start/2, stop/1, config_spec/0, instrumentation/0]).
 -export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
--export([maybe_reroute/3]).
+-export([filter_packet/3]).
 -export([process_opts/1, process_endpoint/1]).
 
 -ignore_xref([remove_metadata/2, instrumentation/0]).
@@ -77,7 +77,10 @@ instrumentation() ->
      {?GLOBAL_DISTRIB_STOP_TTL_ZERO, #{}, #{metrics => #{count => spiral}}}].
 
 hooks() ->
-    [{filter_packet, global, fun ?MODULE:maybe_reroute/3, #{}, 99}].
+    %% filter_packet is called in mongoose_router_global as a first
+    %% element of the routing chain.
+    %% mongoose_router_localdomain is called next.
+    [{filter_packet, global, fun ?MODULE:filter_packet/3, #{}, 99}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -229,11 +232,11 @@ remove_metadata(Acc, Key) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec maybe_reroute(FPacket, Params, Extra) -> {ok, FPacket} | {stop, drop} when
+-spec filter_packet(FPacket, Params, Extra) -> {ok, FPacket} | {stop, drop} when
                 FPacket :: mongoose_hooks:filter_packet_acc(),
                 Params :: map(),
                 Extra :: map().
-maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
+filter_packet({#jid{ luser = SameUser, lserver = SameServer } = _From,
                #jid{ luser = SameUser, lserver = SameServer } = _To,
                _Acc, _Packet} = FPacket, _, _) ->
     %% GD is not designed to support two user sessions existing in distinct clusters
@@ -244,7 +247,7 @@ maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
     %% from unacked SM buffer, leading to an error, while a brand new, shiny Eve
     %% on mim1 was waiting.
     {ok, FPacket};
-maybe_reroute({From, To, _, Packet} = FPacket, _, _) ->
+filter_packet({From, To, _, Packet} = FPacket, _, _) ->
     Acc = maybe_initialize_metadata(FPacket),
     {ok, ID} = find_metadata(Acc, id),
     LocalHost = opt(local_host),

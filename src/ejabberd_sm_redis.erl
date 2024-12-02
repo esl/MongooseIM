@@ -26,14 +26,15 @@
 
 -ignore_xref([maybe_initial_cleanup/2]).
 
--spec init(map()) -> any().
+-spec init(map()) -> ok.
 init(_Opts) ->
     %% Clean current node's sessions from previous life
-    {Elapsed, RetVal} = timer:tc(?MODULE, maybe_initial_cleanup, [node(), true]),
+    {Elapsed, Count} = timer:tc(?MODULE, maybe_initial_cleanup, [node(), true]),
     ?LOG_NOTICE(#{what => sm_cleanup_initial,
                   text => <<"SM cleanup on start took">>,
-                  duration => erlang:round(Elapsed / 1000)}),
-    RetVal.
+                  duration => erlang:round(Elapsed / 1000),
+                  removed_sessions_count => Count}),
+    ok.
 
 -spec get_sessions() -> [ejabberd_sm:session()].
 get_sessions() ->
@@ -109,11 +110,12 @@ delete_session(SID, User, Server, Resource) ->
             ok
     end.
 
--spec cleanup(atom()) -> any().
+-spec cleanup(atom()) -> ok.
 cleanup(Node) ->
-    maybe_initial_cleanup(Node, false).
+    maybe_initial_cleanup(Node, false),
+    ok.
 
--spec maybe_initial_cleanup(atom(), boolean()) -> any().
+-spec maybe_initial_cleanup(atom(), boolean()) -> non_neg_integer().
 maybe_initial_cleanup(Node, Initial) ->
     Hashes = mongoose_redis:cmd(["SMEMBERS", n(Node)]),
     mongoose_redis:cmd(["DEL", n(Node)]),
@@ -131,7 +133,8 @@ maybe_initial_cleanup(Node, Initial) ->
                                   Session
                           end
                   end, Hashes),
-    ejabberd_sm:sessions_cleanup(Sessions).
+    ejabberd_sm:sessions_cleanup(Sessions),
+    length(Sessions).
 
 -spec total_count() -> integer().
 total_count() ->
