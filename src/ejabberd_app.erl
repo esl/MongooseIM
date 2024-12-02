@@ -34,9 +34,6 @@
 
 -include("mongoose.hrl").
 
--type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
-
-
 %%%
 %%% Application API
 %%%
@@ -90,10 +87,7 @@ do_start() ->
 %% before shutting down the processes of the application.
 prep_stop(_State) ->
     mongoose_deprecations:stop(),
-    TypedListeners = get_typed_listeners(),
-    suspend_listeners(TypedListeners),
-    StoppedCount = broadcast_c2s_shutdown_sup(),
-    StoppedCount2 = broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners),
+    StoppedCount = mongoose_listener:suspend_listeners_and_shutdown_connections(),
     mongoose_listener:stop(),
     mongoose_modules:stop(),
     mongoose_service:stop(),
@@ -101,7 +95,7 @@ prep_stop(_State) ->
     mongoose_graphql_commands:stop(),
     mongoose_router:stop(),
     mongoose_system_probes:stop(),
-    #{stopped_count => StoppedCount + StoppedCount2}.
+    #{stopped_count => StoppedCount}.
 
 %% All the processes were killed when this function is called
 stop(#{stopped_count := StoppedCount}) ->
@@ -114,67 +108,6 @@ stop(#{stopped_count := StoppedCount}) ->
     %% (because we would deadlock the application controller process).
     %% That is why we call mnesia:stop() inside of db_init_mnesia() instead.
     ok.
-
-%%%
-%%% Internal functions
-%%%
-
--spec suspend_listeners(typed_listeners()) -> ok.
-suspend_listeners(TypedListeners) ->
-    [ranch:suspend_listener(Ref) || {_Type, Ref} <- TypedListeners],
-    ok.
-
--spec get_typed_listeners() -> typed_listeners().
-get_typed_listeners() ->
-    Children = supervisor:which_children(mongoose_listener_sup),
-    Listeners1 = [{cowboy, ejabberd_cowboy:ref(Listener)}
-                  || {Listener, _, _, [ejabberd_cowboy]} <- Children],
-    Listeners2 = [{ranch, Ref}
-                  || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
-    Listeners1 ++ Listeners2.
-
--spec broadcast_c2s_shutdown_sup() -> StoppedCount :: non_neg_integer().
-broadcast_c2s_shutdown_sup() ->
-    %% Websocket c2s connections have two processes per user:
-    %% - one is websocket Cowboy process.
-    %% - one is under mongoose_c2s_sup.
-    %%
-    %% Regular XMPP connections are not under mongoose_c2s_sup,
-    %% they are under the Ranch listener, which is a child of mongoose_listener_sup.
-    %%
-    %% We could use ejabberd_sm to get both Websocket and regular XMPP sessions,
-    %% but waiting till the list size is zero is much more computationally
-    %% expensive in that case.
-    Children = supervisor:which_children(mongoose_c2s_sup),
-    lists:foreach(
-        fun({_, Pid, _, _}) ->
-            mongoose_c2s:exit(Pid, system_shutdown)
-        end,
-        Children),
-    mongoose_lib:wait_until(
-        fun() ->
-              Res = supervisor:count_children(mongoose_c2s_sup),
-              proplists:get_value(active, Res)
-        end,
-        0),
-    length(Children).
-
-%% Based on https://ninenines.eu/docs/en/ranch/2.1/guide/connection_draining/
--spec broadcast_c2s_shutdown_to_regular_c2s_connections(typed_listeners()) ->
-    non_neg_integer().
-broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
-    Refs = [Ref || {ranch, Ref} <- TypedListeners],
-    StoppedCount = lists:foldl(
-        fun(Ref, Count) ->
-            Conns = ranch:procs(Ref, connections),
-            [mongoose_c2s:exit(Pid, system_shutdown) || Pid <- Conns],
-            length(Conns) + Count
-        end, 0, Refs),
-    lists:foreach(
-        fun(Ref) ->
-            ok = ranch:wait_for_connections(Ref, '==', 0)
-        end, Refs),
-    StoppedCount.
 
 %%%
 %%% PID file

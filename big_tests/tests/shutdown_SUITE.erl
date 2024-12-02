@@ -123,7 +123,10 @@ wait_for_down(Pid) ->
     MonRef = erlang:monitor(process, Pid),
     receive
         {'DOWN', MonRef, process, _, _} -> ok
-        after 5000 -> ct:fail(wait_for_down_timeout)
+        after 5000 ->
+            ct:pal("wait_for_down current_stacktrace ~p",
+                   [rpc:pinfo(Pid, current_stacktrace)]),
+            ct:fail(wait_for_down_timeout)
     end.
 
 %% Waits until the TCP socket is closed
