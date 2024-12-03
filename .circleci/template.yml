@@ -718,9 +718,14 @@ jobs:
                 command: |
                   ./tools/pkg/publish.sh
 
-filters: &all_tags
-  tags:
-    only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
+filters:
+  - &all_tags
+    tags:
+      only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
+  - &all_tags_and_master
+    <<: *all_tags
+    branches:
+      only: master
 
 workflows:
   version: 2
@@ -743,67 +748,67 @@ workflows:
           executor: otp_27
           platform: debian-bookworm
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: debian-bullseye
           executor: otp_27
           platform: debian-bullseye
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: debian-buster
           executor: otp_27
           platform: debian-buster
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: ubuntu-oracular
           executor: otp_27
           platform: ubuntu-oracular
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: ubuntu-noble
           executor: otp_27
           platform: ubuntu-noble
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: ubuntu-jammy
           executor: otp_27
           platform: ubuntu-jammy
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: ubuntu-focal
           executor: otp_27
           platform: ubuntu-focal
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: rockylinux-9
           executor: otp_27
           platform: rockylinux-9
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: rockylinux-8
           executor: otp_27
           platform: rockylinux-8
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: almalinux-9
           executor: otp_27
           platform: almalinux-9
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       - package:
           name: almalinux-8
           executor: otp_27
           platform: almalinux-8
           context: mongooseim-org
-          filters: *all_tags
+          filters: *all_tags_and_master
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:
           name: otp_27_docker
