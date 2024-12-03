@@ -133,6 +133,7 @@ cluster_op_timeout() ->
 -spec rpc(Spec, _, _, _) -> any() when
       Spec :: rpc_spec().
 rpc(#{} = RPCSpec, M, F, A) ->
+    assert_allowed_node(RPCSpec),
     Node = maps:get(node, RPCSpec),
     Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
     TimeOut = maps:get(timeout, RPCSpec, timer:seconds(5)),
@@ -161,6 +162,7 @@ rpc(#{} = RPCSpec, M, F, A) ->
 %%      ...
 %%
 require_rpc_nodes(Nodes, Config) ->
+    persistent_term:put(distributed_helper_nodes, Nodes),
     [ {require, {hosts, Node, node}} || Node <- Nodes ] ++ Config.
 
 %% @doc Shorthand for hosts->mim->node from `test.config'.
@@ -205,3 +207,11 @@ subhost_pattern(SubhostTemplate) ->
 
 lookup_config_opt(Key) ->
     rpc(mim(), mongoose_config, lookup_opt, [Key]).
+
+assert_allowed_node(#{node := Node}) ->
+    Allowed = persistent_term:get(distributed_helper_nodes, []),
+    AllowedNodes = [get_or_fail({hosts, NodeKey, node}) || NodeKey <- Allowed],
+    case lists:member(Node, AllowedNodes) of
+        true -> ok;
+        false -> ct:fail({assert_allowed_node, Node, AllowedNodes})
+    end.
