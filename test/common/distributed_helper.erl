@@ -163,6 +163,8 @@ rpc(#{} = RPCSpec, M, F, A) ->
 %%
 require_rpc_nodes(Nodes, Config) ->
     persistent_term:put(distributed_helper_nodes, Nodes),
+    %% We cannot call `validate_nodes/0' at this point,
+    %% because the config variables are not available yet.
     [ {require, {hosts, Node, node}} || Node <- Nodes ] ++ Config.
 
 %% @doc Shorthand for hosts->mim->node from `test.config'.
@@ -185,6 +187,34 @@ fed() ->
 
 rpc_spec(NodeKey) ->
     #{node => get_or_fail({hosts, NodeKey, node})}.
+
+allowed_rpc_specs() ->
+    Allowed = persistent_term:get(distributed_helper_nodes, []),
+    [rpc_spec(NodeKey) || NodeKey <- Allowed].
+
+%% @doc Validate that we can access nodes,
+%%      which were requested by calling `require_rpc_nodes/2'.
+%%
+%% Called from `ct_check_rpc_nodes' CT hook.
+validate_nodes() ->
+    Results = [validate_node(Spec) || Spec <- allowed_rpc_specs()],
+    case [Res || Res <- Results, Res =/= ok] of
+        [] ->
+            ok;
+        Failed ->
+            {error, Failed}
+    end.
+
+validate_node(Spec = #{node := Node}) ->
+    try rpc(Spec, application, loaded_applications, []) of
+        Loaded ->
+            case lists:keymember(mongooseim, 1, Loaded) of
+                true -> ok;
+                false -> {validate_node_failed, mongooseim_not_running, Node}
+            end
+    catch error:{badrpc, Reason} ->
+        {validate_node_failed, {badrpc, Reason}, Node}
+    end.
 
 get_or_fail(Key) ->
     Val = ct:get_config(Key),
