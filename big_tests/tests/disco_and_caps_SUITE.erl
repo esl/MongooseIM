@@ -7,6 +7,9 @@
 -import(domain_helper, [host_type/0, domain/0]).
 -import(config_parser_helper, [default_mod_config/1, mod_config/2, mod_config_with_auto_backend/1]).
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 all() ->
     [{group, disco_with_caps},
      {group, disco_with_caps_and_extra_features},

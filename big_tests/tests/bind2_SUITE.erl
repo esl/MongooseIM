@@ -17,6 +17,9 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 all() ->
     [
      {group, basic}

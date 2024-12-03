@@ -11,6 +11,9 @@
 -import(mongoose_helper, [enable_carbons/1, disable_carbons/1]).
 -import(domain_helper, [domain/0]).
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 all() ->
     [{group, one2one},
      {group, muc}].

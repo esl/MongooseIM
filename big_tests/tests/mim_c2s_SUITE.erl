@@ -44,6 +44,10 @@ groups() ->
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
+
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     instrument_helper:start(instrumentation_events()),
     HostType = domain_helper:host_type(),

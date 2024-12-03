@@ -60,7 +60,7 @@ all_tests() ->
     ].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 ping_interval() ->
     timer:seconds(3).
