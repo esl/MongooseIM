@@ -5,7 +5,8 @@ version=$1
 revision=$2
 otp_version=$3
 
-arch="amd64"
+arch=$(dpkg --print-architecture)
+echo "Detected package architecture: $arch"
 
 cd ~/mongooseim
 
@@ -39,6 +40,11 @@ sed -i "s#@DATE@#${date}#g" mongooseim/DEBIAN/changelog
 
 chown $USER:$USER -R mongooseim
 dpkg --build mongooseim ./
+
+if [[ $(dpkg-deb -f mongooseim_*.deb Architecture) != $arch ]]; then
+  echo "Error: The package was not built for ${arch}."
+  exit 1
+fi
 
 source /etc/os-release
 os=$ID

@@ -5,8 +5,23 @@ version=$1
 revision=$2
 otp_version=$3
 
-arch="x86_64"
-package_name_arch="amd64"
+arch=$(uname -m)
+
+case "$arch" in
+  x86_64)
+    package_name_arch="amd64"
+    ;;
+  aarch64)
+    package_name_arch="arm64"
+    ;;
+  *)
+    echo "Unsupported architecture: $arch"
+    exit 1
+    ;;
+esac
+
+echo "Detected architecture: $arch"
+echo "Package architecture: $package_name_arch"
 
 
 rpmbuild -bb \
@@ -14,6 +29,12 @@ rpmbuild -bb \
     --define "release ${revision}" \
     --define "architecture ${arch}" \
     ~/rpmbuild/SPECS/mongooseim.spec
+
+if [[ $(rpm -qp --qf "%{ARCH}" \
+        ~/rpmbuild/RPMS/${arch}/mongooseim-${version}-${revision}.${arch}.rpm) != $arch ]]; then
+  echo "Error: The package was not built for ${arch}."
+  exit 1
+fi
 
 source /etc/os-release
 os=$ID
