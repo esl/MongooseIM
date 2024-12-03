@@ -256,3 +256,9 @@ assert_allowed_node(#{node := Node}, MFA) ->
                     ct:fail(Reason)
             end
     end.
+
+with_all_nodes_allowed(F) ->
+    NodeKeys = [NodeKey || {NodeKey, _Opts} <- ct:get_config(hosts)],
+    require_rpc_nodes(NodeKeys, []),
+    F(),
+    require_rpc_nodes([], []).

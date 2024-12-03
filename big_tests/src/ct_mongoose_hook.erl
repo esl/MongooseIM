@@ -37,10 +37,7 @@ id(_Opts) ->
 %% @doc Always called before any other callback function. Use this to initiate
 %% any common state.
 init(_Id, _Opts) ->
-    NodeKeys = [NodeKey || {NodeKey, _Opts} <- ct:get_config(hosts)],
-    distributed_helper:require_rpc_nodes(NodeKeys, []),
-    domain_helper:insert_configured_domains(),
-    distributed_helper:require_rpc_nodes([], []),
+    distributed_helper:with_all_nodes_allowed(fun domain_helper:insert_configured_domains/0),
     {ok, #{}}.
 
 %% @doc Called before init_per_suite is called.
@@ -102,9 +99,7 @@ on_tc_skip(_TC, _Reason, State) ->
 
 %% @doc Called when the scope of the CTH is done
 terminate(_State) ->
-    distributed_helper:require_rpc_nodes([mim], []),
-    domain_helper:delete_configured_domains(),
-    distributed_helper:require_rpc_nodes([], []),
+    distributed_helper:with_all_nodes_allowed(fun domain_helper:delete_configured_domains/0),
     ok.
 
 check_server_purity(Suite, Config) ->
