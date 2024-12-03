@@ -243,5 +243,12 @@ assert_allowed_node(#{node := Node}) ->
     AllowedNodes = [get_or_fail({hosts, NodeKey, node}) || NodeKey <- Allowed],
     case lists:member(Node, AllowedNodes) of
         true -> ok;
-        false -> ct:fail({assert_allowed_node, Node, AllowedNodes})
+        false ->
+            case os:getenv("ALLOW_ANY_RPC") of
+                "true" ->
+                    %% Just log it instead of failing
+                    ct:pal("~p", [{assert_allowed_node, Node, AllowedNodes}]);
+                _ ->
+                    ct:fail({assert_allowed_node, Node, AllowedNodes})
+            end
     end.

@@ -21,7 +21,13 @@ pre_init_per_suite(_Suite, Config, State) ->
         ok ->
             {Config, State};
         {error, Reason} ->
-            {{fail, Reason}, State}
+            case os:getenv("SKIP_CHECK_RPC_NODES") of
+                "true" ->
+                    ct:pal("Skip failing with ~p in ct_check_rpc_nodes", [Reason]),
+                    {Config, State};
+                _ ->
+                    {{fail, Reason}, State}
+            end
     end.
 
 post_end_per_suite(Suite,_Config, Return, State) ->
