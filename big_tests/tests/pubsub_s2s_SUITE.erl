@@ -22,7 +22,7 @@
          publish_without_node_attr_test/1
         ]).
 
--import(distributed_helper, [require_rpc_nodes/1,
+-import(distributed_helper, [require_rpc_nodes/2,
                              subhost_pattern/1]).
 -import(pubsub_tools, [
                        domain/0,
@@ -35,7 +35,7 @@
 %%--------------------------------------------------------------------
 
 suite() ->
-    require_rpc_nodes([mim, fed]) ++ escalus:suite().
+    require_rpc_nodes([mim, fed], escalus:suite()).
 
 all() ->
     [{group, GN} || {GN, _, _} <- groups()].

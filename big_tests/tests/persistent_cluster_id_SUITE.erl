@@ -4,7 +4,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([all/0,
+-export([suite/0,
+         all/0,
          groups/0,
          init_per_suite/1,
          end_per_suite/1,
@@ -54,7 +55,7 @@ groups() ->
     ].
 
 suite() ->
-    distributed_helper:require_rpc_nodes([mim], []).
+    distributed_helper:require_rpc_nodes([mim, mim2], []).
 
 %%%===================================================================
 %%% Overall setup/teardown

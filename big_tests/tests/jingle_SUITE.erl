@@ -49,7 +49,7 @@ test_cases() ->
     ].
 
 suite() ->
-    require_rpc_nodes([mim], escalus:suite()).
+    require_rpc_nodes([mim, mim2], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

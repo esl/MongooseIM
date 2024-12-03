@@ -55,6 +55,9 @@ groups() ->
                    cluster_size]}
     ].
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim, mim2], escalus:suite()).
+
 init_per_suite(Config) ->
     HostType = host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),

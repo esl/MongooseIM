@@ -60,7 +60,7 @@ groups() ->
                        ]}].
 
 suite() ->
-    require_rpc_nodes([mim], escalus:suite()).
+    require_rpc_nodes([mim, mim2], escalus:suite()).
 
 xep0114_tests() ->
     [register_one_component,
