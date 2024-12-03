@@ -26,7 +26,7 @@
 -define(SLEEP_TIME, 50).
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 %%--------------------------------------------------------------------
@@ -56,7 +56,7 @@ cache_test_cases() ->
     [ filter_local_packet_uses_recipient_values ].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

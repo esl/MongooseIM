@@ -35,7 +35,7 @@
 -import(distributed_helper, [mim/0,
                              mim2/0,
                              mim3/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 -import(domain_helper, [domain/0]).
 -import(config_parser_helper, [default_c2s_tls/1]).
@@ -127,7 +127,7 @@ cipher_test_cases() ->
     ].
 
 suite() ->
-    require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
+    require_rpc_nodes([mim, mim2, mim3], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

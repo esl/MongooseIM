@@ -5,7 +5,7 @@
 -import(distributed_helper, [is_sm_distributed/0,
                              mim/0, mim2/0, mim3/0,
                              remove_node_from_cluster/2,
-                             require_rpc_nodes/1, rpc/4]).
+                             require_rpc_nodes/2, rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2,
                          get_err_msg/1, get_err_code/1, execute_command/5]).
@@ -13,7 +13,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, admin_http},

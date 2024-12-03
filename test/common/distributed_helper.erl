@@ -146,13 +146,13 @@ rpc(#{} = RPCSpec, M, F, A) ->
 %% The use case would be to require and import the same names in your suite like:
 %%
 %%  -import(distributed_helper, [mim/0, fed/0,
-%%                               require_rpc_nodes/1,
+%%                               require_rpc_nodes/2,
 %%                               rpc/4]).
 %%
 %%  ...
 %%
 %%  suite() ->
-%%      require_rpc_nodes([mim, fed]) ++ escalus:suite().
+%%      require_rpc_nodes([mim, fed], escalus:suite()).
 %%
 %%  ...
 %%
@@ -160,8 +160,8 @@ rpc(#{} = RPCSpec, M, F, A) ->
 %%      RPCResult = rpc(mim(), remote_mod, remote_fun, [arg1, arg2]),
 %%      ...
 %%
-require_rpc_nodes(Nodes) ->
-    [ {require, {hosts, Node, node}} || Node <- Nodes ].
+require_rpc_nodes(Nodes, Config) ->
+    [ {require, {hosts, Node, node}} || Node <- Nodes ] ++ Config.
 
 %% @doc Shorthand for hosts->mim->node from `test.config'.
 -spec mim() -> rpc_spec().

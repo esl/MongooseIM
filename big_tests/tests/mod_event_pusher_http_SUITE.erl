@@ -15,7 +15,7 @@
 -define(ETS_TABLE, mod_event_pusher_http).
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 -import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
@@ -29,7 +29,7 @@
 %%%===================================================================
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [

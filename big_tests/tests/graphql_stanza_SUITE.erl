@@ -5,7 +5,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,
                          execute_user_command_sse/5, execute_command_sse/4,
                          get_ok_value/2, get_value/2,
@@ -13,7 +13,7 @@
                          get_unauthorized/1, get_not_loaded/1]).
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, admin_stanza_http},

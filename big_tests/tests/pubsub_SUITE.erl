@@ -19,7 +19,7 @@
                        decode_group_name/1,
                        nodetree_to_mod/1]).
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              subhost_pattern/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0]).
@@ -29,7 +29,7 @@
 %%--------------------------------------------------------------------
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, GN} || {GN, _, _} <- groups()].

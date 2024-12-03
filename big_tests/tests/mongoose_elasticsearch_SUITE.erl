@@ -26,9 +26,9 @@
 %%--------------------------------------------------------------------
 
 suite() ->
-    [{require, ejabberd_node},
-     {require, ejabberd_cookie} |
-     distributed_helper:require_rpc_nodes([mim])].
+     distributed_helper:require_rpc_nodes([mim],
+         [{require, ejabberd_node},
+          {require, ejabberd_cookie}]).
 
 all() ->
     [{group, all}].

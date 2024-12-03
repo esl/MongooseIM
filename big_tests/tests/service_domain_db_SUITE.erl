@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
--import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/1, rpc/4,
+-import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/2, rpc/4,
                              remove_node_from_cluster/2]).
 -import(graphql_helper, [execute_command/4]).
 
@@ -26,7 +26,7 @@
 -import(config_parser_helper, [config/2]).
 
 suite() ->
-    require_rpc_nodes([mim, mim2, mim3]).
+    require_rpc_nodes([mim, mim2, mim3], escalus:suite()).
 
 all() ->
     [

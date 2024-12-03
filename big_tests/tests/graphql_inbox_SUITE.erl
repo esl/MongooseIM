@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(common_helper, [unprep/1]).
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, user_to_bin/1,
                          get_ok_value/2, get_err_msg/1, get_err_code/1, get_not_loaded/1,
@@ -17,7 +17,7 @@
 -define(assertErrCode(Res, Code), assert_err_code(Code, Res)).
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     inbox_helper:skip_or_run_inbox_tests(tests()).

@@ -5,7 +5,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/2, rpc/4]).
 -import(domain_helper, [host_type/1]).
 
 all() ->
@@ -32,13 +32,16 @@ system_cases() ->
      system_memory,
      system_dist_data].
 
+suite() ->
+    require_rpc_nodes([mim, mim2], escalus:suite()).
+
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
     Config1 = mongoose_helper:backup_and_set_config_option(
                 Config, [instrumentation, probe_interval], 1),
     restart(mongoose_system_probes),
     instrument_helper:start(instrument_helper:declared_events(mongoose_system_probes, [])),
-    require_rpc_nodes([mim, mim2]) ++ Config1.
+    Config1.
 
 end_per_suite(Config) ->
     mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),

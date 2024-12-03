@@ -4,7 +4,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1,
                          get_err_msg/1, get_err_code/1]).
 -import(domain_helper, [host_type/0]).
@@ -13,7 +13,7 @@ suite() ->
     MIM2NodeName = maps:get(node, distributed_helper:mim2()),
     %% Ensure nodes are connected
     mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2NodeName]),
-    require_rpc_nodes([mim, mim2]) ++ escalus:suite().
+    require_rpc_nodes([mim, mim2], escalus:suite()).
 
 all() ->
      [{group, metrics_http},

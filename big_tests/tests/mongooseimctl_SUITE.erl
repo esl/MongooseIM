@@ -21,7 +21,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -import(mongooseimctl_helper, [mongooseimctl/3]).
--import(distributed_helper, [mim/0, require_rpc_nodes/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2]).
 -import(domain_helper, [domain/0]).
 
 %%--------------------------------------------------------------------
@@ -65,7 +65,7 @@ server() ->
      server_is_started].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     Node = mim(),

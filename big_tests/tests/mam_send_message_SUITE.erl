@@ -1,7 +1,8 @@
 -module(mam_send_message_SUITE).
 
 %% API
--export([all/0,
+-export([suite/0,
+         all/0,
          groups/0,
          init_per_suite/1,
          end_per_suite/1,
@@ -21,7 +22,7 @@
          parse_forwarded_message/1]).
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              subhost_pattern/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0]).
@@ -41,6 +42,10 @@ groups() ->
 %%%===================================================================
 %%% Overall setup/teardown
 %%%===================================================================
+
+suite() ->
+    require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 

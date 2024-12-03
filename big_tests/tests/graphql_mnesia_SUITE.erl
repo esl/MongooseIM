@@ -3,7 +3,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [require_rpc_nodes/1, mim/0, mim2/0, rpc/4]).
+-import(distributed_helper, [require_rpc_nodes/2, mim/0, mim2/0, rpc/4]).
 -import(domain_helper, [host_type/1]).
 -import(mongooseimctl_helper, [rpc_call/3]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
@@ -77,6 +77,9 @@ mnesia_not_configured_tests() ->
      set_master_not_configured_test,
      system_info_not_configured_test
     ].
+
+suite() ->
+    require_rpc_nodes([mim, mim2], escalus:suite()).
 
 init_per_suite(Config) ->
     application:ensure_all_started(jid),

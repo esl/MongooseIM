@@ -22,7 +22,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 -import(domain_helper, [host_type/0]).
@@ -66,7 +66,7 @@ groups() ->
                                     remove_unsubscribe]}].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

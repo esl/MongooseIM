@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(common_helper, [unprep/1]).
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4, subhost_pattern/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4, subhost_pattern/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
                          get_coercion_err_msg/1, make_creds/1, get_unauthorized/1,
@@ -35,7 +35,7 @@
 -define(SET_BLOCKING_LIST_PATH, [data, muc_light, setBlockingList]).
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, user},

@@ -26,7 +26,7 @@
 -import(distributed_helper, [add_node_to_cluster/1,
                              mim/0,
                              remove_node_from_cluster/1,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              start_node/2,
                              stop_node/2]).
 
@@ -60,7 +60,7 @@ groups() ->
                        ]}].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 xep0114_tests() ->
     [register_one_component,

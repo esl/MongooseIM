@@ -15,8 +15,6 @@
          delete_custom/4,
          patch_custom/4]).
 
--import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
-
 set_invalid_creds(Config) ->
     [{auth_creds, invalid}|Config].
 

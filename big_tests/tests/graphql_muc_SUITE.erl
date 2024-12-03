@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(common_helper, [unprep/1]).
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4, subhost_pattern/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4, subhost_pattern/1]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_ok_value/2, get_err_msg/1,
                          get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1,
                          get_unauthorized/1, get_not_loaded/1]).
@@ -14,7 +14,7 @@
 -include_lib("jid/include/jid.hrl").
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, user},

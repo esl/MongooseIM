@@ -19,7 +19,7 @@
     app_secret = <<>>}).
 
 -import(distributed_helper, [mim/0, mim2/0, mim3/0, rpc/4,
-                             require_rpc_nodes/1
+                             require_rpc_nodes/2
                             ]).
 
 -import(component_helper, [connect_component/1,
@@ -30,7 +30,7 @@
 -import(config_parser_helper, [mod_config/2, config/2]).
 
 suite() ->
-    require_rpc_nodes([mim]).
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [

@@ -3,7 +3,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4]).
 -import(graphql_helper, [get_bad_request/1, get_unauthorized/1, get_method_not_allowed/1,
                          build_request/4, make_creds/1, execute_auth/2,
                          execute_sse/3, execute_user_sse/3, execute_auth_sse/2]).
@@ -11,7 +11,7 @@
 %% common_test callbacks
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, admin},

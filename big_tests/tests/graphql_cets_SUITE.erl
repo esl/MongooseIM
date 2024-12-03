@@ -43,26 +43,29 @@ cets_not_configured_test() ->
     [get_table_info_not_configured_test,
      get_system_info_not_configured_test].
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim, mim2], escalus:suite()).
+
 init_per_suite(Config) ->
+    Config1 = escalus:init_per_suite(Config),
     case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend], undefined]) of
         rdbms ->
-            Config1 = escalus:init_per_suite(Config),
             Config2 = ejabberd_node_utils:init(mim(), Config1),
             add_bad_node(),
             ok = rpc_call(cets_discovery, wait_for_ready, [mongoose_cets_discovery, 5000]),
-            Config2 ++ distributed_helper:require_rpc_nodes([mim, mim2]);
+            Config2;
         _ ->
-            Config
+            Config1
     end.
 
 end_per_suite(Config) ->
     case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets, backend]]) of
         {ok, rdbms} ->
-            ensure_bad_node_unregistered(),
-            escalus:end_per_suite(Config);
+            ensure_bad_node_unregistered();
         _ ->
             ok
-    end.
+    end,
+    escalus:end_per_suite(Config).
 
 init_per_group(admin_cets_http, Config) ->
     Config1 = graphql_helper:init_admin_handler(Config),

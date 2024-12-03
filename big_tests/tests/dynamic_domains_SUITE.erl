@@ -5,7 +5,7 @@
 %% API
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, mim2/0, rpc/4,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              subhost_pattern/1]).
 
 -define(TEST_NODES, [mim() | ?CLUSTER_NODES]).
@@ -14,7 +14,7 @@
 -define(HOST_TYPE, <<"dummy auth">>). %% preconfigured in the toml file
 
 suite() ->
-    require_rpc_nodes([mim, mim2]).
+    require_rpc_nodes([mim, mim2], escalus:suite()).
 
 all() ->
     [can_authenticate,

@@ -4,7 +4,7 @@
 
 -import(common_helper, [unprep/1]).
 -import(domain_helper, [host_type/0, domain/0]).
--import(distributed_helper, [mim/0, rpc/4, require_rpc_nodes/1]).
+-import(distributed_helper, [mim/0, rpc/4, require_rpc_nodes/2]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
                          get_ok_value/2, get_err_code/1, get_unauthorized/1]).
 
@@ -12,7 +12,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, admin_gdpr_http},

@@ -18,7 +18,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              subhost_pattern/1,
                              rpc/4]).
 
@@ -531,7 +531,7 @@ stream_management_cases() ->
      reconnect_no_ack_different_resource].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     PoolIds = [pm_mam, muc_mam],

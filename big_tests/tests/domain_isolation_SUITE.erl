@@ -4,12 +4,12 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4, subhost_pattern/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, secondary_host_type/0]).
 -import(config_parser_helper, [mod_config/2]).
 
 suite() ->
-    require_rpc_nodes([mim]).
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, two_domains}].

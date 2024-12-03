@@ -17,7 +17,7 @@
 -module(metrics_roster_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4]).
 -import(domain_helper, [host_type/0]).
 -import(roster_helper, [assert_roster_event/2, assert_subscription_event/3]).
 
@@ -35,7 +35,7 @@ groups() ->
      {subscriptions, [parallel], subscription_tests()}].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 roster_tests() -> [get_roster,
                    add_contact,

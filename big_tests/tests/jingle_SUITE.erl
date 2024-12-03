@@ -6,7 +6,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -import(distributed_helper, [mim/0, mim2/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 -import(jingle_helper, [content/1,
@@ -49,7 +49,7 @@ test_cases() ->
     ].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

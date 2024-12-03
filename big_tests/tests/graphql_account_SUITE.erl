@@ -6,7 +6,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(common_helper, [unprep/1]).
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
                          execute_domain_admin_command/4, get_unauthorized/1,
@@ -17,7 +17,7 @@
 -define(EMPTY_NAME_JID, <<"@", (domain_helper:domain())/binary>>).
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, user_account},

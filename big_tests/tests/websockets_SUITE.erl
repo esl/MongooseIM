@@ -21,7 +21,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 %%--------------------------------------------------------------------
@@ -47,7 +47,7 @@ test_cases() ->
      too_big_stanza_is_rejected].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

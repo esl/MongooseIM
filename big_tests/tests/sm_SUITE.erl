@@ -18,7 +18,7 @@
          filter_hook_handler_fn/3]).
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 -import(domain_helper, [host_type/0]).
@@ -48,7 +48,7 @@
 %%--------------------------------------------------------------------
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, ws_tests},

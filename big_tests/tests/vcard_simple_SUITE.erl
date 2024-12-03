@@ -32,7 +32,7 @@
 -import(vcard_helper, [is_vcard_ldap/0]).
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              subhost_pattern/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0,
@@ -66,7 +66,7 @@ all_tests() ->
      search_wildcard].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

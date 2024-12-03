@@ -53,11 +53,14 @@ groups() ->
      {rdbms, [], tests()}
     ].
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], []).
+
 %%%===================================================================
 %%% Overall setup/teardown
 %%%===================================================================
 init_per_suite(Config) ->
-    distributed_helper:require_rpc_nodes([mim]) ++ Config.
+    Config.
 
 end_per_suite(_Config) ->
     ok.

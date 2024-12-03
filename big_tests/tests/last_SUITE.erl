@@ -48,7 +48,7 @@ valid_test_cases() -> [online_user_query,
 invalid_test_cases() -> [user_not_subscribed_receives_error].
 
 suite() ->
-    distributed_helper:require_rpc_nodes([mim, mim2]) ++ escalus:suite().
+    distributed_helper:require_rpc_nodes([mim, mim2], escalus:suite()).
 
 init_per_suite(Config0) ->
     mongoose_helper:inject_module(distributed_helper:mim2(), ?MODULE, reload),
