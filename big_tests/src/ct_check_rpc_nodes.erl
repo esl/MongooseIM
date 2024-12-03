@@ -31,6 +31,9 @@ pre_init_per_suite(_Suite, Config, State) ->
     end.
 
 post_end_per_suite(Suite,_Config, Return, State) ->
+    %% To ensure users do not use `require_rpc_nodes' from the previous
+    %% suite accidentally
+    distributed_helper:require_rpc_nodes([], []),
     {Return, State}.
 
 terminate(State) ->

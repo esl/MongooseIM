@@ -104,10 +104,10 @@ Script examples:
     CI MAM-only build job with elasticsearch_and_cassandra_mnesia
     Separator -- between presets and suites
 
-./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia
+./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --skip-small-tests
     CI build job with pgsql_mnesia
 
-./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --spec dynamic_domains.spec
+./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --spec dynamic_domains.spec --skip-small-tests
     CI multi-tenancy build job with pgsql_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia --skip-stop-nodes -- mam
