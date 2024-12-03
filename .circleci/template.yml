@@ -468,7 +468,7 @@ jobs:
       - run:
           name: Build GraphQL static docs
           command: |
-            npm install --global cheerio@1.0.0-rc.12 spectaql
+            npm install --global spectaql@3.0.2
             npx spectaql -t doc/graphql-api -f admin-graphql-doc.html doc/graphql-api/Admin-GraphQL_spectaql.yml
             npx spectaql -C -J -t doc/graphql-api -f user-graphql-doc.html doc/graphql-api/User-GraphQL_spectaql.yml
       - run:
