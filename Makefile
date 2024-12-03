@@ -29,7 +29,7 @@ eunit:
 rel: certs configure.out rel/configure.vars.config
 	. ./configure.out && $(REBAR) as prod release
 
-shell: certs etc/mongooseim.cfg
+shell: certs
 	$(REBAR) shell
 
 # Top-level targets' dependency chain
@@ -42,10 +42,6 @@ rock:
 ## Don't allow these files to go out of sync!
 configure.out rel/configure.vars.config:
 	./tools/configure with-all without-jingle-sip
-
-etc/mongooseim.cfg:
-	@mkdir -p $(@D)
-	tools/generate_cfg.es etc/mongooseim.cfg rel/files/mongooseim.cfg
 
 devrel: $(DEVNODES)
 
