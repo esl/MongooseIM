@@ -140,7 +140,7 @@ parse_nksip_media_attr(<<"candidate">>, Params, Acc) ->
                   ip => IP,
                   port => Port,
                   network => <<"0">>, %% no SDP equivalent
-                  id => base16:encode(crypto:strong_rand_bytes(5))},
+                  id => binary:encode_hex(crypto:strong_rand_bytes(5), lowercase)},
     CompleteCandidate = parse_candidate_extra_args(ExtraArgs, Candidate),
     Transport = maps:get(transport, Acc, #{}),
     Candidates = maps:get(candidates, Transport, []),

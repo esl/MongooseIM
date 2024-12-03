@@ -170,7 +170,7 @@ init_domain_admin_handler(Config) ->
 init_domain_admin_handler(Config, Domain) ->
     case mongoose_helper:is_rdbms_enabled(Domain) of
         true ->
-            Password = base16:encode(crypto:strong_rand_bytes(8)),
+            Password = binary:encode_hex(crypto:strong_rand_bytes(8)),
             Creds = {<<"admin@", Domain/binary>>, Password},
             domain_helper:set_domain_password(mim(), Domain, Password),
             add_specs([{protocol, http}, {domain_admin, Creds}, {schema_endpoint, domain_admin}

@@ -143,6 +143,6 @@ parse_from_to(El) ->
 -spec make_key(ejabberd_s2s:fromto(), ejabberd_s2s:stream_id(), ejabberd_s2s:base16_secret()) ->
     ejabberd_s2s:s2s_dialback_key().
 make_key({From, To}, StreamID, Secret) ->
-    SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
+    SecretHashed = binary:encode_hex(crypto:hash(sha256, Secret), lowercase),
     HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
-    base16:encode(HMac).
+    binary:encode_hex(HMac, lowercase).

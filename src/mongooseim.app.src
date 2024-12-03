@@ -8,7 +8,6 @@
   {applications, [
                   asn1,
                   backoff,
-                  base16,
                   cache_tab,
                   cowboy,
                   cpool,

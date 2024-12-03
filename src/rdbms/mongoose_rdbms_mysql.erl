@@ -32,7 +32,7 @@
 
 -spec escape_binary(binary()) -> iodata().
 escape_binary(Bin) when is_binary(Bin) ->
-    [<<"X'">>, base16:encode(Bin), <<"'">>].
+    [<<"X'">>, binary:encode_hex(Bin, lowercase), <<"'">>].
 
 -spec unescape_binary(binary()) -> binary().
 unescape_binary(Bin) when is_binary(Bin) ->

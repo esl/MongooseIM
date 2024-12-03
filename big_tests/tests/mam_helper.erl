@@ -958,7 +958,7 @@ generate_msg_for_date_user(Owner, Remote, DateTime) ->
     generate_msg_for_date_user(Owner, Remote, DateTime, random_text()).
 
 random_text() ->
-    base16:encode(crypto:strong_rand_bytes(4)).
+    binary:encode_hex(crypto:strong_rand_bytes(4)).
 
 generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content) ->
     Microsec = datetime_to_microseconds(DateTime),

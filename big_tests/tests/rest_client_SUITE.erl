@@ -715,7 +715,7 @@ user_can_be_added_and_removed_by_room_jid(Config) ->
 msg_with_props_is_sent_and_delivered_over_xmpp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         BobJID = user_jid(Bob),
-        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+        MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
         M1 = rest_helper:make_msg_stanza_with_props(BobJID,MsgID),
 
         escalus:send(Alice, M1),
@@ -728,7 +728,7 @@ msg_with_props_can_be_parsed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+        MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
         M1 = rest_helper:make_msg_stanza_with_props(BobJID,MsgID),
 
         escalus:send(Alice, M1),
@@ -759,7 +759,7 @@ msg_with_props_can_be_parsed(Config) ->
 msg_with_malformed_props_is_sent_and_delivered_over_xmpp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         BobJID = user_jid(Bob),
-        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+        MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 
         M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID, MsgID),
 
@@ -774,7 +774,7 @@ msg_with_malformed_props_can_be_parsed(Config) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         AliceCreds = {AliceJID, user_password(alice)},
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+        MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 
         M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID,MsgID),
         escalus:send(Alice, M1),
@@ -794,8 +794,8 @@ msg_with_malformed_props_can_be_parsed(Config) ->
 msg_with_thread_is_sent_and_delivered_over_xmpp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
 				BobJID = user_jid(Bob),
-				MsgID = base16:encode(crypto:strong_rand_bytes(5)),
-				ThreadID = base16:encode(crypto:strong_rand_bytes(5)),
+				MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
+				ThreadID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 				M1 = rest_helper:make_msg_stanza_with_thread(BobJID, MsgID, ThreadID),
 				escalus:send(Alice, M1),
 				M2 = escalus:wait_for_stanza(Bob),
@@ -806,8 +806,8 @@ msg_with_thread_can_be_parsed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
 				AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
 				BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-				MsgID = base16:encode(crypto:strong_rand_bytes(5)),
-				ThreadID = base16:encode(crypto:strong_rand_bytes(5)),
+				MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
+				ThreadID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 				M1 = rest_helper:make_msg_stanza_with_thread(BobJID, MsgID, ThreadID),
 				escalus:send(Alice, M1),
 				escalus:wait_for_stanza(Bob),
@@ -829,9 +829,9 @@ msg_with_thread_can_be_parsed(Config) ->
 msg_with_thread_and_parent_is_sent_and_delivered_over_xmpp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
 				BobJID = user_jid(Bob),
-				MsgID = base16:encode(crypto:strong_rand_bytes(5)),
-				ThreadID = base16:encode(crypto:strong_rand_bytes(5)),
-				ThreadParentID = base16:encode(crypto:strong_rand_bytes(5)),
+				MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
+				ThreadID = binary:encode_hex(crypto:strong_rand_bytes(5)),
+				ThreadParentID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 				M1 = rest_helper:make_msg_stanza_with_thread_and_parent(BobJID, MsgID, ThreadID, ThreadParentID),
 				escalus:send(Alice, M1),
 				M2 = escalus:wait_for_stanza(Bob),
@@ -842,9 +842,9 @@ msg_with_thread_and_parent_can_be_parsed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
 				AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
 				BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-				MsgID = base16:encode(crypto:strong_rand_bytes(5)),
-				ThreadID = base16:encode(crypto:strong_rand_bytes(5)),
-				ThreadParentID = base16:encode(crypto:strong_rand_bytes(5)),
+				MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
+				ThreadID = binary:encode_hex(crypto:strong_rand_bytes(5)),
+				ThreadParentID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 				M1 = rest_helper:make_msg_stanza_with_thread_and_parent(BobJID, MsgID, ThreadID, ThreadParentID),
 				escalus:send(Alice, M1),
 				escalus:wait_for_stanza(Bob),
@@ -868,7 +868,7 @@ msg_with_thread_and_parent_can_be_parsed(Config) ->
 msg_without_thread_is_sent_and_delivered_over_xmpp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
 				BobJID = user_jid(Bob),
-				MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+				MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 				M1 = rest_helper:make_msg_stanza_without_thread(BobJID, MsgID),
 				escalus:send(Alice, M1),
 				M2 = escalus:wait_for_stanza(Bob),
@@ -880,7 +880,7 @@ msg_without_thread_can_be_parsed(Config) ->
 				AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
 				AliceCreds = {AliceJID, user_password(alice)},
 				BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-				MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+				MsgID = binary:encode_hex(crypto:strong_rand_bytes(5)),
 				M1 = rest_helper:make_msg_stanza_without_thread(BobJID, MsgID),
 				escalus:send(Alice, M1),
 				escalus:wait_for_stanza(Bob),

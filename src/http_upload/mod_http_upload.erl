@@ -269,7 +269,7 @@ module_opts(HostType) ->
 
 -spec generate_token(mongooseim:host_type()) -> binary().
 generate_token(HostType) ->
-    base16:encode(crypto:strong_rand_bytes(token_bytes(HostType))).
+    binary:encode_hex(crypto:strong_rand_bytes(token_bytes(HostType)), lowercase).
 
 
 -spec file_too_large_error(MaxFileSize :: non_neg_integer()) -> exml:element().

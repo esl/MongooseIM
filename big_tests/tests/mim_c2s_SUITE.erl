@@ -132,7 +132,7 @@ two_users_can_log_and_chat(Config) ->
 too_big_stanza_is_rejected(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec),
-    BigBody = base16:encode(crypto:strong_rand_bytes(?MAX_STANZA_SIZE)),
+    BigBody = binary:encode_hex(crypto:strong_rand_bytes(?MAX_STANZA_SIZE)),
     escalus_client:send(Alice, escalus_stanza:chat_to(Alice, BigBody)),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], escalus_client:wait_for_stanza(Alice)),
     escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
@@ -141,7 +141,7 @@ too_big_stanza_is_rejected(Config) ->
 too_big_opening_tag_is_rejected(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec, []),
-    BigAttrs = [{<<"bigattr">>,  base16:encode(crypto:strong_rand_bytes(?MAX_STANZA_SIZE))}],
+    BigAttrs = [{<<"bigattr">>,  binary:encode_hex(crypto:strong_rand_bytes(?MAX_STANZA_SIZE))}],
     escalus_client:send(Alice, #xmlel{name = <<"stream:stream">>, attrs = BigAttrs}),
     escalus:assert(is_stream_start, escalus_client:wait_for_stanza(Alice)),
     escalus:assert(is_stream_error, [<<"xml-not-well-formed">>, <<>>],

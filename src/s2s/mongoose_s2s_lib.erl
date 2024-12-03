@@ -71,7 +71,7 @@ check_shared_secret(HostType, StoredSecretResult) ->
 
 -spec make_random_secret() -> ejabberd_s2s:base16_secret().
 make_random_secret() ->
-    base16:encode(crypto:strong_rand_bytes(10)).
+    binary:encode_hex(crypto:strong_rand_bytes(10), lowercase).
 
 -spec get_shared_secret_from_config(mongooseim:host_type()) ->
     {ok, ejabberd_s2s:base16_secret()} | {error, not_found}.

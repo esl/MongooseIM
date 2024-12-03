@@ -114,7 +114,7 @@ create_identifiable_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         MUCLightDomain = muc_light_domain(),
         Path = path([MUCLightDomain]),
-        RandBits = base16:encode(crypto:strong_rand_bytes(5)),
+        RandBits = binary:encode_hex(crypto:strong_rand_bytes(5), lowercase),
         Name = <<"wonderland">>,
         RoomID = <<"just_some_id_", RandBits/binary>>,
         RoomIDescaped = escalus_utils:jid_to_lower(RoomID),
