@@ -30,7 +30,7 @@
 -import(config_parser_helper, [mod_config/2, config/2]).
 
 suite() ->
-    require_rpc_nodes([mim, mim2], escalus:suite()).
+    require_rpc_nodes([mim, mim2, mim3], escalus:suite()).
 
 all() ->
     [

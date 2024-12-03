@@ -133,7 +133,7 @@ cluster_op_timeout() ->
 -spec rpc(Spec, _, _, _) -> any() when
       Spec :: rpc_spec().
 rpc(#{} = RPCSpec, M, F, A) ->
-    assert_allowed_node(RPCSpec),
+    assert_allowed_node(RPCSpec, {M, F, A}),
     Node = maps:get(node, RPCSpec),
     Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
     TimeOut = maps:get(timeout, RPCSpec, timer:seconds(5)),
@@ -238,17 +238,21 @@ subhost_pattern(SubhostTemplate) ->
 lookup_config_opt(Key) ->
     rpc(mim(), mongoose_config, lookup_opt, [Key]).
 
-assert_allowed_node(#{node := Node}) ->
+assert_allowed_node(#{node := Node}, MFA) ->
     Allowed = persistent_term:get(distributed_helper_nodes, []),
     AllowedNodes = [get_or_fail({hosts, NodeKey, node}) || NodeKey <- Allowed],
     case lists:member(Node, AllowedNodes) of
         true -> ok;
         false ->
+            Reason = #{what => assert_allowed_node,
+                       calling_node => Node,
+                       allowed_nodes => AllowedNodes,
+                       rpc_call => MFA},
             case os:getenv("ALLOW_ANY_RPC") of
                 "true" ->
                     %% Just log it instead of failing
-                    ct:pal("~p", [{assert_allowed_node, Node, AllowedNodes}]);
+                    ct:pal("~p", [Reason]);
                 _ ->
-                    ct:fail({assert_allowed_node, Node, AllowedNodes})
+                    ct:fail(Reason)
             end
     end.

@@ -13,7 +13,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 suite() ->
-    require_rpc_nodes([mim, mim2], escalus:suite()).
+    require_rpc_nodes([mim, mim2, mim3], escalus:suite()).
 
 all() ->
     [{group, admin_http},
