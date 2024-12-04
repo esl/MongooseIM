@@ -206,7 +206,7 @@ validate_nodes() ->
     end.
 
 validate_node(Spec = #{node := Node}) ->
-    try rpc(Spec, application, loaded_applications, []) of
+    try rpc(Spec, application, which_applications, []) of
         Loaded ->
             case lists:keymember(mongooseim, 1, Loaded) of
                 true -> ok;
