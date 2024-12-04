@@ -10,9 +10,6 @@
 -import(domain_helper, [host_type/0]).
 
 suite() ->
-    MIM2NodeName = maps:get(node, distributed_helper:mim2()),
-    %% Ensure nodes are connected
-    mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2NodeName]),
     require_rpc_nodes([mim, mim2], escalus:suite()).
 
 all() ->
@@ -63,6 +60,9 @@ domain_admin_metrics_tests() ->
      domain_admin_get_cluster_metrics_as_dicts_for_nodes].
 
 init_per_suite(Config) ->
+    MIM2NodeName = maps:get(node, distributed_helper:mim2()),
+    %% Ensure nodes are connected
+    mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2NodeName]),
     Config1 = ejabberd_node_utils:init(mim(), Config),
     escalus:init_per_suite(Config1).
 
