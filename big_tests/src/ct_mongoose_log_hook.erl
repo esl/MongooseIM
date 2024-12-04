@@ -33,7 +33,8 @@
 -export([pre_init_per_testcase/3]).
 -export([post_end_per_testcase/4]).
 
--record(state, { node_name, reader, writer,
+-record(state, { print_init_and_done_for_testcases,
+                 node_name, reader, writer,
                  current_line_num, out_file, url_file, group, suite,
                  log_flags = [] }).
 -include_lib("exml/include/exml.hrl").
@@ -48,7 +49,9 @@ id(Opts) ->
 init(_Id, Opts) ->
     Node = connect_mim_node(Opts),
     LogFlags = proplists:get_value(log, Opts, [suite]),
-    {ok, #state{ node_name=Node, log_flags=LogFlags }}.
+    PrintInitDone = proplists:get_value(print_init_and_done_for_testcases, Opts, true),
+    {ok, #state{ node_name=Node, log_flags=LogFlags,
+                 print_init_and_done_for_testcases = PrintInitDone }}.
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(_Suite, Config, State = #state{node_name = false}) ->
@@ -197,7 +200,7 @@ pre_insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, 
     Message = io_lib:format(
         "<font color=gray>INIT suite=~p group=~p testcase=~p</font>~n",
         [Suite, Group, TC]),
-    file:write(Writer, Message),
+    maybe_file_write(State, Writer, Message),
     State#state{current_line_num=CurrentLineNum2}.
 
 post_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
@@ -206,17 +209,17 @@ post_insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader,
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
                                              group=Group, suite=Suite}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
-    add_log_link_to_line(UrlFile, CurrentLineNum2, Node, " when finished"),
-    %% Write a message after the main part
-    Message = io_lib:format(
-        "<font color=gray>DONE suite=~p group=~p testcase=~p</font>~n",
-        [Suite, Group, TC]),
     case CurrentLineNum of
         CurrentLineNum2 ->
             skip; %% Reduce noise in logs because nothing was logged
         _ ->
-            file:write(Writer, Message)
+            add_log_link_to_line(UrlFile, CurrentLineNum2, Node, " when finished")
     end,
+    %% Write a message after the main part
+    Message = io_lib:format(
+        "<font color=gray>DONE suite=~p group=~p testcase=~p</font>~n",
+        [Suite, Group, TC]),
+    maybe_file_write(State, Writer, Message),
     State#state{current_line_num=CurrentLineNum2}.
 
 insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writer=Writer,
@@ -330,3 +333,8 @@ maybe_print_log_on_mim_node(Type, Event, Name, #state{log_flags = LogFlags, node
         _ ->
             ok
     end.
+
+maybe_file_write(State = #state{print_init_and_done_for_testcases = true}, Writer, Message) ->
+    file:write(Writer, Message);
+maybe_file_write(_State, _Writer, _Message) ->
+    ok.
