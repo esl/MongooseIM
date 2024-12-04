@@ -211,7 +211,12 @@ post_insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader,
     Message = io_lib:format(
         "<font color=gray>DONE suite=~p group=~p testcase=~p</font>~n",
         [Suite, Group, TC]),
-    file:write(Writer, Message),
+    case CurrentLineNum of
+        CurrentLineNum2 ->
+            skip; %% Reduce noise in logs because nothing was logged
+        _ ->
+            file:write(Writer, Message)
+    end,
     State#state{current_line_num=CurrentLineNum2}.
 
 insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writer=Writer,
