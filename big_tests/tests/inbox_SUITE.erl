@@ -138,7 +138,9 @@ groups() ->
      {regular, [], test_groups()},
      {async_pools, [], [{group, bin} | test_groups()]}
     ],
-    inbox_helper:maybe_run_in_parallel(Gs).
+    distributed_helper:temporary_allow_nodes(fun() ->
+            inbox_helper:maybe_run_in_parallel(Gs)
+        end, [mim]).
 
 test_groups() ->
     [

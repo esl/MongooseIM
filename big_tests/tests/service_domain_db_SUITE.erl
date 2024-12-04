@@ -66,14 +66,19 @@ parallel_config() ->
     %% These could be parallel but it seems like mssql CI can't handle the load
     case ct_helper:is_ct_running() of
         true ->
-            Spec = distributed_helper:without_assert_allowed_node(distributed_helper:mim()),
-            case distributed_helper:rpc(Spec, mongoose_rdbms, db_engine, [domain_helper:host_type()]) of
+            case db_engine() of
                 odbc -> [];
                 _ -> [parallel]
             end;
         false ->
             []
     end.
+
+db_engine() ->
+    distributed_helper:temporary_allow_nodes(fun() ->
+            distributed_helper:rpc(distributed_helper:mim(),
+                    mongoose_rdbms, db_engine, [domain_helper:host_type()])
+        end, [mim]).
 
 
 no_db_cases() -> [

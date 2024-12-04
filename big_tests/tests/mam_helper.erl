@@ -713,7 +713,7 @@ prepare_for_suite(Config) ->
     [{mod_offline_loaded, Loaded}|Config].
 
 is_module_loaded(Mod) ->
-    rpc(unsafe_mim(), gen_mod, is_loaded, [host_type(), Mod]).
+    rpc(mim(), gen_mod, is_loaded, [host_type(), Mod]).
 
 clean_archives(Config) ->
     SUs = serv_users(Config),
@@ -1098,14 +1098,11 @@ is_mam_possible(Host) ->
 is_cassandra_enabled(_) ->
     is_cassandra_enabled().
 
-unsafe_mim() ->
-    distributed_helper:without_assert_allowed_node(mim()).
-
 is_cassandra_enabled() ->
-    rpc(unsafe_mim(), mongoose_wpool, is_configured, [cassandra]).
+    rpc(mim(), mongoose_wpool, is_configured, [cassandra]).
 
 is_elasticsearch_enabled(_Host) ->
-    case rpc(unsafe_mim(), mongoose_elasticsearch, health, []) of
+    case rpc(mim(), mongoose_elasticsearch, health, []) of
         {ok, _} ->
             true;
         {error, _} ->

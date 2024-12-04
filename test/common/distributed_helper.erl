@@ -133,12 +133,7 @@ cluster_op_timeout() ->
 -spec rpc(Spec, _, _, _) -> any() when
       Spec :: rpc_spec().
 rpc(#{} = RPCSpec, M, F, A) ->
-    case RPCSpec of
-        #{without_assert_allowed_node := true} ->
-            ok;
-        _ ->
-            assert_allowed_node(RPCSpec, {M, F, A})
-    end,
+    assert_allowed_node(RPCSpec, {M, F, A}),
     Node = maps:get(node, RPCSpec),
     Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
     TimeOut = maps:get(timeout, RPCSpec, timer:seconds(5)),
@@ -146,9 +141,6 @@ rpc(#{} = RPCSpec, M, F, A) ->
         {badrpc, Reason} -> error({badrpc, Reason}, [RPCSpec, M, F, A]);
         Result -> Result
     end.
-
-without_assert_allowed_node(Spec) ->
-    Spec#{without_assert_allowed_node => true}.
 
 %% @doc Require nodes defined in `test.config' for later convenient RPCing into.
 %%
@@ -270,3 +262,12 @@ with_all_nodes_allowed(F) ->
     require_rpc_nodes(NodeKeys, []),
     F(),
     require_rpc_nodes([], []).
+
+temporary_allow_nodes(F, NodeKeys) ->
+    Old = persistent_term:get(distributed_helper_nodes, []),
+    persistent_term:put(distributed_helper_nodes, NodeKeys),
+    try
+        F()
+    after
+        persistent_term:put(distributed_helper_nodes, Old)
+    end.

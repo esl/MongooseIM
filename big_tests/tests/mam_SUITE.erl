@@ -144,6 +144,11 @@
 
 
 configurations() ->
+    distributed_helper:temporary_allow_nodes(fun() ->
+            collect_configurations()
+        end, [mim]).
+
+collect_configurations() ->
     case ct_helper:is_ct_running() of
         true ->
             configurations_for_running_ct();
@@ -231,6 +236,20 @@ tests() ->
         not is_skipped(C, G)].
 
 groups() ->
+    log_exceptions(fun unsafe_groups/0).
+
+log_exceptions(F) ->
+    %% CT logging would just say 'mam_SUITE:groups/0 failed'.
+    %% Use extra code to actually log the reason.
+    %% It would be logged in "Unexpected I/O"
+    try
+        F()
+    catch Class:Error:Stacktrace ->
+        catch ct:pal("log_exceptions ~p:~p:~p", [Class, Error, Stacktrace]),
+        erlang:raise(Class, Error, Stacktrace)
+    end.
+
+unsafe_groups() ->
     [{full_group(C, G), Props, Tests}
      || C <- configurations(), {G, Props, Tests} <- basic_groups(),
         not is_skipped(C, G)].

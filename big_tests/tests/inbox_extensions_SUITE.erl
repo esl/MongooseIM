@@ -125,7 +125,9 @@ groups() ->
         {group, muclight}
       ]}
     ],
-    inbox_helper:maybe_run_in_parallel(Gs).
+    distributed_helper:temporary_allow_nodes(fun() ->
+            inbox_helper:maybe_run_in_parallel(Gs)
+        end, [mim]).
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).
