@@ -252,11 +252,14 @@ get_line_from_result(_, _) ->
 on_tc_skip(Suite,TC,Result,Proxy) when is_pid(Proxy) ->
     _ = gen_server:call(Proxy,{?FUNCTION_NAME, [Suite,TC,Result]}),
     Proxy;
-on_tc_skip(Suite, TestName, Res, State = #state{test_cases = TCs}) ->
+on_tc_skip(_Suite, init_per_suite, Res, State) ->
+    do_tc_skip(Res, State); % Test was already added to State by post_init_per_suite/4
+on_tc_skip(_Suite, {init_per_group, _}, Res, State) ->
+    do_tc_skip(Res, State); % Test was already added to State by post_init_per_group/5
+on_tc_skip(Suite, TestName, Res, State) ->
     TCName = tc_name_to_string(TestName),
-    State1 = State#state{test_cases = lists:keydelete(TCName, #testcase.name, TCs)},
-    State2 = do_tc_skip(Res, end_tc(TCName, [], Res, init_tc(set_suite(Suite, State1), []))),
-    maybe_close_group(TestName, State2).
+    State1 = do_tc_skip(Res, end_tc(TCName, [], Res, init_tc(set_suite(Suite, State), []))),
+    maybe_close_group(TestName, State1).
 
 do_tc_skip({SkipReason, Res}, State) ->
     TCs = State#state.test_cases,
