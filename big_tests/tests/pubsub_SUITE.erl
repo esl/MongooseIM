@@ -50,17 +50,18 @@ group_is_compatible(hometree_specific, OnlyNodetreeTree) -> OnlyNodetreeTree =:=
 group_is_compatible(_, _) -> true.
 
 base_groups() ->
-    [{basic, parallel_props(), basic_tests()},
-     {service_config, parallel_props(), service_config_tests()},
-     {node_config, parallel_props(), node_config_tests()},
-     {node_affiliations, parallel_props(), node_affiliations_tests()},
-     {manage_subscriptions, parallel_props(), manage_subscriptions_tests()},
+    Props = distributed_helper:temporary_allow_nodes(fun parallel_props/0, [mim]),
+    [{basic, Props, basic_tests()},
+     {service_config, Props, service_config_tests()},
+     {node_config, Props, node_config_tests()},
+     {node_affiliations, Props, node_affiliations_tests()},
+     {manage_subscriptions, Props, manage_subscriptions_tests()},
      {collection, [sequence], collection_tests()},
-     {collection_config, parallel_props(), collection_config_tests()},
-     {debug_calls, parallel_props(), debug_calls_tests()},
-     {pubsub_item_publisher_option, parallel_props(), pubsub_item_publisher_option_tests()},
+     {collection_config, Props, collection_config_tests()},
+     {debug_calls, Props, debug_calls_tests()},
+     {pubsub_item_publisher_option, Props, pubsub_item_publisher_option_tests()},
      {hometree_specific, [sequence], hometree_specific_tests()},
-     {last_item_cache, parallel_props(), last_item_cache_tests()}].
+     {last_item_cache, Props, last_item_cache_tests()}].
 
 parallel_props() ->
     case rpc(mim(), mongoose_rdbms, db_engine, [host_type()]) of
