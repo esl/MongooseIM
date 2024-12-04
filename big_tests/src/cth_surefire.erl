@@ -234,8 +234,7 @@ do_tc_fail(Suite, Res, State = #state{test_cases = [TC | RemainingTCs]}) ->
                    TC#testcase.line;
                L -> L
            end,
-    NewTC = TC#testcase{line = Line,
-                        result = {fail,lists:flatten(io_lib:format("~tp",[Res]))}},
+    NewTC = TC#testcase{line = Line, result = {fail, format_result(Res)}},
     State#state{test_cases = [NewTC | RemainingTCs]}.
 
 get_line_from_result(Suite, {_Error, [{__M,__F,__A,__I}|_] = StackTrace}) ->
@@ -259,13 +258,19 @@ on_tc_skip(Suite, TestName, Res, State = #state{test_cases = TCs}) ->
     State2 = do_tc_skip(Res, end_tc(TCName, [], Res, init_tc(set_suite(Suite, State1), []))),
     maybe_close_group(TestName, State2).
 
-do_tc_skip(Res, State) ->
+do_tc_skip({SkipReason, Res}, State) ->
     TCs = State#state.test_cases,
     TC = hd(TCs),
-    NewTC = TC#testcase{
-	      result =
-		  {skipped,lists:flatten(io_lib:format("~tp",[Res]))} },
+    NewTC = TC#testcase{result = {skip_reason_to_status(SkipReason), format_result(Res)}},
     State#state{ test_cases = [NewTC | tl(TCs)]}.
+
+format_result(Res) ->
+    lists:flatten(io_lib:format("~tp", [Res])).
+
+skip_reason_to_status(tc_auto_skip) ->
+    fail;
+skip_reason_to_status(tc_user_skip) ->
+    skipped.
 
 tc_name_to_string({FuncName, _GroupName}) ->
     atom_to_list(FuncName);
