@@ -10,7 +10,7 @@ all() ->
      without_mod_offline_stub].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%%===================================================================
 %%% Init & teardown

@@ -32,7 +32,7 @@ all_tests() ->
     ].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     instrument_helper:start(instrument_helper:declared_events(mod_csi)),
