@@ -37,7 +37,7 @@ tests() ->
     ].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 groups() ->
     Gs = [
