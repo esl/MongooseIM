@@ -25,9 +25,7 @@
 
 -module(ejabberd).
 -author('alexey@process-one.net').
--export([get_pid_file/0,
-         get_status_file/0,
-         get_so_path/0]).
+-export([get_pid_file/0, get_status_file/0]).
 
 -type lang() :: binary().
 
@@ -40,20 +38,6 @@
                           | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
 
 -export_type([lang/0, xml_stream_item/0]).
-
--spec get_so_path() -> binary() | string().
-get_so_path() ->
-    case os:getenv("EJABBERD_SO_PATH") of
-        false ->
-            case code:priv_dir(mongooseim) of
-                {error, _} ->
-                    ".";
-                Path ->
-                    filename:join([Path, "lib"])
-            end;
-        Path ->
-            Path
-    end.
 
 -spec get_pid_file() -> 'false' | nonempty_string().
 get_pid_file() ->

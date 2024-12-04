@@ -20,9 +20,28 @@
 -export([next_unique/1]).
 -on_load(load/0).
 
+-spec load() -> ok.
 load() ->
-    Path = filename:join(ejabberd:get_so_path(), ?MODULE_STRING),
-    erlang:load_nif(Path, 0).
+    case persistent_term:get(?MODULE, undefined) of
+        undefined ->
+            Atomic = atomics:new(1, [{signed, false}]),
+            persistent_term:put(?MODULE, Atomic);
+        _ ->
+            ok
+    end.
 
-next_unique(_Candidate) ->
-    erlang:nif_error(not_loaded).
+-spec next_unique(integer()) -> integer().
+next_unique(Candidate) when is_integer(Candidate), 0 < Candidate ->
+    Atomic = persistent_term:get(?MODULE),
+    next_unique(Candidate, Candidate - 1, Atomic).
+
+-spec next_unique(integer(), integer(), atomics:atomics_ref()) -> integer().
+next_unique(Candidate, Current, Atomic) ->
+    case atomics:compare_exchange(Atomic, 1, Current, Candidate) of
+        Int when is_integer(Int), Candidate =< Int ->
+            next_unique(Int + 1, Int, Atomic);
+        Int when is_integer(Int) ->
+            next_unique(Candidate, Int, Atomic);
+        ok ->
+            Candidate
+    end.
