@@ -1441,11 +1441,17 @@ print_sessions_debug_info(NodeName) ->
 %% -----------------------------------------------------------------------
 %% Custom log levels for GD modules during the tests
 
+%% Set it to true, if you need to debug GD on CI
+detailed_logging() ->
+    false.
+
 enable_logging() ->
-    mim_loglevel:enable_logging(test_hosts(), custom_loglevels()).
+    detailed_logging() andalso
+        mim_loglevel:enable_logging(test_hosts(), custom_loglevels()).
 
 disable_logging() ->
-    mim_loglevel:disable_logging(test_hosts(), custom_loglevels()).
+    detailed_logging() andalso
+        mim_loglevel:disable_logging(test_hosts(), custom_loglevels()).
 
 custom_loglevels() ->
     %% for "s2s connection to muc.localhost not found" debugging
