@@ -32,7 +32,8 @@ do_join(ClusterMember) ->
                      fun () ->
                              check_networking(ClusterMember),
                              unsafe_join(node(), ClusterMember)
-                     end).
+                     end,
+                     #{task => cluster_join}).
 
 %% @doc Leave cluster.
 %% This drops all current connections and discards all persistent
@@ -52,7 +53,8 @@ do_leave() ->
                              detach_nodes(mnesia_nodes()),
                              delete_mnesia(),
                              ok = mnesia:start()
-                     end).
+                     end,
+                     #{task => cluster_leave}).
 
 %% @doc Remove dead node from the cluster.
 %% The removing node must be down
@@ -212,11 +214,12 @@ detach_nodes(Nodes) ->
 mnesia_nodes() ->
     mnesia:system_info(db_nodes) -- [node()].
 
-with_app_stopped(App, F) ->
+with_app_stopped(App, F, Info) ->
     Running = is_app_running(App),
     Running andalso application:stop(App),
     try
-        F()
+        %% Reports the progress if it takes too long
+        cets_long:run_tracked(Info, F)
     after
         Running andalso application:start(App)
     end.
