@@ -9,7 +9,7 @@ all() ->
     [c2s_hooks, c2s_elements].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     rpc(mim(), tr, start, []),

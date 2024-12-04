@@ -25,7 +25,10 @@
          end_per_testcase/2]).
 
 all() ->
-    inbox_helper:skip_or_run_inbox_tests(tests()).
+    Tests = tests(),
+    distributed_helper:temporary_allow_nodes(fun() ->
+            inbox_helper:skip_or_run_inbox_tests(Tests)
+        end, [mim]).
 
 tests() ->
     [
