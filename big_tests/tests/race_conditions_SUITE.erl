@@ -44,7 +44,7 @@ main_group_tests() ->
      ignore_iq_result_from_old_session].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).

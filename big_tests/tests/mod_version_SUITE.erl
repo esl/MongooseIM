@@ -19,7 +19,7 @@ groups() ->
      {soft_version_with_os, [parallel], [version_service_discovery, ask_for_version_with_os]}].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

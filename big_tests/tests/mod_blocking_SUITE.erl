@@ -88,7 +88,7 @@ notify_test_cases() ->
     [notify_blockee].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

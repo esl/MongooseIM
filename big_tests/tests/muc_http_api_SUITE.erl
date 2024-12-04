@@ -65,6 +65,9 @@ failure_response() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     muc_helper:load_muc(),
     escalus:init_per_suite(Config).

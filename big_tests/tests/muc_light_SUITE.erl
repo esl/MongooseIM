@@ -201,7 +201,7 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

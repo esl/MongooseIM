@@ -32,7 +32,7 @@ groups() ->
     [{mod_time, [parallel], [ask_for_time, time_service_discovery]}].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

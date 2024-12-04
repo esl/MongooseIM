@@ -90,6 +90,9 @@ self_signed_certs_not_allowed_test_cases() ->
      ca_signed_cert_is_allowed_with_bosh,
      no_cert_fails_to_authenticate].
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite(Config),
     Config1 = ejabberd_node_utils:init(Config0),

@@ -89,7 +89,7 @@ allowing_test_cases() ->
      allow_subscription_both_message].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
