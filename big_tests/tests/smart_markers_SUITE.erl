@@ -28,7 +28,9 @@ all_cases() ->
     ].
 
 groups() ->
-    inbox_helper:maybe_run_in_parallel(groups1()) ++ groups2().
+    distributed_helper:temporary_allow_nodes(fun() ->
+            inbox_helper:maybe_run_in_parallel(groups1())
+        end, [mim]) ++ groups2().
 
 groups1() ->
     [
