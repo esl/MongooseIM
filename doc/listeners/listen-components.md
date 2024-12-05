@@ -12,6 +12,27 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
 
 The following options are supported for each component listener under `listen.service` subsection:
 
+### `listen.service.max_connections`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `max_connections = 10000`
+
+Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
+
+### `listen.service.reuse_port`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `reuse_port = true`
+
+Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
+
+### `listen.service.state_timeout`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `5000`
+* **Example:** `state_timeout = 10_000`
+
+Timeout value (in milliseconds) used by the component state machine when waiting for the connecting client to respond during stream negotiation. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
+
 ### `listen.service.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
@@ -70,13 +91,6 @@ By default, when a component tries to connect and a registration conflict occurs
 
 It makes implementing the reconnection logic difficult, because the old connection would not allow any other connections.
 By setting this option to `kick_old`, we drop any old connections registered at the same host before accepting new ones.
-
-### `listen.service.max_fsm_queue`
-* **Syntax:** positive integer
-* **Default:** not set - no limit
-* **Example:** `max_fsm_queue = 1000`
-
-Message queue limit to prevent resource exhaustion; overrides the value set in the [`general`](../configuration/general.md#generalmax_fsm_queue) section.
 
 ## Custom extension to the protocol
 
