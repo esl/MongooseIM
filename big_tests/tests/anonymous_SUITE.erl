@@ -75,7 +75,7 @@ connection_is_registered_with_sasl_anon(Config) ->
         F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
         true = F(),
         escalus_connection:kill(Jon),
-        mongoose_helper:wait_until(F, false),
+        wait_helper:wait_until(F, false),
         assert_event(auth_anonymous_unregister_user, JID)
     end).
 
@@ -88,7 +88,7 @@ connection_is_registered_with_login(Config) ->
         F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
         true = F(),
         escalus_connection:kill(Anna),
-        mongoose_helper:wait_until(F, false),
+        wait_helper:wait_until(F, false),
         assert_event(auth_anonymous_unregister_user, JID)
     end).
 

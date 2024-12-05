@@ -291,7 +291,7 @@ token_removed_on_user_removal(Config) ->
         end,
     escalus:story(Config, [{bob, 1}], S),
     %% then token database doesn't contain user's tokens (cleanup is done after IQ result)
-    mongoose_helper:wait_until(fun() -> get_users_token(Config, bob) end, {selected, []}).
+    wait_helper:wait_until(fun() -> get_users_token(Config, bob) end, {selected, []}).
 
 provision_token_login(Config) ->
     %% given

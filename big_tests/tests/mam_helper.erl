@@ -759,12 +759,12 @@ wait_for_archive_size(User, ExpectedSize) ->
       ExpectedSize).
 
 wait_for_archive_size(Server, Username, ExpectedSize) ->
-    mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
-                               ExpectedSize,
-                               #{
-                                 time_left => timer:seconds(20),
-                                 name => archive_size
-                                }).
+    wait_helper:wait_until(fun() -> archive_size(Server, Username) end,
+                           ExpectedSize,
+                           #{
+                             time_left => timer:seconds(20),
+                             name => archive_size
+                            }).
 
 wait_for_archive_size_with_host_type(HostType, User, ExpectedSize) ->
     wait_for_archive_size_with_host_type(
@@ -775,19 +775,19 @@ wait_for_archive_size_with_host_type(HostType, User, ExpectedSize) ->
 
 wait_for_archive_size_with_host_type(HostType, Server, Username, ExpectedSize) ->
     F = fun() -> archive_size_with_host_type(HostType, Server, Username) end,
-    mongoose_helper:wait_until(F, ExpectedSize,
-                               #{
-                                 time_left => timer:seconds(20),
-                                 name => archive_size_with_host_type
-                                }).
+    wait_helper:wait_until(F, ExpectedSize,
+                           #{
+                             time_left => timer:seconds(20),
+                             name => archive_size_with_host_type
+                            }).
 
 wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
-    try mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
-                                   ExpectedSize,
-                                   #{
-                                     time_left => timer:seconds(20),
-                                     name => archive_size
-                                    }) of
+    try wait_helper:wait_until(fun() -> archive_size(Server, Username) end,
+                               ExpectedSize,
+                               #{
+                                 time_left => timer:seconds(20),
+                                 name => archive_size
+                                }) of
         {ok, ExpectedSize} ->
             ok
     catch
@@ -797,12 +797,12 @@ wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
     end.
 
 wait_for_room_archive_size(Server, Username, ExpectedSize) ->
-    {ok, ExpectedSize} = mongoose_helper:wait_until(fun() -> room_archive_size(Server, Username) end,
-                                                    ExpectedSize,
-                                                    #{
-                                                        time_left => timer:seconds(20),
-                                                        name => room_archive_size
-                                                    }).
+    {ok, ExpectedSize} = wait_helper:wait_until(fun() -> room_archive_size(Server, Username) end,
+                                                ExpectedSize,
+                                                #{
+                                                  time_left => timer:seconds(20),
+                                                  name => room_archive_size
+                                                 }).
 
 
 archive_size(Server, Username) ->

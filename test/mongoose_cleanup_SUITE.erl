@@ -192,7 +192,7 @@ last(_Config) ->
     Status1 = <<"status1">>,
     {ok, #{}} = mod_last:unset_presence(new_acc(S), #{jid => JID, status => Status1}, #{}),
     {ok, TS1, Status1} = mod_last:get_last_info(HostType, U, S),
-    async_helper:wait_until(
+    wait_helper:wait_until(
       fun() ->
               mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
               {ok, TS2, <<>>} = mod_last:get_last_info(HostType, U, S),

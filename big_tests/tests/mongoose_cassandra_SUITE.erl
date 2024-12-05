@@ -200,20 +200,20 @@ big_objects_read_write_should_succeed(Config) ->
 
 should_work_after_connection_reset(_Config) ->
     reset_all_cassandra_connections(),
-    mongoose_helper:wait_until(fun() ->
-                                       call(test_query, [?TEST_DB_POOL_NAME])
-                               end, ok).
+    wait_helper:wait_until(fun() ->
+                                   call(test_query, [?TEST_DB_POOL_NAME])
+                           end, ok).
 
 should_work_after_restart_of_cqerl_cluster(_Config) ->
     Pid1 = call(erlang, whereis, [cqerl_cluster]),
     call(erlang, exit, [Pid1, kill]),
-    mongoose_helper:wait_until(fun() ->
-                                       Pid2 = call(erlang, whereis, [cqerl_cluster]),
-                                       Pid1 =/= Pid2 andalso Pid2 =/= undefined
-                               end, true),
-    mongoose_helper:wait_until(fun() ->
-                                       call(test_query, [?TEST_DB_POOL_NAME])
-                               end, ok).
+    wait_helper:wait_until(fun() ->
+                                   Pid2 = call(erlang, whereis, [cqerl_cluster]),
+                                   Pid1 =/= Pid2 andalso Pid2 =/= undefined
+                           end, true),
+    wait_helper:wait_until(fun() ->
+                                   call(test_query, [?TEST_DB_POOL_NAME])
+                           end, ok).
 
 big_batch_read_write_unstable_connection_should_succeed(Config) ->
     Pid = spawn_link(fun reset_all_cassandra_connections_loop/0),

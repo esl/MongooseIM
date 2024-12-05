@@ -165,7 +165,7 @@ assert_closed(PortNo) ->
     F = fun() ->
               gen_tcp:connect("localhost", PortNo, [{active, false}, {packet, 2}])
         end,
-    async_helper:wait_until(F, {error, econnrefused}).
+    wait_helper:wait_until(F, {error, econnrefused}).
 
 
 assert_connected(Sock, Port) ->

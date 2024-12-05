@@ -230,7 +230,7 @@ stop_node_test(Config) ->
     get_ok_value([data, server, stop], stop_node(Node3Nodename, Config)),
     Timeout = timer:seconds(3),
     F = fun() -> rpc:call(Node3Nodename, application, which_applications, [], Timeout) end,
-    mongoose_helper:wait_until(F, {badrpc, nodedown}, #{sleep_time => 1000, name => stop_node}),
+    wait_helper:wait_until(F, {badrpc, nodedown}, #{sleep_time => 1000, name => stop_node}),
     distributed_helper:start_node(Node3Nodename, Config).
 
 join_successful_http(Config) ->
@@ -260,8 +260,8 @@ remove_dead_from_cluster_http(Config) ->
     F2 = fun() ->
         test == rpc(Node1#{timeout => Timeout}, mongoose_config, get_opt, [listen, test])
     end,
-    mongoose_helper:wait_until(F2, false, #{sleep_time => 200, name => wait_for_mim1,
-                                            time_left => timer:seconds(20)}),
+    wait_helper:wait_until(F2, false, #{sleep_time => 200, name => wait_for_mim1,
+                                        time_left => timer:seconds(20)}),
     get_ok_value([data, server, removeFromCluster],
                   remove_from_cluster(atom_to_binary(Node3Nodename), Config)),
     have_node_in_mnesia_wait(Node1, Node2, true),
@@ -297,25 +297,25 @@ ensure_node_started(Node) ->
             _Other -> false
         end
     end,
-    mongoose_helper:wait_until(F, true, #{sleep_time => 200, name => wait_for_start_mim3,
-                                          time_left => timer:seconds(20)}).
+    wait_helper:wait_until(F, true, #{sleep_time => 200, name => wait_for_start_mim3,
+                                      time_left => timer:seconds(20)}).
 
 %-----------------------------------------------------------------------
 %                                Helpers
 %-----------------------------------------------------------------------
 
 have_node_in_mnesia_wait(Node1, #{node := Node2}, Value) ->
-    mongoose_helper:wait_until(fun() ->
+    wait_helper:wait_until(fun() ->
                                    DbNodes1 = distributed_helper:rpc(Node1, mnesia,
                                                                      system_info, [db_nodes]),
                                    lists:member(Node2, DbNodes1)
-                               end,
-                               Value,
-                               #{
-                                 time_left => timer:seconds(12),
-                                 sleep_time => 200,
-                                 name => have_node_in_mnesia
-                                }).
+                           end,
+                           Value,
+                           #{
+                             time_left => timer:seconds(12),
+                             sleep_time => 200,
+                             name => have_node_in_mnesia
+                            }).
 
 all_log_levels() ->
     [<<"NONE">>,

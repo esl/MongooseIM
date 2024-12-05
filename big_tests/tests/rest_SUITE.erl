@@ -232,7 +232,7 @@ session_can_be_kicked(Config) ->
         {?NOCONTENT, _} = delete(admin, AliceSessionPath),
         escalus:wait_for_stanza(Alice),
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
             fun() ->
                   {?OK, Sessions2} = gett(admin, path("sessions")),
                   lists:member(AliceJid, Sessions2)

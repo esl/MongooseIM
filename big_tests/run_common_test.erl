@@ -785,7 +785,7 @@ block_node(Name, BlockName, Props) ->
     rpc_call(Node, erlang, set_cookie, [BlockNode, make_bad_cookie(Name, BlockNode)]),
     rpc_call(Node, erlang, disconnect_node, [BlockNode]),
     Cond = fun() -> lists:member(BlockNode, rpc_call(Node, erlang, nodes, [])) end,
-    mongoose_helper:wait_until(Cond, false).
+    wait_helper:wait_until(Cond, false).
 
 unblock_node(Name, BlockName, Props) ->
     Node = host_name_to_node(Name, Props),

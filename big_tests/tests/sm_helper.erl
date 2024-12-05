@@ -230,11 +230,11 @@ wait_for_queue_length(Pid, Length) ->
                         Other
                 end
         end,
-    mongoose_helper:wait_until(F, ok, #{name => {wait_for_queue_length, Length}}).
+    wait_helper:wait_until(F, ok, #{name => {wait_for_queue_length, Length}}).
 
 wait_for_c2s_unacked_count(C2SPid, Count) ->
-    mongoose_helper:wait_until(fun() -> get_c2s_unacked_count(C2SPid) end, Count,
-                                #{name => get_c2s_unacked_count}).
+    wait_helper:wait_until(fun() -> get_c2s_unacked_count(C2SPid) end, Count,
+                           #{name => get_c2s_unacked_count}).
 
 get_c2s_unacked_count(C2SPid) ->
     StateData = mongoose_helper:get_c2s_state_data(C2SPid),
@@ -242,8 +242,8 @@ get_c2s_unacked_count(C2SPid) ->
     element(3, SmStateData).
 
 wait_for_resource_count(Client, N) ->
-    mongoose_helper:wait_until(fun() -> length(get_user_alive_resources(Client)) end,
-                               N, #{name => get_user_alive_resources}).
+    wait_helper:wait_until(fun() -> length(get_user_alive_resources(Client)) end,
+                           N, #{name => get_user_alive_resources}).
 
 assert_alive_resources(Alice, N) ->
     N = length(get_user_alive_resources(Alice)).

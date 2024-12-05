@@ -74,13 +74,13 @@ is_online(LUser, LServer, LRes) ->
     end.
 
 wait_for_user_online(Client) ->
-    mongoose_helper:wait_until(fun() ->
-                                       is_online(escalus_utils:jid_to_lower(escalus_client:username(Client)),
-                                                 escalus_utils:jid_to_lower(escalus_client:server(Client)),
-                                                 escalus_utils:jid_to_lower(escalus_client:resource(Client)))
-                               end,
-                               true,
-                               #{sleep_time => 500, time_left => timer:seconds(20), name => is_online}).
+    wait_helper:wait_until(fun() ->
+                                   is_online(escalus_utils:jid_to_lower(escalus_client:username(Client)),
+                                             escalus_utils:jid_to_lower(escalus_client:server(Client)),
+                                             escalus_utils:jid_to_lower(escalus_client:resource(Client)))
+                           end,
+                           true,
+                           #{sleep_time => 500, time_left => timer:seconds(20), name => is_online}).
 
 is_offline(LUser, LServer, LRes) ->
     JID = mongoose_helper:make_jid_noprep(LUser, LServer, LRes),
@@ -100,10 +100,10 @@ wait_for_user_offline(Client) ->
     U = escalus_utils:jid_to_lower(escalus_client:username(Client)),
     S = escalus_utils:jid_to_lower(escalus_client:server(Client)),
     R = escalus_utils:jid_to_lower(escalus_client:resource(Client)),
-    mongoose_helper:wait_until(fun() -> is_offline(U, S, R) end,
-                               true,
-                               #{time_left => timer:seconds(20), name => wait_for_user_offline,
-                                 on_error => fun() -> get_raw_sessions(U, S) end}).
+    wait_helper:wait_until(fun() -> is_offline(U, S, R) end,
+                           true,
+                           #{time_left => timer:seconds(20), name => wait_for_user_offline,
+                             on_error => fun() -> get_raw_sessions(U, S) end}).
 
 
 http_notifications_port() ->

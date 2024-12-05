@@ -322,7 +322,7 @@ kick_user_errors(Config) ->
     Name = ?config(room_name, Config1),
     {{<<"404">>, _}, <<"Room not found">>} = delete(admin, path([Name, "nick"])),
     set_up_room(Config1, AliceJid),
-    mongoose_helper:wait_until(fun() -> check_if_moderator_not_found(Name) end, ok),
+    wait_helper:wait_until(fun() -> check_if_moderator_not_found(Name) end, ok),
     %% Alice sends presence to the room, making her the moderator
     {ok, Alice} = escalus_client:start(Config1, alice, <<"res1">>),
     escalus:send(Alice, muc_helper:stanza_muc_enter_room(Name, <<"ali">>)),

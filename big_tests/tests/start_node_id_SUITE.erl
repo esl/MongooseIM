@@ -50,6 +50,6 @@ cleaning_works(Config) ->
     Pid = spawn_link(fun() -> receive stop -> ok end end),
     ok = rpc(mim(), mongoose_start_node_id, register_on_remote_node_rpc, [node(), Id, Pid]),
     GetF = fun() -> rpc(mim(), mongoose_start_node_id, node_id_to_name, [Id]) end,
-    mongoose_helper:wait_until(GetF, {ok, node()}),
+    wait_helper:wait_until(GetF, {ok, node()}),
     Pid ! stop,
-    mongoose_helper:wait_until(GetF, {error, unknown_id}).
+    wait_helper:wait_until(GetF, {error, unknown_id}).

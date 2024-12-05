@@ -45,8 +45,8 @@ disconnect_component(Component, Addr) ->
 disconnect_components(Components, Addr) ->
     %% TODO replace 'kill' with 'stop' when server supports stream closing
     [escalus_connection:kill(Component) || Component <- Components],
-    mongoose_helper:wait_until(fun() -> rpc(mongoose_component, lookup_component, [Addr]) =:= [] end, true,
-                               #{name => rpc}).
+    wait_helper:wait_until(fun() -> rpc(mongoose_component, lookup_component, [Addr]) =:= [] end, true,
+                           #{name => rpc}).
 
 rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),

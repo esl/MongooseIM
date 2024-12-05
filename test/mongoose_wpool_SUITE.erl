@@ -216,7 +216,7 @@ dead_pool_is_restarted(_C) ->
                   end
           end,
 
-    async_helper:wait_until(Fun, true),
+    wait_helper:wait_until(Fun, true),
 
     meck:unload(killing_workers).
 

@@ -166,7 +166,7 @@ marker_is_stored(Config) ->
         send_message_respond_marker(Alice, Bob),
         AliceJid = jid:from_binary(escalus_client:full_jid(Alice)),
         BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, AliceJid)) > 0 end, true)
     end).
 
@@ -248,9 +248,9 @@ remove_markers_when_removed_user(Config) ->
         escalus:wait_for_stanza(Alice),
         AliceJid = jid:from_binary(escalus_client:full_jid(Alice)),
         BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
-        mongoose_helper:wait_until(fun() -> length(fetch_markers_for_users(BobJid, AliceJid)) > 0 end, true),
+        wait_helper:wait_until(fun() -> length(fetch_markers_for_users(BobJid, AliceJid)) > 0 end, true),
         unregister_user(Bob),
-        mongoose_helper:wait_until(fun() -> length(fetch_markers_for_users(BobJid, AliceJid)) end, 0)
+        wait_helper:wait_until(fun() -> length(fetch_markers_for_users(BobJid, AliceJid)) end, 0)
     end).
 
 repeated_markers_produce_no_warnings(Config) ->
@@ -278,7 +278,7 @@ marker_is_stored_for_room(Config) ->
         RoomBinJid = muc_light_helper:room_bin_jid(RoomId),
         one_marker_in_room(Users, RoomBinJid, Alice, Bob),
         BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, jid:from_binary(RoomBinJid))) > 0 end, true)
     end).
 
@@ -301,11 +301,11 @@ marker_is_removed_when_user_leaves_room(Config) ->
         RoomJid = jid:from_binary(RoomBinJid),
         one_marker_in_room(Users, RoomBinJid, Alice, Bob),
         BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, RoomJid)) > 0 end, true),
         % Remove Bob from the room
         muc_light_helper:user_leave(RoomId, Bob, [Alice]),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, RoomJid)) end, 0)
     end).
 
@@ -317,13 +317,13 @@ markers_are_removed_when_room_is_removed(Config) ->
         RoomJid = jid:from_binary(RoomBinJid),
         one_marker_in_room(Users, RoomBinJid, Alice, Bob),
         BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, RoomJid)) > 0 end, true),
         %% The room is then deleted
         delete_room(Alice, Users, RoomBinJid),
         [ begin
               Jid = jid:from_binary(escalus_client:full_jid(User)),
-              mongoose_helper:wait_until(
+              wait_helper:wait_until(
                 fun() -> length(fetch_markers_for_users(Jid, RoomJid)) end, 0)
           end || User <- Users ]
     end).
@@ -405,7 +405,7 @@ verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
                       end,
         Iq = iq_fetch_marker(MarkedUserBJid ++ MaybeThread ++ MaybeAfter),
         %% using wait_until to ensure that assertions are eventually passing
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() ->
                   escalus:send(MarkingUser, Iq),
                   Response = escalus:wait_for_stanza(MarkingUser),
@@ -419,9 +419,9 @@ verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
                   ?assertEqual(Thread, exml_query:attr(Marker, <<"thread">>)),
                   ?assertNotEqual(undefined, exml_query:attr(Marker, <<"id">>)),
                   lists:sort(Markers)
-          end,
-          fun(_) -> true end, %% always positively validate the return value.
-          #{name => fetch_marker}).
+          end, ok,
+          #{validator => fun(_) -> true end, %% always positively validate the return value.
+            name => fetch_marker}).
 
 verify_marker_fetch_is_empty(MarkingUser, MarkedUser) ->
         MarkedUserBJid = escalus_utils:jid_to_lower(escalus_client:short_jid(MarkedUser)),

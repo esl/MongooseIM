@@ -267,7 +267,7 @@ has_bad_node() ->
     lists:member('badnode@localhost', UnNodes).
 
 wait_for_has_bad_node() ->
-    mongoose_helper:wait_until(fun() -> has_bad_node() end, true).
+    wait_helper:wait_until(fun() -> has_bad_node() end, true).
 
 assert_member(Elem, List) ->
     lists:member(Elem, List)

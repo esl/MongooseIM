@@ -604,10 +604,10 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
 ensure_exchange_present(Connection, Exchange) ->
     Opts = #{time_left => ?WAIT_FOR_EXCHANGE_INTERVAL * ?IF_EXCHANGE_EXISTS_RETRIES / 1000,
              sleep_time => ?WAIT_FOR_EXCHANGE_INTERVAL},
-    case mongoose_helper:wait_until(fun() ->
-                                            is_exchange_present(Connection,
-                                                                Exchange)
-                                    end, true, Opts) of
+    case wait_helper:wait_until(fun() ->
+                                        is_exchange_present(Connection,
+                                                            Exchange)
+                                end, true, Opts) of
         {ok, true} -> true;
         {timeout, _} ->
             throw(io_lib:format("Exchange has not been created, exchange=~p",

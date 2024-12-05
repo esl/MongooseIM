@@ -163,9 +163,9 @@ do_simple_message(Config0, Msg) ->
 
 get_http_request() ->
     Key = got_http_request,
-    mongoose_helper:wait_until(
-      fun() -> 1 =:= length(ets:lookup(?ETS_TABLE, Key)) end,
-      true, #{name => missing_request}),
+    wait_helper:wait_until(
+      fun() -> length(ets:lookup(?ETS_TABLE, Key)) end,
+      1, #{name => missing_request}),
     [Bins] = lists:map(fun({_, El}) -> El end, ets:lookup(?ETS_TABLE, Key)),
     ets:delete(?ETS_TABLE, Key),
     Bins.

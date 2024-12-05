@@ -1303,7 +1303,7 @@ user_without_session_send_message_to_room_story(Config, Alice) ->
 terminate_user_session(Jid) ->
     ?assertEqual(ok, rpc(mim(), ejabberd_sm, terminate_session, [Jid, <<"Kicked">>])),
     F = fun() -> rpc(mim(), ejabberd_sm, get_user_resources, [Jid]) end,
-    mongoose_helper:wait_until(F, [], #{time_left => timer:seconds(5)}).
+    wait_helper:wait_until(F, [], #{time_left => timer:seconds(5)}).
 
 user_get_room_config(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],

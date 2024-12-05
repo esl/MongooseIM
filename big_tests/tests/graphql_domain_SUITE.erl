@@ -217,7 +217,7 @@ request_delete_domain(Config) ->
                 Result = get_domain_details(?EXAMPLE_DOMAIN, Config),
                 domain_not_found_error_formatting(Result)
         end,
-    mongoose_helper:wait_until(F, ok, #{time_left => timer:seconds(5)}),
+    wait_helper:wait_until(F, ok, #{time_left => timer:seconds(5)}),
     Result2 = request_remove_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config),
     domain_not_found_error_formatting(Result2).
 

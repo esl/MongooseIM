@@ -402,8 +402,8 @@ fetch_counter_value(Counter, _Config) ->
 %% Wait until the two different API calls to get the metric return the same expected value.
 %% The values could disagree temporarily while the gauge is being updated.
 wait_for_global_gauge_value(Name, Value, Config) ->
-    mongoose_helper:wait_until(fun() -> fetch_global_gauge_values(Name, Config) end,
-                               [Value, Value], #{name => Name}).
+    wait_helper:wait_until(fun() -> fetch_global_gauge_values(Name, Config) end,
+                           [Value, Value], #{name => Name}).
 
 %% @doc Fetch counter that is static.
 fetch_global_gauge_value(Counter, Config) ->

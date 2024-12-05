@@ -499,13 +499,13 @@ admin_import_users_http(Config) ->
                      get_ok_value([data, account, importUsers], Resp2)),
         Domain = domain_helper:domain(),
         JID = mongoose_helper:make_jid(<<"john">>, Domain),
-        mongoose_helper:wait_until(fun() ->
+        wait_helper:wait_until(fun() ->
                                        rpc(mim(), mongoose_account_api, check_account, [JID])
-                                   end,
-                                   {ok, io_lib:format("User ~s exists", [<<"john@", Domain/binary>>])},
-                                   #{time_left => timer:seconds(20),
-                                     sleep_time => 1000,
-                                     name => verify_account_created})
+                               end,
+                               {ok, io_lib:format("User ~s exists", [<<"john@", Domain/binary>>])},
+                               #{time_left => timer:seconds(20),
+                                 sleep_time => 1000,
+                                 name => verify_account_created})
     end).
 
 replace_hosts_in_file(Path) ->

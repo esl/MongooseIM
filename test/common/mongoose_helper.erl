@@ -30,7 +30,7 @@
 -export([successful_rpc/3, successful_rpc/4, successful_rpc/5]).
 -export([logout_user/2, logout_user/3]).
 -export([enable_carbons/1, disable_carbons/1]).
--export([wait_until/2, wait_until/3, wait_for_user/3]).
+-export([wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
 -export([make_jid/2]).
@@ -221,7 +221,7 @@ kick_everyone() ->
     wait_for_session_count(0).
 
 wait_for_session_count(Expected) ->
-    wait_until(fun() -> length(get_session_specs()) end, Expected, #{name => session_count}).
+    wait_helper:wait_until(fun() -> length(get_session_specs()) end, Expected, #{name => session_count}).
 
 get_session_specs() ->
     rpc(mim(), supervisor, which_children, [mongoose_c2s_sup]).
@@ -333,71 +333,8 @@ logout_user(Config, User, Node) ->
             end
     end.
 
-%% @doc Waits `TimeLeft` for `Fun` to return `ExpectedValue`
-%% If the result of `Fun` matches `ExpectedValue`, returns {ok, ExpectedValue}
-%% If no value is returned or the result doesn't match `ExpectedValue`, returns one of the following:
-%% {Name, History}, if Opts as #{name => Name} is passed
-%% {timeout, History}, otherwise
-
-wait_until(Fun, ExpectedValue) ->
-    wait_until(Fun, ExpectedValue, #{}).
-
-%% Example: wait_until(fun () -> ... end, SomeVal, #{time_left => timer:seconds(2)})
-%% if expected value is a function with arity 1, it's treated as a validation function.
-wait_until(Fun, ExpectedValue, Opts0) ->
-    Defaults = #{time_left => timer:seconds(5),
-                 sleep_time => 100,
-                 name => timeout},
-    Opts1 = maps:merge(Defaults, Opts0),
-    TimeLeft = maps:get(time_left, Opts1),
-    Opts = Opts1#{waiting_time => 0, max_waiting_time => TimeLeft,
-                  history => [], expected_value => ExpectedValue},
-    do_wait_until(Fun, Opts).
-
-do_wait_until(_Fun, #{expected_value := ExpectedValue, time_left := TimeLeft,
-                      history := History, name := Name} = Opts) when TimeLeft =< 0 ->
-    error({Name, ExpectedValue, simplify_history(lists:reverse(History), 1), on_error(Opts)});
-do_wait_until(Fun, #{expected_value := ExpectedValue, name := Name,
-                     waiting_time := WaitingTime} = Opts) ->
-    try Fun() of
-        Value ->
-            case validate_returned_value(ExpectedValue, Value) of
-                true ->
-                    ct:pal("waiting for ~p is done in ~p miliseconds", [Name, WaitingTime]),
-                    {ok, Value};
-                _ ->
-                    wait_and_continue(Fun, Value, Opts)
-            end
-    catch Error:Reason:Stacktrace ->
-              wait_and_continue(Fun, {Error, Reason, Stacktrace}, Opts)
-    end.
-
-validate_returned_value(ValidatorFn, Value) when is_function(ValidatorFn, 1) ->
-    ValidatorFn(Value);
-validate_returned_value(ExpectedValue, Value) ->
-    ExpectedValue =:= Value.
-
-on_error(#{on_error := F}) ->
-    F();
-on_error(_Opts) ->
-    ok.
-
-simplify_history([H|[H|_]=T], Times) ->
-    simplify_history(T, Times + 1);
-simplify_history([H|T], Times) ->
-    [{times, Times, H}|simplify_history(T, 1)];
-simplify_history([], 1) ->
-    [].
-
-wait_and_continue(Fun, FunResult, #{waiting_time := WaitingTime, history := History,
-                                    time_left := TimeLeft, sleep_time := SleepTime} = Opts) ->
-    timer:sleep(SleepTime),
-    do_wait_until(Fun, Opts#{time_left => TimeLeft - SleepTime,
-                             waiting_time => WaitingTime + SleepTime,
-                             history => [FunResult | History]}).
-
 wait_for_user(Config, User, LeftTime) ->
-    wait_until(fun() ->
+    wait_helper:wait_until(fun() ->
                        escalus_users:verify_creation(escalus_users:create_user(Config, User))
                end, ok,
                #{sleep_time => 400,
@@ -458,7 +395,7 @@ get_session_info(RpcDetails, User) ->
     Info.
 
 wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
-    wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
+    wait_helper:wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
 
 count_route_messages(C2sPid) when is_pid(C2sPid) ->
      {messages, Messages} = rpc:pinfo(C2sPid, messages),
@@ -581,10 +518,10 @@ wait_for_n_offline_messages(Client, N) ->
     LUser = escalus_utils:jid_to_lower(escalus_utils:get_username(Client)),
     LServer = escalus_utils:jid_to_lower(escalus_utils:get_server(Client)),
     WaitFn = fun() -> total_offline_messages({LUser, LServer}) end,
-    wait_until(WaitFn, N).
+    wait_helper:wait_until(WaitFn, N).
 
 wait_for_c2s_state_name(C2SPid, NewStateName) ->
-    wait_until(fun() -> get_c2s_state_name(C2SPid) end, NewStateName,
+    wait_helper:wait_until(fun() -> get_c2s_state_name(C2SPid) end, NewStateName,
                 #{name => get_c2s_state_name}).
 
 get_c2s_state_name(C2SPid) when is_pid(C2SPid) ->

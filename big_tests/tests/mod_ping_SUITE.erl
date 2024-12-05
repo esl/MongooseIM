@@ -263,7 +263,7 @@ wait_ping_interval(Ration) ->
     ct:sleep(WaitTime).
 
 check_connection(kill, Client) ->
-    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Client) end, false);
+    wait_helper:wait_until(fun() -> escalus_connection:is_connected(Client) end, false);
 check_connection(_, Client) ->
     true = escalus_connection:is_connected(Client).
 

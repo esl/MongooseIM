@@ -947,7 +947,7 @@ retrieve_offline(Config) ->
             %% Well, jid_to_lower works for any binary :)
             AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
             AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-            mongoose_helper:wait_until(
+            wait_helper:wait_until(
               fun() ->
                       mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
                                                      [host_type(), AliceU, AliceS, 10])
@@ -982,7 +982,7 @@ remove_offline(Config) ->
             %% Well, jid_to_lower works for any binary :)
             AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
             AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-            mongoose_helper:wait_until(
+            wait_helper:wait_until(
               fun() ->
                       mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
                                                      [host_type(), AliceU, AliceS, 10])
@@ -1558,7 +1558,7 @@ assert_personal_data_via_rpc(Client, ExpectedPersonalDataEntries) ->
     %% We use wait_until here, because e.g. the deletion in ElasticSearch
     %% sometimes is applied with a delay (i.e. immediately after successful deletion
     %% the data retrieval still returned valid entries)
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
             fun() ->
                 get_personal_data_via_rpc(Client, ExpectedKeys)
             end, ExpectedPersonalDataEntries).

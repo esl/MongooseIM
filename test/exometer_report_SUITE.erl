@@ -83,7 +83,7 @@ wait_for_metric_value(Metric, ExpectedValue) ->
                      Value =:= ExpectedValue;
                 (_) -> false
             end,
-    mongoose_helper:wait_until(F, Check, #{name => ReportedName}).
+    wait_helper:wait_until(F, ok, #{validator => Check, name => ReportedName}).
 
 reported_metric_name(Metric) ->
     lists:flatten(string:join([io_lib:format("~s", [Part]) || Part <- Metric], ".")).
