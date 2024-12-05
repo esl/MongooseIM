@@ -23,7 +23,15 @@ fi
 if [[ $package_file == *.deb ]]; then
     actual_arch=$(dpkg --info "$package_file" | grep Architecture | awk '{print $2}')
 elif [[ $package_file == *.rpm ]]; then
-    actual_arch=$(rpm -q --info "$package_file" | grep Architecture | awk '{print $3}')
+  actual_arch=$(rpm -qi "$package_file" | grep Architecture | awk '{print $2}')
+  if [ "$actual_arch" == "x86_64" ]; then
+    actual_arch="amd64"
+  elif [ "$actual_arch" == "aarch64" ]; then
+    actual_arch="arm64"
+  else
+    echo "Unable to determine architecture from file output."
+    exit 1
+  fi
 else
     echo "Unknown package type: $package_file"
     exit 1

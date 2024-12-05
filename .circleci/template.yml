@@ -710,6 +710,7 @@ jobs:
       - run:
           name: Verify package architecture
           command: |
+            ./tools/circle-install-packages.sh rpm
             ./tools/pkg/verify_arch.sh
       - when:
           condition:
