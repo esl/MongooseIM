@@ -553,7 +553,7 @@ resend_unacked_on_reconnection(Config) ->
     sm_helper:send_messages(Bob, User, Texts),
     %% User receives the messages.
     sm_helper:wait_for_messages(User, Texts),
-    %% User disconnects without acking the messages.
+    %% User disconnects ending stream gracefully, but without acking the messages.
     sm_helper:stop_client_and_wait_for_termination(User),
     %% Messages go to the offline store.
     %% User receives the messages from the offline store.
@@ -562,7 +562,11 @@ resend_unacked_on_reconnection(Config) ->
     sm_helper:wait_for_delayed_messages(NewUser, Texts),
     %% User acks the delayed messages so they won't go again
     %% to the offline store.
-    escalus_connection:send(NewUser, escalus_stanza:sm_ack(3)).
+    escalus_connection:send(NewUser, escalus_stanza:sm_ack(3)),
+    % user receives initial presence response
+    P = escalus:wait_for_stanza(NewUser),
+    escalus:assert(is_presence, P),
+    escalus_connection:stop(NewUser).
 
 %% Remove wait_for_n_offline_messages and you will get anything, but preserve_order
 %% TODO Test without wait_for_n_offline_messages. It would require changes in SM
