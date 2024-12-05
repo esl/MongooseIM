@@ -108,8 +108,14 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 terminate(Reason, State) ->
-    ?LOG_ERROR(#{what => gd_outgoing_socket_error,
-                 reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id}),
+    case Reason of
+        shutdown ->
+            ?LOG_INFO(#{what => gd_outgoing_socket_error,
+                        reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id});
+        _ ->
+            ?LOG_ERROR(#{what => gd_outgoing_socket_error,
+                         reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id})
+    end,
     mongoose_instrument:execute(?GLOBAL_DISTRIB_OUTGOING_CLOSED, #{}, #{count => 1, host => State#state.host}),
     catch mod_global_distrib_transport:close(State#state.socket),
     ignore.
