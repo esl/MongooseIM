@@ -20,21 +20,11 @@ case "$arch" in
     ;;
 esac
 
-echo "Detected architecture: $arch"
-echo "Package architecture: $package_name_arch"
-
-
 rpmbuild -bb \
     --define "version ${version}" \
     --define "release ${revision}" \
     --define "architecture ${arch}" \
     ~/rpmbuild/SPECS/mongooseim.spec
-
-if [[ $(rpm -qp --qf "%{ARCH}" \
-        ~/rpmbuild/RPMS/${arch}/mongooseim-${version}-${revision}.${arch}.rpm) != $arch ]]; then
-  echo "Error: The package was not built for ${arch}."
-  exit 1
-fi
 
 source /etc/os-release
 os=$ID

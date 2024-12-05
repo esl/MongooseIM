@@ -707,6 +707,10 @@ jobs:
           name: Build package
           command: |
             ./tools/test.sh -p pkg -s false
+      - run:
+          name: Verify package architecture
+          command: |
+            ./tools/pkg/verify_arch.sh
       - when:
           condition:
             matches:
@@ -725,7 +729,7 @@ filters:
   - &all_tags_and_master
     <<: *all_tags
     branches:
-      only: master
+      only: ci-build-packages-for-arm64
 
 workflows:
   version: 2
