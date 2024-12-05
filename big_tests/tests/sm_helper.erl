@@ -36,6 +36,7 @@
          send_messages/3,
          wait_for_messages/2,
          wait_for_delayed_messages/2,
+         assert_delayed/1,
          assert_messages/2,
          send_and_receive/3,
          get_ack/1,
@@ -297,8 +298,10 @@ wait_for_messages(Alice, Texts) ->
 wait_for_delayed_messages(Alice, Texts) ->
     Stanzas = escalus:wait_for_stanzas(Alice, length(Texts)),
     assert_messages(Stanzas, Texts),
-    [escalus:assert(has_ns, [<<"urn:xmpp:delay">>], exml_query:subelement(S, <<"delay">>))
-        || S <- Stanzas].
+    [assert_delayed(S) || S <- Stanzas].
+
+assert_delayed(Stanza) ->
+    escalus:assert(has_ns, [<<"urn:xmpp:delay">>], exml_query:subelement(Stanza, <<"delay">>)).
 
 assert_messages(Stanzas, Texts) ->
     Bodies = lists:map(fun get_body/1, Stanzas),
