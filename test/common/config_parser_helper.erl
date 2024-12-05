@@ -1172,7 +1172,7 @@ default_config([listen, s2s, tls]) ->
     default_tls(fast_tls);
 default_config([listen, service]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
-    Extra#{module => ejabberd_service};
+    Extra#{module => mongoose_component_listener};
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_event_pusher, http]) ->

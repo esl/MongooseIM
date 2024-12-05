@@ -28,12 +28,6 @@
 -xep([{xep, 114}, {version, "1.6"}]).
 
 -behaviour(p1_fsm).
--behaviour(mongoose_packet_handler).
--behaviour(mongoose_listener).
-
-%% mongoose_listener API
--export([start_listener/1,
-         instrumentation/1]).
 
 %% External exports
 -export([start/2,
@@ -51,17 +45,12 @@
          terminate/3,
          print_state/1]).
 
-%% packet handler callback
--export([process_packet/5]).
-
 -ignore_xref([print_state/1, start_listener/1, start_link/2, start/2,
               stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("external_component.hrl").
-
--type conflict_behaviour() :: disconnect | kick_old.
 
 -record(state, {socket,
                 socket_monitor,
@@ -70,7 +59,7 @@
                 host         :: binary() | undefined,
                 is_subdomain :: boolean(),
                 hidden_components = false :: boolean(),
-                conflict_behaviour :: conflict_behaviour(),
+                conflict_behaviour :: mongoose_component_listener:conflict_behaviour(),
                 access,
                 check_from,
                 components = [] :: [mongoose_component:external_component()]
@@ -117,49 +106,20 @@
        ).
 
 -type socket() :: term().
--type options() :: #{access := atom(),
-                     shaper_rule := atom(),
-                     password := binary(),
-                     check_from := boolean(),
-                     hidden_components := boolean(),
-                     conflict_behaviour := conflict_behaviour(),
-                     atom() => any()}.
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(socket(), options()) ->
+-spec start(socket(), mongoose_component_listener:options()) ->
           {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
 start(Socket, Opts) ->
     supervisor:start_child(ejabberd_service_sup, [Socket, Opts]).
 
 
--spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
+-spec start_link(socket(), mongoose_component_listener:options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
     p1_fsm:start_link(?MODULE, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
-
--spec start_listener(options()) -> ok.
-start_listener(Opts) ->
-    mongoose_tcp_listener:start_listener(Opts).
-
-instrumentation(#{connection_type := component} = _Opts) ->
-    [{component_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
-     {component_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
-     {component_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {component_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {component_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {component_tls_data_out, #{}, #{metrics => #{byte_size => spiral}}}].
-
-%%%----------------------------------------------------------------------
-%%% mongoose_packet_handler callback
-%%%----------------------------------------------------------------------
-
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-                     El :: exml:element(), #{pid := pid()}) -> mongoose_acc:t().
-process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
-    Pid ! {route, Acc},
-    Acc.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -172,7 +132,7 @@ process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([socket() | options(), ...]) -> {'ok', 'wait_for_stream', state()}.
+-spec init([socket() | mongoose_component_listener:options(), ...]) -> {'ok', 'wait_for_stream', state()}.
 init([Socket, Opts]) ->
     ?LOG_INFO(#{what => comp_started,
                 text => <<"External service connected">>,
@@ -443,7 +403,7 @@ new_id() ->
 component_host(#state{ host = undefined }) -> "undefined";
 component_host(#state{ host = Host }) -> Host.
 
--spec fsm_limit_opts(options()) -> [{max_queue, integer()}].
+-spec fsm_limit_opts(mongoose_component_listener:options()) -> [{max_queue, integer()}].
 fsm_limit_opts(#{max_fsm_queue := N}) ->
     [{max_queue, N}];
 fsm_limit_opts(#{}) ->
