@@ -47,7 +47,7 @@ cover_test_clean: get-deps
 	$(MAKE) cover_test
 
 quicktest: $(PREPARE)
-	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
+	$(RUN) erl -hidden -noinput $(COMMON_OPTS) $(ADD_OPTS) \
 			-s run_common_test main test=quick spec=$(TESTSPEC)
 
 cover_quicktest: $(PREPARE)
