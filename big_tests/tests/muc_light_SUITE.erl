@@ -462,7 +462,7 @@ rooms_in_rosters(Config) ->
             AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
             AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
             escalus:send(Alice, escalus_stanza:roster_get()),
-            mongoose_helper:wait_until(
+            wait_helper:wait_until(
                 fun() ->
                     distributed_helper:rpc(
                         distributed_helper:mim(),

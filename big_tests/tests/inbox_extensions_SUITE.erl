@@ -599,7 +599,7 @@ mute_after_timestamp_gets_unmuted(Config) ->
                       catch _:_ -> not_unmuted_yet
                       end
               end,
-        mongoose_helper:wait_until(Fun, ok, #{name => verify_its_unmuted, sleep_time => 250})
+        wait_helper:wait_until(Fun, ok, #{name => verify_its_unmuted, sleep_time => 250})
     end).
 
 mute_muted_conv_restarts_timestamp(Config) ->

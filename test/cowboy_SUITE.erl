@@ -389,4 +389,4 @@ ws_websocket_terminate(_Reason, _Req, no_ws_state) ->
 
 assert_cowboy_handler_calls(M, F, Num) ->
     Fun = fun() -> meck:num_calls(M, F, '_') end,
-    async_helper:wait_until(Fun, Num).
+    wait_helper:wait_until(Fun, Num).

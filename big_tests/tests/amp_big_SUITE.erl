@@ -736,7 +736,7 @@ wait_until_no_session(FreshConfig, User) ->
     U = escalus_users:get_username(FreshConfig, User),
     S = escalus_users:get_server(FreshConfig, User),
     JID = jid:make(U, S, <<>>),
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> rpc(mim(), ejabberd_sm, get_user_resources, [JID]) end, []).
 
 user_has_no_incoming_offline_messages(FreshConfig, UserName) ->

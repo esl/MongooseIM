@@ -226,7 +226,7 @@ no_duplicates_default_plugin(Config) ->
     push_helper:wait_for_user_offline(Alice),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
-    mongoose_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
+    wait_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
     verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
     {ok, NewAlice, _} = escalus_connection:start([{manual_ack, true} | AliceSpec],
                                                  ConnSteps ++ [stream_management]),
@@ -235,7 +235,7 @@ no_duplicates_default_plugin(Config) ->
     escalus:assert_many([is_presence, is_chat_message], Stanzas),
 
     escalus_connection:stop(NewAlice),
-    mongoose_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
+    wait_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
 
     ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500)),
 
@@ -835,13 +835,13 @@ maybe_check_if_push_node_was_disabled(<<"v3">>, User, PushNode) ->
                   {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [Host, JID]),
                   lists:keymember(PushNode, 2, Services)
           end,
-    mongoose_helper:wait_until(Fun, false),
+    wait_helper:wait_until(Fun, false),
 
     Fun2 = fun() ->
                    Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
                    maps:get(?SESSION_KEY, Info, false)
            end,
-    mongoose_helper:wait_until(Fun2, false).
+    wait_helper:wait_until(Fun2, false).
 
 no_push_notification_for_internal_mongoose_push_error(Config) ->
     escalus:fresh_story(
@@ -1007,7 +1007,7 @@ init_modules(G, Config) ->
     Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost),
     C = dynamic_modules:save_modules(domain(), Config),
     Fun = fun() -> catch dynamic_modules:ensure_modules(domain(), Modules) end,
-    mongoose_helper:wait_until(Fun, ok),
+    wait_helper:wait_until(Fun, ok),
     [{api_v, MongoosePushAPI}, {required_modules, Modules} | C].
 
 mongoose_push_api_for_group(failure_cases_v2) ->

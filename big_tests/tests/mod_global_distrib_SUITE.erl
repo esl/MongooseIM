@@ -400,16 +400,16 @@ test_advertised_endpoints_override_endpoints(_Config) ->
 %% Also actually verifies that refresher properly reads host list
 %% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
-    mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, true,
-                               #{name => trees_for_connections_present,
-                                 time_left => timer:seconds(10)}),
+    wait_helper:wait_until(fun() -> trees_for_connections_present() end, true,
+                           #{name => trees_for_connections_present,
+                             time_left => timer:seconds(10)}),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [EuropeHost]),
     {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
     erlang:exit(EuropePid, kill), % it's ok to kill temporary process
-    mongoose_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, true,
-                               #{name => tree_for_sup_present}).
+    wait_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, true,
+                           #{name => tree_for_sup_present}).
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
@@ -982,11 +982,11 @@ test_update_senders_host(Config) ->
               = rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])
       end).
 wait_for_node(Node,Jid) ->
-    mongoose_helper:wait_until(fun() -> rpc(Node, mod_global_distrib_mapping, for_jid, [Jid]) end,
-                               error,
-                               #{time_left => timer:seconds(10),
-                                 sleep_time => timer:seconds(1),
-                                 name => rpc}).
+    wait_helper:wait_until(fun() -> rpc(Node, mod_global_distrib_mapping, for_jid, [Jid]) end,
+                           error,
+                           #{time_left => timer:seconds(10),
+                             sleep_time => timer:seconds(1),
+                             name => rpc}).
 
 test_update_senders_host_by_ejd_service(Config) ->
     refresh_hosts([europe_node1, europe_node2, asia_node], "by_test_update_senders_host_by_ejd_service"),
@@ -1076,13 +1076,13 @@ wait_for_connection(_Config) ->
     set_endpoints(asia_node, []),
     %% Because of hosts refresher, a pool of connections to asia_node
     %% may already be present here
-    mongoose_helper:wait_until(
-                                fun () ->
-                                    try trigger_rebalance(europe_node1, <<"reg1">>), true
-                                    catch _:_ -> false end
-                                end,
-                                true,
-                                #{name => rebalance, time_left => timer:seconds(5)}),
+    wait_helper:wait_until(
+      fun () ->
+              try trigger_rebalance(europe_node1, <<"reg1">>), true
+              catch _:_ -> false end
+      end,
+      true,
+      #{name => rebalance, time_left => timer:seconds(5)}),
 
     spawn_connection_getter(europe_node1),
 
@@ -1112,9 +1112,9 @@ closed_connection_is_removed_from_disabled(_Config) ->
     % Will drop connections and prevent them from reconnecting
     restart_receiver(asia_node, [get_port(reg, gd_supplementary_endpoint_port)]),
 
-    mongoose_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
-                               {[], [], []},
-                              #{name => get_outgoing_connections}).
+    wait_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
+                           {[], [], []},
+                           #{name => get_outgoing_connections}).
 
 
 %%--------------------------------------------------------------------
@@ -1391,7 +1391,7 @@ wait_for_domain(Node, Domain) ->
                 Domains = rpc:call(Node, mod_global_distrib_mapping, all_domains, []),
                 lists:member(Domain, Domains)
         end,
-    mongoose_helper:wait_until(F, true, #{name => {wait_for_domain, Node, Domain}}).
+    wait_helper:wait_until(F, true, #{name => {wait_for_domain, Node, Domain}}).
 
 
 %% -----------------------------------------------------------------------
@@ -1405,7 +1405,7 @@ receiver_ports(Hosts) ->
 
 wait_for_can_connect_to_port(Port) ->
     Opts = #{time_left => timer:seconds(30), sleep_time => 1000, name => {can_connect_to_port, Port}},
-    mongoose_helper:wait_until(fun() -> can_connect_to_port(Port) end, true, Opts).
+    wait_helper:wait_until(fun() -> can_connect_to_port(Port) end, true, Opts).
 
 can_connect_to_port(Port) ->
     case gen_tcp:connect("127.0.0.1", Port, []) of

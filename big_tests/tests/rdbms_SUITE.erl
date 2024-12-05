@@ -447,7 +447,7 @@ test_cast_insert(Config) ->
                 <<"INSERT INTO test_types(unicode) VALUES (?)">>),
     sql_execute_cast(Config, insert_one, [<<"check1">>]),
     sql_query_cast(Config, <<"INSERT INTO test_types(unicode) VALUES ('check2')">>),
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
       fun() ->
               SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
               ?assertEqual({selected, [{<<"check1">>}, {<<"check2">>}]},
@@ -460,7 +460,7 @@ test_request_insert(Config) ->
                 <<"INSERT INTO test_types(unicode) VALUES (?)">>),
     sql_execute_request(Config, insert_one, [<<"check1">>]),
     sql_query_request(Config, <<"INSERT INTO test_types(unicode) VALUES ('check2')">>),
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
       fun() ->
               SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
               ?assertEqual({selected, [{<<"check1">>}, {<<"check2">>}]},
@@ -485,7 +485,7 @@ test_wrapped_request(Config) ->
     sql_execute_wrapped_request_and_wait_response(Config, insert_one, [<<"check1">>], WrapperFun),
 
     % then
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
         fun() ->
             SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
             ?assertEqual({selected, [{<<"check1">>}]}, selected_to_sorted(SelectResult))
@@ -516,7 +516,7 @@ test_request_transaction(Config) ->
     Queries = [<<"INSERT INTO test_types(unicode) VALUES ('check1')">>,
                <<"INSERT INTO test_types(unicode) VALUES ('check2')">>],
     sql_transaction_request(Config, Queries),
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
       fun() ->
               SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
               ?assertEqual({selected, [{<<"check1">>}, {<<"check2">>}]},

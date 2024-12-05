@@ -78,7 +78,7 @@ log_at_level(none) ->
     [ logger:log(LevelName, "", []) || {_, LevelName} <- levels(), LevelName /= none ],
     %% ...then nothing ends up in the log file.
     Fun = fun() -> get_log(?LOGFILE) -- Before end,
-    async_helper:wait_until(Fun, []);
+    wait_helper:wait_until(Fun, []);
 log_at_level(LName) ->
     %% When current log level is L and we log on each possible level...
     Before = get_log(?LOGFILE),

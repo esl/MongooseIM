@@ -339,7 +339,7 @@ offline_removal(Config) ->
         % wait until message is stored
         BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
         {LUser, LServer} = jid:to_lus(BobJid),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end, 1),
         % check messages in DB
         ?assertMatch({ok, [_]}, rpc(mim(), mod_offline_rdbms, fetch_messages, [host_type(), BobJid])),
@@ -357,7 +357,7 @@ markers_removal(Config) ->
         ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
         escalus:send(Bob, ChatMarker),
         escalus:wait_for_stanza(Alice),
-        mongoose_helper:wait_until(
+        wait_helper:wait_until(
           fun() -> 1 =< mongoose_helper:generic_count(mod_smart_markers) end, true),
         % check messages in DB
         AliceJid = jid:from_binary(escalus_client:full_jid(Alice)),

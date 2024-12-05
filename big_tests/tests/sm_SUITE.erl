@@ -711,11 +711,11 @@ gc_repeat_after_never_means_no_cleaning(Config) ->
 
 gc_repeat_after_timeout_does_clean(Config) ->
     [{SMID1, _} | _ ] = ?config(smid_test, Config),
-    mongoose_helper:wait_until(fun() ->
-                                       rpc(mim(), ?MOD_SM, get_stale_h, [host_type(), SMID1])
-                               end,
-                               {error, smid_not_found},
-                               #{name => smid_garbage_collected}).
+    wait_helper:wait_until(fun() ->
+                                   rpc(mim(), ?MOD_SM, get_stale_h, [host_type(), SMID1])
+                           end,
+                           {error, smid_not_found},
+                           #{name => smid_garbage_collected}).
 
 resume_session_state_send_message_without_ack(Config) ->
     resume_session_state_send_message_generic(Config, no_ack).
@@ -934,7 +934,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     %% user comes back and receives unacked message
     {NewResource, NewUser} = RestartConnectionFN(UserSpec, Resource, SMID, C2SPid),
 
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
         fun() ->
             Stanza = escalus_connection:get_stanza(NewUser, msg),
             escalus:assert(is_chat_message, [<<"msg-4">>], Stanza),
@@ -983,7 +983,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
                       [] = sm_helper:get_user_present_resources(User),
                       sm_helper:get_sid_by_stream_id(HostType, SMID)
               end,
-        mongoose_helper:wait_until(Fun, {error, smid_not_found}, #{name => smid_is_cleaned})
+        wait_helper:wait_until(Fun, {error, smid_not_found}, #{name => smid_is_cleaned})
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->

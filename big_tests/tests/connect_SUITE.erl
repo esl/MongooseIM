@@ -542,7 +542,7 @@ same_resource_replaces_session(Config) ->
     ConflictError = escalus:wait_for_stanza(Alice1),
     escalus:assert(is_stream_error, [<<"conflict">>, <<>>], ConflictError),
 
-    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Alice1) end, false),
+    wait_helper:wait_until(fun() -> escalus_connection:is_connected(Alice1) end, false),
 
     escalus_connection:stop(Alice2).
 
@@ -572,7 +572,7 @@ replaced_session_cannot_terminate(Config) ->
     FilterFun = fun(_, Msg) ->
                         re:run(Msg, "replaced_wait_timeout") /= nomatch
                 end,
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> length(logger_ct_backend:recv(FilterFun)) end, 1),
 
     rpc(mim(), sys, resume, [C2SPid]),
@@ -596,7 +596,7 @@ replaced_session_cannot_terminate_different_nodes(Config) ->
     FilterFun = fun(_, Msg) ->
                         re:run(Msg, "replaced_wait_timeout") /= nomatch
                 end,
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> length(logger_ct_backend:recv(FilterFun)) end, 1),
 
     rpc(mim(), sys, resume, [C2SPid]),

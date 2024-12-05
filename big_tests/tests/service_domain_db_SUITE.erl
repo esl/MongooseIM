@@ -570,8 +570,8 @@ db_gaps_are_getting_filled_automatically(_Config) ->
     force_check_for_updates(mim()),
     sync_local(mim()),
     F = fun() -> get_event_ids_between(mim(), Max, Max + GapSize) end,
-    mongoose_helper:wait_until(F, lists:seq(Max, Max + GapSize),
-                               #{time_left => timer:seconds(15)}).
+    wait_helper:wait_until(F, lists:seq(Max, Max + GapSize),
+                           #{time_left => timer:seconds(15)}).
 
 % plain_db_sequential cases
 % these tests are hard to parallelise due to runtime changes to service
@@ -635,7 +635,7 @@ db_events_table_gets_truncated(_) ->
     true = Max > 0,
     %% The events table is not empty and the size of 1, eventually.
     F = fun() -> get_min_event_id(mim()) end,
-    mongoose_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}).
+    wait_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}).
 
 db_deleted_from_one_node_while_service_disabled_on_another(_) ->
     {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
@@ -721,7 +721,7 @@ db_restarts_properly(_) ->
             PID2 = rpc(mim(), erlang, whereis, [service_domain_db]),
             PID2 =/= PID
         end,
-    mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
+    wait_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
 
 db_keeps_syncing_after_cluster_join(Config) ->
     HostType = dummy_auth_host_type(),
@@ -769,8 +769,7 @@ db_event_could_appear_with_lower_id(_Config) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"lazydom">>),
     %% Check gaps
     F = fun() -> get_event_ids_between(mim(), 40, 50) end,
-    mongoose_helper:wait_until(F, lists:seq(40, 50),
-                               #{time_left => timer:seconds(15)}).
+    wait_helper:wait_until(F, lists:seq(40, 50), #{time_left => timer:seconds(15)}).
 
 db_can_insert_update_delete_static_domain_password(_) ->
     StaticDomain = <<"example.cfg">>,
@@ -792,7 +791,7 @@ rest_cannot_enable_deleting(Config) ->
     Server = ?config(server, Config),
     Server ! continue,
     F = fun () -> select_domain(mim(), Domain) end,
-    mongoose_helper:wait_until(F, {error, not_found}, #{time_left => timer:seconds(15)}).
+    wait_helper:wait_until(F, {error, not_found}, #{time_left => timer:seconds(15)}).
 
 % rest cases
 
@@ -819,10 +818,10 @@ rest_request_can_delete_domain(Config) ->
     %% Wait until it is not found anymore
     Return = {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>},
     F1 = fun() -> rest_select_domain(Config, Domain) end,
-    mongoose_helper:wait_until(F1, Return, #{time_left => timer:seconds(15)}),
+    wait_helper:wait_until(F1, Return, #{time_left => timer:seconds(15)}),
     %% Double-check
     F2 = fun() -> select_domain(mim(), Domain) end,
-    mongoose_helper:wait_until(F2, {error, not_found}, #{time_left => timer:seconds(5)}).
+    wait_helper:wait_until(F2, {error, not_found}, #{time_left => timer:seconds(5)}).
 
 rest_can_delete_domain(Config) ->
     Domain = random_domain_name(),

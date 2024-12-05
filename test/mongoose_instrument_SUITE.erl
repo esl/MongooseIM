@@ -88,7 +88,7 @@ set_up_persistence(not_persistent) ->
 
 end_per_group(_Group, Config) ->
     async_helper:stop_all(Config),
-    mongoose_helper:wait_until(fun() -> whereis(mongoose_instrument) end, undefined),
+    wait_helper:wait_until(fun() -> whereis(mongoose_instrument) end, undefined),
     ?assertError(badarg, persistent_term:get(mongoose_instrument)).
 
 opts() ->
@@ -215,14 +215,14 @@ set_up_probe(Config) ->
     ExpectedMeasurements = #{event => Event, count => 1},
 
     %% Wait until the probe is called
-    {ok, History1} = async_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
-                                             fun(L) -> length(L) > 0 end),
+    {ok, History1} = wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                            [], #{validator => fun(L) -> length(L) > 0 end}),
     ExpectedEvent = {[Event, ?LABELS, Cfg, ExpectedMeasurements], ok},
     ?assertEqual([ExpectedEvent], History1),
 
     %% Wait until it's called again to ensure that it is done periodically
-    {ok, History2} = async_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
-                                             fun(L) -> length(L) > 1 end),
+    {ok, History2} = wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                            [], #{validator => fun(L) -> length(L) > 1 end}),
     ?assertEqual([ExpectedEvent, ExpectedEvent], History2).
 
 set_up_probe_with_incorrect_metric_type(Config) ->
@@ -261,10 +261,10 @@ set_up_and_tear_down_probe(Config) ->
     mongoose_instrument:tear_down(Event, ?LABELS),
 
     %% The probe shouldn't be called anymore
-    ?assertError({badmatch, _},
-                 async_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
-                                         fun(L) -> length(L) > 0 end,
-                                         #{time_left => timer:seconds(2)})).
+    ?assertError(_,
+                 wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                        [], #{validator => fun(L) -> length(L) > 0 end,
+                                              time_left => timer:seconds(2)})).
 
 unexpected_events(_Config) ->
     Pid = whereis(mongoose_instrument),

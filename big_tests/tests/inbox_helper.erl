@@ -269,9 +269,9 @@ get_inbox(Client, GetParams, ExpectedResult) ->
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult, Check) ->
     GetInbox = make_inbox_stanza(GetParams),
     Validator = fun(#{respond_messages := Val}) -> ExpectedCount =:= length(Val) end,
-    {ok, Inbox} = mongoose_helper:wait_until(
+    {ok, Inbox} = wait_helper:wait_until(
                     fun() -> Check(do_get_inbox(Client, GetInbox)) end,
-                    Validator, #{name => inbox_size}),
+                    ok, #{validator => Validator, name => inbox_size}),
     #{respond_iq := ResIQ} = Inbox,
     ?assert(escalus_pred:is_iq_result(GetInbox, ResIQ)),
     check_result(ResIQ, ExpectedResult),

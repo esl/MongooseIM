@@ -130,7 +130,7 @@ got_no_push(Type) ->
 
 got_push(Type, Count)->
     Key = {got_http_push, Type},
-    mongoose_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> length(ets:lookup(?ETS_TABLE, Key)) end,
       Count, #{name => http_request_timeout}),
     Bins = lists:map(fun({_, El}) -> El end, ets:lookup(?ETS_TABLE, Key)),

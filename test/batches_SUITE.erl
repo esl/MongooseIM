@@ -120,7 +120,7 @@ create_request_callback(Tid, Server) ->
             true ->
                 gen_server:send_request(Server, Task);
             false ->
-                async_helper:wait_until(fun() -> ets:member(Tid, continue) end, true),
+                wait_helper:wait_until(fun() -> ets:member(Tid, continue) end, true),
                 gen_server:send_request(Server, 0)
         end
     end.
@@ -173,13 +173,13 @@ aggregation_might_produce_noop_requests(_) ->
                                               request_callback => Requestor},
     {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
     [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(1, 1000) ],
-    async_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> gen_server:call(Server, get_acc) end, 1).
 
 broadcast_reaches_all_workers(Config) ->
     Server = proplists:get_value(server_pid, Config),
     mongoose_async_pools:broadcast_task(host_type(), ?FUNCTION_NAME, key, 1),
-    async_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> gen_server:call(Server, get_acc) end, 10).
 
 broadcast_reaches_all_keys(Config) ->
@@ -189,7 +189,7 @@ broadcast_reaches_all_keys(Config) ->
     [ mongoose_async_pools:put_task(HostType, ?FUNCTION_NAME, N, 1) || N <- lists:seq(0, 1000) ],
     mongoose_async_pools:broadcast(HostType, ?FUNCTION_NAME, -1),
     ets:insert(Tid, {continue, true}),
-    async_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> gen_server:call(Server, get_acc) end, 0).
 
 timeouts_and_canceled_timers_do_not_need_to_log_messages(_) ->
@@ -270,7 +270,7 @@ async_request(_) ->
     Opts = (default_aggregator_opts(Server))#{pool_id => ?FUNCTION_NAME},
     {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
     [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(1, 1000) ],
-    async_helper:wait_until(
+    wait_helper:wait_until(
       fun() -> gen_server:call(Server, get_acc) end, 500500).
 
 retry_request(_) ->
@@ -342,7 +342,7 @@ async_request_fails(_) ->
         after 5000 -> error(acked_receive_timeout)
     end,
     %% Eventually the task is cancelled
-    async_helper:wait_until(fun() -> element(4, sys:get_state(Pid)) end, no_request_pending),
+    wait_helper:wait_until(fun() -> element(4, sys:get_state(Pid)) end, no_request_pending),
     %% Check that aggregator still processes new tasks
     %% Start the task and wait for processing
     {ok, Server2} = gen_server:start({local, async_req_fails_server}, ?MODULE, [], []),

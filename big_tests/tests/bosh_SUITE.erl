@@ -915,41 +915,41 @@ wait_for_session_close(Sid) ->
     wait_for_session_close(Sid, ?INACTIVITY).
 
 wait_for_session_close(Sid, LeftTime) ->
-    mongoose_helper:wait_until(fun() -> is_session_alive(Sid) end, false,
-                               #{
-                                 time_left => timer:seconds(10),
-                                 time_sleep => LeftTime,
-                                 name => is_session_alive
-                                }).
+    wait_helper:wait_until(fun() -> is_session_alive(Sid) end, false,
+                           #{
+                             time_left => timer:seconds(10),
+                             time_sleep => LeftTime,
+                             name => is_session_alive
+                            }).
 
 wait_for_handler(Pid, Count) ->
-    mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
-                                #{
-                                 time_left => timer:seconds(10),
-                                 time_sleep => timer:seconds(1),
-                                 name => get_handlers
-                                }).
+    wait_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
+                           #{
+                             time_left => timer:seconds(10),
+                             time_sleep => timer:seconds(1),
+                             name => get_handlers
+                            }).
 
 
 wait_for_handler(Pid, Count, LeftTime) ->
-    mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
-                               #{
-                                 time_left => LeftTime,
-                                 time_sleep => timer:seconds(1),
-                                 name => get_handlers
-                                }).
+    wait_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
+                           #{
+                             time_left => LeftTime,
+                             time_sleep => timer:seconds(1),
+                             name => get_handlers
+                            }).
 
 wait_until_user_has_no_stanzas(User) ->
-        mongoose_helper:wait_until(fun() ->
-                                       escalus_assert:has_no_stanzas(User)
-                                   end, ok, #{left_time => 2 * timer:seconds(?INACTIVITY)}).
+    wait_helper:wait_until(fun() ->
+                                   escalus_assert:has_no_stanzas(User)
+                           end, ok, #{left_time => 2 * timer:seconds(?INACTIVITY)}).
 
 wait_for_zero_bosh_sessions() ->
-    mongoose_helper:wait_until(fun() ->
-                                       get_bosh_sessions()
-                               end,
-                               [],
-                               #{name => get_bosh_sessions}).
+    wait_helper:wait_until(fun() ->
+                                   get_bosh_sessions()
+                           end,
+                           [],
+                           #{name => get_bosh_sessions}).
 
 instrumentation_events() ->
     instrument_helper:declared_events(mod_bosh, [])
