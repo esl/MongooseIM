@@ -1,3 +1,13 @@
+%% @doc Behaviour for sub-systems scoped to a `t:mongooseim:host_type/0'.
+%%
+%% This plays in counterpart to `m:mongoose_service', which enables sub-systems that
+%% are global to the node.
+%%
+%% Examples of modules are
+%% <ul>
+%%   <li>`m:mod_mam'</li>
+%%   <li>`m:mod_carboncopy'</li>
+%% </ul>
 -module(mongoose_modules).
 
 -include("mongoose.hrl").
