@@ -40,7 +40,7 @@
                      num_acceptors := pos_integer(),
                      backlog := non_neg_integer(),
                      proxy_protocol := boolean(),
-                     atom() => any()}.
+                     atom() := any()}.
 
 -type connection_details() :: #{
         proxy        := boolean(),
