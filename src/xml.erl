@@ -27,7 +27,6 @@
 -author('alexey@process-one.net').
 
 -export([remove_cdata/1,
-         get_cdata/1, get_tag_cdata/1,
          get_attr/2, get_attr_s/2,
          get_tag_attr/2, get_tag_attr_s/2,
          get_subtag/2,
@@ -46,27 +45,8 @@ remove_cdata_p(_) -> false.
 
 
 -spec remove_cdata([xmlel_or_cdata()]) -> [xmlel_or_cdata()].
-remove_cdata(L) -> [E || E <- L, remove_cdata_p(E)].
-
-
--spec get_cdata([xmlel_or_cdata()]) -> binary().
-get_cdata(L) ->
-    list_to_binary(get_cdata(L, "")).
-
-
--spec get_cdata([xmlel_or_cdata()], [iolist()]) -> [iolist()].
-get_cdata([#xmlcdata{content = CData} | L], S) ->
-    get_cdata(L, [S, CData]);
-get_cdata([_ | L], S) ->
-    get_cdata(L, S);
-get_cdata([], S) ->
-    S.
-
-
--spec get_tag_cdata(exml:element()) -> binary().
-get_tag_cdata(#xmlel{children = Els}) ->
-    get_cdata(Els).
-
+remove_cdata(L) ->
+    [E || E <- L, remove_cdata_p(E)].
 
 -spec get_attr(binary() | string(),
               [jlib:binary_pair()]) -> 'false' | {'value', binary() | string()}.

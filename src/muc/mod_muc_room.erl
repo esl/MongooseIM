@@ -1109,7 +1109,7 @@ process_presence_unavailable(From, Packet, StateData) ->
             send_new_presence_un(From, NewState),
             Reason = case xml:get_subtag(NewPacket, <<"status">>) of
                 false -> <<>>;
-                StatusEl -> xml:get_tag_cdata(StatusEl)
+                StatusEl -> exml_query:cdata(StatusEl)
             end,
             remove_online_user(From, NewState, Reason);
         _ ->
@@ -2028,7 +2028,7 @@ extract_password([#xmlel{attrs = Attrs} = El | Els]) ->
         false ->
             false;
         SubEl ->
-            xml:get_tag_cdata(SubEl)
+            exml_query:cdata(SubEl)
         end;
     _ ->
         extract_password(Els)
@@ -2652,7 +2652,7 @@ check_subject(Packet) ->
         false ->
             false;
         SubjEl ->
-            xml:get_tag_cdata(SubjEl)
+            exml_query:cdata(SubjEl)
     end.
 
 
