@@ -116,14 +116,7 @@ start_link(HostType, Sid, Peer, PeerCert, Opts) ->
 -spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
     ChildId = ?BOSH_SOCKET_SUP,
-    ChildSpec =
-        {ChildId,
-         {ejabberd_tmp_sup, start_link,
-          [ChildId, ?MODULE]},
-         transient,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
+    ChildSpec = ejabberd_sup:template_supervisor_spec(ChildId, ?MODULE),
     case supervisor:start_child(ejabberd_sup, ChildSpec) of
         {ok, undefined} ->
             {error, undefined};
