@@ -49,40 +49,40 @@ id(Opts) ->
 init(_Id, Opts) ->
     Node = connect_mim_node(Opts),
     LogFlags = proplists:get_value(log, Opts, [suite]),
-    PrintInitDone = proplists:get_value(print_init_and_done_for_testcases, Opts, true),
+    PrintInitDone = proplists:get_value(print_init_and_done_for_testcases, Opts),
     {ok, #state{ node_name=Node, log_flags=LogFlags,
                  print_init_and_done_for_testcases = PrintInitDone }}.
 
 %% @doc Called before init_per_suite is called.
-pre_init_per_suite(_Suite, Config, State = #state{node_name = false}) ->
+pre_init_per_suite(_Suite, Config, State = #state{node_name = undefined}) ->
     {Config, State};
 pre_init_per_suite(Suite, Config, State) ->
     maybe_print_log_on_mim_node(suite, starting, Suite, State),
     {Config, State#state{group=no_group, suite=Suite}}.
 
 %% @doc Called before end_per_suite.
-post_end_per_suite(_Suite, Config, Return, State = #state{node_name = false}) ->
+post_end_per_suite(_Suite, Config, Return, State = #state{node_name = undefined}) ->
     {Config, State};
 post_end_per_suite(Suite, _Config, Return, State) ->
     maybe_print_log_on_mim_node(suite, finishing, Suite, State),
     {Return, State#state{suite=no_suite}}.
 
 %% @doc Called before each init_per_group.
-pre_init_per_group(_Group, Config, State = #state{node_name = false}) ->
+pre_init_per_group(_Group, Config, State = #state{node_name = undefined}) ->
     {Config, State};
 pre_init_per_group(Group, Config, State) ->
     maybe_print_log_on_mim_node(group, starting, Group, State),
     {Config, State#state{group=Group}}.
 
 %% @doc Called after each end_per_group.
-post_end_per_group(_Group, _Config, Return, State = #state{node_name = false}) ->
+post_end_per_group(_Group, _Config, Return, State = #state{node_name = undefined}) ->
     {Return, State};
 post_end_per_group(Group, _Config, Return, State) ->
     maybe_print_log_on_mim_node(group, finishing, Group, State),
     {Return, State#state{group=no_group}}.
 
 %% @doc Called before each test case.
-pre_init_per_testcase(_TC, Config, State = #state{node_name = false}) ->
+pre_init_per_testcase(_TC, Config, State = #state{node_name = undefined}) ->
     {Config, State};
 pre_init_per_testcase(TC, Config, State=#state{}) ->
     maybe_print_log_on_mim_node(testcase, starting, TC, State),
@@ -93,7 +93,7 @@ pre_init_per_testcase(TC, Config, State=#state{}) ->
     {Config, State4}.
 
 %% @doc Called after each test case.
-post_end_per_testcase(_TC, _Config, Return, State = #state{node_name = false}) ->
+post_end_per_testcase(_TC, _Config, Return, State = #state{node_name = undefined}) ->
     {Return, State};
 post_end_per_testcase(TC, _Config, Return, State) ->
     Dog = test_server:timetrap(test_server:seconds(10)),
@@ -103,7 +103,7 @@ post_end_per_testcase(TC, _Config, Return, State) ->
     {Return, State2 }.
 
 %% @doc Called when the scope of the CTH is done
-terminate(State = #state{node_name = false}) ->
+terminate(State = #state{node_name = undefined}) ->
     State;
 terminate(State) ->
     insert_line_numbers_into_report(State).
@@ -315,7 +315,7 @@ connect_mim_node(HookOpts) ->
             Node;
         _ ->
             %% Could happen if we test not with all nodes enabled.
-            false
+            undefined
     end.
 
 maybe_print_log_on_mim_node(Type, Event, Name, #state{log_flags = LogFlags, node_name = Node}) ->
