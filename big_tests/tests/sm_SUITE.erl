@@ -551,7 +551,7 @@ resend_unacked_on_reconnection(Config) ->
     %% User receives the messages from the offline store.
     NewUser = connect_spec(UserSpec, session, manual),
     send_initial_presence(NewUser),
-    sm_helper:wait_for_messages(NewUser, Texts),
+    sm_helper:wait_for_delayed_messages(NewUser, Texts),
     %% User acks the delayed messages so they won't go again
     %% to the offline store.
     escalus_connection:send(NewUser, escalus_stanza:sm_ack(3)).
