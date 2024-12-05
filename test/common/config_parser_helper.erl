@@ -1099,6 +1099,9 @@ extra_service_listener_config() ->
     #{access => all,
       shaper_rule => none,
       check_from => true,
+      max_connections => infinity,
+      reuse_port => false,
+      state_timeout => 5000,
       hidden_components => false,
       conflict_behaviour => disconnect,
       connection_type => component}.
