@@ -1083,14 +1083,12 @@ addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
     NewSEXT =
         lists:any(
-          fun(#xmlel{name = <<"mechanism">>,
-                     children = Els2}) ->
-                  case xml:get_cdata(Els2) of
-                      <<"EXTERNAL">> -> true;
-                      _ -> false
-                  end;
-             (_) -> false
+          fun(El) ->
+                  is_record(El, xmlel)
+                  andalso <<"mechanism">> =:= El#xmlel.name
+                  andalso <<"EXTERNAL">> =:= exml_query:cdata(El)
           end, Els1),
+
     {NewSEXT, STLS, STLSReq};
 get_acc_with_new_sext(_, _, Acc) ->
     Acc.

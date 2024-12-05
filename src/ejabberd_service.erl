@@ -237,8 +237,7 @@ wait_for_stream(replaced, StateData) ->
 
 -spec wait_for_handshake(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_handshake({xmlstreamelement, El}, StateData) ->
-    #xmlel{name = Name, children = Els} = El,
-    case {Name, xml:get_cdata(Els)} of
+    case {El#xmlel.name, exml_query:cdata(El)} of
         {<<"handshake">>, Digest} ->
             case mongoose_bin:encode_crypto([StateData#state.streamid,
                                              StateData#state.password]) of

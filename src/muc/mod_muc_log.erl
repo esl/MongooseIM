@@ -334,10 +334,10 @@ add_to_log2(text, {Nick, Packet}, Room, Opts, State) ->
         {false, false} ->
             ok;
         {false, SubEl} ->
-            Message = {body, xml:get_tag_cdata(SubEl)},
+            Message = {body, exml_query:cdata(SubEl)},
             add_message_to_log(Nick, Message, Room, Opts, State);
         {SubEl, _} ->
-            Message = {subject, xml:get_tag_cdata(SubEl)},
+            Message = {subject, exml_query:cdata(SubEl)},
             add_message_to_log(Nick, Message, Room, Opts, State)
     end;
 add_to_log2(roomconfig_change, _Occupants, Room, Opts, State) ->

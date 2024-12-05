@@ -342,17 +342,17 @@ rsm_decode(#xmlel{}=SubEl) ->
 
 -spec rsm_parse_element(exml:element(), rsm_in()) -> rsm_in().
 rsm_parse_element(#xmlel{name = <<"max">>, attrs = []} = Elem, RsmIn) ->
-    CountStr = xml:get_tag_cdata(Elem),
+    CountStr = exml_query:cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
     RsmIn#rsm_in{max = Count};
 rsm_parse_element(#xmlel{name = <<"before">>, attrs = []} = Elem, RsmIn) ->
-    UID = xml:get_tag_cdata(Elem),
+    UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = before, id = UID};
 rsm_parse_element(#xmlel{name = <<"after">>, attrs = []} = Elem, RsmIn) ->
-    UID = xml:get_tag_cdata(Elem),
+    UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = aft, id = UID};
 rsm_parse_element(#xmlel{name = <<"index">>, attrs = []} = Elem, RsmIn) ->
-    IndexStr = xml:get_tag_cdata(Elem),
+    IndexStr = exml_query:cdata(Elem),
     {Index, _} = string:to_integer(binary_to_list(IndexStr)),
     RsmIn#rsm_in{index = Index};
 rsm_parse_element(_, RsmIn)->

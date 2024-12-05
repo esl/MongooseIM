@@ -276,7 +276,7 @@ stream_start_error(StateData, Info, Error) ->
 -spec wait_for_feature_request(ejabberd:xml_stream_item(), state()
                               ) -> fsm_return().
 wait_for_feature_request({xmlstreamelement, El}, StateData) ->
-    #xmlel{name = Name, attrs = Attrs, children = Els} = El,
+    #xmlel{name = Name, attrs = Attrs} = El,
     TLS = StateData#state.tls,
     TLSEnabled = StateData#state.tls_enabled,
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
@@ -298,7 +298,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
             Mech = xml:get_attr_s(<<"mechanism">>, Attrs),
             case Mech of
                 <<"EXTERNAL">> ->
-                    Auth = jlib:decode_base64(xml:get_cdata(Els)),
+                    Auth = jlib:decode_base64(exml_query:cdata(El)),
                     AuthDomain = jid:nameprep(Auth),
                     CertData = mongoose_transport:get_peer_certificate(
                                  StateData#state.socket),
