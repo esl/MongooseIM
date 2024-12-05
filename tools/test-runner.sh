@@ -117,8 +117,19 @@ Script examples:
     Sets dev-nodes and test-hosts to empty lists
     Reruns mam_SUITE
 
-./tools/test-runner.sh --skip-small-tests --skip-check-rpc-nodes --allow-any-rpc --one-node connect
-    Allows any RPCs in the tests, useful if not all nodes are running on the developer machine
+./tools/test-runner.sh --skip-small-tests --skip-check-rpc-nodes connect
+    Continues test execution even if some of nodes in require_rpc_nodes are not running.
+    Useful when you want to check what would be the behaviour when MongooseIM is not running on some nodes.
+
+./tools/test-runner.sh --skip-small-tests --allow-any-rpc connect
+    Allows any RPCs in the tests (and not just to nodes specified in require_rpc_nodes)
+    Useful when you want to have unrestricted access to any MongooseIM node during development
+
+./tools/test-runner.sh --skip-small-tests --one-node connect
+    Starts one node, checks that one node is running
+    Tests that do calls to mim2 and mim3 would fail with the badrpc reason
+    Warning that mim2 and mim3 are not running would be printed in init_per_suite/1
+    but the execution would continue
 
 ./tools/test-runner.sh --rerun-big-tests -- mam
     The same command as above
