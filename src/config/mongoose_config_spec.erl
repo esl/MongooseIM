@@ -1108,7 +1108,7 @@ process_listener([item, Type | _], Opts) ->
 listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"c2s">>) -> mongoose_c2s_listener;
 listener_module(<<"s2s">>) -> ejabberd_s2s_in;
-listener_module(<<"service">>) -> ejabberd_service.
+listener_module(<<"service">>) -> mongoose_component_listener.
 
 %% required for correct metrics reporting by mongoose_transport module
 connection_type(<<"s2s">>) -> s2s;
