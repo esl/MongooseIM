@@ -467,7 +467,8 @@ change_nodename(ChangeFrom, ChangeTo, Source, Target, Config) ->
     execute_command(<<"mnesia">>, <<"changeNodename">>, Vars, Config).
 
 set_master(Node, Config) ->
-    execute_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
+    Vars = maps:with([node], Node),
+    execute_command(<<"mnesia">>, <<"setMaster">>, Vars, Config).
 
 mnesia_info_check() ->
     #{<<"access_module">> => check_binary,
