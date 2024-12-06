@@ -330,10 +330,10 @@ code_change(_OldVsn, State, _Extra) ->
 -spec add_to_log2(command(), {mod_muc:nick(), mod_muc:packet()}, mod_muc:room(),
         list(), logstate()) -> 'ok'.
 add_to_log2(text, {Nick, Packet}, Room, Opts, State) ->
-    case {xml:get_subtag(Packet, <<"subject">>), xml:get_subtag(Packet, <<"body">>)} of
-        {false, false} ->
+    case {exml_query:subelement(Packet, <<"subject">>), exml_query:subelement(Packet, <<"body">>)} of
+        {undefined, undefined} ->
             ok;
-        {false, SubEl} ->
+        {undefined, SubEl} ->
             Message = {body, exml_query:cdata(SubEl)},
             add_message_to_log(Nick, Message, Room, Opts, State);
         {SubEl, _} ->

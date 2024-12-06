@@ -29,7 +29,6 @@
 -export([remove_cdata/1,
          get_attr/2, get_attr_s/2,
          get_tag_attr/2, get_tag_attr_s/2,
-         get_subtag/2,
          append_subtags/2,
          replace_tag_attr/3,
          replace_subelement/2]).
@@ -41,7 +40,6 @@
 -spec remove_cdata_p(xmlel_or_cdata()) -> boolean().
 remove_cdata_p(#xmlel{}) -> true;
 remove_cdata_p(_) -> false.
-
 
 -spec remove_cdata([xmlel_or_cdata()]) -> [xmlel_or_cdata()].
 remove_cdata(L) ->
@@ -75,24 +73,6 @@ get_tag_attr(AttrName, #xmlel{attrs = Attrs}) ->
 -spec get_tag_attr_s(binary(), exml:element()) -> binary().
 get_tag_attr_s(AttrName, #xmlel{attrs = Attrs}) ->
     get_attr_s(AttrName, Attrs).
-
-
--spec get_subtag(exml:element(), binary()) -> 'false' | exml:element().
-get_subtag(#xmlel{children = Els}, Name) ->
-    get_subtag1(Els, Name).
-
-
--spec get_subtag1([xmlel_or_cdata()], binary()) -> 'false' | exml:element().
-get_subtag1([El | Els], Name) ->
-    case El of
-        #xmlel{name = Name} ->
-            El;
-        _ ->
-            get_subtag1(Els, Name)
-    end;
-get_subtag1([], _) ->
-    false.
-
 
 -spec append_subtags(exml:element(), [xmlel_or_cdata()]) -> exml:element().
 append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->

@@ -332,9 +332,9 @@ sub_el_to_els(Es) when is_list(Es) -> Es.
 -spec rsm_decode(exml:element() | iq()) -> none | #rsm_in{}.
 rsm_decode(#iq{sub_el = SubEl})->
     rsm_decode(SubEl);
-rsm_decode(#xmlel{}=SubEl) ->
-    case xml:get_subtag(SubEl, <<"set">>) of
-        false ->
+rsm_decode(#xmlel{} = SubEl) ->
+    case exml_query:subelement(SubEl, <<"set">>) of
+        undefined ->
             none;
         #xmlel{name = <<"set">>, children = SubEls} ->
             lists:foldl(fun rsm_parse_element/2, #rsm_in{}, SubEls)

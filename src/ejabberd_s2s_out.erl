@@ -1094,11 +1094,7 @@ get_acc_with_new_sext(_, _, Acc) ->
     Acc.
 
 get_acc_with_new_tls(?NS_TLS, El1, {SEXT, _STLS, _STLSReq}) ->
-    Req = case xml:get_subtag(El1, <<"required">>) of
-              #xmlel{} -> true;
-              false -> false
-          end,
-    {SEXT, true, Req};
+    {SEXT, true, undefined =/= exml_query:subelement(El1, <<"required">>)};
 get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 

@@ -64,16 +64,10 @@
 
 supported_features() -> [dynamic_domains].
 
+-spec is_carbon_copy(exml:element()) -> boolean().
 is_carbon_copy(Packet) ->
-    case xml:get_subtag(Packet, <<"sent">>) of
-        #xmlel{name = <<"sent">>, attrs = AAttrs}  ->
-            case xml:get_attr_s(<<"xmlns">>, AAttrs) of
-                ?NS_CC_2 -> true;
-                ?NS_CC_1 -> true;
-                _ -> false
-            end;
-        _ -> false
-    end.
+    XmlNs = exml_query:path(Packet, [{element, <<"sent">>}, {attr, <<"xmlns">>}]),
+    ?NS_CC_2 =:= XmlNs orelse ?NS_CC_1 =:= XmlNs.
 
 %% Default IQDisc is no_queue:
 %% executes disable/enable actions in the c2s process itself
