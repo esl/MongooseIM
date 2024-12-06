@@ -401,7 +401,7 @@ initial_state({route, From, ToNick, _Acc, % TOODOO
 
 -spec is_query_allowed(exml:element()) -> boolean().
 is_query_allowed(#xmlel{children = Els}) ->
-    case xml:remove_cdata(Els) of
+    case jlib:remove_cdata(Els) of
         [#xmlel{name = <<"destroy">>}] ->
             true;
         [El] ->
@@ -2311,7 +2311,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
                   false ->
                       Status
               end,
-    Packet = xml:append_subtags(
+    Packet = jlib:append_subtags(
                Presence,
                [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
@@ -2354,7 +2354,7 @@ send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
               affiliation_to_binary(FromAffiliation)},
              {<<"role">>, role_to_binary(FromRole)}]
     end,
-    Packet = xml:append_subtags(
+    Packet = jlib:append_subtags(
                Presence,
                [#xmlel{name = <<"x">>,
                        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
@@ -2478,7 +2478,7 @@ nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
       MaybeCode :: 'undefined' | exml:element().
 nick_available_presence(LastPresence, MaybeJID, Affiliation, Role, MaybeCode) ->
     Item = muc_user_item(MaybeJID, undefined, Affiliation, Role),
-    xml:append_subtags(LastPresence,
+    jlib:append_subtags(LastPresence,
                        [muc_user_x([Item] ++ [MaybeCode
                                               || MaybeCode /= undefined])]).
 
@@ -2559,7 +2559,7 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     true -> StateData#state.jid;
     false -> FromJID
     end,
-    TSPacket = xml:append_subtags(Packet, [jlib:timestamp_to_xml(TimeStamp, SenderJid, <<>>)]),
+    TSPacket = jlib:append_subtags(Packet, [jlib:timestamp_to_xml(TimeStamp, SenderJid, <<>>)]),
     SPacket = jlib:replace_from_to(
         jid:replace_resource(StateData#state.jid, FromNick),
         StateData#state.jid,
@@ -3141,7 +3141,7 @@ process_iq_owner(From, Type, Lang, SubEl, StateData, StateName) ->
     {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
 process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
     #xmlel{children = Els} = SubEl,
-    case xml:remove_cdata(Els) of
+    case jlib:remove_cdata(Els) of
         [#xmlel{name = <<"destroy">>} = SubEl1] ->
             ?LOG_INFO(ls(#{what => muc_room_destroy,
                            text => <<"Destroyed MUC room by the owner">>,
@@ -3972,7 +3972,7 @@ decode_destination_jid(InviteEl) ->
 
 -spec find_invite_elems([jlib:xmlcdata() | exml:element()]) -> [exml:element()].
 find_invite_elems(Els) ->
-    case xml:remove_cdata(Els) of
+    case jlib:remove_cdata(Els) of
     [#xmlel{name = <<"x">>, children = Els1} = XEl] ->
             case exml_query:attr(XEl, <<"xmlns">>, <<>>) of
         ?NS_MUC_USER ->
@@ -4589,7 +4589,7 @@ kick_stanza_for_old_protocol(Packet) ->
     ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
     ItemEls = [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = ErrText2}]}],
     Status = [status_code(110), status_code(307), status_code(333)],
-    xml:append_subtags(
+    jlib:append_subtags(
         Response,
         [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
                 children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,

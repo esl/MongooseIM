@@ -1310,7 +1310,7 @@ iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
                 Plugins :: [binary(), ...]) -> {result, [exml:element()]} | {error, exml:element()}.
 iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
           Lang, Access, Plugins) ->
-    case xml:remove_cdata(SubEls) of
+    case jlib:remove_cdata(SubEls) of
         [#xmlel{name = Name} = ActionEl | _] ->
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
             ActionExtraArgs = #{server_host => ServerHost,
@@ -1452,7 +1452,7 @@ iq_pubsub_set_publish(_Host, <<>>, _From, _ExtraArgs) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"nodeid-required">>)};
 iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := Access,
                                           action_el := ActionEl, query_el := QueryEl}) ->
-    case xml:remove_cdata(ActionEl#xmlel.children) of
+    case jlib:remove_cdata(ActionEl#xmlel.children) of
         [#xmlel{name = <<"item">>, children = Payload} = Element] ->
             ItemId = exml_query:attr(Element, <<"id">>, <<>>),
             PublishOptions = exml_query:subelement(QueryEl, <<"publish-options">>),
@@ -1471,7 +1471,7 @@ iq_pubsub_set_retract(Host, Node, From,
                       <<"true">> -> true;
                       _ -> false
                   end,
-    case xml:remove_cdata(RetractSubEls) of
+    case jlib:remove_cdata(RetractSubEls) of
         [#xmlel{name = <<"item">>} = Element1] ->
             ItemId = exml_query:attr(Element1, <<"id">>, <<>>),
             delete_item(Host, Node, From, ItemId, ForceNotify);
@@ -1540,7 +1540,7 @@ iq_pubsub_set_options(Host, Node, #{action_el := #xmlel{} = ActionEl}) ->
            | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
     #xmlel{children = SubEls} = SubEl,
-    Action = xml:remove_cdata(SubEls),
+    Action = jlib:remove_cdata(SubEls),
     case Action of
         [#xmlel{name = Name} = ActionEl] ->
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
@@ -2737,7 +2737,7 @@ get_affiliations_transaction(JID, #pubsub_node{type = Type, id = Nidx}) ->
         EntitiesEls :: #{action_el := exml:element()})
         -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}} | {error, exml:element()}.
 set_affiliations(Host, Node, From, #{action_el := ActionEl} ) ->
-    EntitiesEls = xml:remove_cdata(ActionEl#xmlel.children),
+    EntitiesEls = jlib:remove_cdata(ActionEl#xmlel.children),
     Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun
                                (_, error) ->
@@ -3072,7 +3072,7 @@ get_subscriptions_for_send_last(_Host, _PType, _JIDs) ->
     [].
 
 set_subscriptions(Host, Node, From, #{action_el := ActionEl} ) ->
-    EntitiesEls = xml:remove_cdata(ActionEl#xmlel.children),
+    EntitiesEls = jlib:remove_cdata(ActionEl#xmlel.children),
     Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun(_, error) ->
                                    error;

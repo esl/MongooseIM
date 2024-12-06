@@ -542,7 +542,7 @@ add_timestamp(undefined, _LServer, Packet) ->
     Packet;
 add_timestamp(TimeStamp, LServer, Packet) ->
     TimeStampXML = timestamp_xml(LServer, TimeStamp),
-    xml:append_subtags(Packet, [TimeStampXML]).
+    jlib:append_subtags(Packet, [TimeStampXML]).
 
 timestamp_xml(LServer, Time) ->
     FromJID = jid:make_noprep(<<>>, LServer, <<>>),
