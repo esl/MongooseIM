@@ -63,7 +63,8 @@ groups() ->
      {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
      {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
      {stale_h, [], stale_h_cases()},
-     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()}
+     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()},
+     {resume_timeout, [parallel], resume_timeout_cases()}
     ].
 
 ws_tests() ->
@@ -72,6 +73,7 @@ ws_tests() ->
      {group, manual_ack_freq_2},
      {group, stale_h},
      {group, parallel_unacknowledged_message_hook},
+     {group, resume_timeout},
      ping_timeout].
 
 tcp_tests() ->
@@ -80,6 +82,7 @@ tcp_tests() ->
      {group, manual_ack_freq_2},
      {group, stale_h},
      {group, parallel_unacknowledged_message_hook},
+     {group, resume_timeout},
      ping_timeout].
 
 parallel_cases() ->
@@ -116,7 +119,6 @@ parallel_cases() ->
 parallel_manual_ack_freq_1_cases() ->
     [client_acks_more_than_sent,
      too_many_unacked_stanzas,
-     resend_unacked_after_resume_timeout,
      resume_session_state_send_message_with_ack,
      resume_session_state_send_message_without_ack,
      resume_session_state_stop_c2s,
@@ -126,6 +128,10 @@ parallel_manual_ack_freq_1_cases() ->
 
 manual_ack_freq_2_cases() ->
     [server_requests_ack_freq_2].
+
+resume_timeout_cases() ->
+    [resend_unacked_after_resume_timeout,
+     resend_unacked_to_different_res_after_resume_timeout].
 
 stale_h_cases() ->
     [resume_expired_session_returns_correct_h,
@@ -258,6 +264,8 @@ required_sm_opts(group, parallel_unacknowledged_message_hook) ->
     #{ack_freq => 1};
 required_sm_opts(group, manual_ack_freq_long_session_timeout) ->
     #{ack_freq => 1, buffer_max => 1000};
+required_sm_opts(group, resume_timeout) ->
+    #{ack_freq => 1, resume_timeout => ?SHORT_TIMEOUT};
 required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
     #{ack_freq => 1,
       resume_timeout => ?SHORT_TIMEOUT,
@@ -545,16 +553,20 @@ resend_unacked_on_reconnection(Config) ->
     sm_helper:send_messages(Bob, User, Texts),
     %% User receives the messages.
     sm_helper:wait_for_messages(User, Texts),
-    %% User disconnects without acking the messages.
+    %% User disconnects ending stream gracefully, but without acking the messages.
     sm_helper:stop_client_and_wait_for_termination(User),
     %% Messages go to the offline store.
     %% User receives the messages from the offline store.
     NewUser = connect_spec(UserSpec, session, manual),
     send_initial_presence(NewUser),
-    sm_helper:wait_for_messages(NewUser, Texts),
+    sm_helper:wait_for_delayed_messages(NewUser, Texts),
     %% User acks the delayed messages so they won't go again
     %% to the offline store.
-    escalus_connection:send(NewUser, escalus_stanza:sm_ack(3)).
+    escalus_connection:send(NewUser, escalus_stanza:sm_ack(3)),
+    % user receives initial presence response
+    P = escalus:wait_for_stanza(NewUser),
+    escalus:assert(is_presence, P),
+    escalus_connection:stop(NewUser).
 
 %% Remove wait_for_n_offline_messages and you will get anything, but preserve_order
 %% TODO Test without wait_for_n_offline_messages. It would require changes in SM
@@ -630,6 +642,39 @@ resend_unacked_after_resume_timeout(Config) ->
     User = connect_fresh(Config, ?config(user, Config), sr_presence),
     UserSpec = sm_helper:client_to_spec(User),
 
+    escalus_connection:send(Bob, escalus_stanza:chat_to(User, <<"msg-1">>)),
+    %% kill user connection
+    escalus_connection:kill(User),
+
+    %% ensure there is no session
+    C2SPid = mongoose_helper:get_session_pid(User),
+    sm_helper:wait_until_resume_session(C2SPid),
+
+    %% user comes back
+    NewUser = connect_spec(UserSpec, session),
+    send_initial_presence(NewUser),
+
+    %% resume timeout passes
+    timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
+
+    %% user receives unacked message and initial presence
+    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 2),
+    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)],
+                                 UnackedStanzas),
+    [UnackedMsg] = lists:filter(fun escalus_pred:is_message/1, UnackedStanzas),
+    sm_helper:assert_delayed(UnackedMsg),
+    escalus_assert:has_no_stanzas(NewUser),
+
+    escalus_connection:stop(Bob),
+    escalus_connection:stop(NewUser).
+
+
+resend_unacked_to_different_res_after_resume_timeout(Config) ->
+    %% connect bob and user
+    Bob = connect_fresh(Config, bob, presence),
+    User = connect_fresh(Config, ?config(user, Config), sr_presence),
+    UserSpec = sm_helper:client_to_spec(User),
+
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(User, <<"msg-1">>)),
     %% kill user connection
     escalus_connection:kill(User),
@@ -638,12 +683,21 @@ resend_unacked_after_resume_timeout(Config) ->
     C2SPid = mongoose_helper:get_session_pid(User),
     sm_helper:wait_until_resume_session(C2SPid),
 
-    %% user come back and receives unacked message
-    NewUser = connect_spec(UserSpec, session),
+    %% user comes back with different resource
+    NewUser = connect_spec([{resource, <<"2nd_resource">>} | UserSpec], session),
     send_initial_presence(NewUser),
 
-    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)],
-                                 escalus:wait_for_stanzas(NewUser, 2)),
+    %% resume timeout passes
+    timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
+
+    %% user receives unacked message and presence, as well as initial presence response
+    %% the order of the messages may change, especially on CI, so we test all of them
+    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 3),
+    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>), is_presence], UnackedStanzas),
+    [UnackedMsg] = lists:filter(fun escalus_pred:is_message/1, UnackedStanzas),
+    sm_helper:assert_delayed(UnackedMsg),
+
+    escalus_assert:has_no_stanzas(NewUser),
 
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewUser).

@@ -312,7 +312,7 @@ route_probe(Acc, Presences, FromJid, ToJid) ->
     Packet0 = Presences#presences_state.pres_last,
     TS = Presences#presences_state.pres_timestamp,
     %% To is the one sending the presence (the target of the probe)
-    Packet1 = jlib:maybe_append_delay(Packet0, ToJid, TS, <<>>),
+    Packet1 = jlib:maybe_append_delay(Packet0, ToJid, TS, <<"Delayed presence">>),
     HostType = mongoose_acc:host_type(Acc),
     Acc2 = mongoose_hooks:presence_probe(HostType, Acc, FromJid, ToJid, self()),
     %% Don't route a presence probe to oneself
