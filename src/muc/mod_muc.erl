@@ -836,7 +836,7 @@ route_by_type(<<"message">>, {From, To, Acc, Packet},
         _ ->
             case acl:match_rule(HostType, ServerHost, AccessAdmin, From) of
                 allow ->
-                    Msg = xml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
+                    Msg = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
                     broadcast_service_message(MucHost, Msg);
                 _ ->
                     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),

@@ -2126,7 +2126,8 @@ extract_history([], _Type) ->
 extract_history([#xmlel{attrs = Attrs} = El | Els], Type) ->
     case xml:get_attr_s(<<"xmlns">>, Attrs) of
         ?NS_MUC ->
-            parse_history_val(xml:get_path_s(El, [{elem, <<"history">>}, {attr, Type}]), Type);
+            Path = [{element, <<"history">>}, {attr, Type}],
+            parse_history_val(exml_query:path(El, Path, <<>>), Type);
         _ ->
             extract_history(Els, Type)
     end;
@@ -3988,7 +3989,7 @@ create_invite(FromJID, InviteEl, Lang, StateData) ->
     %% Create an invitation message and send it to the user.
     Reason = decode_reason(InviteEl),
     ContinueEl =
-    case xml:get_path_s(InviteEl, [{elem, <<"continue">>}]) of
+    case exml_query:path(InviteEl, [{element, <<"continue">>}], <<>>) of
         <<>> -> [];
         Continue1 -> [Continue1]
     end,
@@ -4290,8 +4291,7 @@ route_message(#routed_message{allowed = true, type = Type, from = From,
                                               children = Els} = Packet, lang = Lang},
               StateData) when (Type == <<>> orelse Type == <<"normal">>) ->
 
-    Invite = xml:get_path_s(Packet, [{elem, <<"x">>}, {elem, <<"invite">>}]),
-    case Invite of
+    case exml_query:path(Packet, [{element, <<"x">>}, {element, <<"invite">>}], <<>>) of
         <<>> ->
             AppType = check_voice_approval(From, Packet, Lang, StateData),
             route_voice_approval(AppType, From, Packet, Lang, StateData);
@@ -4555,7 +4555,7 @@ route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
 
 -spec decode_reason(exml:element()) -> binary().
 decode_reason(Elem) ->
-    xml:get_path_s(Elem, [{elem, <<"reason">>}, cdata]).
+    exml_query:path(Elem, [{element, <<"reason">>}, cdata], <<>>).
 
 -spec make_voice_approval_form(From :: jid:simple_jid() | jid:jid(),
                                Nick :: binary(), Role :: binary()) -> exml:element().
