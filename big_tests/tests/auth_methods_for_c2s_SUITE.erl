@@ -28,7 +28,7 @@ groups() ->
     ].
 
 suite() ->
-    distributed_helper:require_rpc_nodes([mim]) ++ escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).

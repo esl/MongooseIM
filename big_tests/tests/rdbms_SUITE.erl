@@ -95,7 +95,7 @@ rdbms_queries_cases() ->
      pool_probe_metrics_are_updated].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

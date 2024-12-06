@@ -32,3 +32,6 @@
 %%% is printed asynchronously by test.sh script using
 %%% 'tail -f /tmp/progress &' command.
 % {ct_hooks, [ct_progress_hook]}.
+
+%% This hook checks if nodes are up and running MongooseIM.
+{ct_hooks, [ct_check_rpc_nodes]}.

@@ -68,7 +68,7 @@
 %% -------------------------------------------------------------
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim, mim2], escalus:suite()).
 
 all() ->
     [

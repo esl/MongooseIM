@@ -145,8 +145,16 @@ skip_or_run_inbox_tests(TestCases) ->
 
 maybe_run_in_parallel(Gs) ->
     %% These could be parallel but it seems like mssql CI can't handle the load
-    case distributed_helper:rpc(
-           distributed_helper:mim(), mongoose_rdbms, db_engine, [domain_helper:host_type()]) of
+    case ct_helper:is_ct_running() of
+        true ->
+            maybe_run_in_parallel_when_ct_is_running(Gs);
+        false ->
+            Gs
+    end.
+
+maybe_run_in_parallel_when_ct_is_running(Gs) ->
+    case distributed_helper:rpc(distributed_helper:mim(),
+           mongoose_rdbms, db_engine, [domain_helper:host_type()]) of
         odbc -> Gs;
         _ -> insert_parallels(Gs)
     end.

@@ -174,8 +174,7 @@
 %% * ensure preset & mim_data_dir values are passed to ct Config
 %% * check server's purity after SUITE
 {ct_hooks, [ct_groups_summary_hook, ct_tty_hook, ct_mongoose_hook, ct_progress_hook,
-            ct_markdown_errors_hook,
-            ct_mongoose_log_hook,
+            ct_markdown_errors_hook, ct_mongoose_log_hook, ct_check_rpc_nodes,
             {ct_mongoose_log_hook, [{host, mim2}, {print_init_and_done_for_testcases, false}]},
             {ct_mongoose_log_hook, [{host, mim3}, {print_init_and_done_for_testcases, false}]}]}.
 

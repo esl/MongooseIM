@@ -34,7 +34,10 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    inbox_helper:skip_or_run_inbox_tests(tests()).
+    Tests = tests(),
+    distributed_helper:temporary_allow_nodes(fun() ->
+            inbox_helper:skip_or_run_inbox_tests(Tests)
+        end, [mim]).
 
 tests() ->
     [
@@ -138,7 +141,9 @@ groups() ->
      {regular, [], test_groups()},
      {async_pools, [], [{group, bin} | test_groups()]}
     ],
-    inbox_helper:maybe_run_in_parallel(Gs).
+    distributed_helper:temporary_allow_nodes(fun() ->
+            inbox_helper:maybe_run_in_parallel(Gs)
+        end, [mim]).
 
 test_groups() ->
     [
@@ -152,7 +157,7 @@ test_groups() ->
     ].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

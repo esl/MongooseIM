@@ -23,7 +23,7 @@
 -include_lib("exml/include/exml.hrl").
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
 
@@ -62,7 +62,7 @@ groups() ->
     ].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 essential_test_cases() ->
     [create_and_terminate_session,

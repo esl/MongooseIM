@@ -57,6 +57,9 @@ groups() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     Config1 = load_sasl_extensible(Config),
     escalus:init_per_suite(Config1).

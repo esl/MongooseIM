@@ -17,6 +17,9 @@ cases() ->
     [shutdown,
      client_tries_to_connect_before_listener_stop].
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite(Config).

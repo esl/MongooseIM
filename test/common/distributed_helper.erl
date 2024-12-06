@@ -133,6 +133,7 @@ cluster_op_timeout() ->
 -spec rpc(Spec, _, _, _) -> any() when
       Spec :: rpc_spec().
 rpc(#{} = RPCSpec, M, F, A) ->
+    assert_allowed_node(RPCSpec, {M, F, A}),
     Node = maps:get(node, RPCSpec),
     Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
     TimeOut = maps:get(timeout, RPCSpec, timer:seconds(5)),
@@ -146,13 +147,13 @@ rpc(#{} = RPCSpec, M, F, A) ->
 %% The use case would be to require and import the same names in your suite like:
 %%
 %%  -import(distributed_helper, [mim/0, fed/0,
-%%                               require_rpc_nodes/1,
+%%                               require_rpc_nodes/2,
 %%                               rpc/4]).
 %%
 %%  ...
 %%
 %%  suite() ->
-%%      require_rpc_nodes([mim, fed]) ++ escalus:suite().
+%%      require_rpc_nodes([mim, fed], escalus:suite()).
 %%
 %%  ...
 %%
@@ -160,8 +161,12 @@ rpc(#{} = RPCSpec, M, F, A) ->
 %%      RPCResult = rpc(mim(), remote_mod, remote_fun, [arg1, arg2]),
 %%      ...
 %%
-require_rpc_nodes(Nodes) ->
-    [ {require, {hosts, Node, node}} || Node <- Nodes ].
+require_rpc_nodes(Nodes, Config) ->
+    persistent_term:put(distributed_helper_nodes, Nodes),
+    persistent_term:put(distributed_helper_test_hosts, parse_test_hosts()),
+    %% We cannot call `validate_nodes/0' at this point,
+    %% because the config variables are not available yet.
+    [ {require, {hosts, Node, node}} || Node <- Nodes ] ++ Config.
 
 %% @doc Shorthand for hosts->mim->node from `test.config'.
 -spec mim() -> rpc_spec().
@@ -182,7 +187,62 @@ fed() ->
     rpc_spec(fed).
 
 rpc_spec(NodeKey) ->
-    #{node => get_or_fail({hosts, NodeKey, node})}.
+    #{node => get_or_fail({hosts, NodeKey, node}), node_key => NodeKey}.
+
+allowed_rpc_specs() ->
+    Allowed = persistent_term:get(distributed_helper_nodes, []),
+    [rpc_spec(NodeKey) || NodeKey <- Allowed].
+
+should_validate_node(NodeKey) ->
+    %% If `--one-node' flag is specified for `test-runner',
+    %% we set `TEST_HOSTS' variable.
+    %% In this case we only validate that MIM is running on the `mim' node.
+    case persistent_term:get(distributed_helper_test_hosts, all) of
+        all ->
+            true;
+        TestHosts ->
+            lists:member(NodeKey, TestHosts)
+    end.
+
+%% @doc Validate that we can access nodes,
+%%      which were requested by calling `require_rpc_nodes/2'.
+%%
+%% Called from `ct_check_rpc_nodes' CT hook.
+validate_nodes() ->
+    Results = [validate_node(Spec) || Spec <- allowed_rpc_specs()],
+    case [Res || Res <- Results, Res =/= ok] of
+        [] ->
+            ok;
+        Failed ->
+            {error, Failed}
+    end.
+
+validate_node(Spec = #{node := Node, node_key := NodeKey}) ->
+    case do_validate_node(Spec) of
+        ok -> ok;
+        Error ->
+            case should_validate_node(NodeKey) of
+                true ->
+                    Error;
+                false ->
+                    ct:pal("Node validation failed ~p, but the node is not in TEST_HOSTS.~n"
+                           "Reason ~p.~n"
+                           "Continuing executing the test.",
+                           [Spec, Error]),
+                    ok
+            end
+    end.
+
+do_validate_node(Spec = #{node := Node}) ->
+    try rpc(Spec, application, which_applications, []) of
+        Loaded ->
+            case lists:keymember(mongooseim, 1, Loaded) of
+                true -> ok;
+                false -> {validate_node_failed, mongooseim_not_running, Node}
+            end
+    catch error:{badrpc, Reason} ->
+        {validate_node_failed, {badrpc, Reason}, Node}
+    end.
 
 get_or_fail(Key) ->
     Val = ct:get_config(Key),
@@ -205,3 +265,46 @@ subhost_pattern(SubhostTemplate) ->
 
 lookup_config_opt(Key) ->
     rpc(mim(), mongoose_config, lookup_opt, [Key]).
+
+assert_allowed_node(#{node := Node}, MFA) ->
+    Allowed = persistent_term:get(distributed_helper_nodes, []),
+    AllowedNodes = [get_or_fail({hosts, NodeKey, node}) || NodeKey <- Allowed],
+    case lists:member(Node, AllowedNodes) of
+        true -> ok;
+        false ->
+            Reason = #{what => assert_allowed_node,
+                       calling_node => Node,
+                       allowed_nodes => AllowedNodes,
+                       rpc_call => MFA},
+            case os:getenv("ALLOW_ANY_RPC") of
+                "true" ->
+                    %% Just log it instead of failing
+                    ct:pal("assert_allowed_node would fail there on CI with the reason ~p", [Reason]);
+                _ ->
+                    ct:fail(Reason)
+            end
+    end.
+
+with_all_nodes_allowed(F) ->
+    NodeKeys = [NodeKey || {NodeKey, _Opts} <- ct:get_config(hosts)],
+    require_rpc_nodes(NodeKeys, []),
+    F(),
+    require_rpc_nodes([], []).
+
+temporary_allow_nodes(F, NodeKeys) ->
+    Old = persistent_term:get(distributed_helper_nodes, []),
+    persistent_term:put(distributed_helper_nodes, NodeKeys),
+    try
+        F()
+    after
+        persistent_term:put(distributed_helper_nodes, Old)
+    end.
+
+parse_test_hosts() ->
+    case os:getenv("TEST_HOSTS") of
+        false ->
+            all;
+        EnvValue -> %% EnvValue examples are "mim" or "mim mim2"
+            BinHosts = binary:split(iolist_to_binary(EnvValue), <<" ">>, [global]),
+            [binary_to_atom(Node, utf8) || Node <- BinHosts]
+    end.

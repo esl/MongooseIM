@@ -132,6 +132,9 @@ security_test_cases() ->
      non_default_http_server_name_is_returned_if_configured
     ].
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim, mim2], escalus:suite()).
+
 init_per_suite(Config) ->
     Config1 = init_modules(Config),
     [{muc_light_host, muc_light_helper:muc_host()}

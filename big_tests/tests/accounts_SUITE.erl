@@ -5,7 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4]).
 -import(mongoose_helper, [wait_for_user/3]).
 -import(auth_helper, [assert_event/2]).
 -import(domain_helper, [domain/0, host_type/0]).
@@ -52,7 +52,7 @@ groups() ->
     ].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 change_password_tests() ->
     [change_password,

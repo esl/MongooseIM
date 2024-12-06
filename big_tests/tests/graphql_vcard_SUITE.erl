@@ -2,7 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [require_rpc_nodes/1, mim/0]).
+-import(distributed_helper, [require_rpc_nodes/2, mim/0]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5,
                          user_to_bin/1, get_ok_value/2, skip_null_fields/1, get_err_msg/1,
                          get_unauthorized/1, get_not_loaded/1, get_err_code/1]).
@@ -12,7 +12,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, user},

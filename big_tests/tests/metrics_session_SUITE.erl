@@ -37,7 +37,8 @@ groups() ->
                                    session_node]}].
 
 suite() ->
-    [{require, ejabberd_node} | escalus:suite()].
+    Config = [{require, ejabberd_node} | escalus:suite()],
+    distributed_helper:require_rpc_nodes([mim], Config).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

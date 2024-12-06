@@ -41,7 +41,7 @@
 -define(PHOTO_BASE_64, <<"gsAhn8xWDD+EpA==">>). %% jlib:encode_base64(?PHOTO_BIN)
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              subhost_pattern/1,
                              rpc/4]).
 -import(ldap_helper, [get_ldap_base/1,
@@ -117,7 +117,7 @@ ldap_only_tests() ->
      return_photo_inserted_as_binary_by_3rd_party_service].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

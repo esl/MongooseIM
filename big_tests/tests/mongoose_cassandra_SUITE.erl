@@ -21,7 +21,7 @@
 %%
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 %%.
@@ -51,10 +51,10 @@
 %%
 
 suite() ->
-    require_rpc_nodes([mim]) ++ [
+    require_rpc_nodes([mim], [
         {require, ejabberd_node},
         {require, ejabberd_cookie}
-    ].
+    ]).
 
 all() ->
     [

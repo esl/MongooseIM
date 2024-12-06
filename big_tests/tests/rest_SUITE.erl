@@ -100,7 +100,7 @@ roster_test_cases() ->
      delete_contact_errors].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

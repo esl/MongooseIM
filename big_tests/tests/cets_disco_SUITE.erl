@@ -37,7 +37,7 @@ rdbms_cases() ->
      address_please_returns_ip_127_0_0_1_from_db].
 
 suite() ->
-    distributed_helper:require_rpc_nodes([mim, mim2]).
+    distributed_helper:require_rpc_nodes([mim, mim2], []).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

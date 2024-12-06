@@ -53,7 +53,7 @@ visible_disco_cases() ->
      disco_items_sm_visible].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).

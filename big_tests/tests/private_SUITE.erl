@@ -44,7 +44,7 @@ negative_test_cases() ->
      set_other_user].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),

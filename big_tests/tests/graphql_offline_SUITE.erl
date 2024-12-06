@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(common_helper, [unprep/1]).
--import(distributed_helper, [mim/0, require_rpc_nodes/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_code/1, user_to_bin/1,
                          get_unauthorized/1, get_not_loaded/1, get_coercion_err_msg/1]).
@@ -15,7 +15,7 @@
 -record(offline_msg, {us, timestamp, expire, from, to, packet, permanent_fields = []}).
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, admin_http},

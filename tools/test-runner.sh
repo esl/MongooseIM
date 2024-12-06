@@ -37,6 +37,8 @@ Options:
 --skip-start-nodes    -- do not start nodes before big tests
 --skip-stop-nodes     -- do not stop nodes after big tests
 --skip-setup-db       -- do not start any databases, the same as "--db --" option
+--skip-check-rpc-nodes -- do not fail if MongooseIM's node or application is not running
+--allow-any-rpc       -- do not fail when doing RPC to a non-required node
 --no-parallel         -- run most commands in sequence
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
@@ -102,10 +104,10 @@ Script examples:
     CI MAM-only build job with elasticsearch_and_cassandra_mnesia
     Separator -- between presets and suites
 
-./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia
+./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --skip-small-tests
     CI build job with pgsql_mnesia
 
-./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --spec dynamic_domains.spec
+./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --spec dynamic_domains.spec --skip-small-tests
     CI multi-tenancy build job with pgsql_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia --skip-stop-nodes -- mam
@@ -114,6 +116,20 @@ Script examples:
 ./tools/test-runner.sh --skip-small-tests --skip-setup-db --dev-nodes --test-hosts --skip-cover --skip-preset -- mam
     Sets dev-nodes and test-hosts to empty lists
     Reruns mam_SUITE
+
+./tools/test-runner.sh --skip-small-tests --skip-check-rpc-nodes connect
+    Continues test execution even if some of nodes in require_rpc_nodes are not running.
+    Useful when you want to check what would be the behaviour when MongooseIM is not running on some nodes.
+
+./tools/test-runner.sh --skip-small-tests --allow-any-rpc connect
+    Allows any RPCs in the tests (and not just to nodes specified in require_rpc_nodes)
+    Useful when you want to have unrestricted access to any MongooseIM node during development
+
+./tools/test-runner.sh --skip-small-tests --one-node connect
+    Starts one node, checks that one node is running
+    Tests that do calls to mim2 and mim3 would fail with the badrpc reason
+    Warning that mim2 and mim3 are not running would be printed in init_per_suite/1
+    but the execution would continue
 
 ./tools/test-runner.sh --rerun-big-tests -- mam
     The same command as above
@@ -304,6 +320,8 @@ START_NODES=true
 STOP_NODES=true
 TLS_DIST=false
 PARALLEL_ENABLED=true
+SKIP_CHECK_RPC_NODES=false
+ALLOW_ANY_RPC=false
 
 SELECTED_TESTS=()
 STOP_SCRIPT=false
@@ -351,6 +369,16 @@ case $key in
         shift # past argument
         SKIP_DB_SETUP=true
         DB_FROM_PRESETS=false
+    ;;
+
+    --skip-check-rpc-nodes)
+        shift # past argument
+        SKIP_CHECK_RPC_NODES=true
+    ;;
+
+    --allow-any-rpc)
+        shift # past argument
+        ALLOW_ANY_RPC=true
     ;;
 
     # Similar how we parse --db option
@@ -635,6 +663,8 @@ export TESTSPEC="auto_big_tests.spec"
 export START_NODES="$START_NODES"
 export STOP_NODES="$STOP_NODES"
 export PAUSE_BEFORE_BIG_TESTS="$PAUSE_BEFORE_BIG_TESTS"
+export SKIP_CHECK_RPC_NODES="$SKIP_CHECK_RPC_NODES"
+export ALLOW_ANY_RPC="$ALLOW_ANY_RPC"
 
 # Debug printing
 echo "Variables:"
@@ -653,6 +683,8 @@ echo "    TESTSPEC=$TESTSPEC"
 echo "    TLS_DIST=$TLS_DIST"
 echo "    START_NODES=$START_NODES"
 echo "    STOP_NODES=$STOP_NODES"
+echo "    SKIP_CHECK_RPC_NODES=$SKIP_CHECK_RPC_NODES"
+echo "    ALLOW_ANY_RPC=$ALLOW_ANY_RPC"
 echo ""
 
 

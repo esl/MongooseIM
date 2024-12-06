@@ -62,6 +62,9 @@ tests() ->
 extdisco_required_elements_configured_tests() ->
     [external_service_required_elements_configured].
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     NewConfig = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite(NewConfig).

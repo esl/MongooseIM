@@ -21,7 +21,7 @@
 -include_lib("stdlib/include/assert.hrl").
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 
 -import(domain_helper, [host_type/0, domain/0]).
@@ -106,7 +106,7 @@ digest_tests() ->
      log_non_existent_digest].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

@@ -87,7 +87,7 @@ connection_cases() ->
      auth_with_valid_cert_fails_for_other_mechanism_than_external].
 
 suite() ->
-    distributed_helper:require_rpc_nodes([mim, mim2, fed]) ++ escalus:suite().
+    distributed_helper:require_rpc_nodes([mim, mim2, fed], escalus:suite()).
 
 users() ->
     [alice2, alice, bob].

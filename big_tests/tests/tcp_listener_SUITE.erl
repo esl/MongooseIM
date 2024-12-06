@@ -17,7 +17,7 @@
 -module(tcp_listener_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/2, rpc/4]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -28,7 +28,7 @@ all() ->
      service_inet_sockname_returns_error].
 
 suite() ->
-    require_rpc_nodes([mim]).
+    require_rpc_nodes([mim], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown

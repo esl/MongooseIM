@@ -12,13 +12,13 @@
 -include_lib("exml/include/exml.hrl").
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 -import(muc_light_helper, [lbin/1]).
 -import(domain_helper, [host_type/0, domain/0]).
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim], escalus:suite()).
 
 all() ->
     [{group, G} || G <- main_group_names(), is_enabled(G)].

@@ -21,7 +21,7 @@
                              is_sm_distributed/0,
                              mim/0, mim2/0, mim3/0,
                              remove_node_from_cluster/2,
-                             require_rpc_nodes/1,
+                             require_rpc_nodes/2,
                              rpc/4]).
 -import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
 -import(domain_helper, [host_type/1]).
@@ -46,7 +46,7 @@ groups() ->
      {clustering_three, [], clustering_three_tests()}].
 
 suite() ->
-    require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
+    require_rpc_nodes([mim, mim2, mim3], escalus:suite()).
 
 clustering_two_tests() ->
     [commands_without_args,

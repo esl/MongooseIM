@@ -63,6 +63,9 @@ negative_response() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+suite() ->
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
+
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     dynamic_modules:ensure_modules(host_type(), required_modules()),

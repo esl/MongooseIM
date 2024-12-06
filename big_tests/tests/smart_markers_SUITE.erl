@@ -16,7 +16,9 @@
 %%% Suite configuration
 all() ->
     case (not ct_helper:is_ct_running())
-         orelse mongoose_helper:is_rdbms_enabled(host_type()) of
+         orelse distributed_helper:temporary_allow_nodes(fun() ->
+                     mongoose_helper:is_rdbms_enabled(host_type())
+                 end, [mim]) of
         true -> all_cases();
         false -> {skip, require_rdbms}
     end.
@@ -28,7 +30,9 @@ all_cases() ->
     ].
 
 groups() ->
-    inbox_helper:maybe_run_in_parallel(groups1()) ++ groups2().
+    distributed_helper:temporary_allow_nodes(fun() ->
+            inbox_helper:maybe_run_in_parallel(groups1())
+        end, [mim]) ++ groups2().
 
 groups1() ->
     [
@@ -77,7 +81,7 @@ groups2() ->
     ].
 
 suite() ->
-    escalus:suite().
+    distributed_helper:require_rpc_nodes([mim], escalus:suite()).
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).

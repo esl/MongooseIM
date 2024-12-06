@@ -321,7 +321,7 @@ rsm_cases() ->
 rsm_cases_with_offline() ->
     [pagination_all_with_offline].
 suite() ->
-    distributed_helper:require_rpc_nodes([mim, fed]) ++ escalus:suite().
+    distributed_helper:require_rpc_nodes([mim, fed], escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
