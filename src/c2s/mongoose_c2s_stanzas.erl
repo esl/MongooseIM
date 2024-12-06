@@ -125,7 +125,7 @@ hook_enabled_features(StateData) ->
 sasl_success_stanza(ServerOut) ->
     C = case ServerOut of
             undefined -> [];
-            _ -> [#xmlcdata{content = jlib:encode_base64(ServerOut)}]
+            _ -> [#xmlcdata{content = base64:encode(ServerOut)}]
         end,
     #xmlel{name = <<"success">>,
            attrs = [{<<"xmlns">>, ?NS_SASL}],
@@ -148,7 +148,7 @@ maybe_text_tag(Text) ->
 sasl_challenge_stanza(ServerOut) ->
     #xmlel{name = <<"challenge">>,
            attrs = [{<<"xmlns">>, ?NS_SASL}],
-           children = [#xmlcdata{content = jlib:encode_base64(ServerOut)}]}.
+           children = [#xmlcdata{content = base64:encode(ServerOut)}]}.
 
 -spec successful_resource_binding(jlib:iq(), jid:jid()) -> exml:element().
 successful_resource_binding(IQ, Jid) ->
