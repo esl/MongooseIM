@@ -5,7 +5,7 @@ version=$1
 revision=$2
 otp_version=$3
 
-arch="amd64"
+arch=$(dpkg --print-architecture)
 
 cd ~/mongooseim
 

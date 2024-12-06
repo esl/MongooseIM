@@ -8,15 +8,28 @@ FROM $builder_image AS builder
 # Install build deps
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
-RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev curl gpg wget gnupg
+RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev curl gpg
 
 # The signing script requires debsigs version 0.2 or higher, which is unavailable in
 # package repositories of Ubuntu versions earlier than 24.10 and Debian versions earlier than 13.
-# TODO: Switch to installing debsigs via apt once support for these older versions is dropped.
-RUN wget http://ftp.de.debian.org/debian/pool/main/d/debsigs/debsigs_0.2.2-1_all.deb && \
-    dpkg -i debsigs_0.2.2-1_all.deb && \
-    rm debsigs_0.2.2-1_all.deb && \
-    which debsigs
+# TODO: Remove custom repo setup once older distro support ends.
+RUN arch=$(dpkg --print-architecture) && \
+    distro=$(grep ^ID= /etc/os-release | cut -d= -f2 | tr -d '"') && \
+    if [ "$distro" = "ubuntu" ]; then \
+        if [ "$arch" = "arm64" ]; then \
+            echo "deb http://ports.ubuntu.com/ubuntu-ports oracular main restricted universe multiverse" >> /etc/apt/sources.list; \
+        else \
+            echo "deb http://archive.ubuntu.com/ubuntu oracular main restricted universe multiverse" >> /etc/apt/sources.list; \
+        fi && \
+        printf "Package: debsigs\nPin: release n=oracular\nPin-Priority: 990\n" > /etc/apt/preferences.d/debsigs; \
+    elif [ "$distro" = "debian" ]; then \
+        echo "deb http://deb.debian.org/debian trixie main" >> /etc/apt/sources.list && \
+        printf "Package: debsigs\nPin: release n=trixie\nPin-Priority: 990\n" > /etc/apt/preferences.d/debsigs; \
+    fi && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends debsigs && \
+    sed -i '/oracular/d' /etc/apt/sources.list && \
+    sed -i '/trixie/d' /etc/apt/sources.list
 
 ARG erlang_version
 

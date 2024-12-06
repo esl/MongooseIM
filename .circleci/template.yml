@@ -707,6 +707,11 @@ jobs:
           name: Build package
           command: |
             ./tools/test.sh -p pkg -s false
+      - run:
+          name: Verify package architecture
+          command: |
+            ./tools/circle-install-packages.sh rpm
+            ./tools/pkg/verify_arch.sh
       - when:
           condition:
             matches:
@@ -750,8 +755,20 @@ workflows:
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
+          name: debian-bookworm-arm64
+          executor: otp_27_arm64
+          platform: debian-bookworm
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
           name: debian-bullseye
           executor: otp_27
+          platform: debian-bullseye
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
+          name: debian-bullseye-arm64
+          executor: otp_27_arm64
           platform: debian-bullseye
           context: mongooseim-org
           filters: *all_tags_and_master
@@ -762,8 +779,20 @@ workflows:
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
+          name: debian-buster-arm64
+          executor: otp_27_arm64
+          platform: debian-buster
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
           name: ubuntu-oracular
           executor: otp_27
+          platform: ubuntu-oracular
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
+          name: ubuntu-oracular-arm64
+          executor: otp_27_arm64
           platform: ubuntu-oracular
           context: mongooseim-org
           filters: *all_tags_and_master
@@ -774,8 +803,20 @@ workflows:
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
+          name: ubuntu-noble-arm64
+          executor: otp_27_arm64
+          platform: ubuntu-noble
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
           name: ubuntu-jammy
           executor: otp_27
+          platform: ubuntu-jammy
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
+          name: ubuntu-jammy-arm64
+          executor: otp_27_arm64
           platform: ubuntu-jammy
           context: mongooseim-org
           filters: *all_tags_and_master
@@ -786,8 +827,20 @@ workflows:
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
+          name: ubuntu-focal-arm64
+          executor: otp_27_arm64
+          platform: ubuntu-focal
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
           name: rockylinux-9
           executor: otp_27
+          platform: rockylinux-9
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
+          name: rockylinux-9-arm64
+          executor: otp_27_arm64
           platform: rockylinux-9
           context: mongooseim-org
           filters: *all_tags_and_master
@@ -798,14 +851,32 @@ workflows:
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
+          name: rockylinux-8-arm64
+          executor: otp_27_arm64
+          platform: rockylinux-8
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
           name: almalinux-9
           executor: otp_27
           platform: almalinux-9
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
+          name: almalinux-9-arm64
+          executor: otp_27_arm64
+          platform: almalinux-9
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
           name: almalinux-8
           executor: otp_27
+          platform: almalinux-8
+          context: mongooseim-org
+          filters: *all_tags_and_master
+      - package:
+          name: almalinux-8-arm64
+          executor: otp_27_arm64
           platform: almalinux-8
           context: mongooseim-org
           filters: *all_tags_and_master

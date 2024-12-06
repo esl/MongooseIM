@@ -5,9 +5,20 @@ version=$1
 revision=$2
 otp_version=$3
 
-arch="x86_64"
-package_name_arch="amd64"
+arch=$(uname -m)
 
+case "$arch" in
+  x86_64)
+    package_name_arch="amd64"
+    ;;
+  aarch64)
+    package_name_arch="arm64"
+    ;;
+  *)
+    echo "Unsupported architecture: $arch"
+    exit 1
+    ;;
+esac
 
 rpmbuild -bb \
     --define "version ${version}" \
