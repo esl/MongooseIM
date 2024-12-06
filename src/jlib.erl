@@ -68,8 +68,6 @@
 
 -type xmlch() :: exml:element() | xmlcdata(). % (XML ch)ild
 
--type binary_pair() :: {binary(), binary()}.
-
 -type iq() :: #iq{}.
 
 -type rsm_in() :: #rsm_in{}.
@@ -79,7 +77,6 @@
 -type rfc3339_string() :: [byte(), ...].
 
 -export_type([xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
-              binary_pair/0,
               rsm_in/0, rsm_out/0,
               xmlcdata/0,
               xmlch/0,
@@ -92,10 +89,10 @@ make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = make_result_iq_reply_attrs(Attrs),
     XE#xmlel{attrs = NewAttrs};
 make_result_iq_reply(IQ = #iq{}) ->
-    IQ#iq{ type = result }.
+    IQ#iq{type = result}.
 
 
--spec make_result_iq_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
+-spec make_result_iq_reply_attrs([exml:attr()]) -> [exml:attr(), ...].
 make_result_iq_reply_attrs(Attrs) ->
     To = xml:get_attr(<<"to">>, Attrs),
     From = xml:get_attr(<<"from">>, Attrs),
@@ -145,7 +142,7 @@ make_error_reply_from_element(#xmlel{name = Name, attrs = Attrs,
     NewAttrs = make_error_reply_attrs(Attrs),
     #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
 
--spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
+-spec make_error_reply_attrs([exml:attr()]) -> [exml:attr(), ...].
 make_error_reply_attrs(Attrs) ->
     To = xml:get_attr(<<"to">>, Attrs),
     From = xml:get_attr(<<"from">>, Attrs),
@@ -202,7 +199,7 @@ make_invitation(From, Password, Reason) ->
 
 -spec replace_from_to_attrs(From :: binary(),
                             To :: binary() | undefined,
-                            [binary_pair()]) -> [binary_pair()].
+                            [exml:attr()]) -> [exml:attr()].
 replace_from_to_attrs(From, To, Attrs) ->
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
