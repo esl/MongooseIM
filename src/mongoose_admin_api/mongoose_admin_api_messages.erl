@@ -72,7 +72,8 @@ handle_get(Req, State) ->
     case mongoose_stanza_api:lookup_recent_messages(OwnerJid, WithJid, Before, Limit, true) of
         {ok, {Rows, _Limit}} ->
             Messages = lists:map(fun row_to_map/1, Rows),
-            {jiffy:encode(Messages), Req, State};
+            %CHANGED
+            {[jiffy:encode(Messages)], Req, State};
         {unknown_user, Msg} ->
             throw_error(bad_request, Msg)
     end.

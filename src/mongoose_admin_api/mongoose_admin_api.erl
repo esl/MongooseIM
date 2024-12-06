@@ -139,7 +139,8 @@ resource_created(Req, State, Path, Body) ->
 %% @doc Send response when it can't be returned in a tuple from the handler (e.g. for DELETE)
 -spec respond(req(), state(), jiffy:json_value()) -> {stop, req(), state()}.
 respond(Req, State, Response) ->
-    Req2 = cowboy_req:set_resp_body(jiffy:encode(Response), Req),
+    %CHANGED
+    Req2 = cowboy_req:set_resp_body([jiffy:encode(Response)], Req),
     Req3 = cowboy_req:reply(200, Req2),
     {stop, Req3, State}.
 
@@ -150,7 +151,8 @@ error_response(ErrorType, Message, Req, State) ->
                                  error_type => ErrorType,
                                  message => BinMessage,
                                  req => Req}),
-    Req1 = cowboy_req:reply(error_code(ErrorType), #{}, jiffy:encode(BinMessage), Req),
+                                 %CHANGED
+    Req1 = cowboy_req:reply(error_code(ErrorType), #{}, [jiffy:encode(BinMessage)], Req),
     {stop, Req1, State}.
 
 -spec error_code(error_type()) -> non_neg_integer().

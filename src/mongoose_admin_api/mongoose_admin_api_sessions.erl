@@ -56,7 +56,8 @@ delete_resource(Req, State) ->
 handle_get(Req, State) ->
     #{domain := Domain} = cowboy_req:bindings(Req),
     {ok, Sessions} = mongoose_session_api:list_resources(Domain),
-    {jiffy:encode(Sessions), Req, State}.
+    %CHANGED
+    {[jiffy:encode(Sessions)], Req, State}.
 
 handle_delete(Req, State) ->
     #{domain := Domain} = Bindings = cowboy_req:bindings(Req),

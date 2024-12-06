@@ -82,7 +82,8 @@ decode_row({NodeID, PubSubBin, FormJSON}) ->
      decode_form(FormJSON)}.
 
 encode_form(Form) ->
-    jiffy:encode(Form).
+    %CHANGED
+    [jiffy:encode(Form)].
 
 decode_form(FormJSON) ->
     jiffy:decode(FormJSON, [return_maps]).

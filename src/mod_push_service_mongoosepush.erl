@@ -100,7 +100,8 @@ push_notifications(AccIn,
             ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
             {ok, JSON} =
                 make_notification(Notification, Options),
-            Payload = jiffy:encode(JSON),
+            %CHANGED
+            Payload = [jiffy:encode(JSON)],
             call(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end,
     {ok, send_push_notifications(Notifications, Fun, ok)}.

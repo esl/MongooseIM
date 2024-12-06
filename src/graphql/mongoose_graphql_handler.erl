@@ -274,7 +274,8 @@ make_error(Phase, Term) ->
 
 reply_error(Msg, Req, State) ->
     {Code, Error} = mongoose_graphql_errors:format_error(Msg),
-    Body = jiffy:encode(#{errors => [Error]}),
+    %CHANGED
+    Body = [jiffy:encode(#{errors => [Error]})],
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.

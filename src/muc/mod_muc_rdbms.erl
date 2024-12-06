@@ -126,7 +126,8 @@ remove_domain(HostType, MucHost, Domain) ->
 store_room(HostType, MucHost, RoomName, Opts) ->
     Affs = proplists:get_value(affiliations, Opts),
     NewOpts = proplists:delete(affiliations, Opts),
-    ExtOpts = jiffy:encode({NewOpts}),
+    %CHANGED
+    ExtOpts = [jiffy:encode({NewOpts})],
     F = fun() ->
             forget_room_transaction(HostType, MucHost, RoomName),
             store_room_transaction(HostType, MucHost, RoomName, ExtOpts, Affs)

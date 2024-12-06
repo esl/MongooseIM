@@ -77,14 +77,16 @@ handle_get(Req, State = #{jid := OwnerJid}) ->
     {ok, {Rows, _Limit}} =
         mongoose_stanza_api:lookup_recent_messages(OwnerJid, WithJid, Before, Limit, false),
     Resp = [make_json_msg(Msg, MAMId) || #{id := MAMId, packet := Msg} <- Rows],
-    {jiffy:encode(Resp), Req, State}.
+    %CHANGED
+    {[jiffy:encode(Resp)], Req, State}.
 
 handle_post(Req, State = #{jid := UserJid}) ->
     Args = parse_body(Req),
     To = get_to(Args),
     Body = get_body(Args),
     {ok, Resp} = mongoose_stanza_api:send_chat_message(UserJid, undefined, To, Body),
-    Req2 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req),
+    %CHANGED
+    Req2 = cowboy_req:set_resp_body([jiffy:encode(Resp)], Req),
     {true, Req2, State}.
 
 get_limit(#{limit := LimitBin}) ->

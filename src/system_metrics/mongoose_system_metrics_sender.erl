@@ -28,7 +28,8 @@ flush_reports(ReportUrl, Reports, ClientId,
               #{id := TrackingId, secret := TrackingSecret}) when length(Reports) =< 25 ->
     Headers = [],
     ContentType = "application/json",
-    Body = jiffy:encode(#{client_id => list_to_binary(ClientId), events => Reports}),
+    %CHANGED
+    Body = [jiffy:encode(#{client_id => list_to_binary(ClientId), events => Reports})],
     ReportUrl2 = uri_string:normalize(
         ReportUrl ++ "?api_secret=" ++ TrackingSecret ++ "&measurement_id=" ++ TrackingId),
     Request = {ReportUrl2, Headers, ContentType, Body},

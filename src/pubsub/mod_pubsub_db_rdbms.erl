@@ -711,8 +711,10 @@ del_node(Nidx) ->
 set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     ExtKey = encode_key(Key),
-    ExtOwners = jiffy:encode([jid:to_binary(Owner) || Owner <- Owners]),
-    ExtOpts = jiffy:encode({Opts}),
+    %CHANGED
+    ExtOwners = [jiffy:encode([jid:to_binary(Owner) || Owner <- Owners])],
+    %CHANGED
+    ExtOpts = [jiffy:encode({Opts})],
     {updated, 1} = execute_insert_pubsub_node(ExtKey, Name, Type, ExtOwners, ExtOpts),
     {selected, [Row]} = execute_select_node_by_key_and_name(ExtKey, Name),
     #pubsub_node{id = Nidx} = decode_pubsub_node_row(Row),
@@ -722,7 +724,8 @@ set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
 set_node(#pubsub_node{nodeid = {_, Name}, id = Nidx, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
-    execute_update_pubsub_node(Type, jiffy:encode(OwnersJid), jiffy:encode({Opts}), Nidx),
+    %CHANGED
+    execute_update_pubsub_node(Type, [jiffy:encode(OwnersJid)], [jiffy:encode({Opts})], Nidx),
     execute_del_parents(Name),
     set_parents(Name, Parents),
     {ok, Nidx}.
@@ -915,7 +918,8 @@ get_affiliation(Nidx, { LU, LS, _ }) ->
                        SubId :: mod_pubsub:subId(),
                        SubOpts :: mod_pubsub:subOptions()) -> ok.
 add_subscription(Nidx, { LU, LS, LR }, Sub, SubId, SubOpts) ->
-    EncodedOpts = jiffy:encode({SubOpts}),
+    %CHANGED
+    EncodedOpts = [jiffy:encode({SubOpts})],
     {updated, _} = execute_insert_subscription(Nidx, LU, LS, LR, sub2int(Sub), SubId, EncodedOpts),
     ok.
 
@@ -924,7 +928,8 @@ add_subscription(Nidx, { LU, LS, LR }, Sub, SubId, SubOpts) ->
                             SubId :: mod_pubsub:subId(),
                             Opts :: mod_pubsub:subOptions()) -> ok.
 set_subscription_opts(Nidx, { LU, LS, LR }, SubId, Opts) ->
-    EncodedOpts = jiffy:encode({Opts}),
+    %CHANGED
+    EncodedOpts = [jiffy:encode({Opts})],
     {updated, _} = execute_update_subscription_opts(EncodedOpts, Nidx, LU, LS, LR, SubId),
     ok.
 
