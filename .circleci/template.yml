@@ -730,7 +730,7 @@ filters:
   - &all_tags_and_master
     <<: *all_tags
     branches:
-      only: ci-build-packages-for-arm64
+      only: master
 
 workflows:
   version: 2
