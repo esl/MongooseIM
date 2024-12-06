@@ -203,7 +203,7 @@ foreign_event(Acc, _Params, _Extra) ->
 get_showtag(undefined) ->
     <<"unavailable">>;
 get_showtag(Presence) ->
-    case xml:get_path_s(Presence, [{elem, <<"show">>}, cdata]) of
+    case exml_query:path(Presence, [{element, <<"show">>}, cdata], <<>>) of
         <<>> -> <<"available">>;
         ShowTag -> ShowTag
     end.
@@ -213,7 +213,7 @@ get_showtag(Presence) ->
 get_statustag(undefined) ->
     <<>>;
 get_statustag(Presence) ->
-    xml:get_path_s(Presence, [{elem, <<"status">>}, cdata]).
+    exml_query:path(Presence, [{element, <<"status">>}, cdata], <<>>).
 
 -spec handle_subscription_change(
         mongoose_acc:t(), mongoose_c2s:data(), mod_roster:contact(), term(), state()) ->

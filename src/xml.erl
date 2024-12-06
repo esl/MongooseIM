@@ -31,7 +31,6 @@
          get_tag_attr/2, get_tag_attr_s/2,
          get_subtag/2,
          append_subtags/2,
-         get_path_s/2,
          replace_tag_attr/3,
          replace_subelement/2]).
 
@@ -98,24 +97,6 @@ get_subtag1([], _) ->
 -spec append_subtags(exml:element(), [xmlel_or_cdata()]) -> exml:element().
 append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
-
-
--spec get_path_s(exml:element(), [{elem, binary()} | {attr, binary()} | cdata]) ->
-    iodata() | exml:element().
-get_path_s(El, []) ->
-    El;
-get_path_s(El, [{elem, Name} | Path]) ->
-    case get_subtag(El, Name) of
-        false ->
-            context_default(Name);
-        SubEl ->
-            get_path_s(SubEl, Path)
-    end;
-get_path_s(El, [{attr, Name}]) ->
-    get_tag_attr_s(Name, El);
-get_path_s(El, [cdata]) ->
-    get_tag_cdata(El).
-
 
 -spec replace_tag_attr(Attr :: binary(), Value :: binary(), exml:element()
                       ) -> exml:element().
