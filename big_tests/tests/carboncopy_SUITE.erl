@@ -186,7 +186,9 @@ dropped_client_doesnt_create_duplicate_carbons(Config) ->
               escalus_client:send(Alice1, Msg),
               escalus:assert(is_chat_message, [?BODY],
                              escalus_client:wait_for_stanza(Bob)),
-              [] = escalus_client:peek_stanzas(Alice1)
+          timer:sleep(timer:seconds(2)),
+          escalus_assert:has_no_stanzas(Alice1)
+
       end).
 
 prop_forward_received_chat_messages(Config) ->
