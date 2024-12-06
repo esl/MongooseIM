@@ -1113,8 +1113,8 @@ iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
                               jid:jid(), exml:element(), ejabberd:lang())
             -> {'error', exml:element()} | {'result', []}.
 process_iq_register_set(HostType, MucHost, From, SubEl, Lang) ->
-    case xml:get_subtag(SubEl, <<"remove">>) of
-        false ->
+    case exml_query:subelement(SubEl, <<"remove">>) of
+        undefined ->
             case mongoose_data_forms:find_and_parse_form(SubEl) of
                 #{type := <<"cancel">>} ->
                     {result, []};

@@ -951,7 +951,7 @@ change_subject_error(From, FromNick, Packet, Lang, StateData) ->
 
 change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
     case check_subject(Packet) of
-        false ->
+        undefined ->
             {StateData, true};
         Subject ->
             case can_change_subject(Role, StateData) of
@@ -1107,10 +1107,7 @@ process_presence_unavailable(From, Packet, StateData) ->
             NewPacket = check_and_strip_visitor_status(From, Packet, StateData),
             NewState = add_user_presence_un(From, NewPacket, StateData),
             send_new_presence_un(From, NewState),
-            Reason = case xml:get_subtag(NewPacket, <<"status">>) of
-                false -> <<>>;
-                StatusEl -> exml_query:cdata(StatusEl)
-            end,
+            Reason = exml_query:path(NewPacket, [{element, <<"status">>}, cdata], <<>>),
             remove_online_user(From, NewState, Reason);
         _ ->
             StateData
@@ -1374,7 +1371,7 @@ get_error_condition(Packet) ->
 
 -spec get_error_condition2(exml:element()) -> {condition, binary()}.
 get_error_condition2(Packet) ->
-    #xmlel{children = EEls} = xml:get_subtag(Packet, <<"error">>),
+    #xmlel{children = EEls} = exml_query:subelement(Packet, <<"error">>),
     [Condition] = [Name || #xmlel{name = Name,
                                   attrs = [{<<"xmlns">>, ?NS_STANZAS}],
                                   children = []} <- EEls],
@@ -1832,9 +1829,9 @@ is_next_session_of_occupant(From, Nick, StateData) ->
   end.
 
 -spec choose_new_user_strategy(jid:jid(), mod_muc:nick(),
-        mod_muc:affiliation(), mod_muc:role(), [jlib:xmlcdata() | exml:element()],
+        mod_muc:affiliation(), mod_muc:role(), exml:element(),
         state()) -> new_user_strategy().
-choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
+choose_new_user_strategy(From, Nick, Affiliation, Role, Packet, StateData) ->
     case {is_user_limit_reached(From, Affiliation, StateData),
           is_nick_exists(Nick, StateData),
           is_next_session_of_occupant(From, Nick, StateData),
@@ -1852,29 +1849,28 @@ choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
         {_, _, _, false, _, _} ->
             conflict_registered;
         _ ->
-            choose_new_user_password_strategy(From, Els, StateData)
+            choose_new_user_password_strategy(From, Packet, StateData)
     end.
 
--spec choose_new_user_password_strategy(jid:jid(), [jlib:xmlcdata() | exml:element()],
-                                        state()) -> new_user_strategy().
-choose_new_user_password_strategy(From, Els, StateData) ->
+-spec choose_new_user_password_strategy(
+        jid:jid(), exml:element(), state()) -> new_user_strategy().
+choose_new_user_password_strategy(From, Packet, StateData) ->
     ServiceAffiliation = get_service_affiliation(From, StateData),
     Config = StateData#state.config,
     case is_password_required(ServiceAffiliation, Config) of
         false -> allowed;
-        true -> case extract_password(Els) of
-                    false -> require_password;
+        true -> case extract_password(Packet) of
+                    undefined -> require_password;
                     Password -> check_password(StateData, Password)
                 end
     end.
 
--spec add_new_user(jid:jid(), mod_muc:nick(), exml:element(), state()
-                   ) -> state().
-add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateData) ->
+-spec add_new_user(jid:jid(), mod_muc:nick(), exml:element(), state()) -> state().
+add_new_user(From, Nick, #xmlel{attrs = Attrs} = Packet, StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     Affiliation = get_affiliation(From, StateData),
     Role = get_default_role(Affiliation, StateData),
-    case choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) of
+    case choose_new_user_strategy(From, Nick, Affiliation, Role, Packet, StateData) of
         limit_reached ->
             % max user reached and user is not admin or owner
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable_wait()),
@@ -1907,7 +1903,7 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateDa
                 Packet, mongoose_xmpp_errors:not_authorized(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         http_auth ->
-            Password = extract_password(Els),
+            Password = extract_password(Packet),
             perform_http_auth(From, Nick, Packet, Role, Password, StateData);
         allowed ->
             do_add_new_user(From, Nick, Packet, Role, StateData)
@@ -2018,24 +2014,12 @@ check_password(#state{http_auth_pool = none}, _Password) ->
 check_password(#state{http_auth_pool = _Pool}, _Password) ->
     http_auth.
 
--spec extract_password([jlib:xmlcdata() | exml:element()]) -> 'false' | binary().
-extract_password([]) ->
-    false;
-extract_password([#xmlel{attrs = Attrs} = El | Els]) ->
-    case xml:get_attr_s(<<"xmlns">>, Attrs) of
-    ?NS_MUC ->
-        case xml:get_subtag(El, <<"password">>) of
-        false ->
-            false;
-        SubEl ->
-            exml_query:cdata(SubEl)
-        end;
-    _ ->
-        extract_password(Els)
-    end;
-extract_password([_ | Els]) ->
-    extract_password(Els).
-
+-spec extract_password(exml:element()) ->
+    undefined | binary().
+extract_password(Packet) ->
+    exml_query:path(Packet, [{element_with_ns, <<"x">>, ?NS_MUC},
+                             {element, <<"password">>},
+                             cdata]).
 
 -spec count_stanza_shift(mod_muc:nick(), [jlib:xmlcdata() | exml:element()],
                         state()) -> any().
@@ -2580,12 +2564,7 @@ lqueue_to_list(#lqueue{queue = Q1}) ->
 -spec add_message_to_history(mod_muc:nick(), jid:jid(), exml:element(),
                             state()) -> state().
 add_message_to_history(FromNick, FromJID, Packet, StateData) ->
-    HaveSubject = case xml:get_subtag(Packet, <<"subject">>) of
-              false ->
-              false;
-              _ ->
-              true
-          end,
+    HaveSubject = undefined =/= exml_query:subelement(Packet, <<"subject">>),
     SystemTime = os:system_time(second),
     TimeStamp = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
     %% Chatroom history is stored as XMPP packets, so
@@ -2647,15 +2626,9 @@ send_subject(JID, _Lang, StateData) ->
     ejabberd_router:route(RoomJID, JID, Packet).
 
 
--spec check_subject(exml:element()) -> 'false' | binary().
+-spec check_subject(exml:element()) -> undefined | binary().
 check_subject(Packet) ->
-    case xml:get_subtag(Packet, <<"subject">>) of
-        false ->
-            false;
-        SubjEl ->
-            exml_query:cdata(SubjEl)
-    end.
-
+    exml_query:path(Packet, [{element, <<"subject">>}, cdata]).
 
 -spec can_change_subject(mod_muc:role(), state()) -> boolean().
 can_change_subject(Role, StateData) ->
@@ -2675,8 +2648,8 @@ process_iq_admin(From, set, Lang, SubEl, StateData) ->
     #xmlel{children = Items} = SubEl,
     process_admin_items_set(From, Items, Lang, StateData);
 process_iq_admin(From, get, Lang, SubEl, StateData) ->
-    case xml:get_subtag(SubEl, <<"item">>) of
-        false ->
+    case exml_query:subelement(SubEl, <<"item">>) of
+        undefined ->
             {error, mongoose_xmpp_errors:bad_request()};
         Item ->
             FAffiliation = get_affiliation(From, StateData),
@@ -4118,13 +4091,15 @@ handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
 %% packet. This function must be catched, because it crashes when the packet
 %% is not a decline message.
 -spec check_decline_invitation(exml:element()) ->
-    {'true', {exml:element(), exml:element(), exml:element(), 'error' | jid:jid()}}.
+    {true, {exml:element(), exml:element(), exml:element(), 'error' | jid:jid()}}.
 check_decline_invitation(Packet) ->
     #xmlel{name = <<"message">>} = Packet,
-    XEl = xml:get_subtag(Packet, <<"x">>),
-    ?NS_MUC_USER = xml:get_tag_attr_s(<<"xmlns">>, XEl),
-    DEl = xml:get_subtag(XEl, <<"decline">>),
-    ToString = xml:get_tag_attr_s(<<"to">>, DEl),
+
+    XEl = exml_query:subelement(Packet, <<"x">>),
+    ?NS_MUC_USER = exml_query:attr(XEl, <<"xmlns">>),
+
+    DEl = exml_query:subelement(XEl, <<"decline">>),
+    ToString = exml_query:attr(DEl, <<"to">>),
     ToJID = jid:from_binary(ToString),
     {true, {Packet, XEl, DEl, ToJID}}.
 
