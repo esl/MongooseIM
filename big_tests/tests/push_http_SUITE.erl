@@ -161,8 +161,10 @@ process_notification(Req) ->
 
 check_default_format(From, To, Body, Msg) ->
     Attrs = lists:map(fun(P) -> list_to_tuple(binary:split(P, <<$=>>)) end, binary:split(Msg, <<$&>>, [global])),
-    ?assertEqual(to_lower(escalus_client:username(From)), proplists:get_value(<<"author">>, Attrs)),
-    ?assertEqual(to_lower(escalus_client:username(To)), proplists:get_value(<<"receiver">>, Attrs)),
+    ?assertEqual(string:lowercase(escalus_client:username(From)),
+                 proplists:get_value(<<"author">>, Attrs)),
+    ?assertEqual(string:lowercase(escalus_client:username(To)),
+                 proplists:get_value(<<"receiver">>, Attrs)),
     ?assertEqual(Body, proplists:get_value(<<"message">>, Attrs)),
     ?assertEqual(<<"localhost">>, proplists:get_value(<<"server">>, Attrs)),
     ok.
@@ -220,15 +222,6 @@ custom_module_code_2() ->
          <<$2, $-, (atom_to_binary(Dir, utf8))/binary, $-, Message/binary>>.
      "
     .
-
-to_lower(B) ->
-    list_to_binary(
-        string:to_lower(
-            binary_to_list(
-                B
-            )
-        )
-    ).
 
 send(Alice, Bob, Body) ->
     Stanza = escalus_stanza:chat_to(Bob, Body),

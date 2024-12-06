@@ -330,14 +330,14 @@ code_change(_OldVsn, State, _Extra) ->
 -spec add_to_log2(command(), {mod_muc:nick(), mod_muc:packet()}, mod_muc:room(),
         list(), logstate()) -> 'ok'.
 add_to_log2(text, {Nick, Packet}, Room, Opts, State) ->
-    case {xml:get_subtag(Packet, <<"subject">>), xml:get_subtag(Packet, <<"body">>)} of
-        {false, false} ->
+    case {exml_query:subelement(Packet, <<"subject">>), exml_query:subelement(Packet, <<"body">>)} of
+        {undefined, undefined} ->
             ok;
-        {false, SubEl} ->
-            Message = {body, xml:get_tag_cdata(SubEl)},
+        {undefined, SubEl} ->
+            Message = {body, exml_query:cdata(SubEl)},
             add_message_to_log(Nick, Message, Room, Opts, State);
         {SubEl, _} ->
-            Message = {subject, xml:get_tag_cdata(SubEl)},
+            Message = {subject, exml_query:cdata(SubEl)},
             add_message_to_log(Nick, Message, Room, Opts, State)
     end;
 add_to_log2(roomconfig_change, _Occupants, Room, Opts, State) ->
@@ -650,7 +650,7 @@ make_dir_rec(Dir) ->
 %% {ok, F1}=file:open("valid-xhtml10.png", [read]).
 %% {ok, F1b}=file:read(F1, 1000000).
 %% c("../../ejabberd/src/jlib.erl").
-%% jlib:encode_base64(F1b).
+%% base64:encode(F1b).
 
 image_base64(<<"powered-by-erlang.png">>) ->
     <<"iVBORw0KGgoAAAANSUhEUgAAAGUAAAAfCAYAAAD+xQNoAAADN0lEQVRo3u1a"
@@ -791,7 +791,7 @@ create_image_files(ImagesDir) ->
       fun(Filename) ->
               FilenameFull = filename:join([ImagesDir, Filename]),
               {ok, F} = file:open(FilenameFull, [write]),
-              Image = jlib:decode_base64(image_base64(Filename)),
+              Image = base64:mime_decode(image_base64(Filename)),
               io:format(F, "~s", [Image]),
               file:close(F)
       end,

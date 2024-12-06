@@ -774,7 +774,7 @@ push_notification(PubsubJID, Payload, PublishOpts) ->
 
 bare_jid(JIDOrClient) ->
     ShortJID = escalus_client:short_jid(JIDOrClient),
-    list_to_binary(string:to_lower(binary_to_list(ShortJID))).
+    string:lowercase(ShortJID).
 
 add_pubsub_jid(Config) ->
     CaseName = proplists:get_value(case_name, Config),

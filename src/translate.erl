@@ -87,7 +87,7 @@ load_translation_files(Dir, MsgFiles) ->
 
 -spec lang_from_file_name(file:filename()) -> string().
 lang_from_file_name(Filename) ->
-    string:to_lower(filename:rootname(Filename)).
+    string:lowercase(filename:rootname(Filename)).
 
 -spec has_msg_extension(file:filename()) -> boolean().
 has_msg_extension(FileName) ->
@@ -150,5 +150,5 @@ short_lang(LLang) ->
     end.
 
 -spec to_lower(binary()) -> binary().
-to_lower(Bin) ->
-    list_to_binary(string:to_lower(binary_to_list(Bin))).
+to_lower(Bin) when is_binary(Bin) ->
+    string:lowercase(Bin).

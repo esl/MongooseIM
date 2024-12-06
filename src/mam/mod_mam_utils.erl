@@ -263,12 +263,12 @@ append_arcid_elem(<<"stanza-id">>, By, Id, Packet) ->
     Archived = #xmlel{
                   name = <<"stanza-id">>,
                   attrs=[{<<"by">>, By}, {<<"id">>, Id}, {<<"xmlns">>, ?NS_STANZAID}]},
-    xml:append_subtags(Packet, [Archived]);
+    jlib:append_subtags(Packet, [Archived]);
 append_arcid_elem(ElemName, By, Id, Packet) ->
     Archived = #xmlel{
                   name = ElemName,
                   attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
-    xml:append_subtags(Packet, [Archived]).
+    jlib:append_subtags(Packet, [Archived]).
 
 -spec delete_arcid_elem(ElemName :: binary(), By :: binary(), exml:element()) -> exml:element().
 delete_arcid_elem(ElemName, By, Packet=#xmlel{children=Cs}) ->
@@ -292,7 +292,7 @@ append_x_user_element(FromJID, Role, Affiliation, Packet) ->
         name = <<"x">>,
         attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
         children = [ItemElem]},
-    xml:append_subtags(Packet, [X]).
+    jlib:append_subtags(Packet, [X]).
 
 x_user_item(FromJID, Role, Affiliation) ->
     #xmlel{
@@ -826,7 +826,7 @@ normalize_search_text(undefined, _WordSeparator) ->
     undefined;
 normalize_search_text(Text, WordSeparator) ->
     BodyString = unicode:characters_to_list(Text),
-    LowerBody = string:to_lower(BodyString),
+    LowerBody = string:lowercase(BodyString),
     ReOpts = [{return, list}, global, unicode, ucp],
     Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
     Re1 = re:replace(Re0, "([^\\w ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
@@ -1114,7 +1114,7 @@ is_most_recent_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
 
 -spec maybe_set_client_xmlns(boolean(), exml:element()) -> exml:element().
 maybe_set_client_xmlns(true, Packet) ->
-    xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, Packet);
+    jlib:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, Packet);
 maybe_set_client_xmlns(false, Packet) ->
     Packet.
 

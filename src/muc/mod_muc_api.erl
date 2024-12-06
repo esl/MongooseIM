@@ -420,7 +420,7 @@ filter_affs_by_type(Type, Affs) -> [Aff || Aff = {_, T} <- Affs, T =:= Type].
 format_xml_error(#xmlel{name = <<"error">>} = E, Value) ->
     case unwrap_xml_error(E) of
         {<<"406">>, <<"modify">>, <<"not-acceptable">>} ->
-            Msg = xml:get_path_s(E, [{elem, <<"text">>}, cdata]),
+            Msg = exml_query:path(E, [{element, <<"text">>}, cdata], <<>>),
             {cannot_modify, Msg};
         {<<"403">>, <<"auth">>, <<"forbidden">>} ->
             {not_allowed, no_permission_msg("affiliation", Value)};

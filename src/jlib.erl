@@ -39,8 +39,6 @@
          iq_query_or_response_info/1,
          iq_to_xml/1,
          timestamp_to_xml/3,
-         decode_base64/1,
-         encode_base64/1,
          rsm_encode/1,
          rsm_decode/1,
          stanza_error/3,
@@ -50,6 +48,11 @@
          stream_errort/3,
          maybe_append_delay/4,
          remove_delay_tags/1]).
+
+-export([remove_cdata/1,
+         append_subtags/2,
+         replace_tag_attr/3,
+         replace_subelement/2]).
 
 -ignore_xref([make_result_iq_reply/1]).
 
@@ -68,8 +71,6 @@
 
 -type xmlch() :: exml:element() | xmlcdata(). % (XML ch)ild
 
--type binary_pair() :: {binary(), binary()}.
-
 -type iq() :: #iq{}.
 
 -type rsm_in() :: #rsm_in{}.
@@ -79,7 +80,6 @@
 -type rfc3339_string() :: [byte(), ...].
 
 -export_type([xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
-              binary_pair/0,
               rsm_in/0, rsm_out/0,
               xmlcdata/0,
               xmlch/0,
@@ -88,30 +88,30 @@
 
 -spec make_result_iq_reply(exml:element()) -> exml:element();
                           (iq()) -> iq().
-make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
-    NewAttrs = make_result_iq_reply_attrs(Attrs),
+make_result_iq_reply(XE = #xmlel{}) ->
+    NewAttrs = make_result_iq_reply_attrs(XE),
     XE#xmlel{attrs = NewAttrs};
 make_result_iq_reply(IQ = #iq{}) ->
-    IQ#iq{ type = result }.
+    IQ#iq{type = result}.
 
 
--spec make_result_iq_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
-make_result_iq_reply_attrs(Attrs) ->
-    To = xml:get_attr(<<"to">>, Attrs),
-    From = xml:get_attr(<<"from">>, Attrs),
+-spec make_result_iq_reply_attrs(exml:element()) -> [exml:attr(), ...].
+make_result_iq_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
+    To = exml_query:attr(Element, <<"to">>),
+    From = exml_query:attr(Element, <<"from">>),
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
     Attrs3 = case To of
-                 {value, ToVal} ->
-                     [{<<"from">>, ToVal} | Attrs2];
-                 _ ->
-                     Attrs2
+                 undefined ->
+                     Attrs2;
+                 ToVal ->
+                     [{<<"from">>, ToVal} | Attrs2]
              end,
     Attrs4 = case From of
-                 {value, FromVal} ->
-                     [{<<"to">>, FromVal} | Attrs3];
-                 _ ->
-                     Attrs3
+                 undefined ->
+                     Attrs3;
+                 FromVal ->
+                     [{<<"to">>, FromVal} | Attrs3]
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
     [{<<"type">>, <<"result">>} | Attrs5].
@@ -140,33 +140,30 @@ make_error_reply(Acc, Packet, Error) ->
              make_error_reply_from_element(Packet, Error)}
     end.
 
-make_error_reply_from_element(#xmlel{name = Name, attrs = Attrs,
-                                     children = SubTags}, Error) ->
-    NewAttrs = make_error_reply_attrs(Attrs),
-    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
+make_error_reply_from_element(#xmlel{name = Name, children = SubTags} = Element, Error) ->
+    NewAttrs = make_error_reply_attrs(Element),
+    #xmlel{name = Name, attrs = NewAttrs, children = [Error | SubTags]}.
 
--spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
-make_error_reply_attrs(Attrs) ->
-    To = xml:get_attr(<<"to">>, Attrs),
-    From = xml:get_attr(<<"from">>, Attrs),
+-spec make_error_reply_attrs(exml:element()) -> [exml:attr(), ...].
+make_error_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
+    To = exml_query:attr(Element, <<"to">>),
+    From = exml_query:attr(Element, <<"from">>),
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
     Attrs3 = case To of
-                 {value, ToVal} ->
-                     [{<<"from">>, ToVal} | Attrs2];
-                 _ ->
-                     Attrs2
+                 undefined ->
+                     Attrs2;
+                 ToVal ->
+                     [{<<"from">>, ToVal} | Attrs2]
              end,
     Attrs4 = case From of
-                 {value, FromVal} ->
-                     [{<<"to">>, FromVal} | Attrs3];
-                 _ ->
-                     Attrs3
+                 undefined ->
+                     Attrs3;
+                 FromVal ->
+                     [{<<"to">>, FromVal} | Attrs3]
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    Attrs6 = [{<<"type">>, <<"error">>} | Attrs5],
-    Attrs6.
-
+    [{<<"type">>, <<"error">>} | Attrs5].
 
 -spec make_config_change_message(binary()) -> exml:element().
 make_config_change_message(Status) ->
@@ -202,7 +199,7 @@ make_invitation(From, Password, Reason) ->
 
 -spec replace_from_to_attrs(From :: binary(),
                             To :: binary() | undefined,
-                            [binary_pair()]) -> [binary_pair()].
+                            [exml:attr()]) -> [exml:attr()].
 replace_from_to_attrs(From, To, Attrs) ->
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
@@ -253,19 +250,18 @@ make_reply_from_type(_) ->
 
 -spec extract_xmlns([exml:element()]) -> binary().
 extract_xmlns([Element]) ->
-    xml:get_tag_attr_s(<<"xmlns">>, Element);
+    exml_query:attr(Element, <<"xmlns">>, <<>>);
 extract_xmlns(_) ->
     <<>>.
 
 -spec iq_info_internal(exml:element(), Filter :: 'any' | 'request') ->
                                 'invalid' | 'not_iq' | 'reply' | iq().
-iq_info_internal(#xmlel{name = Name, attrs = Attrs,
-                        children = Els}, Filter) when Name == <<"iq">> ->
+iq_info_internal(#xmlel{name = Name, children = Els} = Element, Filter) when Name == <<"iq">> ->
     %% Filter is either request or any.  If it is request, any replies
     %% are converted to the atom reply.
-    ID = xml:get_attr_s(<<"id">>, Attrs),
-    Type = xml:get_attr_s(<<"type">>, Attrs),
-    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    ID = exml_query:attr(Element, <<"id">>, <<>>),
+    Type = exml_query:attr(Element, <<"type">>, <<>>),
+    Lang = exml_query:attr(Element, <<"xml:lang">>, <<>>),
     {Type1, Class} = make_reply_from_type(Type),
     case {Type1, Class, Filter} of
         {invalid, _, _} ->
@@ -274,18 +270,16 @@ iq_info_internal(#xmlel{name = Name, attrs = Attrs,
             %% The iq record is a bit strange.  The sub_el field is an
             %% XML tuple for requests, but a list of XML tuples for
             %% responses.
-            FilteredEls = xml:remove_cdata(Els),
+            FilteredEls = remove_cdata(Els),
             {XMLNS, SubEl} =
                 case {Class, FilteredEls} of
-                    {request, [#xmlel{attrs = Attrs2}]} ->
-                        {xml:get_attr_s(<<"xmlns">>, Attrs2),
-                            hd(FilteredEls)};
+                    {request, [El2]} ->
+                        {exml_query:attr(El2, <<"xmlns">>, <<>>), hd(FilteredEls)};
                     {reply, _} ->
                         %% Find the namespace of the first non-error
                         %% element, if there is one.
                         NonErrorEls = [El ||
-                                        #xmlel{name = SubName} = El
-                                            <- FilteredEls,
+                                        #xmlel{name = SubName} = El <- FilteredEls,
                                         SubName /= <<"error">>],
                         {extract_xmlns(NonErrorEls), FilteredEls};
                     _ ->
@@ -335,9 +329,9 @@ sub_el_to_els(Es) when is_list(Es) -> Es.
 -spec rsm_decode(exml:element() | iq()) -> none | #rsm_in{}.
 rsm_decode(#iq{sub_el = SubEl})->
     rsm_decode(SubEl);
-rsm_decode(#xmlel{}=SubEl) ->
-    case xml:get_subtag(SubEl, <<"set">>) of
-        false ->
+rsm_decode(#xmlel{} = SubEl) ->
+    case exml_query:subelement(SubEl, <<"set">>) of
+        undefined ->
             none;
         #xmlel{name = <<"set">>, children = SubEls} ->
             lists:foldl(fun rsm_parse_element/2, #rsm_in{}, SubEls)
@@ -345,17 +339,17 @@ rsm_decode(#xmlel{}=SubEl) ->
 
 -spec rsm_parse_element(exml:element(), rsm_in()) -> rsm_in().
 rsm_parse_element(#xmlel{name = <<"max">>, attrs = []} = Elem, RsmIn) ->
-    CountStr = xml:get_tag_cdata(Elem),
+    CountStr = exml_query:cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
     RsmIn#rsm_in{max = Count};
 rsm_parse_element(#xmlel{name = <<"before">>, attrs = []} = Elem, RsmIn) ->
-    UID = xml:get_tag_cdata(Elem),
+    UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = before, id = UID};
 rsm_parse_element(#xmlel{name = <<"after">>, attrs = []} = Elem, RsmIn) ->
-    UID = xml:get_tag_cdata(Elem),
+    UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = aft, id = UID};
 rsm_parse_element(#xmlel{name = <<"index">>, attrs = []} = Elem, RsmIn) ->
-    IndexStr = xml:get_tag_cdata(Elem),
+    IndexStr = exml_query:cdata(Elem),
     {Index, _} = string:to_integer(binary_to_list(IndexStr)),
     RsmIn#rsm_in{index = Index};
 rsm_parse_element(_, RsmIn)->
@@ -397,7 +391,8 @@ rsm_encode_count(Count, Arr) ->
     [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2b(Count)}]} | Arr].
 
 -spec i2b(integer()) -> binary().
-i2b(I) when is_integer(I) -> list_to_binary(integer_to_list(I)).
+i2b(I) when is_integer(I) ->
+    integer_to_binary(I).
 
 -spec timestamp_to_xml(TimestampString :: rfc3339_string(),
                        FromJID :: jid:simple_jid() | jid:jid() | undefined,
@@ -415,14 +410,6 @@ timestamp_to_xml(TimestampString, FromJID, Desc) ->
            attrs = [{<<"xmlns">>, ?NS_DELAY},
                     {<<"stamp">>, list_to_binary(TimestampString)} | From],
            children = Text}.
-
--spec decode_base64(binary() | string()) -> binary().
-decode_base64(S) ->
-    base64:mime_decode(S).
-
--spec encode_base64(binary() | string()) -> binary().
-encode_base64(B) ->
-    base64:encode(B).
 
 -spec stanza_error( Code :: binary()
    , Type :: binary()
@@ -506,21 +493,48 @@ maybe_append_delay(Packet = #xmlel{children = Children}, From, TS, Desc) ->
 
 remove_delay_tags(#xmlel{children = Els} = Packet) ->
     NEl = lists:foldl(
-             fun(#xmlel{name= <<"delay">>, attrs = Attrs} = R, El)->
-                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
-                                  ?NS_DELAY ->
-                                      El;
-                                  _ ->
-                                    El ++ [R]
-                              end;
-                (#xmlel{name= <<"x">>, attrs = Attrs } = R, El) ->
-                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
-                                  ?NS_DELAY91 ->
-                                      El;
-                                  _ ->
-                                    El ++ [R]
-                              end;
-                (R, El) ->
-                              El ++ [R]
-                end, [], Els),
-    Packet#xmlel{children=NEl}.
+            fun(#xmlel{name= <<"delay">>} = R, El) ->
+                    case exml_query:attr(R, <<"xmlns">>) of
+                        ?NS_DELAY ->
+                            El;
+                        _ ->
+                            El ++ [R]
+                    end;
+               (#xmlel{name= <<"x">>} = R, El) ->
+                    case exml_query:attr(R, <<"xmlns">>) of
+                        ?NS_DELAY91 ->
+                            El;
+                        _ ->
+                            El ++ [R]
+                    end;
+               (R, El) ->
+                    El ++ [R]
+            end, [], Els),
+    Packet#xmlel{children = NEl}.
+
+-spec remove_cdata([xmlch()]) -> [xmlch()].
+remove_cdata(L) ->
+    [E || E <- L, remove_cdata_p(E)].
+
+-spec remove_cdata_p(xmlch()) -> boolean().
+remove_cdata_p(#xmlel{}) -> true;
+remove_cdata_p(_) -> false.
+
+-spec append_subtags(exml:element(), [xmlch()]) -> exml:element().
+append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
+    XE#xmlel{children = SubTags1 ++ SubTags2}.
+
+-spec replace_tag_attr(Attr :: binary(), Value :: binary(), exml:element()
+                      ) -> exml:element().
+replace_tag_attr(Attr, Value, XE = #xmlel{attrs = Attrs}) ->
+    Attrs1 = lists:keydelete(Attr, 1, Attrs),
+    Attrs2 = [{Attr, Value} | Attrs1],
+    XE#xmlel{attrs = Attrs2}.
+
+%% @doc Given an element and a new subelement,
+%% replace the instance of the subelement in element with the new subelement.
+-spec replace_subelement(exml:element(), exml:element()) -> exml:element().
+replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
+    {_, NameNewSubEl, _, _} = NewSubEl,
+    SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
+    XE#xmlel{children = SubEls2}.

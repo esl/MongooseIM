@@ -664,7 +664,7 @@ execute_subscription_instrumentation(_HostType, _From, _To, _Type) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 do_route_no_resource_presence(<<"subscribe">>, From, To, Acc, Packet) ->
-    Reason = xml:get_path_s(Packet, [{elem, <<"status">>}, cdata]),
+    Reason = exml_query:path(Packet, [{element, <<"status">>}, cdata], <<>>),
     do_route_no_resource_presence_prv(From, To, Acc, Packet, subscribe, Reason);
 do_route_no_resource_presence(<<"subscribed">>, From, To, Acc, Packet) ->
     do_route_no_resource_presence_prv(From, To, Acc, Packet, subscribed, <<>>);

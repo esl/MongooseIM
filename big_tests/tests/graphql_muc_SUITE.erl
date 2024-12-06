@@ -1925,7 +1925,7 @@ assert_default_room_config(Response) ->
                    <<"logging">> := false}, get_ok_value(?GET_ROOM_CONFIG_PATH, Response)).
 
 atom_to_enum_item(null) -> null;
-atom_to_enum_item(Atom) -> list_to_binary(string:to_upper(atom_to_list(Atom))).
+atom_to_enum_item(Atom) -> string:uppercase(atom_to_binary(Atom)).
 
 get_room_name() ->
     Domain = domain_helper:domain(),

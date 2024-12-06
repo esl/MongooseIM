@@ -435,7 +435,7 @@ serialize(ServerSideToken) ->
     end.
 
 to_lower(B) when is_binary(B) ->
-    list_to_binary(string:to_lower(binary_to_list(B))).
+    string:lowercase(B).
 
 required_modules() ->
     KeyOpts = #{backend => ct_helper:get_internal_database(),

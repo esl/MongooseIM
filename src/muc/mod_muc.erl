@@ -630,8 +630,7 @@ process_packet(Acc, From, To, El, #{state := State}) ->
             route_to_room(MucHost, Room, {From, To, Acc, El}, State),
             Acc;
         _ ->
-            #xmlel{attrs = Attrs} = El,
-            Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+            Lang = exml_query:attr(El, <<"xml:lang">>, <<>>),
             ErrText = <<"Access denied by service policy">>,
             ejabberd_router:route_error_reply(To, From, Acc,
                                               mongoose_xmpp_errors:forbidden(Lang, ErrText))
@@ -663,9 +662,7 @@ route_to_online_room(Pid, {From, To, Acc, Packet}) ->
 
 -spec get_registered_room_or_route_error(muc_host(), room(), from_to_packet(), state()) -> {ok, pid()} | {route_error, binary()}.
 get_registered_room_or_route_error(MucHost, Room, {From, To, Acc, Packet}, State) ->
-    #xmlel{name = Name, attrs = Attrs} = Packet,
-    Type = xml:get_attr_s(<<"type">>, Attrs),
-    case {Name, Type} of
+    case {Packet#xmlel.name, exml_query:attr(Packet, <<"type">>, <<>>)} of
         {<<"presence">>, <<>>} ->
             get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, Packet, State);
         _ ->
@@ -753,8 +750,7 @@ route_by_nick(<<>>, {_, _, _, Packet} = Routed, State) ->
     #xmlel{name = Name} = Packet,
     route_by_type(Name, Routed, State);
 route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
-    #xmlel{attrs = Attrs} = Packet,
-    case xml:get_attr_s(<<"type">>, Attrs) of
+    case exml_query:attr(Packet, <<"type">>) of
         <<"error">> ->
             Acc;
         <<"result">> ->
@@ -829,17 +825,16 @@ route_by_type(<<"message">>, {From, To, Acc, Packet},
                          access = {_, _, AccessAdmin, _}} = State) ->
     MucHost = To#jid.lserver,
     ServerHost = make_server_host(To, State),
-    #xmlel{attrs = Attrs} = Packet,
-    case xml:get_attr_s(<<"type">>, Attrs) of
+    case exml_query:attr(Packet, <<"type">>) of
         <<"error">> ->
             ok;
         _ ->
             case acl:match_rule(HostType, ServerHost, AccessAdmin, From) of
                 allow ->
-                    Msg = xml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
+                    Msg = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
                     broadcast_service_message(MucHost, Msg);
                 _ ->
-                    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+                    Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
                     ErrTxt = <<"Only service administrators are allowed to send service messages">>,
                     Err = mongoose_xmpp_errors:forbidden(Lang, ErrTxt),
                     {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Packet, Err),
@@ -1113,8 +1108,8 @@ iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
                               jid:jid(), exml:element(), ejabberd:lang())
             -> {'error', exml:element()} | {'result', []}.
 process_iq_register_set(HostType, MucHost, From, SubEl, Lang) ->
-    case xml:get_subtag(SubEl, <<"remove">>) of
-        false ->
+    case exml_query:subelement(SubEl, <<"remove">>) of
+        undefined ->
             case mongoose_data_forms:find_and_parse_form(SubEl) of
                 #{type := <<"cancel">>} ->
                     {result, []};

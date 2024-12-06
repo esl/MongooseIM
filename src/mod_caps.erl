@@ -150,18 +150,18 @@ get_features(HostType, #caps{node = Node, version = Version, exts = Exts}) ->
 -spec read_caps([exml:element()]) -> nothing | caps().
 read_caps(Els) -> read_caps(Els, nothing).
 
-read_caps([#xmlel{name = <<"c">>, attrs = Attrs} | Tail], Result) ->
-    case xml:get_attr_s(<<"xmlns">>, Attrs) of
+read_caps([#xmlel{name = <<"c">>} = Element | Tail], Result) ->
+    case exml_query:attr(Element, <<"xmlns">>, <<>>) of
         ?NS_CAPS ->
-            Node = xml:get_attr_s(<<"node">>, Attrs),
-            Version = xml:get_attr_s(<<"ver">>, Attrs),
-            Hash = xml:get_attr_s(<<"hash">>, Attrs),
-            Exts = mongoose_bin:tokens(xml:get_attr_s(<<"ext">>, Attrs), <<" ">>),
+            Node = exml_query:attr(Element, <<"node">>, <<>>),
+            Version = exml_query:attr(Element, <<"ver">>, <<>>),
+            Hash = exml_query:attr(Element, <<"hash">>, <<>>),
+            Exts = mongoose_bin:tokens(exml_query:attr(Element, <<"ext">>, <<>>), <<" ">>),
             read_caps(Tail, #caps{node = Node, hash = Hash, version = Version, exts = Exts});
         _ -> read_caps(Tail, Result)
     end;
-read_caps([#xmlel{name = <<"x">>, attrs = Attrs} | Tail], Result) ->
-    case xml:get_attr_s(<<"xmlns">>, Attrs) of
+read_caps([#xmlel{name = <<"x">>} = Element | Tail], Result) ->
+    case exml_query:attr(Element, <<"xmlns">>, <<>>) of
         ?NS_MUC_USER -> nothing;
         _ -> read_caps(Tail, Result)
     end;
@@ -181,8 +181,8 @@ user_send_presence(Acc, _, _) ->
 user_send_presence(Acc,
                    #jid{luser = User, lserver = LServer} = From,
                    #jid{luser = User, lserver = LServer, lresource = <<>>},
-                   #xmlel{attrs = Attrs, children = Elements}) ->
-    Type = xml:get_attr_s(<<"type">>, Attrs),
+                   #xmlel{children = Elements} = Element) ->
+    Type = exml_query:attr(Element, <<"type">>, <<>>),
     handle_presence(Acc, LServer, From, Type, Elements);
 user_send_presence(Acc, _, _, _) ->
     Acc.
@@ -252,11 +252,11 @@ handle_presence(Acc, _LServer, _From, _Type, _Elements) ->
 -spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 user_receive_presence(Acc0, #{c2s_data := C2SData}, _Extra) ->
-    {From, To, #xmlel{attrs = Attrs, children = Els} = Packet} = mongoose_acc:packet(Acc0),
+    {From, To, #xmlel{children = Els} = Packet} = mongoose_acc:packet(Acc0),
     ?LOG_DEBUG(#{what => user_receive_presence,
                  to => jid:to_binary(To), from => jid:to_binary(From),
                  exml_packet => Packet, c2s_state => C2SData}),
-    Type = xml:get_attr_s(<<"type">>, Attrs),
+    Type = exml_query:attr(Packet, <<"type">>, <<>>),
     #jid{lserver = LServer} = mongoose_c2s:get_jid(C2SData),
     Acc = case mongoose_domain_api:get_host_type(From#jid.lserver) of
               {error, not_found} ->
@@ -457,9 +457,8 @@ feature_response(Acc, #iq{type = result, sub_el = [#xmlel{children = Els}]},
     NodePair = {Caps#caps.node, SubNode},
     case check_hash(Caps, Els) of
         true ->
-            Features = lists:flatmap(fun (#xmlel{name = <<"feature">>,
-                                                 attrs = FAttrs}) ->
-                                             [xml:get_attr_s(<<"var">>, FAttrs)];
+            Features = lists:flatmap(fun (#xmlel{name = <<"feature">>} = El) ->
+                                             [exml_query:attr(El, <<"var">>, <<>>)];
                                          (_) -> []
                                      end,
                                      Els),
@@ -512,14 +511,14 @@ make_my_disco_hash(HostType, LServer) ->
 make_disco_hash(DiscoEls, Algo) ->
     Concat = list_to_binary([concat_identities(DiscoEls),
                              concat_features(DiscoEls), concat_info(DiscoEls)]),
-    jlib:encode_base64(case Algo of
-                           md5 -> erlang:md5(Concat);
-                           sha1 -> crypto:hash(sha, Concat);
-                           sha224 -> crypto:hash(sha224, Concat);
-                           sha256 -> crypto:hash(sha256, Concat);
-                           sha384 -> crypto:hash(sha384, Concat);
-                           sha512 -> crypto:hash(sha512, Concat)
-                       end).
+    base64:encode(case Algo of
+                      md5 -> erlang:md5(Concat);
+                      sha1 -> crypto:hash(sha, Concat);
+                      sha224 -> crypto:hash(sha224, Concat);
+                      sha256 -> crypto:hash(sha256, Concat);
+                      sha384 -> crypto:hash(sha384, Concat);
+                      sha512 -> crypto:hash(sha512, Concat)
+                  end).
 
 check_hash(Caps, Els) ->
     case Caps#caps.hash of
@@ -539,23 +538,19 @@ check_hash(Caps, Els) ->
     end.
 
 concat_features(Els) ->
-    lists:usort(lists:flatmap(fun (#xmlel{name =
-                                              <<"feature">>,
-                                          attrs = Attrs}) ->
-                                      [[xml:get_attr_s(<<"var">>, Attrs), $<]];
+    lists:usort(lists:flatmap(fun (#xmlel{name = <<"feature">>} = Element) ->
+                                      [[exml_query:attr(Element, <<"var">>, <<>>), $<]];
                                   (_) -> []
                               end,
                               Els)).
 
 concat_identities(Els) ->
-    lists:sort(lists:flatmap(fun (#xmlel{name =
-                                             <<"identity">>,
-                                         attrs = Attrs}) ->
-                                     [[xml:get_attr_s(<<"category">>, Attrs),
-                                       $/, xml:get_attr_s(<<"type">>, Attrs),
+    lists:sort(lists:flatmap(fun (#xmlel{name = <<"identity">>} = Element) ->
+                                     [[exml_query:attr(Element, <<"category">>, <<>>),
+                                       $/, exml_query:attr(Element, <<"type">>, <<>>),
                                        $/,
-                                       xml:get_attr_s(<<"xml:lang">>, Attrs),
-                                       $/, xml:get_attr_s(<<"name">>, Attrs),
+                                       exml_query:attr(Element, <<"xml:lang">>, <<>>),
+                                       $/, exml_query:attr(Element, <<"name">>, <<>>),
                                        $<]];
                                  (_) -> []
                              end,

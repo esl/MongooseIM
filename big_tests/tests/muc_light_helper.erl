@@ -211,12 +211,12 @@ aff_msg_verify_fun(AffUsersChanges) ->
     end.
 
 -spec lbin(Bin :: binary()) -> binary().
-lbin(Bin) -> list_to_binary(string:to_lower(binary_to_list(Bin))).
-
+lbin(Bin) ->
+    string:lowercase(Bin).
 
 -spec bin_aff_users(AffUsers :: ct_aff_users()) -> [{LBinJID :: binary(), AffBin :: binary()}].
 bin_aff_users(AffUsers) ->
-    [ {lbin(escalus_client:short_jid(User)), list_to_binary(atom_to_list(Aff))}
+    [ {lbin(escalus_client:short_jid(User)), atom_to_binary(Aff)}
       || {User, Aff} <- AffUsers ].
 
 -spec verify_aff_users(Items :: [exml:element()], BinAffUsers :: [{binary(), binary()}]) -> [].
@@ -288,7 +288,7 @@ clear_db(HostType) ->
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->
-  <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
+  <<"ver-", (integer_to_binary(Int))/binary>>.
 
 assert_no_aff_duplicates(AffUsers) ->
     Users = [US || {US, _} <- AffUsers],
@@ -302,8 +302,8 @@ assert_no_aff_duplicates(AffUsers) ->
 
 -spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> exml:element().
 stanza_blocking_set(BlocklistChanges) ->
-    Items = [#xmlel{ name = list_to_binary(atom_to_list(What)),
-                     attrs = [{<<"action">>, list_to_binary(atom_to_list(Action))}],
+    Items = [#xmlel{ name = atom_to_binary(What),
+                     attrs = [{<<"action">>, atom_to_binary(Action)}],
                      children = [#xmlcdata{ content = Who }] }
              || {What, Action, Who} <- BlocklistChanges],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), muc_host()).

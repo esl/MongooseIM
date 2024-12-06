@@ -312,12 +312,13 @@ open_socket2(HostType, Type, Addr, Port) ->
 %%----------------------------------------------------------------------
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
-    RemoteStreamID = xml:get_attr_s(<<"id">>, Attrs),
+wait_for_stream({xmlstreamstart, Name, Attrs}, StateData0) ->
+    StreamStart = #xmlel{name = Name, attrs = Attrs},
+    RemoteStreamID = exml_query:attr(StreamStart, <<"id">>, <<>>),
     StateData = StateData0#state{remote_streamid = RemoteStreamID},
-    case {xml:get_attr_s(<<"xmlns">>, Attrs),
-          xml:get_attr_s(<<"xmlns:db">>, Attrs),
-          xml:get_attr_s(<<"version">>, Attrs) == <<"1.0">>} of
+    case {exml_query:attr(StreamStart, <<"xmlns">>, <<>>),
+          exml_query:attr(StreamStart, <<"xmlns:db">>, <<>>),
+          exml_query:attr(StreamStart, <<"version">>, <<>>) =:= <<"1.0">>} of
         {<<"jabber:server">>, <<"jabber:server:dialback">>, false} ->
             send_dialback_request(StateData);
         {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
@@ -424,12 +425,11 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
         #xmlel{name = <<"stream:features">>, children = Els} ->
             {SASLEXT, StartTLS, StartTLSRequired} =
                 lists:foldl(
-                  fun(#xmlel{name = <<"mechanisms">>, attrs = Attrs1,
-                             children = Els1} = _El1, Acc) ->
-                          Attr =  xml:get_attr_s(<<"xmlns">>, Attrs1),
+                  fun(#xmlel{name = <<"mechanisms">>, children = Els1} = El1, Acc) ->
+                          Attr = exml_query:attr(El1, <<"xmlns">>, <<>>),
                           get_acc_with_new_sext(Attr, Els1, Acc);
-                     (#xmlel{name = <<"starttls">>, attrs = Attrs1} = El1, Acc) ->
-                          Attr = xml:get_attr_s(<<"xmlns">>, Attrs1),
+                     (#xmlel{name = <<"starttls">>} = El1, Acc) ->
+                          Attr = exml_query:attr(El1, <<"xmlns">>, <<>>),
                           get_acc_with_new_tls(Attr, El1, Acc);
                      (_, Acc) ->
                           Acc
@@ -455,8 +455,8 @@ wait_for_features(closed, StateData) ->
 -spec wait_for_auth_result(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_auth_result({xmlstreamelement, El}, StateData) ->
     case El of
-        #xmlel{name = <<"success">>, attrs = Attrs} ->
-            case xml:get_attr_s(<<"xmlns">>, Attrs) of
+        #xmlel{name = <<"success">>} ->
+            case exml_query:attr(El, <<"xmlns">>) of
                 ?NS_SASL ->
                     ?LOG_DEBUG(#{what => s2s_auth_success,
                                  myname => StateData#state.myname,
@@ -473,8 +473,8 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     send_text(StateData, ?STREAM_TRAILER),
                     ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
-        #xmlel{name = <<"failure">>, attrs = Attrs} ->
-            case xml:get_attr_s(<<"xmlns">>, Attrs) of
+        #xmlel{name = <<"failure">>} ->
+            case exml_query:attr(El, <<"xmlns">>) of
                 ?NS_SASL ->
                     ?LOG_WARNING(#{what => s2s_auth_failure,
                                    text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
@@ -508,8 +508,8 @@ wait_for_auth_result(closed, StateData) ->
 -spec wait_for_starttls_proceed(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
     case El of
-        #xmlel{name = <<"proceed">>, attrs = Attrs} ->
-            case xml:get_attr_s(<<"xmlns">>, Attrs) of
+        #xmlel{name = <<"proceed">>} ->
+            case exml_query:attr(El, <<"xmlns">>) of
                 ?NS_TLS ->
                     ?LOG_DEBUG(#{what => s2s_starttls,
                                  myname => StateData#state.myname,
@@ -1083,24 +1083,18 @@ addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
     NewSEXT =
         lists:any(
-          fun(#xmlel{name = <<"mechanism">>,
-                     children = Els2}) ->
-                  case xml:get_cdata(Els2) of
-                      <<"EXTERNAL">> -> true;
-                      _ -> false
-                  end;
-             (_) -> false
+          fun(El) ->
+                  is_record(El, xmlel)
+                  andalso <<"mechanism">> =:= El#xmlel.name
+                  andalso <<"EXTERNAL">> =:= exml_query:cdata(El)
           end, Els1),
+
     {NewSEXT, STLS, STLSReq};
 get_acc_with_new_sext(_, _, Acc) ->
     Acc.
 
 get_acc_with_new_tls(?NS_TLS, El1, {SEXT, _STLS, _STLSReq}) ->
-    Req = case xml:get_subtag(El1, <<"required">>) of
-              #xmlel{} -> true;
-              false -> false
-          end,
-    {SEXT, true, Req};
+    {SEXT, true, undefined =/= exml_query:subelement(El1, <<"required">>)};
 get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 
@@ -1132,7 +1126,7 @@ handle_parsed_features({true, _, _, StateData = #state{try_auth = true, is_regis
                         attrs = [{<<"xmlns">>, ?NS_SASL},
                                  {<<"mechanism">>, <<"EXTERNAL">>}],
                         children =
-                            [#xmlcdata{content = jlib:encode_base64(
+                            [#xmlcdata{content = base64:encode(
                                                    StateData#state.myname)}]}),
     {next_state, wait_for_auth_result,
      StateData#state{try_auth = false}, ?FSMTIMEOUT};

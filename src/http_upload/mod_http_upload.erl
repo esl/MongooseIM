@@ -164,8 +164,7 @@ process_disco_iq(Acc, _From, _To, #iq{type = set, lang = Lang, sub_el = SubEl} =
     Error = mongoose_xmpp_errors:not_allowed(Lang, ErrorMsg),
     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
 process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
-    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    case Node of
+    case exml_query:attr(SubEl, <<"node">>, <<>>) of
         <<>> ->
             Identity = mongoose_disco:identities_to_xml(disco_identity(Lang)),
             Info = disco_info(mongoose_acc:host_type(Acc)),

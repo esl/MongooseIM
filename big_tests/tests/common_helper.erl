@@ -7,4 +7,4 @@ get_bjid(UserSpec) ->
     <<User/binary,"@",Server/binary>>.
 
 unprep(Bin) when is_binary(Bin) ->
-    list_to_binary(string:titlecase(binary_to_list(Bin))).
+    string:titlecase(Bin).
