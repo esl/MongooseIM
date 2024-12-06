@@ -234,8 +234,7 @@ do_tc_fail(Suite, Res, State = #state{test_cases = [TC | RemainingTCs]}) ->
                    TC#testcase.line;
                L -> L
            end,
-    NewTC = TC#testcase{line = Line,
-                        result = {fail,lists:flatten(io_lib:format("~tp",[Res]))}},
+    NewTC = TC#testcase{line = Line, result = {fail, format_result(Res)}},
     State#state{test_cases = [NewTC | RemainingTCs]}.
 
 get_line_from_result(Suite, {_Error, [{__M,__F,__A,__I}|_] = StackTrace}) ->
@@ -253,19 +252,28 @@ get_line_from_result(_, _) ->
 on_tc_skip(Suite,TC,Result,Proxy) when is_pid(Proxy) ->
     _ = gen_server:call(Proxy,{?FUNCTION_NAME, [Suite,TC,Result]}),
     Proxy;
-on_tc_skip(Suite, TestName, Res, State = #state{test_cases = TCs}) ->
+on_tc_skip(_Suite, init_per_suite, Res, State) ->
+    do_tc_skip(Res, State); % Test was already added to State by post_init_per_suite/4
+on_tc_skip(_Suite, {init_per_group, _}, Res, State) ->
+    do_tc_skip(Res, State); % Test was already added to State by post_init_per_group/5
+on_tc_skip(Suite, TestName, Res, State) ->
     TCName = tc_name_to_string(TestName),
-    State1 = State#state{test_cases = lists:keydelete(TCName, #testcase.name, TCs)},
-    State2 = do_tc_skip(Res, end_tc(TCName, [], Res, init_tc(set_suite(Suite, State1), []))),
-    maybe_close_group(TestName, State2).
+    State1 = do_tc_skip(Res, end_tc(TCName, [], Res, init_tc(set_suite(Suite, State), []))),
+    maybe_close_group(TestName, State1).
 
-do_tc_skip(Res, State) ->
+do_tc_skip({SkipReason, Res}, State) ->
     TCs = State#state.test_cases,
     TC = hd(TCs),
-    NewTC = TC#testcase{
-	      result =
-		  {skipped,lists:flatten(io_lib:format("~tp",[Res]))} },
+    NewTC = TC#testcase{result = {skip_reason_to_status(SkipReason), format_result(Res)}},
     State#state{ test_cases = [NewTC | tl(TCs)]}.
+
+format_result(Res) ->
+    lists:flatten(io_lib:format("~tp", [Res])).
+
+skip_reason_to_status(tc_auto_skip) ->
+    fail;
+skip_reason_to_status(tc_user_skip) ->
+    skipped.
 
 tc_name_to_string({FuncName, _GroupName}) ->
     atom_to_list(FuncName);
@@ -492,3 +500,108 @@ count_tcs([#testcase{result={auto_skipped,_}}|TCs],Ok,F,S) ->
     count_tcs(TCs,Ok,F,S+1);
 count_tcs([],Ok,F,S) ->
     {Ok+F+S,F,S}.
+
+-ifdef(EUNIT).
+
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
+
+%% Unit tests
+
+report_test() ->
+    GroupPath = [deeply_nested_test_group, nested_test_group, test_group],
+    TCs = run_ct_with_report([GroupPath]),
+    Expected = wrap_suite_report(wrap_nested_group_report(expected_group_report())),
+    verify_results(Expected, TCs).
+
+report_skipped_group_test() ->
+    SkippedGroupPath = [deeply_nested_test_group, nested_test_group, skipped_test_group],
+    TCs = run_ct_with_report([SkippedGroupPath]),
+    Expected = wrap_suite_report(wrap_nested_group_report(expected_skipped_group_report())),
+    verify_results(Expected, TCs).
+
+report_two_groups_test() ->
+    GroupPaths = [[deeply_nested_test_group, nested_test_group, test_group],
+                  [deeply_nested_test_group, nested_test_group, skipped_test_group]],
+    TCs = run_ct_with_report(GroupPaths),
+    Expected = wrap_suite_report([wrap_nested_group_report(expected_group_report()),
+                                  wrap_nested_group_report(expected_skipped_group_report())]),
+    verify_results(Expected, TCs).
+
+report_skipped_suite_test() ->
+    try
+        meck:new(test_SUITE, [passthrough]),
+        meck:expect(test_SUITE, init_per_suite, fun(_) -> {skip, suite_skipped} end),
+        GroupPath = [deeply_nested_test_group, nested_test_group, test_group],
+        TCs = run_ct_with_report([GroupPath]),
+        Expected = skip_all(wrap_suite_report(test_report(undefined))),
+        verify_results(Expected, TCs)
+    after
+        meck:unload()
+    end.
+
+%% Helpers for running common test
+
+run_ct_with_report(Groups) ->
+    ct:run_test([{suite, "tests/test_SUITE"}, {group, Groups},
+                 {ct_hooks, [cth_surefire]}, {logdir, "ct_report"}]),
+    ReportPath = string:strip(os:cmd("ls -t ct_report/ct_run.*/junit_report.xml | head -1"),
+                              right, $\n),
+    {ok, ReportXML} = file:read_file(ReportPath),
+    {ok, RootEl} = exml:parse(ReportXML),
+    exml_query:paths(RootEl, [{element, <<"testsuite">>}, {element, <<"testcase">>}]).
+
+%% Helpers for expected test reports
+
+expected_skipped_group_report() ->
+    Group = <<"deeply_nested_test_group.nested_test_group.skipped_test_group">>,
+    skip_all(expected_group_report(Group)).
+
+skip_all(Report) ->
+    [{Test, Group, skipped} || {Test, Group, _} <- lists:flatten(Report)].
+
+expected_group_report() ->
+    Group = <<"deeply_nested_test_group.nested_test_group.test_group">>,
+    expected_group_report(Group).
+
+expected_group_report(Group) ->
+    [{<<"init_per_group">>, Group, ok},
+     test_report(Group),
+     {<<"end_per_group">>, Group, ok}].
+
+test_report(Group) ->
+    [{<<"passing_tc">>, Group, ok},
+     {<<"skipped_tc">>, Group, skipped},
+     {<<"failing_tc_1">>, Group, failed},
+     {<<"failing_tc_2">>, Group, failed}, % init_per_testcase failed
+     {<<"failing_tc_3">>, Group, ok} % end_per_testcase failed, still ok
+    ].
+
+wrap_nested_group_report(Report) ->
+    [{<<"init_per_group">>, <<"deeply_nested_test_group">>, ok},
+     {<<"init_per_group">>, <<"deeply_nested_test_group.nested_test_group">>, ok},
+     Report,
+     {<<"end_per_group">>, <<"deeply_nested_test_group.nested_test_group">>, ok},
+     {<<"end_per_group">>, <<"deeply_nested_test_group">>, ok}].
+
+wrap_suite_report(Report) ->
+    [{<<"init_per_suite">>, undefined, ok},
+     Report,
+     {<<"end_per_suite">>, undefined, ok}].
+
+%% Assertions for test reports
+
+verify_results(ExpectedReport, TCs) ->
+    ?assertEqual([], lists:foldl(fun verify_result/2, TCs, lists:flatten(ExpectedReport))).
+
+verify_result({CName, GName, Result}, [TC = #xmlel{children = Children} | Rest]) ->
+    ?assertEqual(CName, exml_query:attr(TC, <<"name">>)),
+    ?assertEqual(GName, exml_query:attr(TC, <<"group">>)),
+    case Result of
+        ok -> ?assertEqual([], Children);
+        skipped -> ?assertMatch([#xmlel{name = <<"skipped">>}], Children);
+        failed -> ?assertMatch([#xmlel{name = <<"failure">>}], Children)
+    end,
+    Rest.
+
+-endif.
