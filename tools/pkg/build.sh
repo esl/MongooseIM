@@ -75,6 +75,7 @@ done
 builder_image="erlangsolutions/erlang:${platform}-${erlang_version}"
 target_image="${platform/-/:}"
 docker build -t mongooseim-${platform}:${version}-${revision} \
+    --progress=plain \
     --build-arg builder_image=${builder_image} \
     --build-arg target_image=${target_image} \
     --build-arg version=${version} \
