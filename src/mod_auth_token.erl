@@ -357,7 +357,7 @@ token_to_xmlel(#token{type = Type} = T) ->
                       refresh -> <<"refresh_token">>
                   end,
            attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
-           children = [#xmlcdata{content = jlib:encode_base64(serialize(T))}]}.
+           children = [#xmlcdata{content = base64:encode(serialize(T))}]}.
 
 %% args: Token with Mac decoded from transport, #token
 %% is shared between tokens. Introduce other container types if

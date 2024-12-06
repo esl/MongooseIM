@@ -288,7 +288,7 @@ ldap_attribute_to_vcard(vCard, {<<"photo">>, Value}) ->
                [#xmlel{name = <<"TYPE">>, attrs = [],
                        children = [{xmlcdata, <<"image/jpeg">>}]},
                 #xmlel{name = <<"BINVAL">>, attrs = [],
-                       children = [{xmlcdata, jlib:encode_base64(Value)}]}]};
+                       children = [{xmlcdata, base64:encode(Value)}]}]};
 ldap_attribute_to_vcard(vCardN,
                         {<<"family">>, Value}) ->
     #xmlel{name = <<"FAMILY">>, attrs = [],
@@ -392,7 +392,7 @@ make_user_item_if_exists(Username, Attrs,
 %%%-----------------------
 search_item_value(Name, Value, BinaryFields) ->
     case lists:member(Name, BinaryFields) of
-        true  -> jlib:encode_base64(Value);
+        true  -> base64:encode(Value);
         false -> Value
     end.
 

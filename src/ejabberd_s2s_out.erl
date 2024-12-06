@@ -1126,7 +1126,7 @@ handle_parsed_features({true, _, _, StateData = #state{try_auth = true, is_regis
                         attrs = [{<<"xmlns">>, ?NS_SASL},
                                  {<<"mechanism">>, <<"EXTERNAL">>}],
                         children =
-                            [#xmlcdata{content = jlib:encode_base64(
+                            [#xmlcdata{content = base64:encode(
                                                    StateData#state.myname)}]}),
     {next_state, wait_for_auth_result,
      StateData#state{try_auth = false}, ?FSMTIMEOUT};

@@ -511,14 +511,14 @@ make_my_disco_hash(HostType, LServer) ->
 make_disco_hash(DiscoEls, Algo) ->
     Concat = list_to_binary([concat_identities(DiscoEls),
                              concat_features(DiscoEls), concat_info(DiscoEls)]),
-    jlib:encode_base64(case Algo of
-                           md5 -> erlang:md5(Concat);
-                           sha1 -> crypto:hash(sha, Concat);
-                           sha224 -> crypto:hash(sha224, Concat);
-                           sha256 -> crypto:hash(sha256, Concat);
-                           sha384 -> crypto:hash(sha384, Concat);
-                           sha512 -> crypto:hash(sha512, Concat)
-                       end).
+    base64:encode(case Algo of
+                      md5 -> erlang:md5(Concat);
+                      sha1 -> crypto:hash(sha, Concat);
+                      sha224 -> crypto:hash(sha224, Concat);
+                      sha256 -> crypto:hash(sha256, Concat);
+                      sha384 -> crypto:hash(sha384, Concat);
+                      sha512 -> crypto:hash(sha512, Concat)
+                  end).
 
 check_hash(Caps, Els) ->
     case Caps#caps.hash of

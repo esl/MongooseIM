@@ -38,7 +38,7 @@
 -define(EL_CD(Element, Name), exml_query:path(Element, [{element, Name}, cdata])).
 
 -define(PHOTO_BIN, <<130, 192, 33, 159, 204, 86, 12, 63, 132, 164>>).
--define(PHOTO_BASE_64, <<"gsAhn8xWDD+EpA==">>). %% jlib:encode_base64(?PHOTO_BIN)
+-define(PHOTO_BASE_64, <<"gsAhn8xWDD+EpA==">>). %% base64:encode(?PHOTO_BIN)
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,

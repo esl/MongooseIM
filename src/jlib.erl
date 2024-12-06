@@ -39,8 +39,6 @@
          iq_query_or_response_info/1,
          iq_to_xml/1,
          timestamp_to_xml/3,
-         decode_base64/1,
-         encode_base64/1,
          rsm_encode/1,
          rsm_decode/1,
          stanza_error/3,
@@ -411,14 +409,6 @@ timestamp_to_xml(TimestampString, FromJID, Desc) ->
            attrs = [{<<"xmlns">>, ?NS_DELAY},
                     {<<"stamp">>, list_to_binary(TimestampString)} | From],
            children = Text}.
-
--spec decode_base64(binary() | string()) -> binary().
-decode_base64(S) ->
-    base64:mime_decode(S).
-
--spec encode_base64(binary() | string()) -> binary().
-encode_base64(B) ->
-    base64:encode(B).
 
 -spec stanza_error( Code :: binary()
    , Type :: binary()

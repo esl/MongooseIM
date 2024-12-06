@@ -296,7 +296,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
         {?NS_SASL, <<"auth">>} when TLSEnabled ->
             case exml_query:attr(El, <<"mechanism">>) of
                 <<"EXTERNAL">> ->
-                    Auth = jlib:decode_base64(exml_query:cdata(El)),
+                    Auth = base64:mime_decode(exml_query:cdata(El)),
                     AuthDomain = jid:nameprep(Auth),
                     CertData = mongoose_transport:get_peer_certificate(
                                  StateData#state.socket),
