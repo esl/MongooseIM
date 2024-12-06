@@ -397,15 +397,7 @@ reroute_buffer(StateData, #sm_state{buffer = Buffer}) ->
     mongoose_c2s:reroute_buffer(StateData, Buffer).
 
 add_delay_elements_to_buffer(#sm_state{buffer = Buffer} = SmState, FromServer) ->
-    BufferWithDelays = [begin
-                            TS = mongoose_acc:timestamp(Acc),
-                            StanzaName = mongoose_acc:stanza_name(Acc),
-                            StanzaType = mongoose_acc:stanza_type(Acc),
-                            {From, To, El} = mongoose_acc:packet(Acc),
-                            ElWithDelay = maybe_add_timestamp(El, StanzaName, StanzaType, TS, FromServer),
-                            AccParams = #{from_jid => From, to_jid => To, element => ElWithDelay},
-                            mongoose_acc:update_stanza(AccParams, Acc)
-                        end || Acc <- Buffer],
+    BufferWithDelays = [maybe_add_timestamp(Acc, FromServer) || Acc <- Buffer],
     SmState#sm_state{buffer = BufferWithDelays}.
 
 -spec terminate(term(), c2s_state(), mongoose_c2s:data()) -> term().
@@ -629,13 +621,19 @@ get_all_stanzas_to_forward(StateData, SMID) ->
     LServer = mongoose_c2s:get_lserver(StateData),
     FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     ToForward = [ begin
-                      TS = mongoose_acc:timestamp(Acc),
-                      Packet = mongoose_acc:element(Acc),
-                      StanzaName = mongoose_acc:stanza_name(Acc),
-                      StanzaType = mongoose_acc:stanza_type(Acc),
-                      maybe_add_timestamp(Packet, StanzaName, StanzaType, TS, FromServer)
+                      AccWithTS = maybe_add_timestamp(Acc, FromServer),
+                      mongoose_acc:element(AccWithTS)
                   end || Acc <- lists:reverse(Buffer)],
     {Resumed, ToForward}.
+
+maybe_add_timestamp(Acc, FromServer) ->
+    TS = mongoose_acc:timestamp(Acc),
+    StanzaName = mongoose_acc:stanza_name(Acc),
+    StanzaType = mongoose_acc:stanza_type(Acc),
+    {From, To, El} = mongoose_acc:packet(Acc),
+    ElWithDelay = maybe_add_timestamp(El, StanzaName, StanzaType, TS, FromServer),
+    AccParams = #{from_jid => From, to_jid => To, element => ElWithDelay},
+    mongoose_acc:update_stanza(AccParams, Acc).
 
 maybe_add_timestamp(Packet, <<"message">>, <<"error">>, _, _) ->
     Packet;
