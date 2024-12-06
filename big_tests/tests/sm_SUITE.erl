@@ -684,15 +684,18 @@ resend_unacked_to_different_res_after_resume_timeout(Config) ->
     sm_helper:wait_until_resume_session(C2SPid),
 
     %% user comes back with different resource
-    NewUser = connect_spec([{resource, <<"2nd_resource">>} | UserSpec], sr_presence),
+    NewUser = connect_spec([{resource, <<"2nd_resource">>} | UserSpec], session),
+    send_initial_presence(NewUser),
 
     %% resume timeout passes
     timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
 
-    %% user receives unacked message and presence
-    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 2),
-    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)], UnackedStanzas),
-    [sm_helper:assert_delayed(S) || S <- UnackedStanzas],
+    %% user receives unacked message and presence, as well as initial presence response
+    %% the order of the messages may change, especially on CI, so we test all of them
+    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 3),
+    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>), is_presence], UnackedStanzas),
+    [UnackedMsg] = lists:filter(fun escalus_pred:is_message/1, UnackedStanzas),
+    sm_helper:assert_delayed(UnackedMsg),
 
     escalus_assert:has_no_stanzas(NewUser),
 
