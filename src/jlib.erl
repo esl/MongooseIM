@@ -51,6 +51,11 @@
          maybe_append_delay/4,
          remove_delay_tags/1]).
 
+-export([remove_cdata/1,
+         append_subtags/2,
+         replace_tag_attr/3,
+         replace_subelement/2]).
+
 -ignore_xref([make_result_iq_reply/1]).
 
 -include_lib("exml/include/exml.hrl").
@@ -516,3 +521,30 @@ remove_delay_tags(#xmlel{children = Els} = Packet) ->
                     El ++ [R]
             end, [], Els),
     Packet#xmlel{children = NEl}.
+
+-spec remove_cdata([xmlch()]) -> [xmlch()].
+remove_cdata(L) ->
+    [E || E <- L, remove_cdata_p(E)].
+
+-spec remove_cdata_p(xmlch()) -> boolean().
+remove_cdata_p(#xmlel{}) -> true;
+remove_cdata_p(_) -> false.
+
+-spec append_subtags(exml:element(), [xmlch()]) -> exml:element().
+append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
+    XE#xmlel{children = SubTags1 ++ SubTags2}.
+
+-spec replace_tag_attr(Attr :: binary(), Value :: binary(), exml:element()
+                      ) -> exml:element().
+replace_tag_attr(Attr, Value, XE = #xmlel{attrs = Attrs}) ->
+    Attrs1 = lists:keydelete(Attr, 1, Attrs),
+    Attrs2 = [{Attr, Value} | Attrs1],
+    XE#xmlel{attrs = Attrs2}.
+
+%% @doc Given an element and a new subelement,
+%% replace the instance of the subelement in element with the new subelement.
+-spec replace_subelement(exml:element(), exml:element()) -> exml:element().
+replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
+    {_, NameNewSubEl, _, _} = NewSubEl,
+    SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
+    XE#xmlel{children = SubEls2}.

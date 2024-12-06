@@ -295,7 +295,7 @@ process_privacy_iq(Acc, HostType, set, ToJid, StateData) ->
 
 -spec measure_privacy_set(jlib:iq()) -> mongoose_instrument:measurements().
 measure_privacy_set(#iq{sub_el = SubEl}) ->
-    case xml:remove_cdata(SubEl#xmlel.children) of
+    case jlib:remove_cdata(SubEl#xmlel.children) of
         [#xmlel{name = <<"active">>}] -> #{count => 1, active_count => 1};
         [#xmlel{name = <<"default">>}] -> #{count => 1, default_count => 1};
         _ -> #{count => 1}
@@ -402,7 +402,7 @@ process_iq_get(Acc,
                  iq := #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
                  priv_list := #userlist{name = Active}},
                #{host_type := HostType}) ->
-    Res = case xml:remove_cdata(Els) of
+    Res = case jlib:remove_cdata(Els) of
               [] ->
                   process_lists_get(Acc, HostType, LUser, LServer, Active);
               [#xmlel{name = Name} = Packet] ->
@@ -455,13 +455,13 @@ process_iq_set(Acc,
                #{from := From, iq := #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}},
                #{host_type := HostType}) ->
     #xmlel{children = Els} = SubEl,
-    Res = case xml:remove_cdata(Els) of
+    Res = case jlib:remove_cdata(Els) of
               [#xmlel{name = Name, children = SubEls} = Packet] ->
                   ListName = exml_query:attr(Packet, <<"name">>),
                   case Name of
                       <<"list">> ->
                           process_list_set(Acc, HostType, From, ListName,
-                                   xml:remove_cdata(SubEls));
+                                   jlib:remove_cdata(SubEls));
                       <<"active">> ->
                           process_active_set(Acc, HostType, From, ListName);
                       <<"default">> ->
@@ -812,7 +812,7 @@ set_type_and_value(<<"subscription">>, Value, Item) ->
 set_matches(_SubEls, false) ->
     false;
 set_matches(SubEls, Item) ->
-    parse_matches(Item, xml:remove_cdata(SubEls)).
+    parse_matches(Item, jlib:remove_cdata(SubEls)).
 
 parse_matches(Item, []) ->
     Item#listitem{match_all = true};

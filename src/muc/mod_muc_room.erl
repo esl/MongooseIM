@@ -401,7 +401,7 @@ initial_state({route, From, ToNick, _Acc, % TOODOO
 
 -spec is_query_allowed(exml:element()) -> boolean().
 is_query_allowed(#xmlel{children = Els}) ->
-    case xml:remove_cdata(Els) of
+    case jlib:remove_cdata(Els) of
         [#xmlel{name = <<"destroy">>}] ->
             true;
         [El] ->
