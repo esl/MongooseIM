@@ -983,7 +983,7 @@ gen_token() ->
     integer_to_binary(binary:decode_unsigned(crypto:strong_rand_bytes(16)), 24).
 
 lower(Bin) when is_binary(Bin) ->
-    list_to_binary(string:to_lower(binary_to_list(Bin))).
+    string:lowercase(Bin).
 
 pubsub_node_from_host(Config) ->
     case ?config(pubsub_host, Config) of

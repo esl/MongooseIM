@@ -47,7 +47,7 @@ handle(Req, {_, _, _, _, true, _} = State) ->
     reply(Req, State, 404, "");
 handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"check_password">>, {U, S, P}, _, _} = State) ->
     Result = mim_ct_rest:check_password(U, S, P),
-    reply(Req, State, 200, list_to_binary(atom_to_list(Result)));
+    reply(Req, State, 200, atom_to_binary(Result));
 handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"get_password">>, {U, S, _P}, _, _} = State) ->
     {RetCode,Password} = get_password_or_certs(U, S),
     reply(Req, State, RetCode, Password);
@@ -56,7 +56,7 @@ handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"get_certs">>, {U, S, _P}, _, 
     reply(Req, State, RetCode, PemCerts);
 handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"user_exists">>, {U, S, _P}, _, _} = State) ->
     Result = mim_ct_rest:user_exists(U, S),
-    reply(Req, State, 200, list_to_binary(atom_to_list(Result)));
+    reply(Req, State, 200, atom_to_binary(Result));
 handle(Req, {<<"POST">>, <<"/auth/", _/binary>>, <<"set_password">>, {U, S, P}, _, _} = State) ->
     ok = mim_ct_rest:set_password(U, S, P),
     reply(Req, State, 204, <<>>);

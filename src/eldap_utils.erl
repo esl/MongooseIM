@@ -199,14 +199,10 @@ match_filter_name(_, _) ->
   [].
 
 -spec case_insensitive_match(binary(), binary()) -> boolean().
-case_insensitive_match(X, Y) ->
-    X1 = string:to_lower(maybe_b2list(X)),
-    Y1 = string:to_lower(maybe_b2list(Y)),
-  case X1 == Y1 of
-    true -> true;
-    _-> false
-  end.
-
+case_insensitive_match(X, Y) when is_binary(X), is_binary(Y) ->
+    X1 = string:casefold(X),
+    Y1 = string:casefold(Y),
+    X1 =:= Y1.
 
 -spec get_state(mongooseim:host_type(), atom()) -> any().
 get_state(HostType, Module) ->

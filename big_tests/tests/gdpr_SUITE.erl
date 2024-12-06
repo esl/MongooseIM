@@ -1534,15 +1534,14 @@ retrieve_inbox_for_multiple_messages(Config) ->
 retrieve_logs(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-            User = string:to_lower(binary_to_list(escalus_client:username(Alice))),
-            Domain = string:to_lower(binary_to_list(escalus_client:server(Alice))),
-            JID = string:to_upper(binary_to_list(escalus_client:short_jid(Alice))),
+            User = string:lowercase(escalus_client:username(Alice)),
+            Domain = string:lowercase(escalus_client:server(Alice)),
+            JID = string:uppercase(binary_to_list(escalus_client:short_jid(Alice))),
             #{node := MIM2NodeName} = MIM2Node = distributed_helper:mim2(),
             mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2NodeName]),
             mongoose_helper:successful_rpc(MIM2Node, error_logger, error_msg,
                                            ["event=disturbance_in_the_force, jid=~s", [JID]]),
-            Dir = request_and_unzip_personal_data(list_to_binary(User), list_to_binary(Domain),
-                                                  Config),
+            Dir = request_and_unzip_personal_data(User, Domain, Config),
             Filename = filename:join(Dir, "logs-" ++ atom_to_list(MIM2NodeName) ++ ".txt"),
             {ok, Content} = file:read_file(Filename),
             {match, _} = re:run(Content, "disturbance_in_the_force")

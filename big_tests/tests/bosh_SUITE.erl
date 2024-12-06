@@ -691,7 +691,7 @@ reply_in_time(ConfigIn) ->
 server_acks(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
         bosh_set_active(Carol, false),
-        ExpectedRid = list_to_binary(integer_to_list(get_bosh_rid(Carol))),
+        ExpectedRid = integer_to_binary(get_bosh_rid(Carol)),
         escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"1st!">>)),
         escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"2nd!">>)),
         timer:sleep(200),
@@ -897,7 +897,7 @@ wait_for_stanza(Client) ->
 
 ack_body(Body, Rid) ->
     Attrs = Body#xmlel.attrs,
-    Ack = {<<"ack">>, list_to_binary(integer_to_list(Rid))},
+    Ack = {<<"ack">>, integer_to_binary(Rid)},
     NewAttrs = lists:keystore(<<"ack">>, 1, Attrs, Ack),
     Body#xmlel{attrs = NewAttrs}.
 

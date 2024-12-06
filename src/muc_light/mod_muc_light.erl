@@ -383,7 +383,7 @@ make_err(From, To, El, Acc, Reason) ->
     Params :: map(),
     Extra :: gen_hook:extra().
 prevent_service_unavailable(Acc, #{packet := Packet}, _Extra) ->
-    case xml:get_tag_attr_s(<<"type">>, Packet) of
+    case exml_query:attr(Packet, <<"type">>) of
         <<"groupchat">> -> {stop, Acc};
         _Type -> {ok, Acc}
     end.

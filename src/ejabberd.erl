@@ -35,7 +35,7 @@
                           | {'xmlstreamelement', exml:element()}
                           | {'xmlstreamend', _}
                           | {'xmlstreamerror', _}
-                          | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
+                          | {'xmlstreamstart', Name :: binary(), Attrs :: [exml:attr()]}.
 
 -export_type([lang/0, xml_stream_item/0]).
 

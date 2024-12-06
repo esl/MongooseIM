@@ -1032,9 +1032,9 @@ maybe_add_default_ns_to_children(Children) ->
     lists:map(fun maybe_add_default_ns/1, Children).
 
 maybe_add_default_ns(#xmlel{name = Name, attrs = Attrs} = El)
- when Name =:= <<"message">>; Name =:= <<"presence">>; Name =:= <<"iq">> ->
-    case xml:get_attr(<<"xmlns">>, Attrs) of
-        false ->
+  when Name =:= <<"message">>; Name =:= <<"presence">>; Name =:= <<"iq">> ->
+    case exml_query:attr(El, <<"xmlns">>) of
+        undefined ->
             El#xmlel{attrs = [{<<"xmlns">>, ?NS_CLIENT} | Attrs]};
         _ ->
             El

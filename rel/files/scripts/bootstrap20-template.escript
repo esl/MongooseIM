@@ -111,15 +111,5 @@ parse_template_config(TemplateConfigPath, TemplateConfigBin) ->
     end.
 
 % Produce LowerEnvVars depending on the version
--ifdef(OTP_RELEASE).
--if(?OTP_RELEASE >= 24).
 get_env_vars() ->
-    [{string:to_lower(K), V} || {K, V} <- os:env()].
--else.
-get_env_vars() ->
-    [{string:to_lower(K), V} || {K, V} <- os:list_env_vars()].
--endif.
--else.
-get_env_vars() ->
-    [{string:to_lower(K), V} || {K, V} <- os:list_env_vars()].
--endif.
+    [{string:lowercase(K), V} || {K, V} <- os:env()].

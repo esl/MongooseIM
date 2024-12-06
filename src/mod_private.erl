@@ -163,8 +163,8 @@ choose_strategy(true, get) -> get;
 choose_strategy(true, set) -> set;
 choose_strategy(_,    _  ) -> forbidden.
 
-element_to_namespace(#xmlel{attrs = Attrs}) ->
-    xml:get_attr_s(<<"xmlns">>, Attrs);
+element_to_namespace(#xmlel{} = El) ->
+    exml_query:attr(El, <<"xmlns">>, <<>>);
 element_to_namespace(_) ->
     <<>>.
 
