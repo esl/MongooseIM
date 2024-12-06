@@ -47,9 +47,9 @@ parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}
     ?LOG_DEBUG(#{what => adhoc_parse_request,
                  text => <<"entering parse_request...">>,
                  sub_el => SubEl}),
-    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    SessionID = xml:get_tag_attr_s(<<"sessionid">>, SubEl),
-    Action = xml:get_tag_attr_s(<<"action">>, SubEl),
+    Node = exml_query:attr(SubEl, <<"node">>, <<>>),
+    SessionID = exml_query:attr(SubEl, <<"sessionid">>, <<>>),
+    Action = exml_query:attr(SubEl, <<"action">>, <<>>),
     XData = mongoose_data_forms:find_form(SubEl, false),
     #xmlel{children = AllEls} = SubEl,
     Others = case XData of

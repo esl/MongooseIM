@@ -85,30 +85,30 @@
 
 -spec make_result_iq_reply(exml:element()) -> exml:element();
                           (iq()) -> iq().
-make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
-    NewAttrs = make_result_iq_reply_attrs(Attrs),
+make_result_iq_reply(XE = #xmlel{}) ->
+    NewAttrs = make_result_iq_reply_attrs(XE),
     XE#xmlel{attrs = NewAttrs};
 make_result_iq_reply(IQ = #iq{}) ->
     IQ#iq{type = result}.
 
 
--spec make_result_iq_reply_attrs([exml:attr()]) -> [exml:attr(), ...].
-make_result_iq_reply_attrs(Attrs) ->
-    To = xml:get_attr(<<"to">>, Attrs),
-    From = xml:get_attr(<<"from">>, Attrs),
+-spec make_result_iq_reply_attrs(exml:element()) -> [exml:attr(), ...].
+make_result_iq_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
+    To = exml_query:attr(Element, <<"to">>),
+    From = exml_query:attr(Element, <<"from">>),
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
     Attrs3 = case To of
-                 {value, ToVal} ->
-                     [{<<"from">>, ToVal} | Attrs2];
-                 _ ->
-                     Attrs2
+                 undefined ->
+                     Attrs2;
+                 ToVal ->
+                     [{<<"from">>, ToVal} | Attrs2]
              end,
     Attrs4 = case From of
-                 {value, FromVal} ->
-                     [{<<"to">>, FromVal} | Attrs3];
-                 _ ->
-                     Attrs3
+                 undefined ->
+                     Attrs3;
+                 FromVal ->
+                     [{<<"to">>, FromVal} | Attrs3]
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
     [{<<"type">>, <<"result">>} | Attrs5].
@@ -137,33 +137,30 @@ make_error_reply(Acc, Packet, Error) ->
              make_error_reply_from_element(Packet, Error)}
     end.
 
-make_error_reply_from_element(#xmlel{name = Name, attrs = Attrs,
-                                     children = SubTags}, Error) ->
-    NewAttrs = make_error_reply_attrs(Attrs),
-    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
+make_error_reply_from_element(#xmlel{name = Name, children = SubTags} = Element, Error) ->
+    NewAttrs = make_error_reply_attrs(Element),
+    #xmlel{name = Name, attrs = NewAttrs, children = [Error | SubTags]}.
 
--spec make_error_reply_attrs([exml:attr()]) -> [exml:attr(), ...].
-make_error_reply_attrs(Attrs) ->
-    To = xml:get_attr(<<"to">>, Attrs),
-    From = xml:get_attr(<<"from">>, Attrs),
+-spec make_error_reply_attrs(exml:element()) -> [exml:attr(), ...].
+make_error_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
+    To = exml_query:attr(Element, <<"to">>),
+    From = exml_query:attr(Element, <<"from">>),
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
     Attrs3 = case To of
-                 {value, ToVal} ->
-                     [{<<"from">>, ToVal} | Attrs2];
-                 _ ->
-                     Attrs2
+                 undefined ->
+                     Attrs2;
+                 ToVal ->
+                     [{<<"from">>, ToVal} | Attrs2]
              end,
     Attrs4 = case From of
-                 {value, FromVal} ->
-                     [{<<"to">>, FromVal} | Attrs3];
-                 _ ->
-                     Attrs3
+                 undefined ->
+                     Attrs3;
+                 FromVal ->
+                     [{<<"to">>, FromVal} | Attrs3]
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    Attrs6 = [{<<"type">>, <<"error">>} | Attrs5],
-    Attrs6.
-
+    [{<<"type">>, <<"error">>} | Attrs5].
 
 -spec make_config_change_message(binary()) -> exml:element().
 make_config_change_message(Status) ->
@@ -250,19 +247,18 @@ make_reply_from_type(_) ->
 
 -spec extract_xmlns([exml:element()]) -> binary().
 extract_xmlns([Element]) ->
-    xml:get_tag_attr_s(<<"xmlns">>, Element);
+    exml_query:attr(Element, <<"xmlns">>, <<>>);
 extract_xmlns(_) ->
     <<>>.
 
 -spec iq_info_internal(exml:element(), Filter :: 'any' | 'request') ->
                                 'invalid' | 'not_iq' | 'reply' | iq().
-iq_info_internal(#xmlel{name = Name, attrs = Attrs,
-                        children = Els}, Filter) when Name == <<"iq">> ->
+iq_info_internal(#xmlel{name = Name, children = Els} = Element, Filter) when Name == <<"iq">> ->
     %% Filter is either request or any.  If it is request, any replies
     %% are converted to the atom reply.
-    ID = xml:get_attr_s(<<"id">>, Attrs),
-    Type = xml:get_attr_s(<<"type">>, Attrs),
-    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    ID = exml_query:attr(Element, <<"id">>, <<>>),
+    Type = exml_query:attr(Element, <<"type">>, <<>>),
+    Lang = exml_query:attr(Element, <<"xml:lang">>, <<>>),
     {Type1, Class} = make_reply_from_type(Type),
     case {Type1, Class, Filter} of
         {invalid, _, _} ->
@@ -271,18 +267,16 @@ iq_info_internal(#xmlel{name = Name, attrs = Attrs,
             %% The iq record is a bit strange.  The sub_el field is an
             %% XML tuple for requests, but a list of XML tuples for
             %% responses.
-            FilteredEls = xml:remove_cdata(Els),
+            FilteredEls = remove_cdata(Els),
             {XMLNS, SubEl} =
                 case {Class, FilteredEls} of
-                    {request, [#xmlel{attrs = Attrs2}]} ->
-                        {xml:get_attr_s(<<"xmlns">>, Attrs2),
-                            hd(FilteredEls)};
+                    {request, [El2]} ->
+                        {exml_query:attr(El2, <<"xmlns">>, <<>>), hd(FilteredEls)};
                     {reply, _} ->
                         %% Find the namespace of the first non-error
                         %% element, if there is one.
                         NonErrorEls = [El ||
-                                        #xmlel{name = SubName} = El
-                                            <- FilteredEls,
+                                        #xmlel{name = SubName} = El <- FilteredEls,
                                         SubName /= <<"error">>],
                         {extract_xmlns(NonErrorEls), FilteredEls};
                     _ ->
@@ -503,21 +497,21 @@ maybe_append_delay(Packet = #xmlel{children = Children}, From, TS, Desc) ->
 
 remove_delay_tags(#xmlel{children = Els} = Packet) ->
     NEl = lists:foldl(
-             fun(#xmlel{name= <<"delay">>, attrs = Attrs} = R, El)->
-                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
-                                  ?NS_DELAY ->
-                                      El;
-                                  _ ->
-                                    El ++ [R]
-                              end;
-                (#xmlel{name= <<"x">>, attrs = Attrs } = R, El) ->
-                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
-                                  ?NS_DELAY91 ->
-                                      El;
-                                  _ ->
-                                    El ++ [R]
-                              end;
-                (R, El) ->
-                              El ++ [R]
-                end, [], Els),
-    Packet#xmlel{children=NEl}.
+            fun(#xmlel{name= <<"delay">>} = R, El) ->
+                    case exml_query:attr(R, <<"xmlns">>) of
+                        ?NS_DELAY ->
+                            El;
+                        _ ->
+                            El ++ [R]
+                    end;
+               (#xmlel{name= <<"x">>} = R, El) ->
+                    case exml_query:attr(R, <<"xmlns">>) of
+                        ?NS_DELAY91 ->
+                            El;
+                        _ ->
+                            El ++ [R]
+                    end;
+               (R, El) ->
+                    El ++ [R]
+            end, [], Els),
+    Packet#xmlel{children = NEl}.

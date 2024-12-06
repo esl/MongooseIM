@@ -1029,7 +1029,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
-            Node = xml:get_attr_s(<<"node">>, QAttrs),
+            Node = exml_query:attr(SubEl, <<"node">>, <<>>),
             InfoXML = mongoose_disco:get_info(ServerHost, ?MODULE, <<>>, <<>>),
             Res = case iq_disco_info(ServerHost, Host, Node, From, Lang) of
                       {result, IQRes} ->
@@ -1044,7 +1044,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
             ejabberd_router:route(To, From, Acc, Res);
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
-            Node = xml:get_attr_s(<<"node">>, QAttrs),
+            Node = exml_query:attr(SubEl, <<"node">>, <<>>),
             Res = case iq_disco_items(Host, Node, From, jlib:rsm_decode(IQ)) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
@@ -1453,8 +1453,8 @@ iq_pubsub_set_publish(_Host, <<>>, _From, _ExtraArgs) ->
 iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := Access,
                                           action_el := ActionEl, query_el := QueryEl}) ->
     case xml:remove_cdata(ActionEl#xmlel.children) of
-        [#xmlel{name = <<"item">>, attrs = ItemAttrs, children = Payload}] ->
-            ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
+        [#xmlel{name = <<"item">>, children = Payload} = Element] ->
+            ItemId = exml_query:attr(Element, <<"id">>, <<>>),
             PublishOptions = exml_query:subelement(QueryEl, <<"publish-options">>),
             publish_item(Host, ServerHost, Node, From, ItemId,
                          Payload, Access, PublishOptions);
@@ -1465,15 +1465,15 @@ iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := A
     end.
 
 iq_pubsub_set_retract(Host, Node, From,
-                      #{action_el := #xmlel{attrs = RetractAttrs, children = RetractSubEls}}) ->
-    ForceNotify = case xml:get_attr_s(<<"notify">>, RetractAttrs) of
+                      #{action_el := #xmlel{children = RetractSubEls} = Element}) ->
+    ForceNotify = case exml_query:attr(Element, <<"notify">>) of
                       <<"1">> -> true;
                       <<"true">> -> true;
                       _ -> false
                   end,
     case xml:remove_cdata(RetractSubEls) of
-        [#xmlel{name = <<"item">>, attrs = ItemAttrs}] ->
-            ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
+        [#xmlel{name = <<"item">>} = Element1] ->
+            ItemId = exml_query:attr(Element1, <<"id">>, <<>>),
             delete_item(Host, Node, From, ItemId, ForceNotify);
         _ ->
             {error,
@@ -1481,24 +1481,24 @@ iq_pubsub_set_retract(Host, Node, From,
     end.
 
 iq_pubsub_set_subscribe(Host, Node, From, #{query_el := QueryEl,
-                                            action_el := #xmlel{attrs = SubscribeAttrs}}) ->
+                                            action_el := #xmlel{} = El}) ->
     ConfigXForm = case exml_query:subelement(QueryEl, <<"options">>) of
                       undefined -> undefined;
                       Options -> mongoose_data_forms:find_form(Options)
                   end,
-    JID = xml:get_attr_s(<<"jid">>, SubscribeAttrs),
+    JID = exml_query:attr(El, <<"jid">>, <<>>),
     subscribe_node(Host, Node, From, JID, ConfigXForm).
 
-iq_pubsub_set_unsubscribe(Host, Node, From, #{action_el := #xmlel{attrs = UnsubscribeAttrs}}) ->
-    JID = xml:get_attr_s(<<"jid">>, UnsubscribeAttrs),
-    SubId = xml:get_attr_s(<<"subid">>, UnsubscribeAttrs),
+iq_pubsub_set_unsubscribe(Host, Node, From, #{action_el := #xmlel{} = El}) ->
+    JID = exml_query:attr(El, <<"jid">>, <<>>),
+    SubId = exml_query:attr(El, <<"subid">>, <<>>),
     unsubscribe_node(Host, Node, From, JID, SubId).
 
 iq_pubsub_get_items(Host, Node, From,
                     #{query_el := QueryEl,
-                      action_el := #xmlel{attrs = GetItemsAttrs, children = GetItemsSubEls}}) ->
-    MaxItems = xml:get_attr_s(<<"max_items">>, GetItemsAttrs),
-    SubId = xml:get_attr_s(<<"subid">>, GetItemsAttrs),
+                      action_el := #xmlel{children = GetItemsSubEls}= El}) ->
+    MaxItems = exml_query:attr(El, <<"max_items">>, <<>>),
+    SubId = exml_query:attr(El, <<"subid">>, <<>>),
     ItemIds = extract_item_ids(GetItemsSubEls),
     get_items(Host, Node, From, SubId, MaxItems, ItemIds, jlib:rsm_decode(QueryEl)).
 
@@ -1518,15 +1518,15 @@ extract_item_id(#xmlel{name = <<"item">>} = Item, Acc) ->
 extract_item_id(_, Acc) -> Acc.
 
 
-iq_pubsub_get_options(Host, Node, Lang, #{action_el := #xmlel{attrs = GetOptionsAttrs}}) ->
-    SubId = xml:get_attr_s(<<"subid">>, GetOptionsAttrs),
-    JID = xml:get_attr_s(<<"jid">>, GetOptionsAttrs),
+iq_pubsub_get_options(Host, Node, Lang, #{action_el := #xmlel{} = El}) ->
+    SubId = exml_query:attr(El, <<"subid">>, <<>>),
+    JID = exml_query:attr(El, <<"jid">>, <<>>),
     get_options(Host, Node, JID, SubId, Lang).
 
-iq_pubsub_set_options(Host, Node, #{action_el := #xmlel{attrs = SetOptionsAttrs} = ActionEl}) ->
+iq_pubsub_set_options(Host, Node, #{action_el := #xmlel{} = ActionEl}) ->
     XForm = mongoose_data_forms:find_form(ActionEl),
-    SubId = xml:get_attr_s(<<"subid">>, SetOptionsAttrs),
-    JID = xml:get_attr_s(<<"jid">>, SetOptionsAttrs),
+    SubId = exml_query:attr(ActionEl, <<"subid">>, <<>>),
+    JID = exml_query:attr(ActionEl, <<"jid">>, <<>>),
     set_options(Host, Node, JID, SubId, XForm).
 
 -spec iq_pubsub_owner(
@@ -2742,10 +2742,10 @@ set_affiliations(Host, Node, From, #{action_el := ActionEl} ) ->
     Entities = lists:foldl(fun
                                (_, error) ->
                                   error;
-                               (#xmlel{name = <<"affiliation">>, attrs = Attrs}, Acc) ->
-                                   JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
+                               (#xmlel{name = <<"affiliation">>} = El, Acc) ->
+                                   JID = jid:from_binary(exml_query:attr(El, <<"jid">>, <<>>)),
                                    Affiliation = string_to_affiliation(
-                                                   xml:get_attr_s(<<"affiliation">>, Attrs)),
+                                                   exml_query:attr(El, <<"affiliation">>, <<>>)),
                                    case (JID == error) or (Affiliation == false) of
                                        true -> error;
                                        false -> [{jid:to_lower(JID), Affiliation} | Acc]
@@ -3076,11 +3076,11 @@ set_subscriptions(Host, Node, From, #{action_el := ActionEl} ) ->
     Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun(_, error) ->
                                    error;
-                              (#xmlel{name = <<"subscription">>, attrs = Attrs}, Acc) ->
-                                   JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
-                                   Sub = string_to_subscription(xml:get_attr_s(<<"subscription">>,
-                                                                               Attrs)),
-                                   SubId = xml:get_attr_s(<<"subid">>, Attrs),
+                              (#xmlel{name = <<"subscription">>} = El, Acc) ->
+                                   JID = jid:from_binary(exml_query:attr(El, <<"jid">>, <<>>)),
+                                   Sub = string_to_subscription(
+                                           exml_query:attr(El, <<"subscription">>, <<>>)),
+                                   SubId = exml_query:attr(El, <<"subid">>, <<>>),
                                    case (JID == error) or (Sub == false) of
                                        true -> error;
                                        false -> [{jid:to_lower(JID), Sub, SubId} | Acc]

@@ -201,16 +201,17 @@ init([Socket, Opts]) ->
 %%----------------------------------------------------------------------
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
-    case xml:get_attr_s(<<"xmlns">>, Attrs) of
+wait_for_stream({xmlstreamstart, Name, Attrs}, StateData) ->
+    StreamStart = #xmlel{name = Name, attrs = Attrs},
+    case exml_query:attr(StreamStart, <<"xmlns">>) of
         <<"jabber:component:accept">> ->
             %% Note: XEP-0114 requires to check that destination is a Jabber
             %% component served by this Jabber server.
             %% However several transports don't respect that,
             %% so ejabberd doesn't check 'to' attribute (EJAB-717)
-            To = xml:get_attr_s(<<"to">>, Attrs),
+            To = exml_query:attr(StreamStart, <<"to">>, <<>>),
             Header = io_lib:format(?STREAM_HEADER, [StateData#state.streamid, To]),
-            IsSubdomain = case xml:get_attr_s(<<"is_subdomain">>, Attrs) of
+            IsSubdomain = case exml_query:attr(StreamStart, <<"is_subdomain">>) of
                 <<"true">> -> true;
                 _          -> false
             end,
@@ -265,8 +266,8 @@ wait_for_handshake(closed, StateData) ->
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
     NewEl = jlib:remove_attr(<<"xmlns">>, El),
-    #xmlel{name = Name, attrs = Attrs} = NewEl,
-    From = xml:get_attr_s(<<"from">>, Attrs),
+    #xmlel{name = Name} = NewEl,
+    From = exml_query:attr(El, <<"from">>, <<>>),
     FromJID = case StateData#state.check_from of
                   %% If the admin does not want to check the from field
                   %% when accept packets from any address.
@@ -285,7 +286,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                           _ -> error
                       end
               end,
-    To = xml:get_attr_s(<<"to">>, Attrs),
+    To = exml_query:attr(El, <<"to">>, <<>>),
     ToJID = case To of
                 <<>> -> error;
                 _ -> jid:from_binary(To)

@@ -129,7 +129,7 @@ process_local_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _E
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
-    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    Node = exml_query:attr(SubEl, <<"node">>, <<>>),
     case mongoose_disco:get_local_items(HostType, From, To, Node, Lang) of
         empty ->
             Error = mongoose_xmpp_errors:item_not_found(),
@@ -144,7 +144,7 @@ process_local_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Ex
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
-    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    Node = exml_query:attr(SubEl, <<"node">>, <<>>),
     case mongoose_disco:get_local_features(HostType, From, To, Node, Lang) of
         empty ->
             Error = mongoose_xmpp_errors:item_not_found(),
@@ -163,7 +163,7 @@ process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} 
     case is_presence_subscribed(From, To) of
         true ->
             HostType = mongoose_acc:host_type(Acc),
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+            Node = exml_query:attr(SubEl, <<"node">>, <<>>),
             case mongoose_disco:get_sm_items(HostType, From, To, Node, Lang) of
                 empty ->
                     Error = sm_error(From, To),
@@ -183,7 +183,7 @@ process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} =
     case is_presence_subscribed(From, To) of
         true ->
             HostType = mongoose_acc:host_type(Acc),
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+            Node = exml_query:attr(SubEl, <<"node">>, <<>>),
             case mongoose_disco:get_sm_features(HostType, From, To, Node, Lang) of
                 empty ->
                     Error = sm_error(From, To),

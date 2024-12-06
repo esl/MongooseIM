@@ -97,8 +97,8 @@ mech_step(State, Msg) ->
 
 
 authorize_if_uri_valid(State, KeyVals, Nonce) ->
-    UserName = xml:get_attr_s(<<"username">>, KeyVals),
-    DigestURI = xml:get_attr_s(<<"digest-uri">>, KeyVals),
+    UserName = get_attr_s(KeyVals, <<"username">>),
+    DigestURI = get_attr_s(KeyVals, <<"digest-uri">>),
     case is_digesturi_valid(DigestURI, State#state.host) of
         false ->
             ?LOG_DEBUG(#{what => unauthorized_login, reason => invalid_digest_uri,
@@ -109,7 +109,7 @@ authorize_if_uri_valid(State, KeyVals, Nonce) ->
     end.
 
 maybe_authorize(UserName, KeyVals, Nonce, State) ->
-    AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
+    AuthzId = get_attr_s(KeyVals, <<"authzid">>),
     LServer = mongoose_credentials:lserver(State#state.creds),
     HostType = mongoose_credentials:host_type(State#state.creds),
     JID = jid:make_bare(UserName, LServer),
@@ -122,7 +122,7 @@ maybe_authorize(UserName, KeyVals, Nonce, State) ->
                         end,
             ExtraCreds = [{username, UserName},
                           {password, <<>>},
-                          {digest, xml:get_attr_s(<<"response">>, KeyVals)},
+                          {digest, get_attr_s(KeyVals, <<"response">>)},
                           {digest_gen, DigestGen}],
             Request = mongoose_credentials:extend(State#state.creds, ExtraCreds),
             do_authorize(UserName, KeyVals, Nonce, Passwd, Request, AuthzId, AuthModule, State)
@@ -243,11 +243,11 @@ hex(<<N, Ns/binary>>, Res) ->
                AuthzId :: binary(),
                A2Prefix :: <<_:_*96>>) -> binary().
 response(KeyVals, User, Passwd, Nonce, AuthzId, A2Prefix) ->
-    Realm = xml:get_attr_s(<<"realm">>, KeyVals),
-    CNonce = xml:get_attr_s(<<"cnonce">>, KeyVals),
-    DigestURI = xml:get_attr_s(<<"digest-uri">>, KeyVals),
-    NC = xml:get_attr_s(<<"nc">>, KeyVals),
-    QOP = xml:get_attr_s(<<"qop">>, KeyVals),
+    Realm = get_attr_s(KeyVals, <<"realm">>),
+    CNonce = get_attr_s(KeyVals, <<"cnonce">>),
+    DigestURI = get_attr_s(KeyVals, <<"digest-uri">>),
+    NC = get_attr_s(KeyVals, <<"nc">>),
+    QOP = get_attr_s(KeyVals, <<"qop">>),
     A1 = case AuthzId of
              <<>> ->
                  list_to_binary(
@@ -269,3 +269,12 @@ response(KeyVals, User, Passwd, Nonce, AuthzId, A2Prefix) ->
         NC, <<":">>, CNonce, <<":">>, QOP, <<":">>,
         hex(crypto:hash(md5, A2))],
     hex(crypto:hash(md5, T)).
+
+-spec get_attr_s([{binary(), binary()}], binary()) -> binary().
+get_attr_s(Attrs, Name) ->
+    case lists:keyfind(Name, 1, Attrs) of
+        {Name, Value} ->
+            Value;
+        false ->
+            <<>>
+    end.

@@ -93,10 +93,7 @@ handle_post(Req, State) ->
 row_to_map(#{id := Id, jid := From, packet := Msg}) ->
     Jbin = jid:to_binary(From),
     {Msec, _} = mod_mam_utils:decode_compact_uuid(Id),
-    MsgId = case xml:get_tag_attr(<<"id">>, Msg) of
-                {value, MId} -> MId;
-                false -> <<"">>
-            end,
+    MsgId = exml_query:attr(Msg, <<"id">>, <<>>),
     Body = exml_query:path(Msg, [{element, <<"body">>}, cdata]),
     #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId, body => Body}.
 
