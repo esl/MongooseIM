@@ -169,7 +169,7 @@ uri_encode_char(C, _) -> list_to_binary([$% | integer_to_list(C, 16)]).
 
 -spec hex(Data :: binary()) -> HexEncoded :: binary().
 hex(Data) ->
-    base16:encode(Data).
+    binary:encode_hex(Data, lowercase).
 
 
 -spec sha256_hash(Data :: binary()) -> Hash :: binary().

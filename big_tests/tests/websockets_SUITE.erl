@@ -125,7 +125,7 @@ too_big_stanza_is_rejected(Config) ->
     escalus:story(
       Config, [{alice, 1}, {?config(user, Config), 1}],
       fun(Alice, Geralt) ->
-              BigBody = base16:encode(crypto:strong_rand_bytes(?MAX_STANZA_SIZE)),
+              BigBody = binary:encode_hex(crypto:strong_rand_bytes(?MAX_STANZA_SIZE)),
               escalus_client:send(Geralt, escalus_stanza:chat_to(Alice, BigBody)),
               escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], escalus_client:wait_for_stanza(Geralt)),
               escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Geralt)),

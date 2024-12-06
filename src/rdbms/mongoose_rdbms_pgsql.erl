@@ -38,7 +38,7 @@ escape_binary(Bin) when is_binary(Bin) ->
 
 -spec unescape_binary(binary()) -> binary().
 unescape_binary(<<"\\x", Bin/binary>>) ->
-    base16:decode(Bin);
+    binary:decode_hex(Bin);
 unescape_binary(Bin) when is_binary(Bin) ->
     Bin.
 

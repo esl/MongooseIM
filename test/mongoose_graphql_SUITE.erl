@@ -1206,7 +1206,7 @@ post_request(Ep, HeadersIn, Body) ->
     post_request(Ep, HeadersIn, jiffy:encode(Body)).
 
 random_request_id() ->
-    base16:encode(crypto:strong_rand_bytes(8)).
+    binary:encode_hex(crypto:strong_rand_bytes(8), lowercase).
 
 meck_domain_api(Config) ->
     Hosts = [<<"test-domain.com">>, <<"localhost">>],
