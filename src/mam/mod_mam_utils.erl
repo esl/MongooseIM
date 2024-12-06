@@ -826,7 +826,7 @@ normalize_search_text(undefined, _WordSeparator) ->
     undefined;
 normalize_search_text(Text, WordSeparator) ->
     BodyString = unicode:characters_to_list(Text),
-    LowerBody = string:to_lower(BodyString),
+    LowerBody = string:lowercase(BodyString),
     ReOpts = [{return, list}, global, unicode, ucp],
     Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
     Re1 = re:replace(Re0, "([^\\w ]+)|(^\\s+)|(\\s+$)", "", ReOpts),

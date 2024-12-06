@@ -406,7 +406,7 @@ make_chat_text(I) ->
     <<"Hi, Offline ", Number/binary>>.
 
 make_message_with_expiry(Target, Expiry, Text) ->
-    ExpiryBin = list_to_binary(integer_to_list(Expiry)),
+    ExpiryBin = integer_to_binary(Expiry),
     Stanza = escalus_stanza:chat_to(Target, Text),
     #xmlel{children = Children} = Stanza,
     ExpiryElem = #xmlel{name = <<"x">>,

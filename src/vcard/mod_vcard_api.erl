@@ -127,7 +127,7 @@ from_map_to_xml(<<"credential">>) -> <<"CRED">>;
 from_map_to_xml(<<"country">>) -> <<"CTRY">>;
 from_map_to_xml(<<"binValue">>) -> <<"BINVAL">>;
 from_map_to_xml(<<"extValue">>) -> <<"EXTVAL">>;
-from_map_to_xml(Name) -> list_to_binary(string:to_upper(binary_to_list(Name))).
+from_map_to_xml(Name) -> string:uppercase(Name).
 
 to_map_format(Vcard) ->
     lists:foldl(fun(#xmlel{name = Name, children = Value}, Acc) ->

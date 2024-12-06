@@ -112,7 +112,7 @@ produce_response(#adhoc_response{lang = _Lang,
            attrs = [{<<"xmlns">>, ?NS_COMMANDS},
                     {<<"sessionid">>, SessionID},
                     {<<"node">>, Node},
-                    {<<"status">>, list_to_binary(atom_to_list(Status))}],
+                    {<<"status">>, atom_to_binary(Status)}],
            children = ActionsEls ++ NotesEls ++ Elements}.
 
 -spec ensure_correct_session_id(binary()) -> binary().

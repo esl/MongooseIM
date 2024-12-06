@@ -3847,7 +3847,7 @@ get_roomdesc_tail(StateData, Lang) ->
                    translate:translate(Lang, <<"private, ">>)
            end,
     Count = count_users(StateData),
-    CountBin = list_to_binary(integer_to_list(Count)),
+    CountBin = integer_to_binary(Count),
     <<" (", Desc/binary, CountBin/binary, ")">>.
 
 

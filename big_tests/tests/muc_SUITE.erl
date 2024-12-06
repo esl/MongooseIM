@@ -4678,7 +4678,7 @@ skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
 
 i2b(X) when is_integer(X) ->
-    list_to_binary(integer_to_list(X)).
+    integer_to_binary(X).
 
 wait_room_range(Client, FromN, ToN) ->
     wait_room_range(Client, 15, FromN-1, FromN, ToN).
