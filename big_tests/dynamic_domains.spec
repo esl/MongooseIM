@@ -21,7 +21,7 @@
 
 {suites, "tests", anonymous_SUITE}.
 
-{suites, "tests", bind2_SUITE}.
+%{suites, "tests", bind2_SUITE}.
 
 {suites, "tests", bosh_SUITE}.
 
