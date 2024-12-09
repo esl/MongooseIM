@@ -188,7 +188,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pkg: [ubuntu_xenial]
+        pkg: [ubuntu-jammy]
     runs-on: ubuntu-22.04
     env:
       pkg_OTP_VERSION: "27.0.1"
