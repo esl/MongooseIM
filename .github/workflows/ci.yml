@@ -191,7 +191,7 @@ jobs:
         pkg: [ubuntu_xenial]
     runs-on: ubuntu-22.04
     env:
-      ESL_ERLANG_PKG_VER: "25.3.2"
+      pkg_OTP_VERSION: "27.0.1"
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
       - uses: actions/checkout@v3
