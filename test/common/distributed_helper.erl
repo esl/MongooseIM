@@ -39,7 +39,7 @@ add_node_to_cluster(Node, Config) ->
     end,
     Config.
 
-add_node_to_mnesia_cluster(Node, Config) ->
+add_node_to_mnesia_cluster(Node, _Config) ->
     ClusterMemberNode = maps:get(node, mim()),
     ok = rpc(Node#{timeout => cluster_op_timeout()},
              mongoose_cluster, join, [ClusterMemberNode]),
@@ -205,3 +205,33 @@ subhost_pattern(SubhostTemplate) ->
 
 lookup_config_opt(Key) ->
     rpc(mim(), mongoose_config, lookup_opt, [Key]).
+
+%% @doc Checks if MongooseIM nodes are running
+validate_nodes() ->
+    Results = [validate_node(Node) || Node <- get_node_keys()],
+    Errors = [Res || Res <- Results, Res =/= ok],
+    case Errors of
+        [] -> ok;
+        _ -> {error, Errors}
+    end.
+
+get_node_keys() ->
+    case os:getenv("TEST_HOSTS") of
+        false ->
+            [NodeKey || {NodeKey, _Opts} <- ct:get_config(hosts)];
+        EnvValue -> %% EnvValue examples are "mim" or "mim mim2"
+            BinHosts = binary:split(iolist_to_binary(EnvValue), <<" ">>, [global]),
+            [binary_to_atom(Node, utf8) || Node <- BinHosts]
+    end.
+
+validate_node(NodeKey) ->
+    Spec = #{node := Node} = rpc_spec(NodeKey),
+    try rpc(Spec, application, which_applications, []) of
+        Loaded ->
+            case lists:keymember(mongooseim, 1, Loaded) of
+                true -> ok;
+                false -> {validate_node_failed, mongooseim_not_running, Node}
+            end
+    catch error:{badrpc, Reason} ->
+        {validate_node_failed, {badrpc, Reason}, Node}
+    end.
