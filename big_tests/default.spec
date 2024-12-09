@@ -16,12 +16,10 @@
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
-{suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", bind2_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
 {suites, "tests", cluster_commands_SUITE}.
-{suites, "tests", component_SUITE}.
 {suites, "tests", connect_SUITE}.
 {suites, "tests", disco_and_caps_SUITE}.
 {suites, "tests", extdisco_SUITE}.
@@ -81,7 +79,6 @@
 {suites, "tests", offline_SUITE}.
 {suites, "tests", offline_stub_SUITE}.
 {suites, "tests", pep_SUITE}.
-{suites, "tests", persistent_cluster_id_SUITE}.
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
@@ -98,7 +95,6 @@
 {suites, "tests", s2s_SUITE}.
 {suites, "tests", sasl_SUITE}.
 {suites, "tests", sasl2_SUITE}.
-{suites, "tests", sasl_external_SUITE}.
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
 {suites, "tests", shared_roster_SUITE}.
 {suites, "tests", sic_SUITE}.
@@ -118,6 +114,13 @@
 {suites, "tests", cets_disco_SUITE}.
 {suites, "tests", start_node_id_SUITE}.
 {suites, "tests", tr_util_SUITE}.
+
+%% the below suites restart MIM nodes, so they were moved to the end
+%% to minimise impact on other tests
+{suites, "tests", auth_methods_for_c2s_SUITE}.
+{suites, "tests", component_SUITE}.
+{suites, "tests", persistent_cluster_id_SUITE}.
+{suites, "tests", sasl_external_SUITE}.
 {suites, "tests", shutdown_SUITE}.
 
 {config, ["test.config"]}.
