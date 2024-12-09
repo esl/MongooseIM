@@ -208,12 +208,22 @@ lookup_config_opt(Key) ->
 
 %% @doc Checks if MongooseIM nodes are running
 validate_nodes() ->
-    Results = [validate_node(Node) || Node <- get_node_keys()],
+    validate_nodes(get_node_keys()).
+
+validate_nodes(NodeKeys) ->
+    Results = [validate_node(Node) || Node <- NodeKeys],
     Errors = [Res || Res <- Results, Res =/= ok],
     case Errors of
-        [] -> ok;
+        [] -> {ok, NodeKeys};
         _ -> {error, Errors}
     end.
+
+wait_for_nodes_to_start([]) -> ok;
+wait_for_nodes_to_start(NodeKeys) ->
+    wait_helper:wait_until(fun() -> validate_nodes(NodeKeys) end, {ok, NodeKeys},
+                           #{time_left => timer:seconds(20),
+                             sleep_time => 1000,
+                             name => wait_for_nodes_to_start}).
 
 get_node_keys() ->
     case os:getenv("TEST_HOSTS") of
