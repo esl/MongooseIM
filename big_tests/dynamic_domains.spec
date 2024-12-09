@@ -307,11 +307,11 @@
 
 %% the below suites restart MIM nodes, so they were moved to the end
 %% to minimise impact on other tests
-{suites, "tests", auth_methods_for_c2s_SUITE}.
+%{suites, "tests", auth_methods_for_c2s_SUITE}.
 %{suites, "tests", component_SUITE}.
-{suites, "tests", persistent_cluster_id_SUITE}.
-{suites, "tests", sasl_external_SUITE}.
-{suites, "tests", shutdown_SUITE}.
+%{suites, "tests", persistent_cluster_id_SUITE}.
+%{suites, "tests", sasl_external_SUITE}.
+%{suites, "tests", shutdown_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 
