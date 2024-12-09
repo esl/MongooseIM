@@ -41,14 +41,16 @@ init(_Id, _Opts) ->
     {ok, #{}}.
 
 %% @doc Called before init_per_suite is called.
-pre_init_per_suite(Suite,Config,State) ->
+pre_init_per_suite(Suite, [_|_] = Config, State) ->
     Preset = case application:get_env(common_test, test_label) of
                  {ok, Value} -> Value;
                  _ -> undefined
              end,
     DataDir = path_helper:data_dir(Suite, Config),
     NewConfig = [{preset, Preset}, {mim_data_dir, DataDir} | Config],
-    {NewConfig, State}.
+    {NewConfig, State};
+pre_init_per_suite(_Suite, SkipOrFail, State) ->
+    {SkipOrFail, State}.
 
 %% @doc Called after init_per_suite.
 post_init_per_suite(_Suite, _Config, Return, State) ->
