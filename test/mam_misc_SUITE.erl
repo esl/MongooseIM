@@ -189,7 +189,7 @@ packet(Name, Attrs, Children) ->
 
 %% Helpers
 bin() ->
-    base16:encode(crypto:strong_rand_bytes(8)).
+    binary:encode_hex(crypto:strong_rand_bytes(8)).
 alice() ->
     <<"alice@localhost">>.
 bob() ->

@@ -372,7 +372,7 @@ user_send_stanza_without_from_with_id(Config) ->
 
 user_send_stanza_without_from_with_id_story(Config, Alice, Bob) ->
     Body = <<"Hi!">>,
-    StanzaId = base16:encode(crypto:strong_rand_bytes(8)),
+    StanzaId = binary:encode_hex(crypto:strong_rand_bytes(8)),
     Stanza = escalus_stanza:set_id(escalus_stanza:chat_to_short_jid(Bob, Body), StanzaId),
     Res = user_send_stanza(Alice, exml:to_binary(Stanza), Config),
     ?assertEqual(#{<<"id">> => StanzaId}, get_ok_value([data, stanza, sendStanza], Res)),

@@ -317,9 +317,9 @@ check_result(Packet, ExpectedResult) ->
                 ExpectedResult).
 
 maybe_make_queryid(iq_id) ->
-    #{iq_id => base16:encode(crypto:strong_rand_bytes(16))};
+    #{iq_id => binary:encode_hex(crypto:strong_rand_bytes(16), lowercase)};
 maybe_make_queryid(queryid) ->
-    #{queryid => base16:encode(crypto:strong_rand_bytes(16))};
+    #{queryid => binary:encode_hex(crypto:strong_rand_bytes(16), lowercase)};
 maybe_make_queryid(undefined) ->
     #{}.
 
