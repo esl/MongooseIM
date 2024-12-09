@@ -80,7 +80,8 @@ handle_get(Req, State = #{jid := UserJid}) ->
     Bindings = cowboy_req:bindings(Req),
     assert_no_jid(Bindings),
     {ok, Contacts} = mod_roster_api:list_contacts(UserJid),
-    {jiffy:encode(lists:map(fun roster_info/1, Contacts)), Req, State}.
+    %CHANGED
+    {[jiffy:encode(lists:map(fun roster_info/1, Contacts))], Req, State}.
 
 handle_post(Req, State = #{jid := UserJid}) ->
     Args = parse_body(Req),
@@ -109,7 +110,8 @@ handle_delete(Req, State = #{jid := UserJid}) ->
             ContactJids = get_jids_to_delete(Args),
             NotDeleted = delete_contacts(UserJid, ContactJids),
             RespBody = #{not_deleted => lists:map(fun jid:to_binary/1, NotDeleted)},
-            Req2 = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
+            %CHANGED
+            Req2 = cowboy_req:set_resp_body([jiffy:encode(RespBody)], Req),
             Req3 = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req2),
             {true, Req3, State};
         ContactJid ->

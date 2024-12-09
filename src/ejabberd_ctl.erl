@@ -188,7 +188,8 @@ handle_graphql_result({ok, Result}) ->
     end;
 handle_graphql_result({error, Reason}) ->
     {_Code, Error} = mongoose_graphql_errors:format_error(Reason),
-    JSONResult = jiffy:encode(#{errors => [Error]}, [pretty]),
+    %CHANGED
+    JSONResult = [jiffy:encode(#{errors => [Error]}, [pretty])],
     ?PRINT("~s\n", [JSONResult]),
     ?STATUS_ERROR.
 

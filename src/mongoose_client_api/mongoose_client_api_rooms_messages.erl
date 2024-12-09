@@ -75,7 +75,8 @@ handle_get(Req, State = #{jid := UserJid}) ->
     case mod_muc_light_api:get_room_messages(RoomJid, UserJid, Limit, Before) of
         {ok, Msgs} ->
             JSONData = [make_json_item(Msg) || Msg <- Msgs],
-            {jiffy:encode(JSONData), Req, State};
+            %CHANGED
+            {[jiffy:encode(JSONData)], Req, State};
         {room_not_found, Msg} ->
             throw_error(not_found, Msg);
         {not_room_member, Msg} ->
@@ -92,7 +93,8 @@ handle_post(Req, State = #{jid := UserJid}) ->
     case mod_muc_light_api:send_message(RoomJid, UserJid, Children, Attrs) of
         {ok, _} ->
             Resp = #{id => UUID},
-            Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req),
+            %CHANGED
+            Req3 = cowboy_req:set_resp_body([jiffy:encode(Resp)], Req),
             {true, Req3, State};
         {room_not_found, Msg} ->
             throw_error(not_found, Msg);
