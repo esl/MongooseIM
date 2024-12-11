@@ -81,9 +81,9 @@ decode_row({NodeID, PubSubBin, FormJSON}) ->
      NodeID,
      decode_form(FormJSON)}.
 
+-spec encode_form(mod_event_pusher_push:form()) -> iodata().
 encode_form(Form) ->
-    %CHANGED
-    [jiffy:encode(Form)].
+    jiffy:encode(Form).
 
 decode_form(FormJSON) ->
     jiffy:decode(FormJSON, [return_maps]).

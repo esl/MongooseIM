@@ -31,8 +31,7 @@ read(HostType, {Node, SubNode}) ->
 -spec write(mongooseim:host_type(), mod_caps:node_pair(),
             mod_caps:maybe_pending_features()) -> ok.
 write(HostType, {Node, SubNode}, Features) ->
-    %CHANGED
-    Encoded = [jiffy:encode(Features)],
+    Encoded = jiffy:encode(Features),
     InsertParams = [Node, SubNode, Encoded],
     UpdateParams = [Encoded],
     UniqueKeyValues = [Node, SubNode],

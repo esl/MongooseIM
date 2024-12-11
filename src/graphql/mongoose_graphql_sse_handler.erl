@@ -107,6 +107,5 @@ make_error(Phase, Term) ->
 
 reply_error(Reason, Req, State) ->
     {Code, Error} = mongoose_graphql_errors:format_error(Reason),
-    %CHANGED
-    Body = [jiffy:encode(#{errors => [Error]})],
+    Body = jiffy:encode(#{errors => [Error]}),
     {shutdown, Code, #{}, Body, Req, State}.

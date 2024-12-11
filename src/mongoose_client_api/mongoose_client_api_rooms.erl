@@ -81,13 +81,11 @@ handle_get(Req, State = #{jid := UserJid}) ->
     case get_room_jid(Bindings, State, optional) of
         undefined ->
             {ok, Rooms} = mod_muc_light_api:get_user_rooms(UserJid),
-            %CHANGED
-            {[jiffy:encode(lists:flatmap(fun room_us_to_json/1, Rooms))], Req, State};
+            {jiffy:encode(lists:flatmap(fun room_us_to_json/1, Rooms)), Req, State};
         RoomJid ->
             case mod_muc_light_api:get_room_info(RoomJid, UserJid) of
                 {ok, Info} ->
-                    %CHANGED
-                    {[jiffy:encode(room_info_to_json(Info))], Req, State};
+                    {jiffy:encode(room_info_to_json(Info)), Req, State};
                 {room_not_found, Msg} ->
                     throw_error(not_found, Msg);
                 {not_room_member, Msg} ->
@@ -120,8 +118,7 @@ handle_put(Req, State = #{jid := UserJid}) ->
 
 room_created(Req, State, RoomJid) ->
     RespBody = #{<<"id">> => RoomJid#jid.luser},
-    %CHANGED
-    Req2 = cowboy_req:set_resp_body([jiffy:encode(RespBody)], Req),
+    Req2 = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
     Req3 = cowboy_req:reply(201, Req2),
     {stop, Req3, State}.
 

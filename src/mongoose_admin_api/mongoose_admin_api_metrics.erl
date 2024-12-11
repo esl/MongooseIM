@@ -64,8 +64,7 @@ handle_get(Req, State = #{suffix := all}) ->
             end;
         all_metrics ->
             Values = get_sum_metrics(),
-            %CHANGED
-            {[jiffy:encode(#{metrics => Values})], Req, State}
+            {jiffy:encode(#{metrics => Values}), Req, State}
     end;
 handle_get(Req, State = #{suffix := global}) ->
     Bindings = cowboy_req:bindings(Req),
@@ -81,8 +80,7 @@ handle_get(Req, State) ->
             Reply = #{host_types => HostTypes,
                       metrics => lists:map(fun prepare_name/1, Metrics),
                       global => lists:map(fun prepare_name/1, Global)},
-            %CHANGED
-            {[jiffy:encode(Reply)], Req, State}
+            {jiffy:encode(Reply), Req, State}
     end.
 
 handle_get_values(Req, State, Bindings, HostType) ->
@@ -90,8 +88,7 @@ handle_get_values(Req, State, Bindings, HostType) ->
         {metric, Metric} ->
             case mongoose_instrument_exometer:get_metric_value(HostType, Metric) of
                 {ok, Value} ->
-                    %CHANGED
-                    {[jiffy:encode(#{metric => prepare_value(Value)})], Req, State};
+                    {jiffy:encode(#{metric => prepare_value(Value)}), Req, State};
                 _Other ->
                     throw_error(not_found, <<"Metric not found">>)
             end;
@@ -101,8 +98,7 @@ handle_get_values(Req, State, Bindings, HostType) ->
                     throw_error(not_found, <<"No metrics found">>);
                 Metrics ->
                     Values = prepare_metrics(Metrics),
-                    %CHANGED
-                    {[jiffy:encode(#{metrics => Values})], Req, State}
+                    {jiffy:encode(#{metrics => Values}), Req, State}
             end
     end.
 

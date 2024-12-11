@@ -92,8 +92,7 @@ handle_get(Req, State) ->
     Domain = get_domain(Bindings),
     case mongoose_domain_api:get_domain_details(Domain) of
         {ok, Props} ->
-            %CHANGED
-            {[jiffy:encode(maps:with([host_type, status], Props))], Req, State};
+            {jiffy:encode(maps:with([host_type, status], Props)), Req, State};
         {not_found, Msg} ->
             throw_error(not_found, Msg);
         {_, Msg} ->

@@ -75,8 +75,7 @@ handle_get(Req, State) ->
     #{domain := Domain} = cowboy_req:bindings(Req),
     Users = mongoose_account_api:list_users(Domain),
     {_, UsersList} = Users,
-    %CHANGED
-    {[jiffy:encode(UsersList)], Req, State}.
+    {jiffy:encode(UsersList), Req, State}.
 
 handle_post(Req, State) ->
     #{domain := Domain} = cowboy_req:bindings(Req),

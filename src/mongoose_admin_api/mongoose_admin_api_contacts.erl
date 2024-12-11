@@ -77,8 +77,7 @@ handle_get(Req, State) ->
     UserJid = get_user_jid(Bindings),
     case mod_roster_api:list_contacts(UserJid) of
         {ok, Rosters} ->
-            %CHANGED
-            {[jiffy:encode(lists:map(fun roster_info/1, Rosters))], Req, State};
+            {jiffy:encode(lists:map(fun roster_info/1, Rosters)), Req, State};
         {unknown_domain, Reason} ->
             throw_error(not_found, Reason)
     end.

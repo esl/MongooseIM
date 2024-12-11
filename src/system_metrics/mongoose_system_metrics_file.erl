@@ -12,7 +12,6 @@ location() ->
 
 -spec save([mongoose_system_metrics_collector:report_struct()]) -> ok.
 save(Reports) ->
-    %CHANGED
-    JSON = [jiffy:encode(Reports, [pretty])],
+    JSON = jiffy:encode(Reports, [pretty]),
     file:write_file(location(), JSON),
     ok.
