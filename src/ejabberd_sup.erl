@@ -32,6 +32,9 @@
 -export([start_child/1, start_child/2, stop_child/1]).
 -export([create_ets_table/2]).
 
+-export([start_linked_child/2]).
+-ignore_xref([start_linked_child/2]).
+
 -include("mongoose_logger.hrl").
 
 start_link() ->
@@ -121,7 +124,17 @@ worker_spec(Mod) ->
     worker_spec(Mod, []).
 
 worker_spec(Mod, Args) ->
-    {Mod, {Mod, start_link, Args}, permanent, timer:seconds(5), worker, [Mod]}.
+    %% We use `start_linked_child' wrapper to log delays
+    %% in the slow init worker functions.
+    MFA = {?MODULE, start_linked_child, [Mod, Args]},
+    {Mod, MFA, permanent, timer:seconds(5), worker, [Mod]}.
+
+%% In case one of the workers takes long time to start
+%% we want the logging progress (to know which child got stuck).
+%% This could happend on CI during the node restarts.
+start_linked_child(Mod, Args) ->
+    F = fun() -> erlang:apply(Mod, start_link, Args) end,
+    mongoose_task:run_tracked(#{task => start_linked_child, child_module => Mod}, F).
 
 -spec create_ets_table(atom(), list()) -> ok.
 create_ets_table(TableName, TableOpts) ->

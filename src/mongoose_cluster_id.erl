@@ -24,8 +24,9 @@ start() ->
     PersistentBackend = which_persistent_backend_enabled(),
     VolatileBackend = which_volatile_backend_available(),
     maybe_prepare_queries(PersistentBackend),
-    cets_long:run_tracked(#{task => wait_for_any_backend,
-                            backend => PersistentBackend, volatile_backend => VolatileBackend},
+    mongoose_task:run_tracked(#{task => wait_for_any_backend,
+                                backend => PersistentBackend,
+                                volatile_backend => VolatileBackend},
                           fun() -> wait_for_any_backend(PersistentBackend, VolatileBackend) end),
     CachedRes = get_cached_cluster_id(VolatileBackend),
     BackendRes = get_backend_cluster_id(PersistentBackend),
@@ -80,7 +81,8 @@ wait_for_backend_promise(cets, Alias) ->
         end)];
 wait_for_backend_promise(rdbms, Alias) ->
     [spawn(fun() ->
-            cets_long:run_tracked(#{task => wait_for_rdbms}, fun() -> wait_for_rdbms() end),
+            mongoose_task:run_tracked(#{task => wait_for_rdbms},
+                                      fun wait_for_rdbms/0),
             Alias ! {ready, Alias}
         end)];
 wait_for_backend_promise(_, Alias) ->
