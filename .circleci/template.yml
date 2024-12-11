@@ -6,7 +6,7 @@ references:
   # You could need to trigger a pipeline to create a Docker image:
   # https://github.com/esl/cimg-erlang#trigger-build-using-trigger-pipeline-on-circleci
   - &LATEST_OTP_VERSION 27.1.2
-  - &OTP26 erlangsolutions/erlang:cimg-26.2.5.4
+  - &OTP26 erlangsolutions/erlang:cimg-26.2.5.6
   - &OTP27 erlangsolutions/erlang:cimg-27.1.2
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
