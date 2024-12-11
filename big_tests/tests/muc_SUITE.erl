@@ -5419,4 +5419,4 @@ fresh_nick_name(Prefix) ->
     <<Prefix/binary, (fresh_nick_name())/binary>>.
 
 fresh_nick_name() ->
-    fresh_room_name(base16:encode(crypto:strong_rand_bytes(5))).
+    fresh_room_name(binary:encode_hex(crypto:strong_rand_bytes(5), lowercase)).
