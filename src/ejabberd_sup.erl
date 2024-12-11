@@ -134,7 +134,7 @@ worker_spec(Mod, Args) ->
 %% This could happend on CI during the node restarts.
 start_linked_child(Mod, Args) ->
     F = fun() -> erlang:apply(Mod, start_link, Args) end,
-    cets_long:run_tracked(#{task => start_linked_child, child_module => Mod}, F).
+    mongoose_task:run_tracked(#{task => start_linked_child, child_module => Mod}, F).
 
 -spec create_ets_table(atom(), list()) -> ok.
 create_ets_table(TableName, TableOpts) ->
