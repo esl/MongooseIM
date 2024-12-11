@@ -7,8 +7,8 @@
 -export([probe/2]).
 
 %% For tests
--export([instrumentation/0]).
--ignore_xref([instrumentation/0]).
+-export([instrumentation/0, wait_for_mnesia/0]).
+-ignore_xref([instrumentation/0, wait_for_mnesia/0]).
 
 -include("mongoose_logger.hrl").
 
@@ -30,10 +30,13 @@ init(mnesia, #{}) ->
             ok
     end,
     application:start(mnesia, permanent),
-    wait_for_tables_loop(mnesia:system_info(local_tables), 10000, 0),
+    wait_for_mnesia(),
     mongoose_node_num_mnesia:init();
 init(cets, #{}) ->
     ok.
+
+wait_for_mnesia() ->
+    wait_for_tables_loop(mnesia:system_info(local_tables), 10000, 0).
 
 %% Sometimes mnesia:wait_for_tables/2 could hang on startup.
 %% This function logs which tables are not ready and their status.
