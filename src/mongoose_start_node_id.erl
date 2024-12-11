@@ -96,8 +96,15 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 register_on_remote_node(RemoteNode, StartId) ->
+    Info = #{task => register_on_remote_node,
+             remote_node => RemoteNode,
+             start_id => StartId},
+    F = fun() -> do_register_on_remote_node(RemoteNode, StartId) end,
+    mongoose_task:run_tracked(Info, F).
+
+do_register_on_remote_node(RemoteNode, StartId) ->
     Res = rpc:call(RemoteNode, ?MODULE, register_on_remote_node_rpc,
-                   [node(), StartId, self()]),
+                   [node(), StartId, self()], timer:seconds(10)),
     case Res of
         ok ->
             ok;
