@@ -64,11 +64,11 @@ terminate(_Reason, _Req, _State) ->
     ok.
 
 maybe_send_message_event(<<"chat">>, Packet, Timestamp, #{id := ID} = State) ->
-    Data = jiffy:encode(mongoose_client_api_messages:encode(Packet, Timestamp)),
+    Data = iolist_to_binary(jiffy:encode(mongoose_client_api_messages:encode(Packet, Timestamp))),
     Event = #{id => integer_to_binary(ID), event => <<"message">>, data => Data},
     {send, Event, State#{id := ID + 1}};
 maybe_send_message_event(<<"groupchat">>, Packet, Timestamp, #{id := ID} = State) ->
-    Data = jiffy:encode(mongoose_client_api_rooms_messages:encode(Packet, Timestamp)),
+    Data = iolist_to_binary(jiffy:encode(mongoose_client_api_rooms_messages:encode(Packet, Timestamp))),
     Event = #{id => integer_to_binary(ID), event => <<"room.message">>, data => Data},
     {send, Event, State#{id := ID + 1}};
 maybe_send_message_event(_, _, _, State) ->

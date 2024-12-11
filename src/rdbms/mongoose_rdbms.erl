@@ -158,8 +158,8 @@
 -type rdbms_msg() :: {sql_query, _}
                    | {sql_transaction, fun()}
                    | {sql_dirty, fun()}
-                   | {sql_execute, atom(), [binary() | boolean() | integer()]}
-                   | {sql_execute_wrapped, atom(), [binary() | boolean() | integer()], request_wrapper()}.
+                   | {sql_execute, atom(), [iodata() | boolean() | integer()]}
+                   | {sql_execute_wrapped, atom(), [iodata() | boolean() | integer()], request_wrapper()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
                                {updated, non_neg_integer(), [tuple()]} |
