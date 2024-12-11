@@ -41,6 +41,9 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_) ->
+    mongoose_task:run_tracked(#{task => mongoose_start_node_id_init}, fun do_init/0).
+
+do_init() ->
     net_kernel:monitor_nodes(true),
     StartId = mongoose_bin:gen_from_crypto(),
     persistent_term:put(mongoose_start_node_id, StartId),
