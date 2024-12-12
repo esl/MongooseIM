@@ -138,8 +138,10 @@ handle_user_terminate(Acc, StateData, Presences, Reason) ->
     PresenceUnavailable = presence_unavailable_stanza(Status),
     ParamsAcc = #{from_jid => Jid, to_jid => jid:to_bare(Jid), element => PresenceUnavailable},
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
+    Sid = mongoose_c2s:get_sid(StateData),
+    Info = mongoose_c2s:get_info(StateData),
+    ejabberd_sm:unset_presence(Acc1, Sid, Jid, Status, Info),
     presence_broadcast(Acc1, Presences),
-    mongoose_hooks:unset_presence(Acc1, Jid, Status),
     {ok, Acc}.
 
 -spec foreign_event(Acc, Params, Extra) -> Result when
