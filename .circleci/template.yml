@@ -712,16 +712,10 @@ jobs:
           command: |
             ./tools/circle-install-packages.sh rpm
             ./tools/pkg/verify_arch.sh
-      - when:
-          condition:
-            matches:
-              pattern: /^\d+\.\d+\.\d+/
-              value: << pipeline.git.tag >>
-          steps:
-            - run:
-                name: Publish package
-                command: |
-                  ./tools/pkg/publish.sh
+      - run:
+          name: Publish package
+          command: |
+            ./tools/pkg/publish.sh
 
 filters:
   - &all_tags
@@ -730,7 +724,7 @@ filters:
   - &all_tags_and_master
     <<: *all_tags
     branches:
-      only: master
+      only: package-publishing
 
 workflows:
   version: 2
