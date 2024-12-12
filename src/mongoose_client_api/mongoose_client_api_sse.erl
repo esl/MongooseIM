@@ -18,6 +18,7 @@ routes() ->
     [{"/sse", lasse_handler, #{module => mongoose_client_api_sse}}].
 
 init(_InitArgs, _LastEvtId, Req) ->
+    process_flag(trap_exit, true), % needed for 'terminate' to be called
     ?LOG_DEBUG(#{what => client_api_sse_init, req => Req}),
     {cowboy_rest, Req1, State0} = mongoose_client_api:init(Req, []),
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
@@ -28,7 +29,7 @@ init(_InitArgs, _LastEvtId, Req) ->
     maybe_init(Authorization, Req2, State#{id => 1}).
 
 maybe_init(true, Req, #{jid := JID} = State) ->
-    Session = mongoose_stanza_api:open_session(JID, false),
+    {ok, Session} = mongoose_stanza_api:open_session(JID, false),
     {ok, Req, State#{session => Session}};
 maybe_init(true, Req, State) ->
     %% This is for OPTIONS method
@@ -51,7 +52,9 @@ handle_info(Msg, State) ->
 handle_msg(<<"message">>, Acc, El, State) ->
     Timestamp = os:system_time(microsecond),
     Type = mongoose_acc:stanza_type(Acc),
-    maybe_send_message_event(Type, El, Timestamp, State).
+    maybe_send_message_event(Type, El, Timestamp, State);
+handle_msg(_, _, _, State) ->
+    {nosend, State}.
 
 handle_error(Msg, Reason, State) ->
     ?LOG_WARNING(#{what => sse_handle_error, msg => Msg, reason => Reason}),
