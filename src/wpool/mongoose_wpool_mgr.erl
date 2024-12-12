@@ -71,10 +71,10 @@ start_link(Type) ->
 
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     ok = ensure_started(Type),
-    gen_server:call(name(Type), {start_pool, Host, Tag, PoolOpts, ConnOpts}).
+    gen_server:call(name(Type), {start_pool, Host, Tag, PoolOpts, ConnOpts}, timer:seconds(30)).
 
 stop(Type, Host, Tag) ->
-    gen_server:call(name(Type), {stop_pool, Host, Tag}).
+    gen_server:call(name(Type), {stop_pool, Host, Tag}, timer:seconds(30)).
 
 -spec name(mongoose_wpool:pool_type()) -> mongoose_wpool:proc_name().
 name(Type) ->
@@ -93,7 +93,11 @@ handle_call({start_pool, Host, Tag, WpoolOpts, ConnOpts}, _From,
             #state{type = Type, pools = Pools, monitors = Monitors} = State) ->
     ?LOG_INFO(#{what => pool_starting, pool_type => Type, tag => Tag, server => Host,
                 pool_opts => WpoolOpts}),
-    case mongoose_wpool:call_start_callback(Type, [Host, Tag, WpoolOpts, ConnOpts]) of
+    F = fun() ->
+            mongoose_wpool:call_start_callback(Type, [Host, Tag, WpoolOpts, ConnOpts])
+        end,
+    Info = #{task => start_pool, tag => Tag},
+    case mongoose_task:run_tracked(Info, F) of
         {_, Pid} = OkReply when is_pid(Pid) ->
             Ref = erlang:monitor(process, Pid),
             Key = {Type, Host, Tag},
