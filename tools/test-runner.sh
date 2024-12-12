@@ -116,11 +116,11 @@ Script examples:
     Sets dev-nodes and test-hosts to empty lists
     Reruns mam_SUITE
 
-./tools/test-runner.sh --skip-small-tests --skip-start-nodes --skip-validate-nodes -- connect
-    Continues test execution even if MongooseIM is not running on all nodes
-
 ./tools/test-runner.sh --rerun-big-tests -- mam
     The same command as above
+
+./tools/test-runner.sh --skip-small-tests --skip-start-nodes --skip-validate-nodes -- connect
+    Continues test execution even if MongooseIM is not running on all nodes
 
 ./tools/test-runner.sh --help --examples --colors | more
     Display help using "more" command
