@@ -355,7 +355,7 @@ inject_module(Module, ReloadIfAlreadyLoaded) ->
                     Module :: module(),
                     ReloadIfAlreadyLoaded :: no_reload | reload) ->
     ok | already_loaded.
-inject_module(#{node := NodeAtom} = Node, Module, _) when NodeAtom =:= node() ->
+inject_module(#{node := NodeAtom} = _Node, _, _) when NodeAtom =:= node() ->
     already_loaded;
 inject_module(#{} = Node, Module, no_reload) ->
     case successful_rpc(Node, code, is_loaded, [Module]) of

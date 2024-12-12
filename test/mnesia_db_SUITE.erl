@@ -1,10 +1,7 @@
 -module(mnesia_db_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include("mongoose.hrl").
--include("jlib.hrl").
 
 local() ->
     #{node => node()}.
@@ -15,7 +12,7 @@ all() ->
 init_per_suite(Config) ->
     Config.
 
-end_per_suite(Config) ->
+end_per_suite(_Config) ->
     ok.
 
 init_per_testcase(_, C) ->
@@ -31,7 +28,7 @@ mock_mnesia() ->
     meck:new(mnesia, []),
     meck:expect(mnesia, system_info, fun(local_tables) -> [test_table_fast, test_table_slow] end),
     meck:expect(mnesia, table_info, fun(_, _) -> [] end),
-    meck:expect(mnesia, wait_for_tables, fun(Tables, Interval) ->
+    meck:expect(mnesia, wait_for_tables, fun(Tables, _Interval) ->
             case meck:num_calls(mnesia, wait_for_tables, '_') > 5 of
                 true -> ok;
                 false -> {timeout, Tables -- [test_table_fast]}
