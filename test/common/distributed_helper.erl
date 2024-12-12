@@ -231,7 +231,7 @@ get_node_keys() ->
             [NodeKey || {NodeKey, _Opts} <- ct:get_config(hosts)];
         EnvValue -> %% EnvValue examples are "mim" or "mim mim2"
             BinHosts = binary:split(iolist_to_binary(EnvValue), <<" ">>, [global]),
-            [binary_to_atom(Node, utf8) || Node <- BinHosts]
+            [binary_to_atom(Node, utf8) || Node <- BinHosts, Node =/= <<>>]
     end.
 
 validate_node(NodeKey) ->
