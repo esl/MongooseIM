@@ -40,7 +40,10 @@
 
 start(normal, _Args) ->
     try
-        do_start()
+        %% We want to print the starting progress if starting is too slow
+        %% (i.e. it would print the current stacktrace each several seconds
+        %%  during the startup)
+        mongoose_task:run_tracked(#{task => start_mongooseim}, fun do_start/0)
     catch Class:Reason:StackTrace ->
         %% Log a stacktrace because while proc_lib:crash_report/4 would report a crash reason,
         %% it would not report the stacktrace
