@@ -208,6 +208,8 @@ pre_init_per_testcase(_Suite,_TC,Config,State) ->
 
 post_end_per_testcase(Suite,TC,Config,Result,Proxy) when is_pid(Proxy) ->
     {gen_server:call(Proxy,{?FUNCTION_NAME, [Suite, TC, Config, Result]}),Proxy};
+post_end_per_testcase(Suite, TC, Config, {failed, _} = Result, State) ->
+    {Result, do_tc_fail(Suite, Result, end_tc(TC, Config, Result, State))};
 post_end_per_testcase(_Suite,TC,Config,Result,State) ->
     {Result, end_tc(TC,Config, Result,State)}.
 
@@ -574,7 +576,7 @@ test_report(Group) ->
      {<<"skipped_tc">>, Group, skipped},
      {<<"failing_tc_1">>, Group, failed},
      {<<"failing_tc_2">>, Group, failed}, % init_per_testcase failed
-     {<<"failing_tc_3">>, Group, ok} % end_per_testcase failed, still ok
+     {<<"failing_tc_3">>, Group, failed} % end_per_testcase failed
     ].
 
 wrap_nested_group_report(Report) ->
