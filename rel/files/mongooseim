@@ -17,9 +17,7 @@ export EJABBERD_PID_PATH="$EJABBERD_PID_PATH"
 EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
 export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
 
-EJABBERD_SO_PATH=`ls -dt "$RUNNER_BASE_DIR"/lib/mongooseim-*/priv/lib | head -1`
 EJABBERD_CONFIG_PATH=${EJABBERD_CONFIG_PATH:-$RUNNER_ETC_DIR/mongooseim.${MONGOOSEIM_CONFIG_FORMAT:-toml}}
-export EJABBERD_SO_PATH
 export EJABBERD_CONFIG_PATH
 
 # Make sure this script is running as the appropriate user
