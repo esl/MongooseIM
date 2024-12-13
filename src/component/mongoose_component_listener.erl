@@ -9,7 +9,7 @@
 -type conflict_behaviour() :: disconnect | kick_old.
 
 -type options() :: #{access := atom(),
-                     shaper_rule := atom(),
+                     shaper := atom(),
                      password := binary(),
                      check_from := boolean(),
                      hidden_components := boolean(),
