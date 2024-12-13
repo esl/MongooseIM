@@ -47,7 +47,7 @@ Determines who is allowed to send data to external components. By default, the r
 
 The external component needs to authenticate with this password to connect.
 
-### `listen.service.shaper_rule`
+### `listen.service.shaper`
 * **Syntax:** string, name of the shaper
 * **Default:** `"none"`
 * **Example:** `shaper = "component_shaper"`
@@ -109,7 +109,7 @@ The shaper named `fast` needs to be defined in the [`shaper`](../configuration/s
 [[listen.service]]
   port = 8888
   access = "all"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 ```
