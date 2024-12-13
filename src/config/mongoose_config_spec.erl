@@ -320,8 +320,8 @@ xmpp_listener_extra(<<"c2s">>) ->
 xmpp_listener_extra(<<"service">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"shaper_rule">> => #option{type = atom,
-                                                    validate = non_empty},
+                       <<"shaper">> => #option{type = atom,
+                                               validate = non_empty},
                        <<"max_connections">> => #option{type = int_or_infinity,
                                                         validate = positive},
                        <<"state_timeout">> => #option{type = int_or_infinity,

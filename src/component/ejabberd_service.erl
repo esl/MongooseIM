@@ -137,7 +137,7 @@ init([Socket, Opts]) ->
     ?LOG_INFO(#{what => comp_started,
                 text => <<"External service connected">>,
                 socket => Socket}),
-    #{access := Access, shaper_rule := Shaper, password := Password,
+    #{access := Access, shaper := Shaper, password := Password,
       check_from := CheckFrom, hidden_components := HiddenComponents,
       conflict_behaviour := ConflictBehaviour} = Opts,
     mongoose_transport:change_shaper(Socket, Shaper),

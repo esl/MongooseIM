@@ -47,13 +47,12 @@ Determines who is allowed to send data to external components. By default, the r
 
 The external component needs to authenticate with this password to connect.
 
-### `listen.service.shaper_rule`
+### `listen.service.shaper`
 * **Syntax:** string, name of the shaper
 * **Default:** `"none"`
 * **Example:** `shaper = "component_shaper"`
 
 The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
-Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper that needs to be defined in the [`shaper`](../configuration/shaper.md) section.
 
 ### `listen.service.check_from`
 * **Syntax:** boolean
@@ -109,7 +108,7 @@ The shaper named `fast` needs to be defined in the [`shaper`](../configuration/s
 [[listen.service]]
   port = 8888
   access = "all"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 ```

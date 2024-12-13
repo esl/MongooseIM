@@ -103,7 +103,7 @@
 [[listen.service]]
   port = 8888
   access = "all"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 
@@ -111,7 +111,7 @@
   port = 8666
   access = "all"
   conflict_behaviour = "kick_old"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 
@@ -119,7 +119,7 @@
   port = 8189
   access = "all"
   hidden_components = true
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 
