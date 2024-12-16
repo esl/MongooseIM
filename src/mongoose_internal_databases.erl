@@ -44,14 +44,19 @@ wait_for_tables_loop(Tables, Interval, Total) ->
     case mnesia:wait_for_tables(Tables, Interval) of
         ok ->
             ok;
-        {timeout, WaitingTables} ->
+        {timeout, Tables} ->
+            %% If the tables don't change, mnesia is most likely stuck
+            error(#{what => mnesia_wait_for_tables_timeout,
+                    waiting_for_tables => Tables,
+                    waiting_time => Total + Interval});
+        {timeout, NewTables} ->
             ?LOG_WARNING(#{what => mnesia_wait_for_tables_progress,
-                           waiting_for_tables => WaitingTables,
+                           waiting_for_tables => NewTables,
                            waiting_time => Total + Interval}),
-            [log_detailed_table_info(Tab) || Tab <- WaitingTables],
-            wait_for_tables_loop(WaitingTables, Interval, Total + Interval);
+            [log_detailed_table_info(Tab) || Tab <- NewTables],
+            wait_for_tables_loop(NewTables, Interval, Total + Interval);
         {error, Reason} ->
-            error({mnesia_wait_for_tables_failed, Reason})
+            error(#{what => mnesia_wait_for_tables_failed, reason => Reason})
     end.
 
 log_detailed_table_info(Tab) ->
