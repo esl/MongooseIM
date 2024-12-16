@@ -724,7 +724,7 @@ filters:
   - &all_tags_and_master
     <<: *all_tags
     branches:
-      only: package-publishing
+      only: master
 
 workflows:
   version: 2
