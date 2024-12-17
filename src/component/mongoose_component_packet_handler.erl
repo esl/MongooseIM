@@ -8,5 +8,5 @@
         mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), #{pid := pid()}) ->
     mongoose_acc:t().
 process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
-    Pid ! {route, Acc},
+    mongoose_component_connection:route(Pid, Acc),
     Acc.
