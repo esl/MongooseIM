@@ -896,7 +896,7 @@ get_attr(Attr, Element, Default) ->
     end.
 
 
--spec stream_start(binary(), binary()) -> jlib:xmlstreamstart().
+-spec stream_start(binary(), binary()) -> exml_stream:start().
 stream_start(From, To) ->
     #xmlstreamstart{name = <<"stream:stream">>,
                     attrs = [{<<"from">>, From},
@@ -947,7 +947,7 @@ is_stream_event(_) ->
 
 
 %% @doc Bosh body for a session creation response.
--spec bosh_stream_start_body(jlib:xmlstreamstart(), state()) -> exml:element().
+-spec bosh_stream_start_body(exml_stream:start(), state()) -> exml:element().
 bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"wait">>, integer_to_binary(S#state.wait)},

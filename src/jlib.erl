@@ -63,9 +63,8 @@
 -include("mongoose_rsm.hrl").
 
 %% Stream types defined in exml/include/exml_stream.hrl
--type xmlstreamstart()  :: #xmlstreamstart{}.
--type xmlstreamend()    :: #xmlstreamend{}.
--type xmlstreamel() :: exml:element() | xmlstreamstart() | xmlstreamend().
+-type xmlstreamerror()  :: #xmlstreamerror{}.
+-type xmlstreamel() :: exml:element() | exml_stream:start() | exml_stream:stop() | xmlstreamerror().
 
 -type xmlcdata()  :: #xmlcdata{}.
 
@@ -79,7 +78,7 @@
 %% Copied from calendar:rfc3339_string() (because it is not exported)
 -type rfc3339_string() :: [byte(), ...].
 
--export_type([xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
+-export_type([xmlstreamel/0, xmlstreamerror/0,
               rsm_in/0, rsm_out/0,
               xmlcdata/0,
               xmlch/0,

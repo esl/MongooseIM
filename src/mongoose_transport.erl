@@ -19,8 +19,8 @@
 %%----------------------------------------------------------------------
 
 -type send_xml_input() :: {xmlstreamelement, exml:element()}
-                          | jlib:xmlstreamstart()
-                          | jlib:xmlstreamend().
+                          | exml_stream:start()
+                          | exml_stream:stop().
 -type peer() :: {inet:ip_address(), inet:port_number()}.
 -type peername_return() :: {ok, peer()} | {error, inet:posix()}.
 -type peercert_return() :: no_peer_cert | {ok, #'Certificate'{}}.
