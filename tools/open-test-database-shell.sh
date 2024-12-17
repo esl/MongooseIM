@@ -11,6 +11,9 @@ case $db in
     pgsql)
         $DOCKER exec -e PGPASSWORD=password -it mongooseim-pgsql psql -U postgres -d mongooseim -h 127.0.0.1
     ;;
+    cockroachdb)
+       $DOCKER exec -it mongooseim-cockroachdb cockroach sql --certs-dir=/cockroach/certs --host=127.0.0.1 --user=mongooseim
+    ;;
     mssql-sqlcmd)
         $DOCKER exec -it mongooseim-mssql /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P mongooseim_secret+ESL123 -d mongooseim
     ;;
