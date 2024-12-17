@@ -46,9 +46,15 @@ wait_for_tables_loop(Tables, Interval, Total) ->
             ok;
         {timeout, Tables} ->
             %% If the tables don't change, mnesia is most likely stuck
-            error(#{what => mnesia_wait_for_tables_timeout,
-                    waiting_for_tables => Tables,
-                    waiting_time => Total + Interval});
+            ?LOG_WARNING(#{what => mnesia_wait_for_tables_timeout,
+                           waiting_for_tables => Tables,
+                           waiting_time => Total + Interval}),
+            mnesia:stop(),
+            application:start(mnesia, permanent),
+            wait_for_mnesia();
+            %% error(#{what => mnesia_wait_for_tables_timeout,
+            %%         waiting_for_tables => Tables,
+            %%         waiting_time => Total + Interval});
         {timeout, NewTables} ->
             ?LOG_WARNING(#{what => mnesia_wait_for_tables_progress,
                            waiting_for_tables => NewTables,
