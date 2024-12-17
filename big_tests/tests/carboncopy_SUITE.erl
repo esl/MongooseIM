@@ -180,13 +180,20 @@ dropped_client_doesnt_create_duplicate_carbons(Config) ->
       fun(Alice1, Alice2, Bob) ->
               enable_carbons([Alice1, Alice2]),
               Msg = escalus_stanza:chat_to(Bob, ?BODY),
+              C2SPid = mongoose_helper:get_session_pid(Alice2),
               escalus_client:stop(Config, Alice2),
               escalus:assert(is_presence_with_type, [<<"unavailable">>],
                              escalus_client:wait_for_stanza(Alice1)),
+              %% Ensure there is no session so that the test doesn't flake and fail by chance.
+              %% The issue comes from the fact that mod_presence sends the "unavailable" stanza
+              %% just before removing the is removed from ejabberd_sm. If the msg is received by
+              %% mod_carboncopy in this short window, it still considers the resource enabled.
+              %% It's a race condition, but from the user's perspective it shouldn't be a big issue.
+              mongoose_helper:wait_for_pid_to_die(C2SPid),
               escalus_client:send(Alice1, Msg),
               escalus:assert(is_chat_message, [?BODY],
                              escalus_client:wait_for_stanza(Bob)),
-              [] = escalus_client:peek_stanzas(Alice1)
+              escalus_assert:has_no_stanzas(Alice1)
       end).
 
 prop_forward_received_chat_messages(Config) ->
