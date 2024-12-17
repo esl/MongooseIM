@@ -194,7 +194,7 @@ fusco_request(Method, Path, Body, HeadersIn, Port, SSL, Params) ->
     Result.
 
 random_request_id() ->
-    base16:encode(crypto:strong_rand_bytes(8)).
+    binary:encode_hex(crypto:strong_rand_bytes(8)).
 
 report_errors(Client, Path, Method, Headers, Body,
               {{CodeBin, _}, _RHeaders, _RBody, _, _} = Result,

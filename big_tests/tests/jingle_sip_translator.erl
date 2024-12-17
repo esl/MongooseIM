@@ -118,7 +118,7 @@ make_200_ok_for_conference_call(Socket, Tr, #sip{hdrs = Hdrs} = Sip, #sip{hdrs =
     make_200_ok_for_phone_call(Tr, Sip, Resp183),
     {_, #uri{user = ReceiverUser}, _Params} = Receiver = esip:get_hdr(to, RespHdrs),
     {_, _, _} = Initiator = esip:get_hdr(from, RespHdrs),
-    Branch = base16:encode(crypto:strong_rand_bytes(3)),
+    Branch = binary:encode_hex(crypto:strong_rand_bytes(3), lowercase),
     URIBin = <<"sip:",ReceiverUser/binary,"@127.0.0.1:12345;ob;transport=tcp">>,
     ContactURI = esip_codec:decode_uri(URIBin),
     Contact = {<<>>, ContactURI, []},
@@ -142,7 +142,7 @@ make_200_ok_for_conference_call(Socket, Tr, #sip{hdrs = Hdrs} = Sip, #sip{hdrs =
 
 make_forward_req(#sip{hdrs = Hdrs} = Sip) ->
     %% Forward the request back to MongooseIM
-    Branch = base16:encode(crypto:strong_rand_bytes(3)),
+    Branch = binary:encode_hex(crypto:strong_rand_bytes(3), lowercase),
     {_, #uri{user = FromUser}, _} = esip:get_hdr(to, Hdrs),
     URIBin = <<"sip:",FromUser/binary,"@127.0.0.1:12345;ob;transport=tcp">>,
     ContactURI = esip_codec:decode_uri(URIBin),
@@ -246,7 +246,7 @@ dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, _Tr) ->
     {_, #uri{user = ToUser}, _} = To,
     {_, #uri{user = _FromUser}, _} = From,
 
-    Branch = base16:encode(crypto:strong_rand_bytes(3)),
+    Branch = binary:encode_hex(crypto:strong_rand_bytes(3), lowercase),
     URIBin = <<"sip:",ToUser/binary,"@127.0.0.1:12345;ob;transport=tcp">>,
     ContactURI = esip_codec:decode_uri(URIBin),
     Contact = {<<>>, ContactURI, []},
@@ -277,15 +277,15 @@ send_invite(From, To, Pid) ->
 
     FromURI = esip_codec:decode_uri(<<"sip:", FromJID/binary>>),
     FromSIP = {FromUser, FromURI,
-               [{<<"tag">>, base16:encode(crypto:strong_rand_bytes(2))}]},
+               [{<<"tag">>, binary:encode_hex(crypto:strong_rand_bytes(2), lowercase)}]},
 
     ToUser = escalus_client:username(To),
     ToJID = escalus_client:short_jid(To),
     ToURI = esip_codec:decode_uri(<<"sip:", ToJID/binary>>),
     ToSIP = {ToUser, ToURI, []},
-    CallID = base16:encode(crypto:strong_rand_bytes(6)),
+    CallID = binary:encode_hex(crypto:strong_rand_bytes(6), lowercase),
     CSeq = 141501489,
-    Branch = base16:encode(crypto:strong_rand_bytes(3)),
+    Branch = binary:encode_hex(crypto:strong_rand_bytes(3), lowercase),
     ContactURI = esip_codec:decode_uri(<<"sip:",FromUser/binary,"@127.0.0.1:12345;ob">>),
     Contact = {<<>>, ContactURI, []},
 
@@ -322,7 +322,7 @@ send_ack_for_200_ok(#sip{type = response, method = <<"INVITE">>,
                               'route', 'max-forwards',
                               'authorization', 'to', 'from',
                               'proxy-authorization'], Hdrs),
-    Branch = base16:encode(crypto:strong_rand_bytes(3)),
+    Branch = binary:encode_hex(crypto:strong_rand_bytes(3), lowercase),
     Via = #via{transport = <<"UDP">>, host = <<"127.0.0.1">>, port = 12345,
                params = [{<<"rport">>, <<>>},
                          {<<"branch">>, <<"z9hG4bK-", Branch/binary>>}]},

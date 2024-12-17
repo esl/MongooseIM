@@ -33,7 +33,7 @@ join(L, Sep) ->
 
 -spec gen_from_crypto() -> binary().
 gen_from_crypto() ->
-    base16:encode(crypto:strong_rand_bytes(8)).
+    binary:encode_hex(crypto:strong_rand_bytes(8), lowercase).
 
 -spec gen_from_timestamp() -> binary().
 gen_from_timestamp() ->
@@ -44,7 +44,7 @@ gen_from_timestamp() ->
     <<MegaB/binary, $-, SecsB/binary, $-, MicroB/binary>>.
 
 -spec encode_crypto(iodata()) -> binary().
-encode_crypto(Text) -> base16:encode(crypto:hash(sha, Text)).
+encode_crypto(Text) -> binary:encode_hex(crypto:hash(sha, Text), lowercase).
 
 %% ---------------------------------------------------
 %% Internal functions

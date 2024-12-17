@@ -41,7 +41,7 @@ escape_string(Iolist) ->
 
 -spec unescape_binary(binary()) -> binary().
 unescape_binary(Bin) when is_binary(Bin) ->
-    base16:decode(Bin).
+    binary:decode_hex(Bin).
 
 -spec connect(options(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
@@ -266,16 +266,16 @@ escape_binary(pgsql, Bin) ->
 escape_binary(mysql, Bin) ->
     mongoose_rdbms_mysql:escape_binary(Bin);
 escape_binary(mssql, Bin) ->
-    [<<"0x">>, base16:encode(Bin)];
+    [<<"0x">>, binary:encode_hex(Bin, lowercase)];
 escape_binary(_ServerType, Bin) ->
-    [$', base16:encode(Bin), $'].
+    [$', binary:encode_hex(Bin, lowercase), $'].
 
 -spec escape_text(ServerType :: atom(), binary()) -> iodata().
 escape_text(pgsql, Bin) ->
     escape_pgsql_string(Bin);
 escape_text(mssql, Bin) ->
     Utf16 = unicode_characters_to_binary(Bin, utf8, {utf16, little}),
-    [<<"CAST(0x">>, base16:encode(Utf16), <<" AS NVARCHAR(max))">>];
+    [<<"CAST(0x">>, binary:encode_hex(Utf16, lowercase), <<" AS NVARCHAR(max))">>];
 escape_text(ServerType, Bin) ->
     escape_binary(ServerType, Bin).
 

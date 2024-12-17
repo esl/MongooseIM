@@ -92,7 +92,7 @@ gen_user() ->
     {U, P}.
 
 random_binary(S) ->
-    base16:encode(crypto:strong_rand_bytes(S)).
+    binary:encode_hex(crypto:strong_rand_bytes(S), lowercase).
 
 domain() ->
     <<"mim1.esl.com">>.

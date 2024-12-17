@@ -395,7 +395,7 @@ store_session(Sid, Socket) ->
 %% (but if the key is always random CETS is happy with that too)
 -spec make_sid() -> binary().
 make_sid() ->
-    base16:encode(crypto:strong_rand_bytes(20)).
+    binary:encode_hex(crypto:strong_rand_bytes(20), lowercase).
 
 %%--------------------------------------------------------------------
 %% HTTP errors

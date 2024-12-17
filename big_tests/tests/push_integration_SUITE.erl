@@ -972,7 +972,7 @@ fresh_room_name(Username) ->
     escalus_utils:jid_to_lower(<<"room-", Username/binary>>).
 
 fresh_room_name() ->
-    fresh_room_name(base16:encode(crypto:strong_rand_bytes(5))).
+    fresh_room_name(binary:encode_hex(crypto:strong_rand_bytes(5), lowercase)).
 
 
 bare_jid(JIDOrClient) ->
