@@ -125,12 +125,14 @@ register_one_component(Config) ->
     {Component, ComponentAddr, _} = component_helper:connect_component(CompOpts),
     % start stream reply
     instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => 1, min_timestamp => TS}),
+        #{expected_count => 2, min_timestamp => TS}),
     % 1. start stream, 2. component handshake
     instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 2, min_timestamp => TS}),
     instrument_helper:assert(component_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 2, min_timestamp => TS}),
+    instrument_helper:assert(component_auth_failed, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 0, min_timestamp => TS}),
     % 1. start stream reply, 2. handshake reply
     instrument_helper:assert(component_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => 2, min_timestamp => TS}),
@@ -143,6 +145,10 @@ register_one_component(Config) ->
         #{expected_count => 1, min_timestamp => TS1}),
     % Reply to Alice
     instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+        #{expected_count => 1, min_timestamp => TS1}),
+    instrument_helper:assert(component_element_in, #{}, fun(_) -> true end,
+        #{expected_count => 1, min_timestamp => TS1}),
+    instrument_helper:assert(component_element_out, #{}, fun(_) -> true end,
         #{expected_count => 1, min_timestamp => TS1}),
 
     component_helper:disconnect_component(Component, ComponentAddr).
@@ -243,9 +249,9 @@ register_two_components(Config) ->
 
 try_registering_with_wrong_password(Config) ->
     %% Given a component with a wrong password
+    TS = instrument_helper:timestamp(),
     CompOpts1 = ?config(component1, Config),
-    CompOpts2 = lists:keyreplace(password, 1, CompOpts1,
-                                 {password, <<"wrong_one">>}),
+    CompOpts2 = lists:keyreplace(password, 1, CompOpts1, {password, <<"wrong_one">>}),
     try
         %% When trying to connect it
         {Comp, Addr, _} = component_helper:connect_component(CompOpts2),
@@ -253,6 +259,8 @@ try_registering_with_wrong_password(Config) ->
         ct:fail("component connected successfully with wrong password")
     catch {stream_error, _E} ->
         %% Then it should fail to do so
+        instrument_helper:assert(component_auth_failed, #{}, fun(_) -> true end,
+                                 #{expected_count => 1, min_timestamp => TS}),
         ok
     end.
 
@@ -559,7 +567,7 @@ restore_domain(Config) ->
     Config.
 
 events() ->
-    instrument_helper:declared_events(ejabberd_service, [#{connection_type => component}]).
+    instrument_helper:declared_events(mongoose_component_listener, []).
 
 %%--------------------------------------------------------------------
 %% Stanzas
