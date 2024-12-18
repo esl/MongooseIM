@@ -139,13 +139,14 @@ merge_stats_fun(send_max, V1, V2) ->
 merge_stats_fun(_, V1, V2) ->
     V1 + V2.
 
+-spec inet_stats(inet:port_number() | undefined) -> [{inet:stat_option(), integer()}].
 inet_stats(Port) ->
     try
         {ok, Stats} = inet:getstat(Port, inet_stats()),
         Stats
     catch C:R:S ->
         ?LOG_INFO(#{what => inet_stats_failed, class => C, reason => R, stacktrace => S}),
-        empty_inet_stats_measurements()
+        []
     end.
 
 inet_stats() ->
