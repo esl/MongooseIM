@@ -159,7 +159,7 @@ run_test_preset() {
 }
 
 maybe_select_suites() {
-    if command -v circleci; then
+    if command -v circleci >/dev/null 2>&1 && [[ "$CIRCLECI" == "true" ]]; then
         circleci tests glob tests/*_SUITE.erl | \
             circleci tests run --command=">selected_suites xargs -d' ' -I {} basename {} .erl"
         escript ../tools/select_suites_to_run.erl $TESTSPEC $(<selected_suites)
