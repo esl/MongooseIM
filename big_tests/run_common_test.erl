@@ -442,12 +442,14 @@ make_html(CoverNode, Modules) ->
                   %% We assume that import_code_paths/1 was called earlier
                   case cover_analyse(CoverNode, Module) of
                       {ok, {Module, {C, NC}}} ->
-                          file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([Root, CoverageDir, FileName]),
                           case cover_analyse_to_html_file(CoverNode, Module, FilePathC) of
                               {ok, _} ->
+                                  file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                                   {CAcc + C, NCAcc + NC, Skipped, Failed, OK + 1};
                               Other ->
+                                  %% Do not report link, if the destination file is not written
+                                  file:write(File, row_no_link(atom_to_list(Module), C, NC, percent(C,NC))),
                                   error_logger:error_msg("issue=cover_analyse_to_html_file_failed module=~p reason=~p",
                                                          [Module, Other]),
                                   {CAcc + C, NCAcc + NC, Skipped, Failed + 1, OK}
@@ -486,6 +488,17 @@ row(Row, C, NC, Percent, Path) ->
     [
         "<tr>",
         "<td><a href='", Path, "'>", Row, "</a></td>",
+        "<td>", integer_to_list(Percent), "%</td>",
+        "<td>", integer_to_list(C), "</td>",
+        "<td>", integer_to_list(NC), "</td>",
+        "<td>", integer_to_list(C+NC), "</td>",
+        "</tr>\n"
+    ].
+
+row_no_link(Row, C, NC, Percent) ->
+    [
+        "<tr>",
+        "<td>", Row, "</td>",
         "<td>", integer_to_list(Percent), "%</td>",
         "<td>", integer_to_list(C), "</td>",
         "<td>", integer_to_list(NC), "</td>",
