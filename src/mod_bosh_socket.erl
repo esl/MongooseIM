@@ -116,14 +116,7 @@ start_link(HostType, Sid, Peer, PeerCert, Opts) ->
 -spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
     ChildId = ?BOSH_SOCKET_SUP,
-    ChildSpec =
-        {ChildId,
-         {ejabberd_tmp_sup, start_link,
-          [ChildId, ?MODULE]},
-         transient,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
+    ChildSpec = ejabberd_sup:template_supervisor_spec(ChildId, ?MODULE),
     case supervisor:start_child(ejabberd_sup, ChildSpec) of
         {ok, undefined} ->
             {error, undefined};
@@ -903,7 +896,7 @@ get_attr(Attr, Element, Default) ->
     end.
 
 
--spec stream_start(binary(), binary()) -> jlib:xmlstreamstart().
+-spec stream_start(binary(), binary()) -> exml_stream:start().
 stream_start(From, To) ->
     #xmlstreamstart{name = <<"stream:stream">>,
                     attrs = [{<<"from">>, From},
@@ -954,7 +947,7 @@ is_stream_event(_) ->
 
 
 %% @doc Bosh body for a session creation response.
--spec bosh_stream_start_body(jlib:xmlstreamstart(), state()) -> exml:element().
+-spec bosh_stream_start_body(exml_stream:start(), state()) -> exml:element().
 bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"wait">>, integer_to_binary(S#state.wait)},

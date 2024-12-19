@@ -30,7 +30,7 @@
 
 -export([start_link/0, init/1]).
 -export([start_child/1, start_child/2, stop_child/1]).
--export([create_ets_table/2]).
+-export([create_ets_table/2, template_supervisor_spec/2]).
 
 -export([start_linked_child/2]).
 -ignore_xref([start_linked_child/2]).
@@ -56,17 +56,17 @@ init([]) ->
     ShaperSup = mongoose_shaper:child_spec(),
     DomainSup = supervisor_spec(mongoose_domain_sup),
     ReceiverSupervisor =
-        ejabberd_tmp_sup_spec(mongoose_transport_sup, [mongoose_transport_sup, mongoose_transport]),
+        template_supervisor_spec(mongoose_transport_sup, mongoose_transport),
     C2SSupervisor =
-        ejabberd_tmp_sup_spec(mongoose_c2s_sup, [mongoose_c2s_sup, mongoose_c2s]),
+        template_supervisor_spec(mongoose_c2s_sup, mongoose_c2s),
     S2SInSupervisor =
-        ejabberd_tmp_sup_spec(ejabberd_s2s_in_sup, [ejabberd_s2s_in_sup, ejabberd_s2s_in]),
+        template_supervisor_spec(ejabberd_s2s_in_sup, ejabberd_s2s_in),
     S2SOutSupervisor =
-        ejabberd_tmp_sup_spec(ejabberd_s2s_out_sup, [ejabberd_s2s_out_sup, ejabberd_s2s_out]),
+        template_supervisor_spec(ejabberd_s2s_out_sup, ejabberd_s2s_out),
     ServiceSupervisor =
-        ejabberd_tmp_sup_spec(ejabberd_service_sup, [ejabberd_service_sup, ejabberd_service]),
+        template_supervisor_spec(ejabberd_service_sup, ejabberd_service),
     IQSupervisor =
-        ejabberd_tmp_sup_spec(ejabberd_iq_sup, [ejabberd_iq_sup, mongoose_iq_worker]),
+        template_supervisor_spec(ejabberd_iq_sup, mongoose_iq_worker),
     {ok, {{one_for_one, 10, 1},
           [StartIdServer,
            PG,
@@ -112,10 +112,16 @@ stop_child(Proc) ->
     supervisor:delete_child(ejabberd_sup, Proc),
     ok.
 
-ejabberd_tmp_sup_spec(Name, Args) ->
-    {Name,
-     {ejabberd_tmp_sup, start_link, Args},
-     permanent, infinity, supervisor, [ejabberd_tmp_sup]}.
+-spec template_supervisor_spec(atom(), module()) -> supervisor:child_spec().
+template_supervisor_spec(Name, Module) ->
+    #{
+        id => Name,
+        start => {mongoose_template_sup, start_link, [Name, Module]},
+        restart => permanent,
+        shutdown => infinity,
+        type => supervisor,
+        modules => [mongoose_template_sup]
+    }.
 
 supervisor_spec(Mod) ->
     {Mod, {Mod, start_link, []}, permanent, infinity, supervisor, [Mod]}.

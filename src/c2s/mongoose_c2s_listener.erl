@@ -9,10 +9,6 @@
 -behaviour(ranch_protocol).
 -export([start_link/3]).
 
--behaviour(supervisor).
--export([start_link/1, init/1]).
--ignore_xref([start_link/1]).
-
 %% Hook handlers
 -export([handle_user_open_session/3]).
 
@@ -32,11 +28,14 @@ instrumentation(_Opts) ->
 
 %% mongoose_listener
 -spec start_listener(options()) -> ok.
-start_listener(Opts) ->
+start_listener(#{module := Module} = Opts) ->
+    HostTypes = ?ALL_HOST_TYPES,
+    TransportOpts = prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
-    ChildSpec = listener_child_spec(ListenerId, Opts),
-    mongoose_listener_sup:start_child(ChildSpec),
-    ok.
+    maybe_add_access_check(HostTypes, Opts, ListenerId),
+    ChildSpec = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, Opts),
+    ChildSpec1 = ChildSpec#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
+    mongoose_listener_sup:start_child(ChildSpec1).
 
 %% Hooks and handlers
 -spec handle_user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
@@ -67,19 +66,6 @@ start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) -
     mongoose_c2s:start_link({mongoose_c2s_ranch, {Transport, Ref}, Opts}, [{hibernate_after, HibernateAfterTimeout}]).
 
 %% supervisor
--spec start_link(options()) -> any().
-start_link(Opts) ->
-    supervisor:start_link(?MODULE, Opts).
-
--spec init(options()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
-init(#{module := Module} = Opts) ->
-    HostTypes = ?ALL_HOST_TYPES,
-    TransportOpts = prepare_socket_opts(Opts),
-    ListenerId = mongoose_listener_config:listener_id(Opts),
-    maybe_add_access_check(HostTypes, Opts, ListenerId),
-    Child = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, Opts),
-    {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, [Child]}}.
-
 maybe_add_access_check(_, #{access := all}, _) ->
     ok;
 maybe_add_access_check(HostTypes, _, ListenerId) ->
@@ -87,14 +73,6 @@ maybe_add_access_check(HostTypes, _, ListenerId) ->
                   #{listener_id => ListenerId}, 10}
                  || HostType <- HostTypes ],
     gen_hook:add_handlers(AclHooks).
-
-listener_child_spec(ListenerId, Opts) ->
-    #{id => ListenerId,
-      start => {?MODULE, start_link, [Opts]},
-      restart => permanent,
-      shutdown => infinity,
-      type => supervisor,
-      modules => [?MODULE]}.
 
 prepare_socket_opts(#{port := Port,
                       ip_version := IPVersion,

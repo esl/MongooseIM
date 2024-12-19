@@ -1,4 +1,5 @@
 -module(mongoose_component).
+
 %% API
 -export([has_component/1,
          dirty_get_all_components/1,
@@ -11,7 +12,6 @@
 -export([node_cleanup/3]).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
 -include("external_component.hrl").
 
 -type domain() :: jid:server().

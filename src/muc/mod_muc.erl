@@ -602,12 +602,7 @@ start_supervisor(HostType) ->
 
 sup_spec(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
-    {Proc,
-     {ejabberd_tmp_sup, start_link, [Proc, mod_muc_room]},
-     permanent,
-     infinity,
-     supervisor,
-     [ejabberd_tmp_sup]}.
+    ejabberd_sup:template_supervisor_spec(Proc, mod_muc_room).
 
 -spec stop_supervisor(jid:server()) -> ok | {error, Reason}
     when Reason :: not_found | restarting | running | simple_one_for_one.

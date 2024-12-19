@@ -136,7 +136,7 @@ start(Socket, Opts) ->
 
 -spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
-    p1_fsm:start_link(ejabberd_service, [SockData, Opts],
+    p1_fsm:start_link(?MODULE, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
 
 -spec start_listener(options()) -> ok.

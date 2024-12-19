@@ -65,13 +65,15 @@ component_start_stream(Conn = #client{props = Props}, []) ->
 
     ComponentHost = <<Component/binary, ".", Server/binary>>,
     StreamStart = component_stream_start(ComponentHost, false),
+    ct:log("sent~n~p~n", [StreamStart]),
     ok = escalus_connection:send(Conn, StreamStart),
     StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
+    ct:log("received~n~p~n", [StreamStartRep]),
 
     #xmlstreamstart{attrs = Attrs} = StreamStartRep,
     Id = proplists:get_value(<<"id">>, Attrs),
 
-    {Conn#client{props = [{sid, Id}|Props]}, []}.
+    {Conn#client{props = [{sid, Id} | Props]}, []}.
 
 component_stream_start(Component, IsSubdomain) ->
     Attrs1 = [{<<"to">>, Component},
@@ -91,9 +93,10 @@ component_handshake(Conn = #client{props = Props}, []) ->
     {sid, SID} = lists:keyfind(sid, 1, Props),
 
     Handshake = component_handshake_el(SID, Password),
+    ct:log("sent~n~p~n", [Handshake]),
     ok = escalus_connection:send(Conn, Handshake),
-
     HandshakeRep = escalus_connection:get_stanza(Conn, handshake),
+    ct:log("received~n~p~n", [HandshakeRep]),
     case HandshakeRep of
         #xmlel{name = <<"handshake">>, children = []} ->
             {Conn, []};
@@ -110,8 +113,10 @@ component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
     {component, Component} = lists:keyfind(component, 1, Props),
 
     StreamStart = component_stream_start(Component, true),
+    ct:log("sent~n~p~n", [StreamStart]),
     ok = escalus_connection:send(Conn, StreamStart),
     StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
+    ct:log("received~n~p~n", [StreamStartRep]),
 
     #xmlstreamstart{attrs = Attrs} = StreamStartRep,
     Id = proplists:get_value(<<"id">>, Attrs),
