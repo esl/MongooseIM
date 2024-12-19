@@ -75,7 +75,11 @@ delete_domain_password(Node, Domain) ->
     {ok, _} = rpc(Node, mongoose_domain_api, delete_domain_password, [Domain]).
 
 for_each_configured_domain(F) ->
-    [for_each_configured_domain(F, Opts) || {_, Opts} <- ct:get_config(hosts)],
+    %% Skip nodes not specified in `--test-hosts'
+    Keys = distributed_helper:get_node_keys(),
+    [for_each_configured_domain(F, Opts)
+     || {Key, Opts} <- ct:get_config(hosts),
+        lists:member(Key, Keys)],
     ok.
 
 for_each_configured_domain(F, Opts) ->
