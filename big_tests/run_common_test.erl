@@ -403,9 +403,11 @@ analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
     report_time("Export merged cover data", fun() ->
                         cover_export(CoverNode, "/tmp/mongoose_combined.coverdata")
 		end),
-    case os:getenv("GITHUB_RUN_ID") of
-        false ->
-            make_html(CoverNode, modules_to_analyze(CoverNode, CoverOpts));
+    case {os:getenv("GITHUB_RUN_ID"), os:getenv("CIRCLECI")} of
+        {false, false} ->
+            Mods = modules_to_analyze(CoverNode, CoverOpts),
+            Txt = "Export HTML report for " ++ integer_to_list(length(Mods)) ++ " modules",
+            report_time(Txt, fun() -> make_html(CoverNode, Mods) end);
         _ ->
             ok
     end,
@@ -434,25 +436,33 @@ make_html(CoverNode, Modules) ->
     file:make_dir(CoverageDir),
     {ok, File} = file:open(FilePath, [write]),
     file:write(File, get_cover_header()),
-    Fun = fun(Module, {CAcc, NCAcc}) ->
+    Fun = fun(Module, {CAcc, NCAcc, Skipped, Failed, OK}) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
                   %% We assume that import_code_paths/1 was called earlier
                   case cover_analyse(CoverNode, Module) of
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
-                          FilePathC = filename:join([CoverageDir, FileName]),
-                          cover_analyse_to_html_file(CoverNode, Module, FilePathC),
-                          {CAcc + C, NCAcc + NC};
+                          FilePathC = filename:join([Root, CoverageDir, FileName]),
+                          case cover_analyse_to_html_file(CoverNode, Module, FilePathC) of
+                              {ok, _} ->
+                                  {CAcc + C, NCAcc + NC, Skipped, Failed, OK + 1};
+                              Other ->
+                                  error_logger:error_msg("issue=cover_analyse_to_html_file_failed module=~p reason=~p",
+                                                         [Module, Other]),
+                                  {CAcc + C, NCAcc + NC, Skipped, Failed + 1, OK}
+                          end;
                       Reason ->
                           error_logger:error_msg("issue=cover_analyse_failed module=~p reason=~p",
                                                  [Module, Reason]),
-                          {CAcc, NCAcc}
+                          {CAcc, NCAcc, Skipped + 1, Failed, OK}
                   end
           end,
-    {CSum, NCSum} = lists:foldl(Fun, {0, 0}, Modules),
+    {CSum, NCSum, Skipped2, Failed2, OK2} = lists:foldl(Fun, {0, 0, 0, 0, 0}, Modules),
     file:write(File, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
-    file:close(File).
+    file:close(File),
+    report_progress("make_html: ok - ~p, skipped - ~p, failed - ~p~n", [OK2, Skipped2, Failed2]),
+    ok.
 
 get_hosts_to_enable_preset(Props) ->
     [Host || Host <- get_all_hosts(Props), should_enable_preset(host_cluster(Host))].
