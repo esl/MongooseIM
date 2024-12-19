@@ -218,7 +218,7 @@ with_app_stopped(App, F) ->
     try
         F()
     after
-        Running andalso application:start(App)
+        Running andalso application:start(App, permanent)
     end.
 
 node_trans(F) ->
