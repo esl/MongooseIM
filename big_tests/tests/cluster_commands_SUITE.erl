@@ -41,9 +41,9 @@ all() ->
      {group, clustering_three}].
 
 groups() ->
-    [{clustered, [], [one_to_one_message]},
-     {clustering_two, [], clustering_two_tests()},
-     {clustering_three, [], clustering_three_tests()}].
+    [{clustered, [{repeat_until_any_fail, 5}], [one_to_one_message]},
+     {clustering_two, [{repeat_until_any_fail, 5}], clustering_two_tests()},
+     {clustering_three, [{repeat_until_any_fail, 5}], clustering_three_tests()}].
 
 suite() ->
     require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
