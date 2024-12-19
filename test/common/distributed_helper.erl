@@ -226,12 +226,15 @@ wait_for_nodes_to_start(NodeKeys) ->
                              name => wait_for_nodes_to_start}).
 
 get_node_keys() ->
+    Keys = [NodeKey || {NodeKey, _Opts} <- ct:get_config(hosts)],
     case os:getenv("TEST_HOSTS") of
         false ->
-            [NodeKey || {NodeKey, _Opts} <- ct:get_config(hosts)];
+            Keys;
         EnvValue -> %% EnvValue examples are "mim" or "mim mim2"
             BinHosts = binary:split(iolist_to_binary(EnvValue), <<" ">>, [global]),
-            [binary_to_atom(Node, utf8) || Node <- BinHosts, Node =/= <<>>]
+            EnvKeys = [binary_to_atom(Node, utf8) || Node <- BinHosts, Node =/= <<>>],
+            %% Check only configured nodes (through test.config)
+            [Key || Key <- EnvKeys, lists:member(Key, Keys)]
     end.
 
 validate_node(NodeKey) ->
