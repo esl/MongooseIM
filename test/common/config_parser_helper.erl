@@ -221,7 +221,7 @@ options("mongooseim-pgsql") ->
                 ip_tuple => {127, 0, 0, 1},
                 port => 8888,
                 access => all,
-                shaper_rule => fast,
+                shaper => fast,
                 password => "secret"
                }),
        config([listen, service],
@@ -229,7 +229,7 @@ options("mongooseim-pgsql") ->
                 ip_tuple => {127, 0, 0, 1},
                 port => 8666,
                 access => all,
-                shaper_rule => fast,
+                shaper => fast,
                 password => "secret",
                 conflict_behaviour => kick_old
                }),
@@ -238,7 +238,7 @@ options("mongooseim-pgsql") ->
                 ip_tuple => {127, 0, 0, 1},
                 port => 8189,
                 access => all,
-                shaper_rule => fast,
+                shaper => fast,
                 password => "secret",
                 hidden_components => true
                })
@@ -1097,8 +1097,11 @@ common_listener_config() ->
 
 extra_service_listener_config() ->
     #{access => all,
-      shaper_rule => none,
+      shaper => none,
       check_from => true,
+      max_connections => infinity,
+      reuse_port => false,
+      state_timeout => 5000,
       hidden_components => false,
       conflict_behaviour => disconnect,
       connection_type => component}.
@@ -1172,7 +1175,7 @@ default_config([listen, s2s, tls]) ->
     default_tls(fast_tls);
 default_config([listen, service]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
-    Extra#{module => ejabberd_service};
+    Extra#{module => mongoose_component_listener};
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_event_pusher, http]) ->
