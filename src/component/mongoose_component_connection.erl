@@ -198,8 +198,8 @@ handle_stream_start(S0, StreamStart) ->
     case {XmlNs, LServer} of
         {?NS_COMPONENT_ACCEPT, LServer} when error =/= LServer ->
             IsSubdomain = <<"true">> =:= exml_query:attr(StreamStart, <<"is_subdomain">>, <<>>),
-            send_header(S0),
             S1 = S0#component_data{lserver = LServer, is_subdomain = IsSubdomain},
+            send_header(S1),
             {next_state, wait_for_handshake, S1, state_timeout(S1)};
         {?NS_COMPONENT_ACCEPT, error} ->
             stream_start_error(S0, mongoose_xmpp_errors:host_unknown());
