@@ -72,6 +72,8 @@ component_start_stream(Conn = #client{props = Props}, []) ->
 
     #xmlstreamstart{attrs = Attrs} = StreamStartRep,
     Id = proplists:get_value(<<"id">>, Attrs),
+    From = proplists:get_value(<<"from">>, Attrs),
+    From =:= ComponentHost orelse throw({from_does_not_correspond_to_connection, Server, From}),
 
     {Conn#client{props = [{sid, Id} | Props]}, []}.
 

@@ -576,27 +576,30 @@ listen_s2s_cacertfile_verify(_Config) ->
     ?cfg(P, ConfigWithVerifyModeNone, T(<<"required_trusted">>, VerifyModeNoneRaw)).
 
 listen_service(_Config) ->
-    T = fun(Opts) -> listen_raw(service, maps:merge(#{<<"port">> => 8888,
-                                                      <<"password">> => <<"secret">>}, Opts))
-        end,
+    Defs = #{<<"port">> => 8888, <<"password">> => <<"secret">>},
+    T = fun(Opts) -> listen_raw(service, maps:merge(Defs, Opts)) end,
     P = [listen, 1],
     ?cfg(P, config([listen, service], #{port => 8888, password => "secret"}), T(#{})),
     test_listen(P, T),
     test_listen_xmpp(P, T),
     ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
-    ?cfg(P ++ [shaper_rule], fast, T(#{<<"shaper_rule">> => <<"fast">>})),
+    ?cfg(P ++ [shaper], fast, T(#{<<"shaper">> => <<"fast">>})),
     ?cfg(P ++ [check_from], false, T(#{<<"check_from">> => false})),
     ?cfg(P ++ [hidden_components], true, T(#{<<"hidden_components">> => true})),
     ?cfg(P ++ [conflict_behaviour], kick_old, T(#{<<"conflict_behaviour">> => <<"kick_old">>})),
-    ?cfg(P ++ [max_fsm_queue], 1000, T(#{<<"max_fsm_queue">> => 1000})),
+    ?cfg(P ++ [state_timeout], 6000, T(#{<<"state_timeout">> => 6000})),
+    ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
+    ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
+    ?err(T(#{<<"state_timeout">> => -10})),
+    ?err(T(#{<<"reuse_port">> => 0})),
+    ?err(T(#{<<"max_connections">> => 0})),
     ?err(T(#{<<"access">> => <<>>})),
-    ?err(T(#{<<"shaper_rule">> => <<>>})),
+    ?err(T(#{<<"shaper">> => <<>>})),
     ?err(T(#{<<"check_from">> => 1})),
     ?err(T(#{<<"hidden_components">> => <<"yes">>})),
     ?err(T(#{<<"conflict_behaviour">> => <<"kill_server">>})),
     ?err(T(#{<<"password">> => <<>>})),
-    ?err(T(#{<<"password">> => undefined})),
-    ?err(T(#{<<"max_fsm_queue">> => 0})).
+    ?err(T(#{<<"password">> => undefined})).
 
 listen_http(_Config) ->
     T = fun(Opts) -> listen_raw(http, maps:merge(#{<<"port">> => 5280}, Opts)) end,

@@ -12,6 +12,9 @@
 -export([start/0, stop/0]).
 -export([suspend_listeners_and_shutdown_connections/0]).
 
+%% Helpers
+-export([prepare_socket_opts/1]).
+
 -callback start_listener(options()) -> ok.
 -callback instrumentation(options()) -> [mongoose_instrument:spec()].
 -optional_callbacks([instrumentation/1]).
@@ -21,7 +24,7 @@
                      ip_address := string(),
                      ip_version := 4 | 6,
                      proto := proto(),
-                     any() => any()}.
+                     any() := any()}.
 -type id() :: {inet:port_number(), inet:ip_address(), proto()}.
 -type proto() :: tcp.
 -type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
@@ -65,6 +68,7 @@ stop_listener(Opts) ->
 instrumentation(Listeners) ->
     %% c2s instrumentation is shared between Bosh, Websockets and TCP listeners
     lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)])
+    ++ mongoose_component_listener:instrumentation()
     ++ mongoose_c2s:instrumentation().
 
 -spec listener_instrumentation(options()) -> [mongoose_instrument:spec()].
@@ -139,3 +143,29 @@ broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
             ok = ranch:wait_for_connections(Ref, '==', 0)
         end, Refs),
     StoppedCount.
+
+-spec prepare_socket_opts(map()) -> map().
+prepare_socket_opts(#{port := Port,
+                      ip_version := IPVersion,
+                      ip_tuple := IPTuple,
+                      backlog := Backlog,
+                      num_acceptors := NumAcceptors,
+                      max_connections := MaxConnections,
+                      reuse_port := ReusePort}) ->
+    SocketOpts = [{nodelay, true},
+                  {keepalive, true},
+                  {ip, IPTuple},
+                  {port, Port},
+                  {backlog, Backlog},
+                  mongoose_listener_config:address_family(IPVersion)
+                  | maybe_reuseport(ReusePort)],
+    #{max_connections => MaxConnections,
+      num_acceptors => NumAcceptors,
+      num_listen_sockets => num_listen_sockets(ReusePort),
+      socket_opts => SocketOpts}.
+
+maybe_reuseport(false) -> [];
+maybe_reuseport(true) -> [{raw, 1, 15, <<1:32/native>>}].
+
+num_listen_sockets(false) -> 1;
+num_listen_sockets(true) -> erlang:system_info(schedulers_online).
