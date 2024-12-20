@@ -90,7 +90,6 @@ handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
     {next_state, wait_for_stream, StateData1, state_timeout(LOpts)};
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, wait_for_stream, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
-    execute_element_event(component_element_in, StreamStart, StateData),
     handle_stream_start(StateData, StreamStart);
 handle_event(internal, #xmlel{name = <<"handshake">>} = El, wait_for_handshake, StateData) ->
     execute_element_event(component_element_in, El, StateData),
@@ -176,10 +175,10 @@ handle_socket_packet(StateData = #component_data{parser = Parser}, Packet) ->
     end.
 
 -spec handle_socket_elements(data(), [exml_stream:element()], non_neg_integer()) -> fsm_res().
-handle_socket_elements(StateData = #component_data{shaper = Shaper}, Elements, Size) ->
+handle_socket_elements(StateData = #component_data{lserver = LServer, shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
     [mongoose_instrument:execute(
-       component_xmpp_element_size_in, #{}, #{byte_size => exml:xml_size(El)})
+       component_xmpp_element_size_in, #{}, #{byte_size => exml:xml_size(El), lserver => LServer})
      || El <- Elements],
     NewStateData = StateData#component_data{shaper = NewShaper},
     MaybePauseTimeout = maybe_pause(NewStateData, Pause),
@@ -212,6 +211,7 @@ handle_stream_start(S0, StreamStart) ->
             IsSubdomain = <<"true">> =:= exml_query:attr(StreamStart, <<"is_subdomain">>, <<>>),
             S1 = S0#component_data{lserver = LServer, is_subdomain = IsSubdomain},
             send_header(S1),
+            execute_element_event(component_element_in, StreamStart, S1),
             {next_state, wait_for_handshake, S1, state_timeout(S1)};
         {?NS_COMPONENT_ACCEPT, error} ->
             stream_start_error(S0, mongoose_xmpp_errors:host_unknown());
@@ -424,11 +424,11 @@ close_parser(#component_data{parser = Parser}) ->
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
-send_xml(#component_data{socket = Socket} = StateData, XmlElements) when is_list(XmlElements) ->
+send_xml(#component_data{lserver = LServer, socket = Socket} = StateData, XmlElements) when is_list(XmlElements) ->
     [ begin
           execute_element_event(component_element_out, El, StateData),
           mongoose_instrument:execute(
-            component_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)})
+            component_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El), lserver => LServer})
       end || El <- XmlElements],
     mongoose_component_socket:send_xml(Socket, XmlElements).
 

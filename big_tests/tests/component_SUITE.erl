@@ -36,7 +36,7 @@ all() ->
     ].
 
 groups() ->
-    [{xep0114, [], xep0114_tests()},
+    [{xep0114, [parallel], xep0114_tests()},
      {subdomain, [], [register_subdomain]},
      {hidden_components, [], [disco_with_hidden_component]},
      {distributed, [], [register_in_cluster,
@@ -72,33 +72,23 @@ end_per_suite(Config) ->
 
 init_per_group(xep0114, Config) ->
     instrument_helper:start(events()),
-    Config1 = component_helper:get_components(Config),
-    escalus:create_users(Config1, escalus:get_users([alice, bob]));
+    Config;
 init_per_group(subdomain, Config) ->
-    Config1 = component_helper:get_components(Config),
-    add_domain(Config1),
-    escalus:create_users(Config1, escalus:get_users([alice, astrid]));
-init_per_group(hidden_components, Config) ->
-    Config1 = component_helper:get_components(Config),
-    escalus:create_users(Config1, escalus:get_users([alice, bob]));
+    add_domain(Config),
+    Config;
 init_per_group(distributed, Config) ->
-    Config1 = component_helper:get_components(Config),
-    Config2 = distributed_helper:add_node_to_cluster(Config1),
-    escalus:create_users(Config2, escalus:get_users([alice, clusterguy]));
+    distributed_helper:add_node_to_cluster(Config);
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob])).
+    Config.
 
-end_per_group(xep0114, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])),
+end_per_group(xep0114, _Config) ->
     instrument_helper:stop();
 end_per_group(subdomain, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, astrid])),
     restore_domain(Config);
 end_per_group(distributed, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
     distributed_helper:remove_node_from_cluster(Config);
-end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])).
+end_per_group(_GroupName, _Config) ->
+    ok.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -110,74 +100,60 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
-dirty_disconnect(Config) ->
-    %% Given one connected component, kill the connection and reconnect
-    CompOpts = ?config(component1, Config),
-    {Component, Addr, _} = component_helper:connect_component(CompOpts),
-    component_helper:disconnect_component(Component, Addr),
-    {Component1, Addr, _} = component_helper:connect_component(CompOpts),
-    component_helper:disconnect_component(Component1, Addr).
-
 register_one_component(Config) ->
     TS = instrument_helper:timestamp(),
     %% Given one connected component
-    CompOpts = ?config(component1, Config),
-    {Component, ComponentAddr, _} = component_helper:connect_component(CompOpts),
+    CompSpec = component_helper:spec(component1),
+    {Component, ComponentAddr, _} = component_helper:connect_component(CompSpec),
+    FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
+                     S > 0 andalso LServer =:= ComponentAddr
+             end,
+    CheckBytes = fun(#{byte_size := S}) -> S > 0 end,
+    CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
     % start stream reply
-    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, FullCheckF,
         #{expected_count => 2, min_timestamp => TS}),
     % 1. start stream, 2. component handshake
-    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => 2, min_timestamp => TS}),
-    instrument_helper:assert(component_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => 2, min_timestamp => TS}),
-    instrument_helper:assert(component_auth_failed, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_auth_failed, #{}, FullCheckF,
         #{expected_count => 0, min_timestamp => TS}),
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, FullCheckF,
+        #{expected_count => 1, min_timestamp => TS}),
+    instrument_helper:assert(component_tcp_data_in, #{}, CheckBytes,
+        #{min_timestamp => TS}),
     % 1. start stream reply, 2. handshake reply
-    instrument_helper:assert(component_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => 2, min_timestamp => TS}),
+    instrument_helper:assert(component_tcp_data_out, #{}, CheckBytes,
+        #{min_timestamp => TS}),
 
     TS1 = instrument_helper:timestamp(),
     verify_component(Config, Component, ComponentAddr),
 
     % Message from Alice
-    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS1}),
     % Reply to Alice
-    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS1}),
-    instrument_helper:assert(component_element_in, #{}, fun(_) -> true end,
+    instrument_helper:assert(component_element_in, #{}, CheckServer,
         #{expected_count => 1, min_timestamp => TS1}),
-    instrument_helper:assert(component_element_out, #{}, fun(_) -> true end,
+    instrument_helper:assert(component_element_out, #{}, CheckServer,
         #{expected_count => 1, min_timestamp => TS1}),
 
     component_helper:disconnect_component(Component, ComponentAddr).
 
-verify_component(Config, Component, ComponentAddr) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-                %% When Alice sends a message to the component
-                Msg1 = escalus_stanza:chat_to(ComponentAddr, <<"Hi!">>),
-                escalus:send(Alice, Msg1),
-                %% Then component receives it
-                Reply1 = escalus:wait_for_stanza(Component),
-                escalus:assert(is_chat_message, [<<"Hi!">>], Reply1),
-
-                %% When component sends a reply
-                Msg2 = escalus_stanza:chat_to(Alice, <<"Oh hi!">>),
-                escalus:send(Component, escalus_stanza:from(Msg2, ComponentAddr)),
-
-                %% Then Alice receives it
-                Reply2 = escalus:wait_for_stanza(Alice),
-                escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
-                escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
-        end).
+dirty_disconnect(Config) ->
+    %% Given one connected component, kill the connection and reconnect
+    CompSpec = component_helper:spec(component1),
+    {Component, Addr, _} = component_helper:connect_component(CompSpec),
+    component_helper:disconnect_component(Component, Addr),
+    {Component1, Addr, _} = component_helper:connect_component(CompSpec),
+    component_helper:disconnect_component(Component1, Addr).
 
 intercomponent_communication(Config) ->
     %% Given two connected components
-    CompOpts1 = ?config(component1, Config),
-    CompOpts2 = ?config(component2, Config),
-    {Comp1, CompAddr1, _} = component_helper:connect_component(CompOpts1),
-    {Comp2, CompAddr2, _} = component_helper:connect_component(CompOpts2),
+    CompSpec1 = component_helper:spec(component1),
+    CompSpec2 = component_helper:spec(component2),
+    {Comp1, CompAddr1, _} = component_helper:connect_component(CompSpec1),
+    {Comp2, CompAddr2, _} = component_helper:connect_component(CompSpec2),
 
     TS = instrument_helper:timestamp(),
     %% When the first component sends a message the second component
@@ -187,9 +163,12 @@ intercomponent_communication(Config) ->
     Reply0 = escalus:wait_for_stanza(Comp2),
     escalus:assert(is_chat_message, [<<"intercomponent msg">>], Reply0),
 
-    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
+                    S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
+             end,
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
-    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
 
     component_helper:disconnect_component(Comp1, CompAddr1),
@@ -198,13 +177,13 @@ intercomponent_communication(Config) ->
 
 register_two_components(Config) ->
     %% Given two connected components
-    CompOpts1 = ?config(component1, Config),
-    CompOpts2 = ?config(component2, Config),
-    {Comp1, CompAddr1, _} = component_helper:connect_component(CompOpts1),
-    {Comp2, CompAddr2, _} = component_helper:connect_component(CompOpts2),
+    CompSpec1 = component_helper:spec(component1),
+    CompSpec2 = component_helper:spec(component2),
+    {Comp1, CompAddr1, _} = component_helper:connect_component(CompSpec1),
+    {Comp2, CompAddr2, _} = component_helper:connect_component(CompSpec2),
     TS = instrument_helper:timestamp(),
 
-    escalus:story(Config,
+    escalus:fresh_story(Config,
                   [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             %% When the first component sends a message to Alice
             Msg1 = escalus_stanza:chat_to(Alice, <<"Comp1-2-Alice msg">>),
@@ -237,11 +216,14 @@ register_two_components(Config) ->
             escalus:assert(is_chat_message, [<<"Alice-2-Comp1 msg">>], Reply4)
         end),
 
+    FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
+                    S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
+             end,
     % Msg to Alice, msg to Bob
-    instrument_helper:assert(component_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_element_size_in, #{}, FullCheckF,
         #{expected_count => 2, min_timestamp => TS}),
     % Msg from Bob, msg from Alice
-    instrument_helper:assert(component_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(component_xmpp_element_size_out, #{}, FullCheckF,
         #{expected_count => 2, min_timestamp => TS}),
 
     component_helper:disconnect_component(Comp1, CompAddr1),
@@ -250,11 +232,11 @@ register_two_components(Config) ->
 try_registering_with_wrong_password(Config) ->
     %% Given a component with a wrong password
     TS = instrument_helper:timestamp(),
-    CompOpts1 = ?config(component1, Config),
-    CompOpts2 = lists:keyreplace(password, 1, CompOpts1, {password, <<"wrong_one">>}),
+    CompSpec1 = component_helper:spec(component1),
+    CompSpec2 = lists:keyreplace(password, 1, CompSpec1, {password, <<"wrong_one">>}),
     try
         %% When trying to connect it
-        {Comp, Addr, _} = component_helper:connect_component(CompOpts2),
+        {Comp, Addr, _} = component_helper:connect_component(CompSpec2),
         component_helper:disconnect_component(Comp, Addr),
         ct:fail("component connected successfully with wrong password")
     catch {stream_error, _E} ->
@@ -266,12 +248,12 @@ try_registering_with_wrong_password(Config) ->
 
 try_registering_component_twice(Config) ->
     %% Given two components with the same name
-    CompOpts1 = ?config(component1, Config),
-    {Comp1, Addr, _} = component_helper:connect_component(CompOpts1),
+    CompSpec1 = component_helper:spec(component1),
+    {Comp1, Addr, _} = component_helper:connect_component(CompSpec1),
 
     try
         %% When trying to connect the second one
-        {Comp2, Addr, _} = component_helper:connect_component(CompOpts1),
+        {Comp2, Addr, _} = component_helper:connect_component(CompSpec1),
         component_helper:disconnect_component(Comp2, Addr),
         ct:fail("second component connected successfully")
     catch {stream_error, _} ->
@@ -283,7 +265,7 @@ try_registering_component_twice(Config) ->
 
 try_registering_existing_host(Config) ->
     %% Given a external vjud component
-    Component = ?config(vjud_component, Config),
+    Component = component_helper:spec(vjud_component),
 
     try
         %% When trying to connect it to the server
@@ -298,11 +280,11 @@ try_registering_existing_host(Config) ->
 %% When conflict_behaviour is kick_old, then:
 %% - stop old connections by sending stream:error with reason "conflict"
 kick_old_component_on_conflict(Config) ->
-    CompOpts1 = component_helper:spec(kicking_component, Config),
-    {Comp1, Addr, _} = component_helper:connect_component(CompOpts1),
+    CompSpec1 = component_helper:spec(kicking_component),
+    {Comp1, Addr, _} = component_helper:connect_component(CompSpec1),
 
     %% When trying to connect the second one
-    {Comp2, Addr, _} = component_helper:connect_component(CompOpts1),
+    {Comp2, Addr, _} = component_helper:connect_component(CompSpec1),
 
     %% First connection is disconnected
     Stanza = escalus:wait_for_stanza(Comp1),
@@ -315,12 +297,12 @@ kick_old_component_on_conflict(Config) ->
 
 disco_components(Config) ->
     %% Given two connected components
-    CompOpts1 = ?config(component1, Config),
-    CompOpts2 = ?config(component2, Config),
-    {Comp1, Addr1, _} = component_helper:connect_component(CompOpts1),
-    {Comp2, Addr2, _} = component_helper:connect_component(CompOpts2),
+    CompSpec1 = component_helper:spec(component1),
+    CompSpec2 = component_helper:spec(component2),
+    {Comp1, Addr1, _} = component_helper:connect_component(CompSpec1),
+    {Comp2, Addr2, _} = component_helper:connect_component(CompSpec2),
 
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
                 %% When server asked for the disco features
                 Server = escalus_client:server(Alice),
                 Disco = escalus_stanza:service_discovery(Server),
@@ -340,12 +322,12 @@ disco_components(Config) ->
 %% Assumes mod_disco with `{users_can_see_hidden_services, false}` option
 disco_with_hidden_component(Config) ->
     %% Given two connected components
-    CompOpts1 = ?config(component1, Config),
-    HCompOpts = component_helper:spec(hidden_component, Config),
-    {Comp1, Addr1, _} = component_helper:connect_component(CompOpts1),
+    CompSpec1 = component_helper:spec(component1),
+    HCompOpts = component_helper:spec(hidden_component),
+    {Comp1, Addr1, _} = component_helper:connect_component(CompSpec1),
     {HComp, HAddr, _} = component_helper:connect_component(HCompOpts),
 
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
                 %% When server asked for the disco features
                 Server = escalus_client:server(Alice),
                 Disco = escalus_stanza:service_discovery(Server),
@@ -364,10 +346,10 @@ disco_with_hidden_component(Config) ->
 
 register_subdomain(Config) ->
     %% Given one connected component
-    CompOpts1 = ?config(component1, Config),
-    {Comp, Addr, Name} = component_helper:connect_component_subdomain(CompOpts1),
+    CompSpec1 = component_helper:spec(component1),
+    {Comp, Addr, Name} = component_helper:connect_component_subdomain(CompSpec1),
 
-    escalus:story(Config, [{alice, 1}, {astrid, 1}], fun(Alice, Astrid) ->
+    escalus:fresh_story(Config, [{alice, 1}, {astrid, 1}], fun(Alice, Astrid) ->
                 %% When Alice asks for service discovery on the server
                 Server1 = escalus_client:server(Alice),
                 Disco1 = escalus_stanza:service_discovery(Server1),
@@ -396,17 +378,17 @@ register_subdomain(Config) ->
 
 register_in_cluster(Config) ->
     %% Given one component connected to the cluster
-    CompOpts1 = ?config(component1, Config),
-    Component1 = component_helper:connect_component(CompOpts1),
+    CompSpec1 = component_helper:spec(component1),
+    Component1 = component_helper:connect_component(CompSpec1),
     {Comp1, Addr1, _} = Component1,
-    CompOpts2 = ?config(component2, Config),
-    Component2 = component_helper:connect_component(CompOpts2),
+    CompSpec2 = component_helper:spec(component2),
+    Component2 = component_helper:connect_component(CompSpec2),
     {Comp2, Addr2, _} = Component2,
-    CompOpts_on_2 = component_helper:spec(component_on_2, Config),
-    Component_on_2 = component_helper:connect_component(CompOpts_on_2),
+    CompSpec_on_2 = component_helper:spec(component_on_2),
+    Component_on_2 = component_helper:connect_component(CompSpec_on_2),
     {Comp_on_2, Addr_on_2, _} = Component_on_2,
 
-    escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
+    escalus:fresh_story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
                 do_chat_with_component(Alice, ClusterGuy, Component1),
                 do_chat_with_component(Alice, ClusterGuy, Component2),
                 do_chat_with_component(Alice, ClusterGuy, Component_on_2)
@@ -417,14 +399,14 @@ register_in_cluster(Config) ->
     component_helper:disconnect_component(Comp_on_2, Addr_on_2).
 
 clear_on_node_down(Config) ->
-    CompOpts = ?config(component1, Config),
-    ?assertMatch({_, _, _}, component_helper:connect_component(CompOpts)),
-    ?assertThrow({stream_error, _}, component_helper:connect_component(CompOpts)),
+    CompSpec = component_helper:spec(component1),
+    ?assertMatch({_, _, _}, component_helper:connect_component(CompSpec)),
+    ?assertThrow({stream_error, _}, component_helper:connect_component(CompSpec)),
 
     distributed_helper:stop_node(mim(), Config),
     distributed_helper:start_node(mim(), Config),
 
-    {Comp, Addr, _} = component_helper:connect_component(CompOpts),
+    {Comp, Addr, _} = component_helper:connect_component(CompSpec),
     component_helper:disconnect_component(Comp, Addr).
 
 do_chat_with_component(Alice, ClusterGuy, Component1) ->
@@ -488,14 +470,14 @@ register_same_on_both(Config) ->
     %% but not on the same host
     %% we should be able to register
     %% and we get two components having the same name and address
-    CompOpts2 = ?config(component2, Config),
-    Component2 = component_helper:connect_component(CompOpts2),
+    CompSpec2 = component_helper:spec(component2),
+    Component2 = component_helper:connect_component(CompSpec2),
     {Comp2, Addr, Name} = Component2,
-    CompOpts_d = component_helper:spec(component_duplicate, Config),
-    Component_d = component_helper:connect_component(CompOpts_d),
+    CompSpec_d = component_helper:second_port(CompSpec2),
+    Component_d = component_helper:connect_component(CompSpec_d),
     {Comp_d, Addr, Name} = Component_d,
 
-    escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
+    escalus:fresh_story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
         %% When Alice sends a message to the component
         Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
         escalus:send(Alice, Msg1),
@@ -554,6 +536,25 @@ register_same_on_both(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+verify_component(Config, Component, ComponentAddr) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+                %% When Alice sends a message to the component
+                Msg1 = escalus_stanza:chat_to(ComponentAddr, <<"Hi!">>),
+                escalus:send(Alice, Msg1),
+                %% Then component receives it
+                Reply1 = escalus:wait_for_stanza(Component),
+                escalus:assert(is_chat_message, [<<"Hi!">>], Reply1),
+
+                %% When component sends a reply
+                Msg2 = escalus_stanza:chat_to(Alice, <<"Oh hi!">>),
+                escalus:send(Component, escalus_stanza:from(Msg2, ComponentAddr)),
+
+                %% Then Alice receives it
+                Reply2 = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
+                escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
+        end).
+
 add_domain(Config) ->
     Hosts = {hosts, "\"localhost\", \"sogndal\""},
     ejabberd_node_utils:backup_config_file(Config),
@@ -576,3 +577,7 @@ events() ->
 cluster_users() ->
     AllUsers = ct:get_config(escalus_users),
     [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
+
+-spec domain() -> binary().
+domain() ->
+    ct:get_config({hosts, mim, domain}).

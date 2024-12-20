@@ -18,13 +18,7 @@
     instance_id = <<>>,
     app_secret = <<>>}).
 
--import(distributed_helper, [mim/0, mim2/0, mim3/0, rpc/4,
-                             require_rpc_nodes/1
-                            ]).
-
--import(component_helper, [connect_component/1,
-                           disconnect_component/2,
-                           get_components/1]).
+-import(distributed_helper, [mim/0, mim2/0, mim3/0, rpc/4, require_rpc_nodes/1]).
 
 -import(domain_helper, [host_type/0]).
 -import(config_parser_helper, [mod_config/2, config/2]).
@@ -120,9 +114,8 @@ init_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, 
     Config;
 init_per_testcase(xmpp_components_are_reported, Config) ->
     create_events_collection(),
-    Config1 = get_components(Config),
     enable_system_metrics(mim()),
-    Config1;
+    Config;
 init_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
     create_events_collection(),
     enable_system_metrics(mim()),
@@ -248,12 +241,12 @@ mongoose_version_is_reported(_Config) ->
 cluster_uptime_is_reported(_Config) ->
     wait_helper:wait_until(fun is_cluster_uptime_reported/0, true).
 
-xmpp_components_are_reported(Config) ->
-    CompOpts = ?config(component1, Config),
-    {Component, Addr, _} = connect_component(CompOpts),
+xmpp_components_are_reported(_Config) ->
+    CompOpts = component_helper:spec(component1),
+    {Component, Addr, _} = component_helper:connect_component(CompOpts),
     wait_helper:wait_until(fun are_xmpp_components_reported/0, true),
     wait_helper:wait_until(fun more_than_one_component_is_reported/0, true),
-    disconnect_component(Component, Addr).
+    component_helper:disconnect_component(Component, Addr).
 
 api_are_reported(_Config) ->
     wait_helper:wait_until(fun is_api_reported/0, true).
