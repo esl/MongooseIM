@@ -107,30 +107,33 @@ close(#tls_socket{ssl_socket = SSLSocket}) ->
 %% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
 %% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
-make_ssl_opts(Opts) ->
-    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, false),
-    SSLOpts.
+make_ssl_opts(#{verify_mode := Mode} = Opts) ->
+    SslOpts = format_opts(Opts, false),
+    [{verify_fun, verify_fun(Mode)} | SslOpts].
 
 %% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
 %% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_cowboy_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
-make_cowboy_ssl_opts(Opts) ->
-    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, fail_if_no_peer_cert),
-    SSLOpts.
+make_cowboy_ssl_opts(#{verify_mode := Mode} = Opts) ->
+    SslOpts = format_opts(Opts, fail_if_no_peer_cert),
+    [{verify_fun, verify_fun(Mode)} | SslOpts].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 format_opts_with_ref(Opts, FailIfNoPeerCert) ->
+    SslOpts0 = format_opts(Opts, FailIfNoPeerCert),
     {Ref, VerifyFun} = verify_fun_opt(Opts),
+    SslOpts = [{verify_fun, VerifyFun} | SslOpts0],
+    {Ref, SslOpts}.
+
+format_opts(Opts, FailIfNoPeerCert) ->
     SslOpts0 = maps:to_list(maps:with(ssl_option_keys(), Opts)),
     SslOpts1 = sni_opts(SslOpts0, Opts),
     SslOpts2 = verify_opts(SslOpts1, Opts),
     SslOpts3 = hibernate_opts(SslOpts2, Opts),
-    SslOpts4 = fail_if_no_peer_cert_opts(SslOpts3, Opts, FailIfNoPeerCert),
-    SslOpts = [{verify_fun, VerifyFun} | SslOpts4],
-    {Ref, SslOpts}.
+    fail_if_no_peer_cert_opts(SslOpts3, Opts, FailIfNoPeerCert).
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
@@ -224,8 +227,10 @@ verify_fun(none) ->
 send_verification_failure(Pid, Ref, Reason) ->
     Pid ! {cert_verification_failure, Ref, Reason}.
 
-receive_verify_results(dummy_ref) -> [];
-receive_verify_results(Ref)       -> receive_verify_results(Ref, []).
+receive_verify_results(dummy_ref) ->
+    [];
+receive_verify_results(Ref) ->
+    receive_verify_results(Ref, []).
 
 receive_verify_results(Ref, Acc) ->
     receive
