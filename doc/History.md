@@ -12,8 +12,11 @@ Enhanced CETS, configurable pools, and traffic shaping updates.
 
 Improved instrumentation with enhanced configurability, Prometheus support and a more user-friendly experience.
 
+Refined certificate validation and CockroachDB support.
+
 Releases:
 
+* [MongooseIM 6.3.1](https://github.com/esl/MongooseIM/releases/tag/6.3.1) in December 2024.
 * [MongooseIM 6.3.0](https://github.com/esl/MongooseIM/releases/tag/6.3.0) in October 2024.
 * [MongooseIM 6.2.1](https://github.com/esl/MongooseIM/releases/tag/6.2.1) in April 2024.
 * [MongooseIM 6.2.0](https://github.com/esl/MongooseIM/releases/tag/6.2.0) in December 2023.
