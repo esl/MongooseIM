@@ -50,8 +50,7 @@ tcp_to_tls(TCPSocket, Options) ->
                         {Ref, SSLOpts} = format_opts_with_ref(Options, false),
                         {Ref, ssl:connect(TCPSocket, SSLOpts)};
                     #{} ->
-                        FailIfNoPeerCert = fail_if_no_peer_cert_opt(Options),
-                        {Ref, SSLOpts} = format_opts_with_ref(Options, FailIfNoPeerCert),
+                        {Ref, SSLOpts} = format_opts_with_ref(Options, fail_if_no_peer_cert),
                         {Ref, ssl:handshake(TCPSocket, SSLOpts, 5000)}
                  end,
     VerifyResults = receive_verify_results(Ref1),
@@ -116,8 +115,7 @@ make_ssl_opts(Opts) ->
 %% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_cowboy_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
 make_cowboy_ssl_opts(Opts) ->
-    FailIfNoPeerCert = fail_if_no_peer_cert_opt(Opts),
-    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, FailIfNoPeerCert),
+    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, fail_if_no_peer_cert),
     SSLOpts.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -125,43 +123,48 @@ make_cowboy_ssl_opts(Opts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 format_opts_with_ref(Opts, FailIfNoPeerCert) ->
-    Verify = verify_opt(Opts),
     {Ref, VerifyFun} = verify_fun_opt(Opts),
-    SNIOpts = sni_opts(Opts),
-    SSLOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
-    {Ref, [{fail_if_no_peer_cert, FailIfNoPeerCert}, {verify, Verify}, {verify_fun, VerifyFun}] ++
-     SNIOpts ++ SSLOpts}.
+    SslOpts0 = maps:to_list(maps:with(ssl_option_keys(), Opts)),
+    SslOpts1 = sni_opts(SslOpts0, Opts),
+    SslOpts2 = verify_opts(SslOpts1, Opts),
+    SslOpts3 = hibernate_opts(SslOpts2, Opts),
+    SslOpts4 = fail_if_no_peer_cert_opts(SslOpts3, Opts, FailIfNoPeerCert),
+    SslOpts = [{verify_fun, VerifyFun} | SslOpts4],
+    {Ref, SslOpts}.
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
 
-sni_opts(#{server_name_indication := SNIOpts}) ->
-    process_sni_opts(SNIOpts);
-sni_opts(#{}) ->
-    [].
-
-process_sni_opts(#{enabled := false}) ->
-    [{server_name_indication, disable}];
-process_sni_opts(#{enabled := true, host := SNIHost, protocol := https}) ->
-    [{server_name_indication, SNIHost},
-     {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}];
-process_sni_opts(#{enabled := true, host := SNIHost, protocol := default}) ->
-    [{server_name_indication, SNIHost}];
-process_sni_opts(#{enabled := true}) ->
-    [].
-
-error_to_list(_Error) ->
-    %TODO: implement later if needed
-    "verify_fun failed".
-
-verify_opt(#{verify_mode := none}) -> verify_none;
-verify_opt(#{}) -> verify_peer.
-
 %% accept empty peer certificate if explicitly requested not to fail
-fail_if_no_peer_cert_opt(#{disconnect_on_failure := false}) -> false;
-fail_if_no_peer_cert_opt(#{verify_mode := peer}) -> true;
-fail_if_no_peer_cert_opt(#{verify_mode := selfsigned_peer}) -> true;
-fail_if_no_peer_cert_opt(#{}) -> false.
+fail_if_no_peer_cert_opts(Opts, #{}, false) ->
+    [{fail_if_no_peer_cert, false} | Opts];
+fail_if_no_peer_cert_opts(Opts, #{disconnect_on_failure := false}, _) ->
+    [{fail_if_no_peer_cert, false} | Opts];
+fail_if_no_peer_cert_opts(Opts, #{verify_mode := Mode}, _)
+  when Mode =:= peer; Mode =:= selfsigned_peer ->
+    [{fail_if_no_peer_cert, true} | Opts];
+fail_if_no_peer_cert_opts(Opts, #{}, _) ->
+    [{fail_if_no_peer_cert, false} | Opts].
+
+hibernate_opts(Opts, #{hibernate_after := Timeout}) ->
+    [{hibernate_after, Timeout} | Opts];
+hibernate_opts(Opts, #{}) ->
+    Opts.
+
+verify_opts(Opts, #{verify_mode := none}) ->
+    [{verify, verify_none} | Opts];
+verify_opts(Opts, #{}) ->
+    [{verify, verify_peer} | Opts].
+
+sni_opts(Opts, #{server_name_indication := #{enabled := false}}) ->
+    [{server_name_indication, disable} | Opts];
+sni_opts(Opts, #{server_name_indication := #{enabled := true, host := SNIHost, protocol := default}}) ->
+    [{server_name_indication, SNIHost} | Opts];
+sni_opts(Opts, #{server_name_indication := #{enabled := true, host := SNIHost, protocol := https}}) ->
+    [{server_name_indication, SNIHost},
+     {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]} | Opts];
+sni_opts(Opts, #{}) ->
+    Opts.
 
 %% This function translates TLS options to the function
 %% which will later be used when TCP socket is upgraded to TLS
@@ -231,3 +234,7 @@ receive_verify_results(Ref, Acc) ->
     after 0 ->
         lists:reverse(Acc)
     end.
+
+error_to_list(_Error) ->
+    %TODO: implement later if needed
+    "verify_fun failed".

@@ -51,6 +51,7 @@
                      password => string(),
                      versions => [atom()],
                      server_name_indication => sni_options(), % client-only
+                     hibernate_after => timeout(),
 
                      % only for fast_tls
                      protocol_options => [string()]}.
