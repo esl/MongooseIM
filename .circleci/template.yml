@@ -724,7 +724,7 @@ filters:
   - &all_tags_and_master
     <<: *all_tags
     branches:
-      only: master
+      only: publish-packages-gh
 
 workflows:
   version: 2
