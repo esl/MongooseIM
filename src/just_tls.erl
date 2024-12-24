@@ -61,42 +61,36 @@ tcp_to_tls(TCPSocket, Options) ->
         _ -> Ret
     end.
 
-%% -callback send(tls_socket(), binary()) -> ok | {error, any()}.
+-spec send(tls_socket(), binary()) -> ok | {error, any()}.
 send(#tls_socket{ssl_socket = SSLSocket}, Packet) -> ssl:send(SSLSocket, Packet).
 
-%% -callback recv_data(tls_socket(), binary()) -> {ok, binary()} | {error, any()}.
-recv_data(_, <<"">>) ->
+-spec recv_data(tls_socket(), binary()) -> {ok, binary()} | {error, any()}.
+recv_data(_, <<>>) ->
     %% such call is required for fast_tls to accomplish
     %% tls handshake, for just_tls we can ignore it
-    {ok, <<"">>};
+    {ok, <<>>};
 recv_data(#tls_socket{ssl_socket = SSLSocket}, Data1) ->
     case ssl:recv(SSLSocket, 0, 0) of
         {ok, Data2} -> {ok, <<Data1/binary, Data2/binary>>};
         _ -> {ok, Data1}
     end.
 
-%% -callback controlling_process(tls_socket(), pid()) -> ok | {error, any()}.
+-spec controlling_process(tls_socket(), pid()) -> ok | {error, any()}.
 controlling_process(#tls_socket{ssl_socket = SSLSocket}, Pid) ->
     ssl:controlling_process(SSLSocket, Pid).
 
-
-%% -callback sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
-%%                                     {error, any()}.
+-spec sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
 sockname(#tls_socket{ssl_socket = SSLSocket}) -> ssl:sockname(SSLSocket).
 
-
-%% -callback peername(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
-%%                                     {error, any()}.
+-spec peername(tls_socket()) ->
+    {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
 peername(#tls_socket{ssl_socket = SSLSocket}) -> ssl:peername(SSLSocket).
 
-
-%% -callback setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
+-spec setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
 setopts(#tls_socket{ssl_socket = SSLSocket}, Opts) -> ssl:setopts(SSLSocket, Opts).
 
-
-%% -callback get_peer_certificate(tls_socket()) -> {ok, Cert::any()}       |
-%%                                                 {bad_cert, bitstring()} |
-%%                                                 no_peer_cert.
+-spec get_peer_certificate(tls_socket()) ->
+    {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
 get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) ->
     case ssl:peercert(SSLSocket) of
         {ok, PeerCert} ->
@@ -107,8 +101,9 @@ get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) -
 get_peer_certificate(#tls_socket{verify_results = [Err | _]}) ->
     {bad_cert, error_to_list(Err)}.
 
-%% -callback close(tls_socket()) -> ok.
-close(#tls_socket{ssl_socket = SSLSocket}) -> ssl:close(SSLSocket).
+-spec close(tls_socket()) -> ok.
+close(#tls_socket{ssl_socket = SSLSocket}) ->
+    ssl:close(SSLSocket).
 
 %% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
 %% The `disconnect_on_failure' option is expected to be unset or true
