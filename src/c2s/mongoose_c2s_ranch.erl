@@ -48,15 +48,16 @@ socket_peername(#state{ip = Ip}) ->
 
 -spec tcp_to_tls(state(), mongoose_listener:options()) ->
   {ok, state()} | {error, term()}.
-tcp_to_tls(#state{socket = TcpSocket} = State, #{tls := #{module := TlsMod} = TlsConfig}) ->
-    case tcp_to_tls(TlsMod, TcpSocket, TlsConfig) of
+tcp_to_tls(#state{socket = TcpSocket} = State,
+           #{hibernate_after := HibernateAfter, tls := #{module := TlsMod} = TlsConfig}) ->
+    case tcp_to_tls(TlsMod, TcpSocket, TlsConfig, HibernateAfter) of
         {ok, TlsSocket} ->
             {ok, State#state{transport = TlsMod, socket = TlsSocket}};
         {error, Reason} ->
             {error, Reason}
     end.
 
-tcp_to_tls(fast_tls, TcpSocket, TlsConfig) ->
+tcp_to_tls(fast_tls, TcpSocket, TlsConfig, _HibernateAfter) ->
     PreparedOpts = mongoose_tls:prepare_options(fast_tls, maps:remove(module, TlsConfig)),
     ranch_tcp:setopts(TcpSocket, [{active, false}]),
     case fast_tls:tcp_to_tls(TcpSocket, PreparedOpts) of
@@ -65,8 +66,8 @@ tcp_to_tls(fast_tls, TcpSocket, TlsConfig) ->
             {ok, TlsSocket};
         Other -> Other
     end;
-tcp_to_tls(just_tls, TcpSocket, TlsConfig) ->
-    case just_tls:tcp_to_tls(TcpSocket, TlsConfig) of
+tcp_to_tls(just_tls, TcpSocket, TlsConfig, HibernateAfter) ->
+    case just_tls:tcp_to_tls(TcpSocket, TlsConfig#{hibernate_after => HibernateAfter}) of
         {ok, TlsSocket} -> {ok, TlsSocket};
         Other -> Other
     end.

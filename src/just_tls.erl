@@ -50,8 +50,7 @@ tcp_to_tls(TCPSocket, Options) ->
                         {Ref, SSLOpts} = format_opts_with_ref(Options, false),
                         {Ref, ssl:connect(TCPSocket, SSLOpts)};
                     #{} ->
-                        FailIfNoPeerCert = fail_if_no_peer_cert_opt(Options),
-                        {Ref, SSLOpts} = format_opts_with_ref(Options, FailIfNoPeerCert),
+                        {Ref, SSLOpts} = format_opts_with_ref(Options, fail_if_no_peer_cert),
                         {Ref, ssl:handshake(TCPSocket, SSLOpts, 5000)}
                  end,
     VerifyResults = receive_verify_results(Ref1),
@@ -61,42 +60,36 @@ tcp_to_tls(TCPSocket, Options) ->
         _ -> Ret
     end.
 
-%% -callback send(tls_socket(), binary()) -> ok | {error, any()}.
+-spec send(tls_socket(), binary()) -> ok | {error, any()}.
 send(#tls_socket{ssl_socket = SSLSocket}, Packet) -> ssl:send(SSLSocket, Packet).
 
-%% -callback recv_data(tls_socket(), binary()) -> {ok, binary()} | {error, any()}.
-recv_data(_, <<"">>) ->
+-spec recv_data(tls_socket(), binary()) -> {ok, binary()} | {error, any()}.
+recv_data(_, <<>>) ->
     %% such call is required for fast_tls to accomplish
     %% tls handshake, for just_tls we can ignore it
-    {ok, <<"">>};
+    {ok, <<>>};
 recv_data(#tls_socket{ssl_socket = SSLSocket}, Data1) ->
     case ssl:recv(SSLSocket, 0, 0) of
         {ok, Data2} -> {ok, <<Data1/binary, Data2/binary>>};
         _ -> {ok, Data1}
     end.
 
-%% -callback controlling_process(tls_socket(), pid()) -> ok | {error, any()}.
+-spec controlling_process(tls_socket(), pid()) -> ok | {error, any()}.
 controlling_process(#tls_socket{ssl_socket = SSLSocket}, Pid) ->
     ssl:controlling_process(SSLSocket, Pid).
 
-
-%% -callback sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
-%%                                     {error, any()}.
+-spec sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
 sockname(#tls_socket{ssl_socket = SSLSocket}) -> ssl:sockname(SSLSocket).
 
-
-%% -callback peername(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
-%%                                     {error, any()}.
+-spec peername(tls_socket()) ->
+    {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
 peername(#tls_socket{ssl_socket = SSLSocket}) -> ssl:peername(SSLSocket).
 
-
-%% -callback setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
+-spec setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
 setopts(#tls_socket{ssl_socket = SSLSocket}, Opts) -> ssl:setopts(SSLSocket, Opts).
 
-
-%% -callback get_peer_certificate(tls_socket()) -> {ok, Cert::any()}       |
-%%                                                 {bad_cert, bitstring()} |
-%%                                                 no_peer_cert.
+-spec get_peer_certificate(tls_socket()) ->
+    {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
 get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) ->
     case ssl:peercert(SSLSocket) of
         {ok, PeerCert} ->
@@ -107,66 +100,74 @@ get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) -
 get_peer_certificate(#tls_socket{verify_results = [Err | _]}) ->
     {bad_cert, error_to_list(Err)}.
 
-%% -callback close(tls_socket()) -> ok.
-close(#tls_socket{ssl_socket = SSLSocket}) -> ssl:close(SSLSocket).
+-spec close(tls_socket()) -> ok.
+close(#tls_socket{ssl_socket = SSLSocket}) ->
+    ssl:close(SSLSocket).
 
 %% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
 %% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
-make_ssl_opts(Opts) ->
-    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, false),
-    SSLOpts.
+make_ssl_opts(#{verify_mode := Mode} = Opts) ->
+    SslOpts = format_opts(Opts, false),
+    [{verify_fun, verify_fun(Mode)} | SslOpts].
 
 %% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
 %% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_cowboy_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
-make_cowboy_ssl_opts(Opts) ->
-    FailIfNoPeerCert = fail_if_no_peer_cert_opt(Opts),
-    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, FailIfNoPeerCert),
-    SSLOpts.
+make_cowboy_ssl_opts(#{verify_mode := Mode} = Opts) ->
+    SslOpts = format_opts(Opts, fail_if_no_peer_cert),
+    [{verify_fun, verify_fun(Mode)} | SslOpts].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 format_opts_with_ref(Opts, FailIfNoPeerCert) ->
-    Verify = verify_opt(Opts),
+    SslOpts0 = format_opts(Opts, FailIfNoPeerCert),
     {Ref, VerifyFun} = verify_fun_opt(Opts),
-    SNIOpts = sni_opts(Opts),
-    SSLOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
-    {Ref, [{fail_if_no_peer_cert, FailIfNoPeerCert}, {verify, Verify}, {verify_fun, VerifyFun}] ++
-     SNIOpts ++ SSLOpts}.
+    SslOpts = [{verify_fun, VerifyFun} | SslOpts0],
+    {Ref, SslOpts}.
+
+format_opts(Opts, FailIfNoPeerCert) ->
+    SslOpts0 = maps:to_list(maps:with(ssl_option_keys(), Opts)),
+    SslOpts1 = sni_opts(SslOpts0, Opts),
+    SslOpts2 = verify_opts(SslOpts1, Opts),
+    SslOpts3 = hibernate_opts(SslOpts2, Opts),
+    fail_if_no_peer_cert_opts(SslOpts3, Opts, FailIfNoPeerCert).
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
 
-sni_opts(#{server_name_indication := SNIOpts}) ->
-    process_sni_opts(SNIOpts);
-sni_opts(#{}) ->
-    [].
-
-process_sni_opts(#{enabled := false}) ->
-    [{server_name_indication, disable}];
-process_sni_opts(#{enabled := true, host := SNIHost, protocol := https}) ->
-    [{server_name_indication, SNIHost},
-     {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}];
-process_sni_opts(#{enabled := true, host := SNIHost, protocol := default}) ->
-    [{server_name_indication, SNIHost}];
-process_sni_opts(#{enabled := true}) ->
-    [].
-
-error_to_list(_Error) ->
-    %TODO: implement later if needed
-    "verify_fun failed".
-
-verify_opt(#{verify_mode := none}) -> verify_none;
-verify_opt(#{}) -> verify_peer.
-
 %% accept empty peer certificate if explicitly requested not to fail
-fail_if_no_peer_cert_opt(#{disconnect_on_failure := false}) -> false;
-fail_if_no_peer_cert_opt(#{verify_mode := peer}) -> true;
-fail_if_no_peer_cert_opt(#{verify_mode := selfsigned_peer}) -> true;
-fail_if_no_peer_cert_opt(#{}) -> false.
+fail_if_no_peer_cert_opts(Opts, #{}, false) ->
+    [{fail_if_no_peer_cert, false} | Opts];
+fail_if_no_peer_cert_opts(Opts, #{disconnect_on_failure := false}, _) ->
+    [{fail_if_no_peer_cert, false} | Opts];
+fail_if_no_peer_cert_opts(Opts, #{verify_mode := Mode}, _)
+  when Mode =:= peer; Mode =:= selfsigned_peer ->
+    [{fail_if_no_peer_cert, true} | Opts];
+fail_if_no_peer_cert_opts(Opts, #{}, _) ->
+    [{fail_if_no_peer_cert, false} | Opts].
+
+hibernate_opts(Opts, #{hibernate_after := Timeout}) ->
+    [{hibernate_after, Timeout} | Opts];
+hibernate_opts(Opts, #{}) ->
+    Opts.
+
+verify_opts(Opts, #{verify_mode := none}) ->
+    [{verify, verify_none} | Opts];
+verify_opts(Opts, #{}) ->
+    [{verify, verify_peer} | Opts].
+
+sni_opts(Opts, #{server_name_indication := #{enabled := false}}) ->
+    [{server_name_indication, disable} | Opts];
+sni_opts(Opts, #{server_name_indication := #{enabled := true, host := SNIHost, protocol := default}}) ->
+    [{server_name_indication, SNIHost} | Opts];
+sni_opts(Opts, #{server_name_indication := #{enabled := true, host := SNIHost, protocol := https}}) ->
+    [{server_name_indication, SNIHost},
+     {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]} | Opts];
+sni_opts(Opts, #{}) ->
+    Opts.
 
 %% This function translates TLS options to the function
 %% which will later be used when TCP socket is upgraded to TLS
@@ -226,8 +227,10 @@ verify_fun(none) ->
 send_verification_failure(Pid, Ref, Reason) ->
     Pid ! {cert_verification_failure, Ref, Reason}.
 
-receive_verify_results(dummy_ref) -> [];
-receive_verify_results(Ref)       -> receive_verify_results(Ref, []).
+receive_verify_results(dummy_ref) ->
+    [];
+receive_verify_results(Ref) ->
+    receive_verify_results(Ref, []).
 
 receive_verify_results(Ref, Acc) ->
     receive
@@ -236,3 +239,7 @@ receive_verify_results(Ref, Acc) ->
     after 0 ->
         lists:reverse(Acc)
     end.
+
+error_to_list(_Error) ->
+    %TODO: implement later if needed
+    "verify_fun failed".
