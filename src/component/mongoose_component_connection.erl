@@ -48,6 +48,23 @@
 -export_type([packet/0, data/0, state/0, fsm_res/0, retries/0, listener_opts/0]).
 
 %%%----------------------------------------------------------------------
+%%% API
+%%%----------------------------------------------------------------------
+
+-spec start_link({module(), term(), listener_opts()}, [gen_statem:start_opt()]) ->
+    gen_statem:start_ret().
+start_link(Params, ProcOpts) ->
+    gen_statem:start_link(?MODULE, Params, ProcOpts).
+
+-spec exit(pid(), binary() | atom()) -> ok.
+exit(Pid, Reason) ->
+    gen_statem:cast(Pid, {exit, Reason}).
+
+-spec route(pid(), mongoose_acc:t()) -> {route, mongoose_acc:t()}.
+route(Pid, Acc) ->
+    Pid ! {route, Acc}.
+
+%%%----------------------------------------------------------------------
 %%% gen_statem
 %%%----------------------------------------------------------------------
 
@@ -113,8 +130,11 @@ handle_event(state_timeout, state_timeout_termination, _State, StateData) ->
     send_xml(StateData, StreamConflict),
     send_trailer(StateData),
     {stop, {shutdown, state_timeout}};
-handle_event(_EventType, _EventContent, _State, _StateData) ->
-    exit('WTF').
+handle_event(EventType, EventContent, State, StateData) ->
+    ?LOG_WARNING(#{what => unknown_statem_event,
+                   component_state => State, compontent_data => StateData,
+                   event_type => EventType, event_content => EventContent}),
+    keep_state_and_data.
 
 -spec terminate(term(), undefined | state(), data()) -> any().
 terminate(Reason, stream_established, StateData) ->
@@ -130,7 +150,7 @@ terminate(Reason, State, StateData) ->
     close_socket(StateData).
 
 %%%----------------------------------------------------------------------
-%%% socket helpers
+%%% helpers
 %%%----------------------------------------------------------------------
 
 -spec handle_socket_data(data(), {_, _, iodata()}) -> fsm_res().
@@ -183,14 +203,6 @@ close_socket(#component_data{socket = Socket}) ->
 activate_socket(#component_data{socket = Socket}) ->
     mongoose_component_socket:activate(Socket).
 
-%%%----------------------------------------------------------------------
-%%% error handler helpers
-%%%----------------------------------------------------------------------
-
-%%%----------------------------------------------------------------------
-%%% helpers
-%%%----------------------------------------------------------------------
-
 -spec handle_stream_start(data(), exml:element()) -> fsm_res().
 handle_stream_start(S0, StreamStart) ->
     LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
@@ -224,11 +236,11 @@ handle_handshake(StateData, El) ->
             stream_start_error(StateData, Error)
     end.
 
-% The XML character data of the handshake element is computed according to the following algorithm:
-% 1. Concatenate the Stream ID received from the server with the shared secret.
-% 2. Hash the concatenated string according to the SHA1 algorithm, i.e., SHA1( concat (sid, password)).
-% 3. Ensure that the hash output is in hexadecimal format, not binary or base64.
-% 4. Convert the hash output to all lowercase characters.
+%% The XML character data of the handshake element is computed according to the following algorithm:
+%% 1. Concatenate the Stream ID received from the server with the shared secret.
+%% 2. Hash the concatenated string according to the SHA1 algorithm, i.e., SHA1( concat (sid, password)).
+%% 3. Ensure that the hash output is in hexadecimal format, not binary or base64.
+%% 4. Convert the hash output to all lowercase characters.
 -spec create_proof(binary(), binary()) -> binary().
 create_proof(StreamId, Password) ->
     Concat = [StreamId, Password],
@@ -277,11 +289,11 @@ handle_stream_established(StateData, #xmlel{name = Name} = El) ->
 register_routes(StateData) ->
     #component_data{listener_opts = #{hidden_components := AreHidden}} = StateData,
     Routes = get_routes(StateData),
-    Handler = mongoose_packet_handler:new(mongoose_component_packet_handler, #{pid => self()}),
+    Handler = mongoose_packet_handler:new(mongoose_component, #{pid => self()}),
     mongoose_component:register_components(Routes, node(), Handler, AreHidden).
 
 -spec get_routes(data()) -> [jid:lserver()].
-get_routes(#component_data{lserver = Subdomain, is_subdomain=true}) ->
+get_routes(#component_data{lserver = Subdomain, is_subdomain = true}) ->
     Hosts = mongoose_config:get_opt(hosts),
     component_routes(Subdomain, Hosts);
 get_routes(#component_data{lserver = Host}) ->
@@ -355,7 +367,7 @@ routes_info_to_pids(RoutesInfo) ->
     %% Ignore handlers from other modules
     [maps:get(pid, mongoose_packet_handler:extra(H))
      || #external_component{handler = H} <- ExtComponents,
-        mongoose_packet_handler:module(H) =:= mongoose_component_packet_handler].
+        mongoose_packet_handler:module(H) =:= mongoose_component].
 
 -spec handle_route(data(), state(), mongoose_acc:t()) -> fsm_res().
 handle_route(StateData = #component_data{}, _, Acc) ->
@@ -403,10 +415,6 @@ send_header(StateData) ->
 send_trailer(StateData) ->
     send_xml(StateData, ?XML_STREAM_TRAILER).
 
--spec route(pid(), mongoose_acc:t()) -> {route, mongoose_acc:t()}.
-route(Pid, Acc) ->
-    Pid ! {route, Acc}.
-
 -spec close_parser(data()) -> ok.
 close_parser(#component_data{parser = undefined}) ->
     ok;
@@ -428,19 +436,6 @@ state_timeout(#component_data{listener_opts = LOpts}) ->
     state_timeout(LOpts);
 state_timeout(#{state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.
-
-%%%----------------------------------------------------------------------
-%%% API
-%%%----------------------------------------------------------------------
-
--spec start_link({module(), term(), listener_opts()}, [gen_statem:start_opt()]) ->
-    gen_statem:start_ret().
-start_link(Params, ProcOpts) ->
-    gen_statem:start_link(?MODULE, Params, ProcOpts).
-
--spec exit(pid(), binary() | atom()) -> ok.
-exit(Pid, Reason) ->
-    gen_statem:cast(Pid, {exit, Reason}).
 
 -spec stream_header(data()) -> exml_stream:start().
 stream_header(StateData) ->
