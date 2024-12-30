@@ -20,6 +20,9 @@ aws configure set default.region $AWS_DEFAULT_REGION
 
 if [ -n "$CIRCLE_TAG" ]; then
     aws s3 cp "${PACKAGE_NAME}" "s3://mim-packages/tags/${CIRCLE_TAG}/${PACKAGE_NAME}" --acl public-read --quiet
+
+    echo "$GH_RELEASE_TOKEN" | gh auth login --with-token
+    gh release upload "${CIRCLE_TAG}" "${PACKAGE_NAME}" --repo "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
 else
     aws s3 cp "${PACKAGE_NAME}" "s3://mim-packages/branches/${CIRCLE_BRANCH}/${prefix}/${PACKAGE_NAME}" --acl public-read --quiet
 fi

@@ -715,6 +715,7 @@ jobs:
       - run:
           name: Publish package
           command: |
+            if [ -n "${CIRCLE_TAG}" ]; then tools/circle-install-packages.sh gh; fi
             ./tools/pkg/publish.sh
 
 filters:
