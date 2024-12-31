@@ -332,8 +332,8 @@ xmpp_listener_extra(<<"component">>) ->
                        <<"conflict_behaviour">> => #option{type = atom,
                                                            validate = {enum, [kick_old, disconnect]}},
                        <<"password">> => #option{type = string,
-                                                 validate = non_empty}
-                      },
+                                                 validate = non_empty},
+                       <<"tls">> => tls([server], [just_tls])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
                           <<"max_connections">> => infinity,

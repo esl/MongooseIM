@@ -1,6 +1,7 @@
 -module(mongoose_component_connection).
 
 -xep([{xep, 114}, {version, "1.6"}]).
+-xep([{xep, 225}, {version, "0.2"}, {status, partial}]).
 
 -include("mongoose_logger.hrl").
 -include("mongoose.hrl").

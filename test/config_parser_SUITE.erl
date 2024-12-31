@@ -96,6 +96,7 @@ groups() ->
                            listen_s2s_tls,
                            listen_s2s_cacertfile_verify,
                            listen_component,
+                           listen_component_tls,
                            listen_http,
                            listen_http_tls,
                            listen_http_transport,
@@ -600,6 +601,14 @@ listen_component(_Config) ->
     ?err(T(#{<<"conflict_behaviour">> => <<"kill_server">>})),
     ?err(T(#{<<"password">> => <<>>})),
     ?err(T(#{<<"password">> => undefined})).
+
+listen_component_tls(_Config) ->
+    T = fun(Opts) -> listen_raw(component, #{<<"port">> => 8888,
+                                             <<"password">> => <<"secret">>,
+                                             <<"tls">> => Opts}) end,
+    P = [listen, 1, tls],
+    test_just_tls_server(P, T),
+    ?cfg(P, config([listen, component, tls], tls_ca()), T(tls_ca_raw())).
 
 listen_http(_Config) ->
     T = fun(Opts) -> listen_raw(http, maps:merge(#{<<"port">> => 5280}, Opts)) end,
