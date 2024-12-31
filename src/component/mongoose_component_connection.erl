@@ -285,24 +285,6 @@ handle_stream_established(StateData, #xmlel{name = Name} = El) ->
     end,
     keep_state_and_data.
 
--spec register_routes(data()) -> any().
-register_routes(StateData) ->
-    #component_data{listener_opts = #{hidden_components := AreHidden}} = StateData,
-    Routes = get_routes(StateData),
-    Handler = mongoose_packet_handler:new(mongoose_component, #{pid => self()}),
-    mongoose_component:register_components(Routes, node(), Handler, AreHidden).
-
--spec get_routes(data()) -> [jid:lserver()].
-get_routes(#component_data{lserver = Subdomain, is_subdomain = true}) ->
-    Hosts = mongoose_config:get_opt(hosts),
-    component_routes(Subdomain, Hosts);
-get_routes(#component_data{lserver = Host}) ->
-    [Host].
-
--spec component_routes(binary(), [jid:lserver()]) -> [jid:lserver()].
-component_routes(Subdomain, Hosts) ->
-    [<<Subdomain/binary, ".", Host/binary>> || Host <- Hosts].
-
 -spec try_register_routes(data(), retries()) -> fsm_res().
 try_register_routes(StateData, Retries) ->
     case register_routes(StateData) of
@@ -319,6 +301,26 @@ try_register_routes(StateData, Retries) ->
                          conflict_behaviour => ConflictBehaviour}),
             handle_registration_conflict(ConflictBehaviour, RoutesInfo, StateData, Retries)
     end.
+
+-spec register_routes(data()) -> any().
+register_routes(StateData) ->
+    #component_data{listener_opts = #{hidden_components := AreHidden}} = StateData,
+    Routes = get_routes(StateData),
+    Handler = mongoose_packet_handler:new(mongoose_component, #{pid => self()}),
+    mongoose_component:register_components(Routes, node(), Handler, AreHidden).
+
+-spec get_routes(data()) -> [jid:lserver()].
+get_routes(#component_data{lserver = Subdomain, is_subdomain = true}) ->
+    StaticDomains = mongoose_domain_api:get_all_static(),
+    DynamicDomains = mongoose_domain_api:get_all_dynamic(),
+    [ component_route(Subdomain, Domain) || {Domain, _} <- StaticDomains ]
+    ++ [ component_route(Subdomain, Domain) || {Domain, _} <- DynamicDomains ];
+get_routes(#component_data{lserver = Host}) ->
+    [Host].
+
+-spec component_route(binary(), jid:lserver()) -> jid:lserver().
+component_route(Subdomain, Host) ->
+    <<Subdomain/binary, ".", Host/binary>>.
 
 handle_registration_conflict(kick_old, RoutesInfo, StateData, Retries) when Retries > 0 ->
     %% see lookup_routes

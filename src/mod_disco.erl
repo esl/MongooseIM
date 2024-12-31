@@ -228,7 +228,7 @@ disco_sm_identity(Acc = #{to_jid := JID}, _, _) ->
 disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To, node := <<>>}, _, _) ->
     ReturnHidden = should_return_hidden(HostType, From),
     Subdomains = get_subdomains(To#jid.lserver),
-    Components = get_external_components(To#jid.lserver, ReturnHidden),
+    Components = get_external_components(ReturnHidden),
     ExtraDomains = get_extra_domains(HostType),
     Domains = Subdomains ++ Components ++ ExtraDomains,
     {ok, mongoose_disco:add_items([#{jid => Domain} || Domain <- Domains], Acc)};
@@ -267,10 +267,6 @@ disco_info(Acc = #{host_type := HostType, module := Module, node := <<>>}, _, _)
 disco_info(Acc, _, _) ->
     {ok, Acc}.
 
--spec get_extra_domains(mongooseim:host_type()) -> [jid:lserver()].
-get_extra_domains(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, extra_domains).
-
 %% Internal functions
 
 -spec should_return_hidden(mongooseim:host_type(), From :: jid:jid()) -> return_hidden().
@@ -284,33 +280,17 @@ should_return_hidden(HostType, _From) ->
     end.
 
 -spec get_subdomains(jid:lserver()) -> [jid:lserver()].
-get_subdomains(Domain) ->
+get_subdomains(LServer) ->
     [maps:get(subdomain, SubdomainInfo) ||
-        SubdomainInfo <- mongoose_domain_api:get_all_subdomains_for_domain(Domain)].
+        SubdomainInfo <- mongoose_domain_api:get_all_subdomains_for_domain(LServer)].
 
-%% TODO: This code can be removed when components register subdomains in the domain API.
-%% Until then, it works only for static domains.
--spec get_external_components(jid:server(), return_hidden()) -> [jid:lserver()].
-get_external_components(Domain, ReturnHidden) ->
-    StaticDomains = lists:sort(fun(H1, H2) -> size(H1) >= size(H2) end, ?MYHOSTS),
-    lists:filter(
-      fun(Component) ->
-              check_if_host_is_the_shortest_suffix_for_route(Component, Domain, StaticDomains)
-      end, mongoose_component:dirty_get_all_components(ReturnHidden)).
+-spec get_external_components(return_hidden()) -> [jid:lserver()].
+get_external_components(ReturnHidden) ->
+    mongoose_component:dirty_get_all_components(ReturnHidden).
 
--spec check_if_host_is_the_shortest_suffix_for_route(
-        Route :: jid:lserver(), Host :: jid:lserver(), VHosts :: [jid:lserver()]) -> boolean().
-check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
-    RouteS = binary_to_list(Route),
-    case lists:dropwhile(
-           fun(VH) ->
-                   not lists:suffix("." ++ binary_to_list(VH), RouteS)
-           end, VHosts) of
-        [] ->
-            false;
-        [VH | _] ->
-            VH == Host
-    end.
+-spec get_extra_domains(mongooseim:host_type()) -> [jid:lserver()].
+get_extra_domains(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, extra_domains).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
