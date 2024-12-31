@@ -91,14 +91,11 @@ iq_handlers() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"extra_domains">> => #list{items = #option{type = binary,
-                                                              validate = domain}},
-                 <<"server_info">> => #list{items = server_info_spec()},
+       items = #{<<"server_info">> => #list{items = server_info_spec()},
                  <<"users_can_see_hidden_services">> => #option{type = boolean},
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()
                 },
-       defaults = #{<<"extra_domains">> => [],
-                    <<"server_info">> => [],
+       defaults = #{<<"server_info">> => [],
                     <<"users_can_see_hidden_services">> => true,
                     <<"iqdisc">> => one_queue}
       }.
@@ -229,8 +226,7 @@ disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To,
     ReturnHidden = should_return_hidden(HostType, From),
     Subdomains = get_subdomains(To#jid.lserver),
     Components = get_external_components(ReturnHidden),
-    ExtraDomains = get_extra_domains(HostType),
-    Domains = Subdomains ++ Components ++ ExtraDomains,
+    Domains = Subdomains ++ Components,
     {ok, mongoose_disco:add_items([#{jid => Domain} || Domain <- Domains], Acc)};
 disco_local_items(Acc, _, _) ->
     {ok, Acc}.
@@ -287,10 +283,6 @@ get_subdomains(LServer) ->
 -spec get_external_components(return_hidden()) -> [jid:lserver()].
 get_external_components(ReturnHidden) ->
     mongoose_component:dirty_get_all_components(ReturnHidden).
-
--spec get_extra_domains(mongooseim:host_type()) -> [jid:lserver()].
-get_extra_domains(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, extra_domains).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
