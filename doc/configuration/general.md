@@ -49,7 +49,7 @@ In order to configure these host types independently, use the [`host_config` sec
 If you use the host type mechanism, make sure you only configure modules which support dynamic domains in the [`modules`](./Modules.md) or [`host_config.modules`](./host_config.md#host_configmodules) sections.
 MongooseIM will **not** start otherwise.
 Most of the modules are compatible with host types, but please read the particular extension module's page, or the [incompatible modules list](./Modules.md#modules-incompatible-with-dynamic-domains) to see which do not.
-Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured in the [`listen.service` section](../listeners/listen-components.md#xmpp-components-listenservice), do not support dynamic domains.
+Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured in the [`listen.component` section](../listeners/listen-components.md#xmpp-components-listenservice), do not support dynamic domains.
 
 !!! Note
     At least one of `general.hosts` or `general.host_types` have to be provided.
@@ -189,7 +189,7 @@ Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned i
 * **Example:** `max_fsm_queue = 5000`
 
 When specified, will terminate certain processes (e.g. client handlers) that have more messages accumulated in the queue than the specified limit, to prevent resource exhaustion.
-This option is set for C2S, outgoing S2S and component connections and can be overridden for particular `s2s` or `service` listeners in their configurations. **Use with caution!**
+This option is set for outgoing S2S connections and can be overridden for particular `s2s` listeners in their configurations. **Use with caution!**
 
 ### `general.domain_certfile`
 * **Syntax:** array of TOML tables with the following mandatory content:

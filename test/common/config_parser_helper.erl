@@ -165,6 +165,32 @@ options("mongooseim-pgsql") ->
                 shaper => c2s_shaper,
                 max_stanza_size => 65536
                }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8888,
+                access => all,
+                shaper => fast,
+                password => "secret"
+               }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8666,
+                access => all,
+                shaper => fast,
+                password => "secret",
+                conflict_behaviour => kick_old
+               }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8189,
+                access => all,
+                shaper => fast,
+                password => "secret",
+                hidden_components => true
+               }),
        config([listen, http],
               #{port => 5280,
                 handlers =>
@@ -215,32 +241,6 @@ options("mongooseim-pgsql") ->
                 shaper => s2s_shaper,
                 max_stanza_size => 131072,
                 tls => #{dhfile => "priv/dh.pem"}
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8888,
-                access => all,
-                shaper => fast,
-                password => "secret"
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8666,
-                access => all,
-                shaper => fast,
-                password => "secret",
-                conflict_behaviour => kick_old
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8189,
-                access => all,
-                shaper => fast,
-                password => "secret",
-                hidden_components => true
                })
       ]},
      {loglevel, warning},
@@ -1093,7 +1093,7 @@ common_listener_config() ->
       proto => tcp,
       connection_type => undefined}.
 
-extra_service_listener_config() ->
+extra_component_listener_config() ->
     #{access => all,
       shaper => none,
       check_from => true,
@@ -1102,7 +1102,7 @@ extra_service_listener_config() ->
       state_timeout => 5000,
       hidden_components => false,
       conflict_behaviour => disconnect,
-      connection_type => component}.
+      connection_type => undefined}.
 
 default_config([instrumentation]) ->
     #{probe_interval => 15};
@@ -1171,8 +1171,8 @@ default_config([listen, s2s] = P) ->
                                      tls => default_config(P ++ [tls])};
 default_config([listen, s2s, tls]) ->
     default_tls(fast_tls);
-default_config([listen, service]) ->
-    Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
+default_config([listen, component]) ->
+    Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
     Extra#{module => mongoose_component_listener};
 default_config([modules, M]) ->
     default_mod_config(M);

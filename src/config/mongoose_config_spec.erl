@@ -238,7 +238,7 @@ domain_cert() ->
 
 %% path: listen
 listen() ->
-    ListenerTypes = [<<"c2s">>, <<"s2s">>, <<"service">>, <<"http">>],
+    ListenerTypes = [<<"c2s">>, <<"s2s">>, <<"component">>, <<"http">>],
     #section{
        items = maps:from_list([{Listener, #list{items = listener(Listener), wrap = none}}
                                || Listener <- ListenerTypes]),
@@ -317,7 +317,7 @@ xmpp_listener_extra(<<"c2s">>) ->
                           <<"reuse_port">> => false,
                           <<"backwards_compatible_session">> => true}
             };
-xmpp_listener_extra(<<"service">>) ->
+xmpp_listener_extra(<<"component">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
                        <<"shaper">> => #option{type = atom,
@@ -336,7 +336,6 @@ xmpp_listener_extra(<<"service">>) ->
                       },
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
-                          <<"shaper">> => none,
                           <<"max_connections">> => infinity,
                           <<"state_timeout">> => 5000,
                           <<"reuse_port">> => false,
@@ -1115,11 +1114,10 @@ process_listener([item, Type | _], Opts) ->
 listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"c2s">>) -> mongoose_c2s_listener;
 listener_module(<<"s2s">>) -> ejabberd_s2s_in;
-listener_module(<<"service">>) -> mongoose_component_listener.
+listener_module(<<"component">>) -> mongoose_component_listener.
 
 %% required for correct metrics reporting by mongoose_transport module
 connection_type(<<"s2s">>) -> s2s;
-connection_type(<<"service">>) -> component;
 connection_type(_) -> undefined.
 
 process_sasl_external(V) when V =:= standard;

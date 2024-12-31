@@ -100,14 +100,14 @@
   max_stanza_size = 131072
   tls.dhfile = "priv/dh.pem"
 
-[[listen.service]]
+[[listen.component]]
   port = 8888
   access = "all"
   shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 
-[[listen.service]]
+[[listen.component]]
   port = 8666
   access = "all"
   conflict_behaviour = "kick_old"
@@ -115,7 +115,7 @@
   ip_address = "127.0.0.1"
   password = "secret"
 
-[[listen.service]]
+[[listen.component]]
   port = 8189
   access = "all"
   hidden_components = true
