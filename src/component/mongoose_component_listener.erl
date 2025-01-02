@@ -8,7 +8,8 @@
 
 -type conflict_behaviour() :: disconnect | kick_old.
 
--type options() :: #{access := atom(),
+-type options() :: #{module := ?MODULE,
+                     access := atom(),
                      shaper := atom(),
                      password := binary(),
                      check_from := boolean(),
@@ -37,10 +38,10 @@ element_spirals() ->
      error_count, message_error_count, iq_error_count, presence_error_count].
 
 -spec start_listener(options()) -> ok.
-start_listener(#{module := Module} = Opts) when is_atom(Module) ->
+start_listener(#{module := ?MODULE} = Opts) ->
     TransportOpts = mongoose_listener:prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
-    ChildSpec0 = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, Opts),
+    ChildSpec0 = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, ?MODULE, Opts),
     ChildSpec1 = ChildSpec0#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
     mongoose_listener_sup:start_child(ChildSpec1).
 
