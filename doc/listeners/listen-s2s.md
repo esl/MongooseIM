@@ -6,15 +6,6 @@ The recommended port number for an S2S listener is 5269 [as registered in the XM
 !!! Note
     Many S2S options are configured in the [`s2s`](../configuration/s2s.md) section of the configuration file, and they apply to both incoming and outgoing connections.
 
-## Configuration options
-
-### `listen.s2s.shaper`
-* **Syntax:** string, name of the shaper rule or `"none"`
-* **Default:** `"none"` - no shaper
-* **Example:** `shaper = "s2s_shaper"`
-
-Name of the rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data. The rule referenced here needs to be defined in the [`access`](../configuration/access.md) config section, and it should return the shaper name or the value `"none"`.
-
 ## TLS options for S2S
 
 S2S connections do not use TLS encryption unless enabled with the `use_starttls` option in the `s2s` section.

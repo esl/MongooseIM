@@ -278,9 +278,14 @@ listener_extra(Type) ->
 xmpp_listener_common() ->
     #section{items = #{<<"backlog">> => #option{type = integer,
                                                 validate = non_negative},
+                       <<"shaper">> => #option{type = atom,
+                                               validate = non_empty},
                        <<"proxy_protocol">> => #option{type = boolean},
                        <<"hibernate_after">> => #option{type = int_or_infinity,
                                                         validate = non_negative},
+                       <<"max_connections">> => #option{type = int_or_infinity,
+                                                        validate = positive},
+                       <<"reuse_port">> => #option{type = boolean},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive,
                                                         process = fun ?MODULE:process_infinity_as_zero/1},
@@ -288,7 +293,10 @@ xmpp_listener_common() ->
                                                       validate = positive}
                       },
              defaults = #{<<"backlog">> => 1024,
+                          <<"shaper">> => none,
                           <<"proxy_protocol">> => false,
+                          <<"max_connections">> => infinity,
+                          <<"reuse_port">> => false,
                           <<"hibernate_after">> => 0,
                           <<"max_stanza_size">> => 0,
                           <<"num_acceptors">> => 100}
@@ -297,13 +305,8 @@ xmpp_listener_common() ->
 xmpp_listener_extra(<<"c2s">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"shaper">> => #option{type = atom,
-                                               validate = non_empty},
-                       <<"max_connections">> => #option{type = int_or_infinity,
-                                                        validate = positive},
                        <<"state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative},
-                       <<"reuse_port">> => #option{type = boolean},
                        <<"backwards_compatible_session">> => #option{type = boolean},
                        <<"allowed_auth_methods">> =>
                            #list{items = #option{type = atom,
@@ -311,22 +314,14 @@ xmpp_listener_extra(<<"c2s">>) ->
                                  validate = unique},
                        <<"tls">> => tls([server, c2s], [fast_tls, just_tls])},
              defaults = #{<<"access">> => all,
-                          <<"shaper">> => none,
-                          <<"max_connections">> => infinity,
                           <<"state_timeout">> => 5000,
-                          <<"reuse_port">> => false,
                           <<"backwards_compatible_session">> => true}
             };
 xmpp_listener_extra(<<"component">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"shaper">> => #option{type = atom,
-                                               validate = non_empty},
-                       <<"max_connections">> => #option{type = int_or_infinity,
-                                                        validate = positive},
                        <<"state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative},
-                       <<"reuse_port">> => #option{type = boolean},
                        <<"check_from">> => #option{type = boolean},
                        <<"hidden_components">> => #option{type = boolean},
                        <<"conflict_behaviour">> => #option{type = atom,
@@ -336,21 +331,14 @@ xmpp_listener_extra(<<"component">>) ->
                        <<"tls">> => tls([server], [just_tls])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
-                          <<"max_connections">> => infinity,
                           <<"state_timeout">> => 5000,
-                          <<"reuse_port">> => false,
-                          <<"shaper">> => none,
                           <<"check_from">> => true,
                           <<"hidden_components">> => false,
                           <<"conflict_behaviour">> => disconnect}
             };
 xmpp_listener_extra(<<"s2s">>) ->
     TLSSection = tls([server], [fast_tls]),
-    #section{items = #{<<"shaper">> => #option{type = atom,
-                                               validate = non_empty},
-                       <<"tls">> => TLSSection#section{include = always}},
-             defaults = #{<<"shaper">> => none}
-            }.
+    #section{items = #{<<"tls">> => TLSSection#section{include = always}}}.
 
 %% path: listen.http[].transport
 http_transport() ->

@@ -14,35 +14,12 @@ The following options are supported for each C2S listener:
 
 The rule that determines who is allowed to connect. By default, the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
-### `listen.c2s.shaper`
-* **Syntax:** string, rule name
-* **Default:** `"none"` (no shaper)
-* **Example:** `shaper = "c2s_shaper"`
-
-The rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
-The rule referenced here needs to be defined in the [`access`](../configuration/access.md) configuration section.
-The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
-
-### `listen.c2s.max_connections`
-* **Syntax:** positive integer or the string `"infinity"`
-* **Default:** `"infinity"`
-* **Example:** `max_connections = 10000`
-
-Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
-
 ### `listen.c2s.state_timeout`
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `5000`
 * **Example:** `state_timeout = 10_000`
 
 Timeout value (in milliseconds) used by the C2S state machine when waiting for the connecting client to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
-
-### `listen.c2s.reuse_port`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `reuse_port = true`
-
-Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
 
 ### `listen.c2s.backwards_compatible_session`
 * **Syntax:** boolean
