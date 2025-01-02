@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mongoose_transport.erl
 %%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : transport module for s2s and components connection
+%%% Purpose : transport module for s2s connection
 %%% Created : 18 Jan 2017
 %%%----------------------------------------------------------------------
 
@@ -26,7 +26,7 @@
 -type peercert_return() :: no_peer_cert | {ok, #'Certificate'{}}.
 
 -type stanza_size() :: pos_integer() | infinity.
--type connection_type() :: s2s | component | undefined.
+-type connection_type() :: s2s | undefined.
 
 -type options() :: #{max_stanza_size := stanza_size(),
                      hibernate_after := non_neg_integer(),
@@ -61,7 +61,7 @@
 -export([accept/4, connect/5, close/1, send_text/2, send_element/2]).
 -export([wait_for_tls_handshake/2, wait_for_tls_handshake/3,
          connect_tls/2, get_peer_certificate/1]).
--export([monitor/1, peername/1, change_shaper/2]).
+-export([peername/1, change_shaper/2]).
 -export([get_all_trasport_processes/0]).
 
 %% gen_server API
@@ -182,10 +182,6 @@ send_text(SocketData, Data) ->
 send_element(#socket_data{connection_type = s2s} = SocketData, El) ->
     mongoose_instrument:execute(s2s_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)}),
     BinEl = exml:to_binary(El),
-    send_text(SocketData, BinEl);
-send_element(#socket_data{connection_type = component} = SocketData, El) ->
-    mongoose_instrument:execute(component_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)}),
-    BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl).
 
 -spec get_peer_certificate(socket_data()) -> mongoose_tls:cert().
@@ -198,10 +194,6 @@ get_peer_certificate(_SocketData) ->
 peername(#socket_data{connection_details = #{src_address := SrcAddr,
                                              src_port := SrcPort}}) ->
     {ok, {SrcAddr, SrcPort}}.
-
--spec monitor(socket_data()) -> reference().
-monitor(#socket_data{receiver = Receiver}) ->
-    erlang:monitor(process, Receiver).
 
 -spec change_shaper(socket_data(), _) -> any().
 change_shaper(#socket_data{receiver = Receiver}, Shaper)  ->
@@ -413,9 +405,6 @@ process_data(Data, #state{parser = Parser,
 
 wrap_xml_elements_and_update_metrics(E, s2s) ->
     mongoose_instrument:execute(s2s_xmpp_element_size_in, #{}, #{byte_size => exml:xml_size(E)}),
-    wrap_xml(E);
-wrap_xml_elements_and_update_metrics(E, component) ->
-    mongoose_instrument:execute(component_xmpp_element_size_in, #{}, #{byte_size => exml:xml_size(E)}),
     wrap_xml(E).
 
 wrap_xml(#xmlel{} = E) ->
@@ -434,15 +423,7 @@ update_transport_metrics(Data, #{connection_type := s2s, direction := in, sockmo
 update_transport_metrics(Data, #{connection_type := s2s, direction := out, sockmod := gen_tcp}) ->
     mongoose_instrument:execute(s2s_tcp_data_out, #{}, #{byte_size => byte_size(Data)});
 update_transport_metrics(Data, #{connection_type := s2s, direction := out, sockmod := mongoose_tls}) ->
-    mongoose_instrument:execute(s2s_tls_data_out, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{connection_type := component, direction := in, sockmod := gen_tcp}) ->
-    mongoose_instrument:execute(component_tcp_data_in, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{connection_type := component, direction := in, sockmod := mongoose_tls}) ->
-    mongoose_instrument:execute(component_tls_data_in, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{connection_type := component, direction := out, sockmod := gen_tcp}) ->
-    mongoose_instrument:execute(component_tcp_data_out, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{connection_type := component, direction := out, sockmod := mongoose_tls}) ->
-    mongoose_instrument:execute(component_tls_data_out, #{}, #{byte_size => byte_size(Data)}).
+    mongoose_instrument:execute(s2s_tls_data_out, #{}, #{byte_size => byte_size(Data)}).
 
 -spec maybe_pause(Delay :: non_neg_integer(), state()) -> any().
 maybe_pause(_, #state{dest_pid = undefined}) ->

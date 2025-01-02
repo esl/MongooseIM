@@ -63,8 +63,6 @@ init([]) ->
         template_supervisor_spec(ejabberd_s2s_in_sup, ejabberd_s2s_in),
     S2SOutSupervisor =
         template_supervisor_spec(ejabberd_s2s_out_sup, ejabberd_s2s_out),
-    ServiceSupervisor =
-        template_supervisor_spec(ejabberd_service_sup, ejabberd_service),
     IQSupervisor =
         template_supervisor_spec(ejabberd_iq_sup, mongoose_iq_worker),
     {ok, {{one_for_one, 10, 1},
@@ -83,7 +81,6 @@ init([]) ->
            C2SSupervisor,
            S2SInSupervisor,
            S2SOutSupervisor,
-           ServiceSupervisor,
            IQSupervisor,
            Listener,
            MucIQ,

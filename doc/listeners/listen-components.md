@@ -12,6 +12,27 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
 
 The following options are supported for each component listener under `listen.service` subsection:
 
+### `listen.service.max_connections`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `max_connections = 10000`
+
+Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
+
+### `listen.service.reuse_port`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `reuse_port = true`
+
+Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
+
+### `listen.service.state_timeout`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `5000`
+* **Example:** `state_timeout = 10_000`
+
+Timeout value (in milliseconds) used by the component state machine when waiting for the connecting client to respond during stream negotiation. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
+
 ### `listen.service.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
@@ -26,13 +47,12 @@ Determines who is allowed to send data to external components. By default, the r
 
 The external component needs to authenticate with this password to connect.
 
-### `listen.service.shaper_rule`
+### `listen.service.shaper`
 * **Syntax:** string, name of the shaper
 * **Default:** `"none"`
 * **Example:** `shaper = "component_shaper"`
 
 The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
-Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper that needs to be defined in the [`shaper`](../configuration/shaper.md) section.
 
 ### `listen.service.check_from`
 * **Syntax:** boolean
@@ -71,13 +91,6 @@ By default, when a component tries to connect and a registration conflict occurs
 It makes implementing the reconnection logic difficult, because the old connection would not allow any other connections.
 By setting this option to `kick_old`, we drop any old connections registered at the same host before accepting new ones.
 
-### `listen.service.max_fsm_queue`
-* **Syntax:** positive integer
-* **Default:** not set - no limit
-* **Example:** `max_fsm_queue = 1000`
-
-Message queue limit to prevent resource exhaustion; overrides the value set in the [`general`](../configuration/general.md#generalmax_fsm_queue) section.
-
 ## Custom extension to the protocol
 
 In order to register a component for all virtual hosts served by the server (see [`hosts`](../configuration/general.md#generalhosts) in the [`general`](../configuration/general.md) section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
@@ -95,7 +108,7 @@ The shaper named `fast` needs to be defined in the [`shaper`](../configuration/s
 [[listen.service]]
   port = 8888
   access = "all"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 ```

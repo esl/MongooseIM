@@ -30,7 +30,7 @@ instrumentation(_Opts) ->
 -spec start_listener(options()) -> ok.
 start_listener(#{module := Module} = Opts) ->
     HostTypes = ?ALL_HOST_TYPES,
-    TransportOpts = prepare_socket_opts(Opts),
+    TransportOpts = mongoose_listener:prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
     maybe_add_access_check(HostTypes, Opts, ListenerId),
     ChildSpec = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, Opts),
@@ -73,28 +73,3 @@ maybe_add_access_check(HostTypes, _, ListenerId) ->
                   #{listener_id => ListenerId}, 10}
                  || HostType <- HostTypes ],
     gen_hook:add_handlers(AclHooks).
-
-prepare_socket_opts(#{port := Port,
-                      ip_version := IPVersion,
-                      ip_tuple := IPTuple,
-                      backlog := Backlog,
-                      num_acceptors := NumAcceptors,
-                      max_connections := MaxConnections,
-                      reuse_port := ReusePort}) ->
-    SocketOpts = [{nodelay, true},
-                  {keepalive, true},
-                  {ip, IPTuple},
-                  {port, Port},
-                  {backlog, Backlog},
-                  mongoose_listener_config:address_family(IPVersion)
-                  | maybe_reuseport(ReusePort)],
-    #{max_connections => MaxConnections,
-      num_acceptors => NumAcceptors,
-      num_listen_sockets => num_listen_sockets(ReusePort),
-      socket_opts => SocketOpts}.
-
-maybe_reuseport(false) -> [];
-maybe_reuseport(true) -> [{raw, 1, 15, <<1:32/native>>}].
-
-num_listen_sockets(false) -> 1;
-num_listen_sockets(true) -> erlang:system_info(schedulers_online).
