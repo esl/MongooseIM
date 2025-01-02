@@ -6,11 +6,10 @@
          disconnect_component/2,
          disconnect_components/2,
          connect_component_subdomain/1,
-         get_components/1, get_components/2, get_components/3, 
-         spec/2,
-         common/1,
-         common/2,
-         name/1
+         get_components/1,
+         second_port/1,
+         spec/1,
+         host/1
         ]).
 
 -export([component_start_stream/2,
@@ -128,33 +127,34 @@ component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
 connect_component_subdomain(Component) ->
     connect_component(Component, component_start_stream_subdomain).
 
-spec(component_on_2, Config) ->
-    [{component, <<"yet_another_service">>}] ++ common(Config, mim2_service_port());
-spec(component_duplicate, Config) ->
-    [{component, <<"another_service">>}] ++ common(Config, mim2_service_port());
-spec(hidden_component, Config) ->
-    [{component, <<"hidden_component">>}] ++ common(Config, hidden_service_port());
-spec(kicking_component, Config) ->
-    [{component, <<"kicking_component">>}] ++ common(Config, kicking_service_port());
-spec(Other, Config) ->
-    [name(Other) | proplists:get_value(Other, Config, [])].
+host(CompSpec) ->
+    proplists:get_value(component, CompSpec).
 
-common(Config) ->
-    common(Config, service_port()).
+second_port(Spec) ->
+    lists:keyreplace(port, 1, Spec, {port, mim2_service_port()}).
+
+spec(vjud_component) ->
+    [{component, <<"vjud">>} | common(mim2_service_port())];
+spec(component_on_2) ->
+    [{component, <<"yet_another_service">>} | common(mim2_service_port())];
+spec(component_on_2) ->
+    [{component, <<"yet_another_service">>} | common(mim2_service_port())];
+spec(hidden_component) ->
+    [{component, <<"hidden_component">>} | common(hidden_service_port())];
+spec(kicking_component) ->
+    [{component, <<"kicking_component">>} | common(kicking_service_port())];
+spec(Other) ->
+    Prefix = integer_to_binary(erlang:unique_integer([monotonic, positive])),
+    Name = <<Prefix/binary, "_", (atom_to_binary(Other))/binary>>,
+    [{component, Name} |  common(service_port())].
 
 service_port() ->
     ct:get_config({hosts, mim, service_port}).
 
 get_components(Config) ->
-    Opts = common(Config),
-    get_components(Opts, Config).
-
-get_components(Opts, Config) ->
+    Opts = common(service_port()),
     Components = [component1, component2, vjud_component],
-    get_components(Opts, Components, Config).
-
-get_components(Opts, Components, Config) ->
-    [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
+    [ {C, Opts ++ spec(C)} || C <- Components ] ++ Config.
 
 kicking_service_port() ->
     ct:get_config({hosts, mim, kicking_service_port}).
@@ -165,17 +165,8 @@ hidden_service_port() ->
 mim2_service_port() ->
     ct:get_config({hosts, mim2, service_port}).
 
-common(_Config, Port) ->
+common(Port) ->
     [{server, ct:get_config({hosts, mim, domain})},
-     {host, ct:get_config({hosts, mim, domain})},
+     {host, <<"localhost">>},
      {password, <<"secret">>},
      {port, Port}].
-
-name(component1) ->
-    {component, <<"test_service">>};
-name(component2) ->
-    {component, <<"another_service">>};
-name(vjud_component) ->
-    {component, <<"vjud">>};
-name(kicking_component) ->
-    {component, <<"kicking_component">>}.

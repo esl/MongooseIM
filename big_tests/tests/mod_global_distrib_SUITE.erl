@@ -644,7 +644,7 @@ test_components_in_different_regions(_Config) ->
 %% Ordinary user is not able to discover the hidden component from GD
 test_hidden_component_disco_in_different_region(Config) ->
     %% Hidden component from component_SUITE connects to mim1/europe_node1
-    HiddenComponentConfig = component_helper:spec(hidden_component, Config),
+    HiddenComponentConfig = component_helper:spec(hidden_component),
     {_HiddenComp, HiddenAddr, _} = component_helper:connect_component(HiddenComponentConfig),
 
     escalus:fresh_story(

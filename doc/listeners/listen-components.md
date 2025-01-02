@@ -4,9 +4,11 @@ Interface for external services acting as XMPP components ([XEP-0114: Jabber Com
 
 According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html) the component's hostname should be given in the <stream:stream> element.
 
-!!! warning
-    This interface does not support [dynamic domains](../configuration/general.md#generalhost_types).
-    Do not use them both at the same time.
+!!! Note
+    The component might register _any_ domain, which might not necessarily be a static nor a dynamic domain, nor subdomain, recognised by the MongooseIM router. For routing to work, the modules `mongoose_router_external_localnode` and `mongoose_router_external` must be enabled in the [`general.routing_modules`](../configuration/general.md#generalrouting_modules) section.
+
+    Note the order of the routing modules: if a component is meant to supplant a domain served regularly by the MongooseIM server, the external routers should be ordered with higher priority.
+
 
 ## Configuration options
 
