@@ -165,7 +165,7 @@ prepare_socket_opts(#{port := Port,
       socket_opts => SocketOpts}.
 
 maybe_reuseport(false) -> [];
-maybe_reuseport(true) -> [{raw, 1, 15, <<1:32/native>>}].
+maybe_reuseport(true) -> [{reuseport, true}, {reuseport_lb, true}].
 
 num_listen_sockets(false) -> 1;
 num_listen_sockets(true) -> erlang:system_info(schedulers_online).
