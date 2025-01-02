@@ -35,7 +35,7 @@
                      port := inet:port_number(),
                      ip_tuple := inet:ip_address(),
                      ip_address := string(),
-                     ip_version := 4 | 6,
+                     ip_version := inet:address_family(),
                      proto := tcp,
                      num_acceptors := pos_integer(),
                      backlog := non_neg_integer(),
@@ -198,7 +198,7 @@ prepare_socket_opts(#{ip_version := IPVersion, ip_tuple := IPTuple, backlog := B
      {send_timeout, ?TCP_SEND_TIMEOUT},
      {keepalive, true},
      {send_timeout_close, true},
-     mongoose_listener_config:address_family(IPVersion),
+     IPVersion,
      {ip, IPTuple},
      {backlog, Backlog}].
 

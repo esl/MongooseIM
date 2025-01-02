@@ -22,7 +22,7 @@
 -type options() :: #{port := inet:port_number(),
                      ip_tuple := inet:ip_address(),
                      ip_address := string(),
-                     ip_version := 4 | 6,
+                     ip_version := inet:address_family(),
                      proto := proto(),
                      any() := any()}.
 -type id() :: {inet:port_number(), inet:ip_address(), proto()}.
@@ -157,7 +157,7 @@ prepare_socket_opts(#{port := Port,
                   {ip, IPTuple},
                   {port, Port},
                   {backlog, Backlog},
-                  mongoose_listener_config:address_family(IPVersion)
+                  IPVersion
                   | maybe_reuseport(ReusePort)],
     #{max_connections => MaxConnections,
       num_acceptors => NumAcceptors,

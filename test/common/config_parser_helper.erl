@@ -1089,7 +1089,7 @@ common_xmpp_listener_config() ->
 common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
-      ip_version => 4,
+      ip_version => inet,
       proto => tcp,
       connection_type => undefined}.
 

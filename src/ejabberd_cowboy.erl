@@ -48,7 +48,7 @@
 -type listener_options() :: #{port := inet:port_number(),
                               ip_tuple := inet:ip_address(),
                               ip_address := string(),
-                              ip_version := 4 | 6,
+                              ip_version := inet:address_family(),
                               proto := tcp,
                               handlers := list(),
                               transport := ranch:opts(),
