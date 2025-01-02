@@ -76,17 +76,17 @@ tcp_to_tls(just_tls, TcpSocket, TlsConfig) ->
 socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Data}) ->
     case fast_tls:recv_data(TlsSocket, Data) of
         {ok, DecryptedData} ->
-            DataSize = byte_size(DecryptedData),
-            mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => DataSize}),
+            mongoose_instrument:execute(
+              c2s_tls_data_in, #{}, #{byte_size => iolist_size(DecryptedData)}),
             DecryptedData;
         {error, Reason} ->
             {error, Reason}
     end;
 socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
-    mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => byte_size(Data)}),
+    mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => iolist_size(Data)}),
     Data;
 socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
-    mongoose_instrument:execute(c2s_tcp_data_in, #{}, #{byte_size => byte_size(Data)}),
+    mongoose_instrument:execute(c2s_tcp_data_in, #{}, #{byte_size => iolist_size(Data)}),
     Data.
 
 -spec socket_activate(state()) -> ok.
@@ -105,7 +105,7 @@ socket_close(#state{transport = just_tls, socket = Socket}) ->
 socket_close(#state{transport = ranch_tcp, socket = Socket}) ->
     ranch_tcp:close(Socket).
 
--spec socket_send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
+-spec socket_send_xml(state(), exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
 socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
     Text = exml:to_iolist(XML),

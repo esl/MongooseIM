@@ -25,6 +25,8 @@
 instrumentation() ->
     [{component_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
      {component_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
+     {component_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
+     {component_tls_data_out, #{}, #{metrics => #{byte_size => spiral}}},
      {component_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
      {component_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
      {component_auth_failed, #{}, #{metrics => #{count => spiral}}},
@@ -39,11 +41,24 @@ element_spirals() ->
 
 -spec start_listener(options()) -> ok.
 start_listener(#{module := ?MODULE} = Opts) ->
-    TransportOpts = mongoose_listener:prepare_socket_opts(Opts),
+    TransportModule = transport_module(Opts),
+    TransportOpts0 = mongoose_listener:prepare_socket_opts(Opts),
+    TransportOpts = maybe_tls_opts(Opts, TransportOpts0),
     ListenerId = mongoose_listener_config:listener_id(Opts),
-    ChildSpec0 = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, ?MODULE, Opts),
+    ChildSpec0 = ranch:child_spec(ListenerId, TransportModule, TransportOpts, ?MODULE, Opts),
     ChildSpec1 = ChildSpec0#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
     mongoose_listener_sup:start_child(ChildSpec1).
+
+transport_module(#{tls := _}) ->
+    ranch_ssl;
+transport_module(#{}) ->
+    ranch_tcp.
+
+maybe_tls_opts(#{tls := TLSOpts}, #{socket_opts := SocketOpts} = TransportOpts) ->
+    SslSocketOpts = just_tls:make_cowboy_ssl_opts(TLSOpts),
+    TransportOpts#{socket_opts => SocketOpts ++ SslSocketOpts};
+maybe_tls_opts(_, TransportOpts) ->
+    TransportOpts.
 
 %% ranch_protocol
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
