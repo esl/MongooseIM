@@ -131,39 +131,39 @@ host(CompSpec) ->
     proplists:get_value(component, CompSpec).
 
 second_port(Spec) ->
-    lists:keyreplace(port, 1, Spec, {port, mim2_service_port()}).
+    lists:keyreplace(port, 1, Spec, {port, mim2_component_port()}).
 
 spec(vjud_component) ->
-    [{component, <<"vjud">>} | common(mim2_service_port())];
+    [{component, <<"vjud">>} | common(mim2_component_port())];
 spec(component_on_2) ->
-    [{component, <<"yet_another_service">>} | common(mim2_service_port())];
+    [{component, <<"yet_another_component">>} | common(mim2_component_port())];
 spec(component_on_2) ->
-    [{component, <<"yet_another_service">>} | common(mim2_service_port())];
+    [{component, <<"yet_another_component">>} | common(mim2_component_port())];
 spec(hidden_component) ->
-    [{component, <<"hidden_component">>} | common(hidden_service_port())];
+    [{component, <<"hidden_component">>} | common(hidden_component_port())];
 spec(kicking_component) ->
-    [{component, <<"kicking_component">>} | common(kicking_service_port())];
+    [{component, <<"kicking_component">>} | common(kicking_component_port())];
 spec(Other) ->
     Prefix = integer_to_binary(erlang:unique_integer([monotonic, positive])),
     Name = <<Prefix/binary, "_", (atom_to_binary(Other))/binary>>,
-    [{component, Name} |  common(service_port())].
+    [{component, Name} |  common(component_port())].
 
-service_port() ->
-    ct:get_config({hosts, mim, service_port}).
+component_port() ->
+    ct:get_config({hosts, mim, component_port}).
 
 get_components(Config) ->
-    Opts = common(service_port()),
+    Opts = common(component_port()),
     Components = [component1, component2, vjud_component],
     [ {C, Opts ++ spec(C)} || C <- Components ] ++ Config.
 
-kicking_service_port() ->
-    ct:get_config({hosts, mim, kicking_service_port}).
+kicking_component_port() ->
+    ct:get_config({hosts, mim, kicking_component_port}).
 
-hidden_service_port() ->
-    ct:get_config({hosts, mim, hidden_service_port}).
+hidden_component_port() ->
+    ct:get_config({hosts, mim, hidden_component_port}).
 
-mim2_service_port() ->
-    ct:get_config({hosts, mim2, service_port}).
+mim2_component_port() ->
+    ct:get_config({hosts, mim2, component_port}).
 
 common(Port) ->
     [{server, ct:get_config({hosts, mim, domain})},

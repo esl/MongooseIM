@@ -95,7 +95,7 @@ groups() ->
                            listen_s2s,
                            listen_s2s_tls,
                            listen_s2s_cacertfile_verify,
-                           listen_service,
+                           listen_component,
                            listen_http,
                            listen_http_tls,
                            listen_http_transport,
@@ -575,11 +575,11 @@ listen_s2s_cacertfile_verify(_Config) ->
     ?cfg(P, ConfigWithVerifyModeNone, T(<<"required">>, VerifyModeNoneRaw)),
     ?cfg(P, ConfigWithVerifyModeNone, T(<<"required_trusted">>, VerifyModeNoneRaw)).
 
-listen_service(_Config) ->
+listen_component(_Config) ->
     Defs = #{<<"port">> => 8888, <<"password">> => <<"secret">>},
-    T = fun(Opts) -> listen_raw(service, maps:merge(Defs, Opts)) end,
+    T = fun(Opts) -> listen_raw(component, maps:merge(Defs, Opts)) end,
     P = [listen, 1],
-    ?cfg(P, config([listen, service], #{port => 8888, password => "secret"}), T(#{})),
+    ?cfg(P, config([listen, component], #{port => 8888, password => "secret"}), T(#{})),
     test_listen(P, T),
     test_listen_xmpp(P, T),
     ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),

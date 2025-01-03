@@ -1,4 +1,4 @@
-# XMPP components: `[[listen.service]]`
+# XMPP components: `[[listen.component]]`
 
 Interface for external services acting as XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)), enabling communication between MongooseIM and external services over the XMPP network. The recommended port number for a component listener is 8888.
 
@@ -12,58 +12,58 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
 
 ## Configuration options
 
-The following options are supported for each component listener under `listen.service` subsection:
+The following options are supported for each component listener under `listen.component` subsection:
 
-### `listen.service.max_connections`
+### `listen.component.max_connections`
 * **Syntax:** positive integer or the string `"infinity"`
 * **Default:** `"infinity"`
 * **Example:** `max_connections = 10000`
 
 Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
 
-### `listen.service.reuse_port`
+### `listen.component.reuse_port`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `reuse_port = true`
 
 Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
 
-### `listen.service.state_timeout`
+### `listen.component.state_timeout`
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `5000`
 * **Example:** `state_timeout = 10_000`
 
 Timeout value (in milliseconds) used by the component state machine when waiting for the connecting client to respond during stream negotiation. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
 
-### `listen.service.access`
+### `listen.component.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "component"`
 
 Determines who is allowed to send data to external components. By default, the rule is `all`, which means that anyone can communicate with the components.
 
-### `listen.service.password`
+### `listen.component.password`
 * **Syntax:** string
 * **Default:** no default, this option is mandatory
 * **Example:** `password = "secret"`
 
 The external component needs to authenticate with this password to connect.
 
-### `listen.service.shaper`
+### `listen.component.shaper`
 * **Syntax:** string, name of the shaper
 * **Default:** `"none"`
 * **Example:** `shaper = "component_shaper"`
 
 The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
 
-### `listen.service.check_from`
+### `listen.component.check_from`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `check_from = false`
 
 Specifies whether the server should verify the "from" field in stanzas from the component.
 
-### `listen.service.hidden_components`
+### `listen.component.hidden_components`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `hidden_components = true`
@@ -76,7 +76,7 @@ An example would be [`mod_disco`](../modules/mod_disco.md), which may be configu
 A reason to do so could be reduced traffic - systems with many components could return very long disco responses.
 Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather because they are not meant to interact with clients directly (e.g. helper components for other components).
 
-### `listen.service.conflict_behaviour`
+### `listen.component.conflict_behaviour`
 * **Syntax:** string, one of: `"disconnect"`, `"kick_old"`
 * **Default:** `"disconnect"`
 * **Example:** `conflict_behaviour = "kick_old"`
@@ -101,13 +101,13 @@ The `is_subdomain` attribute is optional and the default behaviour is as describ
 
 ## Service listener configuration example
 
-The following section configures a service listener, accepting connections from external components.
+The following section configures a component listener, accepting connections from external components.
 The IP address is limited to loopback to prevent connections from different hosts.
 All components are allowed to connect, but they need to provide the password.
 The shaper named `fast` needs to be defined in the [`shaper`](../configuration/shaper.md) section.
 
 ```toml
-[[listen.service]]
+[[listen.component]]
   port = 8888
   access = "all"
   shaper = "fast"
