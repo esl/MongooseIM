@@ -84,8 +84,8 @@
   shaper = "c2s_shaper"
   max_stanza_size = 65536
   tls.mode = "starttls"
-  tls.certfile = "priv/dc1.pem"
   tls.dhfile = "priv/dh.pem"
+  tls.certfile = "priv/dc1.pem"
   tls.cacertfile = "priv/ca.pem"
 
 [[listen.c2s]]
@@ -99,6 +99,8 @@
   shaper = "s2s_shaper"
   max_stanza_size = 131072
   tls.dhfile = "priv/dh.pem"
+  tls.certfile = "priv/cert.pem"
+  tls.cacertfile = "priv/ca.pem"
 
 [[listen.component]]
   port = 8888

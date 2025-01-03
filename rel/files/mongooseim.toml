@@ -148,6 +148,9 @@
   port = {{{incoming_s2s_port}}}
   shaper = "s2s_shaper"
   max_stanza_size = 131072
+  {{#tls_config}}
+  {{{tls_config}}}
+  {{/tls_config}}
   {{#s2s_dhfile}}
   tls.dhfile = {{{s2s_dhfile}}}
   {{/s2s_dhfile}}

@@ -38,7 +38,7 @@
 -import(config_parser_helper, [default_s2s/0,
                                extra_service_listener_config/0,
                                mod_event_pusher_http_handler/0,
-                               default_c2s_tls/1,
+                               default_c2s_tls/1, default_s2s_tls/0,
                                mod_config/2, default_mod_config/1,
                                config/2, default_config/1]).
 
@@ -94,7 +94,6 @@ groups() ->
                            listen_c2s_just_tls,
                            listen_s2s,
                            listen_s2s_tls,
-                           listen_s2s_cacertfile_verify,
                            listen_component,
                            listen_component_tls,
                            listen_http,
@@ -483,7 +482,7 @@ listen_duplicate(_Config) ->
     ?err([#{reason := duplicate_listeners,
             duplicates := [{5222, {0, 0, 0, 0}, tcp}]}],
          #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222, <<"ip_address">> => <<"0">>}],
-                             <<"s2s">> => [#{<<"port">> => 5222}]}}).
+                             <<"component">> => [#{<<"port">> => 5222, <<"password">> => <<"secret">>}]}}).
 
 listen_c2s(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, maps:merge(#{<<"port">> => 5222}, Opts)) end,
@@ -492,17 +491,11 @@ listen_c2s(_Config) ->
     test_listen(P, T),
     test_listen_xmpp(P, T),
     ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
-    ?cfg(P ++ [shaper], c2s_shaper, T(#{<<"shaper">> => <<"c2s_shaper">>})),
-    ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
     ?cfg(P ++ [backwards_compatible_session], true, T(#{<<"backwards_compatible_session">> => true})),
-    ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
     ?cfg(P ++ [allowed_auth_methods], [rdbms, http],
          T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"http">>]})),
     ?err(T(#{<<"access">> => <<>>})),
-    ?err(T(#{<<"shaper">> => <<>>})),
-    ?err(T(#{<<"reuse_port">> => 0})),
     ?err(T(#{<<"backwards_compatible_session">> => 0})),
-    ?err(T(#{<<"max_connections">> => 0})),
     ?err(T(#{<<"allowed_auth_methods">> => [<<"bad_method">>]})),
     ?err(T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"rdbms">>]})).
 
@@ -544,37 +537,14 @@ listen_s2s(_Config) ->
     P = [listen, 1],
     ?cfg(P, config([listen, s2s], #{port => 5269}), T(#{})),
     test_listen(P, T),
-    test_listen_xmpp(P, T),
-    ?cfg(P ++ [shaper], s2s_shaper, T(#{<<"shaper">> => <<"s2s_shaper">>})),
-    ?err(T(#{<<"shaper">> => <<>>})).
+    test_listen_xmpp(P, T).
 
 listen_s2s_tls(_Config) ->
     T = fun(Opts) -> listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
-    ?cfg(P, default_config([listen, s2s, tls]), T(#{})),
-    test_fast_tls_server(P, T).
-
-listen_s2s_cacertfile_verify(_Config) ->
-    T = fun(UseStartTLS, Opts) ->
-            maps:merge(#{<<"s2s">> => #{<<"use_starttls">> => UseStartTLS}},
-            listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts})) end,
-    P = [listen, 1, tls],
-    ConfigWithCA = maps:merge(default_config([listen, s2s, tls]), tls_ca()),
-    %% no checking of `cacertfile` when `use_starttls` is `false` or `optional`
-    ?cfg(P, default_config([listen, s2s, tls]), T(<<"false">>, #{})),
-    ?cfg(P, default_config([listen, s2s, tls]), T(<<"optional">>, #{})),
-    %% `cacertfile` is required when `use_starttls` is `required` or `optional`
-    ?cfg(P, ConfigWithCA, T(<<"required">>, tls_ca_raw())),
-    ?cfg(P, ConfigWithCA, T(<<"required_trusted">>, tls_ca_raw())),
-    ?err([#{reason := missing_cacertfile}], T(<<"required">>, #{})),
-    ?err([#{reason := missing_cacertfile}], T(<<"required_trusted">>, #{})),
-    %% setting `verify_mode` to `none` turns off `cacertfile` validation
-    VerifyModeNone = #{verify_mode => none},
-    VerifyModeNoneRaw = #{<<"verify_mode">> => <<"none">>},
-    ConfigWithVerifyModeNone = maps:merge(default_config([listen, s2s, tls]),
-                                          #{verify_mode => none}),
-    ?cfg(P, ConfigWithVerifyModeNone, T(<<"required">>, VerifyModeNoneRaw)),
-    ?cfg(P, ConfigWithVerifyModeNone, T(<<"required_trusted">>, VerifyModeNoneRaw)).
+    M = tls_ca_raw(),
+    ?cfg(P, maps:merge(default_s2s_tls(), tls_ca()), T(M)),
+    test_just_tls_server(P, T).
 
 listen_component(_Config) ->
     Defs = #{<<"port">> => 8888, <<"password">> => <<"secret">>},
@@ -584,18 +554,12 @@ listen_component(_Config) ->
     test_listen(P, T),
     test_listen_xmpp(P, T),
     ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
-    ?cfg(P ++ [shaper], fast, T(#{<<"shaper">> => <<"fast">>})),
     ?cfg(P ++ [check_from], false, T(#{<<"check_from">> => false})),
     ?cfg(P ++ [hidden_components], true, T(#{<<"hidden_components">> => true})),
     ?cfg(P ++ [conflict_behaviour], kick_old, T(#{<<"conflict_behaviour">> => <<"kick_old">>})),
     ?cfg(P ++ [state_timeout], 6000, T(#{<<"state_timeout">> => 6000})),
-    ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
-    ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
     ?err(T(#{<<"state_timeout">> => -10})),
-    ?err(T(#{<<"reuse_port">> => 0})),
-    ?err(T(#{<<"max_connections">> => 0})),
     ?err(T(#{<<"access">> => <<>>})),
-    ?err(T(#{<<"shaper">> => <<>>})),
     ?err(T(#{<<"check_from">> => 1})),
     ?err(T(#{<<"hidden_components">> => <<"yes">>})),
     ?err(T(#{<<"conflict_behaviour">> => <<"kill_server">>})),
@@ -730,11 +694,17 @@ test_listen(P, T) ->
 test_listen_xmpp(P, T) ->
     ?cfg(P ++ [backlog], 10, T(#{<<"backlog">> => 10})),
     ?cfg(P ++ [proxy_protocol], true, T(#{<<"proxy_protocol">> => true})),
+    ?cfg(P ++ [shaper], fast, T(#{<<"shaper">> => <<"fast">>})),
     ?cfg(P ++ [hibernate_after], 10, T(#{<<"hibernate_after">> => 10})),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
     ?cfg(P ++ [max_stanza_size], 0, T(#{<<"max_stanza_size">> => <<"infinity">>})),
     ?cfg(P ++ [num_acceptors], 100, T(#{<<"num_acceptors">> => 100})),
+    ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
+    ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
+    ?err(T(#{<<"shaper">> => <<>>})),
     ?err(T(#{<<"backlog">> => -10})),
+    ?err(T(#{<<"max_connections">> => 0})),
+    ?err(T(#{<<"reuse_port">> => 0})),
     ?err(T(#{<<"proxy_protocol">> => <<"awesome">>})),
     ?err(T(#{<<"hibernate_after">> => -10})),
     ?err(T(#{<<"max_stanza_size">> => <<"unlimited">>})),

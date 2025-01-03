@@ -113,40 +113,44 @@ Path to the Diffie-Hellman parameter file.
 
 Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
 
-### `listen.c2s.tls.protocol_options` - only for `fast_tls`
+### TLS options only for `fast_tls`
+
+#### `listen.c2s.tls.protocol_options`
 * **Syntax:** array of strings
 * **Default:** `["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]`
 * **Example:** `tls.protocol_options = ["no_tlsv1", "no_tlsv1_1"]`
 
 A list of OpenSSL options for FastTLS. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
 
-### `listen.c2s.tls.keyfile` - only for `just_tls`
+### TLS options only for `just_tls`
+
+#### `listen.c2s.tls.keyfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.keyfile = "key.pem"`
 
 Path to the X509 PEM file with the private key.
 
-### `listen.c2s.tls.password` - only for `just_tls`
+#### `listen.c2s.tls.password`
 * **Syntax:** string
 * **Default:** not set
 * **Example:** `tls.password = "secret"`
 
 Password to the X509 PEM file with the private key.
 
-### `listen.c2s.tls.disconnect_on_failure` - only for `just_tls`
+#### `listen.c2s.tls.disconnect_on_failure`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `tls.disconnect_on_failure = false`
 
-### `listen.c2s.tls.versions` - only for `just_tls`
+#### `listen.c2s.tls.versions`
 * **Syntax:** array of strings
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
 TLS versions to use with StartTLS or TLS. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-protocol_version)
 
-### `listen.c2s.tls.crl_files` - only for `just_tls`
+#### `listen.c2s.tls.crl_files`
 * **Syntax:** array of strings, paths in the file system
 * **Default:** not set
 * **Example:** `tls.crl_files = ["certs.crl"]`

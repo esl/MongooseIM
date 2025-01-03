@@ -43,13 +43,6 @@ Allows to configure StartTLS for incoming and outgoing S2S connections:
 - `required` - StartTLS is supported and enforced,
 - `required_trusted` - StartTLS is supported and enforced with certificate verification.
 
-### `s2s.certfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `certfile = "cert.pem"`
-
-Path to the X509 PEM file with a certificate and a private key inside (not protected by any password). Required if `use_starttls` is not `false`.
-
 ### `s2s.shared`
 * **Syntax:** string
 * **Default:** 10 strong random bytes, hex-encoded
@@ -77,6 +70,13 @@ The options listed below affect only the outgoing S2S connections.
 ```
 
 This option defines IP addresses and port numbers for specific non-local XMPP domains, allowing to override the DNS lookup for outgoing S2S connections.
+
+### `s2s.certfile`
+* **Syntax:** string, path in the file system
+* **Default:** not set
+* **Example:** `certfile = "cert.pem"`
+
+Path to the X509 PEM file with a certificate and a private key inside (not protected by any password).
 
 ### `s2s.ciphers`
 * **Syntax:** string

@@ -93,13 +93,13 @@ Maximum allowed incoming stanza size in bytes.
 The number of processes accepting new connections on the listening socket.
 
 ### `listen.*.shaper`
-* **Syntax:** string, rule name
+* **Syntax:** string, shaper name
 * **Default:** `"none"` (no shaper)
 * **Example:** `shaper = "c2s_shaper"`
 
-The rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
-The rule referenced here needs to be defined in the [`access`](../configuration/access.md) configuration section.
-The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
+The shaper name that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
+The shaper referenced here needs to be defined in the [`shaper`](../configuration/shaper.md) configuration section.
+The value of the shaper name needs to be either the shaper name or the string `"none"`, which means no shaper.
 
 ### `listen.*.max_connections`
 * **Syntax:** positive integer or the string `"infinity"`
