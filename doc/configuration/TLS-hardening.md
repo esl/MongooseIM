@@ -4,19 +4,18 @@ Before we explain the TLS hardening in MongooseIM, we need to describe the TLS l
 These are "OTP TLS" and "Fast TLS".
 
 The former is provided by (as the name suggests) OTP as the `ssl` application.
-Large part of the logic is implemented in Erlang but it calls OpenSSL API for some operations anyway.
+Large part of the logic is implemented in Erlang but it calls OpenSSL libcrypto APIs for some operations.
 
-The latter is a community-maintained driver, which is implemented as NIFs (native C code).
+The latter is a community-maintained library, which is implemented as NIFs (native C code).
 It uses OpenSSL API for all operations.
 
-Most MongooseIM components use the TLS library provided by OTP.
+Most parts of MongooseIM use the TLS library provided by OTP.
 However, some of them choose to integrate with `fast_tls` library instead.
-The former one is used primarily by MIM dependencies, while the latter is used only by MIM modules.
 
 None of them is strictly better than the other.
 Below you may find a summary of the differences between them.
 
-* `fast_tls` is faster
+* `fast_tls` is generally more memory efficient.
 * There are options that OTP TLS (a.k.a `just_tls` in the C2S listener configuration) supports exclusively:
     * Immediate connection drop when the client certificate is invalid
     * Certificate Revocation Lists
@@ -32,25 +31,19 @@ It is still possible to enable earlier versions, however it is strongly discoura
 
 ## OTP TLS hardening
 
-Protocol list for OTP TLS is set via the `protocol_version` environment variable.
+The protocol list for OTP TLS is set via the `protocol_version` environment variable.
 It's an Erlang runtime variable, so it is not configured in the OS but rather in the`app.config` file.
 It may be found in `etc/` folder inside MongooseIM release and in `[repository root]/rel/files/`.
 
 In order to change the list, please find the following lines:
 
 ```
-{protocol_version, ['tlsv1.2',
-                    'tlsv1.3'
-          ]}
+{protocol_version, ['tlsv1.2', 'tlsv1.3']}
 ```
 
 The remaining valid values are: `'tlsv1.1'`, `tlsv1`, `sslv3`.
 
-This setting affects the following MongooseIM components:
-
-* Raw XMPP over TCP connections, if a C2S listener is configured to use `just_tls`
-* All outgoing connections (databases, AMQP, SIP etc.)
-* HTTP endpoints
+See [EEF guidelines for protocol versions and ciphers](https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl#selecting-protocol-versions-and-ciphers) for more information.
 
 ## Fast TLS hardening
 
@@ -62,9 +55,5 @@ The list below enumerates all components that use Fast TLS and describes how to 
 
 * `listen.c2s` - main user session abstraction + XMPP over TCP listener
     * Please consult the respective section in [Listener modules](../listeners/listen-c2s.md#listenc2stlsprotocol_options-only-for-fast_tls).
-* `listen.s2s` - incoming S2S connections (XMPP Federation)
-    * Please consult the respective section in [Listener modules](../listeners/listen-s2s.md#tls-options-for-s2s).
-* `s2s` - outgoing S2S connections (XMPP Federation)
-    * Please check [the documentation](s2s.md#s2sciphers) for `s2s_ciphers` option.
 * `mod_global_distrib` - Global Distribution module
     * Please add `connections.tls.ciphers = "string"` to `modules.mod_global_distrib` module, as [described in the documentation](../modules/mod_global_distrib.md#tls-options).
