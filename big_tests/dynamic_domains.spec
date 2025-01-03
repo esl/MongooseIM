@@ -107,6 +107,7 @@
 %% to minimise impact on other tests
 {suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", cluster_commands_SUITE}.
+{suites, "tests", component_SUITE}.
 {suites, "tests", dynamic_domains_SUITE}.
 {suites, "tests", graphql_server_SUITE}.
 {suites, "tests", last_SUITE}.

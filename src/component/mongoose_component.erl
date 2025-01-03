@@ -1,5 +1,7 @@
 -module(mongoose_component).
 
+-behaviour(mongoose_packet_handler).
+
 %% API
 -export([has_component/1,
          dirty_get_all_components/1,
@@ -10,6 +12,7 @@
 
 -export([start/0, stop/0]).
 -export([node_cleanup/3]).
+-export([process_packet/5]).
 
 -include("mongoose.hrl").
 -include("external_component.hrl").
@@ -44,6 +47,13 @@ stop() ->
 -spec hooks() -> [gen_hook:hook_tuple()].
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 90}].
+
+-spec process_packet(
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), #{pid := pid()}) ->
+    mongoose_acc:t().
+process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
+    mongoose_component_connection:route(Pid, Acc),
+    Acc.
 
 -spec register_components(Domain :: [domain()],
                           Node :: node(),

@@ -41,9 +41,6 @@
 %% For testing
 -export([get_all_dynamic/0]).
 
--ignore_xref([get_all_static/0]).
--ignore_xref([get_all_dynamic/0]).
-
 -type status() :: enabled | disabled | deleting.
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().

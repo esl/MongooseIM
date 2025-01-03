@@ -238,7 +238,7 @@ domain_cert() ->
 
 %% path: listen
 listen() ->
-    ListenerTypes = [<<"c2s">>, <<"s2s">>, <<"service">>, <<"http">>],
+    ListenerTypes = [<<"c2s">>, <<"s2s">>, <<"component">>, <<"http">>],
     #section{
        items = maps:from_list([{Listener, #list{items = listener(Listener), wrap = none}}
                                || Listener <- ListenerTypes]),
@@ -317,33 +317,39 @@ xmpp_listener_extra(<<"c2s">>) ->
                           <<"reuse_port">> => false,
                           <<"backwards_compatible_session">> => true}
             };
-xmpp_listener_extra(<<"s2s">>) ->
-    TLSSection = tls([server], [fast_tls]),
-    #section{items = #{<<"shaper">> => #option{type = atom,
-                                               validate = non_empty},
-                       <<"tls">> => TLSSection#section{include = always}},
-             defaults = #{<<"shaper">> => none}
-            };
-xmpp_listener_extra(<<"service">>) ->
+xmpp_listener_extra(<<"component">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"shaper_rule">> => #option{type = atom,
-                                                    validate = non_empty},
+                       <<"shaper">> => #option{type = atom,
+                                               validate = non_empty},
+                       <<"max_connections">> => #option{type = int_or_infinity,
+                                                        validate = positive},
+                       <<"state_timeout">> => #option{type = int_or_infinity,
+                                                          validate = non_negative},
+                       <<"reuse_port">> => #option{type = boolean},
                        <<"check_from">> => #option{type = boolean},
                        <<"hidden_components">> => #option{type = boolean},
                        <<"conflict_behaviour">> => #option{type = atom,
                                                            validate = {enum, [kick_old, disconnect]}},
                        <<"password">> => #option{type = string,
                                                  validate = non_empty},
-                       <<"max_fsm_queue">> => #option{type = integer,
-                                                      validate = positive}
-                      },
+                       <<"tls">> => tls([server], [just_tls])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
-                          <<"shaper_rule">> => none,
+                          <<"max_connections">> => infinity,
+                          <<"state_timeout">> => 5000,
+                          <<"reuse_port">> => false,
+                          <<"shaper">> => none,
                           <<"check_from">> => true,
                           <<"hidden_components">> => false,
                           <<"conflict_behaviour">> => disconnect}
+            };
+xmpp_listener_extra(<<"s2s">>) ->
+    TLSSection = tls([server], [fast_tls]),
+    #section{items = #{<<"shaper">> => #option{type = atom,
+                                               validate = non_empty},
+                       <<"tls">> => TLSSection#section{include = always}},
+             defaults = #{<<"shaper">> => none}
             }.
 
 %% path: listen.http[].transport
@@ -1108,11 +1114,10 @@ process_listener([item, Type | _], Opts) ->
 listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"c2s">>) -> mongoose_c2s_listener;
 listener_module(<<"s2s">>) -> ejabberd_s2s_in;
-listener_module(<<"service">>) -> ejabberd_service.
+listener_module(<<"component">>) -> mongoose_component_listener.
 
 %% required for correct metrics reporting by mongoose_transport module
 connection_type(<<"s2s">>) -> s2s;
-connection_type(<<"service">>) -> component;
 connection_type(_) -> undefined.
 
 process_sasl_external(V) when V =:= standard;

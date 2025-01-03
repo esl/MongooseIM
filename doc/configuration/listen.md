@@ -4,7 +4,7 @@ The `listen` section specifies how MongooseIM handles incoming connections.
 
     * [`c2s`](../listeners/listen-c2s.md) - client-to-server XMPP connections,
     * [`s2s`](../listeners/listen-s2s.md) - server-to-server XMPP connections,
-    * [`service`](../listeners/listen-components.md) - XMPP connections from external components,
+    * [`components`](../listeners/listen-components.md) - XMPP connections from external components,
     * [`http`](../listeners/listen-http.md) - HTTP connections from clients or other services.
 
 The double-bracket syntax is used because there can be multiple listeners of a given type, so for each listener type there is a TOML array of one or more tables (subsections).
@@ -51,7 +51,7 @@ Allows to set the IP version to IPv6. Does not need to be set if `ip_address` is
 
 ## XMPP listener options
 
-The options listed below can be set for the `c2s`, `s2s` and `service` listeners to adjust their parameters.
+The options listed below can be set for the `c2s`, `s2s` and `component` listeners to adjust their parameters.
 
 ### `listen.*.backlog`
 * **Syntax:** positive integer

@@ -24,8 +24,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [s2s_inet_sockname_returns_error,
-     service_inet_sockname_returns_error].
+    [s2s_inet_sockname_returns_error].
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -68,9 +67,6 @@ tcp_listener_helper_code() ->
 
 s2s_inet_sockname_returns_error(_Config) ->
     inet_sockname_returns_error(incoming_s2s_port).
-
-service_inet_sockname_returns_error(_Config) ->
-    inet_sockname_returns_error(service_port).
 
 %% Checks that the listener does not crash if inet:sockname/1 call returns an error
 inet_sockname_returns_error(PortName) ->

@@ -151,10 +151,10 @@
   {{#s2s_dhfile}}
   tls.dhfile = {{{s2s_dhfile}}}
   {{/s2s_dhfile}}
-{{#listen_service}}
+{{#listen_component}}
 
-{{{listen_service}}}
-{{/listen_service}}
+{{{listen_component}}}
+{{/listen_component}}
 
 [auth]
   {{#cyrsasl_external}}

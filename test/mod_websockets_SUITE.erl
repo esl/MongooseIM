@@ -61,7 +61,7 @@ setup() ->
     ejabberd_cowboy:start_listener(#{port => ?PORT,
                                      ip_tuple => ?IP,
                                      ip_address => "127.0.0.1",
-                                     ip_version => 4,
+                                     ip_version => inet,
                                      proto => tcp,
                                      handlers => Handlers,
                                      transport => default_config([listen, http, transport]),

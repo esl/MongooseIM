@@ -165,6 +165,32 @@ options("mongooseim-pgsql") ->
                 shaper => c2s_shaper,
                 max_stanza_size => 65536
                }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8888,
+                access => all,
+                shaper => fast,
+                password => "secret"
+               }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8666,
+                access => all,
+                shaper => fast,
+                password => "secret",
+                conflict_behaviour => kick_old
+               }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8189,
+                access => all,
+                shaper => fast,
+                password => "secret",
+                hidden_components => true
+               }),
        config([listen, http],
               #{port => 5280,
                 handlers =>
@@ -215,32 +241,6 @@ options("mongooseim-pgsql") ->
                 shaper => s2s_shaper,
                 max_stanza_size => 131072,
                 tls => #{dhfile => "priv/dh.pem"}
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8888,
-                access => all,
-                shaper_rule => fast,
-                password => "secret"
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8666,
-                access => all,
-                shaper_rule => fast,
-                password => "secret",
-                conflict_behaviour => kick_old
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8189,
-                access => all,
-                shaper_rule => fast,
-                password => "secret",
-                hidden_components => true
                })
       ]},
      {loglevel, warning},
@@ -501,8 +501,7 @@ all_modules() ->
                        no_stanzaid_element => true}),
       mod_disco =>
           mod_config(mod_disco,
-                     #{extra_domains => [<<"some_domain">>, <<"another_domain">>],
-                       server_info =>
+                     #{server_info =>
                            [#{name => <<"abuse-address">>,
                               urls => [<<"admin@example.com">>]},
                             #{name => <<"friendly-spirits">>,
@@ -885,8 +884,7 @@ default_mod_config(mod_csi) ->
 default_mod_config(mod_carboncopy) ->
     #{iqdisc => no_queue};
 default_mod_config(mod_disco) ->
-    #{extra_domains => [], server_info => [],
-      users_can_see_hidden_services => true, iqdisc => one_queue};
+    #{server_info => [], users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
 default_mod_config(mod_global_distrib) ->
@@ -1091,17 +1089,20 @@ common_xmpp_listener_config() ->
 common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
-      ip_version => 4,
+      ip_version => inet,
       proto => tcp,
       connection_type => undefined}.
 
-extra_service_listener_config() ->
+extra_component_listener_config() ->
     #{access => all,
-      shaper_rule => none,
+      shaper => none,
       check_from => true,
+      max_connections => infinity,
+      reuse_port => false,
+      state_timeout => 5000,
       hidden_components => false,
       conflict_behaviour => disconnect,
-      connection_type => component}.
+      connection_type => undefined}.
 
 default_config([instrumentation]) ->
     #{probe_interval => 15};
@@ -1170,9 +1171,11 @@ default_config([listen, s2s] = P) ->
                                      tls => default_config(P ++ [tls])};
 default_config([listen, s2s, tls]) ->
     default_tls(fast_tls);
-default_config([listen, service]) ->
-    Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
-    Extra#{module => ejabberd_service};
+default_config([listen, component]) ->
+    Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
+    Extra#{module => mongoose_component_listener};
+default_config([listen, component, tls]) ->
+    #{verify_mode => peer};
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_event_pusher, http]) ->
