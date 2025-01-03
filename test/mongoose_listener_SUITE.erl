@@ -118,7 +118,7 @@ listener_opts() ->
       port => 1805,
       ip_tuple => {0, 0, 0, 0},
       ip_address => "0",
-      ip_version => 4,
+      ip_version => inet,
       proto => tcp,
       num_acceptors => 1,
       backlog => 100,

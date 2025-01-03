@@ -49,6 +49,7 @@ suite() ->
 
 xep0114_tests() ->
     [register_one_component,
+     register_one_component_tls,
      dirty_disconnect,
      register_two_components,
      intercomponent_communication,
@@ -137,6 +138,26 @@ register_one_component(Config) ->
         #{expected_count => 1, min_timestamp => TS1}),
     instrument_helper:assert(component_element_out, #{}, CheckServer,
         #{expected_count => 1, min_timestamp => TS1}),
+
+    component_helper:disconnect_component(Component, ComponentAddr).
+
+register_one_component_tls(Config) ->
+    TS = instrument_helper:timestamp(),
+    %% Given one connected component
+    CompSpec = component_helper:spec(tls_component),
+    {Component, ComponentAddr, _} = component_helper:connect_component(CompSpec),
+    FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
+                     S > 0 andalso LServer =:= ComponentAddr
+             end,
+    CheckBytes = fun(#{byte_size := S}) -> S > 0 end,
+    CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
+    instrument_helper:assert(component_tls_data_in, #{}, CheckBytes,
+        #{min_timestamp => TS}),
+    instrument_helper:assert(component_tls_data_out, #{}, CheckBytes,
+        #{min_timestamp => TS}),
+
+    TS1 = instrument_helper:timestamp(),
+    verify_component(Config, Component, ComponentAddr),
 
     component_helper:disconnect_component(Component, ComponentAddr).
 

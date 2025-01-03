@@ -1089,7 +1089,7 @@ common_xmpp_listener_config() ->
 common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
-      ip_version => 4,
+      ip_version => inet,
       proto => tcp,
       connection_type => undefined}.
 
@@ -1174,6 +1174,8 @@ default_config([listen, s2s, tls]) ->
 default_config([listen, component]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
     Extra#{module => mongoose_component_listener};
+default_config([listen, component, tls]) ->
+    #{verify_mode => peer};
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_event_pusher, http]) ->

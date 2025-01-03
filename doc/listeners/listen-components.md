@@ -99,6 +99,10 @@ In order to register a component for all virtual hosts served by the server (see
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html).
 
+## TLS options for components
+
+You can specify additional options of the TLS encryption in the `tls` subsection of the listener configuration. They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s) for `just_tls`.
+
 ## Service listener configuration example
 
 The following section configures a component listener, accepting connections from external components.

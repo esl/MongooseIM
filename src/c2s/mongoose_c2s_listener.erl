@@ -12,7 +12,7 @@
 %% Hook handlers
 -export([handle_user_open_session/3]).
 
--type options() :: #{module := module(),
+-type options() :: #{module := ?MODULE,
                      atom() => any()}.
 
 -spec instrumentation(options()) -> [mongoose_instrument:spec()].
@@ -28,12 +28,12 @@ instrumentation(_Opts) ->
 
 %% mongoose_listener
 -spec start_listener(options()) -> ok.
-start_listener(#{module := Module} = Opts) ->
+start_listener(#{module := ?MODULE} = Opts) ->
     HostTypes = ?ALL_HOST_TYPES,
     TransportOpts = mongoose_listener:prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
     maybe_add_access_check(HostTypes, Opts, ListenerId),
-    ChildSpec = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, Opts),
+    ChildSpec = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, ?MODULE, Opts),
     ChildSpec1 = ChildSpec#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
     mongoose_listener_sup:start_child(ChildSpec1).
 

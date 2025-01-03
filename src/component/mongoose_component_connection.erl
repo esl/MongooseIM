@@ -1,6 +1,7 @@
 -module(mongoose_component_connection).
 
 -xep([{xep, 114}, {version, "1.6"}]).
+-xep([{xep, 225}, {version, "0.2"}, {status, partial}]).
 
 -include("mongoose_logger.hrl").
 -include("mongoose.hrl").
@@ -116,11 +117,14 @@ handle_event(cast, {exit, system_shutdown}, _, StateData) ->
     {stop, {shutdown, system_shutdown}};
 handle_event(info, {route, Acc}, State, StateData) ->
     handle_route(StateData, State, Acc);
-handle_event(info, {tcp, _Socket, _Packet} = SocketData, _, StateData) ->
+handle_event(info, {TcpOrSSl, _Socket, _Packet} = SocketData, _, StateData)
+  when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
     handle_socket_data(StateData, SocketData);
-handle_event(info, {ClosedOrError, _Socket}, _, _)
-  when tcp_closed =:= ClosedOrError; tcp_error =:= ClosedOrError ->
-    {stop, {shutdown, ClosedOrError}};
+handle_event(info, TcpOrSslInfo, _, _)
+  when is_tuple(TcpOrSslInfo) andalso
+       tcp_closed =:= element(1, TcpOrSslInfo) orelse tcp_error =:= element(1, TcpOrSslInfo) orelse
+       ssl_closed =:= element(1, TcpOrSslInfo) orelse ssl_error =:= element(1, TcpOrSslInfo) ->
+    {stop, {shutdown, element(1, TcpOrSslInfo)}};
 handle_event({timeout, activate_socket}, activate_socket, _State, StateData) ->
     activate_socket(StateData),
     keep_state_and_data;

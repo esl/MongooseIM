@@ -141,6 +141,8 @@ spec(component_on_2) ->
     [{component, <<"yet_another_component">>} | common(mim2_component_port())];
 spec(hidden_component) ->
     [{component, <<"hidden_component">>} | common(hidden_component_port())];
+spec(tls_component) ->
+    [{component, <<"tls_component">>}, {ssl, true} | common(tls_component_port())];
 spec(kicking_component) ->
     [{component, <<"kicking_component">>} | common(kicking_component_port())];
 spec(Other) ->
@@ -161,6 +163,9 @@ kicking_component_port() ->
 
 hidden_component_port() ->
     ct:get_config({hosts, mim, hidden_component_port}).
+
+tls_component_port() ->
+    ct:get_config({hosts, mim, tls_component_port}).
 
 mim2_component_port() ->
     ct:get_config({hosts, mim2, component_port}).

@@ -96,6 +96,7 @@ groups() ->
                            listen_s2s_tls,
                            listen_s2s_cacertfile_verify,
                            listen_component,
+                           listen_component_tls,
                            listen_http,
                            listen_http_tls,
                            listen_http_transport,
@@ -601,6 +602,14 @@ listen_component(_Config) ->
     ?err(T(#{<<"password">> => <<>>})),
     ?err(T(#{<<"password">> => undefined})).
 
+listen_component_tls(_Config) ->
+    T = fun(Opts) -> listen_raw(component, #{<<"port">> => 8888,
+                                             <<"password">> => <<"secret">>,
+                                             <<"tls">> => Opts}) end,
+    P = [listen, 1, tls],
+    test_just_tls_server(P, T),
+    ?cfg(P, config([listen, component, tls], tls_ca()), T(tls_ca_raw())).
+
 listen_http(_Config) ->
     T = fun(Opts) -> listen_raw(http, maps:merge(#{<<"port">> => 5280}, Opts)) end,
     P = [listen, 1],
@@ -699,15 +708,15 @@ test_listen_http_handler(Module, T) ->
 test_listen(P, T) ->
     ?cfg(P ++ [ip_address], "192.168.1.16", T(#{<<"ip_address">> => <<"192.168.1.16">>})),
     ?cfg(P ++ [ip_tuple], {192, 168, 1, 16}, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
-    ?cfg(P ++ [ip_version], 4, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
+    ?cfg(P ++ [ip_version], inet, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
     ?cfg(P ++ [ip_address], "2001:db8:3:4:5:6:7:8",
          T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
     ?cfg(P ++ [ip_tuple], {8193, 3512, 3, 4, 5, 6, 7, 8},
          T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
-    ?cfg(P ++ [ip_version], 6,
+    ?cfg(P ++ [ip_version], inet6,
          T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
-    ?cfg(P ++ [ip_version], 4, T(#{<<"ip_version">> => 4})),
-    ?cfg(P ++ [ip_version], 6, T(#{<<"ip_version">> => 6})),
+    ?cfg(P ++ [ip_version], inet, T(#{<<"ip_version">> => 4})),
+    ?cfg(P ++ [ip_version], inet6, T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [ip_address], "::", T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [ip_tuple], {0, 0, 0, 0, 0, 0, 0, 0}, T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [proto], tcp, T(#{<<"proto">> => <<"tcp">>})),
