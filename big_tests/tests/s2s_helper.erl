@@ -1,31 +1,19 @@
 -module(s2s_helper).
--export([init_s2s/1]).
--export([end_s2s/1]).
--export([configure_s2s/2]).
--export([has_inet_errors/2]).
--export([has_xmpp_server/2]).
+
+-export([init_s2s/1, end_s2s/1, configure_s2s/2, has_inet_errors/2, has_xmpp_server/2]).
 
 -import(distributed_helper, [rpc_spec/1, rpc/4]).
--import(domain_helper, [host_type/1]).
 
 init_s2s(Config) ->
     [{{s2s, NodeKey}, get_s2s_opts(NodeKey)} || NodeKey <- node_keys()] ++
-        [{escalus_user_db, xmpp} | Config].
-
-node_keys() ->
-    [mim, fed].
-
-get_s2s_opts(NodeKey) ->
-    RPCSpec = rpc_spec(NodeKey),
-    S2SOpts = rpc(RPCSpec, mongoose_config, get_opt, [{s2s, host_type(NodeKey)}]),
-    S2SPort = ct:get_config({hosts, NodeKey, incoming_s2s_port}),
-    [S2SListener] = mongoose_helper:get_listeners(RPCSpec, #{port => S2SPort,
-                                                             module => ejabberd_s2s_in}),
-    #{opts => S2SOpts, listener => S2SListener}.
+    [{escalus_user_db, xmpp} | Config].
 
 end_s2s(Config) ->
     [configure_and_restart_s2s(NodeKey, S2SOrig) || {{s2s, NodeKey}, S2SOrig} <- Config],
     ok.
+
+node_keys() ->
+    [mim, fed].
 
 configure_s2s(Group, Config) ->
     TLSPreset = tls_preset(Group),
@@ -33,13 +21,44 @@ configure_s2s(Group, Config) ->
      || {{s2s, NodeKey}, S2SOrig} <- Config],
     Config.
 
-s2s_config(plain, S2S = #{opts := Opts}, _) ->
-    S2S#{opts := maps:remove(certfile, Opts#{use_starttls := false})};
+has_inet_errors(History, Server) ->
+    Inet = lists:any(
+        fun({_, {inet, getaddr, [Server1, inet]}, {error, nxdomain}})
+            when Server1 == Server -> true;
+           (_) -> false
+        end, History),
+    Inet6 = lists:any(
+        fun({_, {inet, getaddr, [Server1, inet6]}, {error, nxdomain}})
+            when Server1 == Server -> true;
+           (_) -> false
+        end, History),
+    Inet andalso Inet6.
+
+has_xmpp_server(History, Server) ->
+    lists:all(
+        fun({_, _, {ok, {hostent, "_xmpp-server._tcp." ++ Server1, _, srv, _, _}}})
+            when Server1 == Server -> true;
+           (_) -> false
+        end, History).
+
+get_s2s_opts(NodeKey) ->
+    RPCSpec = rpc_spec(NodeKey),
+    S2SOpts = rpc(RPCSpec, mongoose_config, get_opt, [{s2s, domain_helper:host_type(NodeKey)}]),
+    S2SPort = ct:get_config({hosts, NodeKey, incoming_s2s_port}),
+    [S2SListener] = mongoose_helper:get_listeners(RPCSpec, #{port => S2SPort, module => mongoose_s2s_listener}),
+    #{opts => S2SOpts, listener => S2SListener}.
+
 s2s_config(required_trusted_with_cachain, S2S = #{opts := Opts, listener := Listener}, Config) ->
     #{tls := TLSOpts} = Listener,
     CACertFile = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "ca", "cacert.pem"]),
-    NewTLSOpts = TLSOpts#{cacertfile => CACertFile},
+    NewTLSOpts = TLSOpts#{cacertfile => CACertFile, verify_mode => peer},
     S2S#{opts := Opts#{use_starttls := required_trusted}, listener := Listener#{tls := NewTLSOpts}};
+s2s_config(required_trusted, S2S = #{opts := Opts, listener := Listener}, _) ->
+    #{tls := TLSOpts} = Listener,
+    NewTLSOpts = TLSOpts#{verify_mode => peer},
+    S2S#{opts := Opts#{use_starttls := required_trusted}, listener := Listener#{tls := NewTLSOpts}};
+s2s_config(plain, S2S = #{opts := Opts}, _) ->
+    S2S#{opts := maps:remove(certfile, Opts#{use_starttls := false})};
 s2s_config(StartTLS, S2S = #{opts := Opts}, _) ->
     S2S#{opts := Opts#{use_starttls := StartTLS}}.
 
@@ -67,7 +86,7 @@ tls_preset(node1_tls_optional_node2_tls_required_trusted_with_cachain) ->
     #{mim => optional, fed => required_trusted_with_cachain}.
 
 configure_and_restart_s2s(NodeKey, #{opts := Opts, listener := Listener}) ->
-    HostType = host_type(NodeKey),
+    HostType = domain_helper:host_type(NodeKey),
     set_opt(rpc_spec(NodeKey), [{s2s, HostType}], Opts),
     restart_s2s(rpc_spec(NodeKey), Listener).
 
@@ -79,29 +98,9 @@ restart_s2s(#{} = Spec, S2SListener) ->
     [rpc(Spec, ejabberd_s2s_out, stop_connection, [Pid]) ||
      {_, Pid, _, _} <- Children],
 
-    ChildrenIn = rpc(Spec, supervisor, which_children, [ejabberd_s2s_in_sup]),
-    [rpc(Spec, erlang, exit, [Pid, kill]) ||
-     {_, Pid, _, _} <- ChildrenIn],
+    Children0 = rpc(Spec, supervisor, which_children, [mongoose_listener_sup]),
+    Listeners = [Ref || {Ref, _, _, [mongoose_s2s_listener | _]} <- Children],
+    ChildrenIn = lists:flatten([ranch:procs(Ref, connections) || Ref <- Listeners]),
+    [rpc(Spec, erlang, exit, [Pid, kill]) || {_, Pid, _, _} <- ChildrenIn],
 
     mongoose_helper:restart_listener(Spec, S2SListener).
-
-has_inet_errors(History, Server) ->
-    Inet = lists:any(
-        fun({_, {inet, getaddr, [Server1, inet]}, {error, nxdomain}})
-            when Server1 == Server -> true;
-           (_) -> false
-        end, History),
-    Inet6 = lists:any(
-        fun({_, {inet, getaddr, [Server1, inet6]}, {error, nxdomain}})
-            when Server1 == Server -> true;
-           (_) -> false
-        end, History),
-    Inet andalso Inet6.
-
-has_xmpp_server(History, Server) ->
-    lists:all(
-        fun({_, _, {ok, {hostent, "_xmpp-server._tcp." ++ Server1, _, srv, _, _}}})
-            when Server1 == Server -> true;
-           (_) -> false
-        end, History).
-

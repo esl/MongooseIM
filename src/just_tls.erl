@@ -93,10 +93,6 @@ peername(#tls_socket{ssl_socket = SSLSocket}) -> ssl:peername(SSLSocket).
 %% -callback setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
 setopts(#tls_socket{ssl_socket = SSLSocket}, Opts) -> ssl:setopts(SSLSocket, Opts).
 
-
-%% -callback get_peer_certificate(tls_socket()) -> {ok, Cert::any()}       |
-%%                                                 {bad_cert, bitstring()} |
-%%                                                 no_peer_cert.
 get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) ->
     case ssl:peercert(SSLSocket) of
         {ok, PeerCert} ->

@@ -42,7 +42,7 @@
                       socket             :: term(),
                       receiver           :: pid(),
                       connection_type    :: connection_type(),
-                      connection_details :: mongoose_tcp_listener:connection_details()
+                      connection_details :: mongoose_listener:connection_details()
                      }).
 
 -type socket_data() :: #socket_data{}.
@@ -58,10 +58,9 @@
 -type state() :: #state{}.
 
 %% transport API
--export([accept/4, connect/5, close/1, send_text/2, send_element/2]).
--export([wait_for_tls_handshake/2, wait_for_tls_handshake/3,
-         connect_tls/2, get_peer_certificate/1]).
--export([peername/1, change_shaper/2]).
+-export([connect/5, close/1, send_text/2, send_element/2]).
+-export([wait_for_tls_handshake/2, connect_tls/2]).
+-export([peername/1]).
 -export([get_all_trasport_processes/0]).
 
 %% gen_server API
@@ -73,29 +72,6 @@
 %%----------------------------------------------------------------------
 %% Transport API
 %%----------------------------------------------------------------------
-
--spec accept(module(), gen_tcp:socket(),
-             mongoose_tcp_listener:options(),
-             mongoose_tcp_listener:connection_details()) -> ok.
-accept(Module, Socket, #{connection_type := ConnectionType} = Opts, ConnectionDetails) ->
-    Receiver = start_child(Socket, none, Opts),
-    SocketData = #socket_data{sockmod = gen_tcp,
-                              socket = Socket,
-                              receiver = Receiver,
-                              connection_type = ConnectionType,
-                              connection_details = ConnectionDetails},
-    case gen_tcp:controlling_process(Socket, Receiver) of
-        ok ->
-            case Module:start(SocketData, Opts) of
-                {ok, DestPid} ->
-                    set_dest_pid(Receiver, DestPid);
-                {error, _Reason} ->
-                    gen_tcp:close(Socket),
-                    close(SocketData)
-            end;
-        {error, _Reason} ->
-            gen_tcp:close(Socket)
-    end.
 
 -spec connect(ConnectionType :: connection_type(),
               Addr :: atom() | string() | inet:ip_address(),
@@ -146,13 +122,6 @@ wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts) 
     tcp_to_tls(Receiver, TLSOpts#{connect => false}),
     update_socket(SocketData).
 
--spec wait_for_tls_handshake(socket_data(), mongoose_tls:options(), exml:element()) ->
-     socket_data().
-wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts, El) ->
-    tcp_to_tls(Receiver, TLSOpts#{connect => false}),
-    send_element(SocketData, El), %% send last negotiation chunk via tcp
-    update_socket(SocketData).
-
 -spec connect_tls(socket_data(), mongoose_tls:options()) -> socket_data().
 connect_tls(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
     tcp_to_tls(Receiver, TLSOpts#{connect => true}),
@@ -184,20 +153,10 @@ send_element(#socket_data{connection_type = s2s} = SocketData, El) ->
     BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl).
 
--spec get_peer_certificate(socket_data()) -> mongoose_tls:cert().
-get_peer_certificate(#socket_data{sockmod = mongoose_tls, socket = Socket}) ->
-    mongoose_tls:get_peer_certificate(Socket);
-get_peer_certificate(_SocketData) ->
-    no_peer_cert.
-
 -spec peername(socket_data()) -> mongoose_transport:peername_return().
 peername(#socket_data{connection_details = #{src_address := SrcAddr,
                                              src_port := SrcPort}}) ->
     {ok, {SrcAddr, SrcPort}}.
-
--spec change_shaper(socket_data(), _) -> any().
-change_shaper(#socket_data{receiver = Receiver}, Shaper)  ->
-    gen_server:cast(Receiver, {change_shaper, Shaper}).
 
 get_all_trasport_processes() ->
     Connections = supervisor:which_children(mongoose_transport_sup),
@@ -262,10 +221,6 @@ handle_call({set_dest_pid, DestPid}, _From, #state{dest_pid = undefined} = State
 handle_call(_Request, _From, State) ->
     {reply, ok, State, hibernate_or_timeout(State)}.
 
-handle_cast({change_shaper, Shaper}, State) ->
-    NewShaperState = mongoose_shaper:new(Shaper),
-    NewState = State#state{shaper_state = NewShaperState},
-    {noreply, NewState, hibernate_or_timeout(NewState)};
 handle_cast(close, State) ->
     {stop, normal, State};
 handle_cast(_Msg, State) ->

@@ -51,9 +51,9 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--record(state, {socket                  :: mongoose_transport:socket_data(),
+-record(state, {socket                  :: mongoose_s2s_socket:socket_data(),
                 streamid                :: ejabberd_s2s:stream_id(),
-                shaper                  :: mongoose_shaper:shaper(),
+                shaper                  :: atom(),
                 tls = false             :: boolean(),
                 tls_enabled = false     :: boolean(),
                 tls_required = false    :: boolean(),
@@ -112,7 +112,7 @@
 %%%----------------------------------------------------------------------
 -spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(Socket, Opts) ->
-    gen_fsm_compat:start_link(ejabberd_s2s_in, [Socket, Opts], ?FSMOPTS).
+    gen_fsm_compat:start_link(?MODULE, [Socket, Opts], ?FSMOPTS).
 
 -spec send_validity_from_s2s_out(pid(), boolean(), ejabberd_s2s:fromto()) -> ok.
 send_validity_from_s2s_out(Pid, IsValid, FromTo) when is_boolean(IsValid) ->
@@ -162,8 +162,10 @@ wait_for_stream({xmlstreamstart, _Name, Attrs} = Event, StateData) ->
                             Info = #{location => ?LOCATION, last_event => Event},
                             stream_start_error(StateData, Info, mongoose_xmpp_errors:host_unknown());
                         {ok, HostType} ->
+                            TlsOpts = StateData#state.tls_options,
                             UseTLS = mongoose_config:get_opt([{s2s, HostType}, use_starttls]),
-                            {StartTLS, TLSRequired, TLSCertVerify} = get_tls_params(UseTLS),
+                            {StartTLS, TLSRequired} = get_tls_params(UseTLS, TlsOpts),
+                            TLSCertVerify = should_verify_cert(TlsOpts),
                             start_stream(AttrMap, StateData#state{server = Server,
                                                                   host_type = HostType,
                                                                   tls = StartTLS,
@@ -197,39 +199,21 @@ wait_for_stream(closed, StateData) ->
     ?LOG_WARNING(#{what => s2s_in_wait_for_stream_closed}),
     {stop, normal, StateData}.
 
-start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer} = Event,
-             StateData = #state{tls = true, authenticated = false, server = Server,
-                                host_type = HostType}) ->
+start_stream(#{<<"version">> := <<"1.0">>},
+             StateData = #state{tls = true, authenticated = false,
+                                server = Server, host_type = HostType}) ->
     SASL = case StateData#state.tls_enabled of
                true ->
-                   verify_cert_and_get_sasl(StateData#state.socket,
-                                            StateData#state.tls_cert_verify);
+                   verify_cert_and_get_sasl(StateData#state.socket);
                _Else ->
                    []
            end,
     StartTLS = get_tls_xmlel(StateData),
-    case SASL of
-        {error_cert_verif, CertError} ->
-            ?LOG_WARNING(#{what => s2s_connection_closing,
-                           text => <<"Closing s2s connection">>,
-                           server => StateData#state.server,
-                           remote_server => RemoteServer,
-                           reason => cert_error,
-                           cert_error => CertError}),
-            Info = #{location => ?LOCATION, last_event => Event, reason => error_cert_verif},
-            stream_start_error(StateData, Info,
-                               mongoose_xmpp_errors:policy_violation(?MYLANG, CertError));
-            %% We were stopping ejabberd_s2s_out connection in the older version of the code
-            %% from this location. But stopping outgoing connections just because a non-verified
-            %% incoming connection fails is an abuse risk (a hacker could connect with an invalid
-            %% certificate, it should not cause stopping ejabberd_s2s_out connections).
-        _ ->
-            send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
-            send_element(StateData,
-                         #xmlel{name = <<"stream:features">>,
-                                children = SASL ++ StartTLS ++ stream_features(HostType, Server)}),
-            {next_state, wait_for_feature_request, StateData}
-    end;
+    send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
+    send_element(StateData,
+                 #xmlel{name = <<"stream:features">>,
+                        children = SASL ++ StartTLS ++ stream_features(HostType, Server)}),
+    {next_state, wait_for_feature_request, StateData};
 start_stream(#{<<"version">> := <<"1.0">>},
              StateData = #state{authenticated = true, host_type = HostType, server = Server}) ->
     send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
@@ -260,7 +244,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                        TLSEnabled == false ->
             ?LOG_DEBUG(#{what => s2s_starttls}),
             TLSOpts = tls_options_with_certfile(StateData),
-            TLSSocket = mongoose_transport:wait_for_tls_handshake(
+            TLSSocket = mongoose_s2s_socket:wait_for_tls_handshake(
                                                  StateData#state.socket, TLSOpts,
                                                  #xmlel{name = <<"proceed">>,
                                                         attrs = [{<<"xmlns">>, ?NS_TLS}]}),
@@ -275,7 +259,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                 <<"EXTERNAL">> ->
                     Auth = base64:mime_decode(exml_query:cdata(El)),
                     AuthDomain = jid:nameprep(Auth),
-                    CertData = mongoose_transport:get_peer_certificate(
+                    CertData = mongoose_s2s_socket:get_peer_certificate(
                                  StateData#state.socket),
                     AuthRes = check_auth_domain(AuthDomain, CertData),
                     handle_auth_res(AuthRes, AuthDomain, StateData);
@@ -489,7 +473,7 @@ handle_info(_, StateName, StateData) ->
 -spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, StateName, StateData) ->
     ?LOG_DEBUG(#{what => s2s_in_stopped, reason => Reason, state_name => StateName}),
-    mongoose_transport:close(StateData#state.socket),
+    mongoose_s2s_socket:close(StateData#state.socket),
     ok.
 
 %%%----------------------------------------------------------------------
@@ -498,11 +482,11 @@ terminate(Reason, StateName, StateData) ->
 
 -spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
-    mongoose_transport:send_text(StateData#state.socket, Text).
+    mongoose_s2s_socket:send_text(StateData#state.socket, Text).
 
 -spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
-    mongoose_transport:send_element(StateData#state.socket, El).
+    mongoose_s2s_socket:send_element(StateData#state.socket, El).
 
 -spec stream_features(mongooseim:host_type(), binary()) -> [exml:element()].
 stream_features(HostType, Domain) ->
@@ -513,7 +497,7 @@ change_shaper(StateData, {LLocalServer, LRemoteServer}) ->
     {ok, HostType} = mongoose_domain_api:get_host_type(LLocalServer),
     JID = jid:make(<<>>, LRemoteServer, <<>>),
     Shaper = acl:match_rule(HostType, StateData#state.shaper, JID),
-    mongoose_transport:change_shaper(StateData#state.socket, Shaper),
+    mongoose_s2s_socket:change_shaper(StateData#state.socket, Shaper),
     ok.
 
 
@@ -566,22 +550,15 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
             false
     end.
 
-verify_cert_and_get_sasl(Socket, TLSCertVerify) ->
-    case mongoose_transport:get_peer_certificate(Socket) of
+verify_cert_and_get_sasl(Socket) ->
+    case mongoose_s2s_socket:get_peer_certificate(Socket) of
         {ok, _} ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],
                     children = [#xmlel{name = <<"mechanism">>,
                                        children = [#xmlcdata{content = <<"EXTERNAL">>}]}]}];
-        {bad_cert, CertVerifyRes} ->
-            check_sasl_tls_certveify(TLSCertVerify, CertVerifyRes);
         no_peer_cert -> []
     end.
-
-check_sasl_tls_certveify(true, CertVerifyRes) ->
-    {error_cert_verif, CertVerifyRes};
-check_sasl_tls_certveify(false, _) ->
-    [].
 
 check_auth_domain(error, _) ->
     false;
@@ -617,17 +594,15 @@ handle_auth_res(_, _, StateData) ->
     ?LOG_WARNING(#{what => s2s_in_auth_failed}),
     {stop, normal, StateData}.
 
+should_verify_cert(#{verify_mode := Mode}) ->
+    none =/= Mode.
 
-get_tls_params(false) ->
-    {false, false, false};
-get_tls_params(true) ->
-    {true, false, false};
-get_tls_params(optional) ->
-    {true, false, false};
-get_tls_params(required) ->
-    {true, true, false};
-get_tls_params(required_trusted) ->
-    {true, true, true}.
+get_tls_params(false, _) ->
+    {false, false};
+get_tls_params(_, #{mode := starttls}) ->
+    {true, false};
+get_tls_params(_, #{mode := starttls_required}) ->
+    {true, true}.
 
 get_tls_xmlel(#state{tls_enabled = true}) ->
     [];
@@ -655,7 +630,7 @@ is_known_domain(Domain) ->
 
 -spec handle_get_state_info(statename(), state()) -> connection_info().
 handle_get_state_info(StateName, StateData) ->
-    {ok, {Addr, Port}} = mongoose_transport:peername(StateData#state.socket),
+    {ok, {Addr, Port}} = mongoose_s2s_socket:peername(StateData#state.socket),
     Domains = case StateData#state.authenticated of
                   true ->
                       [StateData#state.auth_domain];
