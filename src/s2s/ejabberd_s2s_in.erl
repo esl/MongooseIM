@@ -26,11 +26,6 @@
 -module(ejabberd_s2s_in).
 -author('alexey@process-one.net').
 -behaviour(gen_fsm_compat).
--behaviour(mongoose_listener).
-
-%% mongoose_listener API
--export([start_listener/1,
-         instrumentation/1]).
 
 %% External exports
 -export([start_link/2,
@@ -119,22 +114,10 @@
 start_link(Socket, Opts) ->
     gen_fsm_compat:start_link(ejabberd_s2s_in, [Socket, Opts], ?FSMOPTS).
 
--spec start_listener(options()) -> ok.
-start_listener(Opts) ->
-    mongoose_tcp_listener:start_listener(Opts).
-
 -spec send_validity_from_s2s_out(pid(), boolean(), ejabberd_s2s:fromto()) -> ok.
 send_validity_from_s2s_out(Pid, IsValid, FromTo) when is_boolean(IsValid) ->
     Event = {validity_from_s2s_out, IsValid, FromTo},
     p1_fsm:send_event(Pid, Event).
-
-instrumentation(#{connection_type := s2s} = _Opts) ->
-    [{s2s_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
-     {s2s_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
-     {s2s_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {s2s_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {s2s_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {s2s_tls_data_out, #{}, #{metrics => #{byte_size => spiral}}}].
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
