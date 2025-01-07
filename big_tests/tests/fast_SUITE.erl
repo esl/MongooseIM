@@ -1,3 +1,4 @@
+%% Tests for XEP-0484: Fast Authentication Streamlining Tokens
 -module(fast_SUITE).
 
 -compile([export_all, nowarn_export_all]).
@@ -25,9 +26,10 @@ groups() ->
     [
      {basic, [parallel],
       [
-       server_announces_fast,
+       server_advertises_support_for_fast,
        request_token_with_initial_authentication,
        request_token_with_unknown_mechanism_type,
+       client_authenticates_using_fast,
        token_auth_fails_when_token_is_wrong,
        token_auth_fails_when_token_is_not_found
       ]}
@@ -73,15 +75,20 @@ load_modules(Config) ->
 %% tests
 %%--------------------------------------------------------------------
 
-server_announces_fast(Config) ->
+%% 3.1 Server advertises support for FAST
+%% https://xmpp.org/extensions/xep-0484.html#support
+server_advertises_support_for_fast(Config) ->
     Steps = [create_connect_tls, start_stream_get_features],
     #{features := Features} = sasl2_helper:apply_steps(Steps, Config),
     Fast = exml_query:path(Features, [{element_with_ns, <<"authentication">>, ?NS_SASL_2},
                                       {element, <<"inline">>},
                                       {element_with_ns, <<"fast">>, ?NS_FAST}]),
-    ?assertNotEqual(undefined, Fast),
-    ok.
+    ?assertNotEqual(undefined, Fast).
 
+%% Client performs initial authentication
+%% https://xmpp.org/extensions/xep-0484.html#initial-auth
+%% 3.3 Server provides token to client
+%% https://xmpp.org/extensions/xep-0484.html#token-response
 request_token_with_initial_authentication(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
              receive_features],
@@ -91,8 +98,9 @@ request_token_with_initial_authentication(Config) ->
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
     Expire = exml_query:attr(Fast, <<"expire">>),
     Token = exml_query:attr(Fast, <<"token">>),
-    auth_with_token(true, Token, Config, Spec),
-    ok.
+    ?assertEqual(true, byte_size(Token) > 5),
+    %% Check timestamp in ISO 8601 format
+    ?assertEqual(true, time_helper:validate_datetime(binary_to_list(Expire))).
 
 request_token_with_unknown_mechanism_type(Config0) ->
     Config = [{ht_mech, <<"HT-WEIRD-ONE">>} | Config0],
@@ -102,8 +110,19 @@ request_token_with_unknown_mechanism_type(Config0) ->
     ?assertMatch(#xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
-    ?assertEqual(undefined, Fast),
-    ok.
+    ?assertEqual(undefined, Fast).
+
+%% 3.4 Client authenticates using FAST
+%% https://xmpp.org/extensions/xep-0484.html#fast-auth
+client_authenticates_using_fast(Config) ->
+    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+             receive_features],
+    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"success">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
+    Token = exml_query:attr(Fast, <<"token">>),
+    auth_with_token(true, Token, Config, Spec).
 
 token_auth_fails_when_token_is_wrong(Config) ->
     %% New token is not set, but we try to login with a wrong one
@@ -123,6 +142,10 @@ token_auth_fails_when_token_is_not_found(Config) ->
     Token = <<"wrongtoken">>,
     auth_with_token(false, Token, Config, Spec),
     ok.
+
+%%--------------------------------------------------------------------
+%% helpers
+%%--------------------------------------------------------------------
 
 auth_and_request_token(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
