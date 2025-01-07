@@ -191,7 +191,7 @@ seconds_to_binary(Secs) ->
 
 -spec utc_now_as_seconds() -> seconds().
 utc_now_as_seconds() ->
-    datetime_to_seconds(calendar:universal_time()).
+    erlang:system_time(second).
 
 -spec get_ttl_seconds(mongooseim:host_type()) -> seconds().
 get_ttl_seconds(HostType) ->
@@ -211,10 +211,6 @@ period_to_seconds(Seconds, seconds) -> Seconds.
 -spec generate_unique_token() -> token().
 generate_unique_token() ->
     base64:encode(crypto:strong_rand_bytes(25)).
-
--spec datetime_to_seconds(calendar:datetime()) -> seconds().
-datetime_to_seconds(DateTime) ->
-    calendar:datetime_to_gregorian_seconds(DateTime).
 
 -spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) -> ok
    when HostType :: mongooseim:host_type(),
