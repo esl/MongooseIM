@@ -33,8 +33,7 @@
          instrumentation/1]).
 
 %% External exports
--export([start/2,
-         start_link/2,
+-export([start_link/2,
          send_validity_from_s2s_out/3,
          match_domain/2]).
 
@@ -51,7 +50,7 @@
 
 -export_type([connection_info/0]).
 
--ignore_xref([match_domain/2, start/2, start_link/2, stream_established/2,
+-ignore_xref([match_domain/2, start_link/2, stream_established/2,
               wait_for_feature_request/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
@@ -116,11 +115,6 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(socket(), options()) ->
-          {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
-start(Socket, Opts) ->
-    supervisor:start_child(ejabberd_s2s_in_sup, [Socket, Opts]).
-
 -spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(Socket, Opts) ->
     gen_fsm_compat:start_link(ejabberd_s2s_in, [Socket, Opts], ?FSMOPTS).
