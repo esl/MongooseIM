@@ -229,7 +229,7 @@ handle_sasl_step({error, NewSaslAcc, #{type := Type}}, OriginalStateData, Retrie
 -spec handle_sasl_success(mongoose_acc:t(), mongoose_c2s_sasl:success(), c2s_state_data()) ->
     mongoose_c2s:fsm_res().
 handle_sasl_success(SaslAcc,
-                    #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod},
+                    #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod, creds := Creds},
                     #{c2s_data := C2SData} = OriginalStateData) ->
     C2SData1 = build_final_c2s_data(C2SData, Jid, AuthMod),
     OriginalStateData1 = OriginalStateData#{c2s_data := C2SData1},
@@ -237,7 +237,7 @@ handle_sasl_success(SaslAcc,
                 user => jid:to_binary(Jid), c2s_state => C2SData1}),
     HostType = mongoose_c2s:get_host_type(C2SData1),
     SaslAcc1 = set_state_data(SaslAcc, OriginalStateData1),
-    SaslAcc2 = mongoose_hooks:sasl2_success(HostType, SaslAcc1, OriginalStateData1),
+    SaslAcc2 = mongoose_hooks:sasl2_success(HostType, SaslAcc1, OriginalStateData1, Creds),
     process_sasl2_success(SaslAcc2, OriginalStateData1, MaybeServerOut).
 
 -spec handle_sasl_continue(

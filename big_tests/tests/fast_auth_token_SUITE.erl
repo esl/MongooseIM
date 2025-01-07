@@ -32,7 +32,8 @@ groups() ->
        client_authenticates_using_fast,
        client_authenticate_several_times_with_the_same_token,
        token_auth_fails_when_token_is_wrong,
-       token_auth_fails_when_token_is_not_found
+       token_auth_fails_when_token_is_not_found,
+       server_initiates_token_rotation
       ]}
     ].
 
@@ -123,15 +124,36 @@ token_auth_fails_when_token_is_wrong(Config) ->
     %% New token is not set, but we try to login with a wrong one
     #{spec := Spec} = connect_and_ask_for_token(Config),
     Token = <<"wrongtoken">>,
-    auth_with_token(false, Token, Config, Spec),
-    ok.
+    auth_with_token(false, Token, Config, Spec).
 
 token_auth_fails_when_token_is_not_found(Config) ->
     %% New token is not set
     Steps = [start_new_user, receive_features],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     Token = <<"wrongtoken">>,
-    auth_with_token(false, Token, Config, Spec),
+    auth_with_token(false, Token, Config, Spec).
+
+%% 3.5 Server initiates token rotation
+%% If client connects with the `current' token (and it is about to expire), we
+%% create a brand new token and set it to the `new' slot.
+%% Most likely the client lost his token from tthe `new' slot.
+%%
+%% If client connects with the `new' token (and it is about to expire), we
+%% should set this token into the `current' position and generate a `new' token.
+server_initiates_token_rotation(Config) ->
+    Steps = [start_new_user],
+    #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    HostType = domain_helper:host_type(),
+    {LUser, LServer} = spec_to_lus(Spec),
+    AgentId = user_agent_id(),
+    Token = <<"verysecret">>,
+    Mech = <<"HT-SHA-256-NONE">>,
+    ExpireTS = erlang:system_time(second) + 600, %% 10 minutes into the future
+    %% Set almost expiring token into the new slot
+    Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech],
+    ok = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, store_new_token, Args),
+    Res = auth_with_token(true, Token, Config, Spec),
+    %% TODO finish writing this, when we have a mechanism to set token into the current slot
     ok.
 
 %%--------------------------------------------------------------------
@@ -168,7 +190,8 @@ auth_with_token(Success, Token, Config, Spec) ->
     Spec2 = [{secret_token, Token} | Spec],
     Steps = steps(Success),
     Data = #{spec => Spec2},
-    #{answer := Answer} = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
+    Res = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
+    #{answer := Answer} = Res,
     case Success of
         true ->
             ?assertMatch(#xmlel{name = <<"success">>,
@@ -178,7 +201,8 @@ auth_with_token(Success, Token, Config, Spec) ->
                                 attrs = [{<<"xmlns">>, ?NS_SASL_2}],
                                 children = [#xmlel{name = <<"not-authorized">>}]},
                          Answer)
-    end.
+    end,
+    Res.
 
 steps(true) ->
     [connect_tls, start_stream_get_features,
@@ -189,9 +213,12 @@ steps(false) ->
     [connect_tls, start_stream_get_features,
      {?MODULE, auth_using_token}].
 
+user_agent_id() ->
+    <<"d4565fa7-4d72-4749-b3d3-740edbf87770">>.
+
 user_agent() ->
   #xmlel{name = <<"user-agent">>,
-         attrs = [{<<"id">>, <<"d4565fa7-4d72-4749-b3d3-740edbf87770">>}],
+         attrs = [{<<"id">>, user_agent_id()}],
          children = [cdata_elem(<<"software">>, <<"AwesomeXMPP">>),
                      cdata_elem(<<"device">>, <<"Kiva's Phone">>)]}.
 
@@ -255,3 +282,7 @@ initial_response_elem(Payload) ->
     Encoded = base64:encode(Payload),
     #xmlel{name = <<"initial-response">>,
            children = [#xmlcdata{content = Encoded}]}.
+
+spec_to_lus(Spec) ->
+    #{username := Username, server := Server} = maps:from_list(Spec),
+    jid:to_lus(jid:make_bare(Username, Server)).

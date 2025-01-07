@@ -33,13 +33,16 @@ mech_step(#state{creds = Creds, agent_id = AgentId, mechanism = Mech}, Serialize
     LUser = jid:nodeprep(Username),
     case mod_fast_auth_token:read_tokens(HostType, LServer, LUser, AgentId) of
         {ok, TokenData} ->
+            %% TODO remove this log when done coding
             ?LOG_ERROR(#{what => mech_step, token_data => TokenData}),
             CBData = <<>>,
             case handle_auth(TokenData, InitiatorHashedToken, CBData, Mech) of
-                true ->
+                {true, TokenType} ->
                     {ok, mongoose_credentials:extend(Creds,
                                                      [{username, LUser},
-                                                      {auth_module, ?MODULE}])};
+                                                      {auth_module, ?MODULE},
+                                                      {token_type_used, TokenType},
+                                                      {token_data, TokenData}])};
                 false ->
                     {error, <<"not-authorized">>}
             end;
@@ -70,14 +73,19 @@ handle_auth(#{
         new_mech := NewMech
     }, InitiatorHashedToken, CBData, Mech) ->
     ToHash = <<"Initiator", CBData/binary>>,
-    Token1 = {NewToken, NewExpire, NewCount, NewMech},
-    Token2 = {CurrentToken, CurrentExpire, CurrentCount, CurrentMech},
+    TokenNew = {NewToken, NewExpire, NewCount, NewMech},
+    TokenCur = {CurrentToken, CurrentExpire, CurrentCount, CurrentMech},
     Shared = {NowTimestamp, ToHash, InitiatorHashedToken, Mech},
-    case check_token(Token1, Shared) of
+    case check_token(TokenNew, Shared) of
         true ->
-            true;
+            {true, new};
         false ->
-            check_token(Token2, Shared)
+            case check_token(TokenCur, Shared) of
+                true ->
+                    {true, current};
+                false ->
+                    false
+            end
     end.
 
 %% Mech of the token in DB should match the mech the client is using.

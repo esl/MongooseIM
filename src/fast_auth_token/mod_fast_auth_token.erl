@@ -139,6 +139,7 @@ mechanisms() ->
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
+    %% TODO remove this log
     ?LOG_ERROR(#{what => sasl2_startttt, elleee => El, sasla_acc => SaslAcc}),
     AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
     SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
@@ -155,9 +156,14 @@ sasl2_start(SaslAcc, #{stanza := El}, _) ->
             end
     end.
 
+format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
+
 -spec sasl2_success(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
-sasl2_success(SaslAcc, C2SStateData, #{host_type := HostType}) ->
+sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType}) ->
+    %% TODO remove this log
+    ?LOG_ERROR(#{what => sasl2_success_debug, sasl_acc => format_term(SaslAcc), c2s_state_data => format_term(C2SStateData),
+                 creds => format_term(Creds)}),
     #{c2s_data := C2SData} = C2SStateData,
     #jid{luser = LUser, lserver = LServer} = mongoose_c2s:get_jid(C2SData),
     case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
