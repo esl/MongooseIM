@@ -28,7 +28,7 @@ load_all_sasl2_modules(HostType) ->
 rdbms_mods() ->
     case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         true ->
-            [{mod_fast, mod_config(mod_fast, #{backend => rdbms})}];
+            [{mod_fast_auth_token, mod_config(mod_fast_auth_token, #{backend => rdbms})}];
         false ->
             []
     end.

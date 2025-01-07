@@ -1,4 +1,4 @@
--module(mod_fast).
+-module(mod_fast_auth_token).
 -xep([{xep, 484}, {version, "0.2.0"}]).
 -behaviour(gen_mod).
 -include("mongoose_ns.hrl").
@@ -55,7 +55,7 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    mod_fast_backend:init(HostType, Opts),
+    mod_fast_auth_token_backend:init(HostType, Opts),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
@@ -103,7 +103,7 @@ supported_features() -> [dynamic_domains].
     Params :: map(),
     Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
-    mod_fast_backend:remove_user(HostType, LUser, LServer),
+    mod_fast_auth_token_backend:remove_user(HostType, LUser, LServer),
     {ok, Acc}.
 
 -spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
@@ -111,7 +111,7 @@ remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type :
     Params :: map(),
     Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
-    mod_fast_backend:remove_domain(HostType, Domain),
+    mod_fast_auth_token_backend:remove_domain(HostType, Domain),
     {ok, Acc}.
 
 -spec sasl2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
@@ -225,7 +225,8 @@ datetime_to_seconds(DateTime) ->
         Token :: token(),
         Mech :: mechanism().
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
-    mod_fast_backend:store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech).
+    mod_fast_auth_token_backend:store_new_token(
+        HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech).
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->
    {ok, tokens_data()} | {error, not_found}
@@ -234,4 +235,4 @@ store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
         LUser :: jid:luser(),
         AgentId :: agent_id().
 read_tokens(HostType, LServer, LUser, AgentId) ->
-    mod_fast_backend:read_tokens(HostType, LServer, LUser, AgentId).
+    mod_fast_auth_token_backend:read_tokens(HostType, LServer, LUser, AgentId).

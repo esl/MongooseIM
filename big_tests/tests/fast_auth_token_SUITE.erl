@@ -1,5 +1,5 @@
 %% Tests for XEP-0484: Fast Authentication Streamlining Tokens
--module(fast_SUITE).
+-module(fast_auth_token_SUITE).
 
 -compile([export_all, nowarn_export_all]).
 

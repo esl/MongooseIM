@@ -1,5 +1,5 @@
--module(mod_fast_rdbms).
--behaviour(mod_fast_backend).
+-module(mod_fast_auth_token_rdbms).
+-behaviour(mod_fast_auth_token_backend).
 -include("mongoose_logger.hrl").
 
 -export([init/2,
@@ -49,11 +49,11 @@ store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
     ok.
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->
-       {ok, mod_fast:tokens_data()} | {error, not_found}
+       {ok, mod_fast_auth_token:tokens_data()} | {error, not_found}
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
-        AgentId :: mod_fast:agent_id().
+        AgentId :: mod_fast_auth_token:agent_id().
 read_tokens(HostType, LServer, LUser, AgentId) ->
     case execute(HostType, fast_select, [LServer, LUser, AgentId]) of
         {selected, []} ->
@@ -61,7 +61,7 @@ read_tokens(HostType, LServer, LUser, AgentId) ->
         {selected, [{CurrentToken, CurrentExpire, CurrentCount, CurrentMechId,
                      NewToken, NewExpire, NewCount, NewMechId}]} ->
             Data = #{
-                now_timestamp => mod_fast:utc_now_as_seconds(),
+                now_timestamp => mod_fast_auth_token:utc_now_as_seconds(),
                 current_token => null_as_undefined(CurrentToken),
                 current_expire => maybe_to_integer(CurrentExpire),
                 current_count => maybe_to_integer(CurrentCount),

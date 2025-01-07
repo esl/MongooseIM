@@ -867,7 +867,7 @@ default_mod_config(mod_auth_token) ->
     #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
                            refresh => #{unit => days, value => 25}}};
-default_mod_config(mod_fast) ->
+default_mod_config(mod_fast_auth_token) ->
     #{backend => rdbms,
       validity_period => #{access => #{unit => days, value => 3}}};
 default_mod_config(mod_bind2) ->

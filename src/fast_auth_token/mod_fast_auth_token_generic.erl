@@ -1,4 +1,4 @@
--module(mod_fast_generic).
+-module(mod_fast_auth_token_generic).
 
 -export([mech_new/4, mech_step/2]).
 
@@ -9,7 +9,7 @@
 -spec mech_new(Host   :: jid:server(),
                Creds  :: mongoose_credentials:t(),
                SocketData :: term(),
-               Mech :: mod_fast:mechanism()) -> {ok, state()} | {error, binary()}.
+               Mech :: mod_fast_auth_token:mechanism()) -> {ok, state()} | {error, binary()}.
 mech_new(_Host, Creds, SocketData = #{sasl_state := SaslState}, Mech) ->
     SaslModState = mod_sasl2:get_mod_state(SaslState),
     case SaslModState of
@@ -31,7 +31,7 @@ mech_step(#state{creds = Creds, agent_id = AgentId, mechanism = Mech}, Serialize
     HostType = mongoose_credentials:host_type(Creds),
     LServer = mongoose_credentials:lserver(Creds),
     LUser = jid:nodeprep(Username),
-    case mod_fast:read_tokens(HostType, LServer, LUser, AgentId) of
+    case mod_fast_auth_token:read_tokens(HostType, LServer, LUser, AgentId) of
         {ok, TokenData} ->
             ?LOG_ERROR(#{what => mech_step, token_data => TokenData}),
             CBData = <<>>,

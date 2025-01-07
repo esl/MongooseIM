@@ -14,10 +14,10 @@ mechanism() ->
                Creds  :: mongoose_credentials:t(),
                SocketData :: term()) -> {ok, tuple()} | {error, binary()}.
 mech_new(Host, Creds, SocketData) ->
-    mod_fast_generic:mech_new(Host, Creds, SocketData, mechanism()).
+    mod_fast_auth_token_generic:mech_new(Host, Creds, SocketData, mechanism()).
 
 -spec mech_step(State :: tuple(),
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                        | {error, binary()}.
 mech_step(State, SerializedToken) ->
-    mod_fast_generic:mech_step(State, SerializedToken).
+    mod_fast_auth_token_generic:mech_step(State, SerializedToken).
