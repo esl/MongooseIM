@@ -30,6 +30,7 @@ groups() ->
        request_token_with_initial_authentication,
        request_token_with_unknown_mechanism_type,
        client_authenticates_using_fast,
+       client_authenticate_several_times_with_the_same_token,
        token_auth_fails_when_token_is_wrong,
        token_auth_fails_when_token_is_not_found
       ]}
@@ -90,14 +91,7 @@ server_advertises_support_for_fast(Config) ->
 %% 3.3 Server provides token to client
 %% https://xmpp.org/extensions/xep-0484.html#token-response
 request_token_with_initial_authentication(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_request_token},
-             receive_features],
-    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
-    Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
-    Expire = exml_query:attr(Fast, <<"expire">>),
-    Token = exml_query:attr(Fast, <<"token">>),
+    #{token := Token, expire := Expire} = connect_and_ask_for_token(Config),
     ?assertEqual(true, byte_size(Token) > 5),
     %% Check timestamp in ISO 8601 format
     ?assertEqual(true, time_helper:validate_datetime(binary_to_list(Expire))).
@@ -106,7 +100,7 @@ request_token_with_unknown_mechanism_type(Config0) ->
     Config = [{ht_mech, <<"HT-WEIRD-ONE">>} | Config0],
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
              receive_features],
-    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
@@ -115,22 +109,19 @@ request_token_with_unknown_mechanism_type(Config0) ->
 %% 3.4 Client authenticates using FAST
 %% https://xmpp.org/extensions/xep-0484.html#fast-auth
 client_authenticates_using_fast(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_request_token},
-             receive_features],
-    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
-    Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
-    Token = exml_query:attr(Fast, <<"token">>),
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    auth_with_token(true, Token, Config, Spec).
+
+%% Check that we can reuse the token
+client_authenticate_several_times_with_the_same_token(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    auth_with_token(true, Token, Config, Spec),
+    auth_with_token(true, Token, Config, Spec),
     auth_with_token(true, Token, Config, Spec).
 
 token_auth_fails_when_token_is_wrong(Config) ->
     %% New token is not set, but we try to login with a wrong one
-    Steps = [start_new_user, {?MODULE, auth_and_request_token},
-             receive_features],
-    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    #{spec := Spec} = connect_and_ask_for_token(Config),
     Token = <<"wrongtoken">>,
     auth_with_token(false, Token, Config, Spec),
     ok.
@@ -146,6 +137,17 @@ token_auth_fails_when_token_is_not_found(Config) ->
 %%--------------------------------------------------------------------
 %% helpers
 %%--------------------------------------------------------------------
+
+connect_and_ask_for_token(Config) ->
+    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+             receive_features],
+    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"success">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
+    Expire = exml_query:attr(Fast, <<"expire">>),
+    Token = exml_query:attr(Fast, <<"token">>),
+    #{expire => Expire, token => Token, spec => Spec}.
 
 auth_and_request_token(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
