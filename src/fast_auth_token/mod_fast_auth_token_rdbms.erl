@@ -15,22 +15,22 @@ init(HostType, _Opts) ->
     Key = [<<"server">>, <<"username">>, <<"user_agent_id">>],
     Upd = [<<"new_token">>, <<"new_expire">>, <<"new_count">>, <<"new_mech_id">>],
     Ins = Key ++ Upd,
-    rdbms_queries:prepare_upsert(HostType, fast_upsert, fast_tokens, Ins, Upd, Key),
-    prepare(fast_select, fast_tokens,
+    rdbms_queries:prepare_upsert(HostType, fast_upsert, fast_auth_token, Ins, Upd, Key),
+    prepare(fast_select, fast_auth_token,
             [current_token, current_expire, current_count, current_mech_id,
              new_token, new_expire, new_count, new_mech_id],
             <<"SELECT "
                   "current_token, current_expire, current_count, current_mech_id, "
                   "new_token, new_expire, new_count, new_mech_id "
-              "FROM fast_tokens "
+              "FROM fast_auth_token "
               "WHERE server = ? AND username = ? AND user_agent_id = ?">>),
-    prepare(fast_remove_user, fast_tokens,
+    prepare(fast_remove_user, fast_auth_token,
             [server, username],
-            <<"DELETE FROM fast_tokens "
+            <<"DELETE FROM fast_auth_token "
               "WHERE server = ? AND username = ?">>),
-    prepare(fast_remove_domain, fast_tokens,
+    prepare(fast_remove_domain, fast_auth_token,
             [server],
-            <<"DELETE FROM fast_tokens WHERE server = ?">>),
+            <<"DELETE FROM fast_auth_token WHERE server = ?">>),
     ok.
 
 -spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) -> ok

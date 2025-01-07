@@ -770,8 +770,8 @@ CREATE TABLE caps (
 );
 
 -- XEP-0484: Fast Authentication Streamlining Tokens
--- Module: mod_fast
-CREATE TABLE fast_tokens(
+-- Module: mod_fast_auth_token
+CREATE TABLE fast_auth_token(
      server VARCHAR(250) NOT NULL,
      username VARCHAR(250) NOT NULL,
      -- Device installation ID (User-Agent ID)
