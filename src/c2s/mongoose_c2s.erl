@@ -9,8 +9,6 @@
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
--export([instrumentation/0, instrumentation/1]).
-
 %% gen_statem callbacks
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
@@ -26,7 +24,7 @@
 -export([replace_resource/2, generate_random_resource/0]).
 -export([verify_user/4, maybe_open_session/3]).
 
--ignore_xref([get_ip/1, get_socket/1, instrumentation/1]).
+-ignore_xref([get_ip/1, get_socket/1]).
 
 %% The pattern 'undefined' can never match the type binary()
 -dialyzer({no_match, patch_attr_value/1}).
@@ -74,30 +72,6 @@
                            term() => term()}.
 
 -export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0, listener_opts/0]).
-
--spec instrumentation() -> [mongoose_instrument:spec()].
-instrumentation() ->
-    lists:flatmap(fun instrumentation/1, [global | ?ALL_HOST_TYPES]).
-
--spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
-instrumentation(global) ->
-    [{c2s_xmpp_element_size_out, #{},
-      #{metrics => #{byte_size => histogram}}},
-     {c2s_xmpp_element_size_in, #{},
-      #{metrics => #{byte_size => histogram}}}];
-instrumentation(HostType) ->
-    [{c2s_message_processed, #{host_type => HostType},
-      #{metrics => #{time => histogram}}},
-     {c2s_auth_failed, #{host_type => HostType},
-      #{metrics => #{count => spiral}}},
-     {c2s_element_in, #{host_type => HostType},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- element_spirals()])}},
-     {c2s_element_out, #{host_type => HostType},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- element_spirals()])}}].
-
-element_spirals() ->
-    [count, stanza_count, message_count, iq_count, presence_count,
-     error_count, message_error_count, iq_error_count, presence_error_count].
 
 %%%----------------------------------------------------------------------
 %%% gen_statem

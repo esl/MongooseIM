@@ -589,7 +589,7 @@ restore_domain(Config) ->
     Config.
 
 events() ->
-    instrument_helper:declared_events(mongoose_component_listener, []).
+    instrument_helper:declared_events(mongoose_component_listener, [#{}]).
 
 %%--------------------------------------------------------------------
 %% Stanzas

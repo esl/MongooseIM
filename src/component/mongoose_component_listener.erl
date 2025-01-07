@@ -1,7 +1,7 @@
 -module(mongoose_component_listener).
 
 -behaviour(mongoose_listener).
--export([start_listener/1, instrumentation/0]).
+-export([start_listener/1, instrumentation/1]).
 
 -behaviour(ranch_protocol).
 -export([start_link/3]).
@@ -19,10 +19,8 @@
 
 -export_type([conflict_behaviour/0, options/0]).
 
-%% mongoose_listener
-
--spec instrumentation() -> [mongoose_instrument:spec()].
-instrumentation() ->
+-spec instrumentation(_) -> [mongoose_instrument:spec()].
+instrumentation(_) ->
     [{component_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
      {component_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
      {component_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
@@ -31,13 +29,9 @@ instrumentation() ->
      {component_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
      {component_auth_failed, #{}, #{metrics => #{count => spiral}}},
      {component_element_in, #{},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- element_spirals()])}},
+      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}},
      {component_element_out, #{},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- element_spirals()])}}].
-
-element_spirals() ->
-    [count, stanza_count, message_count, iq_count, presence_count,
-     error_count, message_error_count, iq_error_count, presence_error_count].
+      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}}].
 
 -spec start_listener(options()) -> ok.
 start_listener(#{module := ?MODULE} = Opts) ->
@@ -61,6 +55,7 @@ maybe_tls_opts(_, TransportOpts) ->
     TransportOpts.
 
 %% ranch_protocol
+-spec start_link(ranch:ref(), module(), mongoose_component_connection:listener_opts()) -> {ok, pid()}.
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
     mongoose_component_connection:start_link({mongoose_component_ranch, {Transport, Ref}, Opts}, ProcessOpts).
