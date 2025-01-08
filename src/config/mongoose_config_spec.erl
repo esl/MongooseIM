@@ -14,7 +14,6 @@
          process_host/1,
          process_general/1,
          process_listener/2,
-         process_c2s_tls/1,
          process_common_tls/1,
          process_sasl_external/1,
          process_sasl_mechanism/1,
@@ -321,7 +320,7 @@ xmpp_listener_extra(<<"component">>) ->
                                                  validate = non_empty},
                        <<"state_timeout">> => #option{type = int_or_infinity,
                                                       validate = non_negative},
-                       <<"tls">> => tls([server])},
+                       <<"tls">> => tls([server, xmpp])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
                           <<"check_from">> => true,
@@ -1013,15 +1012,6 @@ get_all_hosts_and_host_types(General) ->
                      (_) ->
                           []
                   end, General).
-
-process_c2s_tls(M) ->
-    AllowedItems = (tls([server, xmpp]))#section.items,
-    AllowedKeys = [binary_to_atom(Key) || Key <- maps:keys(AllowedItems)] ++ [mode],
-    case maps:keys(M) -- AllowedKeys of
-        [] -> M;
-        UnexpectedKeys -> error(#{what => unexpected_tls_options,
-                                  unexpected_keys => UnexpectedKeys})
-    end.
 
 process_common_tls(M = #{cacertfile := _}) ->
     M;

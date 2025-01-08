@@ -553,7 +553,8 @@ listen_component_tls(_Config) ->
                                              <<"password">> => <<"secret">>,
                                              <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
-    ?cfg(P, config([listen, component, tls], tls_ca()), T(tls_ca_raw())),
+    M = tls_ca_raw(),
+    ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
     test_just_tls_server(P, T).
 
 listen_http(_Config) ->
