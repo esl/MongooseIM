@@ -137,7 +137,7 @@ endpoint_spec() ->
     }.
 
 tls_spec() ->
-    mongoose_config_spec:tls([client, server], [fast_tls]).
+    mongoose_config_spec:tls([client, server]).
 
 redis_spec() ->
     #section{

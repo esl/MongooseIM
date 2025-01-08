@@ -38,7 +38,6 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [domain/0]).
--import(config_parser_helper, [default_c2s_tls/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -757,8 +756,7 @@ configure_c2s_listener(Config, ExtraC2SOpts, RemovedC2SKeys) ->
 tls_opts(Mode, Config) ->
     ExtraOpts = #{mode => Mode, verify_mode => none,
                   cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
-    Module = proplists:get_value(tls_module, Config, fast_tls),
-    maps:merge(default_c2s_tls(Module), ExtraOpts).
+    maps:merge(config_parser_helper:default_xmpp_tls(), ExtraOpts).
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}, {verify, verify_none}]} | UserSpec].
