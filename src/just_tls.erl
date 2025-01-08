@@ -47,10 +47,10 @@ tcp_to_tls(TCPSocket, Options) ->
                         % and outgoing pools use Erlang SSL directly
                         % Do not set `fail_if_no_peer_cert_opt` for SSL client
                         % as it is a server only option.
-                        {Ref, SSLOpts} = format_opts_with_ref(Options, false),
+                        {Ref, SSLOpts} = format_opts_with_ref(Options, client),
                         {Ref, ssl:connect(TCPSocket, SSLOpts)};
                     #{} ->
-                        {Ref, SSLOpts} = format_opts_with_ref(Options, fail_if_no_peer_cert),
+                        {Ref, SSLOpts} = format_opts_with_ref(Options, server),
                         {Ref, ssl:handshake(TCPSocket, SSLOpts, 5000)}
                  end,
     VerifyResults = receive_verify_results(Ref1),
@@ -108,45 +108,45 @@ close(#tls_socket{ssl_socket = SSLSocket}) ->
 %% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
 make_ssl_opts(#{verify_mode := Mode} = Opts) ->
-    SslOpts = format_opts(Opts, false),
+    SslOpts = format_opts(Opts, client),
     [{verify_fun, verify_fun(Mode)} | SslOpts].
 
 %% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
 %% The `disconnect_on_failure' option is expected to be unset or true
 -spec make_cowboy_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
 make_cowboy_ssl_opts(#{verify_mode := Mode} = Opts) ->
-    SslOpts = format_opts(Opts, fail_if_no_peer_cert),
+    SslOpts = format_opts(Opts, server),
     [{verify_fun, verify_fun(Mode)} | SslOpts].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-format_opts_with_ref(Opts, FailIfNoPeerCert) ->
-    SslOpts0 = format_opts(Opts, FailIfNoPeerCert),
+format_opts_with_ref(Opts, ClientOrServer) ->
+    SslOpts0 = format_opts(Opts, ClientOrServer),
     {Ref, VerifyFun} = verify_fun_opt(Opts),
     SslOpts = [{verify_fun, VerifyFun} | SslOpts0],
     {Ref, SslOpts}.
 
-format_opts(Opts, FailIfNoPeerCert) ->
+format_opts(Opts, ClientOrServer) ->
     SslOpts0 = maps:to_list(maps:with(ssl_option_keys(), Opts)),
-    SslOpts1 = sni_opts(SslOpts0, Opts),
-    SslOpts2 = verify_opts(SslOpts1, Opts),
-    SslOpts3 = hibernate_opts(SslOpts2, Opts),
-    fail_if_no_peer_cert_opts(SslOpts3, Opts, FailIfNoPeerCert).
+    SslOpts1 = verify_opts(SslOpts0, Opts),
+    SslOpts2 = hibernate_opts(SslOpts1, Opts),
+    case ClientOrServer of
+        client -> sni_opts(SslOpts2, Opts);
+        server -> fail_if_no_peer_cert_opts(SslOpts2, Opts)
+    end.
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
 
 %% accept empty peer certificate if explicitly requested not to fail
-fail_if_no_peer_cert_opts(Opts, #{}, false) ->
+fail_if_no_peer_cert_opts(Opts, #{disconnect_on_failure := false}) ->
     [{fail_if_no_peer_cert, false} | Opts];
-fail_if_no_peer_cert_opts(Opts, #{disconnect_on_failure := false}, _) ->
-    [{fail_if_no_peer_cert, false} | Opts];
-fail_if_no_peer_cert_opts(Opts, #{verify_mode := Mode}, _)
+fail_if_no_peer_cert_opts(Opts, #{verify_mode := Mode})
   when Mode =:= peer; Mode =:= selfsigned_peer ->
     [{fail_if_no_peer_cert, true} | Opts];
-fail_if_no_peer_cert_opts(Opts, #{}, _) ->
+fail_if_no_peer_cert_opts(Opts, #{}) ->
     [{fail_if_no_peer_cert, false} | Opts].
 
 hibernate_opts(Opts, #{hibernate_after := Timeout}) ->
