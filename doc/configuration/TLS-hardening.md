@@ -1,29 +1,3 @@
-## OTP TLS vs. Fast TLS
-
-Before we explain the TLS hardening in MongooseIM, we need to describe the TLS libraries used in the project.
-These are "OTP TLS" and "Fast TLS".
-
-The former is provided by (as the name suggests) OTP as the `ssl` application.
-Large part of the logic is implemented in Erlang but it calls OpenSSL libcrypto APIs for some operations.
-
-The latter is a community-maintained library, which is implemented as NIFs (native C code).
-It uses OpenSSL API for all operations.
-
-Most parts of MongooseIM use the TLS library provided by OTP.
-However, some of them choose to integrate with `fast_tls` library instead.
-
-None of them is strictly better than the other.
-Below you may find a summary of the differences between them.
-
-* `fast_tls` is generally more memory efficient.
-* There are options that OTP TLS (a.k.a `just_tls` in the C2S listener configuration) supports exclusively:
-    * Immediate connection drop when the client certificate is invalid
-    * Certificate Revocation Lists
-    * More flexible certificate verification options
-* Allowed protocol versions may be configured:
-    * Globally for OTP TLS via an environment variable
-    * Per socket in Fast TLS via OpenSSL cipher string
-
 ## Deprecations
 
 MongooseIM is configured to allow only TLS 1.2 or higher, due to known vulnerabilities in TLS 1.0 and 1.1.
@@ -44,16 +18,3 @@ In order to change the list, please find the following lines:
 The remaining valid values are: `'tlsv1.1'`, `tlsv1`, `sslv3`.
 
 See [EEF guidelines for protocol versions and ciphers](https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl#selecting-protocol-versions-and-ciphers) for more information.
-
-## Fast TLS hardening
-
-Fast TLS expects an OpenSSL cipher string as one of optional connection parameters.
-This string is configured individually for every module that uses it.
-By default, MongooseIM sets this option to `TLSv1.2:TLSv1.3` for each component.
-
-The list below enumerates all components that use Fast TLS and describes how to change this string.
-
-* `listen.c2s` - main user session abstraction + XMPP over TCP listener
-    * Please consult the respective section in [Listener modules](../listeners/listen-c2s.md#listenc2stlsprotocol_options-only-for-fast_tls).
-* `mod_global_distrib` - Global Distribution module
-    * Please add `connections.tls.ciphers = "string"` to `modules.mod_global_distrib` module, as [described in the documentation](../modules/mod_global_distrib.md#tls-options).
