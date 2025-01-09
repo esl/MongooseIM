@@ -66,10 +66,6 @@ tcp_to_tls(TCPSocket, Options) ->
 send(#tls_socket{ssl_socket = SSLSocket}, Packet) -> ssl:send(SSLSocket, Packet).
 
 %% -callback recv_data(tls_socket(), binary()) -> {ok, binary()} | {error, any()}.
-recv_data(_, <<"">>) ->
-    %% such call is required for fast_tls to accomplish
-    %% tls handshake, for just_tls we can ignore it
-    {ok, <<"">>};
 recv_data(#tls_socket{ssl_socket = SSLSocket}, Data1) ->
     case ssl:recv(SSLSocket, 0, 0) of
         {ok, Data2} -> {ok, <<Data1/binary, Data2/binary>>};
@@ -187,7 +183,7 @@ fail_if_no_peer_cert_opt(#{}) -> false.
 %%  `disconnect_on_failure` is a boolean parameter:
 %%     true - drop connection if certificate verification failed
 %%     false - connect anyway, but later return {bad_cert,Error}
-%%             on certificate verification (the same as fast_tls do).
+%%             on certificate verification.
 verify_fun_opt(#{verify_mode := Mode, disconnect_on_failure := false}) ->
     Ref = erlang:make_ref(),
     {Ref, verify_fun(Ref, Mode)};

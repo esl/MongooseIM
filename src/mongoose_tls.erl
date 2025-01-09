@@ -2,18 +2,13 @@
 %%% @copyright (C) 1999-2018, Erlang Solutions Ltd
 %%% @author Denys Gonchar <denys.gonchar@erlang-solutions.com>
 %%% @doc this module provides general TLS interface for MongooseIM.
-%%%
-%%% by default tls_module is set to fast_tls, alternatively it can be any
-%%% module that implements mongoose_tls behaviour
-%%% @end
 %%%=============================================================================
 -module(mongoose_tls).
 -copyright("2018, Erlang Solutions Ltd.").
 -author('denys.gonchar@erlang-solutions.com').
 
 %% tls interfaces required by mongoose_transport module.
--export([prepare_options/2,
-         tcp_to_tls/2,
+-export([tcp_to_tls/2,
          default_ciphers/0,
          send/2,
          recv_data/2,
@@ -30,13 +25,13 @@
 
 -ignore_xref([get_sockmod/1]).
 
--type tls_socket() :: fast_tls:tls_socket() | just_tls:tls_socket().
+-type tls_socket() :: just_tls:tls_socket().
 -type cert() :: {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
 
 %% Options used for client-side and server-side TLS connections.
 %% All modules implementing this behaviour have to support the mandatory 'verify_mode' option.
 %% Other options should be supported if the implementing module supports it.
--type options() :: #{module => module(), % fast_tls by default
+-type options() :: #{module => module(),
                      connect => boolean(), % set to 'true' for a client-side call to tcp_to_tls/2
                      verify_mode := peer | selfsigned_peer | none,
                      mode => tls | starttls | starttls_required, % only ejabberd_s2s_out doesn't use it (yet)
@@ -50,10 +45,8 @@
                      keyfile => string(),
                      password => string(),
                      versions => [atom()],
-                     server_name_indication => sni_options(), % client-only
-
-                     % only for fast_tls
-                     protocol_options => [string()]}.
+                     server_name_indication => sni_options() % client-only
+                    }.
 
 -type sni_options() :: #{enabled := boolean,
                          protocol := default | https,
@@ -105,36 +98,17 @@
 
 -spec tcp_to_tls(inet:socket(), options()) -> {ok, socket()} | {error, any()}.
 tcp_to_tls(TCPSocket, Opts) ->
-    Module = maps:get(module, Opts, fast_tls),
-    PreparedOpts = prepare_options(Module, maps:remove(module, Opts)),
-    case Module:tcp_to_tls(TCPSocket, PreparedOpts) of
+    PreparedOpts = maps:remove(module, Opts),
+    case just_tls:tcp_to_tls(TCPSocket, PreparedOpts) of
         {ok, TLSSocket} ->
             HasCert = has_peer_cert(Opts),
-            {ok, #mongoose_tls_socket{tls_module = Module,
+            {ok, #mongoose_tls_socket{tls_module = just_tls,
                                       tcp_socket = TCPSocket,
                                       tls_socket = TLSSocket,
                                       tls_opts   = Opts,
                                       has_cert   = HasCert}};
         Error -> Error
     end.
-
--spec prepare_options(module(), options()) -> any().
-prepare_options(fast_tls, Opts) ->
-    %% fast_tls is an external library and its API cannot use Opts directly
-    lists:flatmap(fun({K, V}) -> fast_tls_opt(K, V) end, maps:to_list(Opts));
-prepare_options(_Module, Opts) ->
-    Opts.
-
-fast_tls_opt(connect, true) -> [connect];
-fast_tls_opt(connect, false) -> [];
-fast_tls_opt(mode, _) -> [];
-fast_tls_opt(verify_mode, peer) -> [];
-fast_tls_opt(verify_mode, none) -> [verify_none];
-fast_tls_opt(cacertfile, File) -> [{cafile, File}];
-fast_tls_opt(dhfile, File) -> [{dhfile, File}];
-fast_tls_opt(certfile, File) -> [{certfile, File}];
-fast_tls_opt(ciphers, Ciphers) -> [{ciphers, Ciphers}];
-fast_tls_opt(protocol_options, ProtoOpts) -> [{protocol_options, string:join(ProtoOpts, "|")}].
 
 default_ciphers() ->
     "TLSv1.2:TLSv1.3".

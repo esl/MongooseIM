@@ -190,17 +190,7 @@ handle_call({tcp_to_tls, TLSOpts}, From, #state{socket = TCPSocket} = State0) ->
         {ok, TLSSocket} ->
             State1 = reset_parser(State0),
             State2 = State1#state{socket = TLSSocket, sockmod = mongoose_tls},
-            %% fast_tls requires dummy recv_data/2 call to accomplish TLS
-            %% handshake. such call is simply ignored by just_tls backend.
-            case mongoose_tls:recv_data(TLSSocket, <<>>) of
-                {ok, TLSData} ->
-                    State3 = process_data(TLSData, State2),
-                    {noreply, State3, hibernate_or_timeout(State3)};
-                {error, Reason} ->
-                    ?LOG_WARNING(#{what => tcp_to_tls_failed, reason => Reason,
-                                   dest_pid => State2#state.dest_pid}),
-                    {stop, normal, State2}
-            end;
+            {noreply, State2, hibernate_or_timeout(State2)};
         {error, Reason} ->
             ?LOG_WARNING(#{what => tcp_to_tls_failed, reason => Reason,
                            dest_pid => State0#state.dest_pid}),

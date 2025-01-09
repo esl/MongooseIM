@@ -18,8 +18,8 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -record(?MODULE, {
-           transport :: fast_tls | gen_tcp,
-           socket :: fast_tls:tls_socket() | gen_tcp:socket()
+           transport :: just_tls | gen_tcp,
+           socket :: just_tls:tls_socket() | gen_tcp:socket()
           }).
 
 -type t() :: #?MODULE{}.
@@ -38,9 +38,9 @@ wrap(Socket, ConnOpts) ->
 -spec wrap(gen_tcp:socket(), #{tls := mongoose_tls:options()}, ExtraOpts :: map()) ->
           {ok, t()} | {error, any()}.
 wrap(Socket, #{tls := Opts}, ExtraOpts) ->
-    PreparedOpts = mongoose_tls:prepare_options(fast_tls, maps:merge(Opts, ExtraOpts)),
-    case fast_tls:tcp_to_tls(Socket, PreparedOpts) of
-        {ok, TLSSocket} -> {ok, #?MODULE{transport = fast_tls, socket = TLSSocket}};
+    PreparedOpts = maps:merge(Opts, ExtraOpts),
+    case just_tls:tcp_to_tls(Socket, PreparedOpts) of
+        {ok, TLSSocket} -> {ok, #?MODULE{transport = just_tls, socket = TLSSocket}};
         Error -> Error
     end;
 wrap(Socket, #{}, _ExtraOpts) ->
@@ -49,32 +49,32 @@ wrap(Socket, #{}, _ExtraOpts) ->
 -spec setopts(t(), Opts :: proplists:proplist()) -> ok | {error, term()}.
 setopts(#?MODULE{transport = gen_tcp, socket = Socket}, Opts) ->
     inet:setopts(Socket, Opts);
-setopts(#?MODULE{transport = fast_tls, socket = Socket}, Opts) ->
-    fast_tls:setopts(Socket, Opts).
+setopts(#?MODULE{transport = just_tls, socket = Socket}, Opts) ->
+    just_tls:setopts(Socket, Opts).
 
 -spec recv_data(t(), Data :: binary()) -> {ok, binary()} | {error, any()}.
 recv_data(#?MODULE{transport = gen_tcp}, Data) ->
     {ok, Data};
-recv_data(#?MODULE{transport = fast_tls, socket = Socket}, Data) ->
-    fast_tls:recv_data(Socket, Data).
+recv_data(#?MODULE{transport = just_tls}, Data) ->
+    {ok, Data}.
 
 -spec close(t()) -> ok | {error, any()}.
 close(#?MODULE{transport = gen_tcp, socket = Socket}) ->
     gen_tcp:close(Socket);
-close(#?MODULE{transport = fast_tls, socket = Socket}) ->
-    fast_tls:close(Socket).
+close(#?MODULE{transport = just_tls, socket = Socket}) ->
+    just_tls:close(Socket).
 
 -spec send(t(), Data :: binary()) -> ok | {error, any()}.
 send(#?MODULE{transport = gen_tcp, socket = Socket}, Data) ->
     gen_tcp:send(Socket, Data);
-send(#?MODULE{transport = fast_tls, socket = Socket}, Data) ->
-    fast_tls:send(Socket, Data).
+send(#?MODULE{transport = just_tls, socket = Socket}, Data) ->
+    just_tls:send(Socket, Data).
 
 -spec peername(t()) -> {inet:ip_address(), inet:port_number()} | unknown.
 peername(#?MODULE{transport = gen_tcp, socket = Socket}) ->
     normalize_peername(inet:peername(Socket));
-peername(#?MODULE{transport = fast_tls, socket = Socket}) ->
-    normalize_peername(fast_tls:peername(Socket)).
+peername(#?MODULE{transport = just_tls, socket = Socket}) ->
+    normalize_peername(just_tls:peername(Socket)).
 
 -spec normalize_peername({ok, {inet:ip_address(), inet:port_number()}} | any()) ->
     {inet:ip_address(), inet:port_number()} | unknown.
