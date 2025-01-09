@@ -36,7 +36,10 @@ groups() ->
        server_initiates_token_rotation,
        could_still_use_old_token_when_server_initiates_token_rotation,
        server_initiates_token_rotation_for_the_current_slot,
-       could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot
+       could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot,
+       rerequest_token_with_initial_authentication,
+       can_use_new_token_after_rerequest_token_with_initial_authentication,
+       can_use_current_token_after_rerequest_token_with_initial_authentication
       ]}
     ].
 
@@ -166,6 +169,21 @@ could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_s
     %% Can still use old token
     auth_with_token(success, OldToken, Config, Spec).
 
+rerequest_token_with_initial_authentication(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    ConnectRes = auth_with_token(success, Token, Config, Spec, request_token),
+    #{token := NewToken} = parse_connect_result(ConnectRes),
+    ?assertNotEqual(Token, NewToken),
+    #{token => Token, new_token => NewToken, spec => Spec}.
+
+can_use_new_token_after_rerequest_token_with_initial_authentication(Config) ->
+    #{new_token := Token, spec := Spec} = rerequest_token_with_initial_authentication(Config),
+    auth_with_token(success, Token, Config, Spec).
+
+can_use_current_token_after_rerequest_token_with_initial_authentication(Config) ->
+    #{token := Token, spec := Spec} = rerequest_token_with_initial_authentication(Config),
+    auth_with_token(success, Token, Config, Spec).
+
 %%--------------------------------------------------------------------
 %% helpers
 %%--------------------------------------------------------------------
@@ -233,8 +251,14 @@ auth_and_request_token(Config, Client, Data) ->
     auth_with_method(Config, Client, Data, [], Extra, <<"PLAIN">>).
 
 auth_using_token(Config, Client, Data) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, <<"HT-SHA-256-NONE">>).
+    auth_with_method(Config, Client, Data, [], Extra, Mech).
+
+auth_using_token_and_request_token(Config, Client, Data) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [request_token(Mech), user_agent()],
+    auth_with_method(Config, Client, Data, [], Extra, Mech).
 
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
 request_token(Mech) ->
@@ -243,8 +267,11 @@ request_token(Mech) ->
                     {<<"mechanism">>, Mech}]}.
 
 auth_with_token(Success, Token, Config, Spec) ->
+    auth_with_token(Success, Token, Config, Spec, dont_request_token).
+
+auth_with_token(Success, Token, Config, Spec, RequestToken) ->
     Spec2 = [{secret_token, Token} | Spec],
-    Steps = steps(Success),
+    Steps = steps(Success, auth_function(RequestToken)),
     Data = #{spec => Spec2},
     Res = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
     #{answer := Answer} = Res,
@@ -260,14 +287,19 @@ auth_with_token(Success, Token, Config, Spec) ->
     end,
     Res.
 
-steps(success) ->
+auth_function(dont_request_token) ->
+    auth_using_token;
+auth_function(request_token) ->
+    auth_using_token_and_request_token.
+
+steps(success, AuthFun) ->
     [connect_tls, start_stream_get_features,
-     {?MODULE, auth_using_token},
+     {?MODULE, AuthFun},
      receive_features,
      has_no_more_stanzas];
-steps(failure) ->
+steps(failure, AuthFun) ->
     [connect_tls, start_stream_get_features,
-     {?MODULE, auth_using_token}].
+     {?MODULE, AuthFun}].
 
 user_agent_id() ->
     <<"d4565fa7-4d72-4749-b3d3-740edbf87770">>.
