@@ -59,12 +59,32 @@ scram_tests() ->
      log_one_scram_sha224,
      log_one_scram_sha256,
      log_one_scram_sha384,
-     log_one_scram_sha512,
-     log_one_scram_sha1_plus,
+     log_one_scram_sha512
+     | scram_plus_tests()
+    ].
+
+-if(?OTP_RELEASE >= 27).
+scram_plus_tests() ->
+    [log_one_scram_sha1_plus,
      log_one_scram_sha224_plus,
      log_one_scram_sha256_plus,
      log_one_scram_sha384_plus,
      log_one_scram_sha512_plus].
+configure_scram_plus_tests() ->
+    [configure_sha1_log_with_sha1_plus,
+     configure_sha224_log_with_sha224_plus,
+     configure_sha256_log_with_sha256_plus,
+     configure_sha384_log_with_sha384_plus,
+     configure_sha512_log_with_sha512_plus,
+     configure_sha1_plus_fail_log_with_sha1,
+     configure_sha224_plus_fail_log_with_sha224,
+     configure_sha256_plus_fail_log_with_sha256,
+     configure_sha384_plus_fail_log_with_sha384,
+     configure_sha512_plus_fail_log_with_sha512].
+-else.
+scram_plus_tests() -> [].
+configure_scram_plus_tests() -> [].
+-endif.
 
 configure_specific_scram_test() ->
     [configure_sha1_log_with_sha1,
@@ -72,21 +92,11 @@ configure_specific_scram_test() ->
      configure_sha256_log_with_sha256,
      configure_sha384_log_with_sha384,
      configure_sha512_log_with_sha512,
-     configure_sha1_log_with_sha1_plus,
-     configure_sha224_log_with_sha224_plus,
-     configure_sha256_log_with_sha256_plus,
-     configure_sha384_log_with_sha384_plus,
-     configure_sha512_log_with_sha512_plus,
      configure_sha1_fail_log_with_sha224,
      configure_sha224_fail_log_with_sha256,
      configure_sha256_fail_log_with_sha384,
      configure_sha384_fail_log_with_sha512,
-     configure_sha512_fail_log_with_sha1,
-     configure_sha1_plus_fail_log_with_sha1,
-     configure_sha224_plus_fail_log_with_sha224,
-     configure_sha256_plus_fail_log_with_sha256,
-     configure_sha384_plus_fail_log_with_sha384,
-     configure_sha512_plus_fail_log_with_sha512].
+     configure_sha512_fail_log_with_sha1].
 
 all_tests() ->
     [log_one,
@@ -343,28 +353,30 @@ configure_sha384_fail_log_with_sha512(Config) ->
 configure_sha512_fail_log_with_sha1(Config) ->
     configure_and_fail_log_scram(Config, sha512, <<"SCRAM-SHA-1">>).
 
-%%
-%% configure_sha*_plus_fail_log_with_sha* tests are succeeding due to the fact that
-%% escalus, when configured with fast_tls and login with scram, sets channel binding
-%% flag to 'y'. This indicates that escalus supports channel binding but the server
-%% does not. The server did advertise the SCRAM PLUS mechanism, so this flag is
-%% incorrect and could be the result of the man-in-the-middle attack attempting to
-%% downgrade the authentication mechanism. Because of that, the authentication should fail.
-%%
+%% When escalus sets the channel binding flag to 'y', it indicates that escalus supports
+%% channel binding but the server does not. The server did advertise the SCRAM PLUS mechanism,
+%% so this flag is incorrect and could be the result of the man-in-the-middle attack attempting
+%% to downgrade the authentication mechanism. Because of that, the authentication should fail.
 configure_sha1_plus_fail_log_with_sha1(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha, auth_scram_plus_fail(<<"SCRAM-SHA-1">>)).
 
 configure_sha224_plus_fail_log_with_sha224(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha224, <<"SCRAM-SHA-224">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha224, auth_scram_plus_fail(<<"SCRAM-SHA-224">>)).
 
 configure_sha256_plus_fail_log_with_sha256(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha256, <<"SCRAM-SHA-256">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha256, auth_scram_plus_fail(<<"SCRAM-SHA-256">>)).
 
 configure_sha384_plus_fail_log_with_sha384(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha384, <<"SCRAM-SHA-384">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha384, auth_scram_plus_fail(<<"SCRAM-SHA-384">>)).
 
 configure_sha512_plus_fail_log_with_sha512(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha512, <<"SCRAM-SHA-512">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha512, auth_scram_plus_fail(<<"SCRAM-SHA-512">>)).
+
+auth_scram_plus_fail(XmppMethod) ->
+    fun(Conn, Props) ->
+            Options = #{plus_variant => none, hash_type => sha, xmpp_method => XmppMethod},
+            escalus_auth:auth_sasl_scram(Options, Conn, Props)
+    end.
 
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
@@ -446,17 +458,16 @@ prepare_user_for_ssl(Users, User) ->
    UserSpec3 = lists:keystore(ssl_opts, 1, UserSpec2, {ssl_opts, [{verify, verify_none}]}),
    lists:keystore(User, 1, Users, {User, UserSpec3}).
 
-%% fast_tls supports channel binding for TLSv1.3 but we haven't implemented that yet,
-%% nor in MongooseIM nor in escalus, hence we need to enforce neustradamus will use TLSv1.2 only
+%% OTP SSL supports channel binding for TLSv1.3 from OTP27
 add_protocol_opts_to_neustradamus(Config) ->
     Users = proplists:get_value(escalus_users, Config, []),
     UserSpec = proplists:get_value(neustradamus, Users),
-    ProtocolOpts = {protocol_options, <<"no_sslv2|no_sslv3|no_tlsv1|no_tlsv1_1|no_tlsv1_3">>},
+    DefaultSslOpts = [{verify, verify_none}, {versions, ['tlsv1.3']}],
     SslOpts = case lists:keyfind(ssl_opts, 1, UserSpec) of
                   false ->
-                      [ProtocolOpts];
+                      DefaultSslOpts;
                   {ssl_opts, SSlOpts0} ->
-                      [ProtocolOpts | SSlOpts0]
+                      DefaultSslOpts ++ SSlOpts0
               end,
     UserSpec1 = lists:keystore(ssl_opts, 1, UserSpec, {ssl_opts, SslOpts}),
     Users1 = lists:keystore(neustradamus, 1, Users, {neustradamus, UserSpec1}),

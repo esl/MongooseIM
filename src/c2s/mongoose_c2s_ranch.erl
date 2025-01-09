@@ -11,7 +11,7 @@
          get_peer_certificate/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
-         get_tls_last_message/1,
+         export_key_materials/5,
          is_ssl/1]).
 
 -record(state, {
@@ -150,14 +150,29 @@ has_peer_cert(State, LOpts) ->
     end.
 
 -spec is_channel_binding_supported(state()) -> boolean().
-is_channel_binding_supported(#state{transport = Transport}) ->
-    fast_tls == Transport.
+-spec export_key_materials(state(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {ok, ExportKeyMaterials} |
+    {error, undefined_tls_material | exporter_master_secret_already_consumed | bad_input}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean(),
+      ExportKeyMaterials :: binary() | [binary()].
 
--spec get_tls_last_message(state()) -> {ok, binary()} | {error, term()}.
-get_tls_last_message(#state{transport = fast_tls, socket = Socket}) ->
-    fast_tls:get_tls_last_message(peer, Socket);
-get_tls_last_message(_) ->
-    {error, undefined}.
+-if(?OTP_RELEASE >= 27).
+is_channel_binding_supported(#state{transport = Transport}) ->
+    Transport =:= just_tls.
+export_key_materials(#state{transport = just_tls, socket = SslSocket}, Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    just_tls:export_key_materials(SslSocket, Labels, Contexts, WantedLengths, ConsumeSecret);
+export_key_materials(#state{}, _, _, _, _) ->
+    {error, undefined_tls_material}.
+-else.
+is_channel_binding_supported(#state{transport = _}) ->
+    false.
+export_key_materials(_SslSocket, _, _, _, _) ->
+    {error, undefined_tls_material}.
+-endif.
 
 -spec is_ssl(state()) -> boolean().
 is_ssl(#state{transport = Transport}) ->

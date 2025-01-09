@@ -28,6 +28,7 @@
          peername/1,
          setopts/2,
          get_peer_certificate/1,
+         export_key_materials/5,
          close/1]).
 
 % API
@@ -102,6 +103,19 @@ get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) -
     end;
 get_peer_certificate(#tls_socket{verify_results = [Err | _]}) ->
     {bad_cert, error_to_list(Err)}.
+
+-spec export_key_materials(tls_socket(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {ok, ExportKeyMaterials} |
+    {error, undefined_tls_material | exporter_master_secret_already_consumed | bad_input}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean(),
+      ExportKeyMaterials :: binary() | [binary()].
+export_key_materials(#tls_socket{ssl_socket = SslSocket},
+                     Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    ssl:export_key_materials(SslSocket, Labels, Contexts, WantedLengths, ConsumeSecret).
 
 %% -callback close(tls_socket()) -> ok.
 close(#tls_socket{ssl_socket = SSLSocket}) -> ssl:close(SSLSocket).
