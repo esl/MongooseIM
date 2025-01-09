@@ -34,7 +34,9 @@ groups() ->
        token_auth_fails_when_token_is_wrong,
        token_auth_fails_when_token_is_not_found,
        server_initiates_token_rotation,
-       could_still_use_old_token_when_server_initiates_token_rotation
+       could_still_use_old_token_when_server_initiates_token_rotation,
+       server_initiates_token_rotation_for_the_current_slot,
+       could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot
       ]}
     ].
 
@@ -153,6 +155,17 @@ could_still_use_old_token_when_server_initiates_token_rotation(Config) ->
     %% Can still use old token
     auth_with_token(success, OldToken, Config, Spec).
 
+%% Connect with almost exired token in the current slot
+server_initiates_token_rotation_for_the_current_slot(Config) ->
+    #{new_token := NewToken, spec := Spec} = connect_with_almost_expired_token_in_the_current_slot(Config),
+    %% Can use new token
+    auth_with_token(success, NewToken, Config, Spec).
+
+could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot(Config) ->
+    #{old_token := OldToken, spec := Spec} = connect_with_almost_expired_token_in_the_current_slot(Config),
+    %% Can still use old token
+    auth_with_token(success, OldToken, Config, Spec).
+
 %%--------------------------------------------------------------------
 %% helpers
 %%--------------------------------------------------------------------
@@ -173,6 +186,32 @@ connect_with_almost_expired_token(Config) ->
     #{token := NewToken} = parse_connect_result(ConnectRes),
     ?assertNotEqual(Token, NewToken),
     #{new_token => NewToken, spec => Spec, old_token => Token}.
+
+connect_with_almost_expired_token_in_the_current_slot(Config) ->
+    Now = erlang:system_time(second),
+    Steps = [start_new_user],
+    #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    HostType = domain_helper:host_type(),
+    {LUser, LServer} = spec_to_lus(Spec),
+    AgentId = user_agent_id(),
+    Token = <<"verysecret">>,
+    CurrentToken = <<"currentsecret">>,
+    Mech = <<"HT-SHA-256-NONE">>,
+    ExpireTS = Now + 86400, %% 24 hours into the future
+    SetCurrent = #{
+         current_token => CurrentToken,
+         current_expire => Now + 600, %% 10 minutes into the future
+         current_count => 0,
+         current_mech => Mech
+    },
+    %% Set almost expiring token into the new slot
+    Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent],
+    ok = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, store_new_token, Args),
+    ConnectRes = auth_with_token(success, CurrentToken, Config, Spec),
+    #{token := NewToken} = parse_connect_result(ConnectRes),
+    ?assertNotEqual(Token, NewToken),
+    ?assertNotEqual(Token, CurrentToken),
+    #{new_token => NewToken, spec => Spec, old_token => CurrentToken}.
 
 connect_and_ask_for_token(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
