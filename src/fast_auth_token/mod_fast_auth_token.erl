@@ -38,6 +38,7 @@
                     unit := days | hours | minutes | seconds}.
 -type token_type() :: access | rotate_before_expire.
 -type token_slot() :: new | current.
+-type add_reason() :: requested | auto_rotate.
 
 -export_type([tokens_data/0, seconds/0, counter/0, token/0, agent_id/0,
               mechanism/0, token_slot/0]).
@@ -172,18 +173,19 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
     case check_if_should_add_token(HostType, SaslAcc, Creds) of
         skip ->
             {ok, SaslAcc};
-        {ok, Mech} ->
+        {ok, Mech, AddReason} ->
             AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
             %% Attach Token to the response to be used to authentificate
             Response = make_fast_token_response(HostType, LServer, LUser, Mech, AgentId),
-            SaslAcc2 = mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Response, success),
-            {ok, SaslAcc2}
+            SaslAcc2 = maybe_init_inline_request(AddReason, SaslAcc),
+            SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?MODULE, Response, success),
+            {ok, SaslAcc3}
     end.
 
 -spec check_if_should_add_token(HostType :: mongooseim:host_type(),
                                 SaslAcc :: mongoose_acc:t(),
                                 Creds :: mongoose_credentials:t()) ->
-    skip | {ok, mechanism()}.
+    skip | {ok, mechanism(), Reason :: add_reason()}.
 check_if_should_add_token(HostType, SaslAcc, Creds) ->
     case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
         undefined ->
@@ -191,22 +193,24 @@ check_if_should_add_token(HostType, SaslAcc, Creds) ->
         #{request := Request} ->
             AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
             Mech = exml_query:attr(Request, <<"mechanism">>),
-            {ok, Mech}
+            {ok, Mech, requested}
     end.
 
 -spec maybe_auto_rotate(HostType :: mongooseim:host_type(),
                         SaslAcc :: mongoose_acc:t(),
                         Creds :: mongoose_credentials:t()) ->
-    skip | {ok, mechanism()}.
+    skip | {ok, mechanism(), Reason :: add_reason()}.
 maybe_auto_rotate(HostType, SaslAcc, Creds) ->
     %% Creds could contain data from mod_fast_auth_token_generic
     SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
     DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
+    ?LOG_ERROR(#{what => maybe_auto_rotate, slot => SlotUsed, data_used => format_term(DataUsed)}),
     case user_used_token_to_login(SlotUsed) of
         true ->
             case is_used_token_about_to_expire(HostType, SlotUsed, DataUsed) of
                 true ->
-                    {ok, data_used_to_mech_type(SlotUsed, DataUsed)};
+?LOG_ERROR(#{what => rotate_rotate}),
+                    {ok, data_used_to_mech_type(SlotUsed, DataUsed), auto_rotate};
                 false ->
                     skip
             end;
@@ -225,9 +229,10 @@ is_used_token_about_to_expire(HostType, SlotUsed, DataUsed) ->
                                    Timestamp :: seconds()) -> boolean().
 is_timestamp_about_to_expire(HostType, Timestamp) ->
     Now = utc_now_as_seconds(),
-    TimeBeforRotate = get_time_to_rotate_before_expire_seconds(HostType),
+    TimeBeforeRotate = get_time_to_rotate_before_expire_seconds(HostType),
     SecondsBeforeExpire = Timestamp - Now,
-    SecondsBeforeExpire =< TimeBeforRotate.
+?LOG_ERROR(#{what => is_timestamp_about_to_expire, seconds_before => SecondsBeforeExpire, befor_rot => TimeBeforeRotate}),
+    SecondsBeforeExpire =< TimeBeforeRotate.
 
 -spec user_used_token_to_login(token_slot() | undefined) -> boolean().
 user_used_token_to_login(SlotUsed) ->
@@ -245,6 +250,15 @@ data_used_to_mech_type(new, #{new_mech := Mech}) ->
     Mech;
 data_used_to_mech_type(current, #{current_mech := Mech}) ->
     Mech.
+
+-spec maybe_init_inline_request(AddReason, SaslAcc) -> SaslAcc
+    when AddReason :: add_reason(),
+         SaslAcc :: mongoose_acc:t().
+maybe_init_inline_request(requested, SaslAcc) ->
+    SaslAcc;
+maybe_init_inline_request(auto_rotate, SaslAcc) ->
+    %% Add something, so update_inline_request would actually attach data
+    mod_sasl2:put_inline_request(SaslAcc, ?MODULE, #xmlel{name = <<"auto">>}).
 
 %% Generate expirable auth token and store it in DB
 -spec make_fast_token_response(HostType, LServer, LUser, Mech, AgentId) -> exml:element()

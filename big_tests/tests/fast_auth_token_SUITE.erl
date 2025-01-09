@@ -111,27 +111,27 @@ request_token_with_unknown_mechanism_type(Config0) ->
 %% https://xmpp.org/extensions/xep-0484.html#fast-auth
 client_authenticates_using_fast(Config) ->
     #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
-    auth_with_token(true, Token, Config, Spec).
+    auth_with_token(success, Token, Config, Spec).
 
 %% Check that we can reuse the token
 client_authenticate_several_times_with_the_same_token(Config) ->
     #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
-    auth_with_token(true, Token, Config, Spec),
-    auth_with_token(true, Token, Config, Spec),
-    auth_with_token(true, Token, Config, Spec).
+    auth_with_token(success, Token, Config, Spec),
+    auth_with_token(success, Token, Config, Spec),
+    auth_with_token(success, Token, Config, Spec).
 
 token_auth_fails_when_token_is_wrong(Config) ->
     %% New token is not set, but we try to login with a wrong one
     #{spec := Spec} = connect_and_ask_for_token(Config),
     Token = <<"wrongtoken">>,
-    auth_with_token(false, Token, Config, Spec).
+    auth_with_token(failure, Token, Config, Spec).
 
 token_auth_fails_when_token_is_not_found(Config) ->
     %% New token is not set
     Steps = [start_new_user, receive_features],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     Token = <<"wrongtoken">>,
-    auth_with_token(false, Token, Config, Spec).
+    auth_with_token(failure, Token, Config, Spec).
 
 %% 3.5 Server initiates token rotation
 %% If client connects with the `current' token (and it is about to expire), we
@@ -154,9 +154,11 @@ server_initiates_token_rotation(Config) ->
     %% Set almost expiring token into the new slot
     Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech],
     ok = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, store_new_token, Args),
-    Res = auth_with_token(true, Token, Config, Spec),
-    %% TODO finish writing this, when we have a mechanism to set token into the current slot
-    ok.
+    ConnectRes = auth_with_token(success, Token, Config, Spec),
+    #{token := NewToken} = parse_connect_result(ConnectRes),
+    ?assertNotEqual(Token, NewToken),
+    %% Can use new token
+    auth_with_token(success, NewToken, Config, Spec).
 
 %%--------------------------------------------------------------------
 %% helpers
@@ -165,7 +167,10 @@ server_initiates_token_rotation(Config) ->
 connect_and_ask_for_token(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
              receive_features],
-    #{answer := Success, spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
+    ConnectRes = sasl2_helper:apply_steps(Steps, Config),
+    parse_connect_result(ConnectRes).
+
+parse_connect_result(#{answer := Success, spec := Spec}) ->
     ?assertMatch(#xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
@@ -195,10 +200,10 @@ auth_with_token(Success, Token, Config, Spec) ->
     Res = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
     #{answer := Answer} = Res,
     case Success of
-        true ->
+        success ->
             ?assertMatch(#xmlel{name = <<"success">>,
                                 attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Answer);
-        false ->
+        failure ->
             ?assertMatch(#xmlel{name = <<"failure">>,
                                 attrs = [{<<"xmlns">>, ?NS_SASL_2}],
                                 children = [#xmlel{name = <<"not-authorized">>}]},
@@ -206,12 +211,12 @@ auth_with_token(Success, Token, Config, Spec) ->
     end,
     Res.
 
-steps(true) ->
+steps(success) ->
     [connect_tls, start_stream_get_features,
      {?MODULE, auth_using_token},
      receive_features,
      has_no_more_stanzas];
-steps(false) ->
+steps(failure) ->
     [connect_tls, start_stream_get_features,
      {?MODULE, auth_using_token}].
 
