@@ -73,8 +73,6 @@ where the `tls.disconnect_on_failure` is a boolean with the following meaning on
 * `false` - the connection isn't closed, but the certificate is not returned if it's invalid.
   This leads to an authentication failure but allows the client to choose a different auth method if available.
 
-For `fast_tls` backend, the configuration is the same, only the `disconnect_on_failure` is ignored.
-
 #### Self-signed certificates for WS or BOSH
 
 In order to accept self-signed certs for WS or BOSH connections, the `tls` options for `http` listener must have the following configured:

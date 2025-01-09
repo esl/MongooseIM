@@ -1176,8 +1176,7 @@ test_just_tls_common(P, T) ->
     ?err(T(M#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
     ?err(T(M#{<<"keyfile">> => <<"no_such_file.pem">>})),
     ?err(T(M#{<<"password">> => false})),
-    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})),
-    ?err(T(M#{<<"protocol_options">> => [<<"nosslv2">>]})). % only for fast_tls
+    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})).
 
 test_just_tls_client_sni(ParentP, ParentT) ->
     P = ParentP ++ [server_name_indication],

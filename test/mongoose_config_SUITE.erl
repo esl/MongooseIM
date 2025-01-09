@@ -207,12 +207,7 @@ do_start_slave_node() ->
     %% /usr/lib/erlang/lib/
     %% So add_paths is NOT enough here
     ok = rpc:call(SlaveNode, code, add_pathsa, [lists:reverse(code_paths())]),
-    check_that_p1_tls_is_correct(SlaveNode),
     SlaveNode.
-
-check_that_p1_tls_is_correct(SlaveNode) ->
-    ?assertEqual(fast_tls:module_info(md5),
-                 rpc:call(SlaveNode, fast_tls, module_info, [md5])).
 
 stop_slave_node(Config) ->
     ct_slave:stop(slave_node(Config)),
