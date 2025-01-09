@@ -37,10 +37,10 @@ init(HostType, _Opts) ->
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
-        AgentId :: mod_token:agent_id(),
-        ExpireTS :: mod_token:seconds(),
-        Token :: mod_token:token(),
-        Mech :: mod_token:mechanism().
+        AgentId :: mod_fast_auth_token:agent_id(),
+        ExpireTS :: mod_fast_auth_token:seconds(),
+        Token :: mod_fast_auth_token:token(),
+        Mech :: mod_fast_auth_token:mechanism().
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
     Key = [LServer, LUser, AgentId],
     Upd = [Token, ExpireTS, 0, mech_id(Mech)],

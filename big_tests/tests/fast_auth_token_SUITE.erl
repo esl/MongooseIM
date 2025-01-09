@@ -140,6 +140,8 @@ token_auth_fails_when_token_is_not_found(Config) ->
 %%
 %% If client connects with the `new' token (and it is about to expire), we
 %% should set this token into the `current' position and generate a `new' token.
+%%
+%% Output from server is in the same format as for the regular token request.
 server_initiates_token_rotation(Config) ->
     Steps = [start_new_user],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),

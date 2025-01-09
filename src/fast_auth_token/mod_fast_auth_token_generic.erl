@@ -37,12 +37,12 @@ mech_step(#state{creds = Creds, agent_id = AgentId, mechanism = Mech}, Serialize
             ?LOG_ERROR(#{what => mech_step, token_data => TokenData}),
             CBData = <<>>,
             case handle_auth(TokenData, InitiatorHashedToken, CBData, Mech) of
-                {true, TokenType} ->
+                {true, TokenSlot} ->
                     {ok, mongoose_credentials:extend(Creds,
                                                      [{username, LUser},
                                                       {auth_module, ?MODULE},
-                                                      {token_type_used, TokenType},
-                                                      {token_data, TokenData}])};
+                                                      {fast_token_slot_used, TokenSlot},
+                                                      {fast_token_data, TokenData}])};
                 false ->
                     {error, <<"not-authorized">>}
             end;
@@ -61,6 +61,11 @@ mech_step(#state{creds = Creds, agent_id = AgentId, mechanism = Mech}, Serialize
 %% If the client's provided token does not match the token in the 'new' slot,
 %% or if the 'new' slot is empty, compare against the token
 %% in the 'current' slot (if any).
+-spec handle_auth(Data :: mod_fast_auth_token:tokens_data(),
+                  InitiatorHashedToken :: binary(),
+                  CBData :: binary(),
+                  Mech :: mod_fast_auth_token:mechanism()) ->
+      {true, Slot :: mod_fast_auth_token:token_slot()} | false.
 handle_auth(#{
         now_timestamp := NowTimestamp,
         current_token := CurrentToken,

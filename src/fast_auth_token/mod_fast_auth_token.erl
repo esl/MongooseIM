@@ -36,10 +36,11 @@
 -type validity_type() :: days | hours | minutes | seconds.
 -type period() :: #{value := non_neg_integer(),
                     unit := days | hours | minutes | seconds}.
--type token_type() :: access.
+-type token_type() :: access | rotate_before_expire.
+-type token_slot() :: new | current.
 
 -export_type([tokens_data/0, seconds/0, counter/0, token/0, agent_id/0,
-              mechanism/0]).
+              mechanism/0, token_slot/0]).
 
 -type tokens_data() :: #{
         now_timestamp := seconds(),
@@ -81,8 +82,10 @@ config_spec() ->
 
 validity_periods_spec() ->
     #section{
-       items = #{<<"access">> => validity_period_spec()},
-       defaults = #{<<"access">> => #{value => 3, unit => days}},
+       items = #{<<"access">> => validity_period_spec(),
+                 <<"rotate_before_expire">> => validity_period_spec()},
+       defaults = #{<<"access">> => #{value => 3, unit => days},
+                    <<"rotate_before_expire">> => #{value => 6, unit => hours}},
        include = always
       }.
 
@@ -166,20 +169,91 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
                  creds => format_term(Creds)}),
     #{c2s_data := C2SData} = C2SStateData,
     #jid{luser = LUser, lserver = LServer} = mongoose_c2s:get_jid(C2SData),
-    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
-        undefined ->
+    case check_if_should_add_token(HostType, SaslAcc, Creds) of
+        skip ->
             {ok, SaslAcc};
-        #{request := Request} ->
+        {ok, Mech} ->
             AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
             %% Attach Token to the response to be used to authentificate
-            Response = make_fast_token_response(HostType, LServer, LUser, Request, AgentId),
+            Response = make_fast_token_response(HostType, LServer, LUser, Mech, AgentId),
             SaslAcc2 = mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Response, success),
             {ok, SaslAcc2}
     end.
 
+-spec check_if_should_add_token(HostType :: mongooseim:host_type(),
+                                SaslAcc :: mongoose_acc:t(),
+                                Creds :: mongoose_credentials:t()) ->
+    skip | {ok, mechanism()}.
+check_if_should_add_token(HostType, SaslAcc, Creds) ->
+    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
+        undefined ->
+            maybe_auto_rotate(HostType, SaslAcc, Creds);
+        #{request := Request} ->
+            AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
+            Mech = exml_query:attr(Request, <<"mechanism">>),
+            {ok, Mech}
+    end.
+
+-spec maybe_auto_rotate(HostType :: mongooseim:host_type(),
+                        SaslAcc :: mongoose_acc:t(),
+                        Creds :: mongoose_credentials:t()) ->
+    skip | {ok, mechanism()}.
+maybe_auto_rotate(HostType, SaslAcc, Creds) ->
+    %% Creds could contain data from mod_fast_auth_token_generic
+    SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
+    DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
+    case user_used_token_to_login(SlotUsed) of
+        true ->
+            case is_used_token_about_to_expire(HostType, SlotUsed, DataUsed) of
+                true ->
+                    {ok, data_used_to_mech_type(SlotUsed, DataUsed)};
+                false ->
+                    skip
+            end;
+        false ->
+            skip
+    end.
+
+-spec is_used_token_about_to_expire(HostType :: mongooseim:host_type(),
+                                    SlotUsed :: token_slot(),
+                                    DataUsed :: tokens_data()) -> boolean().
+is_used_token_about_to_expire(HostType, SlotUsed, DataUsed) ->
+    is_timestamp_about_to_expire(HostType,
+                                 slot_to_expire_timestamp(SlotUsed, DataUsed)).
+
+-spec is_timestamp_about_to_expire(HostType :: mongooseim:host_type(),
+                                   Timestamp :: seconds()) -> boolean().
+is_timestamp_about_to_expire(HostType, Timestamp) ->
+    Now = utc_now_as_seconds(),
+    TimeBeforRotate = get_time_to_rotate_before_expire_seconds(HostType),
+    SecondsBeforeExpire = Timestamp - Now,
+    SecondsBeforeExpire =< TimeBeforRotate.
+
+-spec user_used_token_to_login(token_slot() | undefined) -> boolean().
+user_used_token_to_login(SlotUsed) ->
+    undefined =/= SlotUsed.
+
+-spec slot_to_expire_timestamp(Slot :: token_slot(), Data :: tokens_data()) -> seconds().
+slot_to_expire_timestamp(new, #{new_expire := Timestamp}) ->
+    Timestamp;
+slot_to_expire_timestamp(current, #{current_expire := Timestamp}) ->
+    Timestamp.
+
+-spec data_used_to_mech_type(SlotUsed :: token_slot(),
+                             DataUsed :: tokens_data()) -> Mech :: mechanism().
+data_used_to_mech_type(new, #{new_mech := Mech}) ->
+    Mech;
+data_used_to_mech_type(current, #{current_mech := Mech}) ->
+    Mech.
+
 %% Generate expirable auth token and store it in DB
-make_fast_token_response(HostType, LServer, LUser, Request, AgentId) ->
-    Mech = exml_query:attr(Request, <<"mechanism">>),
+-spec make_fast_token_response(HostType, LServer, LUser, Mech, AgentId) -> exml:element()
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: agent_id(),
+        Mech :: mechanism().
+make_fast_token_response(HostType, LServer, LUser, Mech, AgentId) ->
     TTLSeconds = get_ttl_seconds(HostType),
     NowTS = ?MODULE:utc_now_as_seconds(),
     ExpireTS = NowTS + TTLSeconds,
@@ -202,6 +276,11 @@ utc_now_as_seconds() ->
 -spec get_ttl_seconds(mongooseim:host_type()) -> seconds().
 get_ttl_seconds(HostType) ->
     #{value := Value, unit := Unit} = get_validity_period(HostType, access),
+    period_to_seconds(Value, Unit).
+
+-spec get_time_to_rotate_before_expire_seconds(mongooseim:host_type()) -> seconds().
+get_time_to_rotate_before_expire_seconds(HostType) ->
+    #{value := Value, unit := Unit} = get_validity_period(HostType, rotate_before_expire),
     period_to_seconds(Value, Unit).
 
 -spec get_validity_period(mongooseim:host_type(), token_type()) -> period().

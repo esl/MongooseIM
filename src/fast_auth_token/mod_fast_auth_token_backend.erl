@@ -14,10 +14,10 @@
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
-        AgentId :: mod_token:agent_id(),
-        ExpireTS :: mod_token:seconds(),
-        Token :: mod_token:token(),
-        Mech :: mod_token:mechanism().
+        AgentId :: mod_fast_auth_token:agent_id(),
+        ExpireTS :: mod_fast_auth_token:seconds(),
+        Token :: mod_fast_auth_token:token(),
+        Mech :: mod_fast_auth_token:mechanism().
 
 -callback read_tokens(HostType, LServer, LUser, AgentId) ->
       {ok, mod_fast_auth_token:tokens_data()} | {error, not_found}
@@ -43,10 +43,10 @@ init(HostType, Opts) ->
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
-        AgentId :: mod_token:agent_id(),
-        ExpireTS :: mod_token:seconds(),
-        Token :: mod_token:token(),
-        Mech :: mod_token:mechanism().
+        AgentId :: mod_fast_auth_token:agent_id(),
+        ExpireTS :: mod_fast_auth_token:seconds(),
+        Token :: mod_fast_auth_token:token(),
+        Mech :: mod_fast_auth_token:mechanism().
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
     Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
