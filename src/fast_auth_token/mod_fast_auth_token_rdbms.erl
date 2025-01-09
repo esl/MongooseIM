@@ -3,7 +3,7 @@
 -include("mongoose_logger.hrl").
 
 -export([init/2,
-         store_new_token/7,
+         store_new_token/8,
          read_tokens/4,
          remove_user/3,
          remove_domain/2]).
@@ -12,10 +12,8 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, _Opts) ->
-    Key = [<<"server">>, <<"username">>, <<"user_agent_id">>],
-    Upd = [<<"new_token">>, <<"new_expire">>, <<"new_count">>, <<"new_mech_id">>],
-    Ins = Key ++ Upd,
-    rdbms_queries:prepare_upsert(HostType, fast_upsert, fast_auth_token, Ins, Upd, Key),
+    prepare_upsert(HostType),
+    prepare_upsert_and_set_current(HostType),
     prepare(fast_select, fast_auth_token,
             [current_token, current_expire, current_count, current_mech_id,
              new_token, new_expire, new_count, new_mech_id],
@@ -33,19 +31,48 @@ init(HostType, _Opts) ->
             <<"DELETE FROM fast_auth_token WHERE server = ?">>),
     ok.
 
--spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) -> ok
+prepare_upsert(HostType) ->
+    Key = [<<"server">>, <<"username">>, <<"user_agent_id">>],
+    Upd = [<<"new_token">>, <<"new_expire">>, <<"new_count">>, <<"new_mech_id">>],
+    Ins = Key ++ Upd,
+    rdbms_queries:prepare_upsert(HostType, fast_upsert, fast_auth_token, Ins, Upd, Key).
+
+prepare_upsert_and_set_current(HostType) ->
+    Key = [<<"server">>, <<"username">>, <<"user_agent_id">>],
+    Upd = [<<"new_token">>, <<"new_expire">>, <<"new_count">>, <<"new_mech_id">>,
+           <<"current_token">>, <<"current_expire">>, <<"current_count">>, <<"current_mech_id">>],
+    Ins = Key ++ Upd,
+    rdbms_queries:prepare_upsert(HostType, fast_upsert_and_set_current, fast_auth_token, Ins, Upd, Key).
+
+-spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS,
+                      Token, Mech, SetCurrent) -> ok
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: mod_fast_auth_token:agent_id(),
         ExpireTS :: mod_fast_auth_token:seconds(),
         Token :: mod_fast_auth_token:token(),
-        Mech :: mod_fast_auth_token:mechanism().
-store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
+        Mech :: mod_fast_auth_token:mechanism(),
+        SetCurrent :: mod_fast_auth_token:set_current() | false.
+store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, false) ->
     Key = [LServer, LUser, AgentId],
     Upd = [Token, ExpireTS, 0, mech_id(Mech)],
     Ins = Key ++ Upd,
     rdbms_queries:execute_upsert(HostType, fast_upsert, Ins, Upd, Key),
+    ok;
+store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent) ->
+    %% Move new_token into the current_token slot
+    %% We pass data directly instead of checking from the database to avoid
+    %% race conditions
+    #{current_token := CurrentToken,
+      current_expire := CurrentExpire,
+      current_count := CurrentCount,
+      current_mech := CurrentMechId} = SetCurrent,
+    Key = [LServer, LUser, AgentId],
+    Upd = [Token, ExpireTS, 0, mech_id(Mech),
+           CurrentToken, CurrentExpire, CurrentCount, mech_id(CurrentMechId)],
+    Ins = Key ++ Upd,
+    rdbms_queries:execute_upsert(HostType, fast_upsert_and_set_current, Ins, Upd, Key),
     ok.
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->

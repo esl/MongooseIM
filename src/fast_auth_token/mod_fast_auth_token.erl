@@ -41,7 +41,7 @@
 -type add_reason() :: requested | auto_rotate.
 
 -export_type([tokens_data/0, seconds/0, counter/0, token/0, agent_id/0,
-              mechanism/0, token_slot/0]).
+              mechanism/0, token_slot/0, set_current/0]).
 
 -type tokens_data() :: #{
         now_timestamp := seconds(),
@@ -53,6 +53,13 @@
         new_expire := seconds() | undefined,
         new_count := counter() | undefined,
         new_mech := mechanism() | undefined
+    }.
+
+-type set_current() :: #{
+        current_token := token(),
+        current_expire := seconds(),
+        current_count := counter(),
+        current_mech := mechanism()
     }.
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -176,7 +183,7 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
         {ok, Mech, AddReason} ->
             AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
             %% Attach Token to the response to be used to authentificate
-            Response = make_fast_token_response(HostType, LServer, LUser, Mech, AgentId),
+            Response = make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds),
             SaslAcc2 = maybe_init_inline_request(AddReason, SaslAcc),
             SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?MODULE, Response, success),
             {ok, SaslAcc3}
@@ -261,22 +268,48 @@ maybe_init_inline_request(auto_rotate, SaslAcc) ->
     mod_sasl2:put_inline_request(SaslAcc, ?MODULE, #xmlel{name = <<"auto">>}).
 
 %% Generate expirable auth token and store it in DB
--spec make_fast_token_response(HostType, LServer, LUser, Mech, AgentId) -> exml:element()
+-spec make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) -> exml:element()
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: agent_id(),
-        Mech :: mechanism().
-make_fast_token_response(HostType, LServer, LUser, Mech, AgentId) ->
+        Mech :: mechanism(),
+        Creds :: mongoose_credentials:t().
+make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) ->
     TTLSeconds = get_ttl_seconds(HostType),
     NowTS = ?MODULE:utc_now_as_seconds(),
     ExpireTS = NowTS + TTLSeconds,
     Expire = seconds_to_binary(ExpireTS),
     Token = ?MODULE:generate_unique_token(),
-    store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech),
+    SetCurrent = maybe_set_current_slot(Creds),
+    store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent),
     #xmlel{name = <<"token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST}, {<<"expire">>, Expire},
                     {<<"token">>, Token}]}.
+
+-spec maybe_set_current_slot(Creds :: mongoose_credentials:t()) ->
+    SetCurrent :: set_current().
+maybe_set_current_slot(Creds) ->
+    %% Creds could contain data from mod_fast_auth_token_generic
+    SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
+    DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
+    case SlotUsed of
+        new ->
+            token_data_to_set_current(DataUsed);
+        _ ->
+            false
+    end.
+
+-spec token_data_to_set_current(DataUsed :: tokens_data()) -> set_current().
+token_data_to_set_current(#{
+        new_token := Token,
+        new_expire := Expire,
+        new_count := Counter,
+        new_mech := Mech}) ->
+    #{current_token => Token,
+      current_expire => Expire,
+      current_count => Counter,
+      current_mech => Mech}.
 
 -spec seconds_to_binary(seconds()) -> binary().
 seconds_to_binary(Secs) ->
@@ -311,17 +344,19 @@ period_to_seconds(Seconds, seconds) -> Seconds.
 generate_unique_token() ->
     base64:encode(crypto:strong_rand_bytes(25)).
 
--spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) -> ok
+-spec store_new_token(HostType, LServer, LUser, AgentId, ExpireTS,
+                      Token, Mech, SetCurrent) -> ok
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: agent_id(),
         ExpireTS :: seconds(),
         Token :: token(),
-        Mech :: mechanism().
-store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech) ->
+        Mech :: mechanism(),
+        SetCurrent :: set_current() | false.
+store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent) ->
     mod_fast_auth_token_backend:store_new_token(
-        HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech).
+        HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent).
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->
    {ok, tokens_data()} | {error, not_found}

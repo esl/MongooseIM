@@ -33,7 +33,8 @@ groups() ->
        client_authenticate_several_times_with_the_same_token,
        token_auth_fails_when_token_is_wrong,
        token_auth_fails_when_token_is_not_found,
-       server_initiates_token_rotation
+       server_initiates_token_rotation,
+       could_still_use_old_token_when_server_initiates_token_rotation
       ]}
     ].
 
@@ -143,6 +144,20 @@ token_auth_fails_when_token_is_not_found(Config) ->
 %%
 %% Output from server is in the same format as for the regular token request.
 server_initiates_token_rotation(Config) ->
+    #{new_token := NewToken, spec := Spec} = connect_with_almost_expired_token(Config),
+    %% Can use new token
+    auth_with_token(success, NewToken, Config, Spec).
+
+could_still_use_old_token_when_server_initiates_token_rotation(Config) ->
+    #{old_token := OldToken, spec := Spec} = connect_with_almost_expired_token(Config),
+    %% Can still use old token
+    auth_with_token(success, OldToken, Config, Spec).
+
+%%--------------------------------------------------------------------
+%% helpers
+%%--------------------------------------------------------------------
+
+connect_with_almost_expired_token(Config) ->
     Steps = [start_new_user],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
@@ -152,17 +167,12 @@ server_initiates_token_rotation(Config) ->
     Mech = <<"HT-SHA-256-NONE">>,
     ExpireTS = erlang:system_time(second) + 600, %% 10 minutes into the future
     %% Set almost expiring token into the new slot
-    Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech],
+    Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, false],
     ok = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, store_new_token, Args),
     ConnectRes = auth_with_token(success, Token, Config, Spec),
     #{token := NewToken} = parse_connect_result(ConnectRes),
     ?assertNotEqual(Token, NewToken),
-    %% Can use new token
-    auth_with_token(success, NewToken, Config, Spec).
-
-%%--------------------------------------------------------------------
-%% helpers
-%%--------------------------------------------------------------------
+    #{new_token => NewToken, spec => Spec, old_token => Token}.
 
 connect_and_ask_for_token(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_request_token},
