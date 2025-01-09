@@ -340,7 +340,7 @@ no_cert_fails_to_authenticate(_C) ->
                 {port, ct:get_config({hosts, mim, c2s_port})},
                 {password, <<"break_me">>},
                 {resource, <<>>}, %% Allow the server to generate the resource
-                {auth, {escalus_auth, auth_sasl_external}},
+                {auth, fun escalus_auth:auth_sasl_external/2},
                 {starttls, required},
                 {ssl_opts, [{fail_if_no_peer_cert, false}, {verify, verify_none}]}],
 
@@ -379,7 +379,7 @@ generate_user(C, User, Transport) ->
               {host, <<"localhost">>},
               {password, <<"break_me">>},
               {resource, <<>>}, %% Allow the server to generate the resource
-              {auth, {escalus_auth, auth_sasl_external}},
+              {auth, fun escalus_auth:auth_sasl_external/2},
               {transport, Transport},
               {ssl_opts, [{verify, verify_none},
                           {versions, ['tlsv1.2']},
