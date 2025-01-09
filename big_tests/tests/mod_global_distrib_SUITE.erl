@@ -233,7 +233,7 @@ set_opts(defaults, Opts) ->
 set_opts(connections, #{connections := ConnExtra} = Opts) ->
     TLSOpts = config([modules, mod_global_distrib, connections, tls],
                      #{certfile => "priv/ssl/fake_server.pem",
-                       cacertfile => "priv/ssl/ca/cacert.pem"}),
+                       cacertfile => "priv/ssl/cacert.pem"}),
     Opts#{connections := config([modules, mod_global_distrib, connections],
                                 maps:merge(#{tls => TLSOpts}, ConnExtra))};
 set_opts(redis, #{redis := RedisExtra} = Opts) ->
