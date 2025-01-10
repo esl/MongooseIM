@@ -80,4 +80,3 @@ peername(#?MODULE{transport = just_tls, socket = Socket}) ->
     {inet:ip_address(), inet:port_number()} | unknown.
 normalize_peername({ok, {IP, Port}}) when is_tuple(IP), is_integer(Port) -> {IP, Port};
 normalize_peername(_Other) -> unknown.
-

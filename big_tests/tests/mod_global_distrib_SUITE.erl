@@ -520,8 +520,8 @@ test_instrumentation_events_on_one_host(Config) ->
     escalus_client:stop(Config1, Alice),
     escalus_client:stop(Config1, Eve),
 
-    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{},
-                                      fun(#{count := 1, host := undefined}) -> true end).
+    CheckF = fun(#{count := C, host := H}) -> C =:= 1 andalso H =:= Host end,
+    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{}, CheckF).
 
 test_muc_conversation_history(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
