@@ -59,15 +59,13 @@
 
 %% transport API
 -export([connect/5, close/1, send_text/2, send_element/2]).
--export([wait_for_tls_handshake/2, connect_tls/2]).
--export([peername/1]).
--export([get_all_trasport_processes/0]).
+-export([connect_tls/2, peername/1, get_all_trasport_processes/0]).
 
 %% gen_server API
 -export([start_link/3, init/1, terminate/2,
          handle_cast/2, handle_call/3, handle_info/2]).
 
--ignore_xref([start_link/3, get_all_trasport_processes/0, wait_for_tls_handshake/2]).
+-ignore_xref([start_link/3, get_all_trasport_processes/0]).
 
 %%----------------------------------------------------------------------
 %% Transport API
@@ -116,11 +114,6 @@ connect(ConnectionType, Addr, Port, Opts, Timeout) ->
 -spec close(socket_data()) -> ok.
 close(#socket_data{receiver = Receiver}) ->
     gen_server:cast(Receiver, close).
-
--spec wait_for_tls_handshake(socket_data(), mongoose_tls:options()) -> socket_data().
-wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
-    tcp_to_tls(Receiver, TLSOpts#{connect => false}),
-    update_socket(SocketData).
 
 -spec connect_tls(socket_data(), mongoose_tls:options()) -> socket_data().
 connect_tls(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
