@@ -41,14 +41,8 @@ instrumentation(HostType, Acc) when is_binary(HostType) ->
 %% mongoose_listener
 -spec start_listener(mongoose_listener:options()) -> {ok, supervisor:child_spec()}.
 start_listener(Opts) ->
-    HostTypes = ?ALL_HOST_TYPES,
-    TransportOpts = mongoose_listener:prepare_socket_opts(Opts),
-    ListenerId = mongoose_listener_config:listener_id(Opts),
-    maybe_add_access_check(HostTypes, Opts, ListenerId),
-    ChildSpec = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, ?MODULE, Opts),
-    ChildSpec1 = ChildSpec#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
     maybe_add_access_check_hooks(Opts),
-    {ok, ChildSpec1}.
+    {ok, mongoose_listener:child_spec(Opts)}.
 
 %% ranch_protocol
 -spec start_link(ranch:ref(), mongoose_listener:transport_module(), mongoose_listener:options()) ->

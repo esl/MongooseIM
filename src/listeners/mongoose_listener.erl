@@ -12,7 +12,7 @@
 -ignore_xref([start_listener/1, stop_listener/1]).
 
 %% Helpers
--export([listener_id/1, prepare_socket_opts/1, element_spirals/0]).
+-export([child_spec/1, read_connection_details/3, listener_id/1, element_spirals/0]).
 
 -callback start_listener(options()) -> {ok, supervisor:child_spec()}.
 -callback instrumentation(options()) -> [mongoose_instrument:spec()].
@@ -22,11 +22,15 @@
                      ip_tuple := inet:ip_address(),
                      ip_address := string(),
                      ip_version := inet:address_family(),
-                     proto := proto(),
-                     any() := any()}.
--type id() :: {inet:port_number(), inet:ip_address(), proto()}.
--type proto() :: tcp.
+                     proto := tcp,
+                     module := module(),
+                     connection_type := atom(),
+                     hibernate_after := timeout(),
+                     atom() => any()}.
+-type id() :: {inet:port_number(), inet:ip_address(), tcp}.
+-type transport_module() :: ranch_tcp | ranch_ssl.
 -type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
+-type init_args() :: {ranch:ref(), transport_module(), options()}.
 
 -type connection_details() :: #{
         proxy        := boolean(),
@@ -37,7 +41,7 @@
         dest_port    := inet:port_number()
        }.
 
--export_type([options/0, connection_details/0, id/0, proto/0]).
+-export_type([options/0, init_args/0, transport_module/0, connection_details/0, id/0]).
 
 %% API
 
@@ -157,19 +161,66 @@ element_spirals() ->
     [count, stanza_count, message_count, iq_count, presence_count,
      error_count, message_error_count, iq_error_count, presence_error_count].
 
+-spec read_connection_details(ranch:ref(), transport_module(), options()) ->
+    {ok, inet:socket() | ssl:sslsocket(), connection_details()} | {error, term()}.
+read_connection_details(Ref, _Transport, #{proxy_protocol := true}) ->
+    {ok, #{src_address := PeerIp, src_port := PeerPort, dest_address := DestAddr,
+           dest_port := DesPort, version := Version}} = ranch:recv_proxy_header(Ref, 1000),
+    {ok, Socket} = ranch:handshake(Ref),
+    {ok, Socket, #{proxy => true,
+                   src_address => PeerIp,
+                   src_port => PeerPort,
+                   dest_address => DestAddr,
+                   dest_port => DesPort,
+                   version => Version}};
+read_connection_details(Ref, ranch_tcp, _Opts) ->
+    {ok, Socket} = ranch:handshake(Ref),
+    {ok, {DestAddr, DestPort}} = ranch_tcp:sockname(Socket),
+    {ok, {SrcAddr, SrcPort}} = ranch_tcp:peername(Socket),
+    ranch_tcp:setopts(Socket, [{active, once}]),
+    {ok, Socket, #{proxy => false,
+                   src_address => SrcAddr,
+                   src_port => SrcPort,
+                   dest_address => DestAddr,
+                   dest_port => DestPort}};
+read_connection_details(Ref, ranch_ssl, _Opts) ->
+    {ok, Socket} = ranch:handshake(Ref),
+    {ok, {DestAddr, DestPort}} = ranch_ssl:sockname(Socket),
+    {ok, {SrcAddr, SrcPort}} = ranch_ssl:peername(Socket),
+    ranch_ssl:setopts(Socket, [{active, once}]),
+    {ok, Socket, #{proxy => false,
+                   src_address => SrcAddr,
+                   src_port => SrcPort,
+                   dest_address => DestAddr,
+                   dest_port => DestPort}}.
+
 %% @doc Create a unique ID based on the listening socket address
 -spec listener_id(options()) -> id().
 listener_id(#{port := Port, ip_tuple := IPTuple, proto := Proto}) ->
     {Port, IPTuple, Proto}.
 
--spec prepare_socket_opts(map()) -> map().
-prepare_socket_opts(#{port := Port,
-                      ip_version := IPVersion,
-                      ip_tuple := IPTuple,
-                      backlog := Backlog,
-                      num_acceptors := NumAcceptors,
-                      max_connections := MaxConnections,
-                      reuse_port := ReusePort}) ->
+-spec child_spec(options()) -> supervisor:child_spec().
+child_spec(#{module := Module} = Opts) ->
+    ListenerId = listener_id(Opts),
+    TransportModule = transport_module(Opts),
+    TransportOpts = transport_opts(Opts),
+    #{} = ChildSpec = ranch:child_spec(ListenerId, TransportModule, TransportOpts, Module, Opts),
+    ChildSpec#{id => ListenerId, modules => [Module, ranch_embedded_sup]}.
+
+-spec transport_module(#{tls => any(), _ => _}) -> transport_module().
+transport_module(#{tls := #{mode := tls}}) ->
+    ranch_ssl;
+transport_module(_) ->
+    ranch_tcp.
+
+-spec transport_opts(map()) -> map().
+transport_opts(#{port := Port,
+                 ip_version := IPVersion,
+                 ip_tuple := IPTuple,
+                 backlog := Backlog,
+                 num_acceptors := NumAcceptors,
+                 max_connections := MaxConnections,
+                 reuse_port := ReusePort} = Opts) ->
     SocketOpts = [{nodelay, true},
                   {keepalive, true},
                   {ip, IPTuple},
@@ -177,13 +228,23 @@ prepare_socket_opts(#{port := Port,
                   {backlog, Backlog},
                   IPVersion
                   | maybe_reuseport(ReusePort)],
-    #{max_connections => MaxConnections,
-      num_acceptors => NumAcceptors,
-      num_listen_sockets => num_listen_sockets(ReusePort),
-      socket_opts => SocketOpts}.
+    TransportOpts = #{max_connections => MaxConnections,
+                      num_acceptors => NumAcceptors,
+                      num_listen_sockets => num_listen_sockets(ReusePort),
+                      socket_opts => SocketOpts},
+    maybe_tls_opts(Opts, TransportOpts).
 
+-spec maybe_tls_opts(map(), map()) -> map().
+maybe_tls_opts(#{tls := #{mode := tls} = TLSOpts}, #{socket_opts := SocketOpts} = TransportOpts) ->
+    SslSocketOpts = just_tls:make_cowboy_ssl_opts(TLSOpts),
+    TransportOpts#{socket_opts => SocketOpts ++ SslSocketOpts};
+maybe_tls_opts(_, TransportOpts) ->
+    TransportOpts.
+
+-spec maybe_reuseport(boolean()) -> list().
 maybe_reuseport(false) -> [];
 maybe_reuseport(true) -> [{reuseport, true}, {reuseport_lb, true}].
 
+-spec num_listen_sockets(boolean()) -> non_neg_integer().
 num_listen_sockets(false) -> 1;
 num_listen_sockets(true) -> erlang:system_info(schedulers_online).

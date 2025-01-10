@@ -12,10 +12,6 @@
 
 -type stanza_size() :: pos_integer() | infinity.
 
--type options() :: #{max_stanza_size := stanza_size(),
-                     hibernate_after := non_neg_integer(),
-                     atom() => any()}.
-
 -type socket_module() :: ranch_tcp | just_tls.
 -type socket() :: gen_tcp:socket() | ssl:sslsocket().
 
@@ -41,12 +37,13 @@
 %% transport API
 -export([close/1, send_text/2, send_element/2, peername/1, change_shaper/2,
          wait_for_tls_handshake/3, get_peer_certificate/1]).
--export([start_link/3, init/1, handle_continue/2,
+-export([start_link/2, init/1, handle_continue/2,
          handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
--spec start_link(ranch:ref(), module(), options()) -> {ok, pid()}.
-start_link(Ref, Transport, Opts) ->
-    {ok, _} = gen_server:start_link(?MODULE, {Ref, Transport, Opts}, []).
+-spec start_link(mongoose_listener:init_args(), [gen_server:start_opt()]) ->
+    gen_server:start_ret().
+start_link(Params, ProcOpts) ->
+    gen_server:start_link(?MODULE, Params, ProcOpts).
 
 -spec close(socket_data()) -> ok.
 close(#socket_data{receiver = Receiver}) ->
@@ -100,16 +97,18 @@ change_shaper(#socket_data{receiver = Receiver}, Shaper)  ->
 %%----------------------------------------------------------------------
 %% gen_server interfaces
 %%----------------------------------------------------------------------
-init({Ref, Transport, Opts}) ->
-    {ok, undefined, {continue, {do_handshake, Ref, Transport, Opts}}}.
+-spec init(mongoose_listener:init_args()) ->
+    {ok, undefined, {continue, {do_handshake, mongoose_listener:init_args()}}}.
+init(InitArgs) ->
+    {ok, undefined, {continue, {do_handshake, InitArgs}}}.
 
-handle_continue({do_handshake, Ref, Transport,
+handle_continue({do_handshake, {Ref, Transport,
                  #{shaper := Shaper,
                    max_stanza_size := MaxStanzaSize,
-                   hibernate_after := HibernateAfter} = Opts}, undefined) ->
+                   hibernate_after := HibernateAfter} = Opts}}, undefined) ->
     ShaperState = mongoose_shaper:new(Shaper),
     Parser = new_parser(MaxStanzaSize),
-    {ok, Socket, ConnectionDetails} = read_connection_details(Ref, Transport, Opts),
+    {ok, Socket, ConnectionDetails} = mongoose_listener:read_connection_details(Ref, Transport, Opts),
     SocketData = #socket_data{sockmod = Transport,
                               socket = Socket,
                               receiver = self(),
@@ -217,28 +216,6 @@ gen_server_call_or_noproc(Pid, Message) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
-
--spec read_connection_details(ranch:ref(), module(), map()) ->
-    {ok, ranch_transport:socket(), mongoose_listener:connection_details()} | {error, term()}.
-read_connection_details(Ref, _Transport, #{proxy_protocol := true}) ->
-    {ok, #{src_address := PeerIp, src_port := PeerPort, dest_address := DestAddr,
-           dest_port := DesPort, version := Version}} = ranch:recv_proxy_header(Ref, 1000),
-    {ok, Socket} = ranch:handshake(Ref),
-    {ok, Socket, #{proxy => true,
-                   src_address => PeerIp,
-                   src_port => PeerPort,
-                   dest_address => DestAddr,
-                   dest_port => DesPort,
-                   version => Version}};
-read_connection_details(Ref, Transport, _Opts) ->
-    {ok, Socket} = ranch:handshake(Ref),
-    {ok, {DestAddr, DestPort}} = Transport:sockname(Socket),
-    {ok, {SrcAddr, SrcPort}} = Transport:peername(Socket),
-    {ok, Socket, #{proxy => false,
-                   src_address => SrcAddr,
-                   src_port => SrcPort,
-                   dest_address => DestAddr,
-                   dest_port => DestPort}}.
 
 -spec activate_socket(state()) -> 'ok' | {'tcp_closed', _}.
 activate_socket(#state{socket = Socket, sockmod = ranch_tcp}) ->

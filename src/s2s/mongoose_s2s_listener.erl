@@ -24,12 +24,7 @@ instrumentation(_) ->
 %% mongoose_listener
 -spec start_listener(mongoose_listener:options()) -> {ok, supervisor:child_spec()}.
 start_listener(Opts) ->
-    TransportOpts0 = mongoose_listener:prepare_socket_opts(Opts),
-    TransportOpts = TransportOpts0#{connection_type => supervisor},
-    ListenerId = mongoose_listener_config:listener_id(Opts),
-    ChildSpec0 = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, ?MODULE, Opts),
-    ChildSpec1 = ChildSpec0#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
-    {ok, ChildSpec1}.
+    {ok, mongoose_listener:child_spec(Opts)}.
 
 %% ranch_protocol
 -spec start_link(ranch:ref(), mongoose_listener:transport_module(), mongoose_listener:options()) ->

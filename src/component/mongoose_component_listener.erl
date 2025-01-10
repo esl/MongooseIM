@@ -37,27 +37,11 @@ instrumentation(_) ->
 %% mongoose_listener
 -spec start_listener(options()) -> {ok, supervisor:child_spec()}.
 start_listener(Opts) ->
-    TransportModule = transport_module(Opts),
-    TransportOpts0 = mongoose_listener:prepare_socket_opts(Opts),
-    TransportOpts = maybe_tls_opts(Opts, TransportOpts0),
-    ListenerId = mongoose_listener_config:listener_id(Opts),
-    ChildSpec0 = ranch:child_spec(ListenerId, TransportModule, TransportOpts, ?MODULE, Opts),
-    ChildSpec1 = ChildSpec0#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
-    {ok, ChildSpec1}.
-
-transport_module(#{tls := _}) ->
-    ranch_ssl;
-transport_module(#{}) ->
-    ranch_tcp.
-
-maybe_tls_opts(#{tls := TLSOpts}, #{socket_opts := SocketOpts} = TransportOpts) ->
-    SslSocketOpts = just_tls:make_cowboy_ssl_opts(TLSOpts),
-    TransportOpts#{socket_opts => SocketOpts ++ SslSocketOpts};
-maybe_tls_opts(_, TransportOpts) ->
-    TransportOpts.
+    {ok, mongoose_listener:child_spec(Opts)}.
 
 %% ranch_protocol
--spec start_link(ranch:ref(), module(), mongoose_component_connection:listener_opts()) -> {ok, pid()}.
+-spec start_link(ranch:ref(), mongoose_listener:transport_module(), options()) ->
+    {ok, pid()}.
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
     mongoose_component_connection:start_link({mongoose_component_ranch, {Transport, Ref}, Opts}, ProcessOpts).
