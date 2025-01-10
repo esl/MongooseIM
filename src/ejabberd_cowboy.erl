@@ -41,7 +41,7 @@
 -export([start_cowboy/4, start_cowboy/2, stop_cowboy/1]).
 
 -ignore_xref([behaviour_info/1, process/1, ref/1, reload_dispatch/1, start_cowboy/2,
-              start_cowboy/4, start_link/1, start_listener/2, start_listener/1, stop/0, stop_cowboy/1]).
+              start_cowboy/4, start_link/1, start_listener/1, stop/0, stop_cowboy/1]).
 
 -include("mongoose.hrl").
 
@@ -67,7 +67,7 @@ instrumentation(#{handlers := Handlers}) ->
 
 -spec start_listener(listener_options()) -> ok.
 start_listener(Opts = #{proto := tcp}) ->
-    ListenerId = mongoose_listener_config:listener_id(Opts),
+    ListenerId = mongoose_listener:listener_id(Opts),
     Ref = ref(ListenerId),
     ChildSpec = #{id => ListenerId,
                   start => {?MODULE, start_link, [#cowboy_state{ref = Ref, opts = Opts}]},

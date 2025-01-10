@@ -58,7 +58,7 @@ start_listener(#{module := ?MODULE} = Opts) ->
 handle_user_open_session(Acc, #{c2s_data := StateData},
                          #{host_type := HostType, listener_id := ListenerId}) ->
     ListenerOpts = mongoose_c2s:get_listener_opts(StateData),
-    case mongoose_listener_config:listener_id(ListenerOpts) of
+    case mongoose_listener:listener_id(ListenerOpts) of
         ListenerId ->
             Jid = mongoose_c2s:get_jid(StateData),
             LServer = mongoose_c2s:get_lserver(StateData),

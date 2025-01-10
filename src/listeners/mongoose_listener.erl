@@ -1,18 +1,18 @@
 %% @doc Manage starting and stopping of configured listeners
 -module(mongoose_listener).
 
--include("mongoose.hrl").
-
-%% Only for tests
--export([start_listener/1, stop_listener/1]).
--ignore_xref([start_listener/1, stop_listener/1]).
+-include("mongoose_logger.hrl").
 
 %% API
 -export([start/0, stop/0]).
 -export([suspend_listeners_and_shutdown_connections/0]).
 
+%% Only for tests
+-export([start_listener/1, stop_listener/1]).
+-ignore_xref([start_listener/1, stop_listener/1]).
+
 %% Helpers
--export([prepare_socket_opts/1, element_spirals/0]).
+-export([listener_id/1, prepare_socket_opts/1, element_spirals/0]).
 
 -callback start_listener(options()) -> ok.
 -callback instrumentation(options()) -> [mongoose_instrument:spec()].
@@ -41,11 +41,13 @@
 
 %% API
 
+-spec start() -> ok.
 start() ->
     Listeners = mongoose_config:get_opt(listen),
     mongoose_instrument:set_up(instrumentation(Listeners)),
     lists:foreach(fun start_listener/1, Listeners).
 
+-spec stop() -> ok.
 stop() ->
     Listeners = mongoose_config:get_opt(listen),
     lists:foreach(fun stop_listener/1, Listeners),
@@ -66,7 +68,7 @@ start_listener(Opts = #{module := Module}) ->
     end.
 
 stop_listener(Opts) ->
-    ListenerId = mongoose_listener_config:listener_id(Opts),
+    ListenerId = listener_id(Opts),
     supervisor:terminate_child(mongoose_listener_sup, ListenerId),
     supervisor:delete_child(mongoose_listener_sup, ListenerId).
 
@@ -153,6 +155,11 @@ broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
 element_spirals() ->
     [count, stanza_count, message_count, iq_count, presence_count,
      error_count, message_error_count, iq_error_count, presence_error_count].
+
+%% @doc Create a unique ID based on the listening socket address
+-spec listener_id(options()) -> id().
+listener_id(#{port := Port, ip_tuple := IPTuple, proto := Proto}) ->
+    {Port, IPTuple, Proto}.
 
 -spec prepare_socket_opts(map()) -> map().
 prepare_socket_opts(#{port := Port,
