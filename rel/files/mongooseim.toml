@@ -367,16 +367,13 @@
   ]
 
 [s2s]
-  {{#s2s_use_starttls}}
-  use_starttls = {{{s2s_use_starttls}}}
-  {{/s2s_use_starttls}}
-  {{#s2s_certfile}}
-  certfile = {{{s2s_certfile}}}
-  {{/s2s_certfile}}
   {{#s2s_default_policy}}
   default_policy = {{{s2s_default_policy}}}
   {{/s2s_default_policy}}
   outgoing.port = {{{outgoing_s2s_port}}}
+  tls.mode = "starttls"
+  tls.verify_mode = "none"
+  tls.certfile = {{{s2s_certfile}}}
   {{#s2s_addr}}
 
   {{{s2s_addr}}}

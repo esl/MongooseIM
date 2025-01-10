@@ -747,31 +747,28 @@ default_auth() ->
 pgsql_s2s() ->
     Outgoing = (default_s2s_outgoing())#{port => 5299},
     (default_s2s())#{address => #{<<"fed1">> => #{ip_address => "127.0.0.1"}},
-                     certfile => "priv/server.pem",
-                     outgoing => Outgoing,
-                     use_starttls => optional}.
+                     outgoing => Outgoing}.
 
 custom_s2s() ->
+    Tls0 = #{cacertfile => "priv/ca.pem", server_name_indication => default_sni()},
+    Tls = maps:merge(default_xmpp_tls(), Tls0),
     #{address =>
           #{<<"fed1">> => #{ip_address => "127.0.0.1"},
             <<"fed2">> => #{ip_address => "127.0.0.1", port => 8765}},
-      certfile => "priv/server.pem",
-      ciphers => mongoose_tls:default_ciphers(),
+      tls => Tls,
       default_policy => allow,
       dns => #{retries => 1, timeout => 30},
       host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
       max_retry_delay => 30,
       outgoing => #{connection_timeout => 4000, ip_versions => [6, 4], port => 5299},
-      shared => <<"shared secret">>,
-      use_starttls => optional}.
+      shared => <<"shared secret">>}.
 
 default_s2s() ->
-    #{ciphers => mongoose_tls:default_ciphers(),
-      default_policy => allow,
-      dns => #{retries => 2, timeout => 10},
+    #{default_policy => allow,
       max_retry_delay => 300,
       outgoing => default_s2s_outgoing(),
-      use_starttls => false}.
+      dns => #{retries => 2, timeout => 10}
+     }.
 
 default_s2s_outgoing() ->
      #{connection_timeout => 10000,

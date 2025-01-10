@@ -125,8 +125,6 @@ handle_continue({do_handshake, Ref, Transport,
     {noreply, State, hibernate_or_timeout(State)}.
 
 handle_call({tcp_to_tls, TLSOpts}, From, #state{socket = TCPSocket} = State0) ->
-    %% TLS handshake always starts from client's request, let server finish starttls negotiation and
-    %% notify client that it can start TLS handshake.
     gen_server:reply(From, ok),
     case just_tls:tcp_to_tls(TCPSocket, TLSOpts) of
         {ok, TLSSocket} ->

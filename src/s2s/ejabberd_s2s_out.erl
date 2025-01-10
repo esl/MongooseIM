@@ -206,14 +206,8 @@ init([{From, Server} = FromTo, Type]) ->
                  text => <<"New outgoing s2s connection">>,
                  from => From, server => Server, type => Type}),
     {ok, HostType} = mongoose_domain_api:get_host_type(From),
-    {TLS, TLSRequired} = case mongoose_config:get_opt([{s2s, HostType}, use_starttls]) of
-              UseTls when (UseTls==false) ->
-                  {false, false};
-              UseTls when (UseTls==true) or (UseTls==optional) ->
-                  {true, false};
-              UseTls when (UseTls==required) or (UseTls==required_trusted) ->
-                  {true, true}
-          end,
+    TlsOpts = tls_options(HostType),
+    {TLS, TLSRequired} = get_tls_params(TlsOpts),
     UseV10 = TLS,
     {IsRegistered, Verify} = case Type of
                         new ->
@@ -226,7 +220,7 @@ init([{From, Server} = FromTo, Type]) ->
     {ok, open_socket, #state{use_v10 = UseV10,
                              tls = TLS,
                              tls_required = TLSRequired,
-                             tls_options = tls_options(HostType),
+                             tls_options = TlsOpts,
                              queue = queue:new(),
                              from_to = FromTo,
                              myname = From,
@@ -949,6 +943,12 @@ lookup_addrs_for_type(Server, Type) ->
 outgoing_s2s_port(HostType) ->
     mongoose_config:get_opt([{s2s, HostType}, outgoing, port]).
 
+get_tls_params(#{mode := starttls_required}) ->
+    {true, true};
+get_tls_params(#{mode := starttls}) ->
+    {true, false};
+get_tls_params(_) ->
+    {false, false}.
 
 -spec outgoing_s2s_types(mongooseim:host_type()) -> [inet | inet6, ...].
 outgoing_s2s_types(HostType) ->
@@ -1099,12 +1099,7 @@ get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 
 tls_options(HostType) ->
-    Ciphers = mongoose_config:get_opt([{s2s, HostType}, ciphers]),
-    Options = #{verify_mode => peer, ciphers => Ciphers},
-    case mongoose_s2s_lib:lookup_certfile(HostType) of
-        {ok, CertFile} -> Options#{certfile => CertFile};
-        {error, not_found} -> Options
-    end.
+    mongoose_config:get_opt([{s2s, HostType}, tls], #{}).
 
 calc_addr_index({Priority, Weight, Port, Host}) ->
     N = case Weight of

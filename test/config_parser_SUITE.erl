@@ -162,14 +162,12 @@ groups() ->
                         s2s_outgoing_port,
                         s2s_outgoing_ip_versions,
                         s2s_outgoing_timeout,
-                        s2s_use_starttls,
-                        s2s_certfile,
                         s2s_default_policy,
                         s2s_host_policy,
                         s2s_address,
-                        s2s_ciphers,
                         s2s_shared,
-                        s2s_max_retry_delay]},
+                        s2s_max_retry_delay,
+                        s2s_tls]},
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
                             mod_blocking,
@@ -1309,10 +1307,7 @@ s2s_host_config(_Config) ->
     DefaultS2S = default_s2s(),
     EmptyHostConfig = host_config(#{<<"s2s">> => #{}}),
     ?cfg(host_key(s2s), DefaultS2S,
-         EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
-    StartTLSHostConfig = host_config(#{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
-    ?cfg(host_key(s2s), DefaultS2S#{use_starttls => required},
-         StartTLSHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}).
+         EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}).
 
 s2s_dns_timeout(_Config) ->
     ?cfgh([s2s, dns, timeout], 10, #{}), % default
@@ -1343,16 +1338,6 @@ s2s_outgoing_timeout(_Config) ->
     ?cfgh([s2s, outgoing, connection_timeout], infinity,
           #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
     ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
-
-s2s_use_starttls(_Config) ->
-    ?cfgh([s2s, use_starttls], false, #{}), % default
-    ?cfgh([s2s, use_starttls], required, #{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
-    ?errh(#{<<"s2s">> => #{<<"use_starttls">> => <<"unnecessary">>}}).
-
-s2s_certfile(_Config) ->
-    ?cfgh([s2s, certfile], "priv/server.pem",  #{<<"s2s">> => #{<<"certfile">> => <<"priv/server.pem">>}}),
-    ?errh([#{reason := invalid_filename}], #{<<"s2s">> => #{<<"certfile">> => <<"nofile.pem">>}}),
-    ?errh(#{<<"s2s">> => #{<<"certfile">> => []}}).
 
 s2s_default_policy(_Config) ->
     ?cfgh([s2s, default_policy], allow, #{}), % default
@@ -1390,12 +1375,6 @@ s2s_address(_Config) ->
     ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}}),
     ?errh(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
 
-s2s_ciphers(_Config) ->
-    ?cfgh([s2s, ciphers], mongoose_tls:default_ciphers(), #{}), % default
-    ?cfgh([s2s, ciphers], "TLSv1.2",
-          #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2">>}}),
-    ?errh(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
-
 s2s_shared(_Config) ->
     ?cfgh([s2s, shared], <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
     ?errh(#{<<"s2s">> => #{<<"shared">> => 536837}}).
@@ -1403,6 +1382,30 @@ s2s_shared(_Config) ->
 s2s_max_retry_delay(_Config) ->
     ?cfgh([s2s, max_retry_delay], 120, #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
     ?errh(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
+
+s2s_tls(_Config) ->
+    P = [s2s, tls],
+    M = tls_ca_raw(),
+    T = fun(Opts) -> #{<<"s2s">> => #{<<"tls">> => Opts}} end,
+    ?cfgh(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
+    ?cfgh(P ++ [cacertfile], "priv/ca.pem", T(M)),
+    ?cfgh(P ++ [certfile], "priv/cert.pem", T(M#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfgh(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
+         T(M#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfgh(P ++ [keyfile], "priv/dc1.pem", T(M#{<<"keyfile">> => <<"priv/dc1.pem">>})),
+    ?cfgh(P ++ [password], "secret", T(M#{<<"password">> => <<"secret">>})),
+    ?cfgh(P ++ [versions], ['tlsv1.2', 'tlsv1.3'],
+         T(M#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
+    ?err([#{reason := missing_cacertfile}], T(#{})),
+    ?err([#{reason := missing_cacertfile}], T(#{<<"verify_mode">> => <<"peer">>})),
+    ?err([#{reason := missing_cacertfile}], T(#{<<"verify_mode">> => <<"selfsigned_peer">>})),
+    ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
+    ?err(T(M#{<<"certfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"cacertfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
+    ?err(T(M#{<<"keyfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"password">> => false})),
+    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})).
 
 %% modules
 

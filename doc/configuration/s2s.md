@@ -31,18 +31,6 @@ Default policy for opening new S2S connections to/from remote servers.
 
 Policy for opening new connections to/from specific remote servers.
 
-### `s2s.use_starttls`
-* **Syntax:** string, one of `"false"`, `"optional"`, `"required"`, `"required_trusted"`
-* **Default:** `"false"`
-* **Example:** `use_starttls = "required"`
-
-Allows to configure StartTLS for incoming and outgoing S2S connections:
-
-- `false` - StartTLS is disabled,
-- `optional` - StartTLS is supported,
-- `required` - StartTLS is supported and enforced,
-- `required_trusted` - StartTLS is supported and enforced with certificate verification.
-
 ### `s2s.shared`
 * **Syntax:** string
 * **Default:** 10 strong random bytes, hex-encoded
@@ -70,21 +58,6 @@ The options listed below affect only the outgoing S2S connections.
 ```
 
 This option defines IP addresses and port numbers for specific non-local XMPP domains, allowing to override the DNS lookup for outgoing S2S connections.
-
-### `s2s.certfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `certfile = "cert.pem"`
-
-Path to the X509 PEM file with a certificate and a private key inside (not protected by any password).
-
-### `s2s.ciphers`
-* **Syntax:** string
-* **Default:** `"TLSv1.2:TLSv1.3"`
-* **Example:** `ciphers = "TLSv1.2"`
-
-Defines a list of accepted SSL ciphers for outgoing S2S connections.
-Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
 
 ### `s2s.max_retry_delay`
 * **Syntax:** positive integer

@@ -8,10 +8,7 @@
 -author('denys.gonchar@erlang-solutions.com').
 
 %% tls interfaces required by mongoose_transport module.
--export([tcp_to_tls/2,
-         default_ciphers/0,
-         send/2,
-         recv_data/2,
+-export([send/2,
          controlling_process/2,
          sockname/1,
          peername/1,
@@ -96,28 +93,8 @@
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec tcp_to_tls(inet:socket(), options()) -> {ok, socket()} | {error, any()}.
-tcp_to_tls(TCPSocket, Opts) ->
-    PreparedOpts = maps:remove(module, Opts),
-    case just_tls:tcp_to_tls(TCPSocket, PreparedOpts) of
-        {ok, TLSSocket} ->
-            HasCert = has_peer_cert(Opts),
-            {ok, #mongoose_tls_socket{tls_module = just_tls,
-                                      tcp_socket = TCPSocket,
-                                      tls_socket = TLSSocket,
-                                      tls_opts   = Opts,
-                                      has_cert   = HasCert}};
-        Error -> Error
-    end.
-
-default_ciphers() ->
-    "TLSv1.2:TLSv1.3".
-
 -spec send(socket(), binary()) -> ok | {error, any()}.
 send(#mongoose_tls_socket{tls_module = M, tls_socket = S}, B) -> M:send(S, B).
-
--spec recv_data(socket(), binary()) -> {ok, binary()} | {error, any()}.
-recv_data(#mongoose_tls_socket{tls_module = M, tls_socket = S}, B) -> M:recv_data(S, B).
 
 -spec controlling_process(socket(), pid()) -> ok | {error, any()}.
 controlling_process(#mongoose_tls_socket{tls_module = M, tls_socket = S}, Pid) ->
@@ -137,12 +114,3 @@ close(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
 
 -spec get_sockmod(socket()) -> module().
 get_sockmod(#mongoose_tls_socket{tls_module = Module}) -> Module.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% local functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec has_peer_cert(options()) -> boolean().
-has_peer_cert(#{connect := true}) ->
-    true; % server always provides cert
-has_peer_cert(#{verify_mode := VerifyMode}) ->
-    VerifyMode =/= none. % client provides cert only when requested

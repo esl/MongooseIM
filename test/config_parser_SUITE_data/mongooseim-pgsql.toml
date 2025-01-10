@@ -297,8 +297,6 @@
   ]
 
 [s2s]
-  use_starttls = "optional"
-  certfile = "priv/server.pem"
   default_policy = "allow"
   outgoing.port = 5299
 
