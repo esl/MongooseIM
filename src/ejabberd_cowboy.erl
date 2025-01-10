@@ -44,27 +44,17 @@
 
 -include("mongoose.hrl").
 
--type listener_options() :: #{port := inet:port_number(),
-                              ip_tuple := inet:ip_address(),
-                              ip_address := string(),
-                              ip_version := inet:address_family(),
-                              proto := tcp,
-                              handlers := list(),
-                              transport := ranch:opts(),
-                              protocol := cowboy:opts(),
-                              atom() => any()}.
-
--record(cowboy_state, {ref :: atom(), opts :: listener_options()}).
+-record(cowboy_state, {ref :: atom(), opts :: mongoose_listener:options()}).
 
 %%--------------------------------------------------------------------
 %% mongoose_listener API
 %%--------------------------------------------------------------------
 
--spec instrumentation(listener_options()) -> [mongoose_instrument:spec()].
+-spec instrumentation(mongoose_listener:options()) -> [mongoose_instrument:spec()].
 instrumentation(#{handlers := Handlers}) ->
     [Spec || #{module := Module} <- Handlers, Spec <- mongoose_http_handler:instrumentation(Module)].
 
--spec start_listener(listener_options()) -> {ok, supervisor:child_spec()}.
+-spec start_listener(mongoose_listener:options()) -> {ok, supervisor:child_spec()}.
 start_listener(Opts) ->
     ListenerId = mongoose_listener:listener_id(Opts),
     Ref = ref(ListenerId),
@@ -125,11 +115,11 @@ execute(Req, Env) ->
 %% Internal Functions
 %%--------------------------------------------------------------------
 
--spec start_cowboy(atom(), listener_options()) -> {ok, pid()} | {error, any()}.
+-spec start_cowboy(atom(), mongoose_listener:options()) -> {ok, pid()} | {error, any()}.
 start_cowboy(Ref, Opts) ->
     start_cowboy(Ref, Opts, 20, 50).
 
--spec start_cowboy(atom(), listener_options(),
+-spec start_cowboy(atom(), mongoose_listener:options(),
                    Retries :: non_neg_integer(), SleepTime :: non_neg_integer()) ->
           {ok, pid()} | {error, any()}.
 start_cowboy(Ref, Opts, 0, _) ->
@@ -143,7 +133,7 @@ start_cowboy(Ref, Opts, Retries, SleepTime) ->
             Other
     end.
 
--spec do_start_cowboy(atom(), listener_options()) -> {ok, pid()} | {error, any()}.
+-spec do_start_cowboy(atom(), mongoose_listener:options()) -> {ok, pid()} | {error, any()}.
 do_start_cowboy(Ref, Opts) ->
     #{ip_tuple := IPTuple, port := Port, handlers := Handlers0,
       transport := TransportOpts0, protocol := ProtocolOpts0} = Opts,

@@ -1,8 +1,7 @@
 %% @doc Utilities related to listener configuration options
 -module(mongoose_listener_config).
 
--export([ensure_ip_options/1,
-         verify_unique_listeners/1]).
+-export([ip_version/1, ensure_ip_options/1, verify_unique_listeners/1]).
 
 %% @doc Fill in IP-related options that can be calculated automatically.
 %% Apart from these options, the input should be a complete listener configuration.

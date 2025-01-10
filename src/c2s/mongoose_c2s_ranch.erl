@@ -1,123 +1,127 @@
 -module(mongoose_c2s_ranch).
 -behaviour(mongoose_c2s_socket).
 
--export([socket_new/2,
+-export([new/3,
          socket_peername/1,
          tcp_to_tls/2,
          socket_handle_data/2,
          socket_activate/1,
          socket_close/1,
          socket_send_xml/2,
-         get_peer_certificate/2,
+         get_peer_certificate/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
          export_key_materials/5,
          is_ssl/1]).
 
--record(state, {
-          transport :: transport(),
+-record(ranch_tcp, {
+          socket :: inet:socket(),
           ranch_ref :: ranch:ref(),
-          socket :: ranch_transport:socket(),
           ip :: {inet:ip_address(), inet:port_number()}
          }).
 
--type state() :: #state{}.
--type transport() :: ranch_tcp | just_tls.
+-record(ranch_ssl, {
+          socket :: ssl:sslsocket(),
+          ranch_ref :: ranch:ref(),
+          ip :: {inet:ip_address(), inet:port_number()},
+          verify_results = [] :: list()
+         }).
 
--spec socket_new(term(), mongoose_listener:options()) -> state().
-socket_new({ranch_tcp, RanchRef}, #{proxy_protocol := true}) ->
-    {ok, #{src_address := PeerIp, src_port := PeerPort}} = ranch:recv_proxy_header(RanchRef, 1000),
-    {ok, TcpSocket} = ranch:handshake(RanchRef),
-    #state{
-        transport = ranch_tcp,
-        ranch_ref = RanchRef,
-        socket = TcpSocket,
-        ip = {PeerIp, PeerPort}};
-socket_new({ranch_tcp, RanchRef}, #{proxy_protocol := false}) ->
-    {ok, TcpSocket} = ranch:handshake(RanchRef),
-    {ok, Ip} = ranch_tcp:peername(TcpSocket),
-    #state{
-        transport = ranch_tcp,
-        ranch_ref = RanchRef,
-        socket = TcpSocket,
-        ip = Ip}.
+-type socket() :: #ranch_tcp{} | #ranch_ssl{}.
 
--spec socket_peername(state()) -> {inet:ip_address(), inet:port_number()}.
-socket_peername(#state{ip = Ip}) ->
+-spec new(mongoose_listener:transport_module(), ranch:ref(), mongoose_listener:options()) -> socket().
+new(ranch_tcp, Ref, Opts) ->
+    {ok, Socket, ConnectionDetails} = mongoose_listener:read_connection_details(Ref, ranch_tcp, Opts),
+    #{src_address := PeerIp, src_port := PeerPort} = ConnectionDetails,
+    #ranch_tcp{ranch_ref = Ref, socket = Socket, ip = {PeerIp, PeerPort}};
+new(ranch_ssl, Ref, Opts) ->
+    {ok, Socket, ConnectionDetails} = mongoose_listener:read_connection_details(Ref, ranch_ssl, Opts),
+    #{src_address := PeerIp, src_port := PeerPort} = ConnectionDetails,
+    #ranch_ssl{ranch_ref = Ref, socket = Socket, ip = {PeerIp, PeerPort}}.
+
+-spec socket_peername(socket()) -> {inet:ip_address(), inet:port_number()}.
+socket_peername(#ranch_tcp{ip = Ip}) ->
+    Ip;
+socket_peername(#ranch_ssl{ip = Ip}) ->
     Ip.
 
--spec tcp_to_tls(state(), mongoose_listener:options()) ->
-  {ok, state()} | {error, term()}.
-tcp_to_tls(#state{socket = TcpSocket} = State, #{tls := TlsConfig}) ->
+-spec tcp_to_tls(socket(), mongoose_listener:options()) ->
+  {ok, socket()} | {error, term()}.
+tcp_to_tls(#ranch_tcp{socket = TcpSocket, ranch_ref = Ref, ip = Ip}, #{tls := TlsConfig}) ->
     case do_tcp_to_tls(TcpSocket, TlsConfig) of
-        {ok, TlsSocket} ->
-            {ok, State#state{transport = just_tls, socket = TlsSocket}};
+        {ok, TlsSocket, VerifyResults} ->
+            {ok, #ranch_ssl{socket = TlsSocket, ranch_ref = Ref, ip = Ip,
+                            verify_results = VerifyResults}};
         {error, Reason} ->
             {error, Reason}
+    end;
+tcp_to_tls(#ranch_ssl{}, _) ->
+    {error, already_tls_connection}.
+
+do_tcp_to_tls(TCPSocket, Options) ->
+    inet:setopts(TCPSocket, [{active, false}]),
+    {Ref, SSLOpts} = just_tls:prepare_connection(Options),
+    Ret = ssl:handshake(TCPSocket, SSLOpts, 5000),
+    VerifyResults = just_tls:receive_verify_results(Ref),
+    case Ret of
+        {ok, SSLSocket} ->
+            {ok, SSLSocket, VerifyResults};
+        _ -> Ret
     end.
 
-do_tcp_to_tls(TcpSocket, TlsConfig) ->
-    case just_tls:tcp_to_tls(TcpSocket, TlsConfig) of
-        {ok, TlsSocket} -> {ok, TlsSocket};
-        Other -> Other
-    end.
-
--spec socket_handle_data(state(), {tcp | ssl, term(), iodata()}) ->
+-spec socket_handle_data(socket(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
-socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
+socket_handle_data(#ranch_ssl{}, {ssl, _, Data}) ->
     mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => iolist_size(Data)}),
     Data;
-socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
+socket_handle_data(#ranch_tcp{socket = Socket}, {tcp, Socket, Data}) ->
     mongoose_instrument:execute(c2s_tcp_data_in, #{}, #{byte_size => iolist_size(Data)}),
     Data.
 
--spec socket_activate(state()) -> ok.
-socket_activate(#state{transport = just_tls, socket = Socket}) ->
-    just_tls:setopts(Socket, [{active, once}]);
-socket_activate(#state{transport = ranch_tcp, socket = Socket}) ->
+-spec socket_activate(socket()) -> ok.
+socket_activate(#ranch_ssl{socket = Socket}) ->
+    ranch_ssl:setopts(Socket, [{active, once}]);
+socket_activate(#ranch_tcp{socket = Socket}) ->
     ranch_tcp:setopts(Socket, [{active, once}]).
 
--spec socket_close(state()) -> ok.
-socket_close(#state{transport = just_tls, socket = Socket}) ->
-    just_tls:close(Socket);
-socket_close(#state{transport = ranch_tcp, socket = Socket}) ->
+-spec socket_close(socket()) -> ok.
+socket_close(#ranch_ssl{socket = Socket}) ->
+    ranch_ssl:close(Socket);
+socket_close(#ranch_tcp{socket = Socket}) ->
     ranch_tcp:close(Socket).
 
--spec socket_send_xml(state(), exml_stream:element() | [exml_stream:element()]) ->
+-spec socket_send_xml(socket(), exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
-socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
-    Text = exml:to_iolist(XML),
-    case send(Transport, Socket, Text) of
-        ok ->
-            ok;
-        Error ->
-            Error
-        end.
-
--spec send(transport(), ranch_transport:socket(), iodata()) -> ok | {error, term()}.
-send(just_tls, Socket, Data) ->
+socket_send_xml(#ranch_ssl{socket = Socket}, XML) ->
+    Data = exml:to_iolist(XML),
     mongoose_instrument:execute(c2s_tls_data_out, #{}, #{byte_size => iolist_size(Data)}),
-    just_tls:send(Socket, Data);
-send(ranch_tcp, Socket, Data) ->
+    ranch_ssl:send(Socket, Data);
+socket_send_xml(#ranch_tcp{socket = Socket}, XML) ->
+    Data = exml:to_iolist(XML),
     mongoose_instrument:execute(c2s_tcp_data_out, #{}, #{byte_size => iolist_size(Data)}),
     ranch_tcp:send(Socket, Data).
 
--spec get_peer_certificate(state(), mongoose_listener:options()) ->
-    mongoose_c2s_socket:peercert_return().
-get_peer_certificate(#state{transport = just_tls, socket = Socket}, _) ->
-    just_tls:get_peer_certificate(Socket);
-get_peer_certificate(#state{transport = ranch_tcp}, _) ->
+-spec get_peer_certificate(socket()) -> mongoose_c2s_socket:peercert_return().
+get_peer_certificate(#ranch_ssl{socket = Socket, verify_results = []}) ->
+    case ssl:peercert(Socket) of
+        {ok, PeerCert} ->
+            {ok, public_key:pkix_decode_cert(PeerCert, plain)};
+        _ -> no_peer_cert
+    end;
+get_peer_certificate(#ranch_ssl{verify_results = [Err | _]}) ->
+    {bad_cert, just_tls:error_to_list(Err)};
+get_peer_certificate(#ranch_tcp{}) ->
     no_peer_cert.
 
--spec has_peer_cert(state(), mongoose_listener:options()) -> boolean().
+-spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
 has_peer_cert(State, LOpts) ->
-    case get_peer_certificate(State, LOpts) of
+    case get_peer_certificate(State) of
         {ok, _} -> true;
         _ -> false
     end.
 
--spec is_channel_binding_supported(state()) -> boolean().
--spec export_key_materials(state(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+-spec is_channel_binding_supported(socket()) -> boolean().
+-spec export_key_materials(socket(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
     {ok, ExportKeyMaterials} |
     {error, undefined_tls_material | exporter_master_secret_already_consumed | bad_input}
       when
@@ -128,19 +132,23 @@ has_peer_cert(State, LOpts) ->
       ExportKeyMaterials :: binary() | [binary()].
 
 -if(?OTP_RELEASE >= 27).
-is_channel_binding_supported(#state{transport = Transport}) ->
-    Transport =:= just_tls.
-export_key_materials(#state{transport = just_tls, socket = SslSocket}, Labels, Contexts, WantedLengths, ConsumeSecret) ->
-    just_tls:export_key_materials(SslSocket, Labels, Contexts, WantedLengths, ConsumeSecret);
-export_key_materials(#state{}, _, _, _, _) ->
+is_channel_binding_supported(#ranch_ssl{}) ->
+    true;
+is_channel_binding_supported(#ranch_tcp{}) ->
+    false.
+export_key_materials(#ranch_ssl{socket = Socket}, Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    ssl:export_key_materials(Socket, Labels, Contexts, WantedLengths, ConsumeSecret);
+export_key_materials(#ranch_tcp{}, _, _, _, _) ->
     {error, undefined_tls_material}.
 -else.
-is_channel_binding_supported(#state{transport = _}) ->
+is_channel_binding_supported(_) ->
     false.
-export_key_materials(_SslSocket, _, _, _, _) ->
+export_key_materials(_, _, _, _, _) ->
     {error, undefined_tls_material}.
 -endif.
 
--spec is_ssl(state()) -> boolean().
-is_ssl(#state{transport = Transport}) ->
-    ranch_tcp /= Transport.
+-spec is_ssl(socket()) -> boolean().
+is_ssl(#ranch_ssl{}) ->
+    true;
+is_ssl(#ranch_tcp{}) ->
+    false.

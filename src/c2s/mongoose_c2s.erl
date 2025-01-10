@@ -39,7 +39,7 @@
           socket :: undefined | mongoose_c2s_socket:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | mongoose_shaper:shaper(),
-          listener_opts :: undefined | listener_opts(),
+          listener_opts :: undefined | mongoose_listener:options(),
           state_mod = #{} :: #{module() => term()},
           info = #{} :: info()
          }).
@@ -62,16 +62,7 @@
                     | ?EXT_C2S_STATE(State).
 -type state() :: state(term()).
 
--type listener_opts() :: #{shaper := atom(),
-                           max_stanza_size := non_neg_integer(),
-                           backwards_compatible_session := boolean(),
-                           state_timeout := non_neg_integer(),
-                           port := inet:port_number(),
-                           ip_tuple := inet:ip_address(),
-                           proto := tcp,
-                           term() => term()}.
-
--export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0, listener_opts/0]).
+-export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0]).
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -81,20 +72,19 @@
 callback_mode() ->
     handle_event_function.
 
--spec init({module(), term(), listener_opts()}) ->
-    gen_statem:init_result(state(), data()).
-init({SocketModule, SocketOpts, LOpts}) ->
+-spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), data()).
+init({SocketModule, Ref, Transport, LOpts}) ->
     StateData = #c2s_data{listener_opts = LOpts},
-    ConnectEvent = {next_event, internal, {connect, {SocketModule, SocketOpts}}},
+    ConnectEvent = {next_event, internal, {connect, {SocketModule, Ref, Transport}}},
     {ok, connect, StateData, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
-handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
+handle_event(internal, {connect, {SocketModule, Ref, Transport}}, connect,
              StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
                                                      max_stanza_size := MaxStanzaSize} = LOpts}) ->
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    C2SSocket = mongoose_c2s_socket:new(SocketModule, SocketOpts, LOpts),
+    C2SSocket = mongoose_c2s_socket:new(SocketModule, Ref, Transport, LOpts),
     StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
     {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
 
@@ -1090,12 +1080,12 @@ hook_arg(StateData, C2SState, EventType, EventContent, Reason) ->
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start({module(), term(), listener_opts()}, [gen_statem:start_opt()]) ->
+-spec start(mongoose_listener:init_args(), [gen_statem:start_opt()]) ->
     supervisor:startchild_ret().
 start(Params, ProcOpts) ->
     supervisor:start_child(mongoose_c2s_sup, [Params, ProcOpts]).
 
--spec start_link({module(), term(), listener_opts()}, [gen_statem:start_opt()]) ->
+-spec start_link(mongoose_listener:init_args(), [gen_statem:start_opt()]) ->
     gen_statem:start_ret().
 start_link(Params, ProcOpts) ->
     gen_statem:start_link(?MODULE, Params, ProcOpts).
@@ -1197,7 +1187,7 @@ get_mod_state(#c2s_data{state_mod = ModStates}, ModName) ->
         ModState -> {ok, ModState}
     end.
 
--spec get_listener_opts(data()) -> listener_opts().
+-spec get_listener_opts(data()) -> mongoose_listener:options().
 get_listener_opts(#c2s_data{listener_opts = ListenerOpts}) ->
     ListenerOpts.
 

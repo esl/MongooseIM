@@ -1176,7 +1176,7 @@ default_config([listen, component]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
     Extra#{module => mongoose_component_listener};
 default_config([listen, component, tls]) ->
-    default_xmpp_tls();
+    default_xmpp_tls_tls();
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_event_pusher, http]) ->
@@ -1325,6 +1325,9 @@ default_config(Path) when is_list(Path) ->
 
 default_xmpp_tls() ->
     (default_tls())#{mode => starttls}.
+
+default_xmpp_tls_tls() ->
+    (default_tls())#{mode => tls}.
 
 default_tls() ->
     #{verify_mode => peer,

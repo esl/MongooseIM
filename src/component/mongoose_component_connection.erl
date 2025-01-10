@@ -25,7 +25,7 @@
           socket :: undefined | mongoose_component_socket:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | mongoose_shaper:shaper(),
-          listener_opts :: undefined | listener_opts()
+          listener_opts :: mongoose_listener:options()
          }).
 -type data() :: #component_data{}.
 -type maybe_ok() :: ok | {error, atom()}.
@@ -38,21 +38,13 @@
                | wait_for_handshake
                | stream_established.
 
--type listener_opts() :: #{shaper := atom(),
-                           max_stanza_size := non_neg_integer(),
-                           state_timeout := non_neg_integer(),
-                           port := inet:port_number(),
-                           ip_tuple := inet:ip_address(),
-                           proto := tcp,
-                           term() => term()}.
-
--export_type([packet/0, data/0, state/0, fsm_res/0, retries/0, listener_opts/0]).
+-export_type([packet/0, data/0, state/0, fsm_res/0, retries/0]).
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start_link({module(), term(), listener_opts()}, [gen_statem:start_opt()]) ->
+-spec start_link(mongoose_listener:init_args(), [gen_statem:start_opt()]) ->
     gen_statem:start_ret().
 start_link(Params, ProcOpts) ->
     gen_statem:start_link(?MODULE, Params, ProcOpts).
@@ -73,21 +65,20 @@ route(Pid, Acc) ->
 callback_mode() ->
     handle_event_function.
 
--spec init({module(), term(), listener_opts()}) ->
-    gen_statem:init_result(state(), data()).
-init({SocketModule, SocketOpts, LOpts}) ->
+-spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), data()).
+init({Mod, Ref, Transport, LOpts}) ->
     StateData = #component_data{listener_opts = LOpts},
-    ConnectEvent = {next_event, internal, {connect, {SocketModule, SocketOpts}}},
+    ConnectEvent = {next_event, internal, {connect, {Mod, Ref, Transport, LOpts}}},
     {ok, connect, StateData, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
-handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
+handle_event(internal, {connect, Input}, connect,
              StateData = #component_data{listener_opts = #{shaper := ShaperName,
                                                            max_stanza_size := MaxStanzaSize} = LOpts}) ->
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    C2SSocket = mongoose_component_socket:new(SocketModule, SocketOpts, LOpts),
-    StateData1 = StateData#component_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
+    Socket = mongoose_component_socket:new(Input),
+    StateData1 = StateData#component_data{socket = Socket, parser = Parser, shaper = Shaper},
     {next_state, wait_for_stream, StateData1, state_timeout(LOpts)};
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, wait_for_stream, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},

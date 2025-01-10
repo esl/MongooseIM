@@ -102,7 +102,7 @@ change_shaper(#socket_data{receiver = Receiver}, Shaper)  ->
 init(InitArgs) ->
     {ok, undefined, {continue, {do_handshake, InitArgs}}}.
 
-handle_continue({do_handshake, {Ref, Transport,
+handle_continue({do_handshake, {?MODULE, Ref, Transport,
                  #{shaper := Shaper,
                    max_stanza_size := MaxStanzaSize,
                    hibernate_after := HibernateAfter} = Opts}}, undefined) ->

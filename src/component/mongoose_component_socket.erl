@@ -1,8 +1,8 @@
 -module(mongoose_component_socket).
 
--export([new/3, handle_data/2, activate/1, close/1, send_xml/2]).
+-export([new/1, handle_data/2, activate/1, close/1, send_xml/2]).
 
--callback new(term(), mongoose_c2s:listener_opts()) -> state().
+-callback new(mongoose_listener:transport_module(), ranch:ref(), mongoose_listener:options()) -> state().
 -callback peername(state()) -> {inet:ip_address(), inet:port_number()}.
 -callback handle_data(state(), {tcp, term(), iodata()}) ->
     iodata() | {raw, [exml:element()]} | {error, term()}.
@@ -18,9 +18,9 @@
 -type conn_type() :: component.
 -export_type([socket/0, state/0, conn_type/0]).
 
--spec new(module(), term(), mongoose_listener:options()) -> socket().
-new(Module, SocketOpts, LOpts) ->
-    State = Module:new(SocketOpts, LOpts),
+-spec new(mongoose_listener:init_args()) -> socket().
+new({Module, Ref, Transport, LOpts}) ->
+    State = Module:new(Transport, Ref, LOpts),
     C2SSocket = #component_socket{
         module = Module,
         state = State},

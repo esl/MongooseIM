@@ -19,16 +19,15 @@
          set_client_acks/2,
          get_cached_responses/1]).
 
-
 %% mongoose_c2s_socket callbacks
--export([socket_new/2,
+-export([new/3,
          socket_peername/1,
          tcp_to_tls/2,
          socket_handle_data/2,
          socket_activate/1,
          socket_send_xml/2,
          socket_close/1,
-         get_peer_certificate/2,
+         get_peer_certificate/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
          export_key_materials/5,
@@ -203,7 +202,7 @@ init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
                             state_timeout => 5000,
                             backwards_compatible_session => true,
                             proto => tcp},
-    {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
+    {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, undefined, C2SOpts}, []),
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
     State = new_state(Sid, C2SPid, Opts),
     ?LOG_DEBUG(ls(#{what => bosh_socket_init, peer => Peer}, State)),
@@ -1048,8 +1047,8 @@ ignore_undefined(Map) ->
 
 %% mongoose_c2s_socket callbacks
 
--spec socket_new(mod_bosh:socket(), mongoose_listener:options()) -> mod_bosh:socket().
-socket_new(Socket, _LOpts) ->
+-spec new(_, mod_bosh:socket(), mongoose_listener:options()) -> mod_bosh:socket().
+new(_, Socket, _LOpts) ->
     Socket.
 
 -spec socket_peername(mod_bosh:socket()) -> {inet:ip_address(), inet:port_number()}.
@@ -1085,17 +1084,17 @@ socket_close(#bosh_socket{pid = Pid}) ->
     Pid ! close,
     ok.
 
--spec get_peer_certificate(mod_bosh:socket(), mongoose_listener:options()) ->
+-spec get_peer_certificate(mod_bosh:socket()) ->
     mongoose_transport:peercert_return().
-get_peer_certificate(#bosh_socket{peercert = undefined}, _) ->
+get_peer_certificate(#bosh_socket{peercert = undefined}) ->
     no_peer_cert;
-get_peer_certificate(#bosh_socket{peercert = PeerCert}, _) ->
+get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
     Decoded = public_key:pkix_decode_cert(PeerCert, plain),
     {ok, Decoded}.
 
 -spec has_peer_cert(mod_bosh:socket(), mongoose_listener:options()) -> boolean().
-has_peer_cert(Socket, LOpts) ->
-    get_peer_certificate(Socket, LOpts) /= no_peer_cert.
+has_peer_cert(Socket, _) ->
+    get_peer_certificate(Socket) /= no_peer_cert.
 
 -spec is_channel_binding_supported(mod_bosh:socket()) -> boolean().
 is_channel_binding_supported(_Socket) ->

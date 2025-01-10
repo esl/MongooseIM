@@ -21,14 +21,14 @@
          terminate/3]).
 
 %% mongoose_c2s_socket callbacks
--export([socket_new/2,
+-export([new/3,
          socket_peername/1,
          tcp_to_tls/2,
          socket_handle_data/2,
          socket_activate/1,
          socket_close/1,
          socket_send_xml/2,
-         get_peer_certificate/2,
+         get_peer_certificate/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
          export_key_materials/5,
@@ -53,7 +53,7 @@
           peer :: mongoose_transport:peer() | undefined,
           fsm_pid :: pid() | undefined,
           parser :: exml_stream:parser() | undefined,
-          opts :: map(),
+          opts :: mongoose_listener:options(),
           ping_rate :: integer() | none,
           max_stanza_size :: integer() | infinity,
           peercert :: undefined | passed | binary()
@@ -221,10 +221,15 @@ maybe_start_fsm([#xmlel{ name = <<"open">> }],
         shaper => none,
         max_stanza_size => 0,
         xml_socket => true,
-        hibernate_after => 0,
         state_timeout => StateTimeout,
         backwards_compatible_session => BackwardsCompatible,
-        port => Port, ip_tuple => IPTuple, proto => tcp},
+        module => mongoose_c2s_listener,
+        connection_type => c2s,
+        hibernate_after => 0,
+        ip_tuple => IPTuple,
+        ip_address => inet:ntoa(IPTuple),
+        ip_version => mongoose_listener_config:ip_version(IPTuple),
+        port => Port, proto => tcp},
     do_start_fsm(Opts, State);
 maybe_start_fsm(_Els, #ws_state{fsm_pid = undefined} = State) ->
     {stop, State};
@@ -250,7 +255,7 @@ do_start_fsm(Opts, State = #ws_state{peer = Peer, peercert = PeerCert}) ->
     end.
 
 call_fsm_start(SocketData, #{hibernate_after := HibernateAfterTimeout} = Opts) ->
-    mongoose_c2s:start({?MODULE, SocketData, Opts},
+    mongoose_c2s:start({?MODULE, SocketData, undefined, Opts},
                        [{hibernate_after, HibernateAfterTimeout}]).
 
 %%--------------------------------------------------------------------
@@ -360,8 +365,8 @@ case_insensitive_match(_, []) ->
 
 %% mongoose_c2s_socket callbacks
 
--spec socket_new(socket(), mongoose_listener:options()) -> socket().
-socket_new(Socket, _LOpts) ->
+-spec new(_, socket(), mongoose_listener:options()) -> socket().
+new(_, Socket, _LOpts) ->
     Socket.
 
 -spec socket_peername(socket()) -> {inet:ip_address(), inet:port_number()}.
@@ -397,15 +402,15 @@ socket_send_xml(#websocket{pid = Pid}, XML) ->
     ok.
 
 -spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
-has_peer_cert(Socket, LOpts) ->
-    get_peer_certificate(Socket, LOpts) /= no_peer_cert.
+has_peer_cert(Socket, _) ->
+    get_peer_certificate(Socket) /= no_peer_cert.
 
 
--spec get_peer_certificate(socket(), mongoose_listener:options()) -> 
-    mongoose_transport:peercert_return().
-get_peer_certificate(#websocket{peercert = undefined}, _) ->
+-spec get_peer_certificate(socket()) -> 
+    mongoose_c2s_socket:peercert_return().
+get_peer_certificate(#websocket{peercert = undefined}) ->
     no_peer_cert;
-get_peer_certificate(#websocket{peercert = PeerCert}, _) ->
+get_peer_certificate(#websocket{peercert = PeerCert}) ->
     Decoded = public_key:pkix_decode_cert(PeerCert, plain),
     {ok, Decoded}.
 

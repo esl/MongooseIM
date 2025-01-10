@@ -26,11 +26,36 @@
                      module := module(),
                      connection_type := atom(),
                      hibernate_after := timeout(),
+                     tls => map(),
+                     %% HTTP
+                     handlers => list(),
+                     transport => ranch:opts(),
+                     protocol => cowboy:opts(),
+                     %% XMPP
+                     access => atom(),
+                     backlog => non_neg_integer(),
+                     max_connections => infinity | pos_integer(),
+                     max_stanza_size => non_neg_integer(),
+                     num_acceptors => pos_integer(),
+                     proxy_protocol => boolean(),
+                     reuse_port => boolean(),
+                     shaper => atom(),
+                     %% C2S
+                     allowed_auth_methods => list(),
+                     backwards_compatible_session => boolean(),
+                     state_timeout => non_neg_integer(),
+                     %% Components
+                     password => binary(),
+                     check_from => boolean(),
+                     hidden_components => boolean(),
+                     conflict_behaviour => disconnect | kick_old,
+                     %% Other maybe
                      atom() => any()}.
+
 -type id() :: {inet:port_number(), inet:ip_address(), tcp}.
--type transport_module() :: ranch_tcp | ranch_ssl.
+-type transport_module() :: ranch_tcp | ranch_ssl | undefined.
 -type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
--type init_args() :: {ranch:ref(), transport_module(), options()}.
+-type init_args() :: {module(), ranch:ref(), transport_module(), options()}.
 
 -type connection_details() :: #{
         proxy        := boolean(),

@@ -319,7 +319,7 @@ xmpp_listener_extra(<<"component">>) ->
                                                  validate = non_empty},
                        <<"state_timeout">> => #option{type = int_or_infinity,
                                                       validate = non_negative},
-                       <<"tls">> => tls([server, xmpp])},
+                       <<"tls">> => tls([server, xmpp_tls])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
                           <<"check_from">> => true,
@@ -668,6 +668,11 @@ tls(xmpp) ->
     #section{items = #{<<"mode">> => #option{type = atom,
                                              validate = {enum, [tls, starttls, starttls_required]}}},
              defaults = #{<<"mode">> => starttls}
+            };
+tls(xmpp_tls) ->
+    #section{items = #{<<"mode">> => #option{type = atom,
+                                             validate = {enum, [tls, starttls, starttls_required]}}},
+             defaults = #{<<"mode">> => tls}
             }.
 
 server_name_indication() ->
