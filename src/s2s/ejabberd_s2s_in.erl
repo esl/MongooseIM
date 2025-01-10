@@ -58,7 +58,7 @@
                 tls_enabled = false     :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_cert_verify = false :: boolean(),
-                tls_options             :: mongoose_tls:options(),
+                tls_options             :: just_tls:options(),
                 server                  :: jid:lserver() | undefined,
                 host_type               :: mongooseim:host_type() | undefined,
                 authenticated = false   :: boolean(),
@@ -77,7 +77,7 @@
           streamid => ejabberd_s2s:stream_id(),
           tls => boolean(),
           tls_enabled => boolean(),
-          tls_options => mongoose_tls:options(),
+          tls_options => just_tls:options(),
           authenticated => boolean(),
           shaper => mongoose_shaper:shaper(),
           domains => [jid:lserver()]}.
@@ -105,7 +105,7 @@
        ).
 
 -type socket() :: term().
--type options() :: #{shaper := atom(), tls := mongoose_tls:options(), atom() => any()}.
+-type options() :: #{shaper := atom(), tls := just_tls:options(), atom() => any()}.
 
 %%%----------------------------------------------------------------------
 %%% API

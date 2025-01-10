@@ -115,7 +115,7 @@ connect(ConnectionType, Addr, Port, Opts, Timeout) ->
 close(#socket_data{receiver = Receiver}) ->
     gen_server:cast(Receiver, close).
 
--spec connect_tls(socket_data(), mongoose_tls:options()) -> socket_data().
+-spec connect_tls(socket_data(), just_tls:options()) -> socket_data().
 connect_tls(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
     tcp_to_tls(Receiver, TLSOpts#{connect => true}),
     update_socket(SocketData).
@@ -250,7 +250,7 @@ get_transport_info(TransportPid) when is_pid(TransportPid) ->
     State = sys:get_state(TransportPid),
     maps:from_list(lists:zip(record_info(fields, state),tl(tuple_to_list(State)))).
 
--spec tcp_to_tls(pid(), mongoose_tls:options()) -> ok | {error, any()}.
+-spec tcp_to_tls(pid(), just_tls:options()) -> ok | {error, any()}.
 tcp_to_tls(Receiver, TLSOpts) ->
     gen_server_call_or_noproc(Receiver, {tcp_to_tls, TLSOpts}).
 

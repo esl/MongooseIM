@@ -31,11 +31,11 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec wrap(gen_tcp:socket(), #{tls := mongoose_tls:options()}) -> {ok, t()} | {error, any()}.
+-spec wrap(gen_tcp:socket(), #{tls := just_tls:options()}) -> {ok, t()} | {error, any()}.
 wrap(Socket, ConnOpts) ->
     wrap(Socket, ConnOpts, #{}).
 
--spec wrap(gen_tcp:socket(), #{tls := mongoose_tls:options()}, ExtraOpts :: map()) ->
+-spec wrap(gen_tcp:socket(), #{tls := just_tls:options()}, ExtraOpts :: map()) ->
           {ok, t()} | {error, any()}.
 wrap(Socket, #{tls := Opts}, ExtraOpts) ->
     PreparedOpts = maps:merge(Opts, ExtraOpts),
