@@ -49,6 +49,15 @@ The protocol, which is TCP by default. Currently this is the only valid option.
 
 Allows to set the IP version to IPv6. Does not need to be set if `ip_address` is defined.
 
+### `listen.*.hibernate_after`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `0`
+* **Example:** `hibernate_after = 10`
+
+Time in milliseconds after which a client process spawned by this listener will hibernate.
+Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
+The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
+
 ## XMPP listener options
 
 The options listed below can be set for the `c2s`, `s2s` and `component` listeners to adjust their parameters.
@@ -66,15 +75,6 @@ Overrides the default TCP backlog value.
 * **Example:** `proxy_protocol = true`
 
 When set to `true`, [Proxy Protocol](https://www.haproxy.com/blog/haproxy/proxy-protocol/) is enabled and each connecting client has to provide a proxy header. Use only with a proxy (or a load balancer) to allow it to provide the connection details (including the source IP address) of the original client. Versions 1 and 2 of the protocol are supported.
-
-### `listen.*.hibernate_after`
-* **Syntax:** non-negative integer or the string `"infinity"`
-* **Default:** `0`
-* **Example:** `hibernate_after = 10`
-
-Time in milliseconds after which a client process spawned by this listener will hibernate.
-Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
-The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 
 ### `listen.*.max_stanza_size`
 * **Syntax:** positive integer or the string `"infinity"`

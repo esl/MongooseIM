@@ -1090,7 +1090,6 @@ common_xmpp_listener_config() ->
                                 max_connections => infinity,
                                 reuse_port => false,
                                 shaper => none,
-                                hibernate_after => 0,
                                 max_stanza_size => 0,
                                 num_acceptors => 100}.
 
@@ -1098,7 +1097,8 @@ common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
       ip_version => inet,
-      proto => tcp}.
+      proto => tcp,
+      hibernate_after => 0}.
 
 extra_component_listener_config() ->
     #{access => all,

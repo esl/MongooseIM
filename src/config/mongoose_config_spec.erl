@@ -254,10 +254,13 @@ listener_common() ->
                        <<"proto">> => #option{type = atom,
                                               validate = {enum, [tcp]}},
                        <<"ip_version">> => #option{type = integer,
-                                                   validate = {enum, [4, 6]}}
+                                                   validate = {enum, [4, 6]}},
+                       <<"hibernate_after">> => #option{type = int_or_infinity,
+                                                        validate = non_negative}
                       },
              required = [<<"port">>],
-             defaults = #{<<"proto">> => tcp},
+             defaults = #{<<"proto">> => tcp,
+                          <<"hibernate_after">> => 0},
              process = fun ?MODULE:process_listener/2
             }.
 
@@ -272,8 +275,6 @@ listener_extra(Type) ->
 
 xmpp_listener_common() ->
     #section{items = #{<<"backlog">> => #option{type = integer, validate = non_negative},
-                       <<"hibernate_after">> => #option{type = int_or_infinity,
-                                                        validate = non_negative},
                        <<"max_connections">> => #option{type = int_or_infinity,
                                                         validate = positive},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
@@ -286,7 +287,6 @@ xmpp_listener_common() ->
                        <<"shaper">> => #option{type = atom,
                                                validate = non_empty}},
              defaults = #{<<"backlog">> => 1024,
-                          <<"hibernate_after">> => 0,
                           <<"max_connections">> => infinity,
                           <<"max_stanza_size">> => 0,
                           <<"num_acceptors">> => 100,
