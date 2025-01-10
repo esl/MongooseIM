@@ -14,7 +14,7 @@
 %% Helpers
 -export([listener_id/1, prepare_socket_opts/1, element_spirals/0]).
 
--callback start_listener(options()) -> ok.
+-callback start_listener(options()) -> {ok, supervisor:child_spec()}.
 -callback instrumentation(options()) -> [mongoose_instrument:spec()].
 -optional_callbacks([instrumentation/1]).
 
@@ -57,7 +57,8 @@ stop() ->
 
 start_listener(Opts = #{module := Module}) ->
     try
-        Module:start_listener(Opts) % This function should call mongoose_listener_sup:start_child/1
+        {ok, ChildSpec} = Module:start_listener(Opts),
+        mongoose_listener_sup:start_child(ChildSpec)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_CRITICAL(#{what => listener_failed_to_start,

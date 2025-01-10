@@ -65,8 +65,8 @@
 instrumentation(#{handlers := Handlers}) ->
     [Spec || #{module := Module} <- Handlers, Spec <- mongoose_http_handler:instrumentation(Module)].
 
--spec start_listener(listener_options()) -> ok.
-start_listener(Opts = #{proto := tcp}) ->
+-spec start_listener(listener_options()) -> {ok, supervisor:child_spec()}.
+start_listener(Opts) ->
     ListenerId = mongoose_listener:listener_id(Opts),
     Ref = ref(ListenerId),
     ChildSpec = #{id => ListenerId,
@@ -74,9 +74,7 @@ start_listener(Opts = #{proto := tcp}) ->
                   restart => transient,
                   shutdown => infinity,
                   modules => [?MODULE]},
-    mongoose_listener_sup:start_child(ChildSpec),
-    {ok, _} = start_cowboy(Ref, Opts),
-    ok.
+    {ok, ChildSpec}.
 
 reload_dispatch(Ref) ->
     gen_server:call(Ref, reload_dispatch).
@@ -86,8 +84,9 @@ reload_dispatch(Ref) ->
 start_link(State) ->
     gen_server:start_link(?MODULE, State, []).
 
-init(State) ->
+init(#cowboy_state{ref = Ref, opts = Opts} = State) ->
     process_flag(trap_exit, true),
+    {ok, _} = start_cowboy(Ref, Opts),
     {ok, State}.
 
 handle_call(reload_dispatch, _From, #cowboy_state{ref = Ref, opts = Opts} = State) ->

@@ -19,6 +19,7 @@
 
 -export_type([conflict_behaviour/0, options/0]).
 
+%% mongoose_listener
 -spec instrumentation(_) -> [mongoose_instrument:spec()].
 instrumentation(_) ->
     [{component_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
@@ -33,15 +34,16 @@ instrumentation(_) ->
      {component_element_out, #{},
       #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}}].
 
--spec start_listener(options()) -> ok.
-start_listener(#{module := ?MODULE} = Opts) ->
+%% mongoose_listener
+-spec start_listener(options()) -> {ok, supervisor:child_spec()}.
+start_listener(Opts) ->
     TransportModule = transport_module(Opts),
     TransportOpts0 = mongoose_listener:prepare_socket_opts(Opts),
     TransportOpts = maybe_tls_opts(Opts, TransportOpts0),
     ListenerId = mongoose_listener_config:listener_id(Opts),
     ChildSpec0 = ranch:child_spec(ListenerId, TransportModule, TransportOpts, ?MODULE, Opts),
     ChildSpec1 = ChildSpec0#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
-    mongoose_listener_sup:start_child(ChildSpec1).
+    {ok, ChildSpec1}.
 
 transport_module(#{tls := _}) ->
     ranch_ssl;
