@@ -33,7 +33,6 @@
          handle_call/3,
          handle_cast/2,
          handle_info/2,
-         code_change/3,
          terminate/2]).
 
 %% helper for internal use
@@ -100,9 +99,6 @@ handle_cast(_Request, State) ->
 
 handle_info(_Info, State) ->
     {noreply, State}.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 terminate(_Reason, State) ->
     stop_cowboy(State#cowboy_state.ref).
