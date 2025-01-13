@@ -154,17 +154,44 @@ sasl2_start(SaslAcc, #{stanza := El}, _) ->
     ?LOG_ERROR(#{what => sasl2_startttt, elleee => El, sasla_acc => SaslAcc}),
     AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
     SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
-    case exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}]) of
-        undefined ->
+    case {should_invalidate(El),
+          exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}])} of
+        {#xmlel{} = Fast, _} ->
+            {ok, mod_sasl2:put_inline_request(SaslAcc2, ?MODULE, Fast)};
+        {undefined, undefined} ->
             {ok, SaslAcc2};
-        Request ->
+        {undefined, Request} ->
             Mech = exml_query:attr(Request, <<"mechanism">>),
             case Mech of
                 <<"HT-SHA-256-NONE">> ->
                     {ok, mod_sasl2:put_inline_request(SaslAcc2, ?MODULE, Request)};
                 _ ->
-                     {ok, SaslAcc2}
+                    {ok, SaslAcc2}
             end
+    end.
+
+-spec should_invalidate(exml:element()) -> exml:element() | undefined.
+should_invalidate(El) ->
+    ElemPath = {element_with_ns, <<"fast">>, ?NS_FAST},
+    Val = exml_query:path(El, [ElemPath, {attr, <<"invalidate">>}]),
+    case is_true(Val) of
+        true ->
+            exml_query:path(El, [ElemPath]);
+        false ->
+            undefined
+    end.
+
+is_true(<<"true">>) -> true;
+is_true(<<"1">>) -> true;
+is_true(_) -> false.
+
+-spec request_type(exml:element()) -> invalidate | request_token.
+request_type(Request) ->
+    case Request of
+        #xmlel{name = <<"fast">>} ->
+            invalidate;
+        #xmlel{name = <<"request-token">>} ->
+            request_token
     end.
 
 format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
@@ -180,6 +207,10 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
     case check_if_should_add_token(HostType, SaslAcc, Creds) of
         skip ->
             {ok, SaslAcc};
+        invalidate ->
+            AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
+            invalidate_token(HostType, LServer, LUser, AgentId),
+            {ok, SaslAcc};
         {ok, Mech, AddReason} ->
             AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
             %% Attach Token to the response to be used to authentificate
@@ -192,22 +223,25 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
 -spec check_if_should_add_token(HostType :: mongooseim:host_type(),
                                 SaslAcc :: mongoose_acc:t(),
                                 Creds :: mongoose_credentials:t()) ->
-    skip | {ok, mechanism(), Reason :: add_reason()}.
+    skip | invalidate | {ok, mechanism(), Reason :: add_reason()}.
 check_if_should_add_token(HostType, SaslAcc, Creds) ->
     case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
         undefined ->
-            maybe_auto_rotate(HostType, SaslAcc, Creds);
+            maybe_auto_rotate(HostType, Creds);
         #{request := Request} ->
-            AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
-            Mech = exml_query:attr(Request, <<"mechanism">>),
-            {ok, Mech, requested}
+            case request_type(Request) of
+                invalidate ->
+                    invalidate;
+                request_token ->
+                    Mech = exml_query:attr(Request, <<"mechanism">>),
+                    {ok, Mech, requested}
+            end
     end.
 
 -spec maybe_auto_rotate(HostType :: mongooseim:host_type(),
-                        SaslAcc :: mongoose_acc:t(),
                         Creds :: mongoose_credentials:t()) ->
     skip | {ok, mechanism(), Reason :: add_reason()}.
-maybe_auto_rotate(HostType, SaslAcc, Creds) ->
+maybe_auto_rotate(HostType, Creds) ->
     %% Creds could contain data from mod_fast_auth_token_generic
     SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
     DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
@@ -357,6 +391,15 @@ generate_unique_token() ->
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent) ->
     mod_fast_auth_token_backend:store_new_token(
         HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent).
+
+-spec invalidate_token(HostType, LServer, LUser, AgentId) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: agent_id().
+invalidate_token(HostType, LServer, LUser, AgentId) ->
+    mod_fast_auth_token_backend:invalidate_token(HostType, LServer, LUser, AgentId),
+    ok.
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->
    {ok, tokens_data()} | {error, not_found}

@@ -39,7 +39,10 @@ groups() ->
        could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot,
        rerequest_token_with_initial_authentication,
        can_use_new_token_after_rerequest_token_with_initial_authentication,
-       can_use_current_token_after_rerequest_token_with_initial_authentication
+       can_use_current_token_after_rerequest_token_with_initial_authentication,
+       client_requests_token_invalidation,
+       client_requests_token_invalidation_1,
+       both_tokens_do_not_work_after_invalidation
       ]}
     ].
 
@@ -184,6 +187,23 @@ can_use_current_token_after_rerequest_token_with_initial_authentication(Config) 
     #{token := Token, spec := Spec} = rerequest_token_with_initial_authentication(Config),
     auth_with_token(success, Token, Config, Spec).
 
+client_requests_token_invalidation(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    ConnectRes = auth_with_token(success, Token, Config, Spec, request_invalidation),
+    auth_with_token(failure, Token, Config, Spec).
+
+client_requests_token_invalidation_1(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    ConnectRes = auth_with_token(success, Token, Config, Spec, request_invalidation_1),
+    auth_with_token(failure, Token, Config, Spec).
+
+both_tokens_do_not_work_after_invalidation(Config) ->
+    #{new_token := NewToken, token := Token, spec := Spec} =
+        rerequest_token_with_initial_authentication(Config),
+    auth_with_token(success, Token, Config, Spec, request_invalidation),
+    auth_with_token(failure, NewToken, Config, Spec),
+    auth_with_token(failure, Token, Config, Spec).
+
 %%--------------------------------------------------------------------
 %% helpers
 %%--------------------------------------------------------------------
@@ -260,11 +280,35 @@ auth_using_token_and_request_token(Config, Client, Data) ->
     Extra = [request_token(Mech), user_agent()],
     auth_with_method(Config, Client, Data, [], Extra, Mech).
 
+auth_using_token_and_request_invalidation(Config, Client, Data) ->
+    %% While XEP does not specify, what to do with another tokens,
+    %% we invalidate both new and current tokens.
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [request_invalidation(), user_agent()],
+    auth_with_method(Config, Client, Data, [], Extra, Mech).
+
+auth_using_token_and_request_invalidation_1(Config, Client, Data) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [request_invalidation_1(), user_agent()],
+    auth_with_method(Config, Client, Data, [], Extra, Mech).
+
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
 request_token(Mech) ->
     #xmlel{name = <<"request-token">>,
            attrs = [{<<"xmlns">>, ?NS_FAST},
                     {<<"mechanism">>, Mech}]}.
+
+%% <fast xmlns='urn:xmpp:fast:0' count='123' invalidate='true'/>
+request_invalidation() ->
+    #xmlel{name = <<"fast">>,
+           attrs = [{<<"xmlns">>, ?NS_FAST},
+                    {<<"invalidate">>, <<"true">>}]}.
+
+%% or <fast xmlns='urn:xmpp:fast:0' count='123' invalidate='1'/>
+request_invalidation_1() ->
+    #xmlel{name = <<"fast">>,
+           attrs = [{<<"xmlns">>, ?NS_FAST},
+                    {<<"invalidate">>, <<"1">>}]}.
 
 auth_with_token(Success, Token, Config, Spec) ->
     auth_with_token(Success, Token, Config, Spec, dont_request_token).
@@ -290,7 +334,11 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
 auth_function(dont_request_token) ->
     auth_using_token;
 auth_function(request_token) ->
-    auth_using_token_and_request_token.
+    auth_using_token_and_request_token;
+auth_function(request_invalidation) ->
+    auth_using_token_and_request_invalidation;
+auth_function(request_invalidation_1) ->
+    auth_using_token_and_request_invalidation_1.
 
 steps(success, AuthFun) ->
     [connect_tls, start_stream_get_features,

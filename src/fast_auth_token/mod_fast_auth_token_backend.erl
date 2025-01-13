@@ -3,6 +3,7 @@
 -export([init/2,
          store_new_token/8,
          read_tokens/4,
+         invalidate_token/4,
          remove_user/3,
          remove_domain/2]).
 
@@ -28,6 +29,12 @@
         LUser :: jid:luser(),
         AgentId :: mod_fast_auth_token:agent_id().
 
+-callback invalidate_token(HostType, LServer, LUser, AgentId) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id().
+
 -callback remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
 
 -callback remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
@@ -36,7 +43,7 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
-    Tracked = [store_new_token, read_tokens],
+    Tracked = [store_new_token, read_tokens, invalidate_token],
     mongoose_backend:init(HostType, ?MAIN_MODULE, Tracked, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
@@ -62,6 +69,15 @@ store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCur
         LUser :: jid:luser(),
         AgentId :: mod_fast_auth_token:agent_id().
 read_tokens(HostType, LServer, LUser, AgentId) ->
+    Args = [HostType, LServer, LUser, AgentId],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec invalidate_token(HostType, LServer, LUser, AgentId) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id().
+invalidate_token(HostType, LServer, LUser, AgentId) ->
     Args = [HostType, LServer, LUser, AgentId],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

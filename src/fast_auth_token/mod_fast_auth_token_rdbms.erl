@@ -5,6 +5,7 @@
 -export([init/2,
          store_new_token/8,
          read_tokens/4,
+         invalidate_token/4,
          remove_user/3,
          remove_domain/2]).
 
@@ -21,6 +22,10 @@ init(HostType, _Opts) ->
                   "current_token, current_expire, current_count, current_mech_id, "
                   "new_token, new_expire, new_count, new_mech_id "
               "FROM fast_auth_token "
+              "WHERE server = ? AND username = ? AND user_agent_id = ?">>),
+    prepare(fast_invalidate_token, fast_auth_token,
+            [server, username, user_agent_id],
+            <<"DELETE FROM fast_auth_token "
               "WHERE server = ? AND username = ? AND user_agent_id = ?">>),
     prepare(fast_remove_user, fast_auth_token,
             [server, username],
@@ -124,6 +129,16 @@ null_as_undefined(Result) ->
 -spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
 remove_user(HostType, LUser, LServer) ->
     execute_successfully(HostType, fast_remove_user, [LServer, LUser]),
+    ok.
+
+-spec invalidate_token(HostType, LServer, LUser, AgentId) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id().
+invalidate_token(HostType, LServer, LUser, AgentId) ->
+    execute_successfully(HostType, fast_invalidate_token,
+                         [LServer, LUser, AgentId]),
     ok.
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
