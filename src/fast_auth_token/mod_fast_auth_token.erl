@@ -40,6 +40,9 @@
 -type token_slot() :: new | current.
 -type add_reason() :: requested | auto_rotate.
 
+-define(REQ, mod_fast_auth_token_request).
+-define(FAST, mod_fast_auth_token_fast).
+
 -export_type([tokens_data/0, seconds/0, counter/0, token/0, agent_id/0,
               mechanism/0, token_slot/0, set_current/0]).
 
@@ -152,47 +155,17 @@ mechanisms() ->
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
     %% TODO remove this log
     ?LOG_ERROR(#{what => sasl2_startttt, elleee => El, sasla_acc => SaslAcc}),
+    Req = exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}]),
+    Fast = exml_query:path(El, [{element_with_ns, <<"fast">>, ?NS_FAST}]),
     AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
     SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
-    case {should_invalidate(El),
-          exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}])} of
-        {#xmlel{} = Fast, _} ->
-            {ok, mod_sasl2:put_inline_request(SaslAcc2, ?MODULE, Fast)};
-        {undefined, undefined} ->
-            {ok, SaslAcc2};
-        {undefined, Request} ->
-            Mech = exml_query:attr(Request, <<"mechanism">>),
-            case Mech of
-                <<"HT-SHA-256-NONE">> ->
-                    {ok, mod_sasl2:put_inline_request(SaslAcc2, ?MODULE, Request)};
-                _ ->
-                    {ok, SaslAcc2}
-            end
-    end.
+    SaslAcc3 = maybe_put_inline_request(SaslAcc2, ?REQ, Req),
+    {ok, maybe_put_inline_request(SaslAcc3, ?FAST, Fast)}.
 
--spec should_invalidate(exml:element()) -> exml:element() | undefined.
-should_invalidate(El) ->
-    ElemPath = {element_with_ns, <<"fast">>, ?NS_FAST},
-    Val = exml_query:path(El, [ElemPath, {attr, <<"invalidate">>}]),
-    case is_true(Val) of
-        true ->
-            exml_query:path(El, [ElemPath]);
-        false ->
-            undefined
-    end.
-
-is_true(<<"true">>) -> true;
-is_true(<<"1">>) -> true;
-is_true(_) -> false.
-
--spec request_type(exml:element()) -> invalidate | request_token.
-request_type(Request) ->
-    case Request of
-        #xmlel{name = <<"fast">>} ->
-            invalidate;
-        #xmlel{name = <<"request-token">>} ->
-            request_token
-    end.
+maybe_put_inline_request(SaslAcc, _Module, undefined) ->
+    SaslAcc;
+maybe_put_inline_request(SaslAcc, Module, Request) ->
+    mod_sasl2:put_inline_request(SaslAcc, Module, Request).
 
 format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
 
@@ -216,7 +189,7 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
             %% Attach Token to the response to be used to authentificate
             Response = make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds),
             SaslAcc2 = maybe_init_inline_request(AddReason, SaslAcc),
-            SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?MODULE, Response, success),
+            SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?REQ, Response, success),
             {ok, SaslAcc3}
     end.
 
@@ -225,18 +198,52 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
                                 Creds :: mongoose_credentials:t()) ->
     skip | invalidate | {ok, mechanism(), Reason :: add_reason()}.
 check_if_should_add_token(HostType, SaslAcc, Creds) ->
-    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
-        undefined ->
-            maybe_auto_rotate(HostType, Creds);
-        #{request := Request} ->
-            case request_type(Request) of
-                invalidate ->
-                    invalidate;
-                request_token ->
-                    Mech = exml_query:attr(Request, <<"mechanism">>),
-                    {ok, Mech, requested}
-            end
+    Parsed = parse_inline_requests(SaslAcc),
+    case Parsed of
+        #{invalidate := true} ->
+            invalidate;
+        #{mech := Mech} ->
+            case lists:member(Mech, mechanisms()) of
+                true ->
+                    {ok, Mech, requested};
+                false ->
+                    skip
+            end;
+        #{} ->
+            maybe_auto_rotate(HostType, Creds)
     end.
+
+-spec parse_inline_requests(SaslAcc :: mongoose_acc:t()) -> map().
+parse_inline_requests(SaslAcc) ->
+    Req = mod_sasl2:get_inline_request(SaslAcc, ?REQ, undefined),
+    Fast = mod_sasl2:get_inline_request(SaslAcc, ?FAST, undefined),
+    map_skip_undefined(maps:merge(parse_request(Req), parse_fast(Fast))).
+
+-spec map_skip_undefined(map()) -> map().
+map_skip_undefined(Map) ->
+    maps:filter(fun(_, Val) -> Val =/= undefined end, Map).
+
+parse_request(#{request := Req = #xmlel{name = <<"request-token">>}}) ->
+    Mech = exml_query:attr(Req, <<"mechanism">>),
+    #{mech => Mech};
+parse_request(undefined) ->
+    #{}.
+
+parse_fast(#{request := Fast = #xmlel{name = <<"fast">>}}) ->
+    Inv = is_true(exml_query:attr(Fast, <<"invalidate">>)),
+    Count = exml_query:attr(Fast, <<"count">>),
+    #{invalidate => Inv, count => maybe_parse_integer(Count)};
+parse_fast(undefined) ->
+    #{}.
+
+is_true(<<"true">>) -> true;
+is_true(<<"1">>) -> true;
+is_true(_) -> false.
+
+maybe_parse_integer(X) when is_binary(X) ->
+    binary_to_integer(X);
+maybe_parse_integer(undefined) ->
+    undefined.
 
 -spec maybe_auto_rotate(HostType :: mongooseim:host_type(),
                         Creds :: mongoose_credentials:t()) ->
@@ -299,7 +306,7 @@ maybe_init_inline_request(requested, SaslAcc) ->
     SaslAcc;
 maybe_init_inline_request(auto_rotate, SaslAcc) ->
     %% Add something, so update_inline_request would actually attach data
-    mod_sasl2:put_inline_request(SaslAcc, ?MODULE, #xmlel{name = <<"auto">>}).
+    mod_sasl2:put_inline_request(SaslAcc, ?REQ, #xmlel{name = <<"auto">>}).
 
 %% Generate expirable auth token and store it in DB
 -spec make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) -> exml:element()
