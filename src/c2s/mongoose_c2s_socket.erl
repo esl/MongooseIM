@@ -20,14 +20,14 @@
          get_conn_type/1]).
 
 -callback new(term(), term(), mongoose_listener:options()) -> state().
--callback socket_peername(state()) -> {inet:ip_address(), inet:port_number()}.
+-callback peername(state()) -> mongoose_transport:peer().
 -callback tcp_to_tls(state(), mongoose_listener:options()) ->
     {ok, state()} | {error, term()}.
--callback socket_handle_data(state(), {tcp | ssl, term(), iodata()}) ->
+-callback handle_data(state(), {tcp | ssl, term(), iodata()}) ->
     iodata() | {raw, [exml:element()]} | {error, term()}.
--callback socket_activate(state()) -> ok.
--callback socket_close(state()) -> ok.
--callback socket_send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
+-callback activate(state()) -> ok.
+-callback close(state()) -> ok.
+-callback send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
 -callback get_peer_certificate(state()) -> peercert_return().
 -callback has_peer_cert(state(), mongoose_listener:options()) -> boolean().
@@ -54,7 +54,7 @@
 -spec new(module(), ranch:ref(), mongoose_listener:transport_module(), mongoose_listener:options()) -> socket().
 new(Module, Ref, Transport, LOpts) ->
     State = Module:new(Transport, Ref, LOpts),
-    PeerIp = Module:socket_peername(State),
+    PeerIp = Module:peername(State),
     verify_ip_is_not_blacklisted(PeerIp),
     Socket = #c2s_socket{
         module = Module,
@@ -84,21 +84,21 @@ tcp_to_tls(#c2s_socket{module = Module, state = State} = C2SSocket, LOpts) ->
 -spec handle_data(socket(), {tcp | ssl, term(), iodata()}) ->
     iodata() | {raw, [term()]} | {error, term()}.
 handle_data(#c2s_socket{module = Module, state = State}, Payload) ->
-    Module:socket_handle_data(State, Payload);
+    Module:handle_data(State, Payload);
 handle_data(_, _) ->
     {error, bad_packet}.
 
 -spec activate(socket()) -> ok | {error, term()}.
 activate(#c2s_socket{module = Module, state = State}) ->
-    Module:socket_activate(State).
+    Module:activate(State).
 
 -spec close(socket()) -> ok.
 close(#c2s_socket{module = Module, state = State}) ->
-    Module:socket_close(State).
+    Module:close(State).
 
 -spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, term()}.
 send_xml(#c2s_socket{module = Module, state = State}, XML) ->
-    Module:socket_send_xml(State, XML).
+    Module:send_xml(State, XML).
 
 -spec get_peer_certificate(socket()) -> peercert_return().
 get_peer_certificate(#c2s_socket{module = Module, state = State}) ->
@@ -142,4 +142,4 @@ get_conn_type(Socket) ->
 
 -spec get_ip(socket()) -> term().
 get_ip(#c2s_socket{module = Module, state = State}) ->
-    Module:socket_peername(State).
+    Module:peername(State).

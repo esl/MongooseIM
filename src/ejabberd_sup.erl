@@ -56,7 +56,7 @@ init([]) ->
     ShaperSup = mongoose_shaper:child_spec(),
     DomainSup = supervisor_spec(mongoose_domain_sup),
     ReceiverSupervisor =
-        template_supervisor_spec(mongoose_transport_sup, mongoose_transport),
+        template_supervisor_spec(mongoose_s2s_socket_out_sup, mongoose_s2s_socket_out),
     C2SSupervisor =
         template_supervisor_spec(mongoose_c2s_sup, mongoose_c2s),
     S2SOutSupervisor =

@@ -13,13 +13,13 @@
 -record(ranch_tcp, {
           socket :: inet:socket(),
           ranch_ref :: ranch:ref(),
-          ip :: {inet:ip_address(), inet:port_number()}
+          ip :: mongoose_transport:peer()
          }).
 
 -record(ranch_ssl, {
           socket :: ssl:sslsocket(),
           ranch_ref :: ranch:ref(),
-          ip :: {inet:ip_address(), inet:port_number()}
+          ip :: mongoose_transport:peer()
          }).
 
 -type socket() :: #ranch_tcp{} | #ranch_ssl{}.
@@ -34,7 +34,7 @@ new(ranch_ssl, Ref, Opts) ->
     #{src_address := PeerIp, src_port := PeerPort} = ConnectionDetails,
     #ranch_ssl{socket = Socket, ranch_ref = Ref, ip = {PeerIp, PeerPort}}.
 
--spec peername(socket()) -> {inet:ip_address(), inet:port_number()}.
+-spec peername(socket()) -> mongoose_transport:peer().
 peername(#ranch_tcp{ip = Ip}) -> Ip;
 peername(#ranch_ssl{ip = Ip}) -> Ip.
 

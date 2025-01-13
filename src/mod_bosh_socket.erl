@@ -21,12 +21,12 @@
 
 %% mongoose_c2s_socket callbacks
 -export([new/3,
-         socket_peername/1,
+         peername/1,
          tcp_to_tls/2,
-         socket_handle_data/2,
-         socket_activate/1,
-         socket_send_xml/2,
-         socket_close/1,
+         handle_data/2,
+         activate/1,
+         send_xml/2,
+         close/1,
          get_peer_certificate/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
@@ -1051,8 +1051,8 @@ ignore_undefined(Map) ->
 new(_, Socket, _LOpts) ->
     Socket.
 
--spec socket_peername(mod_bosh:socket()) -> {inet:ip_address(), inet:port_number()}.
-socket_peername(#bosh_socket{peer = Peer}) ->
+-spec peername(mod_bosh:socket()) -> mongoose_transport:peer().
+peername(#bosh_socket{peer = Peer}) ->
     Peer.
 
 -spec tcp_to_tls(mod_bosh:socket(), mongoose_listener:options()) ->
@@ -1060,27 +1060,27 @@ socket_peername(#bosh_socket{peer = Peer}) ->
 tcp_to_tls(_Socket, _LOpts) ->
     {error, tls_not_allowed_on_bosh}.
 
--spec socket_handle_data(mod_bosh:socket(), {tcp | ssl, term(), iodata()}) ->
+-spec handle_data(mod_bosh:socket(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
-socket_handle_data(_Socket, {_Kind, _Term, Packet}) ->
+handle_data(_Socket, {_Kind, _Term, Packet}) ->
     {raw, [Packet]}.
 
--spec socket_activate(mod_bosh:socket()) -> ok.
-socket_activate(_Socket) ->
+-spec activate(mod_bosh:socket()) -> ok.
+activate(_Socket) ->
     ok.
 
--spec socket_send_xml(mod_bosh:socket(),
+-spec send_xml(mod_bosh:socket(),
                       iodata() | exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
-socket_send_xml(#bosh_socket{pid = Pid}, XMLs) when is_list(XMLs) ->
+send_xml(#bosh_socket{pid = Pid}, XMLs) when is_list(XMLs) ->
     [Pid ! {send, XML} || XML <- XMLs],
     ok;
-socket_send_xml(#bosh_socket{pid = Pid}, XML) ->
+send_xml(#bosh_socket{pid = Pid}, XML) ->
     Pid ! {send, XML},
     ok.
 
--spec socket_close(mod_bosh:socket()) -> ok.
-socket_close(#bosh_socket{pid = Pid}) ->
+-spec close(mod_bosh:socket()) -> ok.
+close(#bosh_socket{pid = Pid}) ->
     Pid ! close,
     ok.
 

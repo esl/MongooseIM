@@ -986,7 +986,6 @@ listener_module(<<"s2s">>) -> mongoose_s2s_listener;
 listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"component">>) -> mongoose_component_listener.
 
-%% required for correct metrics reporting by mongoose_transport module
 connection_type(<<"c2s">>) -> c2s;
 connection_type(<<"s2s">>) -> s2s;
 connection_type(<<"http">>) -> http;

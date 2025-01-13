@@ -1,14 +1,10 @@
--module(mongoose_s2s_socket).
+-module(mongoose_s2s_socket_in).
 
 -behaviour(gen_server).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("public_key/include/public_key.hrl").
-
--type peer() :: {inet:ip_address(), inet:port_number()}.
--type peername_return() :: {ok, peer()} | {error, inet:posix()}.
--type peercert_return() :: no_peer_cert | {ok, #'Certificate'{}}.
 
 -type stanza_size() :: pos_integer() | infinity.
 
@@ -32,7 +28,7 @@
                 hibernate_after = 0   :: non_neg_integer()}).
 -type state() :: #state{}.
 
--export_type([socket_data/0, peer/0, peername_return/0, peercert_return/0]).
+-export_type([socket_data/0]).
 
 %% transport API
 -export([close/1, send_text/2, send_element/2, peername/1, change_shaper/2,
@@ -86,7 +82,7 @@ get_peer_certificate(#socket_data{sockmod = just_tls, socket = Socket}) ->
 get_peer_certificate(_SocketData) ->
     no_peer_cert.
 
--spec peername(socket_data()) -> mongoose_transport:peername_return().
+-spec peername(socket_data()) -> {ok, mongoose_transport:peer()}.
 peername(#socket_data{connection_details = #{src_address := SrcAddr, src_port := SrcPort}}) ->
     {ok, {SrcAddr, SrcPort}}.
 

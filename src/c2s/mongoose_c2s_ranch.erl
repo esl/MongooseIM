@@ -2,12 +2,12 @@
 -behaviour(mongoose_c2s_socket).
 
 -export([new/3,
-         socket_peername/1,
+         peername/1,
          tcp_to_tls/2,
-         socket_handle_data/2,
-         socket_activate/1,
-         socket_close/1,
-         socket_send_xml/2,
+         handle_data/2,
+         activate/1,
+         close/1,
+         send_xml/2,
          get_peer_certificate/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
@@ -17,13 +17,13 @@
 -record(ranch_tcp, {
           socket :: inet:socket(),
           ranch_ref :: ranch:ref(),
-          ip :: {inet:ip_address(), inet:port_number()}
+          ip :: mongoose_transport:peer()
          }).
 
 -record(ranch_ssl, {
           socket :: ssl:sslsocket(),
           ranch_ref :: ranch:ref(),
-          ip :: {inet:ip_address(), inet:port_number()},
+          ip :: mongoose_transport:peer(),
           verify_results = [] :: list()
          }).
 
@@ -39,10 +39,10 @@ new(ranch_ssl, Ref, Opts) ->
     #{src_address := PeerIp, src_port := PeerPort} = ConnectionDetails,
     #ranch_ssl{ranch_ref = Ref, socket = Socket, ip = {PeerIp, PeerPort}}.
 
--spec socket_peername(socket()) -> {inet:ip_address(), inet:port_number()}.
-socket_peername(#ranch_tcp{ip = Ip}) ->
+-spec peername(socket()) -> mongoose_transport:peer().
+peername(#ranch_tcp{ip = Ip}) ->
     Ip;
-socket_peername(#ranch_ssl{ip = Ip}) ->
+peername(#ranch_ssl{ip = Ip}) ->
     Ip.
 
 -spec tcp_to_tls(socket(), mongoose_listener:options()) ->
@@ -69,34 +69,34 @@ do_tcp_to_tls(TCPSocket, Options) ->
         _ -> Ret
     end.
 
--spec socket_handle_data(socket(), {tcp | ssl, term(), iodata()}) ->
+-spec handle_data(socket(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
-socket_handle_data(#ranch_ssl{}, {ssl, _, Data}) ->
+handle_data(#ranch_ssl{}, {ssl, _, Data}) ->
     mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => iolist_size(Data)}),
     Data;
-socket_handle_data(#ranch_tcp{socket = Socket}, {tcp, Socket, Data}) ->
+handle_data(#ranch_tcp{socket = Socket}, {tcp, Socket, Data}) ->
     mongoose_instrument:execute(c2s_tcp_data_in, #{}, #{byte_size => iolist_size(Data)}),
     Data.
 
--spec socket_activate(socket()) -> ok.
-socket_activate(#ranch_ssl{socket = Socket}) ->
+-spec activate(socket()) -> ok.
+activate(#ranch_ssl{socket = Socket}) ->
     ranch_ssl:setopts(Socket, [{active, once}]);
-socket_activate(#ranch_tcp{socket = Socket}) ->
+activate(#ranch_tcp{socket = Socket}) ->
     ranch_tcp:setopts(Socket, [{active, once}]).
 
--spec socket_close(socket()) -> ok.
-socket_close(#ranch_ssl{socket = Socket}) ->
+-spec close(socket()) -> ok.
+close(#ranch_ssl{socket = Socket}) ->
     ranch_ssl:close(Socket);
-socket_close(#ranch_tcp{socket = Socket}) ->
+close(#ranch_tcp{socket = Socket}) ->
     ranch_tcp:close(Socket).
 
--spec socket_send_xml(socket(), exml_stream:element() | [exml_stream:element()]) ->
+-spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
-socket_send_xml(#ranch_ssl{socket = Socket}, XML) ->
+send_xml(#ranch_ssl{socket = Socket}, XML) ->
     Data = exml:to_iolist(XML),
     mongoose_instrument:execute(c2s_tls_data_out, #{}, #{byte_size => iolist_size(Data)}),
     ranch_ssl:send(Socket, Data);
-socket_send_xml(#ranch_tcp{socket = Socket}, XML) ->
+send_xml(#ranch_tcp{socket = Socket}, XML) ->
     Data = exml:to_iolist(XML),
     mongoose_instrument:execute(c2s_tcp_data_out, #{}, #{byte_size => iolist_size(Data)}),
     ranch_tcp:send(Socket, Data).

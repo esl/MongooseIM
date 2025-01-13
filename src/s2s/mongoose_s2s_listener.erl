@@ -31,4 +31,4 @@ start_listener(Opts) ->
     {ok, pid()}.
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
-    mongoose_s2s_socket:start_link({mongoose_s2s_socket, Ref, Transport, Opts}, ProcessOpts).
+    mongoose_s2s_socket_in:start_link({mongoose_s2s_socket_in, Ref, Transport, Opts}, ProcessOpts).

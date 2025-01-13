@@ -3,7 +3,7 @@
 -export([new/1, handle_data/2, activate/1, close/1, send_xml/2]).
 
 -callback new(mongoose_listener:transport_module(), ranch:ref(), mongoose_listener:options()) -> state().
--callback peername(state()) -> {inet:ip_address(), inet:port_number()}.
+-callback peername(state()) -> mongoose_transport:peer().
 -callback handle_data(state(), {tcp, term(), iodata()}) ->
     iodata() | {raw, [exml:element()]} | {error, term()}.
 -callback activate(state()) -> ok.

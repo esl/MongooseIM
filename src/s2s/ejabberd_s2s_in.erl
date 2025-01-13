@@ -51,7 +51,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--record(state, {socket                  :: mongoose_s2s_socket:socket_data(),
+-record(state, {socket                  :: mongoose_s2s_socket_in:socket_data(),
                 streamid                :: ejabberd_s2s:stream_id(),
                 shaper                  :: atom(),
                 tls = false             :: boolean(),
@@ -244,7 +244,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                        TLSEnabled == false ->
             ?LOG_DEBUG(#{what => s2s_starttls}),
             TLSOpts = tls_options_with_certfile(StateData),
-            TLSSocket = mongoose_s2s_socket:wait_for_tls_handshake(
+            TLSSocket = mongoose_s2s_socket_in:wait_for_tls_handshake(
                                                  StateData#state.socket, TLSOpts,
                                                  #xmlel{name = <<"proceed">>,
                                                         attrs = [{<<"xmlns">>, ?NS_TLS}]}),
@@ -259,7 +259,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                 <<"EXTERNAL">> ->
                     Auth = base64:mime_decode(exml_query:cdata(El)),
                     AuthDomain = jid:nameprep(Auth),
-                    CertData = mongoose_s2s_socket:get_peer_certificate(
+                    CertData = mongoose_s2s_socket_in:get_peer_certificate(
                                  StateData#state.socket),
                     AuthRes = check_auth_domain(AuthDomain, CertData),
                     handle_auth_res(AuthRes, AuthDomain, StateData);
@@ -473,7 +473,7 @@ handle_info(_, StateName, StateData) ->
 -spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, StateName, StateData) ->
     ?LOG_DEBUG(#{what => s2s_in_stopped, reason => Reason, state_name => StateName}),
-    mongoose_s2s_socket:close(StateData#state.socket),
+    mongoose_s2s_socket_in:close(StateData#state.socket),
     ok.
 
 %%%----------------------------------------------------------------------
@@ -482,11 +482,11 @@ terminate(Reason, StateName, StateData) ->
 
 -spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
-    mongoose_s2s_socket:send_text(StateData#state.socket, Text).
+    mongoose_s2s_socket_in:send_text(StateData#state.socket, Text).
 
 -spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
-    mongoose_s2s_socket:send_element(StateData#state.socket, El).
+    mongoose_s2s_socket_in:send_element(StateData#state.socket, El).
 
 -spec stream_features(mongooseim:host_type(), binary()) -> [exml:element()].
 stream_features(HostType, Domain) ->
@@ -497,7 +497,7 @@ change_shaper(StateData, {LLocalServer, LRemoteServer}) ->
     {ok, HostType} = mongoose_domain_api:get_host_type(LLocalServer),
     JID = jid:make(<<>>, LRemoteServer, <<>>),
     Shaper = acl:match_rule(HostType, StateData#state.shaper, JID),
-    mongoose_s2s_socket:change_shaper(StateData#state.socket, Shaper),
+    mongoose_s2s_socket_in:change_shaper(StateData#state.socket, Shaper),
     ok.
 
 
@@ -551,7 +551,7 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
     end.
 
 verify_cert_and_get_sasl(Socket) ->
-    case mongoose_s2s_socket:get_peer_certificate(Socket) of
+    case mongoose_s2s_socket_in:get_peer_certificate(Socket) of
         {ok, _} ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],
@@ -632,7 +632,7 @@ is_known_domain(Domain) ->
 
 -spec handle_get_state_info(statename(), state()) -> connection_info().
 handle_get_state_info(StateName, StateData) ->
-    {ok, {Addr, Port}} = mongoose_s2s_socket:peername(StateData#state.socket),
+    {ok, {Addr, Port}} = mongoose_s2s_socket_in:peername(StateData#state.socket),
     Domains = case StateData#state.authenticated of
                   true ->
                       [StateData#state.auth_domain];

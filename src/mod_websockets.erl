@@ -22,12 +22,12 @@
 
 %% mongoose_c2s_socket callbacks
 -export([new/3,
-         socket_peername/1,
+         peername/1,
          tcp_to_tls/2,
-         socket_handle_data/2,
-         socket_activate/1,
-         socket_close/1,
-         socket_send_xml/2,
+         handle_data/2,
+         activate/1,
+         close/1,
+         send_xml/2,
          get_peer_certificate/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
@@ -369,8 +369,8 @@ case_insensitive_match(_, []) ->
 new(_, Socket, _LOpts) ->
     Socket.
 
--spec socket_peername(socket()) -> {inet:ip_address(), inet:port_number()}.
-socket_peername(#websocket{peername = PeerName}) ->
+-spec peername(socket()) -> mongoose_transport:peer().
+peername(#websocket{peername = PeerName}) ->
     PeerName.
 
 -spec tcp_to_tls(socket(), mongoose_listener:options()) ->
@@ -378,26 +378,26 @@ socket_peername(#websocket{peername = PeerName}) ->
 tcp_to_tls(_Socket, _LOpts) ->
     {error, tls_not_allowed_on_websockets}.
 
--spec socket_handle_data(socket(), {tcp | ssl, term(), term()}) ->
+-spec handle_data(socket(), {tcp | ssl, term(), term()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
-socket_handle_data(_Socket, {_Kind, _Term, Packet}) ->
+handle_data(_Socket, {_Kind, _Term, Packet}) ->
     {raw, [Packet]}.
 
--spec socket_activate(socket()) -> ok.
-socket_activate(_Socket) ->
+-spec activate(socket()) -> ok.
+activate(_Socket) ->
     ok.
 
--spec socket_close(socket()) -> ok.
-socket_close(#websocket{pid = Pid}) ->
+-spec close(socket()) -> ok.
+close(#websocket{pid = Pid}) ->
     Pid ! stop,
     ok.
 
--spec socket_send_xml(socket(), iodata() | exml:element() | [exml:element()]) ->
+-spec send_xml(socket(), iodata() | exml:element() | [exml:element()]) ->
     ok | {error, term()}.
-socket_send_xml(#websocket{pid = Pid}, XMLs) when is_list(XMLs) ->
+send_xml(#websocket{pid = Pid}, XMLs) when is_list(XMLs) ->
     [Pid ! {send_xml, XML} || XML <- XMLs],
     ok;
-socket_send_xml(#websocket{pid = Pid}, XML) ->
+send_xml(#websocket{pid = Pid}, XML) ->
     Pid ! {send_xml, XML},
     ok.
 

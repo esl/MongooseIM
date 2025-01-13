@@ -70,13 +70,13 @@ send(#?MODULE{transport = gen_tcp, socket = Socket}, Data) ->
 send(#?MODULE{transport = just_tls, socket = Socket}, Data) ->
     just_tls:send(Socket, Data).
 
--spec peername(t()) -> {inet:ip_address(), inet:port_number()} | unknown.
+-spec peername(t()) -> mongoose_transport:peer() | unknown.
 peername(#?MODULE{transport = gen_tcp, socket = Socket}) ->
     normalize_peername(inet:peername(Socket));
 peername(#?MODULE{transport = just_tls, socket = Socket}) ->
     normalize_peername(just_tls:peername(Socket)).
 
--spec normalize_peername({ok, {inet:ip_address(), inet:port_number()}} | any()) ->
-    {inet:ip_address(), inet:port_number()} | unknown.
+-spec normalize_peername({ok, mongoose_transport:peer()} | any()) ->
+    mongoose_transport:peer() | unknown.
 normalize_peername({ok, {IP, Port}}) when is_tuple(IP), is_integer(Port) -> {IP, Port};
 normalize_peername(_Other) -> unknown.
