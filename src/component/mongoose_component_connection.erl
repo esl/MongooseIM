@@ -21,7 +21,7 @@
           lserver = ?MYNAME :: jid:lserver(),
           streamid = mongoose_bin:gen_from_crypto() :: binary(),
           is_subdomain = false :: boolean(),
-          components = [] :: [mongoose_component:external_component()],
+          component :: undefined | mongoose_component:external_component(),
           socket :: undefined | mongoose_component_socket:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | mongoose_shaper:shaper(),
@@ -211,7 +211,7 @@ handle_stream_start(S0, StreamStart) ->
     LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
     XmlNs = exml_query:attr(StreamStart, <<"xmlns">>, <<>>),
     case {XmlNs, LServer} of
-        {?NS_COMPONENT_ACCEPT, LServer} when error =/= LServer ->
+        {?NS_COMPONENT_ACCEPT, LServer} when is_binary(LServer) ->
             IsSubdomain = <<"true">> =:= exml_query:attr(StreamStart, <<"is_subdomain">>, <<>>),
             S1 = S0#component_data{lserver = LServer, is_subdomain = IsSubdomain},
             send_header(S1),
@@ -292,9 +292,9 @@ handle_stream_established(StateData, #xmlel{name = Name} = El) ->
 -spec try_register_routes(data(), retries()) -> fsm_res().
 try_register_routes(StateData, Retries) ->
     case register_routes(StateData) of
-        {ok, Components} ->
+        {ok, Component} ->
             send_xml(StateData, #xmlel{name = <<"handshake">>}),
-            {next_state, stream_established, StateData#component_data{components = Components}};
+            {next_state, stream_established, StateData#component_data{component = Component}};
         {error, Reason} ->
             #component_data{listener_opts = #{conflict_behaviour := ConflictBehaviour}} = StateData,
             RoutesInfo = lookup_routes(StateData),
@@ -306,25 +306,23 @@ try_register_routes(StateData, Retries) ->
             handle_registration_conflict(ConflictBehaviour, RoutesInfo, StateData, Retries)
     end.
 
--spec register_routes(data()) -> any().
-register_routes(StateData) ->
-    #component_data{listener_opts = #{hidden_components := AreHidden}} = StateData,
-    Routes = get_routes(StateData),
+-spec register_routes(data()) -> {ok, mongoose_component:external_component()} | {error, any()}.
+register_routes(#component_data{lserver = SubDomain,
+                                is_subdomain = true,
+                                listener_opts = #{hidden_components := AreHidden}}) ->
+    Prefix = {prefix, <<SubDomain/binary, ".">>},
     Handler = mongoose_packet_handler:new(mongoose_component, #{pid => self()}),
-    mongoose_component:register_components(Routes, node(), Handler, AreHidden).
+    [ mongoose_domain_api:register_subdomain(HostType, Prefix, Handler)
+      || HostType <- ?ALL_HOST_TYPES ],
+    mongoose_component:register_component(SubDomain, node(), Handler, true, AreHidden);
+register_routes(#component_data{lserver = LServer,
+                                listener_opts = #{hidden_components := AreHidden}}) ->
+    Handler = mongoose_packet_handler:new(mongoose_component, #{pid => self()}),
+    mongoose_component:register_component(LServer, node(), Handler, false, AreHidden).
 
--spec get_routes(data()) -> [jid:lserver()].
-get_routes(#component_data{lserver = Subdomain, is_subdomain = true}) ->
-    StaticDomains = mongoose_domain_api:get_all_static(),
-    DynamicDomains = mongoose_domain_api:get_all_dynamic(),
-    [ component_route(Subdomain, Domain) || {Domain, _} <- StaticDomains ]
-    ++ [ component_route(Subdomain, Domain) || {Domain, _} <- DynamicDomains ];
-get_routes(#component_data{lserver = Host}) ->
-    [Host].
-
--spec component_route(binary(), jid:lserver()) -> jid:lserver().
-component_route(Subdomain, Host) ->
-    <<Subdomain/binary, ".", Host/binary>>.
+-spec lookup_routes(data()) -> [{_, _}].
+lookup_routes(#component_data{lserver = LServer}) ->
+    [{LServer, mongoose_component:lookup_component(LServer)}].
 
 handle_registration_conflict(kick_old, RoutesInfo, StateData, Retries) when Retries > 0 ->
     %% see lookup_routes
@@ -348,12 +346,6 @@ handle_registration_conflict(_Behaviour, _RoutesInfo, StateData, _Retries) ->
 do_disconnect_on_conflict(StateData) ->
     send_xml(StateData, mongoose_xmpp_errors:stream_conflict()),
     {stop, normal, StateData}.
-
--spec lookup_routes(data()) -> [{_, _}].
-lookup_routes(StateData) ->
-    Routes = get_routes(StateData),
-    %% Lookup for all pids for the route (both local and global)
-    [{Route, mongoose_component:lookup_component(Route)} || Route <- Routes].
 
 stop_process(Pid) ->
     ?MODULE:exit(Pid, <<"Replaced by new connection">>),
@@ -454,8 +446,15 @@ stream_header(StateData) ->
     #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
 
 -spec unregister_routes(data()) -> any().
-unregister_routes(#component_data{components = Components}) ->
-    mongoose_component:unregister_components(Components).
+unregister_routes(#component_data{component = undefined}) ->
+    ok;
+unregister_routes(#component_data{lserver = SubDomain, is_subdomain = true, component = Component}) ->
+    Prefix = {prefix, <<SubDomain/binary, ".">>},
+    [ mongoose_domain_api:unregister_subdomain(HostType, Prefix)
+      || HostType <- ?ALL_HOST_TYPES ],
+    mongoose_component:unregister_component(Component);
+unregister_routes(#component_data{component = Component}) ->
+    mongoose_component:unregister_component(Component).
 
 %%% Instrumentation helpers
 -spec execute_element_event(mongoose_instrument:event_name(), exml_stream:element(), data()) -> ok.
