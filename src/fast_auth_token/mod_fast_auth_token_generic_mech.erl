@@ -1,4 +1,4 @@
--module(mod_fast_auth_token_generic).
+-module(mod_fast_auth_token_generic_mech).
 
 -export([mech_new/4, mech_step/2]).
 

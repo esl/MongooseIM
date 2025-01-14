@@ -250,7 +250,7 @@ maybe_parse_integer(undefined) ->
                         Creds :: mongoose_credentials:t()) ->
     skip | {ok, mechanism(), Reason :: add_reason()}.
 maybe_auto_rotate(HostType, Creds) ->
-    %% Creds could contain data from mod_fast_auth_token_generic
+    %% Creds could contain data from mod_fast_auth_token_generic_mech
     SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
     DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
     ?LOG_ERROR(#{what => maybe_auto_rotate, slot => SlotUsed, data_used => format_term(DataUsed)}),
@@ -332,7 +332,7 @@ make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) ->
 -spec maybe_set_current_slot(Creds :: mongoose_credentials:t()) ->
     SetCurrent :: set_current().
 maybe_set_current_slot(Creds) ->
-    %% Creds could contain data from mod_fast_auth_token_generic
+    %% Creds could contain data from mod_fast_auth_token_generic_mech
     SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
     DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
     case SlotUsed of
