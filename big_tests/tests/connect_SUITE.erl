@@ -863,6 +863,5 @@ proxy_info() ->
      }.
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
-    ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}}].
+    [{c2s_message_processed, #{host_type => domain_helper:host_type()}}
+     | instrument_helper:declared_events(mongoose_c2s_listener, [])].

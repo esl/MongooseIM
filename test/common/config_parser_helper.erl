@@ -156,7 +156,8 @@ options("mongooseim-pgsql") ->
                 access => c2s,
                 shaper => c2s_shaper,
                 max_stanza_size => 65536,
-                tls => #{certfile => "priv/dc1.pem", dhfile => "priv/dh.pem",
+                tls => #{certfile => "priv/dc1.pem",
+                         dhfile => "priv/dh.pem",
                          cacertfile => "priv/ca.pem"}
                }),
        config([listen, c2s],
@@ -214,7 +215,9 @@ options("mongooseim-pgsql") ->
                               username => <<"ala">>, password => <<"makotaipsa">>})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => "",
+                tls => #{certfile => "priv/cert.pem",
+                         keyfile => "priv/dc1.pem",
+                         password => "",
                          verify_mode => none}
                }),
        config([listen, http],
@@ -233,14 +236,19 @@ options("mongooseim-pgsql") ->
                             #{host => '_', path => "/api"})],
                 protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => "",
+                tls => #{certfile => "priv/cert.pem",
+                         keyfile => "priv/dc1.pem",
+                         password => "",
                          verify_mode => none}
                }),
        config([listen, s2s],
               #{port => 5269,
                 shaper => s2s_shaper,
                 max_stanza_size => 131072,
-                tls => #{dhfile => "priv/dh.pem"}
+                tls => (default_config([listen, s2s, tls]))#{
+                            cacertfile => "priv/ca.pem",
+                            certfile => "priv/cert.pem",
+                            dhfile => "priv/dh.pem"}
                })
       ]},
      {loglevel, warning},
@@ -1082,6 +1090,9 @@ default_room_opts() ->
 common_xmpp_listener_config() ->
     (common_listener_config())#{backlog => 1024,
                                 proxy_protocol => false,
+                                max_connections => infinity,
+                                reuse_port => false,
+                                shaper => none,
                                 hibernate_after => 0,
                                 max_stanza_size => 0,
                                 num_acceptors => 100}.
@@ -1090,19 +1101,15 @@ common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
       ip_version => inet,
-      proto => tcp,
-      connection_type => undefined}.
+      proto => tcp}.
 
 extra_component_listener_config() ->
     #{access => all,
-      shaper => none,
       check_from => true,
-      max_connections => infinity,
-      reuse_port => false,
       state_timeout => 5000,
       hidden_components => false,
       conflict_behaviour => disconnect,
-      connection_type => undefined}.
+      connection_type => component}.
 
 default_config([instrumentation]) ->
     #{probe_interval => 15};
@@ -1126,7 +1133,8 @@ default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),
                                 protocol => default_config([listen, http, protocol]),
-                                handlers => []};
+                                handlers => [],
+                                connection_type => http};
 default_config([listen, http, handlers, mod_websockets]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
@@ -1156,21 +1164,17 @@ default_config([listen, http, tls]) ->
     #{verify_mode => peer};
 default_config([listen, c2s]) ->
     (common_xmpp_listener_config())#{module => mongoose_c2s_listener,
-                                     max_connections => infinity,
                                      state_timeout => 5000,
-                                     reuse_port => false,
                                      backwards_compatible_session => true,
                                      access => all,
-                                     shaper => none};
+                                     connection_type => c2s};
 default_config([listen, c2s, tls]) ->
     default_c2s_tls(fast_tls);
 default_config([listen, s2s] = P) ->
-    (common_xmpp_listener_config())#{module => ejabberd_s2s_in,
-                                     shaper => none,
-                                     connection_type => s2s,
-                                     tls => default_config(P ++ [tls])};
+    (common_xmpp_listener_config())#{module => mongoose_s2s_listener,
+                                     connection_type => s2s};
 default_config([listen, s2s, tls]) ->
-    default_tls(fast_tls);
+    default_s2s_tls();
 default_config([listen, component]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
     Extra#{module => mongoose_component_listener};
@@ -1325,6 +1329,9 @@ default_config(Path) when is_list(Path) ->
 
 default_c2s_tls(Module) ->
     (default_tls(Module))#{mode => starttls, module => Module}.
+
+default_s2s_tls() ->
+    (default_tls(just_tls))#{mode => starttls}.
 
 default_tls(just_tls) ->
     #{verify_mode => peer,

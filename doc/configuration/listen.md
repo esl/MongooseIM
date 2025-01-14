@@ -91,3 +91,26 @@ Maximum allowed incoming stanza size in bytes.
 * **Example:** `num_acceptors = 200`
 
 The number of processes accepting new connections on the listening socket.
+
+### `listen.*.shaper`
+* **Syntax:** string, shaper name
+* **Default:** `"none"` (no shaper)
+* **Example:** `shaper = "c2s_shaper"`
+
+The shaper name that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
+The shaper referenced here needs to be defined in the [`shaper`](../configuration/shaper.md) configuration section.
+The value of the shaper name needs to be either the shaper name or the string `"none"`, which means no shaper.
+
+### `listen.*.max_connections`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `max_connections = 10000`
+
+Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
+
+### `listen.*.reuse_port`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `reuse_port = true`
+
+Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.

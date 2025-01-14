@@ -59,8 +59,6 @@ init([]) ->
         template_supervisor_spec(mongoose_transport_sup, mongoose_transport),
     C2SSupervisor =
         template_supervisor_spec(mongoose_c2s_sup, mongoose_c2s),
-    S2SInSupervisor =
-        template_supervisor_spec(ejabberd_s2s_in_sup, ejabberd_s2s_in),
     S2SOutSupervisor =
         template_supervisor_spec(ejabberd_s2s_out_sup, ejabberd_s2s_out),
     IQSupervisor =
@@ -79,7 +77,6 @@ init([]) ->
            Local,
            ReceiverSupervisor,
            C2SSupervisor,
-           S2SInSupervisor,
            S2SOutSupervisor,
            IQSupervisor,
            Listener,

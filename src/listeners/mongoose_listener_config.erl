@@ -1,5 +1,4 @@
 %% @doc Utilities related to listener configuration options
-
 -module(mongoose_listener_config).
 
 -export([ensure_ip_options/1,

@@ -21,7 +21,6 @@
          sockname/1,
          peername/1,
          setopts/2,
-         get_peer_certificate/1,
          close/1]).
 
 -export([get_sockmod/1]).
@@ -40,6 +39,7 @@
 -type options() :: #{module => module(), % fast_tls by default
                      connect => boolean(), % set to 'true' for a client-side call to tcp_to_tls/2
                      verify_mode := peer | selfsigned_peer | none,
+                     mode => tls | starttls | starttls_required, % only ejabberd_s2s_out doesn't use it (yet)
                      certfile => string(),
                      cacertfile => string(),
                      ciphers => string(),
@@ -81,8 +81,6 @@
                                     {error, any()}.
 
 -callback setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
-
--callback get_peer_certificate(tls_socket()) -> cert().
 
 -callback close(tls_socket()) -> ok.
 
@@ -160,20 +158,6 @@ peername(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:peername(S).
 -spec setopts(socket(), Opts::list()) -> ok | {error, any()}.
 setopts(#mongoose_tls_socket{tls_module = M, tls_socket = S}, Opts) -> M:setopts(S, Opts).
 
--spec get_peer_certificate(socket()) -> cert().
-get_peer_certificate(#mongoose_tls_socket{has_cert = false}) ->
-    no_peer_cert;
-get_peer_certificate(#mongoose_tls_socket{tls_module = just_tls, tls_socket = S}) ->
-    just_tls:get_peer_certificate(S);
-get_peer_certificate(#mongoose_tls_socket{tls_module = fast_tls, tls_socket = S,
-                                          tls_opts = TLSOpts}) ->
-    case {fast_tls:get_verify_result(S), fast_tls:get_peer_certificate(S)} of
-        {0, {ok, Cert}} -> {ok, Cert};
-        {Error, {ok, Cert}} ->
-            maybe_allow_selfsigned(Error, Cert, TLSOpts);
-        {_, error} -> no_peer_cert
-    end.
-
 -spec close(socket()) -> ok.
 close(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
 
@@ -188,12 +172,3 @@ has_peer_cert(#{connect := true}) ->
     true; % server always provides cert
 has_peer_cert(#{verify_mode := VerifyMode}) ->
     VerifyMode =/= none. % client provides cert only when requested
-
-%% 18 is OpenSSL's and fast_tls's error code for self-signed certs
-maybe_allow_selfsigned(18, Cert, #{verify_mode := selfsigned_peer}) ->
-    {ok, Cert};
-maybe_allow_selfsigned(Error, Cert, _SSLOpts) ->
-    cert_verification_error(Error, Cert).
-
-cert_verification_error(Error, Cert) ->
-    {bad_cert, fast_tls:get_cert_verify_string(Error, Cert)}.

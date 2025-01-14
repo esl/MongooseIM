@@ -15,6 +15,7 @@
          process_general/1,
          process_listener/2,
          process_c2s_tls/1,
+         process_s2s_just_tls/1,
          process_c2s_just_tls/1,
          process_c2s_fast_tls/1,
          process_just_tls/1,
@@ -276,81 +277,63 @@ listener_extra(Type) ->
     mongoose_config_utils:merge_sections(xmpp_listener_common(), xmpp_listener_extra(Type)).
 
 xmpp_listener_common() ->
-    #section{items = #{<<"backlog">> => #option{type = integer,
-                                                validate = non_negative},
-                       <<"proxy_protocol">> => #option{type = boolean},
+    #section{items = #{<<"backlog">> => #option{type = integer, validate = non_negative},
                        <<"hibernate_after">> => #option{type = int_or_infinity,
                                                         validate = non_negative},
+                       <<"max_connections">> => #option{type = int_or_infinity,
+                                                        validate = positive},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive,
                                                         process = fun ?MODULE:process_infinity_as_zero/1},
                        <<"num_acceptors">> => #option{type = integer,
-                                                      validate = positive}
-                      },
+                                                      validate = positive},
+                       <<"proxy_protocol">> => #option{type = boolean},
+                       <<"reuse_port">> => #option{type = boolean},
+                       <<"shaper">> => #option{type = atom,
+                                               validate = non_empty}},
              defaults = #{<<"backlog">> => 1024,
-                          <<"proxy_protocol">> => false,
                           <<"hibernate_after">> => 0,
+                          <<"max_connections">> => infinity,
                           <<"max_stanza_size">> => 0,
-                          <<"num_acceptors">> => 100}
-            }.
+                          <<"num_acceptors">> => 100,
+                          <<"proxy_protocol">> => false,
+                          <<"reuse_port">> => false,
+                          <<"shaper">> => none}}.
 
 xmpp_listener_extra(<<"c2s">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"shaper">> => #option{type = atom,
-                                               validate = non_empty},
-                       <<"max_connections">> => #option{type = int_or_infinity,
-                                                        validate = positive},
-                       <<"state_timeout">> => #option{type = int_or_infinity,
-                                                          validate = non_negative},
-                       <<"reuse_port">> => #option{type = boolean},
-                       <<"backwards_compatible_session">> => #option{type = boolean},
                        <<"allowed_auth_methods">> =>
                            #list{items = #option{type = atom,
                                                  validate = {module, ejabberd_auth}},
                                  validate = unique},
+                       <<"backwards_compatible_session">> => #option{type = boolean},
+                       <<"state_timeout">> => #option{type = int_or_infinity,
+                                                      validate = non_negative},
                        <<"tls">> => tls([server, c2s], [fast_tls, just_tls])},
              defaults = #{<<"access">> => all,
-                          <<"shaper">> => none,
-                          <<"max_connections">> => infinity,
-                          <<"state_timeout">> => 5000,
-                          <<"reuse_port">> => false,
-                          <<"backwards_compatible_session">> => true}
-            };
+                          <<"backwards_compatible_session">> => true,
+                          <<"state_timeout">> => 5000}};
 xmpp_listener_extra(<<"component">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"shaper">> => #option{type = atom,
-                                               validate = non_empty},
-                       <<"max_connections">> => #option{type = int_or_infinity,
-                                                        validate = positive},
-                       <<"state_timeout">> => #option{type = int_or_infinity,
-                                                          validate = non_negative},
-                       <<"reuse_port">> => #option{type = boolean},
                        <<"check_from">> => #option{type = boolean},
-                       <<"hidden_components">> => #option{type = boolean},
                        <<"conflict_behaviour">> => #option{type = atom,
                                                            validate = {enum, [kick_old, disconnect]}},
+                       <<"hidden_components">> => #option{type = boolean},
                        <<"password">> => #option{type = string,
                                                  validate = non_empty},
+                       <<"state_timeout">> => #option{type = int_or_infinity,
+                                                      validate = non_negative},
                        <<"tls">> => tls([server], [just_tls])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
-                          <<"max_connections">> => infinity,
-                          <<"state_timeout">> => 5000,
-                          <<"reuse_port">> => false,
-                          <<"shaper">> => none,
                           <<"check_from">> => true,
+                          <<"conflict_behaviour">> => disconnect,
                           <<"hidden_components">> => false,
-                          <<"conflict_behaviour">> => disconnect}
-            };
+                          <<"state_timeout">> => 5000}};
 xmpp_listener_extra(<<"s2s">>) ->
-    TLSSection = tls([server], [fast_tls]),
-    #section{items = #{<<"shaper">> => #option{type = atom,
-                                               validate = non_empty},
-                       <<"tls">> => TLSSection#section{include = always}},
-             defaults = #{<<"shaper">> => none}
-            }.
+    #section{items = #{<<"tls">> => tls([server, s2s], [just_tls])}}.
 
 %% path: listen.http[].transport
 http_transport() ->
@@ -703,11 +686,20 @@ tls(c2s, common) ->
              defaults = #{<<"module">> => fast_tls,
                           <<"mode">> => starttls},
              process = fun ?MODULE:process_c2s_tls/1};
+tls(s2s, common) ->
+    #section{items = #{<<"mode">> => #option{type = atom,
+                                             validate = {enum, [tls, starttls, starttls_required]}}},
+             defaults = #{<<"mode">> => starttls}};
 tls(c2s, just_tls) ->
     #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
                        <<"crl_files">> => #list{items = #option{type = string,
                                                                 validate = filename}}},
              process = fun ?MODULE:process_c2s_just_tls/1};
+tls(s2s, just_tls) ->
+    #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
+                       <<"crl_files">> => #list{items = #option{type = string,
+                                                                validate = filename}}},
+             process = fun ?MODULE:process_s2s_just_tls/1};
 tls(c2s, fast_tls) ->
     #section{process = fun ?MODULE:process_c2s_fast_tls/1}.
 
@@ -1010,7 +1002,7 @@ check_s2s_verify_mode_cacertfile(Items) ->
         false ->
             Items;
         {_, ListenItems} ->
-            S2S = [Item || Item <- ListenItems, maps:get(module, Item) == ejabberd_s2s_in],
+            S2S = [Item || Item <- ListenItems, maps:get(module, Item) == mongoose_s2s_listener],
             lists:foreach(fun verify_s2s_tls/1, S2S),
             Items
     end.
@@ -1065,11 +1057,14 @@ process_c2s_tls(M = #{module := Module}) ->
     end.
 
 process_c2s_just_tls(#{module := just_tls} = M) ->
-    maps:merge(just_tls_c2s_defaults(), M);
+    maps:merge(just_tls_defaults(), M);
 process_c2s_just_tls(M) ->
     M.
 
-just_tls_c2s_defaults() ->
+process_s2s_just_tls(M) ->
+    maps:merge(just_tls_defaults(), M).
+
+just_tls_defaults() ->
     #{crl_files => [],
       disconnect_on_failure => true}.
 
@@ -1111,14 +1106,16 @@ process_listener([item, Type | _], Opts) ->
     mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type),
                                                      connection_type => connection_type(Type)}).
 
-listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"c2s">>) -> mongoose_c2s_listener;
-listener_module(<<"s2s">>) -> ejabberd_s2s_in;
+listener_module(<<"s2s">>) -> mongoose_s2s_listener;
+listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"component">>) -> mongoose_component_listener.
 
 %% required for correct metrics reporting by mongoose_transport module
+connection_type(<<"c2s">>) -> c2s;
 connection_type(<<"s2s">>) -> s2s;
-connection_type(_) -> undefined.
+connection_type(<<"http">>) -> http;
+connection_type(<<"component">>) -> component.
 
 process_sasl_external(V) when V =:= standard;
                               V =:= common_name;

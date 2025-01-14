@@ -14,35 +14,12 @@ The following options are supported for each C2S listener:
 
 The rule that determines who is allowed to connect. By default, the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
-### `listen.c2s.shaper`
-* **Syntax:** string, rule name
-* **Default:** `"none"` (no shaper)
-* **Example:** `shaper = "c2s_shaper"`
-
-The rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
-The rule referenced here needs to be defined in the [`access`](../configuration/access.md) configuration section.
-The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
-
-### `listen.c2s.max_connections`
-* **Syntax:** positive integer or the string `"infinity"`
-* **Default:** `"infinity"`
-* **Example:** `max_connections = 10000`
-
-Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
-
 ### `listen.c2s.state_timeout`
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `5000`
 * **Example:** `state_timeout = 10_000`
 
 Timeout value (in milliseconds) used by the C2S state machine when waiting for the connecting client to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
-
-### `listen.c2s.reuse_port`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `reuse_port = true`
-
-Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
 
 ### `listen.c2s.backwards_compatible_session`
 * **Syntax:** boolean
@@ -136,40 +113,44 @@ Path to the Diffie-Hellman parameter file.
 
 Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
 
-### `listen.c2s.tls.protocol_options` - only for `fast_tls`
+### TLS options only for `fast_tls`
+
+#### `listen.c2s.tls.protocol_options`
 * **Syntax:** array of strings
 * **Default:** `["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]`
 * **Example:** `tls.protocol_options = ["no_tlsv1", "no_tlsv1_1"]`
 
 A list of OpenSSL options for FastTLS. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
 
-### `listen.c2s.tls.keyfile` - only for `just_tls`
+### TLS options only for `just_tls`
+
+#### `listen.c2s.tls.keyfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.keyfile = "key.pem"`
 
 Path to the X509 PEM file with the private key.
 
-### `listen.c2s.tls.password` - only for `just_tls`
+#### `listen.c2s.tls.password`
 * **Syntax:** string
 * **Default:** not set
 * **Example:** `tls.password = "secret"`
 
 Password to the X509 PEM file with the private key.
 
-### `listen.c2s.tls.disconnect_on_failure` - only for `just_tls`
+#### `listen.c2s.tls.disconnect_on_failure`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `tls.disconnect_on_failure = false`
 
-### `listen.c2s.tls.versions` - only for `just_tls`
+#### `listen.c2s.tls.versions`
 * **Syntax:** array of strings
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
 TLS versions to use with StartTLS or TLS. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-protocol_version)
 
-### `listen.c2s.tls.crl_files` - only for `just_tls`
+#### `listen.c2s.tls.crl_files`
 * **Syntax:** array of strings, paths in the file system
 * **Default:** not set
 * **Example:** `tls.crl_files = ["certs.crl"]`

@@ -1,5 +1,4 @@
 %% @doc Manage starting and stopping of configured listeners
-
 -module(mongoose_listener).
 
 -include("mongoose.hrl").
@@ -13,7 +12,7 @@
 -export([suspend_listeners_and_shutdown_connections/0]).
 
 %% Helpers
--export([prepare_socket_opts/1]).
+-export([prepare_socket_opts/1, element_spirals/0]).
 
 -callback start_listener(options()) -> ok.
 -callback instrumentation(options()) -> [mongoose_instrument:spec()].
@@ -29,7 +28,16 @@
 -type proto() :: tcp.
 -type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
 
--export_type([options/0, id/0, proto/0]).
+-type connection_details() :: #{
+        proxy        := boolean(),
+        version      => 1 | 2,
+        src_address  := inet:ip_address() | binary(),
+        src_port     := inet:port_number(),
+        dest_address := inet:ip_address() | binary(),
+        dest_port    := inet:port_number()
+       }.
+
+-export_type([options/0, connection_details/0, id/0, proto/0]).
 
 %% API
 
@@ -66,10 +74,7 @@ stop_listener(Opts) ->
 %% Each listener module could be started more than once on different ports.
 -spec instrumentation([options()]) -> [mongoose_instrument:spec()].
 instrumentation(Listeners) ->
-    %% c2s instrumentation is shared between Bosh, Websockets and TCP listeners
-    lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)])
-    ++ mongoose_component_listener:instrumentation()
-    ++ mongoose_c2s:instrumentation().
+    lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)]).
 
 -spec listener_instrumentation(options()) -> [mongoose_instrument:spec()].
 listener_instrumentation(Opts = #{module := Module}) ->
@@ -143,6 +148,11 @@ broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
             ok = ranch:wait_for_connections(Ref, '==', 0)
         end, Refs),
     StoppedCount.
+
+-spec element_spirals() -> [atom()].
+element_spirals() ->
+    [count, stanza_count, message_count, iq_count, presence_count,
+     error_count, message_error_count, iq_error_count, presence_error_count].
 
 -spec prepare_socket_opts(map()) -> map().
 prepare_socket_opts(#{port := Port,

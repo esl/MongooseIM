@@ -14,7 +14,6 @@
 -include_lib("kernel/include/inet.hrl").
 
 %% Module aliases
--define(dh, distributed_helper).
 -import(distributed_helper, [mim/0, rpc_spec/1, rpc/4]).
 
 %%%===================================================================
@@ -43,7 +42,7 @@ all() ->
     ].
 
 groups() ->
-    [{both_plain, [sequence], all_tests()},
+    [{both_plain, [], all_tests()},
      {both_tls_optional, [], essentials()},
      {both_tls_required, [], essentials()},
 
@@ -89,23 +88,19 @@ connection_cases() ->
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2, fed]) ++ escalus:suite().
 
-users() ->
-    [alice2, alice, bob].
-
 %%%===================================================================
 %%% Init & teardown
 %%%===================================================================
 
-init_per_suite(Config) ->
+init_per_suite(Config0) ->
     instrument_helper:start(tested_events()),
     mongoose_helper:inject_module(?MODULE, reload),
-    Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config)),
-    escalus:create_users(Config1, escalus:get_users(users())).
+    Config1 = escalus:init_per_suite(Config0),
+    s2s_helper:init_s2s(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     s2s_helper:end_s2s(Config),
-    escalus:delete_users(Config, escalus:get_users(users())),
     escalus:end_per_suite(Config),
     instrument_helper:stop().
 
@@ -195,8 +190,8 @@ connections_info(Config) ->
     simple_message(Config),
     FedDomain = ct:get_config({hosts, fed, domain}),
     %% there should be at least one in and at least one out connection
-    [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, in),
-    [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, out),
+    [_ | _] = get_s2s_connections(mim(), FedDomain, in),
+    [_ | _] = get_s2s_connections(mim(), FedDomain, out),
     ok.
 
 dns_discovery(Config) ->
@@ -222,7 +217,7 @@ dns_discovery_ip_fail(Config) ->
     end).
 
 get_s2s_connections(RPCSpec, Domain, Type) ->
-    AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
+    AllS2SConnections = rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
     DomainS2SConnections =
         [Connection || Connection <- AllS2SConnections,
                        Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
@@ -584,6 +579,7 @@ group_with_tls(node1_tls_optional_node2_tls_required_trusted_with_cachain) -> tr
 group_with_tls(_GN) -> false.
 
 tested_events() ->
-    Names = [s2s_xmpp_element_size_in, s2s_xmpp_element_size_out,
-             s2s_tcp_data_in, s2s_tcp_data_out],
-    [{Name, #{}} || Name <- Names].
+    [{s2s_xmpp_element_size_in, #{}},
+     {s2s_xmpp_element_size_out, #{}},
+     {s2s_tcp_data_in, #{}},
+     {s2s_tcp_data_out, #{}}].

@@ -14,20 +14,6 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
 
 The following options are supported for each component listener under `listen.component` subsection:
 
-### `listen.component.max_connections`
-* **Syntax:** positive integer or the string `"infinity"`
-* **Default:** `"infinity"`
-* **Example:** `max_connections = 10000`
-
-Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
-
-### `listen.component.reuse_port`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `reuse_port = true`
-
-Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
-
 ### `listen.component.state_timeout`
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `5000`
@@ -48,13 +34,6 @@ Determines who is allowed to send data to external components. By default, the r
 * **Example:** `password = "secret"`
 
 The external component needs to authenticate with this password to connect.
-
-### `listen.component.shaper`
-* **Syntax:** string, name of the shaper
-* **Default:** `"none"`
-* **Example:** `shaper = "component_shaper"`
-
-The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
 
 ### `listen.component.check_from`
 * **Syntax:** boolean
