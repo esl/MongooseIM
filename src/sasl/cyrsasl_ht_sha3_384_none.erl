@@ -1,4 +1,4 @@
--module(cyrsasl_ht_sha3_512_none).
+-module(cyrsasl_ht_sha3_384_none).
 -behaviour(cyrsasl).
 
 -export([mechanism/0, mech_new/3, mech_step/2]).
@@ -6,7 +6,7 @@
 
 -spec mechanism() -> cyrsasl:mechanism().
 mechanism() ->
-    <<"HT-SHA-3-512-NONE">>.
+    <<"HT-SHA-3-384-NONE">>.
 
 -spec mech_new(Host   :: jid:server(),
                Creds  :: mongoose_credentials:t(),

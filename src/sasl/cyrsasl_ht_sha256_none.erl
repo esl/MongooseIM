@@ -4,8 +4,6 @@
 -export([mechanism/0, mech_new/3, mech_step/2]).
 -ignore_xref([mech_new/3]).
 
--include("mongoose.hrl").
-
 -spec mechanism() -> cyrsasl:mechanism().
 mechanism() ->
     <<"HT-SHA-256-NONE">>.

@@ -146,9 +146,10 @@ remove_domain(HostType, LServer) ->
     execute_successfully(HostType, fast_remove_domain, [LServer]),
     ok.
 
-mech_id(<<"HT-SHA-256-NONE">>) -> 1;
-mech_id(<<"HT-SHA-3-512-NONE">>) -> 2.
+-spec mech_id(mod_fast_auth_token:mechanism()) -> non_neg_integer().
+mech_id(Mech) ->
+    mod_fast_auth_token_generic_mech:mech_id(Mech).
 
-mech_name(1) -> <<"HT-SHA-256-NONE">>;
-mech_name(2) -> <<"HT-SHA-3-512-NONE">>;
-mech_name(_) -> <<"UNKNOWN-MECH">>. %% Just in case DB has an unknown mech_id
+-spec mech_name(non_neg_integer()) -> mod_fast_auth_token:mechanism().
+mech_name(MechId) ->
+    mod_fast_auth_token_generic_mech:mech_name(MechId).

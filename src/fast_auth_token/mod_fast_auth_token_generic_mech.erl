@@ -1,6 +1,14 @@
 -module(mod_fast_auth_token_generic_mech).
 
 -export([mech_new/4, mech_step/2]).
+%% Called from mongoose_c2s
+-export([skip_announce_mechanism/1]).
+%% Called from mod_fast_auth_token
+-export([mechanisms/0]).
+%% Called from mod_fast_auth_token_rdbms
+-export([mech_id/1, mech_name/1]).
+%% Called from cyrsasl
+-export([supports_sasl_module/2, sasl_modules/0]).
 
 -record(state, {creds, agent_id, mechanism}).
 -include("mongoose.hrl").
@@ -102,5 +110,84 @@ check_token({Token, Expire, Count, Mech},
 check_token(_, _) ->
     false.
 
+%% List:
+%% https://www.iana.org/assignments/named-information/named-information.xhtml#hash-alg
+%% 1 	sha-256 	256 bits 	[RFC6920] 	current
+%% 2 	sha-256-128 	128 bits 	[RFC6920] 	current
+%% 3 	sha-256-120 	120 bits 	[RFC6920] 	current
+%% 4 	sha-256-96 	96 bits 	[RFC6920] 	current
+%% 5 	sha-256-64 	64 bits 	[RFC6920] 	current
+%% 6 	sha-256-32 	32 bits 	[RFC6920] 	current
+%% 7 	sha-384 	384 bits 	[FIPS 180-4] 	current
+%% 8 	sha-512 	512 bits 	[FIPS 180-4] 	current
+%% 9 	sha3-224 	224 bits 	[FIPS 202] 	current
+%% 10 	sha3-256 	256 bits 	[FIPS 202] 	current
+%% 11 	sha3-384 	384 bits 	[FIPS 202] 	current
+%% 12 	sha3-512 	512 bits 	[FIPS 202] 	current
+%% 	blake2s-256 	256 bits 	[RFC7693] 	current
+%% 	blake2b-256 	256 bits 	[RFC7693] 	current
+%% 	blake2b-512 	512 bits 	[RFC7693] 	current
+%% 	k12-256 	256 bits 	[draft-irtf-cfrg-kangarootwelve-06] 	current
+%% 	k12-512 	512 bits 	[draft-irtf-cfrg-kangarootwelve-06] 	current
+-spec mech_to_algo(mod_fast_auth_token:mechanism()) -> atom().
 mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
-mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.
+mech_to_algo(<<"HT-SHA-384-NONE">>) -> sha384;
+mech_to_algo(<<"HT-SHA-512-NONE">>) -> sha512;
+
+mech_to_algo(<<"HT-SHA-3-256-NONE">>) -> sha3_256;
+mech_to_algo(<<"HT-SHA-3-384-NONE">>) -> sha3_384;
+mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512;
+
+mech_to_algo(_) -> unknown.
+
+-spec skip_announce_mechanism(mod_fast_auth_token:mechanism()) -> boolean().
+skip_announce_mechanism(Mech) ->
+    mech_to_algo(Mech) =/= unknown.
+
+-spec mechanisms() -> [mod_fast_auth_token:mechanism()].
+mechanisms() ->
+    %% Mechanisms described in
+    %% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html
+    [
+        <<"HT-SHA-256-NONE">>,
+        <<"HT-SHA-384-NONE">>,
+        <<"HT-SHA-512-NONE">>,
+
+        <<"HT-SHA-3-256-NONE">>,
+        <<"HT-SHA-3-384-NONE">>,
+        <<"HT-SHA-3-512-NONE">>
+    ].
+
+-spec mech_id(mod_fast_auth_token:mechanism()) -> non_neg_integer().
+mech_id(<<"HT-SHA-256-NONE">>) -> 1;
+mech_id(<<"HT-SHA-384-NONE">>) -> 7;
+mech_id(<<"HT-SHA-512-NONE">>) -> 8;
+
+mech_id(<<"HT-SHA-3-256-NONE">>) -> 10;
+mech_id(<<"HT-SHA-3-384-NONE">>) -> 11;
+mech_id(<<"HT-SHA-3-512-NONE">>) -> 12.
+
+-spec mech_name(non_neg_integer()) -> mod_fast_auth_token:mechanism().
+mech_name(1) -> <<"HT-SHA-256-NONE">>;
+mech_name(7) -> <<"HT-SHA-384-NONE">>;
+mech_name(8) -> <<"HT-SHA-512-NONE">>;
+
+mech_name(10) -> <<"HT-SHA-3-256-NONE">>;
+mech_name(11) -> <<"HT-SHA-3-384-NONE">>;
+mech_name(12) -> <<"HT-SHA-3-512-NONE">>;
+
+mech_name(_) -> <<"UNKNOWN-MECH">>. %% Just in case DB has an unknown mech_id
+
+-spec supports_sasl_module(mongooseim:host_type(), module()) -> boolean().
+supports_sasl_module(HostType, Module) ->
+    lists:member(Module, sasl_modules())
+        andalso gen_mod:is_loaded(HostType, mod_fast_auth_token).
+
+sasl_modules() ->
+    [cyrsasl_ht_sha256_none,
+     cyrsasl_ht_sha384_none,
+     cyrsasl_ht_sha512_none,
+
+     cyrsasl_ht_sha3_256_none,
+     cyrsasl_ht_sha3_384_none,
+     cyrsasl_ht_sha3_512_none].

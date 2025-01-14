@@ -142,14 +142,9 @@ mechanisms_elems(Mechs) ->
     [#xmlel{name = <<"mechanism">>,
            children = [#xmlcdata{content = Mech}]} || Mech <- Mechs].
 
+-spec mechanisms() -> [mechanism()].
 mechanisms() ->
-    %% Mechanisms described in
-    %% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html
-    [% <<"HT-SHA-256-ENDP">>,
-     % <<"HT-SHA-256-EXPR">>,
-     %% Channel binding: none
-     <<"HT-SHA-256-NONE">>,
-     <<"HT-SHA-3-512-NONE">>].
+    mod_fast_auth_token_generic_mech:mechanisms().
 
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().

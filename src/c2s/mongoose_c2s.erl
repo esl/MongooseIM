@@ -1166,13 +1166,8 @@ get_auth_mechs_to_announce(StateData) ->
     [M || M <- get_auth_mechs(StateData), not skip_announce_mechanism(M)].
 
 -spec skip_announce_mechanism(binary()) -> boolean().
-skip_announce_mechanism(<<"HT-SHA-256-ENDP">>) -> true;
-skip_announce_mechanism(<<"HT-SHA-256-EXPR">>) -> true;
-skip_announce_mechanism(<<"HT-SHA-256-NONE">>) -> true;
-skip_announce_mechanism(<<"HT-SHA-3-512-ENDP">>) -> true;
-skip_announce_mechanism(<<"HT-SHA-3-512-EXPR">>) -> true;
-skip_announce_mechanism(<<"HT-SHA-3-512-NONE">>) -> true;
-skip_announce_mechanism(_) -> false.
+skip_announce_mechanism(Mech) ->
+    mod_fast_auth_token_generic_mech:skip_announce_mechanism(Mech).
 
 -spec filter_mechanism(data(), binary()) -> boolean().
 filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-1-PLUS">>) ->
