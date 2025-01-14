@@ -208,11 +208,10 @@ handle_info({tcp, _TCPSocket, Data}, #state{sockmod = gen_tcp} = State) ->
 handle_info({ssl, _TCPSocket, Data}, #state{sockmod = just_tls} = State) ->
     NewState = process_data(Data, State),
     {noreply, NewState, hibernate_or_timeout(NewState)};
-handle_info(TcpOrSslInfo, State)
-  when is_tuple(TcpOrSslInfo) andalso
-       tcp_closed =:= element(1, TcpOrSslInfo) orelse tcp_error =:= element(1, TcpOrSslInfo) orelse
-       ssl_closed =:= element(1, TcpOrSslInfo) orelse ssl_error =:= element(1, TcpOrSslInfo) ->
-    {stop, {shutdown, element(1, TcpOrSslInfo)}, State};
+handle_info({Tag, _Socket}, State) when Tag == tcp_closed; Tag == ssl_closed ->
+    {stop, {shutdown, Tag}, State};
+handle_info({Tag, _Socket, Reason}, State) when Tag == tcp_error; Tag == ssl_error ->
+    {stop, {shutdown, Tag, Reason}, State};
 handle_info({timeout, _Ref, activate}, State) ->
     activate_socket(State),
     {noreply, State, hibernate_or_timeout(State)};

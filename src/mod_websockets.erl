@@ -413,7 +413,15 @@ get_peer_certificate(#websocket{peercert = PeerCert}, _) ->
 is_channel_binding_supported(_Socket) ->
     false.
 
--spec export_key_materials(socket(), _, _, _, _) -> {error, term()}.
+-spec export_key_materials(socket(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {ok, ExportKeyMaterials} |
+    {error, atom() | exporter_master_secret_already_consumed | bad_input}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean(),
+      ExportKeyMaterials :: binary() | [binary()].
 export_key_materials(_Socket, _, _, _, _) ->
     {error, tls_not_allowed_on_websockets}.
 
