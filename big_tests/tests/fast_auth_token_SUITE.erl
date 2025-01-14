@@ -162,7 +162,7 @@ token_auth_fails_when_token_is_wrong(Config) ->
 
 token_auth_fails_when_token_is_not_found(Config) ->
     %% New token is not set
-    Steps = [start_new_user, receive_features],
+    Steps = [start_new_user],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     Token = <<"wrongtoken">>,
     auth_with_token(failure, Token, Config, Spec).
