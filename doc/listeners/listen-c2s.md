@@ -64,13 +64,6 @@ This option determines how clients are supposed to set up the TLS encryption:
 * `starttls` - enables StartTLS support; requires `certfile`,
 * `starttls_required` - enables and enforces StartTLS usage.
 
-### `listen.c2s.tls.module`
-* **Syntax:** string, one of `"just_tls"`, `"fast_tls"`
-* **Default:** `"fast_tls"`
-* **Example:** `tls.module = "just_tls"`
-
-By default, the TLS library used for C2S connections is `fast_tls`, which uses OpenSSL-based NIFs. It is possible to change it to `just_tls` - Erlang TLS implementation provided by OTP. Some TLS-related options described here have different formats for these two libraries.
-
 ### `listen.c2s.tls.verify_mode`
 * **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
 * **Default:** `"peer"`
@@ -108,49 +101,38 @@ Path to the Diffie-Hellman parameter file.
 
 ### `listen.c2s.tls.ciphers`
 * **Syntax:** string with the OpenSSL cipher suite specification
-* **Default:** for `fast_tls` the default is`"TLSv1.2:TLSv1.3"`. For `just_tls` this option is not set by default - all supported suites are accepted.
+* **Default:** this option is not set by default - all supported suites are accepted.
 * **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. See the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
 
-### TLS options only for `fast_tls`
-
-#### `listen.c2s.tls.protocol_options`
-* **Syntax:** array of strings
-* **Default:** `["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]`
-* **Example:** `tls.protocol_options = ["no_tlsv1", "no_tlsv1_1"]`
-
-A list of OpenSSL options for FastTLS. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
-
-### TLS options only for `just_tls`
-
-#### `listen.c2s.tls.keyfile`
+### `listen.c2s.tls.keyfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.keyfile = "key.pem"`
 
 Path to the X509 PEM file with the private key.
 
-#### `listen.c2s.tls.password`
+### `listen.c2s.tls.password`
 * **Syntax:** string
 * **Default:** not set
 * **Example:** `tls.password = "secret"`
 
 Password to the X509 PEM file with the private key.
 
-#### `listen.c2s.tls.disconnect_on_failure`
+### `listen.c2s.tls.disconnect_on_failure`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `tls.disconnect_on_failure = false`
 
-#### `listen.c2s.tls.versions`
+### `listen.c2s.tls.versions`
 * **Syntax:** array of strings
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
 TLS versions to use with StartTLS or TLS. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-protocol_version)
 
-#### `listen.c2s.tls.crl_files`
+### `listen.c2s.tls.crl_files`
 * **Syntax:** array of strings, paths in the file system
 * **Default:** not set
 * **Example:** `tls.crl_files = ["certs.crl"]`

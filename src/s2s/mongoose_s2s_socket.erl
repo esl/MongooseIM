@@ -52,7 +52,7 @@ start_link(Ref, Transport, Opts) ->
 close(#socket_data{receiver = Receiver}) ->
     gen_server:cast(Receiver, close).
 
--spec wait_for_tls_handshake(socket_data(), mongoose_tls:options(), exml:element()) ->
+-spec wait_for_tls_handshake(socket_data(), just_tls:options(), exml:element()) ->
      socket_data().
 wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts, El) ->
     tcp_to_tls(Receiver, maps:remove(ciphers, TLSOpts#{connect => false})),
@@ -83,7 +83,7 @@ send_element(#socket_data{} = SocketData, El) ->
     BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl).
 
--spec get_peer_certificate(socket_data()) -> mongoose_tls:cert().
+-spec get_peer_certificate(socket_data()) -> just_tls:cert().
 get_peer_certificate(#socket_data{sockmod = just_tls, socket = Socket}) ->
     just_tls:get_peer_certificate(Socket);
 get_peer_certificate(_SocketData) ->
@@ -125,8 +125,6 @@ handle_continue({do_handshake, Ref, Transport,
     {noreply, State, hibernate_or_timeout(State)}.
 
 handle_call({tcp_to_tls, TLSOpts}, From, #state{socket = TCPSocket} = State0) ->
-    %% TLS handshake always starts from client's request, let server finish starttls negotiation and
-    %% notify client that it can start TLS handshake.
     gen_server:reply(From, ok),
     case just_tls:tcp_to_tls(TCPSocket, TLSOpts) of
         {ok, TLSSocket} ->
@@ -190,7 +188,7 @@ terminate(_Reason, #state{parser = Parser, dest_pid = DestPid,
 %% local API helpers
 %%----------------------------------------------------------------------
 
--spec tcp_to_tls(pid(), mongoose_tls:options()) -> ok | {error, any()}.
+-spec tcp_to_tls(pid(), just_tls:options()) -> ok | {error, any()}.
 tcp_to_tls(Receiver, TLSOpts) ->
     gen_server_call_or_noproc(Receiver, {tcp_to_tls, TLSOpts}).
 

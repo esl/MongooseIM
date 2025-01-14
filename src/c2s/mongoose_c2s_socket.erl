@@ -8,7 +8,7 @@
          activate/1,
          close/1,
          is_channel_binding_supported/1,
-         get_tls_last_message/1,
+         export_key_materials/5,
          get_peer_certificate/2,
          has_peer_cert/2,
          tcp_to_tls/2,
@@ -32,7 +32,15 @@
 -callback get_peer_certificate(state(), mongoose_c2s:listener_opts()) -> peercert_return().
 -callback has_peer_cert(state(), mongoose_c2s:listener_opts()) -> boolean().
 -callback is_channel_binding_supported(state()) -> boolean().
--callback get_tls_last_message(state()) -> {ok, binary()} | {error, term()}.
+-callback export_key_materials(state(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {ok, ExportKeyMaterials} |
+    {error, atom() | exporter_master_secret_already_consumed | bad_input}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean(),
+      ExportKeyMaterials :: binary() | [binary()].
 -callback is_ssl(state()) -> boolean().
 
 -record(c2s_socket, {module :: module(),
@@ -127,9 +135,18 @@ is_ssl(#c2s_socket{module = Module, state = State}) ->
 get_transport(#c2s_socket{module = Module}) ->
     Module.
 
--spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
-get_tls_last_message(#c2s_socket{module = Module, state = State}) ->
-    Module:get_tls_last_message(State).
+-spec export_key_materials(state(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {ok, ExportKeyMaterials} |
+    {error, undefined_tls_material | exporter_master_secret_already_consumed | bad_input}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean(),
+      ExportKeyMaterials :: binary() | [binary()].
+export_key_materials(#c2s_socket{module = Module, state = State},
+                     Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    Module:export_key_materials(State, Labels, Contexts, WantedLengths, ConsumeSecret).
 
 -spec get_conn_type(socket()) -> conn_type().
 get_conn_type(Socket) ->

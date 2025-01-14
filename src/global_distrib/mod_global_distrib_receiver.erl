@@ -111,11 +111,12 @@ init({Ref, ranch_tcp, _Opts}) ->
 %% gen_server API
 %%--------------------------------------------------------------------
 
-handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = State) ->
+handle_info({Tag, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = State)
+  when Tag == tcp; Tag == ssl ->
     do_setopts_and_receive_data(Socket, Buffer, RawData, State);
-handle_info({tcp_closed, _Socket}, State) ->
+handle_info({Tag, _Socket}, State) when Tag == tcp_closed; Tag == ssl_closed ->
     {stop, normal, State};
-handle_info({tcp_error, _Socket, Reason}, State) ->
+handle_info({Tag, _Socket, Reason}, State) when Tag == tcp_error; Tag == ssl_error ->
     ?LOG_ERROR(#{what => gd_incoming_socket_error, reason => Reason,
                  text => <<"mod_global_distrib_receiver received tcp_error">>,
                  peer => State#state.peer, conn_id => State#state.conn_id}),
@@ -170,15 +171,9 @@ do_setopts_and_receive_data(Socket, Buffer, RawData, State) ->
     end.
 
 do_receive_data(Socket, Buffer, RawData, State) ->
-    case mod_global_distrib_transport:recv_data(Socket, RawData) of
-         {ok, Data} ->
-            NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
-            {noreply, NewState};
-        {error, closed} ->
-            {stop, normal, State};
-        Other ->
-            {stop, {recv_data_failed, Other}, State}
-    end.
+    {ok, Data} = mod_global_distrib_transport:recv_data(Socket, RawData),
+    NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
+    {noreply, NewState}.
 
 -spec handle_data(Data :: binary(), state()) -> state().
 handle_data(GdStart, State = #state{host = undefined}) ->

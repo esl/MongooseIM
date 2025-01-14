@@ -389,7 +389,7 @@ is_xmpp_registration_available(Domain) ->
 user_authenticating_with_token(Config, UserName, Token) ->
     Spec1 = lists:keystore(oauth_token, 1, escalus_users:get_userspec(Config, UserName),
                            {oauth_token, Token}),
-    lists:keystore(auth, 1, Spec1, {auth, {escalus_auth, auth_sasl_oauth}}).
+    lists:keystore(auth, 1, Spec1, {auth, fun escalus_auth:auth_sasl_oauth/2}).
 
 extract_bound_jid(BindReply) ->
     exml_query:path(BindReply, [{element, <<"bind">>}, {element, <<"jid">>},

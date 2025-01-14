@@ -32,9 +32,6 @@ all() ->
      {group, node1_tls_required_trusted_node2_tls_optional},
      {group, node1_tls_optional_node2_tls_required_trusted_with_cachain},
 
-     {group, node1_tls_false_node2_tls_optional},
-     {group, node1_tls_optional_node2_tls_false},
-
      {group, node1_tls_false_node2_tls_required},
      {group, node1_tls_required_node2_tls_false},
 
@@ -55,9 +52,6 @@ groups() ->
      %% Node1 accepts connection provided the cert can be verified
      {node1_tls_optional_node2_tls_required_trusted_with_cachain, [parallel],
       essentials() ++ connection_cases()},
-
-     {node1_tls_false_node2_tls_optional, [], essentials()},
-     {node1_tls_optional_node2_tls_false, [], essentials()},
 
      {node1_tls_false_node2_tls_required, [], negative()},
      {node1_tls_required_node2_tls_false, [], negative()},

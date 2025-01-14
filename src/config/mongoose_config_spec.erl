@@ -6,20 +6,14 @@
 %% spec parts used by http handlers, modules and services
 -export([wpool/1,
          iqdisc/0,
-         tls/2]).
+         tls/1]).
 
 %% callbacks for the 'process' step
 -export([process_dynamic_domains/1,
-         process_s2s/1,
          process_host/1,
          process_general/1,
          process_listener/2,
-         process_c2s_tls/1,
-         process_s2s_just_tls/1,
-         process_c2s_just_tls/1,
-         process_c2s_fast_tls/1,
-         process_just_tls/1,
-         process_fast_tls/1,
+         process_common_tls/1,
          process_sasl_external/1,
          process_sasl_mechanism/1,
          process_auth/1,
@@ -109,7 +103,7 @@ root() ->
                 },
        defaults = #{<<"internal_databases">> => default_internal_databases()},
        required = [<<"general">>],
-       process = [fun ?MODULE:process_dynamic_domains/1, fun ?MODULE:process_s2s/1],
+       process = fun ?MODULE:process_dynamic_domains/1,
        wrap = none,
        format_items = list
       }.
@@ -269,7 +263,7 @@ listener_common() ->
 
 listener_extra(<<"http">>) ->
     %% tls options passed to ranch_ssl (with verify_mode translated to verify_fun)
-    #section{items = #{<<"tls">> => tls([server], [just_tls]),
+    #section{items = #{<<"tls">> => tls([server]),
                        <<"transport">> => http_transport(),
                        <<"protocol">> => http_protocol(),
                        <<"handlers">> => mongoose_http_handler:config_spec()}};
@@ -310,7 +304,7 @@ xmpp_listener_extra(<<"c2s">>) ->
                        <<"backwards_compatible_session">> => #option{type = boolean},
                        <<"state_timeout">> => #option{type = int_or_infinity,
                                                       validate = non_negative},
-                       <<"tls">> => tls([server, c2s], [fast_tls, just_tls])},
+                       <<"tls">> => tls([server, xmpp])},
              defaults = #{<<"access">> => all,
                           <<"backwards_compatible_session">> => true,
                           <<"state_timeout">> => 5000}};
@@ -325,7 +319,7 @@ xmpp_listener_extra(<<"component">>) ->
                                                  validate = non_empty},
                        <<"state_timeout">> => #option{type = int_or_infinity,
                                                       validate = non_negative},
-                       <<"tls">> => tls([server], [just_tls])},
+                       <<"tls">> => tls([server, xmpp])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
                           <<"check_from">> => true,
@@ -333,7 +327,7 @@ xmpp_listener_extra(<<"component">>) ->
                           <<"hidden_components">> => false,
                           <<"state_timeout">> => 5000}};
 xmpp_listener_extra(<<"s2s">>) ->
-    #section{items = #{<<"tls">> => tls([server, s2s], [just_tls])}}.
+    #section{items = #{<<"tls">> => tls([server, xmpp])}}.
 
 %% path: listen.http[].transport
 http_transport() ->
@@ -494,7 +488,7 @@ outgoing_pool_connection(<<"cassandra">>) ->
                                            validate = non_empty},
                  <<"auth">> => #section{items = #{<<"plain">> => cassandra_auth_plain()},
                                         required = all},
-                 <<"tls">> => tls([client], [just_tls])
+                 <<"tls">> => tls([client])
                 },
        include = always,
        defaults = #{<<"servers">> => [#{host => "localhost", port => 9042}],
@@ -519,7 +513,7 @@ outgoing_pool_connection(<<"http">>) ->
                                               validate = non_empty},
                  <<"request_timeout">> => #option{type = integer,
                                                   validate = non_negative},
-                 <<"tls">> => tls([client], [just_tls])
+                 <<"tls">> => tls([client])
                 },
        include = always,
        required = [<<"host">>],
@@ -536,7 +530,7 @@ outgoing_pool_connection(<<"ldap">>) ->
                  <<"password">> => #option{type = binary},
                  <<"connect_interval">> => #option{type = integer,
                                                    validate = positive},
-                 <<"tls">> => tls([client], [just_tls])
+                 <<"tls">> => tls([client])
                 },
        include = always,
        defaults = #{<<"servers">> => ["localhost"],
@@ -636,72 +630,45 @@ cassandra_auth_plain() ->
 
 %% path: outgoing_pools.rdbms.*.connection.tls
 sql_tls() ->
-    mongoose_config_utils:merge_sections(tls([client], [just_tls]), sql_tls_extra()).
+    mongoose_config_utils:merge_sections(tls([client]), sql_tls_extra()).
 
 sql_tls_extra() ->
     #section{items = #{<<"required">> => #option{type = boolean}}}.
 
 %% TLS options
 
-tls(Entities, Modules) when is_list(Entities), is_list(Modules) ->
-    Sections = [tls(Entity, Module) || Entity <- [common | Entities],
-                                       Module <- [common | Modules]],
+tls(Entities) when is_list(Entities) ->
+    Sections = [tls(Entity) || Entity <- [common | Entities]],
     lists:foldl(fun mongoose_config_utils:merge_sections/2, hd(Sections), tl(Sections));
-tls(common, common) ->
+tls(common) ->
     #section{items = #{<<"verify_mode">> => #option{type = atom,
                                                     validate = {enum, [peer, selfsigned_peer, none]}},
                        <<"certfile">> => #option{type = string,
                                                  validate = filename},
                        <<"cacertfile">> => #option{type = string,
                                                    validate = filename},
-                       <<"ciphers">> => #option{type = string}
-                      },
-             defaults = #{<<"verify_mode">> => peer}};
-tls(common, fast_tls) ->
-    #section{items = #{<<"protocol_options">> => #list{items = #option{type = string,
-                                                                       validate = non_empty}}},
-             process = fun ?MODULE:process_fast_tls/1};
-tls(common, just_tls) ->
-    #section{items = #{<<"keyfile">> => #option{type = string,
+                       <<"ciphers">> => #option{type = string},
+                       <<"keyfile">> => #option{type = string,
                                                 validate = filename},
                        <<"password">> => #option{type = string},
-                       <<"versions">> => #list{items = #option{type = atom}}},
-             process = fun ?MODULE:process_just_tls/1};
-tls(server, common) ->
-    #section{items = #{<<"dhfile">> => #option{type = string,
-                                               validate = filename}}};
-tls(server, _) ->
-    #section{};
-tls(client, common) ->
-    #section{};
-tls(client, fast_tls) ->
-    #section{};
-tls(client, just_tls) ->
+                       <<"versions">> => #list{items = #option{type = atom}},
+                       <<"disconnect_on_failure">> => #option{type = boolean},
+                       <<"crl_files">> => #list{items = #option{type = string,
+                                                                validate = filename}}
+                      },
+             defaults = #{<<"verify_mode">> => peer,
+                          <<"disconnect_on_failure">> => true,
+                          <<"crl_files">> => []},
+             process = fun ?MODULE:process_common_tls/1};
+tls(server) ->
+    #section{items = #{<<"dhfile">> => #option{type = string, validate = filename}}};
+tls(client) ->
     #section{items = #{<<"server_name_indication">> => server_name_indication()}};
-tls(c2s, common) ->
-    #section{items = #{<<"module">> => #option{type = atom,
-                                               validate = {enum, [fast_tls, just_tls]}},
-                       <<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}},
-             defaults = #{<<"module">> => fast_tls,
-                          <<"mode">> => starttls},
-             process = fun ?MODULE:process_c2s_tls/1};
-tls(s2s, common) ->
+tls(xmpp) ->
     #section{items = #{<<"mode">> => #option{type = atom,
                                              validate = {enum, [tls, starttls, starttls_required]}}},
-             defaults = #{<<"mode">> => starttls}};
-tls(c2s, just_tls) ->
-    #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
-                       <<"crl_files">> => #list{items = #option{type = string,
-                                                                validate = filename}}},
-             process = fun ?MODULE:process_c2s_just_tls/1};
-tls(s2s, just_tls) ->
-    #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
-                       <<"crl_files">> => #list{items = #option{type = string,
-                                                                validate = filename}}},
-             process = fun ?MODULE:process_s2s_just_tls/1};
-tls(c2s, fast_tls) ->
-    #section{process = fun ?MODULE:process_c2s_fast_tls/1}.
+             defaults = #{<<"mode">> => starttls}
+            }.
 
 server_name_indication() ->
     #section{items = #{<<"enabled">> => #option{type = boolean},
@@ -859,23 +826,16 @@ s2s() ->
                                                  validate = {enum, [allow, deny]}},
                  <<"host_policy">> => #list{items = s2s_host_policy(),
                                             format_items = map},
-                 <<"use_starttls">> => #option{type = atom,
-                                               validate = {enum, [false, optional, required,
-                                                                  required_trusted]}},
-                 <<"certfile">> => #option{type = string,
-                                           validate = filename},
                  <<"shared">> => #option{type = binary,
                                          validate = non_empty},
                  <<"address">> => #list{items = s2s_address(),
                                         format_items = map},
-                 <<"ciphers">> => #option{type = string},
                  <<"max_retry_delay">> => #option{type = integer,
                                                   validate = positive},
                  <<"outgoing">> => s2s_outgoing(),
-                 <<"dns">> => s2s_dns()},
+                 <<"dns">> => s2s_dns(),
+                 <<"tls">> => tls([client, xmpp])},
        defaults = #{<<"default_policy">> => allow,
-                    <<"use_starttls">> => false,
-                    <<"ciphers">> => mongoose_tls:default_ciphers(),
                     <<"max_retry_delay">> => 300},
        wrap = host_config
       }.
@@ -976,48 +936,6 @@ extract_modules(KVs) ->
                                  (_) -> []
                               end, KVs)).
 
-%% Callback for root level `process` function
-%% Ensure that CA Certificate file (`cacertfile` option) is provided for s2s listeners
-%% if user configured s2s `use_starttls` as `required` or `required_trusted`
-%% for at least one host, host_type or globally.
-process_s2s(Items) ->
-    UseStartTlsValues = lists:flatmap(fun({{s2s, _}, S2S}) -> [maps:get(use_starttls, S2S)];
-                                          (_) -> [] end, Items),
-    case lists:any(fun is_starttls_required/1, UseStartTlsValues) of
-        true ->
-            check_s2s_verify_mode_cacertfile(Items);
-        _ ->
-            Items
-    end.
-
-is_starttls_required(required) ->
-    true;
-is_starttls_required(required_trusted) ->
-    true;
-is_starttls_required(_) ->
-    false.
-
-check_s2s_verify_mode_cacertfile(Items) ->
-    case lists:keyfind(listen, 1, Items) of
-        false ->
-            Items;
-        {_, ListenItems} ->
-            S2S = [Item || Item <- ListenItems, maps:get(module, Item) == mongoose_s2s_listener],
-            lists:foreach(fun verify_s2s_tls/1, S2S),
-            Items
-    end.
-
-verify_s2s_tls(#{tls := #{cacertfile := _}} = Item) ->
-    Item;
-verify_s2s_tls(#{tls := #{verify_mode := none}} = Item) ->
-    Item;
-verify_s2s_tls(_) ->
-    error(#{what => missing_cacertfile,
-            text => <<"You need to provide CA certificate (cacertfile) "
-                       "or disable peer verification (set `verify_mode` to `none`) "
-                       "in the `s2s.listen` sections when any of the s2s sections "
-                       "contains use_starttls as `required` or `required_trusted`.">>}).
-
 is_host_type_item({{_, HostType}, _}, HostTypes) ->
     HostType =:= global orelse lists:member(HostType, HostTypes);
 is_host_type_item(_, _) ->
@@ -1045,59 +963,11 @@ get_all_hosts_and_host_types(General) ->
                           []
                   end, General).
 
-%% User chooses just_tls or fast_tls, and this choice limits the allowed keys
-process_c2s_tls(M = #{module := Module}) ->
-    AllowedItems = (tls([server, c2s], [Module]))#section.items,
-    AllowedKeys = [binary_to_atom(Key) || Key <- maps:keys(AllowedItems)] ++ [module, mode],
-    case maps:keys(M) -- AllowedKeys of
-        [] -> M;
-        UnexpectedKeys -> error(#{what => unexpected_tls_options,
-                                  tls_module => Module,
-                                  unexpected_keys => UnexpectedKeys})
-    end.
-
-process_c2s_just_tls(#{module := just_tls} = M) ->
-    maps:merge(just_tls_defaults(), M);
-process_c2s_just_tls(M) ->
-    M.
-
-process_s2s_just_tls(M) ->
-    maps:merge(just_tls_defaults(), M).
-
-just_tls_defaults() ->
-    #{crl_files => [],
-      disconnect_on_failure => true}.
-
-process_just_tls(M = #{module := fast_tls}) ->
+process_common_tls(M = #{cacertfile := _}) ->
     M;
-process_just_tls(M = #{cacertfile := _}) ->
+process_common_tls(M = #{verify_mode := none}) ->
     M;
-process_just_tls(M = #{verify_mode := none}) ->
-    M;
-process_just_tls(_) ->
-    error(#{what => missing_cacertfile,
-            text => <<"You need to provide CA certificate (cacertfile) "
-                      "or disable peer verification (verify_mode)">>}).
-
-process_fast_tls(M = #{module := just_tls}) ->
-    M;
-process_fast_tls(#{verify_mode := selfsigned_peer}) ->
-    error(#{what => invalid_tls_verify_mode,
-            text => <<"fast_tls does not support self-signed certificate verification">>});
-process_fast_tls(M) ->
-    maps:merge(fast_tls_defaults(), M).
-
-fast_tls_defaults() ->
-    #{ciphers => mongoose_tls:default_ciphers(),
-      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
-
-process_c2s_fast_tls(M = #{module := just_tls}) ->
-    M;
-process_c2s_fast_tls(M = #{cacertfile := _}) ->
-    M;
-process_c2s_fast_tls(M = #{verify_mode := none}) ->
-    M;
-process_c2s_fast_tls(_) ->
+process_common_tls(_) ->
     error(#{what => missing_cacertfile,
             text => <<"You need to provide CA certificate (cacertfile) "
                       "or disable peer verification (verify_mode)">>}).

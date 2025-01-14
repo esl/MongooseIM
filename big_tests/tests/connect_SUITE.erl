@@ -38,7 +38,6 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [domain/0]).
--import(config_parser_helper, [default_c2s_tls/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -51,7 +50,6 @@ all() ->
         {group, incorrect_behaviors},
         {group, proxy_protocol},
         %% these groups must be last, as they really... complicate configuration
-        {group, fast_tls},
         {group, just_tls}
     ].
 
@@ -78,7 +76,6 @@ groups() ->
         {verify_peer, [], [verify_peer_disconnects_when_client_has_no_cert,
                            verify_peer_ignores_when_client_has_no_cert]},
         {just_tls, [{group, verify_peer} | tls_groups()]},
-        {fast_tls, tls_groups()},
         {session_replacement, [], [same_resource_replaces_session,
                                    clean_close_of_replaced_session,
                                    replaced_session_cannot_terminate,
@@ -120,7 +117,7 @@ cipher_test_cases() ->
         clients_can_connect_with_advertised_ciphers,
         % String cipher
         'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384',
-        %% MIM2 accepts ECDHE-RSA-AES256-GCM-SHA384 exclusively with fast_tls on alternative port
+        %% MIM2 accepts ECDHE-RSA-AES256-GCM-SHA384 exclusively on alternative port
         %% MIM3 accepts #{cipher => aes_256_gcm, key_exchange => ecdhe_rsa, mac => aead, prf => sha384}
         %%      exclusively with just_tls on alternative port
         'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'
@@ -172,8 +169,6 @@ init_per_group(tls, Config) ->
     [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
 init_per_group(just_tls, Config)->
     [{tls_module, just_tls} | Config];
-init_per_group(fast_tls, Config)->
-    [{tls_module, fast_tls} | Config];
 init_per_group(proxy_protocol, Config) ->
     configure_c2s_listener(Config, #{proxy_protocol => true}),
     Config;
@@ -372,10 +367,7 @@ clients_can_connect_with_advertised_ciphers(Config) ->
                          ciphers_working_with_ssl_clients(Config))).
 
 'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'(Config) ->
-    Port = case ?config(tls_module, Config) of
-               just_tls -> ct:get_config({hosts, mim3, c2s_tls_port});
-               fast_tls -> ct:get_config({hosts, mim2, c2s_tls_port})
-           end,
+    Port = ct:get_config({hosts, mim3, c2s_tls_port}),
     Config1 = [{c2s_port, Port} | Config],
     CiphersStr = os:cmd("openssl ciphers 'ECDHE-RSA-AES256-GCM-SHA384'"),
     ct:pal("Available cipher suites for : ~s", [CiphersStr]),
@@ -757,8 +749,7 @@ configure_c2s_listener(Config, ExtraC2SOpts, RemovedC2SKeys) ->
 tls_opts(Mode, Config) ->
     ExtraOpts = #{mode => Mode, verify_mode => none,
                   cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
-    Module = proplists:get_value(tls_module, Config, fast_tls),
-    maps:merge(default_c2s_tls(Module), ExtraOpts).
+    maps:merge(config_parser_helper:default_xmpp_tls(), ExtraOpts).
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}, {verify, verify_none}]} | UserSpec].

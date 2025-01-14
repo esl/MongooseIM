@@ -35,8 +35,8 @@
 
 -export_type([socket_data/0, send_xml_input/0, peer/0, peername_return/0, peercert_return/0]).
 
--type socket_module() :: gen_tcp | mongoose_tls.
--type socket() :: gen_tcp:socket() | mongoose_tls:socket().
+-type socket_module() :: gen_tcp | just_tls.
+-type socket() :: gen_tcp:socket() | just_tls:tls_socket().
 
 -record(socket_data, {sockmod = gen_tcp  :: socket_module(),
                       socket             :: term(),
@@ -59,15 +59,13 @@
 
 %% transport API
 -export([connect/5, close/1, send_text/2, send_element/2]).
--export([wait_for_tls_handshake/2, connect_tls/2]).
--export([peername/1]).
--export([get_all_trasport_processes/0]).
+-export([connect_tls/2, peername/1, get_all_trasport_processes/0]).
 
 %% gen_server API
 -export([start_link/3, init/1, terminate/2,
          handle_cast/2, handle_call/3, handle_info/2]).
 
--ignore_xref([start_link/3, get_all_trasport_processes/0, wait_for_tls_handshake/2]).
+-ignore_xref([start_link/3, get_all_trasport_processes/0]).
 
 %%----------------------------------------------------------------------
 %% Transport API
@@ -117,12 +115,7 @@ connect(ConnectionType, Addr, Port, Opts, Timeout) ->
 close(#socket_data{receiver = Receiver}) ->
     gen_server:cast(Receiver, close).
 
--spec wait_for_tls_handshake(socket_data(), mongoose_tls:options()) -> socket_data().
-wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
-    tcp_to_tls(Receiver, TLSOpts#{connect => false}),
-    update_socket(SocketData).
-
--spec connect_tls(socket_data(), mongoose_tls:options()) -> socket_data().
+-spec connect_tls(socket_data(), just_tls:options()) -> socket_data().
 connect_tls(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
     tcp_to_tls(Receiver, TLSOpts#{connect => true}),
     update_socket(SocketData).
@@ -153,7 +146,7 @@ send_element(#socket_data{connection_type = s2s} = SocketData, El) ->
     BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl).
 
--spec peername(socket_data()) -> mongoose_transport:peername_return().
+-spec peername(socket_data()) -> peername_return().
 peername(#socket_data{connection_details = #{src_address := SrcAddr,
                                              src_port := SrcPort}}) ->
     {ok, {SrcAddr, SrcPort}}.
@@ -167,9 +160,9 @@ get_all_trasport_processes() ->
 -spec start_link(port(), atom(), options()) ->
           ignore | {error, _} | {ok, pid()}.
 start_link(Socket, Shaper, Opts) ->
-    gen_server:start_link(?MODULE, [Socket, Shaper, Opts], []).
+    gen_server:start_link(?MODULE, {Socket, Shaper, Opts}, []).
 
-init([Socket, Shaper, Opts]) ->
+init({Socket, Shaper, Opts}) ->
     ShaperState = mongoose_shaper:new(Shaper),
     #{max_stanza_size := MaxStanzaSize,
       hibernate_after := HibernateAfter,
@@ -182,37 +175,20 @@ init([Socket, Shaper, Opts]) ->
                 parser = Parser,
                 hibernate_after = HibernateAfter}}.
 
-handle_call(get_socket, _From, #state{socket = Socket} = State) ->
-    {reply, {ok, Socket}, State, hibernate_or_timeout(State)};
-handle_call({tcp_to_tls, TLSOpts}, From, #state{socket = TCPSocket} = State0) ->
-    %% the next message from client is part of TLS handshake, it must
-    %% be handled by TLS library (another process in case of just_tls)
-    %% so deactivating the socket.
-    deactivate_socket(State0),
-    %% TLS handshake always starts from client's request, let
-    %% server finish starttls negotiation and notify client
-    %% that it can start TLS handshake.
-    gen_server:reply(From, ok),
-    case mongoose_tls:tcp_to_tls(TCPSocket, TLSOpts) of
+handle_call({tcp_to_tls, TLSOpts}, _From, #state{socket = TCPSocket} = State0) ->
+    case just_tls:tcp_to_tls(TCPSocket, TLSOpts) of
         {ok, TLSSocket} ->
             State1 = reset_parser(State0),
-            State2 = State1#state{socket = TLSSocket, sockmod = mongoose_tls},
-            %% fast_tls requires dummy recv_data/2 call to accomplish TLS
-            %% handshake. such call is simply ignored by just_tls backend.
-            case mongoose_tls:recv_data(TLSSocket, <<>>) of
-                {ok, TLSData} ->
-                    State3 = process_data(TLSData, State2),
-                    {noreply, State3, hibernate_or_timeout(State3)};
-                {error, Reason} ->
-                    ?LOG_WARNING(#{what => tcp_to_tls_failed, reason => Reason,
-                                   dest_pid => State2#state.dest_pid}),
-                    {stop, normal, State2}
-            end;
+            State2 = State1#state{socket = TLSSocket, sockmod = just_tls},
+            activate_socket(State2),
+            {reply, ok, State2, hibernate_or_timeout(State2)};
         {error, Reason} ->
             ?LOG_WARNING(#{what => tcp_to_tls_failed, reason => Reason,
                            dest_pid => State0#state.dest_pid}),
             {stop, normal, State0}
     end;
+handle_call(get_socket, _From, #state{socket = Socket} = State) ->
+    {reply, {ok, Socket}, State, hibernate_or_timeout(State)};
 handle_call({set_dest_pid, DestPid}, _From, #state{dest_pid = undefined} = State) ->
     StateAfterReset = reset_parser(State),
     NewState = StateAfterReset#state{dest_pid = DestPid},
@@ -229,32 +205,23 @@ handle_cast(_Msg, State) ->
 handle_info({tcp, _TCPSocket, Data}, #state{sockmod = gen_tcp} = State) ->
     NewState = process_data(Data, State),
     {noreply, NewState, hibernate_or_timeout(NewState)};
-handle_info({Tag, _TCPSocket, Data},
-            #state{socket = Socket,
-                   sockmod = mongoose_tls} = State) when Tag == tcp; Tag == ssl ->
-    case mongoose_tls:recv_data(Socket, Data) of
-        {ok, TLSData} ->
-            NewState = process_data(TLSData, State),
-            {noreply, NewState, hibernate_or_timeout(NewState)};
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => transport_tls_recv_error, socket => Socket, reason => Reason}),
-            {stop, normal, State}
-    end;
+handle_info({ssl, _TCPSocket, Data}, #state{sockmod = just_tls} = State) ->
+    NewState = process_data(Data, State),
+    {noreply, NewState, hibernate_or_timeout(NewState)};
 handle_info({Tag, _Socket}, State) when Tag == tcp_closed; Tag == ssl_closed ->
-    {stop, normal, State};
+    {stop, {shutdown, Tag}, State};
 handle_info({Tag, _Socket, Reason}, State) when Tag == tcp_error; Tag == ssl_error ->
-    case Reason of
-        timeout ->
-            {noreply, State, hibernate_or_timeout(State)};
-        _ ->
-            {stop, normal, State}
-    end;
+    {stop, {shutdown, Tag, Reason}, State};
+handle_info({timeout, _Ref, activate}, State) ->
+    activate_socket(State),
+    {noreply, State, hibernate_or_timeout(State)};
 handle_info({timeout, _Ref, activate}, State) ->
     activate_socket(State),
     {noreply, State, hibernate_or_timeout(State)};
 handle_info(timeout, State) ->
     {noreply, State, hibernate()};
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+    ?UNEXPECTED_INFO(Info),
     {noreply, State, hibernate_or_timeout(State)}.
 
 terminate(_Reason, #state{parser = Parser, dest_pid = DestPid,
@@ -282,7 +249,7 @@ get_transport_info(TransportPid) when is_pid(TransportPid) ->
     State = sys:get_state(TransportPid),
     maps:from_list(lists:zip(record_info(fields, state),tl(tuple_to_list(State)))).
 
--spec tcp_to_tls(pid(), mongoose_tls:options()) -> ok | {error, any()}.
+-spec tcp_to_tls(pid(), just_tls:options()) -> ok | {error, any()}.
 tcp_to_tls(Receiver, TLSOpts) ->
     gen_server_call_or_noproc(Receiver, {tcp_to_tls, TLSOpts}).
 
@@ -290,7 +257,7 @@ tcp_to_tls(Receiver, TLSOpts) ->
 update_socket(#socket_data{receiver = Receiver} = SocketData) ->
     case gen_server_call_or_noproc(Receiver, get_socket) of
         {ok, TLSSocket} ->
-            SocketData#socket_data{socket = TLSSocket, sockmod = mongoose_tls};
+            SocketData#socket_data{socket = TLSSocket, sockmod = just_tls};
         {error, _} ->
             exit(invalid_socket_after_upgrade_to_tls)
     end.
@@ -321,21 +288,15 @@ activate_socket(#state{socket = Socket, sockmod = gen_tcp}) ->
     inet:setopts(Socket, [{active, once}]),
     PeerName = inet:peername(Socket),
     resolve_peername(PeerName, Socket);
-activate_socket(#state{socket = Socket, sockmod = mongoose_tls}) ->
-    mongoose_tls:setopts(Socket, [{active, once}]),
-    PeerName = mongoose_tls:peername(Socket),
+activate_socket(#state{socket = Socket, sockmod = just_tls}) ->
+    just_tls:setopts(Socket, [{active, once}]),
+    PeerName = just_tls:peername(Socket),
     resolve_peername(PeerName, Socket).
 
 resolve_peername({ok, _}, _Socket) ->
     ok;
 resolve_peername({error, _Reason}, Socket) ->
     self() ! {tcp_closed, Socket}.
-
--spec deactivate_socket(state()) -> 'ok' | {'error', _}.
-deactivate_socket(#state{socket = Socket, sockmod = gen_tcp}) ->
-    inet:setopts(Socket, [{active, false}]);
-deactivate_socket(#state{socket = Socket, sockmod = mongoose_tls}) ->
-    mongoose_tls:setopts(Socket, [{active, false}]).
 
 -spec process_data(binary(), state()) -> state().
 process_data(Data, #state{parser = Parser,
@@ -373,11 +334,11 @@ wrap_xml(E) ->
                                  sockmod := socket_module()}) -> ok.
 update_transport_metrics(Data, #{connection_type := s2s, direction := in, sockmod := gen_tcp}) ->
     mongoose_instrument:execute(s2s_tcp_data_in, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{connection_type := s2s, direction := in, sockmod := mongoose_tls}) ->
+update_transport_metrics(Data, #{connection_type := s2s, direction := in, sockmod := just_tls}) ->
     mongoose_instrument:execute(s2s_tls_data_in, #{}, #{byte_size => byte_size(Data)});
 update_transport_metrics(Data, #{connection_type := s2s, direction := out, sockmod := gen_tcp}) ->
     mongoose_instrument:execute(s2s_tcp_data_out, #{}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{connection_type := s2s, direction := out, sockmod := mongoose_tls}) ->
+update_transport_metrics(Data, #{connection_type := s2s, direction := out, sockmod := just_tls}) ->
     mongoose_instrument:execute(s2s_tls_data_out, #{}, #{byte_size => byte_size(Data)}).
 
 -spec maybe_pause(Delay :: non_neg_integer(), state()) -> any().
@@ -436,5 +397,5 @@ shutdown_socket_and_wait_for_peer_to_close(Socket, gen_tcp) ->
     %% with the network but we want to maximise the odds that
     %% peer application gets all data sent on the tcp connection.
     gen_tcp:recv(Socket, 0, 30000);
-shutdown_socket_and_wait_for_peer_to_close(Socket, mongoose_tls) ->
-    mongoose_tls:close(Socket).
+shutdown_socket_and_wait_for_peer_to_close(Socket, just_tls) ->
+    just_tls:close(Socket).

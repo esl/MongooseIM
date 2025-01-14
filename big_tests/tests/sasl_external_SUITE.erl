@@ -10,7 +10,6 @@
 
 all() ->
     [
-     {group, fast_tls},
      {group, just_tls}].
 
 groups() ->
@@ -25,7 +24,6 @@ groups() ->
      {self_signed_certs_not_allowed, [parallel], self_signed_certs_not_allowed_test_cases()},
      {ca_signed, [self_signed_certs_not_allowed_group() | base_groups()]},
      {self_signed, [self_signed_certs_allowed_group() | base_groups()]},
-     {fast_tls, [{group, ca_signed}]},
      {just_tls, all_groups()} ].
 
 all_groups() ->
@@ -101,10 +99,6 @@ end_per_suite(Config) ->
     ejabberd_node_utils:restart_application(mongooseim),
     escalus:end_per_suite(Config).
 
-init_per_group(just_tls, Config) ->
-    [{tls_module, just_tls} | Config];
-init_per_group(fast_tls, Config) ->
-    [{tls_module, fast_tls} | Config];
 init_per_group(ca_signed, Config) ->
     [{signed, ca},
      {ssl_options, "\n  tls.disconnect_on_failure = false"},
@@ -144,21 +138,13 @@ init_per_group(_, Config) ->
     Config.
 
 modify_config_and_restart(CyrsaslExternalConfig, Config) ->
-    TLSModule = atom_to_list(escalus_config:get_config(tls_module, Config, just_tls)),
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
-    SSLOpts = case TLSModule of
-                  "just_tls" -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
-                  "fast_tls" -> ""
-              end,
+    SSLOpts = escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode,
     AuthMethods = escalus_config:get_config(auth_methods, Config,
                                             [{auth_method, "pki"}, {auth_method_opts, false}]),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
-    NewConfigValues = [{tls_config, "tls.module = \"" ++ TLSModule ++ "\"\n"
-                                    "  tls.certfile = \"priv/ssl/fake_server.pem\"\n"
-                                    "  tls.cacertfile = \"" ++ CACertFile ++ "\""
-                                    ++ SSLOpts},
-                       {s2s_tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"\n"
+    NewConfigValues = [{tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"\n"
                                     "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                     ++ SSLOpts},
                        {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
@@ -340,7 +326,7 @@ no_cert_fails_to_authenticate(_C) ->
                 {port, ct:get_config({hosts, mim, c2s_port})},
                 {password, <<"break_me">>},
                 {resource, <<>>}, %% Allow the server to generate the resource
-                {auth, {escalus_auth, auth_sasl_external}},
+                {auth, fun escalus_auth:auth_sasl_external/2},
                 {starttls, required},
                 {ssl_opts, [{fail_if_no_peer_cert, false}, {verify, verify_none}]}],
 
@@ -379,7 +365,7 @@ generate_user(C, User, Transport) ->
               {host, <<"localhost">>},
               {password, <<"break_me">>},
               {resource, <<>>}, %% Allow the server to generate the resource
-              {auth, {escalus_auth, auth_sasl_external}},
+              {auth, fun escalus_auth:auth_sasl_external/2},
               {transport, Transport},
               {ssl_opts, [{verify, verify_none},
                           {versions, ['tlsv1.2']},

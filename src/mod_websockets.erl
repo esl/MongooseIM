@@ -31,7 +31,7 @@
          get_peer_certificate/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
-         get_tls_last_message/1,
+         export_key_materials/5,
          is_ssl/1]).
 
 -ignore_xref([instrumentation/0]).
@@ -413,8 +413,16 @@ get_peer_certificate(#websocket{peercert = PeerCert}, _) ->
 is_channel_binding_supported(_Socket) ->
     false.
 
--spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
-get_tls_last_message(_Socket) ->
+-spec export_key_materials(socket(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {ok, ExportKeyMaterials} |
+    {error, atom() | exporter_master_secret_already_consumed | bad_input}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean(),
+      ExportKeyMaterials :: binary() | [binary()].
+export_key_materials(_Socket, _, _, _, _) ->
     {error, tls_not_allowed_on_websockets}.
 
 -spec is_ssl(socket()) -> boolean().

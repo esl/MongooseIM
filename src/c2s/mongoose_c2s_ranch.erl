@@ -11,7 +11,7 @@
          get_peer_certificate/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
-         get_tls_last_message/1,
+         export_key_materials/5,
          is_ssl/1]).
 
 -record(state, {
@@ -22,7 +22,7 @@
          }).
 
 -type state() :: #state{}.
--type transport() :: ranch_tcp | just_tls | fast_tls.
+-type transport() :: ranch_tcp | just_tls.
 
 -spec socket_new(term(), mongoose_listener:options()) -> state().
 socket_new({ranch_tcp, RanchRef}, #{proxy_protocol := true}) ->
@@ -48,24 +48,15 @@ socket_peername(#state{ip = Ip}) ->
 
 -spec tcp_to_tls(state(), mongoose_listener:options()) ->
   {ok, state()} | {error, term()}.
-tcp_to_tls(#state{socket = TcpSocket} = State, #{tls := #{module := TlsMod} = TlsConfig}) ->
-    case tcp_to_tls(TlsMod, TcpSocket, TlsConfig) of
+tcp_to_tls(#state{socket = TcpSocket} = State, #{tls := TlsConfig}) ->
+    case do_tcp_to_tls(TcpSocket, TlsConfig) of
         {ok, TlsSocket} ->
-            {ok, State#state{transport = TlsMod, socket = TlsSocket}};
+            {ok, State#state{transport = just_tls, socket = TlsSocket}};
         {error, Reason} ->
             {error, Reason}
     end.
 
-tcp_to_tls(fast_tls, TcpSocket, TlsConfig) ->
-    PreparedOpts = mongoose_tls:prepare_options(fast_tls, maps:remove(module, TlsConfig)),
-    ranch_tcp:setopts(TcpSocket, [{active, false}]),
-    case fast_tls:tcp_to_tls(TcpSocket, PreparedOpts) of
-        {ok, TlsSocket} ->
-            fast_tls:recv_data(TlsSocket, <<>>),
-            {ok, TlsSocket};
-        Other -> Other
-    end;
-tcp_to_tls(just_tls, TcpSocket, TlsConfig) ->
+do_tcp_to_tls(TcpSocket, TlsConfig) ->
     case just_tls:tcp_to_tls(TcpSocket, TlsConfig) of
         {ok, TlsSocket} -> {ok, TlsSocket};
         Other -> Other
@@ -73,15 +64,6 @@ tcp_to_tls(just_tls, TcpSocket, TlsConfig) ->
 
 -spec socket_handle_data(state(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
-socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Data}) ->
-    case fast_tls:recv_data(TlsSocket, Data) of
-        {ok, DecryptedData} ->
-            mongoose_instrument:execute(
-              c2s_tls_data_in, #{}, #{byte_size => iolist_size(DecryptedData)}),
-            DecryptedData;
-        {error, Reason} ->
-            {error, Reason}
-    end;
 socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
     mongoose_instrument:execute(c2s_tls_data_in, #{}, #{byte_size => iolist_size(Data)}),
     Data;
@@ -90,16 +72,12 @@ socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket,
     Data.
 
 -spec socket_activate(state()) -> ok.
-socket_activate(#state{transport = fast_tls, socket = Socket}) ->
-    fast_tls:setopts(Socket, [{active, once}]);
 socket_activate(#state{transport = just_tls, socket = Socket}) ->
     just_tls:setopts(Socket, [{active, once}]);
 socket_activate(#state{transport = ranch_tcp, socket = Socket}) ->
     ranch_tcp:setopts(Socket, [{active, once}]).
 
 -spec socket_close(state()) -> ok.
-socket_close(#state{transport = fast_tls, socket = Socket}) ->
-    fast_tls:close(Socket);
 socket_close(#state{transport = just_tls, socket = Socket}) ->
     just_tls:close(Socket);
 socket_close(#state{transport = ranch_tcp, socket = Socket}) ->
@@ -117,9 +95,6 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
         end.
 
 -spec send(transport(), ranch_transport:socket(), iodata()) -> ok | {error, term()}.
-send(fast_tls, Socket, Data) ->
-    mongoose_instrument:execute(c2s_tls_data_out, #{}, #{byte_size => iolist_size(Data)}),
-    fast_tls:send(Socket, Data);
 send(just_tls, Socket, Data) ->
     mongoose_instrument:execute(c2s_tls_data_out, #{}, #{byte_size => iolist_size(Data)}),
     just_tls:send(Socket, Data);
@@ -129,14 +104,6 @@ send(ranch_tcp, Socket, Data) ->
 
 -spec get_peer_certificate(state(), mongoose_listener:options()) ->
     mongoose_c2s_socket:peercert_return().
-get_peer_certificate(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) ->
-    case {fast_tls:get_verify_result(Socket), fast_tls:get_peer_certificate(Socket), TlsOpts} of
-        {0, {ok, Cert}, _} -> {ok, Cert};
-        %% 18 is OpenSSL's and fast_tls's error code for self-signed certs
-        {18, {ok, Cert}, #{verify_mode := selfsigned_peer}} -> {ok, Cert};
-        {Error, {ok, Cert}, _} -> {bad_cert, fast_tls:get_cert_verify_string(Error, Cert)};
-        {_, error, _} -> no_peer_cert
-    end;
 get_peer_certificate(#state{transport = just_tls, socket = Socket}, _) ->
     just_tls:get_peer_certificate(Socket);
 get_peer_certificate(#state{transport = ranch_tcp}, _) ->
@@ -150,14 +117,29 @@ has_peer_cert(State, LOpts) ->
     end.
 
 -spec is_channel_binding_supported(state()) -> boolean().
-is_channel_binding_supported(#state{transport = Transport}) ->
-    fast_tls == Transport.
+-spec export_key_materials(state(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {ok, ExportKeyMaterials} |
+    {error, undefined_tls_material | exporter_master_secret_already_consumed | bad_input}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean(),
+      ExportKeyMaterials :: binary() | [binary()].
 
--spec get_tls_last_message(state()) -> {ok, binary()} | {error, term()}.
-get_tls_last_message(#state{transport = fast_tls, socket = Socket}) ->
-    fast_tls:get_tls_last_message(peer, Socket);
-get_tls_last_message(_) ->
-    {error, undefined}.
+-if(?OTP_RELEASE >= 27).
+is_channel_binding_supported(#state{transport = Transport}) ->
+    Transport =:= just_tls.
+export_key_materials(#state{transport = just_tls, socket = SslSocket}, Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    just_tls:export_key_materials(SslSocket, Labels, Contexts, WantedLengths, ConsumeSecret);
+export_key_materials(#state{}, _, _, _, _) ->
+    {error, undefined_tls_material}.
+-else.
+is_channel_binding_supported(#state{transport = _}) ->
+    false.
+export_key_materials(_SslSocket, _, _, _, _) ->
+    {error, undefined_tls_material}.
+-endif.
 
 -spec is_ssl(state()) -> boolean().
 is_ssl(#state{transport = Transport}) ->

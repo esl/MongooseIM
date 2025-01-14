@@ -233,7 +233,7 @@ set_opts(defaults, Opts) ->
 set_opts(connections, #{connections := ConnExtra} = Opts) ->
     TLSOpts = config([modules, mod_global_distrib, connections, tls],
                      #{certfile => "priv/ssl/fake_server.pem",
-                       cacertfile => "priv/ssl/ca/cacert.pem"}),
+                       cacertfile => "priv/ssl/cacert.pem"}),
     Opts#{connections := config([modules, mod_global_distrib, connections],
                                 maps:merge(#{tls => TLSOpts}, ConnExtra))};
 set_opts(redis, #{redis := RedisExtra} = Opts) ->
@@ -520,8 +520,8 @@ test_instrumentation_events_on_one_host(Config) ->
     escalus_client:stop(Config1, Alice),
     escalus_client:stop(Config1, Eve),
 
-    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{},
-                                      fun(#{count := 1, host := undefined}) -> true end).
+    CheckF = fun(#{count := C, host := H}) -> C =:= 1 andalso H =:= Host end,
+    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{}, CheckF).
 
 test_muc_conversation_history(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),

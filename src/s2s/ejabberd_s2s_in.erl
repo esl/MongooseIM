@@ -58,7 +58,7 @@
                 tls_enabled = false     :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_cert_verify = false :: boolean(),
-                tls_options             :: mongoose_tls:options(),
+                tls_options             :: just_tls:options(),
                 server                  :: jid:lserver() | undefined,
                 host_type               :: mongooseim:host_type() | undefined,
                 authenticated = false   :: boolean(),
@@ -77,7 +77,7 @@
           streamid => ejabberd_s2s:stream_id(),
           tls => boolean(),
           tls_enabled => boolean(),
-          tls_options => mongoose_tls:options(),
+          tls_options => just_tls:options(),
           authenticated => boolean(),
           shaper => mongoose_shaper:shaper(),
           domains => [jid:lserver()]}.
@@ -105,7 +105,7 @@
        ).
 
 -type socket() :: term().
--type options() :: #{shaper := atom(), tls := mongoose_tls:options(), atom() => any()}.
+-type options() :: #{shaper := atom(), tls := just_tls:options(), atom() => any()}.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -131,11 +131,12 @@ send_validity_from_s2s_out(Pid, IsValid, FromTo) when is_boolean(IsValid) ->
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
 -spec init([socket() | options(), ...]) -> {ok, wait_for_stream, state()}.
-init([Socket, #{shaper := Shaper, tls := TLSOpts}]) ->
+init([Socket, #{shaper := Shaper} = Opts]) ->
     ?LOG_DEBUG(#{what => s2s_in_started,
                  text => <<"New incoming S2S connection">>,
                  socket => Socket}),
     Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
+    TLSOpts = maps:get(tls, Opts, #{}),
     {ok, wait_for_stream,
      #state{socket = Socket,
             streamid = new_id(),
@@ -163,8 +164,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs} = Event, StateData) ->
                             stream_start_error(StateData, Info, mongoose_xmpp_errors:host_unknown());
                         {ok, HostType} ->
                             TlsOpts = StateData#state.tls_options,
-                            UseTLS = mongoose_config:get_opt([{s2s, HostType}, use_starttls]),
-                            {StartTLS, TLSRequired} = get_tls_params(UseTLS, TlsOpts),
+                            {StartTLS, TLSRequired} = get_tls_params(TlsOpts),
                             TLSCertVerify = should_verify_cert(TlsOpts),
                             start_stream(AttrMap, StateData#state{server = Server,
                                                                   host_type = HostType,
@@ -594,15 +594,17 @@ handle_auth_res(_, _, StateData) ->
     ?LOG_WARNING(#{what => s2s_in_auth_failed}),
     {stop, normal, StateData}.
 
-should_verify_cert(#{verify_mode := Mode}) ->
-    none =/= Mode.
+should_verify_cert(#{mode := Mode}) ->
+    none =/= Mode;
+should_verify_cert(_) ->
+    false.
 
-get_tls_params(false, _) ->
-    {false, false};
-get_tls_params(_, #{mode := starttls}) ->
+get_tls_params(#{mode := starttls_required}) ->
+    {true, true};
+get_tls_params(#{mode := starttls}) ->
     {true, false};
-get_tls_params(_, #{mode := starttls_required}) ->
-    {true, true}.
+get_tls_params(_) ->
+    {false, false}.
 
 get_tls_xmlel(#state{tls_enabled = true}) ->
     [];
