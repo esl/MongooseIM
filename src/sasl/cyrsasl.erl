@@ -121,6 +121,8 @@ is_module_supported(HostType, cyrsasl_oauth) ->
     gen_mod:is_loaded(HostType, mod_auth_token);
 is_module_supported(HostType, cyrsasl_ht_sha256_none) ->
     true;
+is_module_supported(HostType, cyrsasl_ht_sha3_512_none) ->
+    true;
 is_module_supported(HostType, Module) ->
     mongoose_fips:supports_sasl_module(Module) andalso ejabberd_auth:supports_sasl_module(HostType, Module).
 
@@ -159,4 +161,5 @@ default_modules() ->
      cyrsasl_plain,
      cyrsasl_anonymous,
      cyrsasl_oauth,
-     cyrsasl_ht_sha256_none].
+     cyrsasl_ht_sha256_none,
+     cyrsasl_ht_sha3_512_none].

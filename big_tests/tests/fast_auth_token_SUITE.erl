@@ -19,32 +19,35 @@
 
 all() ->
     [
-     {group, basic}
+     {group, ht_sha_256_none},
+     {group, ht_sha_3_512_none}
     ].
 
 groups() ->
     [
-     {basic, [parallel],
-      [
-       server_advertises_support_for_fast,
-       request_token_with_initial_authentication,
-       request_token_with_unknown_mechanism_type,
-       client_authenticates_using_fast,
-       client_authenticate_several_times_with_the_same_token,
-       token_auth_fails_when_token_is_wrong,
-       token_auth_fails_when_token_is_not_found,
-       server_initiates_token_rotation,
-       could_still_use_old_token_when_server_initiates_token_rotation,
-       server_initiates_token_rotation_for_the_current_slot,
-       could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot,
-       rerequest_token_with_initial_authentication,
-       can_use_new_token_after_rerequest_token_with_initial_authentication,
-       can_use_current_token_after_rerequest_token_with_initial_authentication,
-       client_requests_token_invalidation,
-       client_requests_token_invalidation_1,
-       both_tokens_do_not_work_after_invalidation
-      ]}
+     {ht_sha_256_none, [parallel], tests()},
+     {ht_sha_3_512_none, [parallel], tests()}
     ].
+
+tests() ->
+   [server_advertises_support_for_fast,
+    request_token_with_initial_authentication,
+    request_token_with_unknown_mechanism_type,
+    client_authenticates_using_fast,
+    client_authenticate_several_times_with_the_same_token,
+    token_auth_fails_when_token_is_wrong,
+    token_auth_fails_when_token_is_not_found,
+    server_initiates_token_rotation,
+    could_still_use_old_token_when_server_initiates_token_rotation,
+    server_initiates_token_rotation_for_the_current_slot,
+    could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot,
+    rerequest_token_with_initial_authentication,
+    can_use_new_token_after_rerequest_token_with_initial_authentication,
+    can_use_current_token_after_rerequest_token_with_initial_authentication,
+    client_requests_token_invalidation,
+    client_requests_token_invalidation_1,
+    both_tokens_do_not_work_after_invalidation
+   ].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -64,6 +67,8 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
+init_per_group(ht_sha_3_512_none, Config) ->
+    [{ht_mech, <<"HT-SHA-3-512-NONE">>} | Config];
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -215,7 +220,7 @@ connect_with_almost_expired_token(Config) ->
     {LUser, LServer} = spec_to_lus(Spec),
     AgentId = user_agent_id(),
     Token = <<"verysecret">>,
-    Mech = <<"HT-SHA-256-NONE">>,
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     ExpireTS = erlang:system_time(second) + 600, %% 10 minutes into the future
     %% Set almost expiring token into the new slot
     Args = [HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, false],
@@ -234,7 +239,7 @@ connect_with_almost_expired_token_in_the_current_slot(Config) ->
     AgentId = user_agent_id(),
     Token = <<"verysecret">>,
     CurrentToken = <<"currentsecret">>,
-    Mech = <<"HT-SHA-256-NONE">>,
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     ExpireTS = Now + 86400, %% 24 hours into the future
     SetCurrent = #{
          current_token => CurrentToken,
@@ -368,8 +373,8 @@ auth_with_method(_Config, Client, Data, BindElems, Extra, Method) ->
     InitEl = case Method of
         <<"PLAIN">> ->
             sasl2_helper:plain_auth_initial_response(Client);
-        <<"HT-SHA-256-NONE">> ->
-            ht_auth_initial_response(Client)
+        <<"HT-", _/binary>> ->
+            ht_auth_initial_response(Client, Method)
         end,
     BindEl = #xmlel{name = <<"bind">>,
                   attrs = [{<<"xmlns">>, ?NS_BIND_2}],
@@ -404,15 +409,19 @@ auth_elem(Mech, Children) ->
 %%
 %% NUL    = %0x00 ; The null octet
 %% SAFE   = UTF8-encoded string
-ht_auth_initial_response(#client{props = Props}) ->
+ht_auth_initial_response(#client{props = Props}, Method) ->
     %% authcid is the username before "@" sign.
     Username = proplists:get_value(username, Props),
     Token = proplists:get_value(secret_token, Props),
     CBData = <<>>,
     ToHash = <<"Initiator", CBData/binary>>,
-    InitiatorHashedToken = crypto:mac(hmac, sha256, Token, ToHash),
+    Algo = mech_to_algo(Method),
+    InitiatorHashedToken = crypto:mac(hmac, Algo, Token, ToHash),
     Payload = <<Username/binary, 0, InitiatorHashedToken/binary>>,
     initial_response_elem(Payload).
+
+mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
+mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.
 
 initial_response_elem(Payload) ->
     Encoded = base64:encode(Payload),

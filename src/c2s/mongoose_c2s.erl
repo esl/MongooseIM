@@ -1169,6 +1169,9 @@ get_auth_mechs_to_announce(StateData) ->
 skip_announce_mechanism(<<"HT-SHA-256-ENDP">>) -> true;
 skip_announce_mechanism(<<"HT-SHA-256-EXPR">>) -> true;
 skip_announce_mechanism(<<"HT-SHA-256-NONE">>) -> true;
+skip_announce_mechanism(<<"HT-SHA-3-512-ENDP">>) -> true;
+skip_announce_mechanism(<<"HT-SHA-3-512-EXPR">>) -> true;
+skip_announce_mechanism(<<"HT-SHA-3-512-NONE">>) -> true;
 skip_announce_mechanism(_) -> false.
 
 -spec filter_mechanism(data(), binary()) -> boolean().

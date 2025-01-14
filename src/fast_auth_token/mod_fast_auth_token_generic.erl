@@ -97,6 +97,10 @@ handle_auth(#{
 check_token({Token, Expire, Count, Mech},
             {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
     when is_binary(Token) ->
-    crypto:mac(hmac, sha256, Token, ToHash) =:= InitiatorHashedToken;
+    Algo = mech_to_algo(Mech),
+    crypto:mac(hmac, Algo, Token, ToHash) =:= InitiatorHashedToken;
 check_token(_, _) ->
     false.
+
+mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
+mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.

@@ -148,7 +148,8 @@ mechanisms() ->
     [% <<"HT-SHA-256-ENDP">>,
      % <<"HT-SHA-256-EXPR">>,
      %% Channel binding: none
-     <<"HT-SHA-256-NONE">>].
+     <<"HT-SHA-256-NONE">>,
+     <<"HT-SHA-3-512-NONE">>].
 
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
