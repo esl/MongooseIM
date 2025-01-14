@@ -46,7 +46,8 @@ tests() ->
     can_use_current_token_after_rerequest_token_with_initial_authentication,
     client_requests_token_invalidation,
     client_requests_token_invalidation_1,
-    both_tokens_do_not_work_after_invalidation
+    both_tokens_do_not_work_after_invalidation,
+    token_auth_fails_when_mechanism_does_not_match
    ].
 
 %%--------------------------------------------------------------------
@@ -208,6 +209,17 @@ both_tokens_do_not_work_after_invalidation(Config) ->
     auth_with_token(success, Token, Config, Spec, request_invalidation),
     auth_with_token(failure, NewToken, Config, Spec),
     auth_with_token(failure, Token, Config, Spec).
+
+%% Servers MUST bind tokens to the mechanism selected by the client in its
+%% original request, and reject attempts to use them with other mechanisms.
+%% For example, if the client selected a mechanism capable of channel binding,
+%% an attempt to use a mechanism without channel binding MUST fail even if the
+%% token would otherwise be accepted by that mechanism.
+token_auth_fails_when_mechanism_does_not_match(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Config2 = [{ht_mech, another_mechanism(Mech)} | Config],
+    auth_with_token(failure, Token, Config2, Spec).
 
 %%--------------------------------------------------------------------
 %% helpers
@@ -422,6 +434,9 @@ ht_auth_initial_response(#client{props = Props}, Method) ->
 
 mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
 mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.
+
+another_mechanism(<<"HT-SHA-256-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
+another_mechanism(<<"HT-SHA-3-512-NONE">>) -> <<"HT-SHA-256-NONE">>.
 
 initial_response_elem(Payload) ->
     Encoded = base64:encode(Payload),
