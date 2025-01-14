@@ -18,16 +18,10 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [
-     {group, ht_sha_256_none},
-     {group, ht_sha_3_512_none}
-    ].
+    [{group, Group} || {Group, _, _} <- groups()].
 
 groups() ->
-    [
-     {ht_sha_256_none, [parallel], tests()},
-     {ht_sha_3_512_none, [parallel], tests()}
-    ].
+    [{ht_sha_256_none, [parallel], tests()} || {Group, _Mech} <- mechanisms()].
 
 tests() ->
    [server_advertises_support_for_fast,
@@ -50,6 +44,28 @@ tests() ->
     token_auth_fails_when_mechanism_does_not_match
    ].
 
+mechanisms() ->
+   [{ht_sha_256_none, <<"HT-SHA-256-NONE">>},
+    {ht_sha_384_none, <<"HT-SHA-384-NONE">>},
+    {ht_sha_512_none, <<"HT-SHA-512-NONE">>},
+    {ht_sha_3_256_none, <<"HT-SHA-3-256-NONE">>},
+    {ht_sha_3_384_none, <<"HT-SHA-3-384-NONE">>},
+    {ht_sha_3_512_none, <<"HT-SHA-3-512-NONE">>}].
+
+mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
+mech_to_algo(<<"HT-SHA-384-NONE">>) -> sha384;
+mech_to_algo(<<"HT-SHA-512-NONE">>) -> sha512;
+mech_to_algo(<<"HT-SHA-3-256-NONE">>) -> sha3_256;
+mech_to_algo(<<"HT-SHA-3-384-NONE">>) -> sha3_384;
+mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.
+
+another_mechanism(<<"HT-SHA-256-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
+another_mechanism(<<"HT-SHA-384-NONE">>) -> <<"HT-SHA-3-256-NONE">>;
+another_mechanism(<<"HT-SHA-512-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
+another_mechanism(<<"HT-SHA-3-512-NONE">>) -> <<"HT-SHA-256-NONE">>;
+another_mechanism(<<"HT-SHA-3-384-NONE">>) -> <<"HT-SHA-384-NONE">>;
+another_mechanism(<<"HT-SHA-3-256-NONE">>) -> <<"HT-SHA-512-NONE">>.
+
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -68,10 +84,13 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(ht_sha_3_512_none, Config) ->
-    [{ht_mech, <<"HT-SHA-3-512-NONE">>} | Config];
-init_per_group(_GroupName, Config) ->
-    Config.
+init_per_group(Group, Config) ->
+    case lists:keyfind(Group, 1, mechanisms()) of
+        Mech when is_binary(Mech) ->
+            [{ht_mech, Mech} | Config];
+        _ ->
+            Config
+    end.
 
 end_per_group(_GroupName, Config) ->
     Config.
@@ -431,12 +450,6 @@ ht_auth_initial_response(#client{props = Props}, Method) ->
     InitiatorHashedToken = crypto:mac(hmac, Algo, Token, ToHash),
     Payload = <<Username/binary, 0, InitiatorHashedToken/binary>>,
     initial_response_elem(Payload).
-
-mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
-mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.
-
-another_mechanism(<<"HT-SHA-256-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
-another_mechanism(<<"HT-SHA-3-512-NONE">>) -> <<"HT-SHA-256-NONE">>.
 
 initial_response_elem(Payload) ->
     Encoded = base64:encode(Payload),
