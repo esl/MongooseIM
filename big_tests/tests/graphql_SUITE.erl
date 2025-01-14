@@ -199,7 +199,7 @@ listener_reply_with_validation_error(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>,
              <<"operationName">> => <<"Q1">>},
-    {Status, Data} = execute(Ep, Body, undefined).
+    {_Status, _Data} = execute(Ep, Body, undefined).
 
 multiple_categories_query_test(Config) ->
     Status = execute_auth(user_check_auth_multiple(), Config),

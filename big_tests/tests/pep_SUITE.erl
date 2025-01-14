@@ -511,7 +511,6 @@ required_modules() ->
                                            pep_mapping => #{},
                                            host => subhost_pattern("pubsub.@HOST@")})}].
 required_modules(cache_tests) ->
-    HostType = domain_helper:host_type(),
     [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,

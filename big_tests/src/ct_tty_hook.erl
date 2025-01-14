@@ -46,7 +46,7 @@ post_end_per_suite(Suite,_Config,Return,State) ->
                           total = State#state.total + State#state.suite_total } }.
 
 %% @doc Called before each test case.
-pre_init_per_testcase(TC,Config,State = #state{suite_total = Total})
+pre_init_per_testcase(_TC,Config,State = #state{suite_total = Total})
       when is_integer(Total) ->
     {Config, State#state{ ts = os:timestamp(), total = Total + 1 } };
 pre_init_per_testcase(_TC, Config, State) ->

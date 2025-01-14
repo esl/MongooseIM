@@ -105,12 +105,10 @@ init(Req, Opts = #{timeout := Timeout}) ->
 
 terminate(_Reason, _Req, #ws_state{fsm_pid = undefined}) ->
     ok;
-terminate(Reason, _Req, #ws_state{fsm_pid = FSM}) when Reason =:= normal;
-                                                               Reason =:= stop;
-                                                               Reason =:= timeout;
-                                                               Reason =:= remote ->
-    FSM ! {websockets_closed, undefined},
-    ok;
+terminate(Reason, _Req, #ws_state{fsm_pid = FSM})
+    when Reason =:= normal; Reason =:= stop; Reason =:= timeout; Reason =:= remote ->
+        FSM ! {websockets_closed, undefined},
+        ok;
 terminate({remote, _, _}, _Req, #ws_state{fsm_pid = FSM}) ->
     FSM ! {websockets_closed, undefined},
     ok;

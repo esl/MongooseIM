@@ -2506,7 +2506,7 @@ subject(ConfigIn) ->
         escalus:wait_for_stanza(Bob),
         Stanza = escalus:wait_for_stanza(Bob),
         Subject = exml_query:path(Stanza, [{element, <<"subject">>}, cdata]),
-        Subject == ?SUBJECT,
+        ?assert_equal(?SUBJECT, Subject),
         TimeStamp = exml_query:path(Stanza, [{element, <<"delay">>}, {attr, <<"stamp">>}]),
         SystemTime = calendar:rfc3339_to_system_time(binary_to_list(TimeStamp), [{unit, second}]),
         true = is_integer(SystemTime)
