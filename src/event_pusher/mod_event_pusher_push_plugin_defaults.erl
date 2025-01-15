@@ -182,11 +182,11 @@ handle_publish_response(HostType, Recipient, PubsubJID, Node, #iq{type = error, 
                               jlib:iq().
 push_notification_iq(Node, Form, PushPayload) ->
     #iq{type = set, sub_el = [
-        #xmlel{name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB}], children = [
-            #xmlel{name = <<"publish">>, attrs = [{<<"node">>, Node}], children = [
+        #xmlel{name = <<"pubsub">>, attrs = #{<<"xmlns">> => ?NS_PUBSUB}, children = [
+            #xmlel{name = <<"publish">>, attrs = #{<<"node">> => Node}, children = [
                 #xmlel{name = <<"item">>, children = [
                     #xmlel{name = <<"notification">>,
-                           attrs = [{<<"xmlns">>, ?NS_PUSH}],
+                           attrs = #{<<"xmlns">> => ?NS_PUSH},
                            children = [make_form(?PUSH_FORM_TYPE, PushPayload)]}
                 ]}
             ]}

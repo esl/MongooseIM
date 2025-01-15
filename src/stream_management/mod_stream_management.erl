@@ -523,7 +523,7 @@ register_smid_return_enabled_stanza(StateData) ->
     Sid = mongoose_c2s:get_sid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
     ok = register_smid(HostType, SMID, Sid),
-    mod_stream_management_stanzas:stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}]).
+    mod_stream_management_stanzas:stream_mgmt_enabled(#{<<"id">> => SMID, <<"resume">> => <<"true">>}).
 
 -spec if_not_already_enabled_create_sm_state(mongoose_c2s:data()) -> sm_state() | error.
 if_not_already_enabled_create_sm_state(StateData) ->
@@ -591,7 +591,9 @@ do_handle_resume(StateData, _C2SState, SMID, H, {sid, {_TS, Pid}}) ->
 do_handle_resume(StateData, _C2SState, SMID, _H, {stale_h, StaleH}) ->
     ?LOG_WARNING(#{what => resumption_error, reason => session_resumption_timed_out,
                    smid => SMID, stale_h => StaleH, c2s_state => StateData}),
-    {stream_mgmt_error, mod_stream_management_stanzas:stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(StaleH)}])};
+    {stream_mgmt_error,
+        mod_stream_management_stanzas:stream_mgmt_failed(<<"item-not-found">>,
+                                                         #{<<"h">> => integer_to_binary(StaleH)})};
 do_handle_resume(StateData, _C2SState, SMID, _H, {error, smid_not_found}) ->
     ?LOG_WARNING(#{what => resumption_error, reason => no_previous_session_for_smid,
                    smid => SMID, c2s_state => StateData}),

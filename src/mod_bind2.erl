@@ -16,7 +16,7 @@
 
 -include("jlib.hrl").
 
--define(XMLNS_BIND_2, {<<"xmlns">>, ?NS_BIND_2}).
+-define(XMLNS_BIND_2, #{<<"xmlns">> => ?NS_BIND_2}).
 
 -behaviour(gen_mod).
 
@@ -121,7 +121,7 @@ bind2_failed(SaslAcc) ->
     {ok, mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Error, failure)}.
 
 create_bind_response(Answer) ->
-    #xmlel{name = Answer, attrs = [?XMLNS_BIND_2]}.
+    #xmlel{name = Answer, attrs = ?XMLNS_BIND_2}.
 
 %% Helpers
 -spec generate_lresource(exml:element()) -> jid:lresource().
@@ -146,7 +146,7 @@ feature(C2SData) ->
     Inlines = mongoose_hooks:bind2_stream_features(C2SData, []),
     InlineElem = inlines(Inlines),
     #xmlel{name = feature_name(),
-           attrs = [?XMLNS_BIND_2],
+           attrs = ?XMLNS_BIND_2,
            children = [InlineElem]}.
 
 -spec inlines([exml:element()]) -> exml:element().

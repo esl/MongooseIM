@@ -191,8 +191,9 @@ set_presence(JID, Type, Show, Status, Priority) ->
             Children = maybe_pres_status(Status,
                                          maybe_pres_priority(Priority,
                                                              maybe_pres_show(Show, []))),
+            Attrs = maybe_type_attr(Type),
             Message = #xmlel{name = <<"presence">>,
-                             attrs = [{<<"from">>, USR}, {<<"to">>, US} | maybe_type_attr(Type)],
+                             attrs = Attrs#{<<"from">> => USR, <<"to">> => US},
                              children = Children},
             ok = mod_presence:set_presence(Pid, Message),
             {ok, <<"Presence set successfully">>};
@@ -270,11 +271,11 @@ format_user_info(#session{sid = {Microseconds, Pid}, usr = Usr,
     Uptime = (erlang:system_time(microsecond) - Microseconds) div 1000000,
     {Usr, Conn, Address, Priority, Node, Uptime}.
 
--spec maybe_type_attr(binary())-> list().
+-spec maybe_type_attr(binary())-> exml:attrs().
 maybe_type_attr(<<"available">>) ->
-    [];
+    #{};
 maybe_type_attr(Type) ->
-    [{<<"type">>, Type}].
+    #{<<"type">> => Type}.
 
 -spec maybe_pres_show(binary(), list()) -> list().
 maybe_pres_show(Show, Children) when Show =:= <<>>;

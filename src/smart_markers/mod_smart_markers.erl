@@ -136,10 +136,10 @@ async_config_spec() ->
 process_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_iq(Acc, From, _To, #iq{type = get, sub_el = SubEl} = IQ, #{keep_private := Private}) ->
-    Req = maps:from_list(SubEl#xmlel.attrs),
-    MaybePeer = jid:from_binary(maps:get(<<"peer">>, Req, undefined)),
-    MaybeAfter = parse_ts(maps:get(<<"after">>, Req, undefined)),
-    MaybeThread = maps:get(<<"thread">>, Req, undefined),
+    Attrs = SubEl#xmlel.attrs,
+    MaybePeer = jid:from_binary(maps:get(<<"peer">>, Attrs, undefined)),
+    MaybeAfter = parse_ts(maps:get(<<"after">>, Attrs, undefined)),
+    MaybeThread = maps:get(<<"thread">>, Attrs, undefined),
     Res = fetch_markers(IQ, Acc, From, MaybePeer, MaybeThread, MaybeAfter, Private),
     {Acc, Res}.
 
@@ -168,27 +168,29 @@ fetch_markers(IQ, Acc, From, Peer, Thread, TS, Private) ->
     HostType = mongoose_acc:host_type(Acc),
     Markers = mod_smart_markers_backend:get_conv_chat_marker(HostType, From, Peer, Thread, TS, Private),
     SubEl = #xmlel{name = <<"query">>,
-                   attrs = [{<<"xmlns">>, ?NS_ESL_SMART_MARKERS},
-                            {<<"peer">>, jid:to_bare_binary(Peer)}],
+                   attrs = #{<<"xmlns">> => ?NS_ESL_SMART_MARKERS,
+                             <<"peer">> => jid:to_bare_binary(Peer)},
                    children = build_result(Markers)},
     IQ#iq{type = result, sub_el = SubEl}.
 
 build_result(Markers) ->
-    [ #xmlel{name = <<"marker">>,
-             attrs = [{<<"id">>, MsgId},
-                      {<<"from">>, jid:to_binary(From)},
-                      {<<"type">>, atom_to_binary(Type)},
-                      {<<"timestamp">>, ts_to_bin(MsgTS)}
-                      | maybe_thread(MsgThread) ]}
+    [ begin
+        Attrs = maybe_thread(MsgThread),
+        #xmlel{name = <<"marker">>,
+             attrs = Attrs#{<<"id">> => MsgId,
+                            <<"from">> => jid:to_binary(From),
+                            <<"type">> => atom_to_binary(Type),
+                            <<"timestamp">> => ts_to_bin(MsgTS)}}
+      end
       || #{from := From, thread := MsgThread, type := Type, timestamp := MsgTS, id := MsgId} <- Markers ].
 
 ts_to_bin(TS) ->
     list_to_binary(calendar:system_time_to_rfc3339(TS, [{offset, "Z"}, {unit, microsecond}])).
 
 maybe_thread(undefined) ->
-    [];
+    #{};
 maybe_thread(Bin) ->
-    [{<<"thread">>, Bin}].
+    #{<<"thread">> => Bin}.
 
 %% HOOKS
 -spec hooks(mongooseim:host_type(), gen_mod:module_opts()) -> gen_hook:hook_list().

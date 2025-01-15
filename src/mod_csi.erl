@@ -80,7 +80,7 @@ c2s_stream_features(Acc, _, _) ->
 -spec bind2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
     {ok, Acc} when Acc :: [exml:element()].
 bind2_stream_features(Acc, _, _) ->
-    SmFeature = #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_CSI}]},
+    SmFeature = #xmlel{name = <<"feature">>, attrs = #{<<"var">> => ?NS_CSI}},
     {ok, [SmFeature | Acc]}.
 
 -spec bind2_enable_features(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
@@ -213,7 +213,7 @@ handle_active_request(Acc, #{c2s_data := C2SData}) ->
 
 -spec csi() -> exml:element().
 csi() ->
-    #xmlel{name = <<"csi">>, attrs = [{<<"xmlns">>, ?NS_CSI}]}.
+    #xmlel{name = <<"csi">>, attrs = #{<<"xmlns">> => ?NS_CSI}}.
 
 -spec mark_acc_as_buffered(mongoose_acc:t()) -> mongoose_acc:t().
 mark_acc_as_buffered(Acc) ->

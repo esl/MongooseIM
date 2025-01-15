@@ -234,98 +234,97 @@ ldap_attributes_to_vcard(Attributes, VCardMap, UD) ->
     AElts = [ldap_attribute_to_vcard(vCardA, Attr)
              || Attr <- Attrs],
     [#xmlel{name = <<"vCard">>,
-            attrs = [{<<"xmlns">>, ?NS_VCARD}],
+            attrs = #{<<"xmlns">> => ?NS_VCARD},
             children =
                 lists:append([X || X <- Elts, X /= none],
-                             [#xmlel{name = <<"N">>, attrs = [],
+                             [#xmlel{name = <<"N">>,
                                      children = [X || X <- NElts, X /= none]},
-                              #xmlel{name = <<"ORG">>, attrs = [],
+                              #xmlel{name = <<"ORG">>,
                                      children = [X || X <- OElts, X /= none]},
-                              #xmlel{name = <<"ADR">>, attrs = [],
+                              #xmlel{name = <<"ADR">>,
                                      children =
                                          [X || X <- AElts, X /= none]}])}].
 
 ldap_attribute_to_vcard(vCard, {<<"fn">>, Value}) ->
-    #xmlel{name = <<"FN">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"FN">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCard,
                         {<<"nickname">>, Value}) ->
-    #xmlel{name = <<"NICKNAME">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"NICKNAME">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCard, {<<"title">>, Value}) ->
-    #xmlel{name = <<"TITLE">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"TITLE">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCard, {<<"bday">>, Value}) ->
-    #xmlel{name = <<"BDAY">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"BDAY">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCard, {<<"url">>, Value}) ->
-    #xmlel{name = <<"URL">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"URL">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCard, {<<"desc">>, Value}) ->
-    #xmlel{name = <<"DESC">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"DESC">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCard, {<<"role">>, Value}) ->
-    #xmlel{name = <<"ROLE">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"ROLE">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCard, {<<"tel">>, Value}) ->
-    #xmlel{name = <<"TEL">>, attrs = [],
+    #xmlel{name = <<"TEL">>,
            children =
-               [#xmlel{name = <<"VOICE">>, attrs = [], children = []},
-                #xmlel{name = <<"WORK">>, attrs = [], children = []},
-                #xmlel{name = <<"NUMBER">>, attrs = [],
-                       children = [{xmlcdata, Value}]}]};
+               [#xmlel{name = <<"VOICE">>},
+                #xmlel{name = <<"WORK">>},
+                #xmlel{name = <<"NUMBER">>,
+                       children = [#xmlcdata{content = Value}]}]};
 ldap_attribute_to_vcard(vCard, {<<"email">>, Value}) ->
-    #xmlel{name = <<"EMAIL">>, attrs = [],
+    #xmlel{name = <<"EMAIL">>,
            children =
-               [#xmlel{name = <<"INTERNET">>, attrs = [],
-                       children = []},
-                #xmlel{name = <<"PREF">>, attrs = [], children = []},
-                #xmlel{name = <<"USERID">>, attrs = [],
-                       children = [{xmlcdata, Value}]}]};
+               [#xmlel{name = <<"INTERNET">>},
+                #xmlel{name = <<"PREF">>},
+                #xmlel{name = <<"USERID">>,
+                       children = [#xmlcdata{content = Value}]}]};
 ldap_attribute_to_vcard(vCard, {<<"photo">>, Value}) ->
-    #xmlel{name = <<"PHOTO">>, attrs = [],
+    #xmlel{name = <<"PHOTO">>,
            children =
-               [#xmlel{name = <<"TYPE">>, attrs = [],
-                       children = [{xmlcdata, <<"image/jpeg">>}]},
-                #xmlel{name = <<"BINVAL">>, attrs = [],
-                       children = [{xmlcdata, base64:encode(Value)}]}]};
+               [#xmlel{name = <<"TYPE">>,
+                       children = [#xmlcdata{content = <<"image/jpeg">>}]},
+                #xmlel{name = <<"BINVAL">>,
+                       children = [#xmlcdata{content = base64:encode(Value)}]}]};
 ldap_attribute_to_vcard(vCardN,
                         {<<"family">>, Value}) ->
-    #xmlel{name = <<"FAMILY">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"FAMILY">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardN, {<<"given">>, Value}) ->
-    #xmlel{name = <<"GIVEN">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"GIVEN">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardN,
                         {<<"middle">>, Value}) ->
-    #xmlel{name = <<"MIDDLE">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"MIDDLE">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardO,
                         {<<"orgname">>, Value}) ->
-    #xmlel{name = <<"ORGNAME">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"ORGNAME">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardO,
                         {<<"orgunit">>, Value}) ->
-    #xmlel{name = <<"ORGUNIT">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"ORGUNIT">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardA,
                         {<<"locality">>, Value}) ->
-    #xmlel{name = <<"LOCALITY">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"LOCALITY">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardA,
                         {<<"street">>, Value}) ->
-    #xmlel{name = <<"STREET">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"STREET">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardA, {<<"ctry">>, Value}) ->
-    #xmlel{name = <<"CTRY">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"CTRY">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardA,
                         {<<"region">>, Value}) ->
-    #xmlel{name = <<"REGION">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"REGION">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(vCardA, {<<"pcode">>, Value}) ->
-    #xmlel{name = <<"PCODE">>, attrs = [],
-           children = [{xmlcdata, Value}]};
+    #xmlel{name = <<"PCODE">>,
+           children = [#xmlcdata{content = Value}]};
 ldap_attribute_to_vcard(_, _) -> none.
 
 search_internal(_, []) ->

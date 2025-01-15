@@ -88,7 +88,7 @@ handle_post(Req, State = #{jid := UserJid}) ->
     Args = parse_body(Req),
     Children = verify_children(get_body(Args) ++ get_marker(Args) ++ get_markable(Args)),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    Attrs = [{<<"id">>, UUID}],
+    Attrs = #{<<"id">> => UUID},
     case mod_muc_light_api:send_message(RoomJid, UserJid, Children, Attrs) of
         {ok, _} ->
             Resp = #{id => UUID},
@@ -127,12 +127,12 @@ get_marker(#{chat_marker := #{type := Type, id := Id}})
   when Type == <<"received">>;
        Type == <<"displayed">>;
        Type == <<"acknowledged">> ->
-    [#xmlel{ name = Type, attrs = [{<<"xmlns">>, ?NS_CHAT_MARKERS}, {<<"id">>, Id}] }];
+    [#xmlel{ name = Type, attrs = #{<<"xmlns">> => ?NS_CHAT_MARKERS, <<"id">> => Id}}];
 get_marker(#{chat_marker := _}) -> throw_error(bad_request, <<"Invalid chat marker">>);
 get_marker(#{}) -> [].
 
 get_markable(#{body := _, markable := true}) ->
-    [#xmlel{ name = <<"markable">>, attrs = [{<<"xmlns">>, ?NS_CHAT_MARKERS}] }];
+    [#xmlel{ name = <<"markable">>, attrs = #{<<"xmlns">> => ?NS_CHAT_MARKERS} }];
 get_markable(#{}) -> [].
 
 verify_children([]) -> throw_error(bad_request, <<"No valid message elements">>);
@@ -192,5 +192,5 @@ add_chat_marker(Item0, Msg) ->
 
 add_aff_change_body(Item, #xmlel{attrs = Attrs} = User) ->
     Item#{type => <<"affiliation">>,
-          affiliation => proplists:get_value(<<"affiliation">>, Attrs),
+          affiliation => maps:get(<<"affiliation">>, Attrs, undefined),
           user => exml_query:cdata(User)}.

@@ -103,18 +103,18 @@ init(Req, Opts = #{timeout := Timeout}) ->
     %% upgrade protocol
     {cowboy_websocket, Req1, AllModOpts, #{idle_timeout => Timeout}}.
 
-terminate(_Reason, _Req, #ws_state{fsm_pid = undefined} = State) ->
+terminate(_Reason, _Req, #ws_state{fsm_pid = undefined}) ->
     ok;
-terminate(Reason, _Req, #ws_state{fsm_pid = FSM} = State) when Reason =:= normal;
+terminate(Reason, _Req, #ws_state{fsm_pid = FSM}) when Reason =:= normal;
                                                                Reason =:= stop;
                                                                Reason =:= timeout;
                                                                Reason =:= remote ->
     FSM ! {websockets_closed, undefined},
     ok;
-terminate({remote, _, _}, _Req, #ws_state{fsm_pid = FSM} = State) ->
+terminate({remote, _, _}, _Req, #ws_state{fsm_pid = FSM}) ->
     FSM ! {websockets_closed, undefined},
     ok;
-terminate(Reason, _Req, #ws_state{fsm_pid = FSM} = State) ->
+terminate(_Reason, _Req, #ws_state{fsm_pid = FSM}) ->
     FSM ! {websockets_error, undefined},
     ok.
 
@@ -254,13 +254,13 @@ call_fsm_start(SocketData, #{hibernate_after := HibernateAfterTimeout} = Opts) -
                        [{hibernate_after, HibernateAfterTimeout}]).
 
 %%--------------------------------------------------------------------
-%% Helpers for handling 
+%% Helpers for handling
 %% https://datatracker.ietf.org/doc/rfc7395/
 %%--------------------------------------------------------------------
 
 process_client_stream_start([#xmlel{ name = <<"open">>, attrs = Attrs }]) ->
-    Attrs1 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, ?NS_CLIENT}),
-    Attrs2 = [{<<"xmlns:stream">>, ?NS_STREAM} | Attrs1],
+    Attrs1 = replace_xmlns(Attrs, ?NS_CLIENT),
+    Attrs2 = Attrs1#{<<"xmlns:stream">> => ?NS_STREAM},
     NewStart = #xmlstreamstart{ name = <<"stream:stream">>, attrs = Attrs2 },
     [NewStart];
 process_client_stream_start(Elements) ->
@@ -272,23 +272,26 @@ process_client_stream_end(Element) ->
     Element.
 
 process_server_stream_root(#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs }) ->
-    Attrs1 = lists:keydelete(<<"xmlns:stream">>, 1, Attrs),
-    Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs1, {<<"xmlns">>, ?NS_FRAMING}),
+    Attrs1 = maps:remove(<<"xmlns:stream">>, Attrs),
+    Attrs2 = replace_xmlns(Attrs1, ?NS_FRAMING),
     #xmlel{ name = <<"open">>, attrs = Attrs2 };
 process_server_stream_root(#xmlstreamend{ name = <<"stream", _/binary>> }) ->
-    #xmlel{ name = <<"close">>, attrs = [{<<"xmlns">>, ?NS_FRAMING}] };
+    #xmlel{ name = <<"close">>, attrs = #{<<"xmlns">> => ?NS_FRAMING}};
 process_server_stream_root(Element) ->
     Element.
 
-replace_stream_ns(#xmlel{ name = <<"stream:", ElementName/binary>> } = Element) ->
-    Element#xmlel{ name = ElementName, attrs = [{<<"xmlns">>, ?NS_STREAM} | Element#xmlel.attrs] };
+replace_xmlns(Attrs, XmlNS) when is_map_key(<<"xmlns">>, Attrs) ->
+    Attrs#{<<"xmlns">> => XmlNS};
+replace_xmlns(Attrs, _XmlNS) ->
+    Attrs.
+
+replace_stream_ns(#xmlel{ name = <<"stream:", ElementName/binary>>, attrs = Attrs} = Element) ->
+    Element#xmlel{ name = ElementName, attrs = Attrs#{<<"xmlns">> => ?NS_STREAM}};
 replace_stream_ns(Element) ->
     case should_have_jabber_client(Element) of
         true ->
-            JabberClient = {<<"xmlns">>, <<"jabber:client">>},
-            NewAtrrs = lists:keystore(<<"xmlns">>, 1,
-                                      Element#xmlel.attrs, JabberClient),
-            Element#xmlel{attrs = NewAtrrs};
+            #xmlel{attrs = Attrs} = Element,
+            Element#xmlel{attrs = Attrs#{<<"xmlns">> => <<"jabber:client">>}};
         false ->
             Element
     end.
@@ -401,7 +404,7 @@ has_peer_cert(Socket, LOpts) ->
     get_peer_certificate(Socket, LOpts) /= no_peer_cert.
 
 
--spec get_peer_certificate(socket(), mongoose_listener:options()) -> 
+-spec get_peer_certificate(socket(), mongoose_listener:options()) ->
     mongoose_transport:peercert_return().
 get_peer_certificate(#websocket{peercert = undefined}, _) ->
     no_peer_cert;

@@ -403,7 +403,7 @@ process_data(Data, #state{parser = Parser,
             {ok, NParser, Elems} ->
                 {[wrap_xml_elements_and_update_metrics(E, ConnectionType) || E <- Elems], NParser};
             {error, Reason} ->
-                {[{xmlstreamerror, Reason}], Parser}
+                {[#xmlstreamerror{name = Reason}], Parser}
         end,
     {NewShaperState, Pause} = mongoose_shaper:update(ShaperState, Size),
     update_transport_metrics(Data, #{connection_type => ConnectionType, sockmod => SockMod, direction => in}),

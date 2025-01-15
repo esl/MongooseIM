@@ -316,7 +316,7 @@ maybe_update_presence(Acc, StateData, OldList, NewList) ->
 
 send_unavail_if_newly_blocked(Acc, Jid, ContactJID, OldList, NewList, StateData) ->
     Packet = #xmlel{name = <<"presence">>,
-                    attrs = [{<<"type">>, <<"unavailable">>}]},
+                    attrs = #{<<"type">> => <<"unavailable">>}},
     %% WARNING: we can not use accumulator to cache privacy check result - this is
     %% the only place where the list to check against changes
     {OldResult, _} = p_privacy_check_packet(Packet, Jid, ContactJID, out, OldList, StateData),
@@ -380,9 +380,9 @@ privacy_list_push_iq(PrivListName) ->
     #iq{type = set, xmlns = ?NS_PRIVACY,
         id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
         sub_el = [#xmlel{name = <<"query">>,
-                         attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
+                         attrs = #{<<"xmlns">> => ?NS_PRIVACY},
                          children = [#xmlel{name = <<"list">>,
-                                            attrs = [{<<"name">>, PrivListName}]}]}]}.
+                                            attrs = #{<<"name">> => PrivListName}}]}]}.
 
 -spec disco_local_features(mongoose_disco:feature_acc(), map(), map()) ->
     {ok, mongoose_disco:feature_acc()}.
@@ -844,12 +844,12 @@ add_item(Item, Items) ->
 empty_list_names_query() ->
     #xmlel{
         name = <<"query">>,
-        attrs = [{<<"xmlns">>, ?NS_PRIVACY}]}.
+        attrs = #{<<"xmlns">> => ?NS_PRIVACY}}.
 
 list_names_query(Active, Default, ListNames) ->
     #xmlel{
         name = <<"query">>,
-        attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
+        attrs = #{<<"xmlns">> => ?NS_PRIVACY},
         children = list_names(Active, Default, ListNames)}.
 
 list_names(Active, Default, ListNames) ->
@@ -858,16 +858,16 @@ list_names(Active, Default, ListNames) ->
     [list_name(<<"list">>, ListName) || ListName <- ListNames].
 
 list_name(Type, Name) ->
-    #xmlel{name = Type, attrs = [{<<"name">>, Name}]}.
+    #xmlel{name = Type, attrs = #{<<"name">> => Name}}.
 
 list_query_result(Name, LItems) ->
     #xmlel{
         name = <<"query">>,
-        attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
+        attrs = #{<<"xmlns">> => ?NS_PRIVACY},
         children = [
             #xmlel{
                 name = <<"list">>,
-                attrs = [{<<"name">>, Name}],
+                attrs = #{<<"name">> => Name},
                 children = LItems}]}.
 
 item_to_xml(Item) ->
@@ -879,13 +879,13 @@ item_to_xml(Item) ->
 item_to_xml_attrs(Item=#listitem{type=none}) ->
     item_to_xml_attrs1(Item);
 item_to_xml_attrs(Item=#listitem{type=Type, value=Value}) ->
-    [{<<"type">>, type_to_binary(Type)},
-     {<<"value">>, value_to_binary(Type, Value)}
-     | item_to_xml_attrs1(Item)].
+    Attrs = item_to_xml_attrs1(Item),
+    Attrs#{<<"type">> => type_to_binary(Type),
+           <<"value">> => value_to_binary(Type, Value)}.
 
 item_to_xml_attrs1(#listitem{action=Action, order=Order}) ->
-    [{<<"action">>, action_to_binary(Action)},
-     {<<"order">>, order_to_binary(Order)}].
+    #{<<"action">> => action_to_binary(Action),
+      <<"order">> => order_to_binary(Order)}.
 
 item_to_xml_children(#listitem{match_all=true}) ->
     [];

@@ -63,28 +63,29 @@ step_1(FromTo, Key) ->
 %% Receiving server sends verification request to authoritative server (step 2)
 -spec step_2(ejabberd_s2s:fromto(), ejabberd_s2s:s2s_dialback_key(), ejabberd_s2s:stream_id()) -> exml:element().
 step_2(FromTo, Key, StreamID) ->
+    Attrs = fromto_to_attrs(FromTo),
     #xmlel{name = <<"db:verify">>,
-           attrs = [{<<"id">>, StreamID} | fromto_to_attrs(FromTo)],
+           attrs = Attrs#{<<"id">> => StreamID},
            children = [#xmlcdata{content = Key}]}.
 
 %% Receiving server is informed by authoritative server that key is valid or invalid (step 3)
 -spec step_3(ejabberd_s2s:fromto(), ejabberd_s2s:stream_id(), boolean()) -> exml:element().
 step_3(FromTo, StreamID, IsValid) ->
+    Attrs = fromto_to_attrs(FromTo),
     #xmlel{name = <<"db:verify">>,
-           attrs = [{<<"id">>, StreamID},
-                    {<<"type">>, is_valid_to_type(IsValid)}
-                    | fromto_to_attrs(FromTo)]}.
+           attrs = Attrs#{<<"id">> => StreamID,
+                          <<"type">> => is_valid_to_type(IsValid)}}.
 
 %% Receiving server sends valid or invalid verification result to initiating server (step 4)
 -spec step_4(ejabberd_s2s:fromto(), boolean()) -> exml:element().
 step_4(FromTo, IsValid) ->
+    Attrs = fromto_to_attrs(FromTo),
     #xmlel{name = <<"db:result">>,
-           attrs = [{<<"type">>, is_valid_to_type(IsValid)}
-                    | fromto_to_attrs(FromTo)]}.
+           attrs = Attrs#{<<"type">> => is_valid_to_type(IsValid)}}.
 
--spec fromto_to_attrs(ejabberd_s2s:fromto()) -> [{binary(), binary()}].
+-spec fromto_to_attrs(ejabberd_s2s:fromto()) -> exml:attrs().
 fromto_to_attrs({LocalServer, RemoteServer}) ->
-    [{<<"from">>, LocalServer}, {<<"to">>, RemoteServer}].
+    #{<<"from">> => LocalServer, <<"to">> => RemoteServer}.
 
 is_valid_to_type(true)  -> <<"valid">>;
 is_valid_to_type(false) -> <<"invalid">>.

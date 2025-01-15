@@ -56,6 +56,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 
 -record(state, {socket                  :: mongoose_transport:socket_data(),
                 streamid                :: ejabberd_s2s:stream_id(),
@@ -175,9 +176,9 @@ init([Socket, #{shaper := Shaper, tls := TLSOpts}]) ->
 %%----------------------------------------------------------------------
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_stream({xmlstreamstart, _Name, Attrs} = Event, StateData) ->
-    case maps:from_list(Attrs) of
-        AttrMap = #{<<"xmlns">> := <<"jabber:server">>, <<"to">> := Server} ->
+wait_for_stream(#xmlstreamstart{attrs = Attrs} = Event, StateData) ->
+    case Attrs of
+        #{<<"xmlns">> := <<"jabber:server">>, <<"to">> := Server} ->
             case StateData#state.server of
                 undefined ->
                     case mongoose_domain_api:get_host_type(Server) of
@@ -187,14 +188,14 @@ wait_for_stream({xmlstreamstart, _Name, Attrs} = Event, StateData) ->
                         {ok, HostType} ->
                             UseTLS = mongoose_config:get_opt([{s2s, HostType}, use_starttls]),
                             {StartTLS, TLSRequired, TLSCertVerify} = get_tls_params(UseTLS),
-                            start_stream(AttrMap, StateData#state{server = Server,
+                            start_stream(Attrs, StateData#state{server = Server,
                                                                   host_type = HostType,
                                                                   tls = StartTLS,
                                                                   tls_required = TLSRequired,
                                                                   tls_cert_verify = TLSCertVerify})
                     end;
                 Server ->
-                    start_stream(AttrMap, StateData);
+                    start_stream(Attrs, StateData);
                 _Other ->
                     Msg = <<"The 'to' attribute differs from the originally provided one">>,
                     Info = #{location => ?LOCATION, last_event => Event,
@@ -209,7 +210,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs} = Event, StateData) ->
             Info = #{location => ?LOCATION, last_event => Event},
             stream_start_error(StateData, Info, mongoose_xmpp_errors:invalid_namespace())
     end;
-wait_for_stream({xmlstreamerror, _} = Event, StateData) ->
+wait_for_stream(#xmlstreamerror{} = Event, StateData) ->
     Info = #{location => ?LOCATION, last_event => Event,
              reason => s2s_in_wait_for_stream_error},
     stream_start_error(StateData, Info, mongoose_xmpp_errors:xml_not_well_formed());
@@ -286,7 +287,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
             TLSSocket = mongoose_transport:wait_for_tls_handshake(
                                                  StateData#state.socket, TLSOpts,
                                                  #xmlel{name = <<"proceed">>,
-                                                        attrs = [{<<"xmlns">>, ?NS_TLS}]}),
+                                                        attrs = #{<<"xmlns">> => ?NS_TLS}}),
             {next_state, wait_for_stream,
              StateData#state{socket = TLSSocket,
                              streamid = new_id(),
@@ -305,7 +306,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                 _ ->
                     send_element(StateData,
                                  #xmlel{name = <<"failure">>,
-                                        attrs = [{<<"xmlns">>, ?NS_SASL}],
+                                        attrs = #{<<"xmlns">> => ?NS_SASL},
                                         children = [#xmlel{name = <<"invalid-mechanism">>}]}),
                     ?LOG_WARNING(#{what => s2s_in_invalid_mechanism}),
                     {stop, normal, StateData}
@@ -313,11 +314,11 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
         _ ->
             stream_established({xmlstreamelement, El}, StateData)
     end;
-wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
+wait_for_feature_request(#xmlstreamend{}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     ?LOG_WARNING(#{what => s2s_in_got_stream_end_before_feature_request}),
     {stop, normal, StateData};
-wait_for_feature_request({xmlstreamerror, _}, StateData) ->
+wait_for_feature_request(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?LOG_WARNING(#{what => s2s_in_got_stream_error_before_feature_request}),
@@ -383,10 +384,10 @@ stream_established({xmlstreamelement, El}, StateData) ->
     end;
 stream_established({validity_from_s2s_out, IsValid, FromTo}, StateData) ->
     handle_validity_from_s2s_out(IsValid, FromTo, StateData);
-stream_established({xmlstreamend, _Name}, StateData) ->
+stream_established(#xmlstreamend{}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
-stream_established({xmlstreamerror, _}, StateData) ->
+stream_established(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?LOG_WARNING(#{what => s2s_in_stream_error, state_name => stream_established}),
@@ -593,7 +594,7 @@ verify_cert_and_get_sasl(Socket, TLSCertVerify) ->
     case mongoose_transport:get_peer_certificate(Socket) of
         {ok, _} ->
             [#xmlel{name = <<"mechanisms">>,
-                    attrs = [{<<"xmlns">>, ?NS_SASL}],
+                    attrs = #{<<"xmlns">> => ?NS_SASL},
                     children = [#xmlel{name = <<"mechanism">>,
                                        children = [#xmlcdata{content = <<"EXTERNAL">>}]}]}];
         {bad_cert, CertVerifyRes} ->
@@ -623,7 +624,7 @@ check_auth_domain(_, _) ->
 handle_auth_res(true, AuthDomain, StateData) ->
     send_element(StateData,
                  #xmlel{name = <<"success">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL}]}),
+                        attrs = #{<<"xmlns">> => ?NS_SASL}}),
     ?LOG_DEBUG(#{what => s2s_auth_success,
                  text => <<"Accepted s2s authentication">>,
                  socket => StateData#state.socket, auth_domain => AuthDomain}),
@@ -635,7 +636,7 @@ handle_auth_res(true, AuthDomain, StateData) ->
 handle_auth_res(_, _, StateData) ->
     send_element(StateData,
                  #xmlel{name = <<"failure">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL}]}),
+                        attrs = #{<<"xmlns">> => ?NS_SASL}}),
     send_text(StateData, ?STREAM_TRAILER),
     ?LOG_WARNING(#{what => s2s_in_auth_failed}),
     {stop, normal, StateData}.
@@ -656,10 +657,10 @@ get_tls_xmlel(#state{tls_enabled = true}) ->
     [];
 get_tls_xmlel(#state{tls_enabled = false, tls_required = false}) ->
     [#xmlel{name = <<"starttls">>,
-            attrs = [{<<"xmlns">>, ?NS_TLS}]}];
+            attrs = #{<<"xmlns">> => ?NS_TLS}}];
 get_tls_xmlel(#state{tls_enabled = false, tls_required = true}) ->
     [#xmlel{name = <<"starttls">>,
-            attrs = [{<<"xmlns">>, ?NS_TLS}],
+            attrs = #{<<"xmlns">> => ?NS_TLS},
             children = [#xmlel{name = <<"required">>}]}].
 
 -spec is_local_host_known(ejabberd_s2s:fromto()) -> boolean().

@@ -177,4 +177,4 @@ is_kicked_message(User, Packet) ->
 
 -spec get_users_with_affiliation(list(exml:element()), role()) -> list(exml:element()).
 get_users_with_affiliation(AffItems, Role) ->
-    [M || #xmlel{name = <<"user">>, attrs = [{<<"affiliation">>, R}]} = M <- AffItems, R == Role].
+    [M || #xmlel{name = <<"user">>, attrs = #{<<"affiliation">> := R}} = M <- AffItems, R == Role].

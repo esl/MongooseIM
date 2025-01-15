@@ -76,8 +76,8 @@ get_properties_for_jid(Acc, IQ, From, EntryJID, QueryType) ->
         Result ->
             Children = build_query_children(Acc, Result, IQ, QueryType),
             X = [#xmlel{name = <<"query">>,
-                        attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
-                                 {<<"jid">>, BinEntryJID}],
+                        attrs = #{<<"xmlns">> => ?NS_ESL_INBOX_CONVERSATION,
+                                  <<"jid">> => BinEntryJID},
                         children = Children}],
             {Acc, IQ#iq{type = result, sub_el = X}}
     end.
@@ -119,7 +119,7 @@ process_requests(Acc, IQ, From, EntryJID, Params) ->
 forward_result(Acc, IQ = #iq{id = IqId}, From, {_, _, ToBareJidBin}, Result) ->
     Children0 = build_query_children(Acc, Result, IQ, only_properties),
     Children1 = iq_x_wrapper(IQ, ToBareJidBin, Children0),
-    Msg = #xmlel{name = <<"message">>, attrs = [{<<"id">>, IqId}], children = Children1},
+    Msg = #xmlel{name = <<"message">>, attrs = #{<<"id">> => IqId}, children = Children1},
     Acc1 = ejabberd_router:route(From, jid:to_bare(From), Acc, Msg),
     Res = IQ#iq{type = result, sub_el = []},
     {Acc1, Res}.
@@ -127,9 +127,9 @@ forward_result(Acc, IQ = #iq{id = IqId}, From, {_, _, ToBareJidBin}, Result) ->
 -spec iq_x_wrapper(jlib:iq(), binary(), [exml:element()]) -> [exml:element()].
 iq_x_wrapper(#iq{id = IqId, sub_el = Query}, Jid, Properties) ->
     [#xmlel{name = <<"x">>,
-            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
-                     {<<"jid">>, Jid},
-                     {<<"queryid">>, exml_query:attr(Query, <<"queryid">>, IqId)}],
+            attrs = #{<<"xmlns">> => ?NS_ESL_INBOX_CONVERSATION,
+                      <<"jid">> => Jid,
+                      <<"queryid">> => exml_query:attr(Query, <<"queryid">>, IqId)},
             children = Properties}].
 
 maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
@@ -144,7 +144,7 @@ process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
     ok = mod_inbox_utils:reset_unread_count_to_zero(Acc, From, InterlocutorJID),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"reset">>,
-                                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
+                                 attrs = #{<<"xmlns">> => ?NS_ESL_INBOX_CONVERSATION},
                                  children = []}]},
     {Acc, Res}.
 

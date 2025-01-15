@@ -60,6 +60,8 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("external_component.hrl").
+-include_lib("exml/include/exml_stream.hrl").
+
 
 -type conflict_behaviour() :: disconnect | kick_old.
 
@@ -201,17 +203,16 @@ init([Socket, Opts]) ->
 %%----------------------------------------------------------------------
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_stream({xmlstreamstart, Name, Attrs}, StateData) ->
-    StreamStart = #xmlel{name = Name, attrs = Attrs},
-    case exml_query:attr(StreamStart, <<"xmlns">>) of
+wait_for_stream(#xmlstreamstart{attrs = Attrs}, StateData) ->
+    case maps:get(<<"xmlns">>, Attrs, undefined) of
         <<"jabber:component:accept">> ->
             %% Note: XEP-0114 requires to check that destination is a Jabber
             %% component served by this Jabber server.
             %% However several transports don't respect that,
             %% so ejabberd doesn't check 'to' attribute (EJAB-717)
-            To = exml_query:attr(StreamStart, <<"to">>, <<>>),
+            To = maps:get(<<"to">>, Attrs, <<>>),
             Header = io_lib:format(?STREAM_HEADER, [StateData#state.streamid, To]),
-            IsSubdomain = case exml_query:attr(StreamStart, <<"is_subdomain">>) of
+            IsSubdomain = case maps:get(<<"is_subdomain">>, Attrs, undefined) of
                 <<"true">> -> true;
                 _          -> false
             end,
@@ -223,7 +224,7 @@ wait_for_stream({xmlstreamstart, Name, Attrs}, StateData) ->
             send_text(StateData, ?INVALID_HEADER_ERR),
             {stop, normal, StateData}
     end;
-wait_for_stream({xmlstreamerror, _}, StateData) ->
+wait_for_stream(#xmlstreamerror{}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
     send_text(StateData, iolist_to_binary(Header)),
@@ -251,9 +252,9 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
         _ ->
             {next_state, wait_for_handshake, StateData}
     end;
-wait_for_handshake({xmlstreamend, _Name}, StateData) ->
+wait_for_handshake(#xmlstreamend{}, StateData) ->
     {stop, normal, StateData};
-wait_for_handshake({xmlstreamerror, _}, StateData) ->
+wait_for_handshake(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
@@ -305,10 +306,10 @@ stream_established({xmlstreamelement, El}, StateData) ->
             error
     end,
     {next_state, stream_established, StateData};
-stream_established({xmlstreamend, _Name}, StateData) ->
+stream_established(#xmlstreamend{}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
-stream_established({xmlstreamerror, _}, StateData) ->
+stream_established(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};

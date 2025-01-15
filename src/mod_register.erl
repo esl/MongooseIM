@@ -139,7 +139,7 @@ process_welcome_message(#{subject := Subject, body := Body}) ->
     Extra :: gen_hook:extra().
 c2s_stream_features(Acc, _, _) ->
     NewAcc = [#xmlel{name = <<"register">>,
-                     attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc],
+                     attrs = #{<<"xmlns">> => ?NS_FEATURE_IQREGISTER}} | Acc],
     {ok, NewAcc}.
 
 -spec user_send_xmlel(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
@@ -306,7 +306,7 @@ process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Sou
                       Lang, <<"Choose a username and password to register with this server">>),
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"query">>,
-                           attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
+                           attrs = #{<<"xmlns">> => <<"jabber:iq:register">>},
                            children = [#xmlel{name = <<"instructions">>,
                                               children = [#xmlcdata{content = TranslatedMsg}]},
                                        #xmlel{name = <<"username">>,
@@ -399,7 +399,7 @@ send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
             ejabberd_router:route(
               jid:make_noprep(<<>>, Server, <<>>),
               JID,
-              #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"normal">>}],
+              #xmlel{name = <<"message">>, attrs = #{<<"type">> => <<"normal">>},
                      children = [#xmlel{name = <<"subject">>,
                                         children = [#xmlcdata{content = Subj}]},
                                  #xmlel{name = <<"body">>,
@@ -426,7 +426,7 @@ send_registration_notification(JIDBin, Domain, Body) ->
         error -> ok;
         JID ->
             Message = #xmlel{name = <<"message">>,
-                             attrs = [{<<"type">>, <<"chat">>}],
+                             attrs = #{<<"type">> => <<"chat">>},
                              children = [#xmlel{name = <<"body">>,
                                                 children = [#xmlcdata{content = Body}]}]},
             ejabberd_router:route(jid:make_noprep(<<>>, Domain, <<>>), JID, Message)
@@ -535,7 +535,7 @@ ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
     X.
 
 set_sender(#xmlel{attrs = A} = Stanza, #jid{} = From) ->
-    Stanza#xmlel{attrs = [{<<"from">>, jid:to_binary(From)}|A]}.
+    Stanza#xmlel{attrs = A#{<<"from">> => jid:to_binary(From)}}.
 
 is_query_element(#xmlel{name = <<"query">>}) ->
     true;

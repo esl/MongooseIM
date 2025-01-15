@@ -94,26 +94,24 @@ make_result_iq_reply(IQ = #iq{}) ->
     IQ#iq{type = result}.
 
 
--spec make_result_iq_reply_attrs(exml:element()) -> [exml:attr(), ...].
+-spec make_result_iq_reply_attrs(exml:element()) -> exml:attrs().
 make_result_iq_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
     To = exml_query:attr(Element, <<"to">>),
     From = exml_query:attr(Element, <<"from">>),
-    Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
-    Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
-    Attrs3 = case To of
+    Attrs1 = maps:without([<<"to">>,<<"from">>],Attrs),
+    Attrs2 = case To of
+                 undefined ->
+                     Attrs1;
+                 ToVal ->
+                     Attrs1#{<<"from">> => ToVal}
+             end,
+    Attrs3 = case From of
                  undefined ->
                      Attrs2;
-                 ToVal ->
-                     [{<<"from">>, ToVal} | Attrs2]
-             end,
-    Attrs4 = case From of
-                 undefined ->
-                     Attrs3;
                  FromVal ->
-                     [{<<"to">>, FromVal} | Attrs3]
+                     Attrs2#{<<"to">> => FromVal}
              end,
-    Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    [{<<"type">>, <<"result">>} | Attrs5].
+    Attrs3#{<<"type">> => <<"result">>}.
 
 
 -spec make_error_reply(exml:element() | mongoose_acc:t(),
@@ -143,34 +141,32 @@ make_error_reply_from_element(#xmlel{name = Name, children = SubTags} = Element,
     NewAttrs = make_error_reply_attrs(Element),
     #xmlel{name = Name, attrs = NewAttrs, children = [Error | SubTags]}.
 
--spec make_error_reply_attrs(exml:element()) -> [exml:attr(), ...].
+-spec make_error_reply_attrs(exml:element()) -> exml:attrs().
 make_error_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
     To = exml_query:attr(Element, <<"to">>),
     From = exml_query:attr(Element, <<"from">>),
-    Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
-    Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
-    Attrs3 = case To of
+    Attrs1 = maps:without([<<"to">>,<<"from">>],Attrs),
+    Attrs2 = case To of
+                 undefined ->
+                     Attrs1;
+                 ToVal ->
+                     Attrs1#{<<"from">> => ToVal}
+             end,
+    Attrs3 = case From of
                  undefined ->
                      Attrs2;
-                 ToVal ->
-                     [{<<"from">>, ToVal} | Attrs2]
-             end,
-    Attrs4 = case From of
-                 undefined ->
-                     Attrs3;
                  FromVal ->
-                     [{<<"to">>, FromVal} | Attrs3]
+                     Attrs2#{<<"to">> => FromVal}
              end,
-    Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    [{<<"type">>, <<"error">>} | Attrs5].
+    Attrs3#{<<"type">> => <<"error">>}.
 
 -spec make_config_change_message(binary()) -> exml:element().
 make_config_change_message(Status) ->
-    #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"groupchat">>}],
+    #xmlel{name = <<"message">>, attrs = #{<<"type">> => <<"groupchat">>},
            children = [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                              attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                               children = [#xmlel{name = <<"status">>,
-                                                 attrs = [{<<"code">>, Status}]}]}]}.
+                                                 attrs = #{<<"code">> => Status}}]}]}.
 
 
 -spec make_invitation(From :: jid:jid(), Password :: binary(),
@@ -182,7 +178,7 @@ make_invitation(From, Password, Reason) ->
                         children = [#xmlcdata{content = Reason}]}]
     end,
     Elements = [#xmlel{name = <<"invite">>,
-                       attrs = [{<<"from">>, jid:to_binary(From)}],
+                       attrs = #{<<"from">> => jid:to_binary(From)},
                        children = Children}],
 
     Elements2 = case Password of
@@ -193,21 +189,19 @@ make_invitation(From, Password, Reason) ->
 
     #xmlel{name = <<"message">>,
            children = [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                              attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                               children = Elements2}]}.
 
 -spec replace_from_to_attrs(From :: binary(),
                             To :: binary() | undefined,
-                            [exml:attr()]) -> [exml:attr()].
+                            exml:attrs()) -> exml:attrs().
 replace_from_to_attrs(From, To, Attrs) ->
-    Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
-    Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
-    Attrs3 = case To of
-                 undefined -> Attrs2;
-                 _ -> [{<<"to">>, To} | Attrs2]
+    Attrs1 = maps:without([<<"from">>, <<"to">>], Attrs),
+    Attrs2 = case To of
+                 undefined -> Attrs1;
+                 _ -> Attrs1#{<<"to">> => To}
              end,
-    Attrs4 = [{<<"from">>, From} | Attrs3],
-    Attrs4.
+    Attrs2#{<<"from">> => From}.
 
 
 -spec replace_from_to(From :: jid:simple_jid() | jid:jid(),
@@ -222,7 +216,7 @@ replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
 
 -spec remove_attr(binary(), exml:element()) -> exml:element().
 remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->
-    NewAttrs = lists:keydelete(Attr, 1, Attrs),
+    NewAttrs = maps:remove(Attr, Attrs),
     XE#xmlel{attrs = NewAttrs}.
 
 -spec iq_query_info(exml:element()) -> 'invalid' | 'not_iq' | 'reply' | iq().
@@ -310,11 +304,11 @@ iq_type_to_binary(_) -> invalid.
 -spec iq_to_xml(iq()) -> exml:element().
 iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) when ID /= "" ->
     #xmlel{name = <<"iq">>,
-        attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
+        attrs = #{<<"id">> => ID, <<"type">> => iq_type_to_binary(Type)},
         children = sub_el_to_els(SubEl)};
 iq_to_xml(#iq{type = Type, sub_el = SubEl}) ->
     #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, iq_type_to_binary(Type)}],
+        attrs = #{<<"type">> => iq_type_to_binary(Type)},
         children = sub_el_to_els(SubEl)}.
 
 %% @doc Convert `#iq.sub_el' back to `#xmlel.children'.
@@ -337,17 +331,17 @@ rsm_decode(#xmlel{} = SubEl) ->
     end.
 
 -spec rsm_parse_element(exml:element(), rsm_in()) -> rsm_in().
-rsm_parse_element(#xmlel{name = <<"max">>, attrs = []} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"max">>, attrs = #{}} = Elem, RsmIn) ->
     CountStr = exml_query:cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
     RsmIn#rsm_in{max = Count};
-rsm_parse_element(#xmlel{name = <<"before">>, attrs = []} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"before">>, attrs = #{}} = Elem, RsmIn) ->
     UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = before, id = UID};
-rsm_parse_element(#xmlel{name = <<"after">>, attrs = []} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"after">>, attrs = #{}} = Elem, RsmIn) ->
     UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = aft, id = UID};
-rsm_parse_element(#xmlel{name = <<"index">>, attrs = []} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"index">>, attrs = #{}} = Elem, RsmIn) ->
     IndexStr = exml_query:cdata(Elem),
     {Index, _} = string:to_integer(binary_to_list(IndexStr)),
     RsmIn#rsm_in{index = Index};
@@ -358,7 +352,7 @@ rsm_parse_element(_, RsmIn)->
 rsm_encode(none) ->
     [];
 rsm_encode(RsmOut) ->
-    [#xmlel{name = <<"set">>, attrs = [{<<"xmlns">>, ?NS_RSM}],
+    [#xmlel{name = <<"set">>, attrs = #{<<"xmlns">> => ?NS_RSM},
             children = lists:reverse(rsm_encode_out(RsmOut))}].
 
 -spec rsm_encode_out(rsm_out()) -> [exml:element()].
@@ -375,7 +369,7 @@ rsm_encode_first(undefined, undefined, Arr) ->
 rsm_encode_first(First, undefined, Arr) ->
     [#xmlel{name = <<"first">>, children = [#xmlcdata{content = First}]} | Arr];
 rsm_encode_first(First, Index, Arr) ->
-    [#xmlel{name = <<"first">>, attrs = [{<<"index">>, i2b(Index)}],
+    [#xmlel{name = <<"first">>, attrs = #{<<"index">> => i2b(Index)},
             children = [#xmlcdata{content = First}]}|Arr].
 
 -spec rsm_encode_last(Last :: 'undefined', Arr :: [exml:element()]) -> [exml:element()].
@@ -402,12 +396,12 @@ timestamp_to_xml(TimestampString, FromJID, Desc) ->
                _ -> [#xmlcdata{content = Desc}]
            end,
     From = case FromJID of
-               undefined -> [];
-               _ -> [{<<"from">>, jid:to_binary(FromJID)}]
+               undefined -> #{};
+               _ -> #{<<"from">> =>jid:to_binary(FromJID)}
            end,
     #xmlel{name = <<"delay">>,
-           attrs = [{<<"xmlns">>, ?NS_DELAY},
-                    {<<"stamp">>, list_to_binary(TimestampString)} | From],
+           attrs = From#{<<"xmlns">> => ?NS_DELAY,
+                         <<"stamp">> => list_to_binary(TimestampString)},
            children = Text}.
 
 -spec stanza_error( Code :: binary()
@@ -417,7 +411,7 @@ timestamp_to_xml(TimestampString, FromJID, Desc) ->
    , SpecNs :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     Er = stanza_error(Code, Type, Condition),
-    Spec = #xmlel{ name = SpecTag, attrs = [{<<"xmlns">>, SpecNs}]},
+    Spec = #xmlel{ name = SpecTag, attrs = #{<<"xmlns">> => SpecNs}},
     NCh = [Spec | Er#xmlel.children],
     Er#xmlel{children = NCh}.
 
@@ -428,9 +422,9 @@ stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
                  , Condition :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition) ->
   #xmlel{ name = <<"error">>
-       , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
-       , children = [ #xmlel{ name = Condition
-                            , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+        , attrs = #{<<"code">> => Code, <<"type">> => Type}
+        , children = [ #xmlel{ name = Condition
+                            , attrs = #{<<"xmlns">> => ?NS_STANZAS}
                              }]
         }.
 
@@ -442,12 +436,12 @@ stanza_error(Code, Type, Condition) ->
 stanza_errort(Code, Type, Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"error">>
-       , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
+       , attrs = #{<<"code">> => Code, <<"type">> => Type}
        , children = [ #xmlel{ name = Condition
-                            , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+                            , attrs = #{<<"xmlns">> => ?NS_STANZAS}
                              }
                     , #xmlel{ name = <<"text">>
-                            , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+                            , attrs = #{<<"xmlns">> => ?NS_STANZAS}
                             , children = [#xmlcdata{ content = Txt }]
                              }]
         }.
@@ -456,7 +450,7 @@ stanza_errort(Code, Type, Condition, Lang, Text) ->
 stream_error(Condition) ->
   #xmlel{ name = <<"stream:error">>
        , children = [ #xmlel{ name = Condition
-                            , attrs = [{<<"xmlns">>, ?NS_STREAMS}]
+                            , attrs = #{<<"xmlns">> => ?NS_STREAMS}
                              }
                      ]
         }.
@@ -468,10 +462,10 @@ stream_errort(Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"stream:error">>
        , children = [ #xmlel{ name = Condition
-                            , attrs = [{<<"xmlns">>, ?NS_STREAMS}] }
+                            , attrs = #{<<"xmlns">> => ?NS_STREAMS} }
                     , #xmlel{ name = <<"text">>
-                            , attrs = [ {<<"xml:lang">>, Lang}
-                                      , {<<"xmlns">>, ?NS_STREAMS}]
+                            , attrs = #{ <<"xml:lang">> => Lang
+                                       , <<"xmlns">> => ?NS_STREAMS}
                             , children = [ #xmlcdata{ content = Txt} ]}
                      ]
         }.
@@ -526,9 +520,8 @@ append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
 -spec replace_tag_attr(Attr :: binary(), Value :: binary(), exml:element()
                       ) -> exml:element().
 replace_tag_attr(Attr, Value, XE = #xmlel{attrs = Attrs}) ->
-    Attrs1 = lists:keydelete(Attr, 1, Attrs),
-    Attrs2 = [{Attr, Value} | Attrs1],
-    XE#xmlel{attrs = Attrs2}.
+    Attrs1 = Attrs#{Attr => Value},
+    XE#xmlel{attrs = Attrs1}.
 
 %% @doc Given an element and a new subelement,
 %% replace the instance of the subelement in element with the new subelement.

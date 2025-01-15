@@ -33,9 +33,9 @@
 -type xml_stream_item() :: 'closed'
                           | 'timeout'
                           | {'xmlstreamelement', exml:element()}
-                          | {'xmlstreamend', _}
-                          | {'xmlstreamerror', _}
-                          | {'xmlstreamstart', Name :: binary(), Attrs :: [exml:attr()]}.
+                          | exml_stream:start()
+                          | exml_stream:stop()
+                          | jlib:xmlstreamerror().
 
 -export_type([lang/0, xml_stream_item/0]).
 

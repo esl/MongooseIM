@@ -539,7 +539,7 @@ create_route_accs(Acc0, To, List) when is_list(List) ->
 -spec presence_probe() -> exml:element().
 presence_probe() ->
     #xmlel{name = <<"presence">>,
-           attrs = [{<<"type">>, <<"probe">>}]}.
+           attrs = #{<<"type">> => <<"probe">>}}.
 
 -spec presence_unavailable_stanza() -> exml:element().
 presence_unavailable_stanza() ->
@@ -548,12 +548,12 @@ presence_unavailable_stanza() ->
 -spec presence_unavailable_stanza(binary()) -> exml:element().
 presence_unavailable_stanza(<<>>) ->
     #xmlel{name = <<"presence">>,
-           attrs = [{<<"type">>, <<"unavailable">>}]};
+           attrs = #{<<"type">> => <<"unavailable">>}};
 presence_unavailable_stanza(Status) ->
     StatusEl = #xmlel{name = <<"status">>,
                       children = [#xmlcdata{content = Status}]},
     #xmlel{name = <<"presence">>,
-           attrs = [{<<"type">>, <<"unavailable">>}],
+           attrs = #{<<"type">> => <<"unavailable">>},
            children = [StatusEl]}.
 
 close_session_status(normal) ->

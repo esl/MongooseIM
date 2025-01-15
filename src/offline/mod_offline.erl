@@ -387,7 +387,7 @@ patch_offline_message(Packet) ->
 x_elem(ID) ->
     #xmlel{
         name = <<"x">>,
-        attrs = [{<<"xmlns">>, ?NS_EVENT}],
+        attrs = #{<<"xmlns">> => ?NS_EVENT},
         children = [ID, #xmlel{name = <<"offline">>}]}.
 
 %% Check if the packet has subelements about XEP-0022, XEP-0085 or other
