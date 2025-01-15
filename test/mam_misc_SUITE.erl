@@ -166,24 +166,24 @@ maybe_get({Elem, XmlElem, Maybe}, _, MustNotContain) ->
 
 %% Possible XML elements
 attrs(From, To, Type) ->
-    [{<<"from">>, From}, {<<"to">>, To}, {<<"type">>, Type}].
+    #{<<"from">> => From, <<"to">> => To, <<"type">> => Type}.
 body() ->
     #xmlel{name = <<"body">>, children = [#xmlcdata{content = bin()}]}.
 chat_marker() ->
-    #xmlel{name = <<"displayed">>, attrs = [{<<"xmlmn">>, ?NS_CHAT_MARKERS}, {<<"id">>, bin()}]}.
+    #xmlel{name = <<"displayed">>, attrs = #{<<"xmlmn">> => ?NS_CHAT_MARKERS, <<"id">> => bin()}}.
 retraction() ->
     #xmlel{name = <<"apply-to">>,
-           attrs = [{<<"id">>, bin()}, {<<"xmlns">>, ?NS_FASTEN}],
-           children = [#xmlel{name = <<"retract">>, attrs = [{<<"xmlns">>, ?NS_RETRACT}]}]}.
+           attrs = #{<<"id">> => bin(), <<"xmlns">> => ?NS_FASTEN},
+           children = [#xmlel{name = <<"retract">>, attrs = #{<<"xmlns">> => ?NS_RETRACT}}]}.
 mam_result() ->
     #xmlel{name = <<"result">>,
-           attrs = [{<<"id">>, bin()}, {<<"queryid">>, bin()}, {<<"xmlns">>, ?NS_MAM_06}]}.
+           attrs = #{<<"id">> => bin(), <<"queryid">> => bin(), <<"xmlns">> => ?NS_MAM_06}}.
 offline_delay() ->
-    #xmlel{name = <<"delay">>, attrs = [{<<"stamp">>, bin()}, {<<"xmlns">>, ?NS_DELAY}]}.
+    #xmlel{name = <<"delay">>, attrs = #{<<"stamp">> => bin(), <<"xmlns">> => ?NS_DELAY}}.
 no_store() ->
-    #xmlel{name = <<"no-store">>, attrs = [{<<"xmlns">>, ?NS_HINTS}]}.
+    #xmlel{name = <<"no-store">>, attrs = #{<<"xmlns">> => ?NS_HINTS}}.
 store() ->
-    #xmlel{name = <<"store">>, attrs = [{<<"xmlns">>, ?NS_HINTS}]}.
+    #xmlel{name = <<"store">>, attrs = #{<<"xmlns">> => ?NS_HINTS}}.
 packet(Name, Attrs, Children) ->
     #xmlel{name = Name, attrs = Attrs, children = Children}.
 

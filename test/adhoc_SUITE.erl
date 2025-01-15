@@ -97,28 +97,25 @@ produce_response_full(_C) ->
     },
     ExpectedActionsEls = [#xmlel{
         name = <<"actions">>,
-        attrs = [{<<"execute">>, <<"next">>}],
+        attrs = #{<<"execute">> => <<"next">>},
         children = [#xmlel{name = Action} || Action <- Actions]
     }],
     ExpectedNotesEls = [
         #xmlel{
             name = <<"note">>,
-            attrs = [{<<"type">>, Type}],
+            attrs = #{<<"type">> => Type},
             children = [#xmlcdata{content = Text}]
         }
      || {Type, Text} <- Notes
     ],
     ExpectedChildren = ExpectedActionsEls ++ ExpectedNotesEls ++ AdditionalElements,
     % when
-    #xmlel{
-        name = <<"command">>,
-        attrs = Attrs,
-        children = Children
-    } = adhoc:produce_response(AdhocResponse),
+    #xmlel{ name = <<"command">>, children = Children } =
+        Resp = adhoc:produce_response(AdhocResponse),
     % then
-    ?assertEqual(<<"1234">>, proplists:get_value(<<"sessionid">>, Attrs)),
-    ?assertEqual(<<"node_name">>, proplists:get_value(<<"node">>, Attrs)),
-    ?assertEqual(<<"executing">>, proplists:get_value(<<"status">>, Attrs)),
+    ?assertEqual(<<"1234">>, exml_query:attr(Resp, <<"sessionid">>)),
+    ?assertEqual(<<"node_name">>, exml_query:attr(Resp, <<"node">>)),
+    ?assertEqual(<<"executing">>, exml_query:attr(Resp, <<"status">>)),
     ?assertEqual(lists:sort(ExpectedChildren), lists:sort(Children)).
 
 produce_response_no_session_id(_C) ->
@@ -132,7 +129,7 @@ produce_response_no_session_id(_C) ->
         attrs = Attrs
     } = adhoc:produce_response(AdhocResponse),
     % then
-    SessionID = proplists:get_value(<<"sessionid">>, Attrs),
+    SessionID = maps:get(<<"sessionid">>, Attrs, undefined),
     ?assert(is_binary(SessionID)),
     ?assertNotEqual(<<>>, SessionID).
 
@@ -157,7 +154,6 @@ produce_response_no_default_action(_C) ->
     },
     ExpectedActionsEls = [#xmlel{
         name = <<"actions">>,
-        attrs = [],
         children = [#xmlel{name = Action} || Action <- [<<"next">> | Actions]]
     }],
     % when
@@ -177,7 +173,7 @@ produce_response_default_action_not_present(_C) ->
     },
     ExpectedActionsEls = [#xmlel{
         name = <<"actions">>,
-        attrs = [{<<"execute">>, <<"prev">>}],
+        attrs = #{<<"execute">> => <<"prev">>},
         children = [#xmlel{name = Action} || Action <- [<<"prev">> | Actions]]
     }],
     % when
@@ -195,10 +191,10 @@ produce_response_default_action_not_present(_C) ->
 sample_form() ->
     #xmlel{
         name = <<"x">>,
-        attrs = [
-            {<<"xmlns">>, <<"jabber:x:data">>},
-            {<<"type">>, <<"form">>}
-        ],
+        attrs = #{
+            <<"xmlns">> => <<"jabber:x:data">>,
+            <<"type">> => <<"form">>
+        },
         children = []
     }.
 
@@ -210,11 +206,11 @@ sample_request(MaybeForm) ->
         type = set,
         lang = <<"en-us">>,
         sub_el = #xmlel{
-            attrs = [
-                {<<"node">>, <<"node_name">>},
-                {<<"sessionid">>, <<"1">>},
-                {<<"action">>, <<"execute">>}
-            ],
+            attrs = #{
+                <<"node">> => <<"node_name">>,
+                <<"sessionid">> => <<"1">>,
+                <<"action">> => <<"execute">>
+            },
             children = [#xmlel{name = <<"test">>}] ++ MaybeForm
         },
         xmlns = ?NS_COMMANDS
@@ -222,7 +218,7 @@ sample_request(MaybeForm) ->
 
 is_bad_request(#xmlel{
     name = <<"error">>,
-    attrs = [{<<"code">>, <<"400">>}, {<<"type">>, <<"modify">>}],
+    attrs = #{<<"code">> := <<"400">>, <<"type">> := <<"modify">>},
     children = [#xmlel{name = <<"bad-request">>}]
 }) ->
     true;

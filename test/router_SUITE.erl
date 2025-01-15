@@ -70,7 +70,9 @@ do_not_reroute_errors(_) ->
     From = <<"ja@localhost">>,
     To = <<"ty@localhost">>,
     Stanza = #xmlel{name = <<"iq">>,
-        attrs = [{<<"from">>, From}, {<<"to">>, To}, {<<"type">>, <<"get">>} ]
+                   attrs = #{<<"from">> => From,
+                             <<"to">> => To,
+                             <<"type">> => <<"get">>}
     },
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => <<"localhost">>,

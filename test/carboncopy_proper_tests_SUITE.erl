@@ -92,51 +92,49 @@ alice() ->
 %%
 
 non_chat_message() ->
-    xmlel("message", [], []).
+    xmlel("message", #{}, []).
 
 private_carbon_message() ->
     xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("private", [{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}], [])]).
+          #{<<"type">> => <<"chat">>},
+          [xmlel("private", #{<<"xmlns">> => <<"urn:xmpp:carbons:2">>}, [])]).
 
 no_copy_message() ->
     xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("no-copy", [{<<"xmlns">>, <<"urn:xmpp:hints">>}], [])]).
+          #{<<"type">> => <<"chat">>},
+          [xmlel("no-copy", #{<<"xmlns">> => <<"urn:xmpp:hints">>}, [])]).
 
 received_message() ->
     xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("received", [{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}], [])]).
+          #{<<"type">> => <<"chat">>},
+          [xmlel("received", #{<<"xmlns">> => <<"urn:xmpp:carbons:2">>}, [])]).
 
 sent_message() ->
     xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("sent", [{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}], [])]).
+          #{<<"type">> => <<"chat">>},
+          [xmlel("sent", #{<<"xmlns">> => <<"urn:xmpp:carbons:2">>}, [])]).
 
 simple_chat_message() ->
-    xmlel("message", [{<<"type">>, <<"chat">>}], []).
+    xmlel("message", #{<<"type">> => <<"chat">>}, []).
 
 chat_state_notification() ->
     xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("someelement", [{<<"xmlns">>, <<"http://jabber.org/protocol/chatstates">>}], [])]).
+          #{<<"type">> => <<"chat">>},
+          [xmlel("someelement", #{<<"xmlns">> => <<"http://jabber.org/protocol/chatstates">>}, [])]).
 
 delivery_receipt() ->
     xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("received", [{<<"xmlns">>, <<"urn:xmpp:receipts">>}], [])]).
+          #{<<"type">> => <<"chat">>},
+          [xmlel("received", #{<<"xmlns">> => <<"urn:xmpp:receipts">>}, [])]).
 
 muc_invitation() ->
-    xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("x", [{<<"xmlns">>, <<"jabber:x:conference">>}],
-                 [xmlel("invite", [<<"from">>], [<<"alice@localhost">>])])]).
+    xmlel("message", #{},
+          [xmlel("x", #{<<"xmlns">> => <<"http://jabber.org/protocol/muc#user">>},
+                 [xmlel("invite", #{<<"from">> => <<"crone1@shakespeare.lit/desktop">>}, [])])]).
 
 direct_invitation() ->
-    xmlel("message",
-          [{<<"type">>, <<"chat">>}],
-          [xmlel("x", [{<<"xmlns">>, <<"jabber:x:conference">>}], [])]).
+    xmlel("message", #{},
+          [xmlel("x", #{<<"xmlns">> => <<"jabber:x:conference">>}, [])]).
 
 badarg_message() ->
-    xmlel("message", [{<<"type">>, <<"123">>}],[]).
+    xmlel("message", #{<<"type">> =>  <<"123">>},[]).
