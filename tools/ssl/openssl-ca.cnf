@@ -34,7 +34,7 @@ unique_subject      = no                    # Set to 'no' to allow creation of
 [ req ]
 default_bits        = 4096
 distinguished_name  = ca_distinguished_name
-#x509_extensions     = ca_extensions
+x509_extensions     = extensions
 string_mask         = utf8only
 prompt              = no
 
@@ -62,3 +62,7 @@ authorityKeyIdentifier=keyid,issuer
 
 basicConstraints        = CA:FALSE
 keyUsage                = digitalSignature, keyEncipherment
+
+[ extensions ]
+keyUsage = critical,digitalSignature,nonRepudiation,keyEncipherment,keyCertSign
+basicConstraints = critical,CA:true,pathlen:1
