@@ -5,8 +5,8 @@
 %% API
 -export([has_component/1,
          dirty_get_all_components/1,
-         register_components/4,
-         unregister_components/1,
+         register_component/5,
+         unregister_component/1,
          lookup_component/1,
          lookup_component/2]).
 
@@ -17,11 +17,10 @@
 -include("mongoose.hrl").
 -include("external_component.hrl").
 
--type domain() :: jid:server().
-
--type external_component() :: #external_component{domain :: domain(),
+-type external_component() :: #external_component{domain :: jid:lserver(),
                                                   handler :: mongoose_packet_handler:t(),
                                                   node :: node(),
+                                                  is_subdomain :: boolean(),
                                                   is_hidden :: boolean()}.
 
 -export_type([external_component/0]).
@@ -55,37 +54,38 @@ process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
     mongoose_component_connection:route(Pid, Acc),
     Acc.
 
--spec register_components(Domain :: [domain()],
-                          Node :: node(),
-                          Handler :: mongoose_packet_handler:t(),
-                          AreHidden :: boolean()) -> {ok, [external_component()]} | {error, any()}.
-register_components(Domains, Node, Handler, AreHidden) ->
+-spec register_component(Domain :: jid:lserver(),
+                         Node :: node(),
+                         Handler :: mongoose_packet_handler:t(),
+                         IsSubdomain :: boolean(),
+                         IsHidden :: boolean()) -> {ok, external_component()} | {error, any()}.
+register_component(Domain, Node, Handler, IsSubdomain, IsHidden) ->
     try
-        register_components_unsafe(Domains, Node, Handler, AreHidden)
+        register_component_unsafe(Domain, Node, Handler, IsSubdomain, IsHidden)
     catch Class:Reason:Stacktrace ->
         ?LOG_ERROR(#{what => component_register_failed,
                      class => Class, reason => Reason, stacktrace => Stacktrace}),
         {error, Reason}
     end.
 
-register_components_unsafe(Domains, Node, Handler, AreHidden) ->
-    LDomains = prepare_ldomains(Domains),
-    Components = make_components(LDomains, Node, Handler, AreHidden),
-    assert_can_register_components(Components),
-    register_components(Components),
+register_component_unsafe(Domain, Node, Handler, IsSubdomain, IsHidden) ->
+    LDomain = prepare_ldomain(Domain),
+    Component = make_components(LDomain, Node, Handler, IsSubdomain, IsHidden),
+    assert_can_register_components(Component),
+    register_component(Component),
     %% We do it outside of Mnesia transaction
-    lists:foreach(fun run_register_hook/1, Components),
-    {ok, Components}.
+    run_register_hook(Component),
+    {ok, Component}.
 
-register_components(Components) ->
-    mongoose_component_backend:register_components(Components).
+register_component(Component) ->
+    mongoose_component_backend:register_components([Component]).
 
-make_components(LDomains, Node, Handler, AreHidden) ->
-    [make_record_component(LDomain, Handler, Node, AreHidden) || LDomain <- LDomains].
+make_components(LDomain, Node, Handler, AreSubdomain, AreHidden) ->
+    make_record_component(LDomain, Handler, Node, AreSubdomain, AreHidden).
 
-make_record_component(LDomain, Handler, Node, IsHidden) ->
+make_record_component(LDomain, Handler, Node, IsSubdomain, IsHidden) ->
     #external_component{domain = LDomain, handler = Handler,
-                        node = Node, is_hidden = IsHidden}.
+                        node = Node, is_subdomain = IsSubdomain, is_hidden = IsHidden}.
 
 run_register_hook(#external_component{domain = LDomain, is_hidden = IsHidden}) ->
     mongoose_hooks:register_subhost(LDomain, IsHidden),
@@ -95,23 +95,18 @@ run_unregister_hook(#external_component{domain = LDomain}) ->
     mongoose_hooks:unregister_subhost(LDomain),
     ok.
 
--spec unregister_components(Components :: [external_component()]) -> ok.
-unregister_components(Components) ->
-    lists:foreach(fun run_unregister_hook/1, Components),
-    mongoose_component_backend:unregister_components(Components).
+-spec unregister_component(external_component()) -> ok.
+unregister_component(Component) ->
+    run_unregister_hook(Component),
+    mongoose_component_backend:unregister_components([Component]).
 
-assert_can_register_components(Components) ->
-    ConflictComponents = lists:filter(fun is_already_registered/1, Components),
-    ConflictDomains = records_to_domains(ConflictComponents),
-    case ConflictDomains of
-        [] ->
-            ok;
-         _ ->
-            error({routes_already_exist, ConflictDomains})
+assert_can_register_components(Component) ->
+    case is_already_registered(Component) of
+        true ->
+            error({routes_already_exist, Component#external_component.domain});
+        false ->
+            ok
     end.
-
-records_to_domains(Components) ->
-    [LDomain || #external_component{domain = LDomain} <- Components].
 
 %% Returns true if any component route is registered for the domain.
 -spec has_component(jid:lserver()) -> boolean().
@@ -171,13 +166,10 @@ node_cleanup(Acc, #{node := Node}, _) ->
     mongoose_component_backend:node_cleanup(Node),
     {ok, maps:put(?MODULE, ok, Acc)}.
 
-prepare_ldomains(Domains) ->
-    LDomains = [jid:nameprep(Domain) || Domain <- Domains],
-    Zip = lists:zip(Domains, LDomains),
-    InvalidDomains = [Domain || {Domain, error} <- Zip],
-    case InvalidDomains of
-        [] ->
-            LDomains;
-         _ ->
-            error({invalid_domains, InvalidDomains})
+prepare_ldomain(Domain) ->
+    case jid:nameprep(Domain) of
+        error ->
+            error({invalid_domain, Domain});
+        LDomain when is_binary(LDomain) ->
+            LDomain
     end.
