@@ -196,7 +196,6 @@ init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = ListenerOpts#{access => all,
                             shaper => none,
-                            xml_socket => true,
                             max_stanza_size => 0,
                             hibernate_after => 0,
                             state_timeout => 5000,

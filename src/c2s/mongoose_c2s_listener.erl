@@ -3,7 +3,7 @@
 -include("mongoose.hrl").
 
 -behaviour(mongoose_listener).
--export([start_listener/1, instrumentation/1]).
+-export([listener_spec/1, instrumentation/1]).
 
 -behaviour(ranch_protocol).
 -export([start_link/3]).
@@ -39,10 +39,10 @@ instrumentation(HostType, Acc) when is_binary(HostType) ->
       #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}} | Acc].
 
 %% mongoose_listener
--spec start_listener(mongoose_listener:options()) -> {ok, supervisor:child_spec()}.
-start_listener(Opts) ->
+-spec listener_spec(mongoose_listener:options()) -> supervisor:child_spec().
+listener_spec(Opts) ->
     maybe_add_access_check_hooks(Opts),
-    {ok, mongoose_listener:child_spec(Opts)}.
+    mongoose_listener:child_spec(Opts).
 
 %% ranch_protocol
 -spec start_link(ranch:ref(), mongoose_listener:transport_module(), mongoose_listener:options()) ->

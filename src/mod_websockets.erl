@@ -72,12 +72,12 @@ config_spec() ->
                                                   validate = positive},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive},
-                       <<"c2s_state_timeout">> => #option{type = int_or_infinity,
+                       <<"state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative},
                        <<"backwards_compatible_session">> => #option{type = boolean}},
              defaults = #{<<"timeout">> => 60000,
                           <<"max_stanza_size">> => infinity,
-                          <<"c2s_state_timeout">> => 5000,
+                          <<"state_timeout">> => 5000,
                           <<"backwards_compatible_session">> => true}
             }.
 
@@ -214,13 +214,12 @@ send_to_fsm(FSM, Element) ->
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
                 #ws_state{fsm_pid = undefined,
                           opts = #{ip_tuple := IPTuple, port := Port,
-                                   c2s_state_timeout := StateTimeout,
+                                   state_timeout := StateTimeout,
                                    backwards_compatible_session := BackwardsCompatible}} = State) ->
     Opts = #{
         access => all,
         shaper => none,
         max_stanza_size => 0,
-        xml_socket => true,
         state_timeout => StateTimeout,
         backwards_compatible_session => BackwardsCompatible,
         module => mongoose_c2s_listener,

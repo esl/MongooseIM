@@ -14,7 +14,7 @@
 %% Helpers
 -export([child_spec/1, read_connection_details/3, listener_id/1, element_spirals/0]).
 
--callback start_listener(options()) -> {ok, supervisor:child_spec()}.
+-callback listener_spec(options()) -> supervisor:child_spec().
 -callback instrumentation(options()) -> [mongoose_instrument:spec()].
 -optional_callbacks([instrumentation/1]).
 
@@ -24,7 +24,7 @@
                      ip_version := inet:address_family(),
                      proto := tcp,
                      module := module(),
-                     connection_type := atom(),
+                     connection_type := connection_type(),
                      hibernate_after := timeout(),
                      tls => map(),
                      %% HTTP
@@ -41,7 +41,7 @@
                      reuse_port => boolean(),
                      shaper => atom(),
                      %% C2S
-                     allowed_auth_methods => list(),
+                     allowed_auth_methods => [atom()],
                      backwards_compatible_session => boolean(),
                      state_timeout => non_neg_integer(),
                      %% Components
@@ -49,13 +49,16 @@
                      check_from => boolean(),
                      hidden_components => boolean(),
                      conflict_behaviour => disconnect | kick_old,
-                     %% Other maybe
-                     atom() => any()}.
+                     %% WebSockets
+                     peer => mongoose_transport:peer(),
+                     peer_cert => undefined | binary()
+                    }.
 
 -type id() :: {inet:port_number(), inet:ip_address(), tcp}.
 -type transport_module() :: ranch_tcp | ranch_ssl | undefined.
 -type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
 -type init_args() :: {module(), ranch:ref(), transport_module(), options()}.
+-type connection_type() :: c2s | s2s | component | http.
 
 -type connection_details() :: #{
         proxy        := boolean(),
@@ -84,9 +87,9 @@ stop() ->
 
 %% Internal functions
 
-start_listener(Opts = #{module := Module}) ->
+start_listener(#{module := Module} = Opts) ->
     try
-        {ok, ChildSpec} = Module:start_listener(Opts),
+        ChildSpec = Module:listener_spec(Opts),
         mongoose_listener_sup:start_child(ChildSpec)
     catch
         Class:Reason:Stacktrace ->
@@ -266,7 +269,7 @@ maybe_tls_opts(#{tls := #{mode := tls} = TLSOpts}, #{socket_opts := SocketOpts} 
 maybe_tls_opts(_, TransportOpts) ->
     TransportOpts.
 
--spec maybe_reuseport(boolean()) -> list().
+-spec maybe_reuseport(boolean()) -> [gen_tcp:option()].
 maybe_reuseport(false) -> [];
 maybe_reuseport(true) -> [{reuseport, true}, {reuseport_lb, true}].
 

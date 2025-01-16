@@ -55,7 +55,7 @@ init([]) ->
     Listener = supervisor_spec(mongoose_listener_sup),
     ShaperSup = mongoose_shaper:child_spec(),
     DomainSup = supervisor_spec(mongoose_domain_sup),
-    ReceiverSupervisor =
+    S2SReceiverSupervisor =
         template_supervisor_spec(mongoose_s2s_socket_out_sup, mongoose_s2s_socket_out),
     C2SSupervisor =
         template_supervisor_spec(mongoose_c2s_sup, mongoose_c2s),
@@ -74,10 +74,10 @@ init([]) ->
            ] ++ mongoose_cets_discovery:supervisor_specs() ++ [
            Router,
            S2S,
-           Local,
-           ReceiverSupervisor,
-           C2SSupervisor,
+           S2SReceiverSupervisor,
            S2SOutSupervisor,
+           Local,
+           C2SSupervisor,
            IQSupervisor,
            Listener,
            MucIQ,

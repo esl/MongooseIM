@@ -21,7 +21,7 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([start_listener/1,
+-export([listener_spec/1,
          instrumentation/1]).
 
 %% cowboy_middleware API
@@ -40,7 +40,7 @@
 -export([start_cowboy/4, start_cowboy/2, stop_cowboy/1]).
 
 -ignore_xref([behaviour_info/1, process/1, ref/1, reload_dispatch/1, start_cowboy/2,
-              start_cowboy/4, start_link/1, start_listener/1, stop/0, stop_cowboy/1]).
+              start_cowboy/4, start_link/1, stop/0, stop_cowboy/1]).
 
 -include("mongoose.hrl").
 
@@ -54,8 +54,8 @@
 instrumentation(#{handlers := Handlers}) ->
     [Spec || #{module := Module} <- Handlers, Spec <- mongoose_http_handler:instrumentation(Module)].
 
--spec start_listener(mongoose_listener:options()) -> {ok, supervisor:child_spec()}.
-start_listener(Opts) ->
+-spec listener_spec(mongoose_listener:options()) -> supervisor:child_spec().
+listener_spec(Opts) ->
     ListenerId = mongoose_listener:listener_id(Opts),
     Ref = ref(ListenerId),
     ChildSpec = #{id => ListenerId,
@@ -63,7 +63,7 @@ start_listener(Opts) ->
                   restart => transient,
                   shutdown => infinity,
                   modules => [?MODULE]},
-    {ok, ChildSpec}.
+    ChildSpec.
 
 reload_dispatch(Ref) ->
     gen_server:call(Ref, reload_dispatch).
@@ -187,7 +187,7 @@ stop_cowboy(Ref) ->
 ref(Listener) ->
     Ref = handler(Listener),
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
-    list_to_atom(binary_to_list(iolist_to_binary(ModRef))).
+    binary_to_atom(iolist_to_binary(ModRef)).
 
 %% -------------------------------------------------------------------
 %% @private

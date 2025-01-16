@@ -62,7 +62,7 @@ setup(Config) ->
              handlers => Handlers,
              transport => default_config([listen, http, transport]),
              protocol => default_config([listen, http, protocol])},
-    {ok, #{start := {M, F, A}}} = ejabberd_cowboy:start_listener(Opts),
+    #{start := {M, F, A}} = ejabberd_cowboy:listener_spec(Opts),
     async_helper:start(Config, M, F, A).
 
 teardown(Config) ->
@@ -74,7 +74,7 @@ teardown(Config) ->
     ok.
 
 ping_test(_Config) ->
-    timer:sleep(5000),
+    timer:sleep(500),
     #{socket := Socket1} = ws_handshake(),
     %% When
     Resp = wait_for_ping(Socket1, 0, 5000),

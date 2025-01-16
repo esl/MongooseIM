@@ -1136,7 +1136,7 @@ default_config([listen, http, handlers, mod_websockets]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
       module => mod_websockets,
-      c2s_state_timeout => 5000,
+      state_timeout => 5000,
       backwards_compatible_session => true};
 default_config([listen, http, handlers, mongoose_admin_api]) ->
     #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
