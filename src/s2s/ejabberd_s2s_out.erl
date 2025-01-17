@@ -290,7 +290,7 @@ open_socket2(HostType, Type, Addr, Port) ->
                 {active, false},
                 Type],
 
-    case (catch mongoose_transport:connect(s2s, Addr, Port, SockOpts, Timeout)) of
+    case (catch mongoose_s2s_socket_out:connect(s2s, Addr, Port, SockOpts, Timeout)) of
         {ok, _Socket} = R -> R;
         {error, Reason} = R ->
             ?LOG_DEBUG(#{what => s2s_out_failed,
@@ -474,7 +474,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                    text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
                                    myname => StateData#state.myname,
                                    server => StateData#state.server}),
-                    mongoose_transport:close(StateData#state.socket),
+                    mongoose_s2s_socket_out:close(StateData#state.socket),
                     {next_state, reopen_socket,
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
@@ -508,7 +508,7 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     ?LOG_DEBUG(#{what => s2s_starttls,
                                  myname => StateData#state.myname,
                                  server => StateData#state.server}),
-                    TLSSocket = mongoose_transport:connect_tls(StateData#state.socket,
+                    TLSSocket = mongoose_s2s_socket_out:connect_tls(StateData#state.socket,
                                                                StateData#state.tls_options),
                     NewStateData = StateData#state{socket = TLSSocket,
                                                    streamid = new_id(),
@@ -692,7 +692,7 @@ terminate(Reason, StateName, StateData) ->
         undefined ->
             ok;
         _Socket ->
-            mongoose_transport:close(StateData#state.socket)
+            mongoose_s2s_socket_out:close(StateData#state.socket)
     end,
     ok.
 
@@ -710,16 +710,16 @@ print_state(State) ->
 
 -spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
-    mongoose_transport:send_text(StateData#state.socket, Text).
+    mongoose_s2s_socket_out:send_text(StateData#state.socket, Text).
 
 
 -spec send_element(state(), exml:element()|mongoose_acc:t()) -> ok.
 send_element(StateData, #xmlel{} = El) ->
-    mongoose_transport:send_element(StateData#state.socket, El).
+    mongoose_s2s_socket_out:send_element(StateData#state.socket, El).
 
 -spec send_element(state(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 send_element(StateData, Acc, El) ->
-    mongoose_transport:send_element(StateData#state.socket, El),
+    mongoose_s2s_socket_out:send_element(StateData#state.socket, El),
     Acc.
 
 
@@ -1134,7 +1134,7 @@ handle_parsed_features({_, true, _, StateData = #state{tls = true, tls_enabled =
 handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    mongoose_transport:close(StateData#state.socket),
+    mongoose_s2s_socket_out:close(StateData#state.socket),
     {next_state, reopen_socket,
      StateData#state{socket = undefined,
                      use_v10 = false}, ?FSMTIMEOUT};
@@ -1144,7 +1144,7 @@ handle_parsed_features({_, _, _, StateData}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
     % TODO: clear message queue
-    mongoose_transport:close(StateData#state.socket),
+    mongoose_s2s_socket_out:close(StateData#state.socket),
     {next_state, reopen_socket, StateData#state{socket = undefined,
                                                 use_v10 = false}, ?FSMTIMEOUT}.
 
@@ -1172,5 +1172,5 @@ handle_get_state_info(StateName, StateData) ->
 get_peername(undefined) ->
     {unknown, unknown};
 get_peername(Socket) ->
-    {ok, {Addr, Port}} = mongoose_transport:peername(Socket),
+    {ok, {Addr, Port}} = mongoose_s2s_socket_out:peername(Socket),
     {Addr, Port}.

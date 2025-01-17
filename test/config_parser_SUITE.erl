@@ -552,7 +552,7 @@ listen_component_tls(_Config) ->
                                              <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
     M = tls_ca_raw(),
-    ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
+    ?cfg(P, maps:merge(config_parser_helper:default_xmpp_tls_tls(), tls_ca()), T(M)),
     test_just_tls_server(P, T).
 
 listen_http(_Config) ->
@@ -665,6 +665,8 @@ test_listen(P, T) ->
     ?cfg(P ++ [ip_address], "::", T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [ip_tuple], {0, 0, 0, 0, 0, 0, 0, 0}, T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [proto], tcp, T(#{<<"proto">> => <<"tcp">>})),
+    ?cfg(P ++ [hibernate_after], 10, T(#{<<"hibernate_after">> => 10})),
+    ?err(T(#{<<"hibernate_after">> => -10})),
     ?err(T(#{<<"ip_address">> => <<"192.168.1.999">>})),
     ?err(T(#{<<"port">> => <<"5222">>})),
     ?err(T(#{<<"port">> => 522222})),
@@ -676,7 +678,6 @@ test_listen_xmpp(P, T) ->
     ?cfg(P ++ [backlog], 10, T(#{<<"backlog">> => 10})),
     ?cfg(P ++ [proxy_protocol], true, T(#{<<"proxy_protocol">> => true})),
     ?cfg(P ++ [shaper], fast, T(#{<<"shaper">> => <<"fast">>})),
-    ?cfg(P ++ [hibernate_after], 10, T(#{<<"hibernate_after">> => 10})),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
     ?cfg(P ++ [max_stanza_size], 0, T(#{<<"max_stanza_size">> => <<"infinity">>})),
     ?cfg(P ++ [num_acceptors], 100, T(#{<<"num_acceptors">> => 100})),
@@ -687,7 +688,6 @@ test_listen_xmpp(P, T) ->
     ?err(T(#{<<"max_connections">> => 0})),
     ?err(T(#{<<"reuse_port">> => 0})),
     ?err(T(#{<<"proxy_protocol">> => <<"awesome">>})),
-    ?err(T(#{<<"hibernate_after">> => -10})),
     ?err(T(#{<<"max_stanza_size">> => <<"unlimited">>})),
     ?err(T(#{<<"num_acceptors">> => 0})).
 

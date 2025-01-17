@@ -3,7 +3,7 @@
 -include("mongoose.hrl").
 
 -behaviour(mongoose_listener).
--export([start_listener/1, instrumentation/1]).
+-export([listener_spec/1, instrumentation/1]).
 
 -behaviour(ranch_protocol).
 -export([start_link/3]).
@@ -13,9 +13,6 @@
 
 -export([instrumentation/0]).
 -ignore_xref([instrumentation/0]).
-
--type options() :: #{module := ?MODULE,
-                     atom() => any()}.
 
 -spec instrumentation(_) -> [mongoose_instrument:spec()].
 instrumentation(_) ->
@@ -42,23 +39,35 @@ instrumentation(HostType, Acc) when is_binary(HostType) ->
       #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}} | Acc].
 
 %% mongoose_listener
--spec start_listener(options()) -> ok.
-start_listener(#{module := ?MODULE} = Opts) ->
-    HostTypes = ?ALL_HOST_TYPES,
-    TransportOpts = mongoose_listener:prepare_socket_opts(Opts),
-    ListenerId = mongoose_listener_config:listener_id(Opts),
-    maybe_add_access_check(HostTypes, Opts, ListenerId),
-    ChildSpec = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, ?MODULE, Opts),
-    ChildSpec1 = ChildSpec#{id := ListenerId, modules => [?MODULE, ranch_embedded_sup]},
-    mongoose_listener_sup:start_child(ChildSpec1).
+-spec listener_spec(mongoose_listener:options()) -> supervisor:child_spec().
+listener_spec(Opts) ->
+    maybe_add_access_check_hooks(Opts),
+    mongoose_listener:child_spec(Opts).
+
+%% ranch_protocol
+-spec start_link(ranch:ref(), mongoose_listener:transport_module(), mongoose_listener:options()) ->
+    {ok, pid()}.
+start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
+    ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
+    mongoose_c2s:start_link({mongoose_c2s_ranch, Ref, Transport, Opts}, ProcessOpts).
 
 %% Hooks and handlers
+-spec maybe_add_access_check_hooks(mongoose_listener:options()) -> ok.
+maybe_add_access_check_hooks(#{access := all}) ->
+    ok;
+maybe_add_access_check_hooks(Opts) ->
+    ListenerId = mongoose_listener:listener_id(Opts),
+    AclHooks = [ {user_open_session, HostType, fun ?MODULE:handle_user_open_session/3,
+                  #{listener_id => ListenerId}, 10}
+                 || HostType <- ?ALL_HOST_TYPES ],
+    gen_hook:add_handlers(AclHooks).
+
 -spec handle_user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 handle_user_open_session(Acc, #{c2s_data := StateData},
                          #{host_type := HostType, listener_id := ListenerId}) ->
     ListenerOpts = mongoose_c2s:get_listener_opts(StateData),
-    case mongoose_listener_config:listener_id(ListenerOpts) of
+    case mongoose_listener:listener_id(ListenerOpts) of
         ListenerId ->
             Jid = mongoose_c2s:get_jid(StateData),
             LServer = mongoose_c2s:get_lserver(StateData),
@@ -75,18 +84,3 @@ handle_user_open_session(Acc, #{c2s_data := StateData},
         _Other ->
             {ok, Acc}
     end.
-
-%% ranch_protocol
--spec start_link(ranch:ref(), module(), mongoose_c2s:listener_opts()) -> {ok, pid()}.
-start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
-    ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
-    mongoose_c2s:start_link({mongoose_c2s_ranch, {Transport, Ref}, Opts}, ProcessOpts).
-
-%% supervisor
-maybe_add_access_check(_, #{access := all}, _) ->
-    ok;
-maybe_add_access_check(HostTypes, _, ListenerId) ->
-    AclHooks = [ {user_open_session, HostType, fun ?MODULE:handle_user_open_session/3,
-                  #{listener_id => ListenerId}, 10}
-                 || HostType <- HostTypes ],
-    gen_hook:add_handlers(AclHooks).

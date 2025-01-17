@@ -1,9 +1,7 @@
 %% @doc Utilities related to listener configuration options
 -module(mongoose_listener_config).
 
--export([ensure_ip_options/1,
-         verify_unique_listeners/1,
-         listener_id/1]).
+-export([ip_version/1, ensure_ip_options/1, verify_unique_listeners/1]).
 
 %% @doc Fill in IP-related options that can be calculated automatically.
 %% Apart from these options, the input should be a complete listener configuration.
@@ -30,15 +28,10 @@ ip_version(T) when tuple_size(T) =:= 8 -> inet6.
 -spec verify_unique_listeners([mongoose_listener:options()]) -> [mongoose_listener:options()].
 verify_unique_listeners(Listeners) ->
     Counts = lists:foldl(fun(L, Cts) ->
-                                 maps:update_with(listener_id(L), fun(Ct) -> Ct + 1 end, 1, Cts)
+                                 maps:update_with(mongoose_listener:listener_id(L), fun(Ct) -> Ct + 1 end, 1, Cts)
                          end, #{}, Listeners),
     case [K || {K, V} <- maps:to_list(Counts), V > 1] of
         [] -> Listeners;
         Dups -> error(#{what => duplicate_listeners, duplicates => Dups,
                         text => <<"Some listeners have duplicate listening socket addresses">>})
     end.
-
-%% @doc Create a unique ID based on the listening socket address
--spec listener_id(mongoose_listener:options()) -> mongoose_listener:id().
-listener_id(#{port := Port, ip_tuple := IPTuple, proto := Proto}) ->
-    {Port, IPTuple, Proto}.

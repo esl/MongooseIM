@@ -1,29 +1,14 @@
-%%%----------------------------------------------------------------------
-%%% File    : mongoose_transport.erl
-%%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : transport module for s2s connection
-%%% Created : 18 Jan 2017
-%%%----------------------------------------------------------------------
-
--module(mongoose_transport).
+-module(mongoose_s2s_socket_out).
 -author('piotr.nosek@erlang-solutions.com').
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("public_key/include/public_key.hrl").
 
 -behaviour(gen_server).
 
 %%----------------------------------------------------------------------
 %% Types
 %%----------------------------------------------------------------------
-
--type send_xml_input() :: {xmlstreamelement, exml:element()}
-                          | exml_stream:start()
-                          | exml_stream:stop().
--type peer() :: {inet:ip_address(), inet:port_number()}.
--type peername_return() :: {ok, peer()} | {error, inet:posix()}.
--type peercert_return() :: no_peer_cert | {ok, #'Certificate'{}}.
 
 -type stanza_size() :: pos_integer() | infinity.
 -type connection_type() :: s2s | undefined.
@@ -33,7 +18,7 @@
                      connection_type := connection_type(),
                      atom() => any()}.
 
--export_type([socket_data/0, send_xml_input/0, peer/0, peername_return/0, peercert_return/0]).
+-export_type([socket_data/0]).
 
 -type socket_module() :: gen_tcp | just_tls.
 -type socket() :: gen_tcp:socket() | just_tls:tls_socket().
@@ -146,13 +131,13 @@ send_element(#socket_data{connection_type = s2s} = SocketData, El) ->
     BinEl = exml:to_binary(El),
     send_text(SocketData, BinEl).
 
--spec peername(socket_data()) -> peername_return().
+-spec peername(socket_data()) -> mongoose_transport:peername_return().
 peername(#socket_data{connection_details = #{src_address := SrcAddr,
                                              src_port := SrcPort}}) ->
     {ok, {SrcAddr, SrcPort}}.
 
 get_all_trasport_processes() ->
-    Connections = supervisor:which_children(mongoose_transport_sup),
+    Connections = supervisor:which_children(mongoose_s2s_socket_out_sup),
     get_transport_info(Connections).
 %%----------------------------------------------------------------------
 %% gen_server interfaces
@@ -239,7 +224,7 @@ terminate(_Reason, #state{parser = Parser, dest_pid = DestPid,
 %%----------------------------------------------------------------------
 -spec start_child(port(), atom(), options()) -> pid().
 start_child(Socket, Shaper, Opts) ->
-    {ok, Receiver} = supervisor:start_child(mongoose_transport_sup,
+    {ok, Receiver} = supervisor:start_child(mongoose_s2s_socket_out_sup,
                                             [Socket, Shaper, Opts]),
     Receiver.
 

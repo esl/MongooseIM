@@ -1090,7 +1090,6 @@ common_xmpp_listener_config() ->
                                 max_connections => infinity,
                                 reuse_port => false,
                                 shaper => none,
-                                hibernate_after => 0,
                                 max_stanza_size => 0,
                                 num_acceptors => 100}.
 
@@ -1098,7 +1097,8 @@ common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
       ip_version => inet,
-      proto => tcp}.
+      proto => tcp,
+      hibernate_after => 0}.
 
 extra_component_listener_config() ->
     #{access => all,
@@ -1136,7 +1136,7 @@ default_config([listen, http, handlers, mod_websockets]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
       module => mod_websockets,
-      c2s_state_timeout => 5000,
+      state_timeout => 5000,
       backwards_compatible_session => true};
 default_config([listen, http, handlers, mongoose_admin_api]) ->
     #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
@@ -1176,7 +1176,7 @@ default_config([listen, component]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
     Extra#{module => mongoose_component_listener};
 default_config([listen, component, tls]) ->
-    default_xmpp_tls();
+    default_xmpp_tls_tls();
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_event_pusher, http]) ->
@@ -1325,6 +1325,9 @@ default_config(Path) when is_list(Path) ->
 
 default_xmpp_tls() ->
     (default_tls())#{mode => starttls}.
+
+default_xmpp_tls_tls() ->
+    (default_tls())#{mode => tls}.
 
 default_tls() ->
     #{verify_mode => peer,

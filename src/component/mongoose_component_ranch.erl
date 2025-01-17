@@ -2,7 +2,7 @@
 
 -behaviour(mongoose_component_socket).
 
--export([new/2,
+-export([new/3,
          peername/1,
          handle_data/2,
          activate/1,
@@ -11,37 +11,30 @@
         ]).
 
 -record(ranch_tcp, {
-          ranch_ref :: ranch:ref(),
           socket :: inet:socket(),
-          ip :: {inet:ip_address(), inet:port_number()}
+          ranch_ref :: ranch:ref(),
+          ip :: mongoose_transport:peer()
          }).
 
 -record(ranch_ssl, {
-          ranch_ref :: ranch:ref(),
           socket :: ssl:sslsocket(),
-          ip :: {inet:ip_address(), inet:port_number()}
+          ranch_ref :: ranch:ref(),
+          ip :: mongoose_transport:peer()
          }).
 
 -type socket() :: #ranch_tcp{} | #ranch_ssl{}.
--type transport() :: ranch_tcp | ranch_ssl.
 
--spec new({transport(), ranch:ref()}, mongoose_listener:options()) -> socket().
-new({ranch_tcp, RanchRef}, _Opts) ->
-    {ok, Socket} = ranch:handshake(RanchRef),
-    {ok, Ip} = ranch_tcp:peername(Socket),
-    #ranch_tcp{
-       ranch_ref = RanchRef,
-       socket = Socket,
-       ip = Ip};
-new({ranch_ssl, RanchRef}, _Opts) ->
-    {ok, Socket} = ranch:handshake(RanchRef),
-    {ok, Ip} = ranch_ssl:peername(Socket),
-    #ranch_ssl{
-       ranch_ref = RanchRef,
-       socket = Socket,
-       ip = Ip}.
+-spec new(mongoose_listener:transport_module(), ranch:ref(), mongoose_listener:options()) -> socket().
+new(ranch_tcp, Ref, Opts) ->
+    {ok, Socket, ConnectionDetails} = mongoose_listener:read_connection_details(Ref, ranch_tcp, Opts),
+    #{src_address := PeerIp, src_port := PeerPort} = ConnectionDetails,
+    #ranch_tcp{socket = Socket, ranch_ref = Ref, ip = {PeerIp, PeerPort}};
+new(ranch_ssl, Ref, Opts) ->
+    {ok, Socket, ConnectionDetails} = mongoose_listener:read_connection_details(Ref, ranch_ssl, Opts),
+    #{src_address := PeerIp, src_port := PeerPort} = ConnectionDetails,
+    #ranch_ssl{socket = Socket, ranch_ref = Ref, ip = {PeerIp, PeerPort}}.
 
--spec peername(socket()) -> {inet:ip_address(), inet:port_number()}.
+-spec peername(socket()) -> mongoose_transport:peer().
 peername(#ranch_tcp{ip = Ip}) -> Ip;
 peername(#ranch_ssl{ip = Ip}) -> Ip.
 

@@ -48,11 +48,12 @@
          peername/1,
          setopts/2,
          get_peer_certificate/1,
-         export_key_materials/5,
          close/1]).
 
 % API
--export([make_ssl_opts/1, make_cowboy_ssl_opts/1]).
+-export([prepare_connection/1,
+         receive_verify_results/1, error_to_list/1,
+         make_ssl_opts/1, make_cowboy_ssl_opts/1]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% APIs
@@ -82,15 +83,15 @@ tcp_to_tls(TCPSocket, Options) ->
         _ -> Ret
     end.
 
-%% -callback send(tls_socket(), binary()) -> ok | {error, any()}.
+-spec send(tls_socket(), binary()) -> ok | {error, any()}.
 send(#tls_socket{ssl_socket = SSLSocket}, Packet) -> ssl:send(SSLSocket, Packet).
 
-%% -callback peername(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
-%%                                     {error, any()}.
+-spec peername(tls_socket()) -> {ok, mongoose_transport:peer()} |
+                                     {error, any()}.
 peername(#tls_socket{ssl_socket = SSLSocket}) -> ssl:peername(SSLSocket).
 
 
-%% -callback setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
+-spec setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
 setopts(#tls_socket{ssl_socket = SSLSocket}, Opts) -> ssl:setopts(SSLSocket, Opts).
 
 get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) ->
@@ -103,21 +104,14 @@ get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) -
 get_peer_certificate(#tls_socket{verify_results = [Err | _]}) ->
     {bad_cert, error_to_list(Err)}.
 
--spec export_key_materials(tls_socket(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
-    {ok, ExportKeyMaterials} |
-    {error, undefined_tls_material | exporter_master_secret_already_consumed | bad_input}
-      when
-      Labels :: [binary()],
-      Contexts :: [binary() | no_context],
-      WantedLengths :: [non_neg_integer()],
-      ConsumeSecret :: boolean(),
-      ExportKeyMaterials :: binary() | [binary()].
-export_key_materials(#tls_socket{ssl_socket = SslSocket},
-                     Labels, Contexts, WantedLengths, ConsumeSecret) ->
-    ssl:export_key_materials(SslSocket, Labels, Contexts, WantedLengths, ConsumeSecret).
-
-%% -callback close(tls_socket()) -> ok.
+-spec close(tls_socket()) -> ok.
 close(#tls_socket{ssl_socket = SSLSocket}) -> ssl:close(SSLSocket).
+
+%% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
+-spec prepare_connection(options()) -> {dummy_ref | reference(), [ssl:tls_server_option()]}.
+prepare_connection(Options) ->
+    FailIfNoPeerCert = fail_if_no_peer_cert_opt(Options),
+    format_opts_with_ref(Options, FailIfNoPeerCert).
 
 %% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
 %% The `disconnect_on_failure' option is expected to be unset or true
