@@ -36,8 +36,8 @@ is_forwarded_message(From, To, Stanza) ->
 
 is_message_from_to(From, To, #xmlel{attrs = Attrs} = Stanza) ->
     escalus_pred:is_message(Stanza) andalso
-        escalus_compat:bin(From) == proplists:get_value(<<"from">>, Attrs) andalso
-        escalus_compat:bin(To) == proplists:get_value(<<"to">>, Attrs).
+        escalus_compat:bin(From) == maps:get(<<"from">>, Attrs, undefined) andalso
+        escalus_compat:bin(To) == maps:get(<<"to">>, Attrs, undefined).
 
 chat_message_with_body(#{to := User, body := Body}) ->
     escalus_stanza:chat_to(User, Body).
@@ -48,25 +48,25 @@ normal_message_with_body(#{to := User, body := Body}) ->
 normal_message_with_receipt(#{to := User}) ->
     Msg = #xmlel{
         name = <<"message">>,
-        attrs = [
-            {<<"type">>, <<"normal">>},
-            {<<"from">>, escalus_utils:get_jid(User)},
-            {<<"id">>, escalus_stanza:id()}
-        ]
+        attrs = #{
+            <<"type">> => <<"normal">>,
+            <<"from">> => escalus_utils:get_jid(User),
+            <<"id">> => escalus_stanza:id()
+        }
     },
     escalus_stanza:receipt_conf(Msg).
 
 normal_message_with_csn(#{to := User}) ->
     #xmlel{
         name = <<"message">>,
-        attrs = [
-            {<<"type">>, <<"normal">>},
-            {<<"to">>, escalus_utils:get_jid(User)}
-        ],
+        attrs = #{
+            <<"type">> => <<"normal">>,
+            <<"to">> => escalus_utils:get_jid(User)
+        },
         children = [
             #xmlel{
                 name = <<"stateName">>,
-                attrs = [{<<"xmlns">>, ?NS_CHATSTATES}]
+                attrs = #{<<"xmlns">> => ?NS_CHATSTATES}
             }
         ]
     }.

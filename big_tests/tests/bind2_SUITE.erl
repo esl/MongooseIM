@@ -97,7 +97,7 @@ auth_and_bind_ignores_invalid_resource_and_generates_a_new_one(Config) ->
 auth_and_bind_to_random_resource(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_bind}, receive_features, has_no_more_stanzas],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Bound),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata]),
@@ -107,7 +107,7 @@ auth_and_bind_to_random_resource(Config) ->
 auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_bind_with_user_agent_uuid}, receive_features, has_no_more_stanzas],
     #{answer := Success, uuid := Uuid} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Bound),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata]),
@@ -117,7 +117,7 @@ auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
 auth_and_bind_contains_client_tag(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_bind_with_tag}, receive_features, has_no_more_stanzas],
     #{answer := Success, tag := Tag} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Bound),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata]),
@@ -154,7 +154,7 @@ stream_resumption_enable_sm_on_bind(Config) ->
              {?MODULE, auth_and_bind_with_sm_enabled},
              receive_features, has_no_more_stanzas],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Enabled = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2},
                                         {element_with_ns, <<"enabled">>, ?NS_STREAM_MGNT_3}]),
     ?assertNotEqual(undefined, Enabled).
@@ -165,7 +165,7 @@ stream_resumption_enable_sm_on_bind_with_resume(Config) ->
              {?MODULE, auth_and_bind_with_sm_resume_enabled},
              receive_features, has_no_more_stanzas],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Enabled = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2},
                                         {element_with_ns, <<"enabled">>, ?NS_STREAM_MGNT_3}]),
     ?assertNotEqual(undefined, Enabled).
@@ -175,7 +175,7 @@ stream_resumption_failing_does_bind_and_contains_sm_status(Config) ->
              {?MODULE, auth_and_bind_with_resumption_unknown_smid},
              receive_features, has_no_more_stanzas],
     #{answer := Success, tag := Tag} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Bound),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"failed">>, ?NS_STREAM_MGNT_3}]),
@@ -189,7 +189,7 @@ stream_resumption_overrides_bind_request(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
              {?MODULE, auth_and_bind_with_resumption}, has_no_more_stanzas],
     #{answer := Success, smid := SMID} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"resumed">>, ?NS_STREAM_MGNT_3}]),
     ?assert(escalus_pred:is_sm_resumed(SMID, Resumed)).
 
@@ -281,7 +281,7 @@ receive_message_carbon_arrives(
 plain_auth(_Config, Client, Data, BindElems, Extra) ->
     InitEl = sasl2_helper:plain_auth_initial_response(Client),
     BindEl = #xmlel{name = <<"bind">>,
-                  attrs = [{<<"xmlns">>, ?NS_BIND_2}],
+                  attrs = #{<<"xmlns">> => ?NS_BIND_2},
                   children = BindElems},
     Authenticate = auth_elem(<<"PLAIN">>, [InitEl, BindEl | Extra]),
     escalus:send(Client, Authenticate),
@@ -298,7 +298,7 @@ start_peer(Config, Client, Data) ->
 %% XML helpers
 auth_elem(Mech, Children) ->
     #xmlel{name = <<"authenticate">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL_2}, {<<"mechanism">>, Mech}],
+           attrs = #{<<"xmlns">> => ?NS_SASL_2, <<"mechanism">> => Mech},
            children = Children}.
 
 bind_tag(Tag) ->
@@ -306,7 +306,7 @@ bind_tag(Tag) ->
 
 enable_carbons_el() ->
     #xmlel{name = <<"enable">>,
-           attrs = [{<<"xmlns">>, ?NS_CARBONS_2}]}.
+           attrs = #{<<"xmlns">> => ?NS_CARBONS_2}}.
 
 good_user_agent_elem(Uuid) ->
     user_agent_elem(Uuid, <<"cool-xmpp-client">>, <<"latest-and-greatest-device">>).
@@ -316,7 +316,7 @@ user_agent_elem(Id, Software, Device) ->
               || Value <- [Software], Value =/= undefined ],
     DeviEl = [#xmlel{name = <<"device">>, children = [#xmlcdata{content = Value}]}
               || Value <- [Device], Value =/= undefined ],
-    Attrs = [ {<<"id">>, Value} || Value <- [Id], Value =/= undefined ],
+    Attrs = #{<<"id">> => Value || Value <- [Id], Value =/= undefined},
     #xmlel{name = <<"user-agent">>, attrs = Attrs, children = SoftEl ++ DeviEl}.
 
 check_var(InlineFeatures, NS) ->

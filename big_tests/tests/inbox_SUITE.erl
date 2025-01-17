@@ -1417,7 +1417,7 @@ xmpp_bin_flush(Config) ->
         %% Bob requests flush through xmpp
         Iq = escalus_stanza:iq(<<"set">>,
                                [#xmlel{name = <<"empty-bin">>,
-                                       attrs = [{<<"xmlns">>, inbox_helper:inbox_ns()}],
+                                       attrs = #{<<"xmlns">> => inbox_helper:inbox_ns()},
                                        children = []}]),
         escalus:send(Bob, Iq),
         escalus:assert(is_iq_result, [Iq], escalus:wait_for_stanza(Bob)),

@@ -885,15 +885,15 @@ amp_el([]) ->
     throw("cannot build <amp> with no rules!");
 amp_el(Rules) ->
     #xmlel{name = <<"amp">>,
-           attrs = [{<<"xmlns">>, ns_amp()}],
+           attrs = #{<<"xmlns">> => ns_amp()},
            children = [ rule_el(R) || R <- Rules ]}.
 
 rule_el({Condition, Value, Action}) ->
     check_rules(Condition, Value, Action),
     #xmlel{name = <<"rule">>
-          , attrs = [{<<"condition">>, a2b(Condition)}
-                    , {<<"value">>, a2b(Value)}
-                    , {<<"action">>, a2b(Action)}]}.
+          , attrs = #{<<"condition">> => a2b(Condition)
+                    , <<"value">> => a2b(Value)
+                    , <<"action">> => a2b(Action)}}.
 
 %% @TODO: Move me out to escalus_pred %%%%%%%%%%%%
 %%%%%%%%% XML predicates %%%%% %%%%%%%%%%%%%%%%%%%

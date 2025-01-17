@@ -172,7 +172,7 @@ wrong_ping(Config) ->
         fun(Alice) ->
             Domain = domain(),
             IQ = escalus_stanza:iq(<<"get">>, [#xmlel{name = <<"unsupported">>,
-                                                      attrs = [{<<"xmlns">>, ?NS_PING}]
+                                                      attrs = #{<<"xmlns">> => ?NS_PING}
             }]),
             PingReq = escalus_stanza:to(IQ, Domain),
             escalus_client:send(Alice, PingReq),
@@ -187,10 +187,10 @@ service_unavailable_response(Config) ->
             PingReq = wait_for_ping_req(Alice),
             PingId = exml_query:attr(PingReq, <<"id">>),
 
-            ErrorStanzaBody = [#xmlel{name = <<"ping">>, attrs = [{<<"xmlns">>, ?NS_PING}]},
-                               #xmlel{name = <<"error">>, attrs = [{<<"type">>, <<"cancel">>}],
+            ErrorStanzaBody = [#xmlel{name = <<"ping">>, attrs = #{<<"xmlns">> => ?NS_PING}},
+                               #xmlel{name = <<"error">>, attrs = #{<<"type">> => <<"cancel">>},
                                children = [#xmlel{name = <<"service-unavailable">>,
-                                                  attrs = [{<<"xmlns">>, ?NS_STANZA_ERRORS}]}]}],
+                                                  attrs = #{<<"xmlns">> => ?NS_STANZA_ERRORS}}]}],
             ErrorStanza = escalus_stanza:set_id(
                             escalus_stanza:iq(domain(), <<"error">>, ErrorStanzaBody), PingId),
             escalus_client:send(Alice, ErrorStanza),

@@ -307,11 +307,9 @@ stanza_get_vcard_field_cdata(Stanza, FieldName) ->
 field_tuples([]) ->
     [];
 field_tuples([#xmlel{name = <<"field">>,
-                     attrs=Attrs,
-                     children=_Children} = El| Rest]) ->
-    {<<"type">>,Type} = lists:keyfind(<<"type">>, 1, Attrs),
-    {<<"var">>,Var} = lists:keyfind(<<"var">>, 1, Attrs),
-    {<<"label">>,Label} = lists:keyfind(<<"label">>, 1, Attrs),
+                     attrs = Attrs,
+                     children = _Children} = El| Rest]) ->
+    #{<<"type">> := Type, <<"var">> := Var, <<"label">> := Label} = Attrs,
     case ?EL_CD(El, <<"value">>) of
         undefined ->
             [{Type, Var, Label}|field_tuples(Rest)];
@@ -330,9 +328,9 @@ item_field_tuples(_, []) ->
     [];
 item_field_tuples(ReportedFieldTups,
                   [#xmlel{name = <<"field">>,
-                          attrs=Attrs,
-                          children=_Children} = El| Rest]) ->
-    {<<"var">>,Var} = lists:keyfind(<<"var">>, 1, Attrs),
+                          attrs = Attrs,
+                          children = _Children} = El| Rest]) ->
+    Var = maps:get(<<"var">>, Attrs),
     {Type, Var, Label} = lists:keyfind(Var, 2, ReportedFieldTups),
     [{Type, Var, Label, ?EL_CD(El, <<"value">>)}
      | item_field_tuples(ReportedFieldTups, Rest)];
@@ -410,8 +408,7 @@ list_unordered_key_match2(Keypos, [ExpctdTup|Rest], ActualTuples) ->
 search_result_item_tuples(Stanza) ->
     Result = ?EL(Stanza, <<"query">>),
     XData = ?EL(Result, <<"x">>),
-    #xmlel{ attrs = _XAttrs,
-            children = XChildren } = XData,
+    #xmlel{ children = XChildren } = XData,
     Reported = ?EL(XData, <<"reported">>),
     ReportedFieldTups = field_tuples(Reported#xmlel.children),
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).

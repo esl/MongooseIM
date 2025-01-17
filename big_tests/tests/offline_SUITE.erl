@@ -410,8 +410,8 @@ make_message_with_expiry(Target, Expiry, Text) ->
     Stanza = escalus_stanza:chat_to(Target, Text),
     #xmlel{children = Children} = Stanza,
     ExpiryElem = #xmlel{name = <<"x">>,
-                        attrs = [{<<"xmlns">>, <<"jabber:x:expire">>},
-                                 {<<"seconds">>, ExpiryBin}]},
+                        attrs = #{<<"xmlns">> => <<"jabber:x:expire">>,
+                                  <<"seconds">> => ExpiryBin}},
     Stanza#xmlel{children = [ExpiryElem | Children]}.
 
 repeat(_L, 0) -> [];

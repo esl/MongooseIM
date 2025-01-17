@@ -133,7 +133,7 @@ available(Config) ->
     run_send_available_presence(Config, Presence).
 
 explicit_available(Config) ->
-    Presence = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"available">>}]},
+    Presence = #xmlel{name = <<"presence">>, attrs = #{<<"type">> => <<"available">>}},
     run_send_available_presence(Config, Presence).
 
 run_send_available_presence(Config, Presence) ->

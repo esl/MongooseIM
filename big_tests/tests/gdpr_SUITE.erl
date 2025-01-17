@@ -486,7 +486,7 @@ remove_private(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         %% Add some private data for Alice
         Element = #xmlel{name = <<"item">>,
-                         attrs = [{<<"xmlns">>, <<"alice:private_remove:ns">>}],
+                         attrs = #{<<"xmlns">> => <<"alice:private_remove:ns">>},
                          children = [#xmlcdata{ content = <<"Something to declare">> }]},
         SetPrivateResult = escalus:send_and_wait(Alice,
                              escalus_stanza:private_set(Element)),
@@ -1761,12 +1761,12 @@ item_content(Data) ->
 
 item_content_xml(Data) ->
     #xmlel{name = <<"entry">>,
-           attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}],
+           attrs = #{<<"xmlns">> => <<"http://www.w3.org/2005/Atom">>},
            children = [#xmlcdata{content = Data}]}.
 
 send_and_assert_private_stanza(User, NS, Content) ->
     XML = #xmlel{ name = <<"fingerprint">>,
-                  attrs = [{<<"xmlns">>, NS}],
+                  attrs = #{<<"xmlns">> => NS},
                   children = [#xmlcdata{ content = Content }]},
     PrivateStanza = escalus_stanza:private_set(XML),
     escalus_client:send(User, PrivateStanza),

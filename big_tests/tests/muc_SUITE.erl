@@ -2888,7 +2888,7 @@ user_registration_errors(Config) ->
 %stanza_reserved_nickname_request() ->
 %     escalus_stanza:iq(<<"get">>, [#xmlel{
 %        name = <<"query">>,
-%        attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
+%        attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/disco#info">>, <<"node">> => <<"x-roomuser-item">>},
 %        children = []
 %     }]).
 %
@@ -4635,8 +4635,7 @@ wait_for_mam_result(RoomName, Client, Msg) ->
 stanza_room_list_request(_QueryId, RSM) ->
     escalus_stanza:iq(muc_host(), <<"get">>, [#xmlel{
         name = <<"query">>,
-        attrs = [{<<"xmlns">>,
-                  <<"http://jabber.org/protocol/disco#items">>}],
+        attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/disco#items">>},
         children = skip_undefined([maybe_rsm_elem(RSM)])
     }]).
 
@@ -4644,7 +4643,7 @@ maybe_rsm_elem(undefined) ->
     undefined;
 maybe_rsm_elem(#rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
     #xmlel{name = <<"set">>,
-           attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/rsm">>}],
+           attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/rsm">>},
            children = skip_undefined([
                 maybe_rsm_max(Max),
                 maybe_rsm_index(Index),
@@ -4895,20 +4894,20 @@ print(Element) ->
 stanza_groupchat_enter_room(Room, Nick) ->
     stanza_to_room(
         escalus_stanza:presence(<<"available">>,
-                                [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+                                [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>}}]),
         Room, Nick).
 
 
 stanza_groupchat_enter_room_no_nick(Room) ->
     stanza_to_room(
         escalus_stanza:presence(<<"available">>,
-                                [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+                                [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>}}]),
         Room).
 
 stanza_muc_enter_password_protected_room(Room, Nick, Password) ->
     stanza_to_room(
         escalus_stanza:presence(<<"available">>,
-                                [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
+                                [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>},
                                             children = [#xmlel{name = <<"password">>, children = [#xmlcdata{content=[Password]}]} ]}]),
         Room, Nick).
 
@@ -4944,11 +4943,11 @@ stanza_message_to_room(Room, Payload) ->
 
 stanza_private_muc_message(To, Msg) ->
         #xmlel{name = <<"message">>,
-            attrs = [{<<"to">>, To}, {<<"type">>, <<"chat">>}],
+            attrs = #{<<"to">> => To, <<"type">> => <<"chat">>},
             children = [#xmlel{name = <<"body">>,
                                children = [#xmlcdata{content = Msg}]},
                         #xmlel{name = <<"x">>,
-                               attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}]}]}.
+                               attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc#user">>}}]}.
 
 stanza_change_availability(NewStatus, Room, Nick) ->
     stanza_to_room(
@@ -4963,13 +4962,13 @@ stanza_muc_enter_room_history_setting(Room, Nick, Setting, Value) ->
     stanza_to_room(
         escalus_stanza:presence(  <<"available">>,
                                 [#xmlel{ name = <<"x">>,
-                                         attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
-                                         children = [#xmlel{name= <<"history">>, attrs=[{Setting, Value}]}] }]),
+                                         attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>},
+                                         children = [#xmlel{name= <<"history">>, attrs=#{Setting => Value}}] }]),
         Room, Nick).
 
 stanza_room_subject(Room, Subject) ->
     stanza_to_room(#xmlel{name = <<"message">>,
-        attrs = [{<<"type">>,<<"groupchat">>}],
+        attrs = #{<<"type">> => <<"groupchat">>},
         children = [#xmlel{
             name = <<"subject">>,
             children = [#xmlcdata{content = Subject}]
@@ -4979,16 +4978,12 @@ stanza_room_subject(Room, Subject) ->
 stanza_direct_invitation(Room, Inviter, Invited) ->
     #xmlel{
         name = <<"message">>,
-        attrs = [
-            {<<"from">>, escalus_utils:get_jid(Inviter)},
-            {<<"to">>, escalus_utils:get_short_jid(Invited)}
-        ],
+        attrs = #{<<"from">> => escalus_utils:get_jid(Inviter),
+                  <<"to">> => escalus_utils:get_short_jid(Invited)},
         children = [#xmlel{
             name = <<"x">>,
-            attrs = [
-                {<<"xmlns">>, ?NS_JABBER_X_CONF},
-                {<<"jid">>, room_address(Room)}
-            ]
+            attrs = #{<<"xmlns">> => ?NS_JABBER_X_CONF,
+                      <<"jid">> => room_address(Room)}
         }]
     }.
 
@@ -4997,56 +4992,54 @@ stanza_mediated_invitation(Room, Invited) ->
 
 stanza_mediated_invitation_multi(Room, AllInvited) ->
     Payload = [ #xmlel{name = <<"invite">>,
-                       attrs = [{<<"to">>, escalus_utils:get_short_jid(Invited)}]}
+                       attrs = #{<<"to">> => escalus_utils:get_short_jid(Invited)}}
                 || Invited <- AllInvited ],
     stanza_to_room(#xmlel{name = <<"message">>,
         children = [ #xmlel{
             name = <<"x">>,
-            attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+            attrs = #{<<"xmlns">> => ?NS_MUC_USER},
             children = Payload }
         ]}, Room).
 
 stanza_mediated_invitation_decline(Room,Sender) ->
     Payload = [ #xmlel{name = <<"decline">>,
-        attrs = [{<<"to">>, escalus_utils:get_short_jid(Sender)}]} ],
+                       attrs = #{<<"to">> => escalus_utils:get_short_jid(Sender)}} ],
     stanza_to_room(#xmlel{name = <<"message">>,
         children = [ #xmlel{
             name = <<"x">>,
-            attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+            attrs = #{<<"xmlns">> => ?NS_MUC_USER},
             children = Payload }
         ]}, Room).
 
 stanza_set_roles(Room, List) ->
-    Payload = lists:map(fun({Nick, Role}) ->
-        #xmlel{name = <<"item">>,
-        attrs = [{<<"nick">>, Nick}, {<<"role">>, Role}]};
-    ({Nick, Role, Reason}) ->
-        #xmlel{name = <<"item">>,
-        attrs = [{<<"nick">>, Nick}, {<<"role">>, Role}],
-        children = [#xmlel{
-            name = <<"reason">>,
-            children = [#xmlcdata{content = Reason}]}
-        ]}
-    end, List),
+    Payload = lists:map(
+        fun({Nick, Role}) ->
+            #xmlel{name = <<"item">>,
+                   attrs = #{<<"nick">> => Nick, <<"role">> => Role}};
+           ({Nick, Role, Reason}) ->
+            #xmlel{name = <<"item">>,
+                   attrs = #{<<"nick">> => Nick, <<"role">> => Role},
+                   children = [#xmlel{ name = <<"reason">>,
+                                       children = [#xmlcdata{content = Reason}]}]}
+        end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_set_affiliations(Room, List) ->
-    Payload = lists:map(fun({JID, Affiliation}) ->
-        #xmlel{name = <<"item">>,
-        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}]};
-    ({JID, Affiliation, Reason}) ->
-        #xmlel{name = <<"item">>,
-        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}],
-        children = [#xmlel{
-            name = <<"reason">>,
-            children = [#xmlcdata{content = Reason}]}
-        ]}
-    end, List),
+    Payload = lists:map(
+        fun({JID, Affiliation}) ->
+            #xmlel{name = <<"item">>,
+                   attrs = #{<<"jid">> => JID, <<"affiliation">> => Affiliation}};
+           ({JID, Affiliation, Reason}) ->
+            #xmlel{name = <<"item">>,
+                   attrs = #{<<"jid">> => JID, <<"affiliation">> => Affiliation},
+                   children = [#xmlel{name = <<"reason">>,
+                                      children = [#xmlcdata{content = Reason}]}]}
+        end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_role_list_request(Room, Role) ->
     Payload = [ #xmlel{name = <<"item">>,
-        attrs = [{<<"role">>, Role}]} ],
+                       attrs = #{<<"role">> => Role}} ],
     stanza_to_room(escalus_stanza:iq_get(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_form_request(Room) ->
@@ -5055,7 +5048,7 @@ stanza_form_request(Room) ->
 
 stanza_affiliation_list_request(Room, Affiliation) ->
     Payload = [ #xmlel{name = <<"item">>,
-        attrs = [{<<"affiliation">>, Affiliation}]} ],
+                       attrs = #{<<"affiliation">> => Affiliation}} ],
     stanza_to_room(escalus_stanza:iq_get(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_ban_list_request(Room) ->
@@ -5071,7 +5064,7 @@ stanza_join_room(Room, Nick) ->
     stanza_to_room(#xmlel{name = <<"presence">>, children =
         [#xmlel{
             name = <<"x">>,
-            attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/muc">>}]
+            attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>}
         }]
     },Room, Nick).
 
@@ -5080,11 +5073,11 @@ stanza_join_room_many_x_elements(Room, Nick) ->
     stanza_to_room(#xmlel{name = <<"presence">>, children =
                           [#xmlel{
                               name = <<"x">>,
-                              attrs = [{<<"xmlns">>,<<"vcard-temp:x:update">>}]
+                              attrs = #{<<"xmlns">> => <<"vcard-temp:x:update">>}
                              },
                            #xmlel{
                               name = <<"x">>,
-                              attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/muc">>}]
+                              attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>}
                              }]
                          }, Room, Nick).
 

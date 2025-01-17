@@ -574,7 +574,7 @@ block_muclight_user(Bob, Alice) ->
 my_banana(NS) ->
     #xmlel{
         name = <<"my_element">>,
-        attrs = [{<<"xmlns">>, NS}],
+        attrs = #{<<"xmlns">> => NS},
         children = [#xmlcdata{content = <<"banana">>}]}.
 
 get_private_data(Elem, Tag, NS) ->

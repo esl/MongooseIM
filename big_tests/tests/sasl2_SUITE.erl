@@ -115,7 +115,7 @@ server_announces_sasl2_with_some_mechanism_and_inline_sm(Config) ->
 authenticate_stanza_has_invalid_mechanism(Config) ->
     Steps = [start_new_user, send_invalid_mech_auth_stanza],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Response).
+    ?assertMatch(#xmlel{name = <<"failure">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Response).
 
 user_agent_is_invalid(Config) ->
     Steps = [start_new_user, send_bad_user_agent],
@@ -137,7 +137,7 @@ authenticate_with_plain_and_user_agent_without_id(Config) ->
 
 auth_with_plain(Steps, Config) ->
     #{answer := Success, features := Features} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     CData = exml_query:path(Success, [{element, <<"additional-data">>}, cdata], <<>>),
     ?assert(is_binary(CData) andalso 0 =< byte_size(CData)),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata], <<>>),
@@ -147,7 +147,7 @@ auth_with_plain(Steps, Config) ->
 authenticate_with_scram_abort(Config) ->
     Steps = [start_new_user, scram_step_1, scram_abort],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Response),
+    ?assertMatch(#xmlel{name = <<"failure">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Response),
     Aborted = exml_query:path(Response, [{element_with_ns, <<"aborted">>, ?NS_SASL}]),
     ?assertNotEqual(undefined, Aborted).
 
@@ -164,7 +164,7 @@ authenticate_with_scram_bad_response(Config) ->
 authenticate_with_scram(Config) ->
     Steps = [start_new_user, scram_step_1, scram_step_2, receive_features],
     #{answer := Success, features := Features} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     CData = exml_query:path(Success, [{element, <<"additional-data">>}, cdata], <<>>),
     ?assert(is_binary(CData) andalso 0 =< byte_size(CData)),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata], <<>>),
@@ -180,7 +180,7 @@ sm_failure_missing_previd_does_not_stop_sasl2(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
              auth_with_resumption_missing_previd, receive_features],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"failed">>, ?NS_STREAM_MGNT_3}]),
     escalus:assert(is_sm_failed, [<<"bad-request">>], Resumed).
 
@@ -188,7 +188,7 @@ sm_failure_invalid_h_does_not_stop_sasl2(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
              auth_with_resumption_invalid_h, receive_features],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"failed">>, ?NS_STREAM_MGNT_3}]),
     escalus:assert(is_sm_failed, [<<"bad-request">>], Resumed).
 
@@ -196,7 +196,7 @@ sm_failure_exceeding_h_does_not_stop_sasl2(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
              auth_with_resumption_exceeding_h, receive_features],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"failed">>, ?NS_STREAM_MGNT_3}]),
     escalus:assert(is_sm_failed, [<<"bad-request">>], Resumed).
 
@@ -204,7 +204,7 @@ sm_failure_unknown_smid_does_not_stop_sasl2(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
              auth_with_resumption_unknown_smid, receive_features],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"failed">>, ?NS_STREAM_MGNT_3}]),
     escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed).
 
@@ -212,6 +212,6 @@ sm_is_bound_at_sasl2_success(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
              auth_with_resumption, has_no_more_stanzas, can_send_messages],
     #{answer := Success, smid := SMID} = sasl2_helper:apply_steps(Steps, Config),
-    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Success),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"resumed">>, ?NS_STREAM_MGNT_3}]),
     ?assert(escalus_pred:is_sm_resumed(SMID, Resumed)).

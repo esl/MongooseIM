@@ -231,7 +231,7 @@ disco_rooms_rsm(Config) ->
             ProperJID = exml_query:attr(Item, <<"jid">>),
 
             RSM = #xmlel{ name = <<"set">>,
-                          attrs = [{<<"xmlns">>, ?NS_RSM}],
+                          attrs = #{<<"xmlns">> => ?NS_RSM},
                           children = [ #xmlel{ name = <<"max">>,
                                                children = [#xmlcdata{ content = <<"10">> }] },
                                        #xmlel{ name = <<"before">> } ]  },
@@ -247,7 +247,7 @@ disco_rooms_rsm(Config) ->
             BadAfter = #xmlel{ name = <<"after">>,
                                children = [#xmlcdata{ content = <<"oops@", (?MUCHOST)/binary>> }] },
             RSM2 = #xmlel{ name = <<"set">>,
-                          attrs = [{<<"xmlns">>, ?NS_RSM}],
+                          attrs = #{<<"xmlns">> => ?NS_RSM},
                           children = [ #xmlel{ name = <<"max">>,
                                                children = [#xmlcdata{ content = <<"10">> }] },
                                        BadAfter ]  },
@@ -283,7 +283,7 @@ change_subject(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Subject = <<"new subject">>,
             SubjectStanza = #xmlel{name = <<"message">>,
-                                   attrs = [{<<"type">>, <<"groupchat">>}],
+                                   attrs = #{<<"type">> => <<"groupchat">>},
                                    children = [#xmlel{
                                                   name = <<"subject">>,
                                                   children = [#xmlcdata{content = Subject}]
@@ -610,7 +610,7 @@ encode_privacy_item(What, Action, Who) ->
 stanza_create_room(RoomNode, Creator) ->
     ToBinJID = <<(room_bin_jid(RoomNode))/binary, $/,
                  (lbin(escalus_client:short_jid(Creator)))/binary>>,
-    X = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}] },
+    X = #xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC} },
     escalus_stanza:to(escalus_stanza:presence(<<"available">>, [X]), ToBinJID).
 
 -spec stanza_destroy_room(Room :: binary()) -> xmlel().
@@ -631,8 +631,8 @@ form_x_el(Fields) ->
 
 -spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> xmlel().
 stanza_aff_set(Room, AffUsers) ->
-    Items = [#xmlel{ name = <<"item">>, attrs = [{<<"affiliation">>, AffBin},
-                                                 {<<"jid">>, UserBin}] }
+    Items = [#xmlel{ name = <<"item">>, attrs = #{<<"affiliation">> => AffBin,
+                                                  <<"jid">> => UserBin} }
              || {UserBin, AffBin} <- bin_aff_users(AffUsers)],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_ADMIN, Items), room_bin_jid(Room)).
 

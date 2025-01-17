@@ -428,7 +428,7 @@ has_registered_element(Stanza) ->
 
 bad_cancelation_stanza() ->
     escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"query">>,
-        attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
+        attrs = #{<<"xmlns">> => <<"jabber:iq:register">>},
         children = [#xmlel{name = <<"remove">>},
                     %% The <remove/> element is not the only child element of the
                     %% <query/> element.

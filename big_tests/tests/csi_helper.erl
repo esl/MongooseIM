@@ -33,4 +33,4 @@ send_msgs(From, To, Msgs) ->
 
 csi_stanza(Name) ->
     #xmlel{name = Name,
-           attrs = [{<<"xmlns">>, ?NS_CSI}]}.
+           attrs = #{<<"xmlns">> => ?NS_CSI}}.

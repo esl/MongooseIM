@@ -28,4 +28,4 @@ add_special_chars_attr_xmlel(BaseMessage, SpecialCharsChild) ->
 
 create_special_chars_attr_xmlel(AttrWithSpecialChars) ->
     #xmlel{name = <<"span">>,
-        attrs = [{<<"style">>, AttrWithSpecialChars}]}.
+           attrs = #{<<"style">> => AttrWithSpecialChars}}.

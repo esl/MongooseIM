@@ -374,16 +374,18 @@ make_inbox_stanza() ->
 -spec make_inbox_stanza(GetParams :: inbox_query_params()) -> exml:element().
 make_inbox_stanza(GetParams) ->
     GetIQ = inbox_iq(GetParams),
+    Attrs = maybe_query_params(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
+                      attrs = Attrs#{<<"xmlns">> => ?NS_ESL_INBOX},
                       children = [make_inbox_form(GetParams) | rsm(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 -spec make_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
 make_inbox_stanza(GetParams, Verify) ->
     GetIQ = inbox_iq(GetParams),
+    Attrs = maybe_query_params(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
+                      attrs = Attrs#{<<"xmlns">> => ?NS_ESL_INBOX},
                       children = [make_inbox_form(GetParams, Verify) | rsm(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
@@ -393,12 +395,10 @@ inbox_iq(#{iq_id := IqId}) ->
 inbox_iq(_) ->
     escalus_stanza:iq_set(?NS_ESL_INBOX, []).
 
-maybe_query_params(#{queryid := undefined}) ->
-    [];
-maybe_query_params(#{queryid := QueryId}) ->
-    [{<<"queryid">>, QueryId}];
+maybe_query_params(#{queryid := QueryId}) when QueryId =/= undefined->
+    #{<<"queryid">> => QueryId};
 maybe_query_params(_) ->
-    [].
+    #{}.
 
 rsm(Params) ->
     Max = maps:get(limit, Params, undefined),
@@ -420,7 +420,7 @@ rsm(Params) ->
     case Elems of
         [] -> [];
         _ -> [#xmlel{name = <<"set">>,
-                     attrs = [{<<"xmlns">>, ?NS_RSM}],
+                     attrs = #{<<"xmlns">> => ?NS_RSM},
                      children = Elems}]
     end.
 
@@ -445,17 +445,13 @@ make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
     escalus_stanza:iq(
       <<"set">>,
       [#xmlel{name = <<"reset">>,
-              attrs = [
-                       {<<"xmlns">>, inbox_ns_conversation()},
-                       {<<"jid">>, InterlocutorJid}
-                      ]}]);
+              attrs = #{<<"xmlns">> => inbox_ns_conversation(),
+                        <<"jid">> => InterlocutorJid}}]);
 make_reset_inbox_stanza(undefined) ->
     escalus_stanza:iq(
       <<"set">>,
       [#xmlel{name = <<"reset">>,
-              attrs = [
-                       {<<"xmlns">>, inbox_ns_conversation()}
-                      ]}]);
+              attrs = #{<<"xmlns">> => inbox_ns_conversation()}}]);
 make_reset_inbox_stanza(InterlocutorJid) ->
     make_reset_inbox_stanza(escalus_utils:get_short_jid(InterlocutorJid)).
 
@@ -601,7 +597,7 @@ stanza_set_affiliations(Room, List) ->
 
 aff_to_iq_item({JID, Affiliation}) ->
     #xmlel{name = <<"item">>,
-        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}]}.
+        attrs = #{<<"jid">> => JID, <<"affiliation">> => Affiliation}}.
 
 nick(User) -> escalus_utils:get_username(User).
 
@@ -609,7 +605,7 @@ stanza_muc_enter_room(Room, Nick) ->
     stanza_to_room(
         escalus_stanza:presence(<<"available">>,
                                 [#xmlel{name = <<"x">>,
-                                        attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}
+                                        attrs=#{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>}}
                                 ]),
         Room, Nick).
 

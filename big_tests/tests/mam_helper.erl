@@ -183,13 +183,16 @@ stanzas_ns() -> <<"urn:ietf:params:xml:ns:xmpp-stanzas">>.
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
 
-maybe_attr(_, undefined) ->
-    [];
 maybe_attr(K, V) ->
-    [{K, V}].
+    maybe_attr(K, V, #{}).
+
+maybe_attr(_, undefined, Attrs) ->
+    Attrs;
+maybe_attr(K, V, Attrs) ->
+    Attrs#{K => V}.
 
 mam_ns_attr(P) ->
-    [{<<"xmlns">>, get_prop(mam_ns, P)}].
+    #{<<"xmlns">> => get_prop(mam_ns, P)}.
 
 maybe_with_elem(undefined) ->
     undefined;
@@ -201,7 +204,7 @@ maybe_with_elem(BWithJID) ->
 stanza_metadata_request() ->
     escalus_stanza:iq(<<"get">>,
                       [#xmlel{name = <<"metadata">>,
-                              attrs = [{<<"xmlns">>, mam_ns_binary_v06()}]}]).
+                              attrs = #{<<"xmlns">> => mam_ns_binary_v06()}}]).
 
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
@@ -285,10 +288,10 @@ stanza_lookup_messages_iq(P, Params) ->
     IncludeGroupChat = maps:get(include_group_chat, Params, undefined),
     MessagesIDs = maps:get(messages_ids, Params, undefined),
 
+    Attrs = mam_ns_attr(P),
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
-       attrs = mam_ns_attr(P)
-            ++ maybe_attr(<<"queryid">>, QueryId),
+       attrs = maybe_attr(<<"queryid">>, QueryId, Attrs),
        children = skip_undefined([
            form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat, MessagesIDs),
            maybe_rsm_elem(RSM),
@@ -335,10 +338,10 @@ form_bool_field(_Name, _) ->
     undefined.
 
 stanza_retrieve_form_fields(QueryId, NS) ->
+    Attrs = #{<<"xmlns">> => NS},
     escalus_stanza:iq(<<"get">>, [#xmlel{
         name = <<"query">>,
-        attrs =     [{<<"xmlns">>, NS}]
-        ++ maybe_attr(<<"queryid">>, QueryId),
+        attrs = maybe_attr(<<"queryid">>, QueryId, Attrs),
         children = []
     }]).
 
@@ -432,31 +435,31 @@ stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
                       children = encode_jids(AlwaysJIDs)},
     NeverEl  = #xmlel{name = <<"never">>,
                       children = encode_jids(NeverJIDs)},
+    Attrs = #{<<"xmlns">> => Namespace},
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>, Namespace}]
-               ++ [{<<"default">>, DefaultMode} || is_def(DefaultMode)],
+       attrs = maybe_attr(<<"default">>, DefaultMode, Attrs),
        children = [AlwaysEl, NeverEl]
     }]).
 
 stanza_prefs_get_request(Namespace) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>, Namespace}]
+       attrs = #{<<"xmlns">> => Namespace}
     }]).
 
 stanza_query_get_request(Namespace) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
         name = <<"query">>,
-        attrs = [{<<"xmlns">>, Namespace}]
+        attrs = #{<<"xmlns">> => Namespace}
     }]).
 
 %% Allows to cdata to be put as it is
 encode_jids(JIDs) ->
     [encode_jid_or_cdata(JID) || JID <- JIDs].
 
-encode_jid_or_cdata({xmlcdata, Text}) ->
-    {xmlcdata, Text};
+encode_jid_or_cdata(#xmlcdata{content = Text}) ->
+    #xmlcdata{content = Text};
 encode_jid_or_cdata(JID) ->
     #xmlel{name = <<"jid">>,
            children = [#xmlcdata{content = JID}]}.
@@ -467,8 +470,8 @@ encode_jid_or_cdata(JID) ->
 parse_forwarded_message(#xmlel{name = <<"message">>,
                                attrs = Attrs, children = Children}) ->
     M = #forwarded_message{
-        from = proplists:get_value(<<"from">>, Attrs),
-        to   = proplists:get_value(<<"to">>, Attrs),
+        from = get_attr(<<"from">>, Attrs),
+        to   = get_attr(<<"to">>, Attrs),
         has_x_user_element = false},
     lists:foldl(fun parse_children_message/2, M, Children).
 
@@ -476,8 +479,8 @@ parse_children_message(#xmlel{name = <<"result">>,
                               attrs = Attrs,
                               children = Children}, M) ->
     M1 = M#forwarded_message{
-        result_queryid = proplists:get_value(<<"queryid">>, Attrs),
-        result_id      = proplists:get_value(<<"id">>, Attrs)},
+        result_queryid = get_attr(<<"queryid">>, Attrs),
+        result_id      = get_attr(<<"id">>, Attrs)},
     lists:foldl(fun parse_children_message_result/2, M1, Children).
 
 parse_children_message_result(#xmlel{name = <<"forwarded">>,
@@ -488,24 +491,24 @@ parse_children_message_result(#xmlel{name = <<"forwarded">>,
 parse_children_message_result_forwarded(#xmlel{name = <<"delay">>,
                                                attrs = Attrs}, M) ->
     M#forwarded_message{
-        delay_from  = proplists:get_value(<<"from">>, Attrs),
-        delay_stamp = proplists:get_value(<<"stamp">>, Attrs)};
+        delay_from  = get_attr(<<"from">>, Attrs),
+        delay_stamp = get_attr(<<"stamp">>, Attrs)};
 parse_children_message_result_forwarded(#xmlel{name = <<"message">>,
                                                attrs = Attrs,
                                                children = Children}, M) ->
     M1 = M#forwarded_message{
-        message_to   = proplists:get_value(<<"to">>, Attrs),
-        message_from = proplists:get_value(<<"from">>, Attrs),
-        message_type = proplists:get_value(<<"type">>, Attrs)},
+        message_to   = get_attr(<<"to">>, Attrs),
+        message_from = get_attr(<<"from">>, Attrs),
+        message_type = get_attr(<<"type">>, Attrs)},
     lists:foldl(fun parse_children_message_result_forwarded_message/2,
                 M1, Children).
 
 parse_children_message_result_forwarded_message(#xmlel{name = <<"body">>,
-                                                       children = [{xmlcdata, Body}]}, M) ->
+                                                       children = [#xmlcdata{content =  Body}]}, M) ->
     M#forwarded_message{message_body = Body};
 parse_children_message_result_forwarded_message(#xmlel{name = <<"x">>,
                                                        attrs = Attrs} = XEl, M) ->
-    IsUser = lists:member({<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}, Attrs),
+    IsUser = get_attr(<<"xmlns">>, Attrs) =:= <<"http://jabber.org/protocol/muc#user">>,
     M#forwarded_message{has_x_user_element = IsUser,
                         message_xs = [XEl | M#forwarded_message.message_xs]};
 %% Parse `<archived />' or chat markers.
@@ -583,8 +586,8 @@ parse_set_and_iq(IQ, Set, QueryId, Complete) ->
         count       = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"count">>},
                                                                     cdata]))}.
 
-is_def(X) -> X =/= undefined.
-
+get_attr(Key, Attrs) ->
+    maps:get(Key, Attrs, undefined).
 
 parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
     IQ = #prefs_result_iq{},
@@ -593,7 +596,7 @@ parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
 parse_children_prefs_iq(#xmlel{name = <<"prefs">>,
                                attrs = Attrs, children = Children},
                         IQ) ->
-    DefaultMode = proplists:get_value(<<"default">>, Attrs),
+    DefaultMode = get_attr(<<"default">>, Attrs),
     IQ1 = IQ#prefs_result_iq{default_mode = DefaultMode},
     lists:foldl(fun parse_children_prefs_iq_prefs/2, IQ1, Children).
 
@@ -610,7 +613,7 @@ parse_children_prefs_iq_prefs(#xmlel{name = <<"never">>,
 
 parse_jids(Els) ->
     [escalus_utils:jid_to_lower(JID) %% MongooseIM normalizes JIDs
-     || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
+     || #xmlel{name = <<"jid">>, children = [#xmlcdata{content = JID}]} <- Els].
 
 %%--------------------------------------------------------------------
 %% Helpers (muc)
@@ -687,8 +690,8 @@ send_rsm_messages(Config) ->
     F = fun(Alice, Bob) ->
                 %% Alice sends messages to Bob.
                 [escalus:send(Alice,
-                              escalus_stanza:chat_to(Bob, generate_message_text(N)))
-                 || N <- lists:seq(1, N)],
+                              escalus_stanza:chat_to(Bob, generate_message_text(I)))
+                 || I <- lists:seq(1, N)],
                 assert_list_size(N, escalus:wait_for_stanzas(Bob, N)),
                 wait_for_archive_size(Alice, N),
 
@@ -896,7 +899,6 @@ parse_messages(Messages) ->
     end.
 
 bootstrap_archive(Config) ->
-    random:seed(os:timestamp()),
     AliceJID    = escalus_users:get_jid(Config, alice),
     BobJID      = escalus_users:get_jid(Config, bob),
     CarolJID    = escalus_users:get_jid(Config, carol),
@@ -1388,9 +1390,9 @@ add_nostore_hint(#xmlel{children=Children}=Elem) ->
     Elem#xmlel{children=Children ++ [hint_elem(no_store)]}.
 
 hint_elem(store) ->
-    #xmlel{name = <<"store">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:hints">>}]};
+    #xmlel{name = <<"store">>, attrs = #{<<"xmlns">> => <<"urn:xmpp:hints">>}};
 hint_elem(no_store) ->
-    #xmlel{name = <<"no-store">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:hints">>}]}.
+    #xmlel{name = <<"no-store">>, attrs = #{<<"xmlns">> => <<"urn:xmpp:hints">>}}.
 
 has_x_user_element(ArcMsg) ->
     ParsedMess = parse_forwarded_message(ArcMsg),

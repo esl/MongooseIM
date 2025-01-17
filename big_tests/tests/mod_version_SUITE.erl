@@ -7,6 +7,8 @@
 -include_lib("exml/include/exml.hrl").
 
 -import(config_parser_helper, [default_mod_config/1, mod_config/2]).
+
+-define(IS_EMPTY(X), (X =:= #{})).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -102,16 +104,16 @@ ask_for_version_with_os(Config) ->
 
 soft_version_stanza(Server, ID) ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"type">>, <<"get">>},
-                    {<<"to">>, Server},
-                    {<<"id">>, ID}],
+           attrs = #{<<"type">> => <<"get">>,
+                     <<"to">> => Server,
+                     <<"id">> => ID},
            children = [#xmlel{name = <<"query">>,
-                              attrs = [{<<"xmlns">>, ?NS_SOFT_VERSION}]}]}.
+                              attrs = #{<<"xmlns">> => ?NS_SOFT_VERSION}}]}.
 
-check_namespace(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
+check_namespace(#xmlel{name = <<"iq">>, children = [Child]}) ->
     case Child of
         #xmlel{name = <<"query">>,
-               attrs = [{<<"xmlns">>, ?NS_SOFT_VERSION}],
+               attrs = #{<<"xmlns">> := ?NS_SOFT_VERSION},
                children = _} ->
             true;
         _ ->
@@ -120,14 +122,19 @@ check_namespace(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
 
 check_namespace(_) -> false.
 
-check_name_and_version_presence(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
+check_name_and_version_presence(#xmlel{name = <<"iq">>, children = [Child]}) ->
     case Child of
         #xmlel{name = <<"query">>,
-               attrs = [{<<"xmlns">>, ?NS_SOFT_VERSION}],
+               attrs = #{<<"xmlns">> := ?NS_SOFT_VERSION},
                children = Children} ->
                    case Children of
-                       [#xmlel{name = <<"name">>, attrs = [], children = [#xmlcdata{content = _}]},
-                        #xmlel{name = <<"version">>, attrs = [], children = [#xmlcdata{content = _}]}] ->
+                       [#xmlel{name = <<"name">>,
+                               attrs = A1,
+                               children = [#xmlcdata{content = _}]},
+                        #xmlel{name = <<"version">>,
+                               attrs = A2,
+                               children = [#xmlcdata{content = _}]}] when ?IS_EMPTY(A1),
+                                                                          ?IS_EMPTY(A2) ->
                             true;
                         _ ->
                             false
@@ -138,15 +145,20 @@ check_name_and_version_presence(#xmlel{name = <<"iq">>, attrs = _, children = [C
 
 check_name_and_version_presence(_) -> false.
 
-check_name_version_and_os_presence(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
+check_name_version_and_os_presence(#xmlel{name = <<"iq">>, children = [Child]}) ->
     case Child of
         #xmlel{name = <<"query">>,
-               attrs = [{<<"xmlns">>, ?NS_SOFT_VERSION}],
+               attrs = #{<<"xmlns">> := ?NS_SOFT_VERSION},
                children = Children} ->
                    case Children of
-                       [#xmlel{name = <<"name">>, attrs = [], children = [#xmlcdata{content = _}]},
-                        #xmlel{name = <<"version">>, attrs = [], children = [#xmlcdata{content = _}]},
-                        #xmlel{name = <<"os">>, attrs = [], children = [#xmlcdata{content = _}]}] ->
+                       [#xmlel{name = <<"name">>, attrs = A1,
+                               children = [#xmlcdata{content = _}]},
+                        #xmlel{name = <<"version">>, attrs = A2,
+                               children = [#xmlcdata{content = _}]},
+                        #xmlel{name = <<"os">>, attrs = A3,
+                               children = [#xmlcdata{content = _}]}] when ?IS_EMPTY(A1),
+                                                                          ?IS_EMPTY(A2),
+                                                                          ?IS_EMPTY(A3) ->
                             true;
                         _ ->
                             false

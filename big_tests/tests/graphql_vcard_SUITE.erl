@@ -152,7 +152,7 @@ user_get_their_vcard(Config) ->
 
 user_get_their_vcard(Config, Alice) ->
     Client1Fields = [{<<"FN">>, <<"TESTNAME">>}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL">>},
-    {<<"HOME">>, []}, {"WORK", []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
+    {<<"HOME">>, []}, {<<"WORK">>, []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
     {<<"HOME">>, []}]}],
     ExpectedResult = #{<<"formattedName">> => <<"TESTNAME">>,
         <<"email">> => [#{<<"userId">> => <<"TESTEMAIL">>, <<"tags">> => [<<"HOME">>, <<"WORK">>]},
@@ -176,7 +176,7 @@ user_get_others_vcard(Config) ->
 
 user_get_others_vcard(Config, Alice, Bob) ->
     Client1Fields = [{<<"FN">>, <<"TESTNAME">>}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL">>},
-    {<<"HOME">>, []}, {"WORK", []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
+    {<<"HOME">>, []}, {<<"WORK">>, []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
     {<<"HOME">>, []}]}],
     ExpectedResult = #{<<"formattedName">> => <<"TESTNAME">>,
         <<"email">> => [#{<<"userId">> => <<"TESTEMAIL">>, <<"tags">> => [<<"HOME">>, <<"WORK">>]},

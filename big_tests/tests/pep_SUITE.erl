@@ -481,7 +481,7 @@ add_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
     ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
     PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
     Request#xmlel{children = [PubsubEl2]}.
- 
+
 publish_with_publish_options(Client, Node, Content, Options) ->
     publish_with_publish_options(Client, Node, Content, Options, ?NS_PUBSUB_PUB_OPTIONS).
 
@@ -583,21 +583,21 @@ start_caps_clients(Config, [{UserSpec, Resource}]) ->
 
 feature_elems(PEPNodeNS) ->
     [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"client">>},
-                     {<<"name">>, <<"Psi">>},
-                     {<<"type">>, <<"pc">>}]} |
+            attrs = #{<<"category">> => <<"client">>,
+                      <<"name">> => <<"Psi">>,
+                      <<"type">> => <<"pc">>}} |
      [feature_elem(F) || F <- features(PEPNodeNS)]].
 
 feature_elem(F) ->
     #xmlel{name = <<"feature">>,
-           attrs = [{<<"var">>, F}]}.
+           attrs = #{<<"var">> => F}}.
 
 caps(PEPNodeNS) ->
     #xmlel{name = <<"c">>,
-           attrs = [{<<"xmlns">>, ?NS_CAPS},
-                    {<<"hash">>, <<"sha-1">>},
-                    {<<"node">>, caps_node_name()},
-                    {<<"ver">>, caps_hash(PEPNodeNS)}]}.
+           attrs = #{<<"xmlns">> => ?NS_CAPS,
+                     <<"hash">> => <<"sha-1">>,
+                     <<"node">> => caps_node_name(),
+                     <<"ver">> => caps_hash(PEPNodeNS)}}.
 
 features(PEPNodeNS) ->
     [?NS_DISCO_INFO,
@@ -669,7 +669,7 @@ id(User, {NodeAddr, NodeName}, Suffix) ->
 
 item_content() ->
     #xmlel{name = <<"entry">>,
-        attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}]}.
+        attrs = #{<<"xmlns">> => <<"http://www.w3.org/2005/Atom">>}}.
 
 enable_sm(User) ->
     escalus_client:send(User, escalus_stanza:enable_sm()),

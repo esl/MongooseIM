@@ -93,7 +93,7 @@ check_acc(Acc, stripped) ->
 alter_message({From, To, Acc, Packet}, _, _) ->
     % Not using #xmlel as it causes some strange error in dynamic compilation
     {xmlel, PName, PAttrs, PCh} = Packet,
-    NewBody = {xmlel, <<"body">>, [], [{xmlcdata, <<"bye">> }]},
+    NewBody = {xmlel, <<"body">>, #{}, [{xmlcdata, <<"bye">>, escaped}]},
     PCh2 = lists:keyreplace(<<"body">>, 2, PCh, NewBody),
     NewAcc = {From, To, Acc, {xmlel, PName, PAttrs, PCh2}},
     {ok, NewAcc}.
