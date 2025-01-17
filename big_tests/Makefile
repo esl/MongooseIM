@@ -100,7 +100,7 @@ console: $(PREPARE)
 	erl $(COMMON_OPTS) $(ADD_OPTS) -s run_common_test init
 
 compile: get-deps deps
-	$(RUN) $(REBAR) compile
+	@ERL_LIBS="../_build/prod/lib" $(RUN) $(REBAR) compile
 
 get-deps:
 	$(RUN) $(REBAR) deps
