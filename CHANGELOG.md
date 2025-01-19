@@ -1,3 +1,62 @@
+# [MongooseIM 6.3.1](https://github.com/esl/MongooseIM/releases/tag/6.3.1) - 2024-12-30
+
+## Highlights
+- Better certificate validation
+- Improved CockroachDB support
+- Removed unnecessary components
+- Multiple owner support in MUC Light
+- Packages are now published on GitHub
+- Various improvements and fixes
+
+## Added
+- Checking of probe metrics types (#4390)
+- Multiple owner support in MUC Light (#4392)
+- Delays to SM buffer (#4407)
+- Better logging when something takes longer than expected (#4427, #4430)
+- Support `open_test_database_shell` for CockroachDB (#4438)
+
+## Changed
+- Enforced `fail_if_no_peer_cert` in `just_tls` for stricter client certificate validation (#4386)
+- Allowed config processor to be a list of functions (#4396)
+- `fast_tls` to validate CA certificate when `verify_mode` is set to `verify_peer` or `selfsigned_peer` (#4391)
+- Supervisor, listeners, components and types cleanup (#4441)
+- Optimized memory usage in `just_tls` (#4447)
+
+## Fixed
+- MUC room crash when handling old protocol stanza (#4387)
+- CockroachDB consistency (#4402)
+- Shutdown logic to prevent `event_not_registered` errors by stopping c2s processes before listeners (#4400)
+- Definition of the "protected" GraphQL directive (#4409)
+- GraphQL library is now used as a package (#4405)
+- Package related warning (#4410)
+- IO list handling in `jiffy:encode` (#4420)
+- Error on startup: "No such file or directory" (#4436)
+- MongooseIM is restarted as a permanent application rather than a temporary one (#4443)
+
+## Removed
+- Lager as a dependency (#4393)
+- Goldrush from `rebar.lock` (#4397)
+- Dead tools and code (#4411)
+- Native code from `mam_id` (#4412)
+- More complicated dead code (#4422)
+- Base16 library (#4415)
+
+## Other
+- Updated dependencies (#4428)
+- Documentation improvements (#4388)
+- CI improvements/fixes (#4403, #4416, #4417, #4435)
+- Streamlined package workflow (#4385, #4399, #4414, #4406, #4425, #4432, #4449)
+- Testing improvements/fixes (#4394, #4398, #4418,  #4419, #4401, #4426, #4431, #4423, #4424, #4433, #4437, #4434, #4444, #4445)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.1)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-10-22..2024-12-30)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-10-22&to=2024-12-30&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.1+sort%3Aupdated-desc)
+
 # [MongooseIM 6.3.0](https://github.com/esl/MongooseIM/releases/tag/6.3.0) - 2024-10-22
 
 ## Highlights
