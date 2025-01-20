@@ -150,7 +150,7 @@ userlist(_) ->
 
 presence() ->
      #xmlel{name = <<"presence">>,
-            attrs = #{<<"xml:lang">>=> <<"en">>},
+            attrs = #{<<"xml:lang">> => <<"en">>},
             children = []}.
 
 message() ->

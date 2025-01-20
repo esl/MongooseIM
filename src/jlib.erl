@@ -85,6 +85,8 @@
               iq/0,
               rfc3339_string/0]).
 
+-define(IS_EMPTY(X), (X =:= #{})).
+
 -spec make_result_iq_reply(exml:element()) -> exml:element();
                           (iq()) -> iq().
 make_result_iq_reply(XE = #xmlel{}) ->
@@ -93,26 +95,10 @@ make_result_iq_reply(XE = #xmlel{}) ->
 make_result_iq_reply(IQ = #iq{}) ->
     IQ#iq{type = result}.
 
-
 -spec make_result_iq_reply_attrs(exml:element()) -> exml:attrs().
-make_result_iq_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
-    To = exml_query:attr(Element, <<"to">>),
-    From = exml_query:attr(Element, <<"from">>),
-    Attrs1 = maps:without([<<"to">>,<<"from">>],Attrs),
-    Attrs2 = case To of
-                 undefined ->
-                     Attrs1;
-                 ToVal ->
-                     Attrs1#{<<"from">> => ToVal}
-             end,
-    Attrs3 = case From of
-                 undefined ->
-                     Attrs2;
-                 FromVal ->
-                     Attrs2#{<<"to">> => FromVal}
-             end,
-    Attrs3#{<<"type">> => <<"result">>}.
-
+make_result_iq_reply_attrs(#xmlel{attrs = Attrs}) ->
+    Attrs1 = swap_from_to_attrs(Attrs),
+    Attrs1#{<<"type">> => <<"result">>}.
 
 -spec make_error_reply(exml:element() | mongoose_acc:t(),
                        xmlcdata() | exml:element()) ->
@@ -142,23 +128,9 @@ make_error_reply_from_element(#xmlel{name = Name, children = SubTags} = Element,
     #xmlel{name = Name, attrs = NewAttrs, children = [Error | SubTags]}.
 
 -spec make_error_reply_attrs(exml:element()) -> exml:attrs().
-make_error_reply_attrs(#xmlel{attrs = Attrs} = Element) ->
-    To = exml_query:attr(Element, <<"to">>),
-    From = exml_query:attr(Element, <<"from">>),
-    Attrs1 = maps:without([<<"to">>,<<"from">>],Attrs),
-    Attrs2 = case To of
-                 undefined ->
-                     Attrs1;
-                 ToVal ->
-                     Attrs1#{<<"from">> => ToVal}
-             end,
-    Attrs3 = case From of
-                 undefined ->
-                     Attrs2;
-                 FromVal ->
-                     Attrs2#{<<"to">> => FromVal}
-             end,
-    Attrs3#{<<"type">> => <<"error">>}.
+make_error_reply_attrs(#xmlel{attrs = Attrs}) ->
+    Attrs1 = swap_from_to_attrs(Attrs),
+    Attrs1#{<<"type">> => <<"error">>}.
 
 -spec make_config_change_message(binary()) -> exml:element().
 make_config_change_message(Status) ->
@@ -203,6 +175,17 @@ replace_from_to_attrs(From, To, Attrs) ->
              end,
     Attrs2#{<<"from">> => From}.
 
+-spec swap_from_to_attrs(exml:attrs()) -> exml:attrs().
+swap_from_to_attrs(#{<<"from">> := From, <<"to">> := To} = Attrs) ->
+    Attrs#{<<"from">> := To, <<"to">> := From};
+swap_from_to_attrs(#{<<"from">> := From} = Attrs0) ->
+    Attrs1 = maps:remove(<<"from">>, Attrs0),
+    Attrs1#{<<"to">> => From};
+swap_from_to_attrs(#{<<"to">> := To} = Attrs0) ->
+    Attrs1 = maps:remove(<<"to">>, Attrs0),
+    Attrs1#{<<"from">> => To};
+swap_from_to_attrs(Attrs) ->
+    Attrs.
 
 -spec replace_from_to(From :: jid:simple_jid() | jid:jid(),
                       To :: jid:simple_jid() | jid:jid(),
@@ -331,17 +314,17 @@ rsm_decode(#xmlel{} = SubEl) ->
     end.
 
 -spec rsm_parse_element(exml:element(), rsm_in()) -> rsm_in().
-rsm_parse_element(#xmlel{name = <<"max">>, attrs = #{}} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"max">>, attrs = Attrs} = Elem, RsmIn) when ?IS_EMPTY(Attrs) ->
     CountStr = exml_query:cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
     RsmIn#rsm_in{max = Count};
-rsm_parse_element(#xmlel{name = <<"before">>, attrs = #{}} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"before">>, attrs = Attrs} = Elem, RsmIn) when ?IS_EMPTY(Attrs) ->
     UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = before, id = UID};
-rsm_parse_element(#xmlel{name = <<"after">>, attrs = #{}} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"after">>, attrs = Attrs} = Elem, RsmIn) when ?IS_EMPTY(Attrs) ->
     UID = exml_query:cdata(Elem),
     RsmIn#rsm_in{direction = aft, id = UID};
-rsm_parse_element(#xmlel{name = <<"index">>, attrs = #{}} = Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"index">>, attrs = Attrs} = Elem, RsmIn) when ?IS_EMPTY(Attrs) ->
     IndexStr = exml_query:cdata(Elem),
     {Index, _} = string:to_integer(binary_to_list(IndexStr)),
     RsmIn#rsm_in{index = Index};

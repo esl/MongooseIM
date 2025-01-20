@@ -271,7 +271,7 @@ format_user_info(#session{sid = {Microseconds, Pid}, usr = Usr,
     Uptime = (erlang:system_time(microsecond) - Microseconds) div 1000000,
     {Usr, Conn, Address, Priority, Node, Uptime}.
 
--spec maybe_type_attr(binary())-> exml:attrs().
+-spec maybe_type_attr(binary()) -> exml:attrs().
 maybe_type_attr(<<"available">>) ->
     #{};
 maybe_type_attr(Type) ->

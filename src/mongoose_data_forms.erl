@@ -133,7 +133,7 @@ form_field(M) when is_map(M) ->
     Values = [form_field_value(Value) || Value <- maps:get(values, M, [])],
     Options = [form_field_option(Option) || Option <- maps:get(options, M, [])],
     Attrs = #{atom_to_binary(K) => V
-             || K:= V <- M, K =/= values, K =/= options, K =/= validate},
+             || K := V <- M, K =/= values, K =/= options, K =/= validate},
     #xmlel{name = <<"field">>, attrs = Attrs, children = Values ++ Options ++ Validate}.
 
 -spec form_title(binary()) -> exml:element().

@@ -527,10 +527,10 @@ replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
             -> exml:element().
 result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
-    Attrs = if
-              QueryID =/= undefined, QueryID =/= <<>> ->
+    Attrs = case QueryID =/= undefined andalso QueryID =/= <<>>  of
+              true->
                 #{<<"queryid">> => QueryID};
-              true ->
+              false ->
                 #{}
             end,
     #xmlel{

@@ -20,7 +20,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
-
 -define(LOGFILE, "log/mongooseim.log").
 -define(HID, json_log).
 

@@ -194,8 +194,7 @@ make_route_item(Acc, From, To, TS, Packet) ->
 marker(Type, Id) ->
     [#xmlel{name = atom_to_binary(Type, latin1),
             attrs = #{<<"xmlns">> => <<"urn:xmpp:chat-markers:0">>,
-                      <<"id">> => Id},
-            children = []}].
+                      <<"id">> => Id}}].
 
 thread(undefined) -> [];
 thread(Thread) ->
