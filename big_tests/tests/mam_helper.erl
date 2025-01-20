@@ -690,8 +690,8 @@ send_rsm_messages(Config) ->
     F = fun(Alice, Bob) ->
                 %% Alice sends messages to Bob.
                 [escalus:send(Alice,
-                              escalus_stanza:chat_to(Bob, generate_message_text(I)))
-                 || I <- lists:seq(1, N)],
+                              escalus_stanza:chat_to(Bob, generate_message_text(K)))
+                 || K <- lists:seq(1, N)],
                 assert_list_size(N, escalus:wait_for_stanzas(Bob, N)),
                 wait_for_archive_size(Alice, N),
 

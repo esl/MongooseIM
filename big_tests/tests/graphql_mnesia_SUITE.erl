@@ -508,9 +508,7 @@ mnesia_info_check() ->
       <<"dc_dump_limit">> => check_integer,
       <<"send_compressed">> => check_integer,
       <<"max_transfer_size">> => check_integer,
-      <<"version">> => check_binary,
-      <<"db_nodes">> => check_list,
-      <<"running_db_nodes">> => check_list}.
+      <<"version">> => check_binary}.
 
 check_list(L) ->
     lists:all(fun(Item) -> is_binary(Item) end, L).

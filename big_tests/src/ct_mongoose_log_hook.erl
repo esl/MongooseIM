@@ -61,7 +61,7 @@ pre_init_per_suite(Suite, Config, State) ->
     {Config, State#state{group=no_group, suite=Suite}}.
 
 %% @doc Called before end_per_suite.
-post_end_per_suite(_Suite, Config, Return, State = #state{node_name = undefined}) ->
+post_end_per_suite(_Suite, Config, _Return, State = #state{node_name = undefined}) ->
     {Config, State};
 post_end_per_suite(Suite, _Config, Return, State) ->
     maybe_print_log_on_mim_node(suite, finishing, Suite, State),
@@ -334,7 +334,7 @@ maybe_print_log_on_mim_node(Type, Event, Name, #state{log_flags = LogFlags, node
             ok
     end.
 
-maybe_file_write(State = #state{print_init_and_done_for_testcases = true}, Writer, Message) ->
+maybe_file_write(#state{print_init_and_done_for_testcases = true}, Writer, Message) ->
     file:write(Writer, Message);
 maybe_file_write(_State, _Writer, _Message) ->
     ok.

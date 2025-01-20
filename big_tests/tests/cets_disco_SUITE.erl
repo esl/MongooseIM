@@ -237,19 +237,19 @@ address_please(_Config) ->
     {error, nxdomain} =
         rpc(mim(), mongoose_epmd, address_please, ["mongooseim", "badbadhost", inet]).
 
-address_please_returns_ip(Config) ->
+address_please_returns_ip(_Config) ->
     Res = rpc(mim(), mongoose_epmd, address_please, ["testmim2", "localhost", inet]),
     Info = rpc(mim(), cets_discovery, system_info, [mongoose_cets_discovery]),
     ct:log("system_info ~p", [Info]),
     {ok, {192, 168, 115, 112}} = Res.
 
-address_please_returns_ip_fallbacks_to_resolve_with_file_backend(Config) ->
+address_please_returns_ip_fallbacks_to_resolve_with_file_backend(_Config) ->
     Res = rpc(mim2(), mongoose_epmd, address_please, ["testmim1", "localhost", inet]),
     Info = rpc(mim2(), cets_discovery, system_info, [mongoose_cets_discovery]),
     ct:log("system_info ~p", [Info]),
     {ok, {127, 0, 0, 1}} = Res.
 
-address_please_returns_ip_127_0_0_1_from_db(Config) ->
+address_please_returns_ip_127_0_0_1_from_db(_Config) ->
     Res = rpc(mim2(), mongoose_epmd, address_please, ["node1", "localhost", inet]),
     Info = rpc(mim2(), cets_discovery, system_info, [mongoose_cets_discovery]),
     ct:log("system_info ~p", [Info]),

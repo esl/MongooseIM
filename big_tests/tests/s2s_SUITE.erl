@@ -276,7 +276,6 @@ malformed_jid(Config) ->
     end).
 
 dialback_with_wrong_key(_Config) ->
-    HostType = domain_helper:host_type(mim),
     MimDomain = domain_helper:domain(mim),
     FedDomain = domain_helper:domain(fed),
     FromTo = {MimDomain, FedDomain},

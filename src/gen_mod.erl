@@ -177,11 +177,7 @@ is_mim_or_ct_running() ->
     orelse is_common_test_running().
 
 is_common_test_running() ->
-    try
-        is_list(ct:get_status())
-    catch _:_ ->
-        false
-    end.
+    whereis(ct_util_server) =/= undefined.
 
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->

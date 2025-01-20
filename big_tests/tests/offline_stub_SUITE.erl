@@ -35,7 +35,6 @@ init_per_testcase(Name, Config0) ->
     escalus:init_per_testcase(Name, Config1).
 
 end_per_testcase(Name, Config) ->
-    HostType = domain_helper:host_type(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(Name, Config).
 
