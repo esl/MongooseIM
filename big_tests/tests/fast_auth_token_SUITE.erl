@@ -88,9 +88,9 @@ end_per_suite(Config) ->
 
 init_per_group(Group, Config) ->
     case lists:keyfind(Group, 1, mechanisms()) of
-        Mech when is_binary(Mech) ->
+        {Group, Mech} when is_binary(Mech) ->
             [{ht_mech, Mech} | Config];
-        _ ->
+        false ->
             Config
     end.
 

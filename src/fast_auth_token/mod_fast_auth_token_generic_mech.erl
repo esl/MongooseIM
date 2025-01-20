@@ -100,7 +100,7 @@ handle_auth(#{
     end.
 
 %% Mech of the token in DB should match the mech the client is using.
-check_token({Token, Expire, Count, Mech},
+check_token({Token, Expire, _Count, Mech},
             {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
     when is_binary(Token), Expire > NowTimestamp ->
     Algo = mech_to_algo(Mech),
