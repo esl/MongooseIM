@@ -18,7 +18,7 @@
                Creds  :: mongoose_credentials:t(),
                SocketData :: term(),
                Mech :: mod_fast_auth_token:mechanism()) -> {ok, state()} | {error, binary()}.
-mech_new(_Host, Creds, SocketData = #{sasl_state := SaslState}, Mech) ->
+mech_new(_Host, Creds, _SocketData = #{sasl_state := SaslState}, Mech) ->
     SaslModState = mod_sasl2:get_mod_state(SaslState),
     case SaslModState of
         #{encoded_id := AgentId} ->
@@ -102,7 +102,7 @@ handle_auth(#{
 %% Mech of the token in DB should match the mech the client is using.
 check_token({Token, Expire, Count, Mech},
             {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
-    when is_binary(Token) ->
+    when is_binary(Token), Expire > NowTimestamp ->
     Algo = mech_to_algo(Mech),
     crypto:mac(hmac, Algo, Token, ToHash) =:= InitiatorHashedToken;
 check_token(_, _) ->

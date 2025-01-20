@@ -161,8 +161,6 @@ maybe_put_inline_request(SaslAcc, _Module, undefined) ->
 maybe_put_inline_request(SaslAcc, Module, Request) ->
     mod_sasl2:put_inline_request(SaslAcc, Module, Request).
 
-format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
-
 -spec sasl2_success(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType}) ->
