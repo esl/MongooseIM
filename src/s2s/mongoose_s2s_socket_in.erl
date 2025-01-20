@@ -4,7 +4,6 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("public_key/include/public_key.hrl").
 
 -type stanza_size() :: pos_integer() | infinity.
 
@@ -240,7 +239,7 @@ process_data(Data, #state{parser = Parser,
             {ok, NParser, Elems} ->
                 {[wrap_xml_elements_and_update_metrics(E) || E <- Elems], NParser};
             {error, Reason} ->
-                {[{xmlstreamerror, Reason}], Parser}
+                {[#xmlstreamerror{name = Reason}], Parser}
         end,
     {NewShaperState, Pause} = mongoose_shaper:update(ShaperState, Size),
     update_transport_metrics(Data, #{sockmod => SockMod, direction => in}),

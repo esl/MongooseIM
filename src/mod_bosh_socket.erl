@@ -83,7 +83,7 @@
                 inactivity      :: pos_integer() | infinity,
                 inactivity_tref :: reference() | 'undefined',
                 %% Max pause period in seconds.
-                max_pause        :: pos_integer(),
+                max_pause        :: pos_integer() | undefined,
                 max_wait        :: pos_integer() | infinity,
                 %% Are acknowledgements used?
                 server_acks     :: boolean(),
@@ -720,23 +720,23 @@ send_wrapped_to_handler(Pid, Wrapped, State) ->
     State.
 
 
--spec maybe_ack(rid(), state()) -> [{binary(), _}].
-maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
+-spec maybe_add_ack(rid(), state(), exml:attrs()) -> exml:attrs().
+maybe_add_ack(HandlerRid, #state{rid = Rid} = S, Attrs) ->
     case Rid > HandlerRid of
         true ->
-            server_ack(S#state.server_acks, Rid);
+            server_ack(S#state.server_acks, Rid, Attrs);
         false ->
-            []
+            Attrs
     end.
 
 
--spec maybe_report(state()) -> {[{binary(), _}], state()}.
-maybe_report(#state{report = false} = S) ->
-    {[], S};
-maybe_report(#state{report = Report} = S) ->
+-spec maybe_add_report(state(), exml:attrs()) -> {exml:attrs(), state()}.
+maybe_add_report(#state{report = false} = S, Attrs) ->
+    {Attrs, S};
+maybe_add_report(#state{report = Report} = S, Attrs) ->
     {ReportRid, ElapsedTime} = Report,
-    NewAttrs = [{<<"report">>, integer_to_binary(ReportRid)},
-                {<<"time">>, integer_to_binary(ElapsedTime)}],
+    NewAttrs = Attrs#{<<"report">> => integer_to_binary(ReportRid),
+                      <<"time">> => integer_to_binary(ElapsedTime)},
     {NewAttrs, S#state{report = false}}.
 
 
@@ -897,12 +897,12 @@ get_attr(Attr, Element, Default) ->
 -spec stream_start(binary(), binary()) -> exml_stream:start().
 stream_start(From, To) ->
     #xmlstreamstart{name = <<"stream:stream">>,
-                    attrs = [{<<"from">>, From},
-                             {<<"to">>, To},
-                             {<<"version">>, <<"1.0">>},
-                             {<<"xml:lang">>, <<"en">>},
-                             {<<"xmlns">>, ?NS_CLIENT},
-                             {<<"xmlns:stream">>, ?NS_STREAM}]}.
+                    attrs = #{<<"from">> => From,
+                              <<"to">> => To,
+                              <<"version">> => <<"1.0">>,
+                              <<"xml:lang">> => <<"en">>,
+                              <<"xmlns">> => ?NS_CLIENT,
+                              <<"xmlns:stream">> => ?NS_STREAM}}.
 
 
 -spec bosh_wrap([any()], rid(), state()) -> {exml:element(), state()}.
@@ -926,12 +926,11 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
             {{bosh_body(S), Stanzas},
              S#state{pending = Pending ++ [StreamEnd]}}
     end,
-    MaybeAck = maybe_ack(Rid, NS),
-    {MaybeReport, NNS} = maybe_report(NS),
+    Attrs1 = maybe_add_ack(Rid, NS, Body#xmlel.attrs),
+    {Attrs2, NNS} = maybe_add_report(NS, Attrs1),
     HasStreamPrefix = (exml_query:attr(Body, <<"xmlns:stream">>) /= undefined),
-    MaybeStreamPrefix = maybe_stream_prefix(HasStreamPrefix, Children),
-    ExtraAttrs = MaybeAck ++ MaybeReport ++ MaybeStreamPrefix,
-    {Body#xmlel{attrs = Body#xmlel.attrs ++ ExtraAttrs,
+    Attrs3 = maybe_add_stream_prefix(HasStreamPrefix, Children, Attrs2),
+    {Body#xmlel{attrs = Attrs3,
                 children = maybe_add_default_ns_to_children(Children)}, NNS}.
 
 
@@ -947,67 +946,73 @@ is_stream_event(_) ->
 %% @doc Bosh body for a session creation response.
 -spec bosh_stream_start_body(exml_stream:start(), state()) -> exml:element().
 bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
-    #xmlel{name = <<"body">>,
-           attrs = [{<<"wait">>, integer_to_binary(S#state.wait)},
-                    {<<"requests">>,
-                     integer_to_binary(?CONCURRENT_REQUESTS)},
-                    {<<"hold">>, integer_to_binary(S#state.hold)},
-                    {<<"from">>, proplists:get_value(<<"from">>, Attrs)},
-                    %% TODO: how to support these with cowboy?
-                    {<<"accept">>, <<"deflate, gzip">>},
-                    {<<"sid">>, S#state.sid},
-                    {<<"xmpp:restartlogic">>, <<"true">>},
-                    {<<"xmpp:version">>, <<"1.0">>},
-                    {<<"xmlns">>, ?NS_HTTPBIND},
-                    {<<"xmlns:xmpp">>, <<"urn:xmpp:xbosh">>},
-                    {<<"xmlns:stream">>, ?NS_STREAM}] ++
-           inactivity(S#state.inactivity) ++
-           maxpause(S#state.max_pause) ++
-           %% TODO: shouldn't an ack be sent on restart?
-           server_ack(S#state.server_acks, S#state.rid),
-           children = []}.
+    Attrs1 = #{<<"wait">> => integer_to_binary(S#state.wait),
+               <<"requests">> => integer_to_binary(?CONCURRENT_REQUESTS),
+               <<"hold">> => integer_to_binary(S#state.hold),
+               <<"from">> => maps:get(<<"from">>, Attrs,undefined),
+               % TODO: how to support these with cowbo?
+               <<"accept">> => <<"deflate, gzip">>,
+               <<"sid">> => S#state.sid,
+               <<"xmpp:restartlogic">> => <<"true">>,
+               <<"xmpp:version">> => <<"1.0">>,
+               <<"xmlns">> => ?NS_HTTPBIND,
+               <<"xmlns:xmpp">> => <<"urn:xmpp:xbosh">>,
+               <<"xmlns:stream">> => ?NS_STREAM},
+
+    Attrs2 = inactivity(S#state.inactivity, Attrs1),
+    Attrs3 = maxpause(S#state.max_pause, Attrs2),
+
+    %% TODO: shouldn't an ack be sent on restart?
+    Attrs4 = server_ack(S#state.server_acks, S#state.rid, Attrs3),
+
+    #xmlel{name = <<"body">>,  attrs = Attrs4, children = []}.
 
 
--spec inactivity('infinity' | 'undefined' | pos_integer()) -> [{binary(), _}].
-inactivity(I) ->
-    [{<<"inactivity">>, integer_to_binary(I)} || is_integer(I)].
+-spec inactivity('infinity' | 'undefined' | pos_integer(), exml:attrs()) -> exml:attrs().
+inactivity(I, Attrs) when is_integer(I)->
+    Attrs#{<<"inactivity">> => integer_to_binary(I)};
+inactivity(_, Attrs) ->
+    Attrs.
 
 
--spec maxpause('undefined' | pos_integer()) -> [{binary(), _}].
-maxpause(MP) ->
-    [{<<"maxpause">>, integer_to_binary(MP)} || is_integer(MP)].
+-spec maxpause('undefined' | pos_integer(), exml:attrs()) -> exml:attrs().
+maxpause(MP, Attrs) when is_integer(MP)->
+    Attrs#{<<"maxpause">> =>  integer_to_binary(MP)};
+maxpause(_MP, Attrs)->
+    Attrs.
 
-
--spec server_ack('false' | 'true' | 'undefined', 'undefined' | rid())
-            -> [{binary(), _}].
-server_ack(ServerAcks, Rid) ->
-    [{<<"ack">>, integer_to_binary(Rid)} || ServerAcks =:= true].
+-spec server_ack('false' | 'true' | 'undefined', 'undefined' | rid(), exml:attrs())
+            -> exml:attrs().
+server_ack(true, Rid, Attrs) ->
+    Attrs#{<<"ack">> => integer_to_binary(Rid)};
+server_ack(_, _, Attrs) ->
+    Attrs.
 
 
 %% @doc Bosh body for an ordinary stream element(s).
 -spec bosh_body(state()) -> exml:element().
 bosh_body(#state{} = S) ->
     #xmlel{name = <<"body">>,
-           attrs = [{<<"sid">>, S#state.sid},
-                    {<<"xmlns">>, ?NS_HTTPBIND}],
+           attrs = #{<<"sid">> => S#state.sid,
+                     <<"xmlns">> => ?NS_HTTPBIND},
            children = []}.
 
 
 -spec bosh_stream_end_body() -> exml:element().
 bosh_stream_end_body() ->
     #xmlel{name = <<"body">>,
-           attrs = [{<<"type">>, <<"terminate">>},
-                    {<<"xmlns">>, ?NS_HTTPBIND}],
+           attrs = #{<<"type">> => <<"terminate">>,
+                     <<"xmlns">> => ?NS_HTTPBIND},
            children = []}.
 
-maybe_stream_prefix(true, _) ->
-    [];
-maybe_stream_prefix(_, Stanzas) ->
+maybe_add_stream_prefix(true, _, Attrs) ->
+    Attrs;
+maybe_add_stream_prefix(_, Stanzas, Attrs) ->
     case lists:any(fun is_stream_prefix/1, Stanzas) of
         false ->
-            [];
+            Attrs;
         true ->
-            [{<<"xmlns:stream">>, ?NS_STREAM}]
+            Attrs#{<<"xmlns:stream">> => ?NS_STREAM}
     end.
 
 is_stream_prefix(#xmlel{name = <<"stream:error">>}) -> true;
@@ -1026,7 +1031,7 @@ maybe_add_default_ns(#xmlel{name = Name, attrs = Attrs} = El)
   when Name =:= <<"message">>; Name =:= <<"presence">>; Name =:= <<"iq">> ->
     case exml_query:attr(El, <<"xmlns">>) of
         undefined ->
-            El#xmlel{attrs = [{<<"xmlns">>, ?NS_CLIENT} | Attrs]};
+            El#xmlel{attrs = Attrs#{<<"xmlns">> => ?NS_CLIENT}};
         _ ->
             El
     end;

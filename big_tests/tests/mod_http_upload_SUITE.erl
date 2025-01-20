@@ -395,19 +395,18 @@ create_slot_request_stanza(Server, Filename, Size, ContentType) when is_integer(
     create_slot_request_stanza(Server, Filename, integer_to_binary(Size), ContentType);
 create_slot_request_stanza(Server, Filename, BinSize, ContentType) ->
     #xmlel{name     = <<"iq">>,
-           attrs    = [{<<"type">>, <<"get">>}, {<<"to">>, Server}],
+           attrs    = #{<<"type">> => <<"get">>, <<"to">> => Server},
            children = [create_request_element(Filename, BinSize, ContentType)]}.
 
 create_request_element(Filename, BinSize, ContentType) ->
-    ContentTypeEl = case ContentType of
-                        undefined -> [];
-                        _ -> [{<<"content-type">>, ContentType}]
+    ContentTypeAttr = case ContentType of
+                        undefined -> #{};
+                        _ -> #{<<"content-type">> => ContentType}
                     end,
     #xmlel{name  = <<"request">>,
-           attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD_030},
-                    {<<"filename">>, Filename},
-                    {<<"size">>, BinSize}
-                    | ContentTypeEl]}.
+           attrs = ContentTypeAttr#{<<"xmlns">> => ?NS_HTTP_UPLOAD_030,
+                                    <<"filename">> => Filename,
+                                    <<"size">> => BinSize}}.
 
 has_upload_namespace(#xmlel{name = <<"iq">>, children = [#xmlel{ name = <<"slot">> } = Slot]}) ->
     ?NS_HTTP_UPLOAD_030 == exml_query:attr(Slot, <<"xmlns">>);

@@ -498,7 +498,7 @@ auth_bind_pipelined_auth_failure(Config) ->
 
     %% Auth response
     AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
-    ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL}]}, AuthResponse).
+    ?assertMatch(#xmlel{name = <<"failure">>, attrs = #{<<"xmlns">> := ?NS_SASL}}, AuthResponse).
 
 auth_bind_pipelined_starttls_skipped_error(Config) ->
     UserSpec = [{parser_opts, [{start_tag, <<"stream:stream">>}]}
@@ -784,7 +784,7 @@ start_stream_pre_xmpp_1_0(Conn = #client{props = Props}, UnusedFeatures) ->
     escalus:send(Conn, stream_start_pre_xmpp_1_0(escalus_users:get_server([], Props))),
     #xmlstreamstart{attrs = StreamAttrs} = StreamStart = escalus:wait_for_stanza(Conn),
     escalus:assert(is_stream_start, StreamStart),
-    {<<"id">>, StreamID} = lists:keyfind(<<"id">>, 1, StreamAttrs),
+    StreamID = maps:get(<<"id">>, StreamAttrs),
     {Conn#client{props = [{stream_id, StreamID} | Props]}, UnusedFeatures}.
 
 stream_start_pre_xmpp_1_0(To) ->

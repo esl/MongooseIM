@@ -171,7 +171,7 @@ process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} =
             Features = mongoose_disco:features_to_xml([?NS_HTTP_UPLOAD_030]),
             {Acc, IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
-                                         attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
+                                         attrs = #{<<"xmlns">> => ?NS_DISCO_INFO},
                                          children = Identity ++ Info ++ Features}]}};
         _ ->
             ErrorMsg = <<"Node is not supported by HTTP upload">>,
@@ -247,7 +247,7 @@ my_disco_name(Lang) ->
 compose_iq_reply(IQ, PutUrl, GetUrl, Headers) ->
     Slot = #xmlel{
               name     = <<"slot">>,
-              attrs    = [{<<"xmlns">>, ?NS_HTTP_UPLOAD_030}],
+              attrs    = #{<<"xmlns">> => ?NS_HTTP_UPLOAD_030},
               children = [create_url_xmlel(<<"put">>, PutUrl, Headers),
                           create_url_xmlel(<<"get">>, GetUrl, #{})]},
     IQ#iq{type = result, sub_el =[Slot]}.
@@ -278,7 +278,7 @@ file_too_large_error(MaxFileSize) ->
     MaxSizeEl = #xmlel{name = <<"max-file-size">>,
                        children = [#xmlcdata{content = MaxFileSizeBin}]},
     FileTooLargeEl = #xmlel{name = <<"file-too-large">>,
-                            attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD_030}],
+                            attrs = #{<<"xmlns">> => ?NS_HTTP_UPLOAD_030},
                             children = [MaxSizeEl]},
     Error0 = mongoose_xmpp_errors:not_acceptable(),
     Error0#xmlel{children = [FileTooLargeEl | Error0#xmlel.children]}.
@@ -305,7 +305,7 @@ get_disco_info_form(MaxFileSizeBin) ->
 -spec header_to_xmlel({Key :: binary(), Value :: binary()}) -> exml:element().
 header_to_xmlel({Key, Value}) ->
     #xmlel{name = <<"header">>,
-           attrs = [{<<"name">>, Key}],
+           attrs = #{<<"name">> => Key},
            children = [#xmlcdata{content = Value}]}.
 
 
@@ -313,7 +313,7 @@ header_to_xmlel({Key, Value}) ->
     exml:element().
 create_url_xmlel(Name, Url, Headers) ->
     HeadersXml = [header_to_xmlel(H) || H <- maps:to_list(Headers)],
-    #xmlel{name = Name, attrs = [{<<"url">>, Url}], children = HeadersXml}.
+    #xmlel{name = Name, attrs = #{<<"url">> => Url}, children = HeadersXml}.
 
 
 -spec is_nonempty_binary(term()) -> boolean().

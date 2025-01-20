@@ -163,7 +163,7 @@ missing_ns(Config) ->
 my_banana(NS) ->
     #xmlel{
         name = <<"my_element">>,
-        attrs = [{<<"xmlns">>, NS}],
+        attrs = #{<<"xmlns">> => NS},
         children = [#xmlel{name = <<"banana">>}]}.
 
 check_body(Stanza, Names) ->

@@ -174,10 +174,10 @@ enable_should_fail_with_missing_attributes(Config) ->
 
             %% Sending only one attribute should fail
             lists:foreach(
-                fun(Attr) ->
+                fun({K, V}) ->
                     escalus:send(Bob, escalus_stanza:iq(<<"set">>,
                                                         [#xmlel{name = <<"enable">>,
-                                                                attrs = [Attr]}])),
+                                                                attrs = #{K => V}}])),
                     escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                                    escalus:wait_for_stanza(Bob))
                 end, CorrectAttrs),
@@ -185,9 +185,10 @@ enable_should_fail_with_missing_attributes(Config) ->
             %% Sending all but one attribute should fail
             lists:foreach(
                 fun(Attr) ->
+                    Attrs = #{K => V || {K, V} <- CorrectAttrs -- [Attr]},
                     escalus:send(Bob, escalus_stanza:iq(<<"set">>,
                                                         [#xmlel{name = <<"enable">>,
-                                                                attrs = CorrectAttrs -- [Attr]}])),
+                                                                attrs = Attrs}])),
                     escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                                    escalus:wait_for_stanza(Bob))
                 end, CorrectAttrs),
@@ -276,10 +277,10 @@ disable_should_fail_with_missing_attributes(Config) ->
 
             %% Sending only one attribute should fail
             lists:foreach(
-                fun(Attr) ->
+                fun({K,V}) ->
                     escalus:send(Bob, escalus_stanza:iq(<<"set">>,
                                                         [#xmlel{name = <<"disable">>,
-                                                                attrs = [Attr]}])),
+                                                                attrs = #{K => V}}])),
                     escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                                    escalus:wait_for_stanza(Bob))
                 end, CorrectAttrs),

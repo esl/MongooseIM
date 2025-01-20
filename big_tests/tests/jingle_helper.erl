@@ -167,10 +167,9 @@ content(video_disabled) ->
 
 content_group(ContentEls) ->
     Contents = [#xmlel{name = <<"content">>,
-                       attrs = [{<<"name">>, exml_query:attr(ContentEl, <<"name">>)}]}
+                       attrs = #{<<"name">> => exml_query:attr(ContentEl, <<"name">>)}}
                 || ContentEl <- ContentEls],
     #xmlel{name = <<"group">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:grouping:0">>},
-                    {<<"semantics">>, <<"BUNDLE">>}],
+           attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:grouping:0">>,
+                     <<"semantics">> => <<"BUNDLE">>},
            children = Contents}.
-

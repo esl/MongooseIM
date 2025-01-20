@@ -103,15 +103,15 @@ auth_with_resumption(Config, Client, #{smid := SMID, texts := Texts} = Data) ->
 
 auth_with_resumption_invalid_h(Config, Client, #{smid := SMID} = Data) ->
     Resume = #xmlel{name = <<"resume">>,
-                    attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                             {<<"previd">>, SMID},
-                             {<<"h">>, <<"aaa">>}]},
+                    attrs = #{<<"xmlns">> => ?NS_STREAM_MGNT_3,
+                              <<"previd">> => SMID,
+                              <<"h">> => <<"aaa">>}},
     plain_auth(Config, Client, Data, [Resume]).
 
 auth_with_resumption_missing_previd(Config, Client, Data) ->
     Resume = #xmlel{name = <<"resume">>,
-                    attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                             {<<"h">>, <<"aaa">>}]},
+                    attrs = #{<<"xmlns">> => ?NS_STREAM_MGNT_3,
+                              <<"h">> => <<"aaa">>}},
     plain_auth(Config, Client, Data, [Resume]).
 
 auth_with_resumption_exceeding_h(Config, Client, #{smid := SMID} = Data) ->
@@ -226,7 +226,7 @@ auth_elem(Mech, Children) ->
 
 auth_elem(Mech, NS, Children) ->
     #xmlel{name = <<"authenticate">>,
-           attrs = [{<<"xmlns">>, NS}, {<<"mechanism">>, Mech}],
+           attrs = #{<<"xmlns">> => NS, <<"mechanism">> => Mech},
            children = Children}.
 
 plain_auth_initial_response(#client{props = Props}) ->
@@ -245,7 +245,7 @@ response_elem(Response) ->
 
 response_elem(Response, NS) ->
     #xmlel{name = <<"response">>,
-           attrs = [{<<"xmlns">>, NS}],
+           attrs = #{<<"xmlns">> => NS},
            children = [#xmlcdata{content = base64:encode(Response)}]}.
 
 abort_elem() ->
@@ -253,7 +253,7 @@ abort_elem() ->
 
 abort_elem(NS) ->
     #xmlel{name = <<"abort">>,
-           attrs = [{<<"xmlns">>, NS}],
+           attrs = #{<<"xmlns">> => NS},
            children = []}.
 
 user_agent_elem_without_id() ->
@@ -279,5 +279,5 @@ user_agent_elem(Id, Software, Device) ->
               || Value <- [Software], Value =/= undefined ],
     DeviEl = [#xmlel{name = <<"device">>, children = [#xmlcdata{content = Value}]}
               || Value <- [Device], Value =/= undefined ],
-    Attrs = [{<<"id">>, Value} || Value <- [Id], Value =/= undefined ],
+    Attrs = #{<<"id">> => Value || Value <- [Id], Value =/= undefined},
     #xmlel{name = <<"user-agent">>, attrs = Attrs, children = SoftEl ++ DeviEl}.

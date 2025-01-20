@@ -261,7 +261,7 @@ elem_size(El) ->
     exml:xml_size(patch_element(El)).
 
 patch_element(El = #xmlstreamstart{attrs = Attrs}) ->
-    Attrs2 = [{Name, patch_attr_value(Value)} || {Name, Value} <- Attrs],
+    Attrs2 = #{Name => patch_attr_value(Value) || Name := Value <- Attrs},
     El#xmlstreamstart{attrs = Attrs2};
 patch_element(El) ->
     El.

@@ -28,19 +28,19 @@
     exml:element().
 jingle_element(CallID, Action, Children) ->
     #xmlel{name = <<"jingle">>,
-           attrs = [{<<"xmlns">>, ?JINGLE_NS},
-                    {<<"action">>, Action},
-                    {<<"sid">>, CallID}],
+           attrs = #{<<"xmlns">> => ?JINGLE_NS,
+                     <<"action">> => Action,
+                     <<"sid">> => CallID},
            children = Children}.
 
 -spec jingle_iq(ToBinary :: jid:literal_jid(), FromBinary :: jid:literal_jid(), exml:element()) ->
     exml:element().
 jingle_iq(ToBinary, FromBinary, JingleEl) ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"from">>, FromBinary},
-                    {<<"to">>, ToBinary},
-                    {<<"id">>, uuid:uuid_to_string(uuid:get_v4(), binary_standard)},
-                    {<<"type">>, <<"set">>}],
+           attrs = #{<<"from">> => FromBinary,
+                     <<"to">> => ToBinary,
+                     <<"id">> => uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+                     <<"type">> => <<"set">>},
            children = [JingleEl]}.
 
 -spec maybe_rewrite_to_phone(mongoose_acc:t()) -> jid:jid().
@@ -76,4 +76,3 @@ try_to_rewrite_from_phone(Server, PhoneNumber) ->
         {error, not_found} ->
             PhoneNumber
     end.
-

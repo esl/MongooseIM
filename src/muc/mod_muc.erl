@@ -418,7 +418,7 @@ process_iq_disco_items(MucHost, From, To, #iq{lang = Lang} = IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"query">>,
-                                 attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS}],
+                                 attrs = #{<<"xmlns">> => ?NS_DISCO_ITEMS},
                                  children = iq_disco_items(MucHost, From, Lang, Rsm)}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(Res)).
 
@@ -767,7 +767,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
             InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
-                                         attrs = [{<<"xmlns">>, XMLNS}],
+                                         attrs = #{<<"xmlns">> => XMLNS},
                                          children = IdentityXML ++ FeatureXML ++ InfoXML}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
@@ -776,7 +776,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
             Result = iq_get_register_info(HostType, MucHost, From, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
-                                         attrs = [{<<"xmlns">>, XMLNS}],
+                                         attrs = #{<<"xmlns">> => XMLNS},
                                          children = Result}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = set,
@@ -787,7 +787,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                 {result, IQRes} ->
                     Res = IQ#iq{type = result,
                                 sub_el = [#xmlel{name = <<"query">>,
-                                                 attrs = [{<<"xmlns">>, XMLNS}],
+                                                 attrs = #{<<"xmlns">> => XMLNS},
                                                  children = IQRes}]},
                     ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
                 {error, Error} ->
@@ -797,13 +797,13 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
         #iq{type = get, xmlns = ?NS_VCARD = XMLNS, lang = Lang} = IQ ->
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"vCard">>,
-                                         attrs = [{<<"xmlns">>, XMLNS}],
+                                         attrs = #{<<"xmlns">> => XMLNS},
                                          children = iq_get_vcard(Lang)}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = get, xmlns = ?NS_MUC_UNIQUE} = IQ ->
            Res = IQ#iq{type = result,
                        sub_el = [#xmlel{name = <<"unique">>,
-                                        attrs = [{<<"xmlns">>, ?NS_MUC_UNIQUE}],
+                                        attrs = #{<<"xmlns">> => ?NS_MUC_UNIQUE},
                                         children = [iq_get_unique(From)]}]},
            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{} ->
@@ -947,16 +947,16 @@ room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
          {item, Desc} ->
              {true,
               #xmlel{name = <<"item">>,
-                     attrs = [{<<"jid">>, jid:to_binary({Name, MucHost, <<>>})},
-                              {<<"name">>, Desc}]}};
+                     attrs = #{<<"jid">> => jid:to_binary({Name, MucHost, <<>>}),
+                               <<"name">> => Desc}}};
          _ ->
              false
      end;
 room_to_item({{Name, _}, _}, MucHost, _, _) ->
      {true,
      #xmlel{name = <<"item">>,
-            attrs = [{<<"jid">>, jid:to_binary({Name, MucHost, <<>>})},
-                     {<<"name">>, Name}]}
+            attrs = #{<<"jid">> => jid:to_binary({Name, MucHost, <<>>}),
+                      <<"name">> => Name}}
      }.
 record_to_simple(#muc_online_room{name_host = Room, pid = Pid}) ->
     {Room, Pid};

@@ -82,15 +82,20 @@ does_privacy_list_children_match(Request, Result) ->
     ResultChildren = exml_query:subelements(exml_query:path(Result, ChildrenPath), <<"item">>),
     lists:all(fun do_items_match/1, lists:zip(RequestChildren, ResultChildren)).
 
-do_items_match({#xmlel{attrs = Props1}, #xmlel{attrs = Props2}}) ->
-    L = [attr_match(Name, Value, Props2) || {Name, Value} <- Props1],
+do_items_match({#xmlel{attrs = Attrs1}, #xmlel{attrs = Attrs2}}) ->
+    L = [attr_match(Name, Value, Attrs2) || Name := Value <- Attrs1],
     lists:all(fun(E) -> true == E end, L).
 
-attr_match(<<"value">>, Value, Props) ->
-    ValueL = escalus_utils:jid_to_lower(Value),
-    ValueL == escalus_utils:jid_to_lower(proplists:get_value(<<"value">>, Props));
-attr_match(Name, Value, Props) ->
-    Value == proplists:get_value(Name, Props).
+attr_match(Name, ValueL, Attrs) ->
+    case Attrs of
+        #{Name := ValueR} when Name =:= <<"value">> ->
+            escalus_utils:jid_to_lower(ValueL) == escalus_utils:jid_to_lower(ValueR);
+        #{Name := ValueR} ->
+            ValueL == ValueR;
+        _ ->
+            false
+    end.
+
 
 %% Make the list the active one.
 activate_list(Client, ListName) ->

@@ -297,7 +297,7 @@ create_token_response(Acc, From, IQ) ->
         {#token{} = AccessToken, #token{} = RefreshToken} ->
             IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"items">>,
-                                   attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
+                                   attrs = #{<<"xmlns">> => ?NS_ESL_TOKEN_AUTH},
                                    children = [token_to_xmlel(AccessToken),
                                                token_to_xmlel(RefreshToken)]}]};
         {_, _} -> {error, mongoose_xmpp_errors:internal_server_error()}
@@ -356,7 +356,7 @@ token_to_xmlel(#token{type = Type} = T) ->
                       access -> <<"access_token">>;
                       refresh -> <<"refresh_token">>
                   end,
-           attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
+           attrs = #{<<"xmlns">> => ?NS_ESL_TOKEN_AUTH},
            children = [#xmlcdata{content = base64:encode(serialize(T))}]}.
 
 %% args: Token with Mac decoded from transport, #token

@@ -236,8 +236,9 @@ message(From, Recipient, Type, Body) ->
             _ -> [#xmlel{name = <<"body">>, children = [#xmlcdata{content = Body}]}]
         end,
     #xmlel{name = <<"message">>,
-           attrs = [{<<"from">>, jid:to_binary(From)}, {<<"type">>, Type},
-                    {<<"to">>, jid:to_binary(Recipient)}],
+           attrs = #{<<"from">> => jid:to_binary(From),
+                     <<"type">> => Type,
+                     <<"to">> => jid:to_binary(Recipient)},
            children = Children}.
 
 host_type() ->

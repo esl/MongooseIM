@@ -178,7 +178,7 @@ do_receive_data(Socket, Buffer, RawData, State) ->
 -spec handle_data(Data :: binary(), state()) -> state().
 handle_data(GdStart, State = #state{host = undefined}) ->
     {ok, #xmlel{name = <<"gd_start">>, attrs = Attrs}} = exml:parse(GdStart),
-    #{<<"server">> := Host, <<"conn_id">> := ConnId} = maps:from_list(Attrs),
+    #{<<"server">> := Host, <<"conn_id">> := ConnId} = Attrs,
     mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET, #{}, #{count => 1, host => Host}),
     ?LOG_INFO(#{what => gd_incoming_connection, server => Host, conn_id => ConnId}),
     State#state{host = Host, conn_id = ConnId};

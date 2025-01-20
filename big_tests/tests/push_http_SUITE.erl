@@ -180,10 +180,10 @@ stop_pool() ->
     rpc(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]).
 
 setup_modules() ->
-    {Mod, Code} = dynamic_compile:from_string(custom_module_code()),
-    rpc(code, load_binary, [Mod, "mod_event_pusher_http_custom.erl", Code]),
-    {Mod2, Code2} = dynamic_compile:from_string(custom_module_code_2()),
-    rpc(code, load_binary, [Mod2, "mod_event_pusher_http_custom_2.erl", Code2]),
+    {Module1, Binary1, Filename1} = code:get_object_code(mod_event_pusher_http_custom) ,
+    rpc(code, load_binary, [Module1, Filename1, Binary1]),
+    {Module2, Binary2, Filename2} = code:get_object_code(mod_event_pusher_http_custom_2) ,
+    rpc(code, load_binary, [Module2, Filename2, Binary2]),
     ok.
 
 teardown_modules() ->
@@ -191,37 +191,6 @@ teardown_modules() ->
 
 rpc(M, F, A) ->
     distributed_helper:rpc(distributed_helper:mim(), M, F, A).
-
-custom_module_code() ->
-    "-module(mod_event_pusher_http_custom).
-     -export([should_make_req/6, prepare_body/7, prepare_headers/7]).
-     should_make_req(Acc, _, _, _, _, _) ->
-         case mongoose_acc:stanza_name(Acc) of
-             <<\"message\">> -> true;
-             _ -> false
-         end.
-     prepare_headers(_, _, _, _, _, _, _) ->
-         mod_event_pusher_http_defaults:prepare_headers(x, x, x, x, x, x, x).
-     prepare_body(_Acc, Dir, _Host, Message, _Sender, _Receiver, _Opts) ->
-         <<(atom_to_binary(Dir, utf8))/binary, $-, Message/binary>>.
-     "
-.
-
-custom_module_code_2() ->
-    "-module(mod_event_pusher_http_custom_2).
-     -export([should_make_req/6, prepare_body/7, prepare_headers/7]).
-     should_make_req(Acc, out, _, _, _, _) ->
-         case mongoose_acc:stanza_name(Acc) of
-             <<\"message\">> -> true;
-             _ -> false
-         end;
-     should_make_req(_, in, _, _, _, _) -> false.
-     prepare_headers(_, _, _, _, _, _, _) ->
-         mod_event_pusher_http_defaults:prepare_headers(x, x, x, x, x, x, x).
-     prepare_body(_Acc, Dir, _Host, Message, _Sender, _Receiver, _Opts) ->
-         <<$2, $-, (atom_to_binary(Dir, utf8))/binary, $-, Message/binary>>.
-     "
-    .
 
 send(Alice, Bob, Body) ->
     Stanza = escalus_stanza:chat_to(Bob, Body),

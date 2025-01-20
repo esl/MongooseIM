@@ -138,7 +138,7 @@ error_set_iq(Config) ->
 
 error_bad_peer(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Iq = iq_fetch_marker([{<<"peer">>, <<"/@">>}]),
+        Iq = iq_fetch_marker(#{<<"peer">> => <<"/@">>}),
         escalus:send(Alice, Iq),
         Response = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [Iq], Response)
@@ -146,7 +146,7 @@ error_bad_peer(Config) ->
 
 error_no_peer_given(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Iq = iq_fetch_marker([]),
+        Iq = iq_fetch_marker(#{}),
         escalus:send(Alice, Iq),
         Response = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [Iq], Response)
@@ -155,7 +155,7 @@ error_no_peer_given(Config) ->
 error_bad_timestamp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         PeerJid = <<"peer@localhost">>,
-        Iq = iq_fetch_marker([{<<"peer">>, PeerJid}, {<<"after">>, <<"baddate">>}]),
+        Iq = iq_fetch_marker(#{<<"peer">> => PeerJid, <<"after">> => <<"baddate">>}),
         escalus:send(Alice, Iq),
         Response = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [Iq], Response)
@@ -391,19 +391,19 @@ verify_marker_fetch(MarkingUser, MarkedUser) ->
     verify_marker_fetch(MarkingUser, MarkedUser, undefined, undefined).
 
 verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
-        MarkedUserBJid = case is_binary(MarkedUser) of
-                             true -> [{<<"peer">>, MarkedUser}];
-                             false -> [{<<"peer">>, escalus_utils:jid_to_lower(escalus_client:short_jid(MarkedUser))}]
-                         end,
-        MaybeThread = case Thread of
-                          undefined -> [];
-                          _ -> [{<<"thread">>, Thread}]
-                      end,
-        MaybeAfter = case After of
-                          undefined -> [];
-                          _ -> [{<<"after">>, After}]
-                      end,
-        Iq = iq_fetch_marker(MarkedUserBJid ++ MaybeThread ++ MaybeAfter),
+        Attrs0 = case is_binary(MarkedUser) of
+                     true -> #{<<"peer">> => MarkedUser};
+                     false -> #{<<"peer">> => escalus_utils:jid_to_lower(escalus_client:short_jid(MarkedUser))}
+                 end,
+        Attrs1 = case Thread of
+                     undefined -> Attrs0;
+                     _ -> Attrs0#{<<"thread">> => Thread}
+                 end,
+        Attrs2 = case After of
+                     undefined -> Attrs1;
+                     _ -> Attrs1#{<<"after">> => After}
+                 end,
+        Iq = iq_fetch_marker(Attrs2),
         %% using wait_until to ensure that assertions are eventually passing
         wait_helper:wait_until(
           fun() ->
@@ -425,7 +425,7 @@ verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
 
 verify_marker_fetch_is_empty(MarkingUser, MarkedUser) ->
         MarkedUserBJid = escalus_utils:jid_to_lower(escalus_client:short_jid(MarkedUser)),
-        Iq = iq_fetch_marker([{<<"peer">>, MarkedUserBJid}]),
+        Iq = iq_fetch_marker(#{<<"peer">> => MarkedUserBJid}),
         escalus:send(MarkingUser, Iq),
         Response = escalus:wait_for_stanza(MarkingUser),
         escalus:assert(is_iq_result, [Iq], Response),

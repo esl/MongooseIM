@@ -430,10 +430,10 @@ state_timeout(#{state_timeout := Timeout}) ->
 stream_header(StateData) ->
     LServer = StateData#component_data.lserver,
     StreamId = StateData#component_data.streamid,
-    Attrs = [{<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
-             {<<"xmlns">>, ?NS_COMPONENT_ACCEPT},
-             {<<"id">>, StreamId},
-             {<<"from">>, LServer}],
+    Attrs = #{<<"xmlns:stream">> => <<"http://etherx.jabber.org/streams">>,
+              <<"xmlns">> => ?NS_COMPONENT_ACCEPT,
+              <<"id">> => StreamId,
+              <<"from">> => LServer},
     #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
 
 -spec unregister_routes(data()) -> any().

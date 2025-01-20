@@ -114,7 +114,7 @@ get_peer_certificate(#ranch_tcp{}) ->
     no_peer_cert.
 
 -spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
-has_peer_cert(State, LOpts) ->
+has_peer_cert(State, _LOpts) ->
     case get_peer_certificate(State) of
         {ok, _} -> true;
         _ -> false

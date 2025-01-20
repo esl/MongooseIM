@@ -243,11 +243,15 @@ maybe_log_deprecation(_IQ) ->
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
-is_arcid_elem_for(<<"archived">>, #xmlel{name = <<"archived">>, attrs=As}, By) ->
-    lists:member({<<"by">>, By}, As);
-is_arcid_elem_for(<<"stanza-id">>, #xmlel{name = <<"stanza-id">>, attrs=As}, By) ->
-    lists:member({<<"by">>, By}, As) andalso
-    lists:member({<<"xmlns">>, ?NS_STANZAID}, As);
+is_arcid_elem_for(<<"archived">>, #xmlel{name = <<"archived">>,
+                                        attrs = #{<<"by">> := By}}, By) ->
+    true;
+is_arcid_elem_for(<<"stanza-id">>,
+                  #xmlel{name = <<"stanza-id">>,
+                         attrs = #{<<"by">> := By,
+                                   <<"xmlns">> := ?NS_STANZAID}},
+                  By) ->
+    true;
 is_arcid_elem_for(_, _, _) ->
     false.
 
@@ -262,12 +266,15 @@ replace_arcid_elem(ElemName, By, Id, Packet) ->
 append_arcid_elem(<<"stanza-id">>, By, Id, Packet) ->
     Archived = #xmlel{
                   name = <<"stanza-id">>,
-                  attrs=[{<<"by">>, By}, {<<"id">>, Id}, {<<"xmlns">>, ?NS_STANZAID}]},
+                  attrs=#{<<"by">> => By,
+                          <<"id">> => Id,
+                          <<"xmlns">> => ?NS_STANZAID}},
     jlib:append_subtags(Packet, [Archived]);
 append_arcid_elem(ElemName, By, Id, Packet) ->
     Archived = #xmlel{
                   name = ElemName,
-                  attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
+                  attrs=#{<<"by">> => By,
+                          <<"id">> => Id}},
     jlib:append_subtags(Packet, [Archived]).
 
 -spec delete_arcid_elem(ElemName :: binary(), By :: binary(), exml:element()) -> exml:element().
@@ -275,8 +282,8 @@ delete_arcid_elem(ElemName, By, Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_arcid_elem_for(ElemName, C, By)]}.
 
 
-is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
-    lists:member({<<"xmlns">>, ?NS_MUC_USER}, As);
+is_x_user_element(#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> := ?NS_MUC_USER}}) ->
+    true;
 is_x_user_element(_) ->
     false.
 
@@ -290,16 +297,16 @@ append_x_user_element(FromJID, Role, Affiliation, Packet) ->
     ItemElem = x_user_item(FromJID, Role, Affiliation),
     X = #xmlel{
         name = <<"x">>,
-        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+        attrs = #{<<"xmlns">> => ?NS_MUC_USER},
         children = [ItemElem]},
     jlib:append_subtags(Packet, [X]).
 
 x_user_item(FromJID, Role, Affiliation) ->
     #xmlel{
        name = <<"item">>,
-       attrs = [{<<"affiliation">>, atom_to_binary(Affiliation, latin1)},
-                {<<"jid">>, jid:to_binary(FromJID)},
-                {<<"role">>, atom_to_binary(Role, latin1)}]}.
+       attrs = #{<<"affiliation">> => atom_to_binary(Affiliation, latin1),
+                 <<"jid">> => jid:to_binary(FromJID),
+                 <<"role">> => atom_to_binary(Role, latin1)}}.
 
 -spec delete_x_user_element(exml:element()) -> exml:element().
 delete_x_user_element(Packet=#xmlel{children=Cs}) ->
@@ -451,11 +458,11 @@ retracted_element(#{retract_on := origin_id,
                     origin_id := OriginID}, _LocJid) ->
     Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
     #xmlel{name = <<"retracted">>,
-           attrs = [{<<"xmlns">>, ?NS_RETRACT},
-                    {<<"stamp">>, list_to_binary(Timestamp)}],
+           attrs = #{<<"xmlns">> => ?NS_RETRACT,
+                     <<"stamp">> => list_to_binary(Timestamp)},
            children = [#xmlel{name = <<"origin-id">>,
-                              attrs = [{<<"xmlns">>, ?NS_STANZAID},
-                                       {<<"id">>, OriginID}]}
+                              attrs = #{<<"xmlns">> => ?NS_STANZAID,
+                                        <<"id">> => OriginID}}
                       ]};
 retracted_element(#{retract_on := stanza_id,
                     message_id := MessID} = Env, LocJid) ->
@@ -463,18 +470,18 @@ retracted_element(#{retract_on := stanza_id,
     StanzaID = mod_mam_utils:mess_id_to_external_binary(MessID),
     MaybeOriginId = maybe_append_origin_id(Env),
     #xmlel{name = <<"retracted">>,
-           attrs = [{<<"xmlns">>, ?NS_ESL_RETRACT},
-                    {<<"stamp">>, list_to_binary(Timestamp)}],
+           attrs = #{<<"xmlns">> => ?NS_ESL_RETRACT,
+                     <<"stamp">> => list_to_binary(Timestamp)},
            children = [#xmlel{name = <<"stanza-id">>,
-                              attrs = [{<<"xmlns">>, ?NS_STANZAID},
-                                       {<<"id">>, StanzaID},
-                                       {<<"by">>, jid:to_bare_binary(LocJid)}]} |
+                              attrs = #{<<"xmlns">> => ?NS_STANZAID,
+                                        <<"id">> => StanzaID,
+                                        <<"by">> => jid:to_bare_binary(LocJid)}} |
                        MaybeOriginId
                       ]}.
 
 -spec maybe_append_origin_id(retraction_info()) -> [exml:element()].
 maybe_append_origin_id(#{origin_id := OriginID}) when is_binary(OriginID), <<>> =/= OriginID ->
-    [#xmlel{name = <<"origin-id">>, attrs = [{<<"xmlns">>, ?NS_STANZAID}, {<<"id">>, OriginID}]}];
+    [#xmlel{name = <<"origin-id">>, attrs = #{<<"xmlns">> => ?NS_STANZAID, <<"id">> => OriginID}}];
 maybe_append_origin_id(_) ->
     [].
 
@@ -491,7 +498,7 @@ wrap_message(MamNs, Packet, QueryID, MessageUID, TS, SrcJID) ->
                    SrcJID :: jid:jid()) -> Wrapper :: exml:element().
 wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, TS, SrcJID) ->
     #xmlel{ name = <<"message">>,
-            attrs = [{<<"id">>, WrapperID}],
+            attrs = #{<<"id">> => WrapperID},
             children = [result(MamNs, QueryID, MessageUID,
                                [forwarded(Packet, TS, SrcJID)])] }.
 
@@ -500,7 +507,7 @@ wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, TS, SrcJID) ->
 forwarded(Packet, TS, SrcJID) ->
     #xmlel{
        name = <<"forwarded">>,
-       attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+       attrs = #{<<"xmlns">> => ?NS_FORWARD},
        %% Two places to include SrcJID:
        %% - delay.from - optional XEP-0297 (TODO: depricate adding it?)
        %% - message.from - required XEP-0313
@@ -512,9 +519,7 @@ delay(TS, SrcJID) ->
     jlib:timestamp_to_xml(TS, SrcJID, <<>>).
 
 replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
-    Attrs1 = lists:keydelete(<<"from">>, 1, Attrs),
-    Attrs2 = [{<<"from">>, jid:to_binary(From)} | Attrs1],
-    Packet#xmlel{attrs = Attrs2}.
+    Packet#xmlel{attrs = Attrs#{<<"from">> => jid:to_binary(From)}}.
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
@@ -522,11 +527,15 @@ replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
             -> exml:element().
 result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
+    Attrs = case QueryID =/= undefined andalso QueryID =/= <<>>  of
+              true->
+                #{<<"queryid">> => QueryID};
+              false ->
+                #{}
+            end,
     #xmlel{
        name = <<"result">>,
-       attrs = [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>] ++
-           [{<<"xmlns">>, MamNs},
-            {<<"id">>, MessageUID}],
+       attrs = Attrs#{<<"xmlns">> => MamNs, <<"id">> => MessageUID},
        children = Children}.
 
 
@@ -551,12 +560,12 @@ result_set(FirstId, LastId, undefined, undefined)
               || LastId =/= undefined],
     #xmlel{
        name = <<"set">>,
-       attrs = [{<<"xmlns">>, ?NS_RSM}],
+       attrs = #{<<"xmlns">> => ?NS_RSM},
        children = FirstEl ++ LastEl};
 result_set(FirstId, LastId, FirstIndexI, CountI)
   when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
     FirstEl = [#xmlel{name = <<"first">>,
-                      attrs = [{<<"index">>, integer_to_binary(FirstIndexI)}],
+                      attrs = #{<<"index">> => integer_to_binary(FirstIndexI)},
                       children = [#xmlcdata{content = FirstId}]
                      }
                || FirstId =/= undefined],
@@ -569,7 +578,7 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
                  children = [#xmlcdata{content = integer_to_binary(CountI)}]},
     #xmlel{
        name = <<"set">>,
-       attrs = [{<<"xmlns">>, ?NS_RSM}],
+       attrs = #{<<"xmlns">> => ?NS_RSM},
        children = FirstEl ++ LastEl ++ [CountEl]}.
 
 
@@ -577,7 +586,7 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
 result_query(SetEl, Namespace) ->
     #xmlel{
        name = <<"query">>,
-       attrs = [{<<"xmlns">>, Namespace}],
+       attrs = #{<<"xmlns">> => Namespace},
        children = [SetEl]}.
 
 -spec result_prefs(DefaultMode :: archive_behaviour(),
@@ -591,8 +600,8 @@ result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
                       children = encode_jids(NeverJIDs)},
     #xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>, Namespace},
-                {<<"default">>, atom_to_binary(DefaultMode, utf8)}],
+       attrs = #{<<"xmlns">> => Namespace,
+                 <<"default">> => atom_to_binary(DefaultMode, utf8)},
        children = [AlwaysEl, NeverEl]
       }.
 
@@ -613,11 +622,15 @@ encode_jids(JIDs) ->
                        module()) ->
     exml:element().
 make_fin_element(HostType, Params, MamNs, IsComplete, IsStable, ResultSetEl, ExtFinMod) ->
+    Attrs0 = if IsComplete -> #{<<"complete">> => <<"true">>};
+                true -> #{}
+             end,
+    Attrs1 = if IsStable -> Attrs0;
+                true -> Attrs0#{<<"stable">> => <<"false">>}
+             end,
     FinEl = #xmlel{
                name = <<"fin">>,
-               attrs = [{<<"xmlns">>, MamNs}]
-               ++ [{<<"complete">>, <<"true">>} || IsComplete]
-               ++ [{<<"stable">>, <<"false">>} || not IsStable],
+               attrs = Attrs1#{<<"xmlns">> => MamNs},
                children = [ResultSetEl]},
     maybe_transform_fin_elem(ExtFinMod, HostType, Params, FinEl).
 
@@ -630,17 +643,17 @@ maybe_transform_fin_elem(Module, HostType, Params, FinEl) ->
 make_metadata_element() ->
     #xmlel{
         name = <<"metadata">>,
-        attrs = [{<<"xmlns">>, ?NS_MAM_06}]}.
+        attrs = #{<<"xmlns">> => ?NS_MAM_06}}.
 
 -spec make_metadata_element(binary(), binary(), binary(), binary()) -> exml:element().
 make_metadata_element(FirstMsgID, FirstMsgTS, LastMsgID, LastMsgTS) ->
     #xmlel{
         name = <<"metadata">>,
-        attrs = [{<<"xmlns">>, ?NS_MAM_06}],
+        attrs = #{<<"xmlns">> => ?NS_MAM_06},
         children = [#xmlel{name = <<"start">>,
-                          attrs = [{<<"id">>, FirstMsgID}, {<<"timestamp">>, FirstMsgTS}]},
+                          attrs = #{<<"id">> => FirstMsgID, <<"timestamp">> => FirstMsgTS}},
                     #xmlel{name = <<"end">>,
-                          attrs = [{<<"id">>, LastMsgID}, {<<"timestamp">>, LastMsgTS}]}]
+                          attrs = #{<<"id">> => LastMsgID, <<"timestamp">> => LastMsgTS}}]
     }.
 
 -spec parse_prefs(PrefsEl :: exml:element()) -> mod_mam:preference().

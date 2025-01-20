@@ -73,14 +73,13 @@ check_user(JID = #jid{lserver = LServer}) ->
 
 transform_from_map(Vcard) ->
     #xmlel{name = <<"vCard">>,
-           attrs = [{<<"xmlns">>, <<"vcard-temp">>}],
+           attrs = #{<<"xmlns">> => <<"vcard-temp">>},
            children = lists:foldl(fun({Name, Value}, Acc) ->
                                       Acc ++ transform_field_and_value(Name, Value)
                                   end, [], maps:to_list(Vcard))}.
 
 construct_xmlel(Name, Children) when is_list(Children)->
     [#xmlel{name = Name,
-            attrs = [],
             children = Children}].
 
 transform_field_and_value(_Name, null) ->
@@ -92,7 +91,7 @@ transform_field_and_value(Name, Value) when is_list(Value) ->
 transform_field_and_value(Name, Value) when is_map(Value) ->
     construct_xmlel(from_map_to_xml(Name), process_child_map(Value));
 transform_field_and_value(Name, Value) ->
-    construct_xmlel(from_map_to_xml(Name), [{xmlcdata, Value}]).
+    construct_xmlel(from_map_to_xml(Name), [#xmlcdata{content = Value}]).
 
 transform_subfield_and_value(_Name, null) ->
     [];
@@ -104,10 +103,10 @@ transform_subfield_and_value(<<"tags">>, TagsList) ->
                 end, [], TagsList);
 transform_subfield_and_value(Name, Value) when is_list(Value) ->
     lists:foldl(fun(Element, Acc) ->
-                    Acc ++ construct_xmlel(from_map_to_xml(Name), [{xmlcdata, Element}])
+                    Acc ++ construct_xmlel(from_map_to_xml(Name), [#xmlcdata{content = Element}])
                 end, [], Value);
 transform_subfield_and_value(Name, Value) ->
-    construct_xmlel(from_map_to_xml(Name), [{xmlcdata, Value}]).
+    construct_xmlel(from_map_to_xml(Name), [#xmlcdata{content = Value}]).
 
 process_child_map(Value) ->
     lists:foldl(fun({Name, SubfieldValue}, Acc) ->
@@ -134,7 +133,7 @@ to_map_format(Vcard) ->
         maps:merge(Acc, transform_from_xml(Name, Value, Acc))
     end, #{}, Vcard).
 
-transform_from_xml(<<"FN">>, [{_, Value}], _) ->
+transform_from_xml(<<"FN">>, [#xmlcdata{content = Value}], _) ->
     #{<<"formattedName">> => Value};
 transform_from_xml(<<"N">>, Value, _) ->
     #{<<"nameComponents">> => lists:foldl(fun name_components_process/2, #{}, Value)};
@@ -195,12 +194,12 @@ transform_from_xml(<<"KEY">>, Value, Acc) ->
 transform_from_xml(_, _, _) ->
     #{}.
 
-process_value([{_, Value}]) ->
+process_value([#xmlcdata{content = Value}]) ->
     Value;
 process_value(_) ->
     null.
 
-simple_process(Name, [{_, Value}], Acc) ->
+simple_process(Name, [#xmlcdata{content = Value}], Acc) ->
     List = maps:get(Name, Acc, []),
     #{Name => List ++ [{ok, Value}]};
 simple_process(_, _, _) ->

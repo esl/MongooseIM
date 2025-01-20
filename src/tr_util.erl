@@ -151,8 +151,8 @@ element_info(Data, Hook, #{element := Element, ref := Ref, from_jid := From, to_
              to_jid => jid:to_binary(To)},
     maps:merge(Info, element_attr_info(Element#xmlel.attrs)).
 
--spec element_attr_info([exml:attr()]) -> #{atom() => binary()}.
+-spec element_attr_info(exml:attrs()) -> #{atom() => binary()}.
 element_attr_info(Attrs) ->
     AllowedAttrs = [<<"id">>, <<"type">>],
-    maps:from_list([{binary_to_existing_atom(Key), Value} || {Key, Value} <- Attrs,
-                                                             lists:member(Key, AllowedAttrs)]).
+    #{binary_to_existing_atom(Key) => Value ||
+         Key := Value <- maps:with(AllowedAttrs, Attrs)}.

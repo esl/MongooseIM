@@ -483,9 +483,9 @@ search_rsm_pages(Config) ->
                 Iq2 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           }
@@ -507,13 +507,13 @@ search_rsm_pages(Config) ->
                 Iq3 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           },
-                                    #xmlel{name = "index",
+                                    #xmlel{name = <<"index">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           }
@@ -560,9 +560,9 @@ search_rsm_forward(Config) ->
                 Iq2 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           }
@@ -585,13 +585,13 @@ search_rsm_forward(Config) ->
                 Iq3 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           },
-                                    #xmlel{name = "after",
+                                    #xmlel{name = <<"after">>,
                                            children =
                                                [#xmlcdata{content = RSMLast1}]
                                           }
@@ -626,13 +626,13 @@ search_rsm_forward(Config) ->
                 Iq4 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           },
-                                    #xmlel{name = "after",
+                                    #xmlel{name = <<"after">>,
                                            children =
                                                [#xmlcdata{content = RSMLast2}]
                                           }
@@ -668,13 +668,13 @@ search_rsm_backward(Config) ->
                 Iq2 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           },
-                                    #xmlel{name = "before"}
+                                    #xmlel{name = <<"before">>}
                                    ]}
                        ),
 
@@ -694,13 +694,13 @@ search_rsm_backward(Config) ->
                 Iq3 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           },
-                                    #xmlel{name = "before",
+                                    #xmlel{name = <<"before">>,
                                            children =
                                                [#xmlcdata{content = RSMFirst1}]
                                           }
@@ -735,13 +735,13 @@ search_rsm_backward(Config) ->
                 Iq4 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"1">>}]
                                           },
-                                    #xmlel{name = "before",
+                                    #xmlel{name = <<"before">>,
                                            children =
                                                [#xmlcdata{content = RSMFirst2}]
                                           }
@@ -777,9 +777,9 @@ search_rsm_count(Config) ->
                 Iq2 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
-                               attrs = [{<<"xmlns">>, ?NS_RSM}],
+                               attrs = #{<<"xmlns">> => ?NS_RSM},
                                children =
-                                   [#xmlel{name = "max",
+                                   [#xmlel{name = <<"max">>,
                                            children =
                                                [#xmlcdata{content = <<"0">>}]
                                           }
@@ -1234,11 +1234,9 @@ stanza_get_vcard_field_cdata(Stanza, FieldName) ->
 field_tuples([]) ->
     [];
 field_tuples([#xmlel{name = <<"field">>,
-                          attrs=Attrs,
+                          attrs = Attrs,
                           children=_Children} = El| Rest]) ->
-    {<<"type">>, Type} = lists:keyfind(<<"type">>, 1, Attrs),
-    {<<"var">>, Var} = lists:keyfind(<<"var">>, 1, Attrs),
-    {<<"label">>, Label} = lists:keyfind(<<"label">>, 1, Attrs),
+    #{<<"type">> := Type, <<"var">> := Var, <<"label">> := Label} = Attrs,
     case ?EL_CD(El, <<"value">>) of
         undefined ->
             [{Type, Var, Label}|field_tuples(Rest)];
@@ -1257,9 +1255,9 @@ item_field_tuples(_, []) ->
     [];
 item_field_tuples(ReportedFieldTups,
                   [#xmlel{name = <<"field">>,
-                               attrs=Attrs,
-                               children=_Children} = El| Rest]) ->
-    {<<"var">>, Var} = lists:keyfind(<<"var">>, 1, Attrs),
+                               attrs = Attrs,
+                               children = _Children} = El| Rest]) ->
+    Var = maps:get(<<"var">>, Attrs),
     {Type, Var, Label} = lists:keyfind(Var, 2, ReportedFieldTups),
     [{Type, Var, Label, ?EL_CD(El, <<"value">>)}
      | item_field_tuples(ReportedFieldTups, Rest)];
@@ -1350,8 +1348,7 @@ verify_tuples(Received, Expected) ->
 search_result_item_tuples(Stanza) ->
     Result = ?EL(Stanza, <<"query">>),
     XData = ?EL(Result, <<"x">>),
-    #xmlel{ attrs = _XAttrs,
-                 children = XChildren } = XData,
+    #xmlel{ children = XChildren } = XData,
     Reported = ?EL(XData, <<"reported">>),
     ReportedFieldTups = field_tuples(Reported#xmlel.children),
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).

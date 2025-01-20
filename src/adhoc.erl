@@ -109,16 +109,16 @@ produce_response(#adhoc_response{lang = _Lang,
     ActionsEls = maybe_actions_element(Actions, DefaultAction),
     NotesEls = lists:map(fun note_to_xmlel/1, Notes),
     #xmlel{name = <<"command">>,
-           attrs = [{<<"xmlns">>, ?NS_COMMANDS},
-                    {<<"sessionid">>, SessionID},
-                    {<<"node">>, Node},
-                    {<<"status">>, atom_to_binary(Status)}],
+           attrs = #{<<"xmlns">> => ?NS_COMMANDS,
+                     <<"sessionid">> => SessionID,
+                     <<"node">> => Node,
+                     <<"status">> => atom_to_binary(Status)},
            children = ActionsEls ++ NotesEls ++ Elements}.
 
 -spec ensure_correct_session_id(binary()) -> binary().
 ensure_correct_session_id(SessionID) when is_binary(SessionID), SessionID /= <<>> ->
     SessionID;
-ensure_correct_session_id(_) -> 
+ensure_correct_session_id(_) ->
     USec = os:system_time(microsecond),
     TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
     list_to_binary(TS).
@@ -139,7 +139,7 @@ maybe_actions_element(Actions, DefaultAction) ->
     AllActions = ensure_default_action_present(Actions, DefaultAction),
     [#xmlel{
         name = <<"actions">>,
-        attrs = [{<<"execute">>, DefaultAction}],
+        attrs = #{<<"execute">> => DefaultAction},
         children = [#xmlel{name = Action} || Action <- AllActions]
     }].
 
@@ -154,6 +154,6 @@ ensure_default_action_present(Actions, DefaultAction) ->
 note_to_xmlel({Type, Text}) ->
     #xmlel{
         name = <<"note">>,
-        attrs = [{<<"type">>, Type}],
+        attrs = #{<<"type">> => Type},
         children = [#xmlcdata{content = Text}]
     }.

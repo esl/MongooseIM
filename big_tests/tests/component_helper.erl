@@ -70,22 +70,21 @@ component_start_stream(Conn = #client{props = Props}, []) ->
     ct:log("received~n~p~n", [StreamStartRep]),
 
     #xmlstreamstart{attrs = Attrs} = StreamStartRep,
-    Id = proplists:get_value(<<"id">>, Attrs),
-    From = proplists:get_value(<<"from">>, Attrs),
+    Id = maps:get(<<"id">>, Attrs, undefined),
+    From = maps:get(<<"from">>, Attrs, undefined),
     From =:= ComponentHost orelse throw({from_does_not_correspond_to_connection, Server, From}),
 
     {Conn#client{props = [{sid, Id} | Props]}, []}.
 
 component_stream_start(Component, IsSubdomain) ->
-    Attrs1 = [{<<"to">>, Component},
-              {<<"xmlns">>, <<"jabber:component:accept">>},
-              {<<"xmlns:stream">>,
-               <<"http://etherx.jabber.org/streams">>}],
+    Attrs1 = #{<<"to">> => Component,
+               <<"xmlns">> => <<"jabber:component:accept">>,
+               <<"xmlns:stream">> => <<"http://etherx.jabber.org/streams">>},
     Attrs2 = case IsSubdomain of
                  false ->
                      Attrs1;
                  true ->
-                     [{<<"is_subdomain">>, <<"true">>}|Attrs1]
+                    Attrs1#{<<"is_subdomain">> => <<"true">>}
              end,
     #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs2}.
 
@@ -120,7 +119,7 @@ component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
     ct:log("received~n~p~n", [StreamStartRep]),
 
     #xmlstreamstart{attrs = Attrs} = StreamStartRep,
-    Id = proplists:get_value(<<"id">>, Attrs),
+    Id = maps:get(<<"id">>, Attrs, undefined),
 
     {Conn#client{props = [{sid, Id}|Props]}, []}.
 

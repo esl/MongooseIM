@@ -146,7 +146,9 @@ fake_acc_to_component(From) ->
                },
     Packet = #xmlel{
                 name = <<"message">>,
-                attrs = [{<<"from">>, FromBin}, {<<"to">>, ToBin}, {<<"type">>, <<"chat">>}],
+                attrs = #{<<"from">> => FromBin,
+                          <<"to">> => ToBin,
+                          <<"type">> => <<"chat">>},
                 children = [BodyEl]
                },
     {mongoose_acc:new(#{ location => ?LOCATION,

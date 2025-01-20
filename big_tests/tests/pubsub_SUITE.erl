@@ -1989,23 +1989,23 @@ verify_item_retract({NodeAddr, NodeName}, ItemId, Stanza) ->
     escalus:assert(is_message, Stanza),
     NodeAddr = exml_query:attr(Stanza, <<"from">>),
 
-    [#xmlel{ attrs = [{<<"xmlns">>, ?NS_PUBSUB_EVENT}] } = Event]
-    = exml_query:subelements(Stanza, <<"event">>),
+    [#xmlel{ attrs = #{<<"xmlns">> := ?NS_PUBSUB_EVENT} } = Event]
+        = exml_query:subelements(Stanza, <<"event">>),
 
-    [#xmlel{ attrs = [{<<"node">>, NodeName}] } = Items]
-    = exml_query:subelements(Event, <<"items">>),
+    [#xmlel{ attrs = #{<<"node">> := NodeName} } = Items]
+        = exml_query:subelements(Event, <<"items">>),
 
-    [#xmlel{ attrs = [{<<"id">>, ItemId}] }] = exml_query:subelements(Items, <<"retract">>).
+    [#xmlel{ attrs = #{<<"id">> := ItemId} }] = exml_query:subelements(Items, <<"retract">>).
 
 verify_config_event({NodeAddr, NodeName}, ConfigChange, Stanza) ->
     escalus:assert(is_message, Stanza),
     NodeAddr = exml_query:attr(Stanza, <<"from">>),
 
-    [#xmlel{ attrs = [{<<"xmlns">>, ?NS_PUBSUB_EVENT}] } = Event]
-    = exml_query:subelements(Stanza, <<"event">>),
+    [#xmlel{ attrs = #{<<"xmlns">> := ?NS_PUBSUB_EVENT} } = Event]
+        = exml_query:subelements(Stanza, <<"event">>),
 
-    [#xmlel{ attrs = [{<<"node">>, NodeName}] } = ConfigEl]
-    = exml_query:subelements(Event, <<"configuration">>),
+    [#xmlel{ attrs = #{<<"node">> := NodeName} } = ConfigEl]
+        = exml_query:subelements(Event, <<"configuration">>),
 
     Fields = exml_query:paths(ConfigEl, [{element, <<"x">>},
                                          {element, <<"field">>}]),

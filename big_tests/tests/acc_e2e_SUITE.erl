@@ -63,8 +63,8 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    {Mod, Code} = dynamic_compile:from_string(acc_test_helper_code(Config)),
-    rpc(mim(), code, load_binary, [Mod, "acc_test_helper.erl", Code]),
+    {Module, Binary, Filename} = code:get_object_code(acc_test_helper) ,
+    rpc(mim(), code, load_binary, [Module, Filename, Binary]),
     recreate_table(),
     escalus:init_per_suite(Config).
 
@@ -162,12 +162,6 @@ filter_local_packet_uses_recipient_values(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-
-acc_test_helper_code(Config) ->
-    Dir = proplists:get_value(mim_data_dir, Config),
-    F = filename:join(Dir, "acc_test_helper.erl"),
-    {ok, Code} = file:read_file(F),
-    binary_to_list(Code).
 
 add_handler(Hook, F, Seq) ->
     rpc(mim(), gen_hook, add_handler, handler(Hook, F, Seq)).

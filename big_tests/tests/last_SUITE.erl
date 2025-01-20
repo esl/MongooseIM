@@ -268,10 +268,11 @@ answer_last_activity(IQ = #xmlel{name = <<"iq">>}) ->
     To = exml_query:attr(IQ, <<"to">>),
     Id = exml_query:attr(IQ, <<"id">>),
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"from">>, To}, {<<"to">>, From}, {<<"id">>, Id}, {<<"type">>, <<"result">>}],
+           attrs = #{<<"from">> => To, <<"to">> => From, <<"id">> => Id,
+                     <<"type">> => <<"result">>},
            children = [#xmlel{name = <<"query">>,
-                              attrs = [{<<"xmlns">>, ?NS_LAST_ACTIVITY},
-                                       {<<"seconds">>, <<"0">>}]}
+                              attrs = #{<<"xmlns">> => ?NS_LAST_ACTIVITY,
+                                        <<"seconds">> => <<"0">>}}
                       ]}.
 
 required_modules() ->

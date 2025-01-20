@@ -307,7 +307,7 @@ send_ringing_session_info(SIPMsg, ErrorCode) ->
     mod_jingle_sip_session:set_outgoing_handle(CallID, DialogHandle, FromJID, ToJID),
 
     RingingEl = #xmlel{name = <<"ringing">>,
-                       attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:info:1">>}]},
+                       attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:rtp:info:1">>}},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-info">>, [RingingEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -337,7 +337,7 @@ path_to_res(Other) ->
 make_session_terminate_reason_el(ErrorCode, #sipmsg{class = {resp, ErrorCode, Binary}}) ->
     Reason = #xmlel{name = <<"general-error">>},
     Details = #xmlel{name = <<"sip-error">>,
-                     attrs = [{<<"code">>, integer_to_binary(ErrorCode)}],
+                     attrs = #{<<"code">> => integer_to_binary(ErrorCode)},
                      children = [#xmlcdata{content = Binary}]},
     #xmlel{name = <<"reason">>,
            children = [Reason, Details]}.

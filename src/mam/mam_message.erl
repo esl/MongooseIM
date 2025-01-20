@@ -35,5 +35,5 @@ error_stanza() ->
     Err = mongoose_xmpp_errors:internal_server_error(<<"en">>, Text),
     Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = Text}]},
     #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, <<"error">>}],
+           attrs = #{<<"type">> => <<"error">>},
            children = [Err, Body]}.

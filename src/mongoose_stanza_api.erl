@@ -188,7 +188,7 @@ do_open_session(#{host_type := HostType, user := JID}) ->
 -spec build_chat_message(jid:literal_jid(), jid:literal_jid(), binary()) -> exml:element().
 build_chat_message(From, To, Body) ->
     #xmlel{name = <<"message">>,
-           attrs = add_id([{<<"type">>, <<"chat">>}, {<<"from">>, From}, {<<"to">>, To}]),
+           attrs = add_id(#{<<"type">> => <<"chat">>, <<"from">> => From, <<"to">> => To}),
            children = [#xmlel{name = <<"body">>,
                               children = [#xmlcdata{content = Body}]}]
           }.
@@ -198,7 +198,7 @@ build_chat_message(From, To, Body) ->
 build_headline_message(From, To, Body, Subject) ->
     Children = maybe_cdata_elem(<<"subject">>, Subject) ++
                maybe_cdata_elem(<<"body">>, Body),
-    Attrs = add_id([{<<"type">>, <<"headline">>}, {<<"from">>, From}, {<<"to">>, To}]),
+    Attrs = add_id(#{<<"type">> => <<"headline">>, <<"from">> => From, <<"to">> => To}),
     #xmlel{name = <<"message">>, attrs = Attrs, children = Children}.
 
 -spec ensure_id(exml:element()) -> exml:element().
@@ -216,7 +216,7 @@ cdata_elem(Name, Text) when is_binary(Name), is_binary(Text) ->
     #xmlel{name = Name, children = [#xmlcdata{content = Text}]}.
 
 add_id(Attrs) ->
-    [{<<"id">>, mongoose_bin:gen_from_crypto()} | Attrs].
+    Attrs#{<<"id">> => mongoose_bin:gen_from_crypto()}.
 
 -spec get_id(exml:element()) -> binary() | undefined.
 get_id(Stanza) ->

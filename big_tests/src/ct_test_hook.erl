@@ -10,7 +10,7 @@
 -export([pre_init_per_testcase/4, post_init_per_testcase/5,
          pre_end_per_testcase/4, post_end_per_testcase/5]).
 
--record(state,{log = [], ref = make_ref()}).
+-record(state,{log = []}).
 -define(MFA, {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY}).
 % -define(ADD_LOG(State), (State)).
 -define(ADD_LOG(State), (State#state{log = [?MFA | State#state.log]})).
@@ -100,4 +100,4 @@ tracer_fun(Msg, State) ->
 stop_tracing() ->
     %% this function is idempotent and can be safely called multiple times
     timer:sleep(10000),
-    dbg:stop_clear().
+    dbg:stop().

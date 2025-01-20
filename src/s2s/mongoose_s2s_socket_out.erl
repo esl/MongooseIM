@@ -200,9 +200,6 @@ handle_info({Tag, _Socket, Reason}, State) when Tag == tcp_error; Tag == ssl_err
 handle_info({timeout, _Ref, activate}, State) ->
     activate_socket(State),
     {noreply, State, hibernate_or_timeout(State)};
-handle_info({timeout, _Ref, activate}, State) ->
-    activate_socket(State),
-    {noreply, State, hibernate_or_timeout(State)};
 handle_info(timeout, State) ->
     {noreply, State, hibernate()};
 handle_info(Info, State) ->
@@ -296,7 +293,7 @@ process_data(Data, #state{parser = Parser,
             {ok, NParser, Elems} ->
                 {[wrap_xml_elements_and_update_metrics(E, ConnectionType) || E <- Elems], NParser};
             {error, Reason} ->
-                {[{xmlstreamerror, Reason}], Parser}
+                {[#xmlstreamerror{name = Reason}], Parser}
         end,
     {NewShaperState, Pause} = mongoose_shaper:update(ShaperState, Size),
     update_transport_metrics(Data, #{connection_type => ConnectionType, sockmod => SockMod, direction => in}),

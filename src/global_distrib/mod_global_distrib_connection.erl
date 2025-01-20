@@ -130,5 +130,5 @@ opt(Key) ->
     mod_global_distrib_utils:opt(mod_global_distrib, Key).
 
 gd_start(Server, ConnID) ->
-    Attrs = [{<<"server">>, Server}, {<<"conn_id">>, ConnID}],
+    Attrs = #{<<"server">> => Server, <<"conn_id">> => ConnID},
     exml:to_binary(#xmlel{name = <<"gd_start">>, attrs = Attrs}).

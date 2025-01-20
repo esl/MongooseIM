@@ -134,10 +134,8 @@ process_local_iq(Acc, _From, _To, #iq{type = Type, sub_el = SubEl} = IQ, _Extra)
             {Acc, IQ#iq{type = result,
                 sub_el =
                 [#xmlel{name = <<"query">>,
-                    attrs =
-                    [{<<"xmlns">>, ?NS_LAST},
-                        {<<"seconds">>,
-                            integer_to_binary(Sec)}],
+                    attrs = #{<<"xmlns">> => ?NS_LAST,
+                              <<"seconds">> => integer_to_binary(Sec)},
                     children = []}]}}
     end.
 
@@ -196,20 +194,16 @@ make_response(HostType, IQ, SubEl, JID, allow) ->
                     IQ#iq{type = result,
                         sub_el =
                         [#xmlel{name = <<"query">>,
-                            attrs =
-                            [{<<"xmlns">>, ?NS_LAST},
-                                {<<"seconds">>,
-                                    integer_to_binary(Sec)}],
-                            children = [{xmlcdata, Status}]}]}
+                            attrs = #{<<"xmlns">> => ?NS_LAST,
+                                      <<"seconds">> => integer_to_binary(Sec)},
+                            children = [#xmlcdata{content = Status}]}]}
             end;
         _ ->
             IQ#iq{type = result,
                 sub_el =
                 [#xmlel{name = <<"query">>,
-                    attrs =
-                    [{<<"xmlns">>, ?NS_LAST},
-                        {<<"seconds">>, <<"0">>}],
-                    children = []}]}
+                        attrs = #{<<"xmlns">> => ?NS_LAST,
+                                  <<"seconds">> => <<"0">>}}]}
     end.
 
 -spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver())

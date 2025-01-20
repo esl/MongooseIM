@@ -49,11 +49,11 @@ process_iq(Acc, _From, _To, #iq{type = get} = IQ, _Extra) ->
     {Acc, IQ#iq{type = result,
           sub_el =
           [#xmlel{name = <<"query">>,
-                  attrs = [{<<"xmlns">>, ?NS_VERSION}],
+                  attrs = #{<<"xmlns">> => ?NS_VERSION},
                   children =
-                  [#xmlel{name = <<"name">>, attrs = [],
+                  [#xmlel{name = <<"name">>,
                           children =[#xmlcdata{content = Name}]},
-                   #xmlel{name = <<"version">>, attrs = [],
+                   #xmlel{name = <<"version">>,
                           children =[#xmlcdata{content = Version}]}
                   ] ++ add_os_info(HostType)}]}}.
 
@@ -61,7 +61,7 @@ process_iq(Acc, _From, _To, #iq{type = get} = IQ, _Extra) ->
 add_os_info(HostType) ->
     case gen_mod:get_module_opt(HostType, ?MODULE, os_info) of
         true ->
-            [#xmlel{name = <<"os">>, attrs = [],
+            [#xmlel{name = <<"os">>,
                     children = [#xmlcdata{content = os_info()}]}];
         _ ->
             []

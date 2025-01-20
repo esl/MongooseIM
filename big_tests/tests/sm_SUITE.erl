@@ -439,7 +439,7 @@ h_ok_after_a_chat(ConfigIn) ->
 
 h_non_given_closes_stream_gracefully(ConfigIn) ->
     AStanza = #xmlel{name = <<"a">>,
-               attrs = [{<<"xmlns">>, <<"urn:xmpp:sm:3">>}]},
+                     attrs = #{<<"xmlns">> => <<"urn:xmpp:sm:3">>}},
     Config = escalus_users:update_userspec(ConfigIn, ?config(user, ConfigIn),
                                            stream_management, true),
     escalus:fresh_story(Config, [{?config(user, Config), 1}], fun(User) ->
@@ -1045,9 +1045,10 @@ resume_session_with_wrong_sid_returns_item_not_found(Config) ->
 
 resume_session_with_wrong_namespace_is_a_noop(Config) ->
     User = connect_fresh(Config, ?config(user, Config), auth),
-    #xmlel{attrs = Attrs} = Resume = escalus_stanza:resume(<<"doesnt_matter">>, 4),
-    Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, <<"not-stream-mgnt">>}),
-    escalus_connection:send(User, Resume#xmlel{attrs = Attrs2}),
+    Resume = escalus_stanza:resume(<<"doesnt_matter">>, 4),
+    Attrs = Resume#xmlel.attrs,
+    NewAttrs = Attrs#{<<"xmlns">> => <<"not-stream-mgnt">>},
+    escalus_connection:send(User, Resume#xmlel{attrs = NewAttrs}),
     escalus_assert:has_no_stanzas(User),
     [] = sm_helper:get_user_present_resources(User),
     true = escalus_connection:is_connected(User),
@@ -1460,7 +1461,7 @@ get_stanzas_filtered_by_mod_ping() ->
 
 check_stanzas_filtered_by_mod_ping() ->
     Stanzas = get_stanzas_filtered_by_mod_ping(),
-    lists:foreach(fun(Stanza) -> 
+    lists:foreach(fun(Stanza) ->
         escalus:assert(is_iq_error, Stanza),
         ?assertNotEqual(undefined,
             exml_query:subelement_with_name_and_ns(Stanza, <<"ping">>, <<"urn:xmpp:ping">>))

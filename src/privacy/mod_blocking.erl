@@ -315,17 +315,17 @@ broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
 blocking_query_response(Lst) ->
     #xmlel{
         name = <<"blocklist">>,
-        attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
+        attrs = #{<<"xmlns">> => ?NS_BLOCKING},
         children = [#xmlel{name= <<"item">>,
-                           attrs = [{<<"jid">>, jid:to_binary(J#listitem.value)}]} || J <- Lst]}.
+                           attrs = #{<<"jid">> => jid:to_binary(J#listitem.value)}} || J <- Lst]}.
 
 -spec blocking_stanza([binary()], binary()) -> exml:element().
 blocking_stanza(JIDs, Name) ->
     #xmlel{name = Name,
-           attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
+           attrs = #{<<"xmlns">> => ?NS_BLOCKING},
            children = lists:map(
                         fun(JID) ->
-                                #xmlel{name = <<"item">>, attrs = [{<<"jid">>, JID}]}
+                                #xmlel{name = <<"item">>, attrs = #{<<"jid">> => JID}}
                         end, JIDs)}.
 
 -spec blocking_iq(exml:element()) -> jlib:iq().

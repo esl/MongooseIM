@@ -109,7 +109,7 @@ is_sic_response() ->
 sic_iq_get() ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
         name = <<"address">>,
-        attrs = [{<<"xmlns">>, ?NS_SIC}],
+        attrs = #{<<"xmlns">> => ?NS_SIC},
         children = []
     }]).
 

@@ -290,7 +290,7 @@ stanza_muc_enter_room(Room, Nick) ->
     stanza_to_room(
         escalus_stanza:presence(<<"available">>,
                                 [#xmlel{name = <<"x">>,
-                                        attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}
+                                        attrs=#{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>}}
                                 ]),
         Room, Nick).
 

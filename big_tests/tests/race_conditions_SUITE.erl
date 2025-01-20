@@ -160,7 +160,7 @@ delayiq_ns() ->
 delayiq_iq() ->
     BinCallerPid = encode_pid(self()),
     Payload = #xmlel{name = <<"data">>,
-                     attrs = [{<<"caller_pid">>, BinCallerPid}]},
+                     attrs = #{<<"caller_pid">> => BinCallerPid}},
     escalus_stanza:iq_get(delayiq_ns(), [Payload]).
 
 %% This function is executed by MongooseIM

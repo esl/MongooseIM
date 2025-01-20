@@ -447,7 +447,7 @@ locked_state({route, From, _ToNick, Acc,
     MkQueryResult = fun(Res) ->
                         IQ#iq{type = result,
                             sub_el = [#xmlel{name = <<"query">>,
-                                             attrs = [{<<"xmlns">>, NS}],
+                                             attrs = #{<<"xmlns">> => NS},
                                              children = Res}]}
                     end,
     {IQRes, StateData3, NextState2} =
@@ -596,7 +596,7 @@ normal_state({set_admin_items, UJID, Items}, _From,
 
 handle_event({service_message, Msg}, _StateName, StateData) ->
     MessagePkt = #xmlel{name = <<"message">>,
-                        attrs = [{<<"type">>, <<"groupchat">>}],
+                        attrs = #{<<"type">> => <<"groupchat">>},
                         children = [#xmlel{name = <<"body">>,
                                            children = [#xmlcdata{content = Msg}]}]},
     send_to_all_users(MessagePkt, StateData),
@@ -609,7 +609,7 @@ handle_event({service_message, Msg}, _StateName, StateData) ->
 handle_event({destroy, Reason}, _StateName, StateData) ->
     {result, [], stop} =
         destroy_room(
-          #xmlel{name = <<"destroy">>, attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
+          #xmlel{name = <<"destroy">>, attrs = #{<<"xmlns">> => ?NS_MUC_OWNER},
                  children = case Reason of
                                 none -> [];
                                 _Else ->
@@ -731,7 +731,7 @@ stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} =
 
     case get_affiliation(LastUser, State) of
         owner ->
-            ItemAttrs = [{<<"affiliation">>, <<"owner">>}, {<<"role">>, <<"none">>}],
+            ItemAttrs = #{<<"affiliation">> => <<"owner">>, <<"role">> => <<"none">>},
             Packet = unavailable_presence(ItemAttrs, <<"Room hibernation">>),
             FromRoom = jid:replace_resource(RoomJID, Nick),
             ejabberd_router:route(FromRoom, LastUser, Packet),
@@ -759,7 +759,7 @@ terminate(Reason, _StateName, StateData) ->
           shutdown -> <<"You are being removed from the room because of a system shutdown">>;
           _ -> <<"Room terminates">>
           end,
-    ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
+    ItemAttrs = #{<<"affiliation">> => <<"none">>, <<"role">> => <<"none">>},
     Packet = unavailable_presence(ItemAttrs, ReasonT),
     maps_foreach(
       fun(LJID, Info) ->
@@ -788,14 +788,14 @@ unavailable_presence(ItemAttrs, ReasonT) ->
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlcdata{content = ReasonT}]},
     #xmlel{name = <<"presence">>,
-           attrs = [{<<"type">>, <<"unavailable">>}],
+           attrs = #{<<"type">> => <<"unavailable">>},
            children = [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                              attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                               children = [#xmlel{name = <<"item">>,
                                                  attrs = ItemAttrs,
                                                  children = [ReasonEl]},
                                           #xmlel{name = <<"status">>,
-                                                 attrs = [{<<"code">>, <<"332">>}]}
+                                                 attrs = #{<<"code">> => <<"332">>}}
                                          ]}]}.
 
 -spec occupant_jid(user(), 'undefined' | jid:jid()) -> 'error' | jid:jid().
@@ -1244,9 +1244,9 @@ stanzaid_unpack(<<"berd", StanzaIdBase64/binary>>) ->
 
 
 -spec change_stanzaid(binary(), exml:element()) -> exml:element().
-change_stanzaid(NewId, Packet) ->
-    XE = #xmlel{attrs = Attrs} = jlib:remove_attr(<<"id">>, Packet),
-    XE#xmlel{attrs = [{<<"id">>, NewId} | Attrs]}.
+change_stanzaid(NewId, #xmlel{attrs = Attrs} = Packet) ->
+    Packet#xmlel{attrs = Attrs#{<<"id">> => NewId}}.
+
 change_stanzaid(PreviousId, ToJID, Packet) ->
     NewId = stanzaid_pack(PreviousId, ToJID#jid.lresource),
     change_stanzaid(NewId, Packet).
@@ -1358,7 +1358,7 @@ get_error_condition(Packet) ->
 get_error_condition2(Packet) ->
     #xmlel{children = EEls} = exml_query:subelement(Packet, <<"error">>),
     [Condition] = [Name || #xmlel{name = Name,
-                                  attrs = [{<<"xmlns">>, ?NS_STANZAS}],
+                                  attrs = #{<<"xmlns">> := ?NS_STANZAS},
                                   children = []} <- EEls],
     {condition, Condition}.
 
@@ -1369,7 +1369,7 @@ expulse_participant(Packet, From, StateData, Reason1) ->
     Reason2 = <<Reason1/binary, ": ", ErrorCondition/binary>>,
     NewState = add_user_presence_un(
         From,
-        #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"unavailable">>}],
+        #xmlel{name = <<"presence">>, attrs = #{<<"type">> => <<"unavailable">>},
                children = [#xmlel{name = <<"status">>,
                                   children = [#xmlcdata{content = Reason2}]}]},
     StateData),
@@ -2269,12 +2269,12 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
     case (ReceiverInfo#user.role == moderator) orelse
          ((StateData#state.config)#config.anonymous == false) of
         true ->
-            [{<<"jid">>, jid:to_binary(RealJID)},
-             {<<"affiliation">>, BAffiliation},
-             {<<"role">>, BRole}];
+            #{<<"jid">> => jid:to_binary(RealJID),
+              <<"affiliation">> => BAffiliation,
+              <<"role">> => BRole};
         _ ->
-            [{<<"affiliation">>, BAffiliation},
-             {<<"role">>, BRole}]
+            #{<<"affiliation">> => BAffiliation,
+              <<"role">> => BRole}
     end,
     ItemEls = case Reason of
                   <<>> ->
@@ -2313,7 +2313,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
               end,
     Packet = jlib:append_subtags(
                Presence,
-               [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
+               [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC},
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                           children = ItemEls} | Status2]}]),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
@@ -2345,19 +2345,17 @@ send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
     ItemAttrs =
     case (Role == moderator) orelse ((StateData#state.config)#config.anonymous == false) of
         true ->
-            [{<<"jid">>, jid:to_binary(FromJID)},
-             {<<"affiliation">>,
-              affiliation_to_binary(FromAffiliation)},
-             {<<"role">>, role_to_binary(FromRole)}];
+            #{<<"jid">> => jid:to_binary(FromJID),
+              <<"affiliation">> => affiliation_to_binary(FromAffiliation),
+              <<"role">> => role_to_binary(FromRole)};
         _ ->
-            [{<<"affiliation">>,
-              affiliation_to_binary(FromAffiliation)},
-             {<<"role">>, role_to_binary(FromRole)}]
+            #{<<"affiliation">> => affiliation_to_binary(FromAffiliation),
+              <<"role">> => role_to_binary(FromRole)}
     end,
     Packet = jlib:append_subtags(
                Presence,
                [#xmlel{name = <<"x">>,
-                       attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                       attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                        children = [#xmlel{name = <<"item">>,
                                           attrs = ItemAttrs}]}]),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, FromNick), RealToJID, Packet).
@@ -2454,7 +2452,7 @@ is_nick_change_public(UserInfo, RoomConfig) ->
 -spec status_code(integer()) -> exml:element().
 status_code(Code) ->
     #xmlel{name = <<"status">>,
-           attrs = [{<<"code">>, integer_to_binary(Code)}]}.
+           attrs = #{<<"code">> => integer_to_binary(Code)}}.
 
 -spec nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
     exml:element() when
@@ -2488,24 +2486,27 @@ nick_available_presence(LastPresence, MaybeJID, Affiliation, Role, MaybeCode) ->
       Affiliation :: mod_muc:affiliation(),
       Role :: mod_muc:role().
 muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
+    Attr1 = if MaybeJID =:= undefined -> #{};
+               true -> #{<<"jid">> => jid:to_binary(MaybeJID)}
+            end,
+    Attr2 = if MaybeNick =:= undefined -> Attr1;
+               true -> Attr1#{<<"nick">> => MaybeNick}
+            end,
     #xmlel{name = <<"item">>,
-           attrs = [{<<"jid">>, jid:to_binary(MaybeJID)}
-                    || MaybeJID /= undefined] ++
-                   [{<<"nick">>, MaybeNick} || MaybeNick /= undefined] ++
-                   [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
-                    {<<"role">>, role_to_binary(Role)}]}.
+           attrs = Attr2#{<<"affiliation">> => affiliation_to_binary(Affiliation),
+                          <<"role">> => role_to_binary(Role)}}.
 
 -spec muc_user_x([exml:element()]) -> exml:element().
 muc_user_x(Children) ->
     #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+           attrs = #{<<"xmlns">> => ?NS_MUC_USER},
            children = Children}.
 
 -spec presence(binary(), [exml:element()]) -> exml:element().
 %% Add and validate other types if need be.
 presence(<<"unavailable">> = Type, Children) ->
     #xmlel{name = <<"presence">>,
-           attrs = [{<<"type">>, Type} || Type /= <<"available">>],
+           attrs = #{<<"type">> => Type || Type /= <<"available">>},
            children = Children}.
 
 
@@ -2588,7 +2589,7 @@ send_history(JID, Shift, StateData) ->
 -spec send_subject(jid:jid(), ejabberd:lang(), state()) -> mongoose_acc:t().
 send_subject(JID, _Lang, StateData = #state{subject = <<>>, subject_author = <<>>}) ->
     Packet = #xmlel{name = <<"message">>,
-                    attrs = [{<<"type">>, <<"groupchat">>}],
+                    attrs = #{<<"type">> => <<"groupchat">>},
                     children = [#xmlel{name = <<"subject">>},
                                 #xmlel{name = <<"body">>}]},
     ejabberd_router:route(
@@ -2600,13 +2601,13 @@ send_subject(JID, _Lang, StateData) ->
     TimeStamp = StateData#state.subject_timestamp,
     RoomJID = StateData#state.jid,
     Packet = #xmlel{name = <<"message">>,
-                    attrs = [{<<"type">>, <<"groupchat">>}],
+                    attrs = #{<<"type">> => <<"groupchat">>},
                     children = [#xmlel{name = <<"subject">>,
                                        children = [#xmlcdata{content = Subject}]},
                                 #xmlel{name = <<"delay">>,
-                                       attrs = [{<<"xmlns">>, ?NS_DELAY},
-                                                {<<"from">>, jid:to_binary(RoomJID)},
-                                                {<<"stamp">>, TimeStamp}]}]},
+                                       attrs = #{<<"xmlns">> => ?NS_DELAY,
+                                                 <<"from">> => jid:to_binary(RoomJID),
+                                                 <<"stamp">> => TimeStamp}}]},
     ejabberd_router:route(RoomJID, JID, Packet).
 
 
@@ -2708,14 +2709,14 @@ items_with_affiliation(BAffiliation, StateData) ->
     lists:map(
       fun({JID, {Affiliation, Reason}}) ->
           #xmlel{name = <<"item">>,
-                 attrs = [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
-                      {<<"jid">>, jid:to_binary(JID)}],
+                 attrs = #{<<"affiliation">> => affiliation_to_binary(Affiliation),
+                           <<"jid">> => jid:to_binary(JID)},
                  children = [#xmlel{name = <<"reason">>,
                                     children = [#xmlcdata{content = Reason}]}]};
          ({JID, Affiliation}) ->
               #xmlel{name = <<"item">>,
-                     attrs = [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
-                          {<<"jid">>, jid:to_binary(JID)}]}
+                     attrs = #{<<"affiliation">> => affiliation_to_binary(Affiliation),
+                               <<"jid">> => jid:to_binary(JID)}}
       end, search_affiliation(BAffiliation, StateData)).
 
 
@@ -2726,10 +2727,10 @@ user_to_item(#user{role = Role,
           }, StateData) ->
     Affiliation = get_affiliation(JID, StateData),
     #xmlel{name = <<"item">>,
-           attrs = [{<<"role">>, role_to_binary(Role)},
-                    {<<"affiliation">>, affiliation_to_binary(Affiliation)},
-                    {<<"nick">>, Nick},
-                    {<<"jid">>, jid:to_binary(JID)}]}.
+           attrs = #{<<"role">> => role_to_binary(Role),
+                     <<"affiliation">> => affiliation_to_binary(Affiliation),
+                     <<"nick">> => Nick,
+                     <<"jid">> => jid:to_binary(JID)}}.
 
 
 -spec search_role(mod_muc:role(), state()) -> users_pairs().
@@ -3089,14 +3090,14 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
     BAffiliation = affiliation_to_binary(Affiliation),
     BannedJIDString = jid:to_binary(RealJID),
     F = fun(Info) ->
-          JidAttrList = case (Info#user.role == moderator) orelse
-                ((StateData#state.config)#config.anonymous
-                 == false) of
-                true -> [{<<"jid">>, BannedJIDString}];
-                false -> []
+          JidAttrList =
+            case (Info#user.role == moderator) orelse
+                 ((StateData#state.config)#config.anonymous == false) of
+                true -> #{<<"jid">> => BannedJIDString};
+                false -> #{}
                 end,
-          ItemAttrs = [{<<"affiliation">>, BAffiliation},
-               {<<"role">>, <<"none">>}] ++ JidAttrList,
+          ItemAttrs = JidAttrList#{<<"affiliation">> => BAffiliation,
+                                   <<"role">> => <<"none">>},
           ItemEls = case Reason of
                 <<>> ->
                 [];
@@ -3104,14 +3105,14 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
                 [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = Reason}]}]
                     end,
           Packet = #xmlel{name = <<"presence">>,
-                          attrs = [{<<"type">>, <<"unavailable">>}],
+                          attrs = #{<<"type">> => <<"unavailable">>},
                           children = [#xmlel{name = <<"x">>,
-                                             attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                                             attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                                              children = [#xmlel{name = <<"item">>,
                                                                 attrs = ItemAttrs,
                                                                 children = ItemEls},
                                                          #xmlel{name = <<"status">>,
-                                                                attrs = [{<<"code">>, Code}]}]}]},
+                                                                attrs = #{<<"code">> => Code}}]}]},
           ejabberd_router:route(
         jid:replace_resource(StateData#state.jid, Nick),
         Info#user.jid,
@@ -3721,14 +3722,14 @@ send_to_all_users(Packet, StateData=#state{jid=RoomJID}) ->
 presence_stanza_of_type_unavailable(DestroyEl) ->
     ItemEl = #xmlel{
         name = <<"item">>,
-        attrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}]},
+        attrs = #{<<"affiliation">> => <<"none">>, <<"role">> => <<"none">>}},
     XEl = #xmlel{
         name = <<"x">>,
-        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+        attrs = #{<<"xmlns">> => ?NS_MUC_USER},
         children = [ItemEl, DestroyEl]},
     #xmlel{
         name = <<"presence">>,
-        attrs = [{<<"type">>, <<"unavailable">>}],
+        attrs = #{<<"type">> => <<"unavailable">>},
         children = [XEl]}.
 
 
@@ -3862,8 +3863,8 @@ get_mucroom_disco_items(StateData=#state{jid=RoomJID}) ->
 disco_item(User=#user{nick=Nick}, RoomJID) ->
     #xmlel{
         name = <<"item">>,
-        attrs = [{<<"jid">>, jid:to_binary(occupant_jid(User, RoomJID))},
-                 {<<"name">>, Nick}]}.
+        attrs = #{<<"jid">> => jid:to_binary(occupant_jid(User, RoomJID)),
+                  <<"name">> => Nick}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle voice request or approval (XEP-0045 7.13, 8.6)
@@ -3954,7 +3955,7 @@ create_invite(FromJID, InviteEl, Lang, StateData) ->
                   children = [#xmlcdata{content = Reason}]},
     OutInviteEl = #xmlel{
                      name = <<"invite">>,
-                     attrs = [{<<"from">>, jid:to_binary(FromJID)}],
+                     attrs = #{<<"from">> => jid:to_binary(FromJID)},
                      children = [ReasonEl] ++ ContinueEl},
     PasswdEl = create_password_elem(StateData),
     BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
@@ -4048,11 +4049,11 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
     when is_list(PasswdEl), is_binary(Reason) ->
     UserXEl = #xmlel{
         name = <<"x">>,
-        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+        attrs = #{<<"xmlns">> => ?NS_MUC_USER},
         children = [InviteEl|PasswdEl]},
     #xmlel{
         name = <<"message">>,
-        attrs = [{<<"type">>, <<"normal">>}],
+        attrs = #{<<"type">> => <<"normal">>},
         children = [UserXEl, BodyEl]}.
 
 
@@ -4094,8 +4095,8 @@ check_decline_invitation(Packet) ->
 send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
     FromString = jid:to_binary(FromJID),
     #xmlel{name = <<"decline">>, attrs = DAttrs, children = DEls} = DEl,
-    DAttrs2 = lists:keydelete(<<"to">>, 1, DAttrs),
-    DAttrs3 = [{<<"from">>, FromString} | DAttrs2],
+    DAttrs2 = maps:remove(<<"to">>, DAttrs),
+    DAttrs3 = DAttrs2#{<<"from">> => FromString},
     DEl2 = #xmlel{name = <<"decline">>, attrs = DAttrs3, children = DEls},
     XEl2 = jlib:replace_subelement(XEl, DEl2),
     Packet2 = jlib:replace_subelement(Packet, XEl2),
@@ -4308,8 +4309,8 @@ route_voice_approval({form, RoleName}, From, _Packet, _Lang, StateData) ->
     StateData;
 route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
     Items = [#xmlel{name = <<"item">>,
-                    attrs = [{<<"role">>, BRole},
-                             {<<"nick">>, Nick}]}],
+                    attrs = #{<<"role">> => BRole,
+                              <<"nick">> => Nick}}],
     case process_admin_items_set(From, Items, Lang, StateData) of
         {result, _Res, SD1} -> SD1;
         {error, Error} ->
@@ -4407,7 +4408,7 @@ do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
             {
              IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"query">>,
-                                 attrs = [{<<"xmlns">>, XMLNS}],
+                                 attrs = #{<<"xmlns">> => XMLNS},
                                  children = Res}]},
              case SD of
                  stop -> {stop, StateData};
@@ -4571,26 +4572,25 @@ get_current_timestamp() ->
 read_hibernate_timeout(HostType) ->
     gen_mod:get_module_opt(HostType, mod_muc, hibernate_timeout).
 
-maybe_add_x_element(Msg) ->
-    {xmlel, Type, InfoXML, Children} = Msg,
-    case lists:member({xmlel, <<"x">>, [{<<"xmlns">>, ?NS_MUC_USER}], []}, Children) of
+maybe_add_x_element(#xmlel{children = Children} = Msg) ->
+    XEl = #xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC_USER}, children = []},
+    case lists:member(XEl, Children) of
         true -> Msg;
         false ->
-            NewChildren = lists:append(Children,
-                                       [{xmlel, <<"x">>, [{<<"xmlns">>, ?NS_MUC_USER}], []}]),
-            {xmlel, Type, InfoXML, NewChildren}
+            NewChildren = lists:append(Children, [XEl]),
+            Msg#xmlel{children = NewChildren}
     end.
 
 kick_stanza_for_old_protocol(Packet) ->
     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
     ErrText = <<"You are not in the room.">>,
     ErrText2 = translate:translate(Lang, ErrText),
-    Response = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"unavailable">>}]},
-    ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
+    Response = #xmlel{name = <<"presence">>, attrs = #{<<"type">> => <<"unavailable">>}},
+    ItemAttrs = #{<<"affiliation">> => <<"none">>, <<"role">> => <<"none">>},
     ItemEls = [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = ErrText2}]}],
     Status = [status_code(110), status_code(307), status_code(333)],
     jlib:append_subtags(
         Response,
-        [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
+        [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC},
                 children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                    children = ItemEls} | Status]}]).

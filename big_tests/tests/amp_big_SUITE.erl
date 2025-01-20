@@ -115,22 +115,11 @@ deliver_test_cases(drop) ->
 
 init_per_suite(Config) ->
     ConfigWithHooks = [{ct_hooks, [{multiple_config_cth, fun tests_with_config/1}]} | Config],
-    {Mod, Code} = dynamic_compile:from_string(amp_test_helper_code()),
-    rpc(mim(), code, load_binary, [Mod, "amp_test_helper.erl", Code]),
+    {Module, Binary, Filename} = code:get_object_code(amp_test_helper) ,
+    rpc(mim(), code, load_binary, [Module, Filename, Binary]),
     setup_meck(suite),
     instrument_helper:start(declared_events()),
     escalus:init_per_suite(ConfigWithHooks).
-
-amp_test_helper_code() ->
-    "-module(amp_test_helper).\n"
-    "-compile([export_all, nowarn_export_all]).\n"
-    "setup_meck() ->\n"
-    "  meck:expect(ranch_tcp, send, fun ranch_tcp_send/2).\n"
-    "ranch_tcp_send(Socket, Data) ->\n"
-    "  case catch binary:match(Data, <<\"Recipient connection breaks\">>) of\n"
-    "    {N, _} when is_integer(N) -> {error, simulated};\n"
-    "    _ -> meck:passthrough([Socket, Data])\n"
-    "  end.\n".
 
 declared_events() ->
     [ % tested by privacy helpers
@@ -885,15 +874,15 @@ amp_el([]) ->
     throw("cannot build <amp> with no rules!");
 amp_el(Rules) ->
     #xmlel{name = <<"amp">>,
-           attrs = [{<<"xmlns">>, ns_amp()}],
+           attrs = #{<<"xmlns">> => ns_amp()},
            children = [ rule_el(R) || R <- Rules ]}.
 
 rule_el({Condition, Value, Action}) ->
     check_rules(Condition, Value, Action),
     #xmlel{name = <<"rule">>
-          , attrs = [{<<"condition">>, a2b(Condition)}
-                    , {<<"value">>, a2b(Value)}
-                    , {<<"action">>, a2b(Action)}]}.
+          , attrs = #{<<"condition">> => a2b(Condition)
+                    , <<"value">> => a2b(Value)
+                    , <<"action">> => a2b(Action)}}.
 
 %% @TODO: Move me out to escalus_pred %%%%%%%%%%%%
 %%%%%%%%% XML predicates %%%%% %%%%%%%%%%%%%%%%%%%

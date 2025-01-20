@@ -281,7 +281,7 @@ stanzas_are_sent_and_received(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         AliceJid = escalus_client:full_jid(Alice),
         BobJid = escalus_client:full_jid(Bob),
-        Stanza = extended_message([{<<"from">>, AliceJid}, {<<"to">>, BobJid}]),
+        Stanza = extended_message(#{<<"from">> => AliceJid, <<"to">> => BobJid}),
         {?NOCONTENT, _} = send_stanza(Stanza),
         Res = escalus:wait_for_stanza(Bob),
         ?assertEqual(<<"attribute">>, exml_query:attr(Res, <<"extra">>)),
@@ -294,19 +294,19 @@ stanza_errors(Config) ->
     BobJid = escalus_users:get_jid(Config1, bob),
     UnknownJid =  <<"baduser@", (domain())/binary>>,
     {?BAD_REQUEST, <<"Missing recipient JID">>} =
-        send_stanza(extended_message([{<<"from">>, AliceJid}])),
+        send_stanza(extended_message(#{<<"from">> => AliceJid})),
     {?BAD_REQUEST, <<"Missing sender JID">>} =
-        send_stanza(extended_message([{<<"to">>, BobJid}])),
+        send_stanza(extended_message(#{<<"to">> => BobJid})),
     {?BAD_REQUEST, <<"Invalid recipient JID">>} =
-        send_stanza(extended_message([{<<"from">>, AliceJid}, {<<"to">>, <<"@invalid">>}])),
+        send_stanza(extended_message(#{<<"from">> => AliceJid, <<"to">> => <<"@invalid">>})),
     {?BAD_REQUEST, <<"Invalid sender JID">>} =
-        send_stanza(extended_message([{<<"from">>, <<"@invalid">>}, {<<"to">>, BobJid}])),
+        send_stanza(extended_message(#{<<"from">> => <<"@invalid">>, <<"to">> => BobJid})),
     {?BAD_REQUEST, <<"User's domain does not exist">>} =
-        send_stanza(extended_message([{<<"from">>, <<"baduser@baddomain">>}, {<<"to">>, BobJid}])),
+        send_stanza(extended_message(#{<<"from">> => <<"baduser@baddomain">>, <<"to">> => BobJid})),
     {?BAD_REQUEST, <<"User does not exist">>} =
-        send_stanza(extended_message([{<<"from">>, UnknownJid}, {<<"to">>, BobJid}])),
+        send_stanza(extended_message(#{<<"from">> => UnknownJid, <<"to">> => BobJid})),
     {?BAD_REQUEST, <<"Malformed stanza">>} =
-        send_stanza(broken_message([{<<"from">>, AliceJid}, {<<"to">>, BobJid}])),
+        send_stanza(broken_message(#{<<"from">> => AliceJid, <<"to">> => BobJid})),
     {?BAD_REQUEST, <<"Missing stanza">>} =
         post(admin, <<"/stanzas">>, #{}).
 
@@ -656,7 +656,7 @@ remove_last_character(Bin) ->
 
 extended_message(Attrs) ->
     M = #xmlel{name = <<"message">>,
-               attrs = [{<<"extra">>, <<"attribute">>} | Attrs],
+               attrs = Attrs#{<<"extra">> => <<"attribute">>},
                children = [#xmlel{name = <<"body">>,
                                   children = [#xmlcdata{content = <<"the body">>}]},
                            #xmlel{name = <<"sibling">>,

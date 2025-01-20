@@ -2669,13 +2669,13 @@ muc_sanitize_x_user_in_non_anon_rooms(Config) ->
         escalus:wait_for_stanzas(Alice, 1),
 
         X = #xmlel{name = <<"x">>,
-                   attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}],
+                   attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc#user">>},
                    children = [#xmlel{name = <<"item">>,
-                                      attrs = [{<<"affiliation">>, <<"owner">>},
-                                               {<<"jid">>, SpoofJid},
-                                               {<<"role">>, <<"moderator">>}]}]},
+                                      attrs = #{<<"affiliation">> => <<"owner">>,
+                                                <<"jid">> => SpoofJid,
+                                                <<"role">> => <<"moderator">>}}]},
         Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = Text}]},
-        Stanza = #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"groupchat">>}],
+        Stanza = #xmlel{name = <<"message">>, attrs = #{<<"type">> => <<"groupchat">>},
                         children = [Body, X]},
 
         %% Bob sends to the chat room.
@@ -3605,7 +3605,7 @@ prefs_set_cdata_request(Config) ->
         %% </iq>
         escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
                                                      [<<"romeo@montague.net">>,
-                                                      {xmlcdata, <<"\n">>}, %% Put as it is
+                                                      #xmlcdata{content = <<"\n">>}, %% Put as it is
                                                       <<"montague@montague.net">>], [],
                                                      mam_ns_binary_v04())),
         ReplySet = escalus:wait_for_stanza(Alice),
@@ -3713,7 +3713,7 @@ muc_prefs_set_cdata_request(ConfigIn) ->
         Room = ?config(room, Config),
         escalus:send(Alice, stanza_to_room(stanza_prefs_set_request(<<"roster">>,
                                                                     [<<"romeo@montague.net">>,
-                                                                     {xmlcdata, <<"\n">>}, %% Put as it is
+                                                                     #xmlcdata{content = <<"\n">>}, %% Put as it is
                                                                      <<"montague@montague.net">>], [],
                                                                     mam_ns_binary_v04()), Room)),
         ReplySet = escalus:wait_for_stanza(Alice),
@@ -4138,14 +4138,14 @@ expect_only_original_message(Client, Body) ->
 
 retraction_message(Type, To, ApplyToElement) ->
     #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, Type},
-                    {<<"to">>, To}],
+           attrs = #{<<"type">> => Type,
+                     <<"to">> => To},
            children = [ApplyToElement]}.
 
 origin_id_element(OriginId) ->
     #xmlel{name = <<"origin-id">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:sid:0">>},
-                    {<<"id">>, OriginId}]}.
+           attrs = #{<<"xmlns">> => <<"urn:xmpp:sid:0">>,
+                     <<"id">> => OriginId}}.
 
 apply_to_element(Config, Copy) ->
     {RetractOn, Id} = case ?config(retract_on, Config) of
@@ -4153,15 +4153,16 @@ apply_to_element(Config, Copy) ->
                           stanza_id -> {stanza_id, stanza_id_from_msg(Copy)};
                           none -> {origin_id, none}
                 end,
+    Attrs = #{<<"xmlns">> => <<"urn:xmpp:fasten:0">>},
     #xmlel{name = <<"apply-to">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:fasten:0">>} | maybe_append_id(Id)],
+           attrs = maybe_append_id(Id, Attrs),
            children = [retract_element(RetractOn)]
           }.
 
-maybe_append_id(none) ->
-    [];
-maybe_append_id(Id) ->
-    [{<<"id">>, Id}].
+maybe_append_id(none, Attrs) ->
+    Attrs;
+maybe_append_id(Id, Attrs) ->
+    Attrs#{<<"id">> => Id}.
 
 stanza_id_from_msg(Msg) ->
     case exml_query:path(Msg, [{element, <<"stanza-id">>}, {attr, <<"id">>}]) of
@@ -4171,10 +4172,10 @@ stanza_id_from_msg(Msg) ->
 
 retract_element(origin_id) ->
     #xmlel{name = <<"retract">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:message-retract:0">>}]};
+           attrs = #{<<"xmlns">> => <<"urn:xmpp:message-retract:0">>}};
 retract_element(stanza_id) ->
     #xmlel{name = <<"retract">>,
-           attrs = [{<<"xmlns">>, <<"urn:esl:message-retract-by-stanza-id:0">>}]}.
+           attrs = #{<<"xmlns">> => <<"urn:esl:message-retract-by-stanza-id:0">>}}.
 
 origin_id() ->
     <<"orig-id-1">>.
@@ -4199,7 +4200,7 @@ assert_failed_to_decode_message(ArcMsg) ->
     #forwarded_message{message_children = [Msg]} = Forwarded,
     ?assertMatch(#xmlel{
         name = <<"error">>,
-        attrs = [{<<"code">>, <<"500">>}, {<<"type">>,<<"wait">>}],
+        attrs = #{<<"code">> := <<"500">>, <<"type">> := <<"wait">>},
         children = [#xmlel{name = <<"internal-server-error">>},
                     #xmlel{name = <<"text">>, children = [#xmlcdata{content = Err}]}]}, Msg).
 

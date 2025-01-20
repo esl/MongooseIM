@@ -209,7 +209,7 @@ reject_connection_when_mod_bosh_is_disabled(Config) ->
     {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
     {ok, #xmlel{attrs = RespAttrs}} = exml:parse(RespBody),
 
-    ?assertMatch(#{<<"type">> := <<"terminate">>}, maps:from_list(RespAttrs)),
+    ?assertMatch(#{<<"type">> := <<"terminate">>}, RespAttrs),
     ?assertEqual([], get_bosh_sessions()),
     fusco_cp:stop(Client).
 
@@ -217,14 +217,14 @@ do_not_accept_0_hold_value(Config) ->
     {Domain, Path, Client} = get_fusco_connection(Config),
     Rid = rand:uniform(1000000),
     Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
-    #xmlel{attrs = Attrs0} = Body0,
-    Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, <<"0">>}),
+    Attrs0 = Body0#xmlel.attrs,
+    Attrs = Attrs0#{<<"hold">> := <<"0">>},
     Body = Body0#xmlel{attrs = Attrs},
     Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
     {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
     {ok, #xmlel{attrs = RespAttrs}} = exml:parse(RespBody),
 
-    ?assertMatch(#{<<"type">> := <<"terminate">>}, maps:from_list(RespAttrs)),
+    ?assertMatch(#{<<"type">> := <<"terminate">>}, RespAttrs),
     ?assertEqual([], get_bosh_sessions()),
     fusco_cp:stop(Client).
 
@@ -232,22 +232,22 @@ accept_higher_hold_value(Config) ->
     {Domain, Path, Client} = get_fusco_connection(Config),
     Rid = rand:uniform(1000000),
     Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
-    #xmlel{attrs = Attrs0} = Body0,
-    Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, <<"2">>}),
+    Attrs0 = Body0#xmlel.attrs,
+    Attrs = Attrs0#{<<"hold">> := <<"2">>},
     Body = Body0#xmlel{attrs = Attrs},
     Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
     {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
     {ok, #xmlel{attrs = RespAttrs}} = exml:parse(RespBody),
 
     %% Server returns its hold value, which is 1
-    #{<<"hold">> := <<"1">>, <<"sid">> := SID} = maps:from_list(RespAttrs),
+    #{<<"hold">> := <<"1">>, <<"sid">> := SID} = RespAttrs,
     ?assertMatch([_], get_bosh_sessions()),
 
     TerminateBody = escalus_bosh:session_termination_body(Rid + 1, SID),
     Res2 = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(TerminateBody)),
     {{<<"200">>, <<"OK">>}, _, RespBody2, _, _} = Res2,
     {ok, #xmlel{attrs = RespAttrs2}} = exml:parse(RespBody2),
-    case maps:from_list(RespAttrs2) of
+    case RespAttrs2 of
         #{<<"type">> := <<"terminate">>} ->
             ok;
         #{<<"sid">> := SID} ->
@@ -256,7 +256,7 @@ accept_higher_hold_value(Config) ->
             Res3 = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(EmptyBody)),
             {{<<"200">>, <<"OK">>}, _, RespBody3, _, _} = Res3,
             {ok, #xmlel{attrs = RespAttrs3}} = exml:parse(RespBody3),
-            ?assertMatch(#{<<"type">> := <<"terminate">>}, maps:from_list(RespAttrs3))
+            ?assertMatch(#{<<"type">> := <<"terminate">>}, RespAttrs3)
     end,
     ?assertEqual([], get_bosh_sessions()),
     fusco_cp:stop(Client).
@@ -897,8 +897,7 @@ wait_for_stanza(Client) ->
 
 ack_body(Body, Rid) ->
     Attrs = Body#xmlel.attrs,
-    Ack = {<<"ack">>, integer_to_binary(Rid)},
-    NewAttrs = lists:keystore(<<"ack">>, 1, Attrs, Ack),
+    NewAttrs = Attrs#{<<"ack">> => integer_to_binary(Rid)},
     Body#xmlel{attrs = NewAttrs}.
 
 set_client_acks(SessionPid, Enabled) ->

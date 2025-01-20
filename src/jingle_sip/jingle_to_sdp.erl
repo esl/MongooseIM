@@ -205,37 +205,35 @@ parse_transport_child(#xmlel{name = <<"fingerprint">>} = FingerprintEl, Transpor
     Transport#{fingerprint => {Hash, Setup, Fingerprint}};
 parse_transport_child(#xmlel{name = <<"candidate">>, attrs = Attrs},
                       #{candidates := Candidates} = Transport) ->
-    NewCandidate = lists:foldl(fun parse_candidate_attr/2, #{}, Attrs),
+    NewCandidate = maps:fold(fun parse_candidate_attr/3, #{}, Attrs),
     Transport#{candidates := [NewCandidate | Candidates]};
 parse_transport_child(_, Transport) ->
     Transport.
 
--spec parse_candidate_attr({binary(), any()}, map()) -> map().
-parse_candidate_attr({<<"foundation">>, Val}, Map) ->
+-spec parse_candidate_attr(binary(), any(), map()) -> map().
+parse_candidate_attr(<<"foundation">>, Val, Map) ->
     Map#{foundation => Val};
-parse_candidate_attr({<<"component">>, Val}, Map) ->
-    Map#{component => Val};
-parse_candidate_attr({<<"generation">>, Val}, Map) ->
+parse_candidate_attr(<<"component">>, Val, Map) ->
     Map#{generation => Val};
-parse_candidate_attr({<<"id">>, Val}, Map) ->
+parse_candidate_attr(<<"id">>, Val, Map) ->
     Map#{id => Val};
-parse_candidate_attr({<<"ip">>, Val}, Map) ->
+parse_candidate_attr(<<"ip">>, Val, Map) ->
     Map#{ip => Val};
-parse_candidate_attr({<<"network">>, Val}, Map) ->
+parse_candidate_attr(<<"network">>, Val, Map) ->
     Map#{network => Val};
-parse_candidate_attr({<<"port">>, Val}, Map) ->
+parse_candidate_attr(<<"port">>, Val, Map) ->
     Map#{port => Val};
-parse_candidate_attr({<<"priority">>, Val}, Map) ->
+parse_candidate_attr(<<"priority">>, Val, Map) ->
     Map#{priority => Val};
-parse_candidate_attr({<<"protocol">>, Val}, Map) ->
+parse_candidate_attr(<<"protocol">>, Val, Map) ->
     Map#{protocol => Val};
-parse_candidate_attr({<<"rel-addr">>, Val}, Map) ->
+parse_candidate_attr(<<"rel-addr">>, Val, Map) ->
     Map#{raddr => Val};
-parse_candidate_attr({<<"rel-port">>, Val}, Map) ->
+parse_candidate_attr(<<"rel-port">>, Val, Map) ->
     Map#{rport => Val};
-parse_candidate_attr({<<"tcptype">>, Val}, Map) ->
+parse_candidate_attr(<<"tcptype">>, Val, Map) ->
     Map#{tcptype => Val};
-parse_candidate_attr({<<"type">>, Val}, Map) ->
+parse_candidate_attr(<<"type">>, Val, Map) ->
     Map#{type => Val};
-parse_candidate_attr(_, Map) ->
+parse_candidate_attr(_, _, Map) ->
     Map.

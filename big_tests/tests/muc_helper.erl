@@ -203,9 +203,10 @@ wait_for_process_down(Pid) ->
     end.
 
 stanza_muc_enter_room(Room, Nick) ->
+    Attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>},
     stanza_to_room(
         escalus_stanza:presence(  <<"available">>,
-                                [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+                                [#xmlel{ name = <<"x">>, attrs = Attrs}]),
         Room, Nick).
 
 stanza_default_muc_room(Room, Nick) ->

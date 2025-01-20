@@ -94,7 +94,7 @@ client_sets_stream_from_server_answers_with_to(Config) ->
     [StreamStartAnswer, _StreamFeatures] = escalus_client:wait_for_stanzas(Alice, 2, 500),
     #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs} = StreamStartAnswer,
     FromClient = jid:from_binary(escalus_utils:get_jid(Alice)),
-    {_, FromServerBin} = lists:keyfind(<<"to">>, 1, Attrs),
+    FromServerBin = maps:get(<<"to">>, Attrs),
     FromServer = jid:from_binary(FromServerBin),
     ?assert(jid:are_equal(FromClient, FromServer)),
     escalus_connection:stop(Alice).
@@ -141,7 +141,7 @@ too_big_stanza_is_rejected(Config) ->
 too_big_opening_tag_is_rejected(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec, []),
-    BigAttrs = [{<<"bigattr">>,  binary:encode_hex(crypto:strong_rand_bytes(?MAX_STANZA_SIZE))}],
+    BigAttrs = #{<<"bigattr">> => binary:encode_hex(crypto:strong_rand_bytes(?MAX_STANZA_SIZE))},
     escalus_client:send(Alice, #xmlel{name = <<"stream:stream">>, attrs = BigAttrs}),
     escalus:assert(is_stream_start, escalus_client:wait_for_stanza(Alice)),
     escalus:assert(is_stream_error, [<<"xml-not-well-formed">>, <<>>],
@@ -202,12 +202,12 @@ stream_start(Client) ->
 
 stream_start(Server, From) ->
     #xmlstreamstart{name = <<"stream:stream">>,
-                    attrs = [{<<"to">>, Server},
-                             {<<"from">>, From},
-                             {<<"version">>, <<"1.0">>},
-                             {<<"xml:lang">>, <<"en">>},
-                             {<<"xmlns">>, <<"jabber:client">>},
-                             {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>}]}.
+                    attrs = #{<<"to">> => Server,
+                             <<"from">> => From,
+                             <<"version">> => <<"1.0">>,
+                             <<"xml:lang">> => <<"en">>,
+                             <<"xmlns">> => <<"jabber:client">>,
+                             <<"xmlns:stream">> => <<"http://etherx.jabber.org/streams">>}}.
 
 save_c2s_listener(Config) ->
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
