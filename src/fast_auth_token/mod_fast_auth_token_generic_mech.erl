@@ -41,8 +41,6 @@ mech_step(#state{creds = Creds, agent_id = AgentId, mechanism = Mech}, Serialize
     LUser = jid:nodeprep(Username),
     case mod_fast_auth_token:read_tokens(HostType, LServer, LUser, AgentId) of
         {ok, TokenData} ->
-            %% TODO remove this log when done coding
-            ?LOG_ERROR(#{what => mech_step, token_data => TokenData}),
             CBData = <<>>,
             case handle_auth(TokenData, InitiatorHashedToken, CBData, Mech) of
                 {true, TokenSlot} ->

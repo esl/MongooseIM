@@ -149,8 +149,6 @@ mechanisms() ->
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
-    %% TODO remove this log
-    ?LOG_ERROR(#{what => sasl2_startttt, elleee => El, sasla_acc => SaslAcc}),
     Req = exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}]),
     Fast = exml_query:path(El, [{element_with_ns, <<"fast">>, ?NS_FAST}]),
     AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
@@ -168,9 +166,6 @@ format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
 -spec sasl2_success(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType}) ->
-    %% TODO remove this log
-    ?LOG_ERROR(#{what => sasl2_success_debug, sasl_acc => format_term(SaslAcc), c2s_state_data => format_term(C2SStateData),
-                 creds => format_term(Creds)}),
     #{c2s_data := C2SData} = C2SStateData,
     #jid{luser = LUser, lserver = LServer} = mongoose_c2s:get_jid(C2SData),
     case check_if_should_add_token(HostType, SaslAcc, Creds) of
@@ -248,12 +243,10 @@ maybe_auto_rotate(HostType, Creds) ->
     %% Creds could contain data from mod_fast_auth_token_generic_mech
     SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
     DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
-    ?LOG_ERROR(#{what => maybe_auto_rotate, slot => SlotUsed, data_used => format_term(DataUsed)}),
     case user_used_token_to_login(SlotUsed) of
         true ->
             case is_used_token_about_to_expire(HostType, SlotUsed, DataUsed) of
                 true ->
-?LOG_ERROR(#{what => rotate_rotate}),
                     {ok, data_used_to_mech_type(SlotUsed, DataUsed), auto_rotate};
                 false ->
                     skip
@@ -275,7 +268,6 @@ is_timestamp_about_to_expire(HostType, Timestamp) ->
     Now = utc_now_as_seconds(),
     TimeBeforeRotate = get_time_to_rotate_before_expire_seconds(HostType),
     SecondsBeforeExpire = Timestamp - Now,
-?LOG_ERROR(#{what => is_timestamp_about_to_expire, seconds_before => SecondsBeforeExpire, befor_rot => TimeBeforeRotate}),
     SecondsBeforeExpire =< TimeBeforeRotate.
 
 -spec user_used_token_to_login(token_slot() | undefined) -> boolean().

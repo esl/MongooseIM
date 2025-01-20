@@ -16,8 +16,7 @@ init(HostType, _Opts) ->
     prepare_upsert(HostType),
     prepare_upsert_and_set_current(HostType),
     prepare(fast_select, fast_auth_token,
-            [current_token, current_expire, current_count, current_mech_id,
-             new_token, new_expire, new_count, new_mech_id],
+            [server, username, user_agent_id],
             <<"SELECT "
                   "current_token, current_expire, current_count, current_mech_id, "
                   "new_token, new_expire, new_count, new_mech_id "
