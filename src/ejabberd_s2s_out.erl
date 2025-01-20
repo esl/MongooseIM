@@ -67,6 +67,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 
 -record(state, {socket,
                 streamid                :: ejabberd_s2s:stream_id() | undefined,
@@ -312,13 +313,12 @@ open_socket2(HostType, Type, Addr, Port) ->
 %%----------------------------------------------------------------------
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_stream({xmlstreamstart, Name, Attrs}, StateData0) ->
-    StreamStart = #xmlel{name = Name, attrs = Attrs},
-    RemoteStreamID = exml_query:attr(StreamStart, <<"id">>, <<>>),
+wait_for_stream(#xmlstreamstart{attrs = Attrs}, StateData0) ->
+    RemoteStreamID = maps:get(<<"id">>, Attrs, <<>>),
     StateData = StateData0#state{remote_streamid = RemoteStreamID},
-    case {exml_query:attr(StreamStart, <<"xmlns">>, <<>>),
-          exml_query:attr(StreamStart, <<"xmlns:db">>, <<>>),
-          exml_query:attr(StreamStart, <<"version">>, <<>>) =:= <<"1.0">>} of
+    case {maps:get(<<"xmlns">>, Attrs, <<>>),
+          maps:get(<<"xmlns:db">>, Attrs, <<>>),
+          maps:get(<<"version">>, Attrs, <<>>) =:= <<"1.0">>} of
         {<<"jabber:server">>, <<"jabber:server:dialback">>, false} ->
             send_dialback_request(StateData);
         {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
@@ -341,11 +341,11 @@ wait_for_stream({xmlstreamstart, Name, Attrs}, StateData0) ->
                         myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, StateData}
     end;
-wait_for_stream({xmlstreamerror, _}, StateData) ->
+wait_for_stream(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_stream, xmlstreamerror, StateData);
-wait_for_stream({xmlstreamend, _Name}, StateData) ->
+wait_for_stream(#xmlstreamend{}, StateData) ->
     ?CLOSE_GENERIC(wait_for_stream, xmlstreamend, StateData);
 wait_for_stream(timeout, StateData) ->
     ?CLOSE_GENERIC(wait_for_stream, timeout, StateData);
@@ -393,9 +393,9 @@ wait_for_validation({xmlstreamelement, El}, StateData = #state{from_to = FromTo}
         false ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
     end;
-wait_for_validation({xmlstreamend, _Name}, StateData) ->
+wait_for_validation(#xmlstreamend{}, StateData) ->
     ?CLOSE_GENERIC(wait_for_validation, xmlstreamend, StateData);
-wait_for_validation({xmlstreamerror, _}, StateData) ->
+wait_for_validation(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_validation, xmlstreamerror, StateData);
@@ -440,9 +440,9 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             send_text(StateData, ?STREAM_TRAILER),
             ?CLOSE_GENERIC(wait_for_features, bad_format, El, StateData)
     end;
-wait_for_features({xmlstreamend, _Name}, StateData) ->
+wait_for_features(#xmlstreamend{}, StateData) ->
     ?CLOSE_GENERIC(wait_for_features, xmlstreamend, StateData);
-wait_for_features({xmlstreamerror, _}, StateData) ->
+wait_for_features(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_features, xmlstreamerror, StateData);
@@ -493,9 +493,9 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
             send_text(StateData, ?STREAM_TRAILER),
             ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
-wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
+wait_for_auth_result(#xmlstreamend{}, StateData) ->
     ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamend, StateData);
-wait_for_auth_result({xmlstreamerror, _}, StateData) ->
+wait_for_auth_result(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamerror, StateData);
@@ -531,9 +531,9 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
         _ ->
             ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
-wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
+wait_for_starttls_proceed(#xmlstreamend{}, StateData) ->
     ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamend, StateData);
-wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
+wait_for_starttls_proceed(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamerror, StateData);
@@ -546,9 +546,9 @@ wait_for_starttls_proceed(closed, StateData) ->
 -spec reopen_socket(ejabberd:xml_stream_item(), state()) -> fsm_return().
 reopen_socket({xmlstreamelement, _El}, StateData) ->
     {next_state, reopen_socket, StateData, ?FSMTIMEOUT};
-reopen_socket({xmlstreamend, _Name}, StateData) ->
+reopen_socket(#xmlstreamend{}, StateData) ->
     {next_state, reopen_socket, StateData, ?FSMTIMEOUT};
-reopen_socket({xmlstreamerror, _}, StateData) ->
+reopen_socket(#xmlstreamerror{}, StateData) ->
     {next_state, reopen_socket, StateData, ?FSMTIMEOUT};
 reopen_socket(timeout, StateData) ->
     ?CLOSE_GENERIC(reopen_socket, timeout, StateData);
@@ -583,9 +583,9 @@ stream_established({xmlstreamelement, El}, StateData = #state{from_to = FromTo})
             ok
     end,
     {next_state, stream_established, StateData};
-stream_established({xmlstreamend, _Name}, StateData) ->
+stream_established(#xmlstreamend{}, StateData) ->
     ?CLOSE_GENERIC(stream_established, xmlstreamend, StateData);
-stream_established({xmlstreamerror, _}, StateData) ->
+stream_established(#xmlstreamerror{}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(stream_established, xmlstreamerror, StateData);
@@ -1123,8 +1123,8 @@ handle_parsed_features({false, false, _, StateData = #state{authenticated = true
 handle_parsed_features({true, _, _, StateData = #state{try_auth = true, is_registered = true}}) ->
     send_element(StateData,
                  #xmlel{name = <<"auth">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL},
-                                 {<<"mechanism">>, <<"EXTERNAL">>}],
+                        attrs = #{<<"xmlns">> => ?NS_SASL,
+                                  <<"mechanism">> => <<"EXTERNAL">>},
                         children =
                             [#xmlcdata{content = base64:encode(
                                                    StateData#state.myname)}]}),
@@ -1133,7 +1133,7 @@ handle_parsed_features({true, _, _, StateData = #state{try_auth = true, is_regis
 handle_parsed_features({_, true, _, StateData = #state{tls = true, tls_enabled = false}}) ->
     send_element(StateData,
                  #xmlel{name = <<"starttls">>,
-                        attrs = [{<<"xmlns">>, ?NS_TLS}]}),
+                        attrs = #{<<"xmlns">> => ?NS_TLS}}),
     {next_state, wait_for_starttls_proceed, StateData,
      ?FSMTIMEOUT};
 handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->

@@ -18,6 +18,7 @@
 -include_lib("kernel/include/logger.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -define(LOGFILE, "log/mongooseim.log").
 -define(HID, json_log).
@@ -128,6 +129,7 @@ acc_is_formatted(Config) ->
 
     Body = <<"JSON-match-this-acc">>,
     Acc = example_acc(Body),
+    #{stanza := #{ element := Elem}} = Acc,
 
     ?LOG_INFO(#{what => routing_result, acc => Acc, routing_modules => [mongoose_router_1, mongoose_router_2],
                 routing_result => [{{inside, two_tuples}}, {inside, one_tuple}]}),
@@ -154,12 +156,13 @@ acc_is_formatted(Config) ->
       <<"from_jid">> := <<"usera@localhost">>,
       <<"origin_pid">> := Pid,
       % format_packet_filter/2 changes the packet
-      <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
+      <<"packet">> := Packet,
       <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
       <<"routing_result">> := [<<"{{inside,two_tuples}}">>,<<"{inside,one_tuple}">>],
       <<"to_jid">> := <<"userb@localhost">>,
       <<"what">> := <<"routing_result">>} = Decoded,
 
+    ?assertEqual({ok, Elem}, exml:parse(Packet)),
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
     Pid = unicode:characters_to_binary(pid_to_list(self())).
@@ -172,6 +175,7 @@ acc_is_preserved(Config) ->
 
     Body = <<"JSON-match-this-preserve-acc">>,
     Acc = example_acc(Body),
+    #{stanza := #{ element := Elem}} = Acc,
 
     ?LOG_INFO(#{what => routing_result, acc => Acc, routing_modules => [mongoose_router_1, mongoose_router_2],
                 routing_result => [{{inside, two_tuples}}, {inside, one_tuple}]}),
@@ -199,15 +203,15 @@ acc_is_preserved(Config) ->
       <<"from_jid">> := <<"usera@localhost">>,
       <<"origin_pid">> := Pid,
       % format_packet_filter/2 changes the packet
-      <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-preserve-acc</body></message>">>,
+      <<"packet">> := Packet,
       <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
       <<"routing_result">> := [<<"{{inside,two_tuples}}">>,<<"{inside,one_tuple}">>],
       <<"to_jid">> := <<"userb@localhost">>,
       <<"what">> := <<"routing_result">>} = Decoded,
-
     % This is not ideal but that's how the filter behaves
     A = iolist_to_binary(io_lib:format("~0p", [Acc])),
 
+    ?assertEqual({ok, Elem}, exml:parse(Packet)),
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
     Pid = unicode:characters_to_binary(pid_to_list(self())).
@@ -346,9 +350,11 @@ large_event_dont_crash_formatter(_Config) ->
 %%
 
 example_acc(Body) ->
-    Elem = {xmlel, <<"message">>,
-            [{<<"type">>, <<"chat">>}, {<<"id">>, <<"1111">>}],
-            [{xmlel, <<"body">>, [], [{xmlcdata, Body}]}]},
+    Elem = #xmlel{name = <<"message">>,
+                  attrs = #{<<"type">> => <<"chat">>,
+                            <<"id">> => <<"1111">>},
+                  children = [#xmlel{name = <<"body">>,
+                                     children = [#xmlcdata{content = Body}]}]},
     #{lserver => <<"localhost">>,
       mongoose_acc => true,
       non_strippable => [],

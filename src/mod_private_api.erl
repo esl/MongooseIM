@@ -31,17 +31,17 @@ private_set(#jid{lserver = Domain} = JID, Xml) ->
 
 do_private_get(JID, Element, Ns) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(JID#jid.lserver),
-    Xml = #xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]},
+    Xml = #xmlel{ name = Element, attrs = #{<<"xmlns">> => Ns}},
     {_, ResIq} = send_iq(get, Xml, JID, HostType),
     [#xmlel{ name = <<"query">>,
-             attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
+             attrs = #{<<"xmlns">> := ?NS_PRIVATE},
              children = [SubEl] }] = ResIq#iq.sub_el,
     {ok, SubEl}.
 
 send_iq(Method, Xml, From = To = _JID, HostType) ->
     IQ = {iq, <<>>, Method, ?NS_PRIVATE, <<>>,
           #xmlel{ name = <<"query">>,
-                  attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
+                  attrs = #{<<"xmlns">> => ?NS_PRIVATE},
                   children = [Xml] } },
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => From,

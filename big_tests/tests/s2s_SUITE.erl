@@ -442,7 +442,7 @@ s2s_start_stream(Conn = #client{props = Props}, []) ->
     StreamStartRep = s2s_start_stream_and_wait_for_response(Conn),
 
     #xmlstreamstart{attrs = Attrs} = StreamStartRep,
-    Id = proplists:get_value(<<"id">>, Attrs),
+    Id = maps:get(<<"id">>, Attrs, undefined),
 
     escalus_session:stream_features(Conn#client{props = [{sid, Id} | Props]}, []).
 
@@ -452,9 +452,10 @@ s2s_start_stream_and_wait_for_response(Conn = #client{props = Props}) ->
     escalus_connection:get_stanza(Conn, wait_for_stream).
 
 s2s_stream_start_stanza(Props, F) ->
-    Attrs = (stream_start_attrs())#{<<"to">> => proplists:get_value(to_server, Props),
-                                    <<"from">> => proplists:get_value(from_server, Props)},
-    #xmlstreamstart{name = <<"stream:stream">>, attrs = maps:to_list(F(Attrs))}.
+    Attrs0 = stream_start_attrs(),
+    Attrs = Attrs0#{<<"to">> => proplists:get_value(to_server, Props),
+                    <<"from">> => proplists:get_value(from_server, Props)},
+    #xmlstreamstart{name = <<"stream:stream">>, attrs = F(Attrs)}.
 
 stream_start_attrs() ->
     #{<<"xmlns">> => <<"jabber:server">>,

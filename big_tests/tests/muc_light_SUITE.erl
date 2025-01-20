@@ -430,7 +430,7 @@ disco_rooms_rsm(Config) ->
             ProperJID = exml_query:attr(Item, <<"jid">>),
 
             RSM = #xmlel{ name = <<"set">>,
-                          attrs = [{<<"xmlns">>, ?NS_RSM}],
+                          attrs = #{<<"xmlns">> => ?NS_RSM},
                           children = [ #xmlel{ name = <<"max">>,
                                                children = [#xmlcdata{ content = <<"10">> }] },
                                        #xmlel{ name = <<"before">> } ]  },
@@ -446,7 +446,7 @@ disco_rooms_rsm(Config) ->
             BadAfter = #xmlel{ name = <<"after">>,
                                children = [#xmlcdata{ content = <<"oops@muclight.localhost">> }] },
             RSM2 = #xmlel{ name = <<"set">>,
-                          attrs = [{<<"xmlns">>, ?NS_RSM}],
+                          attrs = #{<<"xmlns">> => ?NS_RSM},
                           children = [ #xmlel{ name = <<"max">>,
                                                children = [#xmlcdata{ content = <<"10">> }] },
                                        BadAfter ]  },
@@ -1056,7 +1056,7 @@ verify_blocklist(Query, ProperBlocklist) ->
     BlockedRooms = exml_query:subelements(Query, <<"room">>),
     BlockedUsers = exml_query:subelements(Query, <<"user">>),
     BlockedItems = [{list_to_atom(binary_to_list(What)), list_to_atom(binary_to_list(Action)), Who}
-                    || #xmlel{name = What, attrs = [{<<"action">>, Action}],
+                    || #xmlel{name = What, attrs = #{<<"action">> := Action},
                               children = [#xmlcdata{ content = Who }]}
                        <- BlockedRooms ++ BlockedUsers],
     ProperBlocklistLen = length(ProperBlocklist),

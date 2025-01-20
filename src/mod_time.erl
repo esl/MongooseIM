@@ -52,11 +52,11 @@ process_local_iq(Acc, _From, _To, #iq{type = get} = IQ, _Extra) ->
     R = IQ#iq{type = result,
           sub_el =
           [#xmlel{name = <<"time">>,
-                  attrs = [{<<"xmlns">>, ?NS_TIME}],
+                  attrs = #{<<"xmlns">> => ?NS_TIME},
                   children =
-                  [#xmlel{name = <<"tzo">>, attrs = [],
+                  [#xmlel{name = <<"tzo">>,
                           children = [#xmlcdata{content = list_to_binary(TZODiff)}]},
-                   #xmlel{name = <<"utc">>, attrs = [],
+                   #xmlel{name = <<"utc">>,
                           children =
                           [#xmlcdata{content = list_to_binary(UTC)}]}]}]},
     {Acc, R}.

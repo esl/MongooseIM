@@ -56,11 +56,9 @@ encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
     FromNick = jid:to_binary(US),
     Aff = get_sender_aff(AffUsers, US),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomBareJid, FromNick),
-    Attrs = [
-             {<<"id">>, Msg#msg.id},
-             {<<"type">>, <<"groupchat">>},
-             {<<"from">>, RoomBin}
-            ],
+    Attrs = #{ <<"id">> => Msg#msg.id,
+               <<"type">> => <<"groupchat">>,
+               <<"from">> => RoomBin },
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
     TS = mongoose_acc:timestamp(Acc),
     EventData = #{from_nick => FromNick,
@@ -113,23 +111,20 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
 -spec decode_message(Packet :: exml:element()) ->
     {ok, muc_light_packet()} | {error, bad_request} | ignore.
 decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
-    decode_message_by_type(lists:keyfind(<<"type">>, 1, Attrs),
-                           lists:keyfind(<<"id">>, 1, Attrs), Children).
+    decode_message_by_type(Attrs, Children).
 
--spec decode_message_by_type(Type :: {binary(), binary()} | false,
-                             Id :: {binary(), binary()} | false,
-                             Children :: [jlib:xmlch()]) ->
+-spec decode_message_by_type(exml:attrs(), Children :: [jlib:xmlch()]) ->
     {ok, msg()} | {error, bad_request} | ignore.
-decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
-    {ok, #msg{ children = Children, id = ensure_id(Id) }};
-decode_message_by_type({_, <<"error">>}, _, _) ->
+decode_message_by_type(#{<<"type">> := <<"groupchat">>} = Attrs, Children) ->
+    {ok, #msg{ children = Children, id = ensure_id(Attrs) }};
+decode_message_by_type(#{<<"type">> := <<"error">>}, _) ->
     ignore;
-decode_message_by_type(_, _, _) ->
+decode_message_by_type(_, _) ->
     {error, bad_request}.
 
--spec ensure_id(Id :: {binary(), binary()} | false) -> binary().
-ensure_id(false) -> mongoose_bin:gen_from_timestamp();
-ensure_id({_, Id}) -> Id.
+-spec ensure_id(exml:attrs()) -> binary().
+ensure_id(#{<<"id">> := Id}) -> Id;
+ensure_id(_) -> mongoose_bin:gen_from_timestamp().
 
 %%====================================================================
 %% IQ decoding
@@ -229,7 +224,7 @@ parse_aff_users([], AffUsersAcc) ->
     {ok, AffUsersAcc};
 parse_aff_users([#xmlcdata{} | RItemsEls], AffUsersAcc) ->
     parse_aff_users(RItemsEls, AffUsersAcc);
-parse_aff_users([#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}],
+parse_aff_users([#xmlel{ name = <<"user">>, attrs = #{<<"affiliation">> := AffBin},
                                   children = [ #xmlcdata{ content = JIDBin } ] } | RItemsEls],
                           AffUsersAcc) ->
     #jid{} = JID = jid:from_binary(JIDBin),
@@ -246,7 +241,7 @@ parse_blocking_list(ItemsEls) ->
     {ok, [blocking_item()]} | {error, bad_request}.
 parse_blocking_list([], ItemsAcc) ->
     {ok, ItemsAcc};
-parse_blocking_list([#xmlel{ name = WhatBin, attrs = [{<<"action">>, ActionBin}],
+parse_blocking_list([#xmlel{ name = WhatBin, attrs = #{<<"action">> := ActionBin},
                              children = [ #xmlcdata{ content = JIDBin } ] } | RItemsEls],
                           ItemsAcc) ->
     #jid{} = JID = jid:from_binary(JIDBin),
@@ -270,9 +265,9 @@ encode_iq({get, #disco_info{ id = ID }}, Sender, RoomJID, _RoomBin, _HandleFun, 
 encode_iq({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
           _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     DiscoEls = [ #xmlel{ name = <<"item">>,
-                         attrs = [{<<"jid">>, <<RoomU/binary, $@, RoomS/binary>>},
-                                  {<<"name">>, RoomName},
-                                  {<<"version">>, RoomVersion}] }
+                         attrs = #{<<"jid">> => <<RoomU/binary, $@, RoomS/binary>>,
+                                   <<"name">> => RoomName,
+                                   <<"version">> => RoomVersion} }
                  || {{RoomU, RoomS}, RoomName, RoomVersion} <- Rooms ],
     {reply, ?NS_DISCO_ITEMS, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
 encode_iq({get, #config{ prev_version = SameVersion, version = SameVersion, id = ID }},
@@ -306,11 +301,9 @@ encode_iq({get, #info{ version = Version } = Info},
     {reply, ?NS_MUC_LIGHT_INFO, InfoEls, Info#info.id};
 encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
           _Sender, RoomJID, RoomBin, HandleFun, Acc) ->
-    Attrs = [
-             {<<"id">>, Affs#affiliations.id},
-             {<<"type">>, <<"groupchat">>},
-             {<<"from">>, RoomBin}
-            ],
+    Attrs = #{<<"id">> => Affs#affiliations.id,
+              <<"type">> => <<"groupchat">>,
+              <<"from">> => RoomBin},
 
     AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Affs#affiliations.aff_users ],
     VersionEl = kv_to_el(<<"version">>, Affs#affiliations.version),
@@ -337,11 +330,9 @@ encode_iq({set, #blocking{ id = ID }},
     {reply, ID};
 encode_iq({set, #create{} = Create, UniqueRequested},
           _Sender, RoomJID, RoomBin, HandleFun, Acc) ->
-    Attrs = [
-             {<<"id">>, Create#create.id},
-             {<<"type">>, <<"groupchat">>},
-             {<<"from">>, RoomBin}
-            ],
+    Attrs = #{<<"id">> => Create#create.id,
+              <<"type">> => <<"groupchat">>,
+              <<"from">> => RoomBin},
 
     VersionEl = kv_to_el(<<"version">>, Create#create.version),
     bcast_aff_messages(RoomJID, [], Create#create.aff_users, Attrs, VersionEl, [], HandleFun),
@@ -363,18 +354,16 @@ encode_iq({set, #create{} = Create, UniqueRequested},
     {reply, ResFromJID, ResFromBin, <<>>, undefined, Create#create.id};
 encode_iq({set, #destroy{ id = ID }, AffUsers},
           _Sender, RoomJID, RoomBin, HandleFun, _Acc) ->
-    Attrs = [
-             {<<"id">>, ID},
-             {<<"type">>, <<"groupchat">>},
-             {<<"from">>, RoomBin}
-            ],
+    Attrs = #{<<"id">> => ID,
+              <<"type">> => <<"groupchat">>,
+              <<"from">> => RoomBin},
 
     lists:foreach(
       fun({{U, S}, _}) ->
               NoneAffEnveloped = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                               [aff_user_to_el({{U, S}, none})]),
               DestroyEnveloped = [ #xmlel{ name = <<"x">>,
-                                           attrs = [{<<"xmlns">>, ?NS_MUC_LIGHT_DESTROY}] }
+                                           attrs = #{<<"xmlns">> => ?NS_MUC_LIGHT_DESTROY} }
                                    | NoneAffEnveloped ],
               msg_to_aff_user(RoomJID, U, S, Attrs, DestroyEnveloped, HandleFun)
       end, AffUsers),
@@ -396,11 +385,9 @@ encode_iq({set, #config{} = Config, AffUsers},
     {reply, Config#config.id}.
 
 encode_set_config(Config, RoomBin) ->
-    Attrs = [
-             {<<"id">>, Config#config.id},
-             {<<"type">>, <<"groupchat">>},
-             {<<"from">>, RoomBin}
-            ],
+    Attrs = #{<<"id">> => Config#config.id,
+              <<"type">> => <<"groupchat">>,
+              <<"from">> => RoomBin},
     ConfigEls = [ kv_to_el(ConfigField) || ConfigField <- Config#config.raw_config ],
     ConfigNotif = [ kv_to_el(<<"prev-version">>, Config#config.prev_version),
                     kv_to_el(<<"version">>, Config#config.version)
@@ -417,13 +404,13 @@ identity() ->
 -spec aff_user_to_el(aff_user()) -> exml:element().
 aff_user_to_el({User, Aff}) ->
     #xmlel{ name = <<"user">>,
-            attrs = [{<<"affiliation">>, mod_muc_light_utils:aff2b(Aff)}],
+            attrs = #{<<"affiliation">> => mod_muc_light_utils:aff2b(Aff)},
             children = [#xmlcdata{ content = jid:to_binary(User) }] }.
 
 -spec blocking_to_el(blocking_item()) -> exml:element().
 blocking_to_el({What, Action, Who}) ->
     #xmlel{ name = what2b(What),
-            attrs = [{<<"action">>, action2b(Action)}],
+            attrs = #{<<"action">> => action2b(Action)},
             children = [#xmlcdata{ content = jid:to_binary(Who) }] }.
 
 -spec kv_to_el({binary(), binary()}) -> exml:element().
@@ -436,18 +423,18 @@ kv_to_el(Key, Value) ->
 
 -spec msg_envelope(XMLNS :: binary(), Children :: [jlib:xmlch()]) -> [exml:element()].
 msg_envelope(XMLNS, Children) ->
-    [ #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, XMLNS}], children = Children },
+    [ #xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> => XMLNS}, children = Children },
       #xmlel{ name = <<"body">> } ].
 
 -spec inject_prev_version(IQChildren :: [jlib:xmlch()], PrevVersion :: binary()) -> [jlib:xmlch()].
-inject_prev_version([#xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_LIGHT_AFFILIATIONS}],
+inject_prev_version([#xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> := ?NS_MUC_LIGHT_AFFILIATIONS},
                              children = Items} = XEl | REls], PrevVersion) ->
     [XEl#xmlel{ children = [kv_to_el(<<"prev-version">>, PrevVersion) | Items] } | REls];
 inject_prev_version([El | REls], PrevVersion) ->
     [El | inject_prev_version(REls, PrevVersion)].
 
 -spec bcast_aff_messages(From :: jid:jid(), OldAffUsers :: aff_users(),
-                         NewAffUsers :: aff_users(), Attrs :: [{binary(), binary()}],
+                         NewAffUsers :: aff_users(), Attrs :: exml:attrs(),
                          VersionEl :: exml:element(), Children :: [jlib:xmlch()],
                          HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _, _) ->
@@ -471,19 +458,19 @@ bcast_aff_messages(From, OldAffUsers, [{{ToU, ToS}, _} = AffUser | RNewAffUsers]
     bcast_aff_messages(From, OldAffUsers, RNewAffUsers, Attrs, VersionEl, Children, HandleFun).
 
 -spec msg_to_leaving_user(From :: jid:jid(), User :: jid:simple_bare_jid(),
-                          Attrs :: [{binary(), binary()}],
+                          Attrs :: exml:attrs(),
                           HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 msg_to_leaving_user(From, {ToU, ToS} = User, Attrs, HandleFun) ->
     NotifForLeaving = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, [ aff_user_to_el({User, none}) ]),
     msg_to_aff_user(From, ToU, ToS, Attrs, NotifForLeaving, HandleFun).
 
 -spec msg_to_aff_user(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
-                      Attrs :: [{binary(), binary()}], Children :: [jlib:xmlch()],
+                      Attrs :: exml:attrs(), Children :: [jlib:xmlch()],
                       HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
     To = jid:make_noprep(ToU, ToS, <<>>),
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
-    Packet = #xmlel{ name = <<"message">>, attrs = [{<<"to">>, ToBin} | Attrs],
+    Packet = #xmlel{ name = <<"message">>, attrs = Attrs#{<<"to">> => ToBin},
                      children = Children },
     HandleFun(From, To, Packet).
 
@@ -497,12 +484,10 @@ jids_from_room_with_resource(RoomJID, Resource) ->
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
                      XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> exml:element().
 make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
-    Attrs = [
-             {<<"from">>, FromBin},
-             {<<"to">>, ToBin},
-             {<<"id">>, ID},
-             {<<"type">>, <<"result">>}
-            ],
+    Attrs = #{<<"from">> => FromBin,
+              <<"to">> => ToBin,
+              <<"id">> => ID,
+              <<"type">> => <<"result">>},
     Query = make_query_el(XMLNS, Els),
     #xmlel{ name = <<"iq">>, attrs = Attrs, children = Query }.
 
@@ -510,7 +495,7 @@ make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
 make_query_el(_, undefined) ->
     [];
 make_query_el(XMLNS, Els) ->
-    [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, XMLNS}], children = Els }].
+    [#xmlel{ name = <<"query">>, attrs = #{<<"xmlns">> => XMLNS}, children = Els }].
 
 %%====================================================================
 %% Common helpers and internal functions

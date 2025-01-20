@@ -470,74 +470,62 @@ get_blocklist(User) ->
 
 get_blocklist_stanza() ->
     Payload = #xmlel{name = <<"blocklist">>,
-        attrs=[{<<"xmlns">>, ?NS_BLOCKING}]},
+                     attrs=#{<<"xmlns">> => ?NS_BLOCKING}},
     #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, <<"get">>}],
-        children = [Payload]}.
+           attrs = #{<<"type">> => <<"get">>},
+           children = [Payload]}.
 
 block_users_stanza(UsersToBlock) ->
     Childs = [item_el(U) || U <- UsersToBlock],
     Payload = #xmlel{name = <<"block">>,
-        attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
-        children = Childs
-    },
-    #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, <<"set">>}],
-        children = [Payload]}.
+                     attrs=#{<<"xmlns">> => ?NS_BLOCKING},
+                     children = Childs},
+    set_iq(Payload).
 
 block_users_stanza_with_white_spaces(UsersToBlock) ->
     Childs = [item_el(U) || U <- UsersToBlock],
     % when client adds some white characters in blocking list
-    WhiteSpacedChilds = Childs ++ [{xmlcdata, "\n"}],
+    WhiteSpacedChilds = Childs ++ [#xmlcdata{content = "\n"}],
     Payload = #xmlel{name = <<"block">>,
-        attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
-        children = WhiteSpacedChilds
-    },
-    #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, <<"set">>}],
-        children = [Payload]}.
+                     attrs=#{<<"xmlns">> => ?NS_BLOCKING},
+                     children = WhiteSpacedChilds},
+    set_iq(Payload).
 
 
-%%block_user_stanza(UserToBlock) ->
-%%    Payload = #xmlel{name = <<"block">>,
-%%        attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
-%%        children = [item_el(UserToBlock)]
-%%    },
-%%    #xmlel{name = <<"iq">>,
-%%        attrs = [{<<"type">>, <<"set">>}],
-%%        children = Payload}.
+block_user_stanza(UserToBlock) ->
+   Payload = #xmlel{name = <<"block">>,
+                    attrs=#{<<"xmlns">> => ?NS_BLOCKING},
+                    children = [item_el(UserToBlock)]},
+   set_iq(Payload).
 
 unblock_user_stanza(UserToUnblock) ->
     Payload = #xmlel{name = <<"unblock">>,
-        attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
-        children = [item_el(UserToUnblock)]
-    },
-    #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, <<"set">>}],
-        children = [Payload]}.
+                     attrs=#{<<"xmlns">> => ?NS_BLOCKING},
+                     children = [item_el(UserToUnblock)]},
+    set_iq(Payload).
 
 unblock_users_stanza(UsersToBlock) ->
     Childs = [item_el(U) || U <- UsersToBlock],
     Payload = #xmlel{name = <<"unblock">>,
-        attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
-        children = Childs
-    },
-    #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, <<"set">>}],
-        children = [Payload]}.
+                     attrs=#{<<"xmlns">> => ?NS_BLOCKING},
+                     children = Childs},
+    set_iq(Payload).
 
 unblock_all_stanza() ->
     Payload = #xmlel{name = <<"unblock">>,
-        attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
+        attrs= #{<<"xmlns">> => ?NS_BLOCKING},
         children = []
     },
+    set_iq(Payload).
+
+set_iq(Payload) ->
     #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, <<"set">>}],
-        children = [Payload]}.
+           attrs = #{<<"type">> => <<"set">>},
+           children = [Payload]}.
 
 item_el(User) when is_binary(User) ->
     #xmlel{name = <<"item">>,
-        attrs = [{<<"jid">>, User}]}.
+        attrs = #{<<"jid">> => User}}.
 %%
 %% predicates
 %%
@@ -555,42 +543,40 @@ is_xep191_not_available(#xmlel{} = Stanza) ->
                 {attr, <<"xmlns">>}]).
 
 
-is_blocklist_result_empty(#xmlel{children = [#xmlel{name =Name,
-    attrs = Attrs,
-    children= Child}]} = Stanza) ->
+is_blocklist_result_empty(#xmlel{children = [Child]} = Stanza) ->
     true = escalus_pred:is_iq(Stanza),
-    <<"blocklist">> = Name,
-    {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
-    [] = Child,
+    #xmlel{name = <<"blocklist">>,
+           attrs = #{<<"xmlns">> := ?NS_BLOCKING},
+           children = []} = Child,
     true.
 
 blocklist_result_has(ExpectedUser, Stanza) ->
     true = escalus_pred:is_iq(Stanza),
     Blocklist = hd(Stanza#xmlel.children),
-    Attrs = Blocklist#xmlel.attrs,
+    #{<<"xmlns">> := ?NS_BLOCKING} = Blocklist#xmlel.attrs,
     Children = Blocklist#xmlel.children,
     <<"blocklist">> = Blocklist#xmlel.name,
-    {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
     true == lists:member(ExpectedUser, get_blocklist_items(Children)).
 
 is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
-    attrs = Attrs}]}=Stanza) ->
+                                                          attrs = Attrs}]}=Stanza) ->
     true = escalus_pred:is_iq_set(Stanza),
-    {<<"id">>, <<"push">>} = lists:keyfind(<<"id">>, 1, A),
-    {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
+    #{<<"xmlns">> := ?NS_BLOCKING} = Attrs,
+    #{<<"id">> := <<"push">>} = A,
     true.
 
 is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = []}]}=Stanza) ->
     is_xep191_push(Type, Stanza);
 is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = _}]}) ->
     false;
-is_xep191_push(Type, JIDs, #xmlel{attrs = _, children = [#xmlel{name = Type,
-    attrs = Attrs, children = Items}]}=Stanza) ->
+is_xep191_push(Type, JIDs, #xmlel{children = [#xmlel{name = Type,
+                                                     attrs = Attrs,
+                                                     children = Items}]}=Stanza) ->
     true = escalus_pred:is_iq_set(Stanza),
-    {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
+    #{<<"xmlns">> := ?NS_BLOCKING} = Attrs,
     F = fun(El) ->
-        #xmlel{name = <<"item">>, attrs =  [{<<"jid">>, Value}]} = El,
-        lists:member(Value, JIDs)
+            #xmlel{name = <<"item">>, attrs = #{<<"jid">> := Value}} = El,
+            lists:member(Value, JIDs)
         end,
     TrueList = lists:map(F, Items),
     lists:all(fun(El) -> El end, TrueList);
@@ -605,8 +591,7 @@ bare(C) ->  escalus_utils:jid_to_lower(escalus_client:short_jid(C)).
 
 get_blocklist_items(Items) ->
     lists:map(fun(#xmlel{name = <<"item">>, attrs=A}) ->
-        {_, R} = lists:keyfind(<<"jid">>, 1, A),
-        R
+                  maps:get(<<"jid">>, A)
               end, Items).
 
 user_blocks(Blocker, Blockees) when is_list(Blockees) ->

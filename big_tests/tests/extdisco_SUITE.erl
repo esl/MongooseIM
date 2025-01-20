@@ -324,33 +324,33 @@ remove_external_services(Config) ->
 request_external_services(To) ->
     escalus_stanza:iq(To, <<"get">>,
         [#xmlel{name = <<"services">>,
-                attrs = [{<<"xmlns">>, <<"urn:xmpp:extdisco:2">>}]}]).
+                attrs = #{<<"xmlns">> => <<"urn:xmpp:extdisco:2">>}}]).
 
 request_external_services_with_type(To, Type) ->
     escalus_stanza:iq(To, <<"get">>,
         [#xmlel{name = <<"services">>,
-                attrs = [{<<"xmlns">>, <<"urn:xmpp:extdisco:2">>},
-                         {<<"type">>, Type}]}]).
+                attrs = #{<<"xmlns">> => <<"urn:xmpp:extdisco:2">>,
+                          <<"type">> => Type}}]).
 
 request_external_services_credentials(To, Type, Host) ->
     escalus_stanza:iq(To, <<"get">>,
         [#xmlel{name = <<"credentials">>,
-                attrs = [{<<"xmlns">>, <<"urn:xmpp:extdisco:2">>}],
+                attrs = #{<<"xmlns">> => <<"urn:xmpp:extdisco:2">>},
                 children = [#xmlel{name = <<"service">>,
-                                   attrs = [{<<"host">>, Host},
-                                            {<<"type">>, Type}]}]}]).
+                                   attrs = #{<<"host">> => Host,
+                                             <<"type">> => Type}}]}]).
 
 request_external_services_credentials_host_only(To, Host) ->
     escalus_stanza:iq(To, <<"get">>,
         [#xmlel{name = <<"credentials">>,
-                attrs = [{<<"xmlns">>, <<"urn:xmpp:extdisco:2">>}],
+                attrs = #{<<"xmlns">> => <<"urn:xmpp:extdisco:2">>},
                 children = [#xmlel{name = <<"service">>,
-                                   attrs = [{<<"host">>, Host}]}]}]).
+                                   attrs = #{<<"host">> => Host}}]}]).
 
 request_external_services_incorrect(To) ->
     escalus_stanza:iq(To, <<"get">>,
         [#xmlel{name = <<"incorrect">>,
-                attrs = [{<<"xmlns">>, <<"urn:xmpp:extdisco:2">>}]}]).
+                attrs = #{<<"xmlns">> => <<"urn:xmpp:extdisco:2">>}}]).
 
 get_service_element(Result) ->
     Services = exml_query:subelement_with_ns(Result, ?NS_EXTDISCO),

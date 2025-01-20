@@ -197,8 +197,10 @@ caps_stream_features(Acc, #{lserver := LServer}, #{host_type := HostType}) ->
             Acc;
         Hash ->
             [#xmlel{name = <<"c">>,
-                    attrs = [{<<"xmlns">>, ?NS_CAPS}, {<<"hash">>, <<"sha-1">>},
-                             {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
+                    attrs = #{<<"xmlns">> => ?NS_CAPS,
+                              <<"hash">> => <<"sha-1">>,
+                              <<"node">> => ?MONGOOSE_URI,
+                              <<"ver">> => Hash},
                     children = []}
              | Acc]
     end,
@@ -431,10 +433,8 @@ feature_request(Acc, LServer, From, Caps, [SubNode | Tail] = SubNodes) ->
                              sub_el =
                                  [#xmlel{name = <<"query">>,
                                          attrs =
-                                             [{<<"xmlns">>, ?NS_DISCO_INFO},
-                                              {<<"node">>,
-                                               <<Node/binary, "#",
-                                                 SubNode/binary>>}],
+                                             #{<<"xmlns">> => ?NS_DISCO_INFO,
+                                               <<"node">> => <<Node/binary, "#", SubNode/binary>>},
                                          children = []}]},
                     cache_tab:insert(caps_features, NodePair, os:system_time(second),
                                      caps_write_fun(HostType, NodePair, os:system_time(second))),

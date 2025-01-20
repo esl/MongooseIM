@@ -97,26 +97,26 @@ time_service_discovery(Config) ->
 
 time_request_stanza(Server, ID) ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"type">>, <<"get">>},
-                    {<<"id">>, ID}, {<<"to">>, Server}],
+           attrs = #{<<"type">> => <<"get">>,
+                     <<"id">> => ID,
+                     <<"to">> => Server},
            children = [#xmlel{name = <<"time">>,
-                              attrs = [{<<"xmlns">>, ?NS_TIME}]}]}.
+                              attrs = #{<<"xmlns">> => ?NS_TIME}}]}.
 
-check_ns(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
+check_ns(#xmlel{name = <<"iq">>, children = [Child]}) ->
     case Child of
-        #xmlel{name = <<"time">>, attrs = [{<<"xmlns">>, ?NS_TIME}], children = _} -> true;
+        #xmlel{name = <<"time">>, attrs = #{<<"xmlns">> := ?NS_TIME}, children = _} -> true;
         _ -> false
     end;
-
 check_ns(_) ->
     false.
 
-time_from_stanza(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
+time_from_stanza(#xmlel{name = <<"iq">>, children = [Child]}) ->
     case Child of
-        #xmlel{name = <<"time">>, attrs = [{<<"xmlns">>, ?NS_TIME}], children = Times} ->
+        #xmlel{name = <<"time">>, attrs = #{<<"xmlns">> := ?NS_TIME}, children = Times} ->
             case Times of
-                [#xmlel{name = <<"tzo">>, attrs = _, children = [#xmlcdata{content = Tzo}]},
-                 #xmlel{name = <<"utc">>, attrs = _, children = [#xmlcdata{content = Utc}]}] ->
+                [#xmlel{name = <<"tzo">>, children = [#xmlcdata{content = Tzo}]},
+                 #xmlel{name = <<"utc">>, children = [#xmlcdata{content = Utc}]}] ->
                     {Tzo, Utc};
                 _ -> no_timezone
             end;

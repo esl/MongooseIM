@@ -942,10 +942,10 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
 
 add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
     AffList = [ #xmlel{ name = <<"affiliation">>,
-                        attrs = [{<<"jid">>, escalus_utils:get_server(User)},
-                                 {<<"affiliation">>, <<"publish-only">>}] }
+                        attrs = #{<<"jid">> => escalus_utils:get_server(User),
+                                  <<"affiliation">> => <<"publish-only">>} }
               ],
-    Affiliations = #xmlel{ name = <<"affiliations">>, attrs = [{<<"node">>, NodeName}],
+    Affiliations = #xmlel{ name = <<"affiliations">>, attrs = #{<<"node">> => NodeName},
                            children = AffList },
     Id = base64:encode(crypto:strong_rand_bytes(5)),
     Stanza = escalus_pubsub_stanza:pubsub_owner_iq(<<"set">>, User, Id, NodeAddr, [Affiliations]),

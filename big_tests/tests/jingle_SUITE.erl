@@ -538,13 +538,13 @@ iq_set(I) ->
     iq_with_id(Stanza).
 
 iq_with_id(#xmlel{attrs = Attrs} = Stanza) ->
-    NewAttrs = lists:keystore(<<"id">>, 1, Attrs, {<<"id">>, uuid:uuid_to_string(uuid:get_v4(), binary_standard)}),
+    NewAttrs = Attrs#{<<"id">> => uuid:uuid_to_string(uuid:get_v4(), binary_standard)},
     Stanza#xmlel{attrs = NewAttrs}.
 
 iq_get(I) ->
     Stanza = #xmlel{name = <<"iq">>,
-                    attrs = [{<<"xmlns">>, <<"jabber:client">>},
-                             {<<"type">>, <<"get">>}],
+                    attrs = #{<<"xmlns">> => <<"jabber:client">>,
+                              <<"type">> => <<"get">>},
                     children = [I]},
     iq_with_id(Stanza).
 
@@ -554,9 +554,9 @@ jingle_element(Action, Children) ->
 
 jingle_element(SID, Action, Children) ->
     #xmlel{name = <<"jingle">>,
-           attrs = [{<<"action">>, Action},
-                    {<<"sid">>, SID},
-                    {<<"xmlns">>, <<"urn:xmpp:jingle:1">>}],
+           attrs = #{<<"action">> => Action,
+                     <<"sid">> => SID,
+                     <<"xmlns">> => <<"urn:xmpp:jingle:1">>},
            children = Children}.
 
 jingle_accept(InviteRequest) ->
@@ -591,6 +591,7 @@ jingle_source_update(InviteRequest) ->
                                                   content_group([Audio, Video])]),
     iq_set(I).
 
+%% TODO: this seems to be a dead code. remove it if it's not needed anymore
 jingle_transport_info(InviteRequest, Creator, Media, TransportAttrs) ->
     SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
     iq_set(jingle_element(SID, <<"transport-info">>, [trickle_ice_candidate(Creator, Media, TransportAttrs)])).
@@ -606,15 +607,16 @@ get_ice_candidates() ->
      [{<<"foundation">>, <<"1293499931">>}, {<<"component">>, <<"1">>}, {<<"protocol">>, <<"udp">>}, {<<"priority">>, <<"2122260223">>}, {<<"ip">>, <<"172.86.160.16">>}, {<<"port">>, <<"46515">>}, {<<"type">>, <<"host">>}, {<<"generation">>, <<"0">>}, {<<"network">>, <<"1">>}, {<<"id">>, <<"1.1947885zlx">>}]
     ].
 
+%% TODO: this seems to be a dead code. remove it if it's not needed anymore
 trickle_ice_candidate(Creator, Content, TransportAttrs) ->
     Candidate = #xmlel{name = <<"candidate">>,
                        attrs = TransportAttrs},
     Transport = #xmlel{name = <<"transport">>,
-                       attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:transports:ice-udp:1">>},
-                                {<<"ufrag">>, <<"7Gpn">>},
-                                {<<"pwd">>, <<"MUOzzatqL2qP7n1uRC7msD+c">>}],
+                       attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:transports:ice-udp:1">>,
+                                 <<"ufrag">> => <<"7Gpn">>,
+                                 <<"pwd">> => <<"MUOzzatqL2qP7n1uRC7msD+c">>},
                        children = [Candidate]},
     #xmlel{name = <<"content">>,
-           attrs = [{<<"name">>, Content},
-                    {<<"creator">>, Creator}],
+           attrs = #{<<"name">> => Content,
+                     <<"creator">> => Creator},
            children = [Transport]}.

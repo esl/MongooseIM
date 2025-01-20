@@ -52,11 +52,9 @@ encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
     Aff = get_sender_aff(AffUsers, US),
     FromNick = jid:to_bare_binary(Sender),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomBareJid, FromNick),
-    Attrs = [
-             {<<"id">>, Msg#msg.id},
-             {<<"type">>, <<"groupchat">>},
-             {<<"from">>, RoomBin}
-            ],
+    Attrs = #{<<"id">> => Msg#msg.id,
+              <<"type">> => <<"groupchat">>,
+              <<"from">> => RoomBin},
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
     TS = mongoose_acc:timestamp(Acc),
     EventData = #{from_nick => FromNick,
@@ -94,7 +92,7 @@ encode(OtherCase, Sender, RoomBareJid, HandleFun, Acc) ->
     mongoose_acc:t().
 encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, Acc) ->
     %% The only error case for valid presence is registration-required for room creation
-    X = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}] },
+    X = #xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC} },
     mod_muc_light_codec_backend:encode_error({error, registration_required}, [X], OrigFrom, OrigTo,
                                      OrigPacket, Acc);
 encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
@@ -107,25 +105,23 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
 -spec decode_message(Packet :: exml:element()) ->
     {ok, muc_light_packet()} | {error, bad_request} | ignore.
 decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
-    decode_message_by_type(lists:keyfind(<<"type">>, 1, Attrs),
-                           lists:keyfind(<<"id">>, 1, Attrs), Children).
+    decode_message_by_type(Attrs, Children).
 
--spec decode_message_by_type(Type :: {binary(), binary()} | false,
-                             Id :: {binary(), binary()} | false,
+-spec decode_message_by_type(exml:attrs(),
                              Children :: [jlib:xmlch()]) ->
     {ok, msg() | {set, mod_muc_light_room_config:kv()}} | {error, bad_request} | ignore.
-decode_message_by_type({_, <<"groupchat">>}, _, [#xmlel{ name = <<"subject">> } = SubjectEl]) ->
+decode_message_by_type(#{<<"type">> := <<"groupchat">>}, [#xmlel{ name = <<"subject">> } = SubjectEl]) ->
     {ok, {set, #config{ raw_config = [{<<"subject">>, exml_query:cdata(SubjectEl)}] }}};
-decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
-    {ok, #msg{ children = Children, id = ensure_id(Id) }};
-decode_message_by_type({_, <<"error">>}, _, _) ->
+decode_message_by_type(#{<<"type">> := <<"groupchat">>} = Attrs, Children) ->
+    {ok, #msg{ children = Children, id = ensure_id(Attrs)}};
+decode_message_by_type(#{<<"type">> := <<"error">>}, _) ->
     ignore;
-decode_message_by_type(_, _, _) ->
+decode_message_by_type(_, _) ->
     {error, bad_request}.
 
--spec ensure_id(Id :: {binary(), binary()} | false) -> binary().
-ensure_id(false) -> mongoose_bin:gen_from_timestamp();
-ensure_id({_, Id}) -> Id.
+-spec ensure_id(exml:attrs()) -> binary().
+ensure_id(#{<<"id">> := Id}) -> Id;
+ensure_id(_) -> mongoose_bin:gen_from_timestamp().
 
 %%====================================================================
 %% IQ decoding
@@ -165,7 +161,7 @@ decode_iq(_From, #iq{ xmlns = ?NS_PRIVACY, type = get, id = ID }) ->
     {ok, {get, #blocking{ id = ID }}};
 decode_iq(From, IQ = #iq{ xmlns = ?NS_PRIVACY, type = set,
                sub_el = #xmlel{ children = Lists }, id = ID }) ->
-    case lists:keyfind([{<<"name">>, ?NS_MUC_LIGHT}], #xmlel.attrs, Lists) of
+    case lists:keyfind(#{<<"name">> => ?NS_MUC_LIGHT}, #xmlel.attrs, Lists) of
         false ->
             ignore;
         List ->
@@ -256,8 +252,8 @@ encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, Acc) 
 encode_meta({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
           _RoomJID, _SenderJID, _HandleFun, _Acc) ->
     DiscoEls = [ #xmlel{ name = <<"item">>,
-                         attrs = [{<<"jid">>, <<RoomU/binary, $@, RoomS/binary>>},
-                                  {<<"name">>, RoomName}] }
+                         attrs = #{<<"jid">> => <<RoomU/binary, $@, RoomS/binary>>,
+                                   <<"name">> => RoomName}}
                  || {{RoomU, RoomS}, RoomName, _RoomVersion} <- Rooms ],
     {iq_reply, ?NS_DISCO_ITEMS, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
 encode_meta({get, #config{} = Config}, _RoomJID, _SenderJID, _HandleFun, _Acc) ->
@@ -281,7 +277,7 @@ encode_meta({get, #blocking{} = Blocking}, RoomJID, _SenderJID, _HandleFun, Acc)
     MUCHost = mongoose_subdomain_utils:get_fqdn(mod_muc_light:subdomain_pattern(HostType), ServerHost),
     BlockingEls = [ blocking_to_el(BlockingItem, MUCHost)
                     || BlockingItem <- Blocking#blocking.items ],
-    Blocklist = #xmlel{ name = <<"list">>, attrs = [{<<"name">>, ?NS_MUC_LIGHT}],
+    Blocklist = #xmlel{ name = <<"list">>, attrs = #{<<"name">> => ?NS_MUC_LIGHT},
                         children = BlockingEls },
     {iq_reply, ?NS_PRIVACY, [Blocklist], Blocking#blocking.id};
 encode_meta({set, #blocking{ id = ID }}, _RoomJID, _SenderJID, _HandleFun, _Acc) ->
@@ -290,13 +286,13 @@ encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, Ha
     [{{ToU, ToS}, CreatorAff}] = Create#create.aff_users,
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
     {From, FromBin} = jids_from_room_with_resource(RoomJID, ToBin),
-    Attrs = [{<<"from">>, FromBin}],
+    Attrs = #{<<"from">> => FromBin},
     {AffBin, RoleBin} = case CreatorAff of
                             owner -> {<<"owner">>, <<"moderator">>};
                             member -> {<<"member">>, <<"participant">>}
                         end,
     NotifEls = [ #xmlel{ name = <<"item">>,
-                         attrs = [{<<"affiliation">>, AffBin}, {<<"role">>, RoleBin}]},
+                         attrs = #{<<"affiliation">> => AffBin, <<"role">> => RoleBin}},
                  status(<<"110">>), status(<<"201">>) ],
     Children = envelope(?NS_MUC_USER, NotifEls),
 
@@ -306,11 +302,11 @@ encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _SenderJID, HandleFun
     lists:foreach(
       fun({{U, S}, _}) ->
               FromJID = jid:replace_resource(RoomJID, jid:to_binary({U, S, <<>>})),
-              Attrs = [{<<"from">>, jid:to_binary(FromJID)},
-                       {<<"type">>, <<"unavailable">>}],
+              Attrs = #{<<"from">> => jid:to_binary(FromJID),
+                        <<"type">> => <<"unavailable">>},
               Children = [ #xmlel{ name = <<"item">>,
-                                   attrs = [{<<"affiliation">>, <<"none">>},
-                                            {<<"role">>, <<"none">>}] },
+                                   attrs = #{<<"affiliation">> => <<"none">>,
+                                             <<"role">> => <<"none">>}},
                            #xmlel{ name = <<"destroy">> } ],
               send_to_aff_user(FromJID, U, S, <<"presence">>, Attrs,
                                envelope(?NS_MUC_USER, Children), HandleFun)
@@ -319,11 +315,9 @@ encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _SenderJID, HandleFun
     {iq_reply, ID};
 encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, AffUsers},
           RoomJID, _SenderJID, HandleFun, _Acc) ->
-    Attrs = [
-             {<<"id">>, ID},
-             {<<"type">>, <<"groupchat">>},
-             {<<"from">>, jid:to_binary(RoomJID)}
-            ],
+    Attrs = #{<<"id">> => ID,
+              <<"type">> => <<"groupchat">>,
+              <<"from">> => jid:to_binary(RoomJID)},
     SubjectEl = #xmlel{ name = <<"subject">>, children = [ #xmlcdata{ content = Subject } ] },
     lists:foreach(
       fun({{U, S}, _}) ->
@@ -331,9 +325,9 @@ encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, A
       end, AffUsers),
     noreply;
 encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun, _Acc) ->
-    Attrs = [{<<"id">>, Config#config.id},
-             {<<"from">>, jid:to_binary(RoomJID)},
-             {<<"type">>, <<"groupchat">>}],
+    Attrs = #{<<"id">> => Config#config.id,
+              <<"from">> => jid:to_binary(RoomJID),
+              <<"type">> => <<"groupchat">>},
     ConfigNotif = envelope(?NS_MUC_USER, [status(<<"104">>)]),
     lists:foreach(
       fun({{U, S}, _}) ->
@@ -351,15 +345,14 @@ identity() ->
 -spec aff_user_to_item(aff_user()) -> exml:element().
 aff_user_to_item({User, Aff}) ->
     UserBin = jid:to_binary(User),
-    {RoleBin, NickEl} = case Aff of
-                            owner -> {<<"moderator">>, [{<<"nick">>, UserBin}]};
-                            member -> {<<"participant">>, [{<<"nick">>, UserBin}]};
-                            none -> {<<"none">>, []}
+    Attrs = case Aff of
+                            owner -> #{<<"role">> => <<"moderator">>, <<"nick">> => UserBin};
+                            member -> #{<<"role">> => <<"participant">>, <<"nick">> => UserBin};
+                            none -> #{<<"role">> => <<"none">>}
                         end,
     #xmlel{ name = <<"item">>,
-            attrs = [{<<"affiliation">>, mod_muc_light_utils:aff2b(Aff)},
-                     {<<"jid">>, UserBin},
-                     {<<"role">>, RoleBin} | NickEl] }.
+            attrs = Attrs#{<<"affiliation">> => mod_muc_light_utils:aff2b(Aff),
+                           <<"jid">> => UserBin}}.
 
 -spec blocking_to_el(BlockingItem :: blocking_item(), Service :: binary()) -> exml:element().
 blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
@@ -369,16 +362,14 @@ blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
                 user -> <<Service/binary, $/, WhoBin/binary>>
             end,
     #xmlel{ name = <<"item">>,
-            attrs = [
-                     {<<"type">>, <<"jid">>},
-                     {<<"value">>, Value},
-                     {<<"action">>, action2b(Action)},
-                     {<<"order">>, <<"1">>}
-                    ] }.
+            attrs = #{<<"type">> => <<"jid">>,
+                      <<"value">> => Value,
+                      <<"action">> => action2b(Action),
+                      <<"order">> => <<"1">>}}.
 
 -spec envelope(XMLNS :: binary(), Children :: [jlib:xmlch()]) -> [jlib:xmlch()].
 envelope(XMLNS, Children) ->
-    [ #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, XMLNS}], children = Children } ].
+    [ #xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> => XMLNS}, children = Children } ].
 
 -spec bcast_aff_messages(Room :: jid:jid(), OldAffUsers :: aff_users(),
                          NewAffUsers :: aff_users(), SenderJID :: jid:jid(),
@@ -396,10 +387,10 @@ bcast_aff_messages(Room, [{{ToU, ToS} = User, _} | ROldAffUsers], [{User, _} | R
               ChangedUserBin = jid:to_binary({ChangedU, ChangedS, <<>>}),
               {From, FromBin} = jids_from_room_with_resource(Room,
                                                              ChangedUserBin),
-              Attrs0 = [{<<"from">>, FromBin}],
+              Attrs0 = #{<<"from">> => FromBin},
               ElToEnvelope0 = aff_user_to_item(ChangedAffUser),
               {Attrs, ElsToEnvelope} = case NewAff of
-                                           none -> {[{<<"type">>, <<"unavailable">>} | Attrs0],
+                                           none -> {Attrs0#{<<"type">> => <<"unavailable">>},
                                                     [ElToEnvelope0, status(<<"321">>)]};
                                            _ -> {Attrs0, [ElToEnvelope0]}
                                        end,
@@ -416,9 +407,9 @@ bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
     InviterBin = jid:to_binary({SenderJID#jid.luser, SenderJID#jid.lserver, <<>>}),
     RoomBin = jid:to_binary(jid:to_lower(Room)),
     InviteEl = #xmlel{ name = <<"invite">>,
-                       attrs = [{<<"from">>, InviterBin}] },
+                       attrs = #{<<"from">> => InviterBin} },
     NotifForNewcomer = envelope(?NS_MUC_USER, [InviteEl]),
-    send_to_aff_user(Room, ToU, ToS, <<"message">>, [{<<"from">>, RoomBin}],
+    send_to_aff_user(Room, ToU, ToS, <<"message">>, #{<<"from">> => RoomBin},
                      NotifForNewcomer, HandleFun),
     bcast_aff_messages(Room, OldAffUsers, RNewAffUsers, SenderJID, ChangedAffUsers, HandleFun).
 
@@ -427,19 +418,19 @@ bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
 msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     UserBin = jid:to_binary({ToU, ToS, <<>>}),
     {From, FromBin} = jids_from_room_with_resource(Room, UserBin),
-    Attrs = [{<<"from">>, FromBin},
-             {<<"type">>, <<"unavailable">>}],
+    Attrs = #{<<"from">> => FromBin,
+              <<"type">> => <<"unavailable">>},
     NotifForLeaving = envelope(?NS_MUC_USER, [ aff_user_to_item({User, none}), status(<<"321">>) ]),
     send_to_aff_user(From, ToU, ToS, <<"presence">>, Attrs, NotifForLeaving, HandleFun).
 
 -spec send_to_aff_user(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
-                       Name :: binary(), Attrs :: [{binary(), binary()}],
+                       Name :: binary(), Attrs :: exml:attrs(),
                        Children :: [jlib:xmlch()],
                        HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
     To = jid:make_noprep(ToU, ToS, <<>>),
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
-    Packet = #xmlel{ name = Name, attrs = [{<<"to">>, ToBin} | Attrs],
+    Packet = #xmlel{ name = Name, attrs = Attrs#{<<"to">> => ToBin},
                      children = Children },
     HandleFun(From, To, Packet).
 
@@ -453,12 +444,10 @@ jids_from_room_with_resource(RoomJID, Resource) ->
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
                      XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> exml:element().
 make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
-    Attrs = [
-             {<<"from">>, FromBin},
-             {<<"to">>, ToBin},
-             {<<"id">>, ID},
-             {<<"type">>, <<"result">>}
-            ],
+    Attrs = #{<<"from">> => FromBin,
+              <<"to">> => ToBin,
+              <<"id">> => ID,
+              <<"type">> => <<"result">>},
     Query = make_query_el(XMLNS, Els),
     #xmlel{ name = <<"iq">>, attrs = Attrs, children = Query }.
 
@@ -466,10 +455,10 @@ make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
 make_query_el(_, undefined) ->
     [];
 make_query_el(XMLNS, Els) ->
-    [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, XMLNS}], children = Els }].
+    [#xmlel{ name = <<"query">>, attrs = #{<<"xmlns">> => XMLNS}, children = Els }].
 
 -spec status(Code :: binary()) -> exml:element().
-status(Code) -> #xmlel{ name = <<"status">>, attrs = [{<<"code">>, Code}] }.
+status(Code) -> #xmlel{ name = <<"status">>, attrs = #{<<"code">> => Code} }.
 
 %%====================================================================
 %% Common helpers and internal functions

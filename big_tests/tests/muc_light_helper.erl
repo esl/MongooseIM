@@ -145,7 +145,7 @@ assert_archive_element({{message, Sender, Body}, Stanza}) ->
 assert_archive_element({{chat_marker, Type}, Stanza}) ->
     #forwarded_message{chat_marker = Type} = Stanza.
 
-assert_valid_muc_roles_in_user_x([#xmlel{ attrs = [{<<"xmlns">>, ?NS_MUC_USER}] } = XUser | _]) ->
+assert_valid_muc_roles_in_user_x([#xmlel{ attrs = #{<<"xmlns">> := ?NS_MUC_USER} } = XUser | _]) ->
     Item = exml_query:subelement(XUser, <<"item">>),
     muc_helper:assert_valid_affiliation(exml_query:attr(Item, <<"affiliation">>)),
     muc_helper:assert_valid_role(exml_query:attr(Item, <<"role">>));
@@ -244,7 +244,7 @@ stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
     ConfigItem = #xmlel{ name = <<"configuration">>,
                          children = [ kv_el(K, V) || {K, V} <- InitConfig ] },
     OccupantsItems = [ #xmlel{ name = <<"user">>,
-                               attrs = [{<<"affiliation">>, BinAff}],
+                               attrs = #{<<"affiliation">> => BinAff},
                                children = [#xmlcdata{ content = BinJID }] }
                        || {BinJID, BinAff} <- bin_aff_users(InitOccupants) ],
     OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
@@ -277,7 +277,7 @@ gc_message_verify_fun(Room, MsgText, Id) ->
 
 -spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> exml:element().
 stanza_aff_set(Room, AffUsers) ->
-    Items = [#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}],
+    Items = [#xmlel{ name = <<"user">>, attrs = #{<<"affiliation">> => AffBin},
                      children = [#xmlcdata{ content = UserBin }] }
              || {UserBin, AffBin} <- bin_aff_users(AffUsers)],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
@@ -303,7 +303,7 @@ assert_no_aff_duplicates(AffUsers) ->
 -spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> exml:element().
 stanza_blocking_set(BlocklistChanges) ->
     Items = [#xmlel{ name = atom_to_binary(What),
-                     attrs = [{<<"action">>, atom_to_binary(Action)}],
+                     attrs = #{<<"action">> => atom_to_binary(Action)},
                      children = [#xmlcdata{ content = Who }] }
              || {What, Action, Who} <- BlocklistChanges],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), muc_host()).

@@ -2,6 +2,7 @@
 -author("bartek").
 
 -compile([export_all, nowarn_export_all]).
+-include_lib("exml/include/exml.hrl").
 
 -spec test_save_acc(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -91,11 +92,9 @@ check_acc(Acc, stripped) ->
     Params :: map(),
     Extra :: map().
 alter_message({From, To, Acc, Packet}, _, _) ->
-    % Not using #xmlel as it causes some strange error in dynamic compilation
-    {xmlel, PName, PAttrs, PCh} = Packet,
-    NewBody = {xmlel, <<"body">>, [], [{xmlcdata, <<"bye">> }]},
-    PCh2 = lists:keyreplace(<<"body">>, 2, PCh, NewBody),
-    NewAcc = {From, To, Acc, {xmlel, PName, PAttrs, PCh2}},
+    NewBody = #xmlel{name = <<"body">>, children = [#xmlcdata{content = <<"bye">>}]},
+    NewChildren = lists:keyreplace(<<"body">>, 2, Packet#xmlel.children, NewBody),
+    NewAcc = {From, To, Acc, Packet#xmlel{children = NewChildren}},
     {ok, NewAcc}.
 
 cached_my_jid(User, Acc) ->

@@ -166,7 +166,7 @@ fill_from_attr(Msg = #xmlel{attrs = Attrs}, From) ->
     case exml_query:attr(Msg, <<"from">>, undefined) of
         undefined ->
             FromBin = jid:to_binary(From),
-            Msg#xmlel{attrs = [{<<"from">>, FromBin} | Attrs]};
+            Msg#xmlel{attrs = Attrs#{<<"from">> => FromBin}};
         _ ->
             Msg
     end.
@@ -240,7 +240,7 @@ build_inbox_entry_key(FromJid, ToJid) ->
 build_inbox_result_elements(#{msg := Content, timestamp := Timestamp, unread_count := UnreadCount,
                               box := Box, muted_until := MutedUntil,
                               extra := Extra}, AccTS) ->
-    [ #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+    [ #xmlel{name = <<"forwarded">>, attrs = #{<<"xmlns">> => ?NS_FORWARD},
              children = [build_delay_el(Timestamp), Content]},
       kv_to_el(<<"read">>, mod_inbox_utils:bool_to_binary(0 =:= UnreadCount)),
       kv_to_el(<<"box">>, Box),

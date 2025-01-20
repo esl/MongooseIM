@@ -61,13 +61,13 @@ make_response(Rule, User, Packet) ->
     OriginalRecipient = exml_query:attr(Packet, <<"to">>),
 
     Amp = #xmlel{name = <<"amp">>,
-                 attrs = [{<<"xmlns">>, ?NS_AMP},
-                          {<<"status">>, to_bin_(Rule#amp_rule.action)},
-                          {<<"to">>, OriginalRecipient},
-                          {<<"from">>, OriginalSender}],
+                 attrs = #{<<"xmlns">> => ?NS_AMP,
+                           <<"status">> => to_bin_(Rule#amp_rule.action),
+                           <<"to">> => OriginalRecipient,
+                           <<"from">> => OriginalSender},
                  children = [rule_to_xmlel(Rule)]},
     #xmlel{name = <<"message">>,
-           attrs = [{<<"id">>, OriginalId}],
+           attrs = #{<<"id">> => OriginalId},
            children = [Amp]}.
 
 
@@ -77,12 +77,12 @@ make_error_response([E|_] = Errors, [_|_] = Rules, User, Packet) ->
     OriginalId = exml_query:attr(Packet, <<"id">>, <<"original-id-missing">>),
     Error = make_error_el(Errors, Rules),
     Amp = #xmlel{name = <<"amp">>,
-                 attrs = [{<<"xmlns">>, ?NS_AMP} |
-                          error_amp_attrs(E, User, Packet)],
+                 attrs = maps:put(<<"xmlns">>, ?NS_AMP,
+                                  error_amp_attrs(E, User, Packet)),
                  children = [rule_to_xmlel(R) || R <- Rules]},
     #xmlel{name = <<"message">>,
-           attrs = [{<<"id">>, OriginalId},
-                    {<<"type">>, <<"error">>}],
+           attrs = #{<<"id">> => OriginalId,
+                     <<"type">> => <<"error">>},
            children = [Error, Amp]};
 make_error_response(Errors, Rules, User, Packet) ->
     ?LOG_ERROR(#{what => make_error_response_failed,
@@ -95,10 +95,10 @@ make_error_response(Errors, Rules, User, Packet) ->
 error_amp_attrs('undefined-condition', User, Packet) ->
     OriginalSender = jid:to_binary(User),
     OriginalRecipient = exml_query:attr(Packet, <<"to">>),
-    [{<<"status">>, <<"error">>},
-     {<<"to">>, OriginalRecipient},
-     {<<"from">>, OriginalSender}];
-error_amp_attrs(_, _, _) -> [].
+    #{<<"status">> => <<"error">>,
+      <<"to">> => OriginalRecipient,
+      <<"from">> => OriginalSender};
+error_amp_attrs(_, _, _) -> #{}.
 
 
 %% The lists are guaranteed to be non-empty and of equal
@@ -106,26 +106,26 @@ error_amp_attrs(_, _, _) -> [].
 -spec make_error_el([amp_error()], [amp_any_rule()]) -> #xmlel{}.
 make_error_el(Errors, Rules) ->
     ErrorMarker = #xmlel{name = error_marker_name(hd(Errors)),
-                         attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
+                         attrs = #{<<"xmlns">> => ?NS_STANZAS}},
     RuleContainer = #xmlel{name = rule_container_name(hd(Errors)),
-                          attrs = [{<<"xmlns">>, ?NS_AMP}],
+                          attrs = #{<<"xmlns">> => ?NS_AMP},
                           children = [ rule_to_xmlel(R) || R <- Rules ]},
     #xmlel{name = <<"error">>,
-           attrs = [{<<"type">>, <<"modify">>},
-                    {<<"code">>, error_code(hd(Errors))}],
+           attrs = #{<<"type">> => <<"modify">>,
+                     <<"code">> => error_code(hd(Errors))},
            children = [ErrorMarker, RuleContainer]}.
 
 -spec rule_to_xmlel(amp_any_rule()) -> #xmlel{}.
 rule_to_xmlel(#amp_rule{condition=C, value=V, action=A}) ->
     #xmlel{name = <<"rule">>,
-           attrs = [{<<"condition">>, to_bin_(C)},
-                    {<<"value">>, to_bin_(V)},
-                    {<<"action">>, to_bin_(A)}]};
+           attrs = #{<<"condition">> => to_bin_(C),
+                     <<"value">> => to_bin_(V),
+                     <<"action">> => to_bin_(A)}};
 rule_to_xmlel(#amp_invalid_rule{condition=C, value=V, action=A}) ->
     #xmlel{name = <<"rule">>,
-           attrs = [{<<"condition">>, C},
-                    {<<"value">>, V},
-                    {<<"action">>, A}]}.
+           attrs = #{<<"condition">> => C,
+                     <<"value">> => V,
+                     <<"action">> => A}}.
 
 -spec strip_amp_el(#xmlel{}) -> #xmlel{}.
 strip_amp_el(#xmlel{children = Children} = Elem) ->
@@ -167,7 +167,7 @@ parse_rules(Stanza) ->
 
 -spec parse_rule(#xmlel{}) -> amp_rule() | amp_invalid_rule().
 parse_rule(#xmlel{attrs = Attrs}) ->
-    GetF = fun(Value) -> proplists:get_value(Value, Attrs, <<"attribute-missing">>) end,
+    GetF = fun(Value) -> maps:get(Value, Attrs, <<"attribute-missing">>) end,
     {C, V, A} = {GetF(<<"condition">>),
                GetF(<<"value">>),
                GetF(<<"action">>)},

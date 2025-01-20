@@ -878,7 +878,8 @@ make_inbox_get_properties(To, none) ->
     Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), jid_attr(To), []),
     escalus_stanza:iq(<<"get">>, [Query]);
 make_inbox_get_properties(To, full_entry) ->
-    Attrs = [{<<"complete">>, <<"true">>} | jid_attr(To)],
+    Attrs0 = jid_attr(To),
+    Attrs = Attrs0#{<<"complete">> => <<"true">>},
     Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), Attrs, []),
     escalus_stanza:iq(<<"get">>, [Query]).
 
@@ -919,10 +920,10 @@ make_inbox_iq_request(ToClient, Properties) when is_list(Properties) ->
 
 -spec make_inbox_iq_request_with_query_id(maybe_client(), proplists:proplist(), map()) -> exml:element().
 make_inbox_iq_request_with_query_id(ToClient, Properties, QueryId) ->
-    JidAttr = jid_attr(ToClient),
-    IqAttr = id_attr(QueryId),
+    Attrs0 = jid_attr(ToClient),
+    Attrs = id_attr(QueryId, Attrs0),
     Children = props_to_children(Properties),
-    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), JidAttr ++ IqAttr, Children),
+    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), Attrs, Children),
     inbox_iq(QueryId, Query).
 
 inbox_iq(#{iq_id := IqId}, Query) ->
@@ -935,11 +936,11 @@ assert_invalid_request(From, Stanza, Value) ->
     inbox_helper:assert_invalid_form(From, Stanza, Value, Value).
 
 -spec jid_attr(maybe_client()) -> proplists:proplist().
-jid_attr(undefined) -> [];
-jid_attr(Client) -> [{<<"jid">>, escalus_utils:get_short_jid(Client)}].
+jid_attr(undefined) -> #{};
+jid_attr(Client) -> #{<<"jid">> => escalus_utils:get_short_jid(Client)}.
 
-id_attr(#{queryid := QueryId}) -> [{<<"queryid">>, QueryId}];
-id_attr(_) -> [].
+id_attr(#{queryid := QueryId}, Attrs) -> Attrs#{<<"queryid">> => QueryId};
+id_attr(_, Attrs) -> Attrs.
 
 props_to_children(L) -> props_to_children(L, []).
 props_to_children([], Acc) -> Acc;

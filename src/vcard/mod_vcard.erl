@@ -354,7 +354,7 @@ process_local_iq(Acc, _From, _To, IQ = #iq{type = get}, _Extra) ->
     DescCData = #xmlcdata{content = [<<"MongooseIM XMPP Server">>,
                                      <<"\nCopyright (c) Erlang Solutions Ltd.">>]},
     {Acc, IQ#iq{type = result,
-          sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
+          sub_el = [#xmlel{name = <<"vCard">>, attrs = #{<<"xmlns">> => ?NS_VCARD},
                            children = [#xmlel{name = <<"FN">>,
                                               children = [#xmlcdata{content = <<"MongooseIM">>}]},
                                        #xmlel{name = <<"URL">>,
@@ -501,7 +501,7 @@ do_route(HostType, _LServer, From, To, Acc,
     InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, <<>>),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
-                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
+                                   attrs = #{<<"xmlns">> => ?NS_DISCO_INFO},
                                    children = IdentityXML ++ FeatureXML ++ InfoXML}]},
     ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
 do_route(_HostType, _LServer, From, To, Acc,
@@ -513,14 +513,14 @@ do_route(_HostType, _LServer, From, To, Acc,
     ResIQ =
         IQ#iq{type = result,
               sub_el = [#xmlel{name = <<"query">>,
-                               attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS}]}]},
+                               attrs = #{<<"xmlns">> => ?NS_DISCO_ITEMS}}]},
     ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_VCARD} = IQ) ->
     ResIQ =
         IQ#iq{type = result,
               sub_el = [#xmlel{name = <<"vCard">>,
-                               attrs = [{<<"xmlns">>, ?NS_VCARD}],
+                               attrs = #{<<"xmlns">> => ?NS_VCARD},
                                children = iq_get_vcard()}]},
     ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
 do_route(_HostType, _LServer, From, To, Acc, _IQ) ->
@@ -530,13 +530,13 @@ do_route(_HostType, _LServer, From, To, Acc, _IQ) ->
 make_search_form_result_iq(IQ, Elements) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"query">>,
-                           attrs = [{<<"xmlns">>, ?NS_SEARCH}],
+                           attrs = #{<<"xmlns">> => ?NS_SEARCH},
                            children = Elements
                           }]}.
 
 search_instructions(Lang) ->
     Text = translate:translate(Lang, <<"You need an x:data capable client to search">>),
-    #xmlel{name = <<"instructions">>, attrs = [], children = [#xmlcdata{content = Text}]}.
+    #xmlel{name = <<"instructions">>, children = [#xmlcdata{content = Text}]}.
 
 search_form(JID, SearchFields, Lang) ->
     Title = <<(translate:translate(Lang, <<"Search users in ">>))/binary,
@@ -569,7 +569,7 @@ make_search_result_iq(IQ, SearchResult, RSMOutEls) ->
     IQ#iq{
         type = result,
         sub_el = [#xmlel{name = <<"query">>,
-                         attrs = [{<<"xmlns">>, ?NS_SEARCH}],
+                         attrs = #{<<"xmlns">> => ?NS_SEARCH},
                          children = [Form | RSMOutEls]}
                  ]}.
 

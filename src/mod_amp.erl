@@ -23,7 +23,7 @@
 -include("jlib.hrl").
 
 -define(AMP_FEATURE,
-        #xmlel{name = <<"amp">>, attrs = [{<<"xmlns">>, ?NS_AMP_FEATURE}]}).
+        #xmlel{name = <<"amp">>, attrs = #{<<"xmlns">> => ?NS_AMP_FEATURE}}).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->

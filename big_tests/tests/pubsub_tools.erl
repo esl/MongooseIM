@@ -56,7 +56,8 @@ create_node(User, Node, Options) ->
                 #xmlel{children = [
                     #xmlel{children = [CreateEl | OtherEls]} = PubsubEl
                 ]} = IQ = Request0,
-                NewCreateEl = CreateEl#xmlel{attrs = [{<<"type">>, Type} | CreateEl#xmlel.attrs]},
+                Attrs = CreateEl#xmlel.attrs,
+                NewCreateEl = CreateEl#xmlel{attrs = Attrs#{<<"type">> => Type}},
                 NewPubsubEl = PubsubEl#xmlel{children = [NewCreateEl | OtherEls]},
                 IQ#xmlel{children = [NewPubsubEl]}
         end,
@@ -120,7 +121,7 @@ publish_without_node_attr(User, ItemId, Node, Options) ->
     Request = publish_request(Id, User, ItemId, Node, Options),
     [PubSubEl] = Request#xmlel.children,
     [PublishEl] = PubSubEl#xmlel.children,
-    PublishElDefect = PublishEl#xmlel{ attrs = [] },
+    PublishElDefect = PublishEl#xmlel{ attrs = #{} },
     RequestDefect = Request#xmlel{ children = [PubSubEl#xmlel{ children = [PublishElDefect] }] },
     send_request_and_receive_response(User, RequestDefect, Id, Options).
 
@@ -574,7 +575,7 @@ id(User, {NodeAddr, NodeName}, Suffix) ->
 
 item_content() ->
     #xmlel{name = <<"entry">>,
-           attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}]}.
+           attrs = #{<<"xmlns">> => <<"http://www.w3.org/2005/Atom">>}}.
 
 decode_config_form(IQResult) ->
     decode_form(IQResult, ?NS_PUBSUB_OWNER, <<"configure">>).

@@ -108,18 +108,19 @@ request_type(_) ->
 
 create_iq_response(Services) ->
     #xmlel{name = <<"services">>,
-        attrs = [{<<"xmlns">>, ?NS_EXTDISCO}],
-        children = prepare_services_element(Services)}.
+           attrs = #{<<"xmlns">> => ?NS_EXTDISCO},
+           children = prepare_services_element(Services)}.
 
 create_iq_response_services(Services, Type) ->
     #xmlel{name = <<"services">>,
-        attrs = [{<<"xmlns">>, ?NS_EXTDISCO}, {<<"type">>, atom_to_binary(Type, utf8)}],
-        children = prepare_services_element(Services)}.
+           attrs = #{<<"xmlns">> => ?NS_EXTDISCO,
+                     <<"type">> => atom_to_binary(Type, utf8)},
+           children = prepare_services_element(Services)}.
 
 create_iq_response_credentials(Services) ->
     #xmlel{name = <<"credentials">>,
-        attrs = [{<<"xmlns">>, ?NS_EXTDISCO}],
-        children = prepare_services_element(Services)}.
+           attrs = #{<<"xmlns">> => ?NS_EXTDISCO},
+           children = prepare_services_element(Services)}.
 
 get_external_services(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, service).
@@ -131,7 +132,7 @@ prepare_services_element(Services) ->
     [#xmlel{name = <<"service">>, attrs = make_attrs(Service)} || Service <- Services].
 
 make_attrs(Service) ->
-    [{atom_to_binary(Key), format_value(Key, Value)} || {Key, Value} <- maps:to_list(Service)].
+    #{atom_to_binary(Key) => format_value(Key, Value) || Key := Value <- Service}.
 
 format_value(port, Port) -> integer_to_binary(Port);
 format_value(type, Type) -> atom_to_binary(Type);

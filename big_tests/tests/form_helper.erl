@@ -9,8 +9,8 @@
 
 form(Spec) ->
     #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_DATA_FORMS},
-                    {<<"type">>, maps:get(type, Spec, <<"submit">>)}],
+           attrs = #{<<"xmlns">> => ?NS_DATA_FORMS,
+                     <<"type">> => maps:get(type, Spec, <<"submit">>)},
            children = lists:flatmap(fun(Item) -> form_children(Item, Spec) end, [ns, fields])
           }.
 
@@ -26,7 +26,7 @@ form_type_field(NS) when is_binary(NS) ->
 
 form_field(M) when is_map(M) ->
     Values = [form_field_value(Value) || Value <- maps:get(values, M, [])],
-    Attrs = [{atom_to_binary(K), V} || {K, V} <- maps:to_list(M), K =/= values],
+    Attrs = #{atom_to_binary(K) => V || K := V <- M, K =/= values},
     #xmlel{name = <<"field">>, attrs = Attrs, children = Values}.
 
 form_field_value(Value) ->
@@ -47,13 +47,14 @@ remove_fields(El, Name) ->
     modify_forms(El, fun(Form) -> [remove_form_field(Form, Name)] end).
 
 remove_form_attr(Form = #xmlel{attrs = Attrs}, AttrName) ->
-    Form#xmlel{attrs = proplists:delete(AttrName, Attrs)}.
+    Form#xmlel{attrs = maps:remove(AttrName, Attrs)}.
 
 remove_form_field(Form = #xmlel{children = Children}, FieldName) ->
-    NewChildren = lists:filter(fun(#xmlel{name = <<"field">>, attrs = Attrs}) ->
-                                       not lists:member({<<"var">>, FieldName}, Attrs);
+    NewChildren = lists:filter(fun(#xmlel{attrs = #{<<"var">> := Name},
+                                          name = <<"field">>}) ->
+                                      FieldName =/= Name;
                                   (_) ->
-                                       true
+                                      true
                                end, Children),
     Form#xmlel{children = NewChildren}.
 

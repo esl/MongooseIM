@@ -49,4 +49,4 @@ send_message(Row, From, To, Mess) ->
     mod_mam_utils:send_message(Row, From, To, Mess2).
 
 new_subelem(#{some_hash := SomeHash}) ->
-    #xmlel{name = <<"some_hash">>, attrs = [{<<"value">>, integer_to_binary(SomeHash)}]}.
+    #xmlel{name = <<"some_hash">>, attrs = #{<<"value">> => integer_to_binary(SomeHash)}}.

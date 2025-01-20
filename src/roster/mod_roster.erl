@@ -225,7 +225,7 @@ get_versioning_feature(Acc, _, #{host_type := HostType}) ->
     NewAcc = case roster_versioning_enabled(HostType) of
         true ->
             Feature = #xmlel{name = <<"ver">>,
-                             attrs = [{<<"xmlns">>, ?NS_ROSTER_VER}]},
+                             attrs = #{<<"xmlns">> => ?NS_ROSTER_VER}},
             [Feature | Acc];
         false -> []
     end,
@@ -313,12 +313,12 @@ create_sub_el(false, false) ->
     [];
 create_sub_el(Items, false) ->
     [#xmlel{name = <<"query">>,
-            attrs = [{<<"xmlns">>, ?NS_ROSTER}],
+            attrs = #{<<"xmlns">> => ?NS_ROSTER},
             children = Items}];
 create_sub_el(Items, Version) ->
     [#xmlel{name = <<"query">>,
-            attrs = [{<<"xmlns">>, ?NS_ROSTER},
-                     {<<"ver">>, Version}],
+            attrs = #{<<"xmlns">> => ?NS_ROSTER,
+                      <<"ver">> => Version},
             children = Items}].
 
 -spec get_user_roster(Acc, Params, Extra) -> {ok, Acc} when
@@ -344,23 +344,23 @@ do_get_user_roster(HostType, #jid{luser = LUser, lserver = LServer}) ->
 
 -spec item_to_xml(roster()) -> exml:element().
 item_to_xml(Item) ->
-    Attrs0 = [{<<"jid">>, jid:to_binary(Item#roster.jid)},
-              {<<"subscription">>, subs_to_binary(Item#roster.subscription)}],
+    Attrs0 = #{<<"jid">> => jid:to_binary(Item#roster.jid),
+               <<"subscription">> => subs_to_binary(Item#roster.subscription)},
     Attrs1 = maybe_append_ask(Attrs0, Item),
     Attrs2 = maybe_append_name(Attrs1, Item),
     Fold = fun(G, Acc) -> [group_el(G) | Acc] end,
     SubEls = lists:foldl(Fold, Item#roster.xs, Item#roster.groups),
     #xmlel{name = <<"item">>, attrs = Attrs2, children = SubEls}.
 
--spec maybe_append_name([exml:attr()], roster()) -> [exml:attr()].
+-spec maybe_append_name(exml:attrs(), roster()) -> exml:attrs().
 maybe_append_name(Attrs, #roster{name = <<>>}) ->
     Attrs;
 maybe_append_name(Attrs, #roster{name = Name}) ->
-    [{<<"name">>, Name} | Attrs].
+    Attrs#{<<"name">> => Name}.
 
--spec maybe_append_ask([exml:attr()], roster()) -> [exml:attr()].
+-spec maybe_append_ask(exml:attrs(), roster()) -> exml:attrs().
 maybe_append_ask(Attrs, #roster{ask = Ask}) when Ask =:= subscribe; Ask =:= out; Ask =:= both ->
-    [{<<"ask">>, <<"subscribe">>} | Attrs];
+    Attrs#{<<"ask">> => <<"subscribe">>};
 maybe_append_ask(Attrs, _) ->
     Attrs.
 
@@ -453,22 +453,26 @@ new_roster_item(UserJid, ContactLJID) ->
             us = jid:to_lus(UserJid),
             jid = ContactLJID}.
 
-process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
+process_item_attrs(Item0, Attrs) ->
+    Item1 = maybe_add_jid(Item0, Attrs),
+    Item2 = maybe_add_name(Item1, Attrs),
+    maybe_add_subs(Item2, Attrs, true).
+
+maybe_add_jid(Item, #{<<"jid">> := Val}) ->
     case jid:from_binary(Val) of
         error ->
-            process_item_attrs(Item, Attrs);
+            Item;
         JID1 ->
             JID = jid:to_lower(JID1),
-            process_item_attrs(Item#roster{jid = JID}, Attrs)
+            Item#roster{jid = JID}
     end;
-process_item_attrs(Item, [{<<"name">>, Val} | Attrs]) ->
-    process_item_attrs(Item#roster{name = Val}, Attrs);
-process_item_attrs(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
-    process_item_attrs(Item#roster{subscription = remove}, Attrs);
-process_item_attrs(Item, [_ | Attrs]) ->
-    process_item_attrs(Item, Attrs);
-process_item_attrs(Item, []) ->
-    Item.
+maybe_add_jid(Item, _) ->
+     Item.
+
+maybe_add_name(Item, #{<<"name">> := Val}) ->
+     Item#roster{name = Val};
+maybe_add_name(Item, _) ->
+     Item.
 
 process_item_els(Item, [#xmlel{name = Name} = El | Els]) ->
     case Name of
@@ -520,8 +524,8 @@ push_item_version(JID, From, Item, RosterVersion) ->
 
 push_item_final(JID, From, Item, RosterVersion) ->
     ExtraAttrs = case RosterVersion of
-                     not_found -> [];
-                     _ -> [{<<"ver">>, RosterVersion}]
+                     not_found -> #{};
+                     _ -> #{<<"ver">> => RosterVersion}
                  end,
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
                 %% @doc Roster push, calculate and include the version attribute.
@@ -529,7 +533,7 @@ push_item_final(JID, From, Item, RosterVersion) ->
                 id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
                 sub_el =
                 [#xmlel{name = <<"query">>,
-                        attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
+                        attrs = ExtraAttrs#{<<"xmlns">> => ?NS_ROSTER},
                         children = [item_to_xml(Item)]}]},
     ejabberd_router:route(From, JID, jlib:iq_to_xml(ResIQ)).
 
@@ -566,9 +570,9 @@ build_pending(#roster{ask = Ask} = I, JID, P)
                   children = [#xmlcdata{content = Status}]},
     El = #xmlel{
             name = <<"presence">>,
-            attrs = [{<<"from">>, jid:to_binary(I#roster.jid)},
-                     {<<"to">>, jid:to_binary(JID)},
-                     {<<"type">>, <<"subscribe">>}],
+            attrs = #{<<"from">> => jid:to_binary(I#roster.jid),
+                      <<"to">> => jid:to_binary(JID),
+                      <<"type">> => <<"subscribe">>},
             children = [StatusEl]},
     [El | P];
 build_pending(_, _, P) ->
@@ -620,7 +624,7 @@ process_subscription(HostType, Direction, JID, ContactJID, Type, Reason) ->
                 none -> ok;
                 _ ->
                     PresenceStanza = #xmlel{name = <<"presence">>,
-                                            attrs = [{<<"type">>, autoreply_to_type(AutoReply)}],
+                                            attrs = #{<<"type">> => autoreply_to_type(AutoReply)},
                                             children = []},
                     ejabberd_router:route(JID, ContactJID, PresenceStanza)
             end,
@@ -850,7 +854,7 @@ send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item)
 send_presence_type(From, To, Type) ->
     ejabberd_router:route(From, To,
                           #xmlel{name = <<"presence">>,
-                                 attrs = [{<<"type">>, Type}], children = []}).
+                                 attrs = #{<<"type">> => Type}, children = []}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -920,30 +924,23 @@ process_item_set_t(HostType, JID,
     end;
 process_item_set_t(_HostType, _Jid, _) -> ok.
 
-process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
-    case jid:from_binary(Val) of
-        error ->
-            process_item_attrs_ws(Item, Attrs);
-        JID1 ->
-            JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
-            process_item_attrs_ws(Item#roster{jid = JID}, Attrs)
-    end;
-process_item_attrs_ws(Item, [{<<"name">>, Val} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{name = Val}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = remove}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"none">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = none}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"both">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = both}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"from">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = from}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"to">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = to}, Attrs);
-process_item_attrs_ws(Item, [_ | Attrs]) ->
-    process_item_attrs_ws(Item, Attrs);
-process_item_attrs_ws(Item, []) ->
-    Item.
+process_item_attrs_ws(Item0, Attrs) ->
+    Item1 = maybe_add_jid(Item0, Attrs),
+    Item2 = maybe_add_name(Item1, Attrs),
+    maybe_add_subs(Item2, Attrs, false).
+
+maybe_add_subs(Item, #{<<"subscription">> := <<"remove">>}, _OnlyRemoveSubs) ->
+    Item#roster{subscription = remove};
+maybe_add_subs(Item, #{<<"subscription">> := <<"none">>}, false) ->
+    Item#roster{subscription = none};
+maybe_add_subs(Item, #{<<"subscription">> := <<"both">>}, false) ->
+    Item#roster{subscription = both};
+maybe_add_subs(Item, #{<<"subscription">> := <<"from">>}, false) ->
+    Item#roster{subscription = from};
+maybe_add_subs(Item, #{<<"subscription">> := <<"to">>}, false) ->
+    Item#roster{subscription = to};
+maybe_add_subs(Item, _, _) ->
+         Item.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

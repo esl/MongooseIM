@@ -94,9 +94,9 @@
 %% general helpers for plugins
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
-         extended_error/2, extended_error/3, service_jid/1,
-         tree/1, plugin/1, plugin_call/3, host/2, serverhost/1,
-         host_to_host_type/1]).
+         extended_error/2, service_jid/1, tree/1, plugin/1,
+         plugin_call/3, serverhost/1, host_to_host_type/1,
+         host/2]).
 
 %% API and gen_server callbacks
 -export([start_link/2, start/2, stop/1, deps/2, init/1,
@@ -132,7 +132,6 @@
     default_host/0,
     delete_item/4,
     delete_node/3,
-    extended_error/3,
     get_cached_item/2,
     get_item/3,
     get_items/2,
@@ -1082,7 +1081,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
             Res = IQ#iq{type = result,
                         sub_el =
                         [#xmlel{name = <<"vCard">>,
-                                attrs = [{<<"xmlns">>, XMLNS}],
+                                attrs = #{<<"xmlns">> => XMLNS},
                                 children = iq_get_vcard(Lang)}]},
             ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(Res));
         #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
@@ -1132,15 +1131,15 @@ do_route(Acc, _ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
 
 command_disco_info(_Host, ?NS_COMMANDS, _From) ->
     IdentityEl = #xmlel{name = <<"identity">>,
-                        attrs = [{<<"category">>, <<"automation">>},
-                                 {<<"type">>, <<"command-list">>}]},
+                        attrs = #{<<"category">> => <<"automation">>,
+                                  <<"type">> => <<"command-list">>}},
     {result, [IdentityEl]};
 command_disco_info(_Host, ?NS_PUBSUB_GET_PENDING, _From) ->
     IdentityEl = #xmlel{name = <<"identity">>,
-                        attrs = [{<<"category">>, <<"automation">>},
-                                 {<<"type">>, <<"command-node">>}]},
+                        attrs = #{<<"category">> => <<"automation">>,
+                                  <<"type">> => <<"command-node">>}},
     FeaturesEl = #xmlel{name = <<"feature">>,
-                        attrs = [{<<"var">>, ?NS_COMMANDS}]},
+                        attrs = #{<<"var">> => ?NS_COMMANDS}},
     {result, [IdentityEl, FeaturesEl]}.
 
 node_disco_info(Host, Node, From) ->
@@ -1153,12 +1152,12 @@ node_disco_info(Host, Node, _From, _Identity, _Features) ->
                                     _ -> <<"leaf">>
                                 end,
                      I = #xmlel{name = <<"identity">>,
-                                attrs = [{<<"category">>, <<"pubsub">>},
-                                         {<<"type">>, NodeType}]},
+                                attrs = #{<<"category">> => <<"pubsub">>,
+                                          <<"type">> => NodeType}},
                      F = [#xmlel{name = <<"feature">>,
-                                 attrs = [{<<"var">>, ?NS_PUBSUB}]}
+                                 attrs = #{<<"var">> => ?NS_PUBSUB}}
                           | [#xmlel{name = <<"feature">>,
-                                    attrs = [{<<"var">>, feature(F)}]}
+                                    attrs = #{<<"var">> => feature(F)}}
                              || F <- plugin_features(Type)]],
                      {result, [I | F]}
              end,
@@ -1199,23 +1198,22 @@ iq_disco_info(ServerHost, Host, SNode, From, Lang) ->
 iq_disco_items(Host, <<>>, From, _RSM) ->
     {result,
      lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = Options}) ->
-                       Attrs = case get_option(Options, title) of
-                                   false ->
-                                       [{<<"jid">>, Host}
-                                        | node_attr(SubNode)];
-                                   [Title] ->
-                                       [{<<"jid">>, Host},
-                                        {<<"name">>, Title}
-                                        | node_attr(SubNode)]
+                       Attrs1 = node_attr(SubNode),
+                       Attrs2 = case get_option(Options, title) of
+                                    false ->
+                                        Attrs1#{<<"jid">> => Host};
+                                    [Title] ->
+                                        Attrs1#{<<"jid">> => Host,
+                                                <<"name">> => Title}
                                end,
-                       #xmlel{name = <<"item">>, attrs = Attrs}
+                       #xmlel{name = <<"item">>, attrs = Attrs2}
                end,
                tree_action(Host, get_subnodes, [Host, <<>>, From]))};
 iq_disco_items(Host, ?NS_COMMANDS, _From, _RSM) ->
     {result, [#xmlel{name = <<"item">>,
-                     attrs = [{<<"jid">>, Host},
-                              {<<"node">>, ?NS_PUBSUB_GET_PENDING},
-                              {<<"name">>, <<"Get Pending">>}]}]};
+                     attrs = #{<<"jid">> => Host,
+                               <<"node">> => ?NS_PUBSUB_GET_PENDING,
+                               <<"name">> => <<"Get Pending">>}}]};
 iq_disco_items(_Host, ?NS_PUBSUB_GET_PENDING, _From, _RSM) ->
     {result, []};
 iq_disco_items(Host, Item, From, RSM) ->
@@ -1241,23 +1239,22 @@ iq_disco_items_transaction(Host, From, Node, RSM,
                               _ -> {[], none}
                           end,
     Nodes = lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = SubOptions}) ->
-                              Attrs = case get_option(SubOptions, title) of
-                                          false ->
-                                              [{<<"jid">>, Host}
-                                               | node_attr(SubNode)];
-                                          [Title] ->
-                                              [{<<"jid">>, Host},
-                                               {<<"name">>, Title}
-                                               | node_attr(SubNode)]
-                                      end,
-                              #xmlel{name = <<"item">>, attrs = Attrs}
+                              Attrs1 = node_attr(SubNode),
+                              Attrs2 = case get_option(SubOptions, title) of
+                                           false ->
+                                               Attrs1#{<<"jid">> => Host};
+                                           [Title] ->
+                                               Attrs1#{<<"jid">> => Host,
+                                                       <<"name">> => Title}
+                                       end,
+                              #xmlel{name = <<"item">>, attrs = Attrs2}
                       end,
                       tree_call(Host, get_subnodes, [Host, Node, From])),
     Items = lists:map(fun (#pubsub_item{itemid = {RN, _}}) ->
                               {result, Name} = node_call(Type, get_item_name,
                                                          [Host, Node, RN]),
                               #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
+                                     attrs = #{<<"jid">> => Host, <<"name">> => Name}}
                       end,
                       NodeItems),
     {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
@@ -1284,11 +1281,11 @@ iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang
 iq_get_vcard(Lang) ->
     Desc = <<(translate:translate(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
              "\nCopyright (c) 2004-2015 ProcessOne">>,
-    [#xmlel{name = <<"FN">>, attrs = [],
+    [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_pubsub">>}]},
-     #xmlel{name = <<"URL">>, attrs = [],
+     #xmlel{name = <<"URL">>,
             children = [#xmlcdata{content = ?MONGOOSE_URI}]},
-     #xmlel{name = <<"DESC">>, attrs = [],
+     #xmlel{name = <<"DESC">>,
             children = [#xmlcdata{content = Desc}]}].
 
 -spec iq_pubsub(Host :: mod_pubsub:host(),
@@ -1443,7 +1440,8 @@ iq_pubsub_set_create(Host, Node, From,
     case lists:member(Type, Plugins) of
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"create-nodes">>)};
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"create-nodes">>)};
         true ->
             create_node(Host, ServerHost, Node, From, Type, Access, Config)
     end.
@@ -1726,7 +1724,7 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
     Form = mongoose_data_forms:form(#{title => Title, instructions => Instructions,
                                       ns => ?NS_PUBSUB_SUB_AUTH, fields => Fields}),
     Stanza = #xmlel{name = <<"message">>,
-                    attrs = [{<<"id">>, mongoose_bin:gen_from_crypto()}],
+                    attrs = #{<<"id">> => mongoose_bin:gen_from_crypto()},
                     children = [Form]},
     lists:foreach(fun(Owner) ->
                           ejabberd_router:route(service_jid(Host), jid:make(Owner), Stanza)
@@ -1747,17 +1745,16 @@ find_authorization_response(El) ->
 
 %% @doc Send a message to JID with the supplied Subscription
 send_authorization_approval(Host, JID, SNode, Subscription) ->
-    SubAttrs = case Subscription of
-                   %{S, SID} ->
-                   %    [{<<"subscription">>, subscription_to_string(S)},
-                   %     {<<"subid">>, SID}];
-                   S ->
-                       [{<<"subscription">>, subscription_to_string(S)}]
-               end,
+    Attrs1 = node_attr(SNode),
+    Attrs2 = case Subscription of
+                %  {S, SID} ->
+                %      Attrs1#{<<"subscription">> => subscription_to_string(S),
+                %              <<"subid">> => SID};
+                 S ->
+                     Attrs1#{<<"subscription">> => subscription_to_string(S)}
+             end,
     Stanza = event_stanza(<<"subscription">>,
-                          [{<<"jid">>, jid:to_binary(JID)}
-                           | node_attr(SNode)]
-                          ++ SubAttrs),
+                          Attrs2#{<<"jid">> => jid:to_binary(JID)}),
     ejabberd_router:route(service_jid(Host), JID, Stanza).
 
 handle_authorization_response(Acc, Host, From, To, Packet, XFields) ->
@@ -1901,7 +1898,7 @@ create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
             case create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) of
                 {result, _} ->
                     {result, [#xmlel{name = <<"pubsub">>,
-                                     attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                                     attrs = #{<<"xmlns">> => ?NS_PUBSUB},
                                      children = [#xmlel{name = <<"create">>,
                                                         attrs = node_attr(Node)}]}]};
                 Error ->
@@ -2002,7 +1999,7 @@ create_node_reply(_Node, Result) ->
 
 create_node_make_reply(Node) ->
     [#xmlel{name = <<"pubsub">>,
-            attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+            attrs = #{<<"xmlns">> => ?NS_PUBSUB},
             children = [#xmlel{name = <<"create">>,
                                attrs = node_attr(Node)}]}].
 
@@ -2127,7 +2124,8 @@ subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode) ->
 subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
     case lists:member(<<"subscribe">>, Features) of
         false ->
-            {error, extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscribe">>)};
+            {error, unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                                      <<"subscribe">>)};
         true ->
             subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features)
     end.
@@ -2135,7 +2133,8 @@ subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Fe
 subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
     case get_option(PubSubNode#pubsub_node.options, subscribe) of
         false ->
-            {error, extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscribe">>)};
+            {error, unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                                      <<"subscribe">>)};
         true ->
             subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features)
     end.
@@ -2144,7 +2143,8 @@ subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Fe
     case {SubOpts /= [], lists:member(<<"subscription-options">>, Features)} of
         {true, false} ->
            {error,
-            extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscription-options">>)};
+            unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                              <<"subscription-options">>)};
         _ ->
             subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber, PubSubNode)
     end.
@@ -2187,20 +2187,19 @@ count_subscribed(NodeSubs) ->
       end, 0, NodeSubs).
 
 subscribe_node_reply(Subscriber, Node, {subscribed, SubId}) ->
-    SubAttrs = [{<<"subscription">>, subscription_to_string(subscribed)},
-                {<<"subid">>, SubId}, {<<"node">>, Node}],
+    SubAttrs = #{<<"subscription">> => subscription_to_string(subscribed),
+                 <<"subid">> => SubId, <<"node">> => Node},
     subscribe_node_reply(Subscriber, SubAttrs);
 subscribe_node_reply(Subscriber, Node, Subscription) ->
-    SubAttrs = [{<<"subscription">>, subscription_to_string(Subscription)},
-                {<<"node">>, Node}],
+    SubAttrs = #{<<"subscription">> => subscription_to_string(Subscription),
+                 <<"node">> => Node},
     subscribe_node_reply(Subscriber, SubAttrs).
 
 subscribe_node_reply(Subscriber, SubAttrs) ->
     [#xmlel{name = <<"pubsub">>,
-            attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+            attrs = #{<<"xmlns">> => ?NS_PUBSUB},
             children = [#xmlel{name = <<"subscription">>,
-                               attrs = [{<<"jid">>, jid:to_binary(Subscriber)}
-                                        | SubAttrs]}]}].
+                               attrs = SubAttrs#{<<"jid">> => jid:to_binary(Subscriber)}}]}].
 
 %% @doc <p>Unsubscribe <tt>JID</tt> from the <tt>Node</tt>.</p>
 %%<p>There are several reasons why the unsubscribe request might fail:</p>
@@ -2275,10 +2274,11 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
 
                 Errors = [ %% [{Condition :: boolean(), Reason :: term()}]
                     {not PublishFeature,
-                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"publish">>)},
+                     unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                                       <<"publish">>)},
                     {not PubOptsFeature andalso PublishOptions /= undefined,
-                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported,
-                                    <<"publish-options">>)},
+                     unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                                       <<"publish-options">>)},
                     {PayloadSize > PayloadMaxSize,
                      extended_error(mongoose_xmpp_errors:not_acceptable(), <<"payload-too-big">>)},
                     {(PayloadCount == 0) and (Payload == []),
@@ -2303,7 +2303,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                 end
         end,
     Reply = [#xmlel{name = <<"pubsub">>,
-                    attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                    attrs = #{<<"xmlns">> => ?NS_PUBSUB},
                     children = [#xmlel{name = <<"publish">>, attrs = node_attr(Node),
                                        children = [#xmlel{name = <<"item">>,
                                                           attrs = item_attr(ItemId)}]}]}],
@@ -2363,9 +2363,9 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
             case create_node(Host, ServerHost, Node, Publisher, Type, Access, PublishOptions) of
                 {result,
                  [#xmlel{name = <<"pubsub">>,
-                         attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                         attrs = #{<<"xmlns">> := ?NS_PUBSUB},
                          children = [#xmlel{name = <<"create">>,
-                                            attrs = [{<<"node">>, NewNode}]}]}]} ->
+                                            attrs = #{<<"node">> := NewNode}}]}]} ->
                     publish_item(Host, ServerHost, NewNode, Publisher, ItemId, Payload);
                 _ ->
                     {error, ErrorItemNotFound}
@@ -2431,11 +2431,13 @@ delete_item_transaction(Publisher, ItemId,
                     node_call(Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]);
                 false ->
                     {error,
-                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"delete-items">>)}
+                     unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                                       <<"delete-items">>)}
             end;
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)}
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"persistent-items">>)}
     end.
 
 %% @doc <p>Delete all items of specified node owned by JID.</p>
@@ -2479,13 +2481,16 @@ purge_node_transaction(Owner, #pubsub_node{options = Options, type = Type, id = 
           get_option(Options, persist_items)} of
         {false, _, _} ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"purge-nodes">>)};
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"purge-nodes">>)};
         {_, false, _} ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)};
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"persistent-items">>)};
         {_, _, false} ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)};
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"persistent-items">>)};
         _ -> node_call(Type, purge_node, [Nidx, Owner])
     end.
 
@@ -2524,7 +2529,7 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
         {result, {_, {Items, RsmOut}}} ->
             {result,
              [#xmlel{name = <<"pubsub">>,
-                     attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                     attrs = #{<<"xmlns">> => ?NS_PUBSUB},
                      children =
                      [#xmlel{name = <<"items">>, attrs = node_attr(Node),
                              children = items_els(Items)}
@@ -2541,10 +2546,12 @@ get_items_transaction(Host, From, RSM, SubId,
           lists:member(<<"persistent-items">>, Features)} of
         {false, _} ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"retrieve-items">>)};
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"retrieve-items">>)};
         {_, false} ->
            {error,
-            extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)};
+            unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                              <<"persistent-items">>)};
         _ ->
             AccessModel = get_option(Options, access_model),
             AllowedGroups = get_option(Options, roster_groups_allowed, []),
@@ -2661,8 +2668,8 @@ get_affiliations(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) -
                                {Status, [Affs | Acc]};
                            false ->
                                {{error,
-                                 extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                                                unsupported, <<"retrieve-affiliations">>)},
+                                 unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                                                   <<"retrieve-affiliations">>)},
                                 Acc}
                        end
                end, {ok, []}, Plugins),
@@ -2673,17 +2680,17 @@ get_affiliations(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) -
                                  [];
                              ({#pubsub_node{nodeid = {_, NodeId}}, Aff}) when
                                    Node == <<>> orelse Node == NodeId ->
+                                 Attrs = node_attr(NodeId),
                                  [#xmlel{name = <<"affiliation">>,
-                                         attrs = [{<<"affiliation">>, affiliation_to_string(Aff)}
-                                                  | node_attr(NodeId)]}];
+                                         attrs = Attrs#{<<"affiliation">> => affiliation_to_string(Aff)}}];
                              (_) ->
                                  []
                          end,
                          lists:usort(lists:flatten(Affs))),
             {result,
              [#xmlel{name = <<"pubsub">>,
-                     attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                     children = [#xmlel{name = <<"affiliations">>, attrs = [],
+                     attrs = #{<<"xmlns">> => ?NS_PUBSUB},
+                     children = [#xmlel{name = <<"affiliations">>,
                                         children = Entities}]}]};
         {Error, _} ->
             Error
@@ -2703,12 +2710,12 @@ get_affiliations(Host, Node, JID) ->
                              ({AJID, Aff}) ->
                                   [#xmlel{
                                       name = <<"affiliation">>,
-                                      attrs = [{<<"jid">>, jid:to_binary(AJID)},
-                                               {<<"affiliation">>, affiliation_to_string(Aff)}]}]
+                                      attrs = #{<<"jid">> => jid:to_binary(AJID),
+                                                <<"affiliation">> => affiliation_to_string(Aff)}}]
                           end, Affs),
             {result,
              [#xmlel{name = <<"pubsub">>,
-                     attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+                     attrs = #{<<"xmlns">> => ?NS_PUBSUB_OWNER},
                      children = [#xmlel{name = <<"affiliations">>,
                                         attrs = node_attr(Node), children = Entities}]}]};
         Error ->
@@ -2727,7 +2734,8 @@ get_affiliations_transaction(JID, #pubsub_node{type = Type, id = Nidx}) ->
             end;
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"modify-affiliations">>)}
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"modify-affiliations">>)}
     end.
 
 -spec set_affiliations(
@@ -2782,14 +2790,14 @@ set_affiliations_transaction(Host, Owner,
             case sets:size(OwnersDryRun) of
                 0 ->
                     OwnersPayload = [ #xmlel{ name = <<"affiliation">>,
-                                              attrs = [{<<"jid">>, jid:to_binary(Unchanged)},
-                                                       {<<"affiliation">>, <<"owner">>}] }
+                                              attrs = #{<<"jid">> => jid:to_binary(Unchanged),
+                                                        <<"affiliation">> => <<"owner">>} }
                                       || Unchanged <- Owners ],
                     AffiliationsPayload = #xmlel{ name = <<"affiliations">>,
-                                                  attrs = [{<<"node">>, NodeId}],
+                                                  attrs = #{<<"node">> => NodeId},
                                                   children = OwnersPayload },
                     NewPubSubPayload = #xmlel{ name = <<"pubsub">>,
-                                               attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+                                               attrs = #{<<"xmlns">> => ?NS_PUBSUB_OWNER},
                                                children = [AffiliationsPayload] },
                     {error, {mongoose_xmpp_errors:not_acceptable(), [NewPubSubPayload]}};
                 _ ->
@@ -2841,8 +2849,8 @@ get_options_transaction(Node, JID, SubId, Lang, #pubsub_node{type = Type, id = N
             get_sub_options_xml(JID, Lang, Node, Nidx, SubId, Type);
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                            unsupported, <<"subscription-options">>)}
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"subscription-options">>)}
     end.
 
 % TODO: Support Lang at some point again
@@ -2870,13 +2878,13 @@ get_sub_options_xml(JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
 
 make_and_wrap_sub_xform(Options, Node, Subscriber, SubId) ->
     {ok, XForm} = pubsub_form_utils:make_sub_xform(Options),
+    Attrs = node_attr(Node),
     OptionsEl = #xmlel{name = <<"options">>,
-                       attrs = [{<<"jid">>, jid:to_binary(Subscriber)},
-                                {<<"subid">>, SubId}
-                                | node_attr(Node)],
+                       attrs = Attrs#{<<"jid">> => jid:to_binary(Subscriber),
+                                      <<"subid">> => SubId},
                        children = [XForm]},
     PubSubEl = #xmlel{name = <<"pubsub">>,
-                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                      attrs = #{<<"xmlns">> => ?NS_PUBSUB},
                       children = [OptionsEl]},
     {result, PubSubEl}.
 
@@ -2896,8 +2904,8 @@ set_options_transaction(JID, SubId, ConfigXForm, #pubsub_node{type = Type, id = 
             validate_and_set_options_helper(ConfigXForm, JID, Nidx, SubId, Type);
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                            unsupported, <<"subscription-options">>)}
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"subscription-options">>)}
     end.
 
 validate_and_set_options_helper(ConfigXForm, JID, Nidx, SubId, Type) ->
@@ -2953,9 +2961,8 @@ get_subscriptions(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) 
                                          {Status, [Subs | Acc]};
                                      false ->
                                          {{error,
-                                           extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                                                          unsupported,
-                                                          <<"retrieve-subscriptions">>)},
+                                           unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                                                             <<"retrieve-subscriptions">>)},
                                           Acc}
                                  end
                          end,
@@ -2966,8 +2973,8 @@ get_subscriptions(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) 
                                      lists:usort(lists:flatten(Subs))),
             {result,
              [#xmlel{name = <<"pubsub">>,
-                     attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                     children = [#xmlel{name = <<"subscriptions">>, attrs = [],
+                     attrs = #{<<"xmlns">> => ?NS_PUBSUB},
+                     children = [#xmlel{name = <<"subscriptions">>,
                                         children = Entities}]}]};
         {Error, _} ->
             Error
@@ -2977,14 +2984,12 @@ get_subscriptions(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) 
 subscription_to_xmlel({_, none}, _Node) ->
     [];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub}, <<>>) ->
+    Attrs = node_attr(SubsNode),
     [#xmlel{name = <<"subscription">>,
-            attrs =
-            [{<<"subscription">>, subscription_to_string(Sub)}
-             | node_attr(SubsNode)]}];
+            attrs = Attrs#{<<"subscription">> => subscription_to_string(Sub)}}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub}, SubsNode) ->
     [#xmlel{name = <<"subscription">>,
-            attrs =
-            [{<<"subscription">>, subscription_to_string(Sub)}]}];
+            attrs = #{<<"subscription">> => subscription_to_string(Sub)}}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _}, _) ->
     [];
 %% no idea how to trigger this one
@@ -2992,32 +2997,28 @@ subscription_to_xmlel({_, none, _}, _Node) ->
     [];
 %% sometimes used by node_pep
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}, <<>>) ->
+    Attrs = node_attr(SubsNode),
     [#xmlel{name = <<"subscription">>,
-            attrs =
-            [{<<"jid">>, jid:to_binary(SubJID)},
-             {<<"subid">>, SubId},
-             {<<"subscription">>, subscription_to_string(Sub)}
-             | node_attr(SubsNode)]}];
+            attrs = Attrs#{<<"jid">> => jid:to_binary(SubJID),
+                           <<"subid">> => SubId,
+                           <<"subscription">> => subscription_to_string(Sub)}}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}, SubsNode) ->
     [#xmlel{name = <<"subscription">>,
-            attrs =
-            [{<<"jid">>, jid:to_binary(SubJID)},
-             {<<"subid">>, SubId},
-             {<<"subscription">>, subscription_to_string(Sub)}]}];
+            attrs =#{<<"jid">> => jid:to_binary(SubJID),
+                     <<"subid">> => SubId,
+                     <<"subscription">> => subscription_to_string(Sub)}}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _, _}, _Node) ->
     [];
 %% used by node_flat (therefore by dag, hometree and push as well)
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}, <<>>) ->
+    Attrs = node_attr(SubsNode),
     [#xmlel{name = <<"subscription">>,
-            attrs =
-            [{<<"jid">>, jid:to_binary(SubJID)},
-             {<<"subscription">>, subscription_to_string(Sub)}
-             | node_attr(SubsNode)]}];
+            attrs = Attrs#{<<"jid">> => jid:to_binary(SubJID),
+                           <<"subscription">> => subscription_to_string(Sub)}}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}, SubsNode) ->
     [#xmlel{name = <<"subscription">>,
-            attrs =
-            [{<<"jid">>, jid:to_binary(SubJID)},
-             {<<"subscription">>, subscription_to_string(Sub)}]}];
+            attrs = #{<<"jid">> => jid:to_binary(SubJID),
+                      <<"subscription">> => subscription_to_string(Sub)}}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _}, _Node) ->
     [].
 
@@ -3030,14 +3031,14 @@ get_subscriptions(Host, Node, JID) ->
                                   [];
                              ({AJID, Sub, SubId, _}) ->
                                   [#xmlel{name = <<"subscription">>,
-                                          attrs =
-                                          [{<<"jid">>, jid:to_binary(AJID)},
-                                           {<<"subscription">>, subscription_to_string(Sub)},
-                                           {<<"subid">>, SubId}]}]
+                                          attrs =#{
+                                            <<"jid">> => jid:to_binary(AJID),
+                                            <<"subscription">> => subscription_to_string(Sub),
+                                            <<"subid">> => SubId}}]
                           end, Subs),
             {result,
              [#xmlel{name = <<"pubsub">>,
-                     attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+                     attrs = #{<<"xmlns">> => ?NS_PUBSUB_OWNER},
                      children = [#xmlel{name = <<"subscriptions">>,
                                         attrs = node_attr(Node),
                                         children = Entities}]}]};
@@ -3057,7 +3058,8 @@ get_subscriptions_transaction(JID, #pubsub_node{type = Type, id = Nidx}) ->
             end;
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"manage-subscriptions">>)}
+             unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
+                               <<"manage-subscriptions">>)}
     end.
 
 get_subscriptions_for_send_last(Host, PType, [JID, LJID, BJID]) ->
@@ -3125,14 +3127,14 @@ set_subscription_transaction(Host, Node, Nidx, Type, {JID, Sub, SubId}, Acc) ->
     end.
 
 notify_subscription_change(Host, Node, JID, Sub) ->
+    Attrs = node_attr(Node),
     SubscriptionEl = #xmlel{name = <<"subscription">>,
-                            attrs = [{<<"jid">>, jid:to_binary(JID)},
-                                     {<<"subscription">>, subscription_to_string(Sub)}
-                                     | node_attr(Node)]},
+                            attrs = Attrs#{<<"jid">> => jid:to_binary(JID),
+                                           <<"subscription">> => subscription_to_string(Sub)}},
     PubSubEl = #xmlel{name = <<"pubsub">>,
-                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                      attrs = #{<<"xmlns">> => ?NS_PUBSUB},
                       children = [SubscriptionEl]},
-    Stanza = #xmlel{name = <<"message">>, attrs = [], children = [PubSubEl]},
+    Stanza = #xmlel{name = <<"message">>, children = [PubSubEl]},
     ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
 
 -spec get_presence_and_roster_permissions(Host :: mod_pubsub:host(),
@@ -3308,24 +3310,25 @@ items_event_stanza(Node, Items) ->
             Sec = erlang:convert_time_unit(ModifNow, microsecond, second),
             TString = calendar:system_time_to_rfc3339(Sec, [{offset, "Z"}]),
             [#xmlel{name = <<"delay">>,
-                    attrs = [{<<"xmlns">>, ?NS_DELAY},
-                             {<<"from">>, jid:to_binary(ModifUSR)},
-                             {<<"stamp">>, list_to_binary(TString)}],
-                    children = [{xmlcdata, <<>>}]}];
+                    attrs = #{<<"xmlns">> => ?NS_DELAY,
+                              <<"from">> => jid:to_binary(ModifUSR),
+                              <<"stamp">> => list_to_binary(TString)},
+                    children = [#xmlcdata{content =  <<>>}]}];
         _ ->
             []
     end,
+    Attrs = node_attr(Node),
     event_stanza_with_els([#xmlel{name = <<"items">>,
-                                  attrs = [{<<"type">>, <<"headline">>} | node_attr(Node)],
+                                  attrs = Attrs#{<<"type">> => <<"headline">>},
                                   children = items_els(Items)}],
                           MoreEls).
 
 event_stanza(Els) ->
     event_stanza_with_els(Els, []).
 event_stanza_with_els(Els, MoreEls) ->
-    #xmlel{name = <<"message">>, attrs = [],
+    #xmlel{name = <<"message">>,
            children = [#xmlel{name = <<"event">>,
-                              attrs = [{<<"xmlns">>, ?NS_PUBSUB_EVENT}],
+                              attrs = #{<<"xmlns">> => ?NS_PUBSUB_EVENT},
                               children = Els}
                        | MoreEls]}.
 
@@ -3670,7 +3673,7 @@ get_configure_transaction(ServerHost, Node, From, Lang,
                                  children = [XEl]},
             {result,
              [#xmlel{name = <<"pubsub">>,
-                     attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+                     attrs = #{<<"xmlns">> => ?NS_PUBSUB_OWNER},
                      children = [ConfigureEl]}]};
         _ ->
             {error, mongoose_xmpp_errors:forbidden()}
@@ -3680,10 +3683,10 @@ get_default(Host, Node, _From, #{lang := Lang}) ->
     Type = select_type(Host, Node),
     Options = node_options(Host, Type),
     XEl = configure_form(<<"form">>, Options, Lang, []),
-    DefaultEl = #xmlel{name = <<"default">>, attrs = [], children = [XEl]},
+    DefaultEl = #xmlel{name = <<"default">>, children = [XEl]},
     {result,
      [#xmlel{name = <<"pubsub">>,
-             attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+             attrs = #{<<"xmlns">> => ?NS_PUBSUB_OWNER},
              children = [DefaultEl]}]}.
 
 match_option(Node, Var, Val) when is_record(Node, pubsub_node) ->
@@ -4290,17 +4293,16 @@ db_call_fun(Host, Node, Action) ->
 %%%% helpers
 
 %% Add pubsub-specific error element
-extended_error(Error, Ext) ->
-    extended_error(Error, Ext, [{<<"xmlns">>, ?NS_PUBSUB_ERRORS}]).
+extended_error(#xmlel{} = Error, Ext) when is_binary(Ext) ->
+    extend_error(Error, Ext, #{<<"xmlns">> => ?NS_PUBSUB_ERRORS}).
 
-extended_error(Error, unsupported, Feature) ->
+unsupported_error(Error, Feature) ->
     %% Give a uniq identifier
-    extended_error(Error, <<"unsupported">>,
-                   [{<<"xmlns">>, ?NS_PUBSUB_ERRORS},
-                    {<<"feature">>, Feature}]);
-extended_error(#xmlel{name = Error, attrs = Attrs, children = SubEls}, Ext, ExtAttrs) ->
-    #xmlel{name = Error, attrs = Attrs,
-           children = lists:reverse([#xmlel{name = Ext, attrs = ExtAttrs} | SubEls])}.
+    extend_error(Error, <<"unsupported">>,
+                 #{<<"xmlns">> => ?NS_PUBSUB_ERRORS, <<"feature">> => Feature}).
+
+extend_error(#xmlel{children = SubEls} = El, Ext, ExtAttrs) ->
+    El#xmlel{children = lists:reverse([#xmlel{name = Ext, attrs = ExtAttrs} | SubEls])}.
 
 string_to_ljid(JID) ->
     case jid:from_binary(JID) of
@@ -4317,17 +4319,15 @@ string_to_ljid(JID) ->
 uniqid() ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
-node_attr(Node) -> [{<<"node">>, Node}].
+node_attr(Node) -> #{<<"node">> => Node}.
 
-item_attr([])     -> [];
-item_attr(ItemId) -> [{<<"id">>, ItemId}].
+item_attr([])     -> #{};
+item_attr(ItemId) -> #{<<"id">> => ItemId}.
 
 item_attr(ItemId, undefined) -> item_attr(ItemId);
-item_attr([], Publisher)     -> [{<<"publisher">>,
-                                 jid:to_binary(jid:to_lower(Publisher))}];
-item_attr(ItemId, Publisher) -> [{<<"id">>, ItemId},
-                                {<<"publisher">>,
-                                 jid:to_binary(jid:to_lower(Publisher))}].
+item_attr([], Publisher)     -> #{<<"publisher">> => jid:to_binary(jid:to_lower(Publisher))};
+item_attr(ItemId, Publisher) -> #{<<"id">> => ItemId,
+                                  <<"publisher">> => jid:to_binary(jid:to_lower(Publisher))}.
 
 items_els(Items) ->
     [#xmlel{name = <<"item">>, attrs = item_attr(ItemId, Publisher), children = Payload}
@@ -4337,7 +4337,7 @@ items_els(Items) ->
 add_message_type(Message, normal) -> Message;
 add_message_type(#xmlel{name = <<"message">>, attrs = Attrs, children = Els}, Type) ->
     #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, atom_to_binary(Type, utf8)} | Attrs],
+           attrs = Attrs#{<<"type">> => atom_to_binary(Type, utf8)},
            children = Els};
 add_message_type(XmlEl, _Type) ->
     XmlEl.
@@ -4364,27 +4364,27 @@ add_extended_headers(Stanza, HeaderEls) ->
 
 add_headers(#xmlel{name = Name, attrs = Attrs, children = Els}, HeaderName, HeaderNS, HeaderEls) ->
     HeaderEl = #xmlel{name = HeaderName,
-                      attrs = [{<<"xmlns">>, HeaderNS}],
+                      attrs = #{<<"xmlns">> => HeaderNS},
                       children = HeaderEls},
     #xmlel{name = Name, attrs = Attrs,
            children = lists:append(Els, [HeaderEl])}.
 
 subid_shim(SubIds) ->
     [#xmlel{ name = <<"header">>,
-             attrs = [{<<"name">>, <<"SubId">>}],
+             attrs = #{<<"name">> => <<"SubId">>},
              children = [#xmlcdata{ content = SubId }]}
      || SubId <- SubIds].
 
 collection_shim(CollectionNode) ->
     #xmlel{ name = <<"header">>,
-            attrs = [{<<"name">>, <<"Collection">>}],
+            attrs = #{<<"name">> => <<"Collection">>},
             children = [#xmlcdata{ content = CollectionNode }] }.
 
 %% The argument is a list of Jids because this function could be used
 %% with the 'pubsub#replyto' (type=jid-multi) node configuration.
 extended_headers(Jids) ->
     [#xmlel{name = <<"address">>,
-            attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
+            attrs = #{<<"type">> => <<"replyto">>, <<"jid">> => Jid}}
      || Jid <- Jids].
 
 -spec on_user_offline(Acc, Params, Extra) -> {ok, Acc} when

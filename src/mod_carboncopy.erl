@@ -110,7 +110,7 @@ disco_local_features(Acc, _, _) ->
 -spec bind2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
     {ok, Acc} when Acc :: [exml:element()].
 bind2_stream_features(Acc, _, _) ->
-    SmFeature = #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_CC_2}]},
+    SmFeature = #xmlel{name = <<"feature">>, attrs = #{<<"var">> => ?NS_CC_2}},
     {ok, [SmFeature | Acc]}.
 
 -spec bind2_enable_features(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
@@ -333,23 +333,23 @@ build_forward_packet(Acc, JID, Packet, Sender, Dest, Direction, Version) ->
     % The wrapping message SHOULD maintain the same 'type' attribute value;
     Type = exml_query:attr(Packet, <<"type">>, <<"normal">>),
     #xmlel{name = <<"message">>,
-           attrs = [{<<"xmlns">>, <<"jabber:client">>},
-                    {<<"type">>, Type},
-                    {<<"from">>, jid:to_binary(Sender)},
-                    {<<"to">>, jid:to_binary(Dest)}],
+           attrs = #{<<"xmlns">> => <<"jabber:client">>,
+                     <<"type">> => Type,
+                     <<"from">> => jid:to_binary(Sender),
+                     <<"to">> => jid:to_binary(Dest)},
            children = carbon_copy_children(Acc, Version, JID, Packet, Direction)}.
 
 carbon_copy_children(Acc, ?NS_CC_1, JID, Packet, Direction) ->
     [ #xmlel{name = atom_to_binary(Direction, utf8),
-             attrs = [{<<"xmlns">>, ?NS_CC_1}]},
+             attrs = #{<<"xmlns">> => ?NS_CC_1}},
       #xmlel{name = <<"forwarded">>,
-             attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+             attrs = #{<<"xmlns">> => ?NS_FORWARD},
              children = [complete_packet(Acc, JID, Packet, Direction)]} ];
 carbon_copy_children(Acc, ?NS_CC_2, JID, Packet, Direction) ->
     [ #xmlel{name = atom_to_binary(Direction, utf8),
-             attrs = [{<<"xmlns">>, ?NS_CC_2}],
+             attrs = #{<<"xmlns">> => ?NS_CC_2},
              children = [ #xmlel{name = <<"forwarded">>,
-                                 attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+                                 attrs = #{<<"xmlns">> => ?NS_FORWARD},
                                  children = [complete_packet(Acc, JID, Packet, Direction)]} ]} ].
 
 enable(JID, CC, Acc) ->
@@ -367,17 +367,17 @@ disable(JID, Acc) ->
 complete_packet(Acc, From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
     %% if this is a packet sent by user on this host, then Packet doesn't
     %% include the 'from' attribute. We must add it.
-    Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
+    Attrs = OrigAttrs#{<<"xmlns">> => <<"jabber:client">>},
     Packet2 = set_stanza_id(Acc, From, Packet),
-    case proplists:get_value(<<"from">>, Attrs) of
-        undefined ->
-            Packet2#xmlel{attrs = [{<<"from">>, jid:to_binary(From)} | Attrs]};
+    case is_map_key(<<"from">>, Attrs) of
+        false ->
+            Packet2#xmlel{attrs = Attrs#{<<"from">> => jid:to_binary(From)}};
         _ ->
             Packet2#xmlel{attrs = Attrs}
     end;
 
 complete_packet(_Acc, _From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, received) ->
-    Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
+    Attrs = OrigAttrs#{<<"xmlns">> => <<"jabber:client">>},
     Packet#xmlel{attrs = Attrs}.
 
 get_cc_enabled_resources(JID) ->

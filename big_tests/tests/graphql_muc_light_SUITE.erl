@@ -1885,7 +1885,7 @@ send_message_to_muc_room(User, Room, Body, Resource, Config) ->
 enter_muc_room(RoomJID, User, Nick) ->
     JID = jid:to_binary(jid:replace_resource(RoomJID, Nick)),
     Pres = escalus_stanza:to(escalus_stanza:presence(<<"available">>,
-        [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+        [#xmlel{ name = <<"x">>, attrs=#{<<"xmlns">> => <<"http://jabber.org/protocol/muc">>}}]),
         JID),
     escalus:send(User, Pres),
     escalus:wait_for_stanza(User).

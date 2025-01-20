@@ -167,8 +167,8 @@ build_one2one_chatmarker_msg(Acc, CM) ->
     #{from := From, to := To, thread := Thread,
       type := Type, id := Id, timestamp := TS} = CM,
     Children = thread(Thread) ++ marker(Type, Id),
-    Attributes = [{<<"from">>, jid:to_binary(From)},
-                  {<<"to">>, jid:to_binary(To)}],
+    Attributes = #{<<"from">> => jid:to_binary(From),
+                   <<"to">> => jid:to_binary(To)},
     Packet = #xmlel{name = <<"message">>, attrs = Attributes, children = Children},
     make_route_item(Acc, From, To, TS, Packet).
 
@@ -179,9 +179,9 @@ build_room_chatmarker_msg(Acc, To, CM) ->
     From = jid:make(Room#jid.luser, Room#jid.lserver, FromUserBin),
     FromBin = jid:to_binary(From),
     Children = thread(Thread) ++ marker(Type, Id),
-    Attributes = [{<<"from">>, FromBin},
-                  {<<"to">>, jid:to_binary(To)},
-                  {<<"type">>, <<"groupchat">>}],
+    Attributes = #{<<"from">> => FromBin,
+                   <<"to">> => jid:to_binary(To),
+                   <<"type">> => <<"groupchat">>},
     Packet = #xmlel{name = <<"message">>, attrs = Attributes, children = Children},
     make_route_item(Acc, From, To, TS, Packet).
 
@@ -193,10 +193,10 @@ make_route_item(Acc, From, To, TS, Packet) ->
 
 marker(Type, Id) ->
     [#xmlel{name = atom_to_binary(Type, latin1),
-        attrs = [{<<"xmlns">>, <<"urn:xmpp:chat-markers:0">>},
-                 {<<"id">>, Id}], children = []}].
+            attrs = #{<<"xmlns">> => <<"urn:xmpp:chat-markers:0">>,
+                      <<"id">> => Id}}].
 
 thread(undefined) -> [];
 thread(Thread) ->
-    [#xmlel{name     = <<"thread">>, attrs = [],
+    [#xmlel{name = <<"thread">>,
             children = [#xmlcdata{content = Thread}]}].

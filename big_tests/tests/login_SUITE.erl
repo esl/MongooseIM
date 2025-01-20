@@ -548,11 +548,11 @@ restore_c2s(Config) ->
 -define(NS_SASL, <<"urn:ietf:params:xml:ns:xmpp-sasl">>).
 auth_stanza(Mech, Payload) ->
     #xmlel{name = <<"auth">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL},
-                    {<<"mechanism">>, Mech}],
+           attrs = #{<<"xmlns">> => ?NS_SASL,
+                     <<"mechanism">> => Mech},
            children = [#xmlcdata{content = base64:encode(Payload)}]}.
 
 auth_response(Payload) ->
     #xmlel{name = <<"response">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL}],
+           attrs = #{<<"xmlns">> => ?NS_SASL},
            children = [#xmlcdata{content = base64:encode(Payload)}]}.

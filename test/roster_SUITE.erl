@@ -191,7 +191,7 @@ host_type() -> <<"test type">>.
 addbob_stanza() ->
     #xmlel{children = [
         #xmlel{
-            attrs = [{<<"jid">>, bob()}],
+            attrs = #{<<"jid">> => bob()},
             children = [
                 #xmlel{name = <<"group">>,
                     children = [

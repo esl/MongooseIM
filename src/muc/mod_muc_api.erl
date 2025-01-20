@@ -152,15 +152,15 @@ invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) ->
         ok ->
             Attrs = case get_room_config(RoomJID) of
                         {ok, #config{password_protected = true, password = Pass}} ->
-                            [{<<"password">>, Pass}];
+                            #{<<"password">> => Pass};
                         _ ->
-                            []
+                            #{}
                        end,
             %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
             X = #xmlel{name = <<"x">>,
-                       attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
-                                {<<"jid">>, jid:to_binary(RoomJID)},
-                                {<<"reason">>, Reason} | Attrs]
+                       attrs = Attrs#{<<"xmlns">> => ?NS_CONFERENCE,
+                                      <<"jid">> => jid:to_binary(RoomJID),
+                                      <<"reason">> => Reason}
             },
             Invite = message(SenderJID, RecipientJID, <<>>, [X]),
             ejabberd_router:route(SenderJID, RecipientJID, Invite),
@@ -182,7 +182,7 @@ send_private_message(RoomJID, SenderJID, ToNick, Message) ->
     RoomJIDRes = jid:replace_resource(RoomJID, ToNick),
     Body = #xmlel{name = <<"body">>,
                   children = [#xmlcdata{content = Message}]},
-    X = #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}]},
+    X = #xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC}},
     Stanza = message(SenderJID, RoomJID, <<"chat">>, [Body, X]),
     ejabberd_router:route(SenderJID, RoomJIDRes, Stanza),
     {ok, "Message sent successfully"}.
@@ -390,8 +390,8 @@ kick_user_from_room_raw(RoomJID, ModJID, Nick, ReasonIn) ->
                     children = [#xmlcdata{content = ReasonIn}]
                    },
     Item = #xmlel{name = <<"item">>,
-                  attrs = [{<<"nick">>, Nick},
-                           {<<"role">>, <<"none">>}],
+                  attrs = #{<<"nick">> => Nick,
+                            <<"role">> => <<"none">>},
                   children = [ Reason ]
                  },
     IQ = iq(<<"set">>, ModJID, RoomJID, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
@@ -431,7 +431,7 @@ format_xml_error(#xmlel{name = <<"error">>} = E, Value) ->
 no_permission_msg(Op, Value) ->
     io_lib:format("Given user does not have permission to set the ~p ~s", [Value, Op]).
 
-unwrap_xml_error(#xmlel{attrs = [{<<"code">>, Code}, {<<"type">>, Type}],
+unwrap_xml_error(#xmlel{attrs = #{<<"code">> := Code, <<"type">> := Type},
                         children = [#xmlel{name = Condition} | _]}) ->
     {Code, Type, Condition}.
 
@@ -485,16 +485,17 @@ verify_room(BareRoomJID, OwnerJID) ->
     end.
 
 role_item(Nick, Role) ->
-    #xmlel{name = <<"item">>, attrs = [{<<"nick">>, Nick}, {<<"role">>, atom_to_binary(Role)}]}.
+    #xmlel{name = <<"item">>, attrs = #{<<"nick">> => Nick,
+                                        <<"role">> => atom_to_binary(Role)}}.
 
 affiliation_item(JID, Aff) ->
-    #xmlel{name = <<"item">>, attrs = [{<<"jid">>, jid:to_binary(JID)},
-                                       {<<"affiliation">>, atom_to_binary(Aff)}]}.
+    #xmlel{name = <<"item">>, attrs = #{<<"jid">> => jid:to_binary(JID),
+                                        <<"affiliation">> => atom_to_binary(Aff)}}.
 
 iq(Type, Sender, Recipient, Children) when is_binary(Type), is_list(Children) ->
     Addresses = address_attributes(Sender, Recipient),
     #xmlel{name = <<"iq">>,
-           attrs = Addresses ++ [{<<"type">>, Type}],
+           attrs = Addresses#{<<"type">> => Type},
            children = Children
           }.
 
@@ -502,7 +503,7 @@ message(Sender, Recipient, Type, Contents) when is_binary(Type), is_list(Content
     Addresses = address_attributes(Sender, Recipient),
     Attributes = case Type of
                      <<>> -> Addresses;
-                     _ -> [{<<"type">>, Type} | Addresses]
+                     _ -> Addresses#{<<"type">> => Type}
                  end,
     #xmlel{name = <<"message">>,
            attrs = Attributes,
@@ -511,7 +512,7 @@ message(Sender, Recipient, Type, Contents) when is_binary(Type), is_list(Content
 query(XMLNameSpace, Children)
   when is_binary(XMLNameSpace), is_list(Children) ->
     #xmlel{name = <<"query">>,
-           attrs = [{<<"xmlns">>, XMLNameSpace}],
+           attrs = #{<<"xmlns">> => XMLNameSpace},
            children = Children}.
 
 presence(Sender, Recipient, Password) ->
@@ -523,13 +524,14 @@ presence(Sender, Recipient, Password) ->
     #xmlel{name = <<"presence">>,
            attrs = address_attributes(Sender, Recipient),
            children = [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_MUC}],
+                              attrs = #{<<"xmlns">> => ?NS_MUC},
                               children = Children}]}.
 
 exit_room_presence(Sender, Recipient) ->
+    Addresses = address_attributes(Sender, Recipient),
     #xmlel{name = <<"presence">>,
-           attrs = [{<<"type">>, <<"unavailable">>} | address_attributes(Sender, Recipient)],
-           children = [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}]}]}.
+           attrs = Addresses#{<<"type">> => <<"unavailable">>},
+           children = [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC}}]}.
 
 declination(Sender, Recipient) ->
     iq(<<"set">>, Sender, Recipient, [data_submission()]).
@@ -538,8 +540,8 @@ data_submission() ->
     query(?NS_MUC_OWNER, [mongoose_data_forms:form(#{type => <<"submit">>})]).
 
 address_attributes(Sender, Recipient) ->
-    [{<<"from">>, jid:to_binary(Sender)},
-     {<<"to">>, jid:to_binary(Recipient)}].
+    #{<<"from">> => jid:to_binary(Sender),
+      <<"to">> => jid:to_binary(Recipient)}.
 
 room_moderator(RoomJID) ->
     case mod_muc_room:get_room_users(RoomJID) of

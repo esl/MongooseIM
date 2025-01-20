@@ -149,9 +149,12 @@ userlist(_) ->
 
 
 presence() ->
-    {xmlel, <<"presence">>, [{<<"xml:lang">>, <<"en">>}], []}.
+     #xmlel{name = <<"presence">>,
+            attrs = #{<<"xml:lang">> => <<"en">>},
+            children = []}.
 
 message() ->
-    {xmlel, <<"message">>,
-        [{<<"type">>, <<"chat">>}, {<<"to">>, <<"bob@localhost">>}],
-        [{xmlel, <<"body">>, [], [{xmlcdata, <<"roar!">>}]}]}.
+    #xmlel{name = <<"message">>,
+           attrs = #{<<"type">> => <<"chat">>, <<"to">> => <<"bob@localhost">>},
+           children = [#xmlel{name = <<"body">>,
+                              children = [#xmlcdata{content = <<"roar!">>}]}]}.

@@ -18,51 +18,51 @@
 -spec sm() -> exml:element().
 sm() ->
     #xmlel{name = <<"sm">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
+           attrs = #{<<"xmlns">> => ?NS_STREAM_MGNT_3}}.
 
 -spec stream_mgmt_enabled() -> exml:element().
 stream_mgmt_enabled() ->
-    stream_mgmt_enabled([]).
+    stream_mgmt_enabled(#{}).
 
--spec stream_mgmt_enabled([exml:attr()]) -> exml:element().
+-spec stream_mgmt_enabled(exml:attrs()) -> exml:element().
 stream_mgmt_enabled(ExtraAttrs) ->
     #xmlel{name = <<"enabled">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
+           attrs = ExtraAttrs#{<<"xmlns">> => ?NS_STREAM_MGNT_3}}.
 
 -spec stream_mgmt_resumed(mod_stream_management:smid(), mod_stream_management:short()) ->
     exml:element().
 stream_mgmt_resumed(SMID, Handled) ->
     #xmlel{name = <<"resumed">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                    {<<"previd">>, SMID},
-                    {<<"h">>, integer_to_binary(Handled)}]}.
+           attrs = #{<<"xmlns">> => ?NS_STREAM_MGNT_3,
+                     <<"previd">> => SMID,
+                     <<"h">> => integer_to_binary(Handled)}}.
 
 -spec stream_mgmt_failed(binary()) -> exml:element().
 stream_mgmt_failed(Reason) ->
-    stream_mgmt_failed(Reason, []).
+    stream_mgmt_failed(Reason, #{}).
 
--spec stream_mgmt_failed(binary(), [exml:attr()]) -> exml:element().
+-spec stream_mgmt_failed(binary(), exml:attrs()) -> exml:element().
 stream_mgmt_failed(Reason, Attrs) ->
     ReasonEl = #xmlel{name = Reason,
-                      attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
+                      attrs = #{<<"xmlns">> => ?NS_STANZAS}},
     #xmlel{name = <<"failed">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3} | Attrs],
+           attrs = Attrs#{<<"xmlns">> => ?NS_STREAM_MGNT_3},
            children = [ReasonEl]}.
 
 -spec stream_mgmt_ack(non_neg_integer()) -> exml:element().
 stream_mgmt_ack(NIncoming) ->
     #xmlel{name = <<"a">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                    {<<"h">>, integer_to_binary(NIncoming)}]}.
+           attrs = #{<<"xmlns">> => ?NS_STREAM_MGNT_3,
+                     <<"h">> => integer_to_binary(NIncoming)}}.
 
 -spec stream_mgmt_request() -> exml:element().
 stream_mgmt_request() ->
     #xmlel{name = <<"r">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
+           attrs = #{<<"xmlns">> => ?NS_STREAM_MGNT_3}}.
 
 -spec sm_handled_count_too_high_stanza(non_neg_integer(), non_neg_integer()) -> exml:element().
 sm_handled_count_too_high_stanza(Handled, OldAcked) ->
     #xmlel{name = <<"handled-count-too-high">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                    {<<"h">>, integer_to_binary(Handled)},
-                    {<<"send-count">>, integer_to_binary(OldAcked)}]}.
+           attrs = #{<<"xmlns">> => ?NS_STREAM_MGNT_3,
+                     <<"h">> => integer_to_binary(Handled),
+                     <<"send-count">> => integer_to_binary(OldAcked)}}.

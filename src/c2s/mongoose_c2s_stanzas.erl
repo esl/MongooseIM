@@ -22,14 +22,16 @@ stream_header(StateData) ->
     Lang = mongoose_c2s:get_lang(StateData),
     LServer = mongoose_c2s:get_lserver(StateData),
     StreamId = mongoose_c2s:get_stream_id(StateData),
-    MaybeFrom = [ {<<"to">>, jid:to_binary(Jid)}
-                  || Jid <- [mongoose_c2s:get_jid(StateData)], Jid =/= undefined],
-    Attrs = [{<<"xmlns">>, ?NS_CLIENT},
-             {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
-             {<<"id">>, StreamId},
-             {<<"from">>, LServer},
-             {<<"version">>, ?XMPP_VERSION},
-             {<<"xml:lang">>, Lang} | MaybeFrom ],
+    MaybeFrom = case mongoose_c2s:get_jid(StateData) of
+                    undefined -> #{};
+                    Jid ->  #{<<"to">> => jid:to_binary(Jid)}
+                end,
+    Attrs = MaybeFrom#{<<"xmlns">> => ?NS_CLIENT,
+                       <<"xmlns:stream">> => <<"http://etherx.jabber.org/streams">>,
+                       <<"id">> => StreamId,
+                       <<"from">> => LServer,
+                       <<"version">> => ?XMPP_VERSION,
+                       <<"xml:lang">> => Lang},
     #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
 
 -spec stream_features([exml:element() | exml:cdata()]) -> exml:element().
@@ -73,7 +75,7 @@ maybe_sasl_mechanisms(StateData) ->
         [] -> [];
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
-                    attrs = [{<<"xmlns">>, ?NS_SASL}],
+                    attrs = #{<<"xmlns">> => ?NS_SASL},
                     children = [ mechanism(M) || M <- Mechanisms ]}]
     end.
 
@@ -84,32 +86,32 @@ mechanism(M) ->
 -spec starttls_stanza(required | optional) -> exml:element().
 starttls_stanza(TLSRequired) when TLSRequired =:= required; TLSRequired =:= optional ->
     #xmlel{name = <<"starttls">>,
-           attrs = [{<<"xmlns">>, ?NS_TLS}],
+           attrs = #{<<"xmlns">> => ?NS_TLS},
            children = [ #xmlel{name = <<"required">>} || TLSRequired =:= required ]}.
 
 -spec tls_proceed() -> exml:element().
 tls_proceed() ->
     #xmlel{name = <<"proceed">>,
-           attrs = [{<<"xmlns">>, ?NS_TLS}]}.
+           attrs = #{<<"xmlns">> => ?NS_TLS}}.
 
 -spec tls_failure() -> exml:element().
 tls_failure() ->
     #xmlel{name = <<"failure">>,
-           attrs = [{<<"xmlns">>, ?NS_TLS}]}.
+           attrs = #{<<"xmlns">> => ?NS_TLS}}.
 
 -spec stream_features_after_auth(mongoose_c2s:data()) -> exml:element().
 stream_features_after_auth(StateData) ->
     case mongoose_c2s:get_listener_opts(StateData) of
         #{backwards_compatible_session := false} ->
             Features = [#xmlel{name = <<"bind">>,
-                               attrs = [{<<"xmlns">>, ?NS_BIND}]}
+                               attrs = #{<<"xmlns">> => ?NS_BIND}}
                         | hook_enabled_features(StateData)],
             stream_features(Features);
         #{backwards_compatible_session := true} ->
             Features = [#xmlel{name = <<"session">>,
-                               attrs = [{<<"xmlns">>, ?NS_SESSION}]},
+                               attrs = #{<<"xmlns">> => ?NS_SESSION}},
                         #xmlel{name = <<"bind">>,
-                               attrs = [{<<"xmlns">>, ?NS_BIND}]}
+                               attrs = #{<<"xmlns">> => ?NS_BIND}}
                         | hook_enabled_features(StateData)],
             stream_features(Features)
     end.
@@ -128,7 +130,7 @@ sasl_success_stanza(ServerOut) ->
             _ -> [#xmlcdata{content = base64:encode(ServerOut)}]
         end,
     #xmlel{name = <<"success">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL}],
+           attrs = #{<<"xmlns">> => ?NS_SASL},
            children = C}.
 
 -spec sasl_failure_stanza(binary() | {binary(), iodata() | undefined}) -> exml:element().
@@ -136,7 +138,7 @@ sasl_failure_stanza(Error) when is_binary(Error) ->
     sasl_failure_stanza({Error, undefined});
 sasl_failure_stanza({Error, Text}) ->
     #xmlel{name = <<"failure">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL}],
+           attrs = #{<<"xmlns">> => ?NS_SASL},
            children = [#xmlel{name = Error} | maybe_text_tag(Text)]}.
 
 maybe_text_tag(undefined) -> [];
@@ -147,7 +149,7 @@ maybe_text_tag(Text) ->
 -spec sasl_challenge_stanza(binary()) -> exml:element().
 sasl_challenge_stanza(ServerOut) ->
     #xmlel{name = <<"challenge">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL}],
+           attrs = #{<<"xmlns">> => ?NS_SASL},
            children = [#xmlcdata{content = base64:encode(ServerOut)}]}.
 
 -spec successful_resource_binding(jlib:iq(), jid:jid()) -> exml:element().
@@ -156,7 +158,7 @@ successful_resource_binding(IQ, Jid) ->
                    children = [#xmlcdata{content = jid:to_binary(Jid)}]},
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"bind">>,
-                                 attrs = [{<<"xmlns">>, ?NS_BIND}],
+                                 attrs = #{<<"xmlns">> => ?NS_BIND},
                                  children = [JIDEl]}]},
     jlib:iq_to_xml(Res).
 
@@ -164,5 +166,5 @@ successful_resource_binding(IQ, Jid) ->
 successful_session_establishment(IQ) ->
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"session">>,
-                                 attrs = [{<<"xmlns">>, ?NS_SESSION}]}]},
+                                 attrs = #{<<"xmlns">> => ?NS_SESSION}}]},
     jlib:iq_to_xml(Res).

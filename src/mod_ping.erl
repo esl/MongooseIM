@@ -233,8 +233,8 @@ user_ping_response(Acc, #{time_delta := TDelta, jid := Jid}, #{host_type := Host
 -spec ping_get(binary()) -> exml:element().
 ping_get(Id) ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"type">>, <<"get">>}, {<<"id">>, Id}],
-           children = [#xmlel{name = <<"ping">>, attrs = [{<<"xmlns">>, ?NS_PING}]}]}.
+           attrs = #{<<"type">> => <<"get">>, <<"id">> => Id},
+           children = [#xmlel{name = <<"ping">>, attrs = #{<<"xmlns">> => ?NS_PING}}]}.
 
 -spec is_ping_error(exml:element()) -> boolean().
 is_ping_error(Stanza) ->

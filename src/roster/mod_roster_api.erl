@@ -105,7 +105,7 @@ delete_contact(#jid{lserver = LServer} = CallerJID, ContactJID) ->
     {ok | unknown_domain, iolist()}.
 subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type) ->
     StanzaType = atom_to_binary(Type, latin1),
-    El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
+    El = #xmlel{name = <<"presence">>, attrs = #{<<"type">> => StanzaType}},
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             Acc1 = mongoose_acc:new(#{ location => ?LOCATION,

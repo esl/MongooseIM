@@ -199,16 +199,19 @@ strip_with_params(_Config) ->
     ?assertEqual(NewHostType, mongoose_acc:host_type(NAcc2)).
 
 sample_stanza() ->
-    {xmlel, <<"iq">>,
-        [{<<"xml:lang">>, <<"en">>},
-         {<<"type">>, <<"set">>},
-         {<<"from">>, <<"a@localhost">>},
-         {<<"to">>, <<"a@localhost">>}],
-        [{xmlel, <<"block">>,
-            [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
-            [{xmlel, <<"item">>,
-                [{<<"jid">>, <<"bob37.814302@localhost">>}],
-                []}]}]}.
+    #xmlel{name = <<"iq">>,
+           attrs = #{<<"xml:lang">> => <<"en">>,
+                     <<"type">> => <<"set">>,
+                     <<"from">> => <<"a@localhost">>,
+                     <<"to">> => <<"a@localhost">>},
+           children = [
+            #xmlel{name = <<"block">>,
+                   attrs = #{<<"xmlns">> => <<"urn:xmpp:blocking">>},
+                   children = [
+                    #xmlel{name = <<"item">>,
+                           attrs = #{<<"jid">> => <<"bob37.814302@localhost">>}}
+                   ]}
+           ]}.
 
 
 stanza_with_cdata() ->
@@ -219,21 +222,23 @@ stanza_with_cdata() ->
 
 
 iq_stanza() ->
-    {xmlel,<<"iq">>,
-        [{<<"type">>,<<"set">>},
-         {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>},
-         {<<"from">>, <<"a@localhost">>},
-         {<<"to">>, <<"localhost">>}],
-        [{xmlel,<<"session">>,
-            [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
-            []}]}.
+    #xmlel{ name = <<"iq">>,
+            attrs = #{<<"type">> => <<"set">>,
+                      <<"id">> => <<"a31baa4c478896af19b76bac799b65ed">>,
+                      <<"from">> => <<"a@localhost">>,
+                      <<"to">> => <<"localhost">>},
+            children = [
+                #xmlel{ name = <<"session">>,
+                        attrs = #{<<"xmlns">> => <<"urn:ietf:params:xml:ns:xmpp-session">>}}
+            ]}.
 
 another_iq_stanza() ->
-    {xmlel,<<"iq">>,
-        [{<<"type">>,<<"pet">>},
-         {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>},
-         {<<"from">>, <<"a@localhost">>},
-         {<<"to">>, <<"localhost">>}],
-        [{xmlel,<<"session">>,
-            [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
-            []}]}.
+    #xmlel{ name = <<"iq">>,
+            attrs = #{<<"type">> => <<"pet">>,
+                      <<"id">> => <<"a31baa4c478896af19b76bac799b65ed">>,
+                      <<"from">> => <<"a@localhost">>,
+                      <<"to">> => <<"localhost">>},
+            children = [
+                #xmlel{ name = <<"session">>,
+                        attrs = #{<<"xmlns">> => <<"urn:ietf:params:xml:ns:xmpp-session">>}}
+            ]}.

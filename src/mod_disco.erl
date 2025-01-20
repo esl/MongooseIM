@@ -350,15 +350,15 @@ get_user_resources(JID = #jid{luser = LUser}) ->
 
 -spec make_iq_result(jlib:iq(), binary(), binary(), [exml:element()]) -> jlib:iq().
 make_iq_result(IQ, NameSpace, Node, ChildrenXML) ->
+    Attrs = make_node_attrs(Node),
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"query">>,
-                           attrs = [{<<"xmlns">>, NameSpace} | make_node_attrs(Node)],
-                           children = ChildrenXML
-                          }]}.
+                           attrs = Attrs#{<<"xmlns">> => NameSpace},
+                           children = ChildrenXML}]}.
 
--spec make_node_attrs(Node :: binary()) -> [{binary(), binary()}].
-make_node_attrs(<<>>) -> [];
-make_node_attrs(Node) -> [{<<"node">>, Node}].
+-spec make_node_attrs(Node :: binary()) -> exml:attrs().
+make_node_attrs(<<>>) -> #{};
+make_node_attrs(Node) -> #{<<"node">> => Node}.
 
 -spec server_info_to_field(server_info()) -> mongoose_disco:info_field().
 server_info_to_field(#{name := Name, urls := URLs}) ->

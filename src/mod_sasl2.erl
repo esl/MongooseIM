@@ -17,8 +17,8 @@
 -include("mongoose_logger.hrl").
 
 -define(BIND_RETRIES, 3).
--define(XMLNS_SASL, {<<"xmlns">>, ?NS_SASL}).
--define(XMLNS_SASL_2, {<<"xmlns">>, ?NS_SASL_2}).
+-define(XMLNS_SASL, #{<<"xmlns">> => ?NS_SASL}).
+-define(XMLNS_SASL_2, #{<<"xmlns">> => ?NS_SASL_2}).
 
 -behaviour(gen_mod).
 -behaviour(gen_statem).
@@ -125,7 +125,7 @@ c2s_stream_features(Acc, #{c2s_data := C2SData}, _) ->
          andalso lists:keyfind(<<"mechanisms">>, #xmlel.name, Acc) of
         false ->
             {ok, Acc};
-        #xmlel{attrs = [?XMLNS_SASL], children = Mechanisms} ->
+        #xmlel{attrs = #{<<"xmlns">> := ?NS_SASL}, children = Mechanisms} ->
             Sasl2Feature = feature(C2SData, Mechanisms),
             {ok, lists:keystore(feature_name(), #xmlel.name, Acc, Sasl2Feature)}
     end.
@@ -370,12 +370,12 @@ challenge_stanza(ServerOut) ->
 
 -spec failure_stanza(binary()) -> exml:element().
 failure_stanza(Reason) ->
-    SaslErrorCode = #xmlel{name = Reason, attrs = [?XMLNS_SASL]},
+    SaslErrorCode = #xmlel{name = Reason, attrs = ?XMLNS_SASL},
     sasl2_ns_stanza(<<"failure">>, [SaslErrorCode]).
 
 -spec sasl2_ns_stanza(binary(), [exml:element() | exml:cdata()]) -> exml:element().
 sasl2_ns_stanza(Name, Children) ->
-    #xmlel{name = Name, attrs = [?XMLNS_SASL_2], children = Children}.
+    #xmlel{name = Name, attrs = ?XMLNS_SASL_2, children = Children}.
 
 -spec success_subelement(binary(), binary()) -> exml:element().
 success_subelement(Name, AuthId) ->
@@ -423,7 +423,7 @@ feature(C2SData, Mechanisms) ->
     InlineFeatures = mongoose_hooks:sasl2_stream_features(C2SData, []),
     InlineElem = inlines(InlineFeatures),
     #xmlel{name = feature_name(),
-           attrs = [?XMLNS_SASL_2],
+           attrs = ?XMLNS_SASL_2,
            children = [InlineElem | Mechanisms]}.
 
 -spec inlines([exml:element()]) -> exml:element().

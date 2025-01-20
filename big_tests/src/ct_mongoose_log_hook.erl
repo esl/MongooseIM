@@ -155,7 +155,7 @@ write_lines([], _CurrentLineNum, _Writer) ->
 make_elem(CurrentLineNum, Line) when is_integer(CurrentLineNum), is_binary(Line) ->
     NextLinkName = make_link_name(CurrentLineNum+1),
     [#xmlcdata{ content = make_content(CurrentLineNum, Line) },
-     #xmlel{name = <<"a">>, attrs = [{<<"name">>, NextLinkName}]}].
+     #xmlel{name = <<"a">>, attrs = #{<<"name">> => NextLinkName}}].
 
 make_link_name(Line) when is_integer(Line) ->
     <<"L", (list_to_binary(integer_to_list(Line)))/binary>>.

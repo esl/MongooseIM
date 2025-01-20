@@ -180,47 +180,43 @@ extract_incomplete_amp_test(_) ->
 
 strip_amp_el_test(_) ->
     AmpEl = #xmlel{name = <<"amp">>,
-                   attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/amp">>},
-                           {<<"status">>,<<"notify">>},
-                           {<<"to">>,<<"bernardo@hamlet.lit/elsinore">>},
-                           {<<"from">>,<<"francisco@hamlet.lit">>}],
+                   attrs = #{<<"xmlns">> => <<"http://jabber.org/protocol/amp">>,
+                             <<"status">> => <<"notify">>,
+                             <<"to">> => <<"bernardo@hamlet.lit/elsinore">>,
+                             <<"from">> => <<"francisco@hamlet.lit">>},
                    children = [
                                #xmlel{name = <<"rule">>,
-                                       attrs = [{<<"action">>,<<"notify">>},
-                                               {<<"condition">>,<<"deliver">>},
-                                               {<<"value">>,<<"stored">>}]}]},
+                                       attrs = #{<<"action">> => <<"notify">>,
+                                                 <<"condition">> => <<"deliver">>,
+                                                 <<"value">> => <<"stored">>}}]},
     BodyEl = #xmlel{name = <<"body">>,
-                    attrs = [],
                     children = [#xmlcdata{content = <<"Hello there!">>}]},
     M = #xmlel{name = <<"message">>,
                attrs =
-                   [{<<"from">>,<<"hamlet.lit">>},
-                    {<<"to">>,<<"bernardo@hamlet.lit/elsinore">>},
-                    {<<"id">>,<<"chatty2">>}],
+                   #{<<"from">> => <<"hamlet.lit">>,
+                     <<"to">> => <<"bernardo@hamlet.lit/elsinore">>,
+                     <<"id">> => <<"chatty2">>},
                children = [AmpEl,BodyEl]},
     ?assertEqual(
        #xmlel{name = <<"message">>,
-              attrs = [{<<"from">>, <<"hamlet.lit">>},
-                      {<<"to">>, <<"bernardo@hamlet.lit/elsinore">>},
-                      {<<"id">>, <<"chatty2">>}],
+              attrs = #{<<"from">> => <<"hamlet.lit">>,
+                        <<"to">> => <<"bernardo@hamlet.lit/elsinore">>,
+                        <<"id">> => <<"chatty2">>},
               children = [BodyEl]
              },
        amp:strip_amp_el(M)).
 
 strip_amp_el_noop_test(_) ->
     BodyEl = #xmlel{name = <<"body">>,
-                    attrs = [],
                     children = [#xmlcdata{content = <<"Hello there!">>}]},
     M = #xmlel{name = <<"message">>,
                attrs =
-                   [{<<"from">>,<<"hamlet.lit">>},
-                    {<<"to">>,<<"bernardo@hamlet.lit/elsinore">>},
-                    {<<"id">>,<<"chatty2">>}],
+                   #{<<"from">> => <<"hamlet.lit">>,
+                     <<"to">> => <<"bernardo@hamlet.lit/elsinore">>,
+                     <<"id">> => <<"chatty2">>},
                children = [BodyEl]},
     ?assertEqual(M, amp:strip_amp_el(M)).
 
 
 is_valid_rule(#amp_rule{}) -> true;
 is_valid_rule(#amp_invalid_rule{}) -> false.
-
-

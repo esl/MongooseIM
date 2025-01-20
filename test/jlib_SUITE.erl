@@ -28,8 +28,8 @@ make_iq_reply_switches_to_and_from_attrs(_C) ->
     FromJid = <<"test2@esl.com/res2">>,
     #xmlel{attrs = Attrs} = BaseIQ = base_iq(),
 
-    IQWithToAndFrom = BaseIQ#xmlel{attrs = [{<<"to">>, ToJid},
-                                            {<<"from">>, FromJid} | Attrs]},
+    IQWithToAndFrom = BaseIQ#xmlel{attrs = Attrs#{<<"to">> => ToJid,
+                                                  <<"from">> => FromJid}},
 
     WithToFromReply = jlib:make_result_iq_reply(IQWithToAndFrom),
 
@@ -40,7 +40,7 @@ make_iq_reply_switches_to_and_from_attrs(_C) ->
 make_iq_reply_switches_from_to_to(_C) ->
     FromJid = <<"test2@esl.com/res2">>,
     #xmlel{attrs = Attrs} = BaseIQ = base_iq(),
-    IQWithFrom = BaseIQ#xmlel{attrs = [{<<"from">>, FromJid} | Attrs]},
+    IQWithFrom = BaseIQ#xmlel{attrs =  Attrs#{<<"from">> => FromJid}},
 
     WithFromReply = jlib:make_result_iq_reply(IQWithFrom),
 
@@ -50,7 +50,7 @@ make_iq_reply_switches_from_to_to(_C) ->
 make_iq_reply_changes_to_to_from(_C) ->
     ToJid = <<"test@esl.com/res">>,
     #xmlel{attrs = Attrs} = BaseIQ = base_iq(),
-    IQWithTo = BaseIQ#xmlel{attrs = [{<<"to">>, ToJid} | Attrs]},
+    IQWithTo = BaseIQ#xmlel{attrs = Attrs#{<<"to">> => ToJid}},
 
     WithToReply = jlib:make_result_iq_reply(IQWithTo),
 
@@ -80,11 +80,11 @@ error_reply_check(_) ->
 
 base_iq() ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"id">>, base64:encode(crypto:strong_rand_bytes(4))},
-                    {<<"xmlns">>, <<"jabber:client">>},
-                    {<<"type">>, <<"set">>}],
+           attrs = #{<<"id">> => base64:encode(crypto:strong_rand_bytes(4)),
+                     <<"xmlns">> => <<"jabber:client">>,
+                     <<"type">> => <<"set">>},
            children = [#xmlel{name = <<"session">>,
-                              attrs = [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-session">>}]}
+                              attrs = #{<<"xmlns">> => <<"urn:ietf:params:xml:ns:xmpp-session">>}}
                       ]}.
 
 element_length_is_too_big(Els) ->
@@ -95,4 +95,3 @@ run_property(Prop, NumTest, StartSize, StopSize) ->
                                      {numtests, NumTest},
                                      {start_size, StartSize},
                                      {max_size, StopSize}])).
-

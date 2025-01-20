@@ -37,8 +37,8 @@ parse_sdp_attributes([Attr | Rest], Acc) ->
 parse_sdp_attribute({<<"group">>, [Method | Contents]}, Acc) ->
     ContentEls = [sdp_group_content_to_el(Content) || Content <- Contents],
     El = #xmlel{name = <<"group">>,
-                attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:grouping:0">>},
-                         {<<"semantics">>, Method}],
+                attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:grouping:0">>,
+                          <<"semantics">> => Method},
                 children = ContentEls},
     [El | Acc];
 parse_sdp_attribute(_, Acc) ->
@@ -46,7 +46,7 @@ parse_sdp_attribute(_, Acc) ->
 
 sdp_group_content_to_el(Content) ->
     #xmlel{name = <<"content">>,
-           attrs = [{<<"name">>, Content}]}.
+           attrs = #{<<"name">> => Content}}.
 
 
 %% This function assumes that all codecs and their attributes were
@@ -59,25 +59,25 @@ sdp_media_to_content_el(#sdp_m{media = Media, attributes = Attrs}, CodecMap) ->
     AdditionalDescriptionEls = description_elements_from_content(Content),
 
     DescriptionEl = #xmlel{name = <<"description">>,
-                           attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:1">>},
-                                    {<<"media">>, Media}],
+                           attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:rtp:1">>,
+                                     <<"media">> => Media},
                            children = PayloadEls ++ AdditionalDescriptionEls},
     TransportEl = make_transport_el(maps:get(transport, Content)),
 
     #xmlel{name = <<"content">>,
-           attrs = [{<<"creator">>, <<"initiator">>},
-                    {<<"name">>, maps:get(name, Content, Media)},
-                    {<<"senders">>, maps:get(sender, Content)}],
+           attrs = #{<<"creator">> => <<"initiator">>,
+                     <<"name">> => maps:get(name, Content, Media),
+                     <<"senders">> => maps:get(sender, Content)},
            children = [DescriptionEl, TransportEl]}.
 
 codec_to_payload({ID, RTPMap, Attrs}) ->
     Parameters = lists:flatmap(fun codec_attr_to_params/1, Attrs),
     {Name, ClockRate, Channels} = parse_codec_rtpmap(RTPMap),
     #xmlel{name = <<"payload-type">>,
-           attrs = [{<<"id">>, ID},
-                    {<<"name">>, Name},
-                    {<<"clockrate">>, ClockRate},
-                    {<<"channels">>, Channels}],
+           attrs = #{<<"id">> => ID,
+                     <<"name">> => Name,
+                     <<"clockrate">> => ClockRate,
+                     <<"channels">> => Channels},
           children = Parameters}.
 
 parse_codec_rtpmap(RTPMap) ->
@@ -91,7 +91,7 @@ parse_codec_rtpmap(RTPMap) ->
 codec_attr_to_params({<<"rtcp-fb">>, Value}) ->
     Attrs = rtcp_fb_value_to_xml_attrs(Value),
     [#xmlel{name = <<"rtcp-fb">>,
-            attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:rtcp-fb:0">>} | Attrs]}];
+            attrs = Attrs#{<<"xmlns">> => <<"urn:xmpp:jingle:apps:rtp:rtcp-fb:0">>}}];
 codec_attr_to_params({<<"fmtp">>, [Value]}) ->
     Params = binary:split(Value, <<$;>>, [global]),
     [basic_param_to_xml_el(Param) || Param <- Params];
@@ -99,19 +99,19 @@ codec_attr_to_params(_) ->
     [].
 
 rtcp_fb_value_to_xml_attrs([Type]) ->
-    [{<<"type">>, Type}];
+    #{<<"type">> => Type};
 rtcp_fb_value_to_xml_attrs([Type, SubType]) ->
-    [{<<"type">>, Type}, {<<"subtype">>, SubType}].
+    #{<<"type">> => Type, <<"subtype">> => SubType}.
 
 basic_param_to_xml_el(Param) ->
     case binary:split(Param, <<$=>>) of
         [Name, Value] ->
             #xmlel{name = <<"parameter">>,
-                   attrs = [{<<"name">>, Name},
-                            {<<"value">>, Value}]};
+                   attrs = #{<<"name">> => Name,
+                             <<"value">> => Value}};
         [Value] ->
             #xmlel{name = <<"parameter">>,
-                   attrs = [{<<"value">>, Value}]}
+                   attrs = #{<<"value">> => Value}}
     end.
 
 parse_nksip_media_attrs(Attrs) ->
@@ -196,10 +196,10 @@ description_elements_from_content(Content) ->
 
 rtphdr_ext_to_element({ID, Sender, URI}) ->
     #xmlel{name = <<"rtp-hdrext">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:rtp-hdrext:0">>},
-                    {<<"id">>, ID},
-                    {<<"uri">>, URI},
-                    {<<"senders">>, Sender}]}.
+           attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:rtp:rtp-hdrext:0">>,
+                     <<"id">> => ID,
+                     <<"uri">> => URI,
+                     <<"senders">> => Sender}}.
 
 maybe_add_rtcp_mux(#{rtcp_mux := true}, Els) ->
     El = #xmlel{name = <<"rtcp-mux">>},
@@ -233,42 +233,41 @@ parse_candidate_extra_args(Rest, Candidate) ->
 
 make_transport_el(Transport) ->
     CandidateElements = [make_candidate_el(Candidate) || Candidate <- maps:get(candidates, Transport, [])],
-    AttrsWithUfrag = maybe_add_ice_ufrag(maps:get(ufrag, Transport, undefined), []),
+    AttrsWithUfrag = maybe_add_ice_ufrag(maps:get(ufrag, Transport, undefined), #{}),
     ICEAttrs = maybe_add_ice_pwd(maps:get(pwd, Transport, undefined), AttrsWithUfrag),
 
     El = #xmlel{name = <<"transport">>,
-                attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:transports:ice-udp:1">>} |
-                         ICEAttrs],
+                attrs = ICEAttrs#{<<"xmlns">> => <<"urn:xmpp:jingle:transports:ice-udp:1">>},
                 children = CandidateElements},
     maybe_add_fingerprint_el(Transport, El).
 
 make_candidate_el(Candidate) ->
-    Attrs = maps:fold(fun candidate_kv_to_attr/3, [], Candidate),
+    Attrs = maps:fold(fun candidate_kv_to_attr/3, #{}, Candidate),
     #xmlel{name = <<"candidate">>,
            attrs = Attrs}.
 
 candidate_kv_to_attr(raddr, Value, Acc) ->
-    [{<<"rel-addr">>, Value} | Acc];
+    Acc#{<<"rel-addr">> => Value};
 candidate_kv_to_attr(rport, Value, Acc) ->
-    [{<<"rel-port">>, Value} | Acc];
+    Acc#{<<"rel-port">> => Value};
 candidate_kv_to_attr(Key, Value, Acc) ->
-    [{erlang:atom_to_binary(Key, utf8), Value} | Acc].
+    Acc#{erlang:atom_to_binary(Key, utf8) => Value}.
 
 maybe_add_ice_ufrag(undefined, Attrs) ->
     Attrs;
 maybe_add_ice_ufrag(Ufrag, Attrs) ->
-    [{<<"ufrag">>, Ufrag} | Attrs].
+    Attrs#{<<"ufrag">> => Ufrag}.
 
 maybe_add_ice_pwd(undefined, Attrs) ->
     Attrs;
 maybe_add_ice_pwd(Pwd, Attrs) ->
-    [{<<"pwd">>, Pwd} | Attrs].
+    Attrs#{<<"pwd">> => Pwd}.
 
 
 maybe_add_fingerprint_el(#{fingerprint := {Hash, Fingerprint}} = Transport,
                          #xmlel{children = Children} = El) ->
-    Attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:dtls:0">>},
-             {<<"hash">>, Hash}],
+    Attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:dtls:0">>,
+              <<"hash">> => Hash},
     AllAttrs = maybe_add_setup_attr(maps:get(setup, Transport, undefined), Attrs),
     FingerprintEl = #xmlel{name = <<"fingerprint">>,
                            attrs = AllAttrs,
@@ -278,7 +277,7 @@ maybe_add_fingerprint_el(#{fingerprint := {Hash, Fingerprint}} = Transport,
 maybe_add_setup_attr(undefined, Attrs) ->
     Attrs;
 maybe_add_setup_attr(Setup, Attrs) ->
-    [{<<"setup">>, Setup} | Attrs].
+    Attrs#{<<"setup">> => Setup}.
 
 decode_ssrc_sdp_param(Parameter) ->
     Bin = list_to_binary(lists:join(" ", Parameter)),
@@ -298,8 +297,8 @@ maybe_add_sources(_, Els) ->
 source_to_el(SSRC, Params) ->
     Parameters = [ssrc_attr_to_el(Attr) || Attr <- Params],
     #xmlel{name = <<"source">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:ssma:0">>},
-                    {<<"ssrc">>, SSRC}],
+           attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:rtp:ssma:0">>,
+                     <<"ssrc">> => SSRC},
            children = Parameters}.
 
 ssrc_attr_to_el(Attr) ->
@@ -308,9 +307,7 @@ ssrc_attr_to_el(Attr) ->
            attrs = Attrs}.
 
 make_el_attrs_from_ssrc({Attr, Value}) ->
-    [{<<"name">>, Attr},
-     {<<"value">>, Value}];
+    #{<<"name">> => Attr,
+      <<"value">> => Value};
 make_el_attrs_from_ssrc(Attr) ->
-    [{<<"name">>, Attr}].
-
-
+    #{<<"name">> => Attr}.

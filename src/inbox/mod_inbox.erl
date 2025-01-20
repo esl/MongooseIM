@@ -382,13 +382,13 @@ process_message(HostType, From, To, Message, _TS, Dir, Type) ->
 %% Stanza builders
 build_empty_bin(Num) ->
     #xmlel{name = <<"empty-bin">>,
-           attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+           attrs = #{<<"xmlns">> => ?NS_ESL_INBOX},
            children = [#xmlel{name = <<"num">>,
                               children = [#xmlcdata{content = integer_to_binary(Num)}]}]}.
 
 -spec build_inbox_message(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
 build_inbox_message(Acc, InboxRes, IQ) ->
-    #xmlel{name = <<"message">>, attrs = [{<<"id">>, mongoose_bin:gen_from_timestamp()}],
+    #xmlel{name = <<"message">>, attrs = #{<<"id">> => mongoose_bin:gen_from_timestamp()},
            children = [build_result_el(Acc, InboxRes, IQ)]}.
 
 -spec build_result_el(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
@@ -396,9 +396,9 @@ build_result_el(Acc, InboxRes = #{unread_count := Count}, #iq{id = IqId, sub_el 
     AccTS = mongoose_acc:timestamp(Acc),
     Children = mod_inbox_utils:build_inbox_result_elements(InboxRes, AccTS),
     #xmlel{name = <<"result">>,
-           attrs = [{<<"xmlns">>, ?NS_ESL_INBOX},
-                    {<<"unread">>, integer_to_binary(Count)},
-                    {<<"queryid">>, exml_query:attr(QueryEl, <<"queryid">>, IqId)}],
+           attrs = #{<<"xmlns">> => ?NS_ESL_INBOX,
+                     <<"unread">> => integer_to_binary(Count),
+                     <<"queryid">> => exml_query:attr(QueryEl, <<"queryid">>, IqId)},
            children = Children}.
 
 -spec build_result_iq([inbox_res()]) -> exml:element().
@@ -411,12 +411,12 @@ build_result_iq(List) ->
                                     #xmlel{name = K, children = [#xmlcdata{content = integer_to_binary(V)}]}
                             end, Result),
     ResultSetEl = result_set(List),
-    #xmlel{name = <<"fin">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+    #xmlel{name = <<"fin">>, attrs = #{<<"xmlns">> => ?NS_ESL_INBOX},
            children = [ResultSetEl | maps:values(ResultBinary)]}.
 
 -spec result_set([inbox_res()]) -> exml:element().
 result_set([]) ->
-    #xmlel{name = <<"set">>, attrs = [{<<"xmlns">>, ?NS_RSM}]};
+    #xmlel{name = <<"set">>, attrs = #{<<"xmlns">> => ?NS_RSM}};
 result_set([#{remote_jid := FirstBinJid, timestamp := FirstTS} | _] = List) ->
     #{remote_jid := LastBinJid, timestamp := LastTS} = lists:last(List),
     BFirst = mod_inbox_utils:encode_rsm_id(FirstTS, FirstBinJid),

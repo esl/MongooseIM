@@ -39,19 +39,19 @@ xmlel_attrs_non_unique() ->
     ?LET(Len, choose(1, 5), vector(Len, xmlel_attr())).
 
 xmlel_attrs() ->
-    ?SUCHTHAT(Attrs, xmlel_attrs_non_unique(),
-              length(lists:ukeysort(1, Attrs)) == length(Attrs)).
+    ?LET(Attrs, xmlel_attrs_non_unique(),
+              maps:from_list(Attrs)).
 
 xmlel(0, FixedName, FixedAttrs, FixedChildren) ->
     ?LET({Attrs}, {xmlel_attrs()},
          #xmlel{name = list_to_binary(FixedName),
-                attrs = Attrs ++ FixedAttrs,
+                attrs = maps:merge(Attrs, FixedAttrs),
                 children = FixedChildren});
 
 xmlel(Size, FixedName, FixedAttrs, FixedChildren) ->
     ?LET({Attrs, Children}, {xmlel_attrs(), xmlel_children(Size)},
          #xmlel{name = list_to_binary(FixedName),
-                attrs = Attrs ++ FixedAttrs,
+                attrs = maps:merge(Attrs, FixedAttrs),
                 children = join_consecutive_cdata(FixedChildren ++ Children)}).
 
 xmlel_children(Size) ->
