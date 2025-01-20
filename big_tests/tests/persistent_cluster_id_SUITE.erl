@@ -75,12 +75,6 @@ init_per_group(rdbms, Config) ->
     end;
 init_per_group(_, Config) ->
     case not mongoose_helper:is_rdbms_enabled(host_type()) of
-        true ->
-            Config;
-        false -> {skip, require_no_rdbms}
-    end;
-init_per_group(mnesia, Config) ->
-    case not mongoose_helper:is_rdbms_enabled(host_type()) of
         true -> Config;
         false -> {skip, require_no_rdbms}
     end.

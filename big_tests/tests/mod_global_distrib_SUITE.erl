@@ -1434,7 +1434,7 @@ print_sessions_debug_info(NodeName) ->
     PidNodes = [{Pid, node(Pid)} || Pid <- Pids],
     ct:log("Pids on nodes ~p", [PidNodes]),
 
-    Info = [{Pid, rpc:call(Node, erlang, process_info, [Pid])} || {Pid, Node} <- PidNodes],
+    Info = [{Pid, rpc:call(N, erlang, process_info, [Pid])} || {Pid, N} <- PidNodes],
     ct:log("Processes info ~p", [Info]),
     ok.
 

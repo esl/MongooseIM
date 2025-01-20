@@ -45,7 +45,7 @@ end_per_testcase(CaseName, Config) ->
 %% Test cases
 %%--------------------------------------------------------------------
 
-cleaning_works(Config) ->
+cleaning_works(_Config) ->
     Id = <<"someid139455">>,
     Pid = spawn_link(fun() -> receive stop -> ok end end),
     ok = rpc(mim(), mongoose_start_node_id, register_on_remote_node_rpc, [node(), Id, Pid]),
