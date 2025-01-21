@@ -173,6 +173,7 @@ groups() ->
                         s2s_max_retry_delay]},
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
+                            mod_fast_auth_token,
                             mod_blocking,
                             mod_bosh,
                             mod_caps,
@@ -1485,6 +1486,27 @@ mod_auth_token(_Config) ->
     ?cfgh(P ++ [validity_period, refresh], #{unit => days, value => 31},
           T(<<"validity_period">>,
             #{<<"refresh">> => #{<<"value">> => 31, <<"unit">> => <<"days">>}})),
+    ?errh(T(<<"backend">>, <<"nosql">>)),
+    ?errh(T(<<"validity_period">>,
+            #{<<"access">> => #{<<"value">> => -1, <<"unit">> => <<"minutes">>}})),
+    ?errh(T(<<"validity_period">>,
+            #{<<"access">> => #{<<"value">> => 10, <<"unit">> => <<"centuries">>}})),
+    ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"value">> => 10}})),
+    ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"unit">> => <<"days">>}})).
+
+mod_fast_auth_token(_Config) ->
+    check_module_defaults(mod_fast_auth_token),
+    P = [modules, mod_fast_auth_token],
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_fast_auth_token">> => #{K => V}}} end,
+    ?cfgh(P ++ [backend], rdbms, T(<<"backend">>, <<"rdbms">>)),
+    ?cfgh(P ++ [validity_period, access], #{unit => minutes, value => 13},
+          T(<<"validity_period">>,
+            #{<<"access">> => #{<<"value">> => 13, <<"unit">> => <<"minutes">>}})),
+
+    ?cfgh(P ++ [validity_period, rotate_before_expire], #{unit => days, value => 31},
+          T(<<"validity_period">>,
+            #{<<"rotate_before_expire">> => #{<<"value">> => 31, <<"unit">> => <<"days">>}})),
+
     ?errh(T(<<"backend">>, <<"nosql">>)),
     ?errh(T(<<"validity_period">>,
             #{<<"access">> => #{<<"value">> => -1, <<"unit">> => <<"minutes">>}})),
@@ -3096,7 +3118,21 @@ check_iqdisc(ParentP, ParentT) when is_function(ParentT, 1) ->
 
 check_module_defaults(Mod) ->
     ExpectedCfg = default_mod_config(Mod),
+    case maps:size(ExpectedCfg) of
+        0 ->
+            ok;
+        _ ->
+            assert_configurable_module(mod_fast_auth_token)
+    end,
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
+
+assert_configurable_module(Module) ->
+    case lists:member(Module, mongoose_config_spec:configurable_modules()) of
+        true -> ok;
+        false ->
+            ct:fail({assert_configurable_module, Module,
+                     "Don't forget to add module into mongoose_config_spec:configurable_modules/1"})
+    end.
 
 %% helpers for 'listen' tests
 

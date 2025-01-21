@@ -36,7 +36,8 @@
 -export([get_inline_request/2, get_inline_request/3, put_inline_request/3,
          append_inline_response/3, update_inline_request/4,
          get_state_data/1, set_state_data/2,
-         request_block_future_stream_features/1]).
+         request_block_future_stream_features/1,
+         get_mod_state/1]).
 
 -type maybe_binary() :: undefined | binary().
 -type status() :: pending | success | failure.
@@ -45,6 +46,7 @@
                             status := status()}.
 -type mod_state() :: #{authenticated := boolean(),
                        id := not_provided | uuid:uuid(),
+                       encoded_id := not_provided | binary(),
                        software := not_provided | binary(),
                        device := not_provided | binary()}.
 -type c2s_state_data() :: #{c2s_state := mongoose_c2s:state(),
@@ -227,7 +229,7 @@ handle_sasl_step({error, NewSaslAcc, #{type := Type}}, OriginalStateData, Retrie
 -spec handle_sasl_success(mongoose_acc:t(), mongoose_c2s_sasl:success(), c2s_state_data()) ->
     mongoose_c2s:fsm_res().
 handle_sasl_success(SaslAcc,
-                    #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod},
+                    #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod, creds := Creds},
                     #{c2s_data := C2SData} = OriginalStateData) ->
     C2SData1 = build_final_c2s_data(C2SData, Jid, AuthMod),
     OriginalStateData1 = OriginalStateData#{c2s_data := C2SData1},
@@ -235,7 +237,7 @@ handle_sasl_success(SaslAcc,
                 user => jid:to_binary(Jid), c2s_state => C2SData1}),
     HostType = mongoose_c2s:get_host_type(C2SData1),
     SaslAcc1 = set_state_data(SaslAcc, OriginalStateData1),
-    SaslAcc2 = mongoose_hooks:sasl2_success(HostType, SaslAcc1, OriginalStateData1),
+    SaslAcc2 = mongoose_hooks:sasl2_success(HostType, SaslAcc1, OriginalStateData1, Creds),
     process_sasl2_success(SaslAcc2, OriginalStateData1, MaybeServerOut).
 
 -spec handle_sasl_continue(
@@ -392,7 +394,8 @@ get_initial_response(El) ->
 
 -spec init_mod_state(not_provided | exml:element()) -> invalid_agent | mod_state().
 init_mod_state(not_provided) ->
-    #{authenticated => false, id => not_provided, software => not_provided, device => not_provided};
+    #{authenticated => false, id => not_provided, software => not_provided, device => not_provided,
+      encoded_id => not_provided};
 init_mod_state(El) ->
     MaybeId = exml_query:attr(El, <<"id">>, not_provided),
     case if_provided_then_is_not_invalid_uuid_v4(MaybeId) of
@@ -401,7 +404,8 @@ init_mod_state(El) ->
         Value ->
             Software = exml_query:path(El, [{element, <<"software">>}, cdata], not_provided),
             Device = exml_query:path(El, [{element, <<"device">>}, cdata], not_provided),
-            #{authenticated => false, id => Value, software => Software, device => Device}
+            #{authenticated => false, id => Value, software => Software, device => Device,
+              encoded_id => MaybeId}
     end.
 
 -spec if_provided_then_is_not_invalid_uuid_v4(not_provided | binary()) ->

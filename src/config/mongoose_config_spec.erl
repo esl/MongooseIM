@@ -32,6 +32,10 @@
          process_domain_cert/1,
          process_infinity_as_zero/1]).
 
+%% For tests
+-export([configurable_modules/0]).
+-ignore_xref([configurable_modules/0]).
+
 -include("mongoose_config_spec.hrl").
 
 -type config_node() :: config_section() | config_list() | config_option().
@@ -753,6 +757,7 @@ configurable_modules() ->
      mod_disco,
      mod_event_pusher,
      mod_extdisco,
+     mod_fast_auth_token,
      mod_global_distrib,
      mod_http_upload,
      mod_inbox,

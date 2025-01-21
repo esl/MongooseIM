@@ -18,7 +18,8 @@
 -type maybe_username() :: undefined | jid:luser().
 -type success() :: #{server_out := undefined | binary(),
                      jid := jid:jid(),
-                     auth_module := cyrsasl:sasl_module()}.
+                     auth_module := cyrsasl:sasl_module(),
+                     creds := mongoose_credentials:t()}.
 -type continue() :: #{server_out := binary()}.
 -type failure()  :: #{server_out := binary() | {binary(), undefined | iodata()},
                       maybe_username := maybe_username()}.
@@ -48,7 +49,10 @@ start(C2SData, SaslAcc, Mech, ClientIn) ->
             {error, SaslAcc, #{type => policy_violation, text => <<"Use of STARTTLS required">>}};
         _ ->
             AuthMech = mongoose_c2s:get_auth_mechs(C2SData),
-            SocketData = #{socket => Socket, auth_mech => AuthMech, listener_opts => LOpts},
+            %% Provide SaslAcc for readonly access, so the cyrsasl mechanism
+            %% has more visibility to initialize the mechanism state.
+            SocketData = #{socket => Socket, auth_mech => AuthMech, listener_opts => LOpts,
+                           sasl_state => SaslAcc},
             CyrSaslState = get_cyrsasl_state_from_acc(SaslAcc),
             CyrSaslResult = cyrsasl:server_start(CyrSaslState, Mech, ClientIn, SocketData),
             handle_sasl_step(C2SData, CyrSaslResult, SaslAcc)
@@ -78,7 +82,7 @@ handle_sasl_success(C2SData, Creds, SaslAcc) ->
     User = mongoose_credentials:get(Creds, username),
     LServer = mongoose_c2s:get_lserver(C2SData),
     Jid = jid:make_bare(User, LServer),
-    Ret = #{server_out => ServerOut, jid => Jid, auth_module => AuthModule},
+    Ret = #{server_out => ServerOut, jid => Jid, auth_module => AuthModule, creds => Creds},
     {success, SaslAcc, Ret}.
 
 -spec handle_sasl_continue(

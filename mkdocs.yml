@@ -133,6 +133,7 @@ nav:
           - 'RabbitMQ backend': 'modules/mod_event_pusher_rabbit.md'
           - 'SNS backend': 'modules/mod_event_pusher_sns.md'
       - 'mod_extdisco': 'modules/mod_extdisco.md'
+      - 'mod_fast_auth_token': 'modules/mod_fast_auth_token.md'
       - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
       - 'mod_inbox': 'modules/mod_inbox.md'

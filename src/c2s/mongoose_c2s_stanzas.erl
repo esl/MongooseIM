@@ -71,7 +71,7 @@ determine_features(StateData, HostType, LServer, _, _) ->
 
 -spec maybe_sasl_mechanisms(mongoose_c2s:data()) -> [exml:element()].
 maybe_sasl_mechanisms(StateData) ->
-    case mongoose_c2s:get_auth_mechs(StateData) of
+    case mongoose_c2s:get_auth_mechs_to_announce(StateData) of
         [] -> [];
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
