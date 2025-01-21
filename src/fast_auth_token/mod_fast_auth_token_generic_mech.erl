@@ -10,7 +10,11 @@
 %% Called from cyrsasl
 -export([supports_sasl_module/2, sasl_modules/0]).
 
--record(fast_info, {creds, agent_id, mechanism}).
+-record(fast_info, {
+        creds :: mongoose_credentials:t(),
+        agent_id :: mod_fast_auth_token:agent_id(),
+        mechanism :: mod_fast_auth_token:mechanism()
+    }).
 -include("mongoose.hrl").
 -type fast_info() :: #fast_info{}.
 
