@@ -42,7 +42,7 @@
          bind2_stream_features/2,
          bind2_enable_features/3,
          sasl2_start/3,
-         sasl2_success/3]).
+         sasl2_success/4]).
 
 -export([get_pep_recipients/2,
          filter_pep_recipient/3,
@@ -515,13 +515,14 @@ sasl2_start(HostType, Acc, Element) ->
     run_hook_for_host_type(sasl2_start, HostType, Acc, Params).
 
 %% If SASL authentication is successful, inline features can be triggered
--spec sasl2_success(HostType, Acc, Params) -> Result when
+-spec sasl2_success(HostType, Acc, Params, Creds) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Params :: mod_sasl2:c2s_state_data(),
+    Creds :: mongoose_credentials:t(),
     Result :: mongoose_acc:t().
-sasl2_success(HostType, Acc, Params) ->
-    run_hook_for_host_type(sasl2_success, HostType, Acc, Params).
+sasl2_success(HostType, Acc, Params, Creds) ->
+    run_hook_for_host_type(sasl2_success, HostType, Acc, Params#{creds => Creds}).
 
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),

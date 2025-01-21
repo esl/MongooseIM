@@ -16,6 +16,7 @@
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
 {suites, "tests", bind2_SUITE}.
+{suites, "tests", fast_auth_token_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
 {suites, "tests", connect_SUITE}.
