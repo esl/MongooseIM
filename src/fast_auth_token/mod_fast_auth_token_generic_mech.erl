@@ -104,7 +104,12 @@ check_token({Token, Expire, _Count, Mech},
             {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
     when is_binary(Token), Expire > NowTimestamp ->
     Algo = mech_to_algo(Mech),
-    crypto:mac(hmac, Algo, Token, ToHash) =:= InitiatorHashedToken;
+    ComputedToken = crypto:mac(hmac, Algo, Token, ToHash),
+    %% To be theoretically safe against timing attacks (attacks that measure
+    %% the time it take to compare to binaries to guess how many bytes were
+    %% guessed correctly when the comparison is executed byte-by-byte and
+    %% shortcircuit upon the first difference)
+    crypto:hash_equals(ComputedToken, InitiatorHashedToken);
 check_token(_, _) ->
     false.
 
