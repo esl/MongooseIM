@@ -3118,7 +3118,21 @@ check_iqdisc(ParentP, ParentT) when is_function(ParentT, 1) ->
 
 check_module_defaults(Mod) ->
     ExpectedCfg = default_mod_config(Mod),
+    case maps:size(ExpectedCfg) of
+        0 ->
+            ok;
+        _ ->
+            assert_configurable_module(mod_fast_auth_token)
+    end,
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
+
+assert_configurable_module(Module) ->
+    case lists:member(Module, mongoose_config_spec:configurable_modules()) of
+        true -> ok;
+        false ->
+            ct:fail({assert_configurable_module, Module,
+                     "Don't forget to add module into mongoose_config_spec:configurable_modules/1"})
+    end.
 
 %% helpers for 'listen' tests
 
