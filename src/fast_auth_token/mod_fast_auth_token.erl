@@ -110,6 +110,7 @@ validity_period_spec() ->
        required = all
       }.
 
+-spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
@@ -135,7 +136,7 @@ sasl2_stream_features(Acc, _, _) ->
 
 fast() ->
     #xmlel{name = <<"fast">>,
-           attrs = [{<<"xmlns">>, ?NS_FAST}],
+           attrs = #{<<"xmlns">> => ?NS_FAST},
            children = mechanisms_elems(mechanisms())}.
 
 mechanisms_elems(Mechs) ->
@@ -311,8 +312,8 @@ make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) ->
     SetCurrent = maybe_set_current_slot(Creds),
     store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent),
     #xmlel{name = <<"token">>,
-           attrs = [{<<"xmlns">>, ?NS_FAST}, {<<"expire">>, Expire},
-                    {<<"token">>, Token}]}.
+           attrs = #{<<"xmlns">> => ?NS_FAST, <<"expire">> => Expire,
+                     <<"token">> => Token}}.
 
 -spec maybe_set_current_slot(Creds :: mongoose_credentials:t()) ->
     SetCurrent :: set_current().

@@ -139,7 +139,7 @@ request_token_with_unknown_mechanism_type(Config0) ->
              receive_features],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+                        attrs = #{<<"xmlns">> => ?NS_SASL_2}}, Success),
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
     ?assertEqual(undefined, Fast).
 
@@ -346,7 +346,7 @@ connect_and_ask_for_token(Config) ->
 
 parse_connect_result(#{answer := Success, spec := Spec}) ->
     ?assertMatch(#xmlel{name = <<"success">>,
-                        attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+                        attrs = #{<<"xmlns">> => ?NS_SASL_2}}, Success),
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
     Expire = exml_query:attr(Fast, <<"expire">>),
     Token = exml_query:attr(Fast, <<"token">>),
@@ -382,20 +382,20 @@ auth_using_token_and_request_invalidation_1(Config, Client, Data) ->
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
 request_token(Mech) ->
     #xmlel{name = <<"request-token">>,
-           attrs = [{<<"xmlns">>, ?NS_FAST},
+           attrs = #{<<"xmlns">> => ?NS_FAST},
                     {<<"mechanism">>, Mech}]}.
 
 %% <fast xmlns='urn:xmpp:fast:0' count='123' invalidate='true'/>
 request_invalidation() ->
     #xmlel{name = <<"fast">>,
-           attrs = [{<<"xmlns">>, ?NS_FAST},
-                    {<<"invalidate">>, <<"true">>}]}.
+           attrs = #{<<"xmlns">> => ?NS_FAST,
+                     <<"invalidate">> => <<"true">>}}.
 
 %% or <fast xmlns='urn:xmpp:fast:0' count='123' invalidate='1'/>
 request_invalidation_1() ->
     #xmlel{name = <<"fast">>,
-           attrs = [{<<"xmlns">>, ?NS_FAST},
-                    {<<"invalidate">>, <<"1">>}]}.
+           attrs = #{<<"xmlns">> => ?NS_FAST,
+                     <<"invalidate">> => <<"1">>}}.
 
 auth_with_token(Success, Token, Config, Spec) ->
     auth_with_token(Success, Token, Config, Spec, dont_request_token).
@@ -409,10 +409,10 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
     case Success of
         success ->
             ?assertMatch(#xmlel{name = <<"success">>,
-                                attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Answer);
+                                attrs = #{<<"xmlns">> => ?NS_SASL_2}}, Answer);
         failure ->
             ?assertMatch(#xmlel{name = <<"failure">>,
-                                attrs = [{<<"xmlns">>, ?NS_SASL_2}],
+                                attrs = #{<<"xmlns">> => ?NS_SASL_2},
                                 children = [#xmlel{name = <<"not-authorized">>}]},
                          Answer)
     end,
@@ -441,7 +441,7 @@ user_agent_id() ->
 
 user_agent() ->
   #xmlel{name = <<"user-agent">>,
-         attrs = [{<<"id">>, user_agent_id()}],
+         attrs = #{<<"id">> => user_agent_id()},
          children = [cdata_elem(<<"software">>, <<"AwesomeXMPP">>),
                      cdata_elem(<<"device">>, <<"Kiva's Phone">>)]}.
 
@@ -459,7 +459,7 @@ auth_with_method(_Config, Client, Data, BindElems, Extra, Method) ->
             ht_auth_initial_response(Client, Method)
         end,
     BindEl = #xmlel{name = <<"bind">>,
-                  attrs = [{<<"xmlns">>, ?NS_BIND_2}],
+                  attrs = #{<<"xmlns">> => ?NS_BIND_2},
                   children = BindElems},
     Authenticate = auth_elem(Method, [InitEl, BindEl | Extra]),
     escalus:send(Client, Authenticate),
@@ -476,7 +476,7 @@ auth_with_method(_Config, Client, Data, BindElems, Extra, Method) ->
 
 auth_elem(Mech, Children) ->
     #xmlel{name = <<"authenticate">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL_2}, {<<"mechanism">>, Mech}],
+           attrs = #{<<"xmlns">> => ?NS_SASL_2, <<"mechanism">> => Mech],
            children = Children}.
 
 %% Creates "Initiator First Message"
