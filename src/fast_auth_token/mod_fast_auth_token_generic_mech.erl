@@ -10,29 +10,29 @@
 %% Called from cyrsasl
 -export([supports_sasl_module/2, sasl_modules/0]).
 
--record(state, {creds, agent_id, mechanism}).
+-record(fast_info, {creds, agent_id, mechanism}).
 -include("mongoose.hrl").
--type state() :: #state{}.
+-type fast_info() :: #fast_info{}.
 
 -spec mech_new(Host   :: jid:server(),
                Creds  :: mongoose_credentials:t(),
                SocketData :: term(),
-               Mech :: mod_fast_auth_token:mechanism()) -> {ok, state()} | {error, binary()}.
+               Mech :: mod_fast_auth_token:mechanism()) -> {ok, fast_info()} | {error, binary()}.
 mech_new(_Host, Creds, _SocketData = #{sasl_state := SaslState}, Mech) ->
     SaslModState = mod_sasl2:get_mod_state(SaslState),
     case SaslModState of
         #{encoded_id := AgentId} ->
-            {ok, #state{creds = Creds, agent_id = AgentId, mechanism = Mech}};
+            {ok, #fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech}};
         _ ->
             {error, <<"not-sasl2">>}
     end;
 mech_new(_Host, _Creds, _SocketData, _Mech) ->
     {error, <<"not-sasl2">>}.
 
--spec mech_step(State :: #state{},
+-spec mech_step(State :: fast_info(),
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                        | {error, binary()}.
-mech_step(#state{creds = Creds, agent_id = AgentId, mechanism = Mech}, SerializedToken) ->
+mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech}, SerializedToken) ->
     %% SerializedToken is base64 decoded.
     Parts = binary:split(SerializedToken, <<0>>),
     [Username, InitiatorHashedToken] = Parts,
