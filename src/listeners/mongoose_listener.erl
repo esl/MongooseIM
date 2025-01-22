@@ -264,7 +264,7 @@ transport_opts(#{port := Port,
 
 -spec maybe_tls_opts(map(), map()) -> map().
 maybe_tls_opts(#{tls := #{mode := tls} = TLSOpts}, #{socket_opts := SocketOpts} = TransportOpts) ->
-    SslSocketOpts = just_tls:make_cowboy_ssl_opts(TLSOpts),
+    SslSocketOpts = just_tls:make_server_opts(TLSOpts),
     TransportOpts#{socket_opts => SocketOpts ++ SslSocketOpts};
 maybe_tls_opts(_, TransportOpts) ->
     TransportOpts.

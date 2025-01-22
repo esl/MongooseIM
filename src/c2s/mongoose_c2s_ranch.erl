@@ -60,9 +60,9 @@ tcp_to_tls(#ranch_ssl{}, _) ->
 
 do_tcp_to_tls(TCPSocket, Options) ->
     inet:setopts(TCPSocket, [{active, false}]),
-    {Ref, SSLOpts} = just_tls:prepare_connection(Options),
+    SSLOpts = just_tls:make_server_opts(Options),
     Ret = ssl:handshake(TCPSocket, SSLOpts, 5000),
-    VerifyResults = just_tls:receive_verify_results(Ref),
+    VerifyResults = just_tls:receive_verify_results(),
     case Ret of
         {ok, SSLSocket} ->
             {ok, SSLSocket, VerifyResults};

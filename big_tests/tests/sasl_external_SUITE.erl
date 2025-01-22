@@ -10,10 +10,13 @@
 
 all() ->
     [
-     {group, just_tls}].
+     {group, self_signed},
+     {group, ca_signed}
+    ].
 
 groups() ->
-    [{standard_keep_auth, [{group, registered}, {group, not_registered}]},
+    [
+     {standard_keep_auth, [{group, registered}, {group, not_registered}]},
      {registered, [parallel], [cert_one_xmpp_addrs_no_identity]},
      {not_registered, [parallel], [cert_one_xmpp_addrs_no_identity_not_registered]},
      {standard, [parallel], standard_test_cases()},
@@ -23,12 +26,8 @@ groups() ->
      {self_signed_certs_allowed, [parallel], self_signed_certs_allowed_test_cases()},
      {self_signed_certs_not_allowed, [parallel], self_signed_certs_not_allowed_test_cases()},
      {ca_signed, [self_signed_certs_not_allowed_group() | base_groups()]},
-     {self_signed, [self_signed_certs_allowed_group() | base_groups()]},
-     {just_tls, all_groups()} ].
-
-all_groups() ->
-    [{group, self_signed},
-     {group, ca_signed}].
+     {self_signed, [self_signed_certs_allowed_group() | base_groups()]}
+    ].
 
 self_signed_certs_allowed_group() ->
     {group, self_signed_certs_allowed}.
@@ -36,11 +35,13 @@ self_signed_certs_not_allowed_group() ->
     {group, self_signed_certs_not_allowed}.
 
 base_groups() ->
-    [{group, standard},
+    [
+     {group, standard},
      {group, standard_keep_auth},
      {group, use_common_name},
      {group, allow_just_user_identity},
-     {group, demo_verification_module}].
+     {group, demo_verification_module}
+    ].
 
 standard_test_cases() ->
     [
@@ -51,7 +52,8 @@ standard_test_cases() ->
      cert_one_xmpp_addr_wrong_hostname,
      cert_more_xmpp_addrs_identity_correct,
      cert_more_xmpp_addrs_no_identity_fails,
-     cert_more_xmpp_addrs_wrong_identity_fails
+     cert_more_xmpp_addrs_wrong_identity_fails,
+     cert_with_critical_extension_connects_but_fails_to_authenticate
     ].
 
 use_common_name_test_cases() ->
@@ -75,10 +77,12 @@ demo_verification_module_test_cases()->
      cert_no_xmpp_addrs_no_identity].
 
 self_signed_certs_allowed_test_cases() ->
-    [self_signed_cert_is_allowed_with_tls,
+    [
+     self_signed_cert_is_allowed_with_tls,
      self_signed_cert_is_allowed_with_ws,
      self_signed_cert_is_allowed_with_bosh,
-     no_cert_fails_to_authenticate].
+     no_cert_fails_to_authenticate
+    ].
 
 self_signed_certs_not_allowed_test_cases() ->
     [self_signed_cert_fails_to_authenticate_with_tls,
@@ -247,6 +251,12 @@ cert_more_xmpp_addrs_wrong_identity_fails(C) ->
                 generate_user_tcp(C, User)],
     cert_fails_to_authenticate(UserSpec).
 
+cert_with_critical_extension_connects_but_fails_to_authenticate(C) ->
+    User = username("alice-critical", C),
+    UserSpec = [{requested_name, requested_name(User)} |
+                generate_user_tcp(C, User)],
+    cert_fails_to_authenticate(UserSpec).
+
 cert_one_xmpp_addr_wrong_hostname(C) ->
     User = username("bob", C),
     UserSpec = [{requested_name, requested_name(User)} |
@@ -345,7 +355,9 @@ generate_certs(C) ->
           #{cn => add_domain_str("john"), xmpp_addrs => undefined},
           #{cn => "not-mike", xmpp_addrs => undefined},
           #{cn => "grace", xmpp_addrs => ["grace@fed1", "grace@reg1"]},
-          #{cn => add_domain_str("grace"), xmpp_addrs => ["grace@fed1", "grace@reg1"]}],
+          #{cn => add_domain_str("grace"), xmpp_addrs => ["grace@fed1", "grace@reg1"]},
+          #{cn => "alice-critical", xmpp_addrs => [add_domain_str("alice-critical")],
+            with_critical_extension => true}],
     SelfSigned = [ M#{cn => CN ++ "-self-signed", signed => self, xmpp_addrs => replace_addrs(Addrs)}
                    || M = #{ cn := CN , xmpp_addrs := Addrs} <- CA],
     CertSpecs = CA ++ SelfSigned,
@@ -368,7 +380,7 @@ generate_user(C, User, Transport) ->
               {auth, fun escalus_auth:auth_sasl_external/2},
               {transport, Transport},
               {ssl_opts, [{verify, verify_none},
-                          {versions, ['tlsv1.2']},
+                          {versions, ['tlsv1.3']},
                           {certfile, maps:get(cert, UserCert)},
                           {keyfile, maps:get(key, UserCert)}]}],
     Common ++ transport_specific_options(Transport).

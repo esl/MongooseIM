@@ -155,7 +155,7 @@ do_start_cowboy(Ref, Opts) ->
 start_http_or_https(#{tls := TLSOpts, hibernate_after := HibernateAfter},
                     Ref, TransportOpts, ProtocolOpts) ->
     SocketOpts = maps:get(socket_opts, TransportOpts),
-    SSLOpts = just_tls:make_cowboy_ssl_opts(TLSOpts),
+    SSLOpts = just_tls:make_server_opts(TLSOpts),
     SocketOptsWithSSL = SocketOpts ++ SSLOpts ++ [{hibernate_after, HibernateAfter}],
     cowboy_start_https(Ref, TransportOpts#{socket_opts := SocketOptsWithSSL}, ProtocolOpts);
 start_http_or_https(#{}, Ref, TransportOpts, ProtocolOpts) ->
