@@ -70,8 +70,6 @@ negative() ->
 connection_cases() ->
     [successful_external_auth_with_valid_cert,
      start_stream_fails_for_wrong_namespace,
-     start_stream_fails_for_wrong_version,
-     start_stream_fails_without_version,
      start_stream_fails_without_host,
      start_stream_fails_for_unknown_host,
      starttls_fails_for_unknown_host,
@@ -311,16 +309,6 @@ start_stream_fails_for_wrong_namespace(Config) ->
     start_stream_fails(Config, <<"invalid-namespace">>,
                        [fun s2s_start_stream_with_wrong_namespace/2]).
 
-start_stream_fails_for_wrong_version(Config) ->
-    %% TLS authentication requires version 1.0
-    start_stream_fails(Config, <<"invalid-xml">>,
-                       [fun s2s_start_stream_with_wrong_version/2]).
-
-start_stream_fails_without_version(Config) ->
-    %% TLS authentication requires version 1.0
-    start_stream_fails(Config, <<"invalid-xml">>,
-                       [fun s2s_start_stream_without_version/2]).
-
 start_stream_fails_without_host(Config) ->
     start_stream_fails(Config, <<"improper-addressing">>,
                        [fun s2s_start_stream_without_host/2]).
@@ -404,16 +392,6 @@ connection_args(FromServer, RequestedName, Config) ->
 
 s2s_start_stream_with_wrong_namespace(Conn = #client{props = Props}, Features) ->
     Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"xmlns">> => <<"42">>} end),
-    ok = escalus_connection:send(Conn, Start),
-    {Conn, Features}.
-
-s2s_start_stream_with_wrong_version(Conn = #client{props = Props}, Features) ->
-    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"version">> => <<"42">>} end),
-    ok = escalus_connection:send(Conn, Start),
-    {Conn, Features}.
-
-s2s_start_stream_without_version(Conn = #client{props = Props}, Features) ->
-    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> maps:remove(<<"version">>, Attrs) end),
     ok = escalus_connection:send(Conn, Start),
     {Conn, Features}.
 

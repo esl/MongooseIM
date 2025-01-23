@@ -72,7 +72,6 @@
 -record(state, {socket,
                 streamid                :: ejabberd_s2s:stream_id() | undefined,
                 remote_streamid = <<>>  :: ejabberd_s2s:stream_id(),
-                use_v10                 :: boolean(),
                 tls = false             :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_enabled = false     :: boolean(),
@@ -99,7 +98,6 @@
       addr => unknown | inet:ip_address(),
       port => unknown | inet:port_number(),
       streamid => ejabberd_s2s:stream_id() | undefined,
-      use_v10 => boolean(),
       tls => boolean(),
       tls_required => boolean(),
       tls_enabled => boolean(),
@@ -145,15 +143,15 @@
 %% We do not block on send anymore.
 -define(TCP_SEND_TIMEOUT, 15000).
 
--define(STREAM_HEADER(From, To, Other),
+-define(STREAM_HEADER(From, To),
         <<"<?xml version='1.0'?>",
           "<stream:stream "
           "xmlns:stream='http://etherx.jabber.org/streams' "
           "xmlns='jabber:server' "
           "xmlns:db='jabber:server:dialback' "
+          "version='1.0' "
           "from='", (From)/binary, "' ",
-          "to='", (To)/binary, "' ",
-          (Other)/binary, ">">>
+          "to='", (To)/binary, "'>">>
        ).
 
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
@@ -209,7 +207,6 @@ init([{From, Server} = FromTo, Type]) ->
     {ok, HostType} = mongoose_domain_api:get_host_type(From),
     TlsOpts = tls_options(HostType),
     {TLS, TLSRequired} = get_tls_params(TlsOpts),
-    UseV10 = TLS,
     {IsRegistered, Verify} = case Type of
                         new ->
                             {true, false};
@@ -218,8 +215,7 @@ init([{From, Server} = FromTo, Type]) ->
                             {false, {Pid, Key, SID}}
                     end,
     Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
-    {ok, open_socket, #state{use_v10 = UseV10,
-                             tls = TLS,
+    {ok, open_socket, #state{tls = TLS,
                              tls_required = TLSRequired,
                              tls_options = TlsOpts,
                              queue = queue:new(),
@@ -255,15 +251,11 @@ open_socket(init, StateData = #state{host_type = HostType}) ->
                              open_socket2(HostType, Type, Addr, Port)
                      end, ?SOCKET_DEFAULT_RESULT, AddrList) of
         {ok, Socket} ->
-            Version = case StateData#state.use_v10 of
-                          true -> <<" version='1.0'">>;
-                          false -> <<"">>
-                      end,
             NewStateData = StateData#state{socket = Socket,
                                            tls_enabled = false,
                                            streamid = new_id()},
             send_text(NewStateData,
-                      ?STREAM_HEADER(StateData#state.myname, StateData#state.server, Version)),
+                      ?STREAM_HEADER(StateData#state.myname, StateData#state.server)),
             {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
         {error, Reason} ->
             ?LOG_WARNING(#{what => s2s_out_failed, reason => Reason,
@@ -315,14 +307,9 @@ wait_for_stream(#xmlstreamstart{attrs = Attrs}, StateData0) ->
           maps:get(<<"version">>, Attrs, <<>>) =:= <<"1.0">>} of
         {<<"jabber:server">>, <<"jabber:server:dialback">>, false} ->
             send_dialback_request(StateData);
-        {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
-        StateData#state.use_v10 ->
+        {<<"jabber:server">>, <<"jabber:server:dialback">>, true} ->
             {next_state, wait_for_features, StateData, ?FSMTIMEOUT};
-        %% Clause added to handle Tigase's workaround for an old ejabberd bug:
-        {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
-        not StateData#state.use_v10 ->
-            send_dialback_request(StateData);
-        {<<"jabber:server">>, <<"">>, true} when StateData#state.use_v10 ->
+        {<<"jabber:server">>, <<"">>, true} ->
             {next_state, wait_for_features, StateData#state{dialback_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
             send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
@@ -456,8 +443,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                  myname => StateData#state.myname,
                                  server => StateData#state.server}),
                     send_text(StateData,
-                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
-                                              <<" version='1.0'">>)),
+                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server)),
                     {next_state, wait_for_stream,
                      StateData#state{streamid = new_id(),
                                      authenticated = true
@@ -514,8 +500,7 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                                                    streamid = new_id(),
                                                    tls_enabled = true},
                     send_text(NewStateData,
-                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
-                                <<" version='1.0'">>)),
+                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server)),
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
                     send_element(StateData, mongoose_xmpp_errors:bad_format()),
@@ -1136,8 +1121,7 @@ handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
                  myname => StateData#state.myname, server => StateData#state.server}),
     mongoose_s2s_socket_out:close(StateData#state.socket),
     {next_state, reopen_socket,
-     StateData#state{socket = undefined,
-                     use_v10 = false}, ?FSMTIMEOUT};
+     StateData#state{socket = undefined}, ?FSMTIMEOUT};
 handle_parsed_features({_, _, _, StateData = #state{dialback_enabled = true}}) ->
     send_dialback_request(StateData);
 handle_parsed_features({_, _, _, StateData}) ->
@@ -1145,8 +1129,7 @@ handle_parsed_features({_, _, _, StateData}) ->
                  myname => StateData#state.myname, server => StateData#state.server}),
     % TODO: clear message queue
     mongoose_s2s_socket_out:close(StateData#state.socket),
-    {next_state, reopen_socket, StateData#state{socket = undefined,
-                                                use_v10 = false}, ?FSMTIMEOUT}.
+    {next_state, reopen_socket, StateData#state{socket = undefined}, ?FSMTIMEOUT}.
 
 handle_get_state_info(StateName, StateData) ->
     {Addr, Port} = get_peername(StateData#state.socket),
@@ -1156,7 +1139,6 @@ handle_get_state_info(StateName, StateData) ->
       addr => Addr,
       port => Port,
       streamid => StateData#state.streamid,
-      use_v10 => StateData#state.use_v10,
       tls => StateData#state.tls,
       tls_required => StateData#state.tls_required,
       tls_enabled => StateData#state.tls_enabled,
