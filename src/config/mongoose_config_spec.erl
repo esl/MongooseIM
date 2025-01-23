@@ -24,7 +24,6 @@
          process_acl_condition/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
-         process_domain_cert/1,
          process_infinity_as_zero/1]).
 
 %% For tests
@@ -201,10 +200,7 @@ general() ->
                                                         validate = positive,
                                                         wrap = host_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    wrap = global_config},
-                 <<"domain_certfile">> => #list{items = domain_cert(),
-                                                format_items = map,
-                                                wrap = global_config}
+                                                    wrap = global_config}
                 },
        wrap = none,
        format_items = list
@@ -223,17 +219,6 @@ general_defaults() ->
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
       <<"hide_service_name">> => false}.
-
-%% path: general.domain_certfile
-domain_cert() ->
-    #section{
-       items = #{<<"domain">> => #option{type = binary,
-                                         validate = non_empty},
-                 <<"certfile">> => #option{type = string,
-                                           validate = filename}},
-       required = all,
-       process = fun ?MODULE:process_domain_cert/1
-      }.
 
 %% path: listen
 listen() ->
@@ -1066,9 +1051,6 @@ process_s2s_host_policy(#{host := S2SHost, policy := Policy}) ->
 
 process_s2s_address(M) ->
     maps:take(host, M).
-
-process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
-    {Domain, Certfile}.
 
 process_infinity_as_zero(infinity) -> 0;
 process_infinity_as_zero(Num) -> Num.

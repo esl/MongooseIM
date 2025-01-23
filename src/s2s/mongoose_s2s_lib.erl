@@ -9,7 +9,6 @@
          timeout/0,
          domain_utf8_to_ascii/1,
          check_shared_secret/2,
-         lookup_certfile/1,
          choose_pid/2,
          need_more_connections/2,
          needed_extra_connections_number_if_allowed/2,
@@ -77,15 +76,6 @@ make_random_secret() ->
     {ok, ejabberd_s2s:base16_secret()} | {error, not_found}.
 get_shared_secret_from_config(HostType) ->
     mongoose_config:lookup_opt([{s2s, HostType}, shared]).
-
--spec lookup_certfile(mongooseim:host_type()) -> {ok, string()} | {error, not_found}.
-lookup_certfile(HostType) ->
-    case mongoose_config:lookup_opt({domain_certfile, HostType}) of
-        {ok, CertFile} ->
-            CertFile;
-        {error, not_found} ->
-            mongoose_config:lookup_opt([{s2s, HostType}, certfile])
-    end.
 
 %% Prefers the local connection (i.e. not on the remote node)
 -spec choose_pid(From :: jid:jid(), Pids :: s2s_pids()) -> pid().

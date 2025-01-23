@@ -58,8 +58,6 @@ options("host_types") ->
 options("miscellaneous") ->
     [{http_server_name, "Apache"},
      {default_server_domain, <<"localhost">>},
-     {domain_certfile, #{<<"example.com">> => "priv/cert.pem",
-                         <<"example.org">> => "priv/cert.pem"}},
      {hide_service_name, true},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"anonymous.localhost">>]},

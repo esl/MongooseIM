@@ -190,24 +190,3 @@ Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned i
 
 When specified, will terminate certain processes (e.g. client handlers) that have more messages accumulated in the queue than the specified limit, to prevent resource exhaustion.
 This option is set for outgoing S2S connections and can be overridden for particular `s2s` listeners in their configurations. **Use with caution!**
-
-### `general.domain_certfile`
-* **Syntax:** array of TOML tables with the following mandatory content:
-    * `domain` - string, XMPP domain name. In case of dynamic domains it should be a host type instead.
-    * `certfile` - string, path in the file system
-* **Default:** not set
-* **Example:**
-
-```toml
-  domain_certfile = [
-    {domain = "localhost1.com", certfile = "cert1.pem"},
-    {domain = "localhost2.com", certfile = "cert2.pem"}
-  ]
-```
-
-This option overrides the configured certificate file for specific local XMPP domains.
-
-!!! Notes
-
-    * This option applies to **S2S and C2S** connections.
-    * Each domain (or host type) needs to be included in the list of [`hosts`](#generalhosts) or [`host types`](#generalhost_types).

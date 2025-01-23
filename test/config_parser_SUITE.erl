@@ -86,7 +86,6 @@ groups() ->
                             routing_modules,
                             replaced_wait_timeout,
                             hide_service_name,
-                            domain_certfile,
                             max_users_per_domain]},
      {listen, [parallel], [listen_duplicate,
                            listen_c2s,
@@ -451,20 +450,6 @@ hide_service_name(_Config) ->
     ?cfg(hide_service_name, false, #{}), % default
     ?cfg(hide_service_name, true, #{<<"general">> => #{<<"hide_service_name">> => true}}),
     ?err(#{<<"general">> => #{<<"hide_service_name">> => []}}).
-
-domain_certfile(_Config) ->
-    DomCert = #{<<"domain">> => <<"myxmpp.com">>,
-                <<"certfile">> => <<"priv/cert.pem">>},
-    ?cfg(domain_certfile, #{<<"myxmpp.com">> => "priv/cert.pem"},
-         #{<<"general">> => #{<<"domain_certfile">> => [DomCert]}}),
-    ?err([#{reason := invalid_filename}],
-         #{<<"general">> => #{<<"domain_certfile">> =>
-                                  [DomCert#{<<"certfile">> => <<"missing.pem">>}]}}),
-    [?err(#{<<"general">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}})
-     || K <- maps:keys(DomCert)],
-    [?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}})
-     || K <- maps:keys(DomCert)],
-    ?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert, DomCert]}}).
 
 %% tests: listen
 
