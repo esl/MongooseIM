@@ -20,12 +20,12 @@ instrumentation(_) ->
 
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
-    [{c2s_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_tls_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
-     {c2s_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}}].
+    [{tcp_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {tcp_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
+     {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}].
 
 -spec instrumentation(_, _) -> [mongoose_instrument:spec()].
 instrumentation(HostType, Acc) when is_binary(HostType) ->

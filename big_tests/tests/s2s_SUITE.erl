@@ -495,13 +495,13 @@ shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.
 
 assert_events(TS, Config) ->
     TLS = proplists:get_value(requires_tls, Config),
-    instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(xmpp_element_size_in, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => element_count(in, TLS), min_timestamp => TS}),
-    instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(xmpp_element_size_out, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => element_count(out, TLS), min_timestamp => TS}),
-    instrument_helper:assert(s2s_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(tcp_data_in, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{min_timestamp => TS}),
-    instrument_helper:assert(s2s_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(tcp_data_out, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{min_timestamp => TS}).
 
 element_count(_Dir, true) ->
@@ -551,7 +551,7 @@ group_with_tls(node1_tls_optional_node2_tls_required_trusted_with_cachain) -> tr
 group_with_tls(_GN) -> false.
 
 tested_events() ->
-    [{s2s_xmpp_element_size_in, #{}},
-     {s2s_xmpp_element_size_out, #{}},
-     {s2s_tcp_data_in, #{}},
-     {s2s_tcp_data_out, #{}}].
+    [{xmpp_element_size_in, #{connection_type => s2s}},
+     {xmpp_element_size_out, #{connection_type => s2s}},
+     {tcp_data_in, #{connection_type => s2s}},
+     {tcp_data_out, #{connection_type => s2s}}].

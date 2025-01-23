@@ -65,21 +65,19 @@ route(Pid, Acc) ->
 callback_mode() ->
     handle_event_function.
 
--spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), data()).
+-spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), undefined).
 init({Transport, Ref, LOpts}) ->
-    StateData = #component_data{listener_opts = LOpts},
     ConnectEvent = {next_event, internal, {connect, {Transport, Ref, LOpts}}},
-    {ok, connect, StateData, ConnectEvent}.
+    {ok, connect, undefined, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
-handle_event(internal, {connect, {Transport, Ref, _}}, connect,
-             StateData = #component_data{listener_opts = #{shaper := ShaperName,
-                                                           max_stanza_size := MaxStanzaSize} = LOpts}) ->
+handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
+    #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
     Socket = mongoose_xmpp_socket:new(Transport, component, Ref, LOpts),
-    StateData1 = StateData#component_data{socket = Socket, parser = Parser, shaper = Shaper},
-    {next_state, wait_for_stream, StateData1, state_timeout(LOpts)};
+    StateData = #component_data{socket = Socket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
+    {next_state, wait_for_stream, StateData, state_timeout(LOpts)};
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, wait_for_stream, StateData) ->
     handle_stream_start(StateData, Attrs);
 handle_event(internal, #xmlel{name = <<"handshake">>} = El, wait_for_handshake, StateData) ->
@@ -172,7 +170,7 @@ handle_socket_packet(StateData = #component_data{parser = Parser}, Packet) ->
 handle_socket_elements(StateData = #component_data{lserver = LServer, shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
     [mongoose_instrument:execute(
-       component_xmpp_element_size_in, #{}, #{byte_size => exml:xml_size(El), lserver => LServer})
+       xmpp_element_size_in, labels(), #{byte_size => exml:xml_size(El), lserver => LServer})
      || El <- Elements],
     NewStateData = StateData#component_data{shaper = NewShaper},
     MaybePauseTimeout = maybe_pause(NewStateData, Pause),
@@ -416,7 +414,7 @@ send_xml(#component_data{lserver = LServer, socket = Socket} = StateData, XmlEle
     [ begin
           execute_element_event(component_element_out, El, StateData),
           mongoose_instrument:execute(
-            component_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El), lserver => LServer})
+            xmpp_element_size_out, labels(), #{byte_size => exml:xml_size(El), lserver => LServer})
       end || El <- XmlElements],
     mongoose_xmpp_socket:send_xml(Socket, XmlElements).
 
@@ -476,3 +474,7 @@ measure_element(<<"stream:error">>, _Type) ->
     #{count => 1, error_count => 1};
 measure_element(_Name, _Type) ->
     #{count => 1}.
+
+-spec labels() -> mongoose_instrument:labels().
+labels() ->
+    #{connection_type => component}.

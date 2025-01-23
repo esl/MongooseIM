@@ -69,7 +69,8 @@
         dest_port    := inet:port_number()
        }.
 
--export_type([options/0, init_args/0, transport_module/0, connection_details/0, id/0]).
+-export_type([options/0, init_args/0, connection_type/0,
+              transport_module/0, connection_details/0, id/0]).
 
 %% API
 
@@ -189,8 +190,13 @@ element_spirals() ->
     [count, stanza_count, message_count, iq_count, presence_count,
      error_count, message_error_count, iq_error_count, presence_error_count].
 
--spec read_connection_details(ranch:ref(), transport_module(), options()) ->
-    {ok, inet:socket() | ssl:sslsocket(), connection_details()} | {error, term()}.
+-spec read_connection_details
+    (ranch:ref(), ranch_tcp, options()) ->
+        {ok, inet:socket(), connection_details()} | {error, term()};
+    (ranch:ref(), ranch_ssl, options()) ->
+        {ok, ssl:sslsocket(), connection_details()} | {error, term()};
+    (ranch:ref(), module(), options()) ->
+        {ok, term(), connection_details()} | {error, term()}.
 read_connection_details(Ref, _Transport, #{proxy_protocol := true}) ->
     {ok, #{src_address := PeerIp, src_port := PeerPort, dest_address := DestAddr,
            dest_port := DesPort, version := Version}} = ranch:recv_proxy_header(Ref, 1000),

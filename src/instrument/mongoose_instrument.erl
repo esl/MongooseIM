@@ -23,6 +23,7 @@
 
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type(),
+                    connection_type => mongoose_listener:connection_type(),
                     function => atom(),
                     cache_name => atom(),
                     pool_id => atom(),

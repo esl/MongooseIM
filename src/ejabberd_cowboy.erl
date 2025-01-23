@@ -52,7 +52,13 @@
 
 -spec instrumentation(mongoose_listener:options()) -> [mongoose_instrument:spec()].
 instrumentation(#{handlers := Handlers}) ->
-    [Spec || #{module := Module} <- Handlers, Spec <- mongoose_http_handler:instrumentation(Module)].
+    PerModule = [Spec || #{module := Module} <- Handlers,
+                         Spec <- mongoose_http_handler:instrumentation(Module)],
+    [{tcp_data_in, #{connection_type => http}, #{metrics => #{byte_size => spiral}}},
+     {tcp_data_out, #{connection_type => http}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_in, #{connection_type => http}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_out, #{connection_type => http}, #{metrics => #{byte_size => spiral}}}
+     | PerModule].
 
 -spec listener_spec(mongoose_listener:options()) -> supervisor:child_spec().
 listener_spec(Opts) ->

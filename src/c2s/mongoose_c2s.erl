@@ -73,22 +73,20 @@
 callback_mode() ->
     handle_event_function.
 
--spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), data()).
+-spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), undefined).
 init({Transport, Ref, LOpts}) ->
-    StateData = #c2s_data{listener_opts = LOpts},
     ConnectEvent = {next_event, internal, {connect, {Transport, Ref, LOpts}}},
-    {ok, connect, StateData, ConnectEvent}.
+    {ok, connect, undefined, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
-handle_event(internal, {connect, {Transport, Ref, _}}, connect,
-             StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
-                                                     max_stanza_size := MaxStanzaSize} = LOpts}) ->
+handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
+    #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
     C2SSocket = mongoose_xmpp_socket:new(Transport, c2s, Ref, LOpts),
     verify_ip_is_not_blacklisted(C2SSocket),
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
-    {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
+    StateData = #c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
+    {next_state, {wait_for_stream, stream_start}, StateData, state_timeout(LOpts)};
 
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     handle_stream_start(StateData, Attrs, StreamState);
@@ -246,10 +244,10 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
     end.
 
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
-handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
+handle_socket_elements(StateData = #c2s_data{lserver = LServer, shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    [mongoose_instrument:execute(c2s_xmpp_element_size_in, #{},
-                                 #{byte_size => elem_size(El)})
+    [mongoose_instrument:execute(
+       xmpp_element_size_in, labels(), #{byte_size => elem_size(El), lserver => LServer})
      || El <- Elements],
     NewStateData = StateData#c2s_data{shaper = NewShaper},
     MaybePauseTimeout = maybe_pause(NewStateData, Pause),
@@ -1052,7 +1050,8 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El)
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
 send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
-    [mongoose_instrument:execute(c2s_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)})
+    [mongoose_instrument:execute(
+       xmpp_element_size_out, labels(), #{byte_size => exml:xml_size(El)})
       || El <- XmlElements],
     mongoose_xmpp_socket:send_xml(Socket, XmlElements).
 
@@ -1259,3 +1258,7 @@ measure_element(<<"stream:error">>, _Type) ->
     #{count => 1, error_count => 1};
 measure_element(_Name, _Type) ->
     #{count => 1}.
+
+-spec labels() -> mongoose_instrument:labels().
+labels() ->
+    #{connection_type => c2s}.
