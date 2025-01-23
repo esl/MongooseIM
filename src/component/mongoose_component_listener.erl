@@ -31,5 +31,4 @@ listener_spec(Opts) ->
     {ok, pid()}.
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
-    Params = {mongoose_component_ranch, Ref, Transport, Opts},
-    mongoose_component_connection:start_link(Params, ProcessOpts).
+    mongoose_component_connection:start_link({Transport, Ref, Opts}, ProcessOpts).

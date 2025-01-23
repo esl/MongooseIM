@@ -47,7 +47,6 @@
          send/2,
          peername/1,
          setopts/2,
-         get_peer_certificate/1,
          close/1]).
 
 % API
@@ -90,18 +89,6 @@ peername(#tls_socket{ssl_socket = SSLSocket}) ->
 -spec setopts(tls_socket(), Opts :: list()) -> ok | {error, any()}.
 setopts(#tls_socket{ssl_socket = SSLSocket}, Opts) ->
     ssl:setopts(SSLSocket, Opts).
-
--spec get_peer_certificate(tls_socket()) ->
-    {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
-get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) ->
-    case ssl:peercert(SSLSocket) of
-        {ok, PeerCert} ->
-            Cert = public_key:pkix_decode_cert(PeerCert, plain),
-            {ok, Cert};
-        _ -> no_peer_cert
-    end;
-get_peer_certificate(#tls_socket{verify_results = [Err | _]}) ->
-    {bad_cert, error_to_list(Err)}.
 
 -spec close(tls_socket()) -> ok | {error, _}.
 close(#tls_socket{ssl_socket = SSLSocket}) ->

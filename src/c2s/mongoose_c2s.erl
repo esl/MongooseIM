@@ -37,7 +37,7 @@
           sid = ejabberd_sm:make_new_sid() :: ejabberd_sm:sid(),
           streamid = new_stream_id() :: binary(),
           jid :: undefined | jid:jid(),
-          socket :: undefined | mongoose_c2s_socket:socket(),
+          socket :: undefined | mongoose_xmpp_socket:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | mongoose_shaper:shaper(),
           listener_opts :: undefined | mongoose_listener:options(),
@@ -74,18 +74,19 @@ callback_mode() ->
     handle_event_function.
 
 -spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), data()).
-init({SocketModule, Ref, Transport, LOpts}) ->
+init({Transport, Ref, LOpts}) ->
     StateData = #c2s_data{listener_opts = LOpts},
-    ConnectEvent = {next_event, internal, {connect, {SocketModule, Ref, Transport}}},
+    ConnectEvent = {next_event, internal, {connect, {Transport, Ref, LOpts}}},
     {ok, connect, StateData, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
-handle_event(internal, {connect, {SocketModule, Ref, Transport}}, connect,
+handle_event(internal, {connect, {Transport, Ref, _}}, connect,
              StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
                                                      max_stanza_size := MaxStanzaSize} = LOpts}) ->
+    C2SSocket = mongoose_xmpp_socket:new(Transport, c2s, Ref, LOpts),
+    verify_ip_is_not_blacklisted(C2SSocket),
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    C2SSocket = mongoose_c2s_socket:new(SocketModule, Ref, Transport, LOpts),
     StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
     {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
 
@@ -221,7 +222,7 @@ terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer, s
 
 -spec handle_socket_data(data(), {_, _, iodata()}) -> fsm_res().
 handle_socket_data(StateData = #c2s_data{socket = Socket}, Payload) ->
-    case mongoose_c2s_socket:handle_data(Socket, Payload) of
+    case mongoose_xmpp_socket:handle_data(Socket, Payload) of
         {error, _Reason} ->
             {stop, {shutdown, socket_error}, StateData};
         Data ->
@@ -274,18 +275,18 @@ patch_attr_value(Bin) -> Bin.
 maybe_pause(_StateData, Pause) when Pause > 0 ->
     [{{timeout, activate_socket}, Pause, activate_socket}];
 maybe_pause(#c2s_data{socket = Socket}, _) ->
-    mongoose_c2s_socket:activate(Socket),
+    mongoose_xmpp_socket:activate(Socket),
     [].
 
 -spec close_socket(data()) -> ok | {error, term()}.
 close_socket(#c2s_data{socket = undefined}) ->
     ok;
 close_socket(#c2s_data{socket = Socket}) ->
-    mongoose_c2s_socket:close(Socket).
+    mongoose_xmpp_socket:close(Socket).
 
 -spec activate_socket(data()) -> ok | {error, term()}.
 activate_socket(#c2s_data{socket = Socket}) ->
-    mongoose_c2s_socket:activate(Socket).
+    mongoose_xmpp_socket:activate(Socket).
 
 %%%----------------------------------------------------------------------
 %%% error handler helpers
@@ -396,13 +397,12 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
                                       parser = Parser,
                                       listener_opts = LOpts = #{tls := _}}, El, SaslAcc, Retries) ->
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
-    case mongoose_c2s_socket:tcp_to_tls(TcpSocket, LOpts) of
+    case mongoose_xmpp_socket:tcp_to_tls(TcpSocket, LOpts) of
         {ok, TlsSocket} ->
             {ok, NewParser} = exml_stream:reset_parser(Parser),
             NewStateData = StateData#c2s_data{socket = TlsSocket,
                                               parser = NewParser,
                                               streamid = new_stream_id()},
-            activate_socket(NewStateData),
             {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout(LOpts)};
         {error, already_tls_connection} ->
             ErrorStanza = mongoose_xmpp_errors:bad_request(StateData#c2s_data.lang, <<"bad_config">>),
@@ -743,6 +743,18 @@ verify_to(El) ->
             end
     end.
 
+-spec verify_ip_is_not_blacklisted(mongoose_xmpp_socket:socket()) -> ok | no_return().
+verify_ip_is_not_blacklisted(Socket) ->
+    {PeerIp, _} = mongoose_xmpp_socket:get_ip(Socket),
+    case mongoose_hooks:check_bl_c2s(PeerIp) of
+        true ->
+            ?LOG_INFO(#{what => c2s_blacklisted_ip, ip => PeerIp,
+                        text => <<"Connection attempt from blacklisted IP">>}),
+            throw({stop, {shutdown, ip_blacklisted}});
+        false ->
+            ok
+    end.
+
 -spec handle_foreign_packet(data(), state(), exml:element()) -> fsm_res().
 handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, El) ->
     ?LOG_DEBUG(#{what => packet_before_session_established_sent, packet => El, c2s_pid => self()}),
@@ -952,8 +964,8 @@ route(Pid, Acc) ->
 open_session(
   StateData = #c2s_data{host_type = HostType, sid = Sid, jid = Jid,
                         socket = Socket, info = Info}) ->
-    NewFields = #{ip => mongoose_c2s_socket:get_ip(Socket),
-                  conn => mongoose_c2s_socket:get_conn_type(Socket)},
+    NewFields = #{ip => mongoose_xmpp_socket:get_ip(Socket),
+                  conn => mongoose_xmpp_socket:get_conn_type(Socket)},
     Info2 = maps:merge(Info, NewFields),
     ReplacedPids = ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info2),
     {ReplacedPids, StateData#c2s_data{info = Info2}}.
@@ -1042,7 +1054,7 @@ send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
 send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
     [mongoose_instrument:execute(c2s_xmpp_element_size_out, #{}, #{byte_size => exml:xml_size(El)})
       || El <- XmlElements],
-    mongoose_c2s_socket:send_xml(Socket, XmlElements).
+    mongoose_xmpp_socket:send_xml(Socket, XmlElements).
 
 
 state_timeout(#c2s_data{listener_opts = LOpts}) ->
@@ -1134,11 +1146,11 @@ skip_announce_mechanism(Mech) ->
 
 -spec filter_mechanism(data(), binary()) -> boolean().
 filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-1-PLUS">>) ->
-    mongoose_c2s_socket:is_channel_binding_supported(Socket);
+    mongoose_xmpp_socket:is_channel_binding_supported(Socket);
 filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) ->
-    mongoose_c2s_socket:is_channel_binding_supported(Socket);
+    mongoose_xmpp_socket:is_channel_binding_supported(Socket);
 filter_mechanism(#c2s_data{socket = Socket, listener_opts = LOpts}, <<"EXTERNAL">>) ->
-    mongoose_c2s_socket:has_peer_cert(Socket, LOpts);
+    mongoose_xmpp_socket:has_peer_cert(Socket, LOpts);
 filter_mechanism(_, _) ->
     true.
 
@@ -1154,11 +1166,11 @@ get_lserver(#c2s_data{lserver = LServer}) ->
 get_sid(#c2s_data{sid = Sid}) ->
     Sid.
 
--spec get_ip(data()) -> term().
+-spec get_ip(data()) -> mongoose_transport:peer().
 get_ip(#c2s_data{socket = Socket}) ->
-    mongoose_c2s_socket:get_ip(Socket).
+    mongoose_xmpp_socket:get_ip(Socket).
 
--spec get_socket(data()) -> mongoose_c2s_socket:socket() | undefined.
+-spec get_socket(data()) -> mongoose_xmpp_socket:socket() | undefined.
 get_socket(#c2s_data{socket = Socket}) ->
     Socket.
 

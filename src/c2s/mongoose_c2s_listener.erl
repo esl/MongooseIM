@@ -49,7 +49,7 @@ listener_spec(Opts) ->
     {ok, pid()}.
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
-    mongoose_c2s:start_link({mongoose_c2s_ranch, Ref, Transport, Opts}, ProcessOpts).
+    mongoose_c2s:start_link({Transport, Ref, Opts}, ProcessOpts).
 
 %% Hooks and handlers
 -spec maybe_add_access_check_hooks(mongoose_listener:options()) -> ok.
