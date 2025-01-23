@@ -80,9 +80,8 @@ handle_event(internal, {connect, Input}, connect,
     Socket = mongoose_component_socket:new(Input),
     StateData1 = StateData#component_data{socket = Socket, parser = Parser, shaper = Shaper},
     {next_state, wait_for_stream, StateData1, state_timeout(LOpts)};
-handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, wait_for_stream, StateData) ->
-    StreamStart = #xmlel{name = Name, attrs = Attrs},
-    handle_stream_start(StateData, StreamStart);
+handle_event(internal, #xmlstreamstart{attrs = Attrs}, wait_for_stream, StateData) ->
+    handle_stream_start(StateData, Attrs);
 handle_event(internal, #xmlel{name = <<"handshake">>} = El, wait_for_handshake, StateData) ->
     execute_element_event(component_element_in, El, StateData),
     handle_handshake(StateData, El);
@@ -197,16 +196,16 @@ close_socket(#component_data{socket = Socket}) ->
 activate_socket(#component_data{socket = Socket}) ->
     mongoose_component_socket:activate(Socket).
 
--spec handle_stream_start(data(), exml:element()) -> fsm_res().
-handle_stream_start(S0, StreamStart) ->
-    LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
-    XmlNs = exml_query:attr(StreamStart, <<"xmlns">>, <<>>),
+-spec handle_stream_start(data(), exml:attrs()) -> fsm_res().
+handle_stream_start(S0, Attrs) ->
+    LServer = jid:nameprep(maps:get(<<"to">>, Attrs, <<>>)),
+    XmlNs = maps:get(<<"xmlns">>, Attrs, <<>>),
     case {XmlNs, LServer} of
         {?NS_COMPONENT_ACCEPT, LServer} when is_binary(LServer) ->
-            IsSubdomain = <<"true">> =:= exml_query:attr(StreamStart, <<"is_subdomain">>, <<>>),
+            IsSubdomain = <<"true">> =:= maps:get(<<"is_subdomain">>, Attrs, <<>>),
             S1 = S0#component_data{lserver = LServer, is_subdomain = IsSubdomain},
             send_header(S1),
-            execute_element_event(component_element_in, StreamStart, S1),
+            execute_element_event(component_element_in, Attrs, S1),
             {next_state, wait_for_handshake, S1, state_timeout(S1)};
         {?NS_COMPONENT_ACCEPT, error} ->
             stream_start_error(S0, mongoose_xmpp_errors:host_unknown());
@@ -448,10 +447,14 @@ unregister_routes(#component_data{component = Component}) ->
     mongoose_component:unregister_component(Component).
 
 %%% Instrumentation helpers
--spec execute_element_event(mongoose_instrument:event_name(), exml_stream:element(), data()) -> ok.
+-spec execute_element_event(
+        mongoose_instrument:event_name(), exml:attrs() | exml_stream:element(), data()) -> ok.
 execute_element_event(EventName, #xmlel{name = Name} = El, #component_data{lserver = LServer}) ->
     Metrics = measure_element(Name, exml_query:attr(El, <<"type">>)),
     Measurements = Metrics#{element => El, lserver => LServer},
+    mongoose_instrument:execute(EventName, #{}, Measurements);
+execute_element_event(EventName, El, #component_data{lserver = LServer}) ->
+    Measurements = #{count => 1, element => El, lserver => LServer},
     mongoose_instrument:execute(EventName, #{}, Measurements);
 execute_element_event(_, _, _) ->
     ok.

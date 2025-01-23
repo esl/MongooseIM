@@ -89,9 +89,8 @@ handle_event(internal, {connect, {SocketModule, Ref, Transport}}, connect,
     StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
     {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
 
-handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
-    StreamStart = #xmlel{name = Name, attrs = Attrs},
-    handle_stream_start(StateData, StreamStart, StreamState);
+handle_event(internal, #xmlstreamstart{attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
+    handle_stream_start(StateData, Attrs, StreamState);
 handle_event(internal, _Unexpected, {wait_for_stream, _}, StateData) ->
     case mongoose_config:get_opt(hide_service_name, false) of
         true ->
@@ -344,14 +343,14 @@ stop_if_unhandled(_, _, {ok, _Acc}, Reason) ->
 %%% helpers
 %%%----------------------------------------------------------------------
 
--spec handle_stream_start(data(), exml:element(), stream_state()) -> fsm_res().
-handle_stream_start(S0, StreamStart, StreamState) ->
-    Lang = get_xml_lang(StreamStart),
-    From = maybe_capture_from_jid_in_stream_start(StreamStart),
-    LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
+-spec handle_stream_start(data(), exml:attrs(), stream_state()) -> fsm_res().
+handle_stream_start(S0, Attrs, StreamState) ->
+    Lang = get_xml_lang(Attrs),
+    From = maybe_capture_from_jid_in_stream_start(Attrs),
+    LServer = jid:nameprep(maps:get(<<"to">>, Attrs, <<>>)),
     case {StreamState,
-          exml_query:attr(StreamStart, <<"xmlns:stream">>, <<>>),
-          exml_query:attr(StreamStart, <<"version">>, <<>>),
+          maps:get(<<"xmlns:stream">>, Attrs, <<>>),
+          maps:get(<<"version">>, Attrs, <<>>),
           mongoose_domain_api:get_domain_host_type(LServer)} of
         {stream_start, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
             S = S0#c2s_data{host_type = HostType, lserver = LServer, jid = From, lang = Lang},
@@ -372,25 +371,25 @@ handle_stream_start(S0, StreamStart, StreamState) ->
 %% We conditionally set the jid field before authentication if it was provided by the client in the
 %% stream-start stanza, as extensions might use this (carefully, as it hasn't been proved this is
 %% the real identity of the client!). See RFC6120#section-4.7.1
--spec maybe_capture_from_jid_in_stream_start(exml:element()) -> error | jid:jid().
-maybe_capture_from_jid_in_stream_start(StreamStart) ->
-    case jid:from_binary(exml_query:attr(StreamStart, <<"from">>)) of
+-spec maybe_capture_from_jid_in_stream_start(exml:attrs()) -> undefined | jid:jid().
+maybe_capture_from_jid_in_stream_start(#{<<"from">> := From}) ->
+    case jid:from_binary(From) of
         error -> undefined;
         Jid -> Jid
-    end.
+    end;
+maybe_capture_from_jid_in_stream_start(_) ->
+    undefined.
 
 %% As stated in BCP47, 4.4.1:
 %% Protocols or specifications that specify limited buffer sizes for
 %% language tags MUST allow for language tags of at least 35 characters.
 %% Do not store long language tag to avoid possible DoS/flood attacks
--spec get_xml_lang(exml:element()) -> <<_:8, _:_*8>>.
-get_xml_lang(StreamStart) ->
-    case exml_query:attr(StreamStart, <<"xml:lang">>) of
-        Lang when is_binary(Lang), 0 < byte_size(Lang), byte_size(Lang) =< 35 ->
-            Lang;
-        _ ->
-            ?MYLANG
-    end.
+-spec get_xml_lang(exml:attrs()) -> <<_:8, _:_*8>>.
+get_xml_lang(#{<<"xml:lang">> := Lang})
+  when is_binary(Lang), 0 < byte_size(Lang), byte_size(Lang) =< 35 ->
+    Lang;
+get_xml_lang(_) ->
+    ?MYLANG.
 
 -spec handle_starttls(data(), exml:element(), mongoose_acc:t(), retries()) -> fsm_res().
 handle_starttls(StateData = #c2s_data{socket = TcpSocket,
