@@ -26,7 +26,7 @@
                      module := module(),
                      connection_type := connection_type(),
                      hibernate_after := timeout(),
-                     tls => map(),
+                     tls => just_tls:options(),
                      %% HTTP
                      handlers => list(),
                      transport => ranch:opts(),
