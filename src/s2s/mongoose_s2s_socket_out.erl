@@ -20,8 +20,8 @@
 
 -export_type([socket_data/0]).
 
--type socket_module() :: gen_tcp | just_tls.
--type socket() :: gen_tcp:socket() | just_tls:tls_socket().
+-type socket_module() :: gen_tcp | ssl.
+-type socket() :: gen_tcp:socket() | ssl:sslsocket().
 
 -record(socket_data, {sockmod = gen_tcp  :: socket_module(),
                       socket             :: term(),
@@ -102,7 +102,7 @@ close(#socket_data{receiver = Receiver}) ->
 
 -spec connect_tls(socket_data(), just_tls:options()) -> socket_data().
 connect_tls(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
-    tcp_to_tls(Receiver, TLSOpts#{connect => true}),
+    tcp_to_tls(Receiver, TLSOpts),
     update_socket(SocketData).
 
 -spec send_text(socket_data(), binary()) -> ok.
@@ -163,10 +163,10 @@ init({Socket, Shaper, Opts}) ->
                 hibernate_after = HibernateAfter}}.
 
 handle_call({tcp_to_tls, TLSOpts}, _From, #state{socket = TCPSocket} = State0) ->
-    case just_tls:tcp_to_tls(TCPSocket, TLSOpts) of
+    case just_tls:tcp_to_tls(TCPSocket, TLSOpts, client) of
         {ok, TLSSocket} ->
             State1 = reset_parser(State0),
-            State2 = State1#state{socket = TLSSocket, sockmod = just_tls},
+            State2 = State1#state{socket = TLSSocket, sockmod = ssl},
             activate_socket(State2),
             {reply, ok, State2, hibernate_or_timeout(State2)};
         {error, Reason} ->
@@ -192,7 +192,7 @@ handle_cast(_Msg, State) ->
 handle_info({tcp, _TCPSocket, Data}, #state{sockmod = gen_tcp} = State) ->
     NewState = process_data(Data, State),
     {noreply, NewState, hibernate_or_timeout(NewState)};
-handle_info({ssl, _TCPSocket, Data}, #state{sockmod = just_tls} = State) ->
+handle_info({ssl, _TCPSocket, Data}, #state{sockmod = ssl} = State) ->
     NewState = process_data(Data, State),
     {noreply, NewState, hibernate_or_timeout(NewState)};
 handle_info({Tag, _Socket}, State) when Tag == tcp_closed; Tag == ssl_closed ->
@@ -241,7 +241,7 @@ tcp_to_tls(Receiver, TLSOpts) ->
 update_socket(#socket_data{receiver = Receiver} = SocketData) ->
     case gen_server_call_or_noproc(Receiver, get_socket) of
         {ok, TLSSocket} ->
-            SocketData#socket_data{socket = TLSSocket, sockmod = just_tls};
+            SocketData#socket_data{socket = TLSSocket, sockmod = ssl};
         {error, E} ->
             exit({invalid_socket_after_upgrade_to_tls, E})
     end.
@@ -272,9 +272,9 @@ activate_socket(#state{socket = Socket, sockmod = gen_tcp}) ->
     inet:setopts(Socket, [{active, once}]),
     PeerName = inet:peername(Socket),
     resolve_peername(PeerName, Socket);
-activate_socket(#state{socket = Socket, sockmod = just_tls}) ->
-    just_tls:setopts(Socket, [{active, once}]),
-    PeerName = just_tls:peername(Socket),
+activate_socket(#state{socket = Socket, sockmod = ssl}) ->
+    ssl:setopts(Socket, [{active, once}]),
+    PeerName = ssl:peername(Socket),
     resolve_peername(PeerName, Socket).
 
 resolve_peername({ok, _}, _Socket) ->
@@ -319,11 +319,11 @@ wrap_xml(E) ->
                                  sockmod := socket_module()}) -> ok.
 update_transport_metrics(Data, #{direction := in, sockmod := gen_tcp}) ->
     mongoose_instrument:execute(tcp_data_in, #{connection_type => s2s}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{direction := in, sockmod := just_tls}) ->
+update_transport_metrics(Data, #{direction := in, sockmod := ssl}) ->
     mongoose_instrument:execute(tls_data_in, #{connection_type => s2s}, #{byte_size => byte_size(Data)});
 update_transport_metrics(Data, #{direction := out, sockmod := gen_tcp}) ->
     mongoose_instrument:execute(tcp_data_out, #{connection_type => s2s}, #{byte_size => byte_size(Data)});
-update_transport_metrics(Data, #{direction := out, sockmod := just_tls}) ->
+update_transport_metrics(Data, #{direction := out, sockmod := ssl}) ->
     mongoose_instrument:execute(tls_data_out, #{connection_type => s2s}, #{byte_size => byte_size(Data)}).
 
 -spec maybe_pause(Delay :: non_neg_integer(), state()) -> any().
@@ -382,5 +382,5 @@ shutdown_socket_and_wait_for_peer_to_close(Socket, gen_tcp) ->
     %% with the network but we want to maximise the odds that
     %% peer application gets all data sent on the tcp connection.
     gen_tcp:recv(Socket, 0, 30000);
-shutdown_socket_and_wait_for_peer_to_close(Socket, just_tls) ->
-    just_tls:close(Socket).
+shutdown_socket_and_wait_for_peer_to_close(Socket, ssl) ->
+    ssl:close(Socket).

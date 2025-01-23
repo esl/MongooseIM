@@ -52,8 +52,7 @@ init([{Addr, Port}, Server]) ->
     process_flag(trap_exit, true),
     try
         {ok, RawSocket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
-        {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(connections),
-                                                         #{connect => true}),
+        {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(connections), client),
         GdStart = gd_start(Server, ConnID),
         ok = mod_global_distrib_transport:send(Socket, <<(byte_size(GdStart)):32, GdStart/binary>>),
         mod_global_distrib_transport:setopts(Socket, [{active, once}]),

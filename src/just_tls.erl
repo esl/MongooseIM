@@ -16,15 +16,12 @@
 %% All modules implementing this behaviour have to support the mandatory 'verify_mode' option.
 %% Other options should be supported if the implementing module supports it.
 -type options() :: #{module => module(),
-                     connect => boolean(), % set to 'true' for a client-side call to tcp_to_tls/2
                      verify_mode := peer | selfsigned_peer | none,
                      mode => tls | starttls | starttls_required, % only ejabberd_s2s_out doesn't use it (yet)
                      certfile => string(),
                      cacertfile => string(),
                      ciphers => string(),
                      dhfile => string(), % server-only
-
-                     %% only for just_tls
                      disconnect_on_failure => boolean(),
                      keyfile => string(),
                      password => string(),
@@ -36,18 +33,9 @@
                          protocol := default | https,
                          host => string()}.
 
--record(tls_socket, {verify_results = [],
-                     ssl_socket
-}).
+-export_type([options/0, cert/0]).
 
--type tls_socket() :: #tls_socket{}.
--export_type([options/0, tls_socket/0, cert/0]).
-
--export([tcp_to_tls/2,
-         send/2,
-         peername/1,
-         setopts/2,
-         close/1]).
+-export([tcp_to_tls/3]).
 
 % API
 -export([receive_verify_results/0, error_to_list/1,
@@ -57,42 +45,16 @@
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec tcp_to_tls(inet:socket(), options()) ->
-          {ok, tls_socket()} | {error, any()}.
-tcp_to_tls(TCPSocket, Options) ->
-    inet:setopts(TCPSocket, [{active, false}]),
-    Ret = case Options of
-              #{connect := true} ->
-                  % Currently unused as ejabberd_s2s_out uses fast_tls,
-                  % and outgoing pools use Erlang SSL directly
-                  SSLOpts = format_opts(Options, client),
-                  ssl:connect(TCPSocket, SSLOpts, 5000);
-              #{} ->
-                  SSLOpts = format_opts(Options, server),
-                  ssl:handshake(TCPSocket, SSLOpts, 5000)
-          end,
-    VerifyResults = receive_verify_results(),
-    case Ret of
-        {ok, SSLSocket} ->
-            {ok, #tls_socket{ssl_socket = SSLSocket, verify_results = VerifyResults}};
-        _ -> Ret
-    end.
-
--spec send(tls_socket(), binary()) -> ok | {error, any()}.
-send(#tls_socket{ssl_socket = SSLSocket}, Packet) ->
-    ssl:send(SSLSocket, Packet).
-
--spec peername(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
-peername(#tls_socket{ssl_socket = SSLSocket}) ->
-    ssl:peername(SSLSocket).
-
--spec setopts(tls_socket(), Opts :: list()) -> ok | {error, any()}.
-setopts(#tls_socket{ssl_socket = SSLSocket}, Opts) ->
-    ssl:setopts(SSLSocket, Opts).
-
--spec close(tls_socket()) -> ok | {error, _}.
-close(#tls_socket{ssl_socket = SSLSocket}) ->
-    ssl:close(SSLSocket).
+-spec tcp_to_tls(inet:socket(), options(), client | server) ->
+    {ok, ssl:sslsocket()} | {error, any()}.
+tcp_to_tls(Socket, Opts, client) ->
+    TlsOpts = format_opts(Opts, client),
+    inet:setopts(Socket, [{active, false}]),
+    ssl:connect(Socket, TlsOpts, 5000);
+tcp_to_tls(Socket, Opts, server) ->
+    TlsOpts = format_opts(Opts, server),
+    inet:setopts(Socket, [{active, false}]),
+    ssl:handshake(Socket, TlsOpts, 5000).
 
 %% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
 -spec make_client_opts(options()) -> [ssl:tls_option()].

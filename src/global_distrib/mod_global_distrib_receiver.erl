@@ -99,7 +99,7 @@ init({Ref, ranch_tcp, _Opts}) ->
     process_flag(trap_exit, true),
     {ok, RawSocket} = ranch:handshake(Ref),
     ConnOpts = opt(connections),
-    {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, ConnOpts),
+    {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, ConnOpts, server),
     ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
     mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, #{},
                                 #{count => 1, peer => mod_global_distrib_transport:peername(Socket)}),
