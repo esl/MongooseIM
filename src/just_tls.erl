@@ -67,7 +67,7 @@ tcp_to_tls(TCPSocket, Options) ->
                   % Currently unused as ejabberd_s2s_out uses fast_tls,
                   % and outgoing pools use Erlang SSL directly
                   SSLOpts = format_opts(Options, client),
-                  ssl:connect(TCPSocket, SSLOpts);
+                  ssl:connect(TCPSocket, SSLOpts, 5000);
               #{} ->
                   SSLOpts = format_opts(Options, server),
                   ssl:handshake(TCPSocket, SSLOpts, 5000)
