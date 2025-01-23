@@ -155,14 +155,14 @@ simple_message(Config) ->
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
 
         %% User on the federated server receives the message
-        Stanza = escalus:wait_for_stanza(Alice2, 10000),
+        Stanza = escalus:wait_for_stanza(Alice2, 5000),
         escalus:assert(is_chat_message, [<<"Hi, foreign Alice!">>], Stanza),
 
         %% User on the federated server sends a message to the main server
         escalus:send(Alice2, escalus_stanza:chat_to(Alice1, <<"Nice to meet you!">>)),
 
         %% User on the main server receives the message
-        Stanza2 = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza2 = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2),
 
         % Instrumentation events are executed
@@ -202,7 +202,7 @@ dns_discovery_ip_fail(Config) ->
             <<"alice2@fed3">>,
             <<"Hello, second Alice!">>)),
 
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza),
         History = rpc(mim(), meck, history, [inet]),
         ?assertEqual(s2s_helper:has_inet_errors(History, "fed3"), true)
@@ -243,7 +243,7 @@ unknown_domain(Config) ->
             <<"Hello, unreachable!">>)),
 
         %% Alice@localhost1 receives stanza error: remote-server-not-found
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
 
     end).
@@ -257,7 +257,7 @@ malformed_jid(Config) ->
             <<"Hello, unreachable!">>)),
 
         %% Alice@localhost1 receives stanza error: remote-server-not-found
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
 
     end).
@@ -285,14 +285,14 @@ nonascii_addr(Config) ->
         escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Cześć Alice!">>)),
 
         %% Alice@localhost1 receives message from Bob@localhost2
-        Stanza = escalus:wait_for_stanza(Alice, 10000),
+        Stanza = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_chat_message, [<<"Cześć Alice!">>], Stanza),
 
         %% Alice@localhost1 sends message to Bob@localhost2
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Miło Cię poznać">>)),
 
         %% Bob@localhost2 receives message from Alice@localhost1
-        Stanza2 = escalus:wait_for_stanza(Bob, 10000),
+        Stanza2 = escalus:wait_for_stanza(Bob, 5000),
         escalus:assert(is_chat_message, [<<"Miło Cię poznać">>], Stanza2)
 
     end).
