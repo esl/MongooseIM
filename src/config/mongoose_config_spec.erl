@@ -274,14 +274,17 @@ xmpp_listener_common() ->
                        <<"proxy_protocol">> => #option{type = boolean},
                        <<"reuse_port">> => #option{type = boolean},
                        <<"shaper">> => #option{type = atom,
-                                               validate = non_empty}},
+                                               validate = non_empty},
+                       <<"state_timeout">> => #option{type = int_or_infinity,
+                                                      validate = non_negative}},
              defaults = #{<<"backlog">> => 1024,
                           <<"max_connections">> => infinity,
                           <<"max_stanza_size">> => 0,
                           <<"num_acceptors">> => 100,
                           <<"proxy_protocol">> => false,
                           <<"reuse_port">> => false,
-                          <<"shaper">> => none}}.
+                          <<"shaper">> => none,
+                          <<"state_timeout">> => 5000}}.
 
 xmpp_listener_extra(<<"c2s">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
@@ -291,12 +294,10 @@ xmpp_listener_extra(<<"c2s">>) ->
                                                  validate = {module, ejabberd_auth}},
                                  validate = unique},
                        <<"backwards_compatible_session">> => #option{type = boolean},
-                       <<"state_timeout">> => #option{type = int_or_infinity,
-                                                      validate = non_negative},
                        <<"tls">> => tls([server, xmpp])},
              defaults = #{<<"access">> => all,
-                          <<"backwards_compatible_session">> => true,
-                          <<"state_timeout">> => 5000}};
+                          <<"backwards_compatible_session">> => true
+                         }};
 xmpp_listener_extra(<<"component">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
@@ -306,15 +307,12 @@ xmpp_listener_extra(<<"component">>) ->
                        <<"hidden_components">> => #option{type = boolean},
                        <<"password">> => #option{type = string,
                                                  validate = non_empty},
-                       <<"state_timeout">> => #option{type = int_or_infinity,
-                                                      validate = non_negative},
                        <<"tls">> => tls([server, xmpp_tls])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
                           <<"check_from">> => true,
                           <<"conflict_behaviour">> => disconnect,
-                          <<"hidden_components">> => false,
-                          <<"state_timeout">> => 5000}};
+                          <<"hidden_components">> => false}};
 xmpp_listener_extra(<<"s2s">>) ->
     #section{items = #{<<"tls">> => tls([server, xmpp])}}.
 

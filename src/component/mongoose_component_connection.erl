@@ -173,16 +173,16 @@ handle_socket_elements(StateData = #component_data{lserver = LServer, shaper = S
        xmpp_element_size_in, labels(), #{byte_size => exml:xml_size(El), lserver => LServer})
      || El <- Elements],
     NewStateData = StateData#component_data{shaper = NewShaper},
-    MaybePauseTimeout = maybe_pause(NewStateData, Pause),
-    StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
-    {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}.
+    StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
+    StreamEvents1 = maybe_add_pause(NewStateData, StreamEvents0, Pause),
+    {keep_state, NewStateData, StreamEvents1}.
 
--spec maybe_pause(data(), integer()) -> any().
-maybe_pause(_StateData, Pause) when Pause > 0 ->
-    [{{timeout, activate_socket}, Pause, activate_socket}];
-maybe_pause(#component_data{socket = Socket}, _) ->
+-spec maybe_add_pause(data(), [gen_statem:action()], integer()) -> [gen_statem:action()].
+maybe_add_pause(_, StreamEvents, Pause) when Pause > 0 ->
+    [{{timeout, activate_socket}, Pause, activate_socket} | StreamEvents];
+maybe_add_pause(#component_data{socket = Socket}, StreamEvents, _) ->
     mongoose_xmpp_socket:activate(Socket),
-    [].
+    StreamEvents.
 
 -spec close_socket(data()) -> ok | {error, term()}.
 close_socket(#component_data{socket = undefined}) ->

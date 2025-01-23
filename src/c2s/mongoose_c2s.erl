@@ -85,19 +85,14 @@ handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
     verify_ip_is_not_blacklisted(C2SSocket),
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    StateData = #c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
+    StateData = #c2s_data{socket = C2SSocket, parser = Parser,
+                          shaper = Shaper, listener_opts = LOpts},
     {next_state, {wait_for_stream, stream_start}, StateData, state_timeout(LOpts)};
 
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     handle_stream_start(StateData, Attrs, StreamState);
-handle_event(internal, _Unexpected, {wait_for_stream, _}, StateData) ->
-    case mongoose_config:get_opt(hide_service_name, false) of
-        true ->
-            {stop, {shutdown, stream_error}};
-        false ->
-            send_header(StateData),
-            c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed())
-    end;
+handle_event(internal, Unexpected, {wait_for_stream, _}, StateData) ->
+    handle_maybe_hide_service_name(StateData, Unexpected);
 handle_event(internal, #xmlstreamstart{}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation());
 
@@ -250,9 +245,9 @@ handle_socket_elements(StateData = #c2s_data{lserver = LServer, shaper = Shaper}
        xmpp_element_size_in, labels(), #{byte_size => elem_size(El), lserver => LServer})
      || El <- Elements],
     NewStateData = StateData#c2s_data{shaper = NewShaper},
-    MaybePauseTimeout = maybe_pause(NewStateData, Pause),
-    StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
-    {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}.
+    StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
+    StreamEvents1 = maybe_add_pause(NewStateData, StreamEvents0, Pause),
+    {keep_state, NewStateData, StreamEvents1}.
 
 elem_size(#xmlstreamerror{name = Name}) ->
     byte_size(Name);
@@ -269,12 +264,12 @@ patch_element(El) ->
 patch_attr_value(undefined) -> <<>>;
 patch_attr_value(Bin) -> Bin.
 
--spec maybe_pause(data(), integer()) -> any().
-maybe_pause(_StateData, Pause) when Pause > 0 ->
-    [{{timeout, activate_socket}, Pause, activate_socket}];
-maybe_pause(#c2s_data{socket = Socket}, _) ->
+-spec maybe_add_pause(data(), [gen_statem:action()], integer()) -> [gen_statem:action()].
+maybe_add_pause(_, StreamEvents, Pause) when Pause > 0 ->
+    [{{timeout, activate_socket}, Pause, activate_socket} | StreamEvents];
+maybe_add_pause(#c2s_data{socket = Socket}, StreamEvents, _) ->
     mongoose_xmpp_socket:activate(Socket),
-    [].
+    StreamEvents.
 
 -spec close_socket(data()) -> ok | {error, term()}.
 close_socket(#c2s_data{socket = undefined}) ->
@@ -389,6 +384,16 @@ get_xml_lang(#{<<"xml:lang">> := Lang})
     Lang;
 get_xml_lang(_) ->
     ?MYLANG.
+
+-spec handle_maybe_hide_service_name(data(), term()) -> fsm_res().
+handle_maybe_hide_service_name(StateData, _Unexpected) ->
+    case mongoose_config:get_opt(hide_service_name, false) of
+        true ->
+            {stop, {shutdown, stream_error}};
+        false ->
+            send_header(StateData),
+            c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed())
+    end.
 
 -spec handle_starttls(data(), exml:element(), mongoose_acc:t(), retries()) -> fsm_res().
 handle_starttls(StateData = #c2s_data{socket = TcpSocket,

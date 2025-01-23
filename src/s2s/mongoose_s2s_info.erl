@@ -9,7 +9,7 @@
 
 -type direction() :: in | out.
 -type supervisor_child_spec() :: { undefined, pid(), worker, [module()] }.
--type connection_info() :: ejabberd_s2s_in:connection_info() | ejabberd_s2s_out:connection_info().
+-type connection_info() :: mongoose_s2s_in:connection_info() | ejabberd_s2s_out:connection_info().
 
 %% @doc Get information about S2S connections of the specified type.
 -spec get_connections(direction()) -> [connection_info()].
@@ -27,7 +27,7 @@ child_to_pid({_, Pid, _, _}) -> Pid.
 
 -spec get_state_info(direction(), pid()) -> [connection_info()].
 get_state_info(in, Pid) when is_pid(Pid) ->
-    case gen_server:call(Pid, get_state_info) of
+    case mongoose_s2s_in:get_state_info(Pid) of
         Info when is_map(Info) ->
             [Info];
         Other ->

@@ -272,10 +272,10 @@ dialback_with_wrong_key(_Config) ->
     {ok, _} = rpc(rpc_spec(mim), ejabberd_s2s_out, start, [FromTo, StartType]),
     receive
         %% Remote server (fed1) rejected out request
-        {'$gen_event', {validity_from_s2s_out, false, FromTo}} ->
+        {'$gen_cast', {validity_from_s2s_out, false, FromTo}} ->
             ok
-        after 5000 ->
-            ct:fail(timeout)
+    after 5000 ->
+              ct:fail(timeout)
     end.
 
 nonascii_addr(Config) ->
@@ -512,6 +512,7 @@ element_count(in, false) ->
     % Since S2S connections are unidirectional, mim1 acts both as initiating,
     % and receiving (and authoritative) server in the dialback procedure.
     %   1. Stream start response from fed1 (as initiating server)
+    %     1.b. Stream features after the response
     %   2. Stream start from fed1 (as receiving server)
     %   3. Dialback key (step 1, as receiving server)
     %   4. Dialback verification request (step 2, as authoritative server)
@@ -520,13 +521,14 @@ element_count(in, false) ->
     % This process sends a new stream header, as it opens a new connection to fed1,
     % now acting as an authoritative server. Also see comment on L360 in ejabberd_s2s.
     %   6. Stream start response from fed1
+    %     6.b. Stream features after the response
     %   7. Dialback verification response (step 3, as receiving server)
     %   8. Message from federated Alice
     % The number can be seen as the sum of all arrows from the dialback diagram, since mim
     % acts as all three roles in the two dialback procedures that occur:
     % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
     % (6 arrows) + one for stream header response + one for the actual message
-    8;
+    10;
 element_count(out, false) ->
     % Since S2S connections are unidirectional, mim1 acts both as initiating,
     % and receiving (and authoritative) server in the dialback procedure.
@@ -539,8 +541,9 @@ element_count(out, false) ->
     % sent as XML elements, but straight as text, and so these three events do not appear:
     %  - open stream to fed1,
     %  - stream response for fed1->mim stream,
+    %     -.b. Stream features after the response
     %  - open stream to fed1 as authoritative server.
-    5.
+    9.
 
 group_with_tls(both_tls_optional) -> true;
 group_with_tls(both_tls_required) -> true;

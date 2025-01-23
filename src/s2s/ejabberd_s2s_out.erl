@@ -347,7 +347,7 @@ wait_for_validation({xmlstreamelement, El}, StateData = #state{from_to = FromTo}
                     %% We could close the connection here.
                     next_state(wait_for_validation, StateData);
                 {Pid, _Key, _SID} ->
-                    ejabberd_s2s_in:send_validity_from_s2s_out(Pid, IsValid, FromTo),
+                    mongoose_s2s_in:send_validity_from_s2s_out(Pid, IsValid, FromTo),
                     next_state(wait_for_validation, StateData)
             end;
         {step_4, FromTo, StreamID, IsValid} ->
@@ -552,7 +552,7 @@ stream_established({xmlstreamelement, El}, StateData = #state{from_to = FromTo})
                          myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
-                    ejabberd_s2s_in:send_validity_from_s2s_out(VPid, IsValid, FromTo);
+                    mongoose_s2s_in:send_validity_from_s2s_out(VPid, IsValid, FromTo);
                 _ ->
                     ok
             end;

@@ -1092,6 +1092,7 @@ common_xmpp_listener_config() ->
                                 max_connections => infinity,
                                 reuse_port => false,
                                 shaper => none,
+                                state_timeout => 5000,
                                 max_stanza_size => 0,
                                 num_acceptors => 100}.
 
@@ -1105,7 +1106,6 @@ common_listener_config() ->
 extra_component_listener_config() ->
     #{access => all,
       check_from => true,
-      state_timeout => 5000,
       hidden_components => false,
       conflict_behaviour => disconnect,
       connection_type => component}.
@@ -1163,7 +1163,6 @@ default_config([listen, http, tls]) ->
     default_tls();
 default_config([listen, c2s]) ->
     (common_xmpp_listener_config())#{module => mongoose_c2s_listener,
-                                     state_timeout => 5000,
                                      backwards_compatible_session => true,
                                      access => all,
                                      connection_type => c2s};
