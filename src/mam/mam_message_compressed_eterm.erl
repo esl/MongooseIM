@@ -9,4 +9,4 @@ encode(Packet) ->
     term_to_binary(Packet, [compressed]).
 
 decode(Bin) ->
-    binary_to_term(Bin).
+    mam_message_eterm:decode(Bin).
