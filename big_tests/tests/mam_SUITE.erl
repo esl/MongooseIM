@@ -309,6 +309,7 @@ mam_cases() ->
      mam_service_discovery_to_different_client_bare_jid_results_in_error,
      archive_is_instrumented,
      easy_archive_request,
+     easy_archive_request_old_xmlel_format,
      easy_archive_request_for_the_receiver,
      message_sent_to_yourself,
      range_archive_request,
@@ -1238,13 +1239,6 @@ message_dropped(Config) ->
 easy_archive_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
-        %% Alice sends "OH, HAI!" to Bob
-        %% {xmlel,<<"message">>,
-        %%  [{<<"from">>,<<"alice@localhost/res1">>},
-        %%   {<<"to">>,<<"bob@localhost/res1">>},
-        %%   {<<"xml:lang">>,<<"en">>},
-        %%   {<<"type">>,<<"chat">>}],
-        %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
         mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
@@ -1270,6 +1264,49 @@ easy_archive_request_for_the_receiver(Config) ->
         ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+easy_archive_request_old_xmlel_format(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        AArcId = rest_helper:make_arc_id(Alice),
+        {BobJid, _, _} = BArcId = rest_helper:make_arc_id(Bob),
+        DateTime = calendar:local_time(),
+        Msg = mam_helper:generate_msg_for_date_user(AArcId, BArcId, DateTime, <<"OH, HAI!">>),
+        Packet = erlang:element(5, Msg),
+        OldFormatPacket =
+            {xmlel,<<"message">>,
+             [{<<"to">>, BobJid}, {<<"type">>,<<"chat">>}],
+             [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]},
+
+        Msg1 = erlang:setelement(5, Msg, OldFormatPacket),
+        ct:pal("Packet: ~p~n", [Packet]),
+        ct:pal("OldFormatPacket: ~p~n", [OldFormatPacket]),
+        mam_helper:put_msg(Msg1),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        Res = wait_archive_respond(Alice),
+        assert_lookup_event(mod_mam_pm_lookup, escalus_utils:get_jid(Alice)),
+        assert_respond_size(1, Res),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
+        [RespMessage] = respond_messages(Res),
+        ct:pal("ResPacket: ~p~n", [RespMessage]),
+
+        ArchivedMsg = exml_query:path(RespMessage, [{element, <<"result">>},
+                                                    {element, <<"forwarded">>},
+                                                    {element, <<"message">>}]),
+        ct:pal("ArchivedMsg: ~p~n", [ArchivedMsg]),
+        assert_msg_match(Packet, ArchivedMsg),
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+assert_msg_match(Pattern, Msg) ->
+    #xmlel{attrs = PatternAttrs, children = PatternChildren} = Pattern,
+    #xmlel{attrs = MsgAttrs, children = MsgChildren} = Msg,
+    [?assertEqual(Value, maps:get(Name, MsgAttrs, undefined),
+                  <<"attribute ", Name/binary>>)
+     || Name := Value <- PatternAttrs],
+    ?assertEqual(PatternChildren, MsgChildren).
 
 message_sent_to_yourself(Config) ->
     P = ?config(props, Config),
