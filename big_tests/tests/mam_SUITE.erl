@@ -183,7 +183,8 @@ rdbms_configs(_, _) ->
     [].
 
 cassandra_configs(true) ->
-     [cassandra];
+     [cassandra,
+      cassandra_eterm];
 cassandra_configs(_) ->
      [].
 
@@ -649,6 +650,8 @@ do_init_per_group(C, ConfigIn) ->
     case C of
         cassandra ->
             [{archive_wait, 1500} | Config0];
+        cassandra_eterm ->
+            [{archive_wait, 1500} | Config0];
         elasticsearch ->
             [{archive_wait, 2500} | Config0];
         _ ->
@@ -658,7 +661,8 @@ do_init_per_group(C, ConfigIn) ->
 setup_meck(_, elasticsearch) ->
     ok = rpc(mim(), meck, expect,
              [mongoose_elasticsearch, insert_document, 4, {error, simulated}]);
-setup_meck(_, cassandra) ->
+setup_meck(_, Config) when Config =:= cassandra_eterm;
+                           Config =:= cassandra ->
     ok = rpc(mim(), meck, expect,
              [mongoose_cassandra, cql_write_async, 5, {error, simulated}]);
 setup_meck(drop_msg, Config) when Config =:= rdbms_async_pool;
@@ -754,21 +758,15 @@ maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
 maybe_set_wait(_C, _, Config) ->
     Config.
 
-mam_prefs_backend_module(rdbms, rdbms) ->
-    mod_mam_rdbms_prefs;
-mam_prefs_backend_module(cassandra, cassandra) ->
-    mod_mam_cassandra_prefs;
-mam_prefs_backend_module(_, mnesia) ->
-    mod_mam_mnesia_prefs;
-mam_prefs_backend_module(_, _) ->
-    {error, wrong_db}.
-
 mam_opts_for_conf(elasticsearch) ->
     #{backend => elasticsearch,
       user_prefs_store => mnesia};
 mam_opts_for_conf(cassandra) ->
     #{backend => cassandra,
       user_prefs_store => cassandra};
+mam_opts_for_conf(cassandra_eterm) ->
+    Opts = mam_opts_for_conf(cassandra),
+    Opts#{db_message_format => mam_message_eterm};
 mam_opts_for_conf(rdbms_easy) ->
     EasyOpts = #{db_jid_format => mam_jid_rfc,
                  db_message_format => mam_message_xml},
@@ -882,24 +880,37 @@ maybe_skip(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
             "elasticsearch does not support encodings");
 maybe_skip(C, Config) when C =:= muc_light_sql_query_failed;
                            C =:= pm_sql_query_failed ->
-    skip_if(?config(configuration, Config) =:= elasticsearch orelse
-            ?config(configuration, Config) =:= cassandra,
+    Configuration = ?config(configuration, Config),
+    skip_if(lists:member(Configuration, [elasticsearch, cassandra, cassandra_eterm]),
             "Not an SQL database");
 maybe_skip(C, Config) when C =:= muc_light_include_groupchat_filter;
                            C =:= muc_light_no_pm_stored_include_groupchat_filter;
                            C =:= muc_light_include_groupchat_messages_by_default ->
-    skip_if(?config(configuration, Config) =:= cassandra,
+    Configuration = ?config(configuration, Config),
+    skip_if(lists:member(Configuration, [cassandra, cassandra_eterm]),
             "include_groupchat field is not supported for cassandra backend");
 maybe_skip(C, Config) when C =:= easy_text_search_request;
                            C =:= long_text_search_request;
                            C =:= save_unicode_messages;
                            C =:= muc_text_search_request ->
-    skip_if(?config(configuration, Config) =:= cassandra,
+    Configuration = ?config(configuration, Config),
+    skip_if(lists:member(Configuration, [cassandra, cassandra_eterm]),
             "full text search is not implemented for cassandra backend");
 maybe_skip(C, Config) when C =:= muc_light_async_pools_batch_flush;
                            C =:= async_pools_batch_flush ->
     skip_if(?config(configuration, Config) =/= rdbms_async_pool,
             "only for async pool");
+maybe_skip(C, Config) when C =:= easy_archive_request_old_xmlel_format ->
+    MamOpts = ?config(mam_meta_opts, Config),
+    MamBackend = maps:get(backend, MamOpts, rdbms),
+    DefaultFormat = case MamBackend of
+                        rdbms -> mam_message_compressed_eterm;
+                        _ -> mam_message_xml
+                    end,
+    MessageFormat = maps:get(db_message_format, MamOpts, DefaultFormat),
+    PmMamOpts = maps:get(pm, MamOpts, #{}),
+    PmMessageFormat = maps:get(db_message_format, PmMamOpts, MessageFormat),
+    skip_if(PmMessageFormat =:= mam_message_xml, "run only for eterm PM message format");
 maybe_skip(_C, _Config) ->
     ok.
 
@@ -4143,7 +4154,8 @@ message_retraction_is_enabled(Config) ->
     BasicGroup = ?config(basic_group, Config),
     BasicGroup =/= disabled_retraction andalso BasicGroup =/= muc_disabled_retraction.
 
-check_include_groupchat_features(Stanza, cassandra, _BasicGroup) ->
+check_include_groupchat_features(Stanza, Config, _BasicGroup) when Config =:= cassandra_eterm;
+                                                                   Config =:= cassandra ->
     ?assertNot(escalus_pred:has_feature(groupchat_field_ns(), Stanza)),
     ?assertNot(escalus_pred:has_feature(groupchat_available_ns(), Stanza));
 check_include_groupchat_features(Stanza, _Configuration, muc_light) ->
