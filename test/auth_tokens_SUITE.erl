@@ -50,7 +50,7 @@ end_per_suite(Config) ->
     mongoose_config:erase_opts().
 
 opts() ->
-    #{{modules, host_type()} => #{?TESTED => config_parser_helper:default_mod_config(?TESTED)},
+    #{{modules, host_type()} => #{mod_auth_token => config_parser_helper:default_mod_config(mod_auth_token)},
       instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 init_per_testcase(Test, Config)
@@ -110,21 +110,11 @@ validation_test(Config) ->
 
 validation_test(_, ExampleToken) ->
     %% given
-    Serialized = ?TESTED:serialize(ExampleToken),
+    Serialized = mod_auth_token:serialize(ExampleToken),
     ct:pal("ExampleToken:~n  ~p", [ExampleToken]),
-    %% note that mod_auth_token:deserialize/1 recomputes token_body.
-    %% therefore the supplied MAC signature (which is part of the serialized data)
-    %% may become invalid if the vcard xml binary data changes after running
-    %% exml:parse/1 and exml:to_binary/1 on it.
-    DeserialisedToken = ?TESTED:deserialize(Serialized),
-    ct:pal("DeserialisedToken:~n  ~p", [DeserialisedToken]),
-    TokenWithMac = ?TESTED:token_with_mac(host_type(),
-                                          DeserialisedToken#token{
-                                            mac_signature = undefined,
-                                            token_body = undefined}),
-    ct:pal("TokenWithMac:~n  ~p", [TokenWithMac]),
+
     %% when
-    Result = ?TESTED:authenticate(host_type(), Serialized),
+    Result = mod_auth_token:authenticate(host_type(), Serialized),
     ct:pal("Result: ~p", [Result]),
 
     %% then
@@ -136,11 +126,11 @@ validation_property(_) ->
 
 validity_period_test(_) ->
     %% given
-    ok = ?TESTED:start(host_type(), mongoose_config:get_opt([{modules, host_type()}, ?TESTED])),
+    ok = mod_auth_token:start(host_type(), mongoose_config:get_opt([{modules, host_type()}, mod_auth_token])),
     UTCSeconds = utc_now_as_seconds(),
     ExpectedSeconds = UTCSeconds + 3600, %% seconds per hour
     %% when
-    ActualDT = ?TESTED:expiry_datetime(host_type(), access, UTCSeconds),
+    ActualDT = mod_auth_token:expiry_datetime(host_type(), access, UTCSeconds),
     %% then
     ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds), ActualDT).
 
@@ -148,9 +138,9 @@ choose_key_by_token_type(_) ->
     %% given mocked keystore (see init_per_testcase)
     %% when mod_auth_token asks for key for given token type
     %% then the correct key is returned
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_host_type(host_type(), access)),
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_host_type(host_type(), refresh)),
-    ?ae(<<"provision">>, ?TESTED:get_key_for_host_type(host_type(), provision)).
+    ?ae(<<"access_or_refresh">>, mod_auth_token:get_key_for_host_type(host_type(), access)),
+    ?ae(<<"access_or_refresh">>, mod_auth_token:get_key_for_host_type(host_type(), refresh)),
+    ?ae(<<"provision">>, mod_auth_token:get_key_for_host_type(host_type(), provision)).
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = binary:encode_hex(crypto:mac(hmac, sha384, <<"unused_key">>, RawToken), lowercase),
@@ -165,11 +155,11 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     end.
 
 is_serialization_reversible(Token) ->
-    Token =:= ?TESTED:deserialize(?TESTED:serialize(Token)).
+    Token =:= mod_auth_token:deserialize(mod_auth_token:serialize(Token)).
 
 is_valid_token_prop(Token) ->
-    Serialized = ?TESTED:serialize(Token),
-    R = ?TESTED:authenticate(host_type(), Serialized),
+    Serialized = mod_auth_token:serialize(Token),
+    R = mod_auth_token:authenticate(host_type(), Serialized),
     case is_validation_success(R) of
         true -> true;
         _    -> ct:fail(R)
@@ -188,12 +178,12 @@ revoked_token_is_not_valid(_) ->
     RevokedSeqNo = 123455,
     self() ! {valid_seq_no, ValidSeqNo},
     T = #token{type = refresh,
-               expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
+               expiry_datetime = mod_auth_token:seconds_to_datetime(utc_now_as_seconds() + 10),
                user_jid = jid:from_binary(<<"alice@localhost">>),
                sequence_no = RevokedSeqNo},
-    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(host_type(), T)),
+    Revoked = mod_auth_token:serialize(mod_auth_token:token_with_mac(host_type(), T)),
     %% when
-    ValidationResult = ?TESTED:authenticate(host_type(), Revoked),
+    ValidationResult = mod_auth_token:authenticate(host_type(), Revoked),
     %% then
     {error, _} = ValidationResult.
 
@@ -245,73 +235,53 @@ mock_tested_backend() ->
                 end).
 
 provision_token_example() ->
-    #token{
-        type = provision,
-        expiry_datetime = {{2055,10,27},{10,54,22}},
-        user_jid = jid:make(<<"cee2m1s0i">>,domain(),<<>>),
-        sequence_no = undefined,
-        vcard = #xmlel{
-            name = <<"vCard">>,
-            attrs = #{<<"sgzldnl">> => <<"inxdutpu">>,
-                      <<"scmgsrfi">> => <<"nhgybwu">>,
-                      <<"ixrsmzee">> => <<"rysdh">>,
-                      <<"oxwothgyei">> => <<"wderkfgexv">>},
-            children = [
-                #xmlel{
-                    name = <<"nqe">>,
-                    attrs = #{<<"i">> => <<"u">>,
-                              <<"gagnixjgml">> => <<"odaorofnra">>,
-                              <<"ijz">> => <<"zvbrqnybi">>},
-                    children = [
-                        #xmlcdata{content = <<"uprmzqf">>},
-                        #xmlel{name = <<"lnnitxm">>,
-                               attrs = #{<<"qytehi">> => <<"axl">>,
-                                         <<"xaxforb">> => <<"jrdeydsqhj">>}},
-                        #xmlcdata{content = <<"pncgsaxl">>},
-                        #xmlel{name = <<"jfofazuau">>,
-                               attrs = #{<<"si">> => <<"l">>}}
-                    ]},
-                #xmlel{name = <<"moy">>,
-                       attrs = #{<<"femjc">> => <<"qqb">>,
-                                 <<"tirfmekvpk">> => <<"sa">>}},
-                #xmlcdata{content = <<"bgxlyqdeeuo">>}
-            ]},
-        mac_signature = <<96,213,61,178,182,8,167,202,120,67,82,228,108,171,74,98,88,236,
-                          200,77,44,151,199,213,43,193,109,139,197,14,179,107,72,243,50,
-                          199,208,14,254,218,47,164,249,1,212,167,90,218>>,
-        token_body = <<112,114,111,118,105,115,105,111,110,0,99,101,101,50,109,49,
-                       115,48,105,64,108,111,99,97,108,104,111,115,116,0,54,52,56,
-                       55,53,52,54,54,52,54,50,0,60,118,67,97,114,100,32,105,120,
-                       114,115,109,122,101,101,61,39,114,121,115,100,104,39,32,111,
-                       120,119,111,116,104,103,121,101,105,61,39,119,100,101,114,
-                       107,102,103,101,120,118,39,32,115,99,109,103,115,114,102,105,
-                       61,39,110,104,103,121,98,119,117,39,32,115,103,122,108,100,
-                       110,108,61,39,105,110,120,100,117,116,112,117,39,62,60,110,
-                       113,101,32,103,97,103,110,105,120,106,103,109,108,61,39,111,
-                       100,97,111,114,111,102,110,114,97,39,32,105,61,39,117,39,32,
-                       105,106,122,61,39,122,118,98,114,113,110,121,98,105,39,62,
-                       117,112,114,109,122,113,102,60,108,110,110,105,116,120,109,
-                       32,113,121,116,101,104,105,61,39,97,120,108,39,32,120,97,120,
-                       102,111,114,98,61,39,106,114,100,101,121,100,115,113,104,106,
-                       39,47,62,112,110,99,103,115,97,120,108,60,106,102,111,102,97,
-                       122,117,97,117,32,115,105,61,39,108,39,47,62,60,47,110,113,
-                       101,62,60,109,111,121,32,102,101,109,106,99,61,39,113,113,98,
-                       39,32,116,105,114,102,109,101,107,118,112,107,61,39,115,97,
-                       39,47,62,98,103,120,108,121,113,100,101,101,117,111,60,47,
-                       118,67,97,114,100,62>>}.
+    Token =
+        #token{
+            type = provision,
+            expiry_datetime = {{2055,10,27},{10,54,22}},
+            user_jid = jid:make(<<"cee2m1s0i">>,domain(),<<>>),
+            sequence_no = undefined,
+            vcard = #xmlel{
+                name = <<"vCard">>,
+                attrs = #{<<"sgzldnl">> => <<"inxdutpu">>,
+                        <<"scmgsrfi">> => <<"nhgybwu">>,
+                        <<"ixrsmzee">> => <<"rysdh">>,
+                        <<"oxwothgyei">> => <<"wderkfgexv">>},
+                children = [
+                    #xmlel{
+                        name = <<"nqe">>,
+                        attrs = #{<<"i">> => <<"u">>,
+                                <<"gagnixjgml">> => <<"odaorofnra">>,
+                                <<"ijz">> => <<"zvbrqnybi">>},
+                        children = [
+                            #xmlcdata{content = <<"uprmzqf">>},
+                            #xmlel{name = <<"lnnitxm">>,
+                                attrs = #{<<"qytehi">> => <<"axl">>,
+                                            <<"xaxforb">> => <<"jrdeydsqhj">>}},
+                            #xmlcdata{content = <<"pncgsaxl">>},
+                            #xmlel{name = <<"jfofazuau">>,
+                                attrs = #{<<"si">> => <<"l">>}}
+                        ]},
+                    #xmlel{name = <<"moy">>,
+                        attrs = #{<<"femjc">> => <<"qqb">>,
+                                    <<"tirfmekvpk">> => <<"sa">>}},
+                    #xmlcdata{content = <<"bgxlyqdeeuo">>}
+                ]},
+            mac_signature = undefined,
+            token_body = undefined},
+    mod_auth_token:token_with_mac(host_type(), Token).
 
 refresh_token_example() ->
-    #token{
-        type = refresh,
-        expiry_datetime = {{2055,10,27},{10,54,14}},
-        user_jid = jid:make(<<"a">>,domain(),<<>>),
-        sequence_no = 4,
-        vcard = undefined,
-        mac_signature = <<151,225,117,181,0,168,228,208,238,182,157,253,24,200,231,25,189,
-                          160,176,144,85,193,20,108,31,23,46,35,215,41,250,57,68,201,45,33,
-                          241,219,197,83,155,118,217,92,172,42,8,118>>,
-       token_body = <<114,101,102,114,101,115,104,0,97,64,108,111,99,97,108,104,111,115,
-                      116,0,54,52,56,55,53,52,54,54,52,53,52,0,52>>}.
+    Token =
+        #token{
+            type = refresh,
+            expiry_datetime = {{2055,10,27},{10,54,14}},
+            user_jid = jid:make(<<"a">>,domain(),<<>>),
+            sequence_no = 4,
+            vcard = undefined,
+            mac_signature = undefined,
+            token_body = undefined},
+    mod_auth_token:token_with_mac(host_type(), Token).
 
 %%
 %% Generators
@@ -343,11 +313,11 @@ make_token({Type, Expiry, JID, SeqNo, VCard}) ->
                user_jid = jid:from_binary(JID)},
     case Type of
         access ->
-            ?TESTED:token_with_mac(host_type(), T);
+            mod_auth_token:token_with_mac(host_type(), T);
         refresh ->
-            ?TESTED:token_with_mac(host_type(), T#token{sequence_no = SeqNo});
+            mod_auth_token:token_with_mac(host_type(), T#token{sequence_no = SeqNo});
         provision ->
-            ?TESTED:token_with_mac(host_type(), T#token{vcard = VCard})
+            mod_auth_token:token_with_mac(host_type(), T#token{vcard = VCard})
     end.
 
 serialized_token(Sep) ->
