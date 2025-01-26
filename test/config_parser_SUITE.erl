@@ -508,7 +508,8 @@ listen_c2s(_Config) ->
 
 listen_c2s_fast_tls(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
-                                       <<"tls">> => Opts}) end,
+                                       <<"tls">> => maps:merge(
+                                           #{<<"module">> => <<"fast_tls">>}, Opts)}) end,
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(default_c2s_tls(fast_tls), tls_ca()), T(M)),
@@ -525,7 +526,7 @@ listen_c2s_fast_tls(_Config) ->
 
 listen_c2s_just_tls(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
-                                       <<"tls">> => Opts#{<<"module">> => <<"just_tls">>}}) end,
+                                       <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(default_c2s_tls(just_tls), tls_ca()), T(M)),
@@ -569,7 +570,6 @@ listen_s2s_cacertfile_verify(_Config) ->
     ?err([#{reason := missing_cacertfile}], T(<<"required">>, #{})),
     ?err([#{reason := missing_cacertfile}], T(<<"required_trusted">>, #{})),
     %% setting `verify_mode` to `none` turns off `cacertfile` validation
-    VerifyModeNone = #{verify_mode => none},
     VerifyModeNoneRaw = #{<<"verify_mode">> => <<"none">>},
     ConfigWithVerifyModeNone = maps:merge(default_config([listen, s2s, tls]),
                                           #{verify_mode => none}),
