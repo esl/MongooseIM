@@ -413,7 +413,7 @@ is_query_allowed(#xmlel{children = Els}) ->
 -spec locked_state_process_owner_iq(jid:jid(), exml:element(),
         ejabberd:lang(), 'error' | 'get' | 'invalid' | 'result', _)
             -> {{'error', exml:element()}, statename()}
-               | {{result, [exml:element() | jlib:xmlcdata()], state() | stop}, statename()}.
+               | {{result, [exml:child()], state() | stop}, statename()}.
 locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
     Result = case is_query_allowed(Query) of
                  true ->
@@ -2005,7 +2005,7 @@ extract_password(Packet) ->
                              {element, <<"password">>},
                              cdata]).
 
--spec count_stanza_shift(mod_muc:nick(), [jlib:xmlcdata() | exml:element()],
+-spec count_stanza_shift(mod_muc:nick(), [exml:child()],
                         state()) -> any().
 count_stanza_shift(Nick, Els, StateData) ->
     HL = lqueue_to_list(StateData#state.history),
@@ -2087,7 +2087,7 @@ calc_shift(MaxSize, Size, Shift, [S | TSizes]) ->
     calc_shift(MaxSize, Size - S, Shift + 1, TSizes).
 
 
--spec extract_history([jlib:xmlcdata() | exml:element()], Type :: binary()) ->
+-spec extract_history([exml:child()], Type :: binary()) ->
     false | non_neg_integer().
 extract_history([], _Type) ->
     false;
@@ -3127,7 +3127,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
 
 -spec process_iq_owner(jid:jid(), get | set, ejabberd:lang(), exml:element(),
                        state(), statename()) ->
-    {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
+    {error, exml:element()} | {result, [exml:child()], state() | stop}.
 process_iq_owner(From, Type, Lang, SubEl, StateData, StateName) ->
     case get_affiliation(From, StateData) of
         owner ->
@@ -3139,7 +3139,7 @@ process_iq_owner(From, Type, Lang, SubEl, StateData, StateName) ->
 
 -spec process_authorized_iq_owner(jid:jid(), get | set, ejabberd:lang(), exml:element(),
                                   state(), statename()) ->
-    {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
+    {error, exml:element()} | {result, [exml:child()], state() | stop}.
 process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
     #xmlel{children = Els} = SubEl,
     case jlib:remove_cdata(Els) of
@@ -3189,7 +3189,7 @@ process_authorized_iq_owner(From, get, Lang, SubEl, StateData, _StateName) ->
 
 -spec process_authorized_submit_owner(From ::jid:jid(), [{binary(), [binary()]}],
                                       StateData :: state()) ->
-    {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
+    {error, exml:element()} | {result, [exml:child()], state() | stop}.
 process_authorized_submit_owner(_From, [], StateData) ->
     %confirm an instant room
     save_persistent_room_state(StateData),
@@ -3904,7 +3904,7 @@ check_voice_approval(From, XEl, Lang, StateData) ->
 %% Invitation support
 
 -spec check_invitation(jid:simple_jid() | jid:jid(),
-        [jlib:xmlcdata() | exml:element()], ejabberd:lang(), state())
+        [exml:child()], ejabberd:lang(), state())
             -> {'error', _} | {'ok', [jid:jid()]}.
 check_invitation(FromJID, Els, Lang, StateData) ->
     try
@@ -3913,7 +3913,7 @@ check_invitation(FromJID, Els, Lang, StateData) ->
     end.
 
 
--spec unsafe_check_invitation(jid:jid(), [jlib:xmlcdata() | exml:element()],
+-spec unsafe_check_invitation(jid:jid(), [exml:child()],
                               ejabberd:lang(), state()) -> {ok, [jid:jid()]}.
 unsafe_check_invitation(FromJID, Els, Lang,
                         StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
@@ -3971,7 +3971,7 @@ decode_destination_jid(InviteEl) ->
     end.
 
 
--spec find_invite_elems([jlib:xmlcdata() | exml:element()]) -> [exml:element()].
+-spec find_invite_elems([exml:child()]) -> [exml:element()].
 find_invite_elems(Els) ->
     case jlib:remove_cdata(Els) of
     [#xmlel{name = <<"x">>, children = Els1} = XEl] ->
@@ -4326,7 +4326,7 @@ route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
 
 -spec route_invitation(InvitationsOrError,
                        From, Packet, Lang, state()) -> state() when
-      InvitationsOrError :: {'error', jlib:xmlcdata() | exml:element()}
+      InvitationsOrError :: {'error', exml:cdata() | exml:element()}
                           | {'ok', [jid:jid()]},
       From :: jid:simple_jid() | jid:jid(),
       Packet :: exml:element(),

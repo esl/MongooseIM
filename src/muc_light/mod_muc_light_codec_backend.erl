@@ -99,7 +99,7 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec encode_error(ErrMsg :: tuple(),
-                   ExtraChildren :: [jlib:xmlch()],
+                   ExtraChildren :: [exml:child()],
                    OrigFrom :: jid:jid(),
                    OrigTo :: jid:jid(),
                    OrigPacket :: exml:element(),

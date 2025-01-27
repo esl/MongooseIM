@@ -57,7 +57,7 @@
 
 -record(msg, {
           id = <<>> :: binary(),
-          children = [] :: [jlib:xmlch()]
+          children = [] :: [exml:child()]
          }).
 
 -record(config, {

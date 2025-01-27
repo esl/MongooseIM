@@ -66,10 +66,6 @@
 -type xmlstreamerror()  :: #xmlstreamerror{}.
 -type xmlstreamel() :: exml:element() | exml_stream:start() | exml_stream:stop() | xmlstreamerror().
 
--type xmlcdata()  :: #xmlcdata{}.
-
--type xmlch() :: exml:element() | xmlcdata(). % (XML ch)ild
-
 -type iq() :: #iq{}.
 
 -type rsm_in() :: #rsm_in{}.
@@ -80,8 +76,6 @@
 
 -export_type([xmlstreamel/0, xmlstreamerror/0,
               rsm_in/0, rsm_out/0,
-              xmlcdata/0,
-              xmlch/0,
               iq/0,
               rfc3339_string/0]).
 
@@ -100,8 +94,7 @@ make_result_iq_reply_attrs(#xmlel{attrs = Attrs}) ->
     Attrs1 = swap_from_to_attrs(Attrs),
     Attrs1#{<<"type">> => <<"result">>}.
 
--spec make_error_reply(exml:element() | mongoose_acc:t(),
-                       xmlcdata() | exml:element()) ->
+-spec make_error_reply(exml:element() | mongoose_acc:t(), exml:child()) ->
     exml:element() | {mongoose_acc:t(), exml:element() | {error, {already_an_error, _, _}}}.
 make_error_reply(#xmlel{} = Elem, Error) ->
     ?LOG_DEBUG(#{what => make_error_reply,
@@ -191,11 +184,8 @@ swap_from_to_attrs(Attrs) ->
                       To :: jid:simple_jid() | jid:jid(),
                       XE :: exml:element()) -> exml:element().
 replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
-    NewAttrs = replace_from_to_attrs(jid:to_binary(From),
-                                     jid:to_binary(To),
-                                     Attrs),
+    NewAttrs = replace_from_to_attrs(jid:to_binary(From), jid:to_binary(To), Attrs),
     XE#xmlel{attrs = NewAttrs}.
-
 
 -spec remove_attr(binary(), exml:element()) -> exml:element().
 remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->
@@ -488,15 +478,15 @@ remove_delay_tags(#xmlel{children = Els} = Packet) ->
             end, [], Els),
     Packet#xmlel{children = NEl}.
 
--spec remove_cdata([xmlch()]) -> [xmlch()].
+-spec remove_cdata([exml:child()]) -> [exml:child()].
 remove_cdata(L) ->
     [E || E <- L, remove_cdata_p(E)].
 
--spec remove_cdata_p(xmlch()) -> boolean().
+-spec remove_cdata_p(exml:child()) -> boolean().
 remove_cdata_p(#xmlel{}) -> true;
 remove_cdata_p(_) -> false.
 
--spec append_subtags(exml:element(), [xmlch()]) -> exml:element().
+-spec append_subtags(exml:element(), [exml:child()]) -> exml:element().
 append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
 

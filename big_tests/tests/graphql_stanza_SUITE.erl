@@ -393,7 +393,7 @@ user_send_stanza_with_spoofed_from_story(Config, Alice, Bob) ->
 admin_send_unparsable_stanza(Config) ->
     Res = send_stanza(<<"<test">>, Config),
     ?assertEqual(<<"Input coercion failed for type XmlElement with value <<\"<test\">>. "
-                   "The reason it failed is: \"expected >\"">>,
+                   "The reason it failed is: <<\"expected >\">>">>,
                  get_coercion_err_msg(Res)).
 
 admin_send_stanza_from_unknown_user(Config) ->

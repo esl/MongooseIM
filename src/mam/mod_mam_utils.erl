@@ -582,7 +582,7 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
        children = FirstEl ++ LastEl ++ [CountEl]}.
 
 
--spec result_query(jlib:xmlcdata() | exml:element(), binary()) -> exml:element().
+-spec result_query(exml:child(), binary()) -> exml:element().
 result_query(SetEl, Namespace) ->
     #xmlel{
        name = <<"query">>,

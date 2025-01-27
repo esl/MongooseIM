@@ -204,7 +204,7 @@ process_client_elements(Elements, #ws_state{fsm_pid = FSM} = State) ->
 process_parse_error(_Reason, #ws_state{fsm_pid = undefined} = State) ->
     {stop, State};
 process_parse_error(Reason, #ws_state{fsm_pid = FSM} = State) ->
-    send_to_fsm(FSM, #xmlstreamerror{name = iolist_to_binary(Reason)}),
+    send_to_fsm(FSM, #xmlstreamerror{name = Reason}),
     {ok, State}.
 
 send_to_fsm(FSM, Element) ->

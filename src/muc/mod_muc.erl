@@ -1031,7 +1031,7 @@ get_room_pos(Desired, [_ | Rooms], HeadPosition) ->
 %%      with the returned Name already created, nor mark the generated Name
 %%      as `<<"already used">>'.  But in practice, it is unique enough. See
 %%      http://xmpp.org/extensions/xep-0045.html#createroom-unique
--spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
+-spec iq_get_unique(jid:jid()) -> exml:cdata().
 iq_get_unique(From) ->
     Raw = [From, erlang:unique_integer(), mongoose_bin:gen_from_crypto()],
     #xmlcdata{content = mongoose_bin:encode_crypto(term_to_binary(Raw))}.
