@@ -28,7 +28,7 @@
 -callback activate(state()) -> ok.
 -callback close(state()) -> ok.
 -callback send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
-    ok | {error, term()}.
+    ok | {error, atom()}.
 -callback get_peer_certificate(state()) -> peercert_return().
 -callback has_peer_cert(state(), mongoose_listener:options()) -> boolean().
 -callback is_channel_binding_supported(state()) -> boolean().
@@ -148,7 +148,7 @@ close(#ranch_ssl{socket = Socket}) ->
 close(#xmpp_socket{module = Module, state = State}) ->
     Module:close(State).
 
--spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, term()}.
+-spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, atom()}.
 send_xml(#ranch_tcp{socket = Socket, connection_type = Type}, XML) ->
     Data = exml:to_iolist(XML),
     mongoose_instrument:execute(tcp_data_out, #{connection_type => Type}, #{byte_size => iolist_size(Data)}),
