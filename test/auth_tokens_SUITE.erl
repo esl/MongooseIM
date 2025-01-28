@@ -111,11 +111,11 @@ validation_test(Config) ->
 validation_test(_, ExampleToken) ->
     %% given
     Serialized = mod_auth_token:serialize(ExampleToken),
-    ct:pal("ExampleToken:~n  ~p", [ExampleToken]),
+    ct:log("ExampleToken:~n  ~p", [ExampleToken]),
 
     %% when
     Result = mod_auth_token:authenticate(host_type(), Serialized),
-    ct:pal("Result: ~p", [Result]),
+    ct:log("Result: ~p", [Result]),
 
     %% then
     ?ae(true, is_validation_success(Result)).
