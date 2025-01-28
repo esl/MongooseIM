@@ -541,30 +541,6 @@ get_received_msgs_ids(Response) ->
                  Parsed#forwarded_message.result_id
               end, Msgs).
 
-%% @doc Result query iq.
-%%
-%% [{xmlel,<<"iq">>,
-%%     [{<<"from">>,<<"alice@localhost">>},
-%%      {<<"to">>,<<"alice@localhost/res1">>},
-%%      {<<"id">>,<<"387862024ce65379b049e19751e4309e">>},
-%%      {<<"type">>,<<"result">>}],
-%%     []}]
-%%
-%%
-%%  [{xmlel,<<"iq">>,
-%%       [{<<"from">>,<<"alice@localhost">>},
-%%        {<<"to">>,<<"alice@localhost/res1">>},
-%%        {<<"id">>,<<"c256a18c4b720465e215a81362d41eb7">>},
-%%        {<<"type">>,<<"result">>}],
-%%       [{xmlel,<<"query">>,
-%%            [{<<"xmlns">>,<<"urn:xmpp:mam:tmp">>}],
-%%            [{xmlel,<<"set">>,
-%%                 [{<<"xmlns">>,<<"http://jabber.org/protocol/rsm">>}],
-%%                 [{xmlel,<<"first">>,
-%%                      [{<<"index">>,<<"10">>}],
-%%                      [{xmlcdata,<<"103439">>}]},
-%%                  {xmlel,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
-%%                  {xmlel,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
 parse_result_iq(#mam_archive_respond{respond_iq = IQ, respond_fin = undefined}) ->
     Fin = exml_query:subelement(IQ, <<"fin">>),
     Set = exml_query:subelement(Fin, <<"set">>),
