@@ -159,7 +159,7 @@ parse_xml_error(Config) ->
 parse_xml_error(Config, Alice) ->
     ResultSet = user_set_private(Alice, <<"AAAABBBB">>, Config),
     ?assertEqual(<<"Input coercion failed for type XmlElement with value <<\"AAAABBBB\">>."
-                   " The reason it failed is: \"expected <\"">>,
+                   " The reason it failed is: <<\"expected <\">>">>,
                  get_coercion_err_msg(ResultSet)).
 
 % User private not configured test cases

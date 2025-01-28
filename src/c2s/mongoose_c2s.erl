@@ -273,7 +273,7 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
     ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Packet, c2s_pid => self()}),
     case exml_stream:parse(Parser, Packet) of
         {error, Reason} ->
-            NextEvent = {next_event, internal, #xmlstreamerror{name = iolist_to_binary(Reason)}},
+            NextEvent = {next_event, internal, #xmlstreamerror{name = Reason}},
             {keep_state, StateData, NextEvent};
         {ok, NewParser, XmlElements} ->
             Size = iolist_size(Packet),
