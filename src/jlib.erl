@@ -457,28 +457,18 @@ maybe_append_delay(Packet = #xmlel{children = Children}, From, TS, Desc) ->
             Packet
     end.
 
-remove_delay_tags(#xmlel{children = Els} = Packet) ->
-    NEl = lists:foldl(
-            fun(#xmlel{name= <<"delay">>} = R, El) ->
-                    case exml_query:attr(R, <<"xmlns">>) of
-                        ?NS_DELAY ->
-                            El;
-                        _ ->
-                            El ++ [R]
-                    end;
-               (#xmlel{name= <<"x">>} = R, El) ->
-                    case exml_query:attr(R, <<"xmlns">>) of
-                        ?NS_DELAY91 ->
-                            El;
-                        _ ->
-                            El ++ [R]
-                    end;
-               (R, El) ->
-                    El ++ [R]
-            end, [], Els),
-    Packet#xmlel{children = NEl}.
+remove_delay_tags(#xmlel{children = Children} = Packet) ->
+    Fun = fun(#xmlel{name = <<"delay">>, attrs = #{<<"xmlns">> := ?NS_DELAY}}, Els) ->
+                  Els;
+             (#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> := ?NS_DELAY91}}, Els) ->
+                  Els;
+             (R, Els) ->
+                  [R | Els]
+          end,
+    NEls = lists:foldl(Fun, [], Children),
+    Packet#xmlel{children = lists:reverse(NEls)}.
 
--spec remove_cdata([exml:child()]) -> [exml:child()].
+-spec remove_cdata([exml:child()]) -> [exml:element()].
 remove_cdata(L) ->
     [E || E <- L, remove_cdata_p(E)].
 
@@ -490,8 +480,7 @@ remove_cdata_p(_) -> false.
 append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
 
--spec replace_tag_attr(Attr :: binary(), Value :: binary(), exml:element()
-                      ) -> exml:element().
+-spec replace_tag_attr(Attr :: binary(), Value :: binary(), exml:element()) -> exml:element().
 replace_tag_attr(Attr, Value, XE = #xmlel{attrs = Attrs}) ->
     Attrs1 = Attrs#{Attr => Value},
     XE#xmlel{attrs = Attrs1}.
