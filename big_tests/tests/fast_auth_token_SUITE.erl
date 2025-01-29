@@ -355,29 +355,29 @@ parse_connect_result(#{answer := Success, spec := Spec}) ->
 auth_and_request_token(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_token(Mech), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, <<"PLAIN">>).
+    auth_with_method(Config, Client, Data, Extra, <<"PLAIN">>).
 
 auth_using_token(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method(Config, Client, Data, Extra, Mech).
 
 auth_using_token_and_request_token(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_token(Mech), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method(Config, Client, Data, Extra, Mech).
 
 auth_using_token_and_request_invalidation(Config, Client, Data) ->
     %% While XEP does not specify, what to do with another tokens,
     %% we invalidate both new and current tokens.
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_invalidation(), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method(Config, Client, Data, Extra, Mech).
 
 auth_using_token_and_request_invalidation_1(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_invalidation_1(), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method(Config, Client, Data, Extra, Mech).
 
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
 request_token(Mech) ->
@@ -400,8 +400,16 @@ request_invalidation_1() ->
 auth_with_token(Success, Token, Config, Spec) ->
     auth_with_token(Success, Token, Config, Spec, dont_request_token).
 
+maybe_0rtt_spec(Spec, Config) ->
+    %% https://www.erlang.org/docs/23/apps/ssl/using_ssl#early-data-in-tls-1.3
+%   [{early_data, make_0rtt_data(Spec, Config)}].
+    [].
+
 auth_with_token(Success, Token, Config, Spec, RequestToken) ->
-    Spec2 = [{secret_token, Token} | Spec],
+    Spec0RTT = maybe_0rtt_spec(Spec, Config),
+    %% session_tickets option would send `{ssl, session_ticket, Ticket0}' to us
+    Spec2 = [{secret_token, Token}, {session_tickets, true}] ++ Spec0RTT ++ Spec,
+    Uses0RTT = Spec0RTT =/= [],
     Steps = steps(Success, auth_function(RequestToken)),
     Data = #{spec => Spec2},
     Res = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
@@ -416,6 +424,12 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
                                 children = [#xmlel{name = <<"not-authorized">>}]},
                          Answer)
     end,
+    receive
+        {escalus_ssl_session_ticket, _ConnPid, Ticket} ->
+            ct:fail({ticket, Ticket})
+        after 500 ->
+            ct:fail({ticket, timeout})
+    end,
     Res.
 
 auth_function(dont_request_token) ->
@@ -428,12 +442,14 @@ auth_function(request_invalidation_1) ->
     auth_using_token_and_request_invalidation_1.
 
 steps(success, AuthFun) ->
-    [connect_tls, start_stream_get_features,
+    [connect_tls,
+     start_stream_get_features,
      {?MODULE, AuthFun},
      receive_features,
      has_no_more_stanzas];
 steps(failure, AuthFun) ->
-    [connect_tls, start_stream_get_features,
+    [connect_tls,
+     start_stream_get_features,
      {?MODULE, AuthFun}].
 
 user_agent_id() ->
@@ -449,19 +465,26 @@ cdata_elem(Name, Value) ->
     #xmlel{name = Name,
            children = [#xmlcdata{content = Value}]}.
 
+make_0rtt_data(Spec, Config) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    <<"HT-", _/binary>> = Mech,
+    InitEl = ht_auth_initial_response(Spec, Mech),
+    BindEl = #xmlel{name = <<"bind">>,
+                  attrs = #{<<"xmlns">> => ?NS_BIND_2}},
+    exml:to_binary(auth_elem(Mech, [InitEl, BindEl])).
+
 %% See bind2_SUITE:plain_auth
-auth_with_method(_Config, Client, Data, BindElems, Extra, Method) ->
+auth_with_method(_Config, Client, Data, Extra, Mech) ->
     %% we need proof of posesion mechanism
-    InitEl = case Method of
+    InitEl = case Mech of
         <<"PLAIN">> ->
             sasl2_helper:plain_auth_initial_response(Client);
         <<"HT-", _/binary>> ->
-            ht_auth_initial_response(Client, Method)
+            ht_auth_initial_response(client_to_spec(Client), Mech)
         end,
     BindEl = #xmlel{name = <<"bind">>,
-                  attrs = #{<<"xmlns">> => ?NS_BIND_2},
-                  children = BindElems},
-    Authenticate = auth_elem(Method, [InitEl, BindEl | Extra]),
+                  attrs = #{<<"xmlns">> => ?NS_BIND_2}},
+    Authenticate = auth_elem(Mech, [InitEl, BindEl | Extra]),
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
     ct:log("Answer ~p", [Answer]),
@@ -479,6 +502,9 @@ auth_elem(Mech, Children) ->
            attrs = #{<<"xmlns">> => ?NS_SASL_2, <<"mechanism">> => Mech},
            children = Children}.
 
+client_to_spec(#client{props = Props}) ->
+    Props.
+
 %% Creates "Initiator First Message"
 %% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html#section-3.1
 %%
@@ -491,13 +517,13 @@ auth_elem(Mech, Children) ->
 %%
 %% NUL    = %0x00 ; The null octet
 %% SAFE   = UTF8-encoded string
-ht_auth_initial_response(#client{props = Props}, Method) ->
+ht_auth_initial_response(Props, Mech) ->
     %% authcid is the username before "@" sign.
     Username = proplists:get_value(username, Props),
     Token = proplists:get_value(secret_token, Props),
     CBData = <<>>,
     ToHash = <<"Initiator", CBData/binary>>,
-    Algo = mech_to_algo(Method),
+    Algo = mech_to_algo(Mech),
     InitiatorHashedToken = crypto:mac(hmac, Algo, Token, ToHash),
     Payload = <<Username/binary, 0, InitiatorHashedToken/binary>>,
     initial_response_elem(Payload).

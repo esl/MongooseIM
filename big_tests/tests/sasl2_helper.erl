@@ -64,10 +64,17 @@ create_user(Config, Client, Data) ->
     Spec = escalus_fresh:create_fresh_user(Config, alice),
     {Client, Data#{spec => Spec}}.
 
-connect_tls(_Config, _, #{spec := Spec} = Data) ->
+connect_tls(Config, _, #{spec := Spec} = Data) ->
     TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
-    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]}
-             | Spec],
+    TicketOpts = case proplists:get_value(session_tickets, Spec) of
+            undefined -> [];
+            true -> [{session_tickets, manual}]
+        end,
+    SSLOpts = proplists:get_value(ssl_opts, Spec, []),
+    SSLOpts2 = SSLOpts ++ [{verify, verify_none}] ++ TicketOpts,
+ct:pal("SSLOpts2 ~p", [SSLOpts2]),
+    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true},
+             {ssl_opts, SSLOpts2} | lists:delete(ssl_opts, Spec)],
     Client1 = escalus_connection:connect(Spec1),
     {Client1, Data#{spec => Spec1}}.
 

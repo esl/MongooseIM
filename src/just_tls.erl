@@ -115,6 +115,7 @@ make_client_opts(Opts) ->
 %% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
 -spec make_server_opts(options()) -> [ssl:tls_option()].
 make_server_opts(Opts) ->
+    [{session_tickets, stateless}] ++
     format_opts(Opts, server).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
