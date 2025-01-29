@@ -20,12 +20,12 @@ instrumentation(_) ->
 
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
-    [{c2s_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_tls_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {c2s_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
-     {c2s_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}}].
+    [{tcp_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {tcp_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+     {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
+     {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}].
 
 -spec instrumentation(_, _) -> [mongoose_instrument:spec()].
 instrumentation(HostType, Acc) when is_binary(HostType) ->
@@ -49,7 +49,7 @@ listener_spec(Opts) ->
     {ok, pid()}.
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
-    mongoose_c2s:start_link({mongoose_c2s_ranch, Ref, Transport, Opts}, ProcessOpts).
+    mongoose_c2s:start_link({Transport, Ref, Opts}, ProcessOpts).
 
 %% Hooks and handlers
 -spec maybe_add_access_check_hooks(mongoose_listener:options()) -> ok.

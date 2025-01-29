@@ -109,7 +109,7 @@ calculate_channel_binding(Socket, ScramPlus, Sha, AuthMech) ->
 
 
 export_key_materials(Socket, true) ->
-    case mongoose_c2s_socket:export_key_materials(Socket, [?CB_LABEL], [no_context], [32], true) of
+    case mongoose_xmpp_socket:export_key_materials(Socket, [?CB_LABEL], [no_context], [32], true) of
         {ok, [Msg | _]} when is_binary(Msg) ->
             {<<"tls-exporter">>, Msg};
         _ ->

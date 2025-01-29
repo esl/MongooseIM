@@ -44,7 +44,7 @@ stream_features_before_auth(StateData) ->
     LServer = mongoose_c2s:get_lserver(StateData),
     Socket = mongoose_c2s:get_socket(StateData),
     LOpts = mongoose_c2s:get_listener_opts(StateData),
-    IsSSL = mongoose_c2s_socket:is_ssl(Socket),
+    IsSSL = mongoose_xmpp_socket:is_ssl(Socket),
     Features = determine_features(StateData, HostType, LServer, LOpts, IsSSL),
     stream_features(Features).
 

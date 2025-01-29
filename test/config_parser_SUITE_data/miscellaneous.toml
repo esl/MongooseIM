@@ -14,14 +14,6 @@
   replaced_wait_timeout = 2000
   hide_service_name = true
 
-  [[general.domain_certfile]]
-    domain = "example.com"
-    certfile = "priv/cert.pem"
-
-  [[general.domain_certfile]]
-    domain = "example.org"
-    certfile = "priv/cert.pem"
-
 [auth]
   http.basic_auth = "admin:admin"
 

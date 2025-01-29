@@ -24,7 +24,6 @@
          process_acl_condition/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
-         process_domain_cert/1,
          process_infinity_as_zero/1]).
 
 %% For tests
@@ -201,10 +200,7 @@ general() ->
                                                         validate = positive,
                                                         wrap = host_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    wrap = global_config},
-                 <<"domain_certfile">> => #list{items = domain_cert(),
-                                                format_items = map,
-                                                wrap = global_config}
+                                                    wrap = global_config}
                 },
        wrap = none,
        format_items = list
@@ -223,17 +219,6 @@ general_defaults() ->
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
       <<"hide_service_name">> => false}.
-
-%% path: general.domain_certfile
-domain_cert() ->
-    #section{
-       items = #{<<"domain">> => #option{type = binary,
-                                         validate = non_empty},
-                 <<"certfile">> => #option{type = string,
-                                           validate = filename}},
-       required = all,
-       process = fun ?MODULE:process_domain_cert/1
-      }.
 
 %% path: listen
 listen() ->
@@ -289,14 +274,17 @@ xmpp_listener_common() ->
                        <<"proxy_protocol">> => #option{type = boolean},
                        <<"reuse_port">> => #option{type = boolean},
                        <<"shaper">> => #option{type = atom,
-                                               validate = non_empty}},
+                                               validate = non_empty},
+                       <<"state_timeout">> => #option{type = int_or_infinity,
+                                                      validate = non_negative}},
              defaults = #{<<"backlog">> => 1024,
                           <<"max_connections">> => infinity,
                           <<"max_stanza_size">> => 0,
                           <<"num_acceptors">> => 100,
                           <<"proxy_protocol">> => false,
                           <<"reuse_port">> => false,
-                          <<"shaper">> => none}}.
+                          <<"shaper">> => none,
+                          <<"state_timeout">> => 5000}}.
 
 xmpp_listener_extra(<<"c2s">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
@@ -306,12 +294,10 @@ xmpp_listener_extra(<<"c2s">>) ->
                                                  validate = {module, ejabberd_auth}},
                                  validate = unique},
                        <<"backwards_compatible_session">> => #option{type = boolean},
-                       <<"state_timeout">> => #option{type = int_or_infinity,
-                                                      validate = non_negative},
                        <<"tls">> => tls([server, xmpp])},
              defaults = #{<<"access">> => all,
-                          <<"backwards_compatible_session">> => true,
-                          <<"state_timeout">> => 5000}};
+                          <<"backwards_compatible_session">> => true
+                         }};
 xmpp_listener_extra(<<"component">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
@@ -321,15 +307,12 @@ xmpp_listener_extra(<<"component">>) ->
                        <<"hidden_components">> => #option{type = boolean},
                        <<"password">> => #option{type = string,
                                                  validate = non_empty},
-                       <<"state_timeout">> => #option{type = int_or_infinity,
-                                                      validate = non_negative},
                        <<"tls">> => tls([server, xmpp_tls])},
              required = [<<"password">>],
              defaults = #{<<"access">> => all,
                           <<"check_from">> => true,
                           <<"conflict_behaviour">> => disconnect,
-                          <<"hidden_components">> => false,
-                          <<"state_timeout">> => 5000}};
+                          <<"hidden_components">> => false}};
 xmpp_listener_extra(<<"s2s">>) ->
     #section{items = #{<<"tls">> => tls([server, xmpp])}}.
 
@@ -1066,9 +1049,6 @@ process_s2s_host_policy(#{host := S2SHost, policy := Policy}) ->
 
 process_s2s_address(M) ->
     maps:take(host, M).
-
-process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
-    {Domain, Certfile}.
 
 process_infinity_as_zero(infinity) -> 0;
 process_infinity_as_zero(Num) -> Num.

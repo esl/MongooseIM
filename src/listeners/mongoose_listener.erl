@@ -26,7 +26,7 @@
                      module := module(),
                      connection_type := connection_type(),
                      hibernate_after := timeout(),
-                     tls => map(),
+                     tls => just_tls:options(),
                      %% HTTP
                      handlers => list(),
                      transport => ranch:opts(),
@@ -55,21 +55,22 @@
                     }.
 
 -type id() :: {inet:port_number(), inet:ip_address(), tcp}.
--type transport_module() :: ranch_tcp | ranch_ssl | undefined.
+-type transport_module() :: ranch_tcp | ranch_ssl | module().
 -type typed_listeners() :: [{Type :: ranch | cowboy, Listener :: ranch:ref()}].
--type init_args() :: {module(), ranch:ref(), transport_module(), options()}.
+-type init_args() :: {transport_module(), ranch:ref(), options()}.
 -type connection_type() :: c2s | s2s | component | http.
 
 -type connection_details() :: #{
         proxy        := boolean(),
         version      => 1 | 2,
-        src_address  := inet:ip_address() | binary(),
+        src_address  := inet:ip_address(),
         src_port     := inet:port_number(),
-        dest_address := inet:ip_address() | binary(),
+        dest_address := inet:ip_address(),
         dest_port    := inet:port_number()
        }.
 
--export_type([options/0, init_args/0, transport_module/0, connection_details/0, id/0]).
+-export_type([options/0, init_args/0, connection_type/0,
+              transport_module/0, connection_details/0, id/0]).
 
 %% API
 
@@ -189,8 +190,13 @@ element_spirals() ->
     [count, stanza_count, message_count, iq_count, presence_count,
      error_count, message_error_count, iq_error_count, presence_error_count].
 
--spec read_connection_details(ranch:ref(), transport_module(), options()) ->
-    {ok, inet:socket() | ssl:sslsocket(), connection_details()} | {error, term()}.
+-spec read_connection_details
+    (ranch:ref(), ranch_tcp, options()) ->
+        {ok, inet:socket(), connection_details()} | {error, term()};
+    (ranch:ref(), ranch_ssl, options()) ->
+        {ok, ssl:sslsocket(), connection_details()} | {error, term()};
+    (ranch:ref(), module(), options()) ->
+        {ok, term(), connection_details()} | {error, term()}.
 read_connection_details(Ref, _Transport, #{proxy_protocol := true}) ->
     {ok, #{src_address := PeerIp, src_port := PeerPort, dest_address := DestAddr,
            dest_port := DesPort, version := Version}} = ranch:recv_proxy_header(Ref, 1000),

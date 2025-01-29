@@ -2,6 +2,8 @@
 -define(MONGOOSEIM_NS_HRL, true).
 
 -define(NS_CLIENT,              <<"jabber:client">>).
+-define(NS_SERVER,              <<"jabber:server">>).
+-define(NS_SERVER_DIALBACK,     <<"jabber:server:dialback">>).
 -define(NS_COMPONENT_ACCEPT,    <<"jabber:component:accept">>).
 -define(NS_CONFERENCE,          <<"jabber:x:conference">>).
 -define(NS_DISCO_ITEMS,         <<"http://jabber.org/protocol/disco#items">>).

@@ -1,7 +1,7 @@
 -module(mod_bosh_socket).
 
 -behaviour(gen_fsm_compat).
--behaviour(mongoose_c2s_socket).
+-behaviour(mongoose_xmpp_socket).
 
 %% API
 -export([start/5,
@@ -19,7 +19,7 @@
          set_client_acks/2,
          get_cached_responses/1]).
 
-%% mongoose_c2s_socket callbacks
+%% mongoose_xmpp_socket callbacks
 -export([new/3,
          peername/1,
          tcp_to_tls/2,
@@ -201,7 +201,7 @@ init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
                             state_timeout => 5000,
                             backwards_compatible_session => true,
                             proto => tcp},
-    {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, undefined, C2SOpts}, []),
+    {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
     State = new_state(Sid, C2SPid, Opts),
     ?LOG_DEBUG(ls(#{what => bosh_socket_init, peer => Peer}, State)),
@@ -1049,11 +1049,12 @@ ls(LogMap, State) ->
 ignore_undefined(Map) ->
     maps:filter(fun(_, V) -> V =/= undefined end, Map).
 
-%% mongoose_c2s_socket callbacks
+%% mongoose_xmpp_socket callbacks
 
--spec new(_, mod_bosh:socket(), mongoose_listener:options()) -> mod_bosh:socket().
-new(_, Socket, _LOpts) ->
-    Socket.
+-spec new(mod_bosh:socket(), mongoose_listener:connection_type(), mongoose_listener:options()) ->
+    {mod_bosh:socket(), mongoose_listener:connection_type()}.
+new(Socket, _, _LOpts) ->
+    {Socket, http}.
 
 -spec peername(mod_bosh:socket()) -> mongoose_transport:peer().
 peername(#bosh_socket{peer = Peer}) ->
@@ -1104,7 +1105,7 @@ has_peer_cert(Socket, _) ->
 is_channel_binding_supported(_Socket) ->
     false.
 
--spec export_key_materials(mod_bosh:socket(), _, _, _, _) -> {error, term()}.
+-spec export_key_materials(mod_bosh:socket(), _, _, _, _) -> {error, atom()}.
 export_key_materials(_Socket, _, _, _, _) ->
     {error, tls_not_allowed_on_bosh}.
 

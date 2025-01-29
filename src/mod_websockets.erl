@@ -7,7 +7,7 @@
 
 -behaviour(mongoose_http_handler).
 -behaviour(cowboy_websocket).
--behaviour(mongoose_c2s_socket).
+-behaviour(mongoose_xmpp_socket).
 
 %% mongoose_http_handler callbacks
 -export([config_spec/0,
@@ -20,7 +20,7 @@
          websocket_info/2,
          terminate/3]).
 
-%% mongoose_c2s_socket callbacks
+%% mongoose_xmpp_socket callbacks
 -export([new/3,
          peername/1,
          tcp_to_tls/2,
@@ -254,7 +254,7 @@ do_start_fsm(Opts, State = #ws_state{peer = Peer, peercert = PeerCert}) ->
     end.
 
 call_fsm_start(SocketData, #{hibernate_after := HibernateAfterTimeout} = Opts) ->
-    mongoose_c2s:start({?MODULE, SocketData, undefined, Opts},
+    mongoose_c2s:start({?MODULE, SocketData, Opts},
                        [{hibernate_after, HibernateAfterTimeout}]).
 
 %%--------------------------------------------------------------------
@@ -365,11 +365,12 @@ case_insensitive_match(LowerPattern, [Case | Cases]) ->
 case_insensitive_match(_, []) ->
     nomatch.
 
-%% mongoose_c2s_socket callbacks
+%% mongoose_xmpp_socket callbacks
 
--spec new(_, socket(), mongoose_listener:options()) -> socket().
-new(_, Socket, _LOpts) ->
-    Socket.
+-spec new(socket(), mongoose_listener:connection_type(), mongoose_listener:options()) ->
+    {socket(), mongoose_listener:connection_type()}.
+new(Socket, _, _LOpts) ->
+    {Socket, http}.
 
 -spec peername(socket()) -> mongoose_transport:peer().
 peername(#websocket{peername = PeerName}) ->
@@ -407,7 +408,7 @@ send_xml(#websocket{pid = Pid}, XML) ->
 has_peer_cert(Socket, _) ->
     get_peer_certificate(Socket) /= no_peer_cert.
 
--spec get_peer_certificate(socket()) -> mongoose_c2s_socket:peercert_return().
+-spec get_peer_certificate(socket()) -> mongoose_xmpp_socket:peercert_return().
 get_peer_certificate(#websocket{peercert = undefined}) ->
     no_peer_cert;
 get_peer_certificate(#websocket{peercert = PeerCert}) ->

@@ -9,12 +9,12 @@
 %% mongoose_listener
 -spec instrumentation(_) -> [mongoose_instrument:spec()].
 instrumentation(_) ->
-    [{component_tcp_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {component_tcp_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {component_tls_data_in, #{}, #{metrics => #{byte_size => spiral}}},
-     {component_tls_data_out, #{}, #{metrics => #{byte_size => spiral}}},
-     {component_xmpp_element_size_out, #{}, #{metrics => #{byte_size => histogram}}},
-     {component_xmpp_element_size_in, #{}, #{metrics => #{byte_size => histogram}}},
+    [{tcp_data_in, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
+     {tcp_data_out, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_in, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
+     {tls_data_out, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
+     {xmpp_element_size_out, #{connection_type => component}, #{metrics => #{byte_size => histogram}}},
+     {xmpp_element_size_in, #{connection_type => component}, #{metrics => #{byte_size => histogram}}},
      {component_auth_failed, #{}, #{metrics => #{count => spiral}}},
      {component_element_in, #{},
       #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}},
@@ -31,5 +31,4 @@ listener_spec(Opts) ->
     {ok, pid()}.
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     ProcessOpts = [{hibernate_after, HibernateAfterTimeout}],
-    Params = {mongoose_component_ranch, Ref, Transport, Opts},
-    mongoose_component_connection:start_link(Params, ProcessOpts).
+    mongoose_component_connection:start_link({Transport, Ref, Opts}, ProcessOpts).

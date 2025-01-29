@@ -164,11 +164,7 @@ handle_unauthenticated_iq(Acc, _, _, _) ->
     {ok, Acc}.
 
 process_unauthenticated_iq(Acc, StateData, Iq, HostType) ->
-    IP = mongoose_c2s:get_ip(StateData),
-    Address = case IP of
-                  {A, _Port} -> A;
-                  _ -> undefined
-              end,
+    {Address, _} = mongoose_c2s:get_ip(StateData),
     LServer = mongoose_c2s:get_lserver(StateData),
     FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     ResIQ = process_unauthenticated_iq(HostType,
@@ -432,8 +428,6 @@ send_registration_notification(JIDBin, Domain, Body) ->
             ejabberd_router:route(jid:make_noprep(<<>>, Domain, <<>>), JID, Message)
     end.
 
-check_timeout(undefined) ->
-    true;
 check_timeout(Source) ->
     Timeout = mongoose_config:get_opt(registration_timeout),
     case is_integer(Timeout) of

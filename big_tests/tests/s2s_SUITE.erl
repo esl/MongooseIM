@@ -70,8 +70,6 @@ negative() ->
 connection_cases() ->
     [successful_external_auth_with_valid_cert,
      start_stream_fails_for_wrong_namespace,
-     start_stream_fails_for_wrong_version,
-     start_stream_fails_without_version,
      start_stream_fails_without_host,
      start_stream_fails_for_unknown_host,
      starttls_fails_for_unknown_host,
@@ -157,14 +155,14 @@ simple_message(Config) ->
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
 
         %% User on the federated server receives the message
-        Stanza = escalus:wait_for_stanza(Alice2, 10000),
+        Stanza = escalus:wait_for_stanza(Alice2, 5000),
         escalus:assert(is_chat_message, [<<"Hi, foreign Alice!">>], Stanza),
 
         %% User on the federated server sends a message to the main server
         escalus:send(Alice2, escalus_stanza:chat_to(Alice1, <<"Nice to meet you!">>)),
 
         %% User on the main server receives the message
-        Stanza2 = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza2 = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2),
 
         % Instrumentation events are executed
@@ -204,7 +202,7 @@ dns_discovery_ip_fail(Config) ->
             <<"alice2@fed3">>,
             <<"Hello, second Alice!">>)),
 
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza),
         History = rpc(mim(), meck, history, [inet]),
         ?assertEqual(s2s_helper:has_inet_errors(History, "fed3"), true)
@@ -245,7 +243,7 @@ unknown_domain(Config) ->
             <<"Hello, unreachable!">>)),
 
         %% Alice@localhost1 receives stanza error: remote-server-not-found
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
 
     end).
@@ -259,7 +257,7 @@ malformed_jid(Config) ->
             <<"Hello, unreachable!">>)),
 
         %% Alice@localhost1 receives stanza error: remote-server-not-found
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
 
     end).
@@ -274,10 +272,10 @@ dialback_with_wrong_key(_Config) ->
     {ok, _} = rpc(rpc_spec(mim), ejabberd_s2s_out, start, [FromTo, StartType]),
     receive
         %% Remote server (fed1) rejected out request
-        {'$gen_event', {validity_from_s2s_out, false, FromTo}} ->
+        {'$gen_cast', {validity_from_s2s_out, false, FromTo}} ->
             ok
-        after 5000 ->
-            ct:fail(timeout)
+    after 5000 ->
+              ct:fail(timeout)
     end.
 
 nonascii_addr(Config) ->
@@ -287,14 +285,14 @@ nonascii_addr(Config) ->
         escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Cześć Alice!">>)),
 
         %% Alice@localhost1 receives message from Bob@localhost2
-        Stanza = escalus:wait_for_stanza(Alice, 10000),
+        Stanza = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_chat_message, [<<"Cześć Alice!">>], Stanza),
 
         %% Alice@localhost1 sends message to Bob@localhost2
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Miło Cię poznać">>)),
 
         %% Bob@localhost2 receives message from Alice@localhost1
-        Stanza2 = escalus:wait_for_stanza(Bob, 10000),
+        Stanza2 = escalus:wait_for_stanza(Bob, 5000),
         escalus:assert(is_chat_message, [<<"Miło Cię poznać">>], Stanza2)
 
     end).
@@ -310,16 +308,6 @@ successful_external_auth_with_valid_cert(Config) ->
 start_stream_fails_for_wrong_namespace(Config) ->
     start_stream_fails(Config, <<"invalid-namespace">>,
                        [fun s2s_start_stream_with_wrong_namespace/2]).
-
-start_stream_fails_for_wrong_version(Config) ->
-    %% TLS authentication requires version 1.0
-    start_stream_fails(Config, <<"invalid-xml">>,
-                       [fun s2s_start_stream_with_wrong_version/2]).
-
-start_stream_fails_without_version(Config) ->
-    %% TLS authentication requires version 1.0
-    start_stream_fails(Config, <<"invalid-xml">>,
-                       [fun s2s_start_stream_without_version/2]).
 
 start_stream_fails_without_host(Config) ->
     start_stream_fails(Config, <<"improper-addressing">>,
@@ -404,16 +392,6 @@ connection_args(FromServer, RequestedName, Config) ->
 
 s2s_start_stream_with_wrong_namespace(Conn = #client{props = Props}, Features) ->
     Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"xmlns">> => <<"42">>} end),
-    ok = escalus_connection:send(Conn, Start),
-    {Conn, Features}.
-
-s2s_start_stream_with_wrong_version(Conn = #client{props = Props}, Features) ->
-    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"version">> => <<"42">>} end),
-    ok = escalus_connection:send(Conn, Start),
-    {Conn, Features}.
-
-s2s_start_stream_without_version(Conn = #client{props = Props}, Features) ->
-    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> maps:remove(<<"version">>, Attrs) end),
     ok = escalus_connection:send(Conn, Start),
     {Conn, Features}.
 
@@ -517,13 +495,13 @@ shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.
 
 assert_events(TS, Config) ->
     TLS = proplists:get_value(requires_tls, Config),
-    instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(xmpp_element_size_in, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => element_count(in, TLS), min_timestamp => TS}),
-    instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(xmpp_element_size_out, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{expected_count => element_count(out, TLS), min_timestamp => TS}),
-    instrument_helper:assert(s2s_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(tcp_data_in, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{min_timestamp => TS}),
-    instrument_helper:assert(s2s_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(tcp_data_out, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
         #{min_timestamp => TS}).
 
 element_count(_Dir, true) ->
@@ -534,6 +512,7 @@ element_count(in, false) ->
     % Since S2S connections are unidirectional, mim1 acts both as initiating,
     % and receiving (and authoritative) server in the dialback procedure.
     %   1. Stream start response from fed1 (as initiating server)
+    %     1.b. Stream features after the response
     %   2. Stream start from fed1 (as receiving server)
     %   3. Dialback key (step 1, as receiving server)
     %   4. Dialback verification request (step 2, as authoritative server)
@@ -542,13 +521,14 @@ element_count(in, false) ->
     % This process sends a new stream header, as it opens a new connection to fed1,
     % now acting as an authoritative server. Also see comment on L360 in ejabberd_s2s.
     %   6. Stream start response from fed1
+    %     6.b. Stream features after the response
     %   7. Dialback verification response (step 3, as receiving server)
     %   8. Message from federated Alice
     % The number can be seen as the sum of all arrows from the dialback diagram, since mim
     % acts as all three roles in the two dialback procedures that occur:
     % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
     % (6 arrows) + one for stream header response + one for the actual message
-    8;
+    10;
 element_count(out, false) ->
     % Since S2S connections are unidirectional, mim1 acts both as initiating,
     % and receiving (and authoritative) server in the dialback procedure.
@@ -561,8 +541,9 @@ element_count(out, false) ->
     % sent as XML elements, but straight as text, and so these three events do not appear:
     %  - open stream to fed1,
     %  - stream response for fed1->mim stream,
+    %     -.b. Stream features after the response
     %  - open stream to fed1 as authoritative server.
-    5.
+    9.
 
 group_with_tls(both_tls_optional) -> true;
 group_with_tls(both_tls_required) -> true;
@@ -573,7 +554,7 @@ group_with_tls(node1_tls_optional_node2_tls_required_trusted_with_cachain) -> tr
 group_with_tls(_GN) -> false.
 
 tested_events() ->
-    [{s2s_xmpp_element_size_in, #{}},
-     {s2s_xmpp_element_size_out, #{}},
-     {s2s_tcp_data_in, #{}},
-     {s2s_tcp_data_out, #{}}].
+    [{xmpp_element_size_in, #{connection_type => s2s}},
+     {xmpp_element_size_out, #{connection_type => s2s}},
+     {tcp_data_in, #{connection_type => s2s}},
+     {tcp_data_out, #{connection_type => s2s}}].
