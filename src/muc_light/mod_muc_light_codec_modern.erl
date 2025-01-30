@@ -113,7 +113,7 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
 decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
     decode_message_by_type(Attrs, Children).
 
--spec decode_message_by_type(exml:attrs(), Children :: [jlib:xmlch()]) ->
+-spec decode_message_by_type(exml:attrs(), Children :: [exml:child()]) ->
     {ok, msg()} | {error, bad_request} | ignore.
 decode_message_by_type(#{<<"type">> := <<"groupchat">>} = Attrs, Children) ->
     {ok, #msg{ children = Children, id = ensure_id(Attrs) }};
@@ -196,12 +196,12 @@ decode_iq(_, _) ->
 
 %% ------------------ Parsers ------------------
 
--spec parse_config(Els :: [jlib:xmlch()]) -> {ok, mod_muc_light_room_config:binary_kv()}
+-spec parse_config(Els :: [exml:child()]) -> {ok, mod_muc_light_room_config:binary_kv()}
                                              | {error, bad_request()}.
 parse_config(Els) ->
     parse_config(Els, []).
 
--spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: mod_muc_light_room_config:binary_kv()) ->
+-spec parse_config(Els :: [exml:child()], ConfigAcc :: mod_muc_light_room_config:binary_kv()) ->
     {ok, mod_muc_light_room_config:binary_kv()} | {error, bad_request()}.
 parse_config([], ConfigAcc) ->
     {ok, ConfigAcc};
@@ -213,12 +213,12 @@ parse_config([#xmlel{ name = Key, children = [ #xmlcdata{ content = Value } ] } 
 parse_config([_ | REls], ConfigAcc) ->
     parse_config(REls, ConfigAcc).
 
--spec parse_aff_users(Els :: [jlib:xmlch()]) ->
+-spec parse_aff_users(Els :: [exml:child()]) ->
     {ok, aff_users()} | {error, bad_request()}.
 parse_aff_users(Els) ->
     parse_aff_users(Els, []).
 
--spec parse_aff_users(Els :: [jlib:xmlch()], AffUsersAcc :: aff_users()) ->
+-spec parse_aff_users(Els :: [exml:child()], AffUsersAcc :: aff_users()) ->
     {ok, aff_users()} | {error, bad_request()}.
 parse_aff_users([], AffUsersAcc) ->
     {ok, AffUsersAcc};
@@ -233,11 +233,11 @@ parse_aff_users([#xmlel{ name = <<"user">>, attrs = #{<<"affiliation">> := AffBi
 parse_aff_users(_, _) ->
     {error, {bad_request, <<"Failed to parse affiliations">>}}.
 
--spec parse_blocking_list(Els :: [jlib:xmlch()]) -> {ok, [blocking_item()]} | {error, bad_request}.
+-spec parse_blocking_list(Els :: [exml:child()]) -> {ok, [blocking_item()]} | {error, bad_request}.
 parse_blocking_list(ItemsEls) ->
     parse_blocking_list(ItemsEls, []).
 
--spec parse_blocking_list(Els :: [jlib:xmlch()], ItemsAcc :: [blocking_item()]) ->
+-spec parse_blocking_list(Els :: [exml:child()], ItemsAcc :: [blocking_item()]) ->
     {ok, [blocking_item()]} | {error, bad_request}.
 parse_blocking_list([], ItemsAcc) ->
     {ok, ItemsAcc};
@@ -421,12 +421,12 @@ kv_to_el({Key, Value}) ->
 kv_to_el(Key, Value) ->
     #xmlel{ name = Key, children = [#xmlcdata{ content = Value }] }.
 
--spec msg_envelope(XMLNS :: binary(), Children :: [jlib:xmlch()]) -> [exml:element()].
+-spec msg_envelope(XMLNS :: binary(), Children :: [exml:child()]) -> [exml:element()].
 msg_envelope(XMLNS, Children) ->
     [ #xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> => XMLNS}, children = Children },
       #xmlel{ name = <<"body">> } ].
 
--spec inject_prev_version(IQChildren :: [jlib:xmlch()], PrevVersion :: binary()) -> [jlib:xmlch()].
+-spec inject_prev_version(IQChildren :: [exml:child()], PrevVersion :: binary()) -> [exml:child()].
 inject_prev_version([#xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> := ?NS_MUC_LIGHT_AFFILIATIONS},
                              children = Items} = XEl | REls], PrevVersion) ->
     [XEl#xmlel{ children = [kv_to_el(<<"prev-version">>, PrevVersion) | Items] } | REls];
@@ -435,7 +435,7 @@ inject_prev_version([El | REls], PrevVersion) ->
 
 -spec bcast_aff_messages(From :: jid:jid(), OldAffUsers :: aff_users(),
                          NewAffUsers :: aff_users(), Attrs :: exml:attrs(),
-                         VersionEl :: exml:element(), Children :: [jlib:xmlch()],
+                         VersionEl :: exml:element(), Children :: [exml:child()],
                          HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _, _) ->
     ok;
@@ -465,7 +465,7 @@ msg_to_leaving_user(From, {ToU, ToS} = User, Attrs, HandleFun) ->
     msg_to_aff_user(From, ToU, ToS, Attrs, NotifForLeaving, HandleFun).
 
 -spec msg_to_aff_user(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
-                      Attrs :: exml:attrs(), Children :: [jlib:xmlch()],
+                      Attrs :: exml:attrs(), Children :: [exml:child()],
                       HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
     To = jid:make_noprep(ToU, ToS, <<>>),
@@ -482,7 +482,7 @@ jids_from_room_with_resource(RoomJID, Resource) ->
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
-                     XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> exml:element().
+                     XMLNS :: binary(), Els :: [exml:child()] | undefined) -> exml:element().
 make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Attrs = #{<<"from">> => FromBin,
               <<"to">> => ToBin,
@@ -491,7 +491,7 @@ make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Query = make_query_el(XMLNS, Els),
     #xmlel{ name = <<"iq">>, attrs = Attrs, children = Query }.
 
--spec make_query_el(binary(), [jlib:xmlch()] | undefined) -> [exml:element()].
+-spec make_query_el(binary(), [exml:child()] | undefined) -> [exml:element()].
 make_query_el(_, undefined) ->
     [];
 make_query_el(XMLNS, Els) ->

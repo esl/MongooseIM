@@ -108,7 +108,7 @@ decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
     decode_message_by_type(Attrs, Children).
 
 -spec decode_message_by_type(exml:attrs(),
-                             Children :: [jlib:xmlch()]) ->
+                             Children :: [exml:child()]) ->
     {ok, msg() | {set, mod_muc_light_room_config:kv()}} | {error, bad_request} | ignore.
 decode_message_by_type(#{<<"type">> := <<"groupchat">>}, [#xmlel{ name = <<"subject">> } = SubjectEl]) ->
     {ok, {set, #config{ raw_config = [{<<"subject">>, exml_query:cdata(SubjectEl)}] }}};
@@ -196,11 +196,11 @@ parse_config_form(QueryEl) ->
             {error, Msg}
     end.
 
--spec parse_aff_users(Els :: [jlib:xmlch()]) -> {ok, aff_users()}.
+-spec parse_aff_users(Els :: [exml:child()]) -> {ok, aff_users()}.
 parse_aff_users(Els) ->
     parse_aff_users(Els, []).
 
--spec parse_aff_users(Els :: [jlib:xmlch()], AffUsersAcc :: aff_users()) -> {ok, aff_users()}.
+-spec parse_aff_users(Els :: [exml:child()], AffUsersAcc :: aff_users()) -> {ok, aff_users()}.
 parse_aff_users([], AffUsersAcc) ->
     {ok, AffUsersAcc};
 parse_aff_users([Item | RItemsEls], AffUsersAcc) ->
@@ -210,11 +210,11 @@ parse_aff_users([Item | RItemsEls], AffUsersAcc) ->
     Aff = mod_muc_light_utils:b2aff(AffBin),
     parse_aff_users(RItemsEls, [{jid:to_lus(JID), Aff} | AffUsersAcc]).
 
--spec parse_blocking_list(Els :: [jlib:xmlch()]) -> {ok, [blocking_item()]}.
+-spec parse_blocking_list(Els :: [exml:child()]) -> {ok, [blocking_item()]}.
 parse_blocking_list(ItemsEls) ->
     parse_blocking_list(ItemsEls, []).
 
--spec parse_blocking_list(Els :: [jlib:xmlch()], ItemsAcc :: [blocking_item()]) ->
+-spec parse_blocking_list(Els :: [exml:child()], ItemsAcc :: [blocking_item()]) ->
     {ok, [blocking_item()]}.
 parse_blocking_list([], ItemsAcc) ->
     {ok, ItemsAcc};
@@ -240,7 +240,7 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
                   HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler(),
                   Acc :: mongoose_acc:t()) ->
     {iq_reply, ID :: binary()} |
-    {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
+    {iq_reply, XMLNS :: binary(), Els :: [exml:child()], ID :: binary()} |
     noreply.
 encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, Acc) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
@@ -367,7 +367,7 @@ blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
                       <<"action">> => action2b(Action),
                       <<"order">> => <<"1">>}}.
 
--spec envelope(XMLNS :: binary(), Children :: [jlib:xmlch()]) -> [jlib:xmlch()].
+-spec envelope(XMLNS :: binary(), Children :: [exml:child()]) -> [exml:child()].
 envelope(XMLNS, Children) ->
     [ #xmlel{ name = <<"x">>, attrs = #{<<"xmlns">> => XMLNS}, children = Children } ].
 
@@ -425,7 +425,7 @@ msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
 
 -spec send_to_aff_user(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
                        Name :: binary(), Attrs :: exml:attrs(),
-                       Children :: [jlib:xmlch()],
+                       Children :: [exml:child()],
                        HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
     To = jid:make_noprep(ToU, ToS, <<>>),
@@ -442,7 +442,7 @@ jids_from_room_with_resource(RoomJID, Resource) ->
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
-                     XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> exml:element().
+                     XMLNS :: binary(), Els :: [exml:child()] | undefined) -> exml:element().
 make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Attrs = #{<<"from">> => FromBin,
               <<"to">> => ToBin,
@@ -451,7 +451,7 @@ make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Query = make_query_el(XMLNS, Els),
     #xmlel{ name = <<"iq">>, attrs = Attrs, children = Query }.
 
--spec make_query_el(binary(), [jlib:xmlch()] | undefined) -> [exml:element()].
+-spec make_query_el(binary(), [exml:child()] | undefined) -> [exml:element()].
 make_query_el(_, undefined) ->
     [];
 make_query_el(XMLNS, Els) ->
