@@ -38,7 +38,7 @@
 -import(config_parser_helper, [default_s2s/0,
                                extra_service_listener_config/0,
                                mod_event_pusher_http_handler/0,
-                               default_c2s_tls/1,
+                               default_xmpp_tls/0,
                                mod_config/2, default_mod_config/1,
                                config/2, default_config/1]).
 
@@ -86,16 +86,14 @@ groups() ->
                             routing_modules,
                             replaced_wait_timeout,
                             hide_service_name,
-                            domain_certfile,
                             max_users_per_domain]},
      {listen, [parallel], [listen_duplicate,
                            listen_c2s,
-                           listen_c2s_fast_tls,
                            listen_c2s_just_tls,
                            listen_s2s,
                            listen_s2s_tls,
-                           listen_s2s_cacertfile_verify,
-                           listen_service,
+                           listen_component,
+                           listen_component_tls,
                            listen_http,
                            listen_http_tls,
                            listen_http_transport,
@@ -163,14 +161,12 @@ groups() ->
                         s2s_outgoing_port,
                         s2s_outgoing_ip_versions,
                         s2s_outgoing_timeout,
-                        s2s_use_starttls,
-                        s2s_certfile,
                         s2s_default_policy,
                         s2s_host_policy,
                         s2s_address,
-                        s2s_ciphers,
                         s2s_shared,
-                        s2s_max_retry_delay]},
+                        s2s_max_retry_delay,
+                        s2s_tls]},
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
                             mod_fast_auth_token,
@@ -455,20 +451,6 @@ hide_service_name(_Config) ->
     ?cfg(hide_service_name, true, #{<<"general">> => #{<<"hide_service_name">> => true}}),
     ?err(#{<<"general">> => #{<<"hide_service_name">> => []}}).
 
-domain_certfile(_Config) ->
-    DomCert = #{<<"domain">> => <<"myxmpp.com">>,
-                <<"certfile">> => <<"priv/cert.pem">>},
-    ?cfg(domain_certfile, #{<<"myxmpp.com">> => "priv/cert.pem"},
-         #{<<"general">> => #{<<"domain_certfile">> => [DomCert]}}),
-    ?err([#{reason := invalid_filename}],
-         #{<<"general">> => #{<<"domain_certfile">> =>
-                                  [DomCert#{<<"certfile">> => <<"missing.pem">>}]}}),
-    [?err(#{<<"general">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}})
-     || K <- maps:keys(DomCert)],
-    [?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}})
-     || K <- maps:keys(DomCert)],
-    ?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert, DomCert]}}).
-
 %% tests: listen
 
 listen_duplicate(_Config) ->
@@ -483,7 +465,7 @@ listen_duplicate(_Config) ->
     ?err([#{reason := duplicate_listeners,
             duplicates := [{5222, {0, 0, 0, 0}, tcp}]}],
          #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222, <<"ip_address">> => <<"0">>}],
-                             <<"s2s">> => [#{<<"port">> => 5222}]}}).
+                             <<"component">> => [#{<<"port">> => 5222, <<"password">> => <<"secret">>}]}}).
 
 listen_c2s(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, maps:merge(#{<<"port">> => 5222}, Opts)) end,
@@ -492,43 +474,20 @@ listen_c2s(_Config) ->
     test_listen(P, T),
     test_listen_xmpp(P, T),
     ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
-    ?cfg(P ++ [shaper], c2s_shaper, T(#{<<"shaper">> => <<"c2s_shaper">>})),
-    ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
     ?cfg(P ++ [backwards_compatible_session], true, T(#{<<"backwards_compatible_session">> => true})),
-    ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
     ?cfg(P ++ [allowed_auth_methods], [rdbms, http],
          T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"http">>]})),
     ?err(T(#{<<"access">> => <<>>})),
-    ?err(T(#{<<"shaper">> => <<>>})),
-    ?err(T(#{<<"reuse_port">> => 0})),
     ?err(T(#{<<"backwards_compatible_session">> => 0})),
-    ?err(T(#{<<"max_connections">> => 0})),
     ?err(T(#{<<"allowed_auth_methods">> => [<<"bad_method">>]})),
     ?err(T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"rdbms">>]})).
 
-listen_c2s_fast_tls(_Config) ->
+listen_c2s_just_tls(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
                                        <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
     M = tls_ca_raw(),
-    ?cfg(P, maps:merge(default_c2s_tls(fast_tls), tls_ca()), T(M)),
-    test_fast_tls_server(P, T),
-    %% we do not require `cacertfile` when `verify_mode` is `none`
-    ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
-    %% we require `cacertfile` when `verify_mode` is `peer` (which is the default)
-    ?cfg(P ++ [cacertfile], "priv/ca.pem", T(M#{<<"verify_mode">> => <<"peer">>})),
-    ?err([#{reason := missing_cacertfile}], T(#{})),
-    ?err([#{reason := missing_cacertfile}], T(#{<<"verify_mode">> => <<"peer">>})),
-    ?cfg(P ++ [mode], tls, T(M#{<<"mode">> => <<"tls">>})),
-    ?err(T(M#{<<"mode">> => <<"stopttls">>})),
-    ?err(T(M#{<<"module">> => <<"slow_tls">>})).
-
-listen_c2s_just_tls(_Config) ->
-    T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
-                                       <<"tls">> => Opts#{<<"module">> => <<"just_tls">>}}) end,
-    P = [listen, 1, tls],
-    M = tls_ca_raw(),
-    ?cfg(P, maps:merge(default_c2s_tls(just_tls), tls_ca()), T(M)),
+    ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
     test_just_tls_server(P, T),
     ?cfg(P ++ [mode], tls, T(M#{<<"mode">> => <<"tls">>})),
     ?cfg(P ++ [disconnect_on_failure], false, T(M#{<<"disconnect_on_failure">> => false})),
@@ -544,60 +503,43 @@ listen_s2s(_Config) ->
     P = [listen, 1],
     ?cfg(P, config([listen, s2s], #{port => 5269}), T(#{})),
     test_listen(P, T),
-    test_listen_xmpp(P, T),
-    ?cfg(P ++ [shaper], s2s_shaper, T(#{<<"shaper">> => <<"s2s_shaper">>})),
-    ?err(T(#{<<"shaper">> => <<>>})).
+    test_listen_xmpp(P, T).
 
 listen_s2s_tls(_Config) ->
     T = fun(Opts) -> listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
-    ?cfg(P, default_config([listen, s2s, tls]), T(#{})),
-    test_fast_tls_server(P, T).
+    M = tls_ca_raw(),
+    ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
+    test_just_tls_server(P, T).
 
-listen_s2s_cacertfile_verify(_Config) ->
-    T = fun(UseStartTLS, Opts) ->
-            maps:merge(#{<<"s2s">> => #{<<"use_starttls">> => UseStartTLS}},
-            listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts})) end,
-    P = [listen, 1, tls],
-    ConfigWithCA = maps:merge(default_config([listen, s2s, tls]), tls_ca()),
-    %% no checking of `cacertfile` when `use_starttls` is `false` or `optional`
-    ?cfg(P, default_config([listen, s2s, tls]), T(<<"false">>, #{})),
-    ?cfg(P, default_config([listen, s2s, tls]), T(<<"optional">>, #{})),
-    %% `cacertfile` is required when `use_starttls` is `required` or `optional`
-    ?cfg(P, ConfigWithCA, T(<<"required">>, tls_ca_raw())),
-    ?cfg(P, ConfigWithCA, T(<<"required_trusted">>, tls_ca_raw())),
-    ?err([#{reason := missing_cacertfile}], T(<<"required">>, #{})),
-    ?err([#{reason := missing_cacertfile}], T(<<"required_trusted">>, #{})),
-    %% setting `verify_mode` to `none` turns off `cacertfile` validation
-    VerifyModeNone = #{verify_mode => none},
-    VerifyModeNoneRaw = #{<<"verify_mode">> => <<"none">>},
-    ConfigWithVerifyModeNone = maps:merge(default_config([listen, s2s, tls]),
-                                          #{verify_mode => none}),
-    ?cfg(P, ConfigWithVerifyModeNone, T(<<"required">>, VerifyModeNoneRaw)),
-    ?cfg(P, ConfigWithVerifyModeNone, T(<<"required_trusted">>, VerifyModeNoneRaw)).
-
-listen_service(_Config) ->
-    T = fun(Opts) -> listen_raw(service, maps:merge(#{<<"port">> => 8888,
-                                                      <<"password">> => <<"secret">>}, Opts))
-        end,
+listen_component(_Config) ->
+    Defs = #{<<"port">> => 8888, <<"password">> => <<"secret">>},
+    T = fun(Opts) -> listen_raw(component, maps:merge(Defs, Opts)) end,
     P = [listen, 1],
-    ?cfg(P, config([listen, service], #{port => 8888, password => "secret"}), T(#{})),
+    ?cfg(P, config([listen, component], #{port => 8888, password => "secret"}), T(#{})),
     test_listen(P, T),
     test_listen_xmpp(P, T),
     ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
-    ?cfg(P ++ [shaper_rule], fast, T(#{<<"shaper_rule">> => <<"fast">>})),
     ?cfg(P ++ [check_from], false, T(#{<<"check_from">> => false})),
     ?cfg(P ++ [hidden_components], true, T(#{<<"hidden_components">> => true})),
     ?cfg(P ++ [conflict_behaviour], kick_old, T(#{<<"conflict_behaviour">> => <<"kick_old">>})),
-    ?cfg(P ++ [max_fsm_queue], 1000, T(#{<<"max_fsm_queue">> => 1000})),
+    ?cfg(P ++ [state_timeout], 6000, T(#{<<"state_timeout">> => 6000})),
+    ?err(T(#{<<"state_timeout">> => -10})),
     ?err(T(#{<<"access">> => <<>>})),
-    ?err(T(#{<<"shaper_rule">> => <<>>})),
     ?err(T(#{<<"check_from">> => 1})),
     ?err(T(#{<<"hidden_components">> => <<"yes">>})),
     ?err(T(#{<<"conflict_behaviour">> => <<"kill_server">>})),
     ?err(T(#{<<"password">> => <<>>})),
-    ?err(T(#{<<"password">> => undefined})),
-    ?err(T(#{<<"max_fsm_queue">> => 0})).
+    ?err(T(#{<<"password">> => undefined})).
+
+listen_component_tls(_Config) ->
+    T = fun(Opts) -> listen_raw(component, #{<<"port">> => 8888,
+                                             <<"password">> => <<"secret">>,
+                                             <<"tls">> => Opts}) end,
+    P = [listen, 1, tls],
+    M = tls_ca_raw(),
+    ?cfg(P, maps:merge(config_parser_helper:default_xmpp_tls_tls(), tls_ca()), T(M)),
+    test_just_tls_server(P, T).
 
 listen_http(_Config) ->
     T = fun(Opts) -> listen_raw(http, maps:merge(#{<<"port">> => 5280}, Opts)) end,
@@ -697,18 +639,20 @@ test_listen_http_handler(Module, T) ->
 test_listen(P, T) ->
     ?cfg(P ++ [ip_address], "192.168.1.16", T(#{<<"ip_address">> => <<"192.168.1.16">>})),
     ?cfg(P ++ [ip_tuple], {192, 168, 1, 16}, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
-    ?cfg(P ++ [ip_version], 4, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
+    ?cfg(P ++ [ip_version], inet, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
     ?cfg(P ++ [ip_address], "2001:db8:3:4:5:6:7:8",
          T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
     ?cfg(P ++ [ip_tuple], {8193, 3512, 3, 4, 5, 6, 7, 8},
          T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
-    ?cfg(P ++ [ip_version], 6,
+    ?cfg(P ++ [ip_version], inet6,
          T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
-    ?cfg(P ++ [ip_version], 4, T(#{<<"ip_version">> => 4})),
-    ?cfg(P ++ [ip_version], 6, T(#{<<"ip_version">> => 6})),
+    ?cfg(P ++ [ip_version], inet, T(#{<<"ip_version">> => 4})),
+    ?cfg(P ++ [ip_version], inet6, T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [ip_address], "::", T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [ip_tuple], {0, 0, 0, 0, 0, 0, 0, 0}, T(#{<<"ip_version">> => 6})),
     ?cfg(P ++ [proto], tcp, T(#{<<"proto">> => <<"tcp">>})),
+    ?cfg(P ++ [hibernate_after], 10, T(#{<<"hibernate_after">> => 10})),
+    ?err(T(#{<<"hibernate_after">> => -10})),
     ?err(T(#{<<"ip_address">> => <<"192.168.1.999">>})),
     ?err(T(#{<<"port">> => <<"5222">>})),
     ?err(T(#{<<"port">> => 522222})),
@@ -719,13 +663,17 @@ test_listen(P, T) ->
 test_listen_xmpp(P, T) ->
     ?cfg(P ++ [backlog], 10, T(#{<<"backlog">> => 10})),
     ?cfg(P ++ [proxy_protocol], true, T(#{<<"proxy_protocol">> => true})),
-    ?cfg(P ++ [hibernate_after], 10, T(#{<<"hibernate_after">> => 10})),
+    ?cfg(P ++ [shaper], fast, T(#{<<"shaper">> => <<"fast">>})),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
     ?cfg(P ++ [max_stanza_size], 0, T(#{<<"max_stanza_size">> => <<"infinity">>})),
     ?cfg(P ++ [num_acceptors], 100, T(#{<<"num_acceptors">> => 100})),
+    ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
+    ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
+    ?err(T(#{<<"shaper">> => <<>>})),
     ?err(T(#{<<"backlog">> => -10})),
+    ?err(T(#{<<"max_connections">> => 0})),
+    ?err(T(#{<<"reuse_port">> => 0})),
     ?err(T(#{<<"proxy_protocol">> => <<"awesome">>})),
-    ?err(T(#{<<"hibernate_after">> => -10})),
     ?err(T(#{<<"max_stanza_size">> => <<"unlimited">>})),
     ?err(T(#{<<"num_acceptors">> => 0})).
 
@@ -1212,8 +1160,7 @@ test_just_tls_common(P, T) ->
     ?err(T(M#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
     ?err(T(M#{<<"keyfile">> => <<"no_such_file.pem">>})),
     ?err(T(M#{<<"password">> => false})),
-    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})),
-    ?err(T(M#{<<"protocol_options">> => [<<"nosslv2">>]})). % only for fast_tls
+    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})).
 
 test_just_tls_client_sni(ParentP, ParentT) ->
     P = ParentP ++ [server_name_indication],
@@ -1225,26 +1172,6 @@ test_just_tls_client_sni(ParentP, ParentT) ->
     ?err(T(#{<<"enabled">> => <<"maybe">>})),
     ?err(T(#{<<"host">> => <<>>})),
     ?err(T(#{<<"protocol">> => <<"http">>})).
-
-test_fast_tls_server(P, T) ->
-    ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
-    M = tls_ca_raw(),
-    ?cfg(P ++ [certfile], "priv/cert.pem", T(M#{<<"certfile">> => <<"priv/cert.pem">>})),
-    ?cfg(P ++ [cacertfile], "priv/ca.pem", T(M)),
-    ?cfg(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
-         T(M#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
-    ?cfg(P ++ [protocol_options], ["nosslv2"], T(M#{<<"protocol_options">> => [<<"nosslv2">>]})),
-    ?err(T(#{<<"verify_mode">> => <<"selfsigned_peer">>})), % value only for just_tls
-    ?err(T(#{<<"crl_files">> => [<<"priv/cert.pem">>]})), % option only for just_tls
-    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
-    ?err(T(#{<<"cacertfile">> => <<"no_such_file.pem">>})),
-    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
-    ?err(T(#{<<"dhfile">> => <<"no_such_file.pem">>})),
-    ?err(T(#{<<"keyfile">> => <<"priv/dc1.pem">>})), % option only for just_tls
-    ?err(T(#{<<"password">> => <<"secret">>})), % option only for just_tls
-    ?err(T(#{<<"versions">> => [<<"tlsv1.2">>]})), % option only for just_tls
-    ?err(T(#{<<"protocol_options">> => [<<>>]})).
 
 tls_ca() ->
     #{cacertfile => "priv/ca.pem"}.
@@ -1366,10 +1293,7 @@ s2s_host_config(_Config) ->
     DefaultS2S = default_s2s(),
     EmptyHostConfig = host_config(#{<<"s2s">> => #{}}),
     ?cfg(host_key(s2s), DefaultS2S,
-         EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
-    StartTLSHostConfig = host_config(#{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
-    ?cfg(host_key(s2s), DefaultS2S#{use_starttls => required},
-         StartTLSHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}).
+         EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}).
 
 s2s_dns_timeout(_Config) ->
     ?cfgh([s2s, dns, timeout], 10, #{}), % default
@@ -1400,16 +1324,6 @@ s2s_outgoing_timeout(_Config) ->
     ?cfgh([s2s, outgoing, connection_timeout], infinity,
           #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
     ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
-
-s2s_use_starttls(_Config) ->
-    ?cfgh([s2s, use_starttls], false, #{}), % default
-    ?cfgh([s2s, use_starttls], required, #{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
-    ?errh(#{<<"s2s">> => #{<<"use_starttls">> => <<"unnecessary">>}}).
-
-s2s_certfile(_Config) ->
-    ?cfgh([s2s, certfile], "priv/server.pem",  #{<<"s2s">> => #{<<"certfile">> => <<"priv/server.pem">>}}),
-    ?errh([#{reason := invalid_filename}], #{<<"s2s">> => #{<<"certfile">> => <<"nofile.pem">>}}),
-    ?errh(#{<<"s2s">> => #{<<"certfile">> => []}}).
 
 s2s_default_policy(_Config) ->
     ?cfgh([s2s, default_policy], allow, #{}), % default
@@ -1447,12 +1361,6 @@ s2s_address(_Config) ->
     ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}}),
     ?errh(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
 
-s2s_ciphers(_Config) ->
-    ?cfgh([s2s, ciphers], mongoose_tls:default_ciphers(), #{}), % default
-    ?cfgh([s2s, ciphers], "TLSv1.2",
-          #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2">>}}),
-    ?errh(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
-
 s2s_shared(_Config) ->
     ?cfgh([s2s, shared], <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
     ?errh(#{<<"s2s">> => #{<<"shared">> => 536837}}).
@@ -1460,6 +1368,30 @@ s2s_shared(_Config) ->
 s2s_max_retry_delay(_Config) ->
     ?cfgh([s2s, max_retry_delay], 120, #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
     ?errh(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
+
+s2s_tls(_Config) ->
+    P = [s2s, tls],
+    M = tls_ca_raw(),
+    T = fun(Opts) -> #{<<"s2s">> => #{<<"tls">> => Opts}} end,
+    ?cfgh(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
+    ?cfgh(P ++ [cacertfile], "priv/ca.pem", T(M)),
+    ?cfgh(P ++ [certfile], "priv/cert.pem", T(M#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfgh(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
+         T(M#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfgh(P ++ [keyfile], "priv/dc1.pem", T(M#{<<"keyfile">> => <<"priv/dc1.pem">>})),
+    ?cfgh(P ++ [password], "secret", T(M#{<<"password">> => <<"secret">>})),
+    ?cfgh(P ++ [versions], ['tlsv1.2', 'tlsv1.3'],
+         T(M#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
+    ?err([#{reason := missing_cacertfile}], T(#{})),
+    ?err([#{reason := missing_cacertfile}], T(#{<<"verify_mode">> => <<"peer">>})),
+    ?err([#{reason := missing_cacertfile}], T(#{<<"verify_mode">> => <<"selfsigned_peer">>})),
+    ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
+    ?err(T(M#{<<"certfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"cacertfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
+    ?err(T(M#{<<"keyfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"password">> => false})),
+    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})).
 
 %% modules
 
@@ -1584,11 +1516,6 @@ mod_disco(_Config) ->
           T(<<"users_can_see_hidden_services">>, true)),
     ?cfgh(P ++ [users_can_see_hidden_services], false,
           T(<<"users_can_see_hidden_services">>, false)),
-    %% extra_domains are binaries
-    ?cfgh(P ++ [extra_domains], [<<"localhost">>, <<"erlang-solutions.com">>],
-          T(<<"extra_domains">>, [<<"localhost">>, <<"erlang-solutions.com">>])),
-    ?cfgh(P ++ [extra_domains], [],
-          T(<<"extra_domains">>, [])),
     Info = #{<<"name">> => <<"abuse-address">>,
              <<"urls">> => [<<"admin@example.com">>]},
     SpiritUrls = [<<"spirit1@localhost">>, <<"spirit2@localhost">>],
@@ -1600,9 +1527,6 @@ mod_disco(_Config) ->
                                         <<"modules">> => [<<"mod_muc">>, <<"mod_disco">>]}])),
     ?errh(T(<<"users_can_see_hidden_services">>, 1)),
     ?errh(T(<<"users_can_see_hidden_services">>, <<"true">>)),
-    ?errh(T(<<"extra_domains">>, [<<"user@localhost">>])),
-    ?errh(T(<<"extra_domains">>, [1])),
-    ?errh(T(<<"extra_domains">>, <<"domains domains domains">>)),
     ?errh(T(<<"server_info">>, [Info#{<<"name">> => 1}])),
     ?errh(T(<<"server_info">>, [Info#{<<"name">> => <<"">>}])),
     ?errh(T(<<"server_info">>, [Info#{<<"modules">> => <<"roll">>}])),
@@ -1759,7 +1683,7 @@ mod_global_distrib_connections_tls(_Config) ->
         end,
     % Does not test host_config, but other tests do that,
     % and this module should be enabled globally anyway
-    test_fast_tls_server(P, T).
+    test_just_tls_server(P, T).
 
 mod_global_distrib_redis(_Config) ->
     RequiredModOpts = global_distrib_required_opts(),

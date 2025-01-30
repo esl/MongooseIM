@@ -232,7 +232,7 @@ component(_Config) ->
     Handler = fun() -> ok end,
     Domain = <<"cool.localhost">>,
     Node = some_node,
-    {ok, _} = mongoose_component:register_components([Domain], Node, Handler, false),
+    {ok, _} = mongoose_component:register_component(Domain, Node, Handler, false, false),
     true = mongoose_component:has_component(Domain),
     #{mongoose_component := ok} = mongoose_hooks:node_cleanup(Node),
     [] = mongoose_component:dirty_get_all_components(all),
@@ -242,11 +242,11 @@ component(_Config) ->
 component_from_other_node_remains(_Config) ->
     Handler = fun() -> ok end,
     Domain = <<"cool.localhost">>,
-    {ok, Comps} = mongoose_component:register_components([Domain], other_node, Handler, false),
+    {ok, Comp} = mongoose_component:register_component(Domain, other_node, Handler, false, false),
     true = mongoose_component:has_component(Domain),
     #{mongoose_component := ok} = mongoose_hooks:node_cleanup(some_node),
     true = mongoose_component:has_component(Domain),
-    mongoose_component:unregister_components(Comps),
+    mongoose_component:unregister_component(Comp),
     ok.
 
 muc_node_cleanup_for_host_type(_Config) ->

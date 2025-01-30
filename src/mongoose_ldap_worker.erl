@@ -77,7 +77,7 @@ connect_opts(State = #{port := Port,
                        password := Password}) ->
     AnonAuth = RootDN =:= <<>> andalso Password =:= <<>>,
     SSLConfig = case State of
-                    #{tls := TLSOptions} -> [{sslopts, just_tls:make_ssl_opts(TLSOptions)}];
+                    #{tls := TLSOptions} -> [{sslopts, just_tls:make_client_opts(TLSOptions)}];
                     #{} -> []
                 end,
     [{port, Port}, {anon_auth, AnonAuth}] ++ SSLConfig.

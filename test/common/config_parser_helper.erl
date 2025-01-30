@@ -58,8 +58,6 @@ options("host_types") ->
 options("miscellaneous") ->
     [{http_server_name, "Apache"},
      {default_server_domain, <<"localhost">>},
-     {domain_certfile, #{<<"example.com">> => "priv/cert.pem",
-                         <<"example.org">> => "priv/cert.pem"}},
      {hide_service_name, true},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"anonymous.localhost">>]},
@@ -156,7 +154,8 @@ options("mongooseim-pgsql") ->
                 access => c2s,
                 shaper => c2s_shaper,
                 max_stanza_size => 65536,
-                tls => #{certfile => "priv/dc1.pem", dhfile => "priv/dh.pem",
+                tls => #{certfile => "priv/dc1.pem",
+                         dhfile => "priv/dh.pem",
                          cacertfile => "priv/ca.pem"}
                }),
        config([listen, c2s],
@@ -164,6 +163,32 @@ options("mongooseim-pgsql") ->
                 access => c2s,
                 shaper => c2s_shaper,
                 max_stanza_size => 65536
+               }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8888,
+                access => all,
+                shaper => fast,
+                password => "secret"
+               }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8666,
+                access => all,
+                shaper => fast,
+                password => "secret",
+                conflict_behaviour => kick_old
+               }),
+       config([listen, component],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8189,
+                access => all,
+                shaper => fast,
+                password => "secret",
+                hidden_components => true
                }),
        config([listen, http],
               #{port => 5280,
@@ -188,7 +213,9 @@ options("mongooseim-pgsql") ->
                               username => <<"ala">>, password => <<"makotaipsa">>})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => "",
+                tls => #{certfile => "priv/cert.pem",
+                         keyfile => "priv/dc1.pem",
+                         password => "",
                          verify_mode => none}
                }),
        config([listen, http],
@@ -207,40 +234,19 @@ options("mongooseim-pgsql") ->
                             #{host => '_', path => "/api"})],
                 protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => "",
+                tls => #{certfile => "priv/cert.pem",
+                         keyfile => "priv/dc1.pem",
+                         password => "",
                          verify_mode => none}
                }),
        config([listen, s2s],
               #{port => 5269,
                 shaper => s2s_shaper,
                 max_stanza_size => 131072,
-                tls => #{dhfile => "priv/dh.pem"}
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8888,
-                access => all,
-                shaper_rule => fast,
-                password => "secret"
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8666,
-                access => all,
-                shaper_rule => fast,
-                password => "secret",
-                conflict_behaviour => kick_old
-               }),
-       config([listen, service],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8189,
-                access => all,
-                shaper_rule => fast,
-                password => "secret",
-                hidden_components => true
+                tls => (default_config([listen, s2s, tls]))#{
+                            cacertfile => "priv/ca.pem",
+                            certfile => "priv/cert.pem",
+                            dhfile => "priv/dh.pem"}
                })
       ]},
      {loglevel, warning},
@@ -501,8 +507,7 @@ all_modules() ->
                        no_stanzaid_element => true}),
       mod_disco =>
           mod_config(mod_disco,
-                     #{extra_domains => [<<"some_domain">>, <<"another_domain">>],
-                       server_info =>
+                     #{server_info =>
                            [#{name => <<"abuse-address">>,
                               urls => [<<"admin@example.com">>]},
                             #{name => <<"friendly-spirits">>,
@@ -740,31 +745,28 @@ default_auth() ->
 pgsql_s2s() ->
     Outgoing = (default_s2s_outgoing())#{port => 5299},
     (default_s2s())#{address => #{<<"fed1">> => #{ip_address => "127.0.0.1"}},
-                     certfile => "priv/server.pem",
-                     outgoing => Outgoing,
-                     use_starttls => optional}.
+                     outgoing => Outgoing}.
 
 custom_s2s() ->
+    Tls0 = #{cacertfile => "priv/ca.pem", server_name_indication => default_sni()},
+    Tls = maps:merge(default_xmpp_tls(), Tls0),
     #{address =>
           #{<<"fed1">> => #{ip_address => "127.0.0.1"},
             <<"fed2">> => #{ip_address => "127.0.0.1", port => 8765}},
-      certfile => "priv/server.pem",
-      ciphers => mongoose_tls:default_ciphers(),
+      tls => Tls,
       default_policy => allow,
       dns => #{retries => 1, timeout => 30},
       host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
       max_retry_delay => 30,
       outgoing => #{connection_timeout => 4000, ip_versions => [6, 4], port => 5299},
-      shared => <<"shared secret">>,
-      use_starttls => optional}.
+      shared => <<"shared secret">>}.
 
 default_s2s() ->
-    #{ciphers => mongoose_tls:default_ciphers(),
-      default_policy => allow,
-      dns => #{retries => 2, timeout => 10},
+    #{default_policy => allow,
       max_retry_delay => 300,
       outgoing => default_s2s_outgoing(),
-      use_starttls => false}.
+      dns => #{retries => 2, timeout => 10}
+     }.
 
 default_s2s_outgoing() ->
      #{connection_timeout => 10000,
@@ -889,8 +891,7 @@ default_mod_config(mod_csi) ->
 default_mod_config(mod_carboncopy) ->
     #{iqdisc => no_queue};
 default_mod_config(mod_disco) ->
-    #{extra_domains => [], server_info => [],
-      users_can_see_hidden_services => true, iqdisc => one_queue};
+    #{server_info => [], users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
 default_mod_config(mod_global_distrib) ->
@@ -1088,20 +1089,22 @@ default_room_opts() ->
 common_xmpp_listener_config() ->
     (common_listener_config())#{backlog => 1024,
                                 proxy_protocol => false,
-                                hibernate_after => 0,
+                                max_connections => infinity,
+                                reuse_port => false,
+                                shaper => none,
+                                state_timeout => 5000,
                                 max_stanza_size => 0,
                                 num_acceptors => 100}.
 
 common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
-      ip_version => 4,
+      ip_version => inet,
       proto => tcp,
-      connection_type => undefined}.
+      hibernate_after => 0}.
 
-extra_service_listener_config() ->
+extra_component_listener_config() ->
     #{access => all,
-      shaper_rule => none,
       check_from => true,
       hidden_components => false,
       conflict_behaviour => disconnect,
@@ -1129,12 +1132,13 @@ default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),
                                 protocol => default_config([listen, http, protocol]),
-                                handlers => []};
+                                handlers => [],
+                                connection_type => http};
 default_config([listen, http, handlers, mod_websockets]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
       module => mod_websockets,
-      c2s_state_timeout => 5000,
+      state_timeout => 5000,
       backwards_compatible_session => true};
 default_config([listen, http, handlers, mongoose_admin_api]) ->
     #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
@@ -1156,27 +1160,24 @@ default_config([listen, http, transport]) ->
 default_config([listen, http, protocol]) ->
     #{compress => false};
 default_config([listen, http, tls]) ->
-    #{verify_mode => peer};
+    default_tls();
 default_config([listen, c2s]) ->
     (common_xmpp_listener_config())#{module => mongoose_c2s_listener,
-                                     max_connections => infinity,
-                                     state_timeout => 5000,
-                                     reuse_port => false,
                                      backwards_compatible_session => true,
                                      access => all,
-                                     shaper => none};
+                                     connection_type => c2s};
 default_config([listen, c2s, tls]) ->
-    default_c2s_tls(fast_tls);
-default_config([listen, s2s] = P) ->
-    (common_xmpp_listener_config())#{module => ejabberd_s2s_in,
-                                     shaper => none,
-                                     connection_type => s2s,
-                                     tls => default_config(P ++ [tls])};
+    default_xmpp_tls();
+default_config([listen, s2s]) ->
+    (common_xmpp_listener_config())#{module => mongoose_s2s_listener,
+                                     connection_type => s2s};
 default_config([listen, s2s, tls]) ->
-    default_tls(fast_tls);
-default_config([listen, service]) ->
-    Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
-    Extra#{module => ejabberd_service};
+    default_xmpp_tls();
+default_config([listen, component]) ->
+    Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
+    Extra#{module => mongoose_component_listener};
+default_config([listen, component, tls]) ->
+    default_xmpp_tls_tls();
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_event_pusher, http]) ->
@@ -1214,7 +1215,7 @@ default_config([modules, mod_global_distrib, connections]) ->
       endpoint_refresh_interval_when_empty => 3,
       disabled_gc_interval => 60};
 default_config([modules, mod_global_distrib, connections, tls]) ->
-    default_tls(fast_tls);
+    maps:merge(default_tls(), #{server_name_indication => default_sni()});
 default_config([modules, mod_global_distrib, redis]) ->
     #{pool => global_distrib,
       expire_after => 120,
@@ -1306,11 +1307,10 @@ default_config([outgoing_pools, Type, _Tag, opts]) ->
     default_pool_wpool_opts(Type);
 default_config([outgoing_pools, Type, _Tag, conn_opts]) ->
     default_pool_conn_opts(Type);
-default_config([outgoing_pools, _Type, _Tag, conn_opts, tls] = P) ->
-    #{verify_mode => peer,
-      server_name_indication => default_config(P ++ [server_name_indication])};
+default_config([outgoing_pools, _Type, _Tag, conn_opts, tls]) ->
+    maps:merge(default_tls(), #{server_name_indication => default_sni()});
 default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
-    #{enabled => true, protocol => default};
+    default_sni();
 default_config([host_config, outgoing_pools | Path]) ->
     Default = default_config([outgoing_pools | Path]),
     maps:remove(scope, Default);
@@ -1324,17 +1324,19 @@ default_config([services, service_mongoose_system_metrics]) ->
 default_config(Path) when is_list(Path) ->
     #{}.
 
-default_c2s_tls(Module) ->
-    (default_tls(Module))#{mode => starttls, module => Module}.
+default_xmpp_tls() ->
+    (default_tls())#{mode => starttls}.
 
-default_tls(just_tls) ->
+default_xmpp_tls_tls() ->
+    (default_tls())#{mode => tls}.
+
+default_tls() ->
     #{verify_mode => peer,
       disconnect_on_failure => true,
-      crl_files => []};
-default_tls(fast_tls) ->
-    #{verify_mode => peer,
-      ciphers => "TLSv1.2:TLSv1.3",
-      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
+      crl_files => []}.
+
+default_sni() ->
+    #{enabled => true, protocol => default}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,
