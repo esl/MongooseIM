@@ -16,7 +16,9 @@ The former one is used primarily by MIM dependencies, while the latter is used o
 None of them is strictly better than the other.
 Below you may find a summary of the differences between them.
 
-* `fast_tls` is faster
+* `fast_tls` used to be faster, however with the progress of OTP TLS implementation
+and additional optimisations applied in MongooseIM this is no longer true.
+* `just_tls` may use slightly more processor time than `fast_tls`.
 * There are options that OTP TLS (a.k.a `just_tls` in the C2S listener configuration) supports exclusively:
     * Immediate connection drop when the client certificate is invalid
     * Certificate Revocation Lists
@@ -48,7 +50,7 @@ The remaining valid values are: `'tlsv1.1'`, `tlsv1`, `sslv3`.
 
 This setting affects the following MongooseIM components:
 
-* Raw XMPP over TCP connections, if a C2S listener is configured to use `just_tls`
+* Raw XMPP over TCP connections (C2S listener) in the default configuration uses `just_tls`
 * All outgoing connections (databases, AMQP, SIP etc.)
 * HTTP endpoints
 
@@ -60,7 +62,8 @@ By default, MongooseIM sets this option to `TLSv1.2:TLSv1.3` for each component.
 
 The list below enumerates all components that use Fast TLS and describes how to change this string.
 
-* `listen.c2s` - main user session abstraction + XMPP over TCP listener
+* `listen.c2s` - main user session abstraction + XMPP over TCP listener, when configured to use `fast_tls`
+    * Note that usage of `fast_tls` for C2S has been deprecated
     * Please consult the respective section in [Listener modules](../listeners/listen-c2s.md#listenc2stlsprotocol_options-only-for-fast_tls).
 * `listen.s2s` - incoming S2S connections (XMPP Federation)
     * Please consult the respective section in [Listener modules](../listeners/listen-s2s.md#tls-options-for-s2s).

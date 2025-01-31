@@ -89,10 +89,12 @@ This option determines how clients are supposed to set up the TLS encryption:
 
 ### `listen.c2s.tls.module`
 * **Syntax:** string, one of `"just_tls"`, `"fast_tls"`
-* **Default:** `"fast_tls"`
+* **Default:** `"just_tls"`
 * **Example:** `tls.module = "just_tls"`
 
-By default, the TLS library used for C2S connections is `fast_tls`, which uses OpenSSL-based NIFs. It is possible to change it to `just_tls` - Erlang TLS implementation provided by OTP. Some TLS-related options described here have different formats for these two libraries.
+By default, the TLS library used for C2S connections is `just_tls` - Erlang TLS implementation provided by OTP.
+Usage of `fast_tls`, which uses OpenSSL-based NIFs for C2S is deprecated, however it is still possible to use this option.
+Some TLS-related options described here have different formats for these two libraries.
 
 ### `listen.c2s.tls.verify_mode`
 * **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
