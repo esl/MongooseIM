@@ -81,7 +81,7 @@ init({Transport, Ref, LOpts}) ->
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
 handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
     #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
-    C2SSocket = mongoose_xmpp_socket:new(Transport, c2s, Ref, LOpts),
+    C2SSocket = mongoose_xmpp_socket:accept(Transport, c2s, Ref, LOpts),
     verify_ip_is_not_blacklisted(C2SSocket),
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),

@@ -2,7 +2,7 @@
 
 -include_lib("public_key/include/public_key.hrl").
 
--export([new/4,
+-export([accept/4,
          handle_data/2,
          activate/1,
          close/1,
@@ -72,22 +72,25 @@
 -type peercert_return() :: no_peer_cert | {bad_cert, term()} | {ok, #'Certificate'{}}.
 -export_type([socket/0, state/0, conn_type/0, peercert_return/0]).
 
--spec new(mongoose_listener:transport_module(), mongoose_listener:connection_type(), ranch:ref(), mongoose_listener:options()) -> socket().
-new(ranch_tcp, Type, Ref, LOpts) ->
+-spec accept(mongoose_listener:transport_module(),
+             mongoose_listener:connection_type(),
+             ranch:ref(),
+             mongoose_listener:options()) -> socket().
+accept(ranch_tcp, Type, Ref, LOpts) ->
     {ok, Socket, ConnDetails} = mongoose_listener:read_connection_details(Ref, ranch_tcp, LOpts),
     #{src_address := PeerIp, src_port := PeerPort} = ConnDetails,
     SocketState = #ranch_tcp{socket = Socket, connection_type = Type,
                              ranch_ref = Ref, ip = {PeerIp, PeerPort}},
     activate(SocketState),
     SocketState;
-new(ranch_ssl, Type, Ref, LOpts) ->
+accept(ranch_ssl, Type, Ref, LOpts) ->
     {ok, Socket, ConnDetails} = mongoose_listener:read_connection_details(Ref, ranch_ssl, LOpts),
     #{src_address := PeerIp, src_port := PeerPort} = ConnDetails,
     SocketState = #ranch_ssl{socket = Socket, connection_type = Type,
                              ranch_ref = Ref, ip = {PeerIp, PeerPort}},
     activate(SocketState),
     SocketState;
-new(Module, Type, Ref, LOpts) ->
+accept(Module, Type, Ref, LOpts) ->
     {State, NewType} = Module:new(Ref, Type, LOpts),
     PeerIp = Module:peername(State),
     SocketState = #xmpp_socket{module = Module, state = State,

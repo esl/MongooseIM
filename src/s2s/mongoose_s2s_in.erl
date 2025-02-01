@@ -84,7 +84,7 @@ handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) when is_a
     #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    Socket = mongoose_xmpp_socket:new(Transport, s2s, Ref, LOpts),
+    Socket = mongoose_xmpp_socket:accept(Transport, s2s, Ref, LOpts),
     ?LOG_DEBUG(#{what => s2s_in_started, text => "New incoming S2S connection", socket => Socket}),
     Data = #s2s_data{socket = Socket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
     {next_state, {wait_for_stream, stream_start}, Data, state_timeout(LOpts)};

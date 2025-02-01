@@ -75,7 +75,7 @@ handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
     #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    Socket = mongoose_xmpp_socket:new(Transport, component, Ref, LOpts),
+    Socket = mongoose_xmpp_socket:accept(Transport, component, Ref, LOpts),
     StateData = #component_data{socket = Socket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
     {next_state, wait_for_stream, StateData, state_timeout(LOpts)};
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, wait_for_stream, StateData) ->
