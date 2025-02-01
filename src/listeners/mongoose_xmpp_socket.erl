@@ -70,6 +70,7 @@
 -type state() :: term().
 -type conn_type() :: tcp | tls.
 -type peercert_return() :: no_peer_cert | {bad_cert, term()} | {ok, #'Certificate'{}}.
+-type with_tls_opts() :: #{tls := just_tls:options(), _ => _}.
 -export_type([socket/0, state/0, conn_type/0, peercert_return/0]).
 
 -spec accept(mongoose_listener:transport_module(),
@@ -106,7 +107,7 @@ activate(#ranch_ssl{socket = Socket}) ->
 activate(#xmpp_socket{module = Module, state = State}) ->
     Module:activate(State).
 
--spec tcp_to_tls(socket(), mongoose_listener:options()) -> {ok, socket()} | {error, term()}.
+-spec tcp_to_tls(socket(), with_tls_opts()) -> {ok, socket()} | {error, term()}.
 tcp_to_tls(#ranch_tcp{socket = TcpSocket, connection_type = Type, ranch_ref = Ref, ip = Ip},
            #{tls := TlsConfig}) ->
     inet:setopts(TcpSocket, [{active, false}]),
