@@ -160,6 +160,6 @@ The following section configures two C2S listeners.
 ```
 
 * One at port 5222, which accepts a plain TCP connection and allows to use StartTLS for upgrading it to an encrypted one. The files containing the certificate and the DH parameter are also provided.
-* One at port 5223, which accepts only encrypted TLS connections - this is the legacy method as StartTLS is preferred.
+* One at port 5223, which accepts only encrypted TLS connections - this is the legacy method as StartTLS is preferred. Also known as Direct TLS.
 
 Both listeners use `c2s` and `c2s_shaper` rules for access management and traffic shaping, respectively.
