@@ -651,12 +651,12 @@ disco_local_features(Acc, _, _) ->
     Params :: map(),
     Extra :: gen_hook:extra().
 disco_sm_identity(Acc = #{from_jid := From, to_jid := To}, _, _) ->
-    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), <<>>, From),
+    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), From),
     {ok, mongoose_disco:add_identities(Identities, Acc)}.
 
-disco_identity(error, _Node, _From) ->
+disco_identity(error, _From) ->
     [];
-disco_identity(_Host, <<>>, _From) ->
+disco_identity(_Host, _From) ->
     [pep_identity()].
 
 pep_identity() ->
@@ -667,13 +667,13 @@ pep_identity() ->
     Params :: map(),
     Extra :: gen_hook:extra().
 disco_sm_features(Acc = #{from_jid := From, to_jid := To}, _, _) ->
-    Features = disco_features(jid:to_lower(jid:to_bare(To)), <<>>, From),
+    Features = disco_features(jid:to_lower(jid:to_bare(To)), From),
     {ok, mongoose_disco:add_features(Features, Acc)}.
 
--spec disco_features(error | jid:simple_jid(), binary(), jid:jid()) -> [mongoose_disco:feature()].
-disco_features(error, _Node, _From) ->
+-spec disco_features(error | jid:simple_jid(), jid:jid()) -> [mongoose_disco:feature()].
+disco_features(error, _From) ->
     [];
-disco_features(_Host, <<>>, _From) ->
+disco_features(_Host, _From) ->
     [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]].
 
 -spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
@@ -681,11 +681,11 @@ disco_features(_Host, <<>>, _From) ->
     Params :: map(),
     Extra :: gen_hook:extra().
 disco_sm_items(Acc = #{from_jid := From, to_jid := To}, _, _) ->
-    Items = disco_items(jid:to_lower(jid:to_bare(To)), <<>>, From),
+    Items = disco_items(jid:to_lower(jid:to_bare(To)), From),
     {ok, mongoose_disco:add_items(Items, Acc)}.
 
--spec disco_items(mod_pubsub:host(), mod_pubsub:nodeId(), jid:jid()) -> [mongoose_disco:item()].
-disco_items(Host, <<>>, From) ->
+-spec disco_items(mod_pubsub:host(), jid:jid()) -> [mongoose_disco:item()].
+disco_items(Host, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
                                options = Options, type = Type, id = Nidx, owners = Owners},
                   Acc) ->
@@ -717,10 +717,6 @@ disco_item(Node, Host, Options) ->
         false -> Item;
         [Title] -> Item#{name => Title}
     end.
-
-disco_item(Host, ItemId) ->
-    #{jid => jid:to_binary(Host),
-      name => ItemId}.
 
 %% -------
 %% callback that prevents routing subscribe authorizations back to the sender
@@ -978,13 +974,11 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 do_route(Acc, ServerHost, Access, Plugins, Host, From,
          #jid{luser = <<>>, lresource = <<>>} = To,
          #xmlel{ name = <<"iq">> } = Packet) ->
-    % io:format("IQ: ~p~n", [jlib:iq_query_info(Packet)]),
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = exml_query:attr(SubEl, <<"node">>, <<>>),
             InfoXML = mongoose_disco:get_info(ServerHost, ?MODULE, <<>>, <<>>),
-            % io:format("InfoXML: ~p~n", [InfoXML]),
             Res = case iq_disco_info(ServerHost, Host, Node, From, Lang) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
