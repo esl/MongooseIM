@@ -18,10 +18,20 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, Group} || {Group, _, _} <- groups()].
+    [{group, default},
+     {group, early_data}].
 
 groups() ->
+    [{default, [], group_names_for_mechanisms()},
+     {early_data, [], group_names_for_mechanisms()}]
+    ++
+    groups_for_mechanisms().
+
+groups_for_mechanisms() ->
     [{Group, [parallel], tests()} || {Group, _Mech} <- mechanisms()].
+
+group_names_for_mechanisms() ->
+    [{group, Group} || {Group, _, _} <- groups_for_mechanisms()].
 
 tests() ->
    [server_advertises_support_for_fast,
@@ -81,11 +91,20 @@ init_per_suite(Config) ->
              escalus:init_per_suite(Config1)
     end.
 
+enable_session_tickets(Config) ->
+    Users = escalus_ct:get_config(escalus_users),
+    Alice = proplists:get_value(alice, Users),
+    Alice2 = [{ssl_opts, [{session_tickets, manual}]},
+              {receive_session_tickets_on_connect, true} | Alice],
+    [{escalus_users, [{alice, Alice2}]} | Config].
+
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
+init_per_group(early_data, Config) ->
+    enable_session_tickets([{early_data, true}|Config]);
 init_per_group(Group, Config) ->
     case lists:keyfind(Group, 1, mechanisms()) of
         {Group, Mech} when is_binary(Mech) ->
@@ -135,7 +154,7 @@ request_token_with_initial_authentication(Config) ->
 
 request_token_with_unknown_mechanism_type(Config0) ->
     Config = [{ht_mech, <<"HT-WEIRD-ONE">>} | Config0],
-    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+    Steps = [{?MODULE, start_new_user}, {?MODULE, auth_and_request_token},
              receive_features],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
@@ -164,7 +183,7 @@ token_auth_fails_when_token_is_wrong(Config) ->
 
 token_auth_fails_when_token_is_not_found(Config) ->
     %% New token is not set
-    Steps = [start_new_user],
+    Steps = [{?MODULE, start_new_user}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     Token = <<"wrongtoken">>,
     auth_with_token(failure, Token, Config, Spec).
@@ -260,7 +279,7 @@ token_auth_fails_when_mechanism_does_not_match(Config) ->
 %%--------------------------------------------------------------------
 
 start_new_user_and_make_expired_token(Config) ->
-    Steps = [start_new_user],
+    Steps = [{?MODULE, start_new_user}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -275,7 +294,7 @@ start_new_user_and_make_expired_token(Config) ->
 
 start_new_user_and_make_expired_token_in_the_current_slot(Config) ->
     Now = erlang:system_time(second),
-    Steps = [start_new_user],
+    Steps = [{?MODULE, start_new_user}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -296,7 +315,7 @@ start_new_user_and_make_expired_token_in_the_current_slot(Config) ->
     #{new_token => Token, spec => Spec, old_token => CurrentToken}.
 
 connect_with_almost_expired_token(Config) ->
-    Steps = [start_new_user],
+    Steps = [{?MODULE, start_new_user}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -314,7 +333,7 @@ connect_with_almost_expired_token(Config) ->
 
 connect_with_almost_expired_token_in_the_current_slot(Config) ->
     Now = erlang:system_time(second),
-    Steps = [start_new_user],
+    Steps = [{?MODULE, start_new_user}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -339,7 +358,7 @@ connect_with_almost_expired_token_in_the_current_slot(Config) ->
     #{new_token => NewToken, spec => Spec, old_token => CurrentToken}.
 
 connect_and_ask_for_token(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+    Steps = [{?MODULE, start_new_user}, {?MODULE, auth_and_request_token},
              receive_features],
     ConnectRes = sasl2_helper:apply_steps(Steps, Config),
     parse_connect_result(ConnectRes).
@@ -351,6 +370,11 @@ parse_connect_result(#{answer := Success, spec := Spec}) ->
     Expire = exml_query:attr(Fast, <<"expire">>),
     Token = exml_query:attr(Fast, <<"token">>),
     #{expire => Expire, token => Token, spec => Spec}.
+
+start_new_user(Config, Client, Data) ->
+    {Client2, Data2} = sasl2_helper:start_new_user(Config, Client, Data),
+    Client3 = maybe_receive_session_tickets_on_connect(Client2),
+    {Client3, Data2}.
 
 auth_and_request_token(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
@@ -407,8 +431,7 @@ maybe_0rtt_spec(Spec, Config) ->
 
 auth_with_token(Success, Token, Config, Spec, RequestToken) ->
     Spec0RTT = maybe_0rtt_spec(Spec, Config),
-    %% session_tickets option would send `{ssl, session_ticket, Ticket0}' to us
-    Spec2 = [{secret_token, Token}, {session_tickets, true}] ++ Spec0RTT ++ Spec,
+    Spec2 = [{secret_token, Token}] ++ Spec0RTT ++ Spec,
     Uses0RTT = Spec0RTT =/= [],
     Steps = steps(Success, auth_function(RequestToken)),
     Data = #{spec => Spec2},
@@ -424,13 +447,17 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
                                 children = [#xmlel{name = <<"not-authorized">>}]},
                          Answer)
     end,
-    receive
-        {escalus_ssl_session_ticket, _ConnPid, Ticket} ->
-            ct:fail({ticket, Ticket})
-        after 500 ->
-            ct:fail({ticket, timeout})
-    end,
     Res.
+
+receive_ticket(Client) ->
+    Pid = escalus_client_to_pid(Client),
+    receive
+        {escalus_ssl_session_ticket, ConnPid, Ticket} when Pid =:= ConnPid ->
+            Ticket
+        after 3000 ->
+            ct:fail({receive_ticket, timeout, Client,
+                     erlang:process_info(self(), messages)})
+    end.
 
 auth_function(dont_request_token) ->
     auth_using_token;
@@ -536,3 +563,25 @@ initial_response_elem(Payload) ->
 spec_to_lus(Spec) ->
     #{username := Username, server := Server} = maps:from_list(Spec),
     jid:to_lus(jid:make_bare(Username, Server)).
+
+escalus_client_to_pid(#client{rcv_pid = Pid}) ->
+    Pid.
+
+escalus_client_to_props(#client{props = Props}) ->
+    Props.
+
+set_ticket(Client = #client{props = Props}, Ticket) ->
+    Client#client{props = [{tls_ticket, Ticket} | Props]}.
+
+get_ticket(Client = #client{props = Props}) ->
+    proplists:get_value(props, Props).
+
+maybe_receive_session_tickets_on_connect(Client) ->
+    Props = escalus_client_to_props(Client),
+    case proplists:get_value(receive_session_tickets_on_connect, Props, false) of
+        true ->
+            Ticket = receive_ticket(Client),
+            set_ticket(Client, Ticket);
+        false ->
+            Client
+    end.
