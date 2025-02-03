@@ -650,34 +650,14 @@ disco_local_features(Acc, _, _) ->
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_sm_identity(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
-    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From),
+disco_sm_identity(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), <<>>, From),
     {ok, mongoose_disco:add_identities(Identities, Acc)}.
 
 disco_identity(error, _Node, _From) ->
     [];
 disco_identity(_Host, <<>>, _From) ->
-    [pep_identity()];
-disco_identity(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} ->
-                             {result, [pep_identity(), pep_identity(Options)]};
-                         _ ->
-                             {result, []}
-                     end
-             end,
-    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
-        {result, {_, Result}} -> Result;
-        _ -> []
-    end.
-
-pep_identity(Options) ->
-    Identity = pep_identity(),
-    case get_option(Options, title) of
-        false -> Identity;
-        [Title] -> Identity#{name => Title}
-    end.
+    [pep_identity()].
 
 pep_identity() ->
     #{category => <<"pubsub">>, type => <<"pep">>}.
@@ -686,28 +666,15 @@ pep_identity() ->
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_sm_features(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
-    Features = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
+disco_sm_features(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+    Features = disco_features(jid:to_lower(jid:to_bare(To)), <<>>, From),
     {ok, mongoose_disco:add_features(Features, Acc)}.
 
 -spec disco_features(error | jid:simple_jid(), binary(), jid:jid()) -> [mongoose_disco:feature()].
 disco_features(error, _Node, _From) ->
     [];
 disco_features(_Host, <<>>, _From) ->
-    [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]];
-disco_features(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} ->
-                             {result, [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]]};
-                         _ ->
-                             {result, []}
-                     end
-             end,
-    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
-        {result, {_, Result}} -> Result;
-        _ -> []
-    end.
+    [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]].
 
 -spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:item_acc(),
@@ -1025,11 +992,13 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 do_route(Acc, ServerHost, Access, Plugins, Host, From,
          #jid{luser = <<>>, lresource = <<>>} = To,
          #xmlel{ name = <<"iq">> } = Packet) ->
+    % io:format("IQ: ~p~n", [jlib:iq_query_info(Packet)]),
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = exml_query:attr(SubEl, <<"node">>, <<>>),
             InfoXML = mongoose_disco:get_info(ServerHost, ?MODULE, <<>>, <<>>),
+            % io:format("InfoXML: ~p~n", [InfoXML]),
             Res = case iq_disco_info(ServerHost, Host, Node, From, Lang) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,

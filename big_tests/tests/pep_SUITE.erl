@@ -21,6 +21,7 @@
 -export([
          disco_test/1,
          disco_sm_test/1,
+         disco_sm_node_test/1,
          disco_sm_items_test/1,
          pep_caps_test/1,
          publish_and_notify_test/1,
@@ -68,6 +69,7 @@ groups() ->
           [
            disco_test,
            disco_sm_test,
+           disco_sm_node_test,
            disco_sm_items_test,
            pep_caps_test,
            publish_and_notify_test,
@@ -148,18 +150,31 @@ disco_test(Config) ->
       end).
 
 disco_sm_test(Config) ->
+    disco_sm_test(Config, undefined).
+
+disco_sm_node_test(Config) ->
+    disco_sm_test(Config, random_node_ns()).
+
+disco_sm_test(Config, Node) ->
     escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
-              AliceJid = escalus_client:short_jid(Alice),
-              escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
-              Stanza = escalus:wait_for_stanza(Alice),
-              ?assertNot(escalus_pred:has_identity(<<"pubsub">>, <<"service">>, Stanza)),
-              escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
-              escalus:assert(has_feature, [?NS_PUBSUB], Stanza),
-              escalus:assert(is_stanza_from, [AliceJid], Stanza)
-      end).
+        Config,
+        [{alice, 1}],
+        fun(Alice) ->
+            AliceJid = escalus_client:short_jid(Alice),
+            Disco =
+                case Node of
+                    undefined ->
+                        escalus_stanza:disco_info(AliceJid);
+                    _ ->
+                        escalus_stanza:disco_info(AliceJid, Node)
+                end,
+            escalus:send(Alice, Disco),
+            Stanza = escalus:wait_for_stanza(Alice),
+            ?assertNot(escalus_pred:has_identity(<<"pubsub">>, <<"service">>, Stanza)),
+            escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
+            escalus:assert(has_feature, [?NS_PUBSUB], Stanza),
+            escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
 
 disco_sm_items_test(Config) ->
     NodeNS = random_node_ns(),
