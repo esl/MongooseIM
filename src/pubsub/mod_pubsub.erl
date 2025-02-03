@@ -680,8 +680,8 @@ disco_features(_Host, <<>>, _From) ->
     Acc :: mongoose_disco:item_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_sm_items(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
-    Items = disco_items(jid:to_lower(jid:to_bare(To)), Node, From),
+disco_sm_items(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+    Items = disco_items(jid:to_lower(jid:to_bare(To)), <<>>, From),
     {ok, mongoose_disco:add_items(Items, Acc)}.
 
 -spec disco_items(mod_pubsub:host(), mod_pubsub:nodeId(), jid:jid()) -> [mongoose_disco:item()].
@@ -707,20 +707,6 @@ disco_items(Host, <<>>, From) ->
      },
     case mod_pubsub_db_backend:dirty(NodeBloc, ErrorDebug) of
         {result, Items} -> Items;
-        _ -> []
-    end;
-disco_items(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, Items} ->
-                             {result, [disco_item(Host, ItemId) ||
-                                          #pubsub_item{itemid = {ItemId, _}} <- Items]};
-                         _ ->
-                             {result, []}
-                     end
-             end,
-    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
-        {result, {_, Result}} -> Result;
         _ -> []
     end.
 
