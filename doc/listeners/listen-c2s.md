@@ -89,10 +89,12 @@ This option determines how clients are supposed to set up the TLS encryption:
 
 ### `listen.c2s.tls.module`
 * **Syntax:** string, one of `"just_tls"`, `"fast_tls"`
-* **Default:** `"fast_tls"`
+* **Default:** `"just_tls"`
 * **Example:** `tls.module = "just_tls"`
 
-By default, the TLS library used for C2S connections is `fast_tls`, which uses OpenSSL-based NIFs. It is possible to change it to `just_tls` - Erlang TLS implementation provided by OTP. Some TLS-related options described here have different formats for these two libraries.
+By default, the TLS library used for C2S connections is `just_tls` - Erlang TLS implementation provided by OTP.
+Usage of `fast_tls`, which uses OpenSSL-based NIFs for C2S is deprecated, however it is still possible to use this option.
+Some TLS-related options described here have different formats for these two libraries.
 
 ### `listen.c2s.tls.verify_mode`
 * **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
@@ -161,6 +163,16 @@ Password to the X509 PEM file with the private key.
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `tls.disconnect_on_failure = false`
+
+This option specifies what happens when client certificate is verified during TLS handshake.
+It therefore only applies when client certificate verification is enabled, that is `tls.verify_mode` is set to `"peer"` or `"selfsigned_peer"`.
+
+When set to `true`, client verification is performed during TLS handshake and in case of error the connection is aborted.
+Additionally empty client certificate is treated as an error.
+
+When set to `false`, TLS handshake will succeed even if there were errors in client certificate verification.
+This allows to use other methods of authentication (like SASL) later as part of XMPP stream.
+The above behaviour is the same as default `fast_tls` behaviour (not aborting TLS connection on verification errors).
 
 ### `listen.c2s.tls.versions` - only for `just_tls`
 * **Syntax:** array of strings

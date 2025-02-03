@@ -698,7 +698,7 @@ tls(c2s, common) ->
                                                validate = {enum, [fast_tls, just_tls]}},
                        <<"mode">> => #option{type = atom,
                                              validate = {enum, [tls, starttls, starttls_required]}}},
-             defaults = #{<<"module">> => fast_tls,
+             defaults = #{<<"module">> => just_tls,
                           <<"mode">> => starttls},
              process = fun ?MODULE:process_c2s_tls/1};
 tls(c2s, just_tls) ->

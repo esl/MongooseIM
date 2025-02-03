@@ -38,6 +38,7 @@ all() ->
      {group, login_scram_store_plain},
      {group, login_specific_scram},
      {group, login_scram_tls},
+     {group, fast_tls},
      {group, messages},
      {group, access}
     ].
@@ -45,10 +46,17 @@ all() ->
 groups() ->
     [{login, [parallel], all_tests()},
      {login_digest, [sequence], digest_tests()},
+     %% The SCRAM tests below have SCRAM_PLUS tests skipped
+     %% because SCRAM_PLUS is not implemented for just_tls yet
      {login_scram, [parallel], scram_tests()},
      {login_scram_store_plain, [parallel], scram_tests()},
      {login_scram_tls, [parallel], scram_tests()},
      {login_specific_scram, [sequence], configure_specific_scram_test()},
+     %% rerun SCRAM tests with fast_tls including SCRAM_PLUS tests
+     {fast_tls, [{group, login_scram},
+                 {group, login_scram_store_plain},
+                 {group, login_scram_tls},
+                 {group, login_specific_scram}]},
      {messages, [sequence], [messages_story]},
      {access, [], access_tests()}].
 
@@ -119,6 +127,8 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
+init_per_group(fast_tls, ConfigIn) ->
+    configure_c2s_listener_with_fast_tls(ConfigIn);
 init_per_group(login_digest = GroupName, ConfigIn) ->
     Config = backup_and_set_options(GroupName, ConfigIn),
     case mongoose_helper:supports_sasl_module(cyrsasl_digest) of
@@ -175,6 +185,8 @@ auth_opts(login_scram_store_plain) ->
 auth_opts(_GroupName) ->
     mongoose_helper:auth_opts_with_password_format(scram).
 
+end_per_group(fast_tls, Config) ->
+    restore_c2s(Config);
 end_per_group(login_digest, Config) ->
     mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
@@ -258,12 +270,16 @@ log_one(Config) ->
         end).
 
 log_one_scram_plus(Config) ->
-    escalus:fresh_story(Config, [{neustradamus, 1}], fun(Neustradamus) ->
-
-        escalus_client:send(Neustradamus, escalus_stanza:chat_to(Neustradamus, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Neustradamus))
-
-        end).
+    %% SCRAM PLUS tests are to be run for fast_tls only
+    case proplists:get_value(fast_tls, Config) of
+        true ->
+            escalus:fresh_story(Config, [{neustradamus, 1}], fun(Neustradamus) ->
+                escalus_client:send(Neustradamus, escalus_stanza:chat_to(Neustradamus, <<"Hi!">>)),
+                escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Neustradamus))
+            end);
+        _ ->
+            {skip, test_valid_only_for_fast_tls}
+    end.
 
 log_one_digest(Config) ->
     log_one([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]).
@@ -427,10 +443,28 @@ configure_c2s_listener(Config) ->
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
     [C2SListener = #{tls := TLSOpts}] =
         mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
+    %% If in fast_tls group, retrieve fast_tls options from config, otherwise use the ones from node.
+    %% We do this, as in fast_tls group init we have already restarted c2s listener on node
+    %% and there is a race condition in retrieving them from node,
+    %% so it is better to take them from config
+    TLSOpts1 = proplists:get_value(tls_opts, Config, TLSOpts),
     %% replace starttls with tls
-    NewTLSOpts = TLSOpts#{mode := tls},
+    NewTLSOpts = TLSOpts1#{mode := tls},
     mongoose_helper:restart_listener(mim(), C2SListener#{tls := NewTLSOpts}),
-    [{c2s_listener, C2SListener} | Config].
+    [{c2s_listener, C2SListener#{tls := TLSOpts1}} | Config].
+
+configure_c2s_listener_with_fast_tls(Config) ->
+    C2SPort = ct:get_config({hosts, mim, c2s_port}),
+    [C2SListener = #{tls := _TLSOpts}] =
+        mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
+    NewTLSOpts = #{module => fast_tls,mode => starttls,
+                   certfile => "priv/ssl/fake_server.pem",
+                   dhfile => "priv/ssl/fake_dh_server.pem",
+                   ciphers => "TLSv1.2:TLSv1.3",
+                   protocol_options => ["no_sslv2","no_sslv3","no_tlsv1","no_tlsv1_1"],
+                   verify_mode => none},
+    mongoose_helper:restart_listener(mim(), C2SListener#{tls := NewTLSOpts}),
+    [{c2s_listener, C2SListener}, {fast_tls, true}, {tls_opts, NewTLSOpts}| Config].
 
 create_tls_users(Config) ->
    Config1 = escalus:create_users(Config, escalus:get_users([alice, neustradamus])),
@@ -517,8 +551,14 @@ configure_and_fail_log_scram(Config, Sha, Mech) ->
     {expected_challenge, _, _} = fail_log_one([{escalus_auth_method, Mech} | Config]).
 
 configure_scram_plus_and_fail_log_scram(Config, Sha, Mech) ->
-    set_scram_sha(Config, Sha),
-    {expected_challenge, _, _} = fail_log_one_scram_plus([{escalus_auth_method, Mech} | Config]).
+    %% SCRAM PLUS tests are to be run for fast_tls only
+    case proplists:get_value(fast_tls, Config) of
+        true ->
+            set_scram_sha(Config, Sha),
+            {expected_challenge, _, _} = fail_log_one_scram_plus([{escalus_auth_method, Mech} | Config]);
+        _ ->
+            {skip, test_valid_only_for_fast_tls}
+    end.
 
 set_scram_sha(Config, Sha) ->
     NewAuthOpts = mongoose_helper:auth_opts_with_password_format({scram, [Sha]}),

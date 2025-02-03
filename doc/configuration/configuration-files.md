@@ -63,8 +63,8 @@ By default only the following applications can be found there:
 
 TLS is configured in one of two ways: some modules need a private key and certificate (chain) in __separate__ files, while others need both in a __single__ file. This is because recent additions use OTP's `ssl` library, while older modules use `p1_tls`, respectively.
 
-* Client-to-server connections need both in the __same__ `.pem` file
 * Server-to-server connections need both in the __same__ `.pem` file
+* Client-to-server connections need them in __separate__ files, unless `fast_tls` is used
 * BOSH, WebSockets and REST APIs need them in __separate__ files
 
 In order to create private key & certificate bundle, you may simply concatenate them.
