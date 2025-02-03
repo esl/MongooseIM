@@ -571,7 +571,15 @@ escalus_client_to_props(#client{props = Props}) ->
     Props.
 
 set_ticket(Client = #client{props = Props}, Ticket) ->
-    Client#client{props = [{tls_ticket, Ticket} | Props]}.
+    Map = proplists:to_map(Props),
+    #{ssl_opts := SslOpts} = Map,
+    Map2 = Map#{
+         %% Set Ticket to be used with the next reconnect
+         ssl_opts => [{use_ticket, [Ticket]} | SslOpts],
+         %% Used in the suite
+         tls_ticket => Ticket},
+    Client#client{props = proplists:from_map(Map2)}.
+
 
 get_ticket(Client = #client{props = Props}) ->
     proplists:get_value(props, Props).
