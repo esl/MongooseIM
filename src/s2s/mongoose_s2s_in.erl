@@ -208,7 +208,7 @@ handle_starttls(#s2s_data{socket = TcpSocket,
                           listener_opts = LOpts = #{tls := _}} = Data,
                 #xmlel{attrs = #{<<"xmlns">> := ?NS_TLS}} = El) ->
     send_xml(Data, tls_proceed()), %% send last negotiation chunk via tcp
-    case mongoose_xmpp_socket:tcp_to_tls(TcpSocket, LOpts) of
+    case mongoose_xmpp_socket:tcp_to_tls(TcpSocket, LOpts, server) of
         {ok, TlsSocket} ->
             {ok, NewParser} = exml_stream:reset_parser(Parser),
             NewData = Data#s2s_data{socket = TlsSocket,

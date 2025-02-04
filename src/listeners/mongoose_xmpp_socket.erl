@@ -10,7 +10,7 @@
          export_key_materials/5,
          get_peer_certificate/1,
          has_peer_cert/2,
-         tcp_to_tls/2,
+         tcp_to_tls/3,
          is_ssl/1,
          send_xml/2]).
 
@@ -21,7 +21,7 @@
 -callback new(ranch:ref(), mongoose_listener:connection_type(), mongoose_listener:options()) ->
     {state(), mongoose_listener:connection_type()}.
 -callback peername(state()) -> mongoose_transport:peer().
--callback tcp_to_tls(state(), mongoose_listener:options()) ->
+-callback tcp_to_tls(state(), mongoose_listener:options(), side()) ->
     {ok, state()} | {error, term()}.
 -callback handle_data(state(), {tcp | ssl, term(), binary()}) ->
     binary() | {raw, [exml:element()]} | {error, term()}.
@@ -68,10 +68,11 @@
 -type socket() :: #ranch_tcp{} | #ranch_ssl{} | #xmpp_socket{}.
 
 -type state() :: term().
+-type side() :: client | server.
 -type conn_type() :: tcp | tls.
 -type peercert_return() :: no_peer_cert | {bad_cert, term()} | {ok, #'Certificate'{}}.
 -type with_tls_opts() :: #{tls := just_tls:options(), _ => _}.
--export_type([socket/0, state/0, conn_type/0, peercert_return/0]).
+-export_type([socket/0, state/0, side/0, conn_type/0, peercert_return/0]).
 
 -spec accept(mongoose_listener:transport_module(),
              mongoose_listener:connection_type(),
@@ -107,25 +108,39 @@ activate(#ranch_ssl{socket = Socket}) ->
 activate(#xmpp_socket{module = Module, state = State}) ->
     Module:activate(State).
 
--spec tcp_to_tls(socket(), with_tls_opts()) -> {ok, socket()} | {error, term()}.
+-spec tcp_to_tls(socket(), with_tls_opts(), side()) -> {ok, socket()} | {error, term()}.
 tcp_to_tls(#ranch_tcp{socket = TcpSocket, connection_type = Type, ranch_ref = Ref, ip = Ip},
-           #{tls := TlsConfig}) ->
+           #{tls := TlsConfig}, client) ->
+    inet:setopts(TcpSocket, [{active, false}]),
+    SslOpts = just_tls:make_client_opts(TlsConfig),
+    Ret = ssl:connect(TcpSocket, SslOpts, 5000),
+    VerifyResults = just_tls:receive_verify_results(),
+    case Ret of
+        {ok, SslSocket} ->
+            ssl:setopts(SslSocket, [{active, once}]),
+            {ok, #ranch_ssl{socket = SslSocket, connection_type = Type,
+                            ranch_ref = Ref, ip = Ip, verify_results = VerifyResults}};
+        {error, Reason} ->
+            {error, Reason}
+    end;
+tcp_to_tls(#ranch_tcp{socket = TcpSocket, connection_type = Type, ranch_ref = Ref, ip = Ip},
+           #{tls := TlsConfig}, server) ->
     inet:setopts(TcpSocket, [{active, false}]),
     SslOpts = just_tls:make_server_opts(TlsConfig),
     Ret = ssl:handshake(TcpSocket, SslOpts, 5000),
     VerifyResults = just_tls:receive_verify_results(),
     case Ret of
         {ok, SslSocket} ->
-            ranch_ssl:setopts(SslSocket, [{active, once}]),
+            ssl:setopts(SslSocket, [{active, once}]),
             {ok, #ranch_ssl{socket = SslSocket, connection_type = Type,
                             ranch_ref = Ref, ip = Ip, verify_results = VerifyResults}};
         {error, Reason} ->
             {error, Reason}
     end;
-tcp_to_tls(#ranch_ssl{}, _) ->
+tcp_to_tls(#ranch_ssl{}, _, _) ->
     {error, already_tls_connection};
-tcp_to_tls(#xmpp_socket{module = Module, state = State} = C2SSocket, LOpts) ->
-    case Module:tcp_to_tls(State, LOpts) of
+tcp_to_tls(#xmpp_socket{module = Module, state = State} = C2SSocket, LOpts, Mode) ->
+    case Module:tcp_to_tls(State, LOpts, Mode) of
         {ok, NewState} ->
             {ok, C2SSocket#xmpp_socket{state = NewState}};
         Error ->

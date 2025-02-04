@@ -400,7 +400,7 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
                                       parser = Parser,
                                       listener_opts = LOpts = #{tls := _}}, El, SaslAcc, Retries) ->
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
-    case mongoose_xmpp_socket:tcp_to_tls(TcpSocket, LOpts) of
+    case mongoose_xmpp_socket:tcp_to_tls(TcpSocket, LOpts, server) of
         {ok, TlsSocket} ->
             {ok, NewParser} = exml_stream:reset_parser(Parser),
             NewStateData = StateData#c2s_data{socket = TlsSocket,

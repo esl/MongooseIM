@@ -45,7 +45,7 @@
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec tcp_to_tls(inet:socket(), options(), client | server) ->
+-spec tcp_to_tls(inet:socket(), options(), mongoose_xmpp_socket:side()) ->
     {ok, ssl:sslsocket()} | {error, any()}.
 tcp_to_tls(Socket, Opts, client) ->
     TlsOpts = format_opts(Opts, client),
