@@ -11,7 +11,6 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("kernel/include/inet.hrl").
 
 %% Module aliases
 -import(distributed_helper, [mim/0, rpc_spec/1, rpc/4]).
@@ -25,6 +24,7 @@ all() ->
      {group, both_plain},
      {group, both_tls_optional}, %% default MongooseIM config
      {group, both_tls_required},
+     {group, both_tls_enforced},
 
      {group, node1_tls_optional_node2_tls_required},
      {group, node1_tls_required_node2_tls_optional},
@@ -42,6 +42,7 @@ groups() ->
     [{both_plain, [], all_tests()},
      {both_tls_optional, [], essentials()},
      {both_tls_required, [], essentials()},
+     {both_tls_enforced, [], essentials()},
 
      {node1_tls_optional_node2_tls_required, [], essentials()},
      {node1_tls_required_node2_tls_optional, [], essentials()},
@@ -61,8 +62,14 @@ essentials() ->
     [simple_message].
 
 all_tests() ->
-    [connections_info, dns_discovery, dns_discovery_ip_fail, nonexistent_user,
-     unknown_domain, malformed_jid, dialback_with_wrong_key].
+    [connections_info,
+     dns_srv_discovery,
+     dns_ip_discovery,
+     dns_discovery_fail,
+     nonexistent_user,
+     unknown_domain,
+     malformed_jid,
+     dialback_with_wrong_key].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -99,46 +106,70 @@ end_per_suite(Config) ->
 init_per_group(dialback, Config) ->
     %% Tell mnesia that mim and mim2 nodes are clustered
     distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config);
+init_per_group(both_tls_enforced, Config) ->
+    meck_dns_srv_lookup("fed1", srv_ssl),
+    Config1 = s2s_helper:configure_s2s(both_tls_enforced, Config),
+    [{requires_tls, group_with_tls(both_tls_enforced)}, {group, both_tls_enforced} | Config1];
 init_per_group(GroupName, Config) ->
     Config1 = s2s_helper:configure_s2s(GroupName, Config),
     [{requires_tls, group_with_tls(GroupName)}, {group, GroupName} | Config1].
 
+end_per_group(both_tls_enforced, _Config) ->
+    rpc(mim(), meck, unload, []);
 end_per_group(_GroupName, _Config) ->
     ok.
 
-init_per_testcase(dns_discovery = CaseName, Config) ->
-    meck_inet_res("_xmpp-server._tcp.fed2"),
-    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect,
-             [inet, getaddr,
-                fun ("fed2", inet) ->
-                        {ok, {127, 0, 0, 1}};
-                    (Address, Family) ->
-                        meck:passthrough([Address, Family])
-                end]),
+init_per_testcase(dns_srv_discovery = CaseName, Config) ->
+    meck_dns_srv_lookup("fed2", srv),
     Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
     escalus:init_per_testcase(CaseName, Config1);
-init_per_testcase(dns_discovery_ip_fail = CaseName, Config) ->
-    meck_inet_res("_xmpp-server._tcp.fed3"),
-    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
+init_per_testcase(dns_ip_discovery = CaseName, Config) ->
+    meck_dns_srv_lookup("fed2", ip),
+    Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(dns_discovery_fail = CaseName, Config) ->
+    meck_dns_srv_lookup("fed3", none),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-meck_inet_res(Domain) ->
+meck_dns_srv_lookup(Domain, Which) ->
+    FedPort = ct:get_config({hosts, fed, incoming_s2s_port}),
     ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect,
-             [inet_res, getbyname,
-                fun (Domain1, srv, _Timeout) when Domain1 == Domain ->
-                        {ok, {hostent, Domain, [], srv, 1,
-                         [{30, 10, 5299, "localhost"}]}};
-                    (Name, Type, Timeout) ->
-                        meck:passthrough([Name, Type, Timeout])
-                end]).
+    ok = rpc(mim(), meck, expect, [inet_res, lookup, inet_res_lookup_fun(Domain, FedPort, Which)]).
 
-end_per_testcase(CaseName, Config) when CaseName =:= dns_discovery;
-                                        CaseName =:= dns_discovery_ip_fail ->
+inet_res_lookup_fun(Domain, FedPort, srv_ssl) ->
+    fun("_xmpps-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            [{30, 0, FedPort, "localhost"}];
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end;
+inet_res_lookup_fun(Domain, FedPort, srv) ->
+    fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            [{30, 0, FedPort, "localhost"}];
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end;
+inet_res_lookup_fun(Domain, _FedPort, ip) ->
+    fun(Domain1, in, a, _Opts, _Timeout) when Domain1 =:= Domain ->
+            [{127, 0, 0, 1}];
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end;
+inet_res_lookup_fun(Domain, _FedPort, none) ->
+    fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            {error, nxdomain};
+       (Domain1, in, inet, _Opts, _Timeout) when Domain1 =:= Domain ->
+            {error, nxdomain};
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end.
+
+end_per_testcase(CaseName, Config) when CaseName =:= dns_srv_discovery;
+                                        CaseName =:= dns_ip_discovery;
+                                        CaseName =:= dns_discovery_fail ->
     rpc(mim(), meck, unload, []),
+    s2s_helper:reset_s2s_connections(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -186,26 +217,30 @@ connections_info(Config) ->
     [_ | _] = get_s2s_connections(mim(), FedDomain, out),
     ok.
 
-dns_discovery(Config) ->
+dns_srv_discovery(Config) ->
     simple_message(Config),
     %% Ensure that the mocked DNS discovery for connecting to the other server
     History = rpc(mim(), meck, history, [inet_res]),
-    ?assertEqual(length(History), 2),
-    ?assertEqual(s2s_helper:has_xmpp_server(History, "fed2"), true),
+    ?assert(0 < length(History), History),
+    ?assert(s2s_helper:has_xmpp_server(History, "_xmpp-server._tcp.fed2", srv), History),
+    ok.
+
+dns_ip_discovery(Config) ->
+    simple_message(Config),
+    %% Ensure that the mocked DNS discovery for connecting to the other server
+    History = rpc(mim(), meck, history, [inet_res]),
+    ?assert(0 < length(History), History),
+    ?assert(s2s_helper:has_xmpp_server(History, "fed2", a), History),
     ok.
 
 
-dns_discovery_ip_fail(Config) ->
+dns_discovery_fail(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice1) ->
-
-        escalus:send(Alice1, escalus_stanza:chat_to(
-            <<"alice2@fed3">>,
-            <<"Hello, second Alice!">>)),
-
+        escalus:send(Alice1, escalus_stanza:chat_to(<<"alice2@fed3">>, <<"Hello, second Alice!">>)),
         Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza),
-        History = rpc(mim(), meck, history, [inet]),
-        ?assertEqual(s2s_helper:has_inet_errors(History, "fed3"), true)
+        History = rpc(mim(), meck, history, [inet_res]),
+        ?assert(s2s_helper:has_inet_errors(History, "fed3"), History)
     end).
 
 get_s2s_connections(RPCSpec, Domain, Type) ->
@@ -214,9 +249,9 @@ get_s2s_connections(RPCSpec, Domain, Type) ->
         [Connection || Connection <- AllS2SConnections,
                        Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
                        Type =/= out orelse Domain =:= maps:get(server, Connection)],
-    ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p",
+    ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p~nAll Connections: ~p",
            [maps:get(node, RPCSpec), Type, Domain, length(DomainS2SConnections),
-            DomainS2SConnections]),
+            DomainS2SConnections, AllS2SConnections]),
     DomainS2SConnections.
 
 nonexistent_user(Config) ->
@@ -269,7 +304,7 @@ dialback_with_wrong_key(_Config) ->
     Key = <<"123456">>, %% wrong key
     StreamId = <<"sdfdsferrr">>,
     StartType = {verify, self(), Key, StreamId},
-    {ok, _} = rpc(rpc_spec(mim), ejabberd_s2s_out, start, [FromTo, StartType]),
+    {ok, _} = rpc(rpc_spec(mim), mongoose_s2s_out, start_connection, [FromTo, StartType]),
     receive
         %% Remote server (fed1) rejected out request
         {'$gen_cast', {validity_from_s2s_out, false, FromTo}} ->
@@ -494,59 +529,79 @@ shared_secret(mim) -> <<"f623e54a0741269be7dd">>; %% Some random key
 shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.
 
 assert_events(TS, Config) ->
-    TLS = proplists:get_value(requires_tls, Config),
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => element_count(in, TLS), min_timestamp => TS}),
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => element_count(out, TLS), min_timestamp => TS}),
-    instrument_helper:assert(tcp_data_in, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
-        #{min_timestamp => TS}),
-    instrument_helper:assert(tcp_data_out, #{connection_type => s2s}, fun(#{byte_size := S}) -> S > 0 end,
-        #{min_timestamp => TS}).
+    TLS = proplists:get_value(requires_tls, Config, false),
+    Labels = #{connection_type => s2s},
+    Filter = fun(#{byte_size := S}) -> S > 0 end,
 
+    instrument_helper:assert(xmpp_element_size_in, Labels, Filter,
+        #{expected_count => element_count(in, TLS), min_timestamp => TS}),
+    instrument_helper:assert(xmpp_element_size_out, Labels, Filter,
+        #{expected_count => element_count(out, TLS), min_timestamp => TS}),
+    Value = distributed_helper:rpc(distributed_helper:mim(), mongoose_instrument_event_table, all_keys, []),
+    ct:pal("Value ~p~n", [Value]),
+    case TLS of
+        true ->
+            instrument_helper:assert(tls_data_out, Labels, Filter, #{min_timestamp => TS}),
+            instrument_helper:assert(tls_data_in, Labels, Filter, #{min_timestamp => TS});
+        false ->
+            instrument_helper:assert(tcp_data_in, Labels, Filter, #{min_timestamp => TS}),
+            instrument_helper:assert(tcp_data_out, Labels, Filter, #{min_timestamp => TS})
+    end.
+
+% Some of these steps happen asynchronously, so the order may be different.
+% Since S2S connections are unidirectional, mim1 acts both as initiating,
+% and receiving (and authoritative) server in the dialback procedure.
+%
+% We also test that both users on each side of federation can text each other,
+% hence both server will run the dialback each.
+%
+% When a user in mim1 writes to a user in fed1, from the perspective of mim1:
+% - Open an outgoing connection from mim1 to fed1:
+%   1. Outgoing stream starts
+%   2. Incoming stream starts
+%   3. Incoming stream features
+%   4. Outgoing dialback key (step 1)
+% - Open an incoming connection from fed1 to mim1:
+%   5. Incoming stream starts
+%   6. Outgoing stream starts
+%   7. Outgoing stream features
+%   8. Incoming dialback verification request (step 2, as authoritative server)
+%   9. Outgoing dialback verification response (step 3, as receiving server)
+% - Original outgoing connection
+%  10. Incoming dialback result (step 4, as initiating server)
+%  11. Outgoing message from user in mim1 to user in fed1
+%
+% Likewise, when a user in fed1 writes to a user in mim1, from the perspective of mim1:
+% - Open an incoming connection from fed1 to mim1:
+%   1. Incoming stream starts
+%   2. Outgoing stream starts
+%   3. Outgoing stream features
+%   4. Incoming dialback key (step 1)
+% - Open an outgoing connection from mim1 to fed1:
+%   5. Outgoing stream starts
+%   6. Incoming stream starts
+%   7. Incoming stream features
+%   8. Outgoing dialback verification request (step 2, as authoritative server)
+%   9. Incoming dialback verification response (step 3, as receiving server)
+% - Original incoming connection
+%  10. Outgoing dialback result (step 4, as initiating server)
+%  11. Incoming message from user in fed1 to user in mim1
+%
+% The number can be seen as the sum of all arrows from the dialback diagram, since mim
+% acts as all three roles in the two dialback procedures that occur:
+% https://xmpp.org/extensions/xep-0220.html#intro-howitworks
+% (6 arrows) + one for stream header response + one for the actual message
 element_count(_Dir, true) ->
     % TLS tests are not checking a specific number of events, because the numbers are flaky
     positive;
 element_count(in, false) ->
-    % Some of these steps happen asynchronously, so the order may be different.
-    % Since S2S connections are unidirectional, mim1 acts both as initiating,
-    % and receiving (and authoritative) server in the dialback procedure.
-    %   1. Stream start response from fed1 (as initiating server)
-    %     1.b. Stream features after the response
-    %   2. Stream start from fed1 (as receiving server)
-    %   3. Dialback key (step 1, as receiving server)
-    %   4. Dialback verification request (step 2, as authoritative server)
-    %   5. Dialback result (step 4, as initiating server)
-    % New s2s process is started to verify fed1 as an authoritative server
-    % This process sends a new stream header, as it opens a new connection to fed1,
-    % now acting as an authoritative server. Also see comment on L360 in ejabberd_s2s.
-    %   6. Stream start response from fed1
-    %     6.b. Stream features after the response
-    %   7. Dialback verification response (step 3, as receiving server)
-    %   8. Message from federated Alice
-    % The number can be seen as the sum of all arrows from the dialback diagram, since mim
-    % acts as all three roles in the two dialback procedures that occur:
-    % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
-    % (6 arrows) + one for stream header response + one for the actual message
-    10;
+    11;
 element_count(out, false) ->
-    % Since S2S connections are unidirectional, mim1 acts both as initiating,
-    % and receiving (and authoritative) server in the dialback procedure.
-    %   1. Dialback key (step 1, as initiating server)
-    %   2. Dialback verification response (step 3, as authoritative server)
-    %   3. Dialback request (step 2, as receiving server)
-    %   4. Message from Alice
-    %   5. Dialback result (step 4, as receiving server)
-    % The number calculation corresponds to in_element, however the stream headers are not
-    % sent as XML elements, but straight as text, and so these three events do not appear:
-    %  - open stream to fed1,
-    %  - stream response for fed1->mim stream,
-    %     -.b. Stream features after the response
-    %  - open stream to fed1 as authoritative server.
-    9.
+    11.
 
 group_with_tls(both_tls_optional) -> true;
 group_with_tls(both_tls_required) -> true;
+group_with_tls(both_tls_enforced) -> true;
 group_with_tls(node1_tls_optional_node2_tls_required) -> true;
 group_with_tls(node1_tls_required_node2_tls_optional) -> true;
 group_with_tls(node1_tls_required_trusted_node2_tls_optional) -> true;
@@ -556,5 +611,7 @@ group_with_tls(_GN) -> false.
 tested_events() ->
     [{xmpp_element_size_in, #{connection_type => s2s}},
      {xmpp_element_size_out, #{connection_type => s2s}},
+     {tls_data_in, #{connection_type => s2s}},
+     {tls_data_out, #{connection_type => s2s}},
      {tcp_data_in, #{connection_type => s2s}},
      {tcp_data_out, #{connection_type => s2s}}].

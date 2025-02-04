@@ -17,7 +17,7 @@
 %% Other options should be supported if the implementing module supports it.
 -type options() :: #{module => module(),
                      verify_mode := peer | selfsigned_peer | none,
-                     mode => tls | starttls | starttls_required, % only ejabberd_s2s_out doesn't use it (yet)
+                     mode => tls | starttls | starttls_required, % only mongoose_s2s_out doesn't use it (yet)
                      certfile => string(),
                      cacertfile => string(),
                      ciphers => string(),

@@ -8,7 +8,7 @@
 
 -record(s2s_data, {
           host_type :: undefined | mongooseim:host_type(),
-          lserver = ?MYNAME :: jid:lserver(),
+          myname = ?MYNAME :: jid:lserver(),
           auth_domain :: jid:lserver() | undefined,
           lang = ?MYLANG :: ejabberd:lang(),
           streamid = mongoose_bin:gen_from_crypto() :: binary(),
@@ -38,7 +38,7 @@
           streamid => ejabberd_s2s:stream_id(),
           tls => boolean(),
           tls_enabled => boolean(),
-          tls_options => just_tls:options(),
+          tls_options => undefined | just_tls:options(),
           authenticated => boolean(),
           shaper => mongoose_shaper:shaper(),
           domains => [jid:lserver()]}.
@@ -165,7 +165,7 @@ handle_stream_start(D0, #{<<"xmlns">> := ?NS_SERVER, <<"to">> := Server} = Attrs
     LServer = jid:nameprep(Server),
     case is_binary(LServer) andalso mongoose_domain_api:get_host_type(LServer) of
         {ok, HostType} ->
-            D1 = D0#s2s_data{lserver = LServer, host_type = HostType},
+            D1 = D0#s2s_data{myname = LServer, host_type = HostType},
             stream_start_features_before_auth(D1, Attrs);
         _ ->
             Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
@@ -178,7 +178,7 @@ handle_stream_start(D0, #{<<"xmlns">> := ?NS_SERVER} = Attrs, stream_start) ->
 handle_stream_start(D0, Attrs, stream_start) ->
     Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
     stream_start_error(D0, Info, mongoose_xmpp_errors:invalid_namespace());
-handle_stream_start(#s2s_data{lserver = LServer} = D0,
+handle_stream_start(#s2s_data{myname = LServer} = D0,
                     #{<<"xmlns">> := ?NS_SERVER,
                       <<"to">> := Server} = Attrs,
                     authenticated) ->
@@ -267,7 +267,7 @@ handle_auth_start(#s2s_data{} = Data, #xmlel{attrs = #{<<"xmlns">> := _}}) ->
 -spec handle_dialback(data(), exml:element(), state()) -> fsm_res().
 handle_dialback(#s2s_data{} = Data, #xmlel{} = El, _) ->
     case mongoose_s2s_dialback:parse_key(El) of
-        %% Incoming dialback key, we have to verify it using ejabberd_s2s_out before
+        %% Incoming dialback key, we have to verify it using mongoose_s2s_out before
         %% accepting any incoming stanzas
         %% (we have to receive the `validity_from_s2s_out' event first).
         {step_1, FromTo, StreamID, Key} = Parsed ->
@@ -276,11 +276,11 @@ handle_dialback(#s2s_data{} = Data, #xmlel{} = El, _) ->
             %% domain is handled by this server:
             case {mongoose_s2s_lib:allow_host(FromTo), is_local_host_known(FromTo)} of
                 {true, true} ->
-                    ejabberd_s2s_out:terminate_if_waiting_delay(FromTo),
+                    mongoose_s2s_out:terminate_if_waiting_delay(FromTo),
                     StartType = {verify, self(), Key, Data#s2s_data.streamid},
-                    %% Could we reuse an existing ejabberd_s2s_out connection
+                    %% Could we reuse an existing mongoose_s2s_out connection
                     %% instead of making a new one?
-                    ejabberd_s2s_out:start(FromTo, StartType),
+                    mongoose_s2s_out:start_connection(FromTo, StartType),
                     Conns = maps:put(FromTo, wait_for_verification, Data#s2s_data.connections),
                     NewData = Data#s2s_data{connections = Conns},
                     {next_state, stream_established, NewData};
@@ -405,11 +405,12 @@ handle_socket_packet(#s2s_data{parser = Parser} = Data, Packet) ->
     end.
 
 -spec handle_socket_elements(data(), [exml_stream:element()], non_neg_integer()) -> fsm_res().
-handle_socket_elements(#s2s_data{lserver = LServer, shaper = Shaper} = Data, Elements, Size) ->
+handle_socket_elements(#s2s_data{myname = LServer, shaper = Shaper} = Data, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
     [mongoose_instrument:execute(
-       xmpp_element_size_in, labels(), #{byte_size => exml:xml_size(El), lserver => LServer})
-     || El <- Elements],
+       xmpp_element_size_in, labels(),
+       #{byte_size => exml:xml_size(Elem), lserver => LServer, pid => self(), module => ?MODULE})
+     || Elem <- Elements],
     NewData = Data#s2s_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     StreamEvents1 = maybe_add_pause(NewData, StreamEvents0, Pause),
@@ -447,7 +448,7 @@ handle_get_state_info(#s2s_data{socket = Socket, listener_opts = LOpts} = Data, 
       streamid => Data#s2s_data.streamid,
       tls => maps:is_key(tls, LOpts),
       tls_enabled => mongoose_xmpp_socket:is_ssl(Socket),
-      tls_options => maps:get(tls, LOpts, #{}),
+      tls_options => maps:get(tls, LOpts, undefined),
       authenticated => Data#s2s_data.authenticated,
       shaper => Data#s2s_data.shaper,
       domains => Domains}.
@@ -467,7 +468,7 @@ state_timeout(#{state_timeout := Timeout}) ->
 
 -spec stream_start_features_before_auth(data(), exml:attrs()) -> fsm_res().
 stream_start_features_before_auth(
-  #s2s_data{host_type = HostType, lserver = LServer, socket = Socket} = Data,
+  #s2s_data{host_type = HostType, myname = LServer, socket = Socket} = Data,
   #{<<"version">> := ?XMPP_VERSION}) ->
     IsSSL = mongoose_xmpp_socket:is_ssl(Socket),
     StreamFeatures0 = mongoose_hooks:s2s_stream_features(HostType, LServer),
@@ -483,7 +484,7 @@ stream_start_features_before_auth(#s2s_data{} = Data, #{<<"xmlns:db">> := ?NS_SE
     {next_state, wait_for_feature_before_auth, Data, state_timeout(Data)}.
 
 -spec stream_start_after_auth(data(), exml:attrs()) -> fsm_res().
-stream_start_after_auth(#s2s_data{host_type = HostType, lserver = LServer} = Data,
+stream_start_after_auth(#s2s_data{host_type = HostType, myname = LServer} = Data,
                         #{<<"version">> := ?XMPP_VERSION}) ->
     StreamFeatures = mongoose_hooks:s2s_stream_features(HostType, LServer),
     Features = #xmlel{name = <<"stream:features">>,
@@ -516,13 +517,14 @@ stream_error(Data, Error) ->
     {stop, {shutdown, stream_error}, Data}.
 
 -spec send_xml(data(), exml_stream:element()) -> maybe_ok().
-send_xml(#s2s_data{socket = Socket}, Elem) ->
+send_xml(#s2s_data{myname = LServer, socket = Socket}, Elem) ->
     mongoose_instrument:execute(
-      xmpp_element_size_out, labels(), #{element => Elem, byte_size => exml:xml_size(Elem)}),
+      xmpp_element_size_out, labels(),
+       #{byte_size => exml:xml_size(Elem), lserver => LServer, pid => self(), module => ?MODULE}),
     mongoose_xmpp_socket:send_xml(Socket, Elem).
 
 -spec execute_element_event(data(), exml_stream:element(), mongoose_instrument:event_name()) -> ok.
-execute_element_event(#s2s_data{lserver = LServer}, #xmlel{name = Name} = El, EventName) ->
+execute_element_event(#s2s_data{myname = LServer}, #xmlel{name = Name} = El, EventName) ->
     Metrics = measure_element(Name, exml_query:attr(El, <<"type">>)),
     Measurements = Metrics#{element => El, lserver => LServer},
     mongoose_instrument:execute(EventName, #{}, Measurements);
@@ -595,14 +597,15 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
     end.
 
 -spec stream_header(data()) -> exml_stream:start().
-stream_header(#s2s_data{lserver = LServer, streamid = Id, lang = Lang}) ->
+stream_header(#s2s_data{myname = LServer, streamid = Id, lang = Lang}) ->
     Attrs = #{<<"xmlns:stream">> => ?NS_STREAM,
               <<"xmlns">> => ?NS_SERVER,
               <<"xmlns:db">> => ?NS_SERVER_DIALBACK,
               <<"version">> => ?XMPP_VERSION,
+              <<"xml:lang">> => Lang,
               <<"id">> => Id,
-              <<"from">> => LServer,
-              <<"xml:lang">> => Lang},
+              <<"from">> => LServer
+             },
     #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
 
 -spec add_tls_elems(data(), boolean(), [exml:element()]) -> [exml:element()].

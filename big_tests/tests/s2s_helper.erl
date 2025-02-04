@@ -1,6 +1,7 @@
 -module(s2s_helper).
 
--export([init_s2s/1, end_s2s/1, configure_s2s/2, has_inet_errors/2, has_xmpp_server/2]).
+-export([init_s2s/1, end_s2s/1, configure_s2s/2, has_inet_errors/2, has_xmpp_server/3,
+         reset_s2s_connections/0]).
 
 -import(distributed_helper, [rpc_spec/1, rpc/4]).
 
@@ -23,21 +24,21 @@ configure_s2s(Group, Config) ->
 
 has_inet_errors(History, Server) ->
     Inet = lists:any(
-        fun({_, {inet, getaddr, [Server1, inet]}, {error, nxdomain}})
-            when Server1 == Server -> true;
+        fun({_, {inet_res, lookup, [Server1, in, a, _, _]}, []})
+            when Server1 =:= Server -> true;
            (_) -> false
         end, History),
     Inet6 = lists:any(
-        fun({_, {inet, getaddr, [Server1, inet6]}, {error, nxdomain}})
-            when Server1 == Server -> true;
+        fun({_, {inet_res, lookup, [Server1, in, aaaa, _, _]}, []})
+            when Server1 =:= Server -> true;
            (_) -> false
         end, History),
     Inet andalso Inet6.
 
-has_xmpp_server(History, Server) ->
-    lists:all(
-        fun({_, _, {ok, {hostent, "_xmpp-server._tcp." ++ Server1, _, srv, _, _}}})
-            when Server1 == Server -> true;
+has_xmpp_server(History, Server, DnsRrType) ->
+    lists:any(
+        fun({_Pid, {inet_res, lookup, [Server1, in, DnsRrType1, _, _]}, [_|_]})
+            when Server1 =:= Server, DnsRrType1 =:= DnsRrType -> true;
            (_) -> false
         end, History).
 
@@ -60,6 +61,8 @@ tls_config(required_trusted, #{tls := TlsOpts} = Opts, _) ->
     Opts#{tls => TlsOpts#{mode => starttls_required, verify_mode => selfsigned_peer}};
 tls_config(required, #{tls := TlsOpts} = Opts, _) ->
     Opts#{tls => TlsOpts#{mode => starttls_required, verify_mode => none}};
+tls_config(enforced, #{tls := TlsOpts} = Opts, _) ->
+    Opts#{tls => TlsOpts#{mode => tls, verify_mode => none}};
 tls_config(optional, #{tls := TlsOpts} = Opts, _) ->
     Opts#{tls => TlsOpts#{mode => starttls, verify_mode => none}};
 tls_config(plain, Opts, _) ->
@@ -71,6 +74,8 @@ tls_preset(both_tls_optional) ->
     #{mim => optional, fed => optional};
 tls_preset(both_tls_required) ->
     #{mim => required, fed => required};
+tls_preset(both_tls_enforced) ->
+    #{mim => enforced, fed => enforced};
 tls_preset(node1_tls_optional_node2_tls_required) ->
     #{mim => optional, fed => required};
 tls_preset(node1_tls_required_node2_tls_optional) ->
@@ -93,8 +98,8 @@ set_opt(Spec, Opt, Value) ->
     rpc(Spec, mongoose_config, set_opt, [Opt, Value]).
 
 restart_s2s(#{} = Spec, S2SListener) ->
-    Children = rpc(Spec, supervisor, which_children, [ejabberd_s2s_out_sup]),
-    [rpc(Spec, ejabberd_s2s_out, stop_connection, [Pid]) ||
+    Children = rpc(Spec, supervisor, which_children, [mongoose_s2s_out_sup]),
+    [rpc(Spec, mongoose_s2s_out, stop_connection, [Pid, <<"closing connection">>]) ||
      {_, Pid, _, _} <- Children],
 
     Children0 = rpc(Spec, supervisor, which_children, [mongoose_listener_sup]),
@@ -103,3 +108,16 @@ restart_s2s(#{} = Spec, S2SListener) ->
     [rpc(Spec, erlang, exit, [Pid, kill]) || {_, Pid, _, _} <- ChildrenIn],
 
     mongoose_helper:restart_listener(Spec, S2SListener).
+
+reset_s2s_connections() ->
+    [ reset_s2s_connections(rpc_spec(NodeKey)) || NodeKey <- node_keys()].
+
+reset_s2s_connections(Spec) ->
+    Children = rpc(Spec, supervisor, which_children, [mongoose_s2s_out_sup]),
+    [rpc(Spec, mongoose_s2s_out, stop_connection, [Pid, <<"closing connection">>]) ||
+     {_, Pid, _, _} <- Children],
+
+    Children0 = rpc(Spec, supervisor, which_children, [mongoose_listener_sup]),
+    Listeners = [Ref || {Ref, _, _, [mongoose_s2s_listener | _]} <- Children],
+    ChildrenIn = lists:flatten([ranch:procs(Ref, connections) || Ref <- Listeners]),
+    [rpc(Spec, erlang, exit, [Pid, kill]) || {_, Pid, _, _} <- ChildrenIn].

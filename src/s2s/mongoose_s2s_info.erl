@@ -8,8 +8,7 @@
 -include("mongoose_logger.hrl").
 
 -type direction() :: in | out.
--type supervisor_child_spec() :: { undefined, pid(), worker, [module()] }.
--type connection_info() :: mongoose_s2s_in:connection_info() | ejabberd_s2s_out:connection_info().
+-type connection_info() :: mongoose_s2s_in:connection_info() | mongoose_s2s_out:connection_info().
 
 %% @doc Get information about S2S connections of the specified type.
 -spec get_connections(direction()) -> [connection_info()].
@@ -19,11 +18,8 @@ get_connections(in) ->
     Pids = lists:flatten([ranch:procs(Ref, connections) || Ref <- Listeners]),
     [Conn || Pid <- Pids, Conn <- get_state_info(in, Pid)];
 get_connections(out) ->
-    Specs = supervisor:which_children(ejabberd_s2s_out_sup),
-    [Conn || Spec <- Specs, Conn <- get_state_info(out, child_to_pid(Spec))].
-
--spec child_to_pid(supervisor_child_spec()) -> pid().
-child_to_pid({_, Pid, _, _}) -> Pid.
+    Specs = supervisor:which_children(mongoose_s2s_out_sup),
+    [Conn || {_, Pid, _, _} <- Specs, Conn <- get_state_info(out, Pid)].
 
 -spec get_state_info(direction(), pid()) -> [connection_info()].
 get_state_info(in, Pid) when is_pid(Pid) ->
@@ -35,7 +31,7 @@ get_state_info(in, Pid) when is_pid(Pid) ->
             []
     end;
 get_state_info(out, Pid) when is_pid(Pid) ->
-    case gen_fsm_compat:sync_send_all_state_event(Pid, get_state_info) of
+    case mongoose_s2s_out:get_state_info(Pid) of
         Info when is_map(Info) ->
             [Info];
         Other ->
