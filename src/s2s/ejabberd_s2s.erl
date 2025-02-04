@@ -48,7 +48,6 @@
 -ignore_xref([start_link/0]).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
 
 %% Pair of hosts {FromServer, ToServer}.
 %% FromServer is the local server.
@@ -56,14 +55,14 @@
 %% Used in a lot of API and backend functions.
 -type fromto() :: {jid:lserver(), jid:lserver()}.
 
-%% Pids for ejabberd_s2s_out servers
+%% Pids for mongoose_s2s_out servers
 -type s2s_pids() :: [pid()].
 
 -record(state, {}).
 
--type base16_secret() :: binary().
 -type stream_id() :: binary().
--type s2s_dialback_key() :: binary().
+-type base16_secret() :: <<_:16, _:_*16>>. %% Hex encoded
+-type s2s_dialback_key() :: <<_:16, _:_*16>>. %% Hex encoded
 
 -export_type([fromto/0, s2s_pids/0, base16_secret/0, stream_id/0, s2s_dialback_key/0]).
 
@@ -74,9 +73,13 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+-spec filter(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    drop | xmpp_router:filter().
 filter(From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
 
+-spec route(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    {done, mongoose_acc:t()}. % this is the 'last resort' router, it always returns 'done'.
 route(From, To, Acc, Packet) ->
     do_route(From, To, Acc, Packet).
 
