@@ -2,7 +2,12 @@
 
 -include_lib("public_key/include/public_key.hrl").
 
+-define(DEF_SOCKET_OPTS,
+        binary, {active, false}, {packet, raw},
+        {send_timeout, 15000}, {send_timeout_close, true}).
+
 -export([accept/4,
+         connect/4,
          handle_data/2,
          activate/1,
          close/1,
@@ -99,6 +104,40 @@ accept(Module, Type, Ref, LOpts) ->
                                connection_type = NewType, ip = PeerIp},
     activate(SocketState),
     SocketState.
+
+-spec connect(mongoose_addr_list:addr(),
+              with_tls_opts(),
+              mongoose_listener:connection_type(),
+              timeout()) -> socket() | {error, timeout | inet:posix() | any()}.
+connect(#{ip_tuple := Addr, ip_version := Inet, port := Port, tls := false}, Opts, Type, Timeout) ->
+    SockOpts = socket_options(false, Inet, Opts),
+    case gen_tcp:connect(Addr, Port, SockOpts, Timeout) of
+        {ok, Socket} ->
+            SocketState = #ranch_tcp{socket = Socket, connection_type = Type,
+                                     ranch_ref = {self(), Type}, ip = {Addr, Port}},
+            activate(SocketState),
+            SocketState;
+        {error, Reason} ->
+            {error, Reason}
+    end;
+connect(#{ip_tuple := Addr, ip_version := Inet, port := Port, tls := true}, Opts, Type, Timeout) ->
+    SockOpts = socket_options(true, Inet, Opts),
+    case ssl:connect(Addr, Port, SockOpts, Timeout) of
+        {ok, Socket} ->
+            SocketState = #ranch_ssl{socket = Socket, connection_type = Type,
+                                     ranch_ref = {self(), Type}, ip = {Addr, Port}},
+            activate(SocketState),
+            SocketState;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec socket_options(true, inet | inet6, with_tls_opts()) -> [ssl:tls_client_option()];
+                    (false, inet | inet6, with_tls_opts()) -> [gen_tcp:connect_option()].
+socket_options(true, Inet, #{tls := TlsOpts}) ->
+    [Inet, ?DEF_SOCKET_OPTS | just_tls:make_client_opts(TlsOpts)];
+socket_options(false, Inet, _) ->
+    [Inet, ?DEF_SOCKET_OPTS].
 
 -spec activate(socket()) -> ok | {error, term()}.
 activate(#ranch_tcp{socket = Socket}) ->
