@@ -587,9 +587,9 @@ maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
 %% When sending out the archives to a requesting client,
 %% the forwarded stanza MUST NOT have a 'to' attribute, and
 %% the 'from' MUST be the occupant JID of the sender of the archived message.
-replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
-    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), undefined, Attrs),
-    Packet#xmlel{attrs = NewAttrs}.
+-spec replace_from_to_attributes(jid:jid(), exml:element()) -> exml:element().
+replace_from_to_attributes(SrcJID, Packet) ->
+    jlib:replace_from_to(SrcJID, undefined, Packet).
 
 -spec message_row_to_ext_id(row()) -> binary().
 message_row_to_ext_id(#{id := MessID}) ->
