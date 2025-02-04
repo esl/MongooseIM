@@ -371,10 +371,10 @@ parse_connect_result(#{answer := Success, spec := Spec}) ->
     Token = exml_query:attr(Fast, <<"token">>),
     #{expire => Expire, token => Token, spec => Spec}.
 
-start_new_user(Config, Client, Data) ->
+start_new_user(Config, Client, Data = #{}) ->
     {Client2, Data2} = sasl2_helper:start_new_user(Config, Client, Data),
-    Client3 = maybe_receive_session_tickets_on_connect(Client2),
-    {Client3, Data2}.
+    #{} = Data3 = maybe_receive_session_tickets_on_connect(Client2, Data2),
+    {Client2, Data3}.
 
 auth_and_request_token(Config, Client, Data) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
@@ -424,15 +424,8 @@ request_invalidation_1() ->
 auth_with_token(Success, Token, Config, Spec) ->
     auth_with_token(Success, Token, Config, Spec, dont_request_token).
 
-maybe_0rtt_spec(Spec, Config) ->
-    %% https://www.erlang.org/docs/23/apps/ssl/using_ssl#early-data-in-tls-1.3
-%   [{early_data, make_0rtt_data(Spec, Config)}].
-    [].
-
 auth_with_token(Success, Token, Config, Spec, RequestToken) ->
-    Spec0RTT = maybe_0rtt_spec(Spec, Config),
-    Spec2 = [{secret_token, Token}] ++ Spec0RTT ++ Spec,
-    Uses0RTT = Spec0RTT =/= [],
+    Spec2 = [{secret_token, Token}] ++ Spec,
     Steps = steps(Success, auth_function(RequestToken)),
     Data = #{spec => Spec2},
     Res = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
@@ -570,26 +563,19 @@ escalus_client_to_pid(#client{rcv_pid = Pid}) ->
 escalus_client_to_props(#client{props = Props}) ->
     Props.
 
-set_ticket(Client = #client{props = Props}, Ticket) ->
-    Map = proplists:to_map(Props),
+set_ticket(Data = #{spec := Spec}, Ticket) ->
+    Map = proplists:to_map(Spec),
     #{ssl_opts := SslOpts} = Map,
     Map2 = Map#{
          %% Set Ticket to be used with the next reconnect
-         ssl_opts => [{use_ticket, [Ticket]} | SslOpts],
-         %% Used in the suite
-         tls_ticket => Ticket},
-    Client#client{props = proplists:from_map(Map2)}.
+         ssl_opts => [{early_data, <<"kek">>}, {use_ticket, [Ticket]} | SslOpts]},
+    Data#{spec => proplists:from_map(Map2)}.
 
-
-get_ticket(Client = #client{props = Props}) ->
-    proplists:get_value(props, Props).
-
-maybe_receive_session_tickets_on_connect(Client) ->
-    Props = escalus_client_to_props(Client),
-    case proplists:get_value(receive_session_tickets_on_connect, Props, false) of
+maybe_receive_session_tickets_on_connect(Client, Data = #{spec := Spec}) ->
+    case proplists:get_value(receive_session_tickets_on_connect, Spec, false) of
         true ->
             Ticket = receive_ticket(Client),
-            set_ticket(Client, Ticket);
+            set_ticket(Data, Ticket);
         false ->
-            Client
+            Data
     end.
