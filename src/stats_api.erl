@@ -6,7 +6,10 @@
 
 -spec incoming_s2s_number() -> {ok, non_neg_integer()}.
 incoming_s2s_number() ->
-    {ok, length(supervisor:which_children(ejabberd_s2s_in_sup))}.
+    Children = supervisor:which_children(mongoose_listener_sup),
+    Listeners = [Ref || {Ref, _, _, [mongoose_s2s_listener | _]} <- Children],
+    Number = lists:sum([maps:get(active_connections, ranch:info(Ref)) || Ref <- Listeners]),
+    {ok, Number}.
 
 -spec outgoing_s2s_number() -> {ok, non_neg_integer()}.
 outgoing_s2s_number() ->

@@ -32,8 +32,7 @@ caps_test_cases() ->
      user_can_query_server_caps_via_disco].
 
 extra_feature_test_cases() ->
-    [user_can_query_extra_domains,
-     user_can_query_server_info].
+    [user_can_query_server_info].
 
 init_per_suite(C) ->
     instrument_helper:start(instrument_helper:declared_events(mod_disco)),
@@ -155,15 +154,6 @@ user_cannot_query_friend_resources_with_unknown_node(Config) ->
         escalus:assert(is_stanza_from, [BobJid], Stanza)
     end).
 
-user_can_query_extra_domains(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Server = escalus_client:server(Alice),
-        escalus:send(Alice, escalus_stanza:service_discovery(Server)),
-        Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(has_service, [extra_domain()], Stanza),
-        escalus:assert(is_stanza_from, [domain()], Stanza)
-    end).
-
 user_can_query_server_features(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Server = escalus_client:server(Alice),
@@ -209,8 +199,7 @@ required_modules(disco_with_extra_features) ->
     [{mod_disco, mod_config(mod_disco, extra_disco_opts())}].
 
 extra_disco_opts() ->
-    #{extra_domains => [extra_domain()],
-      server_info => [server_info(abuse, #{}),
+    #{server_info => [server_info(abuse, #{}),
                       server_info(admin, #{modules => [mod_disco]}),
                       server_info(sales, #{modules => [mod_pubsub]})]}.
 
@@ -218,9 +207,6 @@ get_form_fields(Stanza) ->
      exml_query:paths(Stanza, [{element_with_ns, <<"query">>, ?NS_DISCO_INFO},
                                {element_with_ns, <<"x">>, ?NS_DATA_FORMS},
                                {element, <<"field">>}]).
-
-extra_domain() ->
-    <<"eXtra.example.com">>.
 
 server_info(Type, Extra) ->
     maps:merge(#{name => name(Type), urls => urls(Type)}, Extra).

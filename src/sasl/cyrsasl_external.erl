@@ -44,8 +44,8 @@ mechanism() ->
 -spec mech_new(Host   :: jid:server(),
                Creds  :: mongoose_credentials:t(),
                Socket :: term()) -> {ok, sasl_external_state()}.
-mech_new(_Host, Creds, #{socket := Socket, listener_opts := LOpts}) ->
-    Cert = case mongoose_c2s_socket:get_peer_certificate(Socket, LOpts) of
+mech_new(_Host, Creds, #{socket := Socket}) ->
+    Cert = case mongoose_xmpp_socket:get_peer_certificate(Socket) of
                {ok, C} -> C;
                _ -> no_cert
            end,

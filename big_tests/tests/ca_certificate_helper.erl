@@ -14,9 +14,12 @@ generate_cert(Config, #{cn := User} = CertSpec, BasicTemplateValues) ->
     ct:log("OpenSSL config: ~ts~n~ts", [UserConfig, OpenSSLConfig]),
     file:write_file(UserConfig, OpenSSLConfig),
     UserKey = filename:join(?config(priv_dir, Config), User ++ "_key.pem"),
+    MaybeCritical = maps:get(with_critical_extension, CertSpec, false),
     case maps:get(signed, CertSpec, ca) of
-	    ca -> generate_ca_signed_cert(Config, User, UserConfig, UserKey);
-	    self -> generate_self_signed_cert(Config, User, UserConfig, UserKey)
+	    ca -> 
+	        generate_ca_signed_cert(Config, User, UserConfig, UserKey, MaybeCritical);
+	    self -> 
+	        generate_self_signed_cert(Config, User, UserConfig, UserKey, MaybeCritical)
     end.
 
 prepare_template_values(User, XMPPAddrsIn) ->
@@ -35,11 +38,12 @@ make_xmpp_addr_entry(I, Addr) ->
     "otherName." ++ integer_to_list(I) ++ " = id-on-xmppAddr;UTF8:" ++ Addr.
 
 
-generate_ca_signed_cert(Config, Filename, ConfigCfg, KeyFilename) ->
+generate_ca_signed_cert(Config, Filename, ConfigCfg, KeyFilename, MaybeCritical) ->
     Csr = filename:join(?config(priv_dir, Config), Filename ++ ".csr"),
     Cmd = ["openssl req -config ", ConfigCfg, " -newkey rsa:2048 -sha256 -nodes -out ",
-           Csr, " -keyout ", KeyFilename, " -outform PEM"],
-    Out = os:cmd(Cmd),
+           Csr, " -keyout ", KeyFilename, " -outform PEM" | extensions(ca_signed, MaybeCritical)],
+    Out = os:cmd(Cmd ++ " && echo CREATED"),
+    verify_created(Cmd, Out),
     ct:log("generate_ca_signed_cert 1:~nCmd ~p~nOut ~ts", [Cmd, Out]),
     Cert = filename:join(?config(priv_dir, Config), Filename ++ "_cert.pem"),
     SignCmd = filename:join(?config(mim_data_dir, Config), "sign_cert.sh"),
@@ -50,11 +54,29 @@ generate_ca_signed_cert(Config, Filename, ConfigCfg, KeyFilename) ->
     #{key => KeyFilename,
       cert => Cert}.
 
-generate_self_signed_cert(Config, Filename, ConfigCfg, KeyFilename) ->
+generate_self_signed_cert(Config, Filename, ConfigCfg, KeyFilename, MaybeCritical) ->
     Cert = filename:join(?config(priv_dir, Config), Filename ++ "_self_signed_cert.pem"),
     Cmd = ["openssl req -config ", ConfigCfg, " -newkey rsa:2048 -sha256 -nodes -out ",
-           Cert, " -keyout ", KeyFilename, " -x509 -outform PEM -extensions client_req_extensions"],
-    OutLog = os:cmd(Cmd),
+           Cert, " -keyout ", KeyFilename, " -x509 -outform PEM", extensions(self_signed, MaybeCritical)],
+    OutLog = os:cmd(Cmd ++ " && echo CREATED"),
+    verify_created(Cmd, OutLog),
     ct:log("generate_self_signed_cert:~nCmd ~p~nOut ~ts", [Cmd, OutLog]),
     #{key => KeyFilename,
       cert => Cert}.
+
+verify_created(Cmd, Output) ->
+    case lists:suffix("CREATED\n", Output) of
+        true ->
+            ok;
+        false ->
+            ct:fail({failed_to_create_certificate, Cmd, Output})
+    end.
+
+extensions(ca_signed, false) ->
+    [];
+extensions(ca_signed, true) ->
+    " -extensions critical_extensions";
+extensions(self_signed, false) ->
+    " -extensions client_req_extensions";
+extensions(self_signed, true) ->
+    " -extensions self_signed_critical_extensions".

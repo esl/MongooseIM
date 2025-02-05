@@ -10,14 +10,6 @@ Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.htm
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
-### `modules.mod_disco.extra_domains`
-* **Syntax:** array of strings, valid domain names
-* **Default:** no extra domains
-* **Example:** `extra_domains = ["custom_domain"]`
-
-Adds domains that are not registered with other means to a local item announcement (response to `http://jabber.org/protocol/disco#items` IQ get).
-Please note that `mod_disco` doesn't verify these domains, so if no handlers are registered later for them, a client will receive a `service-unavailable` error for every stanza sent to one of these hosts.
-
 ### `modules.mod_disco.server_info`
 * **Syntax:** array of tables described below
 * **Default:** no additional server info
@@ -50,7 +42,6 @@ will still receive full disco results.
 ```toml
 [modules.mod_disco]
   iqdisc.type = "one_queue"
-  extra_domains = ["some_domain", "another_domain"]
   server_info = [
     {name = "abuse-address", urls = ["admin@example.com"]},
     {name = "friendly-spirits", urls = ["spirit1@localhost", "spirit2@localhost"], modules = ["mod_muc", "mod_disco"]}
