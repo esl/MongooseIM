@@ -21,7 +21,9 @@
 -export([
          disco_test/1,
          disco_sm_test/1,
+         disco_sm_node_test/1,
          disco_sm_items_test/1,
+         disco_sm_items_node_test/1,
          pep_caps_test/1,
          publish_and_notify_test/1,
          auto_create_with_publish_options_test/1,
@@ -68,7 +70,9 @@ groups() ->
           [
            disco_test,
            disco_sm_test,
+           disco_sm_node_test,
            disco_sm_items_test,
+           disco_sm_items_node_test,
            pep_caps_test,
            publish_and_notify_test,
            auto_create_with_publish_options_test,
@@ -148,20 +152,39 @@ disco_test(Config) ->
       end).
 
 disco_sm_test(Config) ->
+    disco_sm_test(Config, undefined).
+
+disco_sm_node_test(Config) ->
+    disco_sm_test(Config, random_node_ns()).
+
+disco_sm_test(Config, Node) ->
     escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
-              AliceJid = escalus_client:short_jid(Alice),
-              escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
-              Stanza = escalus:wait_for_stanza(Alice),
-              ?assertNot(escalus_pred:has_identity(<<"pubsub">>, <<"service">>, Stanza)),
-              escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
-              escalus:assert(has_feature, [?NS_PUBSUB], Stanza),
-              escalus:assert(is_stanza_from, [AliceJid], Stanza)
-      end).
+        Config,
+        [{alice, 1}],
+        fun(Alice) ->
+            AliceJid = escalus_client:short_jid(Alice),
+            Disco =
+                case Node of
+                    undefined ->
+                        escalus_stanza:disco_info(AliceJid);
+                    _ ->
+                        escalus_stanza:disco_info(AliceJid, Node)
+                end,
+            escalus:send(Alice, Disco),
+            Stanza = escalus:wait_for_stanza(Alice),
+            ?assertNot(escalus_pred:has_identity(<<"pubsub">>, <<"service">>, Stanza)),
+            escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
+            escalus:assert(has_feature, [?NS_PUBSUB], Stanza),
+            escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
 
 disco_sm_items_test(Config) ->
+    disco_sm_items_test(Config, false).
+
+disco_sm_items_node_test(Config) ->
+    disco_sm_items_test(Config, true).
+
+disco_sm_items_test(Config, UseNode) ->
     NodeNS = random_node_ns(),
     escalus:fresh_story(
       Config,
@@ -170,7 +193,11 @@ disco_sm_items_test(Config) ->
               AliceJid = escalus_client:short_jid(Alice),
 
               %% Node not present yet
-              escalus:send(Alice, escalus_stanza:disco_items(AliceJid)),
+              DiscoStanza = case UseNode of
+                                true -> escalus_stanza:disco_items(AliceJid, NodeNS);
+                                false -> escalus_stanza:disco_items(AliceJid)
+                            end,
+              escalus:send(Alice, DiscoStanza),
               Stanza1 = escalus:wait_for_stanza(Alice),
               Query1 = exml_query:subelement(Stanza1, <<"query">>),
               ?assertEqual(undefined, exml_query:subelement_with_attr(Query1, <<"node">>, NodeNS)),
@@ -180,7 +207,7 @@ disco_sm_items_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
 
               %% Node present
-              escalus:send(Alice, escalus_stanza:disco_items(AliceJid)),
+              escalus:send(Alice, DiscoStanza),
               Stanza2 = escalus:wait_for_stanza(Alice),
               Query2 = exml_query:subelement(Stanza2, <<"query">>),
               Item = exml_query:subelement_with_attr(Query2, <<"node">>, NodeNS),
