@@ -407,7 +407,7 @@ stanza_error(Code, Type, Condition) ->
                   , Lang :: ejabberd:lang()
                   , Text :: binary()) -> exml:element().
 stanza_errort(Code, Type, Condition, Lang, Text) ->
-  Txt = translate:translate(Lang, Text),
+  Txt = service_translations:do(Lang, Text),
   #xmlel{ name = <<"error">>
        , attrs = #{<<"code">> => Code, <<"type">> => Type}
        , children = [ #xmlel{ name = Condition
@@ -432,7 +432,7 @@ stream_error(Condition) ->
                   , Lang :: ejabberd:lang()
                   , Text :: binary()) -> exml:element().
 stream_errort(Condition, Lang, Text) ->
-  Txt = translate:translate(Lang, Text),
+  Txt = service_translations:do(Lang, Text),
   #xmlel{ name = <<"stream:error">>
        , children = [ #xmlel{ name = Condition
                             , attrs = #{<<"xmlns">> => ?NS_STREAMS} }

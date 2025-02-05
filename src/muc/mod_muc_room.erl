@@ -1078,7 +1078,7 @@ process_presence_error(From, Packet, Lang, StateData) ->
         true ->
             ErrorText
             = <<"This participant is kicked from the room because he sent an error presence">>,
-            expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText));
+            expulse_participant(Packet, From, StateData, service_translations:do(Lang, ErrorText));
         _ ->
             StateData
     end.
@@ -2862,8 +2862,8 @@ get_affected_jid(Item, Lang, StateData) ->
         {S, _} when undefined =/= S ->
             case jid:from_binary(S) of
                 error ->
-                    ErrText = <<(translate:translate(Lang, <<"Jabber ID ">>))/binary,
-                                S/binary, (translate:translate(Lang, <<" is invalid">>))/binary>>,
+                    ErrText = <<(service_translations:do(Lang, <<"Jabber ID ">>))/binary,
+                                S/binary, (service_translations:do(Lang, <<" is invalid">>))/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 J ->
                     {value, J}
@@ -2872,8 +2872,8 @@ get_affected_jid(Item, Lang, StateData) ->
             case find_jids_by_nick(N, StateData) of
                 [] ->
                     ErrText
-                    = <<(translate:translate(Lang, <<"Nickname ">>))/binary, N/binary,
-                        (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
+                    = <<(service_translations:do(Lang, <<"Nickname ">>))/binary, N/binary,
+                        (service_translations:do(Lang, <<" does not exist in the room">>))/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 [FirstSessionJid | _RestOfSessions] ->
                     {value, FirstSessionJid}
@@ -2945,7 +2945,7 @@ which_property_changed(Item, Lang) ->
         {undefined, BAffiliation} ->
             case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
-                    ErrText1 = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
+                    ErrText1 = <<(service_translations:do(Lang, <<"Invalid affiliation ">>))/binary,
                                  BAffiliation/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText1)};
                 Affiliation ->
@@ -2954,7 +2954,7 @@ which_property_changed(Item, Lang) ->
         {BRole, _} ->
             case catch binary_to_role(BRole) of
                 {'EXIT', _} ->
-                    ErrText1 = <<(translate:translate(Lang, <<"Invalid role ">>))/binary,
+                    ErrText1 = <<(service_translations:do(Lang, <<"Invalid role ">>))/binary,
                                  BRole/binary>>,
                     {error, mongoose_xmpp_errors:bad_request(Lang, ErrText1)};
                 Role ->
@@ -3178,7 +3178,7 @@ process_authorized_iq_owner(From, get, Lang, SubEl, StateData, _StateName) ->
         BAffiliation ->
             case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
-                    InvAffT = translate:translate(Lang, <<"Invalid affiliation ">>),
+                    InvAffT = service_translations:do(Lang, <<"Invalid affiliation ">>),
                     ErrText = <<InvAffT/binary, BAffiliation/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 Affiliation ->
@@ -3294,7 +3294,7 @@ get_default_room_maxusers(RoomState) ->
 get_config(Lang, StateData, From) ->
     AccessPersistent = access_persistent(StateData),
     Config = StateData#state.config,
-    TitleTxt = translate:translate(Lang, <<"Configuration of room ">>),
+    TitleTxt = service_translations:do(Lang, <<"Configuration of room ">>),
     Title = <<TitleTxt/binary, (jid:to_binary(StateData#state.jid))/binary>>,
     Fields =
     [stringxfield(<<"Room title">>,
@@ -3370,7 +3370,7 @@ get_config(Lang, StateData, From) ->
                 Config#config.logging, Lang)];
          _ -> []
      end,
-    InstructionsTxt = translate:translate(
+    InstructionsTxt = service_translations:do(
                         Lang, <<"You need an x:data capable client to configure room">>),
     {result, [#xmlel{name = <<"instructions">>, children = [#xmlcdata{content = InstructionsTxt}]},
               mongoose_data_forms:form(#{title => Title, ns => ?NS_MUC_CONFIG, fields => Fields})],
@@ -3378,10 +3378,10 @@ get_config(Lang, StateData, From) ->
 
 -spec getmemberlist_field(Lang :: ejabberd:lang()) -> mongoose_data_forms:field().
 getmemberlist_field(Lang) ->
-    LabelTxt = translate:translate(
+    LabelTxt = service_translations:do(
                  Lang, <<"Roles and affiliations that may retrieve member list">>),
     Values = [<<"moderator">>, <<"participant">>, <<"visitor">>],
-    Options = [{translate:translate(Lang, Opt), Opt} || Opt <- Values],
+    Options = [{service_translations:do(Lang, Opt), Opt} || Opt <- Values],
     #{type => <<"list-multi">>, label => LabelTxt,
       var => <<"muc#roomconfig_getmemberlist">>, values => Values, options => Options}.
 
@@ -3394,10 +3394,10 @@ maxusers_field(Lang, StateData) ->
             {N, integer_to_binary(N)};
         _ -> {0, <<"none">>}
     end,
-    LabelTxt = translate:translate(Lang, <<"Maximum Number of Occupants">>),
+    LabelTxt = service_translations:do(Lang, <<"Maximum Number of Occupants">>),
     Options = if
                   is_integer(ServiceMaxUsers) -> [];
-                  true -> {translate:translate(Lang, <<"No limit">>), <<"none">>}
+                  true -> {service_translations:do(Lang, <<"No limit">>), <<"none">>}
               end ++
         [integer_to_binary(N) ||
             N <- lists:usort([ServiceMaxUsers, DefaultRoomMaxUsers, MaxUsersRoomInteger |
@@ -3410,9 +3410,9 @@ whois_field(Lang, Config) ->
     Value = if Config#config.anonymous -> <<"moderators">>;
                true -> <<"anyone">>
             end,
-    Options = [{translate:translate(Lang, <<"moderators only">>), <<"moderators">>},
-               {translate:translate(Lang, <<"anyone">>), <<"anyone">>}],
-    #{type => <<"list-single">>, label => translate:translate(Lang, <<"moderators only">>),
+    Options = [{service_translations:do(Lang, <<"moderators only">>), <<"moderators">>},
+               {service_translations:do(Lang, <<"anyone">>), <<"anyone">>}],
+    #{type => <<"list-single">>, label => service_translations:do(Lang, <<"moderators only">>),
       var => <<"muc#roomconfig_whois">>, values => [Value], options => Options}.
 
 -spec set_config([{binary(), [binary()]}], state()) -> any().
@@ -3792,7 +3792,7 @@ iq_disco_info_extras(Lang, StateData) ->
 
 -spec info_field(binary(), binary(), binary(), ejabberd:lang()) -> mongoose_disco:info_field().
 info_field(Label, Var, Value, Lang) ->
-    #{label => translate:translate(Lang, Label), var => Var, values => [Value]}.
+    #{label => service_translations:do(Lang, Label), var => Var, values => [Value]}.
 
 -spec process_iq_disco_items(jid:jid(), 'get' | 'set', ejabberd:lang(),
                             state()) -> {'error', exml:element()}
@@ -3845,7 +3845,7 @@ get_roomdesc_tail(StateData, Lang) ->
                true ->
                    <<>>;
                _ ->
-                   translate:translate(Lang, <<"private, ">>)
+                   service_translations:do(Lang, <<"private, ">>)
            end,
     Count = count_users(StateData),
     CountBin = integer_to_binary(Count),
@@ -4026,11 +4026,11 @@ invite_body_text(FromJID, Reason, Lang,
                 password=Password}}) ->
     BFromJID = jid:to_binary(FromJID),
     BRoomJID = jid:to_binary(RoomJID),
-    ITranslate = translate:translate(Lang, <<" invites you to the room ">>),
+    ITranslate = service_translations:do(Lang, <<" invites you to the room ">>),
     IMessage = <<BFromJID/binary, ITranslate/binary, BRoomJID/binary>>,
     BPassword = case IsProtected of
         true ->
-            PTranslate = translate:translate(Lang, <<"the password is">>),
+            PTranslate = service_translations:do(Lang, <<"the password is">>),
             <<", ", PTranslate/binary, " '", Password/binary, "'">>;
         _ ->
             <<>>
@@ -4232,7 +4232,7 @@ route_message(#routed_message{allowed = true, type = <<"error">>, from = From,
         true ->
             ErrorText
             = <<"This participant is kicked from the room because he sent an error message">>,
-            expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText));
+            expulse_participant(Packet, From, StateData, service_translations:do(Lang, ErrorText));
         _ ->
             StateData
     end;
@@ -4433,7 +4433,7 @@ route_nick_message(#routed_nick_message{decide = {expulse_sender, _Reason},
                   "sent an error message to another participant">>,
     ?LOG_DEBUG(ls(#{what => muc_expulse_sender, text => ErrorText,
                     user => From#jid.luser, exml_packet => Packet}, StateData)),
-    expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText));
+    expulse_participant(Packet, From, StateData, service_translations:do(Lang, ErrorText));
 route_nick_message(#routed_nick_message{decide = forget_message}, StateData) ->
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
@@ -4537,7 +4537,7 @@ make_voice_approval_form(From, Nick, Role) ->
 
 -spec xfield(binary(), any(), binary(), binary(), ejabberd:lang()) -> mongoose_data_forms:field().
 xfield(Type, Label, Var, Val, Lang) ->
-    #{type => Type, label => translate:translate(Lang, Label), var => Var, values => [Val]}.
+    #{type => Type, label => service_translations:do(Lang, Label), var => Var, values => [Val]}.
 
 -spec boolxfield(any(), binary(), any(), ejabberd:lang()) -> mongoose_data_forms:field().
 boolxfield(Label, Var, Val, Lang) ->
@@ -4584,7 +4584,7 @@ maybe_add_x_element(#xmlel{children = Children} = Msg) ->
 kick_stanza_for_old_protocol(Packet) ->
     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
     ErrText = <<"You are not in the room.">>,
-    ErrText2 = translate:translate(Lang, ErrText),
+    ErrText2 = service_translations:do(Lang, ErrText),
     Response = #xmlel{name = <<"presence">>, attrs = #{<<"type">> => <<"unavailable">>}},
     ItemAttrs = #{<<"affiliation">> => <<"none">>, <<"role">> => <<"none">>},
     ItemEls = [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = ErrText2}]}],

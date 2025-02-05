@@ -627,7 +627,7 @@ identities(Host, Lang) ->
 pubsub_identity(Lang) ->
     [#{category => <<"pubsub">>,
        type => <<"service">>,
-       name => translate:translate(Lang, <<"Publish-Subscribe">>)}].
+       name => service_translations:do(Lang, <<"Publish-Subscribe">>)}].
 
 -spec node_identity(jid:lserver(), binary()) -> [mongoose_disco:identity()].
 node_identity(Host, Type) ->
@@ -1228,7 +1228,7 @@ iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang
     end.
 
 iq_get_vcard(Lang) ->
-    Desc = <<(translate:translate(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
+    Desc = <<(service_translations:do(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
              "\nCopyright (c) 2004-2015 ProcessOne">>,
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_pubsub">>}]},
@@ -1654,20 +1654,20 @@ get_node_subscriptions_transaction(Owner, #pubsub_node{id = Nidx, type = Type}) 
 send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
                            Subscriber) ->
     Lang = <<"en">>,
-    Title = translate:translate(Lang, <<"PubSub subscriber request">>),
-    Instructions = translate:translate(Lang, <<"Choose whether to approve this entity's "
+    Title = service_translations:do(Lang, <<"PubSub subscriber request">>),
+    Instructions = service_translations:do(Lang, <<"Choose whether to approve this entity's "
                                                "subscription.">>),
     Fields = [#{var => <<"pubsub#node">>,
                 type => <<"text-single">>,
-                label => translate:translate(Lang, <<"Node ID">>),
+                label => service_translations:do(Lang, <<"Node ID">>),
                 values => [Node]},
               #{var => <<"pubsub#subscriber_jid">>,
                 type => <<"jid-single">>,
-                label => translate:translate(Lang, <<"Subscriber Address">>),
+                label => service_translations:do(Lang, <<"Subscriber Address">>),
                 values => [jid:to_binary(Subscriber)]},
               #{var => <<"pubsub#allow">>,
                 type => <<"boolean">>,
-                label => translate:translate(Lang, <<"Allow this Jabber ID to subscribe to "
+                label => service_translations:do(Lang, <<"Allow this Jabber ID to subscribe to "
                                                      "this pubsub node?">>),
                 values => [<<"false">>]}],
     Form = mongoose_data_forms:form(#{title => Title, instructions => Instructions,
@@ -1769,7 +1769,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(XFIELD(Type, Label, Var, Val),
         #{type => Type,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           values => [Val]}).
 
@@ -1785,13 +1785,13 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(STRINGMXFIELD(Label, Var, Vals),
         #{type => <<"text-multi">>,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           values => Vals}).
 
 -define(XFIELDOPT(Type, Label, Var, Val, Opts),
         #{type => Type,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           options => Opts,
           values => [Val]}).
@@ -1801,7 +1801,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(LISTMXFIELD(Label, Var, Vals, Opts),
         #{type => <<"list-multi">>,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           options => Opts,
           values => Vals}).

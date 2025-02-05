@@ -23,45 +23,63 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(translate).
+-module(service_translations).
 -author('alexey@process-one.net').
 
--export([start/0,
-         translate/2]).
+-behaviour(mongoose_service).
+-behaviour(mongoose_module_metrics).
+
+-export([start/1, stop/0, config_spec/0]).
+-export([do/2]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
--define(MSGS_DIR,    "msgs").
+-define(TABLE, translations).
 
-%%
-%% Public
-%%
+-spec start(mongoose_service:options()) -> ok.
+start(_) ->
+    ets:new(?TABLE, [named_table, public, set, {read_concurrency, true}]),
+    ok = load_translations_from_dir(lang_files_directory()).
 
--spec start() -> 'ok'.
-start() ->
-    ets:new(translations, [named_table, public]),
-    ok = load_translations_from_dir(lang_files_directory()),
-    ok.
+-spec stop() -> any().
+stop() ->
+    ets:delete(?TABLE).
 
--spec translate(ejabberd:lang(), binary()) -> binary().
-translate(Lang, Msg) ->
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{}.
+
+-spec do(ejabberd:lang(), binary()) -> binary().
+do(<<"en">>, Msg) ->
+    Msg; %% Exit early, in most cases no translation is required
+do(Lang, Msg) ->
+    case mongoose_service:is_loaded(?MODULE) of
+        false ->
+            Msg;
+        true ->
+            do_(Lang, Msg)
+    end.
+
+%% Private
+
+-spec do_(ejabberd:lang(), binary()) -> binary().
+do_(Lang, Msg) ->
     LLang = to_lower(Lang),
     case get_translation(LLang, Msg) of
         {ok, Trans} -> Trans;
         {error, not_found} -> get_default_server_lang_translation(Msg)
     end.
 
-%%
-%% Private
-%%
-
--spec lang_files_directory() ->  file:filename().
+-spec lang_files_directory() -> file:filename().
 lang_files_directory() ->
     case os:getenv("EJABBERD_MSGS_PATH") of
         false ->
             case code:priv_dir(mongooseim) of
-                {error, _} -> ?MSGS_DIR;
-                Path -> Path
+                {error, _} ->
+                    exit(<<"No directory with message translations available">>);
+                Path ->
+                    Path ++ "/translations"
             end;
         Path -> Path
     end.
@@ -93,7 +111,7 @@ lang_from_file_name(Filename) ->
 has_msg_extension(FileName) ->
     filename:extension(FileName) == ".msg".
 
--spec load_file(string(), file:name()) -> 'ok'.
+-spec load_file(string(), file:name()) -> ok.
 load_file(Lang, File) ->
     BLang = list_to_binary(Lang),
     case file:consult(File) of
@@ -112,10 +130,10 @@ load_file(Lang, File) ->
     end.
 
 -spec insert_translation(ejabberd:lang(), binary(), binary()) -> true.
-insert_translation(Lang, Msg, <<"">>) ->
+insert_translation(Lang, Msg, <<>>) ->
     insert_translation(Lang, Msg, Msg); %% use key if it is not defined
 insert_translation(Lang, Msg, Trans) ->
-    ets:insert(translations, {{Lang, Msg}, Trans}).
+    ets:insert(?TABLE, {{Lang, Msg}, Trans}).
 
 -spec get_default_server_lang_translation(binary()) ->  binary().
 get_default_server_lang_translation(Msg) ->
@@ -137,9 +155,9 @@ get_translation(LLang, Msg) ->
 read_trans(<<"en">>, Msg) ->
     {ok, Msg};
 read_trans(LLang, Msg) ->
-    case ets:lookup(translations, {LLang, Msg}) of
-        [{_, Trans}] -> {ok, Trans};
-        _ -> {error, not_found}
+    case ets:lookup_element(?TABLE, {LLang, Msg}, 2, {error, not_found}) of
+        {error, not_found} -> {error, not_found};
+        Trans when is_binary(Trans) -> {ok, Trans}
     end.
 
 -spec short_lang(ejabberd:lang()) -> ejabberd:lang().
