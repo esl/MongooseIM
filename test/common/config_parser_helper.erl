@@ -154,8 +154,8 @@ options("mongooseim-pgsql") ->
                 access => c2s,
                 shaper => c2s_shaper,
                 max_stanza_size => 65536,
-                tls => #{certfile => "priv/dc1.pem",
-                         dhfile => "priv/dh.pem",
+                tls => #{certfile => "priv/cert.pem",
+                         keyfile => "priv/dc1.pem",
                          cacertfile => "priv/ca.pem"}
                }),
        config([listen, c2s],

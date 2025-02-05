@@ -125,6 +125,16 @@ Password to the X509 PEM file with the private key.
 * **Default:** `true`
 * **Example:** `tls.disconnect_on_failure = false`
 
+This option specifies what happens when client certificate is verified during TLS handshake.
+It therefore only applies when client certificate verification is enabled, that is `tls.verify_mode` is set to `"peer"` or `"selfsigned_peer"`.
+
+When set to `true`, client verification is performed during TLS handshake and in case of error the connection is aborted.
+Additionally empty client certificate is treated as an error.
+
+When set to `false`, TLS handshake will succeed even if there were errors in client certificate verification.
+This allows to use other methods of authentication (like SASL) later as part of XMPP stream.
+The above behaviour is the same as default `fast_tls` behaviour (not aborting TLS connection on verification errors).
+
 ### `listen.c2s.tls.versions`
 * **Syntax:** array of strings
 * **Default:** not set, all supported versions are accepted
