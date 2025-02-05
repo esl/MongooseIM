@@ -821,15 +821,28 @@ s2s() ->
                                             format_items = map},
                  <<"shared">> => #option{type = binary,
                                          validate = non_empty},
+                 <<"shaper">> => #option{type = atom,
+                                         validate = non_empty},
+                 <<"state_timeout">> => #option{type = int_or_infinity,
+                                                validate = non_negative},
+                 <<"stream_timeout">> => #option{type = int_or_infinity,
+                                                 validate = non_negative},
                  <<"address">> => #list{items = s2s_address(),
                                         format_items = map},
                  <<"max_retry_delay">> => #option{type = integer,
                                                   validate = positive},
+                 <<"max_stanza_size">> => #option{type = int_or_infinity,
+                                                  validate = positive,
+                                                  process = fun ?MODULE:process_infinity_as_zero/1},
                  <<"outgoing">> => s2s_outgoing(),
                  <<"dns">> => s2s_dns(),
                  <<"tls">> => tls([client, xmpp])},
        defaults = #{<<"default_policy">> => allow,
-                    <<"max_retry_delay">> => 300},
+                    <<"shaper">> => none,
+                    <<"max_stanza_size">> => 0,
+                    <<"max_retry_delay">> => 300,
+                    <<"state_timeout">> => timer:seconds(5),
+                    <<"stream_timeout">> => timer:minutes(10)},
        wrap = host_config
       }.
 
@@ -859,7 +872,7 @@ s2s_outgoing() ->
                 },
        include = always,
        defaults = #{<<"port">> => 5269,
-                    <<"ip_versions">> => [4, 6],
+                    <<"ip_versions">> => [4, 6], %% NOTE: we still prefer IPv4 first
                     <<"connection_timeout">> => 10000}
       }.
 
@@ -883,10 +896,12 @@ s2s_address() ->
                  <<"ip_address">> => #option{type = string,
                                              validate = ip_address},
                  <<"port">> => #option{type = integer,
-                                       validate = port}
+                                       validate = port},
+                 <<"tls">> => #option{type = boolean}
                 },
        required = [<<"host">>, <<"ip_address">>],
-       process = fun ?MODULE:process_s2s_address/1
+       process = fun ?MODULE:process_s2s_address/1,
+       defaults = #{<<"tls">> => false}
       }.
 
 %% Callbacks for 'process'
@@ -1047,8 +1062,13 @@ process_acl_condition(Value) ->
 process_s2s_host_policy(#{host := S2SHost, policy := Policy}) ->
     {S2SHost, Policy}.
 
-process_s2s_address(M) ->
-    maps:take(host, M).
+process_s2s_address(#{ip_address := IPAddress} = M0) ->
+    {ok, IPTuple} = inet:parse_address(IPAddress),
+    M1 = M0#{ip_tuple => IPTuple, ip_version => ip_version(IPTuple)},
+    maps:take(host, M1).
+
+ip_version(T) when tuple_size(T) =:= 4 -> inet;
+ip_version(T) when tuple_size(T) =:= 8 -> inet6.
 
 process_infinity_as_zero(infinity) -> 0;
 process_infinity_as_zero(Num) -> Num.

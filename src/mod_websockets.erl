@@ -23,7 +23,7 @@
 %% mongoose_xmpp_socket callbacks
 -export([new/3,
          peername/1,
-         tcp_to_tls/2,
+         tcp_to_tls/3,
          handle_data/2,
          activate/1,
          close/1,
@@ -376,9 +376,9 @@ new(Socket, _, _LOpts) ->
 peername(#websocket{peername = PeerName}) ->
     PeerName.
 
--spec tcp_to_tls(socket(), mongoose_listener:options()) ->
+-spec tcp_to_tls(socket(), mongoose_listener:options(), mongoose_xmpp_socket:side()) ->
   {ok, socket()} | {error, term()}.
-tcp_to_tls(_Socket, _LOpts) ->
+tcp_to_tls(_Socket, _LOpts, _Mode) ->
     {error, tls_not_allowed_on_websockets}.
 
 -spec handle_data(socket(), {tcp | ssl, term(), term()}) ->

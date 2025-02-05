@@ -744,26 +744,44 @@ default_auth() ->
 
 pgsql_s2s() ->
     Outgoing = (default_s2s_outgoing())#{port => 5299},
-    (default_s2s())#{address => #{<<"fed1">> => #{ip_address => "127.0.0.1"}},
+    (default_s2s())#{address => #{<<"fed1">> => #{ip_address => "127.0.0.1",
+                                                  ip_tuple => {127, 0, 0, 1},
+                                                  ip_version => inet,
+                                                  tls => false}},
                      outgoing => Outgoing}.
 
 custom_s2s() ->
     Tls0 = #{cacertfile => "priv/ca.pem", server_name_indication => default_sni()},
     Tls = maps:merge(default_xmpp_tls(), Tls0),
     #{address =>
-          #{<<"fed1">> => #{ip_address => "127.0.0.1"},
-            <<"fed2">> => #{ip_address => "127.0.0.1", port => 8765}},
+          #{<<"fed1">> => #{ip_address => "127.0.0.1",
+                            ip_tuple => {127, 0, 0, 1},
+                            ip_version => inet,
+                            tls => false},
+            <<"fed2">> => #{ip_address => "127.0.0.1",
+                            ip_tuple => {127, 0, 0, 1},
+                            ip_version => inet,
+                            port => 8765,
+                            tls => false}},
       tls => Tls,
       default_policy => allow,
       dns => #{retries => 1, timeout => 30},
       host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
+      shaper => none,
+      max_stanza_size => 0,
       max_retry_delay => 30,
+      state_timeout => timer:seconds(5),
+      stream_timeout => timer:minutes(10),
       outgoing => #{connection_timeout => 4000, ip_versions => [6, 4], port => 5299},
       shared => <<"shared secret">>}.
 
 default_s2s() ->
     #{default_policy => allow,
+      shaper => none,
+      max_stanza_size => 0,
       max_retry_delay => 300,
+      state_timeout => timer:seconds(5),
+      stream_timeout => timer:minutes(10),
       outgoing => default_s2s_outgoing(),
       dns => #{retries => 2, timeout => 10}
      }.

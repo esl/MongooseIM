@@ -6,7 +6,6 @@
 %% (it depends on the hook handlers).
 -module(mongoose_s2s_lib).
 -export([make_from_to/2,
-         timeout/0,
          domain_utf8_to_ascii/1,
          check_shared_secret/2,
          choose_pid/2,
@@ -27,17 +26,22 @@
 make_from_to(#jid{lserver = FromServer}, #jid{lserver = ToServer}) ->
     {FromServer, ToServer}.
 
-timeout() ->
-    600000.
-
 %% Converts a UTF-8 domain to ASCII (IDNA)
--spec domain_utf8_to_ascii(jid:server()) -> jid:server() | false.
-domain_utf8_to_ascii(Domain) ->
+-spec domain_utf8_to_ascii(jid:lserver()) -> jid:lserver() | false;
+                          (string()) -> string() | false.
+domain_utf8_to_ascii(Domain) when is_binary(Domain) ->
     case catch idna:utf8_to_ascii(Domain) of
         {'EXIT', _} ->
             false;
         AsciiDomain ->
             list_to_binary(AsciiDomain)
+    end;
+domain_utf8_to_ascii(Domain) when is_list(Domain) ->
+    case catch idna:utf8_to_ascii(Domain) of
+        {'EXIT', _} ->
+            false;
+        AsciiDomain ->
+            AsciiDomain
     end.
 
 -spec check_shared_secret(HostType, StoredSecretResult) -> ok | {update, NewSecret} when
