@@ -42,8 +42,7 @@
 -export([node_cleanup/3]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -ignore_xref([start_link/0]).
 
@@ -70,9 +69,9 @@
 %% API functions
 
 %% Starts the server
--spec start_link() -> ignore | {error, _} | {ok, pid()}.
+-spec start_link() -> gen_server:start_ret().
 start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, noargs, [{hibernate_after, 0}]).
 
 filter(From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
@@ -112,7 +111,7 @@ node_cleanup(Acc, #{node := Node}, _) ->
 
 %% gen_server callbacks
 
-init([]) ->
+init(noargs) ->
     internal_database_init(),
     set_shared_secret(),
     gen_hook:add_handlers(hooks()),
@@ -133,9 +132,6 @@ handle_info(Msg, State) ->
 terminate(_Reason, _State) ->
     gen_hook:delete_handlers(hooks()),
     ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 %%% Internal functions
 -spec hooks() -> [gen_hook:hook_tuple()].
