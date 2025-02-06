@@ -11,8 +11,6 @@ Only an authenticated user can execute these queries.
 type UserQuery{
   "Check authorization status"
   checkAuth: UserAuthInfo
-  "Account management"
-  account: AccountUserQuery
   "Last activity management"
   last: LastUserQuery
   "MUC room management"
