@@ -61,7 +61,6 @@ do_start() ->
     mongoose_config:start(),
     mongoose_internal_databases:init(),
     mongoose_graphql:init(),
-    translate:start(),
     mongoose_graphql_commands:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),

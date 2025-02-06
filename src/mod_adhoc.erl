@@ -180,7 +180,7 @@ are_commands_visible(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, report_commands_node).
 
 item(LServer, Node, Name, Lang) ->
-    #{jid => LServer, node => Node, name => translate:translate(Lang, Name)}.
+    #{jid => LServer, node => Node, name => service_translations:do(Lang, Name)}.
 
 %%-------------------------------------------------------------------------
 
@@ -211,12 +211,12 @@ disco_sm_identity(Acc, _, _) ->
 ping_identity(Lang) ->
     #{category => <<"automation">>,
       type => <<"command-node">>,
-      name => translate:translate(Lang, <<"Ping">>)}.
+      name => service_translations:do(Lang, <<"Ping">>)}.
 
 command_list_identity(Lang) ->
     #{category => <<"automation">>,
       type => <<"command-list">>,
-      name => translate:translate(Lang, <<"Commands">>)}.
+      name => service_translations:do(Lang, <<"Commands">>)}.
 
 %%-------------------------------------------------------------------------
 
@@ -266,7 +266,7 @@ ping_command(empty,
                               node = Node,
                               session_id = SessionID,
                               status = completed,
-                              notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
+                              notes = [{<<"info">>, service_translations:do(Lang, <<"Pong">>)}]});
         false ->
             {error, mongoose_xmpp_errors:bad_request()}
     end,

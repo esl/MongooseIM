@@ -54,7 +54,7 @@
 -include("mod_muc_room.hrl").
 -include("mongoose_config_spec.hrl").
 
--define(T(Text), translate:translate(Lang, Text)).
+-define(T(Text), service_translations:do(Lang, Text)).
 -define(PROCNAME, ejabberd_mod_muc_log).
 
 -record(room, {jid, title, subject, subject_author, config}).

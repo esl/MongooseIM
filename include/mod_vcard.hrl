@@ -16,7 +16,7 @@
 -export_type([vcard_search/0]).
 
 -define(TLFIELD(Type, Label, Var),
-        #{var => Var, type => Type, label => translate:translate(Lang, Label)}).
+        #{var => Var, type => Type, label => service_translations:do(Lang, Label)}).
 
 -define(FIELD(Var, Val),
         #{var => Var, values => [Val]}).

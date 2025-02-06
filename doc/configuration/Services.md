@@ -93,6 +93,11 @@ The number of seconds between cleaning attempts of the `domain_events` table.
 
 The number of seconds after an event must be deleted from the `domain_events` table.
 
+## service_translations
+
+Enables translations for system messages.
+Support is minimal, you can check `priv/translations/` for translated messages.
+
 ## Example configuration
 
 ```toml
