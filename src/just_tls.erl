@@ -29,7 +29,9 @@
                      keyfile => string(),
                      password => string(),
                      versions => [atom()],
-                     server_name_indication => sni_options() % client-only
+                     server_name_indication => sni_options(), % client-only
+                     early_data => boolean(),
+                     session_tickets => stateless
                     }.
 
 -type sni_options() :: #{enabled := boolean,
@@ -115,7 +117,6 @@ make_client_opts(Opts) ->
 %% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
 -spec make_server_opts(options()) -> [ssl:tls_option()].
 make_server_opts(Opts) ->
-    [{session_tickets, stateless}, {early_data, enabled}] ++
     format_opts(Opts, server).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -127,9 +128,11 @@ format_opts(Opts, ClientOrServer) ->
     SslOpts1 = verify_mode_opt(SslOpts0, Opts),
     SslOpts2 = verify_fun_opt(SslOpts1, Opts),
     SslOpts3 = hibernate_opt(SslOpts2, Opts),
+    SslOpts4 = session_tickets_opt(ClientOrServer, SslOpts3, Opts),
+    SslOpts5 = early_data_opt(ClientOrServer, SslOpts4, Opts),
     case ClientOrServer of
-        client -> sni_opts(SslOpts3, Opts);
-        server -> fail_if_no_peer_cert_opt(SslOpts3, Opts)
+        client -> sni_opts(SslOpts5, Opts);
+        server ->fail_if_no_peer_cert_opt(SslOpts5, Opts)
     end.
 
 ssl_option_keys() ->
@@ -232,3 +235,14 @@ receive_verify_results(Acc) ->
 error_to_list(_Error) ->
     %TODO: implement later if needed
     "verify_fun_callback failed".
+
+session_tickets_opt(server, SslOpts, Opts = #{session_tickets := ST})
+        when ST =:= stateless ->
+    [{session_tickets, ST} | SslOpts];
+session_tickets_opt(_ClientOrServer, SslOpts, _Opts) ->
+    SslOpts.
+
+early_data_opt(server, SslOpts, #{early_data := true}) ->
+    [{early_data, enabled} | SslOpts];
+early_data_opt(_ClientOrServer, SslOpts, _Opts) ->
+    SslOpts.

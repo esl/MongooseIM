@@ -139,6 +139,24 @@ TLS versions to use with StartTLS or TLS. For allowed values, see the [Erlang/OT
 
 Specifies the paths to Certificate Revocation Lists.
 
+### `listen.c2s.tls.early_data`
+* **Syntax:** boolean
+* **Default:** false
+* **Example:** `tls.early_data = true`
+
+Enables `early_data', or 0-RTT, used with [mod_fast_auth_token](../modules/mod_fast_auth_token.md) module.
+Use this with Direct TLS (i.e. port 5223).
+
+### `listen.c2s.tls.session_tickets`
+* **Syntax:** atom
+* **Default:** not set
+* **Example:** `tls.session_tickets = "stateless"`
+
+Enables TLS [Session Tickets](https://www.erlang.org/docs/26/apps/ssl/using_ssl#session-tickets-and-session-resumption-in-tls-1.3)
+which could be used for faster TLS connection, skipping one roundtrip when connecting.
+
+Would need support on the client too.
+
 ## C2S listener configuration example
 
 The following section configures two C2S listeners.

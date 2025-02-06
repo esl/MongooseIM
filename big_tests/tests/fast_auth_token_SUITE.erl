@@ -104,7 +104,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(early_data, Config) ->
-    enable_session_tickets([{early_data, true}|Config]);
+    enable_session_tickets([{early_data, true}|configure_tls_listener(Config)]);
 init_per_group(Group, Config) ->
     case lists:keyfind(Group, 1, mechanisms()) of
         {Group, Mech} when is_binary(Mech) ->
@@ -113,6 +113,8 @@ init_per_group(Group, Config) ->
             Config
     end.
 
+end_per_group(early_data, Config) ->
+    restore_tls_listener(Config);
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -127,6 +129,21 @@ load_modules(Config) ->
     Config1 = dynamic_modules:save_modules(HostType, Config),
     sasl2_helper:load_all_sasl2_modules(HostType),
     Config1.
+
+configure_tls_listener(Config) ->
+    Node = distributed_helper:mim(),
+    C2SPort = ct:get_config({hosts, mim, c2s_tls_port}),
+    Listener = #{port => C2SPort, module => mongoose_c2s_listener},
+    Extra = #{early_data => true, session_tickets => stateless},
+    [C2SListener] = mongoose_helper:get_listeners(Node, Listener),
+    C2SListener2 = add_tls_opts(C2SListener, Extra),
+    ok = mongoose_helper:restart_listener(Node, C2SListener2),
+    [{c2s_listener, C2SListener} | Config].
+
+restore_tls_listener(Config) ->
+    Node = distributed_helper:mim(),
+    C2SListener = proplists:get_value(c2s_listener, Config),
+    mongoose_helper:restart_listener(Node, C2SListener).
 
 %%--------------------------------------------------------------------
 %% tests
@@ -646,3 +663,6 @@ maybe_receive_session_tickets_on_connect(Client, Data = #{spec := Spec}) ->
         false ->
             Data
     end.
+
+add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
+    C2SListener#{tls => maps:merge(TLS, Extra)}.

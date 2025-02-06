@@ -675,7 +675,11 @@ tls(xmpp) ->
             };
 tls(xmpp_tls) ->
     #section{items = #{<<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}},
+                                             validate = {enum, [tls, starttls, starttls_required]}},
+                       <<"early_data">> => #option{type = atom,
+                                                   validate = {enum, [enabled, disabled]}},
+                       <<"session_tickets">> => #option{type = atom,
+                                                        validate = {enum, [stateless]}}},
              defaults = #{<<"mode">> => tls}
             }.
 
