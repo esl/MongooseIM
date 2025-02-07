@@ -10,6 +10,7 @@
 -export([start_link/2, restart_core/1]).
 -ignore_xref([start_link/2, restart_core/1]).
 
+-spec start_link() -> supervisor:startlink_ret().
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
@@ -21,6 +22,7 @@ restart_core(Args) ->
     supervisor:delete_child(?MODULE, mongoose_domain_core),
     supervisor:start_child(?MODULE, worker_spec(mongoose_domain_core, fill_args(Args))).
 
+-spec init(list()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(Args) ->
     DomainCore = worker_spec(mongoose_domain_core, fill_args(Args)),
     SubdomainCore = worker_spec(mongoose_subdomain_core, []),

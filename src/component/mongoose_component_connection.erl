@@ -365,10 +365,8 @@ handle_route(StateData = #component_data{}, _, Acc) ->
     case acl:match_rule(global, Access, From) of
         allow ->
             mongoose_hooks:packet_to_component(Acc, From, To),
-            Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
-                                                jid:to_binary(To),
-                                                Packet#xmlel.attrs),
-            send_xml(StateData, Packet#xmlel{attrs = Attrs2});
+            Packet2 = jlib:replace_from_to(From, To, Packet),
+            send_xml(StateData, Packet2);
         deny ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:not_allowed())
     end,
