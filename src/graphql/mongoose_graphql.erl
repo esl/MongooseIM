@@ -216,7 +216,6 @@ user_mapping_rules() ->
         'UserQuery' => mongoose_graphql_user_query,
         'UserMutation' => mongoose_graphql_user_mutation,
         'UserSubscription' => mongoose_graphql_user_subscription,
-        'AccountUserQuery' => mongoose_graphql_account_user_query,
         'AccountUserMutation' => mongoose_graphql_account_user_mutation,
         'InboxUserMutation' => mongoose_graphql_inbox_user_mutation,
         'MUCUserMutation' => mongoose_graphql_muc_user_mutation,

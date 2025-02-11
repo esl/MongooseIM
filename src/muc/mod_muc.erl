@@ -923,7 +923,7 @@ default_host() ->
 identity(Lang) ->
     #{category => <<"conference">>,
       type => <<"text">>,
-      name => translate:translate(Lang, <<"Chatrooms">>)}.
+      name => service_translations:do(Lang, <<"Chatrooms">>)}.
 
 features() ->
     [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD, ?NS_CONFERENCE].
@@ -1049,15 +1049,15 @@ iq_get_register_info(HostType, MucHost, From, Lang) ->
             {ok, N} ->
                 {N, [#xmlel{name = <<"registered">>}]}
         end,
-    ClientReqText = translate:translate(
+    ClientReqText = service_translations:do(
                       Lang, <<"You need a client that supports x:data to register the nickname">>),
     ClientReqEl = #xmlel{name = <<"instructions">>,
                          children = [#xmlcdata{content = ClientReqText}]},
-    EnterNicknameText = translate:translate(Lang, <<"Enter nickname you want to register">>),
-    TitleText = <<(translate:translate(Lang, <<"Nickname Registration at ">>))/binary,
+    EnterNicknameText = service_translations:do(Lang, <<"Enter nickname you want to register">>),
+    TitleText = <<(service_translations:do(Lang, <<"Nickname Registration at ">>))/binary,
                   MucHost/binary>>,
     NickField = #{type => <<"text-single">>,
-                  label => translate:translate(Lang, <<"Nickname">>),
+                  label => service_translations:do(Lang, <<"Nickname">>),
                   var => <<"nick">>,
                   values => [Nick]},
     Registered ++ [ClientReqEl, mongoose_data_forms:form(#{title => TitleText,
@@ -1136,7 +1136,7 @@ iq_get_vcard(Lang) ->
      #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>,
             children = [#xmlcdata{content =
-                                  <<(translate:translate(Lang, <<"ejabberd MUC module">>))/binary,
+                                  <<(service_translations:do(Lang, <<"ejabberd MUC module">>))/binary,
                                     "\nCopyright (c) 2003-2011 ProcessOne">>}]}].
 
 -spec broadcast_service_message(muc_host(), binary() | string()) -> ok.

@@ -1,11 +1,4 @@
 """
-Allow user to get information about account.
-"""
-type AccountUserQuery @protected{
-  field: Boolean
-}
-
-"""
 Allow user to manage own account.
 """
 type AccountUserMutation @protected{

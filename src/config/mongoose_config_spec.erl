@@ -685,7 +685,8 @@ services() ->
 
 configurable_services() ->
     [service_mongoose_system_metrics,
-     service_domain_db].
+     service_domain_db,
+     service_translations].
 
 %% path: (host_config[].)modules
 modules() ->

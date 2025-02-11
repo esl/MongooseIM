@@ -298,7 +298,7 @@ process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Sou
             _ ->
                 {false, [], []}
         end,
-    TranslatedMsg = translate:translate(
+    TranslatedMsg = service_translations:do(
                       Lang, <<"Choose a username and password to register with this server">>),
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"query">>,

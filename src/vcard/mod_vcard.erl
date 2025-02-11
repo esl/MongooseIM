@@ -529,11 +529,11 @@ make_search_form_result_iq(IQ, Elements) ->
                           }]}.
 
 search_instructions(Lang) ->
-    Text = translate:translate(Lang, <<"You need an x:data capable client to search">>),
+    Text = service_translations:do(Lang, <<"You need an x:data capable client to search">>),
     #xmlel{name = <<"instructions">>, children = [#xmlcdata{content = Text}]}.
 
 search_form(JID, SearchFields, Lang) ->
-    Title = <<(translate:translate(Lang, <<"Search users in ">>))/binary,
+    Title = <<(service_translations:do(Lang, <<"Search users in ">>))/binary,
               (jid:to_binary(JID))/binary>>,
     Instructions = <<"Fill in fields to search for any matching Jabber User">>,
     Fields = lists:map(fun ({X, Y}) -> ?TLFIELD(<<"text-single">>, X, Y) end, SearchFields),
@@ -581,10 +581,10 @@ features() ->
 identity(Lang) ->
     #{category => <<"directory">>,
       type => <<"user">>,
-      name => translate:translate(Lang, <<"vCard User Search">>)}.
+      name => service_translations:do(Lang, <<"vCard User Search">>)}.
 
 search_result(HostType, LServer, Lang, JID, Data, RSMIn) ->
-    Title = translate:translate(Lang, <<"Search Results for ", (jid:to_binary(JID))/binary>>),
+    Title = service_translations:do(Lang, <<"Search Results for ", (jid:to_binary(JID))/binary>>),
     ReportedFields = mod_vcard_backend:search_reported_fields(HostType, LServer, Lang),
     Results1 = mod_vcard_backend:search(HostType, LServer, maps:to_list(Data)),
     Results2 = lists:filtermap(

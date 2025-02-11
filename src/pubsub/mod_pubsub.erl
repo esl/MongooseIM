@@ -627,7 +627,7 @@ identities(Host, Lang) ->
 pubsub_identity(Lang) ->
     [#{category => <<"pubsub">>,
        type => <<"service">>,
-       name => translate:translate(Lang, <<"Publish-Subscribe">>)}].
+       name => service_translations:do(Lang, <<"Publish-Subscribe">>)}].
 
 -spec node_identity(jid:lserver(), binary()) -> [mongoose_disco:identity()].
 node_identity(Host, Type) ->
@@ -650,34 +650,14 @@ disco_local_features(Acc, _, _) ->
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_sm_identity(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
-    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From),
+disco_sm_identity(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), From),
     {ok, mongoose_disco:add_identities(Identities, Acc)}.
 
-disco_identity(error, _Node, _From) ->
+disco_identity(error, _From) ->
     [];
-disco_identity(_Host, <<>>, _From) ->
-    [pep_identity()];
-disco_identity(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} ->
-                             {result, [pep_identity(), pep_identity(Options)]};
-                         _ ->
-                             {result, []}
-                     end
-             end,
-    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
-        {result, {_, Result}} -> Result;
-        _ -> []
-    end.
-
-pep_identity(Options) ->
-    Identity = pep_identity(),
-    case get_option(Options, title) of
-        false -> Identity;
-        [Title] -> Identity#{name => Title}
-    end.
+disco_identity(_Host, _From) ->
+    [pep_identity()].
 
 pep_identity() ->
     #{category => <<"pubsub">>, type => <<"pep">>}.
@@ -686,39 +666,26 @@ pep_identity() ->
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_sm_features(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
-    Features = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
+disco_sm_features(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+    Features = disco_features(jid:to_lower(jid:to_bare(To)), From),
     {ok, mongoose_disco:add_features(Features, Acc)}.
 
--spec disco_features(error | jid:simple_jid(), binary(), jid:jid()) -> [mongoose_disco:feature()].
-disco_features(error, _Node, _From) ->
+-spec disco_features(error | jid:simple_jid(), jid:jid()) -> [mongoose_disco:feature()].
+disco_features(error, _From) ->
     [];
-disco_features(_Host, <<>>, _From) ->
-    [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]];
-disco_features(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} ->
-                             {result, [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]]};
-                         _ ->
-                             {result, []}
-                     end
-             end,
-    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
-        {result, {_, Result}} -> Result;
-        _ -> []
-    end.
+disco_features(_Host, _From) ->
+    [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]].
 
 -spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:item_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_sm_items(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
-    Items = disco_items(jid:to_lower(jid:to_bare(To)), Node, From),
+disco_sm_items(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+    Items = disco_items(jid:to_lower(jid:to_bare(To)), From),
     {ok, mongoose_disco:add_items(Items, Acc)}.
 
--spec disco_items(mod_pubsub:host(), mod_pubsub:nodeId(), jid:jid()) -> [mongoose_disco:item()].
-disco_items(Host, <<>>, From) ->
+-spec disco_items(mod_pubsub:host(), jid:jid()) -> [mongoose_disco:item()].
+disco_items(Host, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
                                options = Options, type = Type, id = Nidx, owners = Owners},
                   Acc) ->
@@ -741,20 +708,6 @@ disco_items(Host, <<>>, From) ->
     case mod_pubsub_db_backend:dirty(NodeBloc, ErrorDebug) of
         {result, Items} -> Items;
         _ -> []
-    end;
-disco_items(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, Items} ->
-                             {result, [disco_item(Host, ItemId) ||
-                                          #pubsub_item{itemid = {ItemId, _}} <- Items]};
-                         _ ->
-                             {result, []}
-                     end
-             end,
-    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
-        {result, {_, Result}} -> Result;
-        _ -> []
     end.
 
 disco_item(Node, Host, Options) ->
@@ -764,10 +717,6 @@ disco_item(Node, Host, Options) ->
         false -> Item;
         [Title] -> Item#{name => Title}
     end.
-
-disco_item(Host, ItemId) ->
-    #{jid => jid:to_binary(Host),
-      name => ItemId}.
 
 %% -------
 %% callback that prevents routing subscribe authorizations back to the sender
@@ -1279,7 +1228,7 @@ iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang
     end.
 
 iq_get_vcard(Lang) ->
-    Desc = <<(translate:translate(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
+    Desc = <<(service_translations:do(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
              "\nCopyright (c) 2004-2015 ProcessOne">>,
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_pubsub">>}]},
@@ -1705,20 +1654,20 @@ get_node_subscriptions_transaction(Owner, #pubsub_node{id = Nidx, type = Type}) 
 send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
                            Subscriber) ->
     Lang = <<"en">>,
-    Title = translate:translate(Lang, <<"PubSub subscriber request">>),
-    Instructions = translate:translate(Lang, <<"Choose whether to approve this entity's "
+    Title = service_translations:do(Lang, <<"PubSub subscriber request">>),
+    Instructions = service_translations:do(Lang, <<"Choose whether to approve this entity's "
                                                "subscription.">>),
     Fields = [#{var => <<"pubsub#node">>,
                 type => <<"text-single">>,
-                label => translate:translate(Lang, <<"Node ID">>),
+                label => service_translations:do(Lang, <<"Node ID">>),
                 values => [Node]},
               #{var => <<"pubsub#subscriber_jid">>,
                 type => <<"jid-single">>,
-                label => translate:translate(Lang, <<"Subscriber Address">>),
+                label => service_translations:do(Lang, <<"Subscriber Address">>),
                 values => [jid:to_binary(Subscriber)]},
               #{var => <<"pubsub#allow">>,
                 type => <<"boolean">>,
-                label => translate:translate(Lang, <<"Allow this Jabber ID to subscribe to "
+                label => service_translations:do(Lang, <<"Allow this Jabber ID to subscribe to "
                                                      "this pubsub node?">>),
                 values => [<<"false">>]}],
     Form = mongoose_data_forms:form(#{title => Title, instructions => Instructions,
@@ -1820,7 +1769,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(XFIELD(Type, Label, Var, Val),
         #{type => Type,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           values => [Val]}).
 
@@ -1836,13 +1785,13 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(STRINGMXFIELD(Label, Var, Vals),
         #{type => <<"text-multi">>,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           values => Vals}).
 
 -define(XFIELDOPT(Type, Label, Var, Val, Opts),
         #{type => Type,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           options => Opts,
           values => [Val]}).
@@ -1852,7 +1801,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(LISTMXFIELD(Label, Var, Vals, Opts),
         #{type => <<"list-multi">>,
-          label => translate:translate(Lang, Label),
+          label => service_translations:do(Lang, Label),
           var => Var,
           options => Opts,
           values => Vals}).

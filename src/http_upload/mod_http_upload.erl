@@ -236,7 +236,7 @@ subdomain_pattern(HostType) ->
 
 -spec my_disco_name(ejabberd:lang()) -> binary().
 my_disco_name(Lang) ->
-    translate:translate(Lang, <<"HTTP File Upload">>).
+    service_translations:do(Lang, <<"HTTP File Upload">>).
 
 
 -spec compose_iq_reply(IQ :: jlib:iq(),
