@@ -1062,8 +1062,8 @@ peername(#bosh_socket{peer = Peer}) ->
 
 -spec tcp_to_tls(mod_bosh:socket(), mongoose_listener:options(), mongoose_xmpp_socket:side()) ->
   {ok, mod_bosh:socket()} | {error, term()}.
-tcp_to_tls(_Socket, _LOpts, _Mode) ->
-    {error, tls_not_allowed_on_bosh}.
+tcp_to_tls(_Socket, _LOpts, server) ->
+    {error, tcp_to_tls_not_allowed_on_bosh}.
 
 -spec handle_data(mod_bosh:socket(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
@@ -1107,7 +1107,7 @@ is_channel_binding_supported(_Socket) ->
 
 -spec export_key_materials(mod_bosh:socket(), _, _, _, _) -> {error, atom()}.
 export_key_materials(_Socket, _, _, _, _) ->
-    {error, tls_not_allowed_on_bosh}.
+    {error, export_key_materials_not_allowed_on_bosh}.
 
 -spec is_ssl(mod_bosh:socket()) -> boolean().
 is_ssl(_Socket) ->
