@@ -2,7 +2,12 @@
 
 -include_lib("public_key/include/public_key.hrl").
 
--export([new/4,
+-define(DEF_SOCKET_OPTS,
+        binary, {active, false}, {packet, raw},
+        {send_timeout, 15000}, {send_timeout_close, true}).
+
+-export([accept/4,
+         connect/4,
          handle_data/2,
          activate/1,
          close/1,
@@ -10,7 +15,7 @@
          export_key_materials/5,
          get_peer_certificate/1,
          has_peer_cert/2,
-         tcp_to_tls/2,
+         tcp_to_tls/3,
          is_ssl/1,
          send_xml/2]).
 
@@ -21,14 +26,14 @@
 -callback new(ranch:ref(), mongoose_listener:connection_type(), mongoose_listener:options()) ->
     {state(), mongoose_listener:connection_type()}.
 -callback peername(state()) -> mongoose_transport:peer().
--callback tcp_to_tls(state(), mongoose_listener:options()) ->
+-callback tcp_to_tls(state(), mongoose_listener:options(), side()) ->
     {ok, state()} | {error, term()}.
 -callback handle_data(state(), {tcp | ssl, term(), binary()}) ->
     binary() | {raw, [exml:element()]} | {error, term()}.
 -callback activate(state()) -> ok.
 -callback close(state()) -> ok.
 -callback send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
-    ok | {error, term()}.
+    ok | {error, atom()}.
 -callback get_peer_certificate(state()) -> peercert_return().
 -callback has_peer_cert(state(), mongoose_listener:options()) -> boolean().
 -callback is_channel_binding_supported(state()) -> boolean().
@@ -68,32 +73,71 @@
 -type socket() :: #ranch_tcp{} | #ranch_ssl{} | #xmpp_socket{}.
 
 -type state() :: term().
+-type side() :: client | server.
 -type conn_type() :: tcp | tls.
 -type peercert_return() :: no_peer_cert | {bad_cert, term()} | {ok, #'Certificate'{}}.
--export_type([socket/0, state/0, conn_type/0, peercert_return/0]).
+-type with_tls_opts() :: #{tls := just_tls:options(), _ => _}.
+-export_type([socket/0, state/0, side/0, conn_type/0, peercert_return/0]).
 
--spec new(mongoose_listener:transport_module(), mongoose_listener:connection_type(), ranch:ref(), mongoose_listener:options()) -> socket().
-new(ranch_tcp, Type, Ref, LOpts) ->
+-spec accept(mongoose_listener:transport_module(),
+             mongoose_listener:connection_type(),
+             ranch:ref(),
+             mongoose_listener:options()) -> socket().
+accept(ranch_tcp, Type, Ref, LOpts) ->
     {ok, Socket, ConnDetails} = mongoose_listener:read_connection_details(Ref, ranch_tcp, LOpts),
     #{src_address := PeerIp, src_port := PeerPort} = ConnDetails,
     SocketState = #ranch_tcp{socket = Socket, connection_type = Type,
                              ranch_ref = Ref, ip = {PeerIp, PeerPort}},
     activate(SocketState),
     SocketState;
-new(ranch_ssl, Type, Ref, LOpts) ->
+accept(ranch_ssl, Type, Ref, LOpts) ->
     {ok, Socket, ConnDetails} = mongoose_listener:read_connection_details(Ref, ranch_ssl, LOpts),
     #{src_address := PeerIp, src_port := PeerPort} = ConnDetails,
     SocketState = #ranch_ssl{socket = Socket, connection_type = Type,
                              ranch_ref = Ref, ip = {PeerIp, PeerPort}},
     activate(SocketState),
     SocketState;
-new(Module, Type, Ref, LOpts) ->
+accept(Module, Type, Ref, LOpts) ->
     {State, NewType} = Module:new(Ref, Type, LOpts),
     PeerIp = Module:peername(State),
     SocketState = #xmpp_socket{module = Module, state = State,
                                connection_type = NewType, ip = PeerIp},
     activate(SocketState),
     SocketState.
+
+-spec connect(mongoose_addr_list:addr(),
+              with_tls_opts(),
+              mongoose_listener:connection_type(),
+              timeout()) -> socket() | {error, timeout | inet:posix() | any()}.
+connect(#{ip_tuple := Addr, ip_version := Inet, port := Port, tls := false}, Opts, Type, Timeout) ->
+    SockOpts = socket_options(false, Inet, Opts),
+    case gen_tcp:connect(Addr, Port, SockOpts, Timeout) of
+        {ok, Socket} ->
+            SocketState = #ranch_tcp{socket = Socket, connection_type = Type,
+                                     ranch_ref = {self(), Type}, ip = {Addr, Port}},
+            activate(SocketState),
+            SocketState;
+        {error, Reason} ->
+            {error, Reason}
+    end;
+connect(#{ip_tuple := Addr, ip_version := Inet, port := Port, tls := true}, Opts, Type, Timeout) ->
+    SockOpts = socket_options(true, Inet, Opts),
+    case ssl:connect(Addr, Port, SockOpts, Timeout) of
+        {ok, Socket} ->
+            SocketState = #ranch_ssl{socket = Socket, connection_type = Type,
+                                     ranch_ref = {self(), Type}, ip = {Addr, Port}},
+            activate(SocketState),
+            SocketState;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec socket_options(true, inet | inet6, with_tls_opts()) -> [ssl:tls_client_option()];
+                    (false, inet | inet6, with_tls_opts()) -> [gen_tcp:connect_option()].
+socket_options(true, Inet, #{tls := TlsOpts}) ->
+    [Inet, ?DEF_SOCKET_OPTS | just_tls:make_client_opts(TlsOpts)];
+socket_options(false, Inet, _) ->
+    [Inet, ?DEF_SOCKET_OPTS].
 
 -spec activate(socket()) -> ok | {error, term()}.
 activate(#ranch_tcp{socket = Socket}) ->
@@ -103,25 +147,31 @@ activate(#ranch_ssl{socket = Socket}) ->
 activate(#xmpp_socket{module = Module, state = State}) ->
     Module:activate(State).
 
--spec tcp_to_tls(socket(), mongoose_listener:options()) -> {ok, socket()} | {error, term()}.
+-spec tcp_to_tls(socket(), with_tls_opts(), side()) -> {ok, socket()} | {error, term()}.
 tcp_to_tls(#ranch_tcp{socket = TcpSocket, connection_type = Type, ranch_ref = Ref, ip = Ip},
-           #{tls := TlsConfig}) ->
+           #{tls := TlsConfig}, Side) ->
     inet:setopts(TcpSocket, [{active, false}]),
-    SslOpts = just_tls:make_server_opts(TlsConfig),
-    Ret = ssl:handshake(TcpSocket, SslOpts, 5000),
+    Ret = case Side of
+        server ->
+            SslOpts = just_tls:make_server_opts(TlsConfig),
+            ssl:handshake(TcpSocket, SslOpts, 5000);
+        client ->
+            SslOpts = just_tls:make_client_opts(TlsConfig),
+            ssl:connect(TcpSocket, SslOpts, 5000)
+    end,
     VerifyResults = just_tls:receive_verify_results(),
     case Ret of
         {ok, SslSocket} ->
-            ranch_ssl:setopts(SslSocket, [{active, once}]),
+            ssl:setopts(SslSocket, [{active, once}]),
             {ok, #ranch_ssl{socket = SslSocket, connection_type = Type,
                             ranch_ref = Ref, ip = Ip, verify_results = VerifyResults}};
         {error, Reason} ->
             {error, Reason}
     end;
-tcp_to_tls(#ranch_ssl{}, _) ->
+tcp_to_tls(#ranch_ssl{}, _, _) ->
     {error, already_tls_connection};
-tcp_to_tls(#xmpp_socket{module = Module, state = State} = C2SSocket, LOpts) ->
-    case Module:tcp_to_tls(State, LOpts) of
+tcp_to_tls(#xmpp_socket{module = Module, state = State} = C2SSocket, LOpts, Mode) ->
+    case Module:tcp_to_tls(State, LOpts, Mode) of
         {ok, NewState} ->
             {ok, C2SSocket#xmpp_socket{state = NewState}};
         Error ->
@@ -148,7 +198,7 @@ close(#ranch_ssl{socket = Socket}) ->
 close(#xmpp_socket{module = Module, state = State}) ->
     Module:close(State).
 
--spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, term()}.
+-spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, atom()}.
 send_xml(#ranch_tcp{socket = Socket, connection_type = Type}, XML) ->
     Data = exml:to_iolist(XML),
     mongoose_instrument:execute(tcp_data_out, #{connection_type => Type}, #{byte_size => iolist_size(Data)}),

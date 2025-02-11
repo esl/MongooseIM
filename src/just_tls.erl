@@ -17,7 +17,7 @@
 %% Other options should be supported if the implementing module supports it.
 -type options() :: #{module => module(),
                      verify_mode := peer | selfsigned_peer | none,
-                     mode => tls | starttls | starttls_required, % only ejabberd_s2s_out doesn't use it (yet)
+                     mode => tls | starttls | starttls_required, % only mongoose_s2s_out doesn't use it (yet)
                      certfile => string(),
                      cacertfile => string(),
                      ciphers => string(),
@@ -45,7 +45,7 @@
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec tcp_to_tls(inet:socket(), options(), client | server) ->
+-spec tcp_to_tls(inet:socket(), options(), mongoose_xmpp_socket:side()) ->
     {ok, ssl:sslsocket()} | {error, any()}.
 tcp_to_tls(Socket, Opts, client) ->
     TlsOpts = format_opts(Opts, client),
@@ -57,12 +57,12 @@ tcp_to_tls(Socket, Opts, server) ->
     ssl:handshake(Socket, TlsOpts, 5000).
 
 %% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
--spec make_client_opts(options()) -> [ssl:tls_option()].
+-spec make_client_opts(options()) -> [ssl:tls_client_option()].
 make_client_opts(Opts) ->
     format_opts(Opts, client).
 
 %% @doc Prepare SSL options for direct use of ssl:handshake/2 (server side)
--spec make_server_opts(options()) -> [ssl:tls_option()].
+-spec make_server_opts(options()) -> [ssl:tls_server_option()].
 make_server_opts(Opts) ->
     format_opts(Opts, server).
 

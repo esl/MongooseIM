@@ -367,6 +367,9 @@
   ]
 
 [s2s]
+  {{#max_retry_delay}}
+  max_retry_delay = {{{max_retry_delay}}}
+  {{/max_retry_delay}}
   {{#s2s_default_policy}}
   default_policy = {{{s2s_default_policy}}}
   {{/s2s_default_policy}}

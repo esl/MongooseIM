@@ -62,7 +62,7 @@ init(noargs) ->
     C2SSupervisor =
         template_supervisor_spec(mongoose_c2s_sup, mongoose_c2s),
     S2SOutSupervisor =
-        template_supervisor_spec(ejabberd_s2s_out_sup, ejabberd_s2s_out),
+        template_supervisor_spec(mongoose_s2s_out_sup, mongoose_s2s_out),
     IQSupervisor =
         template_supervisor_spec(ejabberd_iq_sup, mongoose_iq_worker),
     {ok, {{one_for_one, 10, 1},

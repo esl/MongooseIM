@@ -47,7 +47,6 @@
 -ignore_xref([start_link/0]).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
 
 %% Pair of hosts {FromServer, ToServer}.
 %% FromServer is the local server.
@@ -55,14 +54,14 @@
 %% Used in a lot of API and backend functions.
 -type fromto() :: {jid:lserver(), jid:lserver()}.
 
-%% Pids for ejabberd_s2s_out servers
+%% Pids for mongoose_s2s_out servers
 -type s2s_pids() :: [pid()].
 
 -record(state, {}).
 
--type base16_secret() :: binary().
 -type stream_id() :: binary().
--type s2s_dialback_key() :: binary().
+-type base16_secret() :: <<_:16, _:_*16>>. %% Hex encoded
+-type s2s_dialback_key() :: <<_:16, _:_*16>>. %% Hex encoded
 
 -export_type([fromto/0, s2s_pids/0, base16_secret/0, stream_id/0, s2s_dialback_key/0]).
 
@@ -73,21 +72,25 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, noargs, [{hibernate_after, 0}]).
 
+-spec filter(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    drop | xmpp_router:filter().
 filter(From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
 
+-spec route(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    {done, mongoose_acc:t()}. % this is the 'last resort' router, it always returns 'done'.
 route(From, To, Acc, Packet) ->
     do_route(From, To, Acc, Packet).
 
-%% Called by ejabberd_s2s_out process.
+%% Called by mongoose_s2s_out process.
 -spec try_register(fromto()) -> IsRegistered :: boolean().
 try_register(FromTo) ->
     Pid = self(),
     IsRegistered = call_try_register(Pid, FromTo),
     case IsRegistered of
         false ->
-            %% This usually happens when a ejabberd_s2s_out connection is established during dialback
-            %% procedure to check the key.
+            %% This usually happens when a mongoose_s2s_out connection is established
+            %% during dialback procedure to check the key.
             %% We still are fine, we just would not use that s2s connection to route
             %% any stanzas to the remote server.
             %% Could be a sign of abuse or a bug though, so use logging here.
@@ -138,41 +141,35 @@ terminate(_Reason, _State) ->
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
 
--spec do_route(From :: jid:jid(),
-               To :: jid:jid(),
-               Acc :: mongoose_acc:t(),
-               Packet :: exml:element()) ->
-    {done, mongoose_acc:t()}. % this is the 'last resort' router, it always returns 'done'.
-do_route(From, To, Acc, Packet) ->
-    ?LOG_DEBUG(#{what => s2s_route, acc => Acc}),
+-spec do_route(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    {done, mongoose_acc:t()}.
+do_route(From, To, Acc0, Packet) ->
+    ?LOG_DEBUG(#{what => s2s_route, acc => Acc0}),
     case find_connection(From, To) of
         {ok, Pid} when is_pid(Pid) ->
             ?LOG_DEBUG(#{what => s2s_found_connection,
                          text => <<"Send packet to s2s connection">>,
-                         s2s_pid => Pid, acc => Acc}),
+                         s2s_pid => Pid, acc => Acc0}),
             NewPacket = jlib:replace_from_to(From, To, Packet),
-            Acc1 = mongoose_hooks:s2s_send_packet(Acc, From, To, Packet),
-            send_element(Pid, Acc1, NewPacket),
-            {done, Acc1};
+            NewStanzaParams = #{element => NewPacket, from_jid => From, to_jid => To},
+            Acc1 = mongoose_acc:update_stanza(NewStanzaParams, Acc0),
+            Acc2 = mongoose_hooks:s2s_send_packet(Acc1, From, To, NewPacket),
+            mongoose_s2s_out:route(Pid, Acc2),
+            {done, Acc2};
         {error, _Reason} ->
-            case mongoose_acc:stanza_type(Acc) of
+            case mongoose_acc:stanza_type(Acc0) of
                 <<"error">> ->
-                    {done, Acc};
+                    {done, Acc0};
                 <<"result">> ->
-                    {done, Acc};
+                    {done, Acc0};
                 _ ->
-                    ?LOG_DEBUG(#{what => s2s_connection_not_found, acc => Acc}),
+                    ?LOG_DEBUG(#{what => s2s_connection_not_found, acc => Acc0}),
                     {Acc1, Err} = jlib:make_error_reply(
-                            Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+                            Acc0, Packet, mongoose_xmpp_errors:service_unavailable()),
                     Acc2 = ejabberd_router:route(To, From, Acc1, Err),
                     {done, Acc2}
             end
     end.
-
--spec send_element(pid(), mongoose_acc:t(), exml:element()) -> ok.
-send_element(Pid, Acc, El) ->
-    Pid ! {send_element, Acc, El},
-    ok.
 
 -spec find_connection(From :: jid:jid(), To :: jid:jid()) ->
         {ok, pid()} | {error, not_allowed}.
@@ -204,30 +201,9 @@ ensure_enough_connections(FromTo, OldCons) ->
             OldCons
     end.
 
--spec open_new_connections(N :: pos_integer(), FromTo :: fromto()) -> ok.
+-spec open_new_connections(N :: pos_integer(), FromTo :: fromto()) -> any().
 open_new_connections(N, FromTo) ->
-    [open_new_connection(FromTo) || _N <- lists:seq(1, N)],
-    ok.
-
--spec open_new_connection(FromTo :: fromto()) -> ok.
-open_new_connection(FromTo) ->
-    %% Start a process, but do not connect to the server yet.
-    {ok, Pid} = ejabberd_s2s_out:start(FromTo, new),
-    %% Try to write the Pid into Mnesia/CETS
-    IsRegistered = call_try_register(Pid, FromTo),
-    maybe_start_connection(Pid, FromTo, IsRegistered),
-    ok.
-
-%% If registration is successful, create an actual network connection.
-%% If not successful, remove the process.
--spec maybe_start_connection(Pid :: pid(), FromTo :: fromto(), IsRegistered :: boolean()) -> ok.
-maybe_start_connection(Pid, FromTo, true) ->
-    ?LOG_INFO(#{what => s2s_new_connection,
-                text => <<"New s2s connection started">>,
-                from_to => FromTo, s2s_pid => Pid}),
-    ejabberd_s2s_out:start_connection(Pid);
-maybe_start_connection(Pid, _FromTo, false) ->
-    ejabberd_s2s_out:stop_connection(Pid).
+    [mongoose_s2s_out:start_connection(FromTo, new) || _N <- lists:seq(1, N)].
 
 -spec set_shared_secret() -> ok.
 set_shared_secret() ->
@@ -251,7 +227,7 @@ internal_database_init() ->
     Backend = mongoose_config:get_opt(s2s_backend),
     mongoose_s2s_backend:init(#{backend => Backend}).
 
-%% Get ejabberd_s2s_out pids
+%% Get mongoose_s2s_out pids
 -spec get_s2s_out_pids(FromTo :: fromto()) -> s2s_pids().
 get_s2s_out_pids(FromTo) ->
     mongoose_s2s_backend:get_s2s_out_pids(FromTo).
