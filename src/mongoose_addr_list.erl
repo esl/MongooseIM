@@ -67,7 +67,7 @@ get_predefined_addresses(HostType, LServer, EnforceTls) ->
                       Domain :: hostname(),
                       EnforceTls :: with_tls()) -> [addr()].
 lookup_services(HostType, Domain, EnforceTls) ->
-    case mongoose_s2s_lib:domain_utf8_to_ascii(Domain) of
+    case mongoose_s2s_lib:domain_utf8_to_ascii(Domain, string) of
         false -> [];
         ASCIIAddr -> do_lookup_services(HostType, ASCIIAddr, EnforceTls)
     end.

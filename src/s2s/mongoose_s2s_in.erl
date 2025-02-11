@@ -552,7 +552,7 @@ measure_element(_Name, _Type) ->
 check_auth_domain(error, _) ->
     false;
 check_auth_domain(AuthDomain, {ok, Cert}) ->
-    case mongoose_s2s_lib:domain_utf8_to_ascii(AuthDomain) of
+    case mongoose_s2s_lib:domain_utf8_to_ascii(AuthDomain, binary) of
         false ->
             false;
         PCAuthDomain ->

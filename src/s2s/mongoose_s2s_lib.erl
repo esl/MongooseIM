@@ -6,7 +6,7 @@
 %% (it depends on the hook handlers).
 -module(mongoose_s2s_lib).
 -export([make_from_to/2,
-         domain_utf8_to_ascii/1,
+         domain_utf8_to_ascii/2,
          check_shared_secret/2,
          choose_pid/2,
          need_more_connections/2,
@@ -27,16 +27,16 @@ make_from_to(#jid{lserver = FromServer}, #jid{lserver = ToServer}) ->
     {FromServer, ToServer}.
 
 %% Converts a UTF-8 domain to ASCII (IDNA)
--spec domain_utf8_to_ascii(jid:lserver()) -> jid:lserver() | false;
-                          (string()) -> string() | false.
-domain_utf8_to_ascii(Domain) when is_binary(Domain) ->
-    case catch idna:utf8_to_ascii(Domain) of
-        {'EXIT', _} ->
-            false;
-        AsciiDomain ->
-            list_to_binary(AsciiDomain)
-    end;
-domain_utf8_to_ascii(Domain) when is_list(Domain) ->
+-spec domain_utf8_to_ascii(string() | jid:lserver(), binary) -> jid:lserver() | false;
+                          (string() | jid:lserver(), string) -> string() | false.
+domain_utf8_to_ascii(Domain, binary) ->
+    Result = domain_utf8_to_ascii(Domain),
+    false =/= Result andalso list_to_binary(Result);
+domain_utf8_to_ascii(Domain, string) ->
+    domain_utf8_to_ascii(Domain).
+
+-spec domain_utf8_to_ascii(string() | jid:lserver()) -> string() | false.
+domain_utf8_to_ascii(Domain) ->
     case catch idna:utf8_to_ascii(Domain) of
         {'EXIT', _} ->
             false;
