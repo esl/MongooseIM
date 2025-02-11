@@ -149,24 +149,16 @@ activate(#xmpp_socket{module = Module, state = State}) ->
 
 -spec tcp_to_tls(socket(), with_tls_opts(), side()) -> {ok, socket()} | {error, term()}.
 tcp_to_tls(#ranch_tcp{socket = TcpSocket, connection_type = Type, ranch_ref = Ref, ip = Ip},
-           #{tls := TlsConfig}, client) ->
+           #{tls := TlsConfig}, Side) ->
     inet:setopts(TcpSocket, [{active, false}]),
-    SslOpts = just_tls:make_client_opts(TlsConfig),
-    Ret = ssl:connect(TcpSocket, SslOpts, 5000),
-    VerifyResults = just_tls:receive_verify_results(),
-    case Ret of
-        {ok, SslSocket} ->
-            ssl:setopts(SslSocket, [{active, once}]),
-            {ok, #ranch_ssl{socket = SslSocket, connection_type = Type,
-                            ranch_ref = Ref, ip = Ip, verify_results = VerifyResults}};
-        {error, Reason} ->
-            {error, Reason}
-    end;
-tcp_to_tls(#ranch_tcp{socket = TcpSocket, connection_type = Type, ranch_ref = Ref, ip = Ip},
-           #{tls := TlsConfig}, server) ->
-    inet:setopts(TcpSocket, [{active, false}]),
-    SslOpts = just_tls:make_server_opts(TlsConfig),
-    Ret = ssl:handshake(TcpSocket, SslOpts, 5000),
+    Ret = case Side of
+        server ->
+            SslOpts = just_tls:make_server_opts(TlsConfig),
+            ssl:handshake(TcpSocket, SslOpts, 5000);
+        client ->
+            SslOpts = just_tls:make_client_opts(TlsConfig),
+            ssl:connect(TcpSocket, SslOpts, 5000)
+    end,
     VerifyResults = just_tls:receive_verify_results(),
     case Ret of
         {ok, SslSocket} ->
