@@ -142,7 +142,9 @@ order_and_prepare_addrs(HostType, TlsTaggedSrvAddrLists) ->
 %%      Larger weights SHOULD be given a proportionately higher probability of being selected.
 -spec order_by_priority_and_weight([srv_tls()]) -> [srv_tls()].
 order_by_priority_and_weight(TlsTaggedSrvAddrLists) ->
-    Fun = fun({P1, W1, _, _, _}, {P2, W2, _, _, _}) -> P1 =< P2 andalso W2 =< W1 end,
+    Fun = fun({P1, _W1}, {P2, _W2}) when P1 < P2 -> true;
+             ({P1, _W1}, {P2, _W2}) when P1 > P2 -> false;
+             ({_P1, W1}, {_P2, W2}) -> W2 < W1 end,
     lists:sort(Fun, TlsTaggedSrvAddrLists).
 
 -spec for_each_tagged_srv_get_ip_addresses(mongooseim:host_type(), [srv_tls()]) -> [[[addr()]]].

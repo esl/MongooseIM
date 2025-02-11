@@ -535,7 +535,7 @@ wait_before_retry_timeout(#s2s_data{opts = Opts}) ->
     wait_before_retry_timeout(Opts);
 wait_before_retry_timeout(#{max_retry_delay := MaxRetryDelay}) ->
     Delay = 999 + rand:uniform(timer:seconds(MaxRetryDelay) - 999),
-    {{timeout, wait_before_retry}, min(Delay, MaxRetryDelay), wait_before_retry_timeout}.
+    {{timeout, wait_before_retry}, Delay, wait_before_retry_timeout}.
 
 -spec handle_get_state_info(data(), state()) -> connection_info().
 handle_get_state_info(#s2s_data{socket = Socket, opts = Opts} = Data, State) ->
