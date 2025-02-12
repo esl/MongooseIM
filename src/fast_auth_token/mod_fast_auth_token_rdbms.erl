@@ -60,9 +60,9 @@ prepare_upsert_and_set_current(HostType) ->
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: mod_fast_auth_token:agent_id(),
-        ExpireTS :: mod_fast_auth_token:seconds(),
-        Token :: mod_fast_auth_token:token(),
-        Mech :: mod_fast_auth_token:mechanism(),
+        ExpireTS :: mod_fast_auth_token:seconds() | null,
+        Token :: mod_fast_auth_token:token() | null,
+        Mech :: mod_fast_auth_token:mechanism() | null,
         SetCurrent :: mod_fast_auth_token:set_current() | false.
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, false) ->
     Key = [LServer, LUser, AgentId],
@@ -158,7 +158,6 @@ set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
     execute_successfully(HostType, fast_set_count,
                          [NewCurrentCount, LServer, LUser, AgentId, CurrentToken]),
     ok.
-format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
 
 -spec set_current(HostType, LServer, LUser, AgentId,
                       NewCurrentCount, SetCurrent) -> ok
@@ -169,7 +168,6 @@ format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
         NewCurrentCount :: mod_fast_auth_token:counter() | undefined,
         SetCurrent :: mod_fast_auth_token:set_current().
 set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) ->
-    ?LOG_ERROR(#{what => set_current, new_count => NewCurrentCount, set_current => format_term(SetCurrent)}),
     ExpireTS = null,
     Token = null,
     Mech = null,
