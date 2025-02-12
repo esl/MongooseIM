@@ -1,3 +1,50 @@
+# [MongooseIM 6.3.2](https://github.com/esl/MongooseIM/releases/tag/6.3.2) - 2025-02-14
+
+## Highlights
+- Added support for XEP-0484: **Fast Authentication Streamlining Tokens**
+- Upgraded to **exml 4.0.0**
+- Deprecated `fast_tls`
+- Improved `just_tls` with distinct client and server options
+- Various enhancements and bug fixes
+
+## Added
+- Distinction between client and server options for `just_tls` (#4456)
+- XEP-0484: "Fast Authentication Streamlining Tokens" implementation (#4379)
+- Support for old exml format (#4471)
+
+## Changed
+- Updated exml to 4.0.0 (#4465)
+- Updated erl_cloud with inner base16 (#4469)
+- Cleaned up exml types (#4473)
+- Deprecated `fast_tls` for C2S (#4468)
+- Behavior of PEP discovery to match close XEP's specification (#4475)
+- Migrated GraphiQL to V3 (#4474)
+- Translations are now a service (#4481)
+- Cleaned up GraphQL (#4482)
+
+## Fixed
+- Description of log handler migration (#4454)
+- Compilation warnings (#4462)
+- Certificates generations for CockroarchDB (#4466)
+- `probe_failed` error (#4440)
+- Wrong namespace when removing IQ handlers in mod_sic (#4484)
+
+## Other
+- Documentation improvements (#4476)
+- CI improvements (#4459)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.2)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-12-30..2025-02-14)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-12-30&to=2025-02-14&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.2+sort%3Aupdated-desc)
+
+## Special thanks to our contributors
+- [@xvnds](https://github.com/xvnds) Migrated graphiql to v3 (#4474)
+
 # [MongooseIM 6.3.1](https://github.com/esl/MongooseIM/releases/tag/6.3.1) - 2024-12-30
 
 ## Highlights
