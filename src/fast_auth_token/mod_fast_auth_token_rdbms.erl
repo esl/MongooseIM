@@ -108,7 +108,6 @@ read_tokens(HostType, LServer, LUser, AgentId) ->
                 new_count => maybe_to_integer(NewCount),
                 new_mech => maybe_to_mech(NewMechId)
             },
-?LOG_ERROR(#{what => read_tokens, data => Data}),
             {ok, Data};
         Other ->
             ?LOG_ERROR(#{what => fast_token_read_failed,

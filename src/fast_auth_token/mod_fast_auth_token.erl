@@ -156,10 +156,13 @@ mechanisms() ->
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
     Req = exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}]),
     Fast = exml_query:path(El, [{element_with_ns, <<"fast">>, ?NS_FAST}]),
+    Parsed = parse_fast_stanza(Fast),
+    Count = maps:get(count, Parsed, undefined),
     AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
     SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
-    SaslAcc3 = maybe_put_inline_request(SaslAcc2, ?REQ, Req),
-    {ok, maybe_put_inline_request(SaslAcc3, ?FAST, Fast)}.
+    SaslAcc3 = mongoose_acc:set(?MODULE, fast_count, Count, SaslAcc2),
+    SaslAcc4 = maybe_put_inline_request(SaslAcc3, ?REQ, Req),
+    {ok, maybe_put_inline_request(SaslAcc4, ?FAST, Fast)}.
 
 maybe_put_inline_request(SaslAcc, _Module, undefined) ->
     SaslAcc;
@@ -261,10 +264,15 @@ parse_request(undefined) ->
     #{}.
 
 parse_fast(#{request := Fast = #xmlel{name = <<"fast">>}}) ->
+    parse_fast_stanza(Fast);
+parse_fast(undefined) ->
+    #{}.
+
+parse_fast_stanza(Fast = #xmlel{name = <<"fast">>}) ->
     Inv = is_true(exml_query:attr(Fast, <<"invalidate">>)),
     Count = exml_query:attr(Fast, <<"count">>),
     #{invalidate => Inv, count => maybe_parse_integer(Count)};
-parse_fast(undefined) ->
+parse_fast_stanza(undefined) ->
     #{}.
 
 is_true(<<"true">>) -> true;
