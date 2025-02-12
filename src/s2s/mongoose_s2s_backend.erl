@@ -34,7 +34,7 @@ init(Opts) ->
 get_s2s_out_pids(FromTo) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [FromTo]).
 
-%% Register ejabberd_s2s_out connection
+%% Register mongoose_s2s_out connection
 -spec try_register(Pid :: pid(),
                    FromTo :: ejabberd_s2s:fromto()) -> boolean().
 try_register(Pid, FromTo) ->

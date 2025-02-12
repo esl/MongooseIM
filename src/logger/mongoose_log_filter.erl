@@ -138,10 +138,10 @@ format_microseconds(N) ->
 format_socket(undefined) ->
     #{};
 format_socket(Socket) ->
-    DestAddress = mongoose_c2s_socket:get_ip(Socket),
+    DestAddress = mongoose_xmpp_socket:get_ip(Socket),
     #{
-        transport => mongoose_c2s_socket:get_transport(Socket),
-        conn_type => mongoose_c2s_socket:get_conn_type(Socket),
+        transport => mongoose_xmpp_socket:get_transport(Socket),
+        conn_type => mongoose_xmpp_socket:get_conn_type(Socket),
         dest_address => format_address(DestAddress)
     }.
 

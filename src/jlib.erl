@@ -32,7 +32,6 @@
          make_error_reply/3,
          make_invitation/3,
          make_config_change_message/1,
-         replace_from_to_attrs/3,
          replace_from_to/3,
          remove_attr/2,
          iq_query_info/1,
@@ -160,13 +159,11 @@ make_invitation(From, Password, Reason) ->
 -spec replace_from_to_attrs(From :: binary(),
                             To :: binary() | undefined,
                             exml:attrs()) -> exml:attrs().
+replace_from_to_attrs(From, undefined, Attrs) ->
+    Attrs1 = maps:remove(<<"to">>, Attrs),
+    Attrs1#{<<"from">> => From};
 replace_from_to_attrs(From, To, Attrs) ->
-    Attrs1 = maps:without([<<"from">>, <<"to">>], Attrs),
-    Attrs2 = case To of
-                 undefined -> Attrs1;
-                 _ -> Attrs1#{<<"to">> => To}
-             end,
-    Attrs2#{<<"from">> => From}.
+    Attrs#{<<"from">> => From, <<"to">> => To}.
 
 -spec swap_from_to_attrs(exml:attrs()) -> exml:attrs().
 swap_from_to_attrs(#{<<"from">> := From, <<"to">> := To} = Attrs) ->
@@ -180,12 +177,16 @@ swap_from_to_attrs(#{<<"to">> := To} = Attrs0) ->
 swap_from_to_attrs(Attrs) ->
     Attrs.
 
+%% Replaces from and to, or ensures they are defined to begin with.
 -spec replace_from_to(From :: jid:simple_jid() | jid:jid(),
-                      To :: jid:simple_jid() | jid:jid(),
+                      To :: undefined | jid:simple_jid() | jid:jid(),
                       XE :: exml:element()) -> exml:element().
-replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
+replace_from_to(From, undefined, #xmlel{attrs = Attrs} = Packet) ->
+    NewAttrs = replace_from_to_attrs(jid:to_binary(From), undefined, Attrs),
+    Packet#xmlel{attrs = NewAttrs};
+replace_from_to(From, To, #xmlel{attrs = Attrs} = Packet) ->
     NewAttrs = replace_from_to_attrs(jid:to_binary(From), jid:to_binary(To), Attrs),
-    XE#xmlel{attrs = NewAttrs}.
+    Packet#xmlel{attrs = NewAttrs}.
 
 -spec remove_attr(binary(), exml:element()) -> exml:element().
 remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->

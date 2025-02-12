@@ -1,6 +1,7 @@
 -record(external_component, {
           domain,
-          handler,
           node,
-          is_hidden = false
+          is_subdomain = false,
+          is_hidden = false,
+          handler
          }).
