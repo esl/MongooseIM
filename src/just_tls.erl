@@ -236,7 +236,7 @@ error_to_list(_Error) ->
     %TODO: implement later if needed
     "verify_fun_callback failed".
 
-session_tickets_opt(server, SslOpts, Opts = #{session_tickets := ST})
+session_tickets_opt(server, SslOpts, _Opts = #{session_tickets := ST})
         when ST =:= stateless ->
     [{session_tickets, ST} | SslOpts];
 session_tickets_opt(_ClientOrServer, SslOpts, _Opts) ->

@@ -176,7 +176,7 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
     #jid{luser = LUser, lserver = LServer} = mongoose_c2s:get_jid(C2SData),
     AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
     Parsed = parse_inline_requests(SaslAcc),
-    case check_if_should_add_token(HostType, SaslAcc, Creds, Parsed) of
+    case check_if_should_add_token(HostType, Creds, Parsed) of
         skip ->
             {ok, SaslAcc};
         invalidate ->
@@ -205,11 +205,10 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
     end.
 
 -spec check_if_should_add_token(HostType :: mongooseim:host_type(),
-                                SaslAcc :: mongoose_acc:t(),
                                 Creds :: mongoose_credentials:t(),
                                 Parsed :: map()) ->
     token_action().
-check_if_should_add_token(HostType, SaslAcc, Creds, Parsed) ->
+check_if_should_add_token(HostType, Creds, Parsed) ->
     case Parsed of
         #{invalidate := true} ->
             invalidate;
