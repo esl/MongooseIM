@@ -57,6 +57,7 @@ bounce_modules(#{enabled := false}) -> [].
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, #{global_host := HostType}) ->
+    {ok, _} = application:ensure_all_started([cpool, backoff], permanent),
     mongoose_instrument:set_up(instrumentation()),
     gen_hook:add_handlers(hooks());
 start(_HostType, #{}) ->
