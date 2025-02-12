@@ -57,7 +57,8 @@ tests() ->
     new_token_is_moved_to_the_current_slot_after_successful_auth,
     new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token,
     new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token_with_count,
-    client_uses_token_with_count
+    client_uses_token_with_count,
+    client_uses_token_with_count_in_the_current_slot
    ].
 
 mechanisms() ->
@@ -336,6 +337,17 @@ client_uses_token_with_count(Config) ->
     assert_current_token_count(Config, Spec, 2, "Nothing changes after a failure"),
     auth_with_token(failure, Token, Config, Spec, {fast_count, 1}),
     assert_current_token_count(Config, Spec, 2, "Nothing changes after a failure when using very old count").
+
+%% Tests mod_fast_auth_token_rdbms:set_count/6 function
+client_uses_token_with_count_in_the_current_slot(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    %% request_token would trigger mod_fast_auth_token_rdbms:store_new_token/8
+    auth_with_token(success, Token, Config, Spec, request_token),
+    assert_current_token_count(Config, Spec, 0,
+        "New token is moved to the current token after first successful auth, count is the initial one"),
+    auth_with_token(success, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 1, "Count is updated").
 
 %%--------------------------------------------------------------------
 %% helpers

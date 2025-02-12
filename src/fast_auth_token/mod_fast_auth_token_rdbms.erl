@@ -35,6 +35,10 @@ init(HostType, _Opts) ->
     prepare(fast_remove_domain, fast_auth_token,
             [server],
             <<"DELETE FROM fast_auth_token WHERE server = ?">>),
+    prepare(fast_set_count, fast_auth_token,
+            [server],
+            <<"UPDATE fast_auth_token SET current_count= ? "
+              "WHERE server = ? AND username = ? AND user_agent_id = ? AND current_token = ?">>),
     ok.
 
 prepare_upsert(HostType) ->
@@ -152,6 +156,8 @@ invalidate_token(HostType, LServer, LUser, AgentId) ->
         NewCurrentCount :: mod_fast_auth_token:counter(),
         CurrentToken :: mod_fast_auth_token:token().
 set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
+    execute_successfully(HostType, fast_set_count,
+                         [NewCurrentCount, LServer, LUser, AgentId, CurrentToken]),
     ok.
 
 -spec set_current(HostType, LServer, LUser, AgentId,
