@@ -51,7 +51,7 @@ print_devnodes:
 $(DEVNODES): certs configure.out rel/vars-toml.config
 	@echo "building $@"
 	(. ./configure.out && \
-	DEVNODE=true $(RUN) $(REBAR) as $@ release)
+	DEVNODE=true $(RUN) $(REBAR) as test, $@ release)
 
 maybe_clean_certs:
 	if [ "$$SKIP_CERT_BUILD" != 1 ]; then \
