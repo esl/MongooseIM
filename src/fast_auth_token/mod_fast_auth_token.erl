@@ -172,7 +172,8 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
     #{c2s_data := C2SData} = C2SStateData,
     #jid{luser = LUser, lserver = LServer} = mongoose_c2s:get_jid(C2SData),
     AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
-    case check_if_should_add_token(HostType, SaslAcc, Creds) of
+    Parsed = parse_inline_requests(SaslAcc),
+    case check_if_should_add_token(HostType, SaslAcc, Creds, Parsed) of
         skip ->
             {ok, SaslAcc};
         invalidate ->
@@ -181,7 +182,8 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
             {ok, SaslAcc};
         {ok, Mech, AddReason} ->
             %% Attach Token to the response to be used to authentificate
-            Response = make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds),
+            Response = make_fast_token_response(HostType, LServer, LUser, Mech,
+                                                AgentId, Creds, Parsed),
             SaslAcc2 = maybe_init_inline_request(AddReason, SaslAcc),
             SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?REQ, Response, success),
             {ok, SaslAcc3};
@@ -201,10 +203,10 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
 
 -spec check_if_should_add_token(HostType :: mongooseim:host_type(),
                                 SaslAcc :: mongoose_acc:t(),
-                                Creds :: mongoose_credentials:t()) ->
+                                Creds :: mongoose_credentials:t(),
+                                Parsed :: map()) ->
     token_action().
-check_if_should_add_token(HostType, SaslAcc, Creds) ->
-    Parsed = parse_inline_requests(SaslAcc),
+check_if_should_add_token(HostType, SaslAcc, Creds, Parsed) ->
     case Parsed of
         #{invalidate := true} ->
             invalidate;
@@ -335,20 +337,22 @@ maybe_init_inline_request(auto_rotate, SaslAcc) ->
     mod_sasl2:put_inline_request(SaslAcc, ?REQ, #xmlel{name = <<"auto">>}).
 
 %% Generate expirable auth token and store it in DB
--spec make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) -> exml:element()
+-spec make_fast_token_response(HostType, LServer, LUser, Mech, AgentId,
+                               Creds, Parsed) -> exml:element()
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: agent_id(),
         Mech :: mechanism(),
-        Creds :: mongoose_credentials:t().
-make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) ->
+        Creds :: mongoose_credentials:t(),
+        Parsed :: map().
+make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds, Parsed) ->
     TTLSeconds = get_ttl_seconds(HostType),
     NowTS = ?MODULE:utc_now_as_seconds(),
     ExpireTS = NowTS + TTLSeconds,
     Expire = seconds_to_binary(ExpireTS),
     Token = ?MODULE:generate_unique_token(),
-    SetCurrent = maybe_set_current_slot(Creds),
+    SetCurrent = maybe_set_current_slot(Creds, Parsed),
     store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent),
     #xmlel{name = <<"token">>,
            attrs = #{<<"xmlns">> => ?NS_FAST, <<"expire">> => Expire,
@@ -357,18 +361,29 @@ make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) ->
 %% We have to set current token even if client haven't asked us for a new token.
 %% We have to set count value to the supplied value.
 %% count value is checked in mod_fast_auth_token_generic_mech:check_token
--spec maybe_set_current_slot(Creds :: mongoose_credentials:t()) ->
+-spec maybe_set_current_slot(Creds :: mongoose_credentials:t(), Parsed :: map()) ->
     SetCurrent :: set_current().
-maybe_set_current_slot(Creds) ->
+maybe_set_current_slot(Creds, Parsed) ->
     %% Creds could contain data from mod_fast_auth_token_generic_mech
     SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
     DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
+    Count = maps:get(count, Parsed, undefined),
     case SlotUsed of
         new ->
-            token_data_to_set_current(DataUsed);
+            maybe_set_current_count(Count, token_data_to_set_current(DataUsed));
+        current when is_integer(Count) ->
+            maybe_set_current_count(Count, just_current_slot(DataUsed));
+        current ->
+            false;
         _ ->
             false
     end.
+
+-spec maybe_set_current_count(undefined | counter(), set_current()) -> set_current().
+maybe_set_current_count(undefined, SetCurrent) ->
+    SetCurrent;
+maybe_set_current_count(Count, SetCurrent) ->
+    SetCurrent#{current_count := Count}.
 
 -spec token_data_to_set_current(DataUsed :: tokens_data()) -> set_current().
 token_data_to_set_current(#{
@@ -380,6 +395,11 @@ token_data_to_set_current(#{
       current_expire => Expire,
       current_count => Counter,
       current_mech => Mech}.
+
+-spec just_current_slot(DataUsed :: tokens_data()) -> set_current().
+just_current_slot(DataUsed) ->
+    maps:with([current_token, current_expire, current_count, current_mech],
+              DataUsed).
 
 -spec seconds_to_binary(seconds()) -> binary().
 seconds_to_binary(Secs) ->

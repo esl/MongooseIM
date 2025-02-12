@@ -159,6 +159,7 @@ set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
     execute_successfully(HostType, fast_set_count,
                          [NewCurrentCount, LServer, LUser, AgentId, CurrentToken]),
     ok.
+format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
 
 -spec set_current(HostType, LServer, LUser, AgentId,
                       NewCurrentCount, SetCurrent) -> ok
@@ -169,14 +170,27 @@ set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
         NewCurrentCount :: mod_fast_auth_token:counter() | undefined,
         SetCurrent :: mod_fast_auth_token:set_current().
 set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) ->
+    ?LOG_ERROR(#{what => set_current, new_count => NewCurrentCount, set_current => format_term(SetCurrent)}),
+    ExpireTS = null,
+    Token = null,
+    Mech = null,
+    SetCurrent2 = maybe_set_count(NewCurrentCount, SetCurrent),
+    store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent2),
     ok.
+
+maybe_set_count(undefined, SetCurrent) ->
+    SetCurrent;
+maybe_set_count(Count, SetCurrent) when is_integer(Count) ->
+    SetCurrent#{current_count := Count}.
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(HostType, LServer) ->
     execute_successfully(HostType, fast_remove_domain, [LServer]),
     ok.
 
--spec mech_id(mod_fast_auth_token:mechanism()) -> non_neg_integer().
+-spec mech_id(null | mod_fast_auth_token:mechanism()) -> null | non_neg_integer().
+mech_id(null) ->
+    null;
 mech_id(Mech) ->
     mod_fast_auth_token_generic_mech:mech_id(Mech).
 
