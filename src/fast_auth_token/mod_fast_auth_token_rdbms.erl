@@ -6,6 +6,8 @@
          store_new_token/8,
          read_tokens/4,
          invalidate_token/4,
+         set_current/6,
+         set_count/6,
          remove_user/3,
          remove_domain/2]).
 
@@ -102,6 +104,7 @@ read_tokens(HostType, LServer, LUser, AgentId) ->
                 new_count => maybe_to_integer(NewCount),
                 new_mech => maybe_to_mech(NewMechId)
             },
+?LOG_ERROR(#{what => read_tokens, data => Data}),
             {ok, Data};
         Other ->
             ?LOG_ERROR(#{what => fast_token_read_failed,
@@ -138,6 +141,28 @@ remove_user(HostType, LUser, LServer) ->
 invalidate_token(HostType, LServer, LUser, AgentId) ->
     execute_successfully(HostType, fast_invalidate_token,
                          [LServer, LUser, AgentId]),
+    ok.
+
+-spec set_count(HostType, LServer, LUser, AgentId,
+                    NewCurrentCount, CurrentToken) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter(),
+        CurrentToken :: mod_fast_auth_token:token().
+set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
+    ok.
+
+-spec set_current(HostType, LServer, LUser, AgentId,
+                      NewCurrentCount, SetCurrent) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter() | undefined,
+        SetCurrent :: mod_fast_auth_token:set_current().
+set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) ->
     ok.
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.

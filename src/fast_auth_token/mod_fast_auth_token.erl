@@ -190,10 +190,12 @@ sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType
             %% Sets count for the current slot.
             %% Use CurrentToken inside WHERE, to avoid possible race conditions
             %% when the token changes.
+            set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken),
             {ok, SaslAcc};
         {set_current, NewCurrentCount, #{} = SetCurrent} ->
             %% Moves new token into the current slot.
             %% Updates count for the current slot, if NewCurrentCount is not undefined.
+            set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent),
             {ok, SaslAcc}
     end.
 
@@ -433,6 +435,30 @@ store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCur
         AgentId :: agent_id().
 invalidate_token(HostType, LServer, LUser, AgentId) ->
     mod_fast_auth_token_backend:invalidate_token(HostType, LServer, LUser, AgentId),
+    ok.
+
+-spec set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: agent_id(),
+        NewCurrentCount :: counter(),
+        CurrentToken :: token().
+set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
+    mod_fast_auth_token_backend:set_count(HostType, LServer, LUser, AgentId,
+                                          NewCurrentCount, CurrentToken),
+    ok.
+
+-spec set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: agent_id(),
+        NewCurrentCount :: counter() | undefined,
+        SetCurrent :: set_current().
+set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) ->
+    mod_fast_auth_token_backend:set_current(HostType, LServer, LUser, AgentId,
+                                            NewCurrentCount, SetCurrent),
     ok.
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->
