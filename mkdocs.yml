@@ -216,6 +216,7 @@ nav:
       - '6.2.0 to 6.2.1': 'migrations/6.2.0_6.2.1.md'
       - '6.2.1 to 6.3.0': 'migrations/6.2.1_6.3.0.md'
       - '6.3.0 to 6.3.1': 'migrations/6.3.0_6.3.1.md'
+      - '6.3.1 to 6.3.2': 'migrations/6.3.1_6.3.2.md'
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - 'Contributions to the Ecosystem': 'Contributions.md'
   - 'MongooseIM History': 'History.md'
