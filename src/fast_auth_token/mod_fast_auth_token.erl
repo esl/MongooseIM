@@ -39,6 +39,10 @@
 -type token_type() :: access | rotate_before_expire.
 -type token_slot() :: new | current.
 -type add_reason() :: requested | auto_rotate.
+-type token_action() ::
+    skip | invalidate | {ok, mechanism(), Reason :: add_reason()}
+    | {set_count, NewCurrentCount :: counter(), CurrentToken :: token()}
+    | {set_current, NewCurrentCount :: counter() | undefined, set_current()}.
 
 -define(REQ, mod_fast_auth_token_request).
 -define(FAST, mod_fast_auth_token_fast).
@@ -167,41 +171,74 @@ maybe_put_inline_request(SaslAcc, Module, Request) ->
 sasl2_success(SaslAcc, C2SStateData = #{creds := Creds}, #{host_type := HostType}) ->
     #{c2s_data := C2SData} = C2SStateData,
     #jid{luser = LUser, lserver = LServer} = mongoose_c2s:get_jid(C2SData),
+    AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
     case check_if_should_add_token(HostType, SaslAcc, Creds) of
         skip ->
             {ok, SaslAcc};
         invalidate ->
-            AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
+            %% Invalidates both current and new token
             invalidate_token(HostType, LServer, LUser, AgentId),
             {ok, SaslAcc};
         {ok, Mech, AddReason} ->
-            AgentId = mongoose_acc:get(?MODULE, agent_id, undefined, SaslAcc),
             %% Attach Token to the response to be used to authentificate
             Response = make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds),
             SaslAcc2 = maybe_init_inline_request(AddReason, SaslAcc),
             SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?REQ, Response, success),
-            {ok, SaslAcc3}
+            {ok, SaslAcc3};
+        {set_count, NewCurrentCount, CurrentToken} when is_integer(NewCurrentCount),
+                                                        is_binary(CurrentToken) ->
+            %% Sets count for the current slot.
+            %% Use CurrentToken inside WHERE, to avoid possible race conditions
+            %% when the token changes.
+            {ok, SaslAcc};
+        {set_current, NewCurrentCount, #{} = SetCurrent} ->
+            %% Moves new token into the current slot.
+            %% Updates count for the current slot, if NewCurrentCount is not undefined.
+            {ok, SaslAcc}
     end.
 
 -spec check_if_should_add_token(HostType :: mongooseim:host_type(),
                                 SaslAcc :: mongoose_acc:t(),
                                 Creds :: mongoose_credentials:t()) ->
-    skip | invalidate | {ok, mechanism(), Reason :: add_reason()}.
+    token_action().
 check_if_should_add_token(HostType, SaslAcc, Creds) ->
     Parsed = parse_inline_requests(SaslAcc),
     case Parsed of
         #{invalidate := true} ->
             invalidate;
         #{mech := Mech} ->
+            %% XEP has no way to notify if the user asks for non-supported mech
             case lists:member(Mech, mechanisms()) of
                 true ->
                     {ok, Mech, requested};
                 false ->
-                    skip
+                    maybe_set_count(skip, Creds, Parsed)
             end;
         #{} ->
-            maybe_auto_rotate(HostType, Creds)
+            Res = maybe_auto_rotate(HostType, Creds),
+            maybe_set_count(Res, Creds, Parsed)
     end.
+
+-spec maybe_set_count(Res :: token_action(),
+                Creds :: mongoose_credentials:t(),
+                Parsed :: map()) -> token_action().
+maybe_set_count(skip, Creds, Parsed) ->
+    Count = maps:get(count, Parsed, undefined),
+    SlotUsed = mongoose_credentials:get(Creds, fast_token_slot_used, undefined),
+    DataUsed = mongoose_credentials:get(Creds, fast_token_data, undefined),
+    case SlotUsed of
+        undefined ->
+            skip;
+        current when is_integer(Count) ->
+            #{current_token := CurrentToken} = DataUsed,
+            {set_count, Count, CurrentToken};
+        current ->
+            skip;
+        new ->
+            {set_current, Count, token_data_to_set_current(DataUsed)}
+    end;
+maybe_set_count(Res, _Creds, _Parsed) ->
+    Res.
 
 -spec parse_inline_requests(SaslAcc :: mongoose_acc:t()) -> map().
 parse_inline_requests(SaslAcc) ->
@@ -315,6 +352,9 @@ make_fast_token_response(HostType, LServer, LUser, Mech, AgentId, Creds) ->
            attrs = #{<<"xmlns">> => ?NS_FAST, <<"expire">> => Expire,
                      <<"token">> => Token}}.
 
+%% We have to set current token even if client haven't asked us for a new token.
+%% We have to set count value to the supplied value.
+%% count value is checked in mod_fast_auth_token_generic_mech:check_token
 -spec maybe_set_current_slot(Creds :: mongoose_credentials:t()) ->
     SetCurrent :: set_current().
 maybe_set_current_slot(Creds) ->

@@ -104,8 +104,9 @@ handle_auth(#{
     end.
 
 %% Mech of the token in DB should match the mech the client is using.
-check_token({Token, Expire, _Count, Mech},
-            {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
+check_token(_DbToken = {Token, Expire, _Count, Mech},
+            _ProvidedToken = {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
+    %% TODO Handle count
     when is_binary(Token), Expire > NowTimestamp ->
     Algo = mech_to_algo(Mech),
     ComputedToken = crypto:mac(hmac, Algo, Token, ToHash),

@@ -53,7 +53,11 @@ tests() ->
     client_requests_token_invalidation,
     client_requests_token_invalidation_1,
     both_tokens_do_not_work_after_invalidation,
-    token_auth_fails_when_mechanism_does_not_match
+    token_auth_fails_when_mechanism_does_not_match,
+    new_token_is_moved_to_the_current_slot_after_successful_auth,
+    new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token,
+    new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token_with_count,
+    client_uses_token_with_count
    ].
 
 mechanisms() ->
@@ -297,6 +301,42 @@ token_auth_fails_when_mechanism_does_not_match(Config) ->
     Config2 = [{ht_mech, another_mechanism(Mech)} | Config],
     auth_with_token(failure, Token, Config2, Spec).
 
+new_token_is_moved_to_the_current_slot_after_successful_auth(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec),
+    assert_current_token_count(Config, Spec, 0,
+        "New token is moved to the current token after first successful auth, count is 0").
+
+new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec, request_token),
+    assert_current_token_count(Config, Spec, 0,
+        "New token is moved to the current token after first successful auth, count is 0").
+
+new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token_with_count(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec, {request_token_with_count, 1}),
+    assert_current_token_count(Config, Spec, 1,
+        "New token is moved to the current token after first successful auth, count is 1").
+
+client_uses_token_with_count(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 1,
+        "New token is moved to the current token after first successful auth, count is saved"),
+    auth_with_token(failure, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 1, "Nothing changes after a failure"),
+    auth_with_token(success, Token, Config, Spec, {fast_count, 2}),
+    assert_current_token_count(Config, Spec, 2, "Token count is saved the second time"),
+    auth_with_token(failure, Token, Config, Spec, {fast_count, 2}),
+    assert_current_token_count(Config, Spec, 2, "Nothing changes after a failure"),
+    auth_with_token(failure, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 2, "Nothing changes after a failure when using very old count").
+
 %%--------------------------------------------------------------------
 %% helpers
 %%--------------------------------------------------------------------
@@ -431,6 +471,16 @@ auth_using_token_and_request_invalidation_1_stanza(Config, Spec) ->
     Extra = [request_invalidation_1(), user_agent()],
     auth_with_method_stanza(Config, Spec, Extra, Mech).
 
+auth_using_token_and_count_stanza(Config, Spec, Count) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [fast_token_count(Count), user_agent()],
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
+
+auth_using_token_and_request_token_stanza_with_count(Config, Spec, Count) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [request_token(Mech), fast_token_count(Count), user_agent()],
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
+
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
 request_token(Mech) ->
     #xmlel{name = <<"request-token">>,
@@ -448,6 +498,11 @@ request_invalidation_1() ->
     #xmlel{name = <<"fast">>,
            attrs = #{<<"xmlns">> => ?NS_FAST,
                      <<"invalidate">> => <<"1">>}}.
+
+fast_token_count(Count) ->
+    #xmlel{name = <<"fast">>,
+           attrs = #{<<"xmlns">> => ?NS_FAST,
+                     <<"count">> => integer_to_binary(Count)}}.
 
 auth_with_token(Success, Token, Config, Spec) ->
     auth_with_token(Success, Token, Config, Spec, dont_request_token).
@@ -515,7 +570,12 @@ auth_stanza(request_token, Config, Spec) ->
 auth_stanza(request_invalidation, Config, Spec) ->
     auth_using_token_and_request_invalidation_stanza(Config, Spec);
 auth_stanza(request_invalidation_1, Config, Spec) ->
-    auth_using_token_and_request_invalidation_1_stanza(Config, Spec).
+    auth_using_token_and_request_invalidation_1_stanza(Config, Spec);
+auth_stanza({fast_count, Count}, Config, Spec) ->
+    auth_using_token_and_count_stanza(Config, Spec, Count);
+auth_stanza({request_token_with_count, Count}, Config, Spec) ->
+    %% Mix of request_token and {fast_count, Count}
+    auth_using_token_and_request_token_stanza_with_count(Config, Spec, Count).
 
 %% From escalus_connection:start_stream
 start_stream(Spec) ->
@@ -666,3 +726,13 @@ maybe_receive_session_tickets_on_connect(Client, Data = #{spec := Spec}) ->
 
 add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
     C2SListener#{tls => maps:merge(TLS, Extra)}.
+
+%% Reads DB using RPC.
+%% Allows to write better tests, even if it breaks "only XMPP access approach".
+assert_current_token_count(Config, Spec, ExpectedCount, Text) ->
+    HostType = domain_helper:host_type(),
+    {LUser, LServer} = spec_to_lus(Spec),
+    AgentId = user_agent_id(),
+    Args = [HostType, LServer, LUser, AgentId],
+    {ok, Data} = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, read_tokens, Args),
+    ?assertMatch(#{current_count := ExpectedCount}, Data, #{expected_count => ExpectedCount, text => Text}).
