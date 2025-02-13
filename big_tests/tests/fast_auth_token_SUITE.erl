@@ -28,7 +28,9 @@ groups() ->
     groups_for_mechanisms().
 
 groups_for_mechanisms() ->
-    [{Group, [parallel], tests()} || {Group, _Mech} <- mechanisms()].
+    %% To avoid DB timeouts, disable parallel execution for MSSQL
+    Parallel = case catch is_odbc() of true -> []; _ -> [parallel] end,
+    [{Group, Parallel, tests()} || {Group, _Mech} <- mechanisms()].
 
 group_names_for_mechanisms() ->
     [{group, Group} || {Group, _, _} <- groups_for_mechanisms()].
@@ -748,3 +750,9 @@ assert_current_token_count(Config, Spec, ExpectedCount, Text) ->
     Args = [HostType, LServer, LUser, AgentId],
     {ok, Data} = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, read_tokens, Args),
     ?assertMatch(#{current_count := ExpectedCount}, Data, #{expected_count => ExpectedCount, text => Text}).
+
+db_engine() ->
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [domain_helper:host_type()]).
+
+is_odbc() ->
+    db_engine() == odbc.

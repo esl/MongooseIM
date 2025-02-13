@@ -36,8 +36,8 @@ init(HostType, _Opts) ->
             [server],
             <<"DELETE FROM fast_auth_token WHERE server = ?">>),
     prepare(fast_set_count, fast_auth_token,
-            [server],
-            <<"UPDATE fast_auth_token SET current_count= ? "
+            [current_count, server, username, user_agent_id, current_token],
+            <<"UPDATE fast_auth_token SET current_count = ? "
               "WHERE server = ? AND username = ? AND user_agent_id = ? AND current_token = ?">>),
     ok.
 
