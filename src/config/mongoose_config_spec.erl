@@ -648,7 +648,10 @@ tls(common) ->
                           <<"crl_files">> => []},
              process = fun ?MODULE:process_common_tls/1};
 tls(server) ->
-    #section{items = #{<<"dhfile">> => #option{type = string, validate = filename}}};
+    #section{items = #{<<"dhfile">> => #option{type = string, validate = filename},
+                       <<"early_data">> => #option{type = boolean},
+                       <<"session_tickets">> => #option{type = atom,
+                                                        validate = {enum, [stateless]}}}};
 tls(client) ->
     #section{items = #{<<"server_name_indication">> => server_name_indication()}};
 tls(xmpp) ->
@@ -656,6 +659,7 @@ tls(xmpp) ->
                                              validate = {enum, [tls, starttls, starttls_required]}}},
              defaults = #{<<"mode">> => starttls}
             };
+%% For XMPP components:
 tls(xmpp_tls) ->
     #section{items = #{<<"mode">> => #option{type = atom,
                                              validate = {enum, [tls, starttls, starttls_required]}}},

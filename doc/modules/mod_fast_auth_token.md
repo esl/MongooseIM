@@ -37,3 +37,18 @@ Set it to 0 to disable automatic rotation.
   validity_period.access = {value = 1, unit = "days"}
   validity_period.rotate_before_expire = {value = 0, unit = "days"}
 ```
+
+## 0-RTT Support
+
+For support, set `session_tickets = "stateless"` and `early_data = true` for
+the C2S listener on port 5223 (Legacy or Direct TLS).
+
+Implementation details:
+
+> Servers MUST reject any authentication requests received via TLS 0-RTT payloads
+> that do not include a 'count' attribute, or where the count is less than or equal
+> to a count that has already been processed for this token.
+> This protects against replay attacks that 0-RTT is susceptible to.
+
+Checking this is impossible on the server side, so the client should ensure that
+`count` is set.
