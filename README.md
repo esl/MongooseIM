@@ -5,7 +5,6 @@
 [![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.2/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.2)
 [![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.2)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.2)
 [![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.2)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.2)
-
 * [Getting started](https://esl.github.io/MongooseDocs/latest/getting-started/Installation/)
 * [Developer's guide](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/)
 * [Packages](https://www.erlang-solutions.com/resources/download.html)
