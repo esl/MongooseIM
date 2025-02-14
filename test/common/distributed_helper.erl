@@ -21,7 +21,7 @@ is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;
 is_sm_backend_distributed(Other) -> {false, Other}.
 
 db_engine() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [domain_helper:host_type()]).
+    rpc(mim(), mongoose_rdbms, db_engine, [domain_helper:host_type()]).
 
 %% To avoid DB timeouts, disables parallel execution for MSSQL
 maybe_parallel_group() ->
