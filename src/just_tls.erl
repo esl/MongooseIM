@@ -132,7 +132,7 @@ format_opts(Opts, ClientOrServer) ->
     SslOpts5 = early_data_opt(ClientOrServer, SslOpts4, Opts),
     case ClientOrServer of
         client -> sni_opts(SslOpts5, Opts);
-        server ->fail_if_no_peer_cert_opt(SslOpts5, Opts)
+        server -> fail_if_no_peer_cert_opt(SslOpts5, Opts)
     end.
 
 ssl_option_keys() ->
@@ -161,6 +161,16 @@ hibernate_opt(Opts, #{hibernate_after := Timeout}) ->
     [{hibernate_after, Timeout} | Opts];
 hibernate_opt(Opts, #{}) ->
     Opts.
+
+session_tickets_opt(server, SslOpts, _Opts = #{session_tickets := stateless}) ->
+    [{session_tickets, stateless} | SslOpts];
+session_tickets_opt(_ClientOrServer, SslOpts, _Opts) ->
+    SslOpts.
+
+early_data_opt(server, SslOpts, #{early_data := true}) ->
+    [{early_data, enabled} | SslOpts];
+early_data_opt(_ClientOrServer, SslOpts, _Opts) ->
+    SslOpts.
 
 %% This function translates TLS options to the function
 %% which will later be used when TCP socket is upgraded to TLS
@@ -235,14 +245,3 @@ receive_verify_results(Acc) ->
 error_to_list(_Error) ->
     %TODO: implement later if needed
     "verify_fun_callback failed".
-
-session_tickets_opt(server, SslOpts, _Opts = #{session_tickets := ST})
-        when ST =:= stateless ->
-    [{session_tickets, ST} | SslOpts];
-session_tickets_opt(_ClientOrServer, SslOpts, _Opts) ->
-    SslOpts.
-
-early_data_opt(server, SslOpts, #{early_data := true}) ->
-    [{early_data, enabled} | SslOpts];
-early_data_opt(_ClientOrServer, SslOpts, _Opts) ->
-    SslOpts.

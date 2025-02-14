@@ -22,18 +22,16 @@ all() ->
      {group, early_data}].
 
 groups() ->
-    [{default, [], group_names_for_mechanisms()},
-     {early_data, [], group_names_for_mechanisms()}]
-    ++
-    groups_for_mechanisms().
+    Parallel = distributed_helper:maybe_parallel_group(),
+    [{default, [], group_names_for_mechanisms(Parallel)},
+     {early_data, [], group_names_for_mechanisms(Parallel)}]
+    ++ groups_for_mechanisms(Parallel).
 
-groups_for_mechanisms() ->
-    %% To avoid DB timeouts, disable parallel execution for MSSQL
-    Parallel = case catch is_odbc() of true -> []; _ -> [parallel] end,
+groups_for_mechanisms(Parallel) ->
     [{Group, Parallel, tests()} || {Group, _Mech} <- mechanisms()].
 
-group_names_for_mechanisms() ->
-    [{group, Group} || {Group, _, _} <- groups_for_mechanisms()].
+group_names_for_mechanisms(Parallel) ->
+    [{group, Group} || {Group, _, _} <- groups_for_mechanisms(Parallel)].
 
 tests() ->
    [server_advertises_support_for_fast,
@@ -553,9 +551,9 @@ set_early_data(Spec, true, Authenticate) ->
     proplists:from_map(Map2).
 
 make_early_data(Spec, Authenticate) ->
-    Start = start_stream(Spec),
-    Auth = exml:to_binary(Authenticate),
-    <<Start/binary, Auth/binary>>.
+    %% From escalus_connection:start_stream
+    Start = escalus_tcp:stream_start_req(Spec),
+    exml:to_binary([Start, Authenticate]).
 
 receive_ticket(Client) ->
     Pid = escalus_client_to_pid(Client),
@@ -591,10 +589,6 @@ auth_stanza({request_token_with_count, Count}, Config, Spec) ->
     %% Mix of request_token and {fast_count, Count}
     auth_using_token_and_request_token_stanza_with_count(Config, Spec, Count).
 
-%% From escalus_connection:start_stream
-start_stream(Spec) ->
-    exml:to_binary(escalus_tcp:stream_start_req(Spec)).
-
 steps(success) ->
     [connect_tls,
      {?MODULE, start_stream_get_features},
@@ -618,14 +612,6 @@ user_agent() ->
 cdata_elem(Name, Value) ->
     #xmlel{name = Name,
            children = [#xmlcdata{content = Value}]}.
-
-make_0rtt_data(Spec, Config) ->
-    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    <<"HT-", _/binary>> = Mech,
-    InitEl = ht_auth_initial_response(Spec, Mech),
-    BindEl = #xmlel{name = <<"bind">>,
-                  attrs = #{<<"xmlns">> => ?NS_BIND_2}},
-    exml:to_binary(auth_elem(Mech, [InitEl, BindEl])).
 
 %% See bind2_SUITE:plain_auth
 auth_with_method_stanza(_Config, Spec, Extra, Mech) ->
@@ -743,16 +729,10 @@ add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
 
 %% Reads DB using RPC.
 %% Allows to write better tests, even if it breaks "only XMPP access approach".
-assert_current_token_count(Config, Spec, ExpectedCount, Text) ->
+assert_current_token_count(_Config, Spec, ExpectedCount, Text) ->
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
     AgentId = user_agent_id(),
     Args = [HostType, LServer, LUser, AgentId],
     {ok, Data} = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, read_tokens, Args),
     ?assertMatch(#{current_count := ExpectedCount}, Data, #{expected_count => ExpectedCount, text => Text}).
-
-db_engine() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [domain_helper:host_type()]).
-
-is_odbc() ->
-    db_engine() == odbc.

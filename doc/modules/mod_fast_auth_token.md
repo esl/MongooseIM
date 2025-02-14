@@ -41,7 +41,7 @@ Set it to 0 to disable automatic rotation.
 ## 0-RTT Support
 
 For support, set `session_tickets = "stateless"` and `early_data = true` for
-the C2S listener on port 5223 (Legacy or Direct TLS).
+the C2S listener on port 5223 (Direct TLS).
 
 Implementation details:
 
