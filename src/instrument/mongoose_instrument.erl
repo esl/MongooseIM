@@ -14,7 +14,7 @@
 -export([add_handler/2, remove_handler/1]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, code_change/3, handle_info/2, terminate/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -ignore_xref([start_link/0, set_up/3, tear_down/2, span/4, add_handler/2, remove_handler/1]).
 
@@ -23,6 +23,7 @@
 
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type(),
+                    connection_type => mongoose_listener:connection_type(),
                     function => atom(),
                     cache_name => atom(),
                     pool_id => atom(),
@@ -179,7 +180,8 @@ init([]) ->
     {ok, #{events => #{}, probe_timers => #{}}}.
 
 -spec handle_call(any(), gen_server:from(), state()) ->
-          {reply, ok | {ok, handlers()} | {error, map()}, state()}.
+          {reply, ok | {ok, handlers()} | {error, map()}, state()} |
+          {reply, ok | {ok, handlers()} | {error, map()}, state(), hibernate}.
 handle_call({set_up, EventName, Labels, Config}, _From,
             #{events := Events, probe_timers := ProbeTimers} = State) ->
     case set_up_and_register_event(EventName, Labels, Config, Events) of
@@ -225,7 +227,7 @@ handle_call({remove_handler, Key}, _From, State = #{events := Events}) ->
     end;
 handle_call(persist, _From, State = #{events := Events}) ->
     persistent_term:put(?MODULE, Events),
-    {reply, ok, State};
+    {reply, ok, State, hibernate};
 handle_call({lookup, EventName, Labels}, _From, State = #{events := Events}) ->
     {reply, lookup(EventName, Labels, Events), State};
 handle_call(Request, From, State) ->
@@ -248,10 +250,6 @@ terminate(_Reason, _State) ->
     [stop_handler(handler_module(Key), Opts)
      || {Key, Opts = #{}} <- maps:to_list(mongoose_config:get_opt(instrumentation))],
     ok.
-
--spec code_change(any(), state(), any()) -> {ok, state()}.
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 %% Internal functions
 

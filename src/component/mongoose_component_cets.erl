@@ -29,10 +29,12 @@ unregister_components(Components) ->
     ok.
 
 lookup_component(Domain) ->
-    ets:lookup(?TABLE, Domain).
+    Object = #external_component{domain = Domain, is_subdomain = false, _ = '_'},
+    ets:match_object(?TABLE, Object).
 
 lookup_component(Domain, Node) ->
-    ets:match_object(?TABLE, #external_component{domain = Domain, node = Node, _ = '_'}).
+    Object = #external_component{domain = Domain, node = Node, is_subdomain = false, _ = '_'},
+    ets:match_object(?TABLE, Object).
 
 get_all_components(all) ->
     MatchAll = {#external_component{ domain = '$1', _ = '_' }, [], ['$1']},

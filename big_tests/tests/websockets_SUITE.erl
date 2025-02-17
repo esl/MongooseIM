@@ -170,14 +170,13 @@ escape_attrs(Config) ->
 
 instrumentation_events() ->
     instrument_helper:declared_events(mod_websockets, [])
-    ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}}].
+    ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}},
+        {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
+        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}]
+    -- negative_instrumentation_events().
 
 negative_instrumentation_events() ->
-    [{Name, #{}} || Name <- negative_instrumentation_events_names()].
-
-negative_instrumentation_events_names() ->
-    [c2s_tcp_data_out,
-     c2s_tcp_data_in,
-     c2s_tls_data_out,
-     c2s_tls_data_in].
+    [{tcp_data_out, #{connection_type => c2s}},
+     {tcp_data_in, #{connection_type => c2s}},
+     {tls_data_out, #{connection_type => c2s}},
+     {tls_data_in, #{connection_type => c2s}}].

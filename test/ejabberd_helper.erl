@@ -9,9 +9,6 @@
 
 -spec use_config_file(any(), file:name_all()) -> ok.
 use_config_file(Config, ConfigFile) ->
-    %% To avoid "NIF library already loaded (reload disallowed since OTP 20)."
-    %% error on fast_tls restart, always keep it running
-    application:ensure_all_started(fast_tls),
     application:load(mongooseim),
     DataDir = proplists:get_value(data_dir, Config),
     ConfigPath = filename:join([DataDir, ConfigFile]),

@@ -20,13 +20,25 @@ prompt              = no
 commonName                  = {{cn}}
 
 ####################################################################
-[ client_req_extensions ]
 
+[ client_req_extensions ]
 subjectKeyIdentifier        = hash
 basicConstraints            = CA:FALSE
 keyUsage                    = digitalSignature, keyEncipherment
 subjectAltName              = @alternate_names
 nsComment                   = "Fake Dev-Only Certificate for SASL EXTERNAL tests"
+
+[ self_signed_critical_extensions ]
+subjectKeyIdentifier        = hash
+basicConstraints            = CA:FALSE
+keyUsage                    = digitalSignature, keyEncipherment
+subjectAltName              = @alternate_names
+nsComment                   = "Fake Dev-Only Certificate for SASL EXTERNAL tests"
+1.2.3.4                     = critical, ASN1:UTF8String:Some random data
+
+[ critical_extensions ]
+1.2.3.4 = critical, ASN1:UTF8String:Some random data
+
 
 ###############################################################################################################
 ## subjectAltName sections, see 'man x509v3_config' for more information
