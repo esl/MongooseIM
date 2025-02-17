@@ -1,3 +1,4 @@
+-- XEP-0484: Fast Authentication Streamlining Tokens
 -- Module: mod_fast_auth_token
 CREATE TABLE fast_auth_token(
      server VARCHAR(250) NOT NULL,

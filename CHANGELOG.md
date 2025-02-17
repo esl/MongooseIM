@@ -2,7 +2,7 @@
 
 ## Highlights
 - Added support for XEP-0484: **Fast Authentication Streamlining Tokens**
-- Upgraded to **exml 4.0.0**
+- Upgraded to **exml 4.1.1**
 - Deprecated `fast_tls`
 - Improved `just_tls` with distinct client and server options
 - Various enhancements and bug fixes
@@ -10,24 +10,22 @@
 ## Added
 - Distinction between client and server options for `just_tls` (#4456)
 - XEP-0484: "Fast Authentication Streamlining Tokens" implementation (#4379)
-- Support for old exml format (#4471)
 
 ## Changed
-- Updated exml to 4.0.0 (#4465)
-- Updated erl_cloud with inner base16 (#4469)
-- Cleaned up exml types (#4473)
+- Updated exml to 4.1.1 (#4465, #4471, #4473)
+- Update dependencies: `erl_cloud` and `base16` (#4469)
 - Deprecated `fast_tls` for C2S (#4468)
-- Behavior of PEP discovery to match close XEP's specification (#4475)
+- Behavior of PEP discovery to closely match the XEP specification (#4475)
 - Migrated GraphiQL to V3 (#4474)
 - Translations are now a service (#4481)
-- Cleaned up GraphQL (#4482)
+- Cleaned up empty GraphQL queries (#4482)
 
 ## Fixed
 - Description of log handler migration (#4454)
 - Compilation warnings (#4462)
 - Certificates generations for CockroarchDB (#4466)
 - `probe_failed` error (#4440)
-- Wrong namespace when removing IQ handlers in mod_sic (#4484)
+- Wrong namespace when removing IQ handlers in `mod_sic` (#4484)
 
 ## Other
 - Documentation improvements (#4476)
