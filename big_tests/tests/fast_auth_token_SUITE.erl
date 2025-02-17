@@ -18,10 +18,20 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, Group} || {Group, _, _} <- groups()].
+    [{group, default},
+     {group, early_data}].
 
 groups() ->
-    [{Group, [parallel], tests()} || {Group, _Mech} <- mechanisms()].
+    Parallel = distributed_helper:maybe_parallel_group(),
+    [{default, [], group_names_for_mechanisms(Parallel)},
+     {early_data, [], group_names_for_mechanisms(Parallel)}]
+    ++ groups_for_mechanisms(Parallel).
+
+groups_for_mechanisms(Parallel) ->
+    [{Group, Parallel, tests()} || {Group, _Mech} <- mechanisms()].
+
+group_names_for_mechanisms(Parallel) ->
+    [{group, Group} || {Group, _, _} <- groups_for_mechanisms(Parallel)].
 
 tests() ->
    [server_advertises_support_for_fast,
@@ -43,7 +53,12 @@ tests() ->
     client_requests_token_invalidation,
     client_requests_token_invalidation_1,
     both_tokens_do_not_work_after_invalidation,
-    token_auth_fails_when_mechanism_does_not_match
+    token_auth_fails_when_mechanism_does_not_match,
+    new_token_is_moved_to_the_current_slot_after_successful_auth,
+    new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token,
+    new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token_with_count,
+    client_uses_token_with_count,
+    client_uses_token_with_count_in_the_current_slot
    ].
 
 mechanisms() ->
@@ -81,11 +96,20 @@ init_per_suite(Config) ->
              escalus:init_per_suite(Config1)
     end.
 
+enable_session_tickets(Config) ->
+    Users = escalus_ct:get_config(escalus_users),
+    Alice = proplists:get_value(alice, Users),
+    Alice2 = [{ssl_opts, [{session_tickets, manual}]},
+              {receive_session_tickets_on_connect, true} | Alice],
+    [{escalus_users, [{alice, Alice2}]} | Config].
+
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
+init_per_group(early_data, Config) ->
+    enable_session_tickets([{early_data, true}|configure_tls_listener(Config)]);
 init_per_group(Group, Config) ->
     case lists:keyfind(Group, 1, mechanisms()) of
         {Group, Mech} when is_binary(Mech) ->
@@ -94,6 +118,8 @@ init_per_group(Group, Config) ->
             Config
     end.
 
+end_per_group(early_data, Config) ->
+    restore_tls_listener(Config);
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -108,6 +134,21 @@ load_modules(Config) ->
     Config1 = dynamic_modules:save_modules(HostType, Config),
     sasl2_helper:load_all_sasl2_modules(HostType),
     Config1.
+
+configure_tls_listener(Config) ->
+    Node = distributed_helper:mim(),
+    C2SPort = ct:get_config({hosts, mim, c2s_tls_port}),
+    Listener = #{port => C2SPort, module => mongoose_c2s_listener},
+    Extra = #{early_data => true, session_tickets => stateless},
+    [C2SListener] = mongoose_helper:get_listeners(Node, Listener),
+    C2SListener2 = add_tls_opts(C2SListener, Extra),
+    ok = mongoose_helper:restart_listener(Node, C2SListener2),
+    [{c2s_listener, C2SListener} | Config].
+
+restore_tls_listener(Config) ->
+    Node = distributed_helper:mim(),
+    C2SListener = proplists:get_value(c2s_listener, Config),
+    mongoose_helper:restart_listener(Node, C2SListener).
 
 %%--------------------------------------------------------------------
 %% tests
@@ -135,7 +176,9 @@ request_token_with_initial_authentication(Config) ->
 
 request_token_with_unknown_mechanism_type(Config0) ->
     Config = [{ht_mech, <<"HT-WEIRD-ONE">>} | Config0],
-    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect},
+             {?MODULE, auth_and_request_token},
              receive_features],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>,
@@ -164,7 +207,8 @@ token_auth_fails_when_token_is_wrong(Config) ->
 
 token_auth_fails_when_token_is_not_found(Config) ->
     %% New token is not set
-    Steps = [start_new_user],
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     Token = <<"wrongtoken">>,
     auth_with_token(failure, Token, Config, Spec).
@@ -190,17 +234,20 @@ could_still_use_old_token_when_server_initiates_token_rotation(Config) ->
 
 %% Connect with almost exired token in the current slot
 server_initiates_token_rotation_for_the_current_slot(Config) ->
-    #{new_token := NewToken, spec := Spec} = connect_with_almost_expired_token_in_the_current_slot(Config),
+    #{new_token := NewToken, spec := Spec} =
+        connect_with_almost_expired_token_in_the_current_slot(Config),
     %% Can use new token
     auth_with_token(success, NewToken, Config, Spec).
 
 could_still_use_old_token_when_server_initiates_token_rotation_for_the_current_slot(Config) ->
-    #{old_token := OldToken, spec := Spec} = connect_with_almost_expired_token_in_the_current_slot(Config),
+    #{old_token := OldToken, spec := Spec} =
+        connect_with_almost_expired_token_in_the_current_slot(Config),
     %% Can still use old token
     auth_with_token(success, OldToken, Config, Spec).
 
 cannot_use_expired_token(Config) ->
-    #{expired_token := Token, spec := Spec} = start_new_user_and_make_expired_token(Config),
+    #{expired_token := Token, spec := Spec} =
+        start_new_user_and_make_expired_token(Config),
     auth_with_token(failure, Token, Config, Spec).
 
 cannot_use_expired_token_in_the_current_slot(Config) ->
@@ -255,12 +302,60 @@ token_auth_fails_when_mechanism_does_not_match(Config) ->
     Config2 = [{ht_mech, another_mechanism(Mech)} | Config],
     auth_with_token(failure, Token, Config2, Spec).
 
+new_token_is_moved_to_the_current_slot_after_successful_auth(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec),
+    assert_current_token_count(Config, Spec, 0,
+        "New token is moved to the current token after first successful auth, count is 0").
+
+new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec, request_token),
+    assert_current_token_count(Config, Spec, 0,
+        "New token is moved to the current token after first successful auth, count is 0").
+
+new_token_is_moved_to_the_current_slot_after_successful_auth_and_we_ask_for_new_token_with_count(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec, {request_token_with_count, 1}),
+    assert_current_token_count(Config, Spec, 1,
+        "New token is moved to the current token after first successful auth, count is 1").
+
+client_uses_token_with_count(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    auth_with_token(success, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 1,
+        "New token is moved to the current token after first successful auth, count is saved"),
+    auth_with_token(failure, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 1, "Nothing changes after a failure"),
+    auth_with_token(success, Token, Config, Spec, {fast_count, 2}),
+    assert_current_token_count(Config, Spec, 2, "Token count is saved the second time"),
+    auth_with_token(failure, Token, Config, Spec, {fast_count, 2}),
+    assert_current_token_count(Config, Spec, 2, "Nothing changes after a failure"),
+    auth_with_token(failure, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 2, "Nothing changes after a failure when using very old count").
+
+%% Tests mod_fast_auth_token_rdbms:set_count/6 function
+client_uses_token_with_count_in_the_current_slot(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    assert_current_token_count(Config, Spec, undefined, "Current token is not set yet"),
+    %% request_token would trigger mod_fast_auth_token_rdbms:store_new_token/8
+    auth_with_token(success, Token, Config, Spec, request_token),
+    assert_current_token_count(Config, Spec, 0,
+        "New token is moved to the current token after first successful auth, count is the initial one"),
+    auth_with_token(success, Token, Config, Spec, {fast_count, 1}),
+    assert_current_token_count(Config, Spec, 1, "Count is updated").
+
 %%--------------------------------------------------------------------
 %% helpers
 %%--------------------------------------------------------------------
 
 start_new_user_and_make_expired_token(Config) ->
-    Steps = [start_new_user],
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -275,7 +370,8 @@ start_new_user_and_make_expired_token(Config) ->
 
 start_new_user_and_make_expired_token_in_the_current_slot(Config) ->
     Now = erlang:system_time(second),
-    Steps = [start_new_user],
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -296,7 +392,8 @@ start_new_user_and_make_expired_token_in_the_current_slot(Config) ->
     #{new_token => Token, spec => Spec, old_token => CurrentToken}.
 
 connect_with_almost_expired_token(Config) ->
-    Steps = [start_new_user],
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -314,7 +411,8 @@ connect_with_almost_expired_token(Config) ->
 
 connect_with_almost_expired_token_in_the_current_slot(Config) ->
     Now = erlang:system_time(second),
-    Steps = [start_new_user],
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect}],
     #{spec := Spec} = sasl2_helper:apply_steps(Steps, Config),
     HostType = domain_helper:host_type(),
     {LUser, LServer} = spec_to_lus(Spec),
@@ -339,7 +437,9 @@ connect_with_almost_expired_token_in_the_current_slot(Config) ->
     #{new_token => NewToken, spec => Spec, old_token => CurrentToken}.
 
 connect_and_ask_for_token(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_request_token},
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect},
+             {?MODULE, auth_and_request_token},
              receive_features],
     ConnectRes = sasl2_helper:apply_steps(Steps, Config),
     parse_connect_result(ConnectRes).
@@ -352,32 +452,46 @@ parse_connect_result(#{answer := Success, spec := Spec}) ->
     Token = exml_query:attr(Fast, <<"token">>),
     #{expire => Expire, token => Token, spec => Spec}.
 
-auth_and_request_token(Config, Client, Data) ->
+maybe_receive_session_tickets_on_connect(_Config, Client, Data = #{}) ->
+    #{} = Data2 = maybe_receive_session_tickets_on_connect(Client, Data),
+    {Client, Data2}.
+
+auth_and_request_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_token(Mech), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, <<"PLAIN">>).
+    auth_with_method_stanza(Config, Spec, Extra, <<"PLAIN">>).
 
-auth_using_token(Config, Client, Data) ->
+auth_using_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
 
-auth_using_token_and_request_token(Config, Client, Data) ->
+auth_using_token_and_request_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_token(Mech), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
 
-auth_using_token_and_request_invalidation(Config, Client, Data) ->
+auth_using_token_and_request_invalidation_stanza(Config, Spec) ->
     %% While XEP does not specify, what to do with another tokens,
     %% we invalidate both new and current tokens.
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_invalidation(), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
 
-auth_using_token_and_request_invalidation_1(Config, Client, Data) ->
+auth_using_token_and_request_invalidation_1_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_invalidation_1(), user_agent()],
-    auth_with_method(Config, Client, Data, [], Extra, Mech).
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
+
+auth_using_token_and_count_stanza(Config, Spec, Count) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [fast_token_count(Count), user_agent()],
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
+
+auth_using_token_and_request_token_stanza_with_count(Config, Spec, Count) ->
+    Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
+    Extra = [request_token(Mech), fast_token_count(Count), user_agent()],
+    auth_with_method_stanza(Config, Spec, Extra, Mech).
 
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
 request_token(Mech) ->
@@ -397,13 +511,22 @@ request_invalidation_1() ->
            attrs = #{<<"xmlns">> => ?NS_FAST,
                      <<"invalidate">> => <<"1">>}}.
 
+fast_token_count(Count) ->
+    #xmlel{name = <<"fast">>,
+           attrs = #{<<"xmlns">> => ?NS_FAST,
+                     <<"count">> => integer_to_binary(Count)}}.
+
 auth_with_token(Success, Token, Config, Spec) ->
     auth_with_token(Success, Token, Config, Spec, dont_request_token).
 
 auth_with_token(Success, Token, Config, Spec, RequestToken) ->
-    Spec2 = [{secret_token, Token} | Spec],
-    Steps = steps(Success, auth_function(RequestToken)),
-    Data = #{spec => Spec2},
+    Spec2 = [{secret_token, Token}] ++ Spec,
+    Authenticate = auth_stanza(RequestToken, Config, Spec2),
+    Steps = steps(Success),
+    EarlyDataEnabled = proplists:get_value(early_data, Config, false),
+    Data = #{spec => set_early_data(Spec2, EarlyDataEnabled, Authenticate),
+             early_data => EarlyDataEnabled,
+             auth_stanza => case EarlyDataEnabled of true -> skip; false -> Authenticate end},
     Res = sasl2_helper:apply_steps(Steps, Config, undefined, Data),
     #{answer := Answer} = Res,
     case Success of
@@ -418,23 +541,64 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
     end,
     Res.
 
-auth_function(dont_request_token) ->
-    auth_using_token;
-auth_function(request_token) ->
-    auth_using_token_and_request_token;
-auth_function(request_invalidation) ->
-    auth_using_token_and_request_invalidation;
-auth_function(request_invalidation_1) ->
-    auth_using_token_and_request_invalidation_1.
+set_early_data(Spec, false, _Authenticate) ->
+    Spec;
+set_early_data(Spec, true, Authenticate) ->
+    Map = proplists:to_map(Spec),
+    #{ssl_opts := SslOpts} = Map,
+    Map2 = Map#{
+         ssl_opts => [{early_data, make_early_data(Spec, Authenticate)} | SslOpts]},
+    proplists:from_map(Map2).
 
-steps(success, AuthFun) ->
-    [connect_tls, start_stream_get_features,
-     {?MODULE, AuthFun},
+make_early_data(Spec, Authenticate) ->
+    %% From escalus_connection:start_stream
+    Start = escalus_tcp:stream_start_req(Spec),
+    exml:to_binary([Start, Authenticate]).
+
+receive_ticket(Client) ->
+    Pid = escalus_client_to_pid(Client),
+    receive
+        {escalus_ssl_session_ticket, ConnPid, Ticket} when Pid =:= ConnPid ->
+            Ticket
+        after 3000 ->
+            ct:fail({receive_ticket, timeout, Client,
+                     erlang:process_info(self(), messages)})
+    end.
+
+receive_early_data_accepted(Client) ->
+    Pid = escalus_client_to_pid(Client),
+    receive
+        {escalus_ssl_early_data_result, ConnPid, Result} when Pid =:= ConnPid ->
+            ?assertEqual(accepted, Result)
+        after 3000 ->
+            ct:fail({receive_early_data, timeout, Client,
+                     erlang:process_info(self(), messages)})
+    end.
+
+auth_stanza(dont_request_token, Config, Spec) ->
+    auth_using_token_stanza(Config, Spec);
+auth_stanza(request_token, Config, Spec) ->
+    auth_using_token_and_request_token_stanza(Config, Spec);
+auth_stanza(request_invalidation, Config, Spec) ->
+    auth_using_token_and_request_invalidation_stanza(Config, Spec);
+auth_stanza(request_invalidation_1, Config, Spec) ->
+    auth_using_token_and_request_invalidation_1_stanza(Config, Spec);
+auth_stanza({fast_count, Count}, Config, Spec) ->
+    auth_using_token_and_count_stanza(Config, Spec, Count);
+auth_stanza({request_token_with_count, Count}, Config, Spec) ->
+    %% Mix of request_token and {fast_count, Count}
+    auth_using_token_and_request_token_stanza_with_count(Config, Spec, Count).
+
+steps(success) ->
+    [connect_tls,
+     {?MODULE, start_stream_get_features},
+     {?MODULE, auth_with_method},
      receive_features,
      has_no_more_stanzas];
-steps(failure, AuthFun) ->
-    [connect_tls, start_stream_get_features,
-     {?MODULE, AuthFun}].
+steps(failure) ->
+    [connect_tls,
+     {?MODULE, start_stream_get_features},
+     {?MODULE, auth_with_method}].
 
 user_agent_id() ->
     <<"d4565fa7-4d72-4749-b3d3-740edbf87770">>.
@@ -450,19 +614,41 @@ cdata_elem(Name, Value) ->
            children = [#xmlcdata{content = Value}]}.
 
 %% See bind2_SUITE:plain_auth
-auth_with_method(_Config, Client, Data, BindElems, Extra, Method) ->
+auth_with_method_stanza(_Config, Spec, Extra, Mech) ->
     %% we need proof of posesion mechanism
-    InitEl = case Method of
+    InitEl = case Mech of
         <<"PLAIN">> ->
-            sasl2_helper:plain_auth_initial_response(Client);
+            sasl2_helper:plain_auth_initial_response_from_spec(Spec);
         <<"HT-", _/binary>> ->
-            ht_auth_initial_response(Client, Method)
+            ht_auth_initial_response(Spec, Mech)
         end,
     BindEl = #xmlel{name = <<"bind">>,
-                  attrs = #{<<"xmlns">> => ?NS_BIND_2},
-                  children = BindElems},
-    Authenticate = auth_elem(Method, [InitEl, BindEl | Extra]),
-    escalus:send(Client, Authenticate),
+                  attrs = #{<<"xmlns">> => ?NS_BIND_2}},
+    auth_elem(Mech, [InitEl, BindEl | Extra]).
+
+start_stream_get_features(_Config, Client, Data = #{early_data := true}) ->
+    receive_early_data_accepted(Client),
+    %% Stream start is already sent in the early data.
+    %% We just need to receive the response.
+    StreamStartResp = escalus_connection:get_stanza(Client, stream_start, 5000),
+    Features = escalus_connection:get_stanza(Client, wait_for_features),
+    {Client, Data#{features => Features, stream_start_resp => StreamStartResp}};
+start_stream_get_features(Config, Client, Data = #{}) ->
+    %% If early data is enabled, start_stream is already sent
+    {Client2, Data2} = sasl2_helper:start_stream_get_features(Config, Client, Data),
+    {Client2, Data2}.
+
+auth_and_request_token(Config, Client, Data = #{spec := Spec}) ->
+    Authenticate = auth_and_request_token_stanza(Config, Spec),
+    auth_with_method(Config, Client, Data#{auth_stanza => Authenticate}).
+
+auth_with_method(_Config, Client, Data = #{auth_stanza := Authenticate}) ->
+    case Authenticate of
+        skip ->
+            ok;
+        _ ->
+            escalus:send(Client, Authenticate)
+    end,
     Answer = escalus_client:wait_for_stanza(Client),
     ct:log("Answer ~p", [Answer]),
     Identifier = exml_query:path(Answer, [{element, <<"authorization-identifier">>}, cdata]),
@@ -479,6 +665,9 @@ auth_elem(Mech, Children) ->
            attrs = #{<<"xmlns">> => ?NS_SASL_2, <<"mechanism">> => Mech},
            children = Children}.
 
+client_to_spec(#client{props = Props}) ->
+    Props.
+
 %% Creates "Initiator First Message"
 %% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html#section-3.1
 %%
@@ -491,13 +680,14 @@ auth_elem(Mech, Children) ->
 %%
 %% NUL    = %0x00 ; The null octet
 %% SAFE   = UTF8-encoded string
-ht_auth_initial_response(#client{props = Props}, Method) ->
+ht_auth_initial_response(Props, Mech) ->
     %% authcid is the username before "@" sign.
     Username = proplists:get_value(username, Props),
     Token = proplists:get_value(secret_token, Props),
+    is_binary(Token) orelse ct:fail({bad_secret_token, Props}),
     CBData = <<>>,
     ToHash = <<"Initiator", CBData/binary>>,
-    Algo = mech_to_algo(Method),
+    Algo = mech_to_algo(Mech),
     InitiatorHashedToken = crypto:mac(hmac, Algo, Token, ToHash),
     Payload = <<Username/binary, 0, InitiatorHashedToken/binary>>,
     initial_response_elem(Payload).
@@ -510,3 +700,39 @@ initial_response_elem(Payload) ->
 spec_to_lus(Spec) ->
     #{username := Username, server := Server} = maps:from_list(Spec),
     jid:to_lus(jid:make_bare(Username, Server)).
+
+escalus_client_to_pid(#client{rcv_pid = Pid}) ->
+    Pid.
+
+escalus_client_to_props(#client{props = Props}) ->
+    Props.
+
+set_ticket(Data = #{spec := Spec}, Ticket) ->
+    Map = proplists:to_map(Spec),
+    #{ssl_opts := SslOpts} = Map,
+    Map2 = Map#{
+         %% Set Ticket to be used with the next reconnect
+         ssl_opts => [{use_ticket, [Ticket]} | SslOpts]},
+    Data#{spec => proplists:from_map(Map2)}.
+
+maybe_receive_session_tickets_on_connect(Client, Data = #{spec := Spec}) ->
+    case proplists:get_value(receive_session_tickets_on_connect, Spec, false) of
+        true ->
+            Ticket = receive_ticket(Client),
+            set_ticket(Data, Ticket);
+        false ->
+            Data
+    end.
+
+add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
+    C2SListener#{tls => maps:merge(TLS, Extra)}.
+
+%% Reads DB using RPC.
+%% Allows to write better tests, even if it breaks "only XMPP access approach".
+assert_current_token_count(_Config, Spec, ExpectedCount, Text) ->
+    HostType = domain_helper:host_type(),
+    {LUser, LServer} = spec_to_lus(Spec),
+    AgentId = user_agent_id(),
+    Args = [HostType, LServer, LUser, AgentId],
+    {ok, Data} = distributed_helper:rpc(distributed_helper:mim(), mod_fast_auth_token_backend, read_tokens, Args),
+    ?assertMatch(#{current_count := ExpectedCount}, Data, #{expected_count => ExpectedCount, text => Text}).

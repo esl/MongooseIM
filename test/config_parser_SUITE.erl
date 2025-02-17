@@ -493,10 +493,15 @@ listen_c2s_just_tls(_Config) ->
     ?cfg(P ++ [disconnect_on_failure], false, T(M#{<<"disconnect_on_failure">> => false})),
     ?cfg(P ++ [crl_files], ["priv/cert.pem"], % note: this is not a real CRL file
          T(M#{<<"crl_files">> => [<<"priv/cert.pem">>]})),
+    ?cfg(P ++ [session_tickets], stateless, T(M#{<<"session_tickets">> => <<"stateless">>, <<"mode">> => <<"tls">>})),
+    ?cfg(P ++ [early_data], true, T(M#{<<"early_data">> => true, <<"mode">> => <<"tls">>})),
+    ?cfg(P ++ [early_data], false, T(M#{<<"early_data">> => false, <<"mode">> => <<"tls">>})),
     ?err(T(M#{<<"mode">> => <<"stopttls">>})),
     ?err(T(M#{<<"disconnect_on_failure">> => <<"sometimes">>})),
     ?err(T(M#{<<"dhfile">> => <<"no_such_file.pem">>})),
-    ?err(T(M#{<<"crl_files">> => [<<"no_such_file.crl">>]})).
+    ?err(T(M#{<<"crl_files">> => [<<"no_such_file.crl">>]})),
+    ?err(T(M#{<<"session_tickets">> => <<"something">>, <<"mode">> => <<"tls">>})),
+    ?err(T(M#{<<"early_data">> => <<"enabled">>, <<"mode">> => <<"tls">>})).
 
 listen_s2s(_Config) ->
     T = fun(Opts) -> listen_raw(s2s, maps:merge(#{<<"port">> => 5269}, Opts)) end,

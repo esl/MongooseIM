@@ -13,7 +13,8 @@
 -record(fast_info, {
         creds :: mongoose_credentials:t(),
         agent_id :: mod_fast_auth_token:agent_id(),
-        mechanism :: mod_fast_auth_token:mechanism()
+        mechanism :: mod_fast_auth_token:mechanism(),
+        count :: mod_fast_auth_token:counter() | undefined
     }).
 -include("mongoose.hrl").
 -type fast_info() :: #fast_info{}.
@@ -26,7 +27,9 @@ mech_new(_Host, Creds, _SocketData = #{sasl_state := SaslState}, Mech) ->
     SaslModState = mod_sasl2:get_mod_state(SaslState),
     case SaslModState of
         #{encoded_id := AgentId} ->
-            {ok, #fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech}};
+            Count = mongoose_acc:get(mod_fast_auth_token, fast_count, undefined, SaslState),
+            {ok, #fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech,
+                            count = Count}};
         _ ->
             {error, <<"not-sasl2">>}
     end;
@@ -36,7 +39,8 @@ mech_new(_Host, _Creds, _SocketData, _Mech) ->
 -spec mech_step(State :: fast_info(),
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                        | {error, binary()}.
-mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech}, SerializedToken) ->
+mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech, count = Count},
+          SerializedToken) ->
     %% SerializedToken is base64 decoded.
     Parts = binary:split(SerializedToken, <<0>>),
     [Username, InitiatorHashedToken] = Parts,
@@ -46,7 +50,7 @@ mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech}, Seria
     case mod_fast_auth_token:read_tokens(HostType, LServer, LUser, AgentId) of
         {ok, TokenData} ->
             CBData = <<>>,
-            case handle_auth(TokenData, InitiatorHashedToken, CBData, Mech) of
+            case handle_auth(TokenData, InitiatorHashedToken, CBData, Mech, Count) of
                 {true, TokenSlot} ->
                     {ok, mongoose_credentials:extend(Creds,
                                                      [{username, LUser},
@@ -74,7 +78,8 @@ mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech}, Seria
 -spec handle_auth(Data :: mod_fast_auth_token:tokens_data(),
                   InitiatorHashedToken :: binary(),
                   CBData :: binary(),
-                  Mech :: mod_fast_auth_token:mechanism()) ->
+                  Mech :: mod_fast_auth_token:mechanism(),
+                  Count :: mod_fast_auth_token:counter() | undefined) ->
       {true, Slot :: mod_fast_auth_token:token_slot()} | false.
 handle_auth(#{
         now_timestamp := NowTimestamp,
@@ -86,11 +91,11 @@ handle_auth(#{
         new_expire := NewExpire,
         new_count := NewCount,
         new_mech := NewMech
-    }, InitiatorHashedToken, CBData, Mech) ->
+    }, InitiatorHashedToken, CBData, Mech, Count) ->
     ToHash = <<"Initiator", CBData/binary>>,
     TokenNew = {NewToken, NewExpire, NewCount, NewMech},
     TokenCur = {CurrentToken, CurrentExpire, CurrentCount, CurrentMech},
-    Shared = {NowTimestamp, ToHash, InitiatorHashedToken, Mech},
+    Shared = {NowTimestamp, ToHash, InitiatorHashedToken, Mech, Count},
     case check_token(TokenNew, Shared) of
         true ->
             {true, new};
@@ -104,9 +109,11 @@ handle_auth(#{
     end.
 
 %% Mech of the token in DB should match the mech the client is using.
-check_token({Token, Expire, _Count, Mech},
-            {NowTimestamp, ToHash, InitiatorHashedToken, Mech})
-    when is_binary(Token), Expire > NowTimestamp ->
+%% Sadly, we cannot check if data comes from 0-RTT or not.
+check_token(_DbToken = {Token, Expire, DbCount, Mech},
+            _ProvidedToken = {NowTimestamp, ToHash, InitiatorHashedToken, Mech, ProvidedCount})
+    when is_binary(Token), Expire > NowTimestamp,
+         (ProvidedCount =:= undefined orelse DbCount < ProvidedCount) ->
     Algo = mech_to_algo(Mech),
     ComputedToken = crypto:mac(hmac, Algo, Token, ToHash),
     %% To be theoretically safe against timing attacks (attacks that measure
