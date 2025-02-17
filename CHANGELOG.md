@@ -19,6 +19,7 @@
 - Migrated GraphiQL to V3 (#4474)
 - Translations are now a service (#4481)
 - Cleaned up empty GraphQL queries (#4482)
+- Updated `elvis.config` to exclude modules that do not match linter standards (#4483)
 
 ## Fixed
 - Description of log handler migration (#4454)
