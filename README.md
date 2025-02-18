@@ -8,7 +8,7 @@
 
 * [Getting started](https://esl.github.io/MongooseDocs/latest/getting-started/Installation/)
 * [Developer's guide](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/)
-* [Packages](https://www.erlang-solutions.com/resources/download.html)
+* [Packages](https://github.com/esl/MongooseIM/releases/latest)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/latest/)
 * Try it now: [https://trymongoose.im](https://trymongoose.im)
@@ -45,7 +45,7 @@ For a quick start just download:
 
 * The [Docker image](https://hub.docker.com/r/erlangsolutions/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
 * The [Helm chart](https://artifacthub.io/packages/helm/mongoose/mongooseim) ([source code repository](https://github.com/esl/MongooseHelm))
-* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
+* The [pre-built packages](https://github.com/esl/MongooseIM/releases/latest) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
 
 ## Public testing
 
