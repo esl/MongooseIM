@@ -19,7 +19,6 @@ To compile MongooseIM you need:
       *   C and C++ compiler: `gcc`, `g++`,
       *   Erlang/OTP 26.0 or higher:
         * `erlang` EPEL package, or,
-        * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: `openssl` and `openssl-devel`,
       *   ODBC library: `unixODBC-devel`,
@@ -31,7 +30,6 @@ To compile MongooseIM you need:
       *   C and C++ compiler: `gcc`, `g++`,
       *   Erlang/OTP 24.0 or higher:
         * `erlang` package, or,
-        * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: `olibssl-dev`,
       *   ODBC library: `unixodbc-dev`,

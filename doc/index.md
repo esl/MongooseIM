@@ -58,7 +58,7 @@ We offer a set of additional server-side components:
 
 For a quick start just download:
 
-* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
+* The [pre-built packages](https://github.com/esl/MongooseIM/releases/latest) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
 * The [Docker image](https://hub.docker.com/r/erlangsolutions/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
 * The [Helm chart](https://artifacthub.io/packages/helm/mongoose/mongooseim) ([source code repository](https://github.com/esl/MongooseHelm))
 
