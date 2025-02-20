@@ -67,21 +67,46 @@ mechanisms() ->
     {ht_sha_512_none, <<"HT-SHA-512-NONE">>},
     {ht_sha_3_256_none, <<"HT-SHA-3-256-NONE">>},
     {ht_sha_3_384_none, <<"HT-SHA-3-384-NONE">>},
-    {ht_sha_3_512_none, <<"HT-SHA-3-512-NONE">>}].
+    {ht_sha_3_512_none, <<"HT-SHA-3-512-NONE">>},
+    {ht_sha_256_expr, <<"HT-SHA-256-EXPR">>},
+    {ht_sha_384_expr, <<"HT-SHA-384-EXPR">>},
+    {ht_sha_512_expr, <<"HT-SHA-512-EXPR">>},
+    {ht_sha_3_256_expr, <<"HT-SHA-3-256-EXPR">>},
+    {ht_sha_3_384_expr, <<"HT-SHA-3-384-EXPR">>},
+    {ht_sha_3_512_expr, <<"HT-SHA-3-512-EXPR">>}].
 
 mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
 mech_to_algo(<<"HT-SHA-384-NONE">>) -> sha384;
 mech_to_algo(<<"HT-SHA-512-NONE">>) -> sha512;
 mech_to_algo(<<"HT-SHA-3-256-NONE">>) -> sha3_256;
 mech_to_algo(<<"HT-SHA-3-384-NONE">>) -> sha3_384;
-mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.
+mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512;
+mech_to_algo(<<"HT-SHA-256-EXPR">>) -> sha256;
+mech_to_algo(<<"HT-SHA-384-EXPR">>) -> sha384;
+mech_to_algo(<<"HT-SHA-512-EXPR">>) -> sha512;
+mech_to_algo(<<"HT-SHA-3-256-EXPR">>) -> sha3_256;
+mech_to_algo(<<"HT-SHA-3-384-EXPR">>) -> sha3_384;
+mech_to_algo(<<"HT-SHA-3-512-EXPR">>) -> sha3_512.
+
+mech_to_cb_type(Mech) ->
+    Type = lists:last(binary:split(Mech, <<"-">>, [global])),
+    cb_type_to_atom(Type).
+
+cb_type_to_atom(<<"NONE">>) -> none;
+cb_type_to_atom(<<"EXPR">>) -> expr.
 
 another_mechanism(<<"HT-SHA-256-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
 another_mechanism(<<"HT-SHA-384-NONE">>) -> <<"HT-SHA-3-256-NONE">>;
 another_mechanism(<<"HT-SHA-512-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
 another_mechanism(<<"HT-SHA-3-512-NONE">>) -> <<"HT-SHA-256-NONE">>;
 another_mechanism(<<"HT-SHA-3-384-NONE">>) -> <<"HT-SHA-384-NONE">>;
-another_mechanism(<<"HT-SHA-3-256-NONE">>) -> <<"HT-SHA-512-NONE">>.
+another_mechanism(<<"HT-SHA-3-256-NONE">>) -> <<"HT-SHA-512-NONE">>;
+another_mechanism(<<"HT-SHA-256-EXPR">>) -> <<"HT-SHA-3-512-EXPR">>;
+another_mechanism(<<"HT-SHA-384-EXPR">>) -> <<"HT-SHA-3-256-EXPR">>;
+another_mechanism(<<"HT-SHA-512-EXPR">>) -> <<"HT-SHA-3-512-EXPR">>;
+another_mechanism(<<"HT-SHA-3-512-EXPR">>) -> <<"HT-SHA-256-EXPR">>;
+another_mechanism(<<"HT-SHA-3-384-EXPR">>) -> <<"HT-SHA-384-EXPR">>;
+another_mechanism(<<"HT-SHA-3-256-EXPR">>) -> <<"HT-SHA-512-EXPR">>.
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -521,7 +546,7 @@ auth_with_token(Success, Token, Config, Spec) ->
 
 auth_with_token(Success, Token, Config, Spec, RequestToken) ->
     Spec2 = [{secret_token, Token}] ++ Spec,
-    Authenticate = auth_stanza(RequestToken, Config, Spec2),
+    Authenticate = fun(CB) -> auth_stanza(RequestToken, Config, [{channel_binding_data, CB} | Spec2]) end,
     Steps = steps(Success),
     EarlyDataEnabled = proplists:get_value(early_data, Config, false),
     Data = #{spec => set_early_data(Spec2, EarlyDataEnabled, Authenticate),
@@ -544,10 +569,12 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
 set_early_data(Spec, false, _Authenticate) ->
     Spec;
 set_early_data(Spec, true, Authenticate) ->
+    CB = proplists:get_value(cb_data, Spec),
+    AuthenticateElem = Authenticate(CB),
     Map = proplists:to_map(Spec),
     #{ssl_opts := SslOpts} = Map,
     Map2 = Map#{
-         ssl_opts => [{early_data, make_early_data(Spec, Authenticate)} | SslOpts]},
+         ssl_opts => [{early_data, make_early_data(Spec, AuthenticateElem)} | SslOpts]},
     proplists:from_map(Map2).
 
 make_early_data(Spec, Authenticate) ->
@@ -639,15 +666,17 @@ start_stream_get_features(Config, Client, Data = #{}) ->
     {Client2, Data2}.
 
 auth_and_request_token(Config, Client, Data = #{spec := Spec}) ->
-    Authenticate = auth_and_request_token_stanza(Config, Spec),
+    Authenticate = fun(CB) -> auth_and_request_token_stanza(Config, [{channel_binding_data, CB} | Spec]) end,
     auth_with_method(Config, Client, Data#{auth_stanza => Authenticate}).
 
 auth_with_method(_Config, Client, Data = #{auth_stanza := Authenticate}) ->
     case Authenticate of
         skip ->
             ok;
-        _ ->
-            escalus:send(Client, Authenticate)
+        _ when is_function(Authenticate) ->
+            CB = connection_to_material(Client),
+            AuthenticateElem = Authenticate(CB),
+            escalus:send(Client, AuthenticateElem)
     end,
     Answer = escalus_client:wait_for_stanza(Client),
     ct:log("Answer ~p", [Answer]),
@@ -685,12 +714,29 @@ ht_auth_initial_response(Props, Mech) ->
     Username = proplists:get_value(username, Props),
     Token = proplists:get_value(secret_token, Props),
     is_binary(Token) orelse ct:fail({bad_secret_token, Props}),
-    CBData = <<>>,
+    CBData = case mech_to_cb_type(Mech) of
+                 none ->
+                     <<>>;
+                 expr ->
+                      proplists:get_value(channel_binding_data, Props)
+             end,
     ToHash = <<"Initiator", CBData/binary>>,
     Algo = mech_to_algo(Mech),
     InitiatorHashedToken = crypto:mac(hmac, Algo, Token, ToHash),
     Payload = <<Username/binary, 0, InitiatorHashedToken/binary>>,
     initial_response_elem(Payload).
+
+
+%% From https://www.ietf.org/rfc/rfc9266.html
+-define(CB_LABEL, <<"EXPORTER-Channel-Binding">>).
+
+connection_to_material(Conn) ->
+    %% Could fail with
+    %% {badmatch,{error,exporter_master_secret_already_consumed}}
+    {ok, [Material | _]} = escalus_connection:export_key_materials(
+                       Conn, [?CB_LABEL], [no_context], [32], true),
+    ct:pal("connection_to_material ~p ~p", [Material, Conn]),
+    Material.
 
 initial_response_elem(Payload) ->
     Encoded = base64:encode(Payload),
@@ -715,11 +761,16 @@ set_ticket(Data = #{spec := Spec}, Ticket) ->
          ssl_opts => [{use_ticket, [Ticket]} | SslOpts]},
     Data#{spec => proplists:from_map(Map2)}.
 
+remember_cb_data(Data = #{spec := Spec}, CB) ->
+    Data#{spec => [{cb_data, CB} | Spec]}.
+
 maybe_receive_session_tickets_on_connect(Client, Data = #{spec := Spec}) ->
     case proplists:get_value(receive_session_tickets_on_connect, Spec, false) of
         true ->
+            CB = connection_to_material(Client),
             Ticket = receive_ticket(Client),
-            set_ticket(Data, Ticket);
+            Data2 = remember_cb_data(Data, CB),
+            set_ticket(Data2, Ticket);
         false ->
             Data
     end.
