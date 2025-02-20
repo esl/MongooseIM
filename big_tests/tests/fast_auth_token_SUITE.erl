@@ -670,23 +670,24 @@ auth_and_request_token(Config, Client, Data = #{spec := Spec}) ->
     auth_with_method(Config, Client, Data#{auth_stanza => Authenticate}).
 
 auth_with_method(_Config, Client, Data = #{auth_stanza := Authenticate}) ->
-    case Authenticate of
-        skip ->
-            ok;
-        _ when is_function(Authenticate) ->
-            CB = connection_to_material(Client),
-            AuthenticateElem = Authenticate(CB),
-            escalus:send(Client, AuthenticateElem)
-    end,
+    Client2 = case Authenticate of
+                  skip ->
+                      Client;
+                  _ when is_function(Authenticate) ->
+                      CB = connection_to_material(Client),
+                      AuthenticateElem = Authenticate(CB),
+                      escalus:send(Client, AuthenticateElem),
+                      maybe_set_cb_to_client(CB, Client)
+              end,
     Answer = escalus_client:wait_for_stanza(Client),
     ct:log("Answer ~p", [Answer]),
     Identifier = exml_query:path(Answer, [{element, <<"authorization-identifier">>}, cdata]),
     case Identifier of
         undefined ->
-            {Client, Data#{answer => Answer}};
+            {Client2, Data#{answer => Answer}};
         _ ->
             #jid{lresource = LResource} = jid:from_binary(Identifier),
-            {Client, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}
+            {Client2, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}
     end.
 
 auth_elem(Mech, Children) ->
@@ -696,6 +697,12 @@ auth_elem(Mech, Children) ->
 
 client_to_spec(#client{props = Props}) ->
     Props.
+
+maybe_set_cb_to_client(CB, Client = #client{props = Props})
+    when is_binary(CB), byte_size(CB) > 0 ->
+    Client#client{props = [{extracted_cb_data, CB} | Props]};
+maybe_set_cb_to_client(_CB, Client) ->
+    Client.
 
 %% Creates "Initiator First Message"
 %% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html#section-3.1
@@ -730,13 +737,26 @@ ht_auth_initial_response(Props, Mech) ->
 %% From https://www.ietf.org/rfc/rfc9266.html
 -define(CB_LABEL, <<"EXPORTER-Channel-Binding">>).
 
-connection_to_material(Conn) ->
+connection_to_material(Conn = #client{props = Props}) ->
+    case proplists:get_value(extracted_cb_data, Props) of
+        CB when is_binary(CB) ->
+            CB;
+        _ ->
+            connection_to_material2(Conn)
+    end.
+
+connection_to_material2(Conn) ->
     %% Could fail with
     %% {badmatch,{error,exporter_master_secret_already_consumed}}
-    {ok, [Material | _]} = escalus_connection:export_key_materials(
+    %% If you get this, ensure that you run at least with Erlang 27
+    %% {error, undefined_tls_material}
+    Res = escalus_connection:export_key_materials(
                        Conn, [?CB_LABEL], [no_context], [32], true),
-    ct:pal("connection_to_material ~p ~p", [Material, Conn]),
-    Material.
+    ct:pal("connection_to_material ~p ~p", [Res, Conn]),
+    case Res of
+        {error, undefined_tls_material} -> <<>>;
+        {ok, [Material | _]} -> Material
+    end.
 
 initial_response_elem(Payload) ->
     Encoded = base64:encode(Payload),
