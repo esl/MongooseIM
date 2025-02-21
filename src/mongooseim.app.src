@@ -41,7 +41,6 @@
                   fast_tls,
                   tirerl,
                   uuid,
-                  xmerl,
                   worker_pool,
                   gen_fsm_compat,
                   erl_csv,
