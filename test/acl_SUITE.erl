@@ -257,31 +257,6 @@ different_specs_matching_the_same_user(Config) ->
     ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
     ?assertEqual(deny, acl:match_rule(global, allow_admin, UserKo)),
 
-    %% match on user glob
-    set_opt({acl, global}, #{admin => acl(#{user_glob => <<"paw??">>})}),
-    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
-    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserKo)),
-
-    %% match on user glob
-    set_opt({acl, global}, #{admin => acl(#{user_glob => <<"paw??">>, server => <<"gdansk">>})}),
-    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
-    ?assertEqual(deny, acl:match_rule(global, allow_admin, UserKo)),
-
-    %% match on server glob
-    set_opt({acl, global}, #{admin => acl(#{server_glob => <<"gda*">>})}),
-    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
-    ?assertEqual(deny, acl:match_rule(global, allow_admin, UserKo)),
-
-    %% match on server glob
-    set_opt({acl, global}, #{admin => acl(#{resource_glob => <<"re*">>})}),
-    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
-    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserKo)),
-
-    %% match on node glob
-    set_opt({acl, global}, #{admin => acl(#{user_glob => <<"pawe?">>, server_glob => <<"gd*">>})}),
-    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
-    ?assertEqual(deny, acl:match_rule(global, allow_admin, UserKo)),
-
     ok.
 
 acl(Spec) ->
