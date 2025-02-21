@@ -44,6 +44,10 @@ It is transparent when MongooseIM is responsible for all DB operations such as p
 The service CAN perform the (de)serialization of SCRAM-encoded passwords.
 You can find more details on the [SCRAM serialization](../developers-guide/SCRAM-serialization.md) page.
 
+!!! Warning
+    If you are using MongooseIM 4.1.0 to 6.3.1 with SCRAM authentication and OpenSSL >=3.4.1, a known issue affects hash calculation for algorithms stronger than SHA-1.
+    See [SCRAM hashing issue](../developers-guide/SCRAM-serialization.md#scram-hash-calculation-issue-in-mongooseim-410631) for details on how to resolve this.
+
 ## Authentication service API
 
 ### URL format
