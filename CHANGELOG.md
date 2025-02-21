@@ -27,9 +27,10 @@
 - Certificates generations for CockroarchDB (#4466)
 - `probe_failed` error (#4440)
 - Wrong namespace when removing IQ handlers in `mod_sic` (#4484)
+- SCRAM hashing issue by upgrading `fast_scram` library (#4491)
 
 ## Other
-- Documentation improvements (#4476)
+- Documentation improvements (#4476, #4487, #4488)
 - CI improvements (#4459)
 
 ## Known issues
