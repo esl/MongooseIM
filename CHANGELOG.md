@@ -1,4 +1,4 @@
-# [MongooseIM 6.3.2](https://github.com/esl/MongooseIM/releases/tag/6.3.2) - 2025-02-14
+# [MongooseIM 6.3.2](https://github.com/esl/MongooseIM/releases/tag/6.3.2) - 2025-02-24
 
 ## Highlights
 - Added support for XEP-0484: **Fast Authentication Streamlining Tokens**
@@ -40,9 +40,9 @@ This issue is fixed in this release. See [SCRAM hashing issue](/doc/developers-g
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.2)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-12-30..2025-02-14)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-12-30..2025-02-24)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-12-30&to=2025-02-14&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-12-30&to=2025-02-24&type=c)
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.2+sort%3Aupdated-desc)
 
