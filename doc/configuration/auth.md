@@ -111,6 +111,10 @@ The older XMPP clients can still use the `PLAIN` mechanism even if the format is
 
 For these options to take effect, `password.format` should be set to `scram`.
 
+!!! Warning
+    If you are using MongooseIM 4.1.0 to 6.3.1 with SCRAM authentication and OpenSSL >=3.4.1, a known issue affects hash calculation for algorithms stronger than SHA-1.
+    See [SCRAM hashing issue](../developers-guide/SCRAM-serialization.md#scram-hash-calculation-issue-in-mongooseim-410631) for details on how to resolve this.
+
 ### `auth.password.hash`
 * **Syntax:** list of strings, allowed values: `"sha"`, `"sha224"`, `"sha256"`, `"sha384"`, `"sha512"`
 * **Default:** not set - all hash functions supported

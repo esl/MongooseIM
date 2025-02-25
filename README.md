@@ -1,10 +1,10 @@
 # MongooseIM platform
 
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.2.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.2)
-[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.2/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.2)
-[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.2)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.2)
-[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.2)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.2)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.3.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.3)
+[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.3/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.3)
+[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.3)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.3)
+[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.3)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.3)
 
 * [Getting started](https://esl.github.io/MongooseDocs/latest/getting-started/Installation/)
 * [Developer's guide](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/)
@@ -63,6 +63,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [6.3.2](https://esl.github.io/MongooseDocs/6.3.2/)
 * [6.3.1](https://esl.github.io/MongooseDocs/6.3.1/)
 * [6.3.0](https://esl.github.io/MongooseDocs/6.3.0/)
 * [6.2.1](https://esl.github.io/MongooseDocs/6.2.1/)
