@@ -71,9 +71,11 @@ This option determines how clients are supposed to set up the TLS encryption:
 
 Specifies the way client certificate verification works:
 
-* `peer` - makes sure the client certificate is valid and signed by a trusted CA. Requires a valid `cacertfile`.
-* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`. Requires a valid `cacertfile`.
+* `peer` - makes sure the client certificate is valid and signed by a trusted CA.
+* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`.
 * `none` - client certificate is not checked.
+
+Options: `peer` and `selfsigned_peer` will use certificates specified in `cacertfile` or system certificates, if `cacertfile` is not provided.
 
 ### `listen.c2s.tls.certfile`
 * **Syntax:** string, path in the file system
