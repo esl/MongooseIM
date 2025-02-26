@@ -13,7 +13,6 @@
          process_host/1,
          process_general/1,
          process_listener/2,
-         process_common_tls/1,
          process_sasl_external/1,
          process_sasl_mechanism/1,
          process_auth/1,
@@ -645,8 +644,7 @@ tls(common) ->
                       },
              defaults = #{<<"verify_mode">> => peer,
                           <<"disconnect_on_failure">> => true,
-                          <<"crl_files">> => []},
-             process = fun ?MODULE:process_common_tls/1};
+                          <<"crl_files">> => []}};
 tls(server) ->
     #section{items = #{<<"dhfile">> => #option{type = string, validate = filename},
                        <<"early_data">> => #option{type = boolean},
@@ -975,15 +973,6 @@ get_all_hosts_and_host_types(General) ->
                      (_) ->
                           []
                   end, General).
-
-process_common_tls(M = #{cacertfile := _}) ->
-    M;
-process_common_tls(M = #{verify_mode := none}) ->
-    M;
-process_common_tls(_) ->
-    error(#{what => missing_cacertfile,
-            text => <<"You need to provide CA certificate (cacertfile) "
-                      "or disable peer verification (verify_mode)">>}).
 
 process_listener([item, Type | _], Opts) ->
     mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type),
