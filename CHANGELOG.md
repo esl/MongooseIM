@@ -33,9 +33,10 @@
 - Documentation improvements (#4476, #4487, #4488)
 - CI improvements (#4459)
 
-## Known issues
+## Known issues and upgrade recommendations
 - If you are using MongooseIM 4.1.0 to 6.3.1 with SCRAM authentication and OpenSSL >=3.4.1, hashes for algorithms stronger than SHA-1 are calculated incorrectly.
 This issue is fixed in this release. See [SCRAM hashing issue](/doc/developers-guide/SCRAM-serialization.md#scram-hash-calculation-issue-in-mongooseim-410631) for details and required actions.
+- OpenSSL versions below 3.0 are no longer supported. If you are using OpenSSL 1.x or older, you must upgrade to OpenSSL 3.x before updating MongooseIM, as older versions will not work.
 
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.2)
