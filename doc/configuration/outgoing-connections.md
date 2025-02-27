@@ -414,7 +414,7 @@ Password to the X509 PEM file with the private key.
 * **Default:** not set, all supported cipher suites are accepted
 * **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers).
+Cipher suites to use. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers).
 
 ### `outgoing_pools.*.*.connection.tls.versions`
 * **Syntax:** list of strings

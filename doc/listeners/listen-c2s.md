@@ -136,7 +136,7 @@ Path to the Diffie-Hellman parameter file.
 * **Default:** for `fast_tls` the default is`"TLSv1.2:TLSv1.3"`. For `just_tls` this option is not set by default - all supported suites are accepted.
 * **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
 
 ### `listen.c2s.tls.protocol_options` - only for `fast_tls`
 * **Syntax:** array of strings
