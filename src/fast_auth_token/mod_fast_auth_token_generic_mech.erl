@@ -85,6 +85,21 @@ mech_to_cb_data(Mech, Socket) ->
         none ->
             <<>>;
         expr ->
+            %% The 'tls-exporter' Channel Binding Type
+            %% Descripbed in:
+            %% RFC 9266 Channel Bindings for TLS 1.3
+            %% https://www.ietf.org/rfc/rfc9266.html
+            %%
+            %% uses Exported Keying Material (EKM).
+            %% https://www.rfc-editor.org/rfc/rfc5705.html#section-4
+            %%
+            %% Arguments:
+            %% A disambiguating label string:
+            %%    The ASCII string "EXPORTER-Channel-Binding" with no terminating NUL.
+            %% Context value: Zero-length string (no_context).
+            %% Length: 32 bytes
+            %% Calls function with one label:
+            %% export_key_materials(Scoket, Labels, Contexts, WantedLengths, ConsumeSecret)
             case mongoose_xmpp_socket:export_key_materials(
                     Socket, [?CB_LABEL], [no_context], [32], true) of
                 {ok, [Msg | _]} when is_binary(Msg) ->
