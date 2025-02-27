@@ -17,7 +17,8 @@
         agent_id :: mod_fast_auth_token:agent_id(),
         mechanism :: mod_fast_auth_token:mechanism(),
         count :: mod_fast_auth_token:counter() | undefined,
-        socket :: mongoose_xmpp_socket:socket()
+        socket :: mongoose_xmpp_socket:socket(),
+        cb_data :: binary()
     }).
 -include("mongoose.hrl").
 -type fast_info() :: #fast_info{}.
@@ -32,8 +33,9 @@ mech_new(_Host, Creds, _SocketData = #{sasl_state := SaslState, socket := Socket
     case SaslModState of
         #{encoded_id := AgentId} ->
             Count = mongoose_acc:get(mod_fast_auth_token, fast_count, undefined, SaslState),
+            CBData = mech_to_cb_data(Mech, Socket),
             {ok, #fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech,
-                            count = Count, socket = Socket}};
+                            count = Count, socket = Socket, cb_data = CBData}};
         _ ->
             {error, <<"not-sasl2">>}
     end;
@@ -44,7 +46,7 @@ mech_new(_Host, _Creds, _SocketData, _Mech) ->
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                        | {error, binary()}.
 mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech,
-                     count = Count, socket = Socket},
+                     count = Count, socket = Socket, cb_data = CBData},
           SerializedToken) ->
     %% SerializedToken is base64 decoded.
     Parts = binary:split(SerializedToken, <<0>>),
@@ -54,7 +56,6 @@ mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech,
     LUser = jid:nodeprep(Username),
     case mod_fast_auth_token:read_tokens(HostType, LServer, LUser, AgentId) of
         {ok, TokenData} ->
-            CBData = mech_to_cb_data(LUser, Mech, Socket),
             case handle_auth(TokenData, InitiatorHashedToken, CBData, Mech, Count) of
                 {true, TokenSlot} ->
                     {ok, mongoose_credentials:extend(Creds,
@@ -77,10 +78,9 @@ cb_type_to_atom(<<"NONE">>) -> none;
 cb_type_to_atom(<<"EXPR">>) -> expr.
 
 -spec mech_to_cb_data(
-    LUser :: jid:luser(), 
     Mech :: mod_fast_auth_token:mechanism(),
     Socket :: mongoose_xmpp_socket:socket()) -> cb_data().
-mech_to_cb_data(LUser, Mech, Socket) ->
+mech_to_cb_data(Mech, Socket) ->
     case mech_to_cb_type(Mech) of
         none ->
             <<>>;
@@ -90,7 +90,7 @@ mech_to_cb_data(LUser, Mech, Socket) ->
                 {ok, [Msg | _]} when is_binary(Msg) ->
                     Msg;
                 Other ->
-                    error({failed_to_get_channel_binding_data, LUser, Other})
+                    error({failed_to_get_channel_binding_data, Other, Socket})
             end
     end.
 

@@ -23,15 +23,16 @@ all() ->
 
 groups() ->
     Parallel = distributed_helper:maybe_parallel_group(),
-    [{default, [], group_names_for_mechanisms(Parallel)},
-     {early_data, [], group_names_for_mechanisms(Parallel)}]
-    ++ groups_for_mechanisms(Parallel).
+    [{default, [], group_names_for_mechanisms(Parallel, default)},
+     {early_data, [], group_names_for_mechanisms(Parallel, early_data)}]
+    ++ groups_for_mechanisms(Parallel, all).
 
-groups_for_mechanisms(Parallel) ->
-    [{Group, Parallel, tests()} || {Group, _Mech} <- mechanisms()].
+groups_for_mechanisms(Parallel, ParentGroup) ->
+    [{Group, Parallel, tests()} || {Group, Mech} <- mechanisms(),
+     is_mech_supported(Mech, ParentGroup)].
 
-group_names_for_mechanisms(Parallel) ->
-    [{group, Group} || {Group, _, _} <- groups_for_mechanisms(Parallel)].
+group_names_for_mechanisms(Parallel, ParentGroup) ->
+    [{group, Group} || {Group, _, _} <- groups_for_mechanisms(Parallel, ParentGroup)].
 
 tests() ->
    [server_advertises_support_for_fast,
@@ -87,6 +88,17 @@ mech_to_algo(<<"HT-SHA-512-EXPR">>) -> sha512;
 mech_to_algo(<<"HT-SHA-3-256-EXPR">>) -> sha3_256;
 mech_to_algo(<<"HT-SHA-3-384-EXPR">>) -> sha3_384;
 mech_to_algo(<<"HT-SHA-3-512-EXPR">>) -> sha3_512.
+
+is_mech_supported(Mech, early_data) ->
+    %% Currently, channel binding does not work for 0rtt,
+    %% because 0rtt data must be set as a connection parameter.
+    %% And channel binding data is only known after TLS handshake
+    %% (i.e. after one roundtrip, once the connection is secured,
+    %% it requires per-connection random data as a part of the channel bindning
+    %% data)
+    mech_to_cb_type(Mech) =:= none;
+is_mech_supported(Mech, ParentGroup) ->
+    true.
 
 mech_to_cb_type(Mech) ->
     Type = lists:last(binary:split(Mech, <<"-">>, [global])),
@@ -477,10 +489,6 @@ parse_connect_result(#{answer := Success, spec := Spec}) ->
     Token = exml_query:attr(Fast, <<"token">>),
     #{expire => Expire, token => Token, spec => Spec}.
 
-maybe_receive_session_tickets_on_connect(_Config, Client, Data = #{}) ->
-    #{} = Data2 = maybe_receive_session_tickets_on_connect(Client, Data),
-    {Client, Data2}.
-
 auth_and_request_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_token(Mech), user_agent()],
@@ -752,7 +760,6 @@ connection_to_material2(Conn) ->
     %% {error, undefined_tls_material}
     Res = escalus_connection:export_key_materials(
                        Conn, [?CB_LABEL], [no_context], [32], true),
-    ct:pal("connection_to_material ~p ~p", [Res, Conn]),
     case Res of
         {error, undefined_tls_material} -> <<>>;
         {ok, [Material | _]} -> Material
@@ -784,15 +791,13 @@ set_ticket(Data = #{spec := Spec}, Ticket) ->
 remember_cb_data(Data = #{spec := Spec}, CB) ->
     Data#{spec => [{cb_data, CB} | Spec]}.
 
-maybe_receive_session_tickets_on_connect(Client, Data = #{spec := Spec}) ->
+maybe_receive_session_tickets_on_connect(_Config, Client, Data = #{spec := Spec}) ->
     case proplists:get_value(receive_session_tickets_on_connect, Spec, false) of
         true ->
-            CB = connection_to_material(Client),
             Ticket = receive_ticket(Client),
-            Data2 = remember_cb_data(Data, CB),
-            set_ticket(Data2, Ticket);
+            {Client, set_ticket(Data, Ticket)};
         false ->
-            Data
+            {Client, Data}
     end.
 
 add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
