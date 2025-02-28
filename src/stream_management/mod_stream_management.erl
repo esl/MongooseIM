@@ -246,7 +246,8 @@ handle_buffer_and_ack(Acc, C2SState, Jid, #sm_state{buffer = Buffer, buffer_max 
                    end,
     Acc1 = notify_unacknowledged_msg_if_in_resume_state(Acc, Jid, C2SState),
     NewSmState = SmState#sm_state{buffer = [Acc1 | Buffer], buffer_size = NewBufferSize},
-    Acc2 = mongoose_c2s_acc:to_acc(Acc, actions, MaybeActions),
+    ToAcc = [{actions, MaybeActions}, {state_mod, {?MODULE, NewSmState}}],
+    Acc2 = mongoose_c2s_acc:to_acc_many(Acc1, ToAcc),
     maybe_send_ack_request(Acc2, NewSmState).
 
 notify_unacknowledged_msg_if_in_resume_state(Acc, Jid, ?EXT_C2S_STATE(resume_session)) ->
@@ -266,13 +267,12 @@ is_buffer_full(_, _) ->
     mongoose_c2s_hooks:result().
 maybe_send_ack_request(Acc, #sm_state{buffer_size = BufferSize,
                                       counter_out = Out,
-                                      ack_freq = AckFreq} = SmState)
-  when 0 =:= (Out + BufferSize) rem AckFreq, ack_freq =/= never ->
+                                      ack_freq = AckFreq})
+  when 0 =:= (Out + BufferSize) rem AckFreq ->
     Stanza = mod_stream_management_stanzas:stream_mgmt_request(),
-    ToAcc = [{socket_send, Stanza}, {state_mod, {?MODULE, SmState}}],
-    {ok, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
-maybe_send_ack_request(Acc, SmState) ->
-    {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, SmState})}.
+    {ok, mongoose_c2s_acc:to_acc(Acc, socket_send, Stanza)};
+maybe_send_ack_request(Acc, _SmState) ->
+    {ok, Acc}.
 
 -spec user_send_xmlel(Acc, Params, Extra) -> Result when
       Acc :: mongoose_acc:t(),
