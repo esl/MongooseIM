@@ -223,11 +223,11 @@ user_receive_packet(Acc, _Params, _Extra) ->
 xmpp_presend_element(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Extra) ->
     case {get_mod_state(StateData), mongoose_acc:stanza_type(Acc)} of
         {{error, not_found}, _} ->
-            {ok, Acc};
+            {xmpp_presend_result(C2SState), Acc};
         {_, <<"probe">>} ->
-            {ok, Acc};
+            {xmpp_presend_result(C2SState), Acc};
         {#sm_state{buffer_max = no_buffer} = SmState, _} ->
-            maybe_send_ack_request(Acc, SmState);
+            maybe_send_ack_request(Acc, C2SState, SmState);
         {SmState, _} ->
             Jid = mongoose_c2s:get_jid(StateData),
             handle_buffer_and_ack(Acc, C2SState, Jid, SmState)
@@ -248,7 +248,7 @@ handle_buffer_and_ack(Acc, C2SState, Jid, #sm_state{buffer = Buffer, buffer_max 
     NewSmState = SmState#sm_state{buffer = [Acc1 | Buffer], buffer_size = NewBufferSize},
     ToAcc = [{actions, MaybeActions}, {state_mod, {?MODULE, NewSmState}}],
     Acc2 = mongoose_c2s_acc:to_acc_many(Acc1, ToAcc),
-    maybe_send_ack_request(Acc2, NewSmState).
+    maybe_send_ack_request(Acc2, C2SState, NewSmState).
 
 notify_unacknowledged_msg_if_in_resume_state(Acc, Jid, ?EXT_C2S_STATE(resume_session)) ->
     maybe_notify_unacknowledged_msg(Acc, Jid);
@@ -263,16 +263,22 @@ is_buffer_full(BufferSize, BufferMax) when BufferSize =< BufferMax ->
 is_buffer_full(_, _) ->
     true.
 
--spec maybe_send_ack_request(mongoose_acc:t(), sm_state()) ->
+-spec maybe_send_ack_request(mongoose_acc:t(), c2s_state(), sm_state()) ->
     mongoose_c2s_hooks:result().
-maybe_send_ack_request(Acc, #sm_state{buffer_size = BufferSize,
-                                      counter_out = Out,
-                                      ack_freq = AckFreq})
-  when 0 =:= (Out + BufferSize) rem AckFreq ->
+maybe_send_ack_request(Acc, C2SState, #sm_state{buffer_size = BufferSize,
+                                                counter_out = Out,
+                                                ack_freq = AckFreq})
+  when 0 =:= (Out + BufferSize) rem AckFreq, C2SState =/= ?EXT_C2S_STATE(resume_session) ->
     Stanza = mod_stream_management_stanzas:stream_mgmt_request(),
     {ok, mongoose_c2s_acc:to_acc(Acc, socket_send, Stanza)};
-maybe_send_ack_request(Acc, _SmState) ->
-    {ok, Acc}.
+maybe_send_ack_request(Acc, C2SState, _SmState) ->
+    {xmpp_presend_result(C2SState), Acc}.
+
+-spec xmpp_presend_result(c2s_state()) -> stop | ok.
+xmpp_presend_result(?EXT_C2S_STATE(resume_session)) ->
+    stop; % It makes no sense to route anything to a closed socket
+xmpp_presend_result(_C2SState) ->
+    ok.
 
 -spec user_send_xmlel(Acc, Params, Extra) -> Result when
       Acc :: mongoose_acc:t(),
