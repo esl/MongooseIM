@@ -84,7 +84,7 @@ This option defines IP addresses and port numbers for specific non-local XMPP do
 * **Example:** `ciphers = "TLSv1.2"`
 
 Defines a list of accepted SSL ciphers for outgoing S2S connections.
-Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
+Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format.
 
 ### `s2s.max_retry_delay`
 * **Syntax:** positive integer

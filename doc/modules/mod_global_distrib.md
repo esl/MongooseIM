@@ -235,7 +235,7 @@ These options will be passed to the `fast_tls` driver.
 * **Default:** `"TLSv1.2:TLSv1.3"`
 * **Example:** `ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://www.openssl.org/docs/man1.0.2/man1/ciphers.html) for the cipher string format.
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format.
 
 #### `modules.mod_global_distrib.connections.tls.dhfile`
 * **Syntax:** string, path in the file system
