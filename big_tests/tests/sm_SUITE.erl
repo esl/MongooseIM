@@ -616,18 +616,19 @@ connect_initial_users(Texts, Config) ->
     {Bob, UserSpecs, Users}.
 
 %% Reconnect (optionally), receive messages and disconnect each resource cleanly, in sequence
-%% There is an issue causing each subsequent session
-%% to receive twice as many messages as the previous one, i.e. 1, 2, 4, 8, ...
-%% See https://github.com/esl/MongooseIM/pull/4498 for a more detailed description with a diagram
-reconnect_and_receive_messages([UserF | Rest], Texts) ->
+%% Each subsequent session receives one additional copy of the original messages, i.e. 1, 2, 3, ...
+reconnect_and_receive_messages(UserFuns, Texts) ->
+    reconnect_and_receive_messages(UserFuns, Texts, Texts).
+
+reconnect_and_receive_messages([UserF | Rest], Texts, OrigTexts) ->
     NewUser = UserF(),
     sm_helper:wait_for_messages(NewUser, Texts),
     timer:sleep(100), % wait a short time to ensure no extra messages arrive
     escalus_assert:has_no_stanzas(NewUser),
     escalus_connection:stop(NewUser),
     %% Expect duplicated buffer in the next session
-    reconnect_and_receive_messages(Rest, Texts ++ Texts);
-reconnect_and_receive_messages([], _Texts) ->
+    reconnect_and_receive_messages(Rest, Texts ++ OrigTexts, OrigTexts);
+reconnect_and_receive_messages([], _Texts, _OrigTexts) ->
     ok.
 
 resend_unacked_on_reconnection(Config) ->

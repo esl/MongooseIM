@@ -400,7 +400,18 @@ handle_user_terminate(#sm_state{counter_in = H} = SmState, StateData, HostType) 
 reroute_buffer(StateData, #sm_state{buffer = Buffer, peer = {gen_statem, {Pid, _}}}) ->
     mongoose_c2s:reroute_buffer_to_pid(StateData, Pid, Buffer);
 reroute_buffer(StateData, #sm_state{buffer = Buffer}) ->
-    mongoose_c2s:reroute_buffer(StateData, Buffer).
+    mongoose_c2s:reroute_buffer(StateData, prepare_for_reroute(Buffer)).
+
+prepare_for_reroute(Buffer) ->
+    lists:filtermap(fun prepare_acc_for_reroute/1, Buffer).
+
+prepare_acc_for_reroute(Acc) ->
+    case mongoose_acc:get(?MODULE, rerouted, false, Acc) of
+        false ->
+            {true, mongoose_acc:set_permanent(?MODULE, rerouted, true, Acc)};
+        true ->
+            false
+    end.
 
 add_delay_elements_to_buffer(#sm_state{buffer = Buffer} = SmState, FromServer) ->
     BufferWithDelays = [maybe_add_timestamp(Acc, FromServer) || Acc <- Buffer],
