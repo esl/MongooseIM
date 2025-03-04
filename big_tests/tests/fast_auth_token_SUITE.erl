@@ -23,15 +23,16 @@ all() ->
 
 groups() ->
     Parallel = distributed_helper:maybe_parallel_group(),
-    [{default, [], group_names_for_mechanisms(Parallel)},
-     {early_data, [], group_names_for_mechanisms(Parallel)}]
-    ++ groups_for_mechanisms(Parallel).
+    [{default, [], group_names_for_mechanisms(Parallel, default)},
+     {early_data, [], group_names_for_mechanisms(Parallel, early_data)}]
+    ++ groups_for_mechanisms(Parallel, all).
 
-groups_for_mechanisms(Parallel) ->
-    [{Group, Parallel, tests()} || {Group, _Mech} <- mechanisms()].
+groups_for_mechanisms(Parallel, ParentGroup) ->
+    [{Group, Parallel, tests()} || {Group, Mech} <- mechanisms(),
+     is_mech_supported(Mech, ParentGroup)].
 
-group_names_for_mechanisms(Parallel) ->
-    [{group, Group} || {Group, _, _} <- groups_for_mechanisms(Parallel)].
+group_names_for_mechanisms(Parallel, ParentGroup) ->
+    [{group, Group} || {Group, _, _} <- groups_for_mechanisms(Parallel, ParentGroup)].
 
 tests() ->
    [server_advertises_support_for_fast,
@@ -67,21 +68,63 @@ mechanisms() ->
     {ht_sha_512_none, <<"HT-SHA-512-NONE">>},
     {ht_sha_3_256_none, <<"HT-SHA-3-256-NONE">>},
     {ht_sha_3_384_none, <<"HT-SHA-3-384-NONE">>},
-    {ht_sha_3_512_none, <<"HT-SHA-3-512-NONE">>}].
+    {ht_sha_3_512_none, <<"HT-SHA-3-512-NONE">>},
+    {ht_sha_256_expr, <<"HT-SHA-256-EXPR">>},
+    {ht_sha_384_expr, <<"HT-SHA-384-EXPR">>},
+    {ht_sha_512_expr, <<"HT-SHA-512-EXPR">>},
+    {ht_sha_3_256_expr, <<"HT-SHA-3-256-EXPR">>},
+    {ht_sha_3_384_expr, <<"HT-SHA-3-384-EXPR">>},
+    {ht_sha_3_512_expr, <<"HT-SHA-3-512-EXPR">>}].
 
 mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
 mech_to_algo(<<"HT-SHA-384-NONE">>) -> sha384;
 mech_to_algo(<<"HT-SHA-512-NONE">>) -> sha512;
 mech_to_algo(<<"HT-SHA-3-256-NONE">>) -> sha3_256;
 mech_to_algo(<<"HT-SHA-3-384-NONE">>) -> sha3_384;
-mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512.
+mech_to_algo(<<"HT-SHA-3-512-NONE">>) -> sha3_512;
+mech_to_algo(<<"HT-SHA-256-EXPR">>) -> sha256;
+mech_to_algo(<<"HT-SHA-384-EXPR">>) -> sha384;
+mech_to_algo(<<"HT-SHA-512-EXPR">>) -> sha512;
+mech_to_algo(<<"HT-SHA-3-256-EXPR">>) -> sha3_256;
+mech_to_algo(<<"HT-SHA-3-384-EXPR">>) -> sha3_384;
+mech_to_algo(<<"HT-SHA-3-512-EXPR">>) -> sha3_512.
+
+is_mech_supported(Mech, early_data) ->
+    %% Currently, channel binding does not work for 0rtt,
+    %% because 0rtt data must be set as a connection parameter.
+    %% And channel binding data is only known after TLS handshake
+    %% (i.e. after one roundtrip, once the connection is secured,
+    %% it requires per-connection random data as a part of the channel bindning
+    %% data)
+    mech_to_cb_type(Mech) =:= none;
+is_mech_supported(Mech, ParentGroup) ->
+    Ver = list_to_integer(erlang:system_info(otp_release)),
+    case mech_to_cb_type(Mech) of
+        expr ->
+            Ver >= 27;
+        _ ->
+            true
+    end.
+
+mech_to_cb_type(Mech) ->
+    Type = lists:last(binary:split(Mech, <<"-">>, [global])),
+    cb_type_to_atom(Type).
+
+cb_type_to_atom(<<"NONE">>) -> none;
+cb_type_to_atom(<<"EXPR">>) -> expr.
 
 another_mechanism(<<"HT-SHA-256-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
 another_mechanism(<<"HT-SHA-384-NONE">>) -> <<"HT-SHA-3-256-NONE">>;
 another_mechanism(<<"HT-SHA-512-NONE">>) -> <<"HT-SHA-3-512-NONE">>;
 another_mechanism(<<"HT-SHA-3-512-NONE">>) -> <<"HT-SHA-256-NONE">>;
 another_mechanism(<<"HT-SHA-3-384-NONE">>) -> <<"HT-SHA-384-NONE">>;
-another_mechanism(<<"HT-SHA-3-256-NONE">>) -> <<"HT-SHA-512-NONE">>.
+another_mechanism(<<"HT-SHA-3-256-NONE">>) -> <<"HT-SHA-512-NONE">>;
+another_mechanism(<<"HT-SHA-256-EXPR">>) -> <<"HT-SHA-3-512-EXPR">>;
+another_mechanism(<<"HT-SHA-384-EXPR">>) -> <<"HT-SHA-3-256-EXPR">>;
+another_mechanism(<<"HT-SHA-512-EXPR">>) -> <<"HT-SHA-3-512-EXPR">>;
+another_mechanism(<<"HT-SHA-3-512-EXPR">>) -> <<"HT-SHA-256-EXPR">>;
+another_mechanism(<<"HT-SHA-3-384-EXPR">>) -> <<"HT-SHA-384-EXPR">>;
+another_mechanism(<<"HT-SHA-3-256-EXPR">>) -> <<"HT-SHA-512-EXPR">>.
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -452,10 +495,6 @@ parse_connect_result(#{answer := Success, spec := Spec}) ->
     Token = exml_query:attr(Fast, <<"token">>),
     #{expire => Expire, token => Token, spec => Spec}.
 
-maybe_receive_session_tickets_on_connect(_Config, Client, Data = #{}) ->
-    #{} = Data2 = maybe_receive_session_tickets_on_connect(Client, Data),
-    {Client, Data2}.
-
 auth_and_request_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
     Extra = [request_token(Mech), user_agent()],
@@ -521,7 +560,7 @@ auth_with_token(Success, Token, Config, Spec) ->
 
 auth_with_token(Success, Token, Config, Spec, RequestToken) ->
     Spec2 = [{secret_token, Token}] ++ Spec,
-    Authenticate = auth_stanza(RequestToken, Config, Spec2),
+    Authenticate = fun(CB) -> auth_stanza(RequestToken, Config, [{channel_binding_data, CB} | Spec2]) end,
     Steps = steps(Success),
     EarlyDataEnabled = proplists:get_value(early_data, Config, false),
     Data = #{spec => set_early_data(Spec2, EarlyDataEnabled, Authenticate),
@@ -544,10 +583,12 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
 set_early_data(Spec, false, _Authenticate) ->
     Spec;
 set_early_data(Spec, true, Authenticate) ->
+    CB = proplists:get_value(cb_data, Spec),
+    AuthenticateElem = Authenticate(CB),
     Map = proplists:to_map(Spec),
     #{ssl_opts := SslOpts} = Map,
     Map2 = Map#{
-         ssl_opts => [{early_data, make_early_data(Spec, Authenticate)} | SslOpts]},
+         ssl_opts => [{early_data, make_early_data(Spec, AuthenticateElem)} | SslOpts]},
     proplists:from_map(Map2).
 
 make_early_data(Spec, Authenticate) ->
@@ -639,25 +680,28 @@ start_stream_get_features(Config, Client, Data = #{}) ->
     {Client2, Data2}.
 
 auth_and_request_token(Config, Client, Data = #{spec := Spec}) ->
-    Authenticate = auth_and_request_token_stanza(Config, Spec),
+    Authenticate = fun(CB) -> auth_and_request_token_stanza(Config, [{channel_binding_data, CB} | Spec]) end,
     auth_with_method(Config, Client, Data#{auth_stanza => Authenticate}).
 
 auth_with_method(_Config, Client, Data = #{auth_stanza := Authenticate}) ->
-    case Authenticate of
-        skip ->
-            ok;
-        _ ->
-            escalus:send(Client, Authenticate)
-    end,
+    Client2 = case Authenticate of
+                  skip ->
+                      Client;
+                  _ when is_function(Authenticate) ->
+                      CB = connection_to_material(Client),
+                      AuthenticateElem = Authenticate(CB),
+                      escalus:send(Client, AuthenticateElem),
+                      maybe_set_cb_to_client(CB, Client)
+              end,
     Answer = escalus_client:wait_for_stanza(Client),
     ct:log("Answer ~p", [Answer]),
     Identifier = exml_query:path(Answer, [{element, <<"authorization-identifier">>}, cdata]),
     case Identifier of
         undefined ->
-            {Client, Data#{answer => Answer}};
+            {Client2, Data#{answer => Answer}};
         _ ->
             #jid{lresource = LResource} = jid:from_binary(Identifier),
-            {Client, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}
+            {Client2, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}
     end.
 
 auth_elem(Mech, Children) ->
@@ -667,6 +711,12 @@ auth_elem(Mech, Children) ->
 
 client_to_spec(#client{props = Props}) ->
     Props.
+
+maybe_set_cb_to_client(CB, Client = #client{props = Props})
+    when is_binary(CB), byte_size(CB) > 0 ->
+    Client#client{props = [{extracted_cb_data, CB} | Props]};
+maybe_set_cb_to_client(_CB, Client) ->
+    Client.
 
 %% Creates "Initiator First Message"
 %% https://www.ietf.org/archive/id/draft-schmaus-kitten-sasl-ht-09.html#section-3.1
@@ -685,12 +735,41 @@ ht_auth_initial_response(Props, Mech) ->
     Username = proplists:get_value(username, Props),
     Token = proplists:get_value(secret_token, Props),
     is_binary(Token) orelse ct:fail({bad_secret_token, Props}),
-    CBData = <<>>,
+    CBData = case mech_to_cb_type(Mech) of
+                 none ->
+                     <<>>;
+                 expr ->
+                      proplists:get_value(channel_binding_data, Props)
+             end,
     ToHash = <<"Initiator", CBData/binary>>,
     Algo = mech_to_algo(Mech),
     InitiatorHashedToken = crypto:mac(hmac, Algo, Token, ToHash),
     Payload = <<Username/binary, 0, InitiatorHashedToken/binary>>,
     initial_response_elem(Payload).
+
+
+%% From https://www.ietf.org/rfc/rfc9266.html
+-define(CB_LABEL, <<"EXPORTER-Channel-Binding">>).
+
+connection_to_material(Conn = #client{props = Props}) ->
+    case proplists:get_value(extracted_cb_data, Props) of
+        CB when is_binary(CB) ->
+            CB;
+        _ ->
+            connection_to_material2(Conn)
+    end.
+
+connection_to_material2(Conn) ->
+    %% Could fail with
+    %% {badmatch,{error,exporter_master_secret_already_consumed}}
+    %% If you get this, ensure that you run at least with Erlang 27
+    %% {error, undefined_tls_material}
+    Res = escalus_connection:export_key_materials(
+                       Conn, [?CB_LABEL], [no_context], [32], true),
+    case Res of
+        {error, undefined_tls_material} -> <<>>;
+        {ok, [Material | _]} -> Material
+    end.
 
 initial_response_elem(Payload) ->
     Encoded = base64:encode(Payload),
@@ -715,13 +794,16 @@ set_ticket(Data = #{spec := Spec}, Ticket) ->
          ssl_opts => [{use_ticket, [Ticket]} | SslOpts]},
     Data#{spec => proplists:from_map(Map2)}.
 
-maybe_receive_session_tickets_on_connect(Client, Data = #{spec := Spec}) ->
+remember_cb_data(Data = #{spec := Spec}, CB) ->
+    Data#{spec => [{cb_data, CB} | Spec]}.
+
+maybe_receive_session_tickets_on_connect(_Config, Client, Data = #{spec := Spec}) ->
     case proplists:get_value(receive_session_tickets_on_connect, Spec, false) of
         true ->
             Ticket = receive_ticket(Client),
-            set_ticket(Data, Ticket);
+            {Client, set_ticket(Data, Ticket)};
         false ->
-            Data
+            {Client, Data}
     end.
 
 add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
