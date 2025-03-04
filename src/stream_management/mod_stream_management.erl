@@ -229,8 +229,27 @@ xmpp_presend_element(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Extr
         {#sm_state{buffer_max = no_buffer} = SmState, _} ->
             maybe_send_ack_request(Acc, C2SState, SmState);
         {SmState, _} ->
-            Jid = mongoose_c2s:get_jid(StateData),
-            handle_buffer_and_ack(Acc, C2SState, Jid, SmState)
+            case prevent_buffer_duplication(Acc, SmState) of
+                duplicate ->
+                    {stop, Acc};
+                Acc1 ->
+                    Jid = mongoose_c2s:get_jid(StateData),
+                    handle_buffer_and_ack(Acc1, C2SState, Jid, SmState)
+            end
+    end.
+
+-spec prevent_buffer_duplication(mongoose_acc:t(), sm_state()) -> duplicate | mongoose_acc:t().
+prevent_buffer_duplication(Acc, #sm_state{buffer = Buffer}) ->
+    case mongoose_acc:get(?MODULE, buffer_ref, undefined, Acc) of
+        undefined ->
+            mongoose_acc:set_permanent(?MODULE, buffer_ref, make_ref(), Acc);
+        Ref ->
+            case lists:any(fun(BufAcc) ->
+                                   mongoose_acc:get(?MODULE, buffer_ref, undefined, BufAcc) =:= Ref
+                           end, Buffer) of
+                true -> duplicate;
+                false -> Acc
+            end
     end.
 
 -spec handle_buffer_and_ack(mongoose_acc:t(), c2s_state(), jid:jid(), sm_state()) ->
