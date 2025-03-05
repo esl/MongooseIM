@@ -79,13 +79,24 @@ format_opts(Opts, ClientOrServer) ->
     SslOpts3 = hibernate_opt(SslOpts2, Opts),
     SslOpts4 = session_tickets_opt(ClientOrServer, SslOpts3, Opts),
     SslOpts5 = early_data_opt(ClientOrServer, SslOpts4, Opts),
+    SslOpts6 = maybe_use_system_certificates(SslOpts5, Opts),
     case ClientOrServer of
-        client -> sni_opts(SslOpts5, Opts);
-        server -> fail_if_no_peer_cert_opt(SslOpts5, Opts)
+        client -> sni_opts(SslOpts6, Opts);
+        server -> fail_if_no_peer_cert_opt(SslOpts6, Opts)
     end.
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
+
+%% Use CA certificates provided by the OS when `verify_mode` is peer
+%% or selfsigned_peer and `cacertfile` was not set
+maybe_use_system_certificates(Opts, #{cacertfile := _}) ->
+    Opts;
+maybe_use_system_certificates(Opts, #{verify_mode := Mode})
+  when Mode =:= peer; Mode =:= selfsigned_peer ->
+    [{cacerts, public_key:cacerts_get()} | Opts];
+maybe_use_system_certificates(Opts, #{}) ->
+    Opts.
 
 %% accept empty peer certificate if explicitly requested not to fail
 fail_if_no_peer_cert_opt(Opts, #{disconnect_on_failure := false}) ->

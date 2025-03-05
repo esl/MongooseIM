@@ -73,7 +73,8 @@ groups() ->
         {tls, [parallel], auth_bind_pipelined_cases() ++
                           protocol_test_cases() ++
                           cipher_test_cases()},
-        {verify_peer, [], [verify_peer_disconnects_when_client_has_no_cert,
+        {verify_peer, [], [use_system_certs_when_no_cacertfile,
+                           verify_peer_disconnects_when_client_has_no_cert,
                            verify_peer_ignores_when_client_has_no_cert]},
         {just_tls, [{group, verify_peer} | tls_groups()]},
         {session_replacement, [], [same_resource_replaces_session,
@@ -215,6 +216,24 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+
+use_system_certs_when_no_cacertfile(Config) ->
+    Opts0 = tls_opts(starttls_required, Config),
+    Opts = maps:remove(cacertfile, Opts0#{verify_mode => peer}),
+    ?assertNot(maps:is_key(cacerts, Opts)),
+    ?assertNot(maps:is_key(cacertfile, Opts)),
+    ServerOpts = rpc(mim(), just_tls, make_server_opts, [Opts]),
+    ?assertMatch({verify, verify_peer}, lists:keyfind(verify, 1, ServerOpts)),
+    ?assertMatch({cacerts, _}, lists:keyfind(cacerts, 1, ServerOpts)),
+    %% `dhfile` is a server only option
+    Opts1 = maps:remove(dhfile, Opts),
+    %% remove fake `certfile`
+    Opts2 = maps:remove(certfile, Opts1),
+    ClientOpts = rpc(mim(), just_tls, make_client_opts, [Opts2]),
+    ?assertMatch({verify, verify_peer}, lists:keyfind(verify, 1, ClientOpts)),
+    ?assertMatch({cacerts, _}, lists:keyfind(cacerts, 1, ClientOpts)),
+    ok = ssl:start(),
+    ?assertMatch({ok,_}, ssl:connect("google.com", 443, ClientOpts)).
 
 verify_peer_disconnects_when_client_has_no_cert(Config) ->
     %% Server disconnects only when `disconnect_on_failure` is set to `true`.
