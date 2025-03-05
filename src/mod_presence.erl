@@ -560,7 +560,7 @@ close_session_status(normal) ->
     <<>>;
 close_session_status({shutdown, retries}) ->
     <<"Too many attempts">>;
-close_session_status({shutdown, replaced}) ->
+close_session_status({shutdown, {replaced, _Pid}}) ->
     <<"Replaced by new connection">>;
 close_session_status({shutdown, Reason}) when is_atom(Reason) ->
     <<"Shutdown by reason: ", (atom_to_binary(Reason))/binary>>;
