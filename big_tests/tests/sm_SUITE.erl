@@ -570,8 +570,10 @@ resend_unacked_from_stopped_sessions(Config) ->
 
     %% Each User session checks messages and stops,
     %% causing buffer rerouting and message duplication
-    Funs = [fun() -> User end || User <- Users],
-    reconnect_and_receive_messages(Funs, Texts). % Reconnection is skipped in this test case
+    lists:foreach(fun({N, User}) ->
+                          DuplicatedTexts = lists:append(lists:duplicate(N, Texts)),
+                          receive_unacked_messages(User, DuplicatedTexts)
+                  end, lists:enumerate(Users)).
 
 resend_unacked_from_terminated_sessions(Config) ->
     Texts = [<<"msg-1">>],
@@ -589,8 +591,10 @@ resend_unacked_from_terminated_sessions(Config) ->
 
     %% User replaces each terminated session with a new one,
     %% causing buffer rerouting and message duplication
-    Funs = [fun() -> connect_spec(Spec, session) end || Spec <- UserSpecs],
-    reconnect_and_receive_messages(Funs, Texts).
+    lists:foreach(fun(UserSpec) ->
+                          NewUser = connect_spec(UserSpec, session),
+                          receive_unacked_messages(NewUser, Texts)
+                  end, UserSpecs).
 
 resend_unacked_from_replaced_sessions(Config) ->
     Texts = [<<"msg-1">>],
@@ -604,8 +608,10 @@ resend_unacked_from_replaced_sessions(Config) ->
 
     %% User replaces each online session with a new one,
     %% causing buffer rerouting and message duplication
-    Funs = [fun() -> connect_spec(Spec, session) end || Spec <- UserSpecs],
-    reconnect_and_receive_messages(Funs, Texts).
+    lists:foreach(fun(UserSpec) ->
+                          NewUser = connect_spec(UserSpec, session),
+                          receive_unacked_messages(NewUser, Texts)
+                  end, UserSpecs).
 
 connect_initial_users(Texts, Config) ->
     Resources = [<<"res-", (integer_to_binary(I))/binary>> || I <- lists:seq(1, 4)],
@@ -615,21 +621,12 @@ connect_initial_users(Texts, Config) ->
     Users = [connect_spec(Spec, sm_after_session) || Spec <- UserSpecs],
     {Bob, UserSpecs, Users}.
 
-%% Reconnect (optionally), receive messages and disconnect each resource cleanly, in sequence
-%% Each subsequent session receives one additional copy of the original messages, i.e. 1, 2, 3, ...
-reconnect_and_receive_messages(UserFuns, Texts) ->
-    reconnect_and_receive_messages(UserFuns, Texts, Texts).
-
-reconnect_and_receive_messages([UserF | Rest], Texts, OrigTexts) ->
-    NewUser = UserF(),
-    sm_helper:wait_for_messages(NewUser, Texts),
+%% Receive messages and disconnect cleanly
+receive_unacked_messages(User, Texts) ->
+    sm_helper:wait_for_messages(User, Texts),
     timer:sleep(100), % wait a short time to ensure no extra messages arrive
-    escalus_assert:has_no_stanzas(NewUser),
-    escalus_connection:stop(NewUser),
-    %% Expect duplicated buffer in the next session
-    reconnect_and_receive_messages(Rest, Texts ++ OrigTexts, OrigTexts);
-reconnect_and_receive_messages([], _Texts, _OrigTexts) ->
-    ok.
+    escalus_assert:has_no_stanzas(User),
+    escalus_connection:stop(User).
 
 resend_unacked_on_reconnection(Config) ->
     Texts = three_texts(),
