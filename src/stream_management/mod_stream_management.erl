@@ -380,26 +380,28 @@ maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, #sm_state{cou
   when ?IS_STREAM_MGMT_STOP(Reason) ->
     Sid = mongoose_c2s:get_sid(StateData),
     do_remove_smid(HostType, Sid, H),
-    NewSmState = handle_user_terminate(SmState, StateData, HostType),
+    NewSmState = handle_user_terminate(SmState, StateData, HostType, Reason),
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmState})};
-maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, _Reason, #sm_state{} = SmState) ->
-    NewSmState = handle_user_terminate(SmState, StateData, HostType),
+maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, #sm_state{} = SmState) ->
+    NewSmState = handle_user_terminate(SmState, StateData, HostType, Reason),
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmState})};
 maybe_handle_stream_mgmt_reroute(Acc, _StateData, _HostType, _Reason, {error, not_found}) ->
     {ok, Acc}.
 
--spec handle_user_terminate(sm_state(), mongoose_c2s:data(), mongooseim:host_type()) -> sm_state().
-handle_user_terminate(#sm_state{counter_in = H} = SmState, StateData, HostType) ->
+-spec handle_user_terminate(sm_state(), mongoose_c2s:data(), mongooseim:host_type(), _) -> sm_state().
+handle_user_terminate(#sm_state{counter_in = H} = SmState, StateData, HostType, Reason) ->
     Sid = mongoose_c2s:get_sid(StateData),
     do_remove_smid(HostType, Sid, H),
     FromServer = mongoose_c2s:get_lserver(StateData),
     NewState = add_delay_elements_to_buffer(SmState, FromServer),
-    reroute_buffer(StateData, NewState),
+    reroute_buffer(StateData, NewState, Reason),
     SmState#sm_state{buffer = [], buffer_size = 0}.
 
-reroute_buffer(StateData, #sm_state{buffer = Buffer, peer = {gen_statem, {Pid, _}}}) ->
+reroute_buffer(StateData, #sm_state{buffer = Buffer, peer = {gen_statem, {Pid, _}}}, _Reason) ->
     mongoose_c2s:reroute_buffer_to_pid(StateData, Pid, Buffer);
-reroute_buffer(StateData, #sm_state{buffer = Buffer}) ->
+reroute_buffer(StateData, #sm_state{buffer = Buffer}, {replaced, Pid}) ->
+    mongoose_c2s:reroute_buffer_to_pid(StateData, Pid, Buffer);
+reroute_buffer(StateData, #sm_state{buffer = Buffer}, _Reason) ->
     mongoose_c2s:reroute_buffer(StateData, prepare_for_reroute(Buffer)).
 
 prepare_for_reroute(Buffer) ->
