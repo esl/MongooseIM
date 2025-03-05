@@ -103,6 +103,9 @@ parallel_cases() ->
      h_ok_after_session_enabled_before_session,
      h_ok_after_session_enabled_after_session,
      h_ok_after_a_chat,
+     h_ok_after_presence,
+     h_ok_after_iq,
+     h_ok_after_non_xmpp_stanza,
      h_non_given_closes_stream_gracefully,
      resend_unacked_on_reconnection,
      session_established,
@@ -401,18 +404,14 @@ basic_ack(Config) ->
 %% - <r/> is sent *before* the session is established
 h_ok_before_session(Config) ->
     User = connect_fresh(Config, ?config(user, Config), sm_after_bind),
-    escalus_connection:send(User, escalus_stanza:sm_request()),
-    escalus:assert(is_sm_ack, [0],
-                   escalus_connection:get_stanza(User, stream_mgmt_ack)).
+    assert_h(User, 0).
 
 %% Test that "h" value is valid when:
 %% - SM is enabled *before* the session is established
 %% - <r/> is sent *after* the session is established
 h_ok_after_session_enabled_before_session(Config) ->
     User = connect_fresh(Config, ?config(user, Config), sm_before_session),
-    escalus_connection:send(User, escalus_stanza:sm_request()),
-    escalus:assert(is_sm_ack, [1],
-                   escalus_connection:get_stanza(User, stream_mgmt_ack)).
+    assert_h(User, 1).
 
 %% Test that "h" value is valid when:
 %% - SM is enabled *after* the session is established
@@ -422,15 +421,14 @@ h_ok_after_session_enabled_after_session(Config) ->
     escalus_connection:send(User, escalus_stanza:roster_get()),
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(User, roster_result)),
-    escalus_connection:send(User, escalus_stanza:sm_request()),
-    escalus:assert(is_sm_ack, [1],
-                   escalus_connection:get_stanza(User, stream_mgmt_ack)).
+    assert_h(User, 1).
 
 %% Test that "h" value is valid after exchanging a few messages.
 h_ok_after_a_chat(ConfigIn) ->
     Config = escalus_users:update_userspec(ConfigIn, ?config(user, ConfigIn),
                                            stream_management, true),
     escalus:fresh_story(Config, [{?config(user, Config), 1}, {bob,1}], fun(User, Bob) ->
+        assert_h(User, 1),
         escalus:send(User, escalus_stanza:chat_to(Bob, <<"Hi, Bob!">>)),
         escalus:assert(is_chat_message, [<<"Hi, Bob!">>],
                        escalus:wait_for_stanza(Bob)),
@@ -443,11 +441,14 @@ h_ok_after_a_chat(ConfigIn) ->
         escalus:send(User, escalus_stanza:chat_to(Bob, <<"Pretty !@#$%^$">>)),
         escalus:assert(is_chat_message, [<<"Pretty !@#$%^$">>],
                        escalus:wait_for_stanza(Bob)),
-        escalus:send(User, escalus_stanza:sm_request()),
-        escalus:assert(is_sm_ack, [3], escalus:wait_for_stanza(User)),
+        assert_h(User, 3),
         %% Ack, so that unacked messages don't go into offline store.
         escalus:send(User, escalus_stanza:sm_ack(3))
     end).
+
+h_ok_after_presence(_ConfigIn) -> ok.
+h_ok_after_iq(_ConfigIn) -> ok.
+h_ok_after_non_xmpp_stanza(_ConfigIn) -> ok.
 
 h_non_given_closes_stream_gracefully(ConfigIn) ->
     AStanza = #xmlel{name = <<"a">>,
@@ -1601,3 +1602,7 @@ maybe_ack_initial_presence(User, ack) ->
     ack_initial_presence(User);
 maybe_ack_initial_presence(_User, no_ack) ->
     ok.
+
+assert_h(User, H) ->
+    escalus:send(User, escalus_stanza:sm_request()),
+    escalus:assert(is_sm_ack, [H], escalus:wait_for_stanza(User)).
