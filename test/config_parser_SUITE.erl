@@ -1303,8 +1303,6 @@ acl(_Config) ->
                                              <<"server">> => <<"localhost">>}]}}),
     ?errh(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
     ?errh(#{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"lit">>}]}}),
-    ?errh(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
-                                             <<"server_blog">> => <<"bloghost">>}]}}),
     ?errh([#{reason := incorrect_acl_condition_value}],
           #{<<"acl">> => #{<<"local">> => [#{<<"user">> => <<"@@@">>}]}}).
 

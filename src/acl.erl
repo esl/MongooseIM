@@ -48,9 +48,9 @@
 -type acl_name() :: all | none | atom().
 -type acl_spec() :: #{match := all | none | current_domain | any_hosted_domain,
                       acl_spec_key() => binary()}.
--type acl_spec_key() :: user | user_regexp | user_glob
-                      | server | server_regexp | server_glob
-                      | resource | resource_regexp | resource_glob.
+-type acl_spec_key() :: user | user_regexp
+                      | server | server_regexp
+                      | resource | resource_regexp.
 
 %% Skips the domain check for the 'match => current_domain' condition
 -spec match_rule(mongooseim:host_type_or_global(), rule_name(), jid:jid()) -> acl_result().
@@ -131,13 +131,10 @@ check(match, any_hosted_domain, _, JID) ->
 check(match, current_domain, Domain, JID) -> JID#jid.lserver =:= Domain;
 check(user, User, _, JID) -> JID#jid.luser =:= User;
 check(user_regexp, Regexp, _, JID) -> is_regexp_match(JID#jid.luser, Regexp);
-check(user_glob, Glob, _, JID) -> is_glob_match(JID#jid.luser, Glob);
 check(server, Server, _, JID) -> JID#jid.lserver =:= Server;
 check(server_regexp, Regexp, _, JID) -> is_regexp_match(JID#jid.lserver, Regexp);
-check(server_glob, Glob, _, JID) -> is_glob_match(JID#jid.lserver, Glob);
 check(resource, Resource, _, JID) -> JID#jid.lresource =:= Resource;
-check(resource_regexp, Regexp, _, JID) -> is_regexp_match(JID#jid.lresource, Regexp);
-check(resource_glob, Glob, _, JID) -> is_glob_match(JID#jid.lresource, Glob).
+check(resource_regexp, Regexp, _, JID) -> is_regexp_match(JID#jid.lresource, Regexp).
 
 -spec is_regexp_match(binary(), RegExp :: iodata()) -> boolean().
 is_regexp_match(String, RegExp) ->
@@ -151,7 +148,3 @@ is_regexp_match(String, RegExp) ->
                            string => String, regex => RegExp, reason => ErrDesc}),
             false
     end.
-
--spec is_glob_match(binary(), Glob :: binary()) -> boolean().
-is_glob_match(String, Glob) ->
-    is_regexp_match(String, xmerl_regexp:sh_to_awk(binary_to_list(Glob))).

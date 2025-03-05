@@ -835,10 +835,7 @@ acl_item() ->
                  <<"resource">> => Cond,
                  <<"user_regexp">> => Cond,
                  <<"server_regexp">> => Cond,
-                 <<"resource_regexp">> => Cond,
-                 <<"user_glob">> => Cond,
-                 <<"server_glob">> => Cond,
-                 <<"resource_glob">> => Cond
+                 <<"resource_regexp">> => Cond
                 },
        defaults = #{<<"match">> => current_domain}
       }.
