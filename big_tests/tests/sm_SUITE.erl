@@ -446,9 +446,41 @@ h_ok_after_a_chat(ConfigIn) ->
         escalus:send(User, escalus_stanza:sm_ack(3))
     end).
 
-h_ok_after_presence(_ConfigIn) -> ok.
-h_ok_after_iq(_ConfigIn) -> ok.
-h_ok_after_non_xmpp_stanza(_ConfigIn) -> ok.
+h_ok_after_presence(Config) ->
+    User = connect_fresh(Config, ?config(user, Config), sm_before_session),
+    assert_h(User, 1),
+    Presence = escalus_stanza:presence(<<"available">>),
+    escalus:send(User, Presence),
+    escalus:assert(is_presence, escalus:wait_for_stanza(User)),
+    assert_h(User, 2),
+    escalus:send(User, Presence),
+    escalus:assert(is_presence, escalus:wait_for_stanza(User)),
+    assert_h(User, 3).
+
+h_ok_after_iq(Config) ->
+    User = connect_fresh(Config, ?config(user, Config), sm_before_session),
+    assert_h(User, 1),
+    Iq = escalus_stanza:iq_get(<<"invalid_ns">>, []),
+    escalus_client:send(User, Iq),
+    escalus:assert(is_iq_error, escalus:wait_for_stanza(User)),
+    assert_h(User, 2),
+    escalus_client:send(User, Iq),
+    escalus:assert(is_iq_error, escalus:wait_for_stanza(User)),
+    assert_h(User, 3).
+
+h_ok_after_non_xmpp_stanza(Config) ->
+    User = connect_fresh(Config, ?config(user, Config), sm_before_session),
+    assert_h(User, 1),
+    %% SM stanzas are not counted
+    assert_h(User, 1),
+    %% CSI stanzas are not counted
+    CsiActive = csi_helper:csi_stanza(<<"active">>),
+    escalus_client:send(User, CsiActive),
+    assert_h(User, 1),
+    %% any non-xmpp stanza is not counted
+    Stanza =  #xmlel{name = <<"dummy_stanza">>},
+    escalus_client:send(User, Stanza),
+    assert_h(User, 1).
 
 h_non_given_closes_stream_gracefully(ConfigIn) ->
     AStanza = #xmlel{name = <<"a">>,
