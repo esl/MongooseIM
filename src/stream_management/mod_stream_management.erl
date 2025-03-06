@@ -178,8 +178,8 @@ stale_h_config_spec() ->
 -spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 user_send_packet(Acc, #{c2s_data := StateData}, _Extra) ->
-    case {get_mod_state(StateData), is_sm_element(Acc)} of
-        {#sm_state{counter_in = Counter} = SmState, false} ->
+    case {get_mod_state(StateData), is_stanza_element(Acc)} of
+        {#sm_state{counter_in = Counter} = SmState, true} ->
             NewSmState = SmState#sm_state{counter_in = incr_counter(Counter)},
             {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmState})};
         {_, _} ->
@@ -856,7 +856,7 @@ sm_state_to_keep(SmState, From) ->
 recover_messages(SmState) ->
     receive
         {route, Acc} ->
-            recover_messages(maybe_buffer_acc(SmState, Acc, is_message(mongoose_acc:stanza_name(Acc))))
+            recover_messages(maybe_buffer_acc(SmState, Acc, is_message(Acc)))
     after 0 ->
               SmState
     end.
@@ -868,14 +868,23 @@ maybe_buffer_acc(SmState, _Acc, false) ->
     SmState.
 
 %% IQs and presences are allowed to come to the same SID only
--spec is_message(binary()) -> boolean().
-is_message(<<"message">>) -> true;
-is_message(_) -> false.
+-spec is_message(mongoose_acc:t()) -> boolean().
+is_message(Acc) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> -> true;
+        _  -> false
+    end.
 
--spec is_sm_element(mongoose_acc:t()) -> boolean().
-is_sm_element(Acc) ->
-    El = mongoose_acc:element(Acc),
-    ?NS_STREAM_MGNT_3 =:= exml_query:attr(El, <<"xmlns">>).
+%% XEP-0198 states that only XMPP stanzas (i.e. <iq/>, <message/> or <presence/>
+%% stanzas as defined in RFC 6120) should be counted or acked in stream management
+-spec is_stanza_element(mongoose_acc:t()) -> boolean().
+is_stanza_element(Acc) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> -> true;
+        <<"iq">> -> true;
+        <<"presence">> -> true;
+        _ -> false
+    end.
 
 -spec make_smid() -> smid().
 make_smid() ->
