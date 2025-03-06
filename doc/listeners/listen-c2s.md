@@ -72,7 +72,7 @@ This option determines how clients are supposed to set up the TLS encryption:
 Specifies the way client certificate verification works:
 
 * `peer` - makes sure the client certificate is valid and signed by a trusted CA.
-* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`.
+* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates.
 * `none` - client certificate is not checked.
 
 Options: `peer` and `selfsigned_peer` will use certificates specified in `cacertfile` or system certificates, if `cacertfile` is not provided.
@@ -82,10 +82,7 @@ Options: `peer` and `selfsigned_peer` will use certificates specified in `cacert
 * **Default:** not set
 * **Example:** `tls.certfile = "server.pem"`
 
-Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
-
-!!! Note
-    For `just_tls` this file should only contain the certificate and the path to the private key can be provided separately as `keyfile`.
+Path to the X509 PEM file with a certificate (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
 
 ### `listen.c2s.tls.cacertfile`
 * **Syntax:** string, path in the file system
@@ -113,7 +110,7 @@ Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL document
 * **Default:** not set
 * **Example:** `tls.keyfile = "key.pem"`
 
-Path to the X509 PEM file with the private key.
+Path to the X509 PEM file with the private key. The private key may alternatively be appended to certificates and provided in `listen.c2s.tls.certfile`.
 
 ### `listen.c2s.tls.password`
 * **Syntax:** string
@@ -135,7 +132,6 @@ Additionally empty client certificate is treated as an error.
 
 When set to `false`, TLS handshake will succeed even if there were errors in client certificate verification.
 This allows to use other methods of authentication (like SASL) later as part of XMPP stream.
-The above behaviour is the same as default `fast_tls` behaviour (not aborting TLS connection on verification errors).
 
 ### `listen.c2s.tls.versions`
 * **Syntax:** array of strings
@@ -156,7 +152,7 @@ Specifies the paths to Certificate Revocation Lists.
 * **Default:** false
 * **Example:** `tls.early_data = true`
 
-Enables `early_data', or 0-RTT, used with [mod_fast_auth_token](../modules/mod_fast_auth_token.md) module.
+Enables `early_data`, or 0-RTT, used with [mod_fast_auth_token](../modules/mod_fast_auth_token.md) module.
 Use this with Direct TLS (i.e. port 5223).
 
 ### `listen.c2s.tls.session_tickets`
@@ -190,6 +186,6 @@ The following section configures two C2S listeners.
 ```
 
 * One at port 5222, which accepts a plain TCP connection and allows to use StartTLS for upgrading it to an encrypted one. The files containing the certificate and the DH parameter are also provided.
-* One at port 5223, which accepts only encrypted TLS connections. It is called direct Direct TLS.
+* One at port 5223, which accepts only encrypted TLS connections. It is called Direct TLS.
 
 Both listeners use `c2s` and `c2s_shaper` rules for access management and traffic shaping, respectively.
