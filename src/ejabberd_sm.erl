@@ -186,7 +186,7 @@ make_new_sid() ->
 
 -spec open_session(HostType, SID, JID, Priority, Info) -> ReplacedPids when
       HostType :: binary(),
-      SID :: 'undefined' | sid(),
+      SID :: sid(),
       JID :: jid:jid(),
       Priority :: integer() | undefined,
       Info :: info(),
@@ -201,7 +201,7 @@ open_session(HostType, SID, JID, Priority, Info) ->
 
 -spec close_session(Acc, SID, JID, Reason, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
-      SID :: 'undefined' | sid(),
+      SID :: sid(),
       JID :: jid:jid(),
       Reason :: close_reason(),
       Info :: info(),
@@ -284,7 +284,7 @@ get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
 -spec set_presence(Acc, SID, JID, Prio, Presence, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
       Acc1 :: mongoose_acc:t(),
-      SID :: 'undefined' | sid(),
+      SID :: sid(),
       JID :: jid:jid(),
       Prio :: 'undefined' | integer(),
       Presence :: any(),
@@ -297,7 +297,7 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
 -spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
       Acc1 :: mongoose_acc:t(),
-      SID :: 'undefined' | sid(),
+      SID :: sid(),
       JID :: jid:jid(),
       Status :: binary(),
       Info :: info().
@@ -585,7 +585,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 -spec set_session(SID, JID, Prio, Info) -> ok | {error, any()} when
-      SID :: sid() | 'undefined',
+      SID :: sid(),
       JID :: jid:jid(),
       Prio :: priority(),
       Info :: info().
