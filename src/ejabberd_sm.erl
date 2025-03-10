@@ -112,7 +112,7 @@
 -type info() :: #{info_key() => any()}.
 
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis | ejabberd_sm_cets.
--type close_reason() :: resumed | normal | replaced.
+-type close_reason() :: resumed | normal | {replaced, pid()}.
 -type info_key() :: atom().
 
 -export_type([session/0,
@@ -193,7 +193,7 @@ make_new_sid() ->
       ReplacedPids :: [pid()].
 open_session(HostType, SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
-    ReplacedPIDs = check_for_sessions_to_replace(HostType, JID),
+    ReplacedPIDs = check_for_sessions_to_replace(HostType, SID, JID),
     mongoose_instrument:execute(sm_session, #{host_type => HostType},
                                 #{jid => JID, logins => 1, count => 1}),
     mongoose_hooks:sm_register_connection(HostType, SID, JID, Info),
@@ -871,18 +871,19 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% @doc On new session, check if some existing connections need to be replace
--spec check_for_sessions_to_replace(HostType, JID) -> ReplacedPids when
+-spec check_for_sessions_to_replace(HostType, SID, JID) -> ReplacedPids when
       HostType :: mongooseim:host_type(),
+      SID :: sid(),
       JID :: jid:jid(),
       ReplacedPids :: [pid()].
-check_for_sessions_to_replace(HostType, JID) ->
+check_for_sessions_to_replace(HostType, {_, NewPid}, JID) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     Sessions = ejabberd_sm_backend:get_sessions(LUser, LServer),
     %% TODO: Depending on how this is executed, there could be an unneeded
     %% replacement for max_sessions. We need to check this at some point.
     ReplacedRedundantSessions = check_existing_resources(LResource, Sessions),
     AllReplacedSessionPids = check_max_sessions(HostType, LUser, LServer, ReplacedRedundantSessions, Sessions),
-    [mongoose_c2s:exit(Pid, <<"Replaced by new connection">>) || Pid <- AllReplacedSessionPids],
+    [mongoose_c2s:exit(Pid, {replaced, NewPid}) || Pid <- AllReplacedSessionPids],
     AllReplacedSessionPids.
 
 -spec check_existing_resources(LResource, Sessions) ->
