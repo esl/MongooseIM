@@ -125,7 +125,10 @@ parallel_cases() ->
 parallel_large_buffer_cases() ->
     [resend_unacked_from_stopped_sessions,
      resend_unacked_from_terminated_sessions,
-     resend_unacked_from_replaced_sessions].
+     resend_unacked_from_replaced_sessions,
+     relay_unacked_from_stopped_sessions,
+     relay_unacked_from_terminated_sessions,
+     relay_unacked_from_replaced_sessions].
 
 parallel_manual_ack_freq_1_cases() ->
     [client_acks_more_than_sent,
@@ -591,9 +594,11 @@ resend_more_offline_messages_than_buffer_size(Config) ->
 
 %% Test cases for duplicate buffer
 
+-define(USER_NUM, 4).
+
 resend_unacked_from_stopped_sessions(Config) ->
     Texts = [<<"msg-1">>],
-    {Bob, UserSpecs, Users} = connect_initial_users(Texts, Config),
+    {Bob, UserSpecs, Users} = connect_initial_users(Config),
 
     %% Bob sends messages to User's bare jid
     UserJid = escalus_users:get_jid(Config, hd(UserSpecs)),
@@ -601,14 +606,18 @@ resend_unacked_from_stopped_sessions(Config) ->
     C2SPids = lists:map(fun mongoose_helper:get_session_pid/1, Users),
     [sm_helper:wait_for_c2s_unacked_count(Pid, length(Texts)) || Pid <- C2SPids],
 
-    %% Each User session checks messages and stops,
-    %% causing buffer rerouting and message duplication
-    Funs = [fun() -> User end || User <- Users],
-    reconnect_and_receive_messages(Funs, Texts). % Reconnection is skipped in this test case
+    %% Each User's session checks messages and stops, rerouting unacked messages to online sessions.
+    %% This is why there is one extra copy of each message received in each subsequent iteration.
+    lists:foreach(fun({N, User}) ->
+                          DuplicatedTexts = lists:append(lists:duplicate(N, Texts)),
+                          receive_unacked_messages(User, DuplicatedTexts),
+                          escalus_connection:stop(User)
+                  end, lists:enumerate(Users)),
+    escalus_connection:stop(Bob).
 
 resend_unacked_from_terminated_sessions(Config) ->
     Texts = [<<"msg-1">>],
-    {Bob, UserSpecs, Users} = connect_initial_users(Texts, Config),
+    {Bob, UserSpecs, Users} = connect_initial_users(Config),
 
     %% User disconnects all sessions abruptly
     lists:foreach(fun escalus_connection:kill/1, Users),
@@ -621,13 +630,17 @@ resend_unacked_from_terminated_sessions(Config) ->
     [sm_helper:wait_for_c2s_unacked_count(Pid, length(Texts)) || Pid <- C2SPids],
 
     %% User replaces each terminated session with a new one,
-    %% causing buffer rerouting and message duplication
-    Funs = [fun() -> connect_spec(Spec, session) end || Spec <- UserSpecs],
-    reconnect_and_receive_messages(Funs, Texts).
+    %% rerouting unacked messages to the new session
+    lists:foreach(fun(UserSpec) ->
+                          NewUser = connect_spec(UserSpec, session),
+                          receive_unacked_messages(NewUser, Texts),
+                          escalus_connection:stop(NewUser)
+                  end, UserSpecs),
+    escalus_connection:stop(Bob).
 
 resend_unacked_from_replaced_sessions(Config) ->
     Texts = [<<"msg-1">>],
-    {Bob, UserSpecs, Users} = connect_initial_users(Texts, Config),
+    {Bob, UserSpecs, Users} = connect_initial_users(Config),
 
     %% Bob sends messages to User's bare jid
     UserJid = escalus_users:get_jid(Config, hd(UserSpecs)),
@@ -636,32 +649,91 @@ resend_unacked_from_replaced_sessions(Config) ->
     [sm_helper:wait_for_c2s_unacked_count(Pid, length(Texts)) || Pid <- C2SPids],
 
     %% User replaces each online session with a new one,
-    %% causing buffer rerouting and message duplication
-    Funs = [fun() -> connect_spec(Spec, session) end || Spec <- UserSpecs],
-    reconnect_and_receive_messages(Funs, Texts).
+    %% rerouting unacked messages to the new session
+    lists:foreach(fun(UserSpec) ->
+                          NewUser = connect_spec(UserSpec, session),
+                          receive_unacked_messages(NewUser, Texts),
+                          escalus_connection:stop(NewUser)
+                  end, UserSpecs),
+    escalus_connection:stop(Bob).
 
-connect_initial_users(Texts, Config) ->
-    Resources = [<<"res-", (integer_to_binary(I))/binary>> || I <- lists:seq(1, 4)],
+connect_initial_users(Config) ->
+    Resources = [<<"res-", (integer_to_binary(I))/binary>> || I <- lists:seq(1, ?USER_NUM)],
     Bob = connect_fresh(Config, bob, session),
     BasicUserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
     UserSpecs = [[{resource, Res} | BasicUserSpec] || Res <- Resources],
     Users = [connect_spec(Spec, sm_after_session) || Spec <- UserSpecs],
     {Bob, UserSpecs, Users}.
 
-%% Reconnect (optionally), receive messages and disconnect each resource cleanly, in sequence
-%% There is an issue causing each subsequent session
-%% to receive twice as many messages as the previous one, i.e. 1, 2, 4, 8, ...
-%% See https://github.com/esl/MongooseIM/pull/4498 for a more detailed description with a diagram
-reconnect_and_receive_messages([UserF | Rest], Texts) ->
-    NewUser = UserF(),
-    sm_helper:wait_for_messages(NewUser, Texts),
-    timer:sleep(100), % wait a short time to ensure no extra messages arrive
-    escalus_assert:has_no_stanzas(NewUser),
-    escalus_connection:stop(NewUser),
-    %% Expect duplicated buffer in the next session
-    reconnect_and_receive_messages(Rest, Texts ++ Texts);
-reconnect_and_receive_messages([], _Texts) ->
-    ok.
+relay_unacked_from_stopped_sessions(Config) ->
+    Texts = [<<"msg-1">>],
+    Resources = [<<"res-", (integer_to_binary(I))/binary>> || I <- lists:seq(1, ?USER_NUM)],
+    Bob = connect_fresh(Config, bob, session),
+    BasicUserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+    UserSpecs = [[{resource, Res} | BasicUserSpec] || Res <- Resources],
+    FirstUser = connect_spec(hd(UserSpecs), sm_after_session),
+
+    %% Bob sends messages to User's bare jid
+    UserJid = escalus_users:get_jid(Config, hd(UserSpecs)),
+    sm_helper:send_messages(Bob, UserJid, Texts),
+
+    %% Each User's session resends unacked messages to the next one
+    RelayF = fun(NextSpec, CurUser) ->
+                     receive_unacked_messages(CurUser, Texts),
+                     NewUser = connect_spec(NextSpec, sm_before_session),
+                     escalus_connection:stop(CurUser),
+                     NewUser
+             end,
+    LastUser = lists:foldl(RelayF, FirstUser, tl(UserSpecs)),
+    escalus_connection:stop(LastUser),
+    escalus_connection:stop(Bob).
+
+relay_unacked_from_terminated_sessions(Config) ->
+    Texts = [<<"msg-1">>],
+    Bob = connect_fresh(Config, bob, session),
+    UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+    FirstUser = connect_spec(UserSpec, sm_after_session),
+
+    %% Bob sends messages to User's bare jid
+    UserJid = escalus_users:get_jid(Config, UserSpec),
+    sm_helper:send_messages(Bob, UserJid, Texts),
+
+    %% Each User's session resends unacked messages to the next one
+    RelayF = fun(NextSpec, CurUser) ->
+                     receive_unacked_messages(CurUser, Texts),
+                     escalus_connection:kill(CurUser),
+                     C2SPid = mongoose_helper:get_session_pid(CurUser),
+                     sm_helper:wait_until_resume_session(C2SPid),
+                     connect_spec(NextSpec, sm_before_session)
+             end,
+    LastUser = lists:foldl(RelayF, FirstUser, lists:duplicate(?USER_NUM - 1, UserSpec)),
+    escalus_connection:stop(LastUser),
+    escalus_connection:stop(Bob).
+
+relay_unacked_from_replaced_sessions(Config) ->
+    Texts = [<<"msg-1">>],
+    Bob = connect_fresh(Config, bob, session),
+    UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+    FirstUser = connect_spec(UserSpec, sm_after_session),
+
+    %% Bob sends messages to User's bare jid
+    UserJid = escalus_users:get_jid(Config, UserSpec),
+    sm_helper:send_messages(Bob, UserJid, Texts),
+
+    %% Each User's session resends unacked messages to the next one
+    RelayF = fun(NextSpec, CurUser) ->
+                     receive_unacked_messages(CurUser, Texts),
+                     connect_spec(NextSpec, sm_before_session)
+             end,
+    LastUser = lists:foldl(RelayF, FirstUser, lists:duplicate(?USER_NUM - 1, UserSpec)),
+    escalus_connection:stop(LastUser),
+    escalus_connection:stop(Bob).
+
+%% Receive expected messages and wait a bit to ensure no extra messages arrive
+receive_unacked_messages(User, Texts) ->
+    sm_helper:wait_for_messages(User, Texts),
+    timer:sleep(100),
+    escalus_assert:has_no_stanzas(User).
 
 resend_unacked_on_reconnection(Config) ->
     Texts = three_texts(),
