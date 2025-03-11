@@ -10,6 +10,7 @@
 -define(HOST_TYPE, <<"localhost">>).
 -define(HOST_TYPE2, <<"test type">>).
 
+-import(mongoose_instrument_exometer, [exometer_metric_name/3]).
 %% Setup and teardown
 
 all() ->
@@ -41,8 +42,10 @@ groups() ->
                              exometer_spiral_is_updated_separately_for_different_labels,
                              exometer_histogram_is_created_and_updated,
                              exometer_histogram_is_updated_separately_for_different_labels,
+                             exometer_metric_name_supports_random_labels,
                              multiple_exometer_metrics_are_updated]},
-     {exometer_global, [parallel], [multiple_exometer_metrics_are_updated]},
+     {exometer_global, [parallel], [multiple_exometer_metrics_are_updated,
+                                    exometer_metric_name_supports_random_labels]},
      {prometheus_and_exometer, [parallel], [prometheus_and_exometer_metrics_are_updated]}
     ].
 
@@ -328,6 +331,33 @@ exometer_histogram_is_updated_separately_for_different_labels(Config) ->
     ?assertEqual({ok, [{mean, 1}]}, exometer:get_value(Metric1, mean)),
     ?assertEqual({ok, [{mean, 3}]}, exometer:get_value(Metric2, mean)).
 
+exometer_metric_name_supports_random_labels(Config) ->
+    Prefix = ?config(prefix, Config),
+    HostTypeLabel = #{host_type => ?HOST_TYPE},
+    logger_ct_backend:start(local()),
+
+    logger_ct_backend:capture(warning, local()),
+    assert_exometer_metric_name(global, [c2s], #{connection_type => c2s}),
+    assert_exometer_metric_name(Prefix, [c2s], HostTypeLabel#{connection_type => c2s}),
+    logger_ct_backend:stop_capture(local()),
+    FilterFun = fun(_, Msg) -> re:run(Msg, "what: default_exometer_labels_conversion") /= nomatch end,
+    NoWarnings = logger_ct_backend:recv(FilterFun),
+    0 = length(NoWarnings),
+
+    logger_ct_backend:capture(warning, local()),
+    UnknownLabels = #{unexpected_label1 => value1, unexpected_label2 => value2},
+    Suffix = [maps:get(K, UnknownLabels) || K <- lists:sort(maps:keys(UnknownLabels))],
+    assert_exometer_metric_name(global, Suffix, UnknownLabels),
+    assert_exometer_metric_name(Prefix, Suffix, maps:merge(HostTypeLabel, UnknownLabels)),
+    logger_ct_backend:stop_capture(local()),
+    Warnings = logger_ct_backend:recv(FilterFun),
+    2 = length(Warnings),
+
+    [ct:log("WARNING: ~p", [W]) || W <- Warnings],
+
+    logger_ct_backend:stop(local()),
+    ok.
+
 multiple_exometer_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
     Prefix = ?config(prefix, Config),
@@ -361,6 +391,15 @@ prometheus_and_exometer_metrics_are_updated(Config) ->
     ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(prom_name(Event, time), [?HOST_TYPE])).
 
 %% Helpers
+
+local() ->
+    #{node => node()}.
+
+assert_exometer_metric_name(Prefix, Suffix, Labels) ->
+    MetricName = metric_name,
+    EventName = event_name,
+    ?assertEqual([Prefix, EventName] ++ Suffix ++ [MetricName],
+                 exometer_metric_name(EventName, Labels, MetricName)).
 
 join_atoms(A1, A2) ->
     list_to_atom(join_atoms_to_list(A1, A2)).

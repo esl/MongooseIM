@@ -13,6 +13,10 @@
 -export([get_metric_values/1, get_metric_value/2, get_aggregated_values/1,
          get_host_type_metric_names/1, get_global_metric_names/0]).
 
+-ifdef(TEST).
+-export([exometer_metric_name/3]).
+-endif.
+
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
