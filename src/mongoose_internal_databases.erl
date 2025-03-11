@@ -29,10 +29,11 @@ init(mnesia, #{}) ->
         _ ->
             ok
     end,
-    application:start(mnesia, permanent),
+    application:ensure_all_started([mnesia], permanent),
     wait_for_mnesia(),
     mongoose_node_num_mnesia:init();
 init(cets, #{}) ->
+    application:ensure_all_started([cets], permanent),
     ok.
 
 wait_for_mnesia() ->
