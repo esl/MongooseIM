@@ -21,7 +21,8 @@ all() ->
     [{group, Group} || {Group, _, _} <- groups()].
 
 groups() ->
-    [{Group, [parallel], tests()} || {Group, _Mech} <- mechanisms()].
+    Parallel = distributed_helper:maybe_parallel_group(),
+    [{Group, Parallel, tests()} || {Group, _Mech} <- mechanisms()].
 
 tests() ->
    [server_advertises_support_for_fast,
