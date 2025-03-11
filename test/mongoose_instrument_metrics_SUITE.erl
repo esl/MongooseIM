@@ -342,7 +342,7 @@ exometer_metric_name_supports_random_labels(Config) ->
     logger_ct_backend:stop_capture(local()),
     FilterFun = fun(_, Msg) -> re:run(Msg, "what: default_exometer_labels_conversion") /= nomatch end,
     NoWarnings = logger_ct_backend:recv(FilterFun),
-    0 = length(NoWarnings),
+    ?assertEqual(0, length(NoWarnings)),
 
     logger_ct_backend:capture(warning, local()),
     UnknownLabels = #{unexpected_label1 => value1, unexpected_label2 => value2},
@@ -351,9 +351,7 @@ exometer_metric_name_supports_random_labels(Config) ->
     assert_exometer_metric_name(Prefix, Suffix, maps:merge(HostTypeLabel, UnknownLabels)),
     logger_ct_backend:stop_capture(local()),
     Warnings = logger_ct_backend:recv(FilterFun),
-    2 = length(Warnings),
-
-    [ct:log("WARNING: ~p", [W]) || W <- Warnings],
+    ?assertEqual(2, length(Warnings)),
 
     logger_ct_backend:stop(local()),
     ok.
