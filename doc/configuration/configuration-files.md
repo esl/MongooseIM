@@ -61,12 +61,6 @@ By default only the following applications can be found there:
 
 ## Configuring TLS: Certificates & Keys
 
-TLS is configured in one of two ways: some modules need a private key and certificate (chain) in __separate__ files, while others need both in a __single__ file. This is because recent additions use OTP's `ssl` library, while older modules use `p1_tls`, respectively.
-
-* Server-to-server connections need both in the __same__ `.pem` file
-* Client-to-server connections need them in __separate__ files, unless `fast_tls` is used
-* BOSH, WebSockets and REST APIs need them in __separate__ files
-
-In order to create private key & certificate bundle, you may simply concatenate them.
+TLS private key and certificate (chain) may be specified in __separate__ files, `keyfile` and `certfile` respectively, or the private key can be appended to certificates and provided together in one file specified by `certfile`.
 
 More information about configuring TLS for these endpoints is available in the [listen section configuration](../listeners/listen-c2s.md#tls-options-for-c2s) page.

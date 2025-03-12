@@ -67,7 +67,7 @@ In order to tell MongooseIM to accept self-signed certs, the `listen.c2s.tls.ver
   tls.cacertfile = "ca.pem"
 ```
 
-where the `tls.disconnect_on_failure` is a boolean with the following meaning only for `just_tls`:
+where the `tls.disconnect_on_failure` is a boolean with the following meaning:
 
 * `true` - the connection is closed if a certificate is invalid,
 * `false` - the connection isn't closed, but the certificate is not returned if it's invalid.
