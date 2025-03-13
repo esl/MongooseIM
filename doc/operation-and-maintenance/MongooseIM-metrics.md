@@ -296,22 +296,14 @@ All metrics are in bytes, and refer to unencrypted data (before encryption or af
     | ----------- | ---- | ----------- |
     | `xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from a client, server or component. |
     | `xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to a client, server or component. |
-    | `c2s_tcp_data_in_byte_size` | counter | Amount of data received from a client via TCP channel. |
-    | `c2s_tcp_data_out_byte_size` | counter | Amount of data sent to a client via TCP channel. |
-    | `c2s_tls_data_in_byte_size` | counter | Amount of data received from a client via TLS channel. |
-    | `c2s_tls_data_out_byte_size` | counter | Amount of data sent to a client via TLS channel. |
+    | `tcp_data_in_byte_size` | counter | Amount of data received from a client, another XMPP server or component via TCP channel. |
+    | `tcp_data_out_byte_size` | counter | Amount of data sent to a client, another XMPP server or component via TCP channel. |
+    | `tls_data_in_byte_size` | counter | Amount of data received from a client, another XMPP server or component via TLS channel. |
+    | `tls_data_out_byte_size` | counter | Amount of data sent to a client, another XMPP server or component via TLS channel. |
     | `mod_bosh_data_received_byte_size` | counter | Amount of data received from a client via BOSH connection. |
     | `mod_bosh_data_sent_byte_size` | counter | Amount of data sent to a client via BOSH connection. |
     | `mod_websocket_data_received_byte_size` | counter | Amount of data received from a client via WebSocket connection. |
     | `mod_websocket_data_sent_byte_size` | counter | Amount of data sent to a client via WebSocket connection. |
-    | `s2s_tcp_data_in_byte_size` | counter | Amount of data received from another XMPP server via TCP channel. |
-    | `s2s_tcp_data_out_byte_size` | counter | Amount of data sent to another XMPP server via TCP channel. |
-    | `s2s_tls_data_in_byte_size` | counter | Amount of data received from another XMPP server via TLS channel. |
-    | `s2s_tls_data_out_byte_size` | counter | Amount of data sent to another XMPP server via TLS channel. |
-    | `component_tcp_data_in_byte_size` | counter | Amount of data received from a component via TCP channel. |
-    | `component_tcp_data_out_byte_size` | counter | Amount of data sent to a component via TCP channel. |
-    | `component_tls_data_in_byte_size` | counter | Amount of data received from a component via TLS channel. |
-    | `component_tls_data_out_byte_size` | counter | Amount of data sent to a component via TLS channel. |
 
 === "Exometer"
 
@@ -319,26 +311,26 @@ All metrics are in bytes, and refer to unencrypted data (before encryption or af
     | ----------- | ---- | ----------- |
     | `[global, xmpp_element_size_in, c2s, byte_size]` | histogram | Size of an XML element received from a client. |
     | `[global, xmpp_element_size_out, c2s, byte_size]` | histogram | Size of an XML element sent to a client. |
-    | `[global, c2s_tcp_data_in, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
-    | `[global, c2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
-    | `[global, c2s_tls_data_in, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
-    | `[global, c2s_tls_data_out, byte_size]` | spiral | Amount of data sent to a client via TLS channel. |
+    | `[global, tcp_data_in, c2s, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
+    | `[global, tcp_data_out, c2s, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
+    | `[global, tls_data_in, c2s, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
+    | `[global, tls_data_out, c2s, byte_size]` | spiral | Amount of data sent to a client via TLS channel. |
     | `[global, mod_bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
     | `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
     | `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
     | `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
     | `[global, xmpp_element_size_in, s2s, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
     | `[global, xmpp_element_size_out, s2s, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
-    | `[global, s2s_tcp_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
-    | `[global, s2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
-    | `[global, s2s_tls_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
-    | `[global, s2s_tls_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
+    | `[global, tcp_data_in, s2s, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
+    | `[global, tcp_data_out, s2s, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
+    | `[global, tls_data_in, s2s, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
+    | `[global, tls_data_out, s2s, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
     | `[global, xmpp_element_size_in, component, byte_size]` | histogram | Size of an XML element received from a component. |
     | `[global, xmpp_element_size_out, component, byte_size]` | histogram | Size of an XML element sent to a component. |
-    | `[global, component_tcp_data_in, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
-    | `[global, component_tcp_data_out, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
-    | `[global, component_tls_data_in, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
-    | `[global, component_tls_data_out, byte_size]` | spiral | Amount of data sent to a component via TLS channel. |
+    | `[global, tcp_data_in, component, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
+    | `[global, tcp_data_out, component, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
+    | `[global, tls_data_in, component, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
+    | `[global, tls_data_out, component, byte_size]` | spiral | Amount of data sent to a component via TLS channel. |
 
 ### CETS system metrics
 
