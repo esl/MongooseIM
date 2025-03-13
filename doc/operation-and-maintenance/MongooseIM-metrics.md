@@ -54,12 +54,12 @@ All metrics are divided into the following groups:
 
     **Example:**
         ```
-        # TYPE c2s_xmpp_element_size_in_byte_size histogram
-        # HELP c2s_xmpp_element_size_in_byte_size Event: c2s_xmpp_element_size_in, Metric: byte_size
-        c2s_xmpp_element_size_in_byte_size_bucket{le="1"} 0
+        # TYPE xmpp_element_size_in_byte_size histogram
+        # HELP xmpp_element_size_in_byte_size Event: xmpp_element_size_in, Metric: byte_size
+        xmpp_element_size_in_byte_size_bucket{connection_type="c2s",le="1",} 0
         ...
-        c2s_xmpp_element_size_in_byte_size_bucket{le="1073741824"} 0
-        c2s_xmpp_element_size_in_byte_size_bucket{le="+Inf"} 0
+        xmpp_element_size_in_byte_size_bucket{connection_type="c2s",le="1073741824"} 0
+        xmpp_element_size_in_byte_size_bucket{connection_type="c2s",le="+Inf"} 0
         ```
 
 === "Exometer"
@@ -294,8 +294,8 @@ All metrics are in bytes, and refer to unencrypted data (before encryption or af
 
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
-    | `c2s_xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from a client. |
-    | `c2s_xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to a client. |
+    | `xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from a client, server or component. |
+    | `xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to a client, server or component. |
     | `c2s_tcp_data_in_byte_size` | counter | Amount of data received from a client via TCP channel. |
     | `c2s_tcp_data_out_byte_size` | counter | Amount of data sent to a client via TCP channel. |
     | `c2s_tls_data_in_byte_size` | counter | Amount of data received from a client via TLS channel. |
@@ -304,14 +304,10 @@ All metrics are in bytes, and refer to unencrypted data (before encryption or af
     | `mod_bosh_data_sent_byte_size` | counter | Amount of data sent to a client via BOSH connection. |
     | `mod_websocket_data_received_byte_size` | counter | Amount of data received from a client via WebSocket connection. |
     | `mod_websocket_data_sent_byte_size` | counter | Amount of data sent to a client via WebSocket connection. |
-    | `s2s_xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from another XMPP server. |
-    | `s2s_xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to another XMPP server. |
     | `s2s_tcp_data_in_byte_size` | counter | Amount of data received from another XMPP server via TCP channel. |
     | `s2s_tcp_data_out_byte_size` | counter | Amount of data sent to another XMPP server via TCP channel. |
     | `s2s_tls_data_in_byte_size` | counter | Amount of data received from another XMPP server via TLS channel. |
     | `s2s_tls_data_out_byte_size` | counter | Amount of data sent to another XMPP server via TLS channel. |
-    | `component_xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from a component. |
-    | `component_xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to a component. |
     | `component_tcp_data_in_byte_size` | counter | Amount of data received from a component via TCP channel. |
     | `component_tcp_data_out_byte_size` | counter | Amount of data sent to a component via TCP channel. |
     | `component_tls_data_in_byte_size` | counter | Amount of data received from a component via TLS channel. |
@@ -321,8 +317,8 @@ All metrics are in bytes, and refer to unencrypted data (before encryption or af
 
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
-    | `[global, c2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a client. |
-    | `[global, c2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a client. |
+    | `[global, xmpp_element_size_in, c2s, byte_size]` | histogram | Size of an XML element received from a client. |
+    | `[global, xmpp_element_size_out, c2s, byte_size]` | histogram | Size of an XML element sent to a client. |
     | `[global, c2s_tcp_data_in, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
     | `[global, c2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
     | `[global, c2s_tls_data_in, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
@@ -331,14 +327,14 @@ All metrics are in bytes, and refer to unencrypted data (before encryption or af
     | `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
     | `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
     | `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
-    | `[global, s2s_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
-    | `[global, s2s_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
+    | `[global, xmpp_element_size_in, s2s, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
+    | `[global, xmpp_element_size_out, s2s, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
     | `[global, s2s_tcp_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
     | `[global, s2s_tcp_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
     | `[global, s2s_tls_data_in, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
     | `[global, s2s_tls_data_out, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
-    | `[global, component_xmpp_element_size_in, byte_size]` | histogram | Size of an XML element received from a component. |
-    | `[global, component_xmpp_element_size_out, byte_size]` | histogram | Size of an XML element sent to a component. |
+    | `[global, xmpp_element_size_in, component, byte_size]` | histogram | Size of an XML element received from a component. |
+    | `[global, xmpp_element_size_out, component, byte_size]` | histogram | Size of an XML element sent to a component. |
     | `[global, component_tcp_data_in, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
     | `[global, component_tcp_data_out, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
     | `[global, component_tls_data_in, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
