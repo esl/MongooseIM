@@ -13,6 +13,10 @@
 -export([get_metric_values/1, get_metric_value/2, get_aggregated_values/1,
          get_host_type_metric_names/1, get_global_metric_names/0]).
 
+-ifdef(TEST).
+-export([exometer_metric_name/3]).
+-endif.
+
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
@@ -160,15 +164,27 @@ update_metric(Name, histogram, Value) when is_integer(Value) ->
 -spec exometer_metric_name(mongoose_instrument:event_name(), mongoose_instrument:labels(),
                            mongoose_instrument:metric_name()) -> exometer:name().
 exometer_metric_name(EventName, Labels, MetricName) ->
-    [get_host_type_prefix(Labels), EventName] ++ exometer_labels(Labels) ++ [MetricName].
+    HostPrefix = get_host_type_prefix(Labels),
+    RemainingLabels = maps:without([host_type], Labels),
+    ExometerLabels = exometer_labels(RemainingLabels),
+    [HostPrefix, EventName] ++ ExometerLabels  ++ [MetricName].
 
 %% This logic will need extending if we add more labels
-exometer_labels(#{function := Function}) ->
+exometer_labels(#{function := Function} = Labels) when map_size(Labels) =:= 1 ->
     [Function];
-exometer_labels(#{pool_tag := PoolTag}) ->
+exometer_labels(#{pool_tag := PoolTag} = Labels) when map_size(Labels) =:= 1 ->
     [PoolTag];
-exometer_labels(#{}) ->
-    [].
+exometer_labels(#{pool_id := PoolId} = Labels) when map_size(Labels) =:= 1 ->
+    [PoolId];
+exometer_labels(#{connection_type := ConnectionType} = Labels) when map_size(Labels) =:= 1 ->
+    [ConnectionType];
+exometer_labels(#{cache_name := CacheName} = Labels) when map_size(Labels) =:= 1 ->
+    [CacheName];
+exometer_labels(#{} = Labels) when map_size(Labels) =:= 0 ->
+    [];
+exometer_labels(#{} = Labels) ->
+    ?LOG_WARNING(#{what => default_exometer_labels_conversion, labels => Labels}),
+    [V || {_K, V} <- lists:keysort(1, maps:to_list(Labels))].
 
 -spec get_host_type_prefix(mongoose_instrument:labels()) -> mongooseim:host_type_or_global().
 get_host_type_prefix(#{host_type := HostType}) ->
