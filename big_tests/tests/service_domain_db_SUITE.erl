@@ -35,7 +35,7 @@ all() ->
     ].
 
 groups() ->
-    ParallelConfig = parallel_config(),
+    ParallelConfig = distributed_helper:maybe_parallel_group(),
     [
         {no_db, ParallelConfig, no_db_cases()},
         {db, [], [
@@ -61,14 +61,6 @@ groups() ->
         {rest_service_disabled, ParallelConfig, rest_service_disabled_cases()},
         {rest_db_fails, [], rest_db_fails_cases()}
     ].
-
-parallel_config() ->
-    %% These could be parallel but it seems like mssql CI can't handle the load
-    case distributed_helper:rpc(
-           distributed_helper:mim(), mongoose_rdbms, db_engine, [domain_helper:host_type()]) of
-        odbc -> [];
-        _ -> [parallel]
-    end.
 
 no_db_cases() -> [
     api_lookup_works,

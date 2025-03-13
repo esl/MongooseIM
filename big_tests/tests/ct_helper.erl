@@ -6,7 +6,8 @@
          repeat_all_until_any_fail/2,
          groups_to_all/1,
          get_preset_var/3,
-         get_internal_database/0]).
+         get_internal_database/0,
+         add_params_to_list/3]).
 
 -type group_name() :: atom().
 
@@ -130,4 +131,17 @@ get_internal_database() ->
     case distributed_helper:lookup_config_opt([internal_databases, cets]) of
         {ok, _} -> cets;
         {error, not_found} -> mnesia
+    end.
+
+add_params_to_list(Groups, [], _IgnoreNames) ->
+    Groups;
+add_params_to_list(Groups, NewParams, IgnoreNames) ->
+    [add_params(Group, NewParams, IgnoreNames) || Group <- Groups].
+
+add_params({Name, Params, Tests} = Group, NewParams, IgnoreNames) ->
+    case lists:member(Name, IgnoreNames) of
+        true ->
+            Group;
+        false ->
+            {Name, NewParams ++ Params, Tests}
     end.
