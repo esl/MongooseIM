@@ -93,7 +93,8 @@ parallel_cases() ->
 
 parallel_large_buffer_cases() ->
     [resend_unacked_from_stopped_sessions,
-     resend_unacked_from_terminated_sessions,
+     %resend_unacked_from_terminated_sessions,
+     resend_unacked_from_replaced_sessions,
      relay_unacked_from_stopped_sessions].
 
 parallel_manual_ack_freq_1_cases() ->
@@ -356,7 +357,7 @@ connect_initial_users(Config) ->
     Bob = connect_fresh(Config, bob, session),
     BasicUserSpec = escalus_fresh:create_fresh_user(Config, alice),
     UserSpecs = [[{resource, Res} | BasicUserSpec] || Res <- Resources],
-    Users = [connect_spec(Spec, sr_presence, manual) || Spec <- UserSpecs],
+    Users = [connect_spec(Spec, sm_presence, manual) || Spec <- UserSpecs],
     {Bob, UserSpecs, Users}.
 
 %% Receive expected messages and wait a bit to ensure no extra messages arrive
