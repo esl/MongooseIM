@@ -21,8 +21,7 @@
          terminate/3]).
 
 %% mongoose_xmpp_socket callbacks
--export([new/3,
-         peername/1,
+-export([peername/1,
          tcp_to_tls/3,
          handle_data/2,
          activate/1,
@@ -366,11 +365,6 @@ case_insensitive_match(_, []) ->
     nomatch.
 
 %% mongoose_xmpp_socket callbacks
-
--spec new(socket(), mongoose_listener:connection_type(), mongoose_listener:options()) ->
-    {socket(), mongoose_listener:connection_type()}.
-new(Socket, _, _LOpts) ->
-    {Socket, http}.
 
 -spec peername(socket()) -> mongoose_transport:peer().
 peername(#websocket{peername = PeerName}) ->

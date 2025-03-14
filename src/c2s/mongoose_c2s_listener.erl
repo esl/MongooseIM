@@ -3,40 +3,13 @@
 -include("mongoose.hrl").
 
 -behaviour(mongoose_listener).
--export([listener_spec/1, instrumentation/1]).
+-export([listener_spec/1]).
 
 -behaviour(ranch_protocol).
 -export([start_link/3]).
 
 %% Hook handlers
 -export([handle_user_open_session/3]).
-
--export([instrumentation/0]).
--ignore_xref([instrumentation/0]).
-
--spec instrumentation(_) -> [mongoose_instrument:spec()].
-instrumentation(_) ->
-    lists:foldl(fun instrumentation/2, instrumentation(), ?ALL_HOST_TYPES).
-
--spec instrumentation() -> [mongoose_instrument:spec()].
-instrumentation() ->
-    [{tcp_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-     {tcp_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-     {tls_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-     {tls_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-     {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
-     {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}].
-
--spec instrumentation(_, _) -> [mongoose_instrument:spec()].
-instrumentation(HostType, Acc) when is_binary(HostType) ->
-    [{c2s_message_processed, #{host_type => HostType},
-      #{metrics => #{time => histogram}}},
-     {c2s_auth_failed, #{host_type => HostType},
-      #{metrics => #{count => spiral}}},
-     {c2s_element_in, #{host_type => HostType},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}},
-     {c2s_element_out, #{host_type => HostType},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}} | Acc].
 
 %% mongoose_listener
 -spec listener_spec(mongoose_listener:options()) -> supervisor:child_spec().

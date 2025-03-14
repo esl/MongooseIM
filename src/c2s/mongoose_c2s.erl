@@ -65,6 +65,32 @@
 
 -export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0]).
 
+-export([instrumentation/0]).
+
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
+    Acc = [
+        {tcp_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+        {tcp_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+        {tls_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+        {tls_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
+        {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
+        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}
+    ],
+    lists:foldl(fun instrumentation/2, Acc, ?ALL_HOST_TYPES).
+
+-spec instrumentation(mongooseim:host_type(), [mongoose_instrument:spec()]) ->
+     [mongoose_instrument:spec()].
+instrumentation(HostType, Acc) when is_binary(HostType) ->
+    [{c2s_message_processed, #{host_type => HostType},
+      #{metrics => #{time => histogram}}},
+     {c2s_auth_failed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {c2s_element_in, #{host_type => HostType},
+      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}},
+     {c2s_element_out, #{host_type => HostType},
+      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}} | Acc].
+
 %%%----------------------------------------------------------------------
 %%% gen_statem
 %%%----------------------------------------------------------------------

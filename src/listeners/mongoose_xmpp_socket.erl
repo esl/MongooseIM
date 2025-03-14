@@ -23,8 +23,6 @@
          get_transport/1,
          get_conn_type/1]).
 
--callback new(ranch:ref(), mongoose_listener:connection_type(), mongoose_listener:options()) ->
-    {state(), mongoose_listener:connection_type()}.
 -callback peername(state()) -> mongoose_transport:peer().
 -callback tcp_to_tls(state(), mongoose_listener:options(), side()) ->
     {ok, state()} | {error, term()}.
@@ -97,11 +95,10 @@ accept(ranch_ssl, Type, Ref, LOpts) ->
                              ranch_ref = Ref, ip = {PeerIp, PeerPort}},
     activate(SocketState),
     SocketState;
-accept(Module, Type, Ref, LOpts) ->
-    {State, NewType} = Module:new(Ref, Type, LOpts),
+accept(Module, Type, State, _LOpts) ->
     PeerIp = Module:peername(State),
     SocketState = #xmpp_socket{module = Module, state = State,
-                               connection_type = NewType, ip = PeerIp},
+                               connection_type = Type, ip = PeerIp},
     activate(SocketState),
     SocketState.
 

@@ -107,7 +107,7 @@ acks_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrumentation_events(), negative_instrumentation_events()),
+    instrument_helper:start(instrumentation_events()),
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config1]).
 
@@ -194,9 +194,6 @@ create_and_terminate_session(Config) ->
     % Assert that correct events have been executed
     [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
      || {Event, Label} <- instrumentation_events(), Event =/= c2s_message_processed],
-
-    %% Verify C2S listener is not used
-    instrument_helper:assert_not_emitted(negative_instrumentation_events()),
 
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().
@@ -954,11 +951,4 @@ instrumentation_events() ->
     instrument_helper:declared_events(mod_bosh, [])
     ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}},
         {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
-        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}]
-    -- negative_instrumentation_events().
-
-negative_instrumentation_events() ->
-    [{tcp_data_out, #{connection_type => c2s}},
-     {tcp_data_in, #{connection_type => c2s}},
-     {tls_data_out, #{connection_type => c2s}},
-     {tls_data_in, #{connection_type => c2s}}].
+        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}].

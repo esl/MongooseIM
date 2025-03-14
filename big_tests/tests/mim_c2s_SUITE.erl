@@ -236,8 +236,10 @@ escalus_start(Cfg, FlatCDs) ->
     Clients.
 
 instrumentation_events() ->
-    [{c2s_message_processed, #{host_type => domain_helper:host_type()}}
-     | instrument_helper:declared_events(mongoose_c2s_listener, [])].
+    C2sGenericEvents =
+        [E || {_, Labels} = E <- instrument_helper:declared_events(mongoose_c2s, []),
+              not maps:is_key(host_type, Labels)],
+    [{c2s_message_processed, #{host_type => domain_helper:host_type()}} | C2sGenericEvents].
 
 tcp_instrumentation_events() ->
     [{tcp_data_out, #{connection_type => c2s}},

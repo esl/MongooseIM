@@ -20,8 +20,7 @@
          get_cached_responses/1]).
 
 %% mongoose_xmpp_socket callbacks
--export([new/3,
-         peername/1,
+-export([peername/1,
          tcp_to_tls/3,
          handle_data/2,
          activate/1,
@@ -1050,11 +1049,6 @@ ignore_undefined(Map) ->
     maps:filter(fun(_, V) -> V =/= undefined end, Map).
 
 %% mongoose_xmpp_socket callbacks
-
--spec new(mod_bosh:socket(), mongoose_listener:connection_type(), mongoose_listener:options()) ->
-    {mod_bosh:socket(), mongoose_listener:connection_type()}.
-new(Socket, _, _LOpts) ->
-    {Socket, http}.
 
 -spec peername(mod_bosh:socket()) -> mongoose_transport:peer().
 peername(#bosh_socket{peer = Peer}) ->

@@ -54,7 +54,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrumentation_events(), negative_instrumentation_events()),
+    instrument_helper:start(instrumentation_events()),
     Config1 = escalus:init_per_suite(Config),
     Config2 = setup_listeners(Config1),
     escalus:create_users(Config2, escalus:get_users([alice, geralt, geralt_s, carol])).
@@ -116,8 +116,6 @@ metrics_test(Config) ->
                                                    (#{time := Time}) -> Time > 0 end)
          || {Event, Label} <- instrumentation_events()],
 
-        %% Verify C2S listener is not used
-        instrument_helper:assert_not_emitted(negative_instrumentation_events()),
         ok
         end).
 
@@ -172,11 +170,4 @@ instrumentation_events() ->
     instrument_helper:declared_events(mod_websockets, [])
     ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}},
         {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
-        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}]
-    -- negative_instrumentation_events().
-
-negative_instrumentation_events() ->
-    [{tcp_data_out, #{connection_type => c2s}},
-     {tcp_data_in, #{connection_type => c2s}},
-     {tls_data_out, #{connection_type => c2s}},
-     {tls_data_in, #{connection_type => c2s}}].
+        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}].
