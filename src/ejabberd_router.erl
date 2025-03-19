@@ -36,7 +36,7 @@
 -export([start_link/0]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -ignore_xref([route_error/4, start_link/0]).
 
@@ -49,9 +49,9 @@
 %% API
 %%====================================================================
 
--spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link() -> gen_server:start_ret().
 start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, noargs, [{hibernate_after, 0}]).
 
 %% @doc The main routing function. It puts the message through a chain
 %% of filtering/routing modules, as defined in config 'routing_modules'
@@ -133,13 +133,12 @@ route_error_reply(From, To, Acc, Error) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([]) ->
+init(noargs) ->
     mongoose_component:start(),
     {ok, #state{}}.
 
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+    {reply, ok, State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -150,9 +149,6 @@ handle_info(_Info, State) ->
 terminate(_Reason, _State) ->
     mongoose_component:stop(),
     ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

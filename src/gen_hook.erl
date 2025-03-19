@@ -15,7 +15,6 @@
 -export([init/1,
          handle_call/3,
          handle_cast/2,
-         code_change/3,
          handle_info/2,
          terminate/2]).
 
@@ -76,6 +75,7 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
+-spec start_link() -> gen_server:start_ret().
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -200,7 +200,7 @@ handle_call({delete_handler, Key = {Name, Tag}, #hook_handler{} = HookHandler}, 
     {reply, ok, NewState};
 handle_call(reload_hooks, _From, State) ->
     persistent_term:put(?MODULE, State),
-    {reply, ok, State};
+    {reply, ok, State, hibernate};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, bad_request, State}.
@@ -216,9 +216,6 @@ handle_info(Info, State) ->
 terminate(_Reason, _State) ->
     persistent_term:erase(?MODULE),
     ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 %%%----------------------------------------------------------------------
 %%% Internal functions

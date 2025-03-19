@@ -41,10 +41,11 @@ opts() ->
 
 registering(_C) ->
     Dom = <<"aaa.bbb.com">>,
-    {ok, Comps} = mongoose_component:register_components([Dom], node(), mongoose_packet_handler:new(?MODULE), false),
+    {ok, Comp} = mongoose_component:register_component(
+                    Dom, node(), mongoose_packet_handler:new(?MODULE), false, false),
     Lookup = mongoose_component:lookup_component(Dom),
     ?assertMatch([#external_component{}], Lookup),
-    mongoose_component:unregister_components(Comps),
+    mongoose_component:unregister_component(Comp),
     ?assertMatch([], mongoose_component:lookup_component(Dom)),
     ok.
 
@@ -54,7 +55,7 @@ registering_with_local(_C) ->
     ThisNode = node(),
     AnotherNode = 'another@nohost',
     Handler = mongoose_packet_handler:new(?MODULE), %% This handler is only for testing!
-    {ok, Comps} = mongoose_component:register_components([Dom], node(), Handler, false),
+    {ok, Comp} = mongoose_component:register_component(Dom, node(), Handler, false, false),
     %% we can find it globally
     ?assertMatch([#external_component{node = ThisNode}], mongoose_component:lookup_component(Dom)),
     %% and for this node
@@ -63,14 +64,14 @@ registering_with_local(_C) ->
     %% but not for another node
     ?assertMatch([], mongoose_component:lookup_component(Dom, AnotherNode)),
     %% once we unregister it is not available
-    mongoose_component:unregister_components(Comps),
+    mongoose_component:unregister_component(Comp),
     ?assertMatch([], mongoose_component:lookup_component(Dom)),
     ?assertMatch([], mongoose_component:lookup_component(Dom, ThisNode)),
     ?assertMatch([], mongoose_component:lookup_component(Dom, AnotherNode)),
     %% we can register from both nodes
-    {ok, Comps2} = mongoose_component:register_components([Dom], ThisNode, Handler, false),
+    {ok, Comps2} = mongoose_component:register_component(Dom, ThisNode, Handler, false, false),
     %% passing node here is only for testing
-    {ok, _Comps3} = mongoose_component:register_components([Dom], AnotherNode, Handler, false),
+    {ok, _Comps3} = mongoose_component:register_component(Dom, AnotherNode, Handler, false, false),
     %% both are reachable locally
     ?assertMatch([#external_component{node = ThisNode}],
                  mongoose_component:lookup_component(Dom, ThisNode)),
@@ -79,7 +80,7 @@ registering_with_local(_C) ->
     %% if we try global lookup we get two handlers
     ?assertMatch([_, _], mongoose_component:lookup_component(Dom)),
     %% we unregister one and the result is:
-    mongoose_component:unregister_components(Comps2),
+    mongoose_component:unregister_component(Comps2),
     ?assertMatch([], mongoose_component:lookup_component(Dom, ThisNode)),
     ?assertMatch([#external_component{node = AnotherNode}],
                  mongoose_component:lookup_component(Dom)),

@@ -92,12 +92,12 @@ convert_to_bin(Val) when is_list(Val) ->
 convert_to_bin(Val) ->
     Val.
 
--spec get_lserver_from_addr(bitstring() | string(), boolean()) -> [bitstring()].
+-spec get_lserver_from_addr(bitstring() | string(), boolean()) -> [binary()].
 get_lserver_from_addr(V, UTF8) when is_binary(V); is_list(V) ->
     Val = convert_to_bin(V),
     case {jid:from_binary(Val), UTF8} of
         {#jid{luser = <<"">>, lserver = LD, lresource = <<"">>}, true} ->
-            case mongoose_s2s_lib:domain_utf8_to_ascii(LD) of
+            case mongoose_s2s_lib:domain_utf8_to_ascii(LD, binary) of
                 false -> [];
                 PCLD -> [PCLD]
             end;

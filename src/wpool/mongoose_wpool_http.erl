@@ -63,6 +63,6 @@ wpool_spec(WpoolOptsIn, #{host := Host} = ConnOpts) ->
     [{worker, Worker} | WpoolOptsIn].
 
 http_opts(#{tls := TLSOpts}) ->
-    just_tls:make_ssl_opts(TLSOpts);
+    just_tls:make_client_opts(TLSOpts);
 http_opts(#{}) ->
     [].

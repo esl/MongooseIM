@@ -19,9 +19,13 @@
 %% xmpp_router callback
 -export([filter/4, route/4]).
 
+-spec filter(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    drop | xmpp_router:filter().
 filter(From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
 
+-spec route(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    {done, mongoose_acc:t()} | xmpp_router:filter().
 route(From, To, Acc, Packet) ->
     LDstDomain = To#jid.lserver,
     case mongoose_lazy_routing:maybe_add_domain_or_subdomain(LDstDomain) of

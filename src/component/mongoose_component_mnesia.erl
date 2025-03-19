@@ -55,14 +55,15 @@ do_unregister_component(Component) ->
     ok = mnesia:delete_object(external_component, Component, write).
 
 lookup_component(Domain) ->
-    mnesia:dirty_read(external_component, Domain).
+    Object = #external_component{domain = Domain, is_subdomain = false, _ = '_'},
+    mnesia:dirty_match_object(external_component, Object).
 
 lookup_component(Domain, Node) ->
-    mnesia:dirty_match_object(external_component,
-                              #external_component{domain = Domain, node = Node, _ = '_'}).
+    Object = #external_component{domain = Domain, node = Node, is_subdomain = false, _ = '_'},
+    mnesia:dirty_match_object(external_component, Object).
 
 get_all_components(all) ->
     mnesia:dirty_all_keys(external_component);
 get_all_components(only_public) ->
-    MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
+    MatchNonHidden = {#external_component{domain = '$1', is_hidden = false, _ = '_'}, [], ['$1']},
     mnesia:dirty_select(external_component, [MatchNonHidden]).

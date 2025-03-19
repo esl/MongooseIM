@@ -44,7 +44,7 @@ new(C2SData) ->
 start(C2SData, SaslAcc, Mech, ClientIn) ->
     Socket = mongoose_c2s:get_socket(C2SData),
     LOpts = mongoose_c2s:get_listener_opts(C2SData),
-    case {mongoose_c2s_socket:is_ssl(Socket), LOpts} of
+    case {mongoose_xmpp_socket:is_ssl(Socket), LOpts} of
         {false, #{tls := #{mode := starttls_required}}} ->
             {error, SaslAcc, #{type => policy_violation, text => <<"Use of STARTTLS required">>}};
         _ ->

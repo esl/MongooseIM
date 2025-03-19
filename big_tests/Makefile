@@ -24,6 +24,9 @@ else
 TLS_DIST_OPTS :=
 endif
 
+REMSH_OPTS := -setcookie mongooseim \
+               $(TLS_DIST_OPTS)
+
 COMMON_OPTS := -sname test -setcookie mongooseim -hidden \
                $(TLS_DIST_OPTS) \
                -env REPO_DIR "$(ABS_REPO_DIR)" \
@@ -71,6 +74,11 @@ test_preset: $(PREPARE)
 test: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
 			-s run_common_test main test=full spec=$(TESTSPEC)
+
+# Open remote shell to the test node
+remsh:
+	erl $(REMSH_OPTS) $(ADD_OPTS) \
+			-remsh "test@$(shell hostname -s)" -sname remshnode
 
 prepare: mim_ct_rest compile vm.dist.args
 	erlc -I_build/default/lib/exml/include \

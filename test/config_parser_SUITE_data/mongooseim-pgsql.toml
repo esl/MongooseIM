@@ -99,27 +99,29 @@
   shaper = "s2s_shaper"
   max_stanza_size = 131072
   tls.dhfile = "priv/dh.pem"
+  tls.certfile = "priv/cert.pem"
+  tls.cacertfile = "priv/ca.pem"
 
-[[listen.service]]
+[[listen.component]]
   port = 8888
   access = "all"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 
-[[listen.service]]
+[[listen.component]]
   port = 8666
   access = "all"
   conflict_behaviour = "kick_old"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 
-[[listen.service]]
+[[listen.component]]
   port = 8189
   access = "all"
   hidden_components = true
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 
@@ -295,8 +297,6 @@
   ]
 
 [s2s]
-  use_starttls = "optional"
-  certfile = "priv/server.pem"
   default_policy = "allow"
   outgoing.port = 5299
 
