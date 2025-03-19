@@ -55,7 +55,7 @@ retrieve_mechanism_continue(#jid{luser = Username} = JID, Creds, Sha, St0) ->
             ExtraConfig = #{it_count => ItCount, salt => Salt,
                             auth_data => #{stored_key => StoredKey,
                                            server_key => ServerKey}},
-            {St1, ExtraConfig};
+            {ExtraConfig, St1};
         {error, Reason, User} ->
             {error, {Reason, User}}
     end.

@@ -44,7 +44,6 @@ connect(Options, QueryTimeout) ->
     case mysql:start_link([{query_timeout, QueryTimeout} | db_opts(Options)]) of
         {ok, Ref} ->
             mysql:query(Ref, <<"set names 'utf8mb4';">>),
-            mysql:query(Ref, <<"SET SESSION query_cache_type=1;">>),
             {ok, Ref};
         Error ->
             Error

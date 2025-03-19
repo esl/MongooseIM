@@ -144,26 +144,11 @@ skip_or_run_inbox_tests(TestCases) ->
     end.
 
 maybe_run_in_parallel(Gs) ->
-    %% These could be parallel but it seems like mssql CI can't handle the load
-    case distributed_helper:rpc(
-           distributed_helper:mim(), mongoose_rdbms, db_engine, [domain_helper:host_type()]) of
-        odbc -> Gs;
-        _ -> insert_parallels(Gs)
-    end.
+    NewParams = distributed_helper:maybe_parallel_group(),
+    ct_helper:add_params_to_list(Gs, NewParams, non_parallel_groups()).
 
-insert_parallels(Gs) ->
-    Fun = fun({muclight_config, Conf, Tests}) ->
-                  {muclight_config, Conf, Tests};
-             ({bin, Conf, Tests}) ->
-                  {bin, Conf, Tests};
-             ({regular, Conf, Tests}) ->
-                  {regular, Conf, Tests};
-             ({async_pools, Conf, Tests}) ->
-                  {async_pools, Conf, Tests};
-             ({Group, Conf, Tests}) ->
-                  {Group, [parallel | Conf], Tests}
-          end,
-    lists:map(Fun, Gs).
+non_parallel_groups() ->
+    [muclight_config, bin, regular, async_pools].
 
 inbox_modules(Backend) ->
     [

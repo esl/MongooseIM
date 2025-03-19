@@ -57,7 +57,7 @@ start(HostType, #{iqdisc := IQDisc}) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_LAST, Component) ||
+    [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_SIC, Component) ||
         {Component, _Fn} <- iq_handlers()],
     ok.
 
