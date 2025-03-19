@@ -651,7 +651,7 @@ sm_filter_offline_message(HostType, From, To, Packet) ->
 
 -spec sm_register_connection(HostType, SID, JID, Info) -> Result when
     HostType :: mongooseim:host_type(),
-    SID :: 'undefined' | ejabberd_sm:sid(),
+    SID :: ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Result :: ok.
@@ -661,7 +661,7 @@ sm_register_connection(HostType, SID, JID, Info) ->
 
 -spec sm_remove_connection(Acc, SID, JID, Info, Reason) -> Result when
     Acc :: mongoose_acc:t(),
-    SID :: 'undefined' | ejabberd_sm:sid(),
+    SID :: ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Reason :: ejabberd_sm:close_reason(),

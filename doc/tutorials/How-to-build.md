@@ -19,9 +19,8 @@ To compile MongooseIM you need:
       *   C and C++ compiler: `gcc`, `g++`,
       *   Erlang/OTP 26.0 or higher:
         * `erlang` EPEL package, or,
-        * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
         * install using [kerl](https://github.com/kerl/kerl),
-      *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: `openssl` and `openssl-devel`,
+      *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: `openssl` and `openssl-devel`,
       *   ODBC library: `unixODBC-devel`,
       *   Zlib 1.2.3 or higher: `zlib-devel`.
 
@@ -31,9 +30,8 @@ To compile MongooseIM you need:
       *   C and C++ compiler: `gcc`, `g++`,
       *   Erlang/OTP 24.0 or higher:
         * `erlang` package, or,
-        * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
         * install using [kerl](https://github.com/kerl/kerl),
-      *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: `olibssl-dev`,
+      *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: `olibssl-dev`,
       *   ODBC library: `unixodbc-dev`,
       *   Zlib 1.2.3 or higher: `zlib1g-dev`.
 
@@ -43,8 +41,13 @@ To compile MongooseIM you need:
       *   Erlang/OTP 24.0 or higher:
         * [`erlang`](https://formulae.brew.sh/formula/erlang) from Homebrew,
         * install using [kerl](https://github.com/kerl/kerl),
-      *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: [`openssl`](https://formulae.brew.sh/formula/openssl@1.1) from Homebrew
+      *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: [`openssl`](https://formulae.brew.sh/formula/openssl@3.0) from Homebrew
       *   ODBC library: [`unixodbc`](https://formulae.brew.sh/formula/unixodbc) from Homebrew.
+
+### OpenSSL Version Compatibility
+
+- MongooseIM 6.3.2+ requires OpenSSL 3.0 or newer to compile.
+- MongooseIM 6.3.1 and earlier support OpenSSL <3.0 but may have issues with SCRAM authentication when using OpenSSL 3.4.1+. See the [SCRAM hashing issue](../developers-guide/SCRAM-serialization.md#scram-hash-calculation-issue-in-mongooseim-410631) for details.
 
 ## Preparing the environment
 

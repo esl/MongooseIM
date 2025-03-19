@@ -654,6 +654,12 @@ maybe_retry_state(StateData = #c2s_data{listener_opts = LOpts}, C2SState) ->
     end.
 
 -spec handle_cast(data(), state(), term()) -> fsm_res().
+handle_cast(StateData, _C2SState, {exit, {replaced, _} = Reason}) ->
+    ReasonText = <<"Replaced by new connection">>,
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(StateData#c2s_data.lang, ReasonText),
+    send_element_from_server_jid(StateData, StreamConflict),
+    send_trailer(StateData),
+    {stop, {shutdown, Reason}};
 handle_cast(StateData, _C2SState, {exit, Reason}) when is_binary(Reason) ->
     StreamConflict = mongoose_xmpp_errors:stream_conflict(StateData#c2s_data.lang, Reason),
     send_element_from_server_jid(StateData, StreamConflict),
@@ -1136,7 +1142,7 @@ start_link(Params, ProcOpts) ->
 stop(Pid, Reason) ->
     gen_statem:cast(Pid, {stop, Reason}).
 
--spec exit(pid(), binary() | atom()) -> ok.
+-spec exit(pid(), binary() | atom() | {replaced, pid()}) -> ok.
 exit(Pid, Reason) ->
     gen_statem:cast(Pid, {exit, Reason}).
 

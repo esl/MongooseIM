@@ -366,7 +366,7 @@ too_many_sessions(_C) ->
     [given_session_opened(Sid, USR) || {Sid, USR} <- UserSessions],
 
     receive
-        {forwarded, _Sid, {'$gen_cast', {exit, <<"Replaced by new connection">>}}} ->
+        {forwarded, _Sid, {'$gen_cast', {exit, {replaced, _Pid}}}} ->
             ok;
         Message ->
             ct:fail("Unexpected message: ~p", [Message])

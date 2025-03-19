@@ -1,3 +1,55 @@
+# [MongooseIM 6.3.2](https://github.com/esl/MongooseIM/releases/tag/6.3.2) - 2025-02-24
+
+## Highlights
+- Added support for XEP-0484: **Fast Authentication Streamlining Tokens**
+- Upgraded to **exml 4.1.1**
+- Deprecated `fast_tls`
+- Improved `just_tls` with distinct client and server options
+- Various enhancements and bug fixes
+
+## Added
+- Distinction between client and server options for `just_tls` (#4456)
+- XEP-0484: "Fast Authentication Streamlining Tokens" implementation (#4379)
+
+## Changed
+- Updated exml to 4.1.1 (#4465, #4471, #4473)
+- Update dependencies: `erl_cloud` and `base16` (#4469)
+- Deprecated `fast_tls` for C2S (#4468)
+- Behavior of PEP discovery to closely match the XEP specification (#4475)
+- Migrated GraphiQL to V3 (#4474)
+- Translations are now a service (#4481)
+- Cleaned up empty GraphQL queries (#4482)
+- Updated `elvis.config` to exclude modules that do not match linter standards (#4483)
+
+## Fixed
+- Description of log handler migration (#4454)
+- Compilation warnings (#4462)
+- Certificates generations for CockroarchDB (#4466)
+- `probe_failed` error (#4440)
+- Wrong namespace when removing IQ handlers in `mod_sic` (#4484)
+- SCRAM hashing issue by upgrading `fast_scram` library (#4491)
+
+## Other
+- Documentation improvements (#4476, #4487, #4488)
+- CI improvements (#4459)
+
+## Known issues and upgrade recommendations
+- If you are using MongooseIM 4.1.0 to 6.3.1 with SCRAM authentication and OpenSSL >=3.4.1, hashes for algorithms stronger than SHA-1 are calculated incorrectly.
+This issue is fixed in this release. See [SCRAM hashing issue](/doc/developers-guide/SCRAM-serialization.md#scram-hash-calculation-issue-in-mongooseim-410631) for details and required actions.
+- OpenSSL versions below 3.0 are no longer supported. If you are using OpenSSL 1.x or older, you must upgrade to OpenSSL 3.x before updating MongooseIM, as older versions will not work.
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.2)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-12-30..2025-02-24)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-12-30&to=2025-02-24&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.2+sort%3Aupdated-desc)
+
+## Special thanks to our contributors
+- [@xvnds](https://github.com/xvnds) Migrated graphiql to v3 (#4474)
+
 # [MongooseIM 6.3.1](https://github.com/esl/MongooseIM/releases/tag/6.3.1) - 2024-12-30
 
 ## Highlights

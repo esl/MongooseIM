@@ -122,17 +122,27 @@ process_iq(_, Acc, From, To, El) ->
                        To :: jid:jid(),
                        Acc :: mongoose_acc:t(),
                        IQ :: jlib:iq()) -> mongoose_acc:t().
-process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
+process_iq_reply(From, To, Acc, #iq{type = Type, id = ID} = IQ) ->
     case get_iq_callback_in_cluster(ID, Acc) of
         {ok, Callback} ->
             Callback(From, To, Acc, IQ);
-        _ ->
+        Other ->
+            %% 8.2.3. IQ Semantics (https://www.rfc-editor.org/rfc/rfc6120)
+            %% An entity that receives a stanza of type "result" or "error" MUST
+            %% NOT respond to the stanza by sending a further IQ response of
+            %% type "result" or "error".
+            %% (Do not reply).
+            ?LOG_INFO(#{what => dropped_iq_reply,
+                        text => <<"User send an unexpected IQ "
+                                  " type=", (atom_to_binary(Type))/binary,
+                                  ". Ignore the stanza.">>,
+                        reason => Other, acc => Acc}),
             Acc
     end.
 
 -spec get_iq_callback_in_cluster(id(), mongoose_acc:t()) ->
         {ok, callback()} | {error, term()}.
-get_iq_callback_in_cluster(ID, Acc) ->
+get_iq_callback_in_cluster(ID, _Acc) ->
     %% We store information from which node the request is originating in the ID
     case parse_iq_id(ID) of
         local_node ->
@@ -140,8 +150,6 @@ get_iq_callback_in_cluster(ID, Acc) ->
         {remote_node, NodeName} ->
             rpc:call(NodeName, ?MODULE, get_iq_callback, [ID]);
         {error, Reason} ->
-            ?LOG_ERROR(#{what => parse_iq_id_failed,
-                         reason => Reason, acc => Acc}),
             {error, Reason}
     end.
 

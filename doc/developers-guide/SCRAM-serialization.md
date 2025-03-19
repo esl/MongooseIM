@@ -84,3 +84,10 @@ In order to learn more about the meaning of the Stored Key, Server Key, Salt and
 * *Serialized password:* `==SCRAM==,tmi5IE+9pceRV/jkPLFHEaVY33c=,MiWNa8T3dniVDwmh77ufJ41fpAQ=,inKXODlSY5y5SCsLxibi0w==,4096`
 
 [the SCRAM specification]: https://tools.ietf.org/html/rfc5802
+
+## Known issues
+### SCRAM hash calculation issue in MongooseIM 4.1.0–6.3.1
+
+If you are using MongooseIM 4.1.0 to 6.3.1 with SCRAM authentication and have OpenSSL >=3.4.1 installed, hashes for algorithms stronger than SHA-1 are calculated incorrectly.
+To fix this issue, you must upgrade to MongooseIM 6.3.2, which includes `fast_pbkdf2` version 2.0 with the bug fixed or downgrade OpenSSL to a version lower than 3.4.1.
+After applying one of these fixes, all affected users must reset their passwords, as the previously stored hashes are incorrect.
