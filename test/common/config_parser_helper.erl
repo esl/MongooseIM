@@ -507,7 +507,8 @@ all_modules() ->
                        no_stanzaid_element => true}),
       mod_disco =>
           mod_config(mod_disco,
-                     #{server_info =>
+                     #{extra_domains => [<<"some_domain">>, <<"another_domain">>],
+                       server_info =>
                            [#{name => <<"abuse-address">>,
                               urls => [<<"admin@example.com">>]},
                             #{name => <<"friendly-spirits">>,
@@ -909,7 +910,8 @@ default_mod_config(mod_csi) ->
 default_mod_config(mod_carboncopy) ->
     #{iqdisc => no_queue};
 default_mod_config(mod_disco) ->
-    #{server_info => [], users_can_see_hidden_services => true, iqdisc => one_queue};
+    #{extra_domains => [], server_info => [],
+      users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
 default_mod_config(mod_global_distrib) ->
