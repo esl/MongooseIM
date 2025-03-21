@@ -500,7 +500,6 @@ stream_start_after_auth(Data, Event) ->
     Info = #{location => ?LOCATION, last_event => Event},
     stream_start_error(Data, Info, mongoose_xmpp_errors:invalid_xml()).
 
-
 -spec stream_start_error(data(), map(), exml:element()) -> fsm_res().
 stream_start_error(Data, Info, Error) ->
     send_xml(Data, stream_header(Data)),
