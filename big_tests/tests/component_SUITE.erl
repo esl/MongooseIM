@@ -107,8 +107,8 @@ register_one_component(Config) ->
     CompSpec = component_helper:spec(component1),
     {Component, ComponentAddr, _} = component_helper:connect_component(CompSpec),
     FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
-                     S > 0 andalso LServer =:= ComponentAddr
-             end,
+                         S > 0 andalso LServer =:= ComponentAddr
+                 end,
     CheckBytes = fun(#{byte_size := S}) -> S > 0 end,
     CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
     % start stream reply
@@ -147,8 +147,8 @@ register_one_component_tls(Config) ->
     CompSpec = component_helper:spec(tls_component),
     {Component, ComponentAddr, _} = component_helper:connect_component(CompSpec),
     FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
-                     S > 0 andalso LServer =:= ComponentAddr
-             end,
+                         S > 0 andalso LServer =:= ComponentAddr
+                 end,
     CheckBytes = fun(#{byte_size := S}) -> S > 0 end,
     CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
     instrument_helper:assert(tls_data_in, #{connection_type => component}, CheckBytes,
@@ -185,8 +185,8 @@ intercomponent_communication(Config) ->
     escalus:assert(is_chat_message, [<<"intercomponent msg">>], Reply0),
 
     FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
-                    S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
-             end,
+                         S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
+                 end,
     instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
     instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
@@ -229,7 +229,7 @@ register_two_components(Config) ->
             Reply3 = escalus:wait_for_stanza(Comp2),
             escalus:assert(is_chat_message, [<<"Bob-2-Comp2 msg">>], Reply3),
 
-            %% WHen Alice sends a reply to the first component
+            %% When Alice sends a reply to the first component
             Msg4 = escalus_stanza:chat_to(CompAddr1, <<"Alice-2-Comp1 msg">>),
             escalus:send(Alice, Msg4),
             %% Then the first component receives it
@@ -598,7 +598,3 @@ events() ->
 cluster_users() ->
     AllUsers = ct:get_config(escalus_users),
     [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
-
--spec domain() -> binary().
-domain() ->
-    ct:get_config({hosts, mim, domain}).

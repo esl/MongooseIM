@@ -12,7 +12,6 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-%% Module aliases
 -import(distributed_helper, [mim/0, rpc_spec/1, rpc/4]).
 
 %%%===================================================================
@@ -77,6 +76,8 @@ negative() ->
 connection_cases() ->
     [successful_external_auth_with_valid_cert,
      start_stream_fails_for_wrong_namespace,
+     start_stream_fails_for_wrong_version,
+     start_stream_fails_without_version,
      start_stream_fails_without_host,
      start_stream_fails_for_unknown_host,
      starttls_fails_for_unknown_host,
@@ -344,6 +345,14 @@ start_stream_fails_for_wrong_namespace(Config) ->
     start_stream_fails(Config, <<"invalid-namespace">>,
                        [fun s2s_start_stream_with_wrong_namespace/2]).
 
+start_stream_fails_for_wrong_version(Config) ->
+    start_stream_fails(Config, <<"invalid-xml">>,
+                       [fun s2s_start_stream_with_wrong_version/2]).
+
+start_stream_fails_without_version(Config) ->
+    start_stream_fails(Config, <<"invalid-xml">>,
+                       [fun s2s_start_stream_without_version/2]).
+
 start_stream_fails_without_host(Config) ->
     start_stream_fails(Config, <<"improper-addressing">>,
                        [fun s2s_start_stream_without_host/2]).
@@ -427,6 +436,16 @@ connection_args(FromServer, RequestedName, Config) ->
 
 s2s_start_stream_with_wrong_namespace(Conn = #client{props = Props}, Features) ->
     Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"xmlns">> => <<"42">>} end),
+    ok = escalus_connection:send(Conn, Start),
+    {Conn, Features}.
+
+s2s_start_stream_with_wrong_version(Conn = #client{props = Props}, Features) ->
+    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"version">> => <<"42">>} end),
+    ok = escalus_connection:send(Conn, Start),
+    {Conn, Features}.
+
+s2s_start_stream_without_version(Conn = #client{props = Props}, Features) ->
+    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> maps:remove(<<"version">>, Attrs) end),
     ok = escalus_connection:send(Conn, Start),
     {Conn, Features}.
 
@@ -537,8 +556,6 @@ assert_events(TS, Config) ->
         #{expected_count => element_count(in, TLS), min_timestamp => TS}),
     instrument_helper:assert(xmpp_element_size_out, Labels, Filter,
         #{expected_count => element_count(out, TLS), min_timestamp => TS}),
-    Value = distributed_helper:rpc(distributed_helper:mim(), mongoose_instrument_event_table, all_keys, []),
-    ct:pal("Value ~p~n", [Value]),
     case TLS of
         true ->
             instrument_helper:assert(tls_data_out, Labels, Filter, #{min_timestamp => TS}),
@@ -553,7 +570,7 @@ assert_events(TS, Config) ->
 % and receiving (and authoritative) server in the dialback procedure.
 %
 % We also test that both users on each side of federation can text each other,
-% hence both server will run the dialback each.
+% hence both servers will run the dialback each.
 %
 % When a user in mim1 writes to a user in fed1, from the perspective of mim1:
 % - Open an outgoing connection from mim1 to fed1:
@@ -587,10 +604,7 @@ assert_events(TS, Config) ->
 %  10. Outgoing dialback result (step 4, as initiating server)
 %  11. Incoming message from user in fed1 to user in mim1
 %
-% The number can be seen as the sum of all arrows from the dialback diagram, since mim
-% acts as all three roles in the two dialback procedures that occur:
-% https://xmpp.org/extensions/xep-0220.html#intro-howitworks
-% (6 arrows) + one for stream header response + one for the actual message
+% More information about dialback: https://xmpp.org/extensions/xep-0220.html#intro-howitworks
 element_count(_Dir, true) ->
     % TLS tests are not checking a specific number of events, because the numbers are flaky
     positive;
