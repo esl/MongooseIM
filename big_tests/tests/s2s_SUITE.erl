@@ -12,7 +12,6 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-%% Module aliases
 -import(distributed_helper, [mim/0, rpc_spec/1, rpc/4]).
 
 %%%===================================================================
@@ -537,8 +536,6 @@ assert_events(TS, Config) ->
         #{expected_count => element_count(in, TLS), min_timestamp => TS}),
     instrument_helper:assert(xmpp_element_size_out, Labels, Filter,
         #{expected_count => element_count(out, TLS), min_timestamp => TS}),
-    Value = distributed_helper:rpc(distributed_helper:mim(), mongoose_instrument_event_table, all_keys, []),
-    ct:pal("Value ~p~n", [Value]),
     case TLS of
         true ->
             instrument_helper:assert(tls_data_out, Labels, Filter, #{min_timestamp => TS}),
