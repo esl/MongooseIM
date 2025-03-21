@@ -190,7 +190,10 @@ handle_stream_start(#s2s_data{myname = LServer} = D0,
             Info = #{location => ?LOCATION, last_event => {stream_start, Attrs},
                      expected_server => LServer, provided_server => Server},
             stream_start_error(D0, Info, mongoose_xmpp_errors:host_unknown(?MYLANG, Msg))
-    end.
+    end;
+handle_stream_start(D0, Attrs, _State) ->
+    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
+    stream_start_error(D0, Info, mongoose_xmpp_errors:invalid_xml()).
 
 -spec handle_maybe_hide_service_name(data(), term()) -> fsm_res().
 handle_maybe_hide_service_name(Data, Unexpected) ->
@@ -481,7 +484,10 @@ stream_start_features_before_auth(
     {next_state, wait_for_feature_before_auth, Data, state_timeout(Data)};
 stream_start_features_before_auth(#s2s_data{} = Data, #{<<"xmlns:db">> := ?NS_SERVER_DIALBACK}) ->
     send_xml(Data, stream_header(Data)),
-    {next_state, wait_for_feature_before_auth, Data, state_timeout(Data)}.
+    {next_state, wait_for_feature_before_auth, Data, state_timeout(Data)};
+stream_start_features_before_auth(Data, Attrs) ->
+    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
+    stream_start_error(Data, Info, mongoose_xmpp_errors:invalid_xml()).
 
 -spec stream_start_after_auth(data(), exml:attrs()) -> fsm_res().
 stream_start_after_auth(#s2s_data{host_type = HostType, myname = LServer} = Data,
@@ -496,8 +502,8 @@ stream_start_after_auth(#s2s_data{host_type = HostType, myname = LServer} = Data
 stream_start_after_auth(Data, #{<<"xmlns:db">> := ?NS_SERVER_DIALBACK}) ->
     send_xml(Data, stream_header(Data)),
     {next_state, stream_established, Data};
-stream_start_after_auth(Data, Event) ->
-    Info = #{location => ?LOCATION, last_event => Event},
+stream_start_after_auth(Data, Attrs) ->
+    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
     stream_start_error(Data, Info, mongoose_xmpp_errors:invalid_xml()).
 
 -spec stream_start_error(data(), map(), exml:element()) -> fsm_res().
