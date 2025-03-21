@@ -570,7 +570,7 @@ assert_events(TS, Config) ->
 % and receiving (and authoritative) server in the dialback procedure.
 %
 % We also test that both users on each side of federation can text each other,
-% hence both server will run the dialback each.
+% hence both servers will run the dialback each.
 %
 % When a user in mim1 writes to a user in fed1, from the perspective of mim1:
 % - Open an outgoing connection from mim1 to fed1:
@@ -604,10 +604,7 @@ assert_events(TS, Config) ->
 %  10. Outgoing dialback result (step 4, as initiating server)
 %  11. Incoming message from user in fed1 to user in mim1
 %
-% The number can be seen as the sum of all arrows from the dialback diagram, since mim
-% acts as all three roles in the two dialback procedures that occur:
-% https://xmpp.org/extensions/xep-0220.html#intro-howitworks
-% (6 arrows) + one for stream header response + one for the actual message
+% More information about dialback: https://xmpp.org/extensions/xep-0220.html#intro-howitworks
 element_count(_Dir, true) ->
     % TLS tests are not checking a specific number of events, because the numbers are flaky
     positive;
