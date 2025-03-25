@@ -20,10 +20,24 @@ case "$arch" in
     ;;
 esac
 
+OS_ID=$(grep ^ID= /etc/os-release | cut -d= -f2 | tr -d '"')
+OS_VERSION=$(grep ^VERSION_ID= /etc/os-release | cut -d= -f2 | tr -d '"' | cut -d. -f1)
+if { [ "$OS_ID" = "rocky" ] && [ "$OS_VERSION" -lt 9 ]; } || \
+   { [ "$OS_ID" = "almalinux" ] && [ "$OS_VERSION" -lt 9 ]; }; then
+    export PKG_CONFIG_PATH="/usr/local/ssl/lib64/pkgconfig"
+    export LDFLAGS="-L/usr/local/ssl/lib64"
+    export CFLAGS="-I/usr/local/ssl/include"
+
+    bundle_openssl=1
+else
+    bundle_openssl=0
+fi
+
 rpmbuild -bb \
     --define "version ${version}" \
     --define "release ${revision}" \
     --define "architecture ${arch}" \
+    --define "with_bundled_openssl ${bundle_openssl}" \
     ~/rpmbuild/SPECS/mongooseim.spec
 
 source /etc/os-release
