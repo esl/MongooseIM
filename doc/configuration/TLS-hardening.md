@@ -9,7 +9,7 @@ The protocol list for OTP TLS is set via the `protocol_version` environment vari
 It's an Erlang runtime variable, so it is not configured in the OS but rather in the`app.config` file.
 It may be found in `etc/` folder inside MongooseIM release and in `[repository root]/rel/files/`.
 
-In order to change the list, please find the following lines:
+In order to change the list, please find the following line:
 
 ```
 {protocol_version, ['tlsv1.2', 'tlsv1.3']}
