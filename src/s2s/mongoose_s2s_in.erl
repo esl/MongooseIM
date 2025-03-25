@@ -103,16 +103,12 @@ handle_event(internal, #xmlstreamerror{name = <<"element too big">> = Err}, _, D
 handle_event(internal, #xmlstreamerror{name = Err}, _, Data) ->
     stream_error(Data, mongoose_xmpp_errors:xml_not_well_formed(Data#s2s_data.lang, Err));
 handle_event(internal, #xmlel{name = <<"starttls">>} = El, wait_for_feature_before_auth, Data) ->
-    execute_element_event(Data, El, s2s_element_in),
     handle_starttls(Data, El);
 handle_event(internal, #xmlel{name = <<"auth">>} = El, wait_for_feature_before_auth, Data) ->
-    execute_element_event(Data, El, s2s_element_in),
     handle_auth_start(Data, El);
 handle_event(internal, #xmlel{name = <<"db:", _/binary>>} = El, State, Data) ->
-    execute_element_event(Data, El, s2s_element_in),
     handle_dialback(Data, El, State);
 handle_event(internal, #xmlel{} = El, stream_established, Data) ->
-    execute_element_event(Data, El, s2s_element_in),
     handle_session_established(Data, El);
 handle_event(info, {Tag, _, _} = SocketData, _, Data) when Tag =:= tcp; Tag =:= ssl ->
     handle_socket_data(Data, SocketData);
@@ -405,10 +401,8 @@ handle_socket_packet(#s2s_data{parser = Parser} = Data, Packet) ->
 -spec handle_socket_elements(data(), [exml_stream:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(#s2s_data{myname = LServer, shaper = Shaper} = Data, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    [mongoose_instrument:execute(
-       xmpp_element_size_in, labels(),
-       #{byte_size => exml:xml_size(Elem), lserver => LServer, pid => self(), module => ?MODULE})
-     || Elem <- Elements],
+    [execute_element_events(Element, LServer, s2s_element_in, xmpp_element_size_in)
+     || Element = #xmlel{} <- Elements],
     NewData = Data#s2s_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     StreamEvents1 = maybe_add_pause(NewData, StreamEvents0, Pause),
@@ -518,36 +512,11 @@ stream_error(Data, Error) ->
 
 -spec send_xml(data(), exml_stream:element()) -> maybe_ok().
 send_xml(#s2s_data{myname = LServer, socket = Socket}, Elem) ->
-    mongoose_instrument:execute(
-      xmpp_element_size_out, labels(),
-       #{byte_size => exml:xml_size(Elem), lserver => LServer, pid => self(), module => ?MODULE}),
+    case Elem of
+        #xmlel{} -> execute_element_events(Elem, LServer, s2s_element_out, xmpp_element_size_out);
+        _ -> ok
+    end,
     mongoose_xmpp_socket:send_xml(Socket, Elem).
-
--spec execute_element_event(data(), exml_stream:element(), mongoose_instrument:event_name()) -> ok.
-execute_element_event(#s2s_data{myname = LServer}, #xmlel{name = Name} = El, EventName) ->
-    Metrics = measure_element(Name, exml_query:attr(El, <<"type">>)),
-    Measurements = Metrics#{element => El, lserver => LServer},
-    mongoose_instrument:execute(EventName, #{}, Measurements);
-execute_element_event(_, _, _) ->
-    ok.
-
--spec measure_element(binary(), binary() | undefined) -> mongoose_instrument:measurements().
-measure_element(<<"message">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, message_error_count => 1};
-measure_element(<<"iq">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, iq_error_count => 1};
-measure_element(<<"presence">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, presence_error_count => 1};
-measure_element(<<"message">>, _Type) ->
-    #{count => 1, stanza_count => 1, message_count => 1};
-measure_element(<<"iq">>, _Type) ->
-    #{count => 1, stanza_count => 1, iq_count => 1};
-measure_element(<<"presence">>, _Type) ->
-    #{count => 1, stanza_count => 1, presence_count => 1};
-measure_element(<<"stream:error">>, _Type) ->
-    #{count => 1, error_count => 1};
-measure_element(_Name, _Type) ->
-    #{count => 1}.
 
 check_auth_domain(error, _) ->
     false;
@@ -653,6 +622,17 @@ invalid_mechanism() ->
     #xmlel{name = <<"failure">>,
            attrs = #{<<"xmlns">> => ?NS_SASL},
            children = [#xmlel{name = <<"invalid-mechanism">>}]}.
+
+%% Instrumentation helpers
+
+-spec execute_element_events(exml:element(), jid:lserver(), mongoose_instrument:event_name(),
+                             mongoose_instrument:event_name()) -> ok.
+execute_element_events(Element, LServer, EventName, SizeEventName) ->
+    Measurements = mongoose_measurements:measure_element(Element),
+    mongoose_instrument:execute(EventName, #{}, Measurements#{lserver => LServer}),
+    mongoose_instrument:execute(SizeEventName, labels(),
+                                #{byte_size => exml:xml_size(Element), lserver => LServer,
+                                  pid => self(), module => ?MODULE}).
 
 -spec labels() -> mongoose_instrument:labels().
 labels() ->

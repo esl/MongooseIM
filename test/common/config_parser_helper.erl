@@ -243,10 +243,9 @@ options("mongooseim-pgsql") ->
               #{port => 5269,
                 shaper => s2s_shaper,
                 max_stanza_size => 131072,
-                tls => (default_config([listen, s2s, tls]))#{
-                            cacertfile => "priv/ca.pem",
-                            certfile => "priv/cert.pem",
-                            dhfile => "priv/dh.pem"}
+                tls => #{cacertfile => "priv/ca.pem",
+                         certfile => "priv/cert.pem",
+                         dhfile => "priv/dh.pem"}
                })
       ]},
      {loglevel, warning},

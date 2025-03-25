@@ -27,9 +27,6 @@
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
-%% The pattern 'undefined' can never match the type binary()
--dialyzer({no_match, patch_attr_value/1}).
-
 -record(c2s_data, {
           host_type :: undefined | mongooseim:host_type(),
           lserver = ?MYNAME :: jid:lserver(),
@@ -130,7 +127,6 @@ handle_event(internal, #xmlstreamerror{name = <<"element too big">> = Err}, _, S
 handle_event(internal, #xmlstreamerror{name = Err}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(StateData#c2s_data.lang, Err));
 handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, SaslAcc, Retries}, StateData) ->
-    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_TLS ->
             handle_starttls(StateData, El, SaslAcc, Retries);
@@ -138,7 +134,6 @@ handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_bef
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature_before_auth, SaslAcc, Retries}, StateData) ->
-    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
             handle_auth_start(StateData, El, SaslAcc, Retries);
@@ -146,7 +141,6 @@ handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature_before_
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_response, SaslAcc, Retries}, StateData) ->
-    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
             handle_auth_continue(StateData, El, SaslAcc, Retries);
@@ -154,7 +148,6 @@ handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_respon
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"abort">>} = El, {wait_for_sasl_response, SaslAcc, Retries}, StateData) ->
-    execute_element_event(c2s_element_in, El, StateData),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
             handle_sasl_abort(StateData, SaslAcc, Retries);
@@ -162,7 +155,6 @@ handle_event(internal, #xmlel{name = <<"abort">>} = El, {wait_for_sasl_response,
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_auth, _} = C2SState, StateData) ->
-    execute_element_event(c2s_element_in, El, StateData),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND} = IQ ->
             handle_bind_resource(StateData, C2SState, El, IQ);
@@ -172,7 +164,6 @@ handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_aut
             maybe_retry_state(StateData, C2SState)
     end;
 handle_event(internal, #xmlel{name = <<"iq">>} = El, wait_for_session_establishment = C2SState, StateData) ->
-    execute_element_event(c2s_element_in, El, StateData),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_SESSION} = IQ ->
             handle_session_establishment(StateData, C2SState, El, IQ);
@@ -180,7 +171,6 @@ handle_event(internal, #xmlel{name = <<"iq">>} = El, wait_for_session_establishm
             handle_foreign_packet(StateData, C2SState, El)
     end;
 handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData) ->
-    execute_element_event(c2s_element_in, El, StateData),
     case verify_from(El, StateData#c2s_data.jid) of
         false ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_from());
@@ -265,30 +255,14 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
     end.
 
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
-handle_socket_elements(StateData = #c2s_data{lserver = LServer, shaper = Shaper}, Elements, Size) ->
+handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    [mongoose_instrument:execute(
-       xmpp_element_size_in, labels(), #{byte_size => elem_size(El), lserver => LServer})
-     || El <- Elements],
+    [execute_element_events(Element, StateData, c2s_element_in, xmpp_element_size_in)
+     || Element = #xmlel{} <- Elements],
     NewStateData = StateData#c2s_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     StreamEvents1 = maybe_add_pause(NewStateData, StreamEvents0, Pause),
     {keep_state, NewStateData, StreamEvents1}.
-
-elem_size(#xmlstreamerror{name = Name}) ->
-    byte_size(Name);
-elem_size(El) ->
-    exml:xml_size(patch_element(El)).
-
-patch_element(El = #xmlstreamstart{attrs = Attrs}) ->
-    Attrs2 = #{Name => patch_attr_value(Value) || Name := Value <- Attrs},
-    El#xmlstreamstart{attrs = Attrs2};
-patch_element(El) ->
-    El.
-
--spec patch_attr_value(undefined | binary()) -> binary().
-patch_attr_value(undefined) -> <<>>;
-patch_attr_value(Bin) -> Bin.
 
 -spec maybe_add_pause(data(), [gen_statem:action()], integer()) -> [gen_statem:action()].
 maybe_add_pause(_, StreamEvents, Pause) when Pause > 0 ->
@@ -1080,18 +1054,15 @@ do_send_element(StateData = #c2s_data{host_type = undefined}, Acc, El) ->
 do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El) ->
     Res = send_xml(StateData, El),
     Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
-    execute_element_event(c2s_element_out, El, StateData),
     mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
-send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
-    [mongoose_instrument:execute(
-       xmpp_element_size_out, labels(), #{byte_size => exml:xml_size(El)})
-      || El <- XmlElements],
+send_xml(#c2s_data{socket = Socket} = StateData, XmlElements) when is_list(XmlElements) ->
+    [execute_element_events(Element, StateData, c2s_element_out, xmpp_element_size_out)
+     || Element = #xmlel{} <- XmlElements],
     mongoose_xmpp_socket:send_xml(Socket, XmlElements).
-
 
 state_timeout(#c2s_data{listener_opts = LOpts}) ->
     state_timeout(LOpts);
@@ -1269,32 +1240,22 @@ merge_states(S0 = #c2s_data{}, S1 = #c2s_data{}) ->
 
 %% Instrumentation helpers
 
--spec execute_element_event(mongoose_instrument:event_name(), exml:element(), data()) -> ok.
-execute_element_event(EventName, El, #c2s_data{host_type = HostType, jid = Jid}) ->
-    Metrics = measure_element(El#xmlel.name, exml_query:attr(El, <<"type">>)),
-    Measurements = case Jid of
-                       undefined -> Metrics#{element => El};
-                       _ -> Metrics#{element => El, jid => Jid}
-                   end,
-    mongoose_instrument:execute(EventName, #{host_type => HostType}, Measurements).
+-spec execute_element_events(exml:element(), data(), mongoose_instrument:event_name(),
+                             mongoose_instrument:event_name()) -> ok.
+execute_element_events(Element, C2SData = #c2s_data{jid = Jid}, EventName, SizeEventName) ->
+    case C2SData#c2s_data.host_type of
+        undefined ->
+            ok;
+        HostType ->
+            Measurements = mongoose_measurements:measure_element(Element),
+            mongoose_instrument:execute(EventName, #{host_type => HostType},
+                                        add_jid_if_present(Measurements, Jid))
+    end,
+    mongoose_instrument:execute(SizeEventName, labels(),
+                                add_jid_if_present(#{byte_size => exml:xml_size(Element)}, Jid)).
 
--spec measure_element(binary(), binary() | undefined) -> mongoose_instrument:measurements().
-measure_element(<<"message">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, message_error_count => 1};
-measure_element(<<"iq">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, iq_error_count => 1};
-measure_element(<<"presence">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, presence_error_count => 1};
-measure_element(<<"message">>, _Type) ->
-    #{count => 1, stanza_count => 1, message_count => 1};
-measure_element(<<"iq">>, _Type) ->
-    #{count => 1, stanza_count => 1, iq_count => 1};
-measure_element(<<"presence">>, _Type) ->
-    #{count => 1, stanza_count => 1, presence_count => 1};
-measure_element(<<"stream:error">>, _Type) ->
-    #{count => 1, error_count => 1};
-measure_element(_Name, _Type) ->
-    #{count => 1}.
+add_jid_if_present(Measurements, undefined) -> Measurements;
+add_jid_if_present(Measurements, Jid) -> Measurements#{jid => Jid}.
 
 -spec labels() -> mongoose_instrument:labels().
 labels() ->
