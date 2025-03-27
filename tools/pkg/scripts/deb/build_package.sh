@@ -19,20 +19,22 @@ rm -rf /usr/lib/erlang/man/man3/cerff.3.gz /usr/lib/erlang/man/man3/cerfl.3.gz /
 OS_ID=$(grep ^ID= /etc/os-release | cut -d= -f2 | tr -d '"')
 OS_VERSION=$(grep ^VERSION_ID= /etc/os-release | cut -d= -f2 | tr -d '"' | cut -d. -f1)
 if { [ "$OS_ID" = "ubuntu" ] && [ "$OS_VERSION" -lt 22 ]; } || \
-   { [ "$OS_ID" = "debian" ] && [ "$OS_VERSION" -lt 11 ]; }; then
-    export LDFLAGS="-L/usr/local/ssl/lib64"
+   { [ "$OS_ID" = "debian" ] && [ "$OS_VERSION" -lt 12 ]; }; then
     export CFLAGS="-I/usr/local/ssl/include"
 
     # Copy essential OpenSSL 3.x runtime files to bundle with the app
     mkdir -p mongooseim/opt/mongooseim/openssl/etc
     mkdir -p mongooseim/opt/mongooseim/openssl/include
-    if [ -d /usr/local/ssl/lib64 ]; then
-        cp -a /usr/local/ssl/lib64 mongooseim/opt/mongooseim/openssl/
-    else
-        cp -a /usr/local/ssl/lib mongooseim/opt/mongooseim/openssl/
-    fi
     cp -a /usr/local/ssl/openssl.cnf mongooseim/opt/mongooseim/openssl/etc/
     cp -a /usr/local/ssl/include/openssl mongooseim/opt/mongooseim/openssl/include/
+
+    if [ -d /usr/local/ssl/lib64 ]; then
+        export LDFLAGS="-L/usr/local/ssl/lib64"
+        cp -a /usr/local/ssl/lib64 mongooseim/opt/mongooseim/openssl/
+    else
+        export LDFLAGS="-L/usr/local/ssl/lib"
+        cp -a /usr/local/ssl/lib mongooseim/opt/mongooseim/openssl/
+    fi
 fi
 
 make clean

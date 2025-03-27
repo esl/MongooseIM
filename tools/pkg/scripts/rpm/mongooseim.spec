@@ -40,9 +40,13 @@ cp %{SOURCE0} .
 # Copy essential OpenSSL 3.x runtime files to bundle with the app
 mkdir -p %{buildroot}/opt/mongooseim/openssl/etc
 mkdir -p %{buildroot}/opt/mongooseim/openssl/include
-cp -a /usr/local/ssl/lib64 %{buildroot}/opt/mongooseim/openssl/
 cp -a /usr/local/ssl/openssl.cnf %{buildroot}/opt/mongooseim/openssl/etc/
 cp -a /usr/local/ssl/include/openssl %{buildroot}/opt/mongooseim/openssl/include/
+if [ -d /usr/local/ssl/lib64 ]; then
+    cp -a /usr/local/ssl/lib64 %{buildroot}/opt/mongooseim/openssl/
+else
+    cp -a /usr/local/ssl/lib %{buildroot}/opt/mongooseim/openssl/
+fi
 %endif
 
 make clean
@@ -70,7 +74,11 @@ exit 0
 %if %{with_bundled_openssl}
 SYSTEM_OPENSSL=$(ldconfig -p | grep "libssl.so.3" | awk '{print $NF}' | head -n 1)
 if [ -z "$SYSTEM_OPENSSL" ]; then
-    echo "/opt/mongooseim/openssl/lib64" > /etc/ld.so.conf.d/mongooseim-openssl.conf
+    if [ -d /opt/mongooseim/openssl/lib64 ]; then
+        echo "/opt/mongooseim/openssl/lib64" > /etc/ld.so.conf.d/mongooseim-openssl.conf
+    else
+        echo "/opt/mongooseim/openssl/lib" > /etc/ld.so.conf.d/mongooseim-openssl.conf
+    fi
     ldconfig
 fi
 %endif
@@ -81,7 +89,12 @@ rm -rf %{buildroot}
 
 %files
 %if %{with_bundled_openssl}
+%ifarch x86_64
 /opt/mongooseim/openssl/lib64/
+%endif
+%ifarch aarch64
+/opt/mongooseim/openssl/lib/
+%endif
 /opt/mongooseim/openssl/etc/openssl.cnf
 /opt/mongooseim/openssl/include/openssl/
 %endif
