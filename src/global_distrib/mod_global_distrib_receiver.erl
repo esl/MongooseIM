@@ -163,15 +163,14 @@ do_setopts_and_receive_data(Socket, Buffer, RawData, State) ->
     SetOptsResult = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
     case SetOptsResult of
         ok ->
-            do_receive_data(Socket, Buffer, RawData, State);
+            do_receive_data(Buffer, RawData, State);
         {error, closed} ->
             {stop, normal, State};
         _ ->
             {stop, {setopts_failed, SetOptsResult}, State}
     end.
 
-do_receive_data(Socket, Buffer, RawData, State) ->
-    {ok, Data} = mod_global_distrib_transport:recv_data(Socket, RawData),
+do_receive_data(Buffer, Data, State) ->
     NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
     {noreply, NewState}.
 

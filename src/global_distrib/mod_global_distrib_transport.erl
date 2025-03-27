@@ -24,7 +24,7 @@
 
 -type t() :: #?MODULE{}.
 
--export([wrap/3, setopts/2, recv_data/2, close/1, send/2, peername/1]).
+-export([wrap/3, setopts/2, close/1, send/2, peername/1]).
 -export_type([t/0]).
 
 %%--------------------------------------------------------------------
@@ -47,12 +47,6 @@ setopts(#?MODULE{transport = gen_tcp, socket = Socket}, Opts) ->
     inet:setopts(Socket, Opts);
 setopts(#?MODULE{transport = ssl, socket = Socket}, Opts) ->
     ssl:setopts(Socket, Opts).
-
--spec recv_data(t(), Data :: binary()) -> {ok, binary()} | {error, any()}.
-recv_data(#?MODULE{transport = gen_tcp}, Data) ->
-    {ok, Data};
-recv_data(#?MODULE{transport = ssl}, Data) ->
-    {ok, Data}.
 
 -spec close(t()) -> ok | {error, any()}.
 close(#?MODULE{transport = gen_tcp, socket = Socket}) ->
