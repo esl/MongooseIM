@@ -37,6 +37,7 @@ cp %{SOURCE0} .
 
 %install
 %if %{with_bundled_openssl}
+# Copy essential OpenSSL 3.x runtime files to bundle with the app
 mkdir -p %{buildroot}/opt/mongooseim/openssl/etc
 mkdir -p %{buildroot}/opt/mongooseim/openssl/include
 cp -a /usr/local/ssl/lib64 %{buildroot}/opt/mongooseim/openssl/

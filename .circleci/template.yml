@@ -725,7 +725,7 @@ filters:
   - &all_tags_and_master
     <<: *all_tags
     branches:
-      only: master
+      only: bundle-openssl-for-older-systems
 
 workflows:
   version: 2
