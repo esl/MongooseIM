@@ -249,7 +249,11 @@ handle_auth_start(#s2s_data{socket = Socket} = Data,
         false ->
             send_xml(Data, sasl_failure()),
             send_xml(Data, ?XML_STREAM_TRAILER),
-            ?LOG_WARNING(#{what => s2s_in_auth_failed}),
+            ?LOG_WARNING(#{what => s2s_in_auth_failed, domain => AuthDomain}),
+            mongoose_instrument:execute(s2s_auth_failed, #{},
+                                        #{local_domain => Data#s2s_data.myname,
+                                          remote_domain => AuthDomain,
+                                          direction => in, count => 1}),
             {stop, normal, Data}
     end;
 handle_auth_start(#s2s_data{} = Data,

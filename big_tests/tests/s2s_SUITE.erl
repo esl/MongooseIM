@@ -592,8 +592,8 @@ assert_events(TS, Config) ->
 %
 % When a user in mim1 writes to a user in fed1, from the perspective of mim1:
 % - Open an outgoing connection from mim1 to fed1:
-%   Outgoing stream starts - skipped
-%   Incoming stream starts - skipped
+%   Outgoing stream starts
+%   Incoming stream starts
 %   1. Incoming stream features
 %   2. Outgoing dialback key (step 1)
 % - Open an incoming connection from fed1 to mim1:

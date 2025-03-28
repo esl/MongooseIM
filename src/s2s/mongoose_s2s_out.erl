@@ -164,7 +164,11 @@ handle_event(internal, #xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS
     send_xml(NewData, stream_header(NewData)),
     {next_state, {wait_for_stream, authenticated}, NewData, state_timeout(NewData)};
 handle_event(internal, #xmlel{name = <<"failure">>, attrs = #{<<"xmlns">> := ?NS_SASL}},
-             wait_for_auth_result, _Data) ->
+             wait_for_auth_result, #s2s_data{myname = LocalDomain, remote_server = RemoteDomain}) ->
+    mongoose_instrument:execute(s2s_auth_failed, #{},
+                                #{local_domain => LocalDomain,
+                                  remote_domain => RemoteDomain,
+                                  direction => out, count => 1}),
     {stop, s2s_sasl_failure};
 
 handle_event(internal,
