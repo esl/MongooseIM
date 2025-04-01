@@ -25,7 +25,6 @@ if { [ "$OS_ID" = "ubuntu" ] && [ "$OS_VERSION" -lt 22 ]; } || \
     # Copy essential OpenSSL 3.x runtime files to bundle with the app
     mkdir -p mongooseim/opt/mongooseim/openssl/etc
     mkdir -p mongooseim/opt/mongooseim/openssl/include
-    cp -a /usr/local/ssl/openssl.cnf mongooseim/opt/mongooseim/openssl/etc/
     cp -a /usr/local/ssl/include/openssl mongooseim/opt/mongooseim/openssl/include/
 
     if [ -d /usr/local/ssl/lib64 ]; then
