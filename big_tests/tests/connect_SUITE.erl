@@ -233,7 +233,7 @@ use_system_certs_when_no_cacertfile(Config) ->
     ?assertMatch({verify, verify_peer}, lists:keyfind(verify, 1, ClientOpts)),
     ?assertMatch({cacerts, _}, lists:keyfind(cacerts, 1, ClientOpts)),
     ok = ssl:start(),
-    ?assertMatch({ok,_}, ssl:connect("google.com", 443, ClientOpts)).
+    ?assertMatch({ok, _}, ssl:connect("google.com", 443, ClientOpts)).
 
 verify_peer_disconnects_when_client_has_no_cert(Config) ->
     %% Server disconnects only when `disconnect_on_failure` is set to `true`.
