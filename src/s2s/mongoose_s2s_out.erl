@@ -10,13 +10,15 @@
     #{sasl_external := boolean(),
       starttls := false | optional | required,
       is_ssl := boolean()}.
--type options() :: #{
-      shaper := none,
-      max_stanza_size := non_neg_integer(),
-      max_retry_delay := pos_integer(),
-      state_timeout := timeout(),
-      stream_timeout := timeout(),
-      tls := just_tls:options()}.
+-type options() :: #{connection_timeout := timeout(),
+                     max_stanza_size := non_neg_integer(),
+                     max_retry_delay := pos_integer(),
+                     shaper := atom(),
+                     state_timeout := timeout(),
+                     stream_timeout := timeout(),
+                     tls := just_tls:options(),
+                     atom() => term() % other options are not used in this module
+                    }.
 -record(s2s_data, {
           host_type :: mongooseim:host_type(),
           myname :: jid:lserver(),
@@ -304,8 +306,7 @@ bounce_and_disconnect({FromServer, _To} = Data) ->
 
 -spec open_socket(mongooseim:host_type(), jid:lserver(), options()) ->
     mongoose_xmpp_socket:socket() | {error, atom() | inet:posix()}.
-open_socket(HostType, ToServer, Opts) ->
-    Timeout = outgoing_s2s_timeout(HostType),
+open_socket(HostType, ToServer, Opts = #{connection_timeout := Timeout}) ->
     EnforceTls = is_tls_enforced(Opts),
     AddrList = mongoose_addr_list:get_addr_list(HostType, ToServer, EnforceTls),
     Fold = fun(Addr, {error, _}) ->
@@ -560,13 +561,9 @@ handle_get_state_info(#s2s_data{socket = Socket, opts = Opts} = Data, State) ->
 labels() ->
     #{connection_type => s2s}.
 
--spec outgoing_s2s_timeout(mongooseim:host_type()) -> non_neg_integer() | infinity.
-outgoing_s2s_timeout(HostType) ->
-    mongoose_config:get_opt([{s2s, HostType}, outgoing, connection_timeout]).
-
 -spec get_s2s_out_config(mongooseim:host_type()) -> options().
 get_s2s_out_config(HostType) ->
-    mongoose_config:get_opt([{s2s, HostType}]).
+    mongoose_config:get_opt([{s2s, HostType}, outgoing]).
 
 -spec stream_header(data()) -> exml_stream:start().
 stream_header(#s2s_data{myname = LServer, remote_server = Remote, streamid = Id, socket = Socket}) ->
