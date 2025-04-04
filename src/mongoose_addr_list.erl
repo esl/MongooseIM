@@ -189,7 +189,7 @@ ip_versions(HostType) ->
 -spec lookup_predefined_addresses(mongooseim:host_type(), jid:lserver()) ->
     {ok, pre_addr()} | {error, atom()}.
 lookup_predefined_addresses(HostType, LServer) ->
-    mongoose_config:lookup_opt([{s2s, HostType}, address, LServer]).
+    mongoose_config:lookup_opt([{s2s, HostType}, outgoing, address, LServer]).
 
 -spec outgoing_s2s_port(mongooseim:host_type()) -> inet:port_number().
 outgoing_s2s_port(HostType) ->
@@ -198,7 +198,7 @@ outgoing_s2s_port(HostType) ->
 -spec get_dns(mongooseim:host_type()) ->
     #{timeout := non_neg_integer(), retries := pos_integer()}.
 get_dns(HostType) ->
-    mongoose_config:get_opt([{s2s, HostType}, dns]).
+    mongoose_config:get_opt([{s2s, HostType}, outgoing, dns]).
 
 -spec prepare_addr
     ([inet:ip4_address()], inet:port_number(), with_tls(), hostname(), a) -> [addr()];
