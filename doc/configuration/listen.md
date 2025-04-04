@@ -120,4 +120,4 @@ Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackover
 * **Default:** `5000`
 * **Example:** `state_timeout = 10_000`
 
-Timeout value (in milliseconds) used by the state machine when waiting for the connecting party to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
+Timeout value (in milliseconds) used by the state machine when waiting for the connecting party to respond during stream negotiation and SASL authentication. After the timeout, the server responds with the `connection-timeout` stream error and closes the connection.

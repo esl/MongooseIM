@@ -46,10 +46,10 @@ This is the list of names for the types of hosts that will serve dynamic XMPP do
 Each host type can be seen as a label for a group of independent domains that use the same server configuration.
 In order to configure these host types independently, use the [`host_config` section](./host_config.md). The domains can be added or removed dynamically with the [command line interface](../developers-guide/domain_management.md#command-line-interface) or using the [API](../developers-guide/domain_management.md#api).
 
-If you use the host type mechanism, make sure you only configure modules which support dynamic domains in the [`modules`](./Modules.md) or [`host_config.modules`](./host_config.md#host_configmodules) sections.
+If you use the host type mechanism, make sure you only configure modules which support dynamic domains in the [`modules`](Modules.md) or [`host_config.modules`](./host_config.md#host_configmodules) sections.
 MongooseIM will **not** start otherwise.
 Most of the modules are compatible with host types, but please read the particular extension module's page, or the [incompatible modules list](./Modules.md#modules-incompatible-with-dynamic-domains) to see which do not.
-Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured in the [`listen.component` section](../listeners/listen-components.md#xmpp-components-listenservice), do not support dynamic domains.
+Moreover, server-to-server connections do not support dynamic domains. See the corresponding [listener](../listeners/listen-s2s.md) and [s2s](s2s.md) configuration for more information about s2s connections.
 
 !!! Note
     At least one of `general.hosts` or `general.host_types` have to be provided.
