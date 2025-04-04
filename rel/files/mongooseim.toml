@@ -367,20 +367,22 @@
   ]
 
 [s2s]
-  {{#max_retry_delay}}
-  max_retry_delay = {{{max_retry_delay}}}
-  {{/max_retry_delay}}
   {{#s2s_default_policy}}
   default_policy = {{{s2s_default_policy}}}
   {{/s2s_default_policy}}
-  outgoing.port = {{{outgoing_s2s_port}}}
-  tls.mode = "starttls"
-  tls.verify_mode = "none"
-  tls.certfile = {{{s2s_certfile}}}
-  {{#s2s_addr}}
 
-  {{{s2s_addr}}}
-  {{/s2s_addr}}
+  [s2s.outgoing]
+    {{#max_retry_delay}}
+    max_retry_delay = {{{max_retry_delay}}}
+    {{/max_retry_delay}}
+    port = {{{outgoing_s2s_port}}}
+    tls.mode = "starttls"
+    tls.verify_mode = "none"
+    tls.certfile = {{{s2s_certfile}}}
+    {{#s2s_addr}}
+
+    {{{s2s_addr}}}
+    {{/s2s_addr}}
 
 {{#host_config}}
 {{{host_config}}}
