@@ -14,13 +14,6 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
 
 The following options are supported for each component listener under `listen.component` subsection:
 
-### `listen.component.state_timeout`
-* **Syntax:** non-negative integer or the string `"infinity"`
-* **Default:** `5000`
-* **Example:** `state_timeout = 10_000`
-
-Timeout value (in milliseconds) used by the component state machine when waiting for the connecting client to respond during stream negotiation. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
-
 ### `listen.component.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`

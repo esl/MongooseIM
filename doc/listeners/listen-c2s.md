@@ -14,13 +14,6 @@ The following options are supported for each C2S listener:
 
 The rule that determines who is allowed to connect. By default, the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
-### `listen.c2s.state_timeout`
-* **Syntax:** non-negative integer or the string `"infinity"`
-* **Default:** `5000`
-* **Example:** `state_timeout = 10_000`
-
-Timeout value (in milliseconds) used by the C2S state machine when waiting for the connecting client to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
-
 ### `listen.c2s.backwards_compatible_session`
 * **Syntax:** boolean
 * **Default:** `true`

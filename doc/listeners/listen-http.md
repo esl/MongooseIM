@@ -84,7 +84,7 @@ Maximum allowed incoming stanza size in bytes.
 
 ### `listen.http.handlers.mod_websockets.state_timeout`
 
-Same as the [C2S option](listen-c2s.md#listenc2sstate_timeout).
+Same as the [XMPP option](../configuration/listen.md#listenstate_timeout).
 
 ### `listen.http.handlers.mod_websockets.backwards_compatible_session`
 
