@@ -8,7 +8,10 @@ The recommended port number for an S2S listener is 5269 [as registered in the XM
 
 ## TLS options for S2S
 
-You can specify additional options of the TLS encryption in the `tls` subsection of the listener configuration. They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s) for `just_tls`.
+To enable TLS, a TOML subsection called `tls` has to be present in the listener options.
+To disable TLS, make sure that the section is not present, and no TLS options are set.
+You can specify additional options of the TLS encryption in the `tls` subsection.
+They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s).
 
 ## S2S listener configuration example
 

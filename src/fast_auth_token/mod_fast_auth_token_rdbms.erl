@@ -146,8 +146,7 @@ invalidate_token(HostType, LServer, LUser, AgentId) ->
                          [LServer, LUser, AgentId]),
     ok.
 
--spec set_count(HostType, LServer, LUser, AgentId,
-                    NewCurrentCount, CurrentToken) -> ok
+-spec set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) -> ok
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
@@ -159,8 +158,7 @@ set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
                          [NewCurrentCount, LServer, LUser, AgentId, CurrentToken]),
     ok.
 
--spec set_current(HostType, LServer, LUser, AgentId,
-                      NewCurrentCount, SetCurrent) -> ok
+-spec set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) -> ok
    when HostType :: mongooseim:host_type(),
         LServer :: jid:lserver(),
         LUser :: jid:luser(),

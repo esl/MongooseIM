@@ -35,9 +35,7 @@
         end).
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
--import(config_parser_helper, [default_s2s/0,
-                               extra_service_listener_config/0,
-                               mod_event_pusher_http_handler/0,
+-import(config_parser_helper, [mod_event_pusher_http_handler/0,
                                default_xmpp_tls/0,
                                mod_config/2, default_mod_config/1,
                                config/2, default_config/1]).
@@ -156,17 +154,20 @@ groups() ->
                                       access,
                                       access_merge_host_and_global]},
      {s2s, [parallel], [s2s_host_config,
-                        s2s_dns_timeout,
-                        s2s_dns_retries,
-                        s2s_outgoing_port,
-                        s2s_outgoing_ip_versions,
-                        s2s_outgoing_timeout,
                         s2s_default_policy,
                         s2s_host_policy,
-                        s2s_address,
                         s2s_shared,
-                        s2s_max_retry_delay,
-                        s2s_tls]},
+                        s2s_outgoing_address,
+                        s2s_outgoing_connection_timeout,
+                        s2s_outgoing_dns,
+                        s2s_outgoing_ip_versions,
+                        s2s_outgoing_max_retry_delay,
+                        s2s_outgoing_max_stanza_size,
+                        s2s_outgoing_port,
+                        s2s_outgoing_shaper,
+                        s2s_outgoing_state_timeout,
+                        s2s_outgoing_stream_timeout,
+                        s2s_outgoing_tls]},
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
                             mod_fast_auth_token,
@@ -1292,40 +1293,9 @@ access_merge_host_and_global(_Config) ->
 %% tests: s2s
 
 s2s_host_config(_Config) ->
-    DefaultS2S = default_s2s(),
     EmptyHostConfig = host_config(#{<<"s2s">> => #{}}),
-    ?cfg(host_key(s2s), DefaultS2S,
-         EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}).
-
-s2s_dns_timeout(_Config) ->
-    ?cfgh([s2s, dns, timeout], 10, #{}), % default
-    ?cfgh([s2s, dns, timeout], 5, #{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
-    ?errh(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 0}}}).
-
-s2s_dns_retries(_Config) ->
-    ?cfgh([s2s, dns, retries], 2, #{}), % default
-    ?cfgh([s2s, dns, retries], 1, #{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}}),
-    ?errh(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 0}}}).
-
-s2s_outgoing_port(_Config) ->
-    ?cfgh([s2s, outgoing, port], 5269, #{}), % default
-    ?cfgh([s2s, outgoing, port], 5270, #{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}}),
-    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => <<"http">>}}}).
-
-s2s_outgoing_ip_versions(_Config) ->
-    ?cfgh([s2s, outgoing, ip_versions], [4, 6], #{}), % default
-    ?cfgh([s2s, outgoing, ip_versions], [6, 4],
-         #{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [6, 4]}}}),
-    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => []}}}),
-    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [<<"http">>]}}}).
-
-s2s_outgoing_timeout(_Config) ->
-    ?cfgh([s2s, outgoing, connection_timeout], 10000, #{}), % default
-    ?cfgh([s2s, outgoing, connection_timeout], 5000,
-          #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5000}}}),
-    ?cfgh([s2s, outgoing, connection_timeout], infinity,
-          #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
-    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
+    ?cfg(host_key(s2s), default_config([s2s]),
+         maps:merge(EmptyHostConfig, s2s_outgoing_raw(#{<<"dns">> => #{<<"timeout">> => 5}}))).
 
 s2s_default_policy(_Config) ->
     ?cfgh([s2s, default_policy], allow, #{}), % default
@@ -1348,57 +1318,117 @@ s2s_host_policy(_Config) ->
     ?errh(#{<<"s2s">> => #{<<"host_policy">> => [Policy,
                                                  Policy#{<<"policy">> => <<"deny">>}]}}).
 
-s2s_address(_Config) ->
-    Addr = #{<<"host">> => <<"host1">>,
-             <<"ip_address">> => <<"192.168.1.2">>,
-             <<"port">> => 5321,
-             <<"tls">> => false},
-    ?cfgh([s2s, address], #{<<"host1">> => #{ip_address => "192.168.1.2",
-                                             ip_tuple => {192, 168, 1, 2},
-                                             ip_version => inet,
-                                             port => 5321,
-                                             tls => false}},
-          #{<<"s2s">> => #{<<"address">> => [Addr]}}),
-    ?cfgh([s2s, address], #{<<"host1">> => #{ip_address => "192.168.1.2",
-                                             ip_tuple => {192, 168, 1, 2},
-                                             ip_version => inet,
-                                             tls => false}},
-          #{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}}),
-    ?errh(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}}),
-    ?errh(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}}),
-    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}}),
-    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}}),
-    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}}),
-    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
-
 s2s_shared(_Config) ->
     ?cfgh([s2s, shared], <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
     ?errh(#{<<"s2s">> => #{<<"shared">> => 536837}}).
 
-s2s_max_retry_delay(_Config) ->
-    ?cfgh([s2s, max_retry_delay], 120, #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
-    ?errh(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
+s2s_outgoing_address(_Config) ->
+    P = [s2s, outgoing, address],
+    Addr = #{<<"host">> => <<"host1">>,
+             <<"ip_address">> => <<"192.168.1.2">>,
+             <<"port">> => 5321,
+             <<"tls">> => false},
+    ?cfgh(P, #{<<"host1">> => #{ip_address => "192.168.1.2",
+                                ip_tuple => {192, 168, 1, 2},
+                                ip_version => inet,
+                                port => 5321,
+                                tls => false}},
+          s2s_outgoing_raw(#{<<"address">> => [Addr]})),
+    ?cfgh(P, #{<<"host1">> => #{ip_address => "192.168.1.2",
+                                ip_tuple => {192, 168, 1, 2},
+                                ip_version => inet,
+                                tls => false}},
+          s2s_outgoing_raw(#{<<"address">> => [maps:remove(<<"port">>, Addr)]})),
+    ?errh(s2s_outgoing_raw(#{<<"address">> => [maps:remove(<<"host">>, Addr)]})),
+    ?errh(s2s_outgoing_raw(#{<<"address">> => [maps:remove(<<"ip_address">>, Addr)]})),
+    ?errh(s2s_outgoing_raw(#{<<"address">> => [Addr#{<<"host">> => <<>>}]})),
+    ?errh(s2s_outgoing_raw(#{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]})),
+    ?errh(s2s_outgoing_raw(#{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]})),
+    ?errh(s2s_outgoing_raw(#{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]})).
 
-s2s_tls(_Config) ->
-    P = [s2s, tls],
-    M = tls_ca_raw(),
-    T = fun(Opts) -> #{<<"s2s">> => #{<<"tls">> => Opts}} end,
+s2s_outgoing_connection_timeout(_Config) ->
+    P = [s2s, outgoing, connection_timeout],
+    ?cfgh(P, 10000, s2s_outgoing_raw(#{})), % default
+    ?cfgh(P, 3000, s2s_outgoing_raw(#{<<"connection_timeout">> => 3000})),
+    ?errh(s2s_outgoing_raw(#{<<"connection_timeout">> => 0})).
+
+s2s_outgoing_dns(_Config) ->
+    P = [s2s, outgoing, dns],
+    ?cfgh(P, #{timeout => 10, retries => 2}, #{}), % defaults
+    ?cfgh(P ++ [timeout], 5, s2s_outgoing_raw(#{<<"dns">> => #{<<"timeout">> => 5}})),
+    ?cfgh(P ++ [retries], 1, s2s_outgoing_raw(#{<<"dns">> => #{<<"retries">> => 1}})),
+    ?errh(s2s_outgoing_raw(#{<<"dns">> => #{<<"timeout">> => 0}})),
+    ?errh(s2s_outgoing_raw(#{<<"dns">> => #{<<"retries">> => 0}})).
+
+s2s_outgoing_ip_versions(_Config) ->
+    P = [s2s, outgoing, ip_versions],
+    ?cfgh(P, [4, 6], #{}), % default
+    ?cfgh(P, [6, 4], s2s_outgoing_raw(#{<<"ip_versions">> => [6, 4]})),
+    ?errh(s2s_outgoing_raw(#{<<"ip_versions">> => []})),
+    ?errh(s2s_outgoing_raw(#{<<"ip_versions">> => [<<"http">>]})).
+
+s2s_outgoing_max_retry_delay(_Config) ->
+    P = [s2s, outgoing, max_retry_delay],
+    ?cfgh(P, 300, #{}), % default
+    ?cfgh(P, 120, s2s_outgoing_raw(#{<<"max_retry_delay">> => 120})),
+    ?errh(s2s_outgoing_raw(#{<<"max_retry_delay">> => 0})).
+
+s2s_outgoing_max_stanza_size(_Config) ->
+    P = [s2s, outgoing, max_stanza_size],
+    ?cfgh(P, 0, #{}), % default
+    ?cfgh(P, 20000, s2s_outgoing_raw(#{<<"max_stanza_size">> => 20000})),
+    %% 'infinity' is translated to 0, but 0 is not allowed.
+    ?cfgh(P, 0, s2s_outgoing_raw(#{<<"max_stanza_size">> => <<"infinity">>})),
+    ?errh(s2s_outgoing_raw(#{<<"max_stanza_size">> => 0})).
+
+s2s_outgoing_port(_Config) ->
+    P = [s2s, outgoing, port],
+    ?cfgh(P, 5269, #{}), % default
+    ?cfgh(P, 5270, s2s_outgoing_raw(#{<<"port">> => 5270})),
+    ?errh(s2s_outgoing_raw(#{<<"port">> => <<"http">>})).
+
+s2s_outgoing_shaper(_Config) ->
+    P = [s2s, outgoing, shaper],
+    ?cfgh(P, none, #{}), % default
+    ?cfgh(P, fast, s2s_outgoing_raw(#{<<"shaper">> => <<"fast">>})),
+    ?errh(s2s_outgoing_raw(#{<<"shaper">> => <<>>})).
+
+s2s_outgoing_state_timeout(_Config) ->
+    P = [s2s, outgoing, state_timeout],
+    ?cfgh(P, 5000, #{}), % default
+    ?cfgh(P, 20000, s2s_outgoing_raw(#{<<"state_timeout">> => 20000})),
+    ?cfgh(P, infinity, s2s_outgoing_raw(#{<<"state_timeout">> => <<"infinity">>})),
+    ?errh(s2s_outgoing_raw(#{<<"state_timeout">> => -1})),
+    ?errh(s2s_outgoing_raw(#{<<"state_timeout">> => <<"insane">>})).
+
+s2s_outgoing_stream_timeout(_Config) ->
+    P = [s2s, outgoing, stream_timeout],
+    ?cfgh(P, 600000, #{}), % default
+    ?cfgh(P, 200000, s2s_outgoing_raw(#{<<"stream_timeout">> => 200000})),
+    ?cfgh(P, infinity, s2s_outgoing_raw(#{<<"stream_timeout">> => <<"infinity">>})),
+    ?errh(s2s_outgoing_raw(#{<<"stream_timeout">> => -1})),
+    ?errh(s2s_outgoing_raw(#{<<"stream_timeout">> => <<"insane">>})).
+
+s2s_outgoing_tls(_Config) ->
+    P = [s2s, outgoing, tls],
+    T = fun(Opts) -> s2s_outgoing_raw(#{<<"tls">> => Opts}) end,
+    ?cfgh(P, default_config(P), T(#{})), % default options if tls section is present
     ?cfgh(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
-    ?cfgh(P ++ [cacertfile], "priv/ca.pem", T(M)),
-    ?cfgh(P ++ [certfile], "priv/cert.pem", T(M#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfgh(P ++ [cacertfile], "priv/ca.pem", T(tls_ca_raw())),
+    ?cfgh(P ++ [certfile], "priv/cert.pem", T(#{<<"certfile">> => <<"priv/cert.pem">>})),
     ?cfgh(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
-         T(M#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfgh(P ++ [keyfile], "priv/dc1.pem", T(M#{<<"keyfile">> => <<"priv/dc1.pem">>})),
-    ?cfgh(P ++ [password], "secret", T(M#{<<"password">> => <<"secret">>})),
+          T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfgh(P ++ [keyfile], "priv/dc1.pem", T(#{<<"keyfile">> => <<"priv/dc1.pem">>})),
+    ?cfgh(P ++ [password], "secret", T(#{<<"password">> => <<"secret">>})),
     ?cfgh(P ++ [versions], ['tlsv1.2', 'tlsv1.3'],
-         T(M#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
+          T(#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
     ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
-    ?err(T(M#{<<"certfile">> => <<"no_such_file.pem">>})),
-    ?err(T(M#{<<"cacertfile">> => <<"no_such_file.pem">>})),
-    ?err(T(M#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
-    ?err(T(M#{<<"keyfile">> => <<"no_such_file.pem">>})),
-    ?err(T(M#{<<"password">> => false})),
-    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})).
+    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"cacertfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
+    ?err(T(#{<<"keyfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"password">> => false})),
+    ?err(T(#{<<"versions">> => <<"tlsv1.2">>})).
 
 %% modules
 
@@ -3114,6 +3144,11 @@ pool_conn_raw(Type, Opts) ->
 
 access_raw(RuleName, RuleSpec) ->
     #{<<"access">> => #{RuleName => RuleSpec}}.
+
+%% helpers for 's2s' tests
+
+s2s_outgoing_raw(Opts) ->
+    #{<<"s2s">> => #{<<"outgoing">> => Opts}}.
 
 %% helpers for 'host_config' tests
 

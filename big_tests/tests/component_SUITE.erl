@@ -111,17 +111,17 @@ register_one_component(Config) ->
                  end,
     CheckBytes = fun(#{byte_size := S}) -> S > 0 end,
     CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
-    % start stream reply
+
+    %% Expect events for handshake, but not for 'start stream'.
     instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
-        #{expected_count => 2, min_timestamp => TS}),
-    % 1. start stream, 2. component handshake
-    instrument_helper:assert(component_auth_failed, #{}, FullCheckF,
-        #{expected_count => 0, min_timestamp => TS}),
+        #{expected_count => 1, min_timestamp => TS}),
     instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
+
+    instrument_helper:assert(component_auth_failed, #{}, FullCheckF,
+        #{expected_count => 0, min_timestamp => TS}),
     instrument_helper:assert(tcp_data_in, #{connection_type => component}, CheckBytes,
         #{min_timestamp => TS}),
-    % 1. start stream reply, 2. handshake reply
     instrument_helper:assert(tcp_data_out, #{connection_type => component}, CheckBytes,
         #{min_timestamp => TS}),
 

@@ -4,6 +4,7 @@
          reset_s2s_connections/0]).
 
 -import(distributed_helper, [rpc_spec/1, rpc/4]).
+-import(domain_helper, [host_type/1]).
 
 init_s2s(Config) ->
     [{{s2s, NodeKey}, get_s2s_opts(NodeKey)} || NodeKey <- node_keys()] ++
@@ -44,9 +45,10 @@ has_xmpp_server(History, Server, DnsRrType) ->
 
 get_s2s_opts(NodeKey) ->
     RPCSpec = rpc_spec(NodeKey),
-    S2SOpts = rpc(RPCSpec, mongoose_config, get_opt, [{s2s, domain_helper:host_type(NodeKey)}]),
+    S2SOpts = rpc(RPCSpec, mongoose_config, get_opt, [[{s2s, host_type(NodeKey)}, outgoing]]),
     S2SPort = ct:get_config({hosts, NodeKey, incoming_s2s_port}),
-    [S2SListener] = mongoose_helper:get_listeners(RPCSpec, #{port => S2SPort, module => mongoose_s2s_listener}),
+    [S2SListener] = mongoose_helper:get_listeners(RPCSpec, #{port => S2SPort,
+                                                             module => mongoose_s2s_listener}),
     #{outgoing => S2SOpts, listener => S2SListener}.
 
 s2s_config(StartTLS, S2S = #{outgoing := Outgoing, listener := Listener}, Config) ->
@@ -90,34 +92,32 @@ tls_preset(node1_tls_optional_node2_tls_required_trusted_with_cachain) ->
     #{mim => optional, fed => required_trusted_with_cachain}.
 
 configure_and_restart_s2s(NodeKey, #{outgoing := Outgoing, listener := Listener}) ->
-    HostType = domain_helper:host_type(NodeKey),
-    set_opt(rpc_spec(NodeKey), [{s2s, HostType}], Outgoing),
+    set_opt(rpc_spec(NodeKey), [{s2s, host_type(NodeKey)}, outgoing], Outgoing),
     restart_s2s(rpc_spec(NodeKey), Listener).
 
 set_opt(Spec, Opt, Value) ->
     rpc(Spec, mongoose_config, set_opt, [Opt, Value]).
 
 restart_s2s(#{} = Spec, S2SListener) ->
-    Children = rpc(Spec, supervisor, which_children, [mongoose_s2s_out_sup]),
-    [rpc(Spec, mongoose_s2s_out, stop_connection, [Pid, <<"closing connection">>]) ||
-     {_, Pid, _, _} <- Children],
-
-    Children0 = rpc(Spec, supervisor, which_children, [mongoose_listener_sup]),
-    Listeners = [Ref || {Ref, _, _, [mongoose_s2s_listener | _]} <- Children],
-    ChildrenIn = lists:flatten([ranch:procs(Ref, connections) || Ref <- Listeners]),
-    [rpc(Spec, erlang, exit, [Pid, kill]) || {_, Pid, _, _} <- ChildrenIn],
-
+    reset_s2s_connections(Spec),
     mongoose_helper:restart_listener(Spec, S2SListener).
 
 reset_s2s_connections() ->
-    [ reset_s2s_connections(rpc_spec(NodeKey)) || NodeKey <- node_keys()].
+    [reset_s2s_connections(rpc_spec(NodeKey)) || NodeKey <- node_keys()].
 
 reset_s2s_connections(Spec) ->
+    reset_outgoing_s2s(Spec),
+    reset_incoming_s2s(Spec).
+
+reset_outgoing_s2s(Spec) ->
     Children = rpc(Spec, supervisor, which_children, [mongoose_s2s_out_sup]),
     [rpc(Spec, mongoose_s2s_out, stop_connection, [Pid, <<"closing connection">>]) ||
-     {_, Pid, _, _} <- Children],
+     {_, Pid, _, _} <- Children].
 
-    Children0 = rpc(Spec, supervisor, which_children, [mongoose_listener_sup]),
-    Listeners = [Ref || {Ref, _, _, [mongoose_s2s_listener | _]} <- Children],
-    ChildrenIn = lists:flatten([ranch:procs(Ref, connections) || Ref <- Listeners]),
-    [rpc(Spec, erlang, exit, [Pid, kill]) || {_, Pid, _, _} <- ChildrenIn].
+reset_incoming_s2s(Spec) ->
+    Children = rpc(Spec, supervisor, which_children, [mongoose_listener_sup]),
+    [reset_s2s_listener(Spec, Ref) || {Ref, _, _, [mongoose_s2s_listener | _]} <- Children].
+
+reset_s2s_listener(Spec, Ref) ->
+    Procs = rpc(Spec, ranch, procs, [Ref, connections]),
+    [rpc(Spec, erlang, exit, [Pid, kill]) || {_, Pid, _, _} <- Procs].

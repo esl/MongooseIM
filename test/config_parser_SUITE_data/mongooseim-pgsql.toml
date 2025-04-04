@@ -298,11 +298,13 @@
 
 [s2s]
   default_policy = "allow"
-  outgoing.port = 5299
 
-  [[s2s.address]]
-    host = "fed1"
-    ip_address = "127.0.0.1"
+  [s2s.outgoing]
+    port = 5299
+
+    [[s2s.outgoing.address]]
+      host = "fed1"
+      ip_address = "127.0.0.1"
 
 [[host_config]]
   host = "localhost"

@@ -81,14 +81,10 @@ handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, wait_for_stream, StateData) ->
     handle_stream_start(StateData, Attrs);
 handle_event(internal, #xmlel{name = <<"handshake">>} = El, wait_for_handshake, StateData) ->
-    execute_element_event(component_element_in, El, StateData),
     handle_handshake(StateData, El);
 handle_event(internal, #xmlel{} = El, stream_established, StateData) ->
-    execute_element_event(component_element_in, El, StateData),
     handle_stream_established(StateData, El);
-handle_event(internal, #xmlstreamend{name = Name}, _, StateData) ->
-    StreamEnd = #xmlel{name = Name},
-    execute_element_event(component_element_in, StreamEnd, StateData),
+handle_event(internal, #xmlstreamend{}, _, StateData) ->
     send_trailer(StateData),
     {stop, {shutdown, stream_end}};
 handle_event(internal, #xmlstreamstart{}, _, StateData) ->
@@ -168,10 +164,9 @@ handle_socket_packet(StateData = #component_data{parser = Parser}, Packet) ->
 
 -spec handle_socket_elements(data(), [exml_stream:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #component_data{lserver = LServer, shaper = Shaper}, Elements, Size) ->
+    [execute_element_events(Element, LServer, component_element_in, xmpp_element_size_in)
+     || Element = #xmlel{} <- Elements],
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    [mongoose_instrument:execute(
-       xmpp_element_size_in, labels(), #{byte_size => exml:xml_size(El), lserver => LServer})
-     || El <- Elements],
     NewStateData = StateData#component_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     StreamEvents1 = maybe_add_pause(NewStateData, StreamEvents0, Pause),
@@ -203,7 +198,6 @@ handle_stream_start(S0, Attrs) ->
             IsSubdomain = <<"true">> =:= maps:get(<<"is_subdomain">>, Attrs, <<>>),
             S1 = S0#component_data{lserver = LServer, is_subdomain = IsSubdomain},
             send_header(S1),
-            execute_element_event(component_element_in, Attrs, S1),
             {next_state, wait_for_handshake, S1, state_timeout(S1)};
         {?NS_COMPONENT_ACCEPT, error} ->
             stream_start_error(S0, mongoose_xmpp_errors:host_unknown());
@@ -408,12 +402,9 @@ close_parser(#component_data{parser = Parser}) ->
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
-send_xml(#component_data{lserver = LServer, socket = Socket} = StateData, XmlElements) when is_list(XmlElements) ->
-    [ begin
-          execute_element_event(component_element_out, El, StateData),
-          mongoose_instrument:execute(
-            xmpp_element_size_out, labels(), #{byte_size => exml:xml_size(El), lserver => LServer})
-      end || El <- XmlElements],
+send_xml(#component_data{lserver = LServer, socket = Socket}, XmlElements) when is_list(XmlElements) ->
+    [execute_element_events(Element, LServer, component_element_out, xmpp_element_size_out)
+     || Element = #xmlel{} <- XmlElements],
     mongoose_xmpp_socket:send_xml(Socket, XmlElements).
 
 state_timeout(#component_data{listener_opts = LOpts}) ->
@@ -443,35 +434,14 @@ unregister_routes(#component_data{component = Component}) ->
     mongoose_component:unregister_component(Component).
 
 %%% Instrumentation helpers
--spec execute_element_event(
-        mongoose_instrument:event_name(), exml:attrs() | exml_stream:element(), data()) -> ok.
-execute_element_event(EventName, #xmlel{name = Name} = El, #component_data{lserver = LServer}) ->
-    Metrics = measure_element(Name, exml_query:attr(El, <<"type">>)),
-    Measurements = Metrics#{element => El, lserver => LServer},
-    mongoose_instrument:execute(EventName, #{}, Measurements);
-execute_element_event(EventName, El, #component_data{lserver = LServer}) ->
-    Measurements = #{count => 1, element => El, lserver => LServer},
-    mongoose_instrument:execute(EventName, #{}, Measurements);
-execute_element_event(_, _, _) ->
-    ok.
 
--spec measure_element(binary(), binary() | undefined) -> mongoose_instrument:measurements().
-measure_element(<<"message">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, message_error_count => 1};
-measure_element(<<"iq">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, iq_error_count => 1};
-measure_element(<<"presence">>, <<"error">>) ->
-    #{count => 1, stanza_count => 1, error_count => 1, presence_error_count => 1};
-measure_element(<<"message">>, _Type) ->
-    #{count => 1, stanza_count => 1, message_count => 1};
-measure_element(<<"iq">>, _Type) ->
-    #{count => 1, stanza_count => 1, iq_count => 1};
-measure_element(<<"presence">>, _Type) ->
-    #{count => 1, stanza_count => 1, presence_count => 1};
-measure_element(<<"stream:error">>, _Type) ->
-    #{count => 1, error_count => 1};
-measure_element(_Name, _Type) ->
-    #{count => 1}.
+-spec execute_element_events(exml:element(), jid:lserver(), mongoose_instrument:event_name(),
+                             mongoose_instrument:event_name()) -> ok.
+execute_element_events(Element, LServer, EventName, SizeEventName) ->
+    Measurements = mongoose_measurements:measure_element(Element),
+    mongoose_instrument:execute(EventName, #{}, Measurements#{lserver => LServer}),
+    mongoose_instrument:execute(SizeEventName, labels(),
+                                #{byte_size => exml:xml_size(Element), lserver => LServer}).
 
 -spec labels() -> mongoose_instrument:labels().
 labels() ->
