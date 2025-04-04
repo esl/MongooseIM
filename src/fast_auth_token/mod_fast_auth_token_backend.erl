@@ -4,6 +4,8 @@
          store_new_token/8,
          read_tokens/4,
          invalidate_token/4,
+         set_count/6,
+         set_current/6,
          remove_user/3,
          remove_domain/2]).
 
@@ -35,6 +37,24 @@
         LUser :: jid:luser(),
         AgentId :: mod_fast_auth_token:agent_id().
 
+-callback set_count(HostType, LServer, LUser, AgentId,
+                    NewCurrentCount, CurrentToken) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter(),
+        CurrentToken :: mod_fast_auth_token:token().
+
+-callback set_current(HostType, LServer, LUser, AgentId,
+                      NewCurrentCount, SetCurrent) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter() | undefined,
+        SetCurrent :: mod_fast_auth_token:set_current().
+
 -callback remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
 
 -callback remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
@@ -43,7 +63,8 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
-    Tracked = [store_new_token, read_tokens, invalidate_token],
+    Tracked = [store_new_token, read_tokens, invalidate_token,
+               set_count, set_current],
     mongoose_backend:init(HostType, ?MAIN_MODULE, Tracked, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
@@ -79,6 +100,30 @@ read_tokens(HostType, LServer, LUser, AgentId) ->
         AgentId :: mod_fast_auth_token:agent_id().
 invalidate_token(HostType, LServer, LUser, AgentId) ->
     Args = [HostType, LServer, LUser, AgentId],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec set_count(HostType, LServer, LUser, AgentId,
+                    NewCurrentCount, CurrentToken) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter(),
+        CurrentToken :: mod_fast_auth_token:token().
+set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
+    Args = [HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec set_current(HostType, LServer, LUser, AgentId,
+                      NewCurrentCount, SetCurrent) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter() | undefined,
+        SetCurrent :: mod_fast_auth_token:set_current().
+set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) ->
+    Args = [HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.

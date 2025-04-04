@@ -37,10 +37,9 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+-spec start_link() -> supervisor:startlink_ret().
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+    supervisor:start_link({local, ?SERVER}, ?MODULE, noargs).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -56,9 +55,8 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) -> {ok, {#{strategy => one_for_one, intensity => 100, period => 5},
-                                    []}}.
-init([]) ->
+-spec init(noargs) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init(noargs) ->
     SupFlags = #{strategy => one_for_one,
                  intensity => 100,
                  period => 5},

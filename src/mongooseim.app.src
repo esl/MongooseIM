@@ -38,7 +38,6 @@
                   stdlib,
 %%                  syslogger, % uncomment to enable a logger handler for syslog
                   jid,
-                  fast_tls,
                   tirerl,
                   uuid,
                   xmerl,

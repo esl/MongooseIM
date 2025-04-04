@@ -96,7 +96,7 @@ db_opts(Options) ->
 
 tls_opts(#{tls := TLSOpts}) ->
     #{ssl => ssl_mode(TLSOpts),
-      ssl_opts => just_tls:make_ssl_opts(maps:remove(required, TLSOpts))};
+      ssl_opts => just_tls:make_client_opts(maps:remove(required, TLSOpts))};
 tls_opts(#{}) ->
     #{}.
 

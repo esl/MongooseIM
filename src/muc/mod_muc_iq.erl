@@ -9,15 +9,13 @@
          sync/0]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
--ignore_xref([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1,
+-ignore_xref([handle_call/3, handle_cast/2, handle_info/2, init/1,
               start_link/0, terminate/2]).
 
 -compile({inline, [srv_name/0, tbl_name/0]}).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {}).
@@ -33,9 +31,9 @@ tbl_name() ->
 %% API
 %%====================================================================
 
--spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link() -> gen_server:start_ret().
 start_link() ->
-    gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
+    gen_server:start_link({local, srv_name()}, ?MODULE, noargs, []).
 
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
@@ -66,12 +64,12 @@ sync() ->
 %% gen_server callbacks
 %%====================================================================
 
-init([]) ->
+init(noargs) ->
     ets:new(tbl_name(), [named_table, protected]),
     {ok, #state{}}.
 
 handle_call(sync, _From, State) ->
-    {reply, ok, State};
+    {reply, ok, State, hibernate};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -95,6 +93,3 @@ handle_info(_Msg, State) ->
 
 terminate(_Reason, _State) ->
     ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
