@@ -73,7 +73,11 @@ The `is_subdomain` attribute is optional and the default behaviour is as describ
 
 ## TLS options for components
 
-You can specify additional options of the TLS encryption in the `tls` subsection of the listener configuration. They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s) for `just_tls`.
+To enable TLS, a TOML subsection called `tls` has to be present in the listener options.
+To disable TLS, make sure that the section is not present, and no TLS options are set.
+You can specify additional options of the TLS encryption in the `tls` subsection.
+They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s).
+The only difference is that the default value of `tls.mode` is `"tls"` instead of `"starttls"`.
 
 ## Service listener configuration example
 
