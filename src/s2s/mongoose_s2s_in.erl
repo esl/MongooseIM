@@ -171,17 +171,8 @@ handle_stream_start(D0, #{<<"xmlns">> := ?NS_SERVER, <<"to">> := Server} = Attrs
             Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
             stream_start_error(D0, Info, mongoose_xmpp_errors:host_unknown())
     end;
-handle_stream_start(D0, #{<<"xmlns">> := ?NS_SERVER} = Attrs, stream_start) ->
-    Msg = <<"The 'to' attribute is missing">>,
-    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
-    stream_start_error(D0, Info, mongoose_xmpp_errors:improper_addressing(?MYLANG, Msg));
-handle_stream_start(D0, Attrs, stream_start) ->
-    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
-    stream_start_error(D0, Info, mongoose_xmpp_errors:invalid_namespace());
 handle_stream_start(#s2s_data{myname = LServer} = D0,
-                    #{<<"xmlns">> := ?NS_SERVER,
-                      <<"to">> := Server} = Attrs,
-                    authenticated) ->
+                    #{<<"xmlns">> := ?NS_SERVER, <<"to">> := Server} = Attrs, authenticated) ->
     case jid:nameprep(Server) of
         LServer ->
             stream_start_after_auth(D0, Attrs);
@@ -190,7 +181,14 @@ handle_stream_start(#s2s_data{myname = LServer} = D0,
             Info = #{location => ?LOCATION, last_event => {stream_start, Attrs},
                      expected_server => LServer, provided_server => Server},
             stream_start_error(D0, Info, mongoose_xmpp_errors:host_unknown(?MYLANG, Msg))
-    end.
+    end;
+handle_stream_start(D0, #{<<"xmlns">> := ?NS_SERVER} = Attrs, _State) ->
+    Msg = <<"The 'to' attribute is missing">>,
+    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
+    stream_start_error(D0, Info, mongoose_xmpp_errors:improper_addressing(?MYLANG, Msg));
+handle_stream_start(D0, Attrs, _State) ->
+    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
+    stream_start_error(D0, Info, mongoose_xmpp_errors:invalid_namespace()).
 
 -spec handle_maybe_hide_service_name(data(), term()) -> fsm_res().
 handle_maybe_hide_service_name(Data, Unexpected) ->
@@ -481,7 +479,10 @@ stream_start_features_before_auth(
     {next_state, wait_for_feature_before_auth, Data, state_timeout(Data)};
 stream_start_features_before_auth(#s2s_data{} = Data, #{<<"xmlns:db">> := ?NS_SERVER_DIALBACK}) ->
     send_xml(Data, stream_header(Data)),
-    {next_state, wait_for_feature_before_auth, Data, state_timeout(Data)}.
+    {next_state, wait_for_feature_before_auth, Data, state_timeout(Data)};
+stream_start_features_before_auth(Data, Attrs) ->
+    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
+    stream_start_error(Data, Info, mongoose_xmpp_errors:invalid_xml()).
 
 -spec stream_start_after_auth(data(), exml:attrs()) -> fsm_res().
 stream_start_after_auth(#s2s_data{host_type = HostType, myname = LServer} = Data,
@@ -496,8 +497,8 @@ stream_start_after_auth(#s2s_data{host_type = HostType, myname = LServer} = Data
 stream_start_after_auth(Data, #{<<"xmlns:db">> := ?NS_SERVER_DIALBACK}) ->
     send_xml(Data, stream_header(Data)),
     {next_state, stream_established, Data};
-stream_start_after_auth(Data, Event) ->
-    Info = #{location => ?LOCATION, last_event => Event},
+stream_start_after_auth(Data, Attrs) ->
+    Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
     stream_start_error(Data, Info, mongoose_xmpp_errors:invalid_xml()).
 
 -spec stream_start_error(data(), map(), exml:element()) -> fsm_res().
