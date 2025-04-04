@@ -28,11 +28,11 @@ options("host_types") ->
      {component_backend, mnesia},
      {s2s_backend, mnesia},
      {instrumentation, default_config([instrumentation])},
-     {{s2s, <<"another host type">>}, default_s2s()},
-     {{s2s, <<"localhost">>}, default_s2s()},
-     {{s2s, <<"some host type">>}, default_s2s()},
-     {{s2s, <<"this is host type">>}, default_s2s()},
-     {{s2s, <<"yet another host type">>}, default_s2s()},
+     {{s2s, <<"another host type">>}, default_config([s2s])},
+     {{s2s, <<"localhost">>}, default_config([s2s])},
+     {{s2s, <<"some host type">>}, default_config([s2s])},
+     {{s2s, <<"this is host type">>}, default_config([s2s])},
+     {{s2s, <<"yet another host type">>}, default_config([s2s])},
      {{auth, <<"another host type">>}, auth_with_methods(#{})},
      {{auth, <<"localhost">>},
       auth_with_methods(#{rdbms => #{users_number_estimate => false}})},
@@ -98,8 +98,8 @@ options("miscellaneous") ->
                                                                         prefix => "mim",
                                                                         interval => 15000}}},
                log => #{level => info}})},
-     {{s2s, <<"anonymous.localhost">>}, default_s2s()},
-     {{s2s, <<"localhost">>}, default_s2s()},
+     {{s2s, <<"anonymous.localhost">>}, default_config([s2s])},
+     {{s2s, <<"localhost">>}, default_config([s2s])},
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
@@ -125,8 +125,8 @@ options("modules") ->
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
-     {{s2s, <<"dummy_host">>}, default_s2s()},
-     {{s2s, <<"localhost">>}, default_s2s()},
+     {{s2s, <<"dummy_host">>}, default_config([s2s])},
+     {{s2s, <<"localhost">>}, default_config([s2s])},
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
@@ -385,9 +385,9 @@ options("outgoing_pools") ->
       [host_pool_config(
          #{type => redis, scope => <<"localhost">>, tag => global_distrib,
            opts => #{workers => 10}, conn_opts => #{}})]},
-     {{s2s, <<"anonymous.localhost">>}, default_s2s()},
-     {{s2s, <<"localhost">>}, default_s2s()},
-     {{s2s, <<"localhost.bis">>}, default_s2s()},
+     {{s2s, <<"anonymous.localhost">>}, default_config([s2s])},
+     {{s2s, <<"localhost">>}, default_config([s2s])},
+     {{s2s, <<"localhost.bis">>}, default_config([s2s])},
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
@@ -744,53 +744,35 @@ default_auth() ->
       max_users_per_domain => infinity}.
 
 pgsql_s2s() ->
-    Outgoing = (default_s2s_outgoing())#{port => 5299},
-    (default_s2s())#{address => #{<<"fed1">> => #{ip_address => "127.0.0.1",
-                                                  ip_tuple => {127, 0, 0, 1},
-                                                  ip_version => inet,
-                                                  tls => false}},
-                     outgoing => Outgoing}.
+    Addresses = #{<<"fed1">> => #{ip_address => "127.0.0.1",
+                                  ip_tuple => {127, 0, 0, 1},
+                                  ip_version => inet,
+                                  tls => false}},
+    config([s2s], #{outgoing => #{port => 5299, address => Addresses}}).
 
 custom_s2s() ->
-    Tls0 = #{cacertfile => "priv/ca.pem", server_name_indication => default_sni()},
-    Tls = maps:merge(default_xmpp_tls(), Tls0),
-    #{address =>
-          #{<<"fed1">> => #{ip_address => "127.0.0.1",
-                            ip_tuple => {127, 0, 0, 1},
-                            ip_version => inet,
-                            tls => false},
-            <<"fed2">> => #{ip_address => "127.0.0.1",
-                            ip_tuple => {127, 0, 0, 1},
-                            ip_version => inet,
-                            port => 8765,
-                            tls => false}},
-      tls => Tls,
-      default_policy => allow,
-      dns => #{retries => 1, timeout => 30},
-      host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
-      shaper => none,
-      max_stanza_size => 0,
-      max_retry_delay => 30,
-      state_timeout => timer:seconds(5),
-      stream_timeout => timer:minutes(10),
-      outgoing => #{connection_timeout => 4000, ip_versions => [6, 4], port => 5299},
-      shared => <<"shared secret">>}.
-
-default_s2s() ->
-    #{default_policy => allow,
-      shaper => none,
-      max_stanza_size => 0,
-      max_retry_delay => 300,
-      state_timeout => timer:seconds(5),
-      stream_timeout => timer:minutes(10),
-      outgoing => default_s2s_outgoing(),
-      dns => #{retries => 2, timeout => 10}
-     }.
-
-default_s2s_outgoing() ->
-     #{connection_timeout => 10000,
-       ip_versions => [4, 6],
-       port => 5269}.
+    Addresses = #{<<"fed1">> => #{ip_address => "127.0.0.1",
+                                  ip_tuple => {127, 0, 0, 1},
+                                  ip_version => inet,
+                                  tls => false},
+                  <<"fed2">> => #{ip_address => "127.0.0.1",
+                                  ip_tuple => {127, 0, 0, 1},
+                                  ip_version => inet,
+                                  port => 8765,
+                                  tls => false}},
+    Tls = #{cacertfile => "priv/ca.pem", server_name_indication => default_sni()},
+    config([s2s], #{host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
+                    shared => <<"shared secret">>,
+                    outgoing => #{address => Addresses,
+                                  connection_timeout => 4000,
+                                  dns => #{timeout => 30, retries => 1},
+                                  ip_versions => [6, 4],
+                                  max_retry_delay => 30,
+                                  max_stanza_size => 10000,
+                                  port => 5299,
+                                  state_timeout => 1000,
+                                  stream_timeout => 100000,
+                                  tls => Tls}}).
 
 pgsql_access() ->
     #{c2s => [#{acl => blocked, value => deny},
@@ -1341,6 +1323,23 @@ default_config([services, service_domain_db]) ->
 default_config([services, service_mongoose_system_metrics]) ->
     #{initial_report => timer:minutes(5),
       periodic_report => timer:hours(3)};
+default_config([s2s] = P) ->
+    #{default_policy => allow,
+      outgoing => default_config(P ++ [outgoing])};
+default_config([s2s, outgoing] = P) ->
+    #{connection_timeout => 10000,
+      dns => default_config(P ++ [dns]),
+      ip_versions => [4, 6],
+      max_retry_delay => 300,
+      max_stanza_size => 0,
+      port => 5269,
+      shaper => none,
+      state_timeout => timer:seconds(5),
+      stream_timeout => timer:minutes(10)};
+default_config([s2s, outgoing, dns]) ->
+    #{timeout => 10, retries => 2};
+default_config([s2s, outgoing, tls]) ->
+    (default_xmpp_tls())#{server_name_indication => default_sni()};
 default_config(Path) when is_list(Path) ->
     #{}.
 
