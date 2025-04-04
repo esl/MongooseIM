@@ -142,14 +142,14 @@ Specifies the paths to Certificate Revocation Lists.
 
 ### `listen.c2s.tls.early_data`
 * **Syntax:** boolean
-* **Default:** false
+* **Default:** `false`
 * **Example:** `tls.early_data = true`
 
 Enables `early_data`, or 0-RTT, used with [mod_fast_auth_token](../modules/mod_fast_auth_token.md) module.
 Use this with Direct TLS (i.e. port 5223).
 
 ### `listen.c2s.tls.session_tickets`
-* **Syntax:** atom
+* **Syntax:** string
 * **Default:** not set
 * **Example:** `tls.session_tickets = "stateless"`
 
