@@ -216,7 +216,7 @@ If the keyfile is password-protected, `password` is required as well.
 If the certificate is signed by an intermediate CA, one will probably want to specify the CA chain with the `cacertfile` option.
 The library used for HTTP is the Erlang TLS implementation provided by OTP - see [ranch_ssl](https://github.com/ninenines/ranch/blob/master/doc/src/manual/ranch_ssl.asciidoc) for details.
 
-The options accepted here are: `verify_mode`, `certfile`, `cacertfile`, `ciphers`, `keyfile`, `password`, `versions`, `dhfile`. They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s) for `just_tls`.
+The options accepted here are: `verify_mode`, `certfile`, `cacertfile`, `ciphers`, `keyfile`, `password`, `versions`, `dhfile`. They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s).
 
 ## Protocol options
 

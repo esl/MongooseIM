@@ -218,7 +218,7 @@ It means that disabled endpoints are periodically verified and if Global Distrib
     By default `tls` is disabled and all data will be sent via standard TCP connections.
 
 To enable TLS support, the `cacertfile` and `certfile` options have to be present.
-These options will be passed to the `just_tls` driver.
+These options will be passed to the [Erlang SSL](https://www.erlang.org/doc/apps/ssl/ssl.html) library.
 
 #### `modules.mod_global_distrib.connections.tls.certfile`
 * **Syntax:** string, path in the file system
