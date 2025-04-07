@@ -42,7 +42,7 @@ S2S shared secret used in the [Server Dialback](https://xmpp.org/extensions/xep-
 
 The options listed below affect only the outgoing S2S connections.
 
-### `s2s.address`
+### `s2s.outgoing.address`
 * **Syntax:** array of TOML tables with the following content:
     * `host` - string, mandatory, host name
     * `ip_address` - string, mandatory, IP address
@@ -51,34 +51,13 @@ The options listed below affect only the outgoing S2S connections.
 * **Example:**
 
 ```toml
-  address = [
+  outgoing.address = [
     {host = "my.xmpp.org", ip_address = "192.0.100.1"},
     {host = "your.xmpp.org", ip_address = "192.0.1.100", port = 5271}
   ]
 ```
 
 This option defines IP addresses and port numbers for specific non-local XMPP domains, allowing to override the DNS lookup for outgoing S2S connections.
-
-### `s2s.max_retry_delay`
-* **Syntax:** positive integer
-* **Default:** `300`
-* **Example:** `max_retry_delay = 300`
-
-Specifies the maximum time in seconds that MongooseIM will wait until the next attempt to connect to a remote XMPP server. The delays between consecutive attempts will be doubled until this limit is reached.
-
-### `s2s.outgoing.port`
-* **Syntax:** integer, port number
-* **Default:** `5269`
-* **Example:** `outgoing.port = 5270`
-
-Defines the port to be used for outgoing S2S connections.
-
-### `s2s.outgoing.ip_versions`
-* **Syntax:** array of integers (IP versions): `4` or `6`
-* **Default:** `[4, 6]`
-* **Example:** `outgoing.ip_versions = [6]`
-
-Specifies the order of IP address families to try when establishing an outgoing S2S connection.
 
 ### `s2s.outgoing.connection_timeout`
 * **Syntax:** positive integer or the string `"infinity"`
@@ -87,16 +66,87 @@ Specifies the order of IP address families to try when establishing an outgoing 
 
 Timeout (in milliseconds) for establishing an outgoing S2S connection.
 
-### `s2s.dns.timeout`
+### `s2s.outgoing.dns.retries`
+* **Syntax:** positive integer
+* **Default:** `2`
+* **Example:** `outgoing.dns.retries = 1`
+
+Number of DNS lookup attempts when opening an outgoing S2S connection.
+
+### `s2s.outgoing.dns.timeout`
 * **Syntax:** positive integer
 * **Default:** `10`
-* **Example:** `dns.timeout = 30`
+* **Example:** `outgoing.dns.timeout = 30`
 
 Timeout (in seconds) for DNS lookups when opening an outgoing S2S connection.
 
-### `s2s.dns.retries`
-* **Syntax:** positive integer
-* **Default:** `2`
-* **Example:** `dns.retries = 1`
+### `s2s.outgoing.ip_versions`
+* **Syntax:** array of integers (IP versions): `4` or `6`
+* **Default:** `[4, 6]`
+* **Example:** `outgoing.ip_versions = [6]`
 
-Number of DNS lookup attempts when opening an outgoing S2S connection.
+Specifies the order of IP address families to try when establishing an outgoing S2S connection.
+
+### `s2s.outgoing.max_retry_delay`
+* **Syntax:** positive integer
+* **Default:** `300`
+* **Example:** `outgoing.max_retry_delay = 300`
+
+Specifies the maximum time in seconds that MongooseIM will wait until the next attempt to connect to a remote XMPP server. The delays between consecutive attempts will be doubled until this limit is reached.
+
+### `s2s.outgoing.max_stanza_size`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `outgoing.max_stanza_size = 10_000`
+
+Maximum allowed incoming stanza size in bytes.
+!!! Warning
+    This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
+
+### `s2s.outgoing.port`
+* **Syntax:** integer, port number
+* **Default:** `5269`
+* **Example:** `outgoing.port = 5270`
+
+Defines the port to be used for outgoing S2S connections.
+
+### `s2s.outgoing.shaper`
+* **Syntax:** string, shaper name
+* **Default:** `"none"` (no shaper)
+* **Example:** `outgoing.shaper = "fast"`
+
+The shaper name that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
+The shaper referenced here needs to be defined in the [`shaper`](shaper.md) configuration section.
+The value of the shaper name needs to be either the shaper name or the string `"none"`, which means no shaper.
+
+### `s2s.outgoing.state_timeout`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `5000` (5 seconds)
+* **Example:** `outgoing.state_timeout = 10_000`
+
+Timeout value (in milliseconds) used by the state machine when waiting for the remote server to respond during stream negotiation and SASL authentication. After the timeout, the local server responds with the `connection-timeout` stream error and closes the connection.
+
+### `s2s.outgoing.stream_timeout`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `600_000` (10 minutes)
+* **Example:** `outgoing.stream_timeout = 60_000`
+
+Timeout value (in milliseconds) used by the state machine for an established connection.
+When it passes without any sent or received data, the outgoing connection is closed due to inactivity.
+
+### TLS options for outgoing connections
+
+In order to enable TLS encryption, you need to ensure that the `s2s.outgoing.tls` subsection is present.
+It contains options with the same semantics as the corresponding options for [outgoing connection pools](outgoing-connections.md#tls-options).
+Additionally, the following options are supported:
+
+### `s2s.outgoing.tls.mode`
+* **Syntax:** string, one of `"tls"`, `"starttls"`, `"starttls_required"`
+* **Default:** `"starttls"`
+* **Example:** `outgoing.tls.mode = "starttls"`
+
+This option determines how the TLS encryption is set up.
+
+* `tls` - the local server initiates a TLS session immediately after connecting, before beginning the normal XML stream.
+* `starttls` - enables StartTLS, which upgrades the connection to TLS if supported by the remote server.
+* `starttls_required` - enables and enforces StartTLS usage. The connection is closed if StartTLS cannot be enabled.

@@ -824,59 +824,9 @@ s2s() ->
                                             format_items = map},
                  <<"shared">> => #option{type = binary,
                                          validate = non_empty},
-                 <<"shaper">> => #option{type = atom,
-                                         validate = non_empty},
-                 <<"state_timeout">> => #option{type = int_or_infinity,
-                                                validate = non_negative},
-                 <<"stream_timeout">> => #option{type = int_or_infinity,
-                                                 validate = non_negative},
-                 <<"address">> => #list{items = s2s_address(),
-                                        format_items = map},
-                 <<"max_retry_delay">> => #option{type = integer,
-                                                  validate = positive},
-                 <<"max_stanza_size">> => #option{type = int_or_infinity,
-                                                  validate = positive,
-                                                  process = fun ?MODULE:process_infinity_as_zero/1},
-                 <<"outgoing">> => s2s_outgoing(),
-                 <<"dns">> => s2s_dns(),
-                 <<"tls">> => tls([client, xmpp])},
-       defaults = #{<<"default_policy">> => allow,
-                    <<"shaper">> => none,
-                    <<"max_stanza_size">> => 0,
-                    <<"max_retry_delay">> => 300,
-                    <<"state_timeout">> => timer:seconds(5),
-                    <<"stream_timeout">> => timer:minutes(10)},
+                 <<"outgoing">> => s2s_outgoing()},
+       defaults = #{<<"default_policy">> => allow},
        wrap = host_config
-      }.
-
-%% path: (host_config[].)s2s.dns
-s2s_dns() ->
-    #section{
-       items = #{<<"timeout">> => #option{type = integer,
-                                          validate = positive},
-                 <<"retries">> => #option{type = integer,
-                                          validate = positive}},
-       include = always,
-       defaults = #{<<"timeout">> => 10,
-                    <<"retries">> => 2}
-      }.
-
-%% path: (host_config[].)s2s.outgoing
-s2s_outgoing() ->
-    #section{
-       items = #{<<"port">> => #option{type = integer,
-                                       validate = port},
-                 <<"ip_versions">> =>
-                     #list{items = #option{type = integer,
-                                           validate = {enum, [4, 6]}},
-                           validate = unique_non_empty},
-                 <<"connection_timeout">> => #option{type = int_or_infinity,
-                                                     validate = positive}
-                },
-       include = always,
-       defaults = #{<<"port">> => 5269,
-                    <<"ip_versions">> => [4, 6], %% NOTE: we still prefer IPv4 first
-                    <<"connection_timeout">> => 10000}
       }.
 
 %% path: (host_config[].)s2s.host_policy[]
@@ -891,8 +841,46 @@ s2s_host_policy() ->
        process = fun ?MODULE:process_s2s_host_policy/1
       }.
 
-%% path: (host_config[].)s2s.address[]
-s2s_address() ->
+%% path: (host_config[].)s2s.outgoing
+s2s_outgoing() ->
+    #section{
+       items = #{<<"address">> => #list{items = s2s_outgoing_address(),
+                                        format_items = map},
+                 <<"connection_timeout">> => #option{type = int_or_infinity,
+                                                     validate = positive},
+                 <<"dns">> => s2s_outgoing_dns(),
+                 <<"ip_versions">> =>
+                     #list{items = #option{type = integer,
+                                           validate = {enum, [4, 6]}},
+                           validate = unique_non_empty},
+                 <<"max_retry_delay">> => #option{type = integer,
+                                                  validate = positive},
+                 <<"max_stanza_size">> => #option{type = int_or_infinity,
+                                                  validate = positive,
+                                                  process = fun ?MODULE:process_infinity_as_zero/1},
+                 <<"port">> => #option{type = integer,
+                                       validate = port},
+                 <<"shaper">> => #option{type = atom,
+                                         validate = non_empty},
+                 <<"state_timeout">> => #option{type = int_or_infinity,
+                                                validate = non_negative},
+                 <<"stream_timeout">> => #option{type = int_or_infinity,
+                                                 validate = non_negative},
+                 <<"tls">> => tls([client, xmpp])
+                },
+       include = always,
+       defaults = #{<<"connection_timeout">> => 10000,
+                    <<"ip_versions">> => [4, 6], %% NOTE: we still prefer IPv4 first
+                    <<"max_retry_delay">> => 300,
+                    <<"max_stanza_size">> => 0,
+                    <<"port">> => 5269,
+                    <<"shaper">> => none,
+                    <<"state_timeout">> => timer:seconds(5),
+                    <<"stream_timeout">> => timer:minutes(10)}
+      }.
+
+%% path: (host_config[].)s2s.outgoing.address[]
+s2s_outgoing_address() ->
     #section{
        items = #{<<"host">> => #option{type = binary,
                                        validate = non_empty},
@@ -905,6 +893,18 @@ s2s_address() ->
        required = [<<"host">>, <<"ip_address">>],
        process = fun ?MODULE:process_s2s_address/1,
        defaults = #{<<"tls">> => false}
+      }.
+
+%% path: (host_config[].)s2s.outgoing.dns
+s2s_outgoing_dns() ->
+    #section{
+       items = #{<<"timeout">> => #option{type = integer,
+                                          validate = positive},
+                 <<"retries">> => #option{type = integer,
+                                          validate = positive}},
+       include = always,
+       defaults = #{<<"timeout">> => 10,
+                    <<"retries">> => 2}
       }.
 
 %% Callbacks for 'process'
