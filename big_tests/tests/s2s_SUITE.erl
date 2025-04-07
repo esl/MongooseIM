@@ -571,9 +571,9 @@ assert_events(TS, Config) ->
     Filter = fun(#{byte_size := S}) -> S > 0 end,
 
     instrument_helper:assert(xmpp_element_size_in, Labels, Filter,
-        #{expected_count => element_count(in, TLS), min_timestamp => TS}),
+        #{expected_count => element_count(TLS), min_timestamp => TS}),
     instrument_helper:assert(xmpp_element_size_out, Labels, Filter,
-        #{expected_count => element_count(out, TLS), min_timestamp => TS}),
+        #{expected_count => element_count(TLS), min_timestamp => TS}),
     case TLS of
         true ->
             instrument_helper:assert(tls_data_out, Labels, Filter, #{min_timestamp => TS}),
@@ -588,51 +588,49 @@ assert_events(TS, Config) ->
 % and receiving (and authoritative) server in the dialback procedure.
 %
 % We also test that both users on each side of federation can text each other,
-% hence both server will run the dialback each.
+% hence both servers will run the dialback each.
 %
 % When a user in mim1 writes to a user in fed1, from the perspective of mim1:
 % - Open an outgoing connection from mim1 to fed1:
-%   1. Outgoing stream starts
-%   2. Incoming stream starts
-%   3. Incoming stream features
-%   4. Outgoing dialback key (step 1)
+%   Outgoing stream starts - skipped
+%   Incoming stream starts - skipped
+%   1. Incoming stream features
+%   2. Outgoing dialback key (step 1)
 % - Open an incoming connection from fed1 to mim1:
-%   5. Incoming stream starts
-%   6. Outgoing stream starts
-%   7. Outgoing stream features
-%   8. Incoming dialback verification request (step 2, as authoritative server)
-%   9. Outgoing dialback verification response (step 3, as receiving server)
+%   Incoming stream starts
+%   Outgoing stream starts
+%   3. Outgoing stream features
+%   4. Incoming dialback verification request (step 2, as authoritative server)
+%   5. Outgoing dialback verification response (step 3, as receiving server)
 % - Original outgoing connection
-%  10. Incoming dialback result (step 4, as initiating server)
-%  11. Outgoing message from user in mim1 to user in fed1
+%   6. Incoming dialback result (step 4, as initiating server)
+%   7. Outgoing message from user in mim1 to user in fed1
 %
 % Likewise, when a user in fed1 writes to a user in mim1, from the perspective of mim1:
 % - Open an incoming connection from fed1 to mim1:
-%   1. Incoming stream starts
-%   2. Outgoing stream starts
-%   3. Outgoing stream features
-%   4. Incoming dialback key (step 1)
+%   Incoming stream starts
+%   Outgoing stream starts
+%   1. Outgoing stream features
+%   2. Incoming dialback key (step 1)
 % - Open an outgoing connection from mim1 to fed1:
-%   5. Outgoing stream starts
-%   6. Incoming stream starts
-%   7. Incoming stream features
-%   8. Outgoing dialback verification request (step 2, as authoritative server)
-%   9. Incoming dialback verification response (step 3, as receiving server)
+%   Outgoing stream starts
+%   Incoming stream starts
+%   3. Incoming stream features
+%   4. Outgoing dialback verification request (step 2, as authoritative server)
+%   5. Incoming dialback verification response (step 3, as receiving server)
 % - Original incoming connection
-%  10. Outgoing dialback result (step 4, as initiating server)
-%  11. Incoming message from user in fed1 to user in mim1
+%   6. Outgoing dialback result (step 4, as initiating server)
+%   7. Incoming message from user in fed1 to user in mim1
 %
 % The number can be seen as the sum of all arrows from the dialback diagram, since mim
 % acts as all three roles in the two dialback procedures that occur:
 % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
-% (6 arrows) + one for stream header response + one for the actual message
-element_count(_Dir, true) ->
+% (6 arrows) + one for the actual message
+element_count(true) ->
     % TLS tests are not checking a specific number of events, because the numbers are flaky
     positive;
-element_count(in, false) ->
-    11;
-element_count(out, false) ->
-    11.
+element_count(false) ->
+    7.
 
 group_with_tls(both_tls_optional) -> true;
 group_with_tls(both_tls_required) -> true;
