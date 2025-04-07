@@ -114,3 +114,10 @@ Maximum number of open connections. This is a *soft limit* according to the [Ran
 * **Example:** `reuse_port = true`
 
 Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
+
+### `listen.*.state_timeout`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `5000`
+* **Example:** `state_timeout = 10_000`
+
+Timeout value (in milliseconds) used by the state machine when waiting for the connecting party to respond during stream negotiation and SASL authentication. After the timeout, the server responds with the `connection-timeout` stream error and closes the connection.

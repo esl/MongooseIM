@@ -42,8 +42,7 @@ disconnect_component(Component, Addr) ->
     disconnect_components([Component], Addr).
 
 disconnect_components(Components, Addr) ->
-    %% TODO replace 'kill' with 'stop' when server supports stream closing
-    [escalus_connection:kill(Component) || Component <- Components],
+    [escalus_connection:stop(Component) || Component <- Components],
     wait_helper:wait_until(fun() -> rpc(mongoose_component, lookup_component, [Addr]) =:= [] end, true,
                            #{name => rpc}).
 

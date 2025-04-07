@@ -17,10 +17,9 @@
         agent_id :: mod_fast_auth_token:agent_id(),
         mechanism :: mod_fast_auth_token:mechanism(),
         count :: mod_fast_auth_token:counter() | undefined,
-        socket :: mongoose_xmpp_socket:socket(),
         cb_data :: binary()
     }).
--include("mongoose.hrl").
+
 -type fast_info() :: #fast_info{}.
 -type cb_data() :: binary().
 
@@ -35,7 +34,7 @@ mech_new(_Host, Creds, _SocketData = #{sasl_state := SaslState, socket := Socket
             Count = mongoose_acc:get(mod_fast_auth_token, fast_count, undefined, SaslState),
             CBData = mech_to_cb_data(Mech, Socket),
             {ok, #fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech,
-                            count = Count, socket = Socket, cb_data = CBData}};
+                            count = Count, cb_data = CBData}};
         _ ->
             {error, <<"not-sasl2">>}
     end;
@@ -46,7 +45,7 @@ mech_new(_Host, _Creds, _SocketData, _Mech) ->
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                        | {error, binary()}.
 mech_step(#fast_info{creds = Creds, agent_id = AgentId, mechanism = Mech,
-                     count = Count, socket = Socket, cb_data = CBData},
+                     count = Count, cb_data = CBData},
           SerializedToken) ->
     %% SerializedToken is base64 decoded.
     Parts = binary:split(SerializedToken, <<0>>),
@@ -86,7 +85,7 @@ mech_to_cb_data(Mech, Socket) ->
             <<>>;
         expr ->
             %% The 'tls-exporter' Channel Binding Type
-            %% Descripbed in:
+            %% Described in:
             %% RFC 9266 Channel Bindings for TLS 1.3
             %% https://www.ietf.org/rfc/rfc9266.html
             %%

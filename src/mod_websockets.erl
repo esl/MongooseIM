@@ -221,7 +221,7 @@ maybe_start_fsm([#xmlel{ name = <<"open">> }],
         max_stanza_size => 0,
         state_timeout => StateTimeout,
         backwards_compatible_session => BackwardsCompatible,
-        module => mongoose_c2s_listener,
+        module => ejabberd_cowboy,
         connection_type => c2s,
         hibernate_after => 0,
         ip_tuple => IPTuple,
@@ -414,14 +414,12 @@ is_channel_binding_supported(_Socket) ->
     false.
 
 -spec export_key_materials(socket(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
-    {ok, ExportKeyMaterials} |
-    {error, atom() | exporter_master_secret_already_consumed | bad_input}
+    {error, export_key_materials_not_supported_for_websockets}
       when
       Labels :: [binary()],
       Contexts :: [binary() | no_context],
       WantedLengths :: [non_neg_integer()],
-      ConsumeSecret :: boolean(),
-      ExportKeyMaterials :: binary() | [binary()].
+      ConsumeSecret :: boolean().
 export_key_materials(_Socket, _, _, _, _) ->
     {error, export_key_materials_not_supported_for_websockets}.
 

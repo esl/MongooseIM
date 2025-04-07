@@ -675,9 +675,7 @@ start_stream_get_features(_Config, Client, Data = #{early_data := true}) ->
     Features = escalus_connection:get_stanza(Client, wait_for_features),
     {Client, Data#{features => Features, stream_start_resp => StreamStartResp}};
 start_stream_get_features(Config, Client, Data = #{}) ->
-    %% If early data is enabled, start_stream is already sent
-    {Client2, Data2} = sasl2_helper:start_stream_get_features(Config, Client, Data),
-    {Client2, Data2}.
+    sasl2_helper:start_stream_get_features(Config, Client, Data).
 
 auth_and_request_token(Config, Client, Data = #{spec := Spec}) ->
     Authenticate = fun(CB) -> auth_and_request_token_stanza(Config, [{channel_binding_data, CB} | Spec]) end,

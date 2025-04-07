@@ -14,13 +14,6 @@ The following options are supported for each C2S listener:
 
 The rule that determines who is allowed to connect. By default, the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
-### `listen.c2s.state_timeout`
-* **Syntax:** non-negative integer or the string `"infinity"`
-* **Default:** `5000`
-* **Example:** `state_timeout = 10_000`
-
-Timeout value (in milliseconds) used by the C2S state machine when waiting for the connecting client to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
-
 ### `listen.c2s.backwards_compatible_session`
 * **Syntax:** boolean
 * **Default:** `true`
@@ -149,21 +142,19 @@ Specifies the paths to Certificate Revocation Lists.
 
 ### `listen.c2s.tls.early_data`
 * **Syntax:** boolean
-* **Default:** false
+* **Default:** `false`
 * **Example:** `tls.early_data = true`
 
 Enables `early_data`, or 0-RTT, used with [mod_fast_auth_token](../modules/mod_fast_auth_token.md) module.
 Use this with Direct TLS (i.e. port 5223).
 
 ### `listen.c2s.tls.session_tickets`
-* **Syntax:** atom
+* **Syntax:** string: `"stateless"`
 * **Default:** not set
 * **Example:** `tls.session_tickets = "stateless"`
 
-Enables TLS [Session Tickets](https://www.erlang.org/doc/apps/ssl/using_ssl#session-tickets-and-session-resumption-in-tls-1-3)
+Enables TLS [Session Tickets](https://www.erlang.org/doc/apps/ssl/using_ssl#session-tickets-and-session-resumption-in-tls-1-3),
 which could be used for faster TLS connection, skipping one roundtrip when connecting.
-
-Would need support on the client too.
 
 ## C2S listener configuration example
 
