@@ -8,6 +8,7 @@ Deprecated `fast_tls` and improved `just_tls`.
 Releases:
 
 * [MongooseIM 6.3.2](https://github.com/esl/MongooseIM/releases/tag/6.3.2) in February 2025.
+* [MongooseIM 6.3.3](https://github.com/esl/MongooseIM/releases/tag/6.3.3) in April 2025.
 
 ## 2023-2024: C2S, CETS and Instrumentation
 
