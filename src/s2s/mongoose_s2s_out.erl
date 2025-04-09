@@ -164,7 +164,11 @@ handle_event(internal, #xmlel{name = <<"success">>, attrs = #{<<"xmlns">> := ?NS
     send_xml(NewData, stream_header(NewData)),
     {next_state, {wait_for_stream, authenticated}, NewData, state_timeout(NewData)};
 handle_event(internal, #xmlel{name = <<"failure">>, attrs = #{<<"xmlns">> := ?NS_SASL}},
-             wait_for_auth_result, _Data) ->
+             wait_for_auth_result, #s2s_data{myname = LocalDomain, remote_server = RemoteDomain}) ->
+    mongoose_instrument:execute(s2s_auth_failed, #{},
+                                #{local_domain => LocalDomain,
+                                  remote_domain => RemoteDomain,
+                                  direction => out, count => 1}),
     {stop, s2s_sasl_failure};
 
 handle_event(internal,
@@ -468,9 +472,10 @@ bounce_one(Error, Acc) ->
 
 -spec send_xml(data(), exml_stream:element()) -> maybe_ok().
 send_xml(#s2s_data{myname = LServer, socket = Socket}, Elem) ->
-    mongoose_instrument:execute(
-      xmpp_element_size_out, labels(),
-      #{byte_size => exml:xml_size(Elem), lserver => LServer, pid => self(), module => ?MODULE}),
+    case Elem of
+        #xmlel{} -> execute_element_events(Elem, LServer, s2s_element_out, xmpp_element_size_out);
+        _ -> ok
+    end,
     mongoose_xmpp_socket:send_xml(Socket, Elem).
 
 -spec handle_socket_data(data(), {tcp | ssl, _, binary()}) -> fsm_res().
@@ -496,11 +501,9 @@ handle_socket_packet(#s2s_data{parser = Parser} = Data, Packet) ->
 
 -spec handle_socket_elements(data(), [exml_stream:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(#s2s_data{myname = LServer, shaper = Shaper} = Data, Elements, Size) ->
+    [execute_element_events(Element, LServer, s2s_element_in, xmpp_element_size_in)
+     || Element = #xmlel{} <- Elements],
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    [mongoose_instrument:execute(
-       xmpp_element_size_in, labels(),
-       #{byte_size => exml:xml_size(Elem), lserver => LServer, pid => self(), module => ?MODULE})
-     || Elem <- Elements],
     NewData = Data#s2s_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     StreamEvents1 = maybe_add_pause(NewData, StreamEvents0, Pause),
@@ -557,10 +560,6 @@ handle_get_state_info(#s2s_data{socket = Socket, opts = Opts} = Data, State) ->
       myname => Data#s2s_data.myname,
       process_type => Data#s2s_data.process_type}.
 
--spec labels() -> mongoose_instrument:labels().
-labels() ->
-    #{connection_type => s2s}.
-
 -spec get_s2s_out_config(mongooseim:host_type()) -> options().
 get_s2s_out_config(HostType) ->
     mongoose_config:get_opt([{s2s, HostType}, outgoing]).
@@ -588,3 +587,18 @@ stream_header(#s2s_data{myname = LServer, remote_server = Remote, streamid = Id,
 -spec starttls() -> exml:element().
 starttls() ->
     #xmlel{name = <<"starttls">>, attrs = #{<<"xmlns">> => ?NS_TLS}}.
+
+%% Instrumentation helpers
+
+-spec execute_element_events(exml:element(), jid:lserver(), mongoose_instrument:event_name(),
+                             mongoose_instrument:event_name()) -> ok.
+execute_element_events(Element, LServer, EventName, SizeEventName) ->
+    Measurements = mongoose_measurements:measure_element(Element),
+    mongoose_instrument:execute(EventName, #{}, Measurements#{lserver => LServer}),
+    mongoose_instrument:execute(SizeEventName, labels(),
+                                #{byte_size => exml:xml_size(Element), lserver => LServer,
+                                  pid => self(), module => ?MODULE}).
+
+-spec labels() -> mongoose_instrument:labels().
+labels() ->
+    #{connection_type => s2s}.

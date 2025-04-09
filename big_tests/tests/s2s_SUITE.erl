@@ -84,7 +84,8 @@ connection_cases() ->
     [successful_external_auth_with_valid_cert,
      only_messages_from_authenticated_domain_users_are_accepted,
      auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert,
-     auth_with_valid_cert_fails_for_other_mechanism_than_external].
+     auth_with_valid_cert_fails_for_other_mechanism_than_external,
+     simple_message_auth_failed].
 
 start_stream_error_groups() ->
     [{group, start_stream_errors},
@@ -222,6 +223,26 @@ simple_message(Config) ->
 
         % Instrumentation events are executed
         assert_events(TS, Config)
+    end).
+
+simple_message_auth_failed(Config) ->
+    escalus:fresh_story(Config, [{alice2, 1}, {alice_bis, 1}], fun(Alice2, Alice1) ->
+        TS = instrument_helper:timestamp(),
+
+        % User on the main server sends a message to a user on a federated server
+        escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
+
+        % Cert is for localhost, and the domain is localhost.bis
+        % As a result, s2s auth fails, and Alice2 receives nothing
+        BisDomain = ct:get_config({hosts, mim, secondary_domain}),
+        FedDomain = ct:get_config({hosts, fed, domain}),
+        Filter = fun(#{direction := out, count := 1, local_domain := LD, remote_domain := RD}) ->
+                         LD =:= BisDomain andalso RD =:= FedDomain
+                 end,
+        Opts = #{retries => 50, delay => 100, min_timestamp => TS, expected_count => 1},
+        instrument_helper:assert(s2s_auth_failed, #{}, Filter, Opts),
+        timer:sleep(500),
+        escalus_assert:has_no_stanzas(Alice2)
     end).
 
 timeout_waiting_for_message(Config) ->
@@ -413,7 +434,7 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
         escalus:send(Client, ChatToAliceFromUserInWrongDomain),
 
         %% Alice@fed1 does not receives message from a_user@this_is_not_my.domain.com
-        timer:sleep(timer:seconds(5)),
+        timer:sleep(500),
         escalus_assert:has_no_stanzas(Alice)
 
     end),
@@ -567,72 +588,75 @@ shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.
 
 assert_events(TS, Config) ->
     TLS = proplists:get_value(requires_tls, Config, false),
+    {DataInEvent, DataOutEvent} = data_events(TLS),
     Labels = #{connection_type => s2s},
-    Filter = fun(#{byte_size := S}) -> S > 0 end,
+    Opts = #{min_timestamp => TS},
 
-    instrument_helper:assert(xmpp_element_size_in, Labels, Filter,
-        #{expected_count => element_count(in, TLS), min_timestamp => TS}),
-    instrument_helper:assert(xmpp_element_size_out, Labels, Filter,
-        #{expected_count => element_count(out, TLS), min_timestamp => TS}),
-    case TLS of
-        true ->
-            instrument_helper:assert(tls_data_out, Labels, Filter, #{min_timestamp => TS}),
-            instrument_helper:assert(tls_data_in, Labels, Filter, #{min_timestamp => TS});
-        false ->
-            instrument_helper:assert(tcp_data_in, Labels, Filter, #{min_timestamp => TS}),
-            instrument_helper:assert(tcp_data_out, Labels, Filter, #{min_timestamp => TS})
-    end.
+    SizeFilter = fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(DataInEvent, Labels, SizeFilter, Opts),
+    instrument_helper:assert(DataOutEvent, Labels, SizeFilter, Opts),
+
+    Opts2 = Opts#{expected_count => element_count(TLS)},
+    MimDomain = domain_helper:domain(),
+    DomainFilter = fun(#{lserver := LServer}) -> LServer =:= MimDomain end,
+    instrument_helper:assert(s2s_element_in, #{}, DomainFilter, Opts2),
+    instrument_helper:assert(s2s_element_out, #{}, DomainFilter, Opts2),
+
+    CombinedFilter = fun(M) -> DomainFilter(M) andalso SizeFilter(M) end,
+    instrument_helper:assert(xmpp_element_size_out, Labels, CombinedFilter, Opts2),
+    instrument_helper:assert(xmpp_element_size_in, Labels, CombinedFilter, Opts2).
+
+data_events(true) -> {tls_data_in, tls_data_out};
+data_events(false) -> {tcp_data_in, tcp_data_out}.
 
 % Some of these steps happen asynchronously, so the order may be different.
 % Since S2S connections are unidirectional, mim1 acts both as initiating,
 % and receiving (and authoritative) server in the dialback procedure.
 %
 % We also test that both users on each side of federation can text each other,
-% hence both server will run the dialback each.
+% hence both servers will run the dialback each.
 %
 % When a user in mim1 writes to a user in fed1, from the perspective of mim1:
 % - Open an outgoing connection from mim1 to fed1:
-%   1. Outgoing stream starts
-%   2. Incoming stream starts
-%   3. Incoming stream features
-%   4. Outgoing dialback key (step 1)
+%   Outgoing stream starts
+%   Incoming stream starts
+%   1. Incoming stream features
+%   2. Outgoing dialback key (step 1)
 % - Open an incoming connection from fed1 to mim1:
-%   5. Incoming stream starts
-%   6. Outgoing stream starts
-%   7. Outgoing stream features
-%   8. Incoming dialback verification request (step 2, as authoritative server)
-%   9. Outgoing dialback verification response (step 3, as receiving server)
+%   Incoming stream starts
+%   Outgoing stream starts
+%   3. Outgoing stream features
+%   4. Incoming dialback verification request (step 2, as authoritative server)
+%   5. Outgoing dialback verification response (step 3, as receiving server)
 % - Original outgoing connection
-%  10. Incoming dialback result (step 4, as initiating server)
-%  11. Outgoing message from user in mim1 to user in fed1
+%   6. Incoming dialback result (step 4, as initiating server)
+%   7. Outgoing message from user in mim1 to user in fed1
 %
 % Likewise, when a user in fed1 writes to a user in mim1, from the perspective of mim1:
 % - Open an incoming connection from fed1 to mim1:
-%   1. Incoming stream starts
-%   2. Outgoing stream starts
-%   3. Outgoing stream features
-%   4. Incoming dialback key (step 1)
+%   Incoming stream starts
+%   Outgoing stream starts
+%   1. Outgoing stream features
+%   2. Incoming dialback key (step 1)
 % - Open an outgoing connection from mim1 to fed1:
-%   5. Outgoing stream starts
-%   6. Incoming stream starts
-%   7. Incoming stream features
-%   8. Outgoing dialback verification request (step 2, as authoritative server)
-%   9. Incoming dialback verification response (step 3, as receiving server)
+%   Outgoing stream starts
+%   Incoming stream starts
+%   3. Incoming stream features
+%   4. Outgoing dialback verification request (step 2, as authoritative server)
+%   5. Incoming dialback verification response (step 3, as receiving server)
 % - Original incoming connection
-%  10. Outgoing dialback result (step 4, as initiating server)
-%  11. Incoming message from user in fed1 to user in mim1
+%   6. Outgoing dialback result (step 4, as initiating server)
+%   7. Incoming message from user in fed1 to user in mim1
 %
 % The number can be seen as the sum of all arrows from the dialback diagram, since mim
 % acts as all three roles in the two dialback procedures that occur:
 % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
-% (6 arrows) + one for stream header response + one for the actual message
-element_count(_Dir, true) ->
+% (6 arrows) + one for the actual message
+element_count(true) ->
     % TLS tests are not checking a specific number of events, because the numbers are flaky
     positive;
-element_count(in, false) ->
-    11;
-element_count(out, false) ->
-    11.
+element_count(false) ->
+    7.
 
 group_with_tls(both_tls_optional) -> true;
 group_with_tls(both_tls_required) -> true;
@@ -649,4 +673,7 @@ tested_events() ->
      {tls_data_in, #{connection_type => s2s}},
      {tls_data_out, #{connection_type => s2s}},
      {tcp_data_in, #{connection_type => s2s}},
-     {tcp_data_out, #{connection_type => s2s}}].
+     {tcp_data_out, #{connection_type => s2s}},
+     {s2s_element_in, #{}},
+     {s2s_element_out, #{}},
+     {s2s_auth_failed, #{}}].

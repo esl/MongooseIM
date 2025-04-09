@@ -195,7 +195,7 @@ assert_events(Dir, CheckElFun) ->
     instrument_helper:assert(
       event_name(Dir), #{host_type => host_type()},
       fun(M = #{element := El}) ->
-               maps:remove(element, M) =:= #{count => 1} andalso CheckElFun(El)
+               maps:remove(element, M) =:= #{jid => undefined, count => 1} andalso CheckElFun(El)
       end).
 
 assert_event(Dir, ClientOrJid, Measurements, CheckElFun) ->
