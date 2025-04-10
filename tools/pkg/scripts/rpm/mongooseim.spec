@@ -36,6 +36,18 @@ scale in need of more capacity (by just adding a box/VM).
 cp %{SOURCE0} .
 
 %install
+%if %{with_bundled_openssl}
+# Copy essential OpenSSL 3.x runtime files to bundle with the app
+mkdir -p %{buildroot}/opt/mongooseim/openssl/etc
+mkdir -p %{buildroot}/opt/mongooseim/openssl/include
+cp -a /usr/local/ssl/include/openssl %{buildroot}/opt/mongooseim/openssl/include/
+if [ -d /usr/local/ssl/lib64 ]; then
+    cp -a /usr/local/ssl/lib64 %{buildroot}/opt/mongooseim/openssl/
+else
+    cp -a /usr/local/ssl/lib %{buildroot}/opt/mongooseim/openssl/
+fi
+%endif
+
 make clean
 ./tools/configure with-all user=root prefix=/ system=yes
 sed -i 's#PREFIX=\"/\"#PREFIX=\"%{buildroot}\"#' configure.out
@@ -58,12 +70,32 @@ getent passwd mongooseim >/dev/null || adduser -g mongooseim mongooseim
 exit 0
 
 %post
+%if %{with_bundled_openssl}
+SYSTEM_OPENSSL=$(ldconfig -p | grep "libssl.so.3" | awk '{print $NF}' | head -n 1)
+if [ -z "$SYSTEM_OPENSSL" ]; then
+    if [ -d /opt/mongooseim/openssl/lib64 ]; then
+        echo "/opt/mongooseim/openssl/lib64" > /etc/ld.so.conf.d/mongooseim-openssl.conf
+    else
+        echo "/opt/mongooseim/openssl/lib" > /etc/ld.so.conf.d/mongooseim-openssl.conf
+    fi
+    ldconfig
+fi
+%endif
 echo "MongooseIM %{version} installed"
 
 %clean
 rm -rf %{buildroot}
 
 %files
+%if %{with_bundled_openssl}
+%ifarch x86_64
+/opt/mongooseim/openssl/lib64/
+%endif
+%ifarch aarch64
+/opt/mongooseim/openssl/lib/
+%endif
+/opt/mongooseim/openssl/include/openssl/
+%endif
 
 %defattr(-, root, root, -)
 

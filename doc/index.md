@@ -80,6 +80,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [6.3.3](https://esl.github.io/MongooseDocs/6.3.3/)
 * [6.3.2](https://esl.github.io/MongooseDocs/6.3.2/)
 * [6.3.1](https://esl.github.io/MongooseDocs/6.3.1/)
 * [6.3.0](https://esl.github.io/MongooseDocs/6.3.0/)

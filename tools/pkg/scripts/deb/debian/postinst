@@ -36,6 +36,21 @@ setup()
 		chown -R $NAME:$NAME $PKG_ROOT $MIM_CTL $ETC_DIR $VAR_LIB $VAR_LOCK $VAR_LOG
 	fi
 	#sed -i -e "s*\(RUNNER_SCRIPT_DIR=\).\**\1${PKG_ROOT}bin*" /usr/sbin/mongooseimctl
+
+    OS_ID=$(grep ^ID= /etc/os-release | cut -d= -f2 | tr -d '"')
+    OS_VERSION=$(grep ^VERSION_ID= /etc/os-release | cut -d= -f2 | tr -d '"' | cut -d. -f1)
+    if { [ "$OS_ID" = "ubuntu" ] && [ "$OS_VERSION" -lt 22 ]; } || \
+       { [ "$OS_ID" = "debian" ] && [ "$OS_VERSION" -lt 12 ]; }; then
+        SYSTEM_OPENSSL=$(ldconfig -p | grep "libssl.so.3" | awk '{print $NF}' | head -n 1)
+        if [ -z "$SYSTEM_OPENSSL" ]; then
+                if [ -d /opt/mongooseim/openssl/lib64 ]; then
+                    echo "/opt/mongooseim/openssl/lib64" > /etc/ld.so.conf.d/mongooseim-openssl.conf
+                else
+                    echo "/opt/mongooseim/openssl/lib" > /etc/ld.so.conf.d/mongooseim-openssl.conf
+                fi
+            ldconfig
+        fi
+    fi
 }
 
 case "$1" in
