@@ -1,14 +1,10 @@
-# [MongooseIM 6.3.3](https://github.com/esl/MongooseIM/releases/tag/6.3.3) - 2025-04-11
+# [MongooseIM 6.3.3](https://github.com/esl/MongooseIM/releases/tag/6.3.3) - 2025-04-10
 
 ## Highlights
 - Fixed buffer duplication issue in stream management
 - Improved IQ handling for unknown ID formats
 - Restored package support for older systems
 - Various enhancements and bug fixes
-
-## Changed
-- Minor refactor of `mod_stream_management` (#4497)
-- Improved type specs for Sid (#4502)
 
 ## Fixed
 - Duplication issue in stream management buffer (#4496, #4498)
@@ -20,15 +16,17 @@
 - Call to an unsupported MySQL option (#4508)
 
 ## Other
+- Minor refactor of `mod_stream_management` (#4497)
+- Improved type specs for Sid (#4502)
 - Documentation improvements (#4495)
 - Testing improvements (#4505)
 
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.3)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2025-02-24..2025-04-11)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2025-02-24..2025-04-09)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2025-02-24&to=2025-04-11&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2025-02-24&to=2025-04-09&type=c)
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.3.3+sort%3Aupdated-desc)
 
