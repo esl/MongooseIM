@@ -19,6 +19,7 @@
 
 -define(SALT_LENGTH, 16).
 -define(NONCE_LENGTH, 16).
+-define(CB_LABEL, <<"EXPORTER-Channel-Binding">>).
 
 mech_new(LServer, Creds, #{sha := Sha,
                            socket := Socket,
@@ -98,7 +99,7 @@ do_get_scram_attributes(Password, Sha) ->
 %% Helpers
 %%--------------------------------------------------------------------
 calculate_channel_binding(Socket, ScramPlus, Sha, AuthMech) ->
-    {CBVariant, CBData} = maybe_get_tls_last_message(Socket, ScramPlus),
+    {CBVariant, CBData} = export_key_materials(Socket, ScramPlus),
     Advertised = is_scram_plus_advertised(Sha, AuthMech),
     case {Advertised, CBVariant} of
         {true, _} -> {CBVariant, CBData};
@@ -106,14 +107,15 @@ calculate_channel_binding(Socket, ScramPlus, Sha, AuthMech) ->
         {false, CBVariant} -> {CBVariant, CBData}
     end.
 
-maybe_get_tls_last_message(Socket, true) ->
-    case mongoose_c2s_socket:get_tls_last_message(Socket) of
-        {error, _Error} ->
-            {none, <<>>};
-        {ok, Msg} ->
-            {<<"tls-unique">>, Msg}
+
+export_key_materials(Socket, true) ->
+    case mongoose_xmpp_socket:export_key_materials(Socket, [?CB_LABEL], [no_context], [32], true) of
+        {ok, [Msg | _]} when is_binary(Msg) ->
+            {<<"tls-exporter">>, Msg};
+        _ ->
+            {none, <<>>}
     end;
-maybe_get_tls_last_message(_, _) ->
+export_key_materials(_, _) ->
     {none, <<>>}.
 
 is_scram_plus_advertised(sha, Mech)    -> lists:member(<<"SCRAM-SHA-1-PLUS">>, Mech);

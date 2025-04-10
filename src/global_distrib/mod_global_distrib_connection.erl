@@ -52,8 +52,7 @@ init([{Addr, Port}, Server]) ->
     process_flag(trap_exit, true),
     try
         {ok, RawSocket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
-        {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(connections),
-                                                         #{connect => true}),
+        {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(connections), client),
         GdStart = gd_start(Server, ConnID),
         ok = mod_global_distrib_transport:send(Socket, <<(byte_size(GdStart)):32, GdStart/binary>>),
         mod_global_distrib_transport:setopts(Socket, [{active, once}]),
@@ -89,14 +88,13 @@ handle_cast({data, Stamp, Data}, #state{socket = Socket, host = ToHost} = State)
     end,
     {noreply, State}.
 
-handle_info({tcp, _Socket, RawData}, #state{socket = Socket} = State) ->
+handle_info({Tag, _Socket, _RawData}, #state{socket = Socket} = State)
+  when Tag == tcp; Tag == ssl ->
     ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
-    %% Feeding data to drive the TLS state machine (in case of TLS connection)
-    {ok, _} = mod_global_distrib_transport:recv_data(Socket, RawData),
     {noreply, State};
-handle_info({tcp_closed, _}, State) ->
+handle_info({Tag, _Socket}, State) when Tag == tcp_closed; Tag == ssl_closed ->
     {stop, normal, State};
-handle_info({tcp_error, _Socket, Reason}, State) ->
+handle_info({Tag, _Socket, Reason}, State) when Tag == tcp_error; Tag == ssl_error ->
     ?LOG_ERROR(#{what => gd_outgoing_socket_error,
                  reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id}),
     mongoose_instrument:execute(?GLOBAL_DISTRIB_OUTGOING_ERRORED, #{}, #{count => 1, host => State#state.host}),

@@ -88,8 +88,7 @@
 start_link(HostType, Opts) ->
     mod_caps_backend:init(HostType, Opts),
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE,
-                          [HostType, Opts], []).
+    gen_server:start_link({local, Proc}, ?MODULE, [HostType, Opts], [{hibernate_after, 0}]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->

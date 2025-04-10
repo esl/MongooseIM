@@ -6,17 +6,8 @@
   default_server_domain = "localhost"
 
 [s2s]
-  use_starttls = "optional"
-  certfile = "priv/server.pem"
   default_policy = "allow"
-  ciphers = "TLSv1.2:TLSv1.3"
-  outgoing.port = 5299
-  outgoing.connection_timeout = 4_000
-  outgoing.ip_versions = [6, 4]
-  dns.timeout = 30
-  dns.retries = 1
   shared = "shared secret"
-  max_retry_delay = 30
 
   [[s2s.host_policy]]
     host = "fed1"
@@ -26,11 +17,24 @@
     host = "reg1"
     policy = "deny"
 
-  [[s2s.address]]
-    host = "fed1"
-    ip_address = "127.0.0.1"
+  [s2s.outgoing]
+    connection_timeout = 4_000
+    dns.timeout = 30
+    dns.retries = 1
+    ip_versions = [6, 4]
+    max_retry_delay = 30
+    max_stanza_size = 10_000
+    port = 5299
+    state_timeout = 1_000
+    stream_timeout = 100_000
+    tls.cacertfile = "priv/ca.pem"
+    tls.server_name_indication.enabled = true
 
-  [[s2s.address]]
-    host = "fed2"
-    ip_address = "127.0.0.1"
-    port = 8765
+    [[s2s.outgoing.address]]
+      host = "fed1"
+      ip_address = "127.0.0.1"
+
+    [[s2s.outgoing.address]]
+      host = "fed2"
+      ip_address = "127.0.0.1"
+      port = 8765

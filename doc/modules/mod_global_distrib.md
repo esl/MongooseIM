@@ -218,7 +218,7 @@ It means that disabled endpoints are periodically verified and if Global Distrib
     By default `tls` is disabled and all data will be sent via standard TCP connections.
 
 To enable TLS support, the `cacertfile` and `certfile` options have to be present.
-These options will be passed to the `fast_tls` driver.
+These options will be passed to the [Erlang SSL](https://www.erlang.org/doc/apps/ssl/ssl.html) library.
 
 #### `modules.mod_global_distrib.connections.tls.certfile`
 * **Syntax:** string, path in the file system
@@ -232,10 +232,10 @@ These options will be passed to the `fast_tls` driver.
 
 #### `modules.mod_global_distrib.connections.tls.ciphers`
 * **Syntax:** string
-* **Default:** `"TLSv1.2:TLSv1.3"`
+* **Default:** this option is not set by default - all supported suites are accepted.
 * **Example:** `ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format.
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format. See the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#t:ciphers/0) for allowed values.
 
 #### `modules.mod_global_distrib.connections.tls.dhfile`
 * **Syntax:** string, path in the file system

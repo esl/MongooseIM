@@ -4,7 +4,7 @@ The `listen` section specifies how MongooseIM handles incoming connections.
 
     * [`c2s`](../listeners/listen-c2s.md) - client-to-server XMPP connections,
     * [`s2s`](../listeners/listen-s2s.md) - server-to-server XMPP connections,
-    * [`service`](../listeners/listen-components.md) - XMPP connections from external components,
+    * [`components`](../listeners/listen-components.md) - XMPP connections from external components,
     * [`http`](../listeners/listen-http.md) - HTTP connections from clients or other services.
 
 The double-bracket syntax is used because there can be multiple listeners of a given type, so for each listener type there is a TOML array of one or more tables (subsections).
@@ -49,9 +49,18 @@ The protocol, which is TCP by default. Currently this is the only valid option.
 
 Allows to set the IP version to IPv6. Does not need to be set if `ip_address` is defined.
 
+### `listen.*.hibernate_after`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `0`
+* **Example:** `hibernate_after = 10`
+
+Time in milliseconds after which a client process spawned by this listener will hibernate.
+Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
+The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
+
 ## XMPP listener options
 
-The options listed below can be set for the `c2s`, `s2s` and `service` listeners to adjust their parameters.
+The options listed below can be set for the `c2s`, `s2s` and `component` listeners to adjust their parameters.
 
 ### `listen.*.backlog`
 * **Syntax:** positive integer
@@ -66,15 +75,6 @@ Overrides the default TCP backlog value.
 * **Example:** `proxy_protocol = true`
 
 When set to `true`, [Proxy Protocol](https://www.haproxy.com/blog/haproxy/proxy-protocol/) is enabled and each connecting client has to provide a proxy header. Use only with a proxy (or a load balancer) to allow it to provide the connection details (including the source IP address) of the original client. Versions 1 and 2 of the protocol are supported.
-
-### `listen.*.hibernate_after`
-* **Syntax:** non-negative integer or the string `"infinity"`
-* **Default:** `0`
-* **Example:** `hibernate_after = 10`
-
-Time in milliseconds after which a client process spawned by this listener will hibernate.
-Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
-The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 
 ### `listen.*.max_stanza_size`
 * **Syntax:** positive integer or the string `"infinity"`
@@ -91,3 +91,33 @@ Maximum allowed incoming stanza size in bytes.
 * **Example:** `num_acceptors = 200`
 
 The number of processes accepting new connections on the listening socket.
+
+### `listen.*.shaper`
+* **Syntax:** string, shaper name
+* **Default:** `"none"` (no shaper)
+* **Example:** `shaper = "c2s_shaper"`
+
+The shaper name that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
+The shaper referenced here needs to be defined in the [`shaper`](../configuration/shaper.md) configuration section.
+The value of the shaper name needs to be either the shaper name or the string `"none"`, which means no shaper.
+
+### `listen.*.max_connections`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `max_connections = 10000`
+
+Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
+
+### `listen.*.reuse_port`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `reuse_port = true`
+
+Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
+
+### `listen.*.state_timeout`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `5000`
+* **Example:** `state_timeout = 10_000`
+
+Timeout value (in milliseconds) used by the state machine when waiting for the connecting party to respond during stream negotiation and SASL authentication. After the timeout, the server responds with the `connection-timeout` stream error and closes the connection.

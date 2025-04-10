@@ -13,6 +13,8 @@
 %% xmpp_router callback
 -export([filter/4, route/4]).
 
+-spec filter(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    drop | xmpp_router:filter().
 filter(OrigFrom, OrigTo, OrigAcc, OrigPacket) ->
     %% Filter globally
     case mongoose_hooks:filter_packet({OrigFrom, OrigTo, OrigAcc, OrigPacket}) of
@@ -22,5 +24,7 @@ filter(OrigFrom, OrigTo, OrigAcc, OrigPacket) ->
             drop
     end.
 
+-spec route(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
+    {done, mongoose_acc:t()} | xmpp_router:filter().
 route(From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.

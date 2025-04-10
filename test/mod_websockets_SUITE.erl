@@ -25,12 +25,11 @@ timeout_tests() ->
      client_ping_frame_resets_idle_timeout].
 
 init_per_suite(C) ->
-    setup(),
+    setup(C),
     C.
 
-end_per_suite(_) ->
-    teardown(),
-    ok.
+end_per_suite(C) ->
+    teardown(C).
 
 init_per_testcase(_, C) ->
     C.
@@ -38,19 +37,15 @@ init_per_testcase(_, C) ->
 end_per_testcase(_, C) ->
     C.
 
-setup() ->
+setup(Config) ->
     meck:unload(),
     application:ensure_all_started(cowboy),
     application:ensure_all_started(jid),
     meck:new(supervisor, [unstick, passthrough, no_link]),
-    meck:new(gen_mod,[unstick, passthrough, no_link]),
+    meck:new(gen_mod, [unstick, passthrough, no_link]),
     %% Set ping rate
-    meck:expect(gen_mod,get_opt, fun(ping_rate, _, none) -> ?FAST_PING_RATE;
-                                    (A, B, C) -> meck:passthrough([A, B, C]) end),
-    meck:expect(supervisor, start_child,
-                fun(mongoose_listener_sup, _) -> {ok, self()};
-                   (A, B) -> meck:passthrough([A, B])
-                end),
+    meck:expect(gen_mod, get_opt, fun(ping_rate, _, none) -> ?FAST_PING_RATE;
+                                     (A, B, C) -> meck:passthrough([A, B, C]) end),
     mongoose_config:set_opts(#{default_server_name => <<"localhost">>}),
     %% Start websocket cowboy listening
     Handlers = [config([listen, http, handlers, mod_bosh],
@@ -58,21 +53,24 @@ setup() ->
                 config([listen, http, handlers, mod_websockets],
                        #{host => '_', path => "/ws-xmpp",
                          timeout => ?IDLE_TIMEOUT, ping_rate => ?FAST_PING_RATE})],
-    ejabberd_cowboy:start_listener(#{port => ?PORT,
-                                     ip_tuple => ?IP,
-                                     ip_address => "127.0.0.1",
-                                     ip_version => 4,
-                                     proto => tcp,
-                                     handlers => Handlers,
-                                     transport => default_config([listen, http, transport]),
-                                     protocol => default_config([listen, http, protocol])}).
+    Opts = #{module => ejabberd_cowboy,
+             port => ?PORT,
+             ip_tuple => ?IP,
+             ip_address => "127.0.0.1",
+             ip_version => inet,
+             proto => tcp,
+             handlers => Handlers,
+             transport => default_config([listen, http, transport]),
+             protocol => default_config([listen, http, protocol])},
+    #{start := {M, F, A}} = ejabberd_cowboy:listener_spec(Opts),
+    async_helper:start(Config, M, F, A).
 
-teardown() ->
+teardown(Config) ->
+    async_helper:stop_all(Config),
     meck:unload(),
     cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
     mongoose_config:erase_opts(),
     application:stop(cowboy),
-    %% Do not stop jid, Erlang 21 does not like to reload nifs
     ok.
 
 ping_test(_Config) ->

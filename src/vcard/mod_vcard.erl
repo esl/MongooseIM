@@ -60,8 +60,7 @@
          handle_info/2,
          handle_call/3,
          handle_cast/2,
-         terminate/2,
-         code_change/3]).
+         terminate/2]).
 
 %% mongoose_packet_handler export
 -export([process_packet/5]).
@@ -318,7 +317,7 @@ handle_route(Acc, From, To) ->
 %%--------------------------------------------------------------------
 start_link(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [HostType, Opts], []).
+    gen_server:start_link({local, Proc}, ?MODULE, [HostType, Opts], [{hibernate_after, 0}]).
 
 init([HostType, Opts]) ->
     process_flag(trap_exit, true),
@@ -326,8 +325,6 @@ init([HostType, Opts]) ->
     maybe_register_search(Search, HostType, Opts),
     {ok, #state{host_type = HostType, search = Search}}.
 
-handle_call(get_state, _From, State) ->
-    {reply, {ok, State}, State};
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
@@ -338,9 +335,6 @@ handle_info(_, State) ->
 
 handle_cast(_Request, State) ->
     {noreply, State}.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 terminate(_Reason, #state{host_type = HostType, search = Search}) ->
     maybe_unregister_search(Search, HostType).

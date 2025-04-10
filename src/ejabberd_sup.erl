@@ -37,10 +37,12 @@
 
 -include("mongoose_logger.hrl").
 
+-spec start_link() -> supervisor:startlink_err().
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, noargs).
 
-init([]) ->
+-spec init(noargs) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init(noargs) ->
     Hooks = worker_spec(gen_hook),
     Instrument = worker_spec(mongoose_instrument),
     Cleaner = worker_spec(mongoose_cleaner),
@@ -55,16 +57,12 @@ init([]) ->
     Listener = supervisor_spec(mongoose_listener_sup),
     ShaperSup = mongoose_shaper:child_spec(),
     DomainSup = supervisor_spec(mongoose_domain_sup),
-    ReceiverSupervisor =
-        template_supervisor_spec(mongoose_transport_sup, mongoose_transport),
+    S2SReceiverSupervisor =
+        template_supervisor_spec(mongoose_s2s_socket_out_sup, mongoose_s2s_socket_out),
     C2SSupervisor =
         template_supervisor_spec(mongoose_c2s_sup, mongoose_c2s),
-    S2SInSupervisor =
-        template_supervisor_spec(ejabberd_s2s_in_sup, ejabberd_s2s_in),
     S2SOutSupervisor =
-        template_supervisor_spec(ejabberd_s2s_out_sup, ejabberd_s2s_out),
-    ServiceSupervisor =
-        template_supervisor_spec(ejabberd_service_sup, ejabberd_service),
+        template_supervisor_spec(mongoose_s2s_out_sup, mongoose_s2s_out),
     IQSupervisor =
         template_supervisor_spec(ejabberd_iq_sup, mongoose_iq_worker),
     {ok, {{one_for_one, 10, 1},
@@ -78,12 +76,10 @@ init([]) ->
            ] ++ mongoose_cets_discovery:supervisor_specs() ++ [
            Router,
            S2S,
-           Local,
-           ReceiverSupervisor,
-           C2SSupervisor,
-           S2SInSupervisor,
+           S2SReceiverSupervisor,
            S2SOutSupervisor,
-           ServiceSupervisor,
+           Local,
+           C2SSupervisor,
            IQSupervisor,
            Listener,
            MucIQ,

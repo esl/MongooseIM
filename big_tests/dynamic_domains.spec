@@ -99,7 +99,6 @@
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", domain_removal_SUITE}.
 {suites, "tests", local_iq_SUITE}.
-{suites, "tests", tcp_listener_SUITE}.
 {suites, "tests", cets_disco_SUITE}.
 {suites, "tests", start_node_id_SUITE}.
 {suites, "tests", tr_util_SUITE}.
@@ -108,6 +107,7 @@
 %% to minimise impact on other tests
 {suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", cluster_commands_SUITE}.
+{suites, "tests", component_SUITE}.
 {suites, "tests", dynamic_domains_SUITE}.
 {suites, "tests", graphql_server_SUITE}.
 {suites, "tests", last_SUITE}.

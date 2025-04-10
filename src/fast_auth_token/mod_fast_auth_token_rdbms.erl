@@ -6,6 +6,8 @@
          store_new_token/8,
          read_tokens/4,
          invalidate_token/4,
+         set_current/6,
+         set_count/6,
          remove_user/3,
          remove_domain/2]).
 
@@ -33,6 +35,10 @@ init(HostType, _Opts) ->
     prepare(fast_remove_domain, fast_auth_token,
             [server],
             <<"DELETE FROM fast_auth_token WHERE server = ?">>),
+    prepare(fast_set_count, fast_auth_token,
+            [current_count, server, username, user_agent_id, current_token],
+            <<"UPDATE fast_auth_token SET current_count = ? "
+              "WHERE server = ? AND username = ? AND user_agent_id = ? AND current_token = ?">>),
     ok.
 
 prepare_upsert(HostType) ->
@@ -54,9 +60,9 @@ prepare_upsert_and_set_current(HostType) ->
         LServer :: jid:lserver(),
         LUser :: jid:luser(),
         AgentId :: mod_fast_auth_token:agent_id(),
-        ExpireTS :: mod_fast_auth_token:seconds(),
-        Token :: mod_fast_auth_token:token(),
-        Mech :: mod_fast_auth_token:mechanism(),
+        ExpireTS :: mod_fast_auth_token:seconds() | null,
+        Token :: mod_fast_auth_token:token() | null,
+        Mech :: mod_fast_auth_token:mechanism() | null,
         SetCurrent :: mod_fast_auth_token:set_current() | false.
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, false) ->
     Key = [LServer, LUser, AgentId],
@@ -140,12 +146,46 @@ invalidate_token(HostType, LServer, LUser, AgentId) ->
                          [LServer, LUser, AgentId]),
     ok.
 
+-spec set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter(),
+        CurrentToken :: mod_fast_auth_token:token().
+set_count(HostType, LServer, LUser, AgentId, NewCurrentCount, CurrentToken) ->
+    execute_successfully(HostType, fast_set_count,
+                         [NewCurrentCount, LServer, LUser, AgentId, CurrentToken]),
+    ok.
+
+-spec set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) -> ok
+   when HostType :: mongooseim:host_type(),
+        LServer :: jid:lserver(),
+        LUser :: jid:luser(),
+        AgentId :: mod_fast_auth_token:agent_id(),
+        NewCurrentCount :: mod_fast_auth_token:counter() | undefined,
+        SetCurrent :: mod_fast_auth_token:set_current().
+set_current(HostType, LServer, LUser, AgentId, NewCurrentCount, SetCurrent) ->
+    ExpireTS = null,
+    Token = null,
+    Mech = null,
+    SetCurrent2 = maybe_set_count(NewCurrentCount, SetCurrent),
+    store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent2),
+    ok.
+
+maybe_set_count(undefined, SetCurrent) ->
+    SetCurrent;
+maybe_set_count(Count, SetCurrent) when is_integer(Count) ->
+    SetCurrent#{current_count := Count}.
+
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(HostType, LServer) ->
     execute_successfully(HostType, fast_remove_domain, [LServer]),
     ok.
 
--spec mech_id(mod_fast_auth_token:mechanism()) -> non_neg_integer().
+-spec mech_id(null | mod_fast_auth_token:mechanism()) -> null | non_neg_integer().
+mech_id(null) ->
+    null;
 mech_id(Mech) ->
     mod_fast_auth_token_generic_mech:mech_id(Mech).
 

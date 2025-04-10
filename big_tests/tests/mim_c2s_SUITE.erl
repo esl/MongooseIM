@@ -236,20 +236,21 @@ escalus_start(Cfg, FlatCDs) ->
     Clients.
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
-    ++ instrument_helper:declared_events(mongoose_c2s, [global])
-    ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}}].
+    C2sGenericEvents =
+        [E || {_, Labels} = E <- instrument_helper:declared_events(mongoose_c2s, []),
+              not maps:is_key(host_type, Labels)],
+    [{c2s_message_processed, #{host_type => domain_helper:host_type()}} | C2sGenericEvents].
 
 tcp_instrumentation_events() ->
-    [{c2s_tcp_data_out, #{}},
-     {c2s_tcp_data_in, #{}}].
+    [{tcp_data_out, #{connection_type => c2s}},
+     {tcp_data_in, #{connection_type => c2s}}].
 
 tls_instrumentation_events() ->
-    [{c2s_tls_data_out, #{}},
-     {c2s_tls_data_in, #{}}].
+    [{tls_data_out, #{connection_type => c2s}},
+     {tls_data_in, #{connection_type => c2s}}].
 
 common_instrumentation_events() ->
     HostType = domain_helper:host_type(),
     [{c2s_message_processed, #{host_type => HostType}},
-     {c2s_xmpp_element_size_in, #{}},
-     {c2s_xmpp_element_size_out, #{}}].
+     {xmpp_element_size_in, #{connection_type => c2s}},
+     {xmpp_element_size_out, #{connection_type => c2s}}].

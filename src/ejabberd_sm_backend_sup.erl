@@ -1,9 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author Konrad Kaplita
 %%% @copyright (C) 2011, Konrad Kaplita
-%%% @doc
-%%%
-%%% @end
 %%% Created : 18 Nov 2011 by Konrad Kaplita
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_backend_sup).
@@ -20,32 +17,11 @@
 
 -define(SERVER, ?MODULE).
 
-%%%===================================================================
-%%% API functions
-%%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the supervisor
-%% @end
-%%--------------------------------------------------------------------
--spec start_link() -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
+-spec start_link() -> supervisor:startlink_ret().
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+    supervisor:start_link({local, ?SERVER}, ?MODULE, noargs).
 
-%%%===================================================================
-%%% Supervisor callbacks
-%%%===================================================================
-
-%%--------------------------------------------------------------------
 %% @private
-%% @doc
-%% Whenever a supervisor is started using supervisor:start_link/[2, 3],
-%% this function is called by the new process to find out about
-%% restart strategy, maximum restart frequency and child
-%% specifications.
-%% @end
-%%--------------------------------------------------------------------
--spec init([]) -> {ok, {{one_for_one, 1000, 3600}, []}}.
-init([]) ->
+-spec init(noargs) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init(noargs) ->
     {ok, {{one_for_one, 1000, 3600}, []}}.

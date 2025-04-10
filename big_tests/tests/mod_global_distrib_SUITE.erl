@@ -233,7 +233,7 @@ set_opts(defaults, Opts) ->
 set_opts(connections, #{connections := ConnExtra} = Opts) ->
     TLSOpts = config([modules, mod_global_distrib, connections, tls],
                      #{certfile => "priv/ssl/fake_server.pem",
-                       cacertfile => "priv/ssl/ca/cacert.pem"}),
+                       cacertfile => "priv/ssl/cacert.pem"}),
     Opts#{connections := config([modules, mod_global_distrib, connections],
                                 maps:merge(#{tls => TLSOpts}, ConnExtra))};
 set_opts(redis, #{redis := RedisExtra} = Opts) ->
@@ -520,8 +520,8 @@ test_instrumentation_events_on_one_host(Config) ->
     escalus_client:stop(Config1, Alice),
     escalus_client:stop(Config1, Eve),
 
-    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{},
-                                      fun(#{count := 1, host := undefined}) -> true end).
+    CheckF = fun(#{count := C, host := H}) -> C =:= 1 andalso H =:= Host end,
+    instrument_helper:wait_and_assert(mod_global_distrib_incoming_closed, #{}, CheckF).
 
 test_muc_conversation_history(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
@@ -596,7 +596,7 @@ receive_n_muc_messages(User, N) ->
 
 test_component_on_one_host(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, service_port()}, {component, <<"test_service">>}],
+                       {port, component_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
@@ -623,8 +623,8 @@ test_component_on_one_host(Config) ->
 test_components_in_different_regions(_Config) ->
     ComponentCommonConfig = [{host, <<"localhost">>}, {password, <<"secret">>},
                              {server, <<"localhost">>}, {component, <<"test_service">>}],
-    Comp1Port = ct:get_config({hosts, mim, service_port}),
-    Comp2Port = ct:get_config({hosts, reg, service_port}),
+    Comp1Port = ct:get_config({hosts, mim, component_port}),
+    Comp2Port = ct:get_config({hosts, reg, component_port}),
     Component1Config = [{port, Comp1Port}, {component, <<"service1">>} | ComponentCommonConfig],
     Component2Config = [{port, Comp2Port}, {component, <<"service2">>} | ComponentCommonConfig],
 
@@ -644,7 +644,7 @@ test_components_in_different_regions(_Config) ->
 %% Ordinary user is not able to discover the hidden component from GD
 test_hidden_component_disco_in_different_region(Config) ->
     %% Hidden component from component_SUITE connects to mim1/europe_node1
-    HiddenComponentConfig = component_helper:spec(hidden_component, Config),
+    HiddenComponentConfig = component_helper:spec(hidden_component),
     {_HiddenComp, HiddenAddr, _} = component_helper:connect_component(HiddenComponentConfig),
 
     escalus:fresh_story(
@@ -661,7 +661,7 @@ test_hidden_component_disco_in_different_region(Config) ->
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, service_port()}, {component, <<"test_service">>}],
+                       {port, component_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
     component_helper:disconnect_component(Comp, Addr),
@@ -862,7 +862,7 @@ test_global_disco(Config) ->
 
 test_component_unregister(_Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, service_port()}, {component, <<"test_service">>}],
+                       {port, component_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
     ?assertMatch({ok, _}, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
@@ -992,7 +992,7 @@ test_update_senders_host_by_ejd_service(Config) ->
     refresh_hosts([europe_node1, europe_node2, asia_node], "by_test_update_senders_host_by_ejd_service"),
     %% Connects to europe_node1
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, service_port()}, {component, <<"test_service">>}],
+                       {port, component_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
@@ -1376,8 +1376,8 @@ connect_steps_with_sm() ->
 bare_client(Client) ->
     Client#client{jid = escalus_utils:get_short_jid(Client)}.
 
-service_port() ->
-    ct:get_config({hosts, mim, service_port}).
+component_port() ->
+    ct:get_config({hosts, mim, component_port}).
 
 wait_for_bounce_size(ExpectedSize) ->
     F = fun(#{size := Size}) -> Size =:= ExpectedSize end,

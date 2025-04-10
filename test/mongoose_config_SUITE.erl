@@ -186,7 +186,7 @@ minimal_config_opts() ->
       {auth, <<"localhost">>} => config_parser_helper:default_auth(),
       {modules, <<"localhost">>} => #{},
       {replaced_wait_timeout, <<"localhost">>} => 2000,
-      {s2s, <<"localhost">>} => config_parser_helper:default_s2s(),
+      {s2s, <<"localhost">>} => config_parser_helper:default_config([s2s]),
       instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 start_slave_node(Config) ->
@@ -207,12 +207,7 @@ do_start_slave_node() ->
     %% /usr/lib/erlang/lib/
     %% So add_paths is NOT enough here
     ok = rpc:call(SlaveNode, code, add_pathsa, [lists:reverse(code_paths())]),
-    check_that_p1_tls_is_correct(SlaveNode),
     SlaveNode.
-
-check_that_p1_tls_is_correct(SlaveNode) ->
-    ?assertEqual(fast_tls:module_info(md5),
-                 rpc:call(SlaveNode, fast_tls, module_info, [md5])).
 
 stop_slave_node(Config) ->
     ct_slave:stop(slave_node(Config)),

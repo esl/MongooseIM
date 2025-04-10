@@ -1,47 +1,41 @@
-# XMPP components: `[[listen.service]]`
+# XMPP components: `[[listen.component]]`
 
 Interface for external services acting as XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)), enabling communication between MongooseIM and external services over the XMPP network. The recommended port number for a component listener is 8888.
 
 According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html) the component's hostname should be given in the <stream:stream> element.
 
-!!! warning
-    This interface does not support [dynamic domains](../configuration/general.md#generalhost_types).
-    Do not use them both at the same time.
+!!! Note
+    The component might register _any_ domain, which might not necessarily be a static nor a dynamic domain, nor subdomain, recognised by the MongooseIM router. For routing to work, the modules `mongoose_router_external_localnode` and `mongoose_router_external` must be enabled in the [`general.routing_modules`](../configuration/general.md#generalrouting_modules) section.
+
+    Note the order of the routing modules: if a component is meant to supplant a domain served regularly by the MongooseIM server, the external routers should be ordered with higher priority.
+
 
 ## Configuration options
 
-The following options are supported for each component listener under `listen.service` subsection:
+The following options are supported for each component listener under `listen.component` subsection:
 
-### `listen.service.access`
+### `listen.component.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "component"`
 
 Determines who is allowed to send data to external components. By default, the rule is `all`, which means that anyone can communicate with the components.
 
-### `listen.service.password`
+### `listen.component.password`
 * **Syntax:** string
 * **Default:** no default, this option is mandatory
 * **Example:** `password = "secret"`
 
 The external component needs to authenticate with this password to connect.
 
-### `listen.service.shaper_rule`
-* **Syntax:** string, name of the shaper
-* **Default:** `"none"`
-* **Example:** `shaper = "component_shaper"`
-
-The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
-Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper that needs to be defined in the [`shaper`](../configuration/shaper.md) section.
-
-### `listen.service.check_from`
+### `listen.component.check_from`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `check_from = false`
 
 Specifies whether the server should verify the "from" field in stanzas from the component.
 
-### `listen.service.hidden_components`
+### `listen.component.hidden_components`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `hidden_components = true`
@@ -54,7 +48,7 @@ An example would be [`mod_disco`](../modules/mod_disco.md), which may be configu
 A reason to do so could be reduced traffic - systems with many components could return very long disco responses.
 Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather because they are not meant to interact with clients directly (e.g. helper components for other components).
 
-### `listen.service.conflict_behaviour`
+### `listen.component.conflict_behaviour`
 * **Syntax:** string, one of: `"disconnect"`, `"kick_old"`
 * **Default:** `"disconnect"`
 * **Example:** `conflict_behaviour = "kick_old"`
@@ -71,31 +65,32 @@ By default, when a component tries to connect and a registration conflict occurs
 It makes implementing the reconnection logic difficult, because the old connection would not allow any other connections.
 By setting this option to `kick_old`, we drop any old connections registered at the same host before accepting new ones.
 
-### `listen.service.max_fsm_queue`
-* **Syntax:** positive integer
-* **Default:** not set - no limit
-* **Example:** `max_fsm_queue = 1000`
-
-Message queue limit to prevent resource exhaustion; overrides the value set in the [`general`](../configuration/general.md#generalmax_fsm_queue) section.
-
 ## Custom extension to the protocol
 
 In order to register a component for all virtual hosts served by the server (see [`hosts`](../configuration/general.md#generalhosts) in the [`general`](../configuration/general.md) section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html).
 
+## TLS options for components
+
+To enable TLS, a TOML subsection called `tls` has to be present in the listener options.
+To disable TLS, make sure that the section is not present, and no TLS options are set.
+You can specify additional options of the TLS encryption in the `tls` subsection.
+They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s).
+The only difference is that the default value of `tls.mode` is `"tls"` instead of `"starttls"`.
+
 ## Service listener configuration example
 
-The following section configures a service listener, accepting connections from external components.
+The following section configures a component listener, accepting connections from external components.
 The IP address is limited to loopback to prevent connections from different hosts.
 All components are allowed to connect, but they need to provide the password.
 The shaper named `fast` needs to be defined in the [`shaper`](../configuration/shaper.md) section.
 
 ```toml
-[[listen.service]]
+[[listen.component]]
   port = 8888
   access = "all"
-  shaper_rule = "fast"
+  shaper = "fast"
   ip_address = "127.0.0.1"
   password = "secret"
 ```

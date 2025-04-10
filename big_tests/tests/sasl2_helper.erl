@@ -64,10 +64,13 @@ create_user(Config, Client, Data) ->
     Spec = escalus_fresh:create_fresh_user(Config, alice),
     {Client, Data#{spec => Spec}}.
 
-connect_tls(_Config, _, #{spec := Spec} = Data) ->
+connect_tls(Config, _, #{spec := Spec} = Data) ->
+    %% Direct TLS port
     TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
-    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]}
-             | Spec],
+    SSLOpts = proplists:get_value(ssl_opts, Spec, []),
+    SSLOpts2 = SSLOpts ++ [{verify, verify_none}],
+    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true},
+             {ssl_opts, SSLOpts2} | lists:keydelete(ssl_opts, 1, Spec)],
     Client1 = escalus_connection:connect(Spec1),
     {Client1, Data#{spec => Spec1}}.
 
@@ -75,6 +78,11 @@ start_stream_get_features(_Config, Client, Data) ->
     Client1 = escalus_session:start_stream(Client),
     Features = escalus_connection:get_stanza(Client1, wait_for_features),
     {Client1, Data#{features => Features}}.
+
+%% From escalus_connection:start_stream
+-spec start_stream(escalus_connection:client()) -> binary().
+start_stream(#client{module = Mod, props = Props} = Client) ->
+    exml:to_binary(Mod:stream_start_req(Props)).
 
 send_invalid_mech_auth_stanza(_Config, Client, Data) ->
     Authenticate = auth_elem(<<"invalid-non-existent-mechanism">>, []),
@@ -239,6 +247,9 @@ auth_elem(Mech, NS, Children) ->
            children = Children}.
 
 plain_auth_initial_response(#client{props = Props}) ->
+    plain_auth_initial_response_from_spec(Props).
+
+plain_auth_initial_response_from_spec(Props) ->
     Username = proplists:get_value(username, Props),
     Password = proplists:get_value(password, Props),
     AuthPayload = <<0:8, Username/binary, 0:8, Password/binary>>,

@@ -33,8 +33,8 @@ The default behaviour is the following:
 
 * `mongoose_router_global`: runs a global `filter_packet` hook.
 * `mongoose_router_localdomain`: if there is a local route registered for the destination domain (i.e. there is an entry in the `mongoose_router` ETS table), routes the stanza to it. When the recipient's domain is checked for the first time, the corresponding route is not registered yet, because the routes are added lazily - see `mongoose_router_dynamic_domains`.
-* `mongoose_router_external_localnode`: if there is an external component registered for the destination domain on the current node, routes the stanza to it. Such components are stored in the Mnesia table `external_component`, which is not replicated in the cluster.
-* `mongoose_router_external`: if there is an external component registered for the destination domain on any node in the cluster, routes the stanza to it. Such components are stored in the Mnesia table `external_component_global`, which is replicated among all cluster nodes.
+* `mongoose_router_external_localnode`: if there is an external component registered for the destination domain on the current node, routes the stanza to it.
+* `mongoose_router_external`: if there is an external component registered for the destination domain on any node in the cluster, routes the stanza to it.
 * `mongoose_router_dynamic_domains`: if the recipient's domain is hosted by the local server, a route is added for it, and the stanza is routed locally.
 * `ejabberd_s2s`: tries to find or establish a connection to another server and send the stanza there.
 

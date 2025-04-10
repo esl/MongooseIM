@@ -18,29 +18,25 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -record(?MODULE, {
-           transport :: fast_tls | gen_tcp,
-           socket :: fast_tls:tls_socket() | gen_tcp:socket()
+           transport :: ssl | gen_tcp,
+           socket :: ssl:sslsocket() | gen_tcp:socket()
           }).
 
 -type t() :: #?MODULE{}.
 
--export([wrap/2, wrap/3, setopts/2, recv_data/2, close/1, send/2, peername/1]).
+-export([wrap/3, setopts/2, close/1, send/2, peername/1]).
 -export_type([t/0]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec wrap(gen_tcp:socket(), #{tls := mongoose_tls:options()}) -> {ok, t()} | {error, any()}.
-wrap(Socket, ConnOpts) ->
-    wrap(Socket, ConnOpts, #{}).
-
--spec wrap(gen_tcp:socket(), #{tls := mongoose_tls:options()}, ExtraOpts :: map()) ->
-          {ok, t()} | {error, any()}.
-wrap(Socket, #{tls := Opts}, ExtraOpts) ->
-    PreparedOpts = mongoose_tls:prepare_options(fast_tls, maps:merge(Opts, ExtraOpts)),
-    case fast_tls:tcp_to_tls(Socket, PreparedOpts) of
-        {ok, TLSSocket} -> {ok, #?MODULE{transport = fast_tls, socket = TLSSocket}};
+-spec wrap(gen_tcp:socket(), #{tls := just_tls:options()}, client | server) ->
+    {ok, t()} | {error, any()}.
+wrap(Socket, #{tls := Opts}, ClientOrServer) ->
+    inet:setopts(Socket, [{active, false}]),
+    case just_tls:tcp_to_tls(Socket, Opts, ClientOrServer) of
+        {ok, TLSSocket} -> {ok, #?MODULE{transport = ssl, socket = TLSSocket}};
         Error -> Error
     end;
 wrap(Socket, #{}, _ExtraOpts) ->
@@ -49,35 +45,28 @@ wrap(Socket, #{}, _ExtraOpts) ->
 -spec setopts(t(), Opts :: proplists:proplist()) -> ok | {error, term()}.
 setopts(#?MODULE{transport = gen_tcp, socket = Socket}, Opts) ->
     inet:setopts(Socket, Opts);
-setopts(#?MODULE{transport = fast_tls, socket = Socket}, Opts) ->
-    fast_tls:setopts(Socket, Opts).
-
--spec recv_data(t(), Data :: binary()) -> {ok, binary()} | {error, any()}.
-recv_data(#?MODULE{transport = gen_tcp}, Data) ->
-    {ok, Data};
-recv_data(#?MODULE{transport = fast_tls, socket = Socket}, Data) ->
-    fast_tls:recv_data(Socket, Data).
+setopts(#?MODULE{transport = ssl, socket = Socket}, Opts) ->
+    ssl:setopts(Socket, Opts).
 
 -spec close(t()) -> ok | {error, any()}.
 close(#?MODULE{transport = gen_tcp, socket = Socket}) ->
     gen_tcp:close(Socket);
-close(#?MODULE{transport = fast_tls, socket = Socket}) ->
-    fast_tls:close(Socket).
+close(#?MODULE{transport = ssl, socket = Socket}) ->
+    ssl:close(Socket).
 
 -spec send(t(), Data :: binary()) -> ok | {error, any()}.
 send(#?MODULE{transport = gen_tcp, socket = Socket}, Data) ->
     gen_tcp:send(Socket, Data);
-send(#?MODULE{transport = fast_tls, socket = Socket}, Data) ->
-    fast_tls:send(Socket, Data).
+send(#?MODULE{transport = ssl, socket = Socket}, Data) ->
+    ssl:send(Socket, Data).
 
--spec peername(t()) -> {inet:ip_address(), inet:port_number()} | unknown.
+-spec peername(t()) -> mongoose_transport:peer() | unknown.
 peername(#?MODULE{transport = gen_tcp, socket = Socket}) ->
     normalize_peername(inet:peername(Socket));
-peername(#?MODULE{transport = fast_tls, socket = Socket}) ->
-    normalize_peername(fast_tls:peername(Socket)).
+peername(#?MODULE{transport = ssl, socket = Socket}) ->
+    normalize_peername(ssl:peername(Socket)).
 
--spec normalize_peername({ok, {inet:ip_address(), inet:port_number()}} | any()) ->
-    {inet:ip_address(), inet:port_number()} | unknown.
+-spec normalize_peername({ok, mongoose_transport:peer()} | any()) ->
+    mongoose_transport:peer() | unknown.
 normalize_peername({ok, {IP, Port}}) when is_tuple(IP), is_integer(Port) -> {IP, Port};
 normalize_peername(_Other) -> unknown.
-

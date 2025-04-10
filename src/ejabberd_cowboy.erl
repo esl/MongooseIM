@@ -21,7 +21,7 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([start_listener/1,
+-export([listener_spec/1,
          instrumentation/1]).
 
 %% cowboy_middleware API
@@ -33,7 +33,6 @@
          handle_call/3,
          handle_cast/2,
          handle_info/2,
-         code_change/3,
          terminate/2]).
 
 %% helper for internal use
@@ -41,42 +40,31 @@
 -export([start_cowboy/4, start_cowboy/2, stop_cowboy/1]).
 
 -ignore_xref([behaviour_info/1, process/1, ref/1, reload_dispatch/1, start_cowboy/2,
-              start_cowboy/4, start_link/1, start_listener/2, start_listener/1, stop/0, stop_cowboy/1]).
+              start_cowboy/4, start_link/1, stop/0, stop_cowboy/1]).
 
 -include("mongoose.hrl").
 
--type listener_options() :: #{port := inet:port_number(),
-                              ip_tuple := inet:ip_address(),
-                              ip_address := string(),
-                              ip_version := 4 | 6,
-                              proto := tcp,
-                              handlers := list(),
-                              transport := ranch:opts(),
-                              protocol := cowboy:opts(),
-                              atom() => any()}.
-
--record(cowboy_state, {ref :: atom(), opts :: listener_options()}).
+-record(cowboy_state, {ref :: atom(), opts :: mongoose_listener:options()}).
 
 %%--------------------------------------------------------------------
 %% mongoose_listener API
 %%--------------------------------------------------------------------
 
--spec instrumentation(listener_options()) -> [mongoose_instrument:spec()].
+-spec instrumentation(mongoose_listener:options()) -> [mongoose_instrument:spec()].
 instrumentation(#{handlers := Handlers}) ->
-    [Spec || #{module := Module} <- Handlers, Spec <- mongoose_http_handler:instrumentation(Module)].
+    [Spec || #{module := Module} <- Handlers,
+             Spec <- mongoose_http_handler:instrumentation(Module)].
 
--spec start_listener(listener_options()) -> ok.
-start_listener(Opts = #{proto := tcp}) ->
-    ListenerId = mongoose_listener_config:listener_id(Opts),
+-spec listener_spec(mongoose_listener:options()) -> supervisor:child_spec().
+listener_spec(Opts) ->
+    ListenerId = mongoose_listener:listener_id(Opts),
     Ref = ref(ListenerId),
     ChildSpec = #{id => ListenerId,
                   start => {?MODULE, start_link, [#cowboy_state{ref = Ref, opts = Opts}]},
                   restart => transient,
                   shutdown => infinity,
                   modules => [?MODULE]},
-    mongoose_listener_sup:start_child(ChildSpec),
-    {ok, _} = start_cowboy(Ref, Opts),
-    ok.
+    ChildSpec.
 
 reload_dispatch(Ref) ->
     gen_server:call(Ref, reload_dispatch).
@@ -86,8 +74,9 @@ reload_dispatch(Ref) ->
 start_link(State) ->
     gen_server:start_link(?MODULE, State, []).
 
-init(State) ->
+init(#cowboy_state{ref = Ref, opts = Opts} = State) ->
     process_flag(trap_exit, true),
+    {ok, _} = start_cowboy(Ref, Opts),
     {ok, State}.
 
 handle_call(reload_dispatch, _From, #cowboy_state{ref = Ref, opts = Opts} = State) ->
@@ -101,9 +90,6 @@ handle_cast(_Request, State) ->
 
 handle_info(_Info, State) ->
     {noreply, State}.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 terminate(_Reason, State) ->
     stop_cowboy(State#cowboy_state.ref).
@@ -130,11 +116,11 @@ execute(Req, Env) ->
 %% Internal Functions
 %%--------------------------------------------------------------------
 
--spec start_cowboy(atom(), listener_options()) -> {ok, pid()} | {error, any()}.
+-spec start_cowboy(atom(), mongoose_listener:options()) -> {ok, pid()} | {error, any()}.
 start_cowboy(Ref, Opts) ->
     start_cowboy(Ref, Opts, 20, 50).
 
--spec start_cowboy(atom(), listener_options(),
+-spec start_cowboy(atom(), mongoose_listener:options(),
                    Retries :: non_neg_integer(), SleepTime :: non_neg_integer()) ->
           {ok, pid()} | {error, any()}.
 start_cowboy(Ref, Opts, 0, _) ->
@@ -148,7 +134,7 @@ start_cowboy(Ref, Opts, Retries, SleepTime) ->
             Other
     end.
 
--spec do_start_cowboy(atom(), listener_options()) -> {ok, pid()} | {error, any()}.
+-spec do_start_cowboy(atom(), mongoose_listener:options()) -> {ok, pid()} | {error, any()}.
 do_start_cowboy(Ref, Opts) ->
     #{ip_tuple := IPTuple, port := Port, handlers := Handlers0,
       transport := TransportOpts0, protocol := ProtocolOpts0} = Opts,
@@ -167,9 +153,11 @@ do_start_cowboy(Ref, Opts) ->
             Result
     end.
 
-start_http_or_https(#{tls := TLSOpts}, Ref, TransportOpts, ProtocolOpts) ->
-    SSLOpts = just_tls:make_cowboy_ssl_opts(TLSOpts),
-    SocketOptsWithSSL = maps:get(socket_opts, TransportOpts) ++ SSLOpts,
+start_http_or_https(#{tls := TLSOpts, hibernate_after := HibernateAfter},
+                    Ref, TransportOpts, ProtocolOpts) ->
+    SocketOpts = maps:get(socket_opts, TransportOpts),
+    SSLOpts = just_tls:make_server_opts(TLSOpts),
+    SocketOptsWithSSL = SocketOpts ++ SSLOpts ++ [{hibernate_after, HibernateAfter}],
     cowboy_start_https(Ref, TransportOpts#{socket_opts := SocketOptsWithSSL}, ProtocolOpts);
 start_http_or_https(#{}, Ref, TransportOpts, ProtocolOpts) ->
     cowboy_start_http(Ref, TransportOpts, ProtocolOpts).
@@ -200,7 +188,7 @@ stop_cowboy(Ref) ->
 ref(Listener) ->
     Ref = handler(Listener),
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
-    list_to_atom(binary_to_list(iolist_to_binary(ModRef))).
+    binary_to_atom(iolist_to_binary(ModRef)).
 
 %% -------------------------------------------------------------------
 %% @private

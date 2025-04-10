@@ -148,13 +148,16 @@
   port = {{{incoming_s2s_port}}}
   shaper = "s2s_shaper"
   max_stanza_size = 131072
+  {{#tls_config}}
+  {{{tls_config}}}
+  {{/tls_config}}
   {{#s2s_dhfile}}
   tls.dhfile = {{{s2s_dhfile}}}
   {{/s2s_dhfile}}
-{{#listen_service}}
+{{#listen_component}}
 
-{{{listen_service}}}
-{{/listen_service}}
+{{{listen_component}}}
+{{/listen_component}}
 
 [auth]
   {{#cyrsasl_external}}
@@ -364,20 +367,22 @@
   ]
 
 [s2s]
-  {{#s2s_use_starttls}}
-  use_starttls = {{{s2s_use_starttls}}}
-  {{/s2s_use_starttls}}
-  {{#s2s_certfile}}
-  certfile = {{{s2s_certfile}}}
-  {{/s2s_certfile}}
   {{#s2s_default_policy}}
   default_policy = {{{s2s_default_policy}}}
   {{/s2s_default_policy}}
-  outgoing.port = {{{outgoing_s2s_port}}}
-  {{#s2s_addr}}
 
-  {{{s2s_addr}}}
-  {{/s2s_addr}}
+  [s2s.outgoing]
+    {{#max_retry_delay}}
+    max_retry_delay = {{{max_retry_delay}}}
+    {{/max_retry_delay}}
+    port = {{{outgoing_s2s_port}}}
+    tls.mode = "starttls"
+    tls.verify_mode = "none"
+    tls.certfile = {{{s2s_certfile}}}
+    {{#s2s_addr}}
+
+    {{{s2s_addr}}}
+    {{/s2s_addr}}
 
 {{#host_config}}
 {{{host_config}}}

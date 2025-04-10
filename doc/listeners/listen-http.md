@@ -82,9 +82,9 @@ Maximum allowed incoming stanza size in bytes.
 !!! Warning
     This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
-### `listen.http.handlers.mod_websockets.c2s_state_timeout`
+### `listen.http.handlers.mod_websockets.state_timeout`
 
-Same as the [C2S option](listen-c2s.md#listenc2sstate_timeout).
+Same as the [XMPP option](../configuration/listen.md#listenstate_timeout).
 
 ### `listen.http.handlers.mod_websockets.backwards_compatible_session`
 
@@ -216,7 +216,7 @@ If the keyfile is password-protected, `password` is required as well.
 If the certificate is signed by an intermediate CA, one will probably want to specify the CA chain with the `cacertfile` option.
 The library used for HTTP is the Erlang TLS implementation provided by OTP - see [ranch_ssl](https://github.com/ninenines/ranch/blob/master/doc/src/manual/ranch_ssl.asciidoc) for details.
 
-The options accepted here are: `verify_mode`, `certfile`, `cacertfile`, `ciphers`, `keyfile`, `password`, `versions`, `dhfile`. They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s) for `just_tls`.
+The options accepted here are: `verify_mode`, `certfile`, `cacertfile`, `ciphers`, `keyfile`, `password`, `versions`, `dhfile`. They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s).
 
 ## Protocol options
 

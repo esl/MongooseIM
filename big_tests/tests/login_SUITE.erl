@@ -38,7 +38,6 @@ all() ->
      {group, login_scram_store_plain},
      {group, login_specific_scram},
      {group, login_scram_tls},
-     {group, fast_tls},
      {group, messages},
      {group, access}
     ].
@@ -46,17 +45,10 @@ all() ->
 groups() ->
     [{login, [parallel], all_tests()},
      {login_digest, [sequence], digest_tests()},
-     %% The SCRAM tests below have SCRAM_PLUS tests skipped
-     %% because SCRAM_PLUS is not implemented for just_tls yet
      {login_scram, [parallel], scram_tests()},
      {login_scram_store_plain, [parallel], scram_tests()},
      {login_scram_tls, [parallel], scram_tests()},
      {login_specific_scram, [sequence], configure_specific_scram_test()},
-     %% rerun SCRAM tests with fast_tls including SCRAM_PLUS tests
-     {fast_tls, [{group, login_scram},
-                 {group, login_scram_store_plain},
-                 {group, login_scram_tls},
-                 {group, login_specific_scram}]},
      {messages, [sequence], [messages_story]},
      {access, [], access_tests()}].
 
@@ -67,12 +59,32 @@ scram_tests() ->
      log_one_scram_sha224,
      log_one_scram_sha256,
      log_one_scram_sha384,
-     log_one_scram_sha512,
-     log_one_scram_sha1_plus,
+     log_one_scram_sha512
+     | scram_plus_tests()
+    ].
+
+-if(?OTP_RELEASE >= 27).
+scram_plus_tests() ->
+    [log_one_scram_sha1_plus,
      log_one_scram_sha224_plus,
      log_one_scram_sha256_plus,
      log_one_scram_sha384_plus,
      log_one_scram_sha512_plus].
+configure_scram_plus_tests() ->
+    [configure_sha1_log_with_sha1_plus,
+     configure_sha224_log_with_sha224_plus,
+     configure_sha256_log_with_sha256_plus,
+     configure_sha384_log_with_sha384_plus,
+     configure_sha512_log_with_sha512_plus,
+     configure_sha1_plus_fail_log_with_sha1,
+     configure_sha224_plus_fail_log_with_sha224,
+     configure_sha256_plus_fail_log_with_sha256,
+     configure_sha384_plus_fail_log_with_sha384,
+     configure_sha512_plus_fail_log_with_sha512].
+-else.
+scram_plus_tests() -> [].
+configure_scram_plus_tests() -> [].
+-endif.
 
 configure_specific_scram_test() ->
     [configure_sha1_log_with_sha1,
@@ -80,21 +92,11 @@ configure_specific_scram_test() ->
      configure_sha256_log_with_sha256,
      configure_sha384_log_with_sha384,
      configure_sha512_log_with_sha512,
-     configure_sha1_log_with_sha1_plus,
-     configure_sha224_log_with_sha224_plus,
-     configure_sha256_log_with_sha256_plus,
-     configure_sha384_log_with_sha384_plus,
-     configure_sha512_log_with_sha512_plus,
      configure_sha1_fail_log_with_sha224,
      configure_sha224_fail_log_with_sha256,
      configure_sha256_fail_log_with_sha384,
      configure_sha384_fail_log_with_sha512,
-     configure_sha512_fail_log_with_sha1,
-     configure_sha1_plus_fail_log_with_sha1,
-     configure_sha224_plus_fail_log_with_sha224,
-     configure_sha256_plus_fail_log_with_sha256,
-     configure_sha384_plus_fail_log_with_sha384,
-     configure_sha512_plus_fail_log_with_sha512].
+     configure_sha512_fail_log_with_sha1].
 
 all_tests() ->
     [log_one,
@@ -127,8 +129,6 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-init_per_group(fast_tls, ConfigIn) ->
-    configure_c2s_listener_with_fast_tls(ConfigIn);
 init_per_group(login_digest = GroupName, ConfigIn) ->
     Config = backup_and_set_options(GroupName, ConfigIn),
     case mongoose_helper:supports_sasl_module(cyrsasl_digest) of
@@ -185,8 +185,6 @@ auth_opts(login_scram_store_plain) ->
 auth_opts(_GroupName) ->
     mongoose_helper:auth_opts_with_password_format(scram).
 
-end_per_group(fast_tls, Config) ->
-    restore_c2s(Config);
 end_per_group(login_digest, Config) ->
     mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
@@ -270,16 +268,12 @@ log_one(Config) ->
         end).
 
 log_one_scram_plus(Config) ->
-    %% SCRAM PLUS tests are to be run for fast_tls only
-    case proplists:get_value(fast_tls, Config) of
-        true ->
-            escalus:fresh_story(Config, [{neustradamus, 1}], fun(Neustradamus) ->
-                escalus_client:send(Neustradamus, escalus_stanza:chat_to(Neustradamus, <<"Hi!">>)),
-                escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Neustradamus))
-            end);
-        _ ->
-            {skip, test_valid_only_for_fast_tls}
-    end.
+    escalus:fresh_story(Config, [{neustradamus, 1}], fun(Neustradamus) ->
+
+        escalus_client:send(Neustradamus, escalus_stanza:chat_to(Neustradamus, <<"Hi!">>)),
+        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Neustradamus))
+
+        end).
 
 log_one_digest(Config) ->
     log_one([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]).
@@ -359,28 +353,30 @@ configure_sha384_fail_log_with_sha512(Config) ->
 configure_sha512_fail_log_with_sha1(Config) ->
     configure_and_fail_log_scram(Config, sha512, <<"SCRAM-SHA-1">>).
 
-%%
-%% configure_sha*_plus_fail_log_with_sha* tests are succeeding due to the fact that
-%% escalus, when configured with fast_tls and login with scram, sets channel binding
-%% flag to 'y'. This indicates that escalus supports channel binding but the server
-%% does not. The server did advertise the SCRAM PLUS mechanism, so this flag is
-%% incorrect and could be the result of the man-in-the-middle attack attempting to
-%% downgrade the authentication mechanism. Because of that, the authentication should fail.
-%%
+%% When escalus sets the channel binding flag to 'y', it indicates that escalus supports
+%% channel binding but the server does not. The server did advertise the SCRAM PLUS mechanism,
+%% so this flag is incorrect and could be the result of the man-in-the-middle attack attempting
+%% to downgrade the authentication mechanism. Because of that, the authentication should fail.
 configure_sha1_plus_fail_log_with_sha1(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha, auth_scram_plus_fail(<<"SCRAM-SHA-1">>)).
 
 configure_sha224_plus_fail_log_with_sha224(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha224, <<"SCRAM-SHA-224">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha224, auth_scram_plus_fail(<<"SCRAM-SHA-224">>)).
 
 configure_sha256_plus_fail_log_with_sha256(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha256, <<"SCRAM-SHA-256">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha256, auth_scram_plus_fail(<<"SCRAM-SHA-256">>)).
 
 configure_sha384_plus_fail_log_with_sha384(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha384, <<"SCRAM-SHA-384">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha384, auth_scram_plus_fail(<<"SCRAM-SHA-384">>)).
 
 configure_sha512_plus_fail_log_with_sha512(Config) ->
-    configure_scram_plus_and_fail_log_scram(Config, sha512, <<"SCRAM-SHA-512">>).
+    configure_scram_plus_and_fail_log_scram(Config, sha512, auth_scram_plus_fail(<<"SCRAM-SHA-512">>)).
+
+auth_scram_plus_fail(XmppMethod) ->
+    fun(Conn, Props) ->
+            Options = #{plus_variant => none, hash_type => sha, xmpp_method => XmppMethod},
+            escalus_auth:auth_sasl_scram(Options, Conn, Props)
+    end.
 
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
@@ -443,28 +439,10 @@ configure_c2s_listener(Config) ->
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
     [C2SListener = #{tls := TLSOpts}] =
         mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
-    %% If in fast_tls group, retrieve fast_tls options from config, otherwise use the ones from node.
-    %% We do this, as in fast_tls group init we have already restarted c2s listener on node
-    %% and there is a race condition in retrieving them from node,
-    %% so it is better to take them from config
-    TLSOpts1 = proplists:get_value(tls_opts, Config, TLSOpts),
     %% replace starttls with tls
-    NewTLSOpts = TLSOpts1#{mode := tls},
+    NewTLSOpts = TLSOpts#{mode := tls},
     mongoose_helper:restart_listener(mim(), C2SListener#{tls := NewTLSOpts}),
-    [{c2s_listener, C2SListener#{tls := TLSOpts1}} | Config].
-
-configure_c2s_listener_with_fast_tls(Config) ->
-    C2SPort = ct:get_config({hosts, mim, c2s_port}),
-    [C2SListener = #{tls := _TLSOpts}] =
-        mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
-    NewTLSOpts = #{module => fast_tls,mode => starttls,
-                   certfile => "priv/ssl/fake_server.pem",
-                   dhfile => "priv/ssl/fake_dh_server.pem",
-                   ciphers => "TLSv1.2:TLSv1.3",
-                   protocol_options => ["no_sslv2","no_sslv3","no_tlsv1","no_tlsv1_1"],
-                   verify_mode => none},
-    mongoose_helper:restart_listener(mim(), C2SListener#{tls := NewTLSOpts}),
-    [{c2s_listener, C2SListener}, {fast_tls, true}, {tls_opts, NewTLSOpts}| Config].
+    [{c2s_listener, C2SListener} | Config].
 
 create_tls_users(Config) ->
    Config1 = escalus:create_users(Config, escalus:get_users([alice, neustradamus])),
@@ -480,17 +458,16 @@ prepare_user_for_ssl(Users, User) ->
    UserSpec3 = lists:keystore(ssl_opts, 1, UserSpec2, {ssl_opts, [{verify, verify_none}]}),
    lists:keystore(User, 1, Users, {User, UserSpec3}).
 
-%% fast_tls supports channel binding for TLSv1.3 but we haven't implemented that yet,
-%% nor in MongooseIM nor in escalus, hence we need to enforce neustradamus will use TLSv1.2 only
+%% OTP SSL supports channel binding for TLSv1.3 from OTP27
 add_protocol_opts_to_neustradamus(Config) ->
     Users = proplists:get_value(escalus_users, Config, []),
     UserSpec = proplists:get_value(neustradamus, Users),
-    ProtocolOpts = {protocol_options, <<"no_sslv2|no_sslv3|no_tlsv1|no_tlsv1_1|no_tlsv1_3">>},
+    DefaultSslOpts = [{verify, verify_none}, {versions, ['tlsv1.3']}],
     SslOpts = case lists:keyfind(ssl_opts, 1, UserSpec) of
                   false ->
-                      [ProtocolOpts];
+                      DefaultSslOpts;
                   {ssl_opts, SSlOpts0} ->
-                      [ProtocolOpts | SSlOpts0]
+                      DefaultSslOpts ++ SSlOpts0
               end,
     UserSpec1 = lists:keystore(ssl_opts, 1, UserSpec, {ssl_opts, SslOpts}),
     Users1 = lists:keystore(neustradamus, 1, Users, {neustradamus, UserSpec1}),
@@ -551,14 +528,8 @@ configure_and_fail_log_scram(Config, Sha, Mech) ->
     {expected_challenge, _, _} = fail_log_one([{escalus_auth_method, Mech} | Config]).
 
 configure_scram_plus_and_fail_log_scram(Config, Sha, Mech) ->
-    %% SCRAM PLUS tests are to be run for fast_tls only
-    case proplists:get_value(fast_tls, Config) of
-        true ->
-            set_scram_sha(Config, Sha),
-            {expected_challenge, _, _} = fail_log_one_scram_plus([{escalus_auth_method, Mech} | Config]);
-        _ ->
-            {skip, test_valid_only_for_fast_tls}
-    end.
+    set_scram_sha(Config, Sha),
+    {expected_challenge, _, _} = fail_log_one_scram_plus([{escalus_auth_method, Mech} | Config]).
 
 set_scram_sha(Config, Sha) ->
     NewAuthOpts = mongoose_helper:auth_opts_with_password_format({scram, [Sha]}),

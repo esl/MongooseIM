@@ -36,7 +36,7 @@
 
 -type session_info() :: {USR :: jid:jid(),
                          Conn :: atom(),
-                         Address :: {inet:ip_address(), inet:port_number()} | undefined,
+                         Address :: mongoose_transport:peer() | undefined,
                          Prio :: ejabberd_sm:priority(),
                          NodeS :: node(),
                          Uptime :: integer()}.

@@ -14,36 +14,6 @@ The following options are supported for each C2S listener:
 
 The rule that determines who is allowed to connect. By default, the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
-### `listen.c2s.shaper`
-* **Syntax:** string, rule name
-* **Default:** `"none"` (no shaper)
-* **Example:** `shaper = "c2s_shaper"`
-
-The rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
-The rule referenced here needs to be defined in the [`access`](../configuration/access.md) configuration section.
-The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
-
-### `listen.c2s.max_connections`
-* **Syntax:** positive integer or the string `"infinity"`
-* **Default:** `"infinity"`
-* **Example:** `max_connections = 10000`
-
-Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
-
-### `listen.c2s.state_timeout`
-* **Syntax:** non-negative integer or the string `"infinity"`
-* **Default:** `5000`
-* **Example:** `state_timeout = 10_000`
-
-Timeout value (in milliseconds) used by the C2S state machine when waiting for the connecting client to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
-
-### `listen.c2s.reuse_port`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `reuse_port = true`
-
-Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
-
 ### `listen.c2s.backwards_compatible_session`
 * **Syntax:** boolean
 * **Default:** `true`
@@ -87,15 +57,6 @@ This option determines how clients are supposed to set up the TLS encryption:
 * `starttls` - enables StartTLS support; requires `certfile`,
 * `starttls_required` - enables and enforces StartTLS usage.
 
-### `listen.c2s.tls.module`
-* **Syntax:** string, one of `"just_tls"`, `"fast_tls"`
-* **Default:** `"just_tls"`
-* **Example:** `tls.module = "just_tls"`
-
-By default, the TLS library used for C2S connections is `just_tls` - Erlang TLS implementation provided by OTP.
-Usage of `fast_tls`, which uses OpenSSL-based NIFs for C2S is deprecated, however it is still possible to use this option.
-Some TLS-related options described here have different formats for these two libraries.
-
 ### `listen.c2s.tls.verify_mode`
 * **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
 * **Default:** `"peer"`
@@ -103,19 +64,18 @@ Some TLS-related options described here have different formats for these two lib
 
 Specifies the way client certificate verification works:
 
-* `peer` - makes sure the client certificate is valid and signed by a trusted CA. Requires a valid `cacertfile`.
-* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`. Requires a valid `cacertfile`.
+* `peer` - makes sure the client certificate is valid and signed by a trusted CA.
+* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates.
 * `none` - client certificate is not checked.
+
+Options: `peer` and `selfsigned_peer` will use certificates specified in `cacertfile` or system certificates, if `cacertfile` is not provided.
 
 ### `listen.c2s.tls.certfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.certfile = "server.pem"`
 
-Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
-
-!!! Note
-    For `just_tls` this file should only contain the certificate and the path to the private key can be provided separately as `keyfile`.
+Path to the X509 PEM file with a certificate (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
 
 ### `listen.c2s.tls.cacertfile`
 * **Syntax:** string, path in the file system
@@ -133,33 +93,26 @@ Path to the Diffie-Hellman parameter file.
 
 ### `listen.c2s.tls.ciphers`
 * **Syntax:** string with the OpenSSL cipher suite specification
-* **Default:** for `fast_tls` the default is`"TLSv1.2:TLSv1.3"`. For `just_tls` this option is not set by default - all supported suites are accepted.
+* **Default:** this option is not set by default - all supported suites are accepted.
 * **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format. See the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#t:ciphers/0) for allowed values.
 
-### `listen.c2s.tls.protocol_options` - only for `fast_tls`
-* **Syntax:** array of strings
-* **Default:** `["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]`
-* **Example:** `tls.protocol_options = ["no_tlsv1", "no_tlsv1_1"]`
-
-A list of OpenSSL options for FastTLS. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
-
-### `listen.c2s.tls.keyfile` - only for `just_tls`
+### `listen.c2s.tls.keyfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.keyfile = "key.pem"`
 
-Path to the X509 PEM file with the private key.
+Path to the X509 PEM file with the private key. The private key may alternatively be appended to certificates and provided in `listen.c2s.tls.certfile`.
 
-### `listen.c2s.tls.password` - only for `just_tls`
+### `listen.c2s.tls.password`
 * **Syntax:** string
 * **Default:** not set
 * **Example:** `tls.password = "secret"`
 
 Password to the X509 PEM file with the private key.
 
-### `listen.c2s.tls.disconnect_on_failure` - only for `just_tls`
+### `listen.c2s.tls.disconnect_on_failure`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `tls.disconnect_on_failure = false`
@@ -172,21 +125,36 @@ Additionally empty client certificate is treated as an error.
 
 When set to `false`, TLS handshake will succeed even if there were errors in client certificate verification.
 This allows to use other methods of authentication (like SASL) later as part of XMPP stream.
-The above behaviour is the same as default `fast_tls` behaviour (not aborting TLS connection on verification errors).
 
-### `listen.c2s.tls.versions` - only for `just_tls`
+### `listen.c2s.tls.versions`
 * **Syntax:** array of strings
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
 TLS versions to use with StartTLS or TLS. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-protocol_version)
 
-### `listen.c2s.tls.crl_files` - only for `just_tls`
+### `listen.c2s.tls.crl_files`
 * **Syntax:** array of strings, paths in the file system
 * **Default:** not set
 * **Example:** `tls.crl_files = ["certs.crl"]`
 
 Specifies the paths to Certificate Revocation Lists.
+
+### `listen.c2s.tls.early_data`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `tls.early_data = true`
+
+Enables `early_data`, or 0-RTT, used with [mod_fast_auth_token](../modules/mod_fast_auth_token.md) module.
+Use this with Direct TLS (i.e. port 5223).
+
+### `listen.c2s.tls.session_tickets`
+* **Syntax:** string: `"stateless"`
+* **Default:** not set
+* **Example:** `tls.session_tickets = "stateless"`
+
+Enables TLS [Session Tickets](https://www.erlang.org/doc/apps/ssl/using_ssl#session-tickets-and-session-resumption-in-tls-1-3),
+which could be used for faster TLS connection, skipping one roundtrip when connecting.
 
 ## C2S listener configuration example
 
@@ -209,6 +177,6 @@ The following section configures two C2S listeners.
 ```
 
 * One at port 5222, which accepts a plain TCP connection and allows to use StartTLS for upgrading it to an encrypted one. The files containing the certificate and the DH parameter are also provided.
-* One at port 5223, which accepts only encrypted TLS connections - this is the legacy method as StartTLS is preferred.
+* One at port 5223, which accepts only encrypted TLS connections. It is called Direct TLS.
 
 Both listeners use `c2s` and `c2s_shaper` rules for access management and traffic shaping, respectively.

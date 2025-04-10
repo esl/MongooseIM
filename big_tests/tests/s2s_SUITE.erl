@@ -11,11 +11,10 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("kernel/include/inet.hrl").
 
-%% Module aliases
--define(dh, distributed_helper).
 -import(distributed_helper, [mim/0, rpc_spec/1, rpc/4]).
+
+-include_lib("common_test/include/ct.hrl").
 
 %%%===================================================================
 %%% Suite configuration
@@ -26,15 +25,13 @@ all() ->
      {group, both_plain},
      {group, both_tls_optional}, %% default MongooseIM config
      {group, both_tls_required},
+     {group, both_tls_enforced},
 
      {group, node1_tls_optional_node2_tls_required},
      {group, node1_tls_required_node2_tls_optional},
 
      {group, node1_tls_required_trusted_node2_tls_optional},
      {group, node1_tls_optional_node2_tls_required_trusted_with_cachain},
-
-     {group, node1_tls_false_node2_tls_optional},
-     {group, node1_tls_optional_node2_tls_false},
 
      {group, node1_tls_false_node2_tls_required},
      {group, node1_tls_required_node2_tls_false},
@@ -43,9 +40,10 @@ all() ->
     ].
 
 groups() ->
-    [{both_plain, [sequence], all_tests()},
+    [{both_plain, [], all_tests()},
      {both_tls_optional, [], essentials()},
      {both_tls_required, [], essentials()},
+     {both_tls_enforced, [], essentials()},
 
      {node1_tls_optional_node2_tls_required, [], essentials()},
      {node1_tls_required_node2_tls_optional, [], essentials()},
@@ -55,103 +53,148 @@ groups() ->
 
      %% Node1 accepts connection provided the cert can be verified
      {node1_tls_optional_node2_tls_required_trusted_with_cachain, [parallel],
-      essentials() ++ connection_cases()},
-
-     {node1_tls_false_node2_tls_optional, [], essentials()},
-     {node1_tls_optional_node2_tls_false, [], essentials()},
+      essentials() ++ connection_cases() ++ start_stream_error_groups()},
 
      {node1_tls_false_node2_tls_required, [], negative()},
      {node1_tls_required_node2_tls_false, [], negative()},
-     {dialback, [], [dialback_key_is_synchronized_on_different_nodes]}].
+     {dialback, [], [dialback_key_is_synchronized_on_different_nodes]},
+
+     {start_stream_errors, [parallel], start_stream_error_cases()},
+     {start_stream_errors_after_starttls, [parallel], start_stream_error_cases()},
+     {start_stream_errors_after_auth, [parallel], start_stream_error_cases()}
+    ].
 
 essentials() ->
     [simple_message].
 
 all_tests() ->
-    [connections_info, dns_discovery, dns_discovery_ip_fail, nonexistent_user,
-     unknown_domain, malformed_jid, dialback_with_wrong_key].
+    [connections_info,
+     dns_srv_discovery,
+     dns_ip_discovery,
+     dns_discovery_fail,
+     nonexistent_user,
+     unknown_domain,
+     malformed_jid,
+     dialback_with_wrong_key].
 
 negative() ->
     [timeout_waiting_for_message].
 
 connection_cases() ->
     [successful_external_auth_with_valid_cert,
-     start_stream_fails_for_wrong_namespace,
+     only_messages_from_authenticated_domain_users_are_accepted,
+     auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert,
+     auth_with_valid_cert_fails_for_other_mechanism_than_external,
+     simple_message_auth_failed].
+
+start_stream_error_groups() ->
+    [{group, start_stream_errors},
+     {group, start_stream_errors_after_starttls},
+     {group, start_stream_errors_after_auth}].
+
+start_stream_error_cases() ->
+    [start_stream_fails_for_wrong_namespace,
      start_stream_fails_for_wrong_version,
      start_stream_fails_without_version,
      start_stream_fails_without_host,
-     start_stream_fails_for_unknown_host,
-     starttls_fails_for_unknown_host,
-     only_messages_from_authenticated_domain_users_are_accepted,
-     auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert,
-     auth_with_valid_cert_fails_for_other_mechanism_than_external].
+     start_stream_fails_for_unknown_host].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2, fed]) ++ escalus:suite().
-
-users() ->
-    [alice2, alice, bob].
 
 %%%===================================================================
 %%% Init & teardown
 %%%===================================================================
 
-init_per_suite(Config) ->
+init_per_suite(Config0) ->
     instrument_helper:start(tested_events()),
     mongoose_helper:inject_module(?MODULE, reload),
-    Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config)),
-    escalus:create_users(Config1, escalus:get_users(users())).
+    Config1 = escalus:init_per_suite(Config0),
+    s2s_helper:init_s2s(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     s2s_helper:end_s2s(Config),
-    escalus:delete_users(Config, escalus:get_users(users())),
     escalus:end_per_suite(Config),
     instrument_helper:stop().
 
 init_per_group(dialback, Config) ->
     %% Tell mnesia that mim and mim2 nodes are clustered
     distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config);
+init_per_group(both_tls_enforced, Config) ->
+    meck_dns_srv_lookup("fed1", srv_ssl),
+    Config1 = s2s_helper:configure_s2s(both_tls_enforced, Config),
+    [{requires_tls, group_with_tls(both_tls_enforced)}, {group, both_tls_enforced} | Config1];
+init_per_group(start_stream_errors, Config) ->
+    [{initial_steps, []} | Config];
+init_per_group(start_stream_errors_after_starttls, Config) ->
+    [{initial_steps, [fun s2s_start_stream/2,
+                      fun s2s_starttls/2]} | Config];
+init_per_group(start_stream_errors_after_auth, Config) ->
+    [{initial_steps, [fun s2s_start_stream/2,
+                      fun s2s_starttls/2,
+                      fun s2s_start_stream/2,
+                      fun s2s_external_auth/2]} | Config];
 init_per_group(GroupName, Config) ->
     Config1 = s2s_helper:configure_s2s(GroupName, Config),
     [{requires_tls, group_with_tls(GroupName)}, {group, GroupName} | Config1].
 
+end_per_group(both_tls_enforced, _Config) ->
+    rpc(mim(), meck, unload, []);
 end_per_group(_GroupName, _Config) ->
     ok.
 
-init_per_testcase(dns_discovery = CaseName, Config) ->
-    meck_inet_res("_xmpp-server._tcp.fed2"),
-    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect,
-             [inet, getaddr,
-                fun ("fed2", inet) ->
-                        {ok, {127, 0, 0, 1}};
-                    (Address, Family) ->
-                        meck:passthrough([Address, Family])
-                end]),
+init_per_testcase(dns_srv_discovery = CaseName, Config) ->
+    meck_dns_srv_lookup("fed2", srv),
     Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
     escalus:init_per_testcase(CaseName, Config1);
-init_per_testcase(dns_discovery_ip_fail = CaseName, Config) ->
-    meck_inet_res("_xmpp-server._tcp.fed3"),
-    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
+init_per_testcase(dns_ip_discovery = CaseName, Config) ->
+    meck_dns_srv_lookup("fed2", ip),
+    Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(dns_discovery_fail = CaseName, Config) ->
+    meck_dns_srv_lookup("fed3", none),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-meck_inet_res(Domain) ->
+meck_dns_srv_lookup(Domain, Which) ->
+    FedPort = ct:get_config({hosts, fed, incoming_s2s_port}),
     ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect,
-             [inet_res, getbyname,
-                fun (Domain1, srv, _Timeout) when Domain1 == Domain ->
-                        {ok, {hostent, Domain, [], srv, 1,
-                         [{30, 10, 5299, "localhost"}]}};
-                    (Name, Type, Timeout) ->
-                        meck:passthrough([Name, Type, Timeout])
-                end]).
+    ok = rpc(mim(), meck, expect, [inet_res, lookup, inet_res_lookup_fun(Domain, FedPort, Which)]).
 
-end_per_testcase(CaseName, Config) when CaseName =:= dns_discovery;
-                                        CaseName =:= dns_discovery_ip_fail ->
+inet_res_lookup_fun(Domain, FedPort, srv_ssl) ->
+    fun("_xmpps-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            [{30, 0, FedPort, "localhost"}];
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end;
+inet_res_lookup_fun(Domain, FedPort, srv) ->
+    fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            [{30, 0, FedPort, "localhost"}];
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end;
+inet_res_lookup_fun(Domain, _FedPort, ip) ->
+    fun(Domain1, in, a, _Opts, _Timeout) when Domain1 =:= Domain ->
+            [{127, 0, 0, 1}];
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end;
+inet_res_lookup_fun(Domain, _FedPort, none) ->
+    fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            {error, nxdomain};
+       (Domain1, in, inet, _Opts, _Timeout) when Domain1 =:= Domain ->
+            {error, nxdomain};
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end.
+
+end_per_testcase(CaseName, Config) when CaseName =:= dns_srv_discovery;
+                                        CaseName =:= dns_ip_discovery;
+                                        CaseName =:= dns_discovery_fail ->
     rpc(mim(), meck, unload, []),
+    s2s_helper:reset_s2s_connections(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -168,18 +211,38 @@ simple_message(Config) ->
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
 
         %% User on the federated server receives the message
-        Stanza = escalus:wait_for_stanza(Alice2, 10000),
+        Stanza = escalus:wait_for_stanza(Alice2, 5000),
         escalus:assert(is_chat_message, [<<"Hi, foreign Alice!">>], Stanza),
 
         %% User on the federated server sends a message to the main server
         escalus:send(Alice2, escalus_stanza:chat_to(Alice1, <<"Nice to meet you!">>)),
 
         %% User on the main server receives the message
-        Stanza2 = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza2 = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2),
 
         % Instrumentation events are executed
         assert_events(TS, Config)
+    end).
+
+simple_message_auth_failed(Config) ->
+    escalus:fresh_story(Config, [{alice2, 1}, {alice_bis, 1}], fun(Alice2, Alice1) ->
+        TS = instrument_helper:timestamp(),
+
+        % User on the main server sends a message to a user on a federated server
+        escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
+
+        % Cert is for localhost, and the domain is localhost.bis
+        % As a result, s2s auth fails, and Alice2 receives nothing
+        BisDomain = ct:get_config({hosts, mim, secondary_domain}),
+        FedDomain = ct:get_config({hosts, fed, domain}),
+        Filter = fun(#{direction := out, count := 1, local_domain := LD, remote_domain := RD}) ->
+                         LD =:= BisDomain andalso RD =:= FedDomain
+                 end,
+        Opts = #{retries => 50, delay => 100, min_timestamp => TS, expected_count => 1},
+        instrument_helper:assert(s2s_auth_failed, #{}, Filter, Opts),
+        timer:sleep(500),
+        escalus_assert:has_no_stanzas(Alice2)
     end).
 
 timeout_waiting_for_message(Config) ->
@@ -195,41 +258,45 @@ connections_info(Config) ->
     simple_message(Config),
     FedDomain = ct:get_config({hosts, fed, domain}),
     %% there should be at least one in and at least one out connection
-    [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, in),
-    [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, out),
+    [_ | _] = get_s2s_connections(mim(), FedDomain, in),
+    [_ | _] = get_s2s_connections(mim(), FedDomain, out),
     ok.
 
-dns_discovery(Config) ->
+dns_srv_discovery(Config) ->
     simple_message(Config),
     %% Ensure that the mocked DNS discovery for connecting to the other server
     History = rpc(mim(), meck, history, [inet_res]),
-    ?assertEqual(length(History), 2),
-    ?assertEqual(s2s_helper:has_xmpp_server(History, "fed2"), true),
+    ?assert(0 < length(History), History),
+    ?assert(s2s_helper:has_xmpp_server(History, "_xmpp-server._tcp.fed2", srv), History),
+    ok.
+
+dns_ip_discovery(Config) ->
+    simple_message(Config),
+    %% Ensure that the mocked DNS discovery for connecting to the other server
+    History = rpc(mim(), meck, history, [inet_res]),
+    ?assert(0 < length(History), History),
+    ?assert(s2s_helper:has_xmpp_server(History, "fed2", a), History),
     ok.
 
 
-dns_discovery_ip_fail(Config) ->
+dns_discovery_fail(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice1) ->
-
-        escalus:send(Alice1, escalus_stanza:chat_to(
-            <<"alice2@fed3">>,
-            <<"Hello, second Alice!">>)),
-
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        escalus:send(Alice1, escalus_stanza:chat_to(<<"alice2@fed3">>, <<"Hello, second Alice!">>)),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza),
-        History = rpc(mim(), meck, history, [inet]),
-        ?assertEqual(s2s_helper:has_inet_errors(History, "fed3"), true)
+        History = rpc(mim(), meck, history, [inet_res]),
+        ?assert(s2s_helper:has_inet_errors(History, "fed3"), History)
     end).
 
 get_s2s_connections(RPCSpec, Domain, Type) ->
-    AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
+    AllS2SConnections = rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
     DomainS2SConnections =
         [Connection || Connection <- AllS2SConnections,
                        Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
                        Type =/= out orelse Domain =:= maps:get(server, Connection)],
-    ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p",
+    ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p~nAll Connections: ~p",
            [maps:get(node, RPCSpec), Type, Domain, length(DomainS2SConnections),
-            DomainS2SConnections]),
+            DomainS2SConnections, AllS2SConnections]),
     DomainS2SConnections.
 
 nonexistent_user(Config) ->
@@ -256,7 +323,7 @@ unknown_domain(Config) ->
             <<"Hello, unreachable!">>)),
 
         %% Alice@localhost1 receives stanza error: remote-server-not-found
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
 
     end).
@@ -270,7 +337,7 @@ malformed_jid(Config) ->
             <<"Hello, unreachable!">>)),
 
         %% Alice@localhost1 receives stanza error: remote-server-not-found
-        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        Stanza = escalus:wait_for_stanza(Alice1, 5000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
 
     end).
@@ -282,13 +349,13 @@ dialback_with_wrong_key(_Config) ->
     Key = <<"123456">>, %% wrong key
     StreamId = <<"sdfdsferrr">>,
     StartType = {verify, self(), Key, StreamId},
-    {ok, _} = rpc(rpc_spec(mim), ejabberd_s2s_out, start, [FromTo, StartType]),
+    {ok, _} = rpc(rpc_spec(mim), mongoose_s2s_out, start_connection, [FromTo, StartType]),
     receive
         %% Remote server (fed1) rejected out request
-        {'$gen_event', {validity_from_s2s_out, false, FromTo}} ->
+        {'$gen_cast', {validity_from_s2s_out, false, FromTo}} ->
             ok
-        after 5000 ->
-            ct:fail(timeout)
+    after 5000 ->
+              ct:fail(timeout)
     end.
 
 nonascii_addr(Config) ->
@@ -298,14 +365,14 @@ nonascii_addr(Config) ->
         escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Cześć Alice!">>)),
 
         %% Alice@localhost1 receives message from Bob@localhost2
-        Stanza = escalus:wait_for_stanza(Alice, 10000),
+        Stanza = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_chat_message, [<<"Cześć Alice!">>], Stanza),
 
         %% Alice@localhost1 sends message to Bob@localhost2
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Miło Cię poznać">>)),
 
         %% Bob@localhost2 receives message from Alice@localhost1
-        Stanza2 = escalus:wait_for_stanza(Bob, 10000),
+        Stanza2 = escalus:wait_for_stanza(Bob, 5000),
         escalus:assert(is_chat_message, [<<"Miło Cię poznać">>], Stanza2)
 
     end).
@@ -315,35 +382,30 @@ successful_external_auth_with_valid_cert(Config) ->
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
                                                         fun s2s_starttls/2,
-                                                        fun s2s_external_auth/2]),
+                                                        fun s2s_start_stream/2,
+                                                        fun s2s_external_auth/2,
+                                                        fun s2s_start_stream/2]),
     escalus_connection:stop(Client).
 
 start_stream_fails_for_wrong_namespace(Config) ->
-    start_stream_fails(Config, <<"invalid-namespace">>,
-                       [fun s2s_start_stream_with_wrong_namespace/2]).
+    Steps = ?config(initial_steps, Config) ++ [fun s2s_start_stream_with_wrong_namespace/2],
+    start_stream_fails(Config, <<"invalid-namespace">>, Steps).
 
 start_stream_fails_for_wrong_version(Config) ->
-    %% TLS authentication requires version 1.0
-    start_stream_fails(Config, <<"invalid-xml">>,
-                       [fun s2s_start_stream_with_wrong_version/2]).
+    Steps = ?config(initial_steps, Config) ++ [fun s2s_start_stream_with_wrong_version/2],
+    start_stream_fails(Config, <<"invalid-xml">>, Steps).
 
 start_stream_fails_without_version(Config) ->
-    %% TLS authentication requires version 1.0
-    start_stream_fails(Config, <<"invalid-xml">>,
-                       [fun s2s_start_stream_without_version/2]).
+    Steps = ?config(initial_steps, Config) ++ [fun s2s_start_stream_without_version/2],
+    start_stream_fails(Config, <<"invalid-xml">>, Steps).
 
 start_stream_fails_without_host(Config) ->
-    start_stream_fails(Config, <<"improper-addressing">>,
-                       [fun s2s_start_stream_without_host/2]).
+    Steps = ?config(initial_steps, Config) ++ [fun s2s_start_stream_without_host/2],
+    start_stream_fails(Config, <<"improper-addressing">>, Steps).
 
 start_stream_fails_for_unknown_host(Config) ->
-    start_stream_fails(Config, <<"host-unknown">>,
-                       [fun s2s_start_stream_to_wrong_host/2]).
-
-starttls_fails_for_unknown_host(Config) ->
-    start_stream_fails(Config, <<"host-unknown">>,
-                       [fun s2s_start_stream/2,
-                        fun s2s_starttls_to_wrong_host/2]).
+    Steps = ?config(initial_steps, Config) ++ [fun s2s_start_stream_to_wrong_host/2],
+    start_stream_fails(Config, <<"host-unknown">>, Steps).
 
 start_stream_fails(Config, ErrorType, ConnectionSteps) ->
     ConnectionArgs = connection_args("localhost.bis", <<"localhost">>, Config),
@@ -358,7 +420,9 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
                                                         fun s2s_starttls/2,
-                                                        fun s2s_external_auth/2]),
+                                                        fun s2s_start_stream/2,
+                                                        fun s2s_external_auth/2,
+                                                        fun s2s_start_stream/2]),
     escalus:fresh_story(Config, [{alice2, 1}], fun(Alice) ->
 
         UserInWrongDomain = <<"a_user@this_is_not_my.domain.com">>,
@@ -370,7 +434,7 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
         escalus:send(Client, ChatToAliceFromUserInWrongDomain),
 
         %% Alice@fed1 does not receives message from a_user@this_is_not_my.domain.com
-        timer:sleep(timer:seconds(5)),
+        timer:sleep(500),
         escalus_assert:has_no_stanzas(Alice)
 
     end),
@@ -381,7 +445,8 @@ auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
     ConnectionArgs = connection_args("not_in_cert_domain", <<"not_in_cert_domain">>, Config),
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
-                                                        fun s2s_starttls/2]),
+                                                        fun s2s_starttls/2,
+                                                        fun s2s_start_stream/2]),
 
     try
         escalus_auth:auth_sasl_external(Client, Client#client.props),
@@ -394,8 +459,8 @@ auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
     ConnectionArgs = connection_args("localhost", <<"localhost">>, Config),
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
-                                                        fun s2s_starttls/2
-                                                       ]),
+                                                        fun s2s_starttls/2,
+                                                        fun s2s_start_stream/2]),
 
     Stanza = escalus_stanza:auth(<<"ANONYMOUS">>),
     ok = escalus_connection:send(Client, Stanza),
@@ -462,7 +527,7 @@ stream_start_attrs() ->
       <<"xmlns:stream">> => <<"http://etherx.jabber.org/streams">>,
       <<"version">> => <<"1.0">>}.
 
-s2s_starttls(Client, Features, StartStreamF) ->
+s2s_starttls(Client, Features) ->
     case proplists:get_value(starttls, Features) of
         false ->
             ct:fail("The server does not offer STARTTLS");
@@ -473,13 +538,7 @@ s2s_starttls(Client, Features, StartStreamF) ->
     escalus_connection:send(Client, escalus_stanza:starttls()),
     escalus_connection:get_stanza(Client, proceed),
     escalus_connection:upgrade_to_tls(Client),
-    StartStreamF(Client, []).
-
-s2s_starttls(Client, Features) ->
-    s2s_starttls(Client, Features, fun s2s_start_stream/2).
-
-s2s_starttls_to_wrong_host(Client, Features) ->
-    s2s_starttls(Client, Features, fun s2s_start_stream_to_wrong_host/2).
+    {Client, []}.
 
 s2s_external_auth(Client = #client{props = Props}, Features) ->
     case proplists:get_value(sasl_mechanisms, Features) of
@@ -489,7 +548,8 @@ s2s_external_auth(Client = #client{props = Props}, Features) ->
             ct:fail("Server does not provide EXTERNAL auth: ~p", [SASL])
     end,
     escalus_auth:auth_sasl_external(Client, Props),
-    s2s_start_stream(Client, []).
+    escalus_connection:reset_parser(Client),
+    {Client, []}.
 
 get_main_key_and_cert_files(Config) ->
     CertFile = get_main_file_path(Config, "cert.pem"),
@@ -527,56 +587,80 @@ shared_secret(mim) -> <<"f623e54a0741269be7dd">>; %% Some random key
 shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.
 
 assert_events(TS, Config) ->
-    TLS = proplists:get_value(requires_tls, Config),
-    instrument_helper:assert(s2s_xmpp_element_size_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => element_count(in, TLS), min_timestamp => TS}),
-    instrument_helper:assert(s2s_xmpp_element_size_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{expected_count => element_count(out, TLS), min_timestamp => TS}),
-    instrument_helper:assert(s2s_tcp_data_in, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{min_timestamp => TS}),
-    instrument_helper:assert(s2s_tcp_data_out, #{}, fun(#{byte_size := S}) -> S > 0 end,
-        #{min_timestamp => TS}).
+    TLS = proplists:get_value(requires_tls, Config, false),
+    {DataInEvent, DataOutEvent} = data_events(TLS),
+    Labels = #{connection_type => s2s},
+    Opts = #{min_timestamp => TS},
 
-element_count(_Dir, true) ->
+    SizeFilter = fun(#{byte_size := S}) -> S > 0 end,
+    instrument_helper:assert(DataInEvent, Labels, SizeFilter, Opts),
+    instrument_helper:assert(DataOutEvent, Labels, SizeFilter, Opts),
+
+    Opts2 = Opts#{expected_count => element_count(TLS)},
+    MimDomain = domain_helper:domain(),
+    DomainFilter = fun(#{lserver := LServer}) -> LServer =:= MimDomain end,
+    instrument_helper:assert(s2s_element_in, #{}, DomainFilter, Opts2),
+    instrument_helper:assert(s2s_element_out, #{}, DomainFilter, Opts2),
+
+    CombinedFilter = fun(M) -> DomainFilter(M) andalso SizeFilter(M) end,
+    instrument_helper:assert(xmpp_element_size_out, Labels, CombinedFilter, Opts2),
+    instrument_helper:assert(xmpp_element_size_in, Labels, CombinedFilter, Opts2).
+
+data_events(true) -> {tls_data_in, tls_data_out};
+data_events(false) -> {tcp_data_in, tcp_data_out}.
+
+% Some of these steps happen asynchronously, so the order may be different.
+% Since S2S connections are unidirectional, mim1 acts both as initiating,
+% and receiving (and authoritative) server in the dialback procedure.
+%
+% We also test that both users on each side of federation can text each other,
+% hence both servers will run the dialback each.
+%
+% When a user in mim1 writes to a user in fed1, from the perspective of mim1:
+% - Open an outgoing connection from mim1 to fed1:
+%   Outgoing stream starts
+%   Incoming stream starts
+%   1. Incoming stream features
+%   2. Outgoing dialback key (step 1)
+% - Open an incoming connection from fed1 to mim1:
+%   Incoming stream starts
+%   Outgoing stream starts
+%   3. Outgoing stream features
+%   4. Incoming dialback verification request (step 2, as authoritative server)
+%   5. Outgoing dialback verification response (step 3, as receiving server)
+% - Original outgoing connection
+%   6. Incoming dialback result (step 4, as initiating server)
+%   7. Outgoing message from user in mim1 to user in fed1
+%
+% Likewise, when a user in fed1 writes to a user in mim1, from the perspective of mim1:
+% - Open an incoming connection from fed1 to mim1:
+%   Incoming stream starts
+%   Outgoing stream starts
+%   1. Outgoing stream features
+%   2. Incoming dialback key (step 1)
+% - Open an outgoing connection from mim1 to fed1:
+%   Outgoing stream starts
+%   Incoming stream starts
+%   3. Incoming stream features
+%   4. Outgoing dialback verification request (step 2, as authoritative server)
+%   5. Incoming dialback verification response (step 3, as receiving server)
+% - Original incoming connection
+%   6. Outgoing dialback result (step 4, as initiating server)
+%   7. Incoming message from user in fed1 to user in mim1
+%
+% The number can be seen as the sum of all arrows from the dialback diagram, since mim
+% acts as all three roles in the two dialback procedures that occur:
+% https://xmpp.org/extensions/xep-0220.html#intro-howitworks
+% (6 arrows) + one for the actual message
+element_count(true) ->
     % TLS tests are not checking a specific number of events, because the numbers are flaky
     positive;
-element_count(in, false) ->
-    % Some of these steps happen asynchronously, so the order may be different.
-    % Since S2S connections are unidirectional, mim1 acts both as initiating,
-    % and receiving (and authoritative) server in the dialback procedure.
-    %   1. Stream start response from fed1 (as initiating server)
-    %   2. Stream start from fed1 (as receiving server)
-    %   3. Dialback key (step 1, as receiving server)
-    %   4. Dialback verification request (step 2, as authoritative server)
-    %   5. Dialback result (step 4, as initiating server)
-    % New s2s process is started to verify fed1 as an authoritative server
-    % This process sends a new stream header, as it opens a new connection to fed1,
-    % now acting as an authoritative server. Also see comment on L360 in ejabberd_s2s.
-    %   6. Stream start response from fed1
-    %   7. Dialback verification response (step 3, as receiving server)
-    %   8. Message from federated Alice
-    % The number can be seen as the sum of all arrows from the dialback diagram, since mim
-    % acts as all three roles in the two dialback procedures that occur:
-    % https://xmpp.org/extensions/xep-0220.html#intro-howitworks
-    % (6 arrows) + one for stream header response + one for the actual message
-    8;
-element_count(out, false) ->
-    % Since S2S connections are unidirectional, mim1 acts both as initiating,
-    % and receiving (and authoritative) server in the dialback procedure.
-    %   1. Dialback key (step 1, as initiating server)
-    %   2. Dialback verification response (step 3, as authoritative server)
-    %   3. Dialback request (step 2, as receiving server)
-    %   4. Message from Alice
-    %   5. Dialback result (step 4, as receiving server)
-    % The number calculation corresponds to in_element, however the stream headers are not
-    % sent as XML elements, but straight as text, and so these three events do not appear:
-    %  - open stream to fed1,
-    %  - stream response for fed1->mim stream,
-    %  - open stream to fed1 as authoritative server.
-    5.
+element_count(false) ->
+    7.
 
 group_with_tls(both_tls_optional) -> true;
 group_with_tls(both_tls_required) -> true;
+group_with_tls(both_tls_enforced) -> true;
 group_with_tls(node1_tls_optional_node2_tls_required) -> true;
 group_with_tls(node1_tls_required_node2_tls_optional) -> true;
 group_with_tls(node1_tls_required_trusted_node2_tls_optional) -> true;
@@ -584,6 +668,12 @@ group_with_tls(node1_tls_optional_node2_tls_required_trusted_with_cachain) -> tr
 group_with_tls(_GN) -> false.
 
 tested_events() ->
-    Names = [s2s_xmpp_element_size_in, s2s_xmpp_element_size_out,
-             s2s_tcp_data_in, s2s_tcp_data_out],
-    [{Name, #{}} || Name <- Names].
+    [{xmpp_element_size_in, #{connection_type => s2s}},
+     {xmpp_element_size_out, #{connection_type => s2s}},
+     {tls_data_in, #{connection_type => s2s}},
+     {tls_data_out, #{connection_type => s2s}},
+     {tcp_data_in, #{connection_type => s2s}},
+     {tcp_data_out, #{connection_type => s2s}},
+     {s2s_element_in, #{}},
+     {s2s_element_out, #{}},
+     {s2s_auth_failed, #{}}].

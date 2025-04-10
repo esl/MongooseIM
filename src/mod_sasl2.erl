@@ -169,7 +169,7 @@ is_not_sasl2_authenticated_already(C2SData) ->
 
 -spec is_ssl_connection(mongoose_c2s:data()) -> boolean().
 is_ssl_connection(C2SData) ->
-    mongoose_c2s_socket:is_ssl(mongoose_c2s:get_socket(C2SData)).
+    mongoose_xmpp_socket:is_ssl(mongoose_c2s:get_socket(C2SData)).
 
 -spec get_mod_state(mongoose_acc:t()) -> {error, not_found} | mod_state().
 get_mod_state(SaslAcc) ->

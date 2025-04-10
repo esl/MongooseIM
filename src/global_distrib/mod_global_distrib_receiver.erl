@@ -99,7 +99,7 @@ init({Ref, ranch_tcp, _Opts}) ->
     process_flag(trap_exit, true),
     {ok, RawSocket} = ranch:handshake(Ref),
     ConnOpts = opt(connections),
-    {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, ConnOpts),
+    {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, ConnOpts, server),
     ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
     mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, #{},
                                 #{count => 1, peer => mod_global_distrib_transport:peername(Socket)}),
@@ -111,11 +111,12 @@ init({Ref, ranch_tcp, _Opts}) ->
 %% gen_server API
 %%--------------------------------------------------------------------
 
-handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = State) ->
+handle_info({Tag, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = State)
+  when Tag == tcp; Tag == ssl ->
     do_setopts_and_receive_data(Socket, Buffer, RawData, State);
-handle_info({tcp_closed, _Socket}, State) ->
+handle_info({Tag, _Socket}, State) when Tag == tcp_closed; Tag == ssl_closed ->
     {stop, normal, State};
-handle_info({tcp_error, _Socket, Reason}, State) ->
+handle_info({Tag, _Socket, Reason}, State) when Tag == tcp_error; Tag == ssl_error ->
     ?LOG_ERROR(#{what => gd_incoming_socket_error, reason => Reason,
                  text => <<"mod_global_distrib_receiver received tcp_error">>,
                  peer => State#state.peer, conn_id => State#state.conn_id}),
@@ -162,23 +163,16 @@ do_setopts_and_receive_data(Socket, Buffer, RawData, State) ->
     SetOptsResult = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
     case SetOptsResult of
         ok ->
-            do_receive_data(Socket, Buffer, RawData, State);
+            do_receive_data(Buffer, RawData, State);
         {error, closed} ->
             {stop, normal, State};
         _ ->
             {stop, {setopts_failed, SetOptsResult}, State}
     end.
 
-do_receive_data(Socket, Buffer, RawData, State) ->
-    case mod_global_distrib_transport:recv_data(Socket, RawData) of
-         {ok, Data} ->
-            NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
-            {noreply, NewState};
-        {error, closed} ->
-            {stop, normal, State};
-        Other ->
-            {stop, {recv_data_failed, Other}, State}
-    end.
+do_receive_data(Buffer, Data, State) ->
+    NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
+    {noreply, NewState}.
 
 -spec handle_data(Data :: binary(), state()) -> state().
 handle_data(GdStart, State = #state{host = undefined}) ->

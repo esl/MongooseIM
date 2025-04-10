@@ -99,7 +99,6 @@
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", domain_isolation_SUITE}.
 {suites, "tests", domain_removal_SUITE}.
-{suites, "tests", tcp_listener_SUITE}.
 {suites, "tests", cets_disco_SUITE}.
 {suites, "tests", start_node_id_SUITE}.
 {suites, "tests", tr_util_SUITE}.

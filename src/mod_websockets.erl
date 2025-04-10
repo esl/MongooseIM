@@ -7,7 +7,7 @@
 
 -behaviour(mongoose_http_handler).
 -behaviour(cowboy_websocket).
--behaviour(mongoose_c2s_socket).
+-behaviour(mongoose_xmpp_socket).
 
 %% mongoose_http_handler callbacks
 -export([config_spec/0,
@@ -20,18 +20,17 @@
          websocket_info/2,
          terminate/3]).
 
-%% mongoose_c2s_socket callbacks
--export([socket_new/2,
-         socket_peername/1,
-         tcp_to_tls/2,
-         socket_handle_data/2,
-         socket_activate/1,
-         socket_close/1,
-         socket_send_xml/2,
-         get_peer_certificate/2,
+%% mongoose_xmpp_socket callbacks
+-export([peername/1,
+         tcp_to_tls/3,
+         handle_data/2,
+         activate/1,
+         close/1,
+         send_xml/2,
+         get_peer_certificate/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
-         get_tls_last_message/1,
+         export_key_materials/5,
          is_ssl/1]).
 
 -ignore_xref([instrumentation/0]).
@@ -53,7 +52,7 @@
           peer :: mongoose_transport:peer() | undefined,
           fsm_pid :: pid() | undefined,
           parser :: exml_stream:parser() | undefined,
-          opts :: map(),
+          opts :: mongoose_listener:options(),
           ping_rate :: integer() | none,
           max_stanza_size :: integer() | infinity,
           peercert :: undefined | passed | binary()
@@ -72,12 +71,12 @@ config_spec() ->
                                                   validate = positive},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive},
-                       <<"c2s_state_timeout">> => #option{type = int_or_infinity,
+                       <<"state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative},
                        <<"backwards_compatible_session">> => #option{type = boolean}},
              defaults = #{<<"timeout">> => 60000,
                           <<"max_stanza_size">> => infinity,
-                          <<"c2s_state_timeout">> => 5000,
+                          <<"state_timeout">> => 5000,
                           <<"backwards_compatible_session">> => true}
             }.
 
@@ -214,17 +213,21 @@ send_to_fsm(FSM, Element) ->
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
                 #ws_state{fsm_pid = undefined,
                           opts = #{ip_tuple := IPTuple, port := Port,
-                                   c2s_state_timeout := StateTimeout,
+                                   state_timeout := StateTimeout,
                                    backwards_compatible_session := BackwardsCompatible}} = State) ->
     Opts = #{
         access => all,
         shaper => none,
         max_stanza_size => 0,
-        xml_socket => true,
-        hibernate_after => 0,
         state_timeout => StateTimeout,
         backwards_compatible_session => BackwardsCompatible,
-        port => Port, ip_tuple => IPTuple, proto => tcp},
+        module => ejabberd_cowboy,
+        connection_type => c2s,
+        hibernate_after => 0,
+        ip_tuple => IPTuple,
+        ip_address => inet:ntoa(IPTuple),
+        ip_version => mongoose_listener_config:ip_version(IPTuple),
+        port => Port, proto => tcp},
     do_start_fsm(Opts, State);
 maybe_start_fsm(_Els, #ws_state{fsm_pid = undefined} = State) ->
     {stop, State};
@@ -361,54 +364,48 @@ case_insensitive_match(LowerPattern, [Case | Cases]) ->
 case_insensitive_match(_, []) ->
     nomatch.
 
-%% mongoose_c2s_socket callbacks
+%% mongoose_xmpp_socket callbacks
 
--spec socket_new(socket(), mongoose_listener:options()) -> socket().
-socket_new(Socket, _LOpts) ->
-    Socket.
-
--spec socket_peername(socket()) -> {inet:ip_address(), inet:port_number()}.
-socket_peername(#websocket{peername = PeerName}) ->
+-spec peername(socket()) -> mongoose_transport:peer().
+peername(#websocket{peername = PeerName}) ->
     PeerName.
 
--spec tcp_to_tls(socket(), mongoose_listener:options()) ->
+-spec tcp_to_tls(socket(), mongoose_listener:options(), mongoose_xmpp_socket:side()) ->
   {ok, socket()} | {error, term()}.
-tcp_to_tls(_Socket, _LOpts) ->
-    {error, tls_not_allowed_on_websockets}.
+tcp_to_tls(_Socket, _LOpts, server) ->
+    {error, tcp_to_tls_not_supported_for_websockets}.
 
--spec socket_handle_data(socket(), {tcp | ssl, term(), term()}) ->
+-spec handle_data(socket(), {tcp | ssl, term(), term()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
-socket_handle_data(_Socket, {_Kind, _Term, Packet}) ->
+handle_data(_Socket, {_Kind, _Term, Packet}) ->
     {raw, [Packet]}.
 
--spec socket_activate(socket()) -> ok.
-socket_activate(_Socket) ->
+-spec activate(socket()) -> ok.
+activate(_Socket) ->
     ok.
 
--spec socket_close(socket()) -> ok.
-socket_close(#websocket{pid = Pid}) ->
+-spec close(socket()) -> ok.
+close(#websocket{pid = Pid}) ->
     Pid ! stop,
     ok.
 
--spec socket_send_xml(socket(), iodata() | exml:element() | [exml:element()]) ->
+-spec send_xml(socket(), iodata() | exml:element() | [exml:element()]) ->
     ok | {error, term()}.
-socket_send_xml(#websocket{pid = Pid}, XMLs) when is_list(XMLs) ->
+send_xml(#websocket{pid = Pid}, XMLs) when is_list(XMLs) ->
     [Pid ! {send_xml, XML} || XML <- XMLs],
     ok;
-socket_send_xml(#websocket{pid = Pid}, XML) ->
+send_xml(#websocket{pid = Pid}, XML) ->
     Pid ! {send_xml, XML},
     ok.
 
 -spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
-has_peer_cert(Socket, LOpts) ->
-    get_peer_certificate(Socket, LOpts) /= no_peer_cert.
+has_peer_cert(Socket, _) ->
+    get_peer_certificate(Socket) /= no_peer_cert.
 
-
--spec get_peer_certificate(socket(), mongoose_listener:options()) ->
-    mongoose_transport:peercert_return().
-get_peer_certificate(#websocket{peercert = undefined}, _) ->
+-spec get_peer_certificate(socket()) -> mongoose_xmpp_socket:peercert_return().
+get_peer_certificate(#websocket{peercert = undefined}) ->
     no_peer_cert;
-get_peer_certificate(#websocket{peercert = PeerCert}, _) ->
+get_peer_certificate(#websocket{peercert = PeerCert}) ->
     Decoded = public_key:pkix_decode_cert(PeerCert, plain),
     {ok, Decoded}.
 
@@ -416,9 +413,15 @@ get_peer_certificate(#websocket{peercert = PeerCert}, _) ->
 is_channel_binding_supported(_Socket) ->
     false.
 
--spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
-get_tls_last_message(_Socket) ->
-    {error, tls_not_allowed_on_websockets}.
+-spec export_key_materials(socket(), Labels, Contexts, WantedLengths, ConsumeSecret) ->
+    {error, export_key_materials_not_supported_for_websockets}
+      when
+      Labels :: [binary()],
+      Contexts :: [binary() | no_context],
+      WantedLengths :: [non_neg_integer()],
+      ConsumeSecret :: boolean().
+export_key_materials(_Socket, _, _, _, _) ->
+    {error, export_key_materials_not_supported_for_websockets}.
 
 -spec is_ssl(socket()) -> boolean().
 is_ssl(_Socket) ->
