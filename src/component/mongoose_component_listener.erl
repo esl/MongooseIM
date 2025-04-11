@@ -9,17 +9,14 @@
 %% mongoose_listener
 -spec instrumentation(_) -> [mongoose_instrument:spec()].
 instrumentation(_) ->
+    ElementMetrics = mongoose_measurements:element_metrics(),
     [{tcp_data_in, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
      {tcp_data_out, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
      {tls_data_in, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
      {tls_data_out, #{connection_type => component}, #{metrics => #{byte_size => spiral}}},
-     {xmpp_element_size_out, #{connection_type => component}, #{metrics => #{byte_size => histogram}}},
-     {xmpp_element_size_in, #{connection_type => component}, #{metrics => #{byte_size => histogram}}},
-     {component_auth_failed, #{}, #{metrics => #{count => spiral}}},
-     {component_element_in, #{},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}},
-     {component_element_out, #{},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}}].
+     {xmpp_element_out, #{connection_type => component}, #{metrics => ElementMetrics}},
+     {xmpp_element_in, #{connection_type => component}, #{metrics => ElementMetrics}},
+     {component_auth_failed, #{}, #{metrics => #{count => spiral}}}].
 
 %% mongoose_listener
 -spec listener_spec(mongoose_listener:options()) -> supervisor:child_spec().

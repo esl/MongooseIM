@@ -12,7 +12,7 @@
 -ignore_xref([start_listener/1, stop_listener/1]).
 
 %% Helpers
--export([child_spec/1, read_connection_details/3, listener_id/1, element_spirals/0]).
+-export([child_spec/1, read_connection_details/3, listener_id/1]).
 
 -callback listener_spec(options()) -> supervisor:child_spec().
 -callback instrumentation(options()) -> [mongoose_instrument:spec()].
@@ -186,11 +186,6 @@ broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
             ok = ranch:wait_for_connections(Ref, '==', 0)
         end, Refs),
     StoppedCount.
-
--spec element_spirals() -> [atom()].
-element_spirals() ->
-    [count, stanza_count, message_count, iq_count, presence_count,
-     error_count, message_error_count, iq_error_count, presence_error_count].
 
 -spec read_connection_details
     (ranch:ref(), ranch_tcp, options()) ->
