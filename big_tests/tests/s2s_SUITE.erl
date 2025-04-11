@@ -599,12 +599,9 @@ assert_events(TS, Config) ->
     Opts2 = Opts#{expected_count => element_count(TLS)},
     MimDomain = domain_helper:domain(),
     DomainFilter = fun(#{lserver := LServer}) -> LServer =:= MimDomain end,
-    instrument_helper:assert(s2s_element_in, #{}, DomainFilter, Opts2),
-    instrument_helper:assert(s2s_element_out, #{}, DomainFilter, Opts2),
-
     CombinedFilter = fun(M) -> DomainFilter(M) andalso SizeFilter(M) end,
-    instrument_helper:assert(xmpp_element_size_out, Labels, CombinedFilter, Opts2),
-    instrument_helper:assert(xmpp_element_size_in, Labels, CombinedFilter, Opts2).
+    instrument_helper:assert(xmpp_element_in, Labels, CombinedFilter, Opts2),
+    instrument_helper:assert(xmpp_element_out, Labels, CombinedFilter, Opts2).
 
 data_events(true) -> {tls_data_in, tls_data_out};
 data_events(false) -> {tcp_data_in, tcp_data_out}.
@@ -668,12 +665,10 @@ group_with_tls(node1_tls_optional_node2_tls_required_trusted_with_cachain) -> tr
 group_with_tls(_GN) -> false.
 
 tested_events() ->
-    [{xmpp_element_size_in, #{connection_type => s2s}},
-     {xmpp_element_size_out, #{connection_type => s2s}},
+    [{xmpp_element_in, #{connection_type => s2s}},
+     {xmpp_element_out, #{connection_type => s2s}},
      {tls_data_in, #{connection_type => s2s}},
      {tls_data_out, #{connection_type => s2s}},
      {tcp_data_in, #{connection_type => s2s}},
      {tcp_data_out, #{connection_type => s2s}},
-     {s2s_element_in, #{}},
-     {s2s_element_out, #{}},
      {s2s_auth_failed, #{}}].

@@ -113,9 +113,9 @@ register_one_component(Config) ->
     CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
 
     %% Expect events for handshake, but not for 'start stream'.
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_in, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
 
     instrument_helper:assert(component_auth_failed, #{}, FullCheckF,
@@ -129,14 +129,10 @@ register_one_component(Config) ->
     verify_component(Config, Component, ComponentAddr),
 
     % Message from Alice
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS1}),
     % Reply to Alice
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
-        #{expected_count => 1, min_timestamp => TS1}),
-    instrument_helper:assert(component_element_in, #{}, CheckServer,
-        #{expected_count => 1, min_timestamp => TS1}),
-    instrument_helper:assert(component_element_out, #{}, CheckServer,
+    instrument_helper:assert(xmpp_element_in, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS1}),
 
     component_helper:disconnect_component(Component, ComponentAddr).
@@ -187,9 +183,9 @@ intercomponent_communication(Config) ->
     FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
                          S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
                  end,
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_in, #{connection_type => component}, FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
 
     component_helper:disconnect_component(Comp1, CompAddr1),
@@ -241,10 +237,10 @@ register_two_components(Config) ->
                     S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
              end,
     % Msg to Alice, msg to Bob
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_in, #{connection_type => component}, FullCheckF,
         #{expected_count => 2, min_timestamp => TS}),
     % Msg from Bob, msg from Alice
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, #{connection_type => component}, FullCheckF,
         #{expected_count => 2, min_timestamp => TS}),
 
     component_helper:disconnect_component(Comp1, CompAddr1),
