@@ -19,7 +19,7 @@ groups() ->
                               host_type_metrics_are_exposed]}].
 
 init_per_suite(Config) ->
-    [{ok, _} = application:ensure_all_started(App) || App <- required_apps()],
+    {ok, _} = application:ensure_all_started(required_apps()),
     mongoose_config:set_opts(opts()),
     Config1 = async_helper:start(Config, [{mongoose_instrument, start_link, []},
                                           {mim_ct_sup, start_link, [ejabberd_sup]},
