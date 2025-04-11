@@ -81,6 +81,8 @@ process_graphite_reporter(_Path, #{host := Host, port := Port} = Opts) ->
 
 -spec start(opts()) -> ok.
 start(#{all_metrics_are_global := AllGlobal, report := Reporters}) ->
+    Apps = [exometer_core, exometer_report_graphite, exometer_report_statsd],
+    {ok, _} = application:ensure_all_started(Apps, permanent),
     Prefixes = [{HostType, make_host_type_prefix(HostType, AllGlobal)}
                 || HostType <- ?ALL_HOST_TYPES],
     persistent_term:put(?PREFIXES, maps:from_list(Prefixes)),
