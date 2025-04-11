@@ -193,17 +193,15 @@ get_xmpp_stanzas_count(PrevReport) ->
        }} || {StanzaType, Total, Increment} <- StanzasCount].
 
 count_stanzas(StanzaType) ->
-    ExometerResults = exometer:get_values(['_' | metric_name(StanzaType)]),
-    StanzaCount = lists:foldl(fun({ _, [{count, Count}, {one, _}]}, Sum) -> Count + Sum end,
-                              0, ExometerResults),
+    {ok, [{count, StanzaCount}]} = exometer:get_value(metric_name(StanzaType), count),
     {StanzaType, StanzaCount}.
 
-metric_name(xmppMessageSent) -> [c2s_element_in, message_count];
-metric_name(xmppIqSent) -> [c2s_element_in, iq_count];
-metric_name(xmppPresenceSent) -> [c2s_element_in, presence_count];
-metric_name(xmppMessageReceived) -> [c2s_element_out, message_count];
-metric_name(xmppIqReceived) -> [c2s_element_out, iq_count];
-metric_name(xmppPresenceReceived) -> [c2s_element_out, presence_count].
+metric_name(xmppMessageSent) -> [global, xmpp_element_in, c2s, message_count];
+metric_name(xmppIqSent) -> [global, xmpp_element_in, c2s, iq_count];
+metric_name(xmppPresenceSent) -> [global, xmpp_element_in, c2s, presence_count];
+metric_name(xmppMessageReceived) -> [global, xmpp_element_out, c2s, message_count];
+metric_name(xmppIqReceived) -> [global, xmpp_element_out, c2s, iq_count];
+metric_name(xmppPresenceReceived) -> [global, xmpp_element_out, c2s, presence_count].
 
 calculate_stanza_rate([], NewCount) ->
     [{Type, Count, Count} || {Type, Count} <- NewCount];

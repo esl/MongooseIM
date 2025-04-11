@@ -252,5 +252,5 @@ tls_instrumentation_events() ->
 common_instrumentation_events() ->
     HostType = domain_helper:host_type(),
     [{c2s_message_processed, #{host_type => HostType}},
-     {xmpp_element_size_in, #{connection_type => c2s}},
-     {xmpp_element_size_out, #{connection_type => c2s}}].
+     {xmpp_element_in, #{connection_type => c2s}},
+     {xmpp_element_out, #{connection_type => c2s}}].
