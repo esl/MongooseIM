@@ -164,8 +164,7 @@ handle_socket_packet(StateData = #component_data{parser = Parser}, Packet) ->
 
 -spec handle_socket_elements(data(), [exml_stream:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #component_data{lserver = LServer, shaper = Shaper}, Elements, Size) ->
-    [execute_element_events(Element, LServer, component_element_in, xmpp_element_size_in)
-     || Element = #xmlel{} <- Elements],
+    [execute_element_event(Element, LServer, xmpp_element_in) || Element = #xmlel{} <- Elements],
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
     NewStateData = StateData#component_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
@@ -403,8 +402,7 @@ close_parser(#component_data{parser = Parser}) ->
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
 send_xml(#component_data{lserver = LServer, socket = Socket}, XmlElements) when is_list(XmlElements) ->
-    [execute_element_events(Element, LServer, component_element_out, xmpp_element_size_out)
-     || Element = #xmlel{} <- XmlElements],
+    [execute_element_event(Element, LServer, xmpp_element_out) || Element = #xmlel{} <- XmlElements],
     mongoose_xmpp_socket:send_xml(Socket, XmlElements).
 
 state_timeout(#component_data{listener_opts = LOpts}) ->
@@ -435,14 +433,7 @@ unregister_routes(#component_data{component = Component}) ->
 
 %%% Instrumentation helpers
 
--spec execute_element_events(exml:element(), jid:lserver(), mongoose_instrument:event_name(),
-                             mongoose_instrument:event_name()) -> ok.
-execute_element_events(Element, LServer, EventName, SizeEventName) ->
-    Measurements = mongoose_measurements:measure_element(Element),
-    mongoose_instrument:execute(EventName, #{}, Measurements#{lserver => LServer}),
-    mongoose_instrument:execute(SizeEventName, labels(),
-                                #{byte_size => exml:xml_size(Element), lserver => LServer}).
-
--spec labels() -> mongoose_instrument:labels().
-labels() ->
-    #{connection_type => component}.
+-spec execute_element_event(exml:element(), jid:lserver(), mongoose_instrument:event_name()) -> ok.
+execute_element_event(Element, LServer, EventName) ->
+    mongoose_instrument_xmpp:execute_element_event(EventName, component, undefined, Element,
+                                                   #{lserver => LServer}).

@@ -198,12 +198,12 @@ count_stanzas(StanzaType) ->
                               0, ExometerResults),
     {StanzaType, StanzaCount}.
 
-metric_name(xmppMessageSent) -> [c2s_element_in, message_count];
-metric_name(xmppIqSent) -> [c2s_element_in, iq_count];
-metric_name(xmppPresenceSent) -> [c2s_element_in, presence_count];
-metric_name(xmppMessageReceived) -> [c2s_element_out, message_count];
-metric_name(xmppIqReceived) -> [c2s_element_out, iq_count];
-metric_name(xmppPresenceReceived) -> [c2s_element_out, presence_count].
+metric_name(xmppMessageSent) -> [xmpp_element_in, '_', message_count];
+metric_name(xmppIqSent) -> [xmpp_element_in, '_', iq_count];
+metric_name(xmppPresenceSent) -> [xmpp_element_in, '_', presence_count];
+metric_name(xmppMessageReceived) -> [xmpp_element_out, '_', message_count];
+metric_name(xmppIqReceived) -> [xmpp_element_out, '_', iq_count];
+metric_name(xmppPresenceReceived) -> [xmpp_element_out, '_', presence_count].
 
 calculate_stanza_rate([], NewCount) ->
     [{Type, Count, Count} || {Type, Count} <- NewCount];

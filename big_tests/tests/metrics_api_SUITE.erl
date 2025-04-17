@@ -107,7 +107,7 @@ non_existent_metrics(_Config) ->
     assert_status(404, request(<<"GET">>, "/metrics/global/badMetric")),
     assert_status(404, request(<<"GET">>, "/metrics/host_type/badHostType")),
     assert_status(404, request(<<"GET">>,
-                               "/metrics/host_type/badHostType/c2s_element_out.stanza_count")),
+                               "/metrics/host_type/badHostType/xmpp_element_out.c2s.stanza_count")),
     assert_status(404, request(<<"GET">>, ["/metrics/", HostType, "/", GlobalMetricName])),
     assert_status(404, request(<<"GET">>, ["/metrics/", HostType, "/badMetric"])).
 
@@ -122,14 +122,14 @@ one_client_just_logs_in(Config) ->
         (Config, metrics_helper:userspec(1, Config),
          fun(_User1) -> end_of_story end,
          %% A list of metrics and their expected relative increase
-         [{'c2s_element_in.iq_count', 0 + user_alpha(2)},
-          {'c2s_element_out.iq_count', 0 + user_alpha(2)},
-          {'c2s_element_in.message_count', 0},
-          {'c2s_element_out.message_count', 0},
-          {'c2s_element_in.presence_count', 0 + user_alpha(1)},
-          {'c2s_element_out.presence_count', 0 + user_alpha(1)},
-          {'c2s_element_in.stanza_count', 0 + user_alpha(3)},
-          {'c2s_element_out.stanza_count', 0 + user_alpha(3)},
+         [{'xmpp_element_in.c2s.iq_count', 0 + user_alpha(2)},
+          {'xmpp_element_out.c2s.iq_count', 0 + user_alpha(2)},
+          {'xmpp_element_in.c2s.message_count', 0},
+          {'xmpp_element_out.c2s.message_count', 0},
+          {'xmpp_element_in.c2s.presence_count', 0 + user_alpha(1)},
+          {'xmpp_element_out.c2s.presence_count', 0 + user_alpha(1)},
+          {'xmpp_element_in.c2s.stanza_count', 0 + user_alpha(3)},
+          {'xmpp_element_out.c2s.stanza_count', 0 + user_alpha(3)},
           {'sm_session.logins', 0 + user_alpha(1)},
           {'sm_session.logouts', 0 + user_alpha(1)}
          ]).
@@ -138,14 +138,14 @@ two_clients_just_log_in(Config) ->
     instrumented_story
         (Config, metrics_helper:userspec(1, 1, Config),
          fun(_User1, _User2) -> end_of_story end,
-         [{'c2s_element_in.iq_count', 0 + user_alpha(4)},
-          {'c2s_element_out.iq_count', 0 + user_alpha(4)},
-          {'c2s_element_in.message_count', 0},
-          {'c2s_element_out.message_count', 0},
-          {'c2s_element_in.presence_count', 0 + user_alpha(2)},
-          {'c2s_element_out.presence_count', 0 + user_alpha(2)},
-          {'c2s_element_in.stanza_count', 0 + user_alpha(6)},
-          {'c2s_element_out.stanza_count', 0 + user_alpha(6)},
+         [{'xmpp_element_in.c2s.iq_count', 0 + user_alpha(4)},
+          {'xmpp_element_out.c2s.iq_count', 0 + user_alpha(4)},
+          {'xmpp_element_in.c2s.message_count', 0},
+          {'xmpp_element_out.c2s.message_count', 0},
+          {'xmpp_element_in.c2s.presence_count', 0 + user_alpha(2)},
+          {'xmpp_element_out.c2s.presence_count', 0 + user_alpha(2)},
+          {'xmpp_element_in.c2s.stanza_count', 0 + user_alpha(6)},
+          {'xmpp_element_out.c2s.stanza_count', 0 + user_alpha(6)},
           {'sm_session.logins', 0 + user_alpha(2)},
           {'sm_session.logouts', 0 + user_alpha(2)}
          ]).
@@ -158,8 +158,8 @@ one_message_sent(Config) ->
                escalus_client:send(User1, Chat),
                escalus_client:wait_for_stanza(User2)
        end,
-       [{'c2s_element_in.message_count', 1},
-        {'c2s_element_out.message_count', 1}]).
+       [{'xmpp_element_in.c2s.message_count', 1},
+        {'xmpp_element_out.c2s.message_count', 1}]).
 
 one_direct_presence_sent(Config) ->
     Userspec = metrics_helper:userspec(1, 1, Config),
@@ -170,10 +170,10 @@ one_direct_presence_sent(Config) ->
                escalus:send(User1, Presence),
                escalus:wait_for_stanza(User2)
         end,
-       [{'c2s_element_in.presence_count', 1 + user_alpha(2)},
-        {'c2s_element_out.presence_count', 1 + user_alpha(2)},
-        {'c2s_element_in.stanza_count', 1 + user_alpha(6)},
-        {'c2s_element_out.stanza_count', 1 + user_alpha(6)}]).
+       [{'xmpp_element_in.c2s.presence_count', 1 + user_alpha(2)},
+        {'xmpp_element_out.c2s.presence_count', 1 + user_alpha(2)},
+        {'xmpp_element_in.c2s.stanza_count', 1 + user_alpha(6)},
+        {'xmpp_element_out.c2s.stanza_count', 1 + user_alpha(6)}]).
 
 one_iq_sent(Config) ->
     instrumented_story
@@ -183,11 +183,11 @@ one_iq_sent(Config) ->
                escalus_client:send(User1, RosterIq),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{'c2s_element_in.iq_count', 3},
-        {'c2s_element_out.iq_count', 3},
+       [{'xmpp_element_in.c2s.iq_count', 3},
+        {'xmpp_element_out.c2s.iq_count', 3},
         {'mod_roster_get.count', 1},
-        {'c2s_element_in.stanza_count', 1 + user_alpha(3)},
-        {'c2s_element_out.stanza_count', 1 + user_alpha(3)}]).
+        {'xmpp_element_in.c2s.stanza_count', 1 + user_alpha(3)},
+        {'xmpp_element_out.c2s.stanza_count', 1 + user_alpha(3)}]).
 
 one_message_error(Config) ->
     instrumented_story
@@ -198,10 +198,10 @@ one_message_error(Config) ->
                escalus_client:send(User1, Chat),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{'c2s_element_out.error_count', 1},
-        {'c2s_element_out.iq_error_count', 0},
-        {'c2s_element_out.message_error_count', 1},
-        {'c2s_element_out.presence_error_count', 0}]).
+       [{'xmpp_element_out.c2s.error_count', 1},
+        {'xmpp_element_out.c2s.iq_error_count', 0},
+        {'xmpp_element_out.c2s.message_error_count', 1},
+        {'xmpp_element_out.c2s.presence_error_count', 0}]).
 
 one_iq_error(Config) ->
     instrumented_story
@@ -211,10 +211,10 @@ one_iq_error(Config) ->
                escalus_client:send(User1, BadIQ),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{'c2s_element_out.error_count', 1},
-        {'c2s_element_out.iq_error_count', 1},
-        {'c2s_element_out.message_error_count', 0},
-        {'c2s_element_out.presence_error_count', 0}]).
+       [{'xmpp_element_out.c2s.error_count', 1},
+        {'xmpp_element_out.c2s.iq_error_count', 1},
+        {'xmpp_element_out.c2s.message_error_count', 0},
+        {'xmpp_element_out.c2s.presence_error_count', 0}]).
 
 one_presence_error(Config) ->
     instrumented_story
@@ -225,10 +225,10 @@ one_presence_error(Config) ->
                escalus_client:send(User1, BadPres),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{'c2s_element_out.error_count', 1},
-        {'c2s_element_out.iq_error_count', 0},
-        {'c2s_element_out.message_error_count', 0},
-        {'c2s_element_out.presence_error_count', 1}]).
+       [{'xmpp_element_out.c2s.error_count', 1},
+        {'xmpp_element_out.c2s.iq_error_count', 0},
+        {'xmpp_element_out.c2s.message_error_count', 0},
+        {'xmpp_element_out.c2s.presence_error_count', 1}]).
 
 session_counters(Config) ->
     escalus:story
@@ -344,9 +344,9 @@ metrics_msg_flow(_Config) ->
 user_alpha(NumberOfUsers) ->
     %% This represents the overhead of logging in N users via escalus:story/3
     %% For each user,
-    %%     c2s_element_(in|out).stanza_count
+    %%     xmpp_element_(in|out).c2s.stanza_count
     %%     and
-    %%     c2s_element_(in|out).presence_count
+    %%     xmpp_element_(in|out).c2s.presence_count
     %% will be bumped by +1 at login.
     NumberOfUsers.
 

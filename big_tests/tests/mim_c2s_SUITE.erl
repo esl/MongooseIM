@@ -236,10 +236,11 @@ escalus_start(Cfg, FlatCDs) ->
     Clients.
 
 instrumentation_events() ->
-    C2sGenericEvents =
-        [E || {_, Labels} = E <- instrument_helper:declared_events(mongoose_c2s, []),
-              not maps:is_key(host_type, Labels)],
-    [{c2s_message_processed, #{host_type => domain_helper:host_type()}} | C2sGenericEvents].
+    lists:filter(fun is_event_tested/1, instrument_helper:declared_events(mongoose_c2s, [])).
+
+is_event_tested({c2s_auth_failed, _Labels}) -> false; % tested in metrics_session_SUITE
+is_event_tested({_Event, #{host_type := HostType}}) -> HostType =:= domain_helper:host_type();
+is_event_tested({_Event, _Labels}) -> true.
 
 tcp_instrumentation_events() ->
     [{tcp_data_out, #{connection_type => c2s}},
@@ -252,5 +253,5 @@ tls_instrumentation_events() ->
 common_instrumentation_events() ->
     HostType = domain_helper:host_type(),
     [{c2s_message_processed, #{host_type => HostType}},
-     {xmpp_element_size_in, #{connection_type => c2s}},
-     {xmpp_element_size_out, #{connection_type => c2s}}].
+     {xmpp_element_in, #{connection_type => c2s, host_type => HostType}},
+     {xmpp_element_out, #{connection_type => c2s, host_type => HostType}}].

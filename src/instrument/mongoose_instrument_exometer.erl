@@ -187,7 +187,7 @@ exometer_labels(#{} = Labels) ->
     [V || {_K, V} <- lists:keysort(1, maps:to_list(Labels))].
 
 -spec get_host_type_prefix(mongoose_instrument:labels()) -> mongooseim:host_type_or_global().
-get_host_type_prefix(#{host_type := HostType}) ->
+get_host_type_prefix(#{host_type := HostType}) when HostType =/= <<>> ->
     case persistent_term:get(?PREFIXES, #{}) of
         #{HostType := Prefix} -> Prefix;
         #{} -> make_host_type_prefix(HostType, all_metrics_are_global())

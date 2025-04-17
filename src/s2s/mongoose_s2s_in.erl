@@ -403,9 +403,8 @@ handle_socket_packet(#s2s_data{parser = Parser} = Data, Packet) ->
     end.
 
 -spec handle_socket_elements(data(), [exml_stream:element()], non_neg_integer()) -> fsm_res().
-handle_socket_elements(#s2s_data{myname = LServer, shaper = Shaper} = Data, Elements, Size) ->
-    [execute_element_events(Element, LServer, s2s_element_in, xmpp_element_size_in)
-     || Element = #xmlel{} <- Elements],
+handle_socket_elements(#s2s_data{shaper = Shaper} = Data, Elements, Size) ->
+    [execute_element_event(Element, Data, xmpp_element_in) || Element = #xmlel{} <- Elements],
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
     NewData = Data#s2s_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
@@ -515,9 +514,9 @@ stream_error(Data, Error) ->
     {stop, {shutdown, stream_error}, Data}.
 
 -spec send_xml(data(), exml_stream:element()) -> maybe_ok().
-send_xml(#s2s_data{myname = LServer, socket = Socket}, Elem) ->
+send_xml(#s2s_data{socket = Socket} = Data, Elem) ->
     case Elem of
-        #xmlel{} -> execute_element_events(Elem, LServer, s2s_element_out, xmpp_element_size_out);
+        #xmlel{} -> execute_element_event(Elem, Data, xmpp_element_out);
         _ -> ok
     end,
     mongoose_xmpp_socket:send_xml(Socket, Elem).
@@ -629,15 +628,7 @@ invalid_mechanism() ->
 
 %% Instrumentation helpers
 
--spec execute_element_events(exml:element(), jid:lserver(), mongoose_instrument:event_name(),
-                             mongoose_instrument:event_name()) -> ok.
-execute_element_events(Element, LServer, EventName, SizeEventName) ->
-    Measurements = mongoose_measurements:measure_element(Element),
-    mongoose_instrument:execute(EventName, #{}, Measurements#{lserver => LServer}),
-    mongoose_instrument:execute(SizeEventName, labels(),
-                                #{byte_size => exml:xml_size(Element), lserver => LServer,
-                                  pid => self(), module => ?MODULE}).
-
--spec labels() -> mongoose_instrument:labels().
-labels() ->
-    #{connection_type => s2s}.
+-spec execute_element_event(exml:element(), data(), mongoose_instrument:event_name()) -> ok.
+execute_element_event(Element, #s2s_data{host_type = HostType, myname = LServer}, EventName) ->
+    Metadata = #{lserver => LServer, pid => self(), module => ?MODULE},
+    mongoose_instrument_xmpp:execute_element_event(EventName, s2s, HostType, Element, Metadata).

@@ -47,8 +47,8 @@ suite() ->
 
 init_per_suite(Config) ->
     HostType = host_type(),
-    instrument_helper:start([{c2s_element_in, #{host_type => HostType}},
-                             {c2s_element_out, #{host_type => HostType}},
+    instrument_helper:start([{xmpp_element_in, labels()},
+                             {xmpp_element_out, labels()},
                              {sm_message_bounced, #{host_type => HostType}}]),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
@@ -106,8 +106,8 @@ message_story(Alice, Bob) ->
     escalus_client:send(Alice, Msg),
     MsgToBob = escalus_client:wait_for_stanza(Bob),
     escalus:assert(is_chat_message, MsgToBob),
-    assert_event(in, Alice, #{stanza_count => 1, message_count => 1, element => Msg}),
-    assert_event(out, Bob, #{stanza_count => 1, message_count => 1, element => MsgToBob}).
+    assert_event(in, Alice, #{stanza_count => 1, message_count => 1}, Msg),
+    assert_event(out, Bob, #{stanza_count => 1, message_count => 1}, MsgToBob).
 
 message_error(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun message_error_story/1).
@@ -118,9 +118,9 @@ message_error_story(Alice) ->
     escalus_client:send(Alice, Msg),
     Error = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
-    assert_event(in, Alice, #{stanza_count => 1, message_count => 1, element => Msg}),
-    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, message_error_count => 1,
-                               element => Error}).
+    assert_event(in, Alice, #{stanza_count => 1, message_count => 1}, Msg),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, message_error_count => 1},
+                 Error).
 
 presence(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun presence_story/2).
@@ -130,8 +130,8 @@ presence_story(Alice, Bob) ->
     escalus:send(Alice, Presence),
     PresenceToBob = escalus:wait_for_stanza(Bob),
     escalus:assert(is_presence, PresenceToBob),
-    assert_event(in, Alice, #{stanza_count => 1, presence_count => 1, element => Presence}),
-    assert_event(out, Bob, #{stanza_count => 1, presence_count => 1, element => PresenceToBob}).
+    assert_event(in, Alice, #{stanza_count => 1, presence_count => 1}, Presence),
+    assert_event(out, Bob, #{stanza_count => 1, presence_count => 1}, PresenceToBob).
 
 presence_error(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun presence_error_story/1).
@@ -141,9 +141,9 @@ presence_error_story(Alice) ->
     escalus:send(Alice, Presence),
     Error = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Error),
-    assert_event(in, Alice, #{stanza_count => 1, presence_count => 1, element => Presence}),
-    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, presence_error_count => 1,
-                               element => Error}).
+    assert_event(in, Alice, #{stanza_count => 1, presence_count => 1}, Presence),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, presence_error_count => 1},
+                               Error).
 
 iq(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun iq_story/1).
@@ -153,8 +153,8 @@ iq_story(Alice) ->
     escalus_client:send(Alice, Request),
     Response = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_iq_result, [Request], Response),
-    assert_event(in, Alice, #{stanza_count => 1, iq_count => 1, element => Request}),
-    assert_event(out, Alice, #{stanza_count => 1, iq_count => 1, element => Response}).
+    assert_event(in, Alice, #{stanza_count => 1, iq_count => 1}, Request),
+    assert_event(out, Alice, #{stanza_count => 1, iq_count => 1}, Response).
 
 iq_error(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun iq_error_story/1).
@@ -164,9 +164,8 @@ iq_error_story(Alice) ->
     escalus:send(Alice, Request),
     Error = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
-    assert_event(in, Alice, #{stanza_count => 1, iq_count => 1, element => Request}),
-    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, iq_error_count => 1,
-                               element => Error}).
+    assert_event(in, Alice, #{stanza_count => 1, iq_count => 1}, Request),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, iq_error_count => 1}, Error).
 
 message_bounced(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun message_bounced_story/3).
@@ -176,8 +175,8 @@ message_bounced_story(Config, Alice, Bob) ->
     escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
     Error = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
-    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, message_error_count => 1,
-                               element => Error}),
+    assert_event(out, Alice, #{stanza_count => 1, error_count => 1, message_error_count => 1},
+                 Error),
     assert_message_bounced_event(Alice, Bob).
 
 %% C2S instrumentation events
@@ -185,30 +184,31 @@ message_bounced_story(Config, Alice, Bob) ->
 has_child(SubElName, El) ->
     exml_query:subelement(El, SubElName) =/= undefined.
 
-assert_event(Dir, ClientOrJid, Measurements) ->
+%% Assert exactly one XML stanza event with specific measurements and a JID
+assert_event(Dir, ClientOrJid, Measurements, Element = #xmlel{}) ->
+    assert_event(Dir, ClientOrJid, Measurements, fun(El) -> El =:= Element end);
+assert_event(Dir, ClientOrJid, Measurements, CheckElFun) when is_function(CheckElFun, 1)->
     Jid = jid:from_binary(escalus_utils:get_jid(ClientOrJid)),
-    instrument_helper:assert_one(
-      event_name(Dir), #{host_type => host_type()},
-      fun(M) -> M =:= Measurements#{jid => Jid, count => 1} end).
+    Filter = fun(M = #{element := El}) ->
+                     maps:remove(element, M) =:= Measurements#{jid => Jid, count => 1,
+                                                               byte_size => exml:xml_size(El)}
+                         andalso CheckElFun(El)
+             end,
+    instrument_helper:assert_one(event_name(Dir), labels(), Filter).
 
+%% Assert one or more generic XML stanza events without a JID
 assert_events(Dir, CheckElFun) ->
-    instrument_helper:assert(
-      event_name(Dir), #{host_type => host_type()},
-      fun(M = #{element := El}) ->
-               maps:remove(element, M) =:= #{jid => undefined, count => 1} andalso CheckElFun(El)
-      end).
+    Filter = fun(M = #{element := El}) ->
+                     maps:remove(element, M) =:= #{jid => undefined, count => 1,
+                                                   byte_size => exml:xml_size(El)}
+                         andalso CheckElFun(El)
+             end,
+    instrument_helper:assert(event_name(Dir), labels(), Filter).
 
-assert_event(Dir, ClientOrJid, Measurements, CheckElFun) ->
-    Jid = jid:from_binary(escalus_utils:get_jid(ClientOrJid)),
-    instrument_helper:assert_one(
-      event_name(Dir), #{host_type => host_type()},
-      fun(M = #{element := El}) ->
-               maps:remove(element, M) =:= Measurements#{jid => Jid, count => 1}
-                  andalso CheckElFun(El)
-      end).
+event_name(out) -> xmpp_element_out;
+event_name(in) -> xmpp_element_in.
 
-event_name(out) -> c2s_element_out;
-event_name(in) -> c2s_element_in.
+labels() -> #{connection_type => c2s, host_type => host_type()}.
 
 %% SM instrumentation events
 

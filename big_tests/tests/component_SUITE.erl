@@ -113,30 +113,26 @@ register_one_component(Config) ->
     CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
 
     %% Expect events for handshake, but not for 'start stream'.
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_in, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
 
     instrument_helper:assert(component_auth_failed, #{}, FullCheckF,
         #{expected_count => 0, min_timestamp => TS}),
-    instrument_helper:assert(tcp_data_in, #{connection_type => component}, CheckBytes,
+    instrument_helper:assert(tcp_data_in, labels(), CheckBytes,
         #{min_timestamp => TS}),
-    instrument_helper:assert(tcp_data_out, #{connection_type => component}, CheckBytes,
+    instrument_helper:assert(tcp_data_out, labels(), CheckBytes,
         #{min_timestamp => TS}),
 
     TS1 = instrument_helper:timestamp(),
     verify_component(Config, Component, ComponentAddr),
 
     % Message from Alice
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS1}),
     % Reply to Alice
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
-        #{expected_count => 1, min_timestamp => TS1}),
-    instrument_helper:assert(component_element_in, #{}, CheckServer,
-        #{expected_count => 1, min_timestamp => TS1}),
-    instrument_helper:assert(component_element_out, #{}, CheckServer,
+    instrument_helper:assert(xmpp_element_in, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS1}),
 
     component_helper:disconnect_component(Component, ComponentAddr).
@@ -151,9 +147,9 @@ register_one_component_tls(Config) ->
                  end,
     CheckBytes = fun(#{byte_size := S}) -> S > 0 end,
     CheckServer = fun(#{lserver := S}) -> S =:= ComponentAddr end,
-    instrument_helper:assert(tls_data_in, #{connection_type => component}, CheckBytes,
+    instrument_helper:assert(tls_data_in, labels(), CheckBytes,
         #{min_timestamp => TS}),
-    instrument_helper:assert(tls_data_out, #{connection_type => component}, CheckBytes,
+    instrument_helper:assert(tls_data_out, labels(), CheckBytes,
         #{min_timestamp => TS}),
 
     TS1 = instrument_helper:timestamp(),
@@ -187,9 +183,9 @@ intercomponent_communication(Config) ->
     FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
                          S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
                  end,
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_in, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
 
     component_helper:disconnect_component(Comp1, CompAddr1),
@@ -241,10 +237,10 @@ register_two_components(Config) ->
                     S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
              end,
     % Msg to Alice, msg to Bob
-    instrument_helper:assert(xmpp_element_size_in, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_in, ht_labels(), FullCheckF,
         #{expected_count => 2, min_timestamp => TS}),
     % Msg from Bob, msg from Alice
-    instrument_helper:assert(xmpp_element_size_out, #{connection_type => component}, FullCheckF,
+    instrument_helper:assert(xmpp_element_out, ht_labels(), FullCheckF,
         #{expected_count => 2, min_timestamp => TS}),
 
     component_helper:disconnect_component(Comp1, CompAddr1),
@@ -590,6 +586,14 @@ restore_domain(Config) ->
 
 events() ->
     instrument_helper:declared_events(mongoose_component_listener, [#{}]).
+
+%% Data metrics have only the connection_type label
+labels() ->
+    #{connection_type => component}.
+
+%% XMPP element metric labels include host_type, but components don't have host types
+ht_labels() ->
+    (labels())#{host_type => <<>>}.
 
 %%--------------------------------------------------------------------
 %% Stanzas

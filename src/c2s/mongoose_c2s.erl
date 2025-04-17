@@ -66,27 +66,13 @@
 
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
-    Acc = [
-        {tcp_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-        {tcp_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-        {tls_data_in, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-        {tls_data_out, #{connection_type => c2s}, #{metrics => #{byte_size => spiral}}},
-        {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
-        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}
-    ],
-    lists:foldl(fun instrumentation/2, Acc, ?ALL_HOST_TYPES).
+    lists:flatmap(fun instrumentation/1, ?ALL_HOST_TYPES) ++
+        mongoose_instrument_xmpp:instrumentation(c2s).
 
--spec instrumentation(mongooseim:host_type(), [mongoose_instrument:spec()]) ->
-     [mongoose_instrument:spec()].
-instrumentation(HostType, Acc) when is_binary(HostType) ->
-    [{c2s_message_processed, #{host_type => HostType},
-      #{metrics => #{time => histogram}}},
-     {c2s_auth_failed, #{host_type => HostType},
-      #{metrics => #{count => spiral}}},
-     {c2s_element_in, #{host_type => HostType},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}},
-     {c2s_element_out, #{host_type => HostType},
-      #{metrics => maps:from_list([{Metric, spiral} || Metric <- mongoose_listener:element_spirals()])}} | Acc].
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) when is_binary(HostType) ->
+    [{c2s_message_processed, #{host_type => HostType}, #{metrics => #{time => histogram}}},
+     {c2s_auth_failed, #{host_type => HostType}, #{metrics => #{count => spiral}}}].
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -256,8 +242,7 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
 
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
-    [execute_element_events(Element, StateData, c2s_element_in, xmpp_element_size_in)
-     || Element = #xmlel{} <- Elements],
+    [execute_element_event(Element, StateData, xmpp_element_in) || Element = #xmlel{} <- Elements],
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
     NewStateData = StateData#c2s_data{shaper = NewShaper},
     StreamEvents0 = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
@@ -1060,7 +1045,7 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El)
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
 send_xml(#c2s_data{socket = Socket} = StateData, XmlElements) when is_list(XmlElements) ->
-    [execute_element_events(Element, StateData, c2s_element_out, xmpp_element_size_out)
+    [execute_element_event(Element, StateData, xmpp_element_out)
      || Element = #xmlel{} <- XmlElements],
     mongoose_xmpp_socket:send_xml(Socket, XmlElements).
 
@@ -1240,20 +1225,7 @@ merge_states(S0 = #c2s_data{}, S1 = #c2s_data{}) ->
 
 %% Instrumentation helpers
 
--spec execute_element_events(exml:element(), data(), mongoose_instrument:event_name(),
-                             mongoose_instrument:event_name()) -> ok.
-execute_element_events(Element, C2SData = #c2s_data{jid = Jid}, EventName, SizeEventName) ->
-    case C2SData#c2s_data.host_type of
-        undefined ->
-            ok;
-        HostType ->
-            Measurements = mongoose_measurements:measure_element(Element),
-            mongoose_instrument:execute(EventName, #{host_type => HostType},
-                                        Measurements#{jid => Jid})
-    end,
-    mongoose_instrument:execute(SizeEventName, labels(),
-                                #{byte_size => exml:xml_size(Element), jid => Jid}).
-
--spec labels() -> mongoose_instrument:labels().
-labels() ->
-    #{connection_type => c2s}.
+-spec execute_element_event(exml:element(), data(), mongoose_instrument:event_name()) -> ok.
+execute_element_event(Element, #c2s_data{host_type = HostType, jid = Jid}, EventName) ->
+    mongoose_instrument_xmpp:execute_element_event(EventName, c2s, HostType, Element,
+                                                   #{jid => Jid}).
