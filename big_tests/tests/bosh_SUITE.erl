@@ -949,6 +949,6 @@ wait_for_zero_bosh_sessions() ->
 
 instrumentation_events() ->
     instrument_helper:declared_events(mod_bosh, [])
-    ++ [{c2s_message_processed, #{host_type => domain_helper:host_type()}},
-        {xmpp_element_size_out, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}},
-        {xmpp_element_size_in, #{connection_type => c2s}, #{metrics => #{byte_size => histogram}}}].
+    ++ [{c2s_message_processed, #{host_type => host_type()}},
+        {xmpp_element_out, #{host_type => host_type(), connection_type => c2s}},
+        {xmpp_element_in, #{host_type => host_type(), connection_type => c2s}}].
