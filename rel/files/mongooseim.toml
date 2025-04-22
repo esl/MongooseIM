@@ -14,7 +14,6 @@
   {{#s2s_backend}}
   s2s_backend = {{{s2s_backend}}}
   {{/s2s_backend}}
-  max_fsm_queue = 1000
   {{#http_server_name}}
   http_server_name = {{{http_server_name}}}
   {{/http_server_name}}

@@ -9,7 +9,6 @@
   registration_timeout = "infinity"
   language = "en"
   sm_backend = "mnesia"
-  max_fsm_queue = 1000
 
 [internal_databases.mnesia]
 
