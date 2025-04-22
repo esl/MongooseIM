@@ -209,11 +209,11 @@ get_all_metrics_as_dicts(Config) ->
     check_node_result_is_valid(ParsedResult, false).
 
 get_by_name_metrics_as_dicts(Config) ->
-    Name = [<<"c2s_element_in">>, <<"stanza_count">>],
+    Name = [<<"xmpp_element_in">>, <<"c2s">>, <<"stanza_count">>],
     Result = get_metrics_as_dicts_by_name([<<"_">> | Name], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     [_|_] = ParsedResult,
-    %% Only c2s_element_in type
+    %% Only xmpp_element_in type
     lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_ | N]}) when N =:= Name ->
                           check_spiral_dict(Dict)
                   end, ParsedResult).
@@ -227,7 +227,7 @@ get_metrics_as_dicts_with_key_one(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"one">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [metric_host_type(), <<"c2s_element_out">>, <<"stanza_count">>],
+    SentName = [metric_host_type(), <<"xmpp_element_out">>, <<"c2s">>, <<"stanza_count">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     ?assert(is_integer(One)).
 
@@ -235,7 +235,7 @@ get_metrics_as_dicts_with_nonexistent_key(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"not_existing">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    RecvName = [<<"global">>, <<"xmpp_element_size_in">>, <<"c2s">>, <<"byte_size">>],
+    RecvName = [metric_host_type(), <<"xmpp_element_in">>, <<"c2s">>, <<"byte_size">>],
     [] = maps:get(RecvName, Map).
 
 get_metrics_as_dicts_empty_args(Config) ->
@@ -243,7 +243,7 @@ get_metrics_as_dicts_empty_args(Config) ->
     Result = get_metrics_as_dicts([], [<<"median">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    RecvName = [<<"global">>, <<"xmpp_element_size_in">>, <<"c2s">>, <<"byte_size">>],
+    RecvName = [metric_host_type(), <<"xmpp_element_in">>, <<"c2s">>, <<"byte_size">>],
     [#{<<"key">> := <<"median">>, <<"value">> := Median}] = maps:get(RecvName, Map),
     ?assert(is_integer(Median)),
     %% Empty keys
@@ -272,13 +272,13 @@ get_cluster_metrics(Config) ->
     check_node_result_is_valid(Res2, true).
 
 get_by_name_cluster_metrics_as_dicts(Config) ->
-    Name = [<<"c2s_element_in">>, <<"stanza_count">>],
+    Name = [<<"xmpp_element_in">>, <<"c2s">>, <<"stanza_count">>],
     Result = get_cluster_metrics_as_dicts_by_name([<<"_">> | Name], Config),
     NodeResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     Map = node_objects_to_map(NodeResult),
     %% Contains data for at least two nodes
     ?assert(maps:size(Map) > 1),
-    %% Only c2s_element_in type
+    %% Only xmpp_element_in type
     maps:map(fun(_Node, [_|_] = NodeRes) ->
         lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_ | N]}) when N =:= Name ->
                               check_spiral_dict(Dict)
@@ -317,7 +317,7 @@ get_cluster_metrics_empty_args(Config) ->
     ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     [#{<<"node">> := Node, <<"result">> := ResList}] = ParsedResult,
     Map = dict_objects_to_map(ResList),
-    SentName = [<<"global">>, <<"c2s_element_in">>, <<"stanza_count">>],
+    SentName = [<<"global">>, <<"xmpp_element_in">>, <<"c2s">>, <<"stanza_count">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     ?assert(is_integer(One)),
     %% Empty keys
@@ -351,15 +351,16 @@ get_cluster_metrics_empty_strings(Config) ->
 check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     %% Check that result contains something
     Map = dict_objects_to_map(ResList),
-    SentName = case MetricsAreGlobal of
-            true -> [<<"global">>, <<"c2s_element_in">>, <<"stanza_count">>];
-            false -> [metric_host_type(), <<"c2s_element_in">>, <<"stanza_count">>]
-        end,
+    Prefix = case MetricsAreGlobal of
+                 true -> <<"global">>;
+                 false -> metric_host_type()
+             end,
+    SentName = [Prefix, <<"xmpp_element_in">>, <<"c2s">>, <<"stanza_count">>],
     check_spiral_dict(maps:get(SentName, Map)),
     [#{<<"key">> := <<"value">>,<<"value">> := V} | _] =
-        maps:get([<<"global">>,<<"sm_unique_sessions">>,<<"count">>], Map),
+        maps:get([<<"global">>, <<"sm_unique_sessions">>, <<"count">>], Map),
     ?assert(is_integer(V)),
-    HistObjects = maps:get([<<"global">>, <<"xmpp_element_size_in">>, <<"c2s">>, <<"byte_size">>], Map),
+    HistObjects = maps:get([Prefix, <<"xmpp_element_in">>, <<"c2s">>, <<"byte_size">>], Map),
     check_histogram(kv_objects_to_map(HistObjects)).
 
 check_histogram(Map) ->

@@ -816,10 +816,10 @@ paths:
                   items:
                     type: string
                   example:
-                    - c2s_element_in.stanza_count
-                    - c2s_element_in.error_count
-                    - c2s_element_out.stanza_count
-                    - c2s_element_out.error_count
+                    - xmpp_element_in.c2s.stanza_count
+                    - xmpp_element_in.c2s.error_count
+                    - xmpp_element_out.c2s.stanza_count
+                    - xmpp_element_out.c2s.error_count
               global:
                 schema:
                   type: array

@@ -32,9 +32,9 @@ All metrics are divided into the following groups:
 
     **Example:**
         ```
-        # TYPE c2s_element_in_message_count counter
-        # HELP c2s_element_in_message_count Event: c2s_element_in, Metric: message_count
-        c2s_element_in_message_count{host_type="localhost"} 0
+        # TYPE xmpp_element_in_message_count counter
+        # HELP xmpp_element_in_message_count Event: xmpp_element_in, Metric: message_count
+        xmpp_element_in_message_count{connection_type="c2s",host_type="localhost"} 0
         ```
 
     <h3>`gauge`</h3>
@@ -54,12 +54,12 @@ All metrics are divided into the following groups:
 
     **Example:**
         ```
-        # TYPE xmpp_element_size_in_byte_size histogram
-        # HELP xmpp_element_size_in_byte_size Event: xmpp_element_size_in, Metric: byte_size
-        xmpp_element_size_in_byte_size_bucket{connection_type="c2s",le="1",} 0
+        # TYPE xmpp_element_in_byte_size histogram
+        # HELP xmpp_element_in_byte_size Event: xmpp_element_in, Metric: byte_size
+        xmpp_element_in_byte_size_bucket{connection_type="c2s",host_type="localhost",le="1"} 0
         ...
-        xmpp_element_size_in_byte_size_bucket{connection_type="c2s",le="1073741824"} 0
-        xmpp_element_size_in_byte_size_bucket{connection_type="c2s",le="+Inf"} 0
+        xmpp_element_in_byte_size_bucket{connection_type="c2s",host_type="localhost",le="1073741824"} 0
+        xmpp_element_in_byte_size_bucket{connection_type="c2s",host_type="localhost",le="+Inf"} 0
         ```
 
 === "Exometer"
@@ -97,13 +97,14 @@ All metrics are divided into the following groups:
     * `median`
     * `50`, `75`, `90`, `95`, `99`, `999` - 50th, 75th, 90th, 95th, 99th and 99.9th percentile
 
+## List of metrics
 
-## Per host type metrics
-
-Prometheus metrics have a `host_type` label associated with these metrics.
-Since Exometer doesn't support labels, the host types are part of the metric names.
+The metrics listed below are grouped by the covered functionality.
 
 ### Presences & rosters
+
+These metrics have the `host_type` label for Prometheus.
+Since Exometer doesn't support labels, the host type is a part of the metric name.
 
 === "Prometheus"
 
@@ -126,6 +127,9 @@ Since Exometer doesn't support labels, the host types are part of the metric nam
     | `[HostType, mod_roster_set, count]` | spiral | User's roster is updated. |
 
 ### Privacy lists
+
+These metrics have the `host_type` label for Prometheus.
+Since Exometer doesn't support labels, the host type is a part of the metric name.
 
 === "Prometheus"
 
@@ -153,71 +157,42 @@ Since Exometer doesn't support labels, the host types are part of the metric nam
     | `[HostType, mod_privacy_check_packet, denied_count]` | spiral | Privacy list check resulted in `deny`. |
     | `[HostType, mod_privacy_check_packet, blocked_count]` | spiral | Privacy list check resulted in `block`. |
 
-### Other
+### Sessions and routing
+
+Some of these metrics have the `host_type` label for Prometheus.
+Since Exometer doesn't support labels, in such cases the host type is a part of the metric name.
 
 === "Prometheus"
 
-    | Name | Type | Description (when it gets incremented) |
-    | ---- | ---- | -------------------------------------- |
-    | `c2s_auth_failed_count` | counter | A client failed to authenticate. |
-    | `sm_session_count` | gauge | Number of active sessions. |
-    | `sm_session_logouts` | counter | A client session is closed. |
-    | `sm_session_logins` | counter | A client session is opened. |
-    | `c2s_element_in_count` | counter | An XML element is received from a client. |
-    | `c2s_element_in_stanza_count` | counter | An XMPP stanza is received from a client. |
-    | `c2s_element_in_message_count` | counter | A message stanza is received from a client. |
-    | `c2s_element_in_iq_count` | counter | An IQ stanza is received from a client. |
-    | `c2s_element_in_presence_count` | counter | A presence stanza is received from a client. |
-    | `c2s_element_in_error_count` | counter | An error is received from a client. |
-    | `c2s_element_in_message_error_count` | counter | A message error is received from a client. |
-    | `c2s_element_in_iq_error_count` | counter | An IQ error is received from a client. |
-    | `c2s_element_in_presence_error_count` | counter | A presence error is received from a client. |
-    | `c2s_element_out_count` | counter | An XML element is sent to a client. |
-    | `c2s_element_out_stanza_count` | counter | An XMPP stanza is sent to a client. |
-    | `c2s_element_out_iq_count` | counter | An IQ stanza is sent to a client. |
-    | `c2s_element_out_message_count` | counter | A message stanza is sent to a client. |
-    | `c2s_element_out_presence_count` | counter | A presence stanza is sent to a client. |
-    | `c2s_element_out_error_count` | counter | An error is sent to a client. |
-    | `c2s_element_out_iq_error_count` | counter | An IQ error is sent to a client. |
-    | `c2s_element_out_message_error_count` | counter | A message error is sent to a client. |
-    | `c2s_element_out_presence_error_count` | counter | A presence error is sent to a client. |
-    | `c2s_message_processed_time` | histogram | Processing time for incoming c2s stanzas. |
-    | `sm_message_bounced_count` | counter | A `service-unavailable` error is sent, because the message recipient is offline. |
-    | `router_stanza_dropped_count` | counter | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
-    | `router_no_route_found_count` | counter | It is not possible to route a stanza (all routing handlers failed). |
+    | Name | Labels | Type | Description (when it gets incremented) |
+    | ---- | ------ | ---- | -------------------------------------- |
+    | `c2s_auth_failed_count` | `host_type` | counter | A connecting client failed to authenticate. |
+    | `s2s_auth_failed_count` | - | counter | A connecting server failed to authenticate, or MongooseIM failed to authenticate when connecting to another server. |
+    | `component_auth_failed_count` | - | counter | A connecting external component failed to authenticate. |
+    | `sm_session_count` | `host_type` | gauge | Number of active sessions. |
+    | `sm_session_logouts` | `host_type` | counter | A client session is closed. |
+    | `sm_session_logins` | `host_type` | counter | A client session is opened. |
+    | `c2s_message_processed_time` | `host_type` | histogram | Processing time for incoming c2s stanzas. |
+    | `sm_message_bounced_count` | `host_type` | counter | A `service-unavailable` error is sent, because the message recipient is offline. |
+    | `router_stanza_dropped_count` | `host_type` | counter | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
+    | `router_no_route_found_count` | `host_type` | counter | It is not possible to route a stanza (all routing handlers failed). |
 
 === "Exometer"
 
     | Name | Type | Description (when it gets incremented) |
     | ---- | ---- | -------------------------------------- |
-    | `[HostType, c2s_auth_failed, count]` | spiral | A client failed to authenticate. |
+    | `[HostType, c2s_auth_failed, count]` | spiral | A connecting client failed to authenticate. |
+    | `[global, s2s_auth_failed, count]` | spiral | A connecting server failed to authenticate, or MongooseIM failed to authenticate when connecting to another server. |
+    | `[global, component_auth_failed, count]` | spiral | A connecting external component failed to authenticate. |
     | `[HostType, sm_session, count]` | counter | Number of active sessions. |
     | `[HostType, sm_session, logouts]` | spiral | A client session is closed. |
     | `[HostType, sm_session, logins]` | spiral | A client session is opened. |
-    | `[HostType, c2s_element_in, count]` | spiral | An XML element is received from a client. |
-    | `[HostType, c2s_element_in, stanza_count]` | spiral | An XMPP stanza is received from a client. |
-    | `[HostType, c2s_element_in, message_count]` | spiral | A message stanza is received from a client. |
-    | `[HostType, c2s_element_in, iq_count]` | spiral | An IQ stanza is received from a client. |
-    | `[HostType, c2s_element_in, presence_count]` | spiral | A presence stanza is received from a client. |
-    | `[HostType, c2s_element_in, error_count]` | spiral | An error is received from a client. |
-    | `[HostType, c2s_element_in, message_error_count]` | spiral | A message error is received from a client. |
-    | `[HostType, c2s_element_in, iq_error_count]` | spiral | An IQ error is received from a client. |
-    | `[HostType, c2s_element_in, presence_error_count]` | spiral | A presence error is received from a client. |
-    | `[HostType, c2s_element_out, count]` | spiral | An XML element is sent to a client. |
-    | `[HostType, c2s_element_out, stanza_count]` | spiral | An XMPP stanza is sent to a client. |
-    | `[HostType, c2s_element_out, iq_count]` | spiral | An IQ stanza is sent to a client. |
-    | `[HostType, c2s_element_out, message_count]` | spiral | A message stanza is sent to a client. |
-    | `[HostType, c2s_element_out, presence_count]` | spiral | A presence stanza is sent to a client. |
-    | `[HostType, c2s_element_out, error_count]` | spiral | An error is sent to a client. |
-    | `[HostType, c2s_element_out, iq_error_count]` | spiral | An IQ error is sent to a client. |
-    | `[HostType, c2s_element_out, message_error_count]` | spiral | A message error is sent to a client. |
-    | `[HostType, c2s_element_out, presence_error_count]` | spiral | A presence error is sent to a client. |
     | `[HostType, c2s_message_processing_time`] | histogram | Processing time for incoming c2s stanzas. |
     | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
     | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
     | `[HostType, router_no_route_found, count]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
 
-### Pool metrics
+### Connection pools
 
 For every RDBMS pool defined, an instance of these metrics are available.
 Prometheus metrics have a `host_type` and `pool_tag` labels associated with these metrics.
@@ -256,9 +231,9 @@ available.
 
 Metrics specific to an extension, e.g. Message Archive Management, are described in respective module documentation pages.
 
-## Global metrics
+### Global gauges
 
-All of these metrics are updated periodically. The interval at which they are probed can be configured with the [`instrumentation.probe_interval` option].
+All of these metrics are updated periodically. The interval at which they are probed can be configured with the [`instrumentation.probe_interval`](../configuration/instrumentation.md#instrumentationprobe_interval) option.
 
 === "Prometheus"
 
@@ -286,51 +261,97 @@ All of these metrics are updated periodically. The interval at which they are pr
     | `[global, system_process_queue_lengths, total]` | probe | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
     | `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
 
-### Data metrics
+### XMPP traffic metrics
 
-All metrics are in bytes, and refer to unencrypted data (before encryption or after decryption in case of TLS).
+Prometheus metrics have the following labels:
+
+* `host_type` indicates the host type associated with the connection. If the host type is unknown (e.g. for component connections or early stream errors), the label is empty.
+* `connection_type` can be `c2s` (for clients), `s2s` (for federated servers) or `component` (for external components).
+
+Since Exometer doesn't support labels, `HostType` and `ConnType` parts are included in the metric names.
+If host type is unknown, `HostType` is set to `global`.
 
 === "Prometheus"
 
-    | Metric name | Type | Description |
-    | ----------- | ---- | ----------- |
-    | `xmpp_element_size_in_byte_size` | histogram | Size of an XML element received from a client, server or component. |
-    | `xmpp_element_size_out_byte_size` | histogram | Size of an XML element sent to a client, server or component. |
-    | `tcp_data_in_byte_size` | counter | Amount of data received from a client, another XMPP server or component via TCP channel. |
-    | `tcp_data_out_byte_size` | counter | Amount of data sent to a client, another XMPP server or component via TCP channel. |
-    | `tls_data_in_byte_size` | counter | Amount of data received from a client, another XMPP server or component via TLS channel. |
-    | `tls_data_out_byte_size` | counter | Amount of data sent to a client, another XMPP server or component via TLS channel. |
-    | `mod_bosh_data_received_byte_size` | counter | Amount of data received from a client via BOSH connection. |
-    | `mod_bosh_data_sent_byte_size` | counter | Amount of data sent to a client via BOSH connection. |
-    | `mod_websocket_data_received_byte_size` | counter | Amount of data received from a client via WebSocket connection. |
-    | `mod_websocket_data_sent_byte_size` | counter | Amount of data sent to a client via WebSocket connection. |
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `xmpp_element_in_count` | counter | An XML element is received from a client, server or component. |
+    | `xmpp_element_in_stanza_count` | counter | An XMPP stanza is received from a client, server or component. |
+    | `xmpp_element_in_message_count` | counter | A message stanza is received from a client, server or component. |
+    | `xmpp_element_in_iq_count` | counter | An IQ stanza is received from a client, server or component. |
+    | `xmpp_element_in_presence_count` | counter | A presence stanza is received from a client, server or component. |
+    | `xmpp_element_in_error_count` | counter | An error is received from a client, server or component. |
+    | `xmpp_element_in_message_error_count` | counter | A message error is received from a client, server or component. |
+    | `xmpp_element_in_iq_error_count` | counter | An IQ error is received from a client, server or component. |
+    | `xmpp_element_in_presence_error_count` | counter | A presence error is received from a client, server or component. |
+    | `xmpp_element_in_byte_size` | histogram | Size of an XML element received from a client, server or component. |
+    | `xmpp_element_out_count` | counter | An XML element is sent to a client, server or component. |
+    | `xmpp_element_out_stanza_count` | counter | An XMPP stanza is sent to a client, server or component. |
+    | `xmpp_element_out_iq_count` | counter | An IQ stanza is sent to a client, server or component. |
+    | `xmpp_element_out_message_count` | counter | A message stanza is sent to a client, server or component. |
+    | `xmpp_element_out_presence_count` | counter | A presence stanza is sent to a client, server or component. |
+    | `xmpp_element_out_error_count` | counter | An error is sent to a client, server or component. |
+    | `xmpp_element_out_iq_error_count` | counter | An IQ error is sent to a client, server or component. |
+    | `xmpp_element_out_message_error_count` | counter | A message error is sent to a client, server or component. |
+    | `xmpp_element_out_presence_error_count` | counter | A presence error is sent to a client, server or component. |
+    | `xmpp_element_out_byte_size` | histogram | Size of an XML element sent to a client, server or component. |
+
+=== "Exometer"
+
+    | Name | Type | Description (when it gets incremented) |
+    | ---- | ---- | -------------------------------------- |
+    | `[HostType, xmpp_element_in, ConnType, count]` | spiral | An XML element is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, stanza_count]` | spiral | An XMPP stanza is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, message_count]` | spiral | A message stanza is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, iq_count]` | spiral | An IQ stanza is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, presence_count]` | spiral | A presence stanza is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, error_count]` | spiral | An error is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, message_error_count]` | spiral | A message error is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, iq_error_count]` | spiral | An IQ error is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, presence_error_count]` | spiral | A presence error is received from a client, server or component. |
+    | `[HostType, xmpp_element_in, ConnType, byte_size]` | histogram | Size of an XML element received from a client. |
+    | `[HostType, xmpp_element_out, ConnType, count]` | spiral | An XML element is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, stanza_count]` | spiral | An XMPP stanza is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, iq_count]` | spiral | An IQ stanza is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, message_count]` | spiral | A message stanza is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, presence_count]` | spiral | A presence stanza is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, error_count]` | spiral | An error is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, iq_error_count]` | spiral | An IQ error is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, message_error_count]` | spiral | A message error is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, presence_error_count]` | spiral | A presence error is sent to a client, server or component. |
+    | `[HostType, xmpp_element_out, ConnType, byte_size]` | histogram | Size of an XML element sent to a client. |
+
+### Network data metrics
+
+All metrics are in bytes, and refer to unencrypted data (before encryption or after decryption in case of TLS).
+Some Prometheus metrics have the `connection_type` label, which can be `c2s` (for clients), `s2s` (for federated servers) or `component` (for external components).
+Since Exometer doesn't support labels, `ConnType` is included in the metrics names.
+
+=== "Prometheus"
+
+    | Metric name | Labels | Type | Description |
+    | ----------- | ------ | ---- | ----------- |
+    | `tcp_data_in_byte_size` | `connection_type` | counter | Amount of data received from a client, another XMPP server or component via TCP channel. |
+    | `tcp_data_out_byte_size` | `connection_type` | counter | Amount of data sent to a client, another XMPP server or component via TCP channel. |
+    | `tls_data_in_byte_size` | `connection_type` | counter | Amount of data received from a client, another XMPP server or component via TLS channel. |
+    | `tls_data_out_byte_size` | `connection_type` | counter | Amount of data sent to a client, another XMPP server or component via TLS channel. |
+    | `mod_bosh_data_received_byte_size` | - | counter | Amount of data received from a client via BOSH connection. |
+    | `mod_bosh_data_sent_byte_size` | - | counter | Amount of data sent to a client via BOSH connection. |
+    | `mod_websocket_data_received_byte_size` | - | counter | Amount of data received from a client via WebSocket connection. |
+    | `mod_websocket_data_sent_byte_size` | - | counter | Amount of data sent to a client via WebSocket connection. |
 
 === "Exometer"
 
     | Metric name | Type | Description |
     | ----------- | ---- | ----------- |
-    | `[global, xmpp_element_size_in, c2s, byte_size]` | histogram | Size of an XML element received from a client. |
-    | `[global, xmpp_element_size_out, c2s, byte_size]` | histogram | Size of an XML element sent to a client. |
-    | `[global, tcp_data_in, c2s, byte_size]` | spiral | Amount of data received from a client via TCP channel. |
-    | `[global, tcp_data_out, c2s, byte_size]` | spiral | Amount of data sent to a client via TCP channel. |
-    | `[global, tls_data_in, c2s, byte_size]` | spiral | Amount of data received from a client via TLS channel. |
-    | `[global, tls_data_out, c2s, byte_size]` | spiral | Amount of data sent to a client via TLS channel. |
+    | `[global, tcp_data_in, ConnType, byte_size]` | spiral | Amount of data received from a client, another XMPP server or component via TCP channel. |
+    | `[global, tcp_data_out, ConnType, byte_size]` | spiral | Amount of data sent to a client, another XMPP server or component via TCP channel. |
+    | `[global, tls_data_in, ConnType, byte_size]` | spiral | Amount of data received from a client, another XMPP server or component via TLS channel. |
+    | `[global, tls_data_out, ConnType, byte_size]` | spiral | Amount of data sent to a client, another XMPP server or component via TLS channel. |
     | `[global, mod_bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
     | `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
     | `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
     | `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
-    | `[global, xmpp_element_size_in, s2s, byte_size]` | histogram | Size of an XML element received from another XMPP server. |
-    | `[global, xmpp_element_size_out, s2s, byte_size]` | histogram | Size of an XML element sent to another XMPP server. |
-    | `[global, tcp_data_in, s2s, byte_size]` | spiral | Amount of data received from another XMPP server via TCP channel. |
-    | `[global, tcp_data_out, s2s, byte_size]` | spiral | Amount of data sent to another XMPP server via TCP channel. |
-    | `[global, tls_data_in, s2s, byte_size]` | spiral | Amount of data received from another XMPP server via TLS channel. |
-    | `[global, tls_data_out, s2s, byte_size]` | spiral | Amount of data sent to another XMPP server via TLS channel. |
-    | `[global, xmpp_element_size_in, component, byte_size]` | histogram | Size of an XML element received from a component. |
-    | `[global, xmpp_element_size_out, component, byte_size]` | histogram | Size of an XML element sent to a component. |
-    | `[global, tcp_data_in, component, byte_size]` | spiral | Amount of data received from a component via TCP channel. |
-    | `[global, tcp_data_out, component, byte_size]` | spiral | Amount of data sent to a component via TCP channel. |
-    | `[global, tls_data_in, component, byte_size]` | spiral | Amount of data received from a component via TLS channel. |
-    | `[global, tls_data_out, component, byte_size]` | spiral | Amount of data sent to a component via TLS channel. |
 
 ### CETS system metrics
 
@@ -420,7 +441,7 @@ All of these metrics are updated periodically. The interval at which they are pr
     | `[global, system_memory, Metric]` | gauge | Erlang memory statistics from [`erlang:memory/0`](https://www.erlang.org/doc/apps/erts/erlang.html#memory/0). `Metric` specifies the memory type, e.g. `total`, `processes_used`, `atom_used`, `binary`, `ets` or `system`. |
     | `[global, system_info, Metric]` | gauge | Erlang system statistics from [`erlang:system_info/1`](https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1). `Metric` can be `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_count` or `ets_limit`. |
 
-## Backend metrics
+### Backend metrics
 
 Some extension modules expose histograms with timings of calls made to their backends.
 Please check the documentation of modules that are enabled in your config file, in order to learn if they provide them.
