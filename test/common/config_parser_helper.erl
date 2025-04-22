@@ -249,7 +249,6 @@ options("mongooseim-pgsql") ->
                })
       ]},
      {loglevel, warning},
-     {max_fsm_queue, 1000},
      {outgoing_pools,
       lists:map(
         fun pool_config/1,

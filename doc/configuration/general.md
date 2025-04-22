@@ -182,11 +182,3 @@ The options listed below are used to configure more specific settings, that do n
 * **Example:** `http_server_name = "Apache"`
 
 Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned in the `server` HTTP response header. It may be used for extra security, as it makes it harder for the malicious user to learn what HTTP software is running under a specific port. This option applies to **all** configured HTTP listeners.
-
-### `general.max_fsm_queue`
-* **Syntax:** positive integer
-* **Default:** not set
-* **Example:** `max_fsm_queue = 5000`
-
-When specified, will terminate certain processes (e.g. client handlers) that have more messages accumulated in the queue than the specified limit, to prevent resource exhaustion.
-This option is set for outgoing S2S connections and can be overridden for particular `s2s` listeners in their configurations. **Use with caution!**
