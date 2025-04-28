@@ -92,6 +92,7 @@ Only changes that affect the user directly will be stored in their inbox.
 
 Use this option when `muclight` is enabled.
 If true, the inbox conversation is removed for a user when they are removed from the groupchat.
+Enabling this option will also clear all inbox entries associated with the destroyed room.
 
 ### `modules.mod_inbox.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
@@ -121,7 +122,7 @@ Inbox currently supports the following DBs:
 ## Legacy MUC support
 Inbox comes with support for the legacy MUC as well. It stores all groupchat messages sent to
 room in each sender's and recipient's inboxes and private messages. Currently it is not possible to
-configure it to store system messages like [subject](https://xmpp.org/extensions/xep-0045.html#enter-subject) 
+configure it to store system messages like [subject](https://xmpp.org/extensions/xep-0045.html#enter-subject)
 or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
 
 
