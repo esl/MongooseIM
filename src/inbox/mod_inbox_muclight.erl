@@ -11,12 +11,18 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
--export([handle_outgoing_message/5, handle_incoming_message/5]).
+-export([handle_outgoing_message/5, handle_incoming_message/5, handle_room_deletion/2]).
 
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().
 -type r_owner() :: binary().
 -type r_none() :: binary().
+
+handle_room_deletion(HostType, RoomJID) ->
+    CheckRemove = mod_inbox_utils:get_option_remove_on_kicked(HostType),
+    {ok, AffList, _} = mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(RoomJID)),
+    [maybe_remove_inbox_row(HostType, RoomJID, UserJID, CheckRemove) || {UserJID, _Aff} <- AffList],
+    ok.
 
 -spec handle_outgoing_message(HostType :: mongooseim:host_type(),
                               User :: jid:jid(),

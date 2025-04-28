@@ -417,6 +417,12 @@ create_room_with_specified_name(HostType, RoomUS, Config, AffUsers, Version) ->
                    RoomUS :: jid:simple_bare_jid()) ->
     ok | {error, not_exists}.
 destroy_room(HostType, RoomUS) ->
+    case is_inbox_enabled(HostType) andalso room_exists(HostType, RoomUS) of
+        true ->
+            mod_inbox_muclight:handle_room_deletion(HostType, RoomUS);
+        false ->
+            ok
+    end,
     F = fun() -> destroy_room_transaction(HostType, RoomUS) end,
     {atomic, Res} = mongoose_rdbms:sql_transaction(HostType, F),
     Res.
@@ -793,3 +799,8 @@ room_us_to_host_type({_, RoomS}) ->
 -spec muc_server_to_host_type(jid:lserver()) -> mongooseim:host_type().
 muc_server_to_host_type(MUCServer) ->
     mod_muc_light_utils:muc_host_to_host_type(MUCServer).
+
+%% ------------------------ Inbox ------------------------
+
+is_inbox_enabled(HostType) ->
+    gen_mod:is_loaded(HostType, mod_inbox).
