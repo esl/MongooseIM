@@ -1,6 +1,6 @@
 -module(mongoose_instrument_exometer).
 
--behaviour(mongoose_instrument).
+-behaviour(instrument).
 
 -define(PREFIXES, {?MODULE, prefixes}).
 

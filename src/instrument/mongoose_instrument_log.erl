@@ -1,8 +1,8 @@
 -module(mongoose_instrument_log).
 
--behaviour(mongoose_instrument).
+-behaviour(instrument).
 
--export([config_spec/0, set_up/3, handle_event/4]).
+-export([set_up/3, handle_event/4]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
