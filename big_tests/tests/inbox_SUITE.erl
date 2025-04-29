@@ -726,7 +726,8 @@ destroy_room(Alice, Bob, Kate, Room, xmpp) ->
     AffUsersChanges = [{Alice, none}, {Bob, none}, {Kate, none}],
     muc_light_helper:verify_aff_bcast([], AffUsersChanges, [?NS_MUC_LIGHT_DESTROY]);
 destroy_room(_, _, _, Room, rest) ->
-    Path = <<"/muc-lights/muclight.localhost/", Room/binary, "/management">>,
+    Host = muc_light_helper:muc_host(),
+    Path = <<"/muc-lights/", Host/binary, "/", Room/binary, "/management">>,
     {{<<"204">>, <<"No Content">>}, <<"">>} = rest_helper:delete(admin, Path).
 
 advanced_groupchat_stored_in_all_inbox(Config) ->
