@@ -419,7 +419,7 @@ create_room_with_specified_name(HostType, RoomUS, Config, AffUsers, Version) ->
 destroy_room(HostType, RoomUS) ->
     case is_inbox_enabled(HostType) andalso room_exists(HostType, RoomUS) of
         true ->
-            mod_inbox_muclight:handle_room_deletion(HostType, RoomUS);
+            mod_inbox_muclight:handle_room_destruction(HostType, RoomUS);
         false ->
             ok
     end,
@@ -802,5 +802,6 @@ muc_server_to_host_type(MUCServer) ->
 
 %% ------------------------ Inbox ------------------------
 
+-spec is_inbox_enabled(mongooseim:host_type()) -> boolean().
 is_inbox_enabled(HostType) ->
     gen_mod:is_loaded(HostType, mod_inbox).
