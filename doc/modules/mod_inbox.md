@@ -92,7 +92,7 @@ Only changes that affect the user directly will be stored in their inbox.
 
 Use this option when `muclight` is enabled.
 If true, the inbox conversation is removed for a user when they are removed from the groupchat.
-Enabling this option will also clear all inbox entries associated with the destroyed room.
+Enabling this option will also clear all inbox entries associated with a destroyed room.
 
 ### `modules.mod_inbox.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
