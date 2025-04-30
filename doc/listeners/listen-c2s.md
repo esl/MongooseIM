@@ -5,7 +5,7 @@ The recommended [port number](../configuration/listen.md#listenport) for a C2S l
 
 ## Configuration options
 
-The following options are supported for each C2S listener:
+For each C2S listener, all the [general](../configuration/listen.md#general-listener-options) and [XMPP](../configuration/listen.md#xmpp-listener-options) options are accepted. Additionally, the following options are supported:
 
 ### `listen.c2s.access`
 * **Syntax:** string, rule name or `"all"`

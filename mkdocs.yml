@@ -102,7 +102,7 @@ nav:
   - 'Listeners':
       - 'Client to server (C2S)': 'listeners/listen-c2s.md'
       - 'Server to server (S2S)': 'listeners/listen-s2s.md'
-      - 'XMPP components (service)': 'listeners/listen-components.md'
+      - 'XMPP components': 'listeners/listen-components.md'
       - 'HTTP-based services': 'listeners/listen-http.md'
   - 'Authentication Methods':
       - 'RDBMS': 'authentication-methods/rdbms.md'
