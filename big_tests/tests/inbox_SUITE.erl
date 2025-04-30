@@ -100,7 +100,7 @@ groups() ->
        groupchat_markers_all_reset_room_created,
        inbox_does_not_trigger_does_user_exist,
        remove_muclight_messages_after_the_room_is_deleted_xmpp,
-       remove_muclight_messages_after_the_room_is_deleted_rest
+       remove_muclight_messages_after_the_room_is_deleted_graphql
       ]},
      {muclight_config, [sequence],
       [
@@ -684,8 +684,8 @@ simple_groupchat_stored_in_all_inbox(Config) ->
 remove_muclight_messages_after_the_room_is_deleted_xmpp(Config) ->
     remove_muclight_messages_after_the_room_is_deleted(Config, xmpp).
 
-remove_muclight_messages_after_the_room_is_deleted_rest(Config) ->
-    remove_muclight_messages_after_the_room_is_deleted(Config, rest).
+remove_muclight_messages_after_the_room_is_deleted_graphql(Config) ->
+    remove_muclight_messages_after_the_room_is_deleted(Config, graphql).
 
 remove_muclight_messages_after_the_room_is_deleted(Config, ReqType) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -710,7 +710,7 @@ remove_muclight_messages_after_the_room_is_deleted(Config, ReqType) ->
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
 
         %% Remove the room
-        destroy_room(Alice, Bob, Kate, Room, ReqType),
+        destroy_room(Config, Alice, Bob, Kate, RoomJid, ReqType),
 
         %% Inbox entries are removed
         check_inbox(Alice, []),
@@ -718,17 +718,16 @@ remove_muclight_messages_after_the_room_is_deleted(Config, ReqType) ->
         check_inbox(Kate, [])
       end).
 
-destroy_room(Alice, Bob, Kate, Room, xmpp) ->
+destroy_room(_, Alice, Bob, Kate, RoomJid, xmpp) ->
     Stanza = escalus_stanza:to(
-                escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []),
-                room_bin_jid(Room)),
+                escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), RoomJid),
     escalus:send(Alice, Stanza),
     AffUsersChanges = [{Alice, none}, {Bob, none}, {Kate, none}],
     muc_light_helper:verify_aff_bcast([], AffUsersChanges, [?NS_MUC_LIGHT_DESTROY]);
-destroy_room(_, _, _, Room, rest) ->
-    Host = muc_light_helper:muc_host(),
-    Path = <<"/muc-lights/", Host/binary, "/", Room/binary, "/management">>,
-    {{<<"204">>, <<"No Content">>}, <<"">>} = rest_helper:delete(admin, Path).
+destroy_room(Config, _, _, _, RoomJid, graphql) ->
+    Vars = #{<<"room">> => RoomJid},
+    graphql_helper:execute_command(<<"muc_light">>, <<"deleteRoom">>, Vars,
+                                   graphql_helper:init_admin_handler(Config)).
 
 advanced_groupchat_stored_in_all_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
