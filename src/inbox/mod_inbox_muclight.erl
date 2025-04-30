@@ -11,7 +11,7 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
--export([handle_outgoing_message/5, handle_incoming_message/5]).
+-export([handle_outgoing_message/5, handle_incoming_message/5, handle_room_destruction/2]).
 
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().
@@ -106,9 +106,17 @@ maybe_store_system_message(HostType, Room, Remote, Packet, Acc) ->
             ok
     end.
 
+-spec handle_room_destruction(HostType :: mongooseim:host_type(),
+                              Room :: jid:jid()) -> ok.
+handle_room_destruction(HostType, RoomJID) ->
+    CheckRemove = mod_inbox_utils:get_option_remove_on_kicked(HostType),
+    {ok, AffList, _} = mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(RoomJID)),
+    [maybe_remove_inbox_row(HostType, RoomJID, UserJID, CheckRemove) || {UserJID, _Aff} <- AffList],
+    ok.
+
 -spec maybe_remove_inbox_row(HostType :: mongooseim:host_type(),
                              Room :: jid:jid(),
-                             Remote :: jid:jid(),
+                             Remote :: jid:jid() | jid:simple_bare_jid(),
                              WriteAffChanges :: boolean()) -> ok.
 maybe_remove_inbox_row(_, _, _, false) ->
     ok;

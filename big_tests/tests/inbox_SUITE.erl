@@ -7,6 +7,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("jid/include/jid.hrl").
 -include_lib("inbox.hrl").
+-include("muc_light.hrl").
 
 %% tests
 -import(muc_light_helper, [room_bin_jid/1]).
@@ -97,7 +98,9 @@ groups() ->
        leave_and_remove_conversation,
        groupchat_markers_one_reset_room_created,
        groupchat_markers_all_reset_room_created,
-       inbox_does_not_trigger_does_user_exist
+       inbox_does_not_trigger_does_user_exist,
+       remove_muclight_messages_after_the_room_is_deleted_xmpp,
+       remove_muclight_messages_after_the_room_is_deleted_graphql
       ]},
      {muclight_config, [sequence],
       [
@@ -677,6 +680,54 @@ simple_groupchat_stored_in_all_inbox(Config) ->
         check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]),
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}])
       end).
+
+remove_muclight_messages_after_the_room_is_deleted_xmpp(Config) ->
+    remove_muclight_messages_after_the_room_is_deleted(Config, xmpp).
+
+remove_muclight_messages_after_the_room_is_deleted_graphql(Config) ->
+    remove_muclight_messages_after_the_room_is_deleted(Config, graphql).
+
+remove_muclight_messages_after_the_room_is_deleted(Config, ReqType) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        Msg = <<"Hi Room!">>,
+        Id = <<"MyID">>,
+        Users = [Alice, Bob, Kate],
+        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
+        AliceJid = inbox_helper:to_bare_lower(Alice),
+        KateJid = inbox_helper:to_bare_lower(Kate),
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        RoomJid = room_bin_jid(Room),
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
+        Stanza = escalus_stanza:set_id(
+                   escalus_stanza:groupchat_to(RoomJid, Msg), Id),
+        %% Alice sends message to a room
+        escalus:send(Alice, Stanza),
+        inbox_helper:wait_for_groupchat_msg(Users),
+        %% Alice has 0 unread messages
+        check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
+        %% Bob and Kate have one conv with 1 unread message
+        check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]),
+        check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
+
+        %% Remove the room
+        destroy_room(Config, Alice, Bob, Kate, RoomJid, ReqType),
+
+        %% Inbox entries are removed
+        check_inbox(Alice, []),
+        check_inbox(Bob, []),
+        check_inbox(Kate, [])
+      end).
+
+destroy_room(_, Alice, Bob, Kate, RoomJid, xmpp) ->
+    Stanza = escalus_stanza:to(
+                escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), RoomJid),
+    escalus:send(Alice, Stanza),
+    AffUsersChanges = [{Alice, none}, {Bob, none}, {Kate, none}],
+    muc_light_helper:verify_aff_bcast([], AffUsersChanges, [?NS_MUC_LIGHT_DESTROY]);
+destroy_room(Config, _, _, _, RoomJid, graphql) ->
+    Vars = #{<<"room">> => RoomJid},
+    graphql_helper:execute_command(<<"muc_light">>, <<"deleteRoom">>, Vars,
+                                   graphql_helper:init_admin_handler(Config)).
 
 advanced_groupchat_stored_in_all_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
