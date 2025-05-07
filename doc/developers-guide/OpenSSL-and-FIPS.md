@@ -51,7 +51,7 @@ where `Value` is either `true` or `false`.
 When MongooseIM starts, it prints the following log message if FIPS mode is enabled
 
 ```
-2015-02-25 14:30:54.501 [warning] <0.242.0>@mongoose_fips:do_notify:37 FIPS mode enabled
+2015-02-25 14:30:54.501 [warning] <0.242.0>@mongoose_fips:notify:15 FIPS mode enabled
 ```
 
 ### Run-time check
@@ -64,9 +64,9 @@ mongoose_fips:status().
 
 The function returns:
 
+* not_supported - erlang compiled without fips support
 * not_enabled - fips_mode is not set to true in etc/app.config
 * enabled - fips_mode is set to true in etc/app.config
-* not_supported - erlang compiled without fips support
 
 ### Cipher suites difference
 
