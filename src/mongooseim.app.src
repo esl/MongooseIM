@@ -18,6 +18,7 @@
     xmerl,
     %% 3rd-party libraries after OTP included apps
     cache_tab,
+    cets,
     cowboy,
     cowboy_swagger,
     fast_scram,
