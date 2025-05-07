@@ -46,12 +46,6 @@
 -opaque escaped_value() :: escaped_string() | escaped_binary() | escaped_integer() |
                            escaped_boolean() | escaped_null().
 
--ifdef(gen_server_request_id).
--type request_id() :: gen_server:request_id().
--else.
--type request_id() :: term().
--endif.
-
 -export_type([escaped_binary/0,
               escaped_string/0,
               escaped_like/0,
@@ -241,23 +235,24 @@ execute_cast(HostType, Name, Parameters) ->
 execute_cast(HostType, PoolTag, Name, Parameters) when is_atom(PoolTag), is_atom(Name), is_list(Parameters) ->
     sql_cast(HostType, PoolTag, {sql_execute, Name, Parameters}).
 
--spec execute_request(mongooseim:host_type_or_global(), query_name(), query_params()) -> request_id().
+-spec execute_request(mongooseim:host_type_or_global(), query_name(), query_params()) ->
+    gen_server:request_id().
 execute_request(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     execute_request(HostType, ?DEFAULT_POOL_TAG, Name, Parameters).
 
 -spec execute_request(mongooseim:host_type_or_global(), mongoose_wpool:tag(), query_name(), query_params()) ->
-    request_id().
+    gen_server:request_id().
 execute_request(HostType, PoolTag, Name, Parameters) when is_atom(PoolTag), is_atom(Name), is_list(Parameters) ->
     sql_request(HostType, PoolTag, {sql_execute, Name, Parameters}).
 
 -spec execute_wrapped_request(mongooseim:host_type_or_global(), query_name(), query_params(), request_wrapper()) ->
-    request_id().
+    gen_server:request_id().
 execute_wrapped_request(HostType, Name, Parameters, Wrapper) ->
     execute_wrapped_request(HostType, ?DEFAULT_POOL_TAG, Name, Parameters, Wrapper).
 
 -spec execute_wrapped_request(
         mongooseim:host_type_or_global(), mongoose_wpool:tag(), query_name(), query_params(), request_wrapper()) ->
-    request_id().
+    gen_server:request_id().
 execute_wrapped_request(HostType, PoolTag, Name, Parameters, Wrapper)
   when is_atom(PoolTag), is_atom(Name), is_list(Parameters), is_function(Wrapper) ->
     sql_request(HostType, PoolTag, {sql_execute_wrapped, Name, Parameters, Wrapper}).
@@ -308,12 +303,13 @@ sql_query(HostType, Query) ->
 sql_query(HostType, PoolTag, Query) ->
     sql_call(HostType, PoolTag, {sql_query, Query}).
 
--spec sql_query_request(mongooseim:host_type_or_global(), Query :: any()) -> request_id().
+-spec sql_query_request(mongooseim:host_type_or_global(), Query :: any()) ->
+    gen_server:request_id().
 sql_query_request(HostType, Query) ->
     sql_query_request(HostType, ?DEFAULT_POOL_TAG, Query).
 
 -spec sql_query_request(mongooseim:host_type_or_global(), mongoose_wpool:tag(), Query :: any()) ->
-    request_id().
+    gen_server:request_id().
 sql_query_request(HostType, PoolTag, Query) ->
     sql_request(HostType, PoolTag, {sql_query, Query}).
 
@@ -343,12 +339,12 @@ sql_transaction(HostType, PoolTag, F) when is_atom(PoolTag), is_function(F) ->
 
 %% @doc SQL transaction based on a list of queries
 -spec sql_transaction_request(mongooseim:host_type_or_global(), fun() | maybe_improper_list()) ->
-    request_id().
+    gen_server:request_id().
 sql_transaction_request(HostType, Queries) ->
     sql_transaction_request(HostType, ?DEFAULT_POOL_TAG, Queries).
 
 -spec sql_transaction_request(mongooseim:host_type_or_global(), atom(), fun() | maybe_improper_list()) ->
-    request_id().
+    gen_server:request_id().
 sql_transaction_request(HostType, PoolTag, Queries) when is_atom(PoolTag), is_list(Queries) ->
     F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
     sql_transaction_request(HostType, PoolTag, F);

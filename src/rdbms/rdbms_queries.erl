@@ -65,12 +65,6 @@
 
 -include("mongoose.hrl").
 
--ifdef(gen_server_request_id).
--type request_id() :: gen_server:request_id().
--else.
--type request_id() :: term().
--endif.
-
 %
 %% -----------------
 %% Common functions
@@ -138,7 +132,7 @@ execute_upsert_many(HostType, PoolTag, Name, InsertParams, UpdateParams) ->
                      Name :: atom(),
                      InsertParams :: [any()],
                      UpdateParams :: [any()],
-                     UniqueKeyValues :: [any()]) -> request_id().
+                     UniqueKeyValues :: [any()]) -> gen_server:request_id().
 request_upsert(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
