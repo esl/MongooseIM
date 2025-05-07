@@ -44,8 +44,7 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    application:ensure_all_started(erlcloud),
-    application:ensure_all_started(worker_pool),
+    {ok, _} = application:ensure_all_started([erlcloud], permanent),
     start_pool(HostType, Opts),
     ok.
 
