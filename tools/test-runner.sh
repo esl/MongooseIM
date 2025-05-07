@@ -614,7 +614,7 @@ DBS_DEFAULT="${DBS_ARRAY[@]}"
 DEV_NODES_DEFAULT="${DEV_NODES_ARRAY[@]}"
 TEST_HOSTS_DEFAULT="${TEST_HOSTS_ARRAY[@]}"
 
-./tools/configure with-all
+./tools/configure
 
 # Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
 # to rebar3 in Makefile

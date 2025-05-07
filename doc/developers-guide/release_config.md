@@ -26,15 +26,6 @@ Writes configure.out file as output - this file can be sourced with:
 
 Writes rel/configure.vars.config which can be used as Reltool input.
 
-3rd party apps:
-
-    with-none           include no 3rd party drivers
-    with-all            include all drivers
-    with-mysql          include mysql driver
-    with-odbc           include an ODBC driver (requires unixodbc to compile)
-    with-pgsql          include pgsql driver
-    with-redis          include redis driver
-
 Options:
 
     prefix    Installation PREFIX directory. Default: /usr/local
@@ -43,13 +34,6 @@ Options:
 ```
 
 This script is also accessible via the make `configure` target.
-
-### Example
-
-If `mysql` and `redis` are the only drivers that should be included in the
-release, run the following command before `make rel`:
-
-    $ ./tools/configure with-mysql with-redis
 
 You only need to run the `./tools/configure` command once (unless changing the release's config is needed to
 include some other dependencies).
@@ -63,7 +47,7 @@ Results should be similar to those described below.
 On Mac:
 
 ```sh
-./tools/configure with-all user=erszcz prefix=/tmp/mim-sandbox-system system=yes
+./tools/configure user=erszcz prefix=/tmp/mim-sandbox-system system=yes
 cat configure.out rel/configure.vars.config
 RUNNER_GROUP=staff make install
 ```

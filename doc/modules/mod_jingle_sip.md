@@ -83,20 +83,6 @@ This may be useful in web applications when there is a need to handle the call i
 In order to get the `session-initiate`, which was not answered yet, the user can send a `get` Jingle stanza to self with action set to `existing-session-initiate`.
 As a result, MongooseIM will resend the original `session-initiate` request to the device which sent the query.
 
-## Prerequisites
-
-By default, MongooseIM is built without SIP support.
-In order to build the server with SIP support, please use `tools/configure` script before the release generation.
-You may either pick only certain drivers (with SIP included) or simply use `with-all` option. Examples:
-
-```
-tools/configure with-mysql with-jingle-sip
-tools/configure with-all without-odbc
-tools/configure with-all
-```
-
-MongooseIM packages are built with Jingle/SIP support.
-
 !!! warning
     This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
 
