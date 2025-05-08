@@ -16,12 +16,12 @@ They have the same semantics as the corresponding [c2s options](listen-c2s.md#tl
 ## S2S listener configuration example
 
 The following section configures an S2S listener with some basic settings set up.
-The `s2s_shaper` access rule is used, which requires a definition in the [`access`](../configuration/access.md) section.
+The `fast` shaper is used, which requires a definition in the [`shaper`](../configuration/shaper.md) section (the default configuration file includes it).
 
 ```toml
 [[listen.s2s]]
   port = 5269
-  shaper = "s2s_shaper"
+  shaper = "fast"
   max_stanza_size = 131072
   tls.dhfile = "dh_server.pem"
 ```
