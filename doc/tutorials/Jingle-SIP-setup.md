@@ -8,9 +8,6 @@ We are going to use the following open source software:
 
 * MongooseIM - [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
     * see [How-to-build](How-to-build.md) for details on building.
-      It's important to remember to run the configuration script with `with-jingle-sip` flag set:
-      `tools/configure with-jingle-sip`.
-      Without this, third party dependencies required by the Jingle/SIP translator will not be included in the release.
 
 * Routr (SIP server) - [https://routr.io](https://routr.io)
     * I recommend downloading binaries for your system from [official source](https://routr.io/docs/introduction/installation/#custom).

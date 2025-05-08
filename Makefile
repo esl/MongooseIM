@@ -41,7 +41,7 @@ rock:
 
 ## Don't allow these files to go out of sync!
 configure.out rel/configure.vars.config:
-	./tools/configure with-all without-jingle-sip
+	./tools/configure
 
 devrel: $(DEVNODES)
 

@@ -6,8 +6,7 @@
 -define(b2l(B), binary_to_list(B)).
 -define(l2b(L), list_to_binary(L)).
 
--record(opts, {apps             = [],
-               prefix           = "/usr/local",
+-record(opts, {prefix           = "/usr/local",
                reltool_vars     = "rel/configure.vars.config",
                system           = "no",
                user             = "",
@@ -27,7 +26,7 @@
                nksip_cache_dir  = "priv/nksip_cache"
               }).
 
-main([]) ->
+main(["help"]) ->
     usage();
 main(Args) ->
     case catch process_args(Args, #opts{}) of
@@ -38,37 +37,11 @@ main(Args) ->
             ok
     end.
 
-app_opts() ->
-    %% Opt             Apps                 Desc
-    [{"none",          [],                  "include no 3rd party drivers"},
-     {"all",           [],                  "include all drivers"},
-     {"mysql",         ["mysql"],           include_driver("mysql")},
-     {"odbc",          ["eodbc"],           "include alternative version of ODBC driver"},
-     {"pgsql",         ["epgsql"],          include_driver("pgsql")},
-     {"redis",         ["eredis"],            include_driver("redis")},
-     {"jingle-sip",    ["nksip"],           include_driver("nksip")},
-     {"cassandra",     ["cqerl"],           include_driver("cassandra")},
-     {"elasticsearch", ["tirerl"],          include_driver("elasticsearch")},
-     {"aws",           ["erlcloud"],        "include support for AWS services"},
-     {"amqp_client",   ["amqp_client"],     "include AMQP client"},
-     {"templates",     ["eini", "bbmustache"], "include applications for templating"}].
-
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
      {"system",  (#opts{})#opts.system,  "Install files into $PREFIX/{bin, etc, ...} instead of "
                                          "a completely self contained release"},
      {"user",    (#opts{})#opts.user,    "System user to run the server as"}].
-
-include_driver(Driver) ->
-    ["include ", Driver, " driver"].
-
-all_apps() ->
-    lists:flatmap(fun ({_, Apps, _}) -> Apps end, app_opts()).
-
-process_args(["with-" ++ App | Args], #opts{apps = Apps} = Opts) ->
-    process_args(Args, Opts#opts{apps = process_app(App, Apps)});
-process_args(["without-" ++ App | Args], #opts{apps = Apps} = Opts) ->
-    process_args(Args, Opts#opts{apps = exclude_app(App, Apps)});
 
 process_args(["prefix=" ++ Prefix | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{prefix = Prefix});
@@ -109,16 +82,6 @@ system_install(Opts) ->
               nodetool_etc_dir  = "$PREFIX/etc/mongooseim",
               nksip_cache_dir   = "$PREFIX/var/lib/mongooseim/nksip"}.
 
-process_app("none", _Apps) -> [];
-process_app("all", _Apps) -> all_apps();
-process_app(App, Apps) ->
-    {App, AppDeps, _} = lists:keyfind(App, 1, app_opts()),
-    AppDeps ++ Apps.
-
-exclude_app(App, Apps) ->
-    {App, AppDeps, _} = lists:keyfind(App, 1, app_opts()),
-    Apps -- AppDeps.
-
 usage() ->
     print(standard_error,
           "~s: OPTIONS\n"
@@ -130,13 +93,8 @@ usage() ->
           "\n"
           "Writes rel/configure.vars.config which can be used as Reltool input.\n"
           "\n"
-          "3rd party apps:\n\n~s~s\n"
-          "Options:\n\n~s\n",
+          "Options:\n~s\n",
           [progname(),
-           [ io_lib:format("    with-~.15s~s\n", [Opt, Desc])
-             || {Opt, _, Desc} <- app_opts() ],
-           [ io_lib:format("    without-~.12sdo not ~s\n", [Opt, Desc])
-             || {Opt, _, Desc} <- app_opts(), Opt /= "all", Opt /= "none" ],
            [ io_lib:format("    ~.10s~s. Default: ~s\n", [Opt, Desc, Default])
              || {Opt, Default, Desc} <- opts() ]]).
 
@@ -158,7 +116,6 @@ rt_var(Name, Value) -> io_lib:format("{~s, ~p}.\n", [Name, Value]).
 
 write(shell, FileName, Opts) ->
     Data = ( [sh_var("MONGOOSEIM_CONFIGURED", ["yes"]),
-              sh_var("APPS", Opts#opts.apps),
               sh_var("PREFIX", [Opts#opts.prefix]),
               sh_var("RELTOOL_VARS", [Opts#opts.reltool_vars]),
               sh_var("SYSTEM", [Opts#opts.system])] ++

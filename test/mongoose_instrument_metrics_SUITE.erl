@@ -77,7 +77,7 @@ init_per_testcase(Case, Config) ->
 end_per_testcase(_Case, _Config) ->
     log_helper:unsubscribe().
 
-apps(prometheus) -> [prometheus];
+apps(prometheus) -> [prometheus, prometheus_httpd, prometheus_cowboy];
 apps(exometer) -> [exometer_core];
 apps(exometer_global) -> [exometer_core];
 apps(prometheus_and_exometer) -> apps(prometheus) ++ apps(exometer).

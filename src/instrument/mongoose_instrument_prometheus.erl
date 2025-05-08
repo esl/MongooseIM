@@ -2,12 +2,18 @@
 
 -behaviour(mongoose_instrument).
 
--export([set_up/3, handle_event/4]).
+-export([start/1, set_up/3, handle_event/4]).
 
 %% Define Prometheus metric-related types, because the library has no type specs
 -type spec() :: proplists:proplist().
 -type name() :: string().
 -type help() :: string().
+
+-spec start(#{}) -> ok.
+start(#{}) ->
+    Apps = [prometheus, prometheus_httpd, prometheus_cowboy],
+    {ok, _} = application:ensure_all_started(Apps, permanent),
+    ok.
 
 -spec set_up(mongoose_instrument:event_name(), mongoose_instrument:labels(),
              mongoose_instrument:config()) -> boolean().

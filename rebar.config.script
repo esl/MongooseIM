@@ -1,88 +1,39 @@
-os:putenv("EXOMETER_PACKAGES", "(minimal)"),
+BaseApps = [kernel, stdlib, sasl,
+            crypto, inets, public_key, ssl,
+            tools, runtime_tools,
+            mongooseim,
+            {mnesia, none},
+            {erlang_doctor, none},
+            {syslogger, none},
+            {cpool, none},
+            {backoff, none},
+            {mysql, none},
+            {eodbc, none},
+            {epgsql, none},
+            {eredis, none},
+            {cqerl, none},
+            {tirerl, none},
+            {erlcloud, none},
+            {amqp_client, none},
+            {exometer_core, none},
+            {exometer_report_graphite, none},
+            {exometer_report_statsd, none},
+            {prometheus, none},
+            {prometheus_httpd, none},
+            {prometheus_cowboy, none},
+            {nksip, none},
+            {nkservice, none},
+            {nkpacket, none},
+            {nklib, none}
+           ],
 
-MaybeReadFromConfig =
-fun ({ok, Content}) ->
-        Parts = binary:split(Content, <<"\n">>, [global]),
-        %% find only this line which starts with "export APPS="
-        [Apps] = [Item || <<"export APPS=\"",Item/binary>> <- Parts],
-        %% remove trailing " and conver to string
-        binary_to_list(binary:part(Apps, 0, size(Apps) - 1));
-    (_) ->
-        io:format("WARNING! The configure.out file was not created, using minimal configuration~n"),
-        ""
-end,
+Apps = case os:getenv("DEVNODE") of
+           false -> BaseApps;
+           _ -> [meck | BaseApps]
+       end,
 
-ReadFromConfig =
-fun(Path) ->
-        case filelib:is_file(Path) of
-            true ->
-                MaybeReadFromConfig(file:read_file(Path));
-            _ ->
-                Script = filename:join(["tools", "configure"]),
-                os:cmd(Script ++ " with-all without-jingle-sip"),
-                MaybeReadFromConfig(file:read_file("configure.out"))
-        end
-end,
-
-GetEnvApps =
-fun() ->
-        case os:getenv("APPS") of
-            false ->
-                ConfigurePath = "configure.out",
-                ReadFromConfig(ConfigurePath);
-            EnvApps ->
-                EnvApps
-        end
-end,
-
-DevAppsToInclude =
-fun() ->
-        case os:getenv("DEVNODE") of
-            false -> [];
-            _ -> [meck]
-        end
-end,
-
-FirstApps = [kernel],
-RequiredApps = [mongooseim, inets, tools, compiler],
-OptionalApps = [{nksip, [nkservice, nkpacket, nklib]}],
-
-EnvApps = GetEnvApps(),
-
-PrepareApp =
-fun(App) ->
-        case lists:keyfind(App, 1, OptionalApps) of
-            false ->
-                [App];
-            {App, DepsOfApp} ->
-                lists:map(fun(V) -> {V, load} end, [App | DepsOfApp])
-        end
-end,
-
-SetupIncludedApps =
-fun(Config, EnvApps) ->
-        RelxCfg = proplists:get_value(relx, Config),
-        {release, Desc, _Apps} = lists:keyfind(release, 1, RelxCfg),
-        EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
-        AppsToIncludeIn = lists:usort(RequiredApps ++ DevAppsToInclude() ++ EnvAppsToInclude),
-        Apps = lists:subtract(AppsToIncludeIn, FirstApps),
-        NewReleaseCfg = {release, Desc, FirstApps ++ lists:flatmap(PrepareApp, Apps)},
-        NewRelxCfg = lists:keyreplace(release, 1, RelxCfg, NewReleaseCfg),
-        lists:keyreplace(relx, 1, Config, {relx, NewRelxCfg})
-end,
-
-MaybeFIPSSupport = fun(Config) ->
-    code:ensure_loaded(crypto),
-    case erlang:function_exported(crypto, info_fips, 0) of
-        false ->
-            Config;
-        _ ->
-            io:format("compiling with FIPS mode enabled~n"),
-            {erl_opts, ErlOpts} = lists:keyfind(erl_opts, 1, Config),
-            NewErlOpts = [{d, fips_mode} | ErlOpts],
-            lists:keyreplace(erl_opts, 1, Config, {erl_opts, NewErlOpts})
-    end
-end,
-
-Config0 = SetupIncludedApps(CONFIG, EnvApps),
-MaybeFIPSSupport(Config0).
+{relx, RelxCfg} = lists:keyfind(relx, 1, CONFIG),
+{release, Desc, _Apps} = lists:keyfind(release, 1, RelxCfg),
+NewReleaseCfg = {release, Desc, Apps},
+NewRelxCfg = lists:keyreplace(release, 1, RelxCfg, NewReleaseCfg),
+lists:keyreplace(relx, 1, CONFIG, {relx, NewRelxCfg}).

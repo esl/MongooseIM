@@ -49,7 +49,7 @@ fi
 %endif
 
 make clean
-./tools/configure with-all user=root prefix=/ system=yes
+./tools/configure user=root prefix=/ system=yes
 sed -i 's#PREFIX=\"/\"#PREFIX=\"%{buildroot}\"#' configure.out
 make install
 sed -i 's#RUNNER_USER=\"root\"#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/bin/mongooseimctl

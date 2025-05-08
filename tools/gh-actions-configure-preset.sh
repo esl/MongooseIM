@@ -29,19 +29,9 @@ DB_ARRAY=( $(./tools/test_runner/presets_to_dbs.sh "$PRESET" ) )
 
 case "$PRESET" in
   internal_mnesia)
-    export REL_CONFIG="with-all" TLS_DIST=true ;;
-  odbc_mssql_mnesia)
-    export REL_CONFIG="with-odbc" ;;
-  mysql_redis)
-    export REL_CONFIG="with-mysql with-redis with-amqp_client" ;;
-  pgsql_mnesia)
-    export REL_CONFIG="with-pgsql" ;;
-  cets_mnesia)
-    export REL_CONFIG="with-pgsql" ;;
-  ldap_mnesia)
-    export REL_CONFIG="with-none" ;;
-  elasticsearch_and_cassandra_mnesia)
-    export REL_CONFIG="with-elasticsearch with-cassandra"
+    export TLS_DIST=true ;;
+  *)
+    ;;
 esac
 
 if [ ! -z "$GITHUB_ENV" ]; then

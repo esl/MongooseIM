@@ -13,7 +13,7 @@
 %% mongoose_wpool callbacks
 -spec init() -> ok.
 init() ->
-    {ok, []} = application:ensure_all_started(cqerl),
+    {ok, _} = application:ensure_all_started([cqerl], permanent),
     application:set_env(cqerl, maps, true).
 
 -spec start(mongooseim:host_type_or_global(), mongoose_wpool:tag(),

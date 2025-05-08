@@ -16,18 +16,12 @@
 
 -behaviour(gen_server).
 
--ifdef(gen_server_request_id).
--type request_id() :: gen_server:request_id().
--else.
--type request_id() :: term().
--endif.
-
 -callback aggregate(mongoose_async_pools:task(),
                     mongoose_async_pools:task(),
                     mongoose_async_pools:pool_extra()) ->
     {ok, mongoose_async_pools:task()} | {error, term()}.
 -callback request(mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
-    request_id() | drop.
+    gen_server:request_id() | drop.
 -callback verify(term(), mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
     term().
 -optional_callbacks([verify/3]).
@@ -43,7 +37,7 @@
          code_change/3,
          format_status/1]).
 
--type request() :: no_request_pending | {request_id(), mongoose_async_pools:task()}.
+-type request() :: no_request_pending | {gen_server:request_id(), mongoose_async_pools:task()}.
 -record(state, {
           host_type :: mongooseim:host_type(),
           pool_id :: mongoose_async_pools:pool_id(),

@@ -10,6 +10,7 @@
 %% mongoose_wpool callbacks
 -spec init() -> ok.
 init() ->
+    {ok, _} = application:ensure_all_started([eredis], permanent),
     ok.
 
 -spec start(mongooseim:host_type_or_global(), mongoose_wpool:tag(),

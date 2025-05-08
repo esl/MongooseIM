@@ -38,7 +38,7 @@ fi
 
 make clean
 sed -i '1 s/^.*$/\#\!\/bin\/bash/' tools/install
-./tools/configure with-all user=mongooseim prefix="" system=yes
+./tools/configure user=mongooseim prefix="" system=yes
 sed -i 's#PREFIX=""#PREFIX="mongooseim"#' configure.out
 source configure.out
 export GIT_SSL_NO_VERIFY=1

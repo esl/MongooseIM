@@ -11,6 +11,7 @@
 %% mongoose_wpool callbacks
 -spec init() -> ok.
 init() ->
+    {ok, _} = application:ensure_all_started([mysql, epgsql, eodbc], permanent),
     ejabberd_sup:create_ets_table(
       prepared_statements, [named_table, public, {read_concurrency, true}]).
 

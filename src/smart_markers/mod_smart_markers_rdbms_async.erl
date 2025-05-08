@@ -14,12 +14,6 @@
 %% Worker callbacks
 -export([request/2, aggregate/3, verify/3]).
 
--ifdef(gen_server_request_id).
--type request_id() :: gen_server:request_id().
--else.
--type request_id() :: term().
--endif.
-
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -98,7 +92,7 @@ aggregate(_, NewTask, _Extra) ->
     {ok, NewTask}.
 
 -spec request(mod_smart_markers:chat_marker(),
-              mongoose_async_pools:pool_extra()) -> request_id().
+              mongoose_async_pools:pool_extra()) -> gen_server:request_id().
 request(#{from := #jid{luser = LU, lserver = LS}, to := To, thread := Thread,
           type := Type, timestamp := TS, id := Id}, #{host_type := HostType}) ->
     ToEncoded = mod_smart_markers_rdbms:encode_jid(To),
