@@ -39,7 +39,7 @@
                      num_acceptors => pos_integer(),
                      proxy_protocol => boolean(),
                      reuse_port => boolean(),
-                     shaper => atom(),
+                     shaper => mongoose_shaper:name(),
                      %% C2S
                      allowed_auth_methods => [atom()],
                      backwards_compatible_session => boolean(),
