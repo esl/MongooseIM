@@ -56,20 +56,15 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case rpc(mim(), application, get_application, [nksip]) of
-        {ok, nksip} ->
-            distributed_helper:add_node_to_cluster(mim2(), Config),
-            start_nksip_in_mim_nodes(),
-            application:ensure_all_started(esip),
-            spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
-                           ets:new(jingle_sip_translator_bindings, [public, named_table]),
-                           receive stop -> ok end end),
-            esip:add_listener(12345, tcp, []),
-            esip:set_config_value(module, jingle_sip_translator),
-            escalus:init_per_suite(Config);
-        undefined ->
-            {skip, build_was_not_configured_with_jingle_sip}
-    end.
+    distributed_helper:add_node_to_cluster(mim2(), Config),
+    start_nksip_in_mim_nodes(),
+    application:ensure_all_started(esip),
+    spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
+                   ets:new(jingle_sip_translator_bindings, [public, named_table]),
+                   receive stop -> ok end end),
+    esip:add_listener(12345, tcp, []),
+    esip:set_config_value(module, jingle_sip_translator),
+    escalus:init_per_suite(Config).
 
 start_nksip_in_mim_nodes() ->
     Pid1 = start_nskip_in_parallel(mim(), #{}),
