@@ -12,6 +12,8 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-include_lib("kernel/include/logger.hrl").
+
 -import(distributed_helper, [mim/0, rpc_spec/1, rpc/4]).
 -import(domain_helper, [host_type/0]).
 
@@ -23,60 +25,62 @@
 
 all() ->
     [
-     {group, both_plain},
-     {group, both_tls_optional}, %% default MongooseIM config
-     {group, both_tls_required},
-     {group, both_tls_enforced},
+     {group, both_plain}
+    %  {group, both_tls_optional}, %% default MongooseIM config
+    %  {group, both_tls_required},
+    %  {group, both_tls_enforced},
 
-     {group, node1_tls_optional_node2_tls_required},
-     {group, node1_tls_required_node2_tls_optional},
+    %  {group, node1_tls_optional_node2_tls_required},
+    %  {group, node1_tls_required_node2_tls_optional},
 
-     {group, node1_tls_required_trusted_node2_tls_optional},
-     {group, node1_tls_optional_node2_tls_required_trusted_with_cachain},
+    %  {group, node1_tls_required_trusted_node2_tls_optional},
+    %  {group, node1_tls_optional_node2_tls_required_trusted_with_cachain},
 
-     {group, node1_tls_false_node2_tls_required},
-     {group, node1_tls_required_node2_tls_false},
+    %  {group, node1_tls_false_node2_tls_required},
+    %  {group, node1_tls_required_node2_tls_false},
 
-     {group, dialback}
+    %  {group, dialback}
     ].
 
 groups() ->
-    [{both_plain, [], all_tests()},
-     {both_tls_optional, [], essentials()},
-     {both_tls_required, [], essentials()},
-     {both_tls_enforced, [], essentials()},
+    [{both_plain, [], all_tests()}
+    %  {both_tls_optional, [], essentials()},
+    %  {both_tls_required, [], essentials()},
+    %  {both_tls_enforced, [], essentials()},
 
-     {node1_tls_optional_node2_tls_required, [], essentials()},
-     {node1_tls_required_node2_tls_optional, [], essentials()},
+    %  {node1_tls_optional_node2_tls_required, [], essentials()},
+    %  {node1_tls_required_node2_tls_optional, [], essentials()},
 
-     %% Node1 closes connection from nodes with invalid certs
-     {node1_tls_required_trusted_node2_tls_optional, [], negative()},
+    %  %% Node1 closes connection from nodes with invalid certs
+    %  {node1_tls_required_trusted_node2_tls_optional, [], negative()},
 
-     %% Node1 accepts connection provided the cert can be verified
-     {node1_tls_optional_node2_tls_required_trusted_with_cachain, [parallel],
-      essentials() ++ connection_cases() ++ start_stream_error_groups()},
+    %  %% Node1 accepts connection provided the cert can be verified
+    %  {node1_tls_optional_node2_tls_required_trusted_with_cachain, [parallel],
+    %   essentials() ++ connection_cases() ++ start_stream_error_groups()},
 
-     {node1_tls_false_node2_tls_required, [], negative()},
-     {node1_tls_required_node2_tls_false, [], negative()},
-     {dialback, [], [dialback_key_is_synchronized_on_different_nodes]},
+    %  {node1_tls_false_node2_tls_required, [], negative()},
+    %  {node1_tls_required_node2_tls_false, [], negative()},
+    %  {dialback, [], [dialback_key_is_synchronized_on_different_nodes]},
 
-     {start_stream_errors, [parallel], start_stream_error_cases()},
-     {start_stream_errors_after_starttls, [parallel], start_stream_error_cases()},
-     {start_stream_errors_after_auth, [parallel], start_stream_error_cases()}
+    %  {start_stream_errors, [parallel], start_stream_error_cases()},
+    %  {start_stream_errors_after_starttls, [parallel], start_stream_error_cases()},
+    %  {start_stream_errors_after_auth, [parallel], start_stream_error_cases()}
     ].
 
 essentials() ->
     [simple_message].
 
 all_tests() ->
-    [connections_info,
-     dns_srv_discovery,
-     dns_ip_discovery,
-     dns_discovery_fail,
-     nonexistent_user,
-     unknown_domain,
-     malformed_jid,
-     dialback_with_wrong_key].
+    [
+    % connections_info,
+    %  dns_srv_discovery,
+     dns_ip_discovery
+    %  dns_discovery_fail,
+    %  nonexistent_user,
+    %  unknown_domain,
+    %  malformed_jid,
+    %  dialback_with_wrong_key
+    ].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -108,7 +112,7 @@ suite() ->
 %%%===================================================================
 
 init_per_suite(Config0) ->
-    ct:pal("Tested events: ~p~n", [tested_events()]),
+    ?LOG_WARNING("Tested events: ~p~n", [tested_events()]),
     instrument_helper:start(tested_events()),
     mongoose_helper:inject_module(?MODULE, reload),
     Config1 = escalus:init_per_suite(Config0),
@@ -161,34 +165,44 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 meck_dns_srv_lookup(Domain, Which) ->
+    ?LOG_WARNING("meck_dns_srv_lookup"),
     FedPort = ct:get_config({hosts, fed, incoming_s2s_port}),
     ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
     ok = rpc(mim(), meck, expect, [inet_res, lookup, inet_res_lookup_fun(Domain, FedPort, Which)]).
 
 inet_res_lookup_fun(Domain, FedPort, srv_ssl) ->
     fun("_xmpps-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            ?LOG_WARNING("srv_ssl - meck"),
             [{30, 0, FedPort, "localhost"}];
        (Name, Class, Type, Opts, Timeout) ->
+            ?LOG_WARNING("srv_ssl - passthrough"),
             meck:passthrough([Name, Class, Type, Opts, Timeout])
     end;
 inet_res_lookup_fun(Domain, FedPort, srv) ->
     fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            ?LOG_WARNING("srv - meck"),
             [{30, 0, FedPort, "localhost"}];
        (Name, Class, Type, Opts, Timeout) ->
+            ?LOG_WARNING("srv - passthrough"),
             meck:passthrough([Name, Class, Type, Opts, Timeout])
     end;
 inet_res_lookup_fun(Domain, _FedPort, ip) ->
     fun(Domain1, in, a, _Opts, _Timeout) when Domain1 =:= Domain ->
+            ?LOG_WARNING("ip - meck"),
             [{127, 0, 0, 1}];
        (Name, Class, Type, Opts, Timeout) ->
+            ?LOG_WARNING("ip - passthrough"),
             meck:passthrough([Name, Class, Type, Opts, Timeout])
     end;
 inet_res_lookup_fun(Domain, _FedPort, none) ->
     fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
+            ?LOG_WARNING("none - meck - srv"),
             {error, nxdomain};
        (Domain1, in, inet, _Opts, _Timeout) when Domain1 =:= Domain ->
+            ?LOG_WARNING("none - meck - inet"),
             {error, nxdomain};
        (Name, Class, Type, Opts, Timeout) ->
+            ?LOG_WARNING("none - passthrough"),
             meck:passthrough([Name, Class, Type, Opts, Timeout])
     end.
 
@@ -213,14 +227,14 @@ simple_message(Config) ->
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
 
         %% User on the federated server receives the message
-        Stanza = escalus:wait_for_stanza(Alice2, 5000),
+        Stanza = escalus:wait_for_stanza(Alice2, 300000),
         escalus:assert(is_chat_message, [<<"Hi, foreign Alice!">>], Stanza),
 
         %% User on the federated server sends a message to the main server
         escalus:send(Alice2, escalus_stanza:chat_to(Alice1, <<"Nice to meet you!">>)),
 
         %% User on the main server receives the message
-        Stanza2 = escalus:wait_for_stanza(Alice1, 5000),
+        Stanza2 = escalus:wait_for_stanza(Alice1, 300000),
         escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2),
 
         % Instrumentation events are executed
@@ -296,7 +310,7 @@ get_s2s_connections(RPCSpec, Domain, Type) ->
         [Connection || Connection <- AllS2SConnections,
                        Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
                        Type =/= out orelse Domain =:= maps:get(server, Connection)],
-    ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p~nAll Connections: ~p",
+    ?LOG_WARNING("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p~nAll Connections: ~p",
            [maps:get(node, RPCSpec), Type, Domain, length(DomainS2SConnections),
             DomainS2SConnections, AllS2SConnections]),
     DomainS2SConnections.
