@@ -159,11 +159,13 @@ init_per_group(start_checks, Config) ->
     dynamic_modules:ensure_modules(NodeSpec, domain(), [{mod_global_distrib, stopped}]),
     Config1;
 init_per_group(multi_connection, Config) ->
+    Config1 = mongoose_helper:backup_and_set_config_option(
+                Config, [shaper, normal, max_rate], 100000), % needed to send many messages quickly
     ExtraConfig = #{bounce => #{resend_after_ms => 20000},
                     connections => #{%% Disable unused feature to avoid interference
                                      connections_per_endpoint => 100,
                                      disabled_gc_interval => 10000}},
-    init_per_group_generic([{extra_config, ExtraConfig} | Config]);
+    init_per_group_generic([{extra_config, ExtraConfig} | Config1]);
 init_per_group(invalidation, Config) ->
     Config1 = init_per_group(invalidation_generic, Config),
     NodeBin = <<"fake_node@localhost">>,
@@ -254,6 +256,9 @@ end_per_group(start_checks, Config) ->
 end_per_group(invalidation, Config) ->
     redis_query(europe_node1, [<<"HDEL">>, ?config(nodes_key, Config),
                             ?config(node_to_expire, Config)]),
+    end_per_group_generic(Config);
+end_per_group(multi_connection, Config) ->
+    mongoose_helper:restore_config_option(Config, [shaper, normal, max_rate]),
     end_per_group_generic(Config);
 end_per_group(_, Config) ->
     end_per_group_generic(Config).
