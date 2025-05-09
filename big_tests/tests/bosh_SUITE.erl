@@ -191,10 +191,6 @@ create_and_terminate_session(Config) ->
     Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
     ok = bosh_send_raw(Conn, Terminate),
 
-    % Assert that correct events have been executed
-    [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
-     || {Event, Label} <- instrumentation_events(), Event =/= c2s_message_processed],
-
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().
 
@@ -353,6 +349,8 @@ interleave_requests(Config) ->
         Msg3 = <<"3rd!">>,
         Msg4 = <<"4th!">>,
 
+        TS = instrument_helper:timestamp(),
+
         send_message_with_rid(Carol, Geralt, Rid + 1, Sid, Msg2),
         send_message_with_rid(Carol, Geralt, Rid, Sid, Msg1),
 
@@ -368,8 +366,10 @@ interleave_requests(Config) ->
         escalus:assert(is_chat_message, [Msg4],
                        escalus_client:wait_for_stanza(Geralt)),
 
-        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
-                                                   (#{time := Time}) -> Time > 0 end)
+        Pred = fun(#{byte_size := BS}) -> BS > 0;
+                  (#{time := Time}) -> Time > 0
+               end,
+        [instrument_helper:assert(Event, Label, Pred, #{min_timestamp => TS})
          || {Event, Label} <- instrumentation_events()],
 
         true = is_bosh_connected(Carol)
