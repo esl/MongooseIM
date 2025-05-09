@@ -10,6 +10,7 @@
 
 %% callbacks for the 'process' step
 -export([process_dynamic_domains/1,
+         process_shapers/1,
          process_host/1,
          process_general/1,
          process_listener/2,
@@ -105,7 +106,8 @@ root() ->
                 },
        defaults = #{<<"internal_databases">> => default_internal_databases()},
        required = [<<"general">>],
-       process = fun ?MODULE:process_dynamic_domains/1,
+       process = [fun ?MODULE:process_dynamic_domains/1,
+                  fun ?MODULE:process_shapers/1],
        wrap = none,
        format_items = list
       }.
@@ -924,6 +926,25 @@ process_dynamic_domains(Items) ->
             end;
         _ ->
             Items
+    end.
+
+%% Check that all referenced shapers are defined in the 'shaper' section
+process_shapers(Items) ->
+    S2SShapers = [Shaper || {{s2s, _}, #{outgoing := #{shaper := Shaper}}} <- Items],
+    ListenerShapers = [Shaper || #{shaper := Shaper} <- proplists:get_value(listen, Items)],
+    ReferencedShapers = lists:usort(S2SShapers ++ ListenerShapers) -- [none],
+    DefinedShapers = case proplists:lookup(shaper, Items) of
+                         none -> [];
+                         {_, ShaperOpts} -> maps:keys(ShaperOpts)
+                     end,
+    case ReferencedShapers -- DefinedShapers of
+        [] ->
+            Items;
+        UndefinedShapers ->
+            error(#{what => undefined_shapers,
+                    text => ("The configuration references undefined shapers. "
+                             "You need to define them in the 'shaper' section."),
+                    undefined_shapers => UndefinedShapers})
     end.
 
 unsupported_auth_methods(KVs) ->

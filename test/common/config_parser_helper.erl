@@ -152,7 +152,7 @@ options("mongooseim-pgsql") ->
       [config([listen, c2s],
               #{port => 5222,
                 access => c2s,
-                shaper => c2s_shaper,
+                shaper => normal,
                 max_stanza_size => 65536,
                 tls => #{certfile => "priv/cert.pem",
                          keyfile => "priv/dc1.pem",
@@ -161,7 +161,7 @@ options("mongooseim-pgsql") ->
        config([listen, c2s],
               #{port => 5223,
                 access => c2s,
-                shaper => c2s_shaper,
+                shaper => normal,
                 max_stanza_size => 65536
                }),
        config([listen, component],
@@ -241,7 +241,7 @@ options("mongooseim-pgsql") ->
                }),
        config([listen, s2s],
               #{port => 5269,
-                shaper => s2s_shaper,
+                shaper => fast,
                 max_stanza_size => 131072,
                 tls => #{cacertfile => "priv/ca.pem",
                          certfile => "priv/cert.pem",
@@ -775,8 +775,6 @@ custom_s2s() ->
 pgsql_access() ->
     #{c2s => [#{acl => blocked, value => deny},
               #{acl => all, value => allow}],
-      c2s_shaper => [#{acl => admin, value => none},
-                     #{acl => all, value => normal}],
       local => [#{acl => local, value => allow}],
       mam_get_prefs => [#{acl => all, value => default}],
       mam_get_prefs_global_shaper => [#{acl => all, value => mam_global_shaper}],
@@ -793,8 +791,7 @@ pgsql_access() ->
       muc => [#{acl => all, value => allow}],
       muc_admin => [#{acl => admin, value => allow}],
       muc_create => [#{acl => local, value => allow}],
-      register => [#{acl => all, value => allow}],
-      s2s_shaper => [#{acl => all, value => fast}]}.
+      register => [#{acl => all, value => allow}]}.
 
 pool_config(PoolIn = #{type := Type}) ->
     config([outgoing_pools, Type, maps:get(tag, PoolIn, default)], PoolIn).

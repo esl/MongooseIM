@@ -80,7 +80,7 @@
 [[listen.c2s]]
   port = 5222
   access = "c2s"
-  shaper = "c2s_shaper"
+  shaper = "normal"
   max_stanza_size = 65536
   tls.mode = "starttls"
   tls.certfile = "priv/cert.pem"
@@ -90,12 +90,12 @@
 [[listen.c2s]]
   port = 5223
   access = "c2s"
-  shaper = "c2s_shaper"
+  shaper = "normal"
   max_stanza_size = 65536
 
 [[listen.s2s]]
   port = 5269
-  shaper = "s2s_shaper"
+  shaper = "fast"
   max_stanza_size = 131072
   tls.dhfile = "priv/dh.pem"
   tls.certfile = "priv/cert.pem"
@@ -232,15 +232,6 @@
   c2s = [
     {acl = "blocked", value = "deny"},
     {acl = "all", value = "allow"}
-  ]
-
-  c2s_shaper = [
-    {acl = "admin", value = "none"},
-    {acl = "all", value = "normal"}
-  ]
-
-  s2s_shaper = [
-    {acl = "all", value = "fast"}
   ]
 
   muc_admin = [

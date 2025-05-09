@@ -164,7 +164,7 @@ The following section configures two C2S listeners.
 [[listen.c2s]]
   port = 5222
   access = "c2s"
-  shaper = "c2s_shaper"
+  shaper = "normal"
   max_stanza_size = 65536
   tls.certfile = "server.pem"
   tls.dhfile = "dh_server.pem"
@@ -172,11 +172,12 @@ The following section configures two C2S listeners.
 [[listen.c2s]]
   port = 5223
   access = "c2s"
-  shaper = "c2s_shaper"
+  shaper = "normal"
   max_stanza_size = 65536
 ```
 
 * One at port 5222, which accepts a plain TCP connection and allows to use StartTLS for upgrading it to an encrypted one. The files containing the certificate and the DH parameter are also provided.
 * One at port 5223, which accepts only encrypted TLS connections. It is called Direct TLS.
 
-Both listeners use `c2s` and `c2s_shaper` rules for access management and traffic shaping, respectively.
+Both listeners use the `c2s` access rule and the `normal` traffic shaper.
+They need to be defined in the [`access`](../configuration/access.md) and [`shaper`](../configuration/shaper.md) sections, respectively (the default configuration file includes them).

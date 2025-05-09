@@ -127,7 +127,7 @@
 [[listen.c2s]]
   port = {{{c2s_port}}}
   access = "c2s"
-  shaper = "c2s_shaper"
+  shaper = "normal"
   max_stanza_size = 65536
   {{#tls_config}}
   {{{tls_config}}}
@@ -145,7 +145,7 @@
 
 [[listen.s2s]]
   port = {{{incoming_s2s_port}}}
-  shaper = "s2s_shaper"
+  shaper = "fast"
   max_stanza_size = 131072
   {{#tls_config}}
   {{{tls_config}}}
@@ -302,15 +302,6 @@
   c2s = [
     {acl = "blocked", value = "deny"},
     {acl = "all", value = "allow"}
-  ]
-
-  c2s_shaper = [
-    {acl = "admin", value = "none"},
-    {acl = "all", value = "normal"}
-  ]
-
-  s2s_shaper = [
-    {acl = "all", value = "fast"}
   ]
 
   muc_admin = [
