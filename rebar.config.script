@@ -24,7 +24,8 @@ BaseApps = [kernel, stdlib, sasl,
             {nksip, none},
             {nkservice, none},
             {nkpacket, none},
-            {nklib, none}
+            {nklib, none},
+            {bbmustache, none}
            ],
 
 Apps = case os:getenv("DEVNODE") of
