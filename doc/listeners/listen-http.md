@@ -6,7 +6,7 @@ Recommended port number: 5280 for BOSH/WS.
 
 ## Configuration options
 
-Following configuration option is used to set up an HTTP handler:
+Apart from the [general](../configuration/listen.md#general-listener-options) options, the following configuration option is used to set up an HTTP handler:
 
 ### `listen.http.handlers`
 * **Syntax:** each handler is specified in a subsection starting with `[[listen.http.handlers.type]]` where `type` is one of the allowed handler types, handling different connection types:
