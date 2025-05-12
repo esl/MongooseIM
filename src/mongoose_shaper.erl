@@ -4,8 +4,9 @@
 -export([new/1, update/2, wait/5, reset_all_shapers/1]).
 -ignore_xref([reset_all_shapers/1]).
 
+-type name() :: atom(). % special value 'none' means no shaper
 -type shaper() :: opuntia:shaper().
--export_type([shaper/0]).
+-export_type([name/0, shaper/0]).
 
 -spec child_spec() -> supervisor:child_spec().
 child_spec() ->
@@ -16,7 +17,7 @@ child_spec() ->
       shutdown => infinity,
       type => supervisor}.
 
--spec new(atom()) -> opuntia:shaper().
+-spec new(name()) -> opuntia:shaper().
 new(Name) ->
     opuntia:new(get_shaper_config(Name)).
 
@@ -49,22 +50,17 @@ reset_all_shapers(_HostType) ->
 -spec get_shaper_name(HostType :: mongooseim:host_type_or_global(),
                       Domain :: global | jid:server(),
                       Action :: atom(),
-                      FromJID :: jid:jid()) -> allow | none.
+                      FromJID :: jid:jid()) -> name().
 get_shaper_name(HostType, Domain, Action, FromJID) ->
     case acl:match_rule(HostType, Domain, Action, FromJID) of
-        deny -> default_shaper();
-        Value -> Value
+        deny -> none;
+        ShaperName -> ShaperName
     end.
 
--spec get_shaper_config(atom()) -> number().
+-spec get_shaper_config(name()) -> opuntia:config().
+get_shaper_config(none) ->
+    0;
 get_shaper_config(Name) ->
-    case mongoose_config:lookup_opt([shaper, Name]) of
-        {ok, #{max_rate := MaxRatePerSecond}} ->
-            #{bucket_size => MaxRatePerSecond, rate => MaxRatePerSecond,
-              time_unit => second, start_full => true};
-        {error, not_found} ->
-            0
-    end.
-
-default_shaper() ->
-    none.
+    MaxRatePerSecond = mongoose_config:get_opt([shaper, Name, max_rate]),
+    #{bucket_size => MaxRatePerSecond, rate => MaxRatePerSecond,
+      time_unit => second, start_full => true}.

@@ -95,7 +95,7 @@ The number of processes accepting new connections on the listening socket.
 ### `listen.*.shaper`
 * **Syntax:** string, shaper name
 * **Default:** `"none"` (no shaper)
-* **Example:** `shaper = "c2s_shaper"`
+* **Example:** `shaper = "normal"`
 
 The shaper name that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
 The shaper referenced here needs to be defined in the [`shaper`](../configuration/shaper.md) configuration section.

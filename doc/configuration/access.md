@@ -50,40 +50,6 @@ The `blocked` access class can be defined in the [`acl` section](acl.md) and mat
 
 For this rule to take effect, it needs to be referenced in the options of a [C2S listener](../listeners/listen-c2s.md#listenc2saccess).
 
-### C2S Shaper
-
-The `c2s_shaper` rule is used to determine the shaper used to limit the incoming traffic on C2S connections:
-
-```toml
-  c2s_shaper = [
-    {acl = "admin", value = "none"},
-    {acl = "all", value = "normal"}
-  ]
-```
-
-It has the following logic:
-
-* if the access class is `admin`, the returned value is `"none"`,
-* otherwise, the returned value is `"normal"`.
-
-The `admin` access class can be defined in the `acl` to specify admin users who will bypass the `normal` shaper.
-
-For this rule to take effect, it needs to be referenced in the options of a [C2S listener](../listeners/listen-c2s.md#listenc2sshaper).
-
-### S2S Shaper
-
-The `s2s_shaper` rule is used to determine the shaper used to limit the incoming traffic on C2S connections:
-
-```toml
-  s2s_shaper = [
-    {acl = "all", value = "fast"}
-  ]
-```
-
-It assigns the `fast` shaper to all S2S connections.
-
-For this rule to take effect, it needs to be referenced in the options of an [S2S listener](../listeners/listen-s2s.md#listens2sshaper).
-
 ### MUC
 
 The following rules manage the permissions of MUC operations:

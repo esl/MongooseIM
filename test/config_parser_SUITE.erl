@@ -664,13 +664,16 @@ test_listen(P, T) ->
 test_listen_xmpp(P, T) ->
     ?cfg(P ++ [backlog], 10, T(#{<<"backlog">> => 10})),
     ?cfg(P ++ [proxy_protocol], true, T(#{<<"proxy_protocol">> => true})),
-    ?cfg(P ++ [shaper], fast, T(#{<<"shaper">> => <<"fast">>})),
+    ?cfg(P ++ [shaper], fast, maps:merge(T(#{<<"shaper">> => <<"fast">>}),
+                                         shaper_raw(<<"fast">>, 100000))),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
     ?cfg(P ++ [max_stanza_size], 0, T(#{<<"max_stanza_size">> => <<"infinity">>})),
     ?cfg(P ++ [num_acceptors], 100, T(#{<<"num_acceptors">> => 100})),
     ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
     ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
     ?err(T(#{<<"shaper">> => <<>>})),
+    ?err([#{reason := undefined_shapers, undefined_shapers := [fast]}],
+         T(#{<<"shaper">> => <<"fast">>})),
     ?err(T(#{<<"backlog">> => -10})),
     ?err(T(#{<<"max_connections">> => 0})),
     ?err(T(#{<<"reuse_port">> => 0})),
@@ -1203,9 +1206,8 @@ internal_database_cets(_Config) ->
 
 %% tests: shaper, acl, access
 shaper(_Config) ->
-    ?cfg([shaper, normal], #{max_rate => 1000},
-         #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
-    ?err(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}}),
+    ?cfg([shaper, normal], #{max_rate => 1000}, shaper_raw(<<"normal">>, 1000)),
+    ?err(shaper_raw(<<"fast">>, <<"infinity">>)),
     ?err(#{<<"shaper">> => #{<<"fast">> => #{}}}).
 
 acl(_Config) ->
@@ -1385,8 +1387,18 @@ s2s_outgoing_port(_Config) ->
 s2s_outgoing_shaper(_Config) ->
     P = [s2s, outgoing, shaper],
     ?cfgh(P, none, #{}), % default
-    ?cfgh(P, fast, s2s_outgoing_raw(#{<<"shaper">> => <<"fast">>})),
-    ?errh(s2s_outgoing_raw(#{<<"shaper">> => <<>>})).
+
+    %% cfgh cannot be used because shapers are global and s2s is per-host-type
+    ?cfg(host_key(P), fast,
+         maps:merge(s2s_outgoing_raw(#{<<"shaper">> => <<"fast">>}),
+                    shaper_raw(<<"fast">>, 100000))),
+    ?cfg(host_key(P), fast,
+         maps:merge(host_config(s2s_outgoing_raw(#{<<"shaper">> => <<"fast">>})),
+                    shaper_raw(<<"fast">>, 100000))),
+
+    ?errh(s2s_outgoing_raw(#{<<"shaper">> => <<>>})),
+    ?errh([#{reason := undefined_shapers, undefined_shapers := [fast]}],
+          s2s_outgoing_raw(#{<<"shaper">> => <<"fast">>})).
 
 s2s_outgoing_state_timeout(_Config) ->
     P = [s2s, outgoing, state_timeout],
@@ -3134,6 +3146,11 @@ pool_raw(Type, Tag, Opts) ->
 
 pool_conn_raw(Type, Opts) ->
     #{<<"outgoing_pools">> => #{Type => #{<<"default">> => #{<<"connection">> => Opts}}}}.
+
+%% helpers for 'shaper' tests
+
+shaper_raw(Name, Rate) ->
+    #{<<"shaper">> => #{Name => #{<<"max_rate">> => Rate}}}.
 
 %% helpers for 'access' tests
 
