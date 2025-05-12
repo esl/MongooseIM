@@ -9,7 +9,8 @@
 %% http://www.erlang.org/doc/apps/common_test/run_test_chapter.html#test_specifications
 {include, "tests"}.
 
-{groups, "tests", sm_SUITE, [[tcp_tests, parallel_unacknowledged_message_hook]], {cases, [unacknowledged_message_hook_filter]}}.
+{groups, "tests", sm_SUITE, [[tcp_tests, parallel_unacknowledged_message_hook]]%, {cases, [unacknowledged_message_hook_filter]}
+}.
 
 %% {suites, "tests", mim_c2s_SUITE}.
 %% {suites, "tests", acc_e2e_SUITE}.
