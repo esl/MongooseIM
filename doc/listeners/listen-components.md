@@ -9,10 +9,9 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
 
     Note the order of the routing modules: if a component is meant to supplant a domain served regularly by the MongooseIM server, the external routers should be ordered with higher priority.
 
-
 ## Configuration options
 
-The following options are supported for each component listener under `listen.component` subsection:
+For each component listener, all the [general](../configuration/listen.md#general-listener-options) and [XMPP](../configuration/listen.md#xmpp-listener-options) options are accepted. Additionally, the following options are supported:
 
 ### `listen.component.access`
 * **Syntax:** string, rule name or `"all"`
@@ -79,7 +78,7 @@ You can specify additional options of the TLS encryption in the `tls` subsection
 They have the same semantics as the corresponding [c2s options](listen-c2s.md#tls-options-for-c2s).
 The only difference is that the default value of `tls.mode` is `"tls"` instead of `"starttls"`.
 
-## Service listener configuration example
+## Component listener configuration example
 
 The following section configures a component listener, accepting connections from external components.
 The IP address is limited to loopback to prevent connections from different hosts.

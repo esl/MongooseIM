@@ -102,7 +102,7 @@ nav:
   - 'Listeners':
       - 'Client to server (C2S)': 'listeners/listen-c2s.md'
       - 'Server to server (S2S)': 'listeners/listen-s2s.md'
-      - 'XMPP components (service)': 'listeners/listen-components.md'
+      - 'XMPP components': 'listeners/listen-components.md'
       - 'HTTP-based services': 'listeners/listen-http.md'
   - 'Authentication Methods':
       - 'RDBMS': 'authentication-methods/rdbms.md'
@@ -217,6 +217,7 @@ nav:
       - '6.2.1 to 6.3.0': 'migrations/6.2.1_6.3.0.md'
       - '6.3.0 to 6.3.1': 'migrations/6.3.0_6.3.1.md'
       - '6.3.1 to 6.3.2': 'migrations/6.3.1_6.3.2.md'
+      - '6.3.3 to 6.4.0': 'migrations/6.3.3_6.4.0.md'
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - 'Contributions to the Ecosystem': 'Contributions.md'
   - 'MongooseIM History': 'History.md'
