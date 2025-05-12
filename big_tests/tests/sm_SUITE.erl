@@ -64,7 +64,7 @@ groups() ->
      {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
      {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
      {stale_h, [], stale_h_cases()},
-     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()},
+     {parallel_unacknowledged_message_hook, [parallel, {repeat_until_any_fail, 50}], parallel_unacknowledged_message_hook_cases()},
      {resume_timeout, [parallel], resume_timeout_cases()}
     ].
 
