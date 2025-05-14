@@ -98,7 +98,7 @@ config_spec() ->
                                                    validate = positive},
                   <<"token_bytes">> => #option{type = integer,
                                                validate = positive},
-                  <<"max_file_size">> => #option{type = integer,
+                  <<"max_file_size">> => #option{type = int_or_infinity,
                                                  validate = positive},
                   <<"s3">> => s3_spec()
         },
@@ -258,7 +258,7 @@ token_bytes(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, token_bytes).
 
 
--spec max_file_size(mongooseim:host_type()) -> pos_integer() | undefined.
+-spec max_file_size(mongooseim:host_type()) -> pos_integer() | infinity.
 max_file_size(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, max_file_size).
 

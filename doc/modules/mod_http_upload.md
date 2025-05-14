@@ -44,9 +44,9 @@ Number of random bytes of a token that will be used in a generated URL.
 The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in the URL will be 64 characters long.
 
 ### `modules.mod_http_upload.max_file_size`
-* **Syntax:** positive integer
-* **Default:** not set - no size limit
-* **Example:** `max_file_size = 10485760`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `10485760`
+* **Example:** `max_file_size = "infinity"`
 
 Maximum file size (in bytes) accepted by the module.
 
