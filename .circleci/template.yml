@@ -725,7 +725,7 @@ filters:
   - &all_tags_and_master
     <<: *all_tags
     branches:
-      only: bump-ci-erlang-versions
+      only: master
 
 workflows:
   version: 2
