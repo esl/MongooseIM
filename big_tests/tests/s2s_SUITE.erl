@@ -151,12 +151,29 @@ init_per_testcase(dns_srv_discovery = CaseName, Config) ->
     Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
     escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(dns_ip_discovery = CaseName, Config) ->
-    meck_dns_srv_lookup("fed2", ip),
-    Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
-    escalus:init_per_testcase(CaseName, Config1);
+    case is_github_actions() of
+        true ->
+            {skip, "Test skipped for GH Actions"};
+        false ->
+            meck_dns_srv_lookup("fed2", ip),
+            Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
+            escalus:init_per_testcase(CaseName, Config1)
+    end;
 init_per_testcase(dns_discovery_fail = CaseName, Config) ->
-    meck_dns_srv_lookup("fed3", none),
-    escalus:init_per_testcase(CaseName, Config);
+    case is_github_actions() of
+        true ->
+            {skip, "Test skipped for GH Actions"};
+        false ->
+            meck_dns_srv_lookup("fed3", none),
+            escalus:init_per_testcase(CaseName, Config)
+    end;
+init_per_testcase(unknown_domain = CaseName, Config) ->
+    case is_github_actions() of
+        true ->
+            {skip, "Test skipped for GH Actions"};
+        false ->
+            escalus:init_per_testcase(CaseName, Config)
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -190,6 +207,12 @@ inet_res_lookup_fun(Domain, _FedPort, none) ->
             {error, nxdomain};
        (Name, Class, Type, Opts, Timeout) ->
             meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end.
+
+is_github_actions() ->
+    case os:getenv("GITHUB_ACTIONS") of
+        "true" -> true;
+        _ -> false
     end.
 
 end_per_testcase(CaseName, Config) when CaseName =:= dns_srv_discovery;
