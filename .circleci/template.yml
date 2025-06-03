@@ -690,7 +690,7 @@ jobs:
         type: executor
       platform:
         type: enum
-        enum: [debian-bookworm, debian-bullseye, debian-buster, ubuntu-oracular, ubuntu-noble, ubuntu-jammy, ubuntu-focal, rockylinux-9, rockylinux-8, almalinux-9, almalinux-8]
+        enum: [debian-bookworm, debian-bullseye, debian-buster, ubuntu-plucky, ubuntu-noble, ubuntu-jammy, ubuntu-focal, rockylinux-9, rockylinux-8, almalinux-9, almalinux-8]
         description: Platform type
       otp_version:
         type: string
@@ -780,15 +780,15 @@ workflows:
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
-          name: ubuntu-oracular
+          name: ubuntu-plucky
           executor: otp_27
-          platform: ubuntu-oracular
+          platform: ubuntu-plucky
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
-          name: ubuntu-oracular-arm64
+          name: ubuntu-plucky-arm64
           executor: otp_27_arm64
-          platform: ubuntu-oracular
+          platform: ubuntu-plucky
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
