@@ -742,7 +742,7 @@ workflows:
           filters: &release_tags
             tags:
               only: /^\d+\.\d+\.\d+/
-#       # ============= PACKAGES =============
+      # ============= PACKAGES =============
       - package:
           name: debian-bookworm
           executor: otp_27
