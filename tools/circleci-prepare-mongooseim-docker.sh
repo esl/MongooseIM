@@ -1,8 +1,8 @@
 #!/bin/bash
 
 set -e
-# master from 2024-09-12
-MIM_DOCKER_VERSION=cde33527fab41b512ed0d83b50a1d088e99c4ea2
+# master from 2025-06-05
+MIM_DOCKER_VERSION=b2cf9273764632bcb1b1d1c8ab5b5047fa4ee27c
 
 # We use output of generate_vsn, because it does not contain illegal characters, returns
 # git tag when building from tag itself, and is unique in any other case
