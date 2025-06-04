@@ -17,18 +17,18 @@ RUN arch=$(dpkg --print-architecture) && \
     distro=$(grep ^ID= /etc/os-release | cut -d= -f2 | tr -d '"') && \
     if [ "$distro" = "ubuntu" ]; then \
         if [ "$arch" = "arm64" ]; then \
-            echo "deb http://ports.ubuntu.com/ubuntu-ports oracular main restricted universe multiverse" >> /etc/apt/sources.list; \
+            echo "deb http://ports.ubuntu.com/ubuntu-ports plucky main restricted universe multiverse" >> /etc/apt/sources.list; \
         else \
-            echo "deb http://archive.ubuntu.com/ubuntu oracular main restricted universe multiverse" >> /etc/apt/sources.list; \
+            echo "deb http://archive.ubuntu.com/ubuntu plucky main restricted universe multiverse" >> /etc/apt/sources.list; \
         fi && \
-        printf "Package: debsigs\nPin: release n=oracular\nPin-Priority: 990\n" > /etc/apt/preferences.d/debsigs; \
+        printf "Package: debsigs\nPin: release n=plucky\nPin-Priority: 990\n" > /etc/apt/preferences.d/debsigs; \
     elif [ "$distro" = "debian" ]; then \
         echo "deb http://deb.debian.org/debian trixie main" >> /etc/apt/sources.list && \
         printf "Package: debsigs\nPin: release n=trixie\nPin-Priority: 990\n" > /etc/apt/preferences.d/debsigs; \
     fi && \
     apt-get update && \
     apt-get install -y --no-install-recommends debsigs && \
-    sed -i '/oracular/d' /etc/apt/sources.list && \
+    sed -i '/plucky/d' /etc/apt/sources.list && \
     sed -i '/trixie/d' /etc/apt/sources.list
 
 ARG erlang_version
