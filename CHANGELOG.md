@@ -1,3 +1,64 @@
+# [MongooseIM 6.4.0](https://github.com/esl/MongooseIM/releases/tag/6.4.0) - 2025-06-25
+
+## Highlights
+- Reworked S2S and component listeners
+- Added TLS 1.3, 0-RTT, and channel bindings in fast auth
+- Unified connection and TLS handling
+- Improved XMPP traffic shaper configuration with validation and clearer defaults
+- Cleanup of legacy modules and updated dependencies
+- Various enhancements and bug fixes
+
+## Added
+- Support dynamic domains for components (#4450)
+- TLS listeners for components (#4453)
+- TLS 0-RTT to `mod_fast_auth_token` (#4478)
+- Fast auth and channel bindings (#4494)
+- Option to clear inbox after destroying MUC Light room (#4522)
+
+## Changed
+- Reworked listeners and TLS (#4452, #4509)
+  - Reworked component protocols (#4442)
+  - Changed naming scheme to match with XMPP specification (#4451)
+  - Reworked S2S listeners (#4455)
+  - Unified listener TLS configuration via `fast_tls` removal (#4458)
+  - Unified listener handling (#4460)
+  - Reworked adding dynamic domains to components (#4461)
+  - Improved consistency of `just_tls` filters (#4467)
+  - Reworked S2S incoming connections (#4470, #4513)
+  - Reworked S2S outgoing connections (#4479)
+  - System certificates are used if CA certs are not provided in a file (#4493)
+  - Reorganized S2S configuration options (#4515)
+  - Improved instrumentation consistency (#4517)
+  - Simplified and unified XMPP metrics (#4520)
+  - Minor optimizations and cleanups (#4480, #4512, #4514, #4516)
+
+## Fixed
+- XMPP traffic shapers configuration and validation (#4527)
+-  Include bbmustache in the release (#4528)
+- `max_file_size` option in `mod_http_upload` (#4531)
+
+## Removed
+- Dead `max_fsm_queue` option (#4521)
+- Last mention of unused `EJABBERD_DIR` variable (#4533)
+
+## Other
+- Upgraded dependencies (#4500)
+- Updated `exometer_labels` converter function (#4507)
+- Upgraded used exml version (#4519)
+- Reworked startup order and FIPS config (#4524)
+- Changed base docker image to ubuntu-noble (#4537)
+- Documentation improvements (#4504, #4506, #4525)
+- Testing and CI improvements/fixes (#4523, #4529, #4532, #4534, #4536)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.4.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2024-12-30..2025-06-25)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2024-12-30&to=2025-06-25&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.4.0+sort%3Aupdated-desc)
+
 # [MongooseIM 6.3.3](https://github.com/esl/MongooseIM/releases/tag/6.3.3) - 2025-04-10
 
 ## Highlights
