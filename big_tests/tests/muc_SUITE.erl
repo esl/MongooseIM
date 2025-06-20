@@ -5330,6 +5330,8 @@ was_room_destroyed(Query) ->
 was_room_created(Stanza) ->
     timer:sleep(?WAIT_TIME),
     has_status_codes(Stanza, [<<"201">>, <<"110">>]),
+    Namespaces = exml_query:paths(Stanza, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
+    true = lists:member(?NS_MUC_USER, Namespaces),
     [<<"owner">>] = exml_query:paths(Stanza, [{element, <<"x">>},
                                               {element, <<"item">>},
                                               {attr, <<"affiliation">>}]),
