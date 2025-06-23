@@ -271,7 +271,7 @@
 {{{instrumentation}}}
 
 [shaper.normal]
-  max_rate = 1000
+  max_rate = 16_384
 
 [shaper.fast]
   max_rate = 50_000
