@@ -2313,7 +2313,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
               end,
     Packet = jlib:append_subtags(
                Presence,
-               [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC},
+               [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                           children = ItemEls} | Status2]}]),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
