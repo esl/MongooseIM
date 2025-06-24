@@ -215,4 +215,4 @@ msg_accept_terms_and_conditions() ->
 
 -spec exometer_loaded() -> boolean().
 exometer_loaded() ->
-    lists:keymember(exometer, 1, application:loaded_applications()).
+    lists:keymember(exometer_core, 1, application:loaded_applications()).
