@@ -36,6 +36,7 @@
         {report_after :: non_neg_integer(),
          reporter_monitor = none :: none | reference(),
          reporter_pid = none :: none | pid(),
+         exometer_enabled = false :: boolean(),
          prev_report = [] :: [mongoose_system_metrics_collector:report_struct()],
          tracking_ids :: [tracking_id()]}).
 
@@ -103,21 +104,24 @@ init(Opts) ->
             #{initial_report := InitialReport, periodic_report := PeriodicReport} = Opts,
             TrackingIds = tracking_ids(Opts),
             erlang:send_after(InitialReport, self(), spawn_reporter),
+            ExometerEnabled = exometer_loaded(),
             {ok, #system_metrics_state{report_after = PeriodicReport,
-                                       tracking_ids = TrackingIds}}
+                                       tracking_ids = TrackingIds,
+                                       exometer_enabled = ExometerEnabled}}
     end.
 
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_monitor = none,
                                                   reporter_pid = none,
                                                   prev_report = PrevReport,
-                                                  tracking_ids = TrackingIds} = State) ->
+                                                  tracking_ids = TrackingIds,
+                                                  exometer_enabled = ExometerEnabled} = State) ->
     ServicePid = self(),
     case get_client_id() of
         {ok, ClientId} ->
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
-                    Reports = mongoose_system_metrics_collector:collect(PrevReport),
+                    Reports = mongoose_system_metrics_collector:collect(PrevReport, ExometerEnabled),
                     mongoose_system_metrics_sender:send(ClientId, Reports, TrackingIds),
                     mongoose_system_metrics_file:save(Reports),
                     ServicePid ! {prev_report, Reports}
@@ -208,3 +212,10 @@ msg_accept_terms_and_conditions() ->
     "      https://esl.github.io/MongooseDocs/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
     "- MongooseIM GitHub page - https://github.com/esl/MongooseIM \n"
     "The last sent report is also written to a file ~s">>.
+
+-spec exometer_loaded() -> boolean().
+exometer_loaded() ->
+    case mongoose_config:lookup_opt([instrumentation, exometer]) of
+        {ok, _} -> true;
+        _ -> false
+    end.

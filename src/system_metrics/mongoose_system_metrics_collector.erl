@@ -10,11 +10,11 @@
 
 -export_type([report_struct/0]).
 
--export([collect/1]).
+-export([collect/2]).
 
-collect(PrevReport) ->
+collect(PrevReport, ExometerEnabled) ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
-    StanzasCount = get_xmpp_stanzas_count(PrevReport),
+    StanzasCount = get_xmpp_stanzas_count(PrevReport, ExometerEnabled),
     lists:flatten(ReportResults ++ StanzasCount).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
@@ -180,7 +180,9 @@ get_outgoing_pools() ->
     [#{name => outgoing_pool,
        params => #{value => Type}} || #{type := Type} <- OutgoingPools].
 
-get_xmpp_stanzas_count(PrevReport) ->
+get_xmpp_stanzas_count(_PrevReport, false = _ExometerEnabled) ->
+    [];
+get_xmpp_stanzas_count(PrevReport, true) ->
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
                    xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
     NewCount = [count_stanzas(StanzaType) || StanzaType <- StanzaTypes],
