@@ -2,25 +2,28 @@
 
 ## Highlights
 - Reworked S2S and component listeners
-- Added TLS 1.3, 0-RTT, and channel bindings in fast auth
+- Added TLS 1.3 `tls-exporter` channel binding
+- Added 0-RTT, and channel binding in FAST authentication
 - Unified connection and TLS handling
 - Improved XMPP traffic shaper configuration with validation and clearer defaults
 - Cleanup of legacy modules and updated dependencies
+- Reworked application startup order (start applications only when needed)
+- Use system CA certificates if not provided in a file
 - Various enhancements and bug fixes
 
 ## Added
 - Support dynamic domains for components (#4450)
 - TLS listeners for components (#4453)
 - TLS 0-RTT to `mod_fast_auth_token` (#4478)
-- Fast auth and channel bindings (#4494)
+- Channel binding in FAST authentication (#4494)
 - Option to clear inbox after destroying MUC Light room (#4522)
 
 ## Changed
 - Reworked listeners and TLS (#4452, #4509)
-  - Reworked component protocols (#4442)
-  - Changed naming scheme to match with XMPP specification (#4451)
+  - Reworked component connection handling (#4442)
+  - Changed component listener naming scheme to match XMPP specification (#4451)
   - Reworked S2S listeners (#4455)
-  - Unified listener TLS configuration via `fast_tls` removal (#4458)
+  - Unified listener TLS configuration via `fast_tls` removal and channel binding (#4458)
   - Unified listener handling (#4460)
   - Reworked adding dynamic domains to components (#4461)
   - Improved consistency of `just_tls` filters (#4467)
@@ -31,24 +34,25 @@
   - Improved instrumentation consistency (#4517)
   - Simplified and unified XMPP metrics (#4520)
   - Minor optimizations and cleanups (#4480, #4512, #4514, #4516)
+- Increased rate for the default `normal` shaper (#4540)
+- Reworked application startup order and FIPS config (#4524, #4528, #4542)
 
 ## Fixed
 - XMPP traffic shapers configuration and validation (#4527)
--  Include bbmustache in the release (#4528)
 - `max_file_size` option in `mod_http_upload` (#4531)
+- Fixed incorrect `xmlns` in presences sent by `mod_muc` (#4539)
 
 ## Removed
 - Dead `max_fsm_queue` option (#4521)
 - Last mention of unused `EJABBERD_DIR` variable (#4533)
 
 ## Other
-- Upgraded dependencies (#4500)
+- Upgraded dependencies (#4500, #4519)
 - Updated `exometer_labels` converter function (#4507)
-- Upgraded used exml version (#4519)
-- Reworked startup order and FIPS config (#4524)
-- Changed base docker image to ubuntu-noble (#4537)
+- Changed base docker image to `ubuntu-noble` (#4537)
 - Documentation improvements (#4504, #4506, #4525)
-- Testing and CI improvements/fixes (#4523, #4529, #4532, #4534, #4536)
+- Testing and CI improvements/fixes (#4523, #4529, #4532, #4534)
+- Replaced the `ubuntu-oracular` package with `ubuntu-plucky` (#4536)
 
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.4.0)
