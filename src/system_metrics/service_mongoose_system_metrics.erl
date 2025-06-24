@@ -215,4 +215,7 @@ msg_accept_terms_and_conditions() ->
 
 -spec exometer_loaded() -> boolean().
 exometer_loaded() ->
-    lists:keymember(exometer_core, 1, application:loaded_applications()).
+    case mongoose_config:lookup_opt([instrumentation, exometer]) of
+        {ok, _} -> true;
+        _ -> false
+    end.
