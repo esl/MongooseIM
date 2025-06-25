@@ -1,14 +1,17 @@
 # MongooseIM history
 
-## 2025: Fast Authentication, TLS Improvements
+## 2025: Fast Authentication, TLS Improvements and Listeners Rework
 
 Added support for XEP-0484 (Fast Authentication Streamlining Tokens).
 Deprecated `fast_tls` and improved `just_tls`.
+
+Major rework of S2S and component listeners, unified TLS handling, added TLS 1.3 with 0-RTT and channel bindings.
 
 Releases:
 
 * [MongooseIM 6.3.2](https://github.com/esl/MongooseIM/releases/tag/6.3.2) in February 2025.
 * [MongooseIM 6.3.3](https://github.com/esl/MongooseIM/releases/tag/6.3.3) in April 2025.
+* [MongooseIM 6.4.0](https://github.com/esl/MongooseIM/releases/tag/6.4.0) in June 2025.
 
 ## 2023-2024: C2S, CETS and Instrumentation
 
