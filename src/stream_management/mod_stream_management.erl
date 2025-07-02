@@ -263,7 +263,7 @@ handle_buffer_and_ack(Acc, C2SState, Jid, #sm_state{buffer = Buffer, buffer_max 
                            []
                    end,
     Acc1 = notify_unacknowledged_msg_if_in_resume_state(Acc, Jid, C2SState),
-    NewSmState = SmState#sm_state{buffer = [Acc1 | Buffer], buffer_size = NewBufferSize},
+    NewSmState = SmState#sm_state{buffer = [mongoose_acc:strip(Acc1) | Buffer], buffer_size = NewBufferSize},
     ToAcc = [{actions, MaybeActions}, {state_mod, {?MODULE, NewSmState}}],
     Acc2 = mongoose_c2s_acc:to_acc_many(Acc1, ToAcc),
     maybe_send_ack_request(Acc2, C2SState, NewSmState).
@@ -882,7 +882,7 @@ recover_messages(SmState) ->
 
 -spec maybe_buffer_acc(sm_state(), mongoose_acc:t(), boolean()) -> sm_state().
 maybe_buffer_acc(#sm_state{buffer = Buffer, buffer_size = BufferSize} = SmState, Acc, true) ->
-    SmState#sm_state{buffer = [Acc | Buffer], buffer_size = BufferSize + 1};
+    SmState#sm_state{buffer = [mongoose_acc:strip(Acc) | Buffer], buffer_size = BufferSize + 1};
 maybe_buffer_acc(SmState, _Acc, false) ->
     SmState.
 
