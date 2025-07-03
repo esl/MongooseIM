@@ -55,6 +55,8 @@
 %% https://xmpp.org/extensions/xep-0384.html#server-side
 -xep([{xep, 384}, {version, "0.8.3"}]).
 
+-xep([{xep, 402}, {version, "1.2.0"}]).
+
 -include("mongoose.hrl").
 -include("adhoc.hrl").
 -include("jlib.hrl").
@@ -3796,8 +3798,8 @@ get_configure_xfields(Options, Lang, Groups) ->
                         persist_items),
      ?STRING_CONFIG_FIELD(<<"A friendly name for the node">>,
                           title),
-     ?INTEGER_CONFIG_FIELD(<<"Max # of items to persist">>,
-                           max_items),
+     ?STRINGXFIELD(<<"Max # of items to persist">>, <<"pubsub#max_items">>,
+                   (integer_to_binary(get_option(Options, max_items, <<>>)))),
      ?BOOL_CONFIG_FIELD(<<"Whether to allow subscriptions">>,
                         subscribe),
      ?ALIST_CONFIG_FIELD(<<"Specify the access model">>,
@@ -3900,6 +3902,14 @@ add_opt(Key, Value, Opts) ->
 -define(SET_STRING_XOPT(Opt, Val),
         set_xoption(Host, Opts, add_opt(Opt, Val, NewOpts))).
 
+-define(SET_INTEGER_OR_MAX_XOPT(Opt, Val, Min, Max),
+        case Val of
+            <<"max">> ->
+                set_xoption(Host, Opts, add_opt(Opt, Max, NewOpts));
+            _ ->
+                ?SET_INTEGER_XOPT(Opt, Val, Min, Max)
+        end).
+
 -define(SET_INTEGER_XOPT(Opt, Val, Min, Max),
         case catch binary_to_integer(Val) of
             IVal when is_integer(IVal), IVal >= Min ->
@@ -3940,7 +3950,7 @@ set_xoption(Host, [{<<"pubsub#persist_items">>, [Val]} | Opts], NewOpts) ->
     ?SET_BOOL_XOPT(persist_items, Val);
 set_xoption(Host, [{<<"pubsub#max_items">>, [Val]} | Opts], NewOpts) ->
     MaxItems = get_max_items_node(Host),
-    ?SET_INTEGER_XOPT(max_items, Val, 0, MaxItems);
+    ?SET_INTEGER_OR_MAX_XOPT(max_items, Val, 0, MaxItems);
 set_xoption(Host, [{<<"pubsub#subscribe">>, [Val]} | Opts], NewOpts) ->
     ?SET_BOOL_XOPT(subscribe, Val);
 set_xoption(Host, [{<<"pubsub#access_model">>, [Val]} | Opts], NewOpts) ->
