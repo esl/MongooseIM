@@ -2282,14 +2282,14 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, Removed),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed),
             set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
             {result, Reply};
         {result, {TNode, {Result, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, Removed),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed),
             set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
             {result, Result};
         {result, {_, default}} ->
@@ -2352,7 +2352,7 @@ delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, [ItemId], ForceNotify),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, [ItemId], ForceNotify),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
@@ -3328,11 +3328,11 @@ broadcast_auto_retract_notification(Host, Node, Nidx, Type, NodeOptions, SubsByD
             ok
     end.
 
-broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds) ->
-    broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, false).
-broadcast_retract_items(_Host, _Node, _Nidx, _Type, _NodeOptions, [], _ForceNotify) ->
+broadcast_retract_items(Host, Publisher, Node, Nidx, Type, NodeOptions, ItemIds) ->
+    broadcast_retract_items(Host, Publisher, Node, Nidx, Type, NodeOptions, ItemIds, false).
+broadcast_retract_items(_Host, _Publisher, _Node, _Nidx, _Type, _NodeOptions, [], _ForceNotify) ->
     {result, false};
-broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotify) ->
+broadcast_retract_items(Host, Publisher, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotify) ->
     case (get_option(NodeOptions, notify_retract) or ForceNotify) of
         true ->
             case get_collection_subscriptions(Host, Node) of
@@ -3343,7 +3343,7 @@ broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotif
                                                           attrs = item_attr(ItemId)}
                                                    || ItemId <- ItemIds]}]),
                     broadcast_step(Host, fun() ->
-                        broadcast_stanza(Host, Node, Nidx, Type,
+                        broadcast_stanza(Host, Publisher, Node, Nidx, Type,
                                          NodeOptions, SubsByDepth, items, Stanza, true)
                         end),
                     {result, true};
@@ -4405,7 +4405,7 @@ purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
     ForceNotify = get_option(Options, notify_retract),
     case node_action(Host, Type, delete_item, [Nidx, {U, S, <<>>}, PublishModel, ItemId]) of
         {result, {_, broadcast}} ->
-            broadcast_retract_items(Host, NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
+            broadcast_retract_items(Host, jid:make_bare(U, S), NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
