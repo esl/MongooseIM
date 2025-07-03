@@ -13,37 +13,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([suite/0, all/0, groups/0]).
--export([init_per_suite/1, end_per_suite/1,
-         init_per_group/2, end_per_group/2,
-         init_per_testcase/2, end_per_testcase/2]).
-
--export([
-         disco_test/1,
-         disco_sm_test/1,
-         disco_sm_node_test/1,
-         disco_sm_items_test/1,
-         disco_sm_items_node_test/1,
-         pep_caps_test/1,
-         publish_and_notify_test/1,
-         auto_create_with_publish_options_test/1,
-         publish_options_success_test/1,
-         publish_options_fail_unknown_option_story/1,
-         publish_options_fail_wrong_value_story/1,
-         publish_options_fail_wrong_form/1,
-         send_caps_after_login_test/1,
-         delayed_receive/1,
-         delayed_receive_with_sm/1,
-         h_ok_after_notify_test/1,
-         authorize_access_model/1,
-         unsubscribe_after_presence_unsubscription/1
-        ]).
-
--export([
-         start_caps_clients/2,
-         send_initial_presence_with_caps/2,
-         add_config_to_create_node_request/1
-        ]).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
