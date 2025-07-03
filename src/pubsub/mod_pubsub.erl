@@ -2282,14 +2282,14 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, Removed),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed),
             set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
             {result, Reply};
         {result, {TNode, {Result, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, Removed),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed),
             set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
             {result, Result};
         {result, {_, default}} ->
@@ -2352,7 +2352,7 @@ delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, [ItemId], ForceNotify),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, [ItemId], ForceNotify),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
@@ -3305,7 +3305,7 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
             broadcast_step(Host, fun() ->
                 broadcast_stanza(Host, From, Node, Nidx, Type,
                                  NodeOptions, SubsByDepth, items, Stanza, true),
-                broadcast_auto_retract_notification(Host, Node, Nidx, Type,
+                broadcast_auto_retract_notification(Host, From, Node, Nidx, Type,
                                                     NodeOptions, SubsByDepth, Removed)
                 end),
             {result, true};
@@ -3313,26 +3313,27 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
             {result, false}
     end.
 
-broadcast_auto_retract_notification(_Host, _Node, _Nidx, _Type, _NodeOptions, _SubsByDepth, []) ->
+broadcast_auto_retract_notification(_Host, _ReplyToJID, _Node, _Nidx, _Type, _NodeOptions,
+                                    _SubsByDepth, []) ->
     ok;
-broadcast_auto_retract_notification(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, Removed) ->
+broadcast_auto_retract_notification(Host, ReplyToJID, Node, Nidx, Type, NodeOptions,
+                                    SubsByDepth, Removed) ->
     case get_option(NodeOptions, notify_retract) of
         true ->
             RetractEls = [#xmlel{name = <<"retract">>, attrs = item_attr(RId)} || RId <- Removed],
             RetractStanza = event_stanza([#xmlel{name = <<"items">>, attrs = node_attr(Node),
                                                  children = RetractEls}]),
-            broadcast_stanza(Host, Node, Nidx, Type,
-                             NodeOptions, SubsByDepth,
+            broadcast_stanza(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, SubsByDepth,
                              items, RetractStanza, true);
         _ ->
             ok
     end.
 
-broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds) ->
-    broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, false).
-broadcast_retract_items(_Host, _Node, _Nidx, _Type, _NodeOptions, [], _ForceNotify) ->
+broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds) ->
+    broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds, false).
+broadcast_retract_items(_Host, _ReplyToJID, _Node, _Nidx, _Type, _NodeOptions, [], _ForceNotify) ->
     {result, false};
-broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotify) ->
+broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotify) ->
     case (get_option(NodeOptions, notify_retract) or ForceNotify) of
         true ->
             case get_collection_subscriptions(Host, Node) of
@@ -3343,7 +3344,7 @@ broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotif
                                                           attrs = item_attr(ItemId)}
                                                    || ItemId <- ItemIds]}]),
                     broadcast_step(Host, fun() ->
-                        broadcast_stanza(Host, Node, Nidx, Type,
+                        broadcast_stanza(Host, ReplyToJID, Node, Nidx, Type,
                                          NodeOptions, SubsByDepth, items, Stanza, true)
                         end),
                     {result, true};
@@ -3492,7 +3493,7 @@ broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
                                         end, LJIDs)
                   end, SubIDsByJID).
 
-broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeOptions,
+broadcast_stanza({LUser, LServer, LResource}, ReplyToJID, Node, Nidx, Type, NodeOptions,
                  SubsByDepth, NotifyType, BaseStanza, SHIM) ->
     broadcast_stanza({LUser, LServer, LResource}, Node, Nidx, Type, NodeOptions,
                      SubsByDepth, NotifyType, BaseStanza, SHIM),
@@ -3505,7 +3506,7 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             %% set the from address on the notification to the bare JID of the account owner
             %% Also, add "replyto" if entity has presence subscription to the account owner
             %% See XEP-0163 1.1 section 4.3.1
-            ReplyTo = extended_headers([jid:to_binary(Publisher)]),
+            ReplyTo = extended_headers([jid:to_binary(ReplyToJID)]),
             Feature = <<((Node))/binary, "+notify">>,
             Recipients = mongoose_c2s:call(C2SPid, ?MODULE, {get_pep_recipients, Feature}),
             Packet = add_extended_headers(Stanza, ReplyTo),
@@ -3517,7 +3518,7 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
                 text => <<"User has no session; cannot deliver stanza to contacts">>,
                 user => LUser, server => LServer, exml_packet => BaseStanza})
     end;
-broadcast_stanza(Host, _Publisher, Node, Nidx, Type, NodeOptions,
+broadcast_stanza(Host, _ReplyToJID, Node, Nidx, Type, NodeOptions,
                  SubsByDepth, NotifyType, BaseStanza, SHIM) ->
     broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth,
                      NotifyType, BaseStanza, SHIM).
@@ -4384,14 +4385,14 @@ check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
             AffsAcc
     end.
 
-purge_offline(Host, {User, Server, _} = _LJID, #pubsub_node{ id = Nidx, type = Type } = Node) ->
+purge_offline(Host, {User, Server, _} = LJID, #pubsub_node{ id = Nidx, type = Type } = Node) ->
     case node_action(Host, Type, get_items, [Nidx, service_jid(Host), #{}]) of
         {result, {[], _}} ->
             ok;
         {result, {Items, _}} ->
             lists:foreach(fun(#pubsub_item{itemid = {ItemId, _}, modification = {_, {U, S, _}}})
                                 when (U == User) and (S == Server) ->
-                                  purge_item_of_offline_user(Host, Node, ItemId, U, S);
+                                  purge_item_of_offline_user(Host, LJID, Node, ItemId, U, S);
                              (_) ->
                                   true
                           end, Items);
@@ -4399,13 +4400,14 @@ purge_offline(Host, {User, Server, _} = _LJID, #pubsub_node{ id = Nidx, type = T
             Error
     end.
 
-purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
-                                               options = Options, type = Type }, ItemId, U, S) ->
+purge_item_of_offline_user(Host, LJID,
+                           #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
+                                         options = Options, type = Type }, ItemId, U, S) ->
     PublishModel = get_option(Options, publish_model),
     ForceNotify = get_option(Options, notify_retract),
     case node_action(Host, Type, delete_item, [Nidx, {U, S, <<>>}, PublishModel, ItemId]) of
         {result, {_, broadcast}} ->
-            broadcast_retract_items(Host, NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
+            broadcast_retract_items(Host, LJID, NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
