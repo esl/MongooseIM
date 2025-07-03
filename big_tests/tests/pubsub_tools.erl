@@ -143,7 +143,11 @@ publish_request(Id, User, ItemId, Node, Options, PublishOptions) ->
 
 retract_item(User, Node, ItemId, Options) ->
     Id = id(User, Node, <<"retract">>),
-    Request = escalus_pubsub_stanza:retract(User, Id, Node, ItemId),
+    Attrs = case proplists:get_value(notify, Options) of
+        Bool when is_boolean(Bool) -> #{<<"notify">> => atom_to_binary(Bool)};
+        undefined -> #{}
+    end,
+    Request = escalus_pubsub_stanza:retract(User, Id, Node, ItemId, Attrs),
     send_request_and_receive_response(User, Request, Id, Options).
 
 get_all_items(User, {_, NodeName} = Node, Options) ->
@@ -256,6 +260,10 @@ modify_node_subscriptions(User, ModifiedSubscriptions, Node, Options) ->
 receive_item_notification(User, ItemId, {NodeAddr, NodeName}, Options) ->
     Stanza = receive_notification(User, NodeAddr, Options),
     check_item_notification(Stanza, ItemId, {NodeAddr, NodeName}, Options).
+
+receive_retract_notification(User, ItemId, {NodeAddr, NodeName}, Options) ->
+    Stanza = receive_notification(User, NodeAddr, Options),
+    check_retract_notification(Stanza, ItemId, {NodeAddr, NodeName}).
 
 receive_subscription_notification(User, Subscription, {NodeAddr, NodeName}, Options) ->
     Stanza = receive_notification(User, NodeAddr, Options),
@@ -404,6 +412,17 @@ do_check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
                                        {element, <<"items">>}]),
     check_collection_header(Response, Options),
     check_items(Items, [ItemId], NodeName),
+    ok.
+
+check_retract_notification(Response, ItemId, {NodeAddr, NodeName}) ->
+    check_notification(Response, NodeAddr),
+    true = escalus_pred:has_type(<<"headline">>, Response),
+    [#xmlel{ attrs = #{<<"xmlns">> := ?NS_PUBSUB_EVENT} } = Event] =
+        exml_query:subelements(Response, <<"event">>),
+    [#xmlel{ attrs = #{<<"node">> := NodeName} } = Items] =
+        exml_query:subelements(Event, <<"items">>),
+    [#xmlel{ attrs = #{<<"id">> := ItemId} }] =
+        exml_query:subelements(Items, <<"retract">>),
     ok.
 
 send_request_and_receive_response(User, Request, Id, Options) ->

@@ -483,7 +483,7 @@ publish_with_max_items_test(Config) ->
               %% would always arrive before a retraction notification for an old item
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
               pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
-              verify_item_retract(Node, <<"item1">>, escalus:wait_for_stanza(Bob)),
+              pubsub_tools:receive_retract_notification(Bob, <<"item1">>, Node, []),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -604,7 +604,7 @@ retract_test(Config) ->
                                              [{<<"pubsub#notify_retract">>, <<"1">>}], []),
               pubsub_tools:subscribe(Bob, Node, []),
               pubsub_tools:retract_item(Alice, Node, <<"item2">>, []),
-              verify_item_retract(Node, <<"item2">>, escalus:wait_for_stanza(Bob)),
+              pubsub_tools:receive_retract_notification(Bob, <<"item2">>, Node, []),
               pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1984,18 +1984,6 @@ default_config() ->
      {<<"pubsub#presence_based_delivery">>, <<"0">>},
      {<<"pubsub#type">>, <<>>},
      {<<"pubsub#collection">>, []}].
-
-verify_item_retract({NodeAddr, NodeName}, ItemId, Stanza) ->
-    escalus:assert(is_message, Stanza),
-    NodeAddr = exml_query:attr(Stanza, <<"from">>),
-
-    [#xmlel{ attrs = #{<<"xmlns">> := ?NS_PUBSUB_EVENT} } = Event]
-        = exml_query:subelements(Stanza, <<"event">>),
-
-    [#xmlel{ attrs = #{<<"node">> := NodeName} } = Items]
-        = exml_query:subelements(Event, <<"items">>),
-
-    [#xmlel{ attrs = #{<<"id">> := ItemId} }] = exml_query:subelements(Items, <<"retract">>).
 
 verify_config_event({NodeAddr, NodeName}, ConfigChange, Stanza) ->
     escalus:assert(is_message, Stanza),
