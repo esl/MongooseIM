@@ -13,37 +13,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([suite/0, all/0, groups/0]).
--export([init_per_suite/1, end_per_suite/1,
-         init_per_group/2, end_per_group/2,
-         init_per_testcase/2, end_per_testcase/2]).
-
--export([
-         disco_test/1,
-         disco_sm_test/1,
-         disco_sm_node_test/1,
-         disco_sm_items_test/1,
-         disco_sm_items_node_test/1,
-         pep_caps_test/1,
-         publish_and_notify_test/1,
-         auto_create_with_publish_options_test/1,
-         publish_options_success_test/1,
-         publish_options_fail_unknown_option_story/1,
-         publish_options_fail_wrong_value_story/1,
-         publish_options_fail_wrong_form/1,
-         send_caps_after_login_test/1,
-         delayed_receive/1,
-         delayed_receive_with_sm/1,
-         h_ok_after_notify_test/1,
-         authorize_access_model/1,
-         unsubscribe_after_presence_unsubscription/1
-        ]).
-
--export([
-         start_caps_clients/2,
-         send_initial_presence_with_caps/2,
-         add_config_to_create_node_request/1
-        ]).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -85,7 +55,8 @@ groups() ->
            delayed_receive_with_sm,
            h_ok_after_notify_test,
            authorize_access_model,
-           unsubscribe_after_presence_unsubscription
+           unsubscribe_after_presence_unsubscription,
+           native_bookmarks_test
           ]
          },
          {cache_tests, [parallel],
@@ -232,6 +203,42 @@ pep_caps_test(Config) ->
               %% Client responds with a list of supported features (chap. 1 ex. 5)
               send_caps_disco_result(Bob, DiscoRequest, NodeNS)
       end).
+
+native_bookmarks_test(Config) ->
+    Config1 = set_caps(Config, ?NS_PEP_BOOKMARKS),
+    escalus:fresh_story_with_config(Config1, [{bob, 1}], fun native_bookmarks_story/2).
+
+%% Minimal test for XEP-0402
+native_bookmarks_story(Config, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PublishOptions = [{<<"pubsub#persist_items">>, <<"true">>},
+                      {<<"pubsub#max_items">>, <<"max">>},
+                      {<<"pubsub#send_last_published_item">>, <<"never">>},
+                      {<<"pubsub#access_model">>, <<"whitelist">>}],
+    Options = [{with_payload, {true, bookmark_element()}}],
+    Id = <<"myroom@conference.localhost">>,
+    BobJid = escalus_utils:get_short_jid(Bob),
+
+    %% Example 6. Client adds a new bookmark
+    pubsub_tools:publish_with_options(Bob, Id, {pep, NodeNS}, Options, PublishOptions),
+
+    %% Example 12. Client receives a new bookmark notification
+    pubsub_tools:receive_item_notification(Bob, Id, {BobJid, NodeNS}, []),
+
+    %% Example 4. Client retrieves all bookmarks
+    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, [Id]}]),
+
+    %% Example 10. Client removes a bookmark
+    pubsub_tools:retract_item(Bob, {pep, NodeNS}, Id, [{notify, true}]),
+
+    %% Example 14. Client receives a bookmark retraction notification
+    pubsub_tools:receive_retract_notification(Bob, Id, {BobJid, NodeNS}, []),
+
+    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, []}]).
+
+bookmark_element() ->
+    #xmlel{name = <<"conference">>,
+           attrs = #{<<"xmlns">> => ?NS_PEP_BOOKMARKS}}.
 
 publish_and_notify_test(Config) ->
     Config1 = set_caps(Config),
@@ -591,8 +598,11 @@ verify_publish_options(FullNodeConfig, Options) ->
                            end, Options).
 
 set_caps(Config) ->
+    set_caps(Config, random_node_ns()).
+
+set_caps(Config, NS) ->
     [{escalus_overrides, [{start_ready_clients, {?MODULE, start_caps_clients}}]},
-     {node_ns, random_node_ns()} | Config].
+     {node_ns, NS} | Config].
 
 %% Implemented only for one resource per client, because it is enough
 start_caps_clients(Config, [{UserSpec, Resource}]) ->
@@ -622,7 +632,7 @@ caps(PEPNodeNS) ->
     #xmlel{name = <<"c">>,
            attrs = #{<<"xmlns">> => ?NS_CAPS,
                      <<"hash">> => <<"sha-1">>,
-                     <<"node">> => caps_node_name(),
+                     <<"node">> => random_name(),
                      <<"ver">> => caps_hash(PEPNodeNS)}}.
 
 features(PEPNodeNS) ->
@@ -637,13 +647,13 @@ ns_notify(NS) ->
     <<NS/binary, "+notify">>.
 
 random_node_ns() ->
+    random_name().
+
+random_name() ->
     base64:encode(crypto:strong_rand_bytes(16)).
 
 caps_hash(PEPNodeNS) ->
     rpc(mim(), mod_caps, make_disco_hash, [feature_elems(PEPNodeNS), sha1]).
-
-caps_node_name() ->
-    <<"http://www.chatopus.com">>.
 
 send_presence(From, Type, To) ->
     ToJid = escalus_client:short_jid(To),
