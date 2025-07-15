@@ -53,7 +53,7 @@ get_xmpp_addresses(Cert) ->
                                       cert => Cert, reason => Error}),
                          ok
                  end
-             end || {otherName, #'AnotherName'{'type-id' = ?'id-on-xmppAddr', value = V}} <- SANs],
+             end || {otherName, {?'id-on-xmppAddr', V}} <- SANs],
         [Addr || Addr <- XmppAddresses, is_binary(Addr)]
     catch
         Class:Exception:StackTrace ->
