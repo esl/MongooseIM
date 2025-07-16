@@ -2,7 +2,7 @@
 [{<<"accept">>,{pkg,<<"accept">>,<<"0.3.6">>},2},
  {<<"amqp_client">>,
   {git,"https://github.com/jacekwegr/amqp_client.git",
-       {ref,"6ed669309bd04cf014db31fd4f36f6615fe31e6a"}},
+       {ref,"d11173bc0abafbf766447083c371469c34622b42"}},
   0},
  {<<"backoff">>,{pkg,<<"backoff">>,<<"1.1.6">>},1},
  {<<"base16">>,{pkg,<<"base16">>,<<"2.0.1">>},1},
