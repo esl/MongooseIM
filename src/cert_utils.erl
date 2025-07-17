@@ -19,66 +19,56 @@
 -include("XmppAddr.hrl").
 -include("jlib.hrl").
 
--type certificate() :: #'Certificate'{}.
+-type certificate() :: binary() | #'Certificate'{} | #'OTPCertificate'{}.
 
 -spec get_common_name(certificate()) -> bitstring() | error.
-get_common_name(Cert) ->
+get_common_name(Cert0) ->
     try
-        {rdnSequence, RDNSequence} = Cert#'Certificate'.tbsCertificate#'TBSCertificate'.subject,
-        [{ok, {_, CN}}] = ['OTP-PUB-KEY':decode('X520CommonName', V) ||
-            AtributesList <- RDNSequence,
-            #'AttributeTypeAndValue'{type = ?'id-at-commonName', value = V} <- AtributesList],
-        CN
+        Cert = ensure_cert(Cert0),
+        #'OTPCertificate'{tbsCertificate = TBSCert} = Cert,
+        #'OTPTBSCertificate'{subject = {rdnSequence, RDNs}} = TBSCert,
+        CNs = [V || RDN <- RDNs,
+                     #'AttributeTypeAndValue'{type = ?'id-at-commonName', value = V} <- RDN],
+        case CNs of [CN|_] -> CN; [] -> error end
     catch
         Class:Exception:StackTrace ->
-            log_exception(Cert, Class, Exception, StackTrace),
+            log_exception(Cert0, Class, Exception, StackTrace),
             error
     end.
 
 
 -spec get_xmpp_addresses(certificate()) -> [bitstring()].
-get_xmpp_addresses(Cert) ->
+get_xmpp_addresses(Cert0) ->
     try
-        Extensions = Cert#'Certificate'.tbsCertificate#'TBSCertificate'.extensions,
-        [BinVal] = [convert_to_bin(V) ||
-            #'Extension'{extnID = ?'id-ce-subjectAltName', extnValue = V} <- Extensions],
-        {ok, SANs} = 'OTP-PUB-KEY':decode('SubjectAltName', BinVal),
-        XmppAddresses =
-            [begin
-                 case 'XmppAddr':decode('XmppAddr', V) of
-                     {ok, XmppAddr} -> XmppAddr;
-                     Error ->
-                         ?LOG_DEBUG(#{what => get_xmpp_addresses_failed,
-                                      text => <<"'XmppAddr':decode/2 failed">>,
-                                      cert => Cert, reason => Error}),
-                         ok
-                 end
-             end || {otherName, {?'id-on-xmppAddr', V}} <- SANs],
-        [Addr || Addr <- XmppAddresses, is_binary(Addr)]
+        Cert = ensure_cert(Cert0),
+        SANs = subject_alt_names(Cert),
+        XmppAddrs =
+            [maybe_decode_xmpp(V)
+             || {otherName, {?'id-on-xmppAddr', V}} <- SANs],
+        [Addr || Addr <- XmppAddrs, is_binary(Addr)]
     catch
         Class:Exception:StackTrace ->
-            log_exception(Cert, Class, Exception,StackTrace),
+            log_exception(Cert0, Class, Exception,StackTrace),
             []
     end.
 
 
 -spec get_dns_addresses(certificate()) -> [string()].
-get_dns_addresses(Cert) ->
+get_dns_addresses(Cert0) ->
     try
-        Extensions = Cert#'Certificate'.tbsCertificate#'TBSCertificate'.extensions,
-        [BinVal] = [convert_to_bin(V) ||
-            #'Extension'{extnID = ?'id-ce-subjectAltName', extnValue = V} <- Extensions],
-        {ok, SANs} = 'OTP-PUB-KEY':decode('SubjectAltName', BinVal),
+        Cert = ensure_cert(Cert0),
+        SANs = subject_alt_names(Cert),
         [DNS || {dNSName, DNS} <- SANs]
     catch
         Class:Exception:StackTrace ->
-            log_exception(Cert, Class, Exception, StackTrace),
+            log_exception(Cert0, Class, Exception, StackTrace),
             []
     end.
 
 
 -spec get_cert_domains(certificate()) -> [bitstring()].
-get_cert_domains(Cert) ->
+get_cert_domains(Cert0) ->
+    Cert = ensure_cert(Cert0),
     CN = get_common_name(Cert),
     Addresses = get_xmpp_addresses(Cert),
     Domains = get_dns_addresses(Cert),
@@ -111,3 +101,30 @@ log_exception(_Cert, Class, Exception, StackTrace) ->
     ?LOG_ERROR(#{what => <<"cert_parsing_failed">>,
                  text => <<"failed to parse certificate">>,
                  class => Class, reason => Exception, stacktrace => StackTrace}).
+
+-spec ensure_cert(certificate()) -> #'OTPCertificate'{}.
+ensure_cert(#'OTPCertificate'{} = Cert) ->
+    Cert;
+ensure_cert(#'Certificate'{} = PlainCert) ->
+    Der = public_key:pkix_encode('Certificate', PlainCert, plain),
+    public_key:pkix_decode_cert(Der, otp);
+ensure_cert(Bin) when is_binary(Bin) ->
+    public_key:pkix_decode_cert(Bin, otp).
+
+-spec subject_alt_names(#'OTPCertificate'{}) -> [public_key:general_name()].
+subject_alt_names(#'OTPCertificate'{tbsCertificate = TBSCert}) ->
+    #'OTPTBSCertificate'{extensions = Exts} = TBSCert,
+    case lists:keyfind(?'id-ce-subjectAltName', #'Extension'.extnID, Exts) of
+        #'Extension'{extnValue = SANs} -> SANs;
+        false -> []
+    end.
+
+maybe_decode_xmpp(V) ->
+    case 'XmppAddr':decode('XmppAddr', V) of
+        {ok, XmppAddr} -> XmppAddr;
+        Error ->
+            ?LOG_DEBUG(#{what => get_xmpp_addresses_failed,
+                         text => <<"'XmppAddr':decode/2 failed">>,
+                         reason => Error}),
+            ok
+    end.
