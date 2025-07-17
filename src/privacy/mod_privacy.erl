@@ -166,7 +166,12 @@ handle_privacy_iq(Acc1, StateData, HostType, IQ) ->
 -spec user_receive_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 user_receive_message(Acc, #{c2s_data := StateData}, _Extra) ->
-    do_privacy_check_receive(Acc, StateData, send).
+    case mongoose_acc:stanza_type(Acc) of
+        <<"groupchat">> ->
+            do_privacy_check_receive(Acc, StateData, ignore);
+        _ ->
+            do_privacy_check_receive(Acc, StateData, send)
+    end.
 
 -spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), map()) ->
     mongoose_c2s_hooks:result().
@@ -673,6 +678,13 @@ is_type_match(jid, Value, JID, _Subscription, _Groups) ->
         {User, Server, <<>>} ->
             case JID of
                 {User, Server, _} ->
+                    true;
+                _ ->
+                    false
+            end;
+        {<<>>, Server, Resource} ->
+            case JID of
+                {_, Server, Resource} ->
                     true;
                 _ ->
                     false
