@@ -84,8 +84,8 @@ dist_data_stats() ->
 
 -spec try_get_dist_inet_stats({node(), pid() | port()}, mongoose_instrument:measurements()) ->
           mongoose_instrument:measurements().
-try_get_dist_inet_stats({_Node, PortOrPid}, StatsIn) ->
-    try dist_inet_stats(PortOrPid) of
+try_get_dist_inet_stats({Node, PortOrPid}, StatsIn) ->
+    try dist_inet_stats(Node, PortOrPid) of
         PidStats ->
             maps:merge_with(fun merge_stat/3, StatsIn, maps:from_list(PidStats))
     catch C:R:S ->
@@ -93,12 +93,10 @@ try_get_dist_inet_stats({_Node, PortOrPid}, StatsIn) ->
             StatsIn
     end.
 
--spec dist_inet_stats(pid() | port()) -> [{mongoose_instrument:metric_name(), non_neg_integer()}].
-dist_inet_stats(Pid) when is_pid(Pid) ->
-    {ok, {sslsocket, FD, _Pids}} = tls_sender:dist_tls_socket(Pid),
-    gen_tcp = element(1, FD),
-    inet_stats(element(2, FD));
-dist_inet_stats(Port) ->
+-spec dist_inet_stats(node(), pid() | port()) -> [{mongoose_instrument:metric_name(), non_neg_integer()}].
+dist_inet_stats(Node, Pid) when is_pid(Pid) ->
+    tls_stats(Node, Pid);
+dist_inet_stats(_Node, Port) ->
     inet_stats(Port).
 
 -spec inet_stats(port()) -> [{mongoose_instrument:metric_name(), non_neg_integer()}].
@@ -109,6 +107,18 @@ inet_stats(Port) ->
 -spec inet_stats() -> [mongoose_instrument:metric_name()].
 inet_stats() ->
     [recv_oct, recv_cnt, recv_max, send_oct, send_cnt, send_max, send_pend].
+
+tls_stats(Node, _Pid) ->
+    case erlang:dist_get_stat(Node) of
+        {ok, DistStats} ->
+            BytesIn   = proplists:get_value(input, DistStats, 0),
+            BytesOut  = proplists:get_value(output, DistStats, 0),
+            QueueLen  = proplists:get_value(queue_len, DistStats, 0),
+            [{recv_oct, BytesIn},  {recv_cnt, 0}, {recv_max, 0},
+             {send_oct, BytesOut}, {send_cnt, 0}, {send_max, 0},
+             {send_pend, QueueLen}];
+        _ -> []
+    end.
 
 -spec merge_stat(mongoose_instrument:metric_name(), non_neg_integer(), non_neg_integer()) ->
           non_neg_integer().
