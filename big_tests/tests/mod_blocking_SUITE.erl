@@ -128,8 +128,8 @@ init_per_group(muc_light, Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    dynamic_modules:ensure_modules(HostType,
-                                   [{mod_muc_light, config_parser_helper:mod_config(mod_muc_light, #{backend => Backend})}]),
+    MucLightConfig = config_parser_helper:mod_config(mod_muc_light, #{backend => Backend}),
+    dynamic_modules:ensure_modules(HostType, [{mod_muc_light, MucLightConfig}]),
     init_per_group(generic, Config1);
 init_per_group(_GroupName, Config) ->
     escalus_fresh:create_users(Config, escalus:get_users([alice, bob, kate, mike, john])).
@@ -273,9 +273,12 @@ messages_from_blocked_user_dont_arrive(Config) ->
 
 messages_from_blocked_user_dont_arrive_muc(ConfigIn) ->
     muc_helper:story_with_room(ConfigIn, [], [{alice, 1}, {bob, 1}], fun(Config, Alice, Bob) ->
-        escalus:send(Bob, muc_helper:stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        RoomJid = ?config(room, Config),
+        BobNick = escalus_utils:get_username(Bob),
+        escalus:send(Bob, muc_helper:stanza_muc_enter_room(RoomJid, BobNick)),
         escalus:wait_for_stanzas(Bob, 2),
-        escalus:send(Alice, muc_helper:stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
+        AliceNick = escalus_utils:get_username(Alice),
+        escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceNick)),
         escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Alice, 3),
 
