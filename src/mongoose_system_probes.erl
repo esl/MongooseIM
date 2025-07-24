@@ -95,9 +95,13 @@ try_get_dist_inet_stats({_Node, PortOrPid}, StatsIn) ->
 
 -spec dist_inet_stats(pid() | port()) -> [{mongoose_instrument:metric_name(), non_neg_integer()}].
 dist_inet_stats(Pid) when is_pid(Pid) ->
-    {ok, {sslsocket, FD, _Pids}} = tls_sender:dist_tls_socket(Pid),
-    gen_tcp = element(1, FD),
-    inet_stats(element(2, FD));
+    {status, _Pid, _Mod, RawInfo} = sys:get_status(Pid),
+    case find_port(RawInfo) of
+        {ok, Port} ->
+            inet_stats(Port);
+        not_found ->
+            []
+    end;
 dist_inet_stats(Port) ->
     inet_stats(Port).
 
@@ -109,6 +113,27 @@ inet_stats(Port) ->
 -spec inet_stats() -> [mongoose_instrument:metric_name()].
 inet_stats() ->
     [recv_oct, recv_cnt, recv_max, send_oct, send_cnt, send_max, send_pend].
+
+-spec find_port(term()) -> {ok, port()} | not_found.
+find_port([Tag, _, _, Port | _]) when (Tag == env orelse Tag == static),
+                                      is_port(Port) ->
+    {ok, Port};
+find_port(Tuple) when is_tuple(Tuple) ->
+    find_port(tuple_to_list(Tuple));
+find_port([]) ->
+    not_found;
+find_port([H | _] = List) when is_list(List), is_integer(H) ->
+    not_found;
+find_port(List) when is_list(List) ->
+    lists:foldl(fun fold_find_port/2, not_found, List);
+find_port(_) ->
+    not_found.
+
+-spec fold_find_port(term(), {ok, port()} | not_found) -> {ok, port()} | not_found.
+fold_find_port(_, {ok, _} = Found) ->
+    Found;
+fold_find_port(Elem, not_found) ->
+    find_port(Elem).
 
 -spec merge_stat(mongoose_instrument:metric_name(), non_neg_integer(), non_neg_integer()) ->
           non_neg_integer().
