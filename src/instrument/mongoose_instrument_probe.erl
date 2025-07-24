@@ -12,8 +12,7 @@
                         mongoose_instrument:probe_config()) -> timer:tref().
 start_probe_timer(EventName, Labels, #{module := Module} = ProbeConfig) ->
     Interval = timer:seconds(get_probe_interval(ProbeConfig)),
-    %% TODO: when dropping support for OTP25, consider changing this to apply_repeatedly
-    {ok, TRef} = timer:apply_interval(Interval, ?MODULE, call, [Module, EventName, Labels]),
+    {ok, TRef} = timer:apply_repeatedly(Interval, ?MODULE, call, [Module, EventName, Labels]),
     TRef.
 
 call(ProbeMod, EventName, Labels) ->
