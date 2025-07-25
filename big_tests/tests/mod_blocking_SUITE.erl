@@ -17,6 +17,7 @@
 -module(mod_blocking_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -33,7 +34,9 @@ all() ->
         {group, effect},
         {group, offline},
         {group, errors},
-        {group, pushes}
+        {group, pushes},
+        {group, muc},
+        {group, muc_light}
     ].
 
 groups() ->
@@ -43,7 +46,9 @@ groups() ->
          {offline, [sequence], offline_test_cases()},
          {errors, [parallel], error_test_cases()},
          {pushes, [parallel], push_test_cases()},
-         {notify, [parallel], notify_test_cases()}
+         {notify, [parallel], notify_test_cases()},
+         {muc, [parallel], muc_test_cases()},
+         {muc_light, [parallel], muc_light_test_cases()}
     ].
 
 manage_test_cases() ->
@@ -81,11 +86,18 @@ offline_test_cases() ->
 
 error_test_cases() ->
     [blocker_cant_send_to_blockee].
+
 push_test_cases() ->
     [block_push_sent].
 
 notify_test_cases() ->
     [notify_blockee].
+
+muc_test_cases() ->
+    [messages_from_blocked_user_dont_arrive_muc].
+
+muc_light_test_cases() ->
+    [messages_from_blocked_user_dont_arrive_muc_light].
 
 suite() ->
     escalus:suite().
@@ -108,9 +120,28 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config),
     instrument_helper:stop().
 
+init_per_group(muc, Config) ->
+    muc_helper:load_muc(),
+    mongoose_helper:ensure_muc_clean(),
+    init_per_group(generic, Config);
+init_per_group(muc_light, Config0) ->
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config0),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    MucLightConfig = config_parser_helper:mod_config(mod_muc_light, #{backend => Backend}),
+    dynamic_modules:ensure_modules(HostType, [{mod_muc_light, MucLightConfig}]),
+    init_per_group(generic, Config1);
 init_per_group(_GroupName, Config) ->
     escalus_fresh:create_users(Config, escalus:get_users([alice, bob, kate, mike, john])).
 
+end_per_group(muc, Config) ->
+    mongoose_helper:ensure_muc_clean(),
+    muc_helper:unload_muc(),
+    Config;
+end_per_group(muc_light, Config) ->
+    muc_light_helper:clear_db(domain_helper:host_type()),
+    dynamic_modules:restore_modules(Config),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -239,6 +270,47 @@ messages_from_blocked_user_dont_arrive(Config) ->
             privacy_helper:assert_privacy_check_packet_event(User2, #{dir => out}, TS),
             privacy_helper:assert_privacy_check_packet_event(User1, #{dir => in, blocked_count => 1}, TS)
         end).
+
+messages_from_blocked_user_dont_arrive_muc(ConfigIn) ->
+    muc_helper:story_with_room(ConfigIn, [], [{alice, 1}, {bob, 1}], fun(Config, Alice, Bob) ->
+        RoomJid = ?config(room, Config),
+        BobNick = escalus_utils:get_username(Bob),
+        escalus:send(Bob, muc_helper:stanza_muc_enter_room(RoomJid, BobNick)),
+        escalus:wait_for_stanzas(Bob, 2),
+        AliceNick = escalus_utils:get_username(Alice),
+        escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceNick)),
+        escalus:wait_for_stanza(Bob),
+        escalus:wait_for_stanzas(Alice, 3),
+
+        user_blocks(Alice, [Bob], muc),
+        TS = instrument_helper:timestamp(),
+        Stanza = escalus_stanza:groupchat_to(muc_helper:room_address(?config(room, Config)), <<"Hello">>),
+        escalus:send(Bob, Stanza),
+        ct:sleep(100),
+        % We don't expect Bob to get an error from Alice as this would lead to
+        % her being kicked out of the room
+        escalus_assert:has_no_stanzas(Alice),
+        privacy_helper:assert_privacy_check_packet_event(Bob, #{dir => out}, TS),
+        privacy_helper:assert_privacy_check_packet_event(Alice, #{dir => in, blocked_count => 1}, TS)
+    end).
+
+messages_from_blocked_user_dont_arrive_muc_light(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomName = <<"blocking-testroom">>,
+        muc_light_helper:create_room(RoomName, muc_light_helper:muc_host(),
+                                     Alice, [Bob], Config, muc_light_helper:ver(1)),
+
+        user_blocks(Alice, [Bob], muc_light),
+        TS = instrument_helper:timestamp(),
+        Stanza = escalus_stanza:groupchat_to(muc_light_helper:room_bin_jid(RoomName), <<"Hello">>),
+        escalus:send(Bob, Stanza),
+        ct:sleep(100),
+        % We don't expect Bob to get an error from Alice as this would lead to
+        % her being kicked out of the room
+        escalus_assert:has_no_stanzas(Alice),
+        privacy_helper:assert_privacy_check_packet_event(Bob, #{dir => out}, TS),
+        privacy_helper:assert_privacy_check_packet_event(Alice, #{dir => in, blocked_count => 1}, TS)
+    end).
 
 messages_from_unblocked_user_arrive_again(Config) ->
     escalus:fresh_story(
@@ -594,9 +666,12 @@ get_blocklist_items(Items) ->
                   maps:get(<<"jid">>, A)
               end, Items).
 
-user_blocks(Blocker, Blockees) when is_list(Blockees) ->
+user_blocks(Blocker, Blockees) ->
+    user_blocks(Blocker, Blockees, pm).
+
+user_blocks(Blocker, Blockees, ChatType) when is_list(Blockees) ->
     TS = instrument_helper:timestamp(),
-    BlockeeJIDs = [ escalus_utils:jid_to_lower(escalus_client:short_jid(B)) || B <- Blockees ],
+    BlockeeJIDs = blockee_jids(Blockees, ChatType),
     AddStanza = block_users_stanza(BlockeeJIDs),
     escalus_client:send(Blocker, AddStanza),
     Res = escalus:wait_for_stanzas(Blocker, 2),
@@ -604,6 +679,15 @@ user_blocks(Blocker, Blockees) when is_list(Blockees) ->
     Preds = [is_iq_result, CheckPush],
     escalus:assert_many(Preds, Res),
     privacy_helper:assert_privacy_set_event(Blocker, #{}, TS).
+
+blockee_jids(Blockees, pm) ->
+    [escalus_utils:jid_to_lower(escalus_client:short_jid(B)) || B <- Blockees];
+blockee_jids(Blockees, muc) ->
+    MucHost = muc_helper:muc_host(),
+    [<<MucHost/binary, "/", (escalus_client:username(B))/binary>> || B <- Blockees];
+blockee_jids(Blockees, muc_light) ->
+    MucHost = muc_light_helper:muc_host(),
+    [<<MucHost/binary, "/", (escalus_client:short_jid(B))/binary>> || B <- Blockees].
 
 blocklist_is_empty(BlockList) ->
     escalus:assert(is_iq_result, BlockList),
