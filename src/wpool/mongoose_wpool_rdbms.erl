@@ -140,14 +140,26 @@ merge_stats_fun(send_max, V1, V2) ->
 merge_stats_fun(_, V1, V2) ->
     V1 + V2.
 
--spec inet_stats(inet:port_number() | undefined) -> [{inet:stat_option(), integer()}].
-inet_stats(Port) ->
-    try
-        {ok, Stats} = inet:getstat(Port, inet_stats()),
-        Stats
-    catch C:R:S ->
-        ?LOG_INFO(#{what => inet_stats_failed, class => C, reason => R, stacktrace => S}),
-        []
+-spec inet_stats(inet:port_number() | ssl:sslsocket() | undefined) ->
+        [{inet:stat_option(), integer()}].
+inet_stats(undefined) ->
+    [];
+inet_stats(SslSock) when is_tuple(SslSock),
+                         element(1, SslSock) =:= sslsocket ->
+    case ssl:getstat(SslSock, inet_stats()) of
+        {ok, Stats} ->
+            Stats;
+        {error, Reason} ->
+            ?LOG_INFO(#{what => inet_stats_failed, transport => ssl, reason => Reason}),
+            []
+    end;
+inet_stats(Port) when is_port(Port) ->
+    case inet:getstat(Port, inet_stats()) of
+        {ok, Stats} ->
+            Stats;
+        {error, Reason} ->
+            ?LOG_INFO(#{what => inet_stats_failed, transport => tcp, reason => Reason}),
+            []
     end.
 
 inet_stats() ->

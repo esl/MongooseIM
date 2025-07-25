@@ -19,6 +19,7 @@
 -type priority() :: -128..127.
 -type maybe_priority() :: priority() | undefined.
 
+-type jid_set() :: term().
 -type available() :: sets:set(jid:jid()).
 -type subscription() :: from | to | both.
 -type subscriptions() :: #{jid:jid() := subscription()}.
@@ -692,7 +693,7 @@ get_by_sub(#presences_state{subscriptions = Subs}, DesiredStatus) ->
 
 -spec get(state(), s_to) -> subscriptions();
          (state(), s_from) -> subscriptions();
-         (state(), s_available) -> available();
+         (state(), s_available) -> jid_set();
          (state(), priority) -> priority();
          (state(), last) -> undefined | exml:element();
          (state(), timestamp) -> undefined | integer().
