@@ -79,7 +79,7 @@
   1},
  {<<"nksip">>,
   {git,"https://github.com/esl/nksip.git",
-       {ref,"832e864cf57ccf7bad13d6573e198b8dd950e6ad"}},
+       {ref,"fb35df3ee7b553a6e843b0d5389d9b2c9d338f03"}},
   0},
  {<<"observer_cli">>,{pkg,<<"observer_cli">>,<<"1.8.2">>},0},
  {<<"opuntia">>,{pkg,<<"opuntia">>,<<"1.1.2">>},0},
