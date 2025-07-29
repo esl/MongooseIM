@@ -9,7 +9,7 @@
                          get_coercion_err_msg/1, make_creds/1, get_unauthorized/1,
                          get_err_code/1, get_not_loaded/1]).
 
--import(config_parser_helper, [mod_config/2]).
+-import(config_parser_helper, [config/2]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("jid/include/jid.hrl").
@@ -209,11 +209,14 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 required_modules(_) ->
-    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    MucLightOpts = mod_config(mod_muc_light, #{backend => Backend,
-                                               rooms_in_rosters => true,
-                                               config_schema => custom_schema()}),
+    MucLightOpts = config([modules, mod_muc_light], muc_light_opts()),
     [{mod_muc_light, MucLightOpts}].
+
+muc_light_opts() ->
+    #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+      cache_affs => #{},
+      rooms_in_rosters => true,
+      config_schema => custom_schema()}.
 
 custom_schema() ->
     %% Should be sorted
