@@ -55,7 +55,8 @@
          room_exists/3,
          can_access_identity/3]).
 
--export([get_acc_room_affiliations/2]).
+-export([get_room_affiliations/2,
+         get_acc_room_affiliations/2]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -558,6 +559,15 @@ acc_room_affiliations(Acc1, #{room := RoomJid}, _Extra) ->
     Extra :: gen_hook:extra().
 room_exists(_, #{room := RoomJid}, #{host_type := HostType}) ->
     {ok, mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(RoomJid))}.
+
+-spec get_room_affiliations(mongooseim:host_type(), jid:jid()) ->
+    versioned_affs() | {error, not_exists}.
+get_room_affiliations(HostType, RoomJid) ->
+    Acc1 = mongoose_acc:new(#{location => ?LOCATION,
+                              lserver => RoomJid#jid.lserver,
+                              host_type => HostType}),
+    Acc2 = mongoose_hooks:acc_room_affiliations(Acc1, RoomJid),
+    get_room_affs_from_acc(Acc2, RoomJid).
 
 -spec get_acc_room_affiliations(mongoose_acc:t(), jid:jid()) ->
     {mongoose_acc:t(), versioned_affs() | {error, not_exists}}.
