@@ -19,7 +19,6 @@
 -type priority() :: -128..127.
 -type maybe_priority() :: priority() | undefined.
 
--type jid_set() :: term().
 -type available() :: sets:set(jid:jid()).
 -type subscription() :: from | to | both.
 -type subscriptions() :: #{jid:jid() := subscription()}.
@@ -691,12 +690,8 @@ get_by_sub(#presences_state{subscriptions = Subs}, DesiredStatus) ->
     Filter = fun(_, Status) -> both =:= Status orelse DesiredStatus =:= Status end,
     maps:filter(Filter, Subs).
 
--spec get(state(), s_to) -> subscriptions();
-         (state(), s_from) -> subscriptions();
-         (state(), s_available) -> jid_set();
-         (state(), priority) -> priority();
-         (state(), last) -> undefined | exml:element();
-         (state(), timestamp) -> undefined | integer().
+-spec get(state(), s_to | s_from | s_available | priority | last | timestamp) ->
+          subscriptions() | available() | priority() | exml:element() | integer() | undefined.
 get(P, s_to) -> get_by_sub(P, to);
 get(P, s_from) -> get_by_sub(P, from);
 get(#presences_state{available = Value}, s_available) -> Value;
