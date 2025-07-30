@@ -150,8 +150,4 @@ unwrap_asn1(Bin) when is_binary(Bin) -> Bin.
 unwrap_othername({'INSTANCE OF', Oid, Val}) -> {Oid, Val};
 %% TODO: Remove this clause once we drop support for OTP 27,
 %% which uses a 3-tuple {AnotherName, Oid, Val} format for OtherName.
-unwrap_othername(Another)
-    when is_tuple(Another),
-         tuple_size(Another) =:= 3,
-         element(1, Another) =:= 'AnotherName' ->
-    {element(2, Another), element(3, Another)}.
+unwrap_othername({'AnotherName', Oid, Val}) -> {Oid, Val}.

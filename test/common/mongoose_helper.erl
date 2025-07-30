@@ -489,8 +489,7 @@ change_config_option(Config, Option, NewValue) ->
 
 restore_config(Config) ->
     Options = get_config_backup(Config),
-    maps:foreach(fun do_restore_config_option/2, Options),
-    ok.
+    maps:foreach(fun do_restore_config_option/2, Options).
 
 restore_config_option(Config, Option) ->
     Options = get_config_backup(Config),
