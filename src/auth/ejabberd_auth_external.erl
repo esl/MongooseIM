@@ -241,7 +241,7 @@ get_cache_option(HostType) ->
                              LServer :: jid:lserver(),
                              Password :: binary()) -> boolean().
 check_password_extauth(HostType, LUser, LServer, Password) ->
-    extauth:check_password(HostType, LUser, LServer, Password) andalso Password /= "".
+    extauth:check_password(HostType, LUser, LServer, Password) andalso Password =/= <<>>.
 
 -spec check_password_cache(HostType :: mongooseim:host_type(),
                            LUser :: jid:luser(),
