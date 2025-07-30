@@ -319,7 +319,7 @@ return_info(#{room := RoomJID, aff_users := AffUsers, options := Config}) ->
     {ok, make_room(jid:to_binary(RoomJID), Config, AffUsers)}.
 
 do_get_room_aff(M = #{room := RoomJID, muc_host_type := HostType}) ->
-    case mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(RoomJID)) of
+    case mod_muc_light:get_room_affiliations(HostType, RoomJID) of
         {ok, AffUsers, _Version} ->
             M#{aff_users => AffUsers};
         {error, not_exists} ->
@@ -368,10 +368,9 @@ make_room_config(Options) ->
 -spec get_room_user_aff(mongooseim:host_type(), jid:jid(), jid:jid()) ->
     {ok, aff()} | {error, room_not_found}.
 get_room_user_aff(HostType, RoomJID, UserJID) ->
-    RoomUS = jid:to_lus(RoomJID),
-    UserUS = jid:to_lus(UserJID),
-    case mod_muc_light_db_backend:get_aff_users(HostType, RoomUS) of
+    case mod_muc_light:get_room_affiliations(HostType, RoomJID) of
         {ok, Affs, _Version} ->
+            UserUS = jid:to_lus(UserJID),
             {ok, get_aff(UserUS, Affs)};
         {error, not_exists} ->
             {error, room_not_found}
