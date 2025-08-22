@@ -5,9 +5,9 @@ references:
   # Available cimg-erlang images: https://hub.docker.com/r/erlangsolutions/erlang/tags?name=cimg
   # You could need to trigger a pipeline to create a Docker image:
   # https://github.com/esl/cimg-erlang#trigger-build-using-trigger-pipeline-on-circleci
-  - &LATEST_OTP_VERSION 28.0.1
-  - &OTP27 erlangsolutions/erlang:cimg-27.3.4.1
-  - &OTP28 erlangsolutions/erlang:cimg-28.0.1
+  - &LATEST_OTP_VERSION 28.0.2
+  - &OTP27 erlangsolutions/erlang:cimg-27.3.4.2
+  - &OTP28 erlangsolutions/erlang:cimg-28.0.2
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
@@ -690,7 +690,7 @@ jobs:
         type: executor
       platform:
         type: enum
-        enum: [debian-bookworm, debian-bullseye, debian-buster, ubuntu-plucky, ubuntu-noble, ubuntu-jammy, ubuntu-focal, rockylinux-9, rockylinux-8, almalinux-9, almalinux-8]
+        enum: [debian-bookworm, debian-bullseye, debian-trixie, ubuntu-plucky, ubuntu-noble, ubuntu-jammy, ubuntu-focal, rockylinux-9, rockylinux-8, almalinux-9, almalinux-8]
         description: Platform type
       otp_version:
         type: string
@@ -768,15 +768,15 @@ workflows:
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
-          name: debian-buster
+          name: debian-trixie
           executor: otp_28
-          platform: debian-buster
+          platform: debian-trixie
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:
-          name: debian-buster-arm64
+          name: debian-trixie-arm64
           executor: otp_28_arm64
-          platform: debian-buster
+          platform: debian-trixie
           context: mongooseim-org
           filters: *all_tags_and_master
       - package:

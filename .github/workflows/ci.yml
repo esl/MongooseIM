@@ -27,7 +27,7 @@ jobs:
         ## the full list of supported (prebuilt) OTP versions for ubuntu-22.04 runners
         ## can be found here:
         ##     https://builds.hex.pm/builds/otp/ubuntu-22.04/builds.txt
-        otp: [ '27.3.4.1', '28.0.1' ]
+        otp: [ '27.3.4.2', '28.0.2' ]
     runs-on: ubuntu-22.04
     env:
       PRESET: 'small_tests'
@@ -67,17 +67,17 @@ jobs:
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: [ '28.0.1' ]
+        otp: [ '28.0.2' ]
         include:
           - test-spec: "default.spec"
           - preset: elasticsearch_and_cassandra_mnesia
             test-spec: "mam.spec"
           - preset: ldap_mnesia
             test-spec: "default.spec"
-            otp: '27.3.4.1'
+            otp: '27.3.4.2'
           - preset: pgsql_mnesia
             test-spec: "default.spec"
-            otp: '27.3.4.1'
+            otp: '27.3.4.2'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -103,11 +103,11 @@ jobs:
       fail-fast: false
       matrix:
         preset: [pgsql_mnesia, mysql_redis, odbc_mssql_mnesia]
-        otp: [ '28.0.1' ]
+        otp: [ '28.0.2' ]
         test-spec: ["dynamic_domains.spec"]
         include:
           - preset: pgsql_mnesia
-            otp: '27.3.4.1'
+            otp: '27.3.4.2'
             test-spec: "dynamic_domains.spec"
     runs-on: ubuntu-22.04
     steps:
@@ -143,7 +143,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [ '27.3.4.1' ]
+        otp: [ '27.3.4.2' ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -160,7 +160,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [ '27.3.4.1' ]
+        otp: [ '27.3.4.2' ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -177,7 +177,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [ '27.3.4.1' ]
+        otp: [ '27.3.4.2' ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -197,7 +197,7 @@ jobs:
         pkg: [ubuntu-jammy]
     runs-on: ubuntu-22.04
     env:
-      pkg_OTP_VERSION: "28.0.1"
+      pkg_OTP_VERSION: "28.0.2"
       pkg_PLATFORM: ${{matrix.pkg}}
       GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
