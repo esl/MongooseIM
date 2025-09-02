@@ -120,7 +120,8 @@ parallel_cases() ->
      carboncopy_works_after_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
-     messages_are_properly_flushed_during_resumption].
+     messages_are_properly_flushed_during_resumption,
+     user_with_sm_goes_offline_cleanly_sends_unavailable_presence].
 
 parallel_large_buffer_cases() ->
     [resend_unacked_from_stopped_sessions,
@@ -145,7 +146,8 @@ manual_ack_freq_2_cases() ->
 
 resume_timeout_cases() ->
     [resend_unacked_after_resume_timeout,
-     resend_unacked_to_different_res_after_resume_timeout].
+     resend_unacked_to_different_res_after_resume_timeout,
+     user_with_sm_killed_connection_sends_unavailable_presence_after_resume_timeout].
 
 stale_h_cases() ->
     [resume_expired_session_returns_correct_h,
@@ -1542,6 +1544,70 @@ no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption
     Response = escalus_connection:get_stanza(User, service_unavailable),
     escalus:assert(is_sm_failed, [<<"feature-not-implemented">>], Response),
     escalus_connection:stop(User).
+
+%% Regression test for presence unavailable bug with stream management
+%% See: https://github.com/esl/MongooseIM/issues/XXXX
+%% When user enables stream management and goes offline cleanly,
+%% MongooseIM should immediately send presence unavailable to subscribers.
+user_with_sm_goes_offline_cleanly_sends_unavailable_presence(Config) ->
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        % GIVEN User with stream management enabled who sent direct presence to Bob
+        UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+        User = connect_spec(UserSpec, sr_presence, manual),
+
+        % User sends direct presence to Bob to establish presence notification
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+        Received = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received),
+        escalus_assert:is_stanza_from(User, Received),
+
+        % WHEN User goes offline cleanly (sending unavailable presence)
+        escalus:send(User, escalus_stanza:presence(<<"unavailable">>)),
+
+        % THEN Bob should receive presence unavailable from User immediately
+        UnavailablePresence = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, UnavailablePresence),
+        escalus_assert:is_stanza_from(User, UnavailablePresence),
+        <<"unavailable">> = exml_query:attr(UnavailablePresence, <<"type">>),
+
+        escalus_connection:stop(User)
+    end).
+
+%% Regression test for presence unavailable bug with stream management
+%% See: https://github.com/esl/MongooseIM/issues/XXXX
+%% When user enables stream management and connection is killed,
+%% MongooseIM should send presence unavailable after resume_timeout passes.
+user_with_sm_killed_connection_sends_unavailable_presence_after_resume_timeout(Config) ->
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        % GIVEN User with stream management enabled who sent direct presence to Bob
+        UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+        User = connect_spec(UserSpec, sr_presence, manual),
+
+        % User sends direct presence to Bob to establish presence notification
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+        Received = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received),
+        escalus_assert:is_stanza_from(User, Received),
+
+        % WHEN User's connection is killed (simulating network failure)
+        C2SPid = mongoose_helper:get_session_pid(User),
+        escalus_client:kill_connection(Config, User),
+
+        % Wait for session to enter resume state
+        sm_helper:wait_until_resume_session(C2SPid),
+
+        % Wait for resume_timeout to expire (1 second + buffer)
+        timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
+
+        % THEN Bob should receive presence unavailable from User after resume_timeout
+        % Note: resume_timeout is set to ?SHORT_TIMEOUT (1 second) in resume_timeout group
+        UnavailablePresence = escalus:wait_for_stanza(Bob, timer:seconds(2)),
+        escalus:assert(is_presence, UnavailablePresence),
+        escalus_assert:is_stanza_from(User, UnavailablePresence),
+        <<"unavailable">> = exml_query:attr(UnavailablePresence, <<"type">>)
+    end).
 
 %%--------------------------------------------------------------------
 %% Helpers

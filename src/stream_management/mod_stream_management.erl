@@ -112,7 +112,7 @@ c2s_hooks(HostType) ->
      {user_stop_request, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 100},
      {user_socket_closed, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 100},
      {user_socket_error, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 100},
-     {user_terminate, HostType, fun ?MODULE:user_terminate/3, #{}, 50},
+     {user_terminate, HostType, fun ?MODULE:user_terminate/3, #{}, 100},
      {reroute_unacked_messages, HostType, fun ?MODULE:reroute_unacked_messages/3, #{}, 80}
     ].
 
