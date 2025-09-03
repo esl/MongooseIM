@@ -1349,12 +1349,11 @@ aggressively_pipelined_resume(Config) ->
         Payload = <<0:8,Username/binary,0:8,Password/binary>>,
         Server = proplists:get_value(server, UserSpec),
 
-        Stream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
+        Stream = escalus_stanza:stream_start(Server),
         Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(Payload)}]),
-        AuthStream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
         Resume = escalus_stanza:resume(SMID, 2),
 
-        escalus_client:send(User, [Stream, Auth, AuthStream, Resume]),
+        escalus_client:send(User, [Stream, Auth, Stream, Resume]),
         Messages = [escalus_connection:get_stanza(User, {get_resumed, I}) || I <- lists:seq(1, 6)],
         escalus:assert(is_sm_resumed, [SMID], lists:last(Messages)),
 
