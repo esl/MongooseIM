@@ -60,6 +60,7 @@ groups() ->
         {starttls_optional, [parallel], [bad_xml,
                                          invalid_host,
                                          invalid_stream_namespace,
+                                         invalid_stream_version,
                                          deny_pre_xmpp_1_0_stream,
                                          correct_features_are_advertised_for_optional_starttls]},
         {starttls_required, [], [{group, starttls_required_parallel}, metrics_test]},
@@ -309,6 +310,18 @@ invalid_stream_namespace(Config) ->
     %% then
     escalus:assert(is_stream_start, Start),
     escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Error),
+    escalus:assert(is_stream_end, End).
+
+invalid_stream_version(Config) ->
+    %% given
+    Spec0 = escalus_users:get_userspec(Config, alice),
+    Spec = [{stream_attrs, #{<<"version">> => <<"1.23456">>}} | Spec0],
+    %% when
+    {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, start_stream}]),
+    [Start, Error, End] = escalus:wait_for_stanzas(Conn, 3),
+    %% then
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [<<"unsupported-version">>, <<>>], Error),
     escalus:assert(is_stream_end, End).
 
 deny_pre_xmpp_1_0_stream(Config) ->
