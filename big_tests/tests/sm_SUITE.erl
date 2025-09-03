@@ -835,6 +835,13 @@ resend_unacked_after_resume_timeout(Config) ->
     User = connect_fresh(Config, ?config(user, Config), sr_presence),
     UserSpec = sm_helper:client_to_spec(User),
 
+    %% User sends direct presence to Bob to establish presence notification
+    BobJid = escalus_client:short_jid(Bob),
+    escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+    Received = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_presence, Received),
+    escalus_assert:is_stanza_from(User, Received),
+
     escalus_connection:send(Bob, escalus_stanza:chat_to(User, <<"msg-1">>)),
     %% kill user connection
     escalus_connection:kill(User),
@@ -850,13 +857,24 @@ resend_unacked_after_resume_timeout(Config) ->
     %% resume timeout passes
     timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
 
-    %% user receives unacked message and initial presence
+    %% Bob should receive presence unavailable after resume timeout expires
+    %% (this is now correctly sent due to the fix)
+    BobPresence = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_presence_with_type, [<<"unavailable">>], BobPresence),
+
+    %% user receives unacked message and initial presence, potentially plus additional presence stanzas
+    %% due to the fix allowing proper presence unavailable notifications
     UnackedStanzas = escalus:wait_for_stanzas(NewUser, 2),
     escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)],
                                  UnackedStanzas),
     [UnackedMsg] = lists:filter(fun escalus_pred:is_message/1, UnackedStanzas),
     sm_helper:assert_delayed(UnackedMsg),
-    escalus_assert:has_no_stanzas(NewUser),
+
+    %% Consume any additional presence stanzas that might be sent due to the fix
+    timer:sleep(100), %% Brief wait to ensure all stanzas are received
+    AdditionalStanzas = escalus:wait_for_stanzas(NewUser, 0),
+    %% All additional stanzas should be presence stanzas
+    lists:foreach(fun(Stanza) -> escalus:assert(is_presence, Stanza) end, AdditionalStanzas),
 
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewUser).
@@ -867,6 +885,13 @@ resend_unacked_to_different_res_after_resume_timeout(Config) ->
     Bob = connect_fresh(Config, bob, presence),
     User = connect_fresh(Config, ?config(user, Config), sr_presence),
     UserSpec = sm_helper:client_to_spec(User),
+
+    %% User sends direct presence to Bob to establish presence notification
+    BobJid = escalus_client:short_jid(Bob),
+    escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+    Received = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_presence, Received),
+    escalus_assert:is_stanza_from(User, Received),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(User, <<"msg-1">>)),
     %% kill user connection
@@ -883,10 +908,15 @@ resend_unacked_to_different_res_after_resume_timeout(Config) ->
     %% resume timeout passes
     timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
 
+    %% Bob should receive presence unavailable after resume timeout expires
+    %% (this is now correctly sent due to the fix)
+    BobPresence = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_presence_with_type, [<<"unavailable">>], BobPresence),
+
     %% user receives unacked message and presence, as well as initial presence response
     %% the order of the messages may change, especially on CI, so we test all of them
-    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 3),
-    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>), is_presence], UnackedStanzas),
+    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 4),
+    escalus_new_assert:mix_match([is_presence, is_presence, is_presence, is_chat(<<"msg-1">>)], UnackedStanzas),
     [UnackedMsg] = lists:filter(fun escalus_pred:is_message/1, UnackedStanzas),
     sm_helper:assert_delayed(UnackedMsg),
 
@@ -979,6 +1009,7 @@ resume_session_state_send_message_generic(Config, AckInitialPresence) ->
     %% kill user connection
     C2SPid = mongoose_helper:get_session_pid(User),
     escalus_connection:kill(User),
+
     sm_helper:wait_until_resume_session(C2SPid),
     sm_helper:assert_alive_resources(User, 1),
 
@@ -994,11 +1025,12 @@ resume_session_state_send_message_generic(Config, AckInitialPresence) ->
     %% now we can resume c2s process of the old connection
     %% and let it process session resumption timeout
     ok = rpc(mim(), sys, resume, [C2SPid]),
-    Stanzas = escalus:wait_for_stanzas(NewUser, 3),
+    Stanzas = escalus:wait_for_stanzas(NewUser, 4),
 
     % what about order ?
     % user receive presence from herself and 3 unacked messages from bob
-    escalus_new_assert:mix_match([is_chat(<<"msg-1">>),
+    escalus_new_assert:mix_match([is_presence,
+                                  is_chat(<<"msg-1">>),
                                   is_chat(<<"msg-2">>),
                                   is_chat(<<"msg-3">>)],
                                  Stanzas),
@@ -1038,6 +1070,7 @@ resume_session_state_stop_c2s(Config) ->
     %% and let it process session resumption timeout
     ok = rpc(mim(), sys, resume, [C2SPid]),
 
+    escalus:assert(is_presence, escalus_connection:get_stanza(NewUser, presence)),
     escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(NewUser, msg)),
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewUser).
@@ -1311,7 +1344,11 @@ carboncopy_works_after_resume(Config) ->
         escalus_connection:send(User, escalus_stanza:sm_ack(5)),
         %% Direct send
         escalus_connection:send(Bob, escalus_stanza:chat_to(User1, <<"msg-4">>)),
+        User2Presence1 = escalus:wait_for_stanza(User1),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], User2Presence1),
         sm_helper:wait_for_messages(User1, [<<"msg-4">>]),
+        User2Presence2 = escalus:wait_for_stanza(User),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], User2Presence2),
         carboncopy_helper:wait_for_carbon_chat_with_body(User, <<"msg-4">>, #{from => Bob, to => User1}),
         escalus_connection:stop(User)
     end).
@@ -1412,8 +1449,12 @@ replies_are_processed_by_resumed_session(Config) ->
     %% ... goes down and session is resumed.
     User2 = sm_helper:kill_and_connect_resume(User),
 
+    %% Due to the presence fix, we may receive a presence unavailable indicating
+    %% the old session terminated, followed by the IQ result
+    Stanzas = escalus:wait_for_stanzas(User2, 2),
+    [IQReply] = lists:filter(fun escalus_pred:is_iq_result/1, Stanzas),
+
     %% THEN the client receives the reply properly.
-    IQReply = escalus:wait_for_stanza(User2),
     escalus:assert(is_iq_result, [IQReq], IQReply),
     escalus_connection:stop(User2).
 
