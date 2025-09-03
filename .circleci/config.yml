@@ -27,10 +27,6 @@ jobs:
             tools/circle-generate-config.sh generated_config.yml
       - continuation/continue:
           configuration_path: generated_config.yml # use newly generated config to continue
-      - store_artifacts:
-          path: big_tests/ct_report
-          destination: test-reports
-          when: on_fail
 
 commands:
   maybe_build_certs:
