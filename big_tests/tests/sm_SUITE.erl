@@ -389,7 +389,9 @@ session_resumed_and_old_session_dead_doesnt_route_error_to_new_session(Config) -
     User = connect_fresh(Config, ?config(user, Config), sr_presence),
     %% WHEN FIRST SESSION DIES AND USER RESUMES FROM NEW CLIENT
     User2 = sm_helper:kill_and_connect_resume(User),
-    process_initial_stanza(User2),
+    % unavailable presence from killed connection
+    Stanza2 = escalus:wait_for_stanza(User2),
+    escalus:assert(is_presence, Stanza2),
     %% THEN new session does not have any message rerouted
     false = escalus_client:has_stanzas(User2),
     true = escalus_connection:is_connected(User2),
