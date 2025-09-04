@@ -60,6 +60,7 @@ groups() ->
         {starttls_optional, [parallel], [bad_xml,
                                          invalid_host,
                                          invalid_stream_namespace,
+                                         invalid_stream_version,
                                          deny_pre_xmpp_1_0_stream,
                                          correct_features_are_advertised_for_optional_starttls]},
         {starttls_required, [], [{group, starttls_required_parallel}, metrics_test]},
@@ -301,25 +302,39 @@ invalid_host(Config) ->
 
 invalid_stream_namespace(Config) ->
     %% given
-    Spec = escalus_users:get_userspec(Config, alice),
+    Spec0 = escalus_users:get_userspec(Config, alice),
+    Spec = [{stream_attrs, #{<<"xmlns:stream">> => <<"obviously-invalid-namespace">>}} | Spec0],
     %% when
-    [Start, Error, End] = connect_with_invalid_stream_namespace(Spec),
+    {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, start_stream}]),
+    [Start, Error, End] = escalus:wait_for_stanzas(Conn, 3),
     %% then
     escalus:assert(is_stream_start, Start),
     escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Error),
     escalus:assert(is_stream_end, End).
 
+invalid_stream_version(Config) ->
+    %% given
+    Spec0 = escalus_users:get_userspec(Config, alice),
+    Spec = [{stream_attrs, #{<<"version">> => <<"1.23456">>}} | Spec0],
+    %% when
+    {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, start_stream}]),
+    [Start, Error, End] = escalus:wait_for_stanzas(Conn, 3),
+    %% then
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [<<"unsupported-version">>, <<>>], Error),
+    escalus:assert(is_stream_end, End).
+
 deny_pre_xmpp_1_0_stream(Config) ->
     %% given
-    Spec = escalus_fresh:freshen_spec(Config, alice),
-    Steps = [
-             %% when
-             {?MODULE, start_stream_pre_xmpp_1_0}
-            ],
-    {ok, Conn, _} = escalus_connection:start(Spec, Steps),
-    StreamError = escalus:wait_for_stanza(Conn),
-    escalus:assert(is_stream_error, [<<"unsupported-version">>, <<>>], StreamError),
-    escalus_connection:stop(Conn).
+    Spec0 = escalus_users:get_userspec(Config, alice),
+    Spec = [{stream_attrs, #{<<"version">> => undefined}} | Spec0],
+    %% when
+    {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, start_stream}]),
+    [Start, Error, End] = escalus:wait_for_stanzas(Conn, 3),
+    %% then
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [<<"unsupported-version">>, <<>>], Error),
+    escalus:assert(is_stream_end, End).
 
 should_fail_with_sslv3(Config) ->
     should_fail_with(Config, sslv3).
@@ -659,7 +674,7 @@ close_connection_if_protocol_violation_after_binding(Config) ->
 close_connection_if_protocol_violation(Config, Steps) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
-    escalus:send(Alice, escalus_stanza:stream_start(domain(), ?NS_JABBER_CLIENT)),
+    escalus:send(Alice, escalus_stanza:stream_start(domain())),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>],
                    escalus_connection:get_stanza(Alice, no_stream_error_stanza_received)),
     escalus:assert(is_stream_end,
@@ -778,8 +793,7 @@ connect_to_invalid_host(Spec) ->
     escalus:wait_for_stanzas(Conn, 3).
 
 connect_to_invalid_host(Conn, UnusedFeatures) ->
-    escalus:send(Conn, escalus_stanza:stream_start(<<"hopefullynonexistentdomain">>,
-                                                   ?NS_JABBER_CLIENT)),
+    escalus:send(Conn, escalus_stanza:stream_start(<<"hopefullynonexistentdomain">>)),
     {Conn, UnusedFeatures}.
 
 connect_with_bad_xml(Spec) ->
@@ -790,44 +804,9 @@ connect_with_bad_xml(Conn, UnusedFeatures) ->
     escalus_connection:send(Conn, #xmlcdata{content = "asdf\n"}),
     {Conn, UnusedFeatures}.
 
-connect_with_invalid_stream_namespace(Spec) ->
-    F = fun (Conn, UnusedFeatures) ->
-                Start = stream_start_invalid_stream_ns(escalus_users:get_server([], Spec)),
-                escalus:send(Conn, Start),
-                {Conn, UnusedFeatures}
-        end,
-    {ok, Conn, _} = escalus_connection:start(Spec, [F]),
-    escalus:wait_for_stanzas(Conn, 3).
-
-start_stream_pre_xmpp_1_0(Conn = #client{props = Props}, UnusedFeatures) ->
-    escalus:send(Conn, stream_start_pre_xmpp_1_0(escalus_users:get_server([], Props))),
-    #xmlstreamstart{attrs = StreamAttrs} = StreamStart = escalus:wait_for_stanza(Conn),
-    escalus:assert(is_stream_start, StreamStart),
-    StreamID = maps:get(<<"id">>, StreamAttrs),
-    {Conn#client{props = [{stream_id, StreamID} | Props]}, UnusedFeatures}.
-
-stream_start_pre_xmpp_1_0(To) ->
-        stream_start(lists:keystore(version, 1, default_context(To), {version, <<>>})).
-
-stream_start(Context) ->
-    %% Be careful! The closing slash here is a hack to enable implementation of from_template/2
-    %% to parse the snippet properly. In standard XMPP <stream:stream> is just opening of an XML
-    %% element, NOT A SELF CLOSING element.
-    T = <<"<stream:stream {{version}} xml:lang='en' xmlns='jabber:client' "
-          "               to='{{to}}' "
-          "               xmlns:stream='{{stream_ns}}' />">>,
-    %% So we rewrap the parsed contents from #xmlel{} to #xmlstreamstart{} here.
-    #xmlel{name = Name, attrs = Attrs, children = []} = escalus_stanza:from_template(T, Context),
-    #xmlstreamstart{name = Name, attrs = Attrs}.
-
-stream_start_invalid_stream_ns(To) ->
-    stream_start(lists:keystore(stream_ns, 1, default_context(To),
-                                {stream_ns, <<"obviously-invalid-namespace">>})).
-
-default_context(To) ->
-    [{version, <<"version='1.0'">>},
-     {to, To},
-     {stream_ns, ?NS_XMPP}].
+start_stream(Conn = #client{props = Props, module = Module}, UnusedFeatures) ->
+    escalus:send(Conn, Module:stream_start_req(Props)),
+    {Conn, UnusedFeatures}.
 
 children_specs_to_pids(Children) ->
     [Pid || {_, Pid, _, _} <- Children].
@@ -847,13 +826,12 @@ pipeline_connect(UserSpec) ->
 
     Conn = escalus_connection:connect(UserSpec),
 
-    Stream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
+    Stream = escalus_stanza:stream_start(Server),
     Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(AuthPayload)}]),
-    AuthStream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
     Bind = escalus_stanza:bind(<<?MODULE_STRING "_resource">>),
     Session = escalus_stanza:session(),
 
-    escalus_connection:send(Conn, [Stream, Auth, AuthStream, Bind, Session]),
+    escalus_connection:send(Conn, [Stream, Auth, Stream, Bind, Session]),
     Conn.
 
 send_proxy_header(Conn, UnusedFeatures) ->

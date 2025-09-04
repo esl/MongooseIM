@@ -45,7 +45,8 @@ test_cases() ->
     [chat_msg,
      escape_chat_msg,
      escape_attrs,
-     too_big_stanza_is_rejected].
+     too_big_stanza_is_rejected,
+     invalid_xmpp_version_is_rejected].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -132,6 +133,15 @@ too_big_stanza_is_rejected(Config) ->
               escalus_assert:has_no_stanzas(Alice)
       end).
 
+invalid_xmpp_version_is_rejected(Config) ->
+    Spec0 = escalus_users:get_userspec(Config, ?config(user, Config)),
+    Spec = [{stream_attrs, #{<<"version">> => <<"1.23456">>}} | Spec0],
+    {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, open_stream}]),
+    [Start, Error, End] = escalus:wait_for_stanzas(Conn, 3),
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [<<"unsupported-version">>, <<>>], Error),
+    escalus:assert(is_stream_end, End).
+
 chat_msg(Config) ->
     escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {carol, 1}],
                   fun(Alice, Geralt, Carol) ->
@@ -172,3 +182,7 @@ instrumentation_events() ->
     ++ [{c2s_message_processed, #{host_type => host_type()}},
         {xmpp_element_out, #{host_type => host_type(), connection_type => c2s}},
         {xmpp_element_in, #{host_type => host_type(), connection_type => c2s}}].
+
+open_stream(Conn = #client{module = Module, props = Props}, UnusedFeatures) ->
+    escalus:send(Conn, Module:stream_start_req(Props)),
+    {Conn, UnusedFeatures}.
