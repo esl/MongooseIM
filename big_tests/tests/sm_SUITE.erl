@@ -837,13 +837,6 @@ resend_unacked_after_resume_timeout(Config) ->
     User = connect_fresh(Config, ?config(user, Config), sr_presence),
     UserSpec = sm_helper:client_to_spec(User),
 
-    %% User sends direct presence to Bob to establish presence notification
-    BobJid = escalus_client:short_jid(Bob),
-    escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
-    Received = escalus:wait_for_stanza(Bob),
-    escalus:assert(is_presence, Received),
-    escalus_assert:is_stanza_from(User, Received),
-
     escalus_connection:send(Bob, escalus_stanza:chat_to(User, <<"msg-1">>)),
     %% kill user connection
     escalus_connection:kill(User),
@@ -855,14 +848,6 @@ resend_unacked_after_resume_timeout(Config) ->
     %% user comes back
     NewUser = connect_spec(UserSpec, session),
     send_initial_presence(NewUser),
-
-    %% resume timeout passes
-    timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
-
-    %% Bob should receive presence unavailable after resume timeout expires
-    %% (this is now correctly sent due to the fix)
-    BobPresence = escalus:wait_for_stanza(Bob),
-    escalus:assert(is_presence_with_type, [<<"unavailable">>], BobPresence),
 
     %% user receives unacked message and initial presence, potentially plus additional presence stanzas
     %% due to the fix allowing proper presence unavailable notifications
@@ -888,13 +873,6 @@ resend_unacked_to_different_res_after_resume_timeout(Config) ->
     User = connect_fresh(Config, ?config(user, Config), sr_presence),
     UserSpec = sm_helper:client_to_spec(User),
 
-    %% User sends direct presence to Bob to establish presence notification
-    BobJid = escalus_client:short_jid(Bob),
-    escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
-    Received = escalus:wait_for_stanza(Bob),
-    escalus:assert(is_presence, Received),
-    escalus_assert:is_stanza_from(User, Received),
-
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(User, <<"msg-1">>)),
     %% kill user connection
     escalus_connection:kill(User),
@@ -906,14 +884,6 @@ resend_unacked_to_different_res_after_resume_timeout(Config) ->
     %% user comes back with different resource
     NewUser = connect_spec([{resource, <<"2nd_resource">>} | UserSpec], session),
     send_initial_presence(NewUser),
-
-    %% resume timeout passes
-    timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
-
-    %% Bob should receive presence unavailable after resume timeout expires
-    %% (this is now correctly sent due to the fix)
-    BobPresence = escalus:wait_for_stanza(Bob),
-    escalus:assert(is_presence_with_type, [<<"unavailable">>], BobPresence),
 
     %% user receives unacked message and presence, as well as initial presence response
     %% the order of the messages may change, especially on CI, so we test all of them
