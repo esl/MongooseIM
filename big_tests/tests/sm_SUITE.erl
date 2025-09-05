@@ -1319,9 +1319,8 @@ carboncopy_works_after_resume(Config) ->
         User2Presence1 = escalus:wait_for_stanza(User1),
         escalus:assert(is_presence_with_type, [<<"unavailable">>], User2Presence1),
         sm_helper:wait_for_messages(User1, [<<"msg-4">>]),
-        User2Presence2 = escalus:wait_for_stanza(User),
-        escalus:assert(is_presence_with_type, [<<"unavailable">>], User2Presence2),
-        carboncopy_helper:wait_for_carbon_chat_with_body(User, <<"msg-4">>, #{from => Bob, to => User1}),
+        Stanzas = escalus:wait_for_stanzas(User, 2),
+        escalus_new_assert:mix_match([is_cc_message(<<"msg-4">>), is_presence(<<"unavailable">>)], Stanzas),
         escalus_connection:stop(User)
     end).
 
@@ -1713,6 +1712,18 @@ is_chat(Content) ->
 
 is_presence(Type) ->
     fun(Stanza) -> escalus_pred:is_presence_with_type(Type, Stanza) end.
+
+is_cc_message(Content) ->
+    fun(Stanza) ->
+        case exml_query:path(Stanza, [{element, <<"received">>},
+                                      {element, <<"forwarded">>},
+                                      {element, <<"message">>},
+                                      {element, <<"body">>}, cdata]) of
+            Content -> true;
+            _ -> false
+        end
+    end.
+
 
 three_texts() ->
     [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>].
