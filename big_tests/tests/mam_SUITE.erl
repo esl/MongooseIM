@@ -4018,7 +4018,7 @@ reconnect_ack(Config) ->
 
     % 4. Alice reconnects
     NewAlice = sm_helper:connect_same(Alice, presence),
-    escalus:assert(is_presence, escalus:wait_for_stanza(NewAlice, 1)),
+
     % 5. Check no new messages received
     timer:sleep(timer:seconds(1)),
     escalus_assert:has_no_stanzas(NewAlice),
