@@ -13,7 +13,7 @@ For each HTTP listener, all the [general](../configuration/listen.md#general-lis
 
     * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
     * `mod_websockets` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
-    * `mongoose_prometheus_handler` - for [Prometheus]((https://prometheus.io/) metrics,
+    * `mongoose_prometheus_handler` - for [Prometheus](https://prometheus.io/) metrics,
     * `mongoose_graphql_handler` - for GraphQL API,
     * `mongoose_admin_api`, `mongoose_client_api` - for REST API.
 
