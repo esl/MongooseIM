@@ -120,7 +120,10 @@ parallel_cases() ->
      carboncopy_works_after_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
-     messages_are_properly_flushed_during_resumption].
+     messages_are_properly_flushed_during_resumption,
+     user_with_sm_goes_offline_cleanly_sends_unavailable_presence,
+     user_with_sm_resumes_session_broadcasts_presence_to_subscribers,
+     user_with_sm_multiple_resources_session_replacement_notifies_other_resources].
 
 parallel_large_buffer_cases() ->
     [resend_unacked_from_stopped_sessions,
@@ -145,7 +148,8 @@ manual_ack_freq_2_cases() ->
 
 resume_timeout_cases() ->
     [resend_unacked_after_resume_timeout,
-     resend_unacked_to_different_res_after_resume_timeout].
+     resend_unacked_to_different_res_after_resume_timeout,
+     user_with_sm_killed_connection_sends_unavailable_presence_after_resume_timeout].
 
 stale_h_cases() ->
     [resume_expired_session_returns_correct_h,
@@ -883,8 +887,8 @@ resend_unacked_to_different_res_after_resume_timeout(Config) ->
 
     %% user receives unacked message and presence, as well as initial presence response
     %% the order of the messages may change, especially on CI, so we test all of them
-    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 3),
-    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>), is_presence], UnackedStanzas),
+    UnackedStanzas = escalus:wait_for_stanzas(NewUser, 4),
+    escalus_new_assert:mix_match([is_presence, is_presence, is_presence, is_chat(<<"msg-1">>)], UnackedStanzas),
     [UnackedMsg] = lists:filter(fun escalus_pred:is_message/1, UnackedStanzas),
     sm_helper:assert_delayed(UnackedMsg),
 
@@ -1307,6 +1311,7 @@ carboncopy_works_after_resume(Config) ->
         sm_helper:wait_for_messages(User, Texts),
         %% User acks the received messages.
         escalus_connection:send(User, escalus_stanza:sm_ack(5)),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], escalus:wait_for_stanza(User1)),
         %% Direct send
         escalus_connection:send(Bob, escalus_stanza:chat_to(User1, <<"msg-4">>)),
         sm_helper:wait_for_messages(User1, [<<"msg-4">>]),
@@ -1541,6 +1546,160 @@ no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption
     Response = escalus_connection:get_stanza(User, service_unavailable),
     escalus:assert(is_sm_failed, [<<"feature-not-implemented">>], Response),
     escalus_connection:stop(User).
+
+%% Regression test for presence unavailable bug with stream management
+%% When user enables stream management and goes offline cleanly,
+%% MongooseIM should immediately send presence unavailable to subscribers.
+user_with_sm_goes_offline_cleanly_sends_unavailable_presence(Config) ->
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        % GIVEN User with stream management enabled who sent direct presence to Bob
+        UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+        User = connect_spec(UserSpec, sr_presence, manual),
+
+        % User sends direct presence to Bob to establish presence notification
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+        Received = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received),
+        escalus_assert:is_stanza_from(User, Received),
+
+        % WHEN User goes offline cleanly (sending unavailable presence)
+        escalus:send(User, escalus_stanza:presence(<<"unavailable">>)),
+
+        % THEN Bob should receive presence unavailable from User immediately
+        UnavailablePresence = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, UnavailablePresence),
+        escalus_assert:is_stanza_from(User, UnavailablePresence),
+        <<"unavailable">> = exml_query:attr(UnavailablePresence, <<"type">>),
+
+        escalus_connection:stop(User)
+    end).
+
+%% Regression test for presence unavailable bug with stream management
+%% When user enables stream management and connection is killed,
+%% MongooseIM should send presence unavailable after resume_timeout passes.
+user_with_sm_killed_connection_sends_unavailable_presence_after_resume_timeout(Config) ->
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        % GIVEN User with stream management enabled who sent direct presence to Bob
+        UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+        User = connect_spec(UserSpec, sr_presence, manual),
+
+        % User sends direct presence to Bob to establish presence notification
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+        Received = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received),
+        escalus_assert:is_stanza_from(User, Received),
+
+        % WHEN User's connection is killed (simulating network failure)
+        C2SPid = mongoose_helper:get_session_pid(User),
+        escalus_client:kill_connection(Config, User),
+
+        % Wait for session to enter resume state
+        sm_helper:wait_until_resume_session(C2SPid),
+
+        % Wait for resume_timeout to expire (1 second + buffer)
+        timer:sleep(timer:seconds(?SHORT_TIMEOUT + 1)),
+
+        % THEN Bob should receive presence unavailable from User after resume_timeout
+        % Note: resume_timeout is set to ?SHORT_TIMEOUT (1 second) in resume_timeout group
+        UnavailablePresence = escalus:wait_for_stanza(Bob, timer:seconds(2)),
+        escalus:assert(is_presence, UnavailablePresence),
+        escalus_assert:is_stanza_from(User, UnavailablePresence),
+        <<"unavailable">> = exml_query:attr(UnavailablePresence, <<"type">>)
+    end).
+
+%% Test that covers presence_broadcast_filtered with {shutdown, resumed} reason
+user_with_sm_resumes_session_broadcasts_presence_to_subscribers(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % GIVEN User with stream management enabled who has presence subscribers
+        UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+        User = connect_spec(UserSpec, sr_presence, manual),
+
+        % User establishes mutual presence subscription with Alice and Bob
+        AliceJid = escalus_client:short_jid(Alice),
+        BobJid = escalus_client:short_jid(Bob),
+
+        % Send directed presence to establish presence subscriptions
+        escalus:send(User, escalus_stanza:presence_direct(AliceJid, <<"available">>)),
+        escalus:send(User, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+
+        % Verify both Alice and Bob receive initial presence
+        AlicePresence1 = escalus:wait_for_stanza(Alice),
+        BobPresence1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, AlicePresence1),
+        escalus:assert(is_presence, BobPresence1),
+        escalus_assert:is_stanza_from(User, AlicePresence1),
+        escalus_assert:is_stanza_from(User, BobPresence1),
+
+        % Get the stream management ID before connection dies
+        SMID = sm_helper:client_to_smid(User),
+
+        % WHEN User's connection is killed and then resumed (triggering {shutdown, resumed})
+        C2SPid = mongoose_helper:get_session_pid(User),
+        escalus_client:kill_connection(Config, User),
+
+        % Wait for session to enter resume state
+        sm_helper:wait_until_resume_session(C2SPid),
+
+        % Resume the session - this triggers {shutdown, resumed} in presence_broadcast_filtered
+        User2 = connect_spec(UserSpec, {resume, SMID, 1}, manual),
+
+        % THEN both Alice and Bob should receive presence unavailable from the resumed session
+        AliceUnavailable = escalus:wait_for_stanza(Alice),
+        BobUnavailable = escalus:wait_for_stanza(Bob),
+
+        escalus:assert(is_presence, AliceUnavailable),
+        escalus:assert(is_presence, BobUnavailable),
+        escalus_assert:is_stanza_from(User, AliceUnavailable),
+        escalus_assert:is_stanza_from(User, BobUnavailable),
+        <<"unavailable">> = exml_query:attr(AliceUnavailable, <<"type">>),
+        <<"unavailable">> = exml_query:attr(BobUnavailable, <<"type">>),
+
+        escalus_connection:stop(User2)
+    end).
+
+%% Test that covers presence_broadcast_filtered with {shutdown, {replaced, Pid}} reason
+user_with_sm_multiple_resources_session_replacement_notifies_other_resources(Config) ->
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        % GIVEN User with stream management enabled and multiple resources
+        UserSpec = escalus_fresh:create_fresh_user(Config, ?config(user, Config)),
+
+        % Connect first resource (resource1) and establish presence
+        Resource1 = <<"resource1">>,
+        UserSpec1 = lists:keystore(resource, 1, UserSpec, {resource, Resource1}),
+        User1 = connect_spec(UserSpec1, sr_presence, manual),
+
+        % User1 sends directed presence to Bob to establish presence subscription
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(User1, escalus_stanza:presence_direct(BobJid, <<"available">>)),
+
+        % Verify Bob receives presence from User1
+        BobPresence1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, BobPresence1),
+        escalus_assert:is_stanza_from(User1, BobPresence1),
+
+        % Connect second resource (resource2)
+        Resource2 = <<"resource2">>,
+        UserSpec2 = lists:keystore(resource, 1, UserSpec, {resource, Resource2}),
+        User2 = connect_spec(UserSpec2, sr_presence, manual),
+
+        % Clear User2's own initial presence stanza
+        _User2OwnPresence = escalus:wait_for_stanza(User2),
+
+        % WHEN User1's session is replaced by connecting with the same resource
+        % This triggers {shutdown, {replaced, Pid}} in mod_presence
+        User1Replacement = connect_spec(UserSpec1, sr_presence, manual),
+
+        % THEN verify Bob receives presence unavailable (this part should work)
+        BobUnavailable = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, BobUnavailable),
+        escalus_assert:is_stanza_from(User1, BobUnavailable),
+        <<"unavailable">> = exml_query:attr(BobUnavailable, <<"type">>),
+
+        escalus_connection:stop(User1Replacement),
+        escalus_connection:stop(User2)
+    end).
 
 %%--------------------------------------------------------------------
 %% Helpers

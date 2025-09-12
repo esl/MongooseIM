@@ -60,6 +60,7 @@
          get_raw_sessions/1,
          is_offline/1,
          get_user_present_pids/2,
+         get_user_present_resources_and_pids/1,
          sync/0,
          session_cleanup/1,
          sessions_cleanup/1,
