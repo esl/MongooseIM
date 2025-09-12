@@ -454,7 +454,7 @@ handle_stream_mgmt(Acc, _Params, _El) ->
 handle_r(Acc, #{c2s_data := StateData}) ->
     case get_mod_state(StateData) of
         {error, not_found} ->
-            ?LOG_WARNING(#{what => unexpected_r, c2s_state => StateData,
+            ?LOG_WARNING(#{what => unexpected_r, c2s_data => StateData,
                            text => <<"received <r/> but stream management is off!">>}),
             {ok, Acc};
         #sm_state{counter_in = In} ->
