@@ -188,6 +188,9 @@ handle_event(cast, Info, FsmState, StateData) ->
 handle_event({timeout, Name}, Payload, C2SState, StateData) ->
     handle_timeout(StateData, C2SState, Name, Payload);
 
+handle_event(state_timeout, state_timeout_termination, {wait_for_stream, stream_start}, StateData) ->
+    StreamError = mongoose_xmpp_errors:connection_timeout(),
+    stream_start_error(StateData, StreamError);
 handle_event(state_timeout, state_timeout_termination, _FsmState, StateData) ->
     StreamConflict = mongoose_xmpp_errors:connection_timeout(),
     send_element_from_server_jid(StateData, StreamConflict),

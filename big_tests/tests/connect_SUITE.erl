@@ -49,6 +49,7 @@ all() ->
         {group, security},
         {group, incorrect_behaviors},
         {group, proxy_protocol},
+        {group, disconnect},
         %% these groups must be last, as they really... complicate configuration
         {group, just_tls}
     ].
@@ -87,6 +88,7 @@ groups() ->
         {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
                                            close_connection_if_protocol_violation_after_authentication,
                                            close_connection_if_protocol_violation_after_binding]},
+        {disconnect, [], [disconnect_inactive_tcp_connection_after_timeout]},
         {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
                                       connect_with_proxy_header]}
     ].
@@ -173,6 +175,9 @@ init_per_group(just_tls, Config)->
     [{tls_module, just_tls} | Config];
 init_per_group(proxy_protocol, Config) ->
     configure_c2s_listener(Config, #{proxy_protocol => true}),
+    Config;
+init_per_group(disconnect, Config) ->
+    configure_c2s_listener(Config, #{state_timeout => 100}),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -680,6 +685,15 @@ close_connection_if_protocol_violation(Config, Steps) ->
     escalus:assert(is_stream_end,
                    escalus_connection:get_stanza(Alice, no_stream_end_stanza_received)),
     true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
+
+disconnect_inactive_tcp_connection_after_timeout(Config) ->
+    UserSpec = escalus_users:get_userspec(Config, alice),
+    % connect w/o sending any XMPP data
+    Conn = escalus_connection:connect(UserSpec),
+    [Start, Error, _End] = escalus:wait_for_stanzas(Conn, 3),
+    escalus:assert(is_stream_error, [<<"connection-timeout">>, <<>>], Error),
+    escalus:assert(is_stream_start, Start),
+    escalus_connection:stop(Conn).
 
 cannot_connect_with_proxy_header(Config) ->
     %% GIVEN proxy protocol is disabled
