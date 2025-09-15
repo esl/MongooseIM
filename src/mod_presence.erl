@@ -607,6 +607,7 @@ close_session_status(_) ->
 route_with_self_skip(FromJID, ToJID, Acc, Packet) ->
     case jid:are_bare_equal(FromJID, ToJID) of
         true ->
+            % ToJID should be bare if self
             route_to_other_resources(FromJID, Acc, Packet);
         false ->
             ejabberd_router:route(FromJID, ToJID, Acc, Packet)
