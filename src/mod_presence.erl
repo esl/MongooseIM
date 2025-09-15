@@ -141,7 +141,7 @@ handle_user_terminate(Acc, StateData, Presences, Reason) ->
     Sid = mongoose_c2s:get_sid(StateData),
     Info = mongoose_c2s:get_info(StateData),
     ejabberd_sm:unset_presence(Acc1, Sid, Jid, Status, Info),
-    presence_broadcast(Acc1, Presences),
+    presence_broadcast_filtered(Acc1, Reason, Presences),
     {ok, Acc}.
 
 -spec foreign_event(Acc, Params, Extra) -> Result when
@@ -426,6 +426,39 @@ process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, Type)
     ejabberd_router:route(jid:to_bare(FromJid), ToJid, Acc1, Packet),
     Acc1.
 
+-spec presence_broadcast_filtered(mongoose_acc:t(), term(), state()) -> ok.
+presence_broadcast_filtered(Acc, _Reason = {shutdown, resumed}, #presences_state{available = Available}) ->
+    % broadcast only to others, skip self
+    {FromJID, _, Packet} = mongoose_acc:packet(Acc),
+    sets:fold(fun(ToJID, _) ->
+                  route_with_self_skip(FromJID, ToJID, Acc, Packet)
+              end, undefined, Available);
+presence_broadcast_filtered(Acc, _Reason = {shutdown, {replaced, Pid}}, #presences_state{available = Available}) ->
+    {FromJID, _, Packet} = mongoose_acc:packet(Acc),
+    % Get all resources of the same user (FromJID) and their PIDs
+    ResourcesPids = ejabberd_sm:get_user_present_resources_and_pids(FromJID),
+    % Route to all resources of FromJID except the one that matches the replaced Pid
+    RouteToResources = fun({Resource, ResPid}) ->
+                           case ResPid of
+                               Pid -> ok;  % Skip this resource as it matches the replaced Pid
+                               _ ->
+                                   % Create the full JID for this resource
+                                   ResourceJID = jid:replace_resource(FromJID, Resource),
+                                   ejabberd_router:route(FromJID, ResourceJID, Acc, Packet)
+                           end
+                       end,
+    lists:foreach(RouteToResources, ResourcesPids),
+    % Also route to all Available JIDs except FromJID bare itself
+    RouteToAvailable = fun(ToJID, _) ->
+                           case jid:are_bare_equal(FromJID, ToJID) of
+                               true -> ok;  % Skip FromJID itself
+                               false -> ejabberd_router:route(FromJID, ToJID, Acc, Packet)
+                           end
+                       end,
+    sets:fold(RouteToAvailable, undefined, Available);
+presence_broadcast_filtered(Acc, _Reason, #presences_state{available = Available}) ->
+    presence_broadcast(Acc, #presences_state{available = Available}).
+
 -spec presence_broadcast(mongoose_acc:t(), state()) -> ok.
 presence_broadcast(Acc, #presences_state{available = Available}) ->
     {FromJID, _, Packet} = mongoose_acc:packet(Acc),
@@ -568,6 +601,29 @@ close_session_status({shutdown, Reason}) when is_binary(Reason) ->
     <<"Shutdown by reason: ", Reason/binary>>;
 close_session_status(_) ->
     <<"Unknown condition">>.
+
+%% @doc Route packet with self-skip logic for same bare JID resources
+-spec route_with_self_skip(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) -> ok.
+route_with_self_skip(FromJID, ToJID, Acc, Packet) ->
+    case jid:are_bare_equal(FromJID, ToJID) of
+        true ->
+            % ToJID should be bare if self
+            route_to_other_resources(FromJID, Acc, Packet);
+        false ->
+            ejabberd_router:route(FromJID, ToJID, Acc, Packet)
+    end.
+
+%% @doc Route packet to all user resources except the sender
+-spec route_to_other_resources(jid:jid(), mongoose_acc:t(), exml:element()) -> ok.
+route_to_other_resources(FromJID, Acc, Packet) ->
+    Resources = ejabberd_sm:get_user_resources(FromJID),
+    lists:foreach(fun(Resource) ->
+                      ResourceJID = jid:replace_resource(FromJID, Resource),
+                      case jid:are_equal(FromJID, ResourceJID) of
+                          true -> ok;  % Skip self
+                          false -> ejabberd_router:route(FromJID, ResourceJID, Acc, Packet)
+                      end
+                  end, Resources).
 
 -spec get_presence_type(mongoose_acc:t()) -> maybe_presence().
 get_presence_type(Acc) ->
