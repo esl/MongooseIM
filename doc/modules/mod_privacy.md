@@ -8,7 +8,9 @@ This extension allows user to block IQs, messages, presences, or all, based on J
 ### `modules.mod_privacy.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`.
 * **Default:** `"mnesia"`
-* **Example:** `backend = "mnesia"`
+* **Example:** `backend = "rdbms"`
+
+Database backend used to store the privacy lists.
 
 ## Example Configuration
 
