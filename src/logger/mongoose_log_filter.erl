@@ -29,12 +29,25 @@ fill_metadata_filter(Event, _) ->
     Event.
 
 format_c2s_state_filter(Event=#{msg := {report, Msg=#{c2s_data := State}}}, _) ->
-    StateMap = filter_undefined(c2s_data_to_map(State)),
-    %% C2S fields have lower priority, if the field is already present in msg.
-    Msg2 = maps:merge(StateMap, maps:remove(c2s_data, Msg)),
-    Event#{msg => {report, Msg2}};
+    do_format_c2s_state(Event, Msg, State, c2s_data);
+%% Backward compatibility for logs that incorrectly use c2s_state key for StateData
+format_c2s_state_filter(Event=#{msg := {report, Msg=#{c2s_state := State}}}, _) ->
+    try
+        do_format_c2s_state(Event, Msg, State, c2s_state)
+    catch
+        _:_ ->
+            %% Not a c2s_data record, leave as is
+            Event
+    end;
 format_c2s_state_filter(Event, _) ->
     Event.
+
+%% Helper function to format c2s state data
+do_format_c2s_state(Event, Msg, State, KeyToRemove) ->
+    StateMap = filter_undefined(c2s_data_to_map(State)),
+    %% C2S fields have lower priority, if the field is already present in msg.
+    Msg2 = maps:merge(StateMap, maps:remove(KeyToRemove, Msg)),
+    Event#{msg => {report, Msg2}}.
 
 format_acc_filter(Event=#{msg := {report, Msg=#{acc := Acc}}}, _) ->
     FormattedAcc = format_acc(Acc),

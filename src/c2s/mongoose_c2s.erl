@@ -444,7 +444,7 @@ handle_sasl_success(StateData = #c2s_data{jid = MaybeInitialJid, info = Info}, S
                                             info = maps:merge(Info, #{auth_module => AuthMod})},
             El = mongoose_c2s_stanzas:sasl_success_stanza(MaybeServerOut),
             send_acc_from_server_jid(StateData1, SaslAcc, El),
-            ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>, c2s_state => StateData1}),
+            ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>, c2s_data => StateData1}),
             {next_state, {wait_for_stream, authenticated}, StateData1, state_timeout(StateData1)};
         false ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_from())
@@ -551,7 +551,7 @@ verify_user(wait_for_session_establishment, _, _, Acc) ->
 verify_user(session_established, HostType, #{c2s_data := StateData} = HookParams, Acc) ->
     case mongoose_c2s_hooks:user_open_session(HostType, Acc, HookParams) of
         {ok, Acc1} ->
-            ?LOG_INFO(#{what => c2s_opened_session, c2s_state => StateData}),
+            ?LOG_INFO(#{what => c2s_opened_session, c2s_data => StateData}),
             {ok, Acc1};
         {stop, Acc1} ->
             Jid = StateData#c2s_data.jid,
@@ -689,7 +689,7 @@ verify_process_alive(StateData, C2SState, Pid) ->
         true ->
             ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
                            text => <<"Some processes are not responding when handling replace messages">>,
-                           replaced_pid => Pid, state_name => C2SState, c2s_state => StateData})
+                           replaced_pid => Pid, state_name => C2SState, c2s_data => StateData})
     end.
 
 -spec maybe_retry_state(state()) -> state() | {stop, term()}.
@@ -914,7 +914,7 @@ send_trailer(StateData) ->
 
 -spec c2s_stream_error(data(), exml:element()) -> fsm_res().
 c2s_stream_error(StateData, Error) ->
-    ?LOG_DEBUG(#{what => c2s_stream_error, xml_error => Error, c2s_state => StateData}),
+    ?LOG_DEBUG(#{what => c2s_stream_error, xml_error => Error, c2s_data => StateData}),
     send_element_from_server_jid(StateData, Error),
     send_xml(StateData, ?XML_STREAM_TRAILER),
     {stop, {shutdown, stream_error}, StateData}.

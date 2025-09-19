@@ -507,7 +507,7 @@ presence_broadcast_to_trusted(Acc, FromJid, Presences, Packet) ->
 
 -spec resend_offline_messages(mongoose_acc:t(), mongoose_c2s:data()) -> mongoose_acc:t().
 resend_offline_messages(Acc, StateData) ->
-    ?LOG_DEBUG(#{what => resend_offline_messages, acc => Acc, c2s_state => StateData}),
+    ?LOG_DEBUG(#{what => resend_offline_messages, acc => Acc, c2s_data => StateData}),
     Jid = mongoose_c2s:get_jid(StateData),
     Acc1 = mongoose_hooks:resend_offline_messages(Acc, Jid),
     Rs = mongoose_acc:get(offline, messages, [], Acc1),
