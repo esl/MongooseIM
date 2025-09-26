@@ -55,8 +55,10 @@
 
 -spec network_params(map()) -> #amqp_params_network{}.
 network_params(ConnOpts) ->
-    #{host := Host, port := Port, username := UserName, password := Password} = ConnOpts,
+    #{host := Host, port := Port, username := UserName, password := Password,
+      virtual_host := VirtualHost} = ConnOpts,
     #amqp_params_network{host = Host, port = Port, username = UserName, password = Password,
+                         virtual_host = VirtualHost,
                          ssl_options = ssl_options(ConnOpts)}.
 
 -spec exchange_declare(Exchange :: binary(), Type :: binary(), Durable :: boolean()) -> method().
