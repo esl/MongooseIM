@@ -318,6 +318,11 @@ Any other `Tag` can be used for other purposes.
 * **Default:** `"guest"`
 * **Example:** `password = "guest"`
 
+### `outgoing_pools.rabbit.*.connection.virtual_host`
+* **Syntax:** string
+* **Default:** `"/"`
+* **Example:** `virtual_host = "host_example"`
+
 ### `outgoing_pools.rabbit.*.connection.confirms_enabled`
 * **Syntax:** boolean
 * **Default:** `false`

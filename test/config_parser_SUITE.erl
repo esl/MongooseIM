@@ -1085,12 +1085,14 @@ pool_rabbit_connection(_Config) ->
     ?cfg(P ++ [port], 9999, T(#{<<"port">> => 9999})),
     ?cfg(P ++ [username], <<"user">>, T(#{<<"username">> => <<"user">>})),
     ?cfg(P ++ [password], <<"pass">>, T(#{<<"password">> => <<"pass">>})),
+    ?cfg(P ++ [virtual_host], <<"vh">>, T(#{<<"virtual_host">> => <<"vh">>})),
     ?cfg(P ++ [confirms_enabled], true, T(#{<<"confirms_enabled">> => true})),
     ?cfg(P ++ [max_worker_queue_len], 100, T(#{<<"max_worker_queue_len">> => 100})),
     ?err(T(#{<<"host">> => <<>>})),
     ?err(T(#{<<"port">> => 123456})),
     ?err(T(#{<<"username">> => <<>>})),
     ?err(T(#{<<"password">> => <<>>})),
+    ?err(T(#{<<"virtual_host">> => <<>>})),
     ?err(T(#{<<"confirms_enabled">> => <<"yes">>})),
     ?err(T(#{<<"max_worker_queue_len">> => -1})).
 

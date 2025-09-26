@@ -835,6 +835,7 @@ default_pool_conn_opts(rabbit) ->
       port => 5672,
       username => <<"guest">>,
       password => <<"guest">>,
+      virtual_host => <<"/">>,
       confirms_enabled => false,
       max_worker_queue_len => 1000};
 default_pool_conn_opts(redis) ->
