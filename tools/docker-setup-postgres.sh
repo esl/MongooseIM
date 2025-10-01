@@ -1,22 +1,20 @@
 #!/bin/bash
 
-PGSQLDIR=/var/lib/postgresql/data
-
 # Preparing SSL certificates
-cp ${SQL_TEMP_DIR}/fake_cert.pem ${PGSQLDIR}/.
-cp ${SQL_TEMP_DIR}/fake_key.pem ${PGSQLDIR}/.
-chmod 600 ${PGSQLDIR}/fake*
-chown postgres:postgres ${PGSQLDIR}/fake*
+cp ${SQL_TEMP_DIR}/fake_cert.pem ${PGDATA}/.
+cp ${SQL_TEMP_DIR}/fake_key.pem ${PGDATA}/.
+chmod 600 ${PGDATA}/fake*
+chown postgres:postgres ${PGDATA}/fake*
 
 #Copy custom config
-cp ${SQL_TEMP_DIR}/postgresql.conf ${PGSQLDIR}/.
-cp ${SQL_TEMP_DIR}/pg_hba.conf ${PGSQLDIR}/.
+cp ${SQL_TEMP_DIR}/postgresql.conf ${PGDATA}/.
+cp ${SQL_TEMP_DIR}/pg_hba.conf ${PGDATA}/.
 
 #Copy db scheme
-cp ${SQL_TEMP_DIR}/pg.sql ${PGSQLDIR}/.
+cp ${SQL_TEMP_DIR}/pg.sql ${PGDATA}/.
 
 # Configuring postgres
 psql -U postgres -c "CREATE ROLE mongooseim PASSWORD 'mongooseim_secret' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;"
 psql -U postgres -c "CREATE DATABASE mongooseim;"
 # Creating schema
-psql -U postgres -q -d mongooseim -f ${PGSQLDIR}/pg.sql
+psql -U postgres -q -d mongooseim -f ${PGDATA}/pg.sql
