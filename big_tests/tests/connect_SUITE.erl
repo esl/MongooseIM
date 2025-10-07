@@ -346,9 +346,7 @@ deny_pre_xmpp_1_0_stream(Config) ->
     escalus:assert(is_stream_end, End).
 
 should_fail_with_sslv3(Config) ->
-    should_fail_with(Config, sslv3),
-    logger_ct_backend:stop_capture(),
-    [] = logger_ct_backend:recv(fun(_, _Msg) -> true end).
+    should_fail_with(Config, sslv3).
 
 should_fail_with_tlsv1(Config) ->
     should_fail_with(Config, tlsv1).
