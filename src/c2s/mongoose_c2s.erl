@@ -82,21 +82,21 @@ instrumentation(HostType) when is_binary(HostType) ->
 callback_mode() ->
     handle_event_function.
 
--spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), undefined).
+-spec init(mongoose_listener:init_args()) -> gen_statem:init_result(state(), data()).
 init({Transport, Ref, LOpts}) ->
-    ConnectEvent = {next_event, internal, {connect, {Transport, Ref, LOpts}}},
-    {ok, connect, undefined, ConnectEvent}.
+    ConnectEvent = {next_event, internal, {connect, {Transport, Ref}}},
+    {ok, connect, #c2s_data{listener_opts = LOpts}, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
-handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
-    #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
+handle_event(internal, {connect, {Transport, Ref}}, connect, StateData) ->
+    #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts =
+        StateData#c2s_data.listener_opts,
     C2SSocket = mongoose_xmpp_socket:accept(Transport, c2s, Ref, LOpts),
     verify_ip_is_not_blacklisted(C2SSocket),
     {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
-    StateData = #c2s_data{socket = C2SSocket, parser = Parser,
-                          shaper = Shaper, listener_opts = LOpts},
-    {next_state, {wait_for_stream, stream_start}, StateData, state_timeout(LOpts)};
+    StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
+    {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
 
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     handle_stream_start(StateData, Attrs, StreamState);
@@ -201,6 +201,8 @@ handle_event(EventType, EventContent, C2SState, StateData) ->
     handle_foreign_event(StateData, C2SState, EventType, EventContent).
 
 -spec terminate(term(), state(), data()) -> term().
+terminate(Reason, connect, _StateData) ->
+    ?LOG_INFO(#{what => c2s_failed_to_initialize, reason => Reason});
 terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer, sid = SID} = StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
     Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
@@ -405,7 +407,7 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
         {error, timeout} ->
             {stop, {shutdown, tls_timeout}};
         {error, {tls_alert, TlsAlert}} ->
-            {stop, TlsAlert}
+            {stop, {shutdown, {tls_alert, TlsAlert}}}
     end;
 handle_starttls(StateData, _El, _SaslAcc, _Retries) ->
     %% As defined in https://datatracker.ietf.org/doc/html/rfc6120#section-5.4.2.2, cause 2

@@ -74,7 +74,7 @@ groups() ->
                                                  | protocol_test_cases()]},
         {tls, [parallel], auth_bind_pipelined_cases() ++
                           protocol_test_cases() ++
-                          cipher_test_cases()},
+                          cipher_test_cases() ++ [should_fail_without_tls]},
         {verify_peer, [], [use_system_certs_when_no_cacertfile,
                            verify_peer_disconnects_when_client_has_no_cert,
                            verify_peer_ignores_when_client_has_no_cert]},
@@ -136,6 +136,7 @@ suite() ->
 
 init_per_suite(Config) ->
     instrument_helper:start(instrumentation_events()),
+    logger_ct_backend:start(),
     Config0 = escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd, []}} | Config]),
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
     [C2SListener] = mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
@@ -145,6 +146,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     instrument_helper:stop(),
+    logger_ct_backend:stop(),
     escalus_fresh:clean(),
     escalus:delete_users(Config, escalus:get_users([?SECURE_USER, alice])),
     restore_c2s_listener(Config),
@@ -155,7 +157,6 @@ init_per_group(starttls_optional, Config) ->
     Config;
 init_per_group(session_replacement, Config) ->
     configure_c2s_listener(Config, #{tls => tls_opts(starttls, Config)}),
-    logger_ct_backend:start(),
     Config;
 init_per_group(starttls_required, Config) ->
     configure_c2s_listener(Config, #{tls => tls_opts(starttls_required, Config)}),
@@ -179,14 +180,13 @@ init_per_group(proxy_protocol, Config) ->
 init_per_group(disconnect, Config) ->
     configure_c2s_listener(Config, #{state_timeout => 100}),
     Config;
+init_per_group(verify_peer, Config) ->
+    Config;
 init_per_group(_, Config) ->
     Config.
 
-end_per_group(session_replacement, Config) ->
-    logger_ct_backend:stop(),
-    Config;
-end_per_group(_, Config) ->
-    Config.
+end_per_group(_, _Config) ->
+    ok.
 
 init_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
     Config1 = mongoose_helper:backup_and_set_config_option(Config, hide_service_name, true),
@@ -242,6 +242,7 @@ use_system_certs_when_no_cacertfile(Config) ->
     ?assertMatch({ok, _}, ssl:connect("google.com", 443, ClientOpts)).
 
 verify_peer_disconnects_when_client_has_no_cert(Config) ->
+    logger_ct_backend:capture(error),
     %% Server disconnects only when `disconnect_on_failure` is set to `true`.
     %% It is true by default, so we make sure `disconnect_on_failure` is not in config.
     %% `verify_mode` needs to be set to `peer`.
@@ -260,7 +261,10 @@ verify_peer_disconnects_when_client_has_no_cert(Config) ->
     catch
         C:E ->
             error({C, E, Config})
-    end.
+    after
+        logger_ct_backend:stop_capture()
+    end,
+    ?assertEqual([], logger_ct_backend:recv(fun(_, _Msg) -> true end)).
 
 verify_peer_ignores_when_client_has_no_cert(Config) ->
     %% Server bypasses TLS client cert verification when `disconnect_on_failure` is set to `false`.
@@ -351,6 +355,7 @@ should_fail_with_tlsv1_1(Config) ->
     should_fail_with(Config, 'tlsv1.1').
 
 should_fail_with(Config, Protocol) ->
+    logger_ct_backend:capture(error),
     %% Connection process is spawned with a link so besides the crash itself,
     %%   we will receive an exit signal. We don't want to terminate the test due to this.
     %% TODO: Investigate if this behaviour is not a ticking bomb which may affect other test cases.
@@ -366,7 +371,28 @@ should_fail_with(Config, Protocol) ->
     catch
         _C:_R ->
             ok
-    end.
+    after
+        logger_ct_backend:stop_capture()
+    end,
+    ?assertEqual([], logger_ct_backend:recv(fun(_, _Msg) -> true end)).
+
+should_fail_without_tls(Config) ->
+    logger_ct_backend:capture(error),
+    process_flag(trap_exit, true),
+
+    %% WHEN a non-TLS user connects to a TLS listener
+    UserSpec0 = escalus_fresh:create_fresh_user(Config, alice),
+    Port = ct:get_config({hosts, mim, c2s_tls_port}),
+    UserSpec = [{port, Port} | UserSpec0],
+    {ok, Client, _} = escalus_connection:start(UserSpec, [{?MODULE, start_stream}]),
+
+    %% THEN the server should close the connection without logging an error
+    try
+        true = escalus_connection:wait_for_close(Client, timer:seconds(1))
+    after
+        logger_ct_backend:stop_capture()
+    end,
+    ?assertEqual([], logger_ct_backend:recv(fun(_, _Msg) -> true end)).
 
 should_pass_with_tlsv1_2(Config) ->
     UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
