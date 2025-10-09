@@ -383,7 +383,7 @@ Specifies the way server certificate verification works:
 ### `outgoing_pools.*.*.connection.tls.certfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
-* **Example:** `tls.certfile = "server.pem"`
+* **Example:** `tls.certfile = "cert.pem"`
 
 Path to the X509 PEM file with a certificate.
 If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together.

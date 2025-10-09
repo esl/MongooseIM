@@ -217,7 +217,8 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 
 ```
 {tls_config, "
-  tls.certfile = \"priv/ssl/fake_server.pem\"
+  tls.certfile = \"priv/ssl/fake_cert.pem\"
+  tls.keyfile = \"priv/ssl/fake_key.pem\"
   tls.mode = \"starttls\"
 "}.
 ```
