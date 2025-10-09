@@ -29,7 +29,8 @@
      || (E) =/= (V)])).
 -define(SECURE_USER, secure_joe).
 -define(CACERT_FILE, "priv/ssl/cacert.pem").
--define(CERT_FILE, "priv/ssl/fake_server.pem").
+-define(CERT_FILE, "priv/ssl/fake_cert.pem").
+-define(KEY_FILE, "priv/ssl/fake_key.pem").
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
 
 -import(distributed_helper, [mim/0,
@@ -231,11 +232,9 @@ use_system_certs_when_no_cacertfile(Config) ->
     ServerOpts = rpc(mim(), just_tls, make_server_opts, [Opts]),
     ?assertMatch({verify, verify_peer}, lists:keyfind(verify, 1, ServerOpts)),
     ?assertMatch({cacerts, _}, lists:keyfind(cacerts, 1, ServerOpts)),
-    %% `dhfile` is a server only option
-    Opts1 = maps:remove(dhfile, Opts),
-    %% remove fake `certfile`
-    Opts2 = maps:remove(certfile, Opts1),
-    ClientOpts = rpc(mim(), just_tls, make_client_opts, [Opts2]),
+    %% Remove server options
+    Opts1 = maps:without([certfile, keyfile, dhfile], Opts),
+    ClientOpts = rpc(mim(), just_tls, make_client_opts, [Opts1]),
     ?assertMatch({verify, verify_peer}, lists:keyfind(verify, 1, ClientOpts)),
     ?assertMatch({cacerts, _}, lists:keyfind(cacerts, 1, ClientOpts)),
     ok = ssl:start(),
@@ -791,14 +790,16 @@ ciphers_working_with_ssl_clients(Config) ->
     Port = c2s_port(Config),
     Path = rpc(get_node(Port), os, getenv, ["PWD"]),
     CertPath = Path ++ "/" ++ ?CERT_FILE,
+    KeyPath = Path ++ "/" ++ ?KEY_FILE,
     lists:filter(fun(Cipher) ->
-                         openssl_client_can_use_cipher(Cipher, Port, CertPath)
+                         openssl_client_can_use_cipher(Cipher, Port, CertPath, KeyPath)
                  end, ciphers_available_in_os()).
 
-openssl_client_can_use_cipher(Cipher, Port, Path) ->
+openssl_client_can_use_cipher(Cipher, Port, CertPath, KeyPath) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
-          " -cert \"" ++ Path ++ "\""
+          " -cert \"" ++ CertPath ++ "\""
+          " -key \"" ++ KeyPath ++ "\""
           " -cipher \"" ++ Cipher ++ "\" -tls1_2 2>&1",
     Output = os:cmd(Cmd),
     0 == string:str(Output, ":error:") andalso 0 == string:str(Output, "errno=0").
@@ -822,7 +823,8 @@ configure_c2s_listener(Config, ExtraC2SOpts, RemovedC2SKeys) ->
 
 tls_opts(Mode, Config) ->
     ExtraOpts = #{mode => Mode, verify_mode => none,
-                  cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
+                  cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, keyfile => ?KEY_FILE,
+                  dhfile => ?DH_FILE},
     maps:merge(config_parser_helper:default_xmpp_tls(), ExtraOpts).
 
 set_secure_connection_protocol(UserSpec, Version) ->
