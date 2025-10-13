@@ -217,18 +217,29 @@ It means that disabled endpoints are periodically verified and if Global Distrib
 !!! Note
     By default `tls` is disabled and all data will be sent via standard TCP connections.
 
-To enable TLS support, the `cacertfile` and `certfile` options have to be present.
+To enable TLS support, the `cacertfile`, `certfile` and `keyfile` options have to be present.
 These options will be passed to the [Erlang SSL](https://www.erlang.org/doc/apps/ssl/ssl.html) library.
 
 #### `modules.mod_global_distrib.connections.tls.certfile`
 * **Syntax:** string, path in the file system
 * **Default:** none, this options is mandatory to enable TLS support
-* **Example:** `certfile = "priv/dc1.pem"`
+* **Example:** `certfile = "priv/cert.pem"`
+
+Path to the X.509 PEM file with a certificate. If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together.
 
 #### `modules.mod_global_distrib.connections.tls.cacertfile`
 * **Syntax:** string, path in the file system
 * **Default:** none, this options is mandatory to enable TLS support
 * **Example:** `cacertfile = "priv/ca.pem"`
+
+Path to the X.509 PEM file with a CA chain.
+
+#### `modules.mod_global_distrib.connections.tls.keyfile`
+* **Syntax:** string, path in the file system
+* **Default:** none, this options is mandatory to enable TLS support
+* **Example:** `keyfile = "priv/key.pem"`
+
+Path to the X.509 PEM file with the private key.
 
 #### `modules.mod_global_distrib.connections.tls.ciphers`
 * **Syntax:** string

@@ -143,19 +143,16 @@ init_per_group(_, Config) ->
 
 modify_config_and_restart(CyrsaslExternalConfig, Config) ->
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
-    SSLOpts = escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode,
+    SSLOpts = escalus_config:get_config(ssl_options, Config, ""),
     AuthMethods = escalus_config:get_config(auth_methods, Config,
                                             [{auth_method, "pki"}, {auth_method_opts, false}]),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
-    NewConfigValues = [{tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"\n"
-                                    "  tls.cacertfile = \"" ++ CACertFile ++ "\""
-                                    ++ SSLOpts},
-                       {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
-                                      "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"
-                                      "  tls.password = \"\"\n"
-                                      "  tls.cacertfile = \"" ++ CACertFile ++ "\""
-                                      ++ VerifyMode},
+    TLSOpts = "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
+              "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"
+              "  tls.cacertfile = \"" ++ CACertFile ++ "\"" ++ VerifyMode,
+    NewConfigValues = [{tls_config, TLSOpts ++ SSLOpts},
+                       {https_config, TLSOpts},
                        {cyrsasl_external, CyrsaslExternalConfig},
 		       {sasl_mechanisms, "\"external\""} | AuthMethods],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),

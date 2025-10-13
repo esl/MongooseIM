@@ -73,9 +73,9 @@ Options: `peer` and `selfsigned_peer` will use certificates specified in `cacert
 ### `listen.c2s.tls.certfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
-* **Example:** `tls.certfile = "server.pem"`
+* **Example:** `tls.certfile = "cert.pem"`
 
-Path to the X509 PEM file with a certificate (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
+Path to the X509 PEM file with a certificate (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together.
 
 ### `listen.c2s.tls.cacertfile`
 * **Syntax:** string, path in the file system
@@ -103,7 +103,7 @@ Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL document
 * **Default:** not set
 * **Example:** `tls.keyfile = "key.pem"`
 
-Path to the X509 PEM file with the private key. The private key may alternatively be appended to certificates and provided in `listen.c2s.tls.certfile`.
+Path to the X509 PEM file with the private key.
 
 ### `listen.c2s.tls.password`
 * **Syntax:** string
@@ -166,7 +166,8 @@ The following section configures two C2S listeners.
   access = "c2s"
   shaper = "normal"
   max_stanza_size = 65536
-  tls.certfile = "server.pem"
+  tls.certfile = "cert.pem"
+  tls.keyfile = "key.pem"
   tls.dhfile = "dh_server.pem"
 
 [[listen.c2s]]
@@ -174,6 +175,10 @@ The following section configures two C2S listeners.
   access = "c2s"
   shaper = "normal"
   max_stanza_size = 65536
+  tls.mode = "tls"
+  tls.certfile = "cert.pem"
+  tls.keyfile = "key.pem"
+  tls.dhfile = "dh_server.pem"
 ```
 
 * One at port 5222, which accepts a plain TCP connection and allows to use StartTLS for upgrading it to an encrypted one. The files containing the certificate and the DH parameter are also provided.

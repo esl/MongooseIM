@@ -61,6 +61,6 @@ By default only the following applications can be found there:
 
 ## Configuring TLS: Certificates & Keys
 
-TLS private key and certificate (chain) may be specified in __separate__ files, `keyfile` and `certfile` respectively, or the private key can be appended to certificates and provided together in one file specified by `certfile`.
+TLS private key and certificate (chain) have to be be specified in __separate__ files, `keyfile` and `certfile` respectively.
 
 More information about configuring TLS for these endpoints is available in the [listen section configuration](../listeners/listen-c2s.md#tls-options-for-c2s) page.
