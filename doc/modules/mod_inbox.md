@@ -15,7 +15,7 @@ Only RDBMS storage is supported, but `rdbms` means flushes to DB are synchronous
 
 Regular `rdbms` has worse performance characteristics, but it has better consistency properties, as events aren't lost nor reordered. `rdbms_async` processes events asynchronously and potentially unloading a lot of aggregation from the DB. Like the case of the asynchronous workers for MAM, it is the preferred method, with the risk messages being lost on an ungraceful shutdown.
 
-#### `modules.mod_inbox.async_writer.pool_size`
+### `modules.mod_inbox.async_writer.pool_size`
 * **Syntax:** non-negative integer
 * **Default:** `2 * erlang:system_info(schedulers_online)`
 * **Example:** `modules.mod_inbox.async_writer.pool_size = 32`
@@ -34,21 +34,21 @@ A list of supported inbox boxes by the server. This can be used by clients to cl
 
     If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied, either on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin), with the `mongooseimctl inbox` command, through the [GraphQL API](../graphql-api/Admin-GraphQL.md), or through the [REST API](../rest-api/Administration-backend.md).
 
-#### `modules.mod_inbox.bin_ttl`
+### `modules.mod_inbox.bin_ttl`
 * **Syntax:** non-negative integer, expressed in days.
 * **Default:** `30`
 * **Example:** `modules.mod_inbox.bin_ttl = 7`
 
 How old entries in the bin can be before the automatic bin cleaner collects them. A value of `7` would mean that entries that have been in the bin for more than 7 days will be cleaned on the next bin collection.
 
-#### `modules.mod_inbox.bin_clean_after`
+### `modules.mod_inbox.bin_clean_after`
 * **Syntax:** non-negative integer, expressed in hours
 * **Default:** `1`
 * **Example:** `modules.mod_inbox.bin_clean_after = 24`
 
 How often the automatic garbage collection runs over the bin.
 
-#### `modules.mod_inbox.delete_domain_limit`
+### `modules.mod_inbox.delete_domain_limit`
 
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `"infinity"`
@@ -101,7 +101,7 @@ Enabling this option will also clear all inbox entries associated with a destroy
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
-#### `modules.mod_inbox.max_result_limit`
+### `modules.mod_inbox.max_result_limit`
 * **Syntax:** the string `"infinity"` or a positive integer
 * **Default:** `"infinity"`
 * **Example:** `modules.mod_inbox.max_result_limit = 100`
