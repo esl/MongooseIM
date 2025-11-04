@@ -250,7 +250,7 @@ handle_stream_established(StateData, #xmlel{name = Name} = El) ->
             %% If the admin does not want to check the from field when accept packets from any
             %% address. In this case, the component can send packet of behalf of the server users.
             _ ->
-                ok
+                true
         end,
     ToJid = jid:from_binary(exml_query:attr(El, <<"to">>, <<>>)),
     IsStanza = (<<"iq">> =:= Name)
