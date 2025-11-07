@@ -24,7 +24,12 @@ fi
 
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
-    # Don't forget to install gsed command using "brew install gnu-sed"
+    # make sure gsed is installed
+    if ! command -v gsed >/dev/null 2>&1; then
+        echo "Please install gsed:"
+        echo "  brew install gnu-sed"
+        exit 1
+    fi
     SED=gsed
 else
     BASE=`readlink -f ${TOOLS}/..`
