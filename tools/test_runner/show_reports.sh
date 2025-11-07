@@ -18,7 +18,7 @@ function run_http_server_for
     cd "$DIRECTORY"
 
     echo "Running an HTTP server for $ABS_DIRECTORY"
-    python -m SimpleHTTPServer "$PORT" >> http_server.log 2>> http_server.log &
+    python3 -m http.server "$PORT" >> http_server.log 2>> http_server.log &
     echo "Open http://localhost:$PORT in your browser"
 }
 
