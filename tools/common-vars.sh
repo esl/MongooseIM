@@ -2,6 +2,13 @@
 
 TOOLS=`dirname $0`
 
+# make sure base32 is installed
+if [ `uname` = "Darwin" ] && ! command -v base32 >/dev/null 2>&1; then
+    echo "Please install base32:"
+    echo "  brew install coreutils"
+    exit 1
+fi
+
 if echo | base32 -w0 > /dev/null 2>&1; then
       # GNU coreutils base32, '-w' supported
       ENCODER="base32 -w0"
