@@ -74,6 +74,9 @@ Default language for messages sent by the server to users. You can get a full li
 
 ## Database settings
 
+!!! Warning
+    MSSQL backend is deprecated and will be removed in the next release.
+
 RDBMS connection pools are set using [outgoing connections configuration](./outgoing-connections.md).
 There are some additional options that influence all database connections in the server:
 
