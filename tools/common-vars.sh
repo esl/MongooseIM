@@ -2,6 +2,13 @@
 
 TOOLS=`dirname $0`
 
+# make sure base32 is installed
+if [ `uname` = "Darwin" ] && ! command -v base32 >/dev/null 2>&1; then
+    echo "Please install base32:"
+    echo "  brew install coreutils"
+    exit 1
+fi
+
 if echo | base32 -w0 > /dev/null 2>&1; then
       # GNU coreutils base32, '-w' supported
       ENCODER="base32 -w0"
@@ -24,7 +31,12 @@ fi
 
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
-    # Don't forget to install gsed command using "brew install gnu-sed"
+    # make sure gsed is installed
+    if ! command -v gsed >/dev/null 2>&1; then
+        echo "Please install gsed:"
+        echo "  brew install gnu-sed"
+        exit 1
+    fi
     SED=gsed
 else
     BASE=`readlink -f ${TOOLS}/..`
