@@ -156,6 +156,9 @@ for more information.
 
 ### Microsoft SQL Server
 
+!!! Warning
+    MSSQL backend is deprecated and will be removed in the next release.
+
 Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
 !!! Warning
