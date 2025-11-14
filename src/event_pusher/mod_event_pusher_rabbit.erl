@@ -21,9 +21,8 @@
 -module(mod_event_pusher_rabbit).
 -author('kacper.mentel@erlang-solutions.com').
 
--include_lib("mongooseim/include/mongoose.hrl").
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
--include("mongoose_config_spec.hrl").
+-include_lib("mongooseim/include/mongoose_config_spec.hrl").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
@@ -35,8 +34,10 @@
 
 -define(POOL_TAG, event_pusher).
 
+-type exchange_key() :: presence_exchange | chat_msg_exchange | groupchat_msg_exchange.
 -type exchange_opts() :: #{name := binary(), type := binary(),
                            sent_topic => binary(), recv_topic => binary()}.
+-type worker_call_result() :: {ok | error | exit | throw, term()}.
 
 %%%===================================================================
 %%% Exports
@@ -53,8 +54,8 @@
 %%%===================================================================
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
-    create_exchanges(HostType),
+start(HostType, Opts) ->
+    create_exchanges(HostType, Opts),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
@@ -100,13 +101,15 @@ push_event(Acc, _) ->
 %%% Internal functions
 %%%===================================================================
 
--spec create_exchanges(mongooseim:host_type()) -> ok.
-create_exchanges(HostType) ->
-    Exchanges = exchanges(HostType),
-    Res = [call_rabbit_worker(HostType, {amqp_call,
-                                         mongoose_amqp:exchange_declare(ExName, Type)})
-           || #{name := ExName, type := Type} <- Exchanges],
-    verify_exchanges_were_created_or_crash(Res, Exchanges).
+-spec create_exchanges(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+create_exchanges(HostType, Opts) ->
+    Exchanges = maps:with(exchange_keys(), Opts),
+    Results = maps:map(fun(_Key, Value) -> create_exchange(HostType, Value) end, Exchanges),
+    verify_exchanges_were_created_or_crash(Results).
+
+-spec create_exchange(mongooseim:host_type(), exchange_opts()) -> worker_call_result().
+create_exchange(HostType, #{name := ExName, type := Type}) ->
+    call_rabbit_worker(HostType, {amqp_call, mongoose_amqp:exchange_declare(ExName, Type)}).
 
 -spec handle_user_presence_change(mongooseim:host_type(), JID :: jid:jid(), Status :: atom()) -> ok.
 handle_user_presence_change(HostType, JID, Status) ->
@@ -134,7 +137,7 @@ handle_user_chat_event(_HostType, _) -> ok.
 %%% Helpers
 %%%===================================================================
 
--spec call_rabbit_worker(mongooseim:host_type(), Msg :: term()) -> term().
+-spec call_rabbit_worker(mongooseim:host_type(), Msg :: term()) -> worker_call_result().
 call_rabbit_worker(HostType, Msg) ->
     mongoose_wpool:call(rabbit, HostType, ?POOL_TAG, Msg).
 
@@ -142,10 +145,7 @@ call_rabbit_worker(HostType, Msg) ->
 cast_rabbit_worker(HostType, Msg) ->
     mongoose_wpool:cast(rabbit, HostType, ?POOL_TAG, Msg).
 
--spec exchanges(mongooseim:host_type()) -> [exchange_opts()].
-exchanges(HostType) ->
-    [exchange_opts(HostType, ExKey) || ExKey <- exchange_keys()].
-
+-spec exchange_keys() -> [exchange_key()].
 exchange_keys() ->
     [presence_exchange, chat_msg_exchange, groupchat_msg_exchange].
 
@@ -196,15 +196,13 @@ is_user_online(offline) -> false.
 exchange_opts(HostType, ExchangeKey) ->
     gen_mod:get_module_opt(HostType, ?MODULE, ExchangeKey).
 
--spec verify_exchanges_were_created_or_crash(Res :: list(), [exchange_opts()])
-    -> ok | no_return().
-verify_exchanges_were_created_or_crash(Res, Exchanges) ->
-    case lists:all(fun(E) ->
-                           element(2, E) == mongoose_amqp:exchange_declare_ok()
-                   end, Res) of
-        true ->
+-spec verify_exchanges_were_created_or_crash(#{exchange_key() => worker_call_result()}) -> ok.
+verify_exchanges_were_created_or_crash(Res) ->
+    OkResult = {ok, mongoose_amqp:exchange_declare_ok()},
+    Failures = maps:filter(fun(_Key, Value) -> Value =/= OkResult end, Res),
+    case map_size(Failures) of
+        0 ->
             ok;
-        false ->
-            erlang:error(io_lib:format("Creating exchanges failed, exchanges=~p",
-                                       [Exchanges]))
+        _ ->
+            error(#{what => creating_exchanges_failed, failures => Failures})
     end.
