@@ -99,28 +99,52 @@ get_room_config(RoomJID) ->
     end.
 
 -spec create_instant_room(jid:jid(), jid:jid(), binary()) ->
-    {ok, short_room_desc()} | {internal | user_not_found | room_not_found, iolist()}.
+    {ok, short_room_desc()} | {internal | user_not_found | room_not_found | xmpp_error, iolist()}.
 create_instant_room(BareRoomJID = #jid{luser = Name, lresource = <<>>}, OwnerJID, Nick) ->
     %% Because these stanzas are sent on the owner's behalf through
     %% the HTTP API, they will certainly receive stanzas as a
     %% consequence, even if their client(s) did not initiate this.
-    case ejabberd_auth:does_user_exist(OwnerJID) of
-        true ->
-            UserRoomJID = jid:replace_resource(BareRoomJID, Nick),
-            %% Send presence to create a room.
-            ejabberd_router:route(OwnerJID, UserRoomJID,
-                                  presence(OwnerJID, UserRoomJID, undefined)),
-            %% Send IQ set to unlock the room.
-            ejabberd_router:route(OwnerJID, BareRoomJID,
-                                  declination(OwnerJID, BareRoomJID)),
-            case verify_room(BareRoomJID, OwnerJID) of
-                ok ->
-                    {ok, #{jid => BareRoomJID, title => Name, private => false, users_number => 0}};
-                Error ->
-                    Error
-            end;
-       false ->
-            ?USER_NOT_FOUND_RESULT
+    maybe
+        ok ?= verify_user(OwnerJID),
+        #jid{} = UserRoomJID = jid:replace_resource(BareRoomJID, Nick),
+        ok ?= create_room(OwnerJID, UserRoomJID),
+        ok ?= unlock_room(OwnerJID, BareRoomJID),
+        ok ?= verify_room(BareRoomJID, OwnerJID),
+        {ok, #{jid => BareRoomJID, title => Name, private => false, users_number => 0}}
+    end.
+
+%% Check if the provided user exists.
+-spec verify_user(jid:jid()) -> ok | {user_not_found, iolist()}.
+verify_user(JID) ->
+    case ejabberd_auth:does_user_exist(JID) of
+        true -> ok;
+        false -> ?USER_NOT_FOUND_RESULT
+    end.
+
+%% Send presence to create a room.
+-spec create_room(jid:jid(), jid:jid()) -> ok | {xmpp_error, iolist()}.
+create_room(OwnerJID, UserRoomJID) ->
+    CreationStanza = presence(OwnerJID, UserRoomJID, undefined),
+    ResponseAcc = ejabberd_router:route(OwnerJID, UserRoomJID, CreationStanza),
+    ResponseEl = mongoose_acc:element(ResponseAcc),
+    verify_xmpp_response(ResponseEl).
+
+%% Send IQ set to unlock the room.
+-spec unlock_room(jid:jid(), jid:jid()) -> ok | {xmpp_error, iolist()}.
+unlock_room(OwnerJID, BareRoomJID) ->
+    UnlockStanza = declination(OwnerJID, BareRoomJID),
+    ResponseAcc = ejabberd_router:route(OwnerJID, BareRoomJID, UnlockStanza),
+    ResponseEl = mongoose_acc:element(ResponseAcc),
+    verify_xmpp_response(ResponseEl).
+
+%% Check if the stanza has an <error/> element.
+-spec verify_xmpp_response(exml:element() | undefined) -> ok | {xmpp_error, iolist()}.
+verify_xmpp_response(undefined) ->
+    {xmpp_error, "No response from the server"};
+verify_xmpp_response(#xmlel{} = Response) ->
+    case exml_query:subelement(Response, <<"error">>) of
+        undefined -> ok;
+        #xmlel{children = [#xmlel{name = Error}]} -> {xmpp_error, binary_to_list(Error)}
     end.
 
 -spec modify_room_config(jid:jid(), jid:jid(), room_conf_mod_fun()) ->
