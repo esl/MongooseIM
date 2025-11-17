@@ -17,25 +17,7 @@
 -import(domain_helper, [domain/0]).
 -import(config_parser_helper, [config/2]).
 
--export([suite/0, all/0, groups/0]).
--export([init_per_suite/1, end_per_suite/1,
-         init_per_group/2, end_per_group/2,
-         init_per_testcase/2, end_per_testcase/2]).
-
--export([rabbit_pool_starts_with_default_config/1,
-         exchanges_are_created_on_module_startup/1]).
--export([connected_users_push_presence_events_when_change_status/1,
-         presence_messages_are_properly_formatted/1]).
--export([chat_message_sent_event/1,
-         chat_message_sent_event_properly_formatted/1,
-         chat_message_received_event/1,
-         chat_message_received_event_properly_formatted/1]).
--export([group_chat_message_sent_event/1,
-         group_chat_message_sent_event_properly_formatted/1,
-         group_chat_message_received_event/1,
-         group_chat_message_received_event_properly_formatted/1]).
--export([connections_events_are_executed/1,
-         messages_published_events_are_executed/1]).
+-compile([export_all, nowarn_export_all]).
 
 -define(QUEUE_NAME, <<"test_queue">>).
 -define(DEFAULT_EXCHANGE_TYPE, <<"topic">>).
