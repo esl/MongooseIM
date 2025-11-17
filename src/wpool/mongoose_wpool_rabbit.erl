@@ -20,7 +20,7 @@ start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
                {pool_tag, Tag},
                {confirms, Confirms},
                {max_queue_len, MaxQueueLen}]},
-    WpoolOpts = [{worker, Worker} | WpoolOptsIn],
+    WpoolOpts = [{worker, Worker}, {pool_sup_shutdown, timer:seconds(5)} | WpoolOptsIn],
     mongoose_wpool:start_sup_pool(rabbit, PoolName, WpoolOpts).
 
 -spec stop(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> ok.
