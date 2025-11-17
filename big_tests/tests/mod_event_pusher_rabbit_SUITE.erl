@@ -462,13 +462,19 @@ messages_published_events_are_executed(Config) ->
             %% GIVEN
             BobJID = client_lower_short_jid(Bob),
             BobChatMsgSentRK = chat_msg_sent_rk(BobJID),
-            listen_to_chat_msg_sent_events_from_rabbit([BobJID], Config),
+            SentBindings = chat_msg_sent_bindings(?QUEUE_NAME, [BobJID]),
+            AliceJID = client_lower_short_jid(Alice),
+            AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
+            RecvBindings = chat_msg_recv_bindings(?QUEUE_NAME, [AliceJID]),
+            listen_to_events_from_rabbit(SentBindings ++ RecvBindings, Config),
             %% WHEN users chat
             Msg = <<"Oh, hi Alice from the event's test!">>,
             escalus:send(Bob,
                          escalus_stanza:chat_to(Alice, Msg)),
             %% THEN wait for chat message sent events from Rabbit.
             ?assertReceivedMatch({#'basic.deliver'{routing_key = BobChatMsgSentRK},
+                                  #amqp_msg{}}, timer:seconds(5)),
+            ?assertReceivedMatch({#'basic.deliver'{routing_key = AliceChatMsgRecvRK},
                                   #amqp_msg{}}, timer:seconds(5)),
             instrument_helper:assert(wpool_rabbit_messages_published,
                                      #{host_type => domain(), pool_tag => event_pusher},
