@@ -1,4 +1,6 @@
-﻿GO
+﻿/* Warning: MSSQL backend is deprecated and will be removed in the next release */
+
+GO
 CREATE TABLE [dbo].[test_types](
     [unicode] [nvarchar](max),
     [unicode250] [nvarchar](250),
