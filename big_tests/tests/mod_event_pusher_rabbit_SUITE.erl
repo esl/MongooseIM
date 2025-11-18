@@ -190,8 +190,7 @@ exchanges_are_created_on_module_startup(Config) ->
     ExCustomType = <<"headers">>,
     Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE, ?GROUP_CHAT_MSG_EXCHANGE],
     %% THEN exchanges are created
-    [?assert(ensure_exchange_present(Connection, {Exchange, ExCustomType}))
-     || Exchange <- Exchanges].
+    [ensure_exchange_present(Connection, {Exchange, ExCustomType}) || Exchange <- Exchanges].
 
 %%--------------------------------------------------------------------
 %% GROUP presence_status_publish
@@ -587,22 +586,15 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                                                  routing_key = RoutingKey,
                                                  queue = Queue}).
 
--spec ensure_exchange_present(Connection :: pid(), Exchange :: binary()) ->
+-spec ensure_exchange_present(Connection :: pid(), Exchange :: {binary(), binary()}) ->
                                      {ok, true} | {timeout, any()}.
-ensure_exchange_present(Connection, Exchange) ->
+ensure_exchange_present(Connection, Exchange = {ExName, _}) ->
     Opts = #{time_left => ?WAIT_FOR_EXCHANGE_INTERVAL * ?IF_EXCHANGE_EXISTS_RETRIES / 1000,
-             sleep_time => ?WAIT_FOR_EXCHANGE_INTERVAL},
-    case wait_helper:wait_until(fun() ->
-                                        is_exchange_present(Connection,
-                                                            Exchange)
-                                end, true, Opts) of
-        {ok, true} -> true;
-        {timeout, _} ->
-            throw(io_lib:format("Exchange has not been created, exchange=~p",
-                                [Exchange]))
-    end.
+             sleep_time => ?WAIT_FOR_EXCHANGE_INTERVAL,
+             name => binary_to_atom(ExName)},
+    wait_helper:wait_until(fun() -> is_exchange_present(Connection, Exchange) end, true, Opts).
 
--spec is_exchange_present(Connection :: pid(), Exchange :: binary()) -> boolean().
+-spec is_exchange_present(Connection :: pid(), Exchange :: {binary(), binary()}) -> boolean().
 is_exchange_present(Connection, {ExName, ExType}) ->
     {ok, Channel} = amqp_connection:open_channel(Connection),
     try amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
