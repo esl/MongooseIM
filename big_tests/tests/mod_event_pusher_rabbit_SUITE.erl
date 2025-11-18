@@ -45,7 +45,9 @@ all() ->
     [
      {group, pool_startup},
      {group, module_startup},
+     {group, only_presence_module_startup},
      {group, presence_status_publish},
+     {group, only_presence_status_publish},
      {group, chat_message_publish},
      {group, group_chat_message_publish},
      {group, instrumentation}
@@ -61,10 +63,20 @@ groups() ->
           [
            exchanges_are_created_on_module_startup
           ]},
+         {only_presence_module_startup, [],
+          [
+           only_presence_exchange_is_created_on_module_startup
+          ]},
          {presence_status_publish, [],
           [
            connected_users_push_presence_events_when_change_status,
            presence_messages_are_properly_formatted
+          ]},
+         {only_presence_status_publish, [],
+          [
+           connected_users_push_presence_events_when_change_status,
+           presence_messages_are_properly_formatted,
+           messages_published_events_are_not_executed
           ]},
          {chat_message_publish, [],
           [
@@ -130,7 +142,13 @@ mod_event_pusher_rabbit_opts(GroupName) ->
     ExtraOpts = extra_exchange_opts(GroupName),
     maps:map(fun(Key, Opts) ->
                      config([modules, mod_event_pusher, rabbit, Key], maps:merge(Opts, ExtraOpts))
-             end, basic_exchanges()).
+             end, exchanges(GroupName)).
+
+exchanges(GroupName) when GroupName =:= only_presence_module_startup;
+                          GroupName =:= only_presence_status_publish ->
+    maps:with([presence_exchange], basic_exchanges());
+exchanges(_GroupName) ->
+    basic_exchanges().
 
 basic_exchanges() ->
     #{presence_exchange => #{name => ?PRESENCE_EXCHANGE},
@@ -192,8 +210,18 @@ exchanges_are_created_on_module_startup(Config) ->
     %% THEN exchanges are created
     [ensure_exchange_present(Connection, {Exchange, ExCustomType}) || Exchange <- Exchanges].
 
+only_presence_exchange_is_created_on_module_startup(Config) ->
+    %% GIVEN module is started with custom exchange types
+    Connection = proplists:get_value(rabbit_connection, Config),
+    ExCustomType = <<"headers">>,
+    %% THEN only the enabled exchanges are created
+    ensure_exchange_present(Connection, {?PRESENCE_EXCHANGE, ExCustomType}),
+    ct:sleep(200), % wait for any unwanted exchanges
+    ?assertNot(is_exchange_present(Connection, {?CHAT_MSG_EXCHANGE, ExCustomType})),
+    ?assertNot(is_exchange_present(Connection, {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType})).
+
 %%--------------------------------------------------------------------
-%% GROUP presence_status_publish
+%% GROUP (only_)presence_status_publish
 %%--------------------------------------------------------------------
 
 connected_users_push_presence_events_when_change_status(Config) ->
@@ -224,6 +252,23 @@ presence_messages_are_properly_formatted(Config) ->
               ?assertMatch(#{<<"user_id">> := BobFullJID, <<"present">> := false},
                            get_decoded_message_from_rabbit(BobJID))
       end).
+
+messages_published_events_are_not_executed(Config) ->
+    escalus:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            %% WHEN users chat
+            Msg = <<"Hi Alice! There will be no events for this message.">>,
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg)),
+            %% THEN there is no attempt to publish anything
+            ct:sleep(500), % wait for any unexpected events
+            instrument_helper:assert_not_emitted(wpool_rabbit_messages_published,
+                                                 #{host_type => domain(), pool_tag => event_pusher},
+                                                 fun(#{count := 1, payload := P}) ->
+                                                         {amqp_msg, _, BinData} = P,
+                                                         binary:match(BinData, Msg) /= nomatch
+                                                 end)
+        end).
 
 %%--------------------------------------------------------------------
 %% GROUP chat_message_publish
