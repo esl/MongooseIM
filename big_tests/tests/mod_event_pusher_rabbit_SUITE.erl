@@ -526,12 +526,13 @@ listen_to_events_from_rabbit(QueueBindings, Config) ->
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
     declare_temporary_rabbit_queue(Channel, ?QUEUE_NAME),
-    wait_for_exchanges_to_be_created(Connection,
-                                     [{?PRESENCE_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
-                                      {?CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
-                                      {?GROUP_CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE}]),
+    wait_for_exchanges_to_be_created(Connection, get_enabled_exchanges()),
     bind_queues_to_exchanges(Channel, QueueBindings),
     subscribe_to_rabbit_queue(Channel, ?QUEUE_NAME).
+
+get_enabled_exchanges() ->
+    Opts = rpc(mim(), gen_mod, get_module_opts, [domain(), mod_event_pusher_rabbit]),
+    [{Name, ?DEFAULT_EXCHANGE_TYPE} || _Name := #{name := Name} <- Opts].
 
 -spec wait_for_exchanges_to_be_created(Connection :: pid(),
                                        Exchanges :: [binary()]) -> pid().
