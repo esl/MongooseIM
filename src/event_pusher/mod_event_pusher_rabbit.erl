@@ -75,9 +75,7 @@ msg_exchange_spec(Name) ->
                                 <<"recv_topic">> => #option{type = binary,
                                                             validate = non_empty}},
                  defaults = Defaults#{<<"sent_topic">> => <<Name/binary, "_sent">>,
-                                      <<"recv_topic">> => <<Name/binary, "_recv">>},
-                 include = always
-                }.
+                                      <<"recv_topic">> => <<Name/binary, "_recv">>}}.
 
 exchange_spec(Name) ->
     #section{items = #{<<"name">> => #option{type = binary,
@@ -85,8 +83,7 @@ exchange_spec(Name) ->
                        <<"type">> => #option{type = binary,
                                              validate = non_empty}},
              defaults = #{<<"name">> => Name,
-                          <<"type">> => <<"topic">>},
-             include = always}.
+                          <<"type">> => <<"topic">>}}.
 
 -spec push_event(mongoose_acc:t(), mod_event_pusher:event()) -> mongoose_acc:t().
 push_event(Acc, Event) ->
