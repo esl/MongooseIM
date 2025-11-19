@@ -89,7 +89,8 @@ group_chat_message_publish_tests() ->
     [group_chat_message_sent_event,
      group_chat_message_sent_event_properly_formatted,
      group_chat_message_received_event,
-     group_chat_message_received_event_properly_formatted].
+     group_chat_message_received_event_properly_formatted,
+     group_chat_displayed_marker_is_skipped].
 
 instrumentation_tests() ->
     [connections_events_are_executed,
@@ -456,6 +457,31 @@ group_chat_message_received_event_properly_formatted(Config) ->
                            get_decoded_message_from_rabbit(AliceGroupChatMsgRecvRK))
       end).
 
+group_chat_displayed_marker_is_skipped(Config) ->
+    escalus:story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              %% GIVEN basic variables
+              Room = ?config(room, Config),
+              RoomAddr = muc_helper:room_address(Room),
+              AliceJID = client_lower_short_jid(Alice),
+              RoutingKeys = [group_chat_msg_sent_rk(AliceJID), group_chat_msg_recv_rk(AliceJID)],
+              SentBindings = group_chat_msg_sent_bindings(?QUEUE_NAME, [AliceJID]),
+              RecvBindings = group_chat_msg_recv_bindings(?QUEUE_NAME, [AliceJID]),
+              %% GIVEN users in room
+              escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room, nick(Alice))),
+              % wait for all room stanzas to be processed
+              escalus:wait_for_stanzas(Alice, 2),
+              listen_to_events_from_rabbit(SentBindings ++ RecvBindings, Config),
+              %% WHEN Alice sends a displayed marker (which is a groupchat message w/o body)
+              Marker = escalus_stanza:chat_marker(RoomAddr, <<"displayed">>, <<"id-123">>),
+              escalus:send(Alice, escalus_stanza:setattr(Marker, <<"type">>, <<"groupchat">>)),
+              escalus:assert(is_chat_marker, [<<"displayed">>, <<"id-123">>],
+                             escalus:wait_for_stanza(Alice)),
+              %% THEN there are no sent/recv events in Rabbit
+              assert_no_message_from_rabbit(tl(RoutingKeys))
+      end).
+
 %%--------------------------------------------------------------------
 %% GROUP instrumentation
 %%--------------------------------------------------------------------
@@ -672,15 +698,28 @@ send_presence_stanza(User, NumOfMsgs) ->
     [escalus:send(User, escalus_stanza:presence(make_pres_type(X)))
      || X <- lists:seq(1, NumOfMsgs)].
 
--spec get_decoded_message_from_rabbit(RoutingKey :: binary()) ->
-    map() | no_return().
+-spec get_decoded_message_from_rabbit(RoutingKey :: binary()) -> map().
 get_decoded_message_from_rabbit(RoutingKey) ->
     receive
         {#'basic.deliver'{routing_key = RoutingKey}, #amqp_msg{payload = Msg}} ->
             jiffy:decode(Msg, [return_maps])
     after
-        5000 -> ct:fail(io_lib:format("Timeout when decoding message, rk=~p",
-                                   [RoutingKey]))
+        5000 -> ct:fail("Timeout when decoding message, rk=~p", [RoutingKey])
+    end.
+
+-spec assert_no_message_from_rabbit(RoutingKeys :: [binary()]) -> ok.
+assert_no_message_from_rabbit(RoutingKeys) ->
+    receive
+        {#'basic.deliver'{routing_key = RoutingKey}, #amqp_msg{payload = Msg}} ->
+            case lists:member(RoutingKey, RoutingKeys) of
+                true ->
+                    ct:fail("Unexpected rabbit message, rk=~p~nmessage: ~p", [RoutingKey, Msg]);
+                false ->
+                    ct:log("Skipping rabbit message, rk=~p,~nmessage:~p", [RoutingKey, Msg]),
+                    assert_no_message_from_rabbit(RoutingKeys)
+            end
+    after
+        500 -> ok % To save time, this timeout is shorter than in the positive test
     end.
 
 %%--------------------------------------------------------------------
