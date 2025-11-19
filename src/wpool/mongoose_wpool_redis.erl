@@ -34,4 +34,11 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
     [{worker, Worker} | WpoolOptsIn].
 
 makeargs(Opts = #{host := _Host, port := _Port, database := _Database, password := _Password}) ->
-    proplists:from_map(Opts) ++ [{reconnect_sleep, 100}, {connect_timeout, 5000}].
+    BaseOpts = maps:with([host, port, database, password], Opts),
+    TlsOpts = tls_opts(Opts),
+    proplists:from_map(BaseOpts) ++ TlsOpts ++ [{reconnect_sleep, 100}, {connect_timeout, 5000}].
+
+tls_opts(#{tls := TLSOpts}) ->
+    [{tls, just_tls:make_client_opts(TLSOpts)}];
+tls_opts(#{}) ->
+    [].
