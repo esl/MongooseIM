@@ -54,50 +54,46 @@ all() ->
     ].
 
 groups() ->
-    [
-         {pool_startup, [],
-          [
-           rabbit_pool_starts_with_default_config
-          ]},
-         {module_startup, [],
-          [
-           exchanges_are_created_on_module_startup
-          ]},
-         {only_presence_module_startup, [],
-          [
-           only_presence_exchange_is_created_on_module_startup
-          ]},
-         {presence_status_publish, [],
-          [
-           connected_users_push_presence_events_when_change_status,
-           presence_messages_are_properly_formatted
-          ]},
-         {only_presence_status_publish, [],
-          [
-           connected_users_push_presence_events_when_change_status,
-           presence_messages_are_properly_formatted,
-           messages_published_events_are_not_executed
-          ]},
-         {chat_message_publish, [],
-          [
-           chat_message_sent_event,
-           chat_message_sent_event_properly_formatted,
-           chat_message_received_event,
-           chat_message_received_event_properly_formatted
-          ]},
-         {group_chat_message_publish, [],
-          [
-           group_chat_message_sent_event,
-           group_chat_message_sent_event_properly_formatted,
-           group_chat_message_received_event,
-           group_chat_message_received_event_properly_formatted
-          ]},
-         {instrumentation, [],
-          [
-           connections_events_are_executed,
-           messages_published_events_are_executed
-          ]}
-    ].
+    [{pool_startup, [], pool_startup_tests()},
+     {module_startup, [], module_startup_tests()},
+     {only_presence_module_startup, [], only_presence_module_startup_tests()},
+     {presence_status_publish, [], presence_status_publish_tests()},
+     {only_presence_status_publish, [], only_presence_status_publish_tests()},
+     {chat_message_publish, [], chat_message_publish_tests()},
+     {group_chat_message_publish, [], group_chat_message_publish_tests()},
+     {instrumentation, [], instrumentation_tests()}].
+
+pool_startup_tests() ->
+    [rabbit_pool_starts_with_default_config].
+
+module_startup_tests() ->
+    [exchanges_are_created_on_module_startup].
+
+only_presence_module_startup_tests() ->
+    [only_presence_exchange_is_created_on_module_startup].
+
+presence_status_publish_tests() ->
+    [connected_users_push_presence_events_when_change_status,
+     presence_messages_are_properly_formatted].
+
+only_presence_status_publish_tests() ->
+    [messages_published_events_are_not_executed | presence_status_publish_tests()].
+
+chat_message_publish_tests() ->
+    [chat_message_sent_event,
+     chat_message_sent_event_properly_formatted,
+     chat_message_received_event,
+     chat_message_received_event_properly_formatted].
+
+group_chat_message_publish_tests() ->
+    [group_chat_message_sent_event,
+     group_chat_message_sent_event_properly_formatted,
+     group_chat_message_received_event,
+     group_chat_message_received_event_properly_formatted].
+
+instrumentation_tests() ->
+    [connections_events_are_executed,
+     messages_published_events_are_executed].
 
 suite() ->
     escalus:suite().
@@ -736,21 +732,17 @@ client_lower_full_jid(Client) ->
 
 nick(User) -> escalus_utils:get_username(User).
 
-maybe_prepare_muc(TestCase, Config) when
-      TestCase == group_chat_message_sent_event orelse
-      TestCase == group_chat_message_received_event orelse
-      TestCase == group_chat_message_sent_event_properly_formatted orelse
-      TestCase == group_chat_message_received_event_properly_formatted ->
-    prepare_muc(Config);
-maybe_prepare_muc(_, Config) -> Config.
+maybe_prepare_muc(TestCase, Config) ->
+    case lists:member(TestCase, group_chat_message_publish_tests()) of
+        true -> prepare_muc(Config);
+        false -> Config
+    end.
 
-maybe_cleanup_muc(TestCase, Config) when
-      TestCase == group_chat_message_sent_event orelse
-      TestCase == group_chat_message_received_event orelse
-      TestCase == group_chat_message_sent_event_properly_formatted orelse
-      TestCase == group_chat_message_received_event_properly_formatted ->
-    cleanup_muc(Config);
-maybe_cleanup_muc(_, _) -> ok.
+maybe_cleanup_muc(TestCase, Config) ->
+    case lists:member(TestCase, group_chat_message_publish_tests()) of
+        true -> cleanup_muc(Config);
+        false -> ok
+    end.
 
 prepare_muc(Config) ->
     [User | _] = ?config(escalus_users, Config),
