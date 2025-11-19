@@ -17,25 +17,7 @@
 -import(domain_helper, [domain/0]).
 -import(config_parser_helper, [config/2]).
 
--export([suite/0, all/0, groups/0]).
--export([init_per_suite/1, end_per_suite/1,
-         init_per_group/2, end_per_group/2,
-         init_per_testcase/2, end_per_testcase/2]).
-
--export([rabbit_pool_starts_with_default_config/1,
-         exchanges_are_created_on_module_startup/1]).
--export([connected_users_push_presence_events_when_change_status/1,
-         presence_messages_are_properly_formatted/1]).
--export([chat_message_sent_event/1,
-         chat_message_sent_event_properly_formatted/1,
-         chat_message_received_event/1,
-         chat_message_received_event_properly_formatted/1]).
--export([group_chat_message_sent_event/1,
-         group_chat_message_sent_event_properly_formatted/1,
-         group_chat_message_received_event/1,
-         group_chat_message_received_event_properly_formatted/1]).
--export([connections_events_are_executed/1,
-         messages_published_events_are_executed/1]).
+-compile([export_all, nowarn_export_all]).
 
 -define(QUEUE_NAME, <<"test_queue">>).
 -define(DEFAULT_EXCHANGE_TYPE, <<"topic">>).
@@ -63,7 +45,9 @@ all() ->
     [
      {group, pool_startup},
      {group, module_startup},
+     {group, only_presence_module_startup},
      {group, presence_status_publish},
+     {group, only_presence_status_publish},
      {group, chat_message_publish},
      {group, group_chat_message_publish},
      {group, instrumentation}
@@ -79,10 +63,20 @@ groups() ->
           [
            exchanges_are_created_on_module_startup
           ]},
+         {only_presence_module_startup, [],
+          [
+           only_presence_exchange_is_created_on_module_startup
+          ]},
          {presence_status_publish, [],
           [
            connected_users_push_presence_events_when_change_status,
            presence_messages_are_properly_formatted
+          ]},
+         {only_presence_status_publish, [],
+          [
+           connected_users_push_presence_events_when_change_status,
+           presence_messages_are_properly_formatted,
+           messages_published_events_are_not_executed
           ]},
          {chat_message_publish, [],
           [
@@ -148,7 +142,13 @@ mod_event_pusher_rabbit_opts(GroupName) ->
     ExtraOpts = extra_exchange_opts(GroupName),
     maps:map(fun(Key, Opts) ->
                      config([modules, mod_event_pusher, rabbit, Key], maps:merge(Opts, ExtraOpts))
-             end, basic_exchanges()).
+             end, exchanges(GroupName)).
+
+exchanges(GroupName) when GroupName =:= only_presence_module_startup;
+                          GroupName =:= only_presence_status_publish ->
+    maps:with([presence_exchange], basic_exchanges());
+exchanges(_GroupName) ->
+    basic_exchanges().
 
 basic_exchanges() ->
     #{presence_exchange => #{name => ?PRESENCE_EXCHANGE},
@@ -208,11 +208,20 @@ exchanges_are_created_on_module_startup(Config) ->
     ExCustomType = <<"headers">>,
     Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE, ?GROUP_CHAT_MSG_EXCHANGE],
     %% THEN exchanges are created
-    [?assert(ensure_exchange_present(Connection, {Exchange, ExCustomType}))
-     || Exchange <- Exchanges].
+    [ensure_exchange_present(Connection, {Exchange, ExCustomType}) || Exchange <- Exchanges].
+
+only_presence_exchange_is_created_on_module_startup(Config) ->
+    %% GIVEN module is started with custom exchange types
+    Connection = proplists:get_value(rabbit_connection, Config),
+    ExCustomType = <<"headers">>,
+    %% THEN only the enabled exchanges are created
+    ensure_exchange_present(Connection, {?PRESENCE_EXCHANGE, ExCustomType}),
+    ct:sleep(200), % wait for any unwanted exchanges
+    ?assertNot(is_exchange_present(Connection, {?CHAT_MSG_EXCHANGE, ExCustomType})),
+    ?assertNot(is_exchange_present(Connection, {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType})).
 
 %%--------------------------------------------------------------------
-%% GROUP presence_status_publish
+%% GROUP (only_)presence_status_publish
 %%--------------------------------------------------------------------
 
 connected_users_push_presence_events_when_change_status(Config) ->
@@ -243,6 +252,23 @@ presence_messages_are_properly_formatted(Config) ->
               ?assertMatch(#{<<"user_id">> := BobFullJID, <<"present">> := false},
                            get_decoded_message_from_rabbit(BobJID))
       end).
+
+messages_published_events_are_not_executed(Config) ->
+    escalus:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            %% WHEN users chat
+            Msg = <<"Hi Alice! There will be no events for this message.">>,
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg)),
+            %% THEN there is no attempt to publish anything
+            ct:sleep(500), % wait for any unexpected events
+            instrument_helper:assert_not_emitted(wpool_rabbit_messages_published,
+                                                 #{host_type => domain(), pool_tag => event_pusher},
+                                                 fun(#{count := 1, payload := P}) ->
+                                                         {amqp_msg, _, BinData} = P,
+                                                         binary:match(BinData, Msg) /= nomatch
+                                                 end)
+        end).
 
 %%--------------------------------------------------------------------
 %% GROUP chat_message_publish
@@ -462,13 +488,19 @@ messages_published_events_are_executed(Config) ->
             %% GIVEN
             BobJID = client_lower_short_jid(Bob),
             BobChatMsgSentRK = chat_msg_sent_rk(BobJID),
-            listen_to_chat_msg_sent_events_from_rabbit([BobJID], Config),
+            SentBindings = chat_msg_sent_bindings(?QUEUE_NAME, [BobJID]),
+            AliceJID = client_lower_short_jid(Alice),
+            AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
+            RecvBindings = chat_msg_recv_bindings(?QUEUE_NAME, [AliceJID]),
+            listen_to_events_from_rabbit(SentBindings ++ RecvBindings, Config),
             %% WHEN users chat
             Msg = <<"Oh, hi Alice from the event's test!">>,
             escalus:send(Bob,
                          escalus_stanza:chat_to(Alice, Msg)),
             %% THEN wait for chat message sent events from Rabbit.
             ?assertReceivedMatch({#'basic.deliver'{routing_key = BobChatMsgSentRK},
+                                  #amqp_msg{}}, timer:seconds(5)),
+            ?assertReceivedMatch({#'basic.deliver'{routing_key = AliceChatMsgRecvRK},
                                   #amqp_msg{}}, timer:seconds(5)),
             instrument_helper:assert(wpool_rabbit_messages_published,
                                      #{host_type => domain(), pool_tag => event_pusher},
@@ -539,12 +571,13 @@ listen_to_events_from_rabbit(QueueBindings, Config) ->
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
     declare_temporary_rabbit_queue(Channel, ?QUEUE_NAME),
-    wait_for_exchanges_to_be_created(Connection,
-                                     [{?PRESENCE_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
-                                      {?CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
-                                      {?GROUP_CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE}]),
+    wait_for_exchanges_to_be_created(Connection, get_enabled_exchanges()),
     bind_queues_to_exchanges(Channel, QueueBindings),
     subscribe_to_rabbit_queue(Channel, ?QUEUE_NAME).
+
+get_enabled_exchanges() ->
+    Opts = rpc(mim(), gen_mod, get_module_opts, [domain(), mod_event_pusher_rabbit]),
+    [{Name, ?DEFAULT_EXCHANGE_TYPE} || _Name := #{name := Name} <- Opts].
 
 -spec wait_for_exchanges_to_be_created(Connection :: pid(),
                                        Exchanges :: [binary()]) -> pid().
@@ -599,22 +632,15 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                                                  routing_key = RoutingKey,
                                                  queue = Queue}).
 
--spec ensure_exchange_present(Connection :: pid(), Exchange :: binary()) ->
+-spec ensure_exchange_present(Connection :: pid(), Exchange :: {binary(), binary()}) ->
                                      {ok, true} | {timeout, any()}.
-ensure_exchange_present(Connection, Exchange) ->
+ensure_exchange_present(Connection, Exchange = {ExName, _}) ->
     Opts = #{time_left => ?WAIT_FOR_EXCHANGE_INTERVAL * ?IF_EXCHANGE_EXISTS_RETRIES / 1000,
-             sleep_time => ?WAIT_FOR_EXCHANGE_INTERVAL},
-    case wait_helper:wait_until(fun() ->
-                                        is_exchange_present(Connection,
-                                                            Exchange)
-                                end, true, Opts) of
-        {ok, true} -> true;
-        {timeout, _} ->
-            throw(io_lib:format("Exchange has not been created, exchange=~p",
-                                [Exchange]))
-    end.
+             sleep_time => ?WAIT_FOR_EXCHANGE_INTERVAL,
+             name => binary_to_atom(ExName)},
+    wait_helper:wait_until(fun() -> is_exchange_present(Connection, Exchange) end, true, Opts).
 
--spec is_exchange_present(Connection :: pid(), Exchange :: binary()) -> boolean().
+-spec is_exchange_present(Connection :: pid(), Exchange :: {binary(), binary()}) -> boolean().
 is_exchange_present(Connection, {ExName, ExType}) ->
     {ok, Channel} = amqp_connection:open_channel(Connection),
     try amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,

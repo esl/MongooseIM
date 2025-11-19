@@ -1,7 +1,3 @@
-## Current status
-
-**This module is still in an experimental phase.**
-
 ## Module Description
 
 This module is a backend of [mod_event_pusher] that enables support for the
@@ -27,7 +23,10 @@ to make the module work. It's well advised to read through
 [*Advanced configuration/Outgoing connections*](../configuration/outgoing-connections.md)
 section before enabling the module.
 
-## Presence exchange options
+## Presence options
+
+To enable user presence notifications, you need to include the `presence_exchange` section in your configuration.
+The specified exchange will be created automatically.
 
 ### `modules.mod_event_pusher.rabbit.presence_exchange.name`
 * **Syntax:** non-empty string
@@ -44,6 +43,9 @@ Defines RabbitMQ presence exchange name.
 Defines RabbitMQ presence exchange type.
 
 ## Chat message options
+
+To enable private chat message notifications, you need to include the `chat_msg_exchange` section in your configuration.
+The specified exchange will be created automatically.
 
 ### `modules.mod_event_pusher.rabbit.chat_msg_exchange.name`
 * **Syntax:** non-empty string
@@ -75,6 +77,9 @@ Defines RabbitMQ chat message received topic name.
 
 ## Group chat message options
 
+To enable group chat message notifications, you need to include the `groupchat_msg_exchange` section in your configuration.
+The specified exchange will be created automatically.
+
 ### `modules.mod_event_pusher.rabbit.groupchat_msg_exchange.name`
 * **Syntax:** non-empty string
 * **Default:** `"groupchat_msg"`
@@ -105,16 +110,23 @@ Defines RabbitMQ group chat message received topic name.
 
 ## Example configuration
 
+The following example enables all types of notifications with custom exchange and topic names:
+
 ```toml
 [modules.mod_event_pusher.rabbit]
-  presence_exchange.name ="presence"
-  presence_exchange.type = "topic"
+  presence_exchange.name = "presence"
   chat_msg_exchange.name = "chat_msg"
   chat_msg_exchange.sent_topic = "chat_msg_sent"
   chat_msg_exchange.recv_topic = "chat_msg_recv"
   groupchat_msg_exchange.name = "groupchat_msg"
   groupchat_msg_exchange.sent_topic = "groupchat_msg_sent"
   groupchat_msg_exchange.recv_topic = "groupchat_msg_recv"
+```
+
+This alternative version enables only the presence notifications, and uses default settings:
+
+```toml
+[modules.mod_event_pusher_rabbit.presence_exchange]
 ```
 
 ## JSON Schema examples

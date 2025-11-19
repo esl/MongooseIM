@@ -1896,16 +1896,14 @@ mod_event_pusher_http(_Config) ->
 
 mod_event_pusher_rabbit(_Config) ->
     P = [modules, mod_event_pusher, rabbit],
-    T = fun(Key, Opts) -> #{<<"modules">> =>
-                                #{<<"mod_event_pusher">> =>
-                                      #{<<"rabbit">> => #{Key => Opts}}}}
-        end,
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_event_pusher">> => #{<<"rabbit">> => Opts}}} end,
+    ?cfgh(P, default_config(P), T(#{})),
     test_event_pusher_rabbit_exchange(P ++ [presence_exchange],
-                                      fun(Opts) -> T(<<"presence_exchange">>, Opts) end),
+                                      fun(Opts) -> T(#{<<"presence_exchange">> => Opts}) end),
     test_event_pusher_rabbit_msg_exchange(P ++ [chat_msg_exchange],
-                                          fun(Opts) -> T(<<"chat_msg_exchange">>, Opts) end),
+                                          fun(Opts) -> T(#{<<"chat_msg_exchange">> => Opts}) end),
     test_event_pusher_rabbit_msg_exchange(P ++ [groupchat_msg_exchange],
-                                          fun(Opts) -> T(<<"groupchat_msg_exchange">>, Opts) end).
+                                          fun(Opts) -> T(#{<<"groupchat_msg_exchange">> => Opts}) end).
 
 test_event_pusher_rabbit_msg_exchange(P, T) ->
     test_event_pusher_rabbit_exchange(P, T),

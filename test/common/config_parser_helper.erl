@@ -1189,10 +1189,6 @@ default_config([modules, mod_event_pusher, push, wpool]) ->
     (default_wpool_opts())#{strategy := available_worker};
 default_config([modules, mod_pubsub, wpool]) ->
     default_wpool_opts();
-default_config([modules, mod_event_pusher, rabbit] = P) ->
-    #{presence_exchange => default_config(P ++ [presence_exchange]),
-      chat_msg_exchange => default_config(P ++ [chat_msg_exchange]),
-      groupchat_msg_exchange => default_config(P ++ [groupchat_msg_exchange])};
 default_config([modules, mod_event_pusher, rabbit, presence_exchange]) ->
     #{name => <<"presence">>, type => <<"topic">>};
 default_config([modules, mod_event_pusher, rabbit, chat_msg_exchange]) ->
