@@ -54,50 +54,47 @@ all() ->
     ].
 
 groups() ->
-    [
-         {pool_startup, [],
-          [
-           rabbit_pool_starts_with_default_config
-          ]},
-         {module_startup, [],
-          [
-           exchanges_are_created_on_module_startup
-          ]},
-         {only_presence_module_startup, [],
-          [
-           only_presence_exchange_is_created_on_module_startup
-          ]},
-         {presence_status_publish, [],
-          [
-           connected_users_push_presence_events_when_change_status,
-           presence_messages_are_properly_formatted
-          ]},
-         {only_presence_status_publish, [],
-          [
-           connected_users_push_presence_events_when_change_status,
-           presence_messages_are_properly_formatted,
-           messages_published_events_are_not_executed
-          ]},
-         {chat_message_publish, [],
-          [
-           chat_message_sent_event,
-           chat_message_sent_event_properly_formatted,
-           chat_message_received_event,
-           chat_message_received_event_properly_formatted
-          ]},
-         {group_chat_message_publish, [],
-          [
-           group_chat_message_sent_event,
-           group_chat_message_sent_event_properly_formatted,
-           group_chat_message_received_event,
-           group_chat_message_received_event_properly_formatted
-          ]},
-         {instrumentation, [],
-          [
-           connections_events_are_executed,
-           messages_published_events_are_executed
-          ]}
-    ].
+    [{pool_startup, [], pool_startup_tests()},
+     {module_startup, [], module_startup_tests()},
+     {only_presence_module_startup, [], only_presence_module_startup_tests()},
+     {presence_status_publish, [], presence_status_publish_tests()},
+     {only_presence_status_publish, [], only_presence_status_publish_tests()},
+     {chat_message_publish, [], chat_message_publish_tests()},
+     {group_chat_message_publish, [], group_chat_message_publish_tests()},
+     {instrumentation, [], instrumentation_tests()}].
+
+pool_startup_tests() ->
+    [rabbit_pool_starts_with_default_config].
+
+module_startup_tests() ->
+    [exchanges_are_created_on_module_startup].
+
+only_presence_module_startup_tests() ->
+    [only_presence_exchange_is_created_on_module_startup].
+
+presence_status_publish_tests() ->
+    [connected_users_push_presence_events_when_change_status,
+     presence_messages_are_properly_formatted].
+
+only_presence_status_publish_tests() ->
+    [messages_published_events_are_not_executed | presence_status_publish_tests()].
+
+chat_message_publish_tests() ->
+    [chat_message_sent_event,
+     chat_message_sent_event_properly_formatted,
+     chat_message_received_event,
+     chat_message_received_event_properly_formatted].
+
+group_chat_message_publish_tests() ->
+    [group_chat_message_sent_event,
+     group_chat_message_sent_event_properly_formatted,
+     group_chat_message_received_event,
+     group_chat_message_received_event_properly_formatted,
+     group_chat_displayed_marker_is_skipped].
+
+instrumentation_tests() ->
+    [connections_events_are_executed,
+     messages_published_events_are_executed].
 
 suite() ->
     escalus:suite().
@@ -460,6 +457,31 @@ group_chat_message_received_event_properly_formatted(Config) ->
                            get_decoded_message_from_rabbit(AliceGroupChatMsgRecvRK))
       end).
 
+group_chat_displayed_marker_is_skipped(Config) ->
+    escalus:story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              %% GIVEN basic variables
+              Room = ?config(room, Config),
+              RoomAddr = muc_helper:room_address(Room),
+              AliceJID = client_lower_short_jid(Alice),
+              RoutingKeys = [group_chat_msg_sent_rk(AliceJID), group_chat_msg_recv_rk(AliceJID)],
+              SentBindings = group_chat_msg_sent_bindings(?QUEUE_NAME, [AliceJID]),
+              RecvBindings = group_chat_msg_recv_bindings(?QUEUE_NAME, [AliceJID]),
+              %% GIVEN users in room
+              escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room, nick(Alice))),
+              % wait for all room stanzas to be processed
+              escalus:wait_for_stanzas(Alice, 2),
+              listen_to_events_from_rabbit(SentBindings ++ RecvBindings, Config),
+              %% WHEN Alice sends a displayed marker (which is a groupchat message w/o body)
+              Marker = escalus_stanza:chat_marker(RoomAddr, <<"displayed">>, <<"id-123">>),
+              escalus:send(Alice, escalus_stanza:setattr(Marker, <<"type">>, <<"groupchat">>)),
+              escalus:assert(is_chat_marker, [<<"displayed">>, <<"id-123">>],
+                             escalus:wait_for_stanza(Alice)),
+              %% THEN there are no sent/recv events in Rabbit
+              assert_no_message_from_rabbit(tl(RoutingKeys))
+      end).
+
 %%--------------------------------------------------------------------
 %% GROUP instrumentation
 %%--------------------------------------------------------------------
@@ -676,15 +698,28 @@ send_presence_stanza(User, NumOfMsgs) ->
     [escalus:send(User, escalus_stanza:presence(make_pres_type(X)))
      || X <- lists:seq(1, NumOfMsgs)].
 
--spec get_decoded_message_from_rabbit(RoutingKey :: binary()) ->
-    map() | no_return().
+-spec get_decoded_message_from_rabbit(RoutingKey :: binary()) -> map().
 get_decoded_message_from_rabbit(RoutingKey) ->
     receive
         {#'basic.deliver'{routing_key = RoutingKey}, #amqp_msg{payload = Msg}} ->
             jiffy:decode(Msg, [return_maps])
     after
-        5000 -> ct:fail(io_lib:format("Timeout when decoding message, rk=~p",
-                                   [RoutingKey]))
+        5000 -> ct:fail("Timeout when decoding message, rk=~p", [RoutingKey])
+    end.
+
+-spec assert_no_message_from_rabbit(RoutingKeys :: [binary()]) -> ok.
+assert_no_message_from_rabbit(RoutingKeys) ->
+    receive
+        {#'basic.deliver'{routing_key = RoutingKey}, #amqp_msg{payload = Msg}} ->
+            case lists:member(RoutingKey, RoutingKeys) of
+                true ->
+                    ct:fail("Unexpected rabbit message, rk=~p~nmessage: ~p", [RoutingKey, Msg]);
+                false ->
+                    ct:log("Skipping rabbit message, rk=~p,~nmessage:~p", [RoutingKey, Msg]),
+                    assert_no_message_from_rabbit(RoutingKeys)
+            end
+    after
+        500 -> ok % To save time, this timeout is shorter than in the positive test
     end.
 
 %%--------------------------------------------------------------------
@@ -736,21 +771,17 @@ client_lower_full_jid(Client) ->
 
 nick(User) -> escalus_utils:get_username(User).
 
-maybe_prepare_muc(TestCase, Config) when
-      TestCase == group_chat_message_sent_event orelse
-      TestCase == group_chat_message_received_event orelse
-      TestCase == group_chat_message_sent_event_properly_formatted orelse
-      TestCase == group_chat_message_received_event_properly_formatted ->
-    prepare_muc(Config);
-maybe_prepare_muc(_, Config) -> Config.
+maybe_prepare_muc(TestCase, Config) ->
+    case lists:member(TestCase, group_chat_message_publish_tests()) of
+        true -> prepare_muc(Config);
+        false -> Config
+    end.
 
-maybe_cleanup_muc(TestCase, Config) when
-      TestCase == group_chat_message_sent_event orelse
-      TestCase == group_chat_message_received_event orelse
-      TestCase == group_chat_message_sent_event_properly_formatted orelse
-      TestCase == group_chat_message_received_event_properly_formatted ->
-    cleanup_muc(Config);
-maybe_cleanup_muc(_, _) -> ok.
+maybe_cleanup_muc(TestCase, Config) ->
+    case lists:member(TestCase, group_chat_message_publish_tests()) of
+        true -> cleanup_muc(Config);
+        false -> ok
+    end.
 
 prepare_muc(Config) ->
     [User | _] = ?config(escalus_users, Config),

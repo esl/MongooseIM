@@ -118,10 +118,15 @@ create_exchange(HostType, #{name := ExName, type := Type}) ->
 -spec handle_event(mongooseim:host_type(), #user_status_event{} | #chat_event{},
                    exchange_opts()) -> ok.
 handle_event(HostType, Event, ExchangeOpts = #{name := ExchangeName}) ->
-    RoutingKey = routing_key(Event, ExchangeOpts),
-    PublishMethod = mongoose_amqp:basic_publish(ExchangeName, RoutingKey),
-    AMQPMessage = mongoose_amqp:message(iolist_to_binary(jiffy:encode(message(Event)))),
-    cast_rabbit_worker(HostType, {amqp_publish, PublishMethod, AMQPMessage}).
+    case message(Event) of
+        Message = #{} ->
+            RoutingKey = routing_key(Event, ExchangeOpts),
+            PublishMethod = mongoose_amqp:basic_publish(ExchangeName, RoutingKey),
+            AMQPMessage = mongoose_amqp:message(iolist_to_binary(jiffy:encode(Message))),
+            cast_rabbit_worker(HostType, {amqp_publish, PublishMethod, AMQPMessage});
+        skip ->
+            ok
+    end.
 
 %%%===================================================================
 %%% Helpers
@@ -147,15 +152,19 @@ routing_key(#chat_event{direction = in, from = From}, #{sent_topic := Topic}) ->
 routing_key(#chat_event{direction = out, to = To}, #{recv_topic := Topic}) ->
     user_topic_routing_key(To, Topic).
 
--spec message(#user_status_event{} | #chat_event{}) -> #{atom() => binary()}.
+-spec message(#user_status_event{} | #chat_event{}) -> skip | #{atom() => binary()}.
 message(#user_status_event{jid = JID, status = Status}) ->
     #{user_id => jid:to_binary(jid:to_lower(JID)),
       present => is_user_online(Status)};
 message(#chat_event{packet = Packet, from = From, to = To}) ->
-    MsgBody = exml_query:path(Packet, [{element, <<"body">>}, cdata]),
-    #{to_user_id => jid:to_binary(jid:to_lower(To)),
-      message => MsgBody,
-      from_user_id => jid:to_binary(jid:to_lower(From))}.
+    case exml_query:path(Packet, [{element, <<"body">>}, cdata]) of
+        undefined ->
+            skip; % skip (group)chat messages w/o body, e.g. displayed markers
+        MsgBody ->
+            #{from_user_id => jid:to_binary(jid:to_lower(From)),
+              to_user_id => jid:to_binary(jid:to_lower(To)),
+              message => MsgBody}
+    end.
 
 -spec event_to_key(mod_event_pusher:event()) -> {ok, exchange_key()} | skip.
 event_to_key(#user_status_event{}) -> {ok, presence_exchange};
