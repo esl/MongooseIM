@@ -56,6 +56,7 @@
 -define(USER_CANNOT_ACCESS_ROOM_RESULT,
         {not_allowed, "Given user does not have permission to read this room"}).
 -define(ROOM_NOT_FOUND_RESULT, {room_not_found, "Room not found"}).
+-define(COULD_NOT_CREATE_ROOM_RESULT, {could_not_create_room, "Error while creating a room"}).
 -define(DELETE_NONEXISTENT_ROOM_RESULT, {room_not_found, "Cannot remove non-existent room"}).
 -define(USER_NOT_FOUND_RESULT, {user_not_found, "Given user not found"}).
 -define(MUC_SERVER_NOT_FOUND_RESULT, {muc_server_not_found, "MUC server not found"}).
@@ -99,7 +100,7 @@ get_room_config(RoomJID) ->
     end.
 
 -spec create_instant_room(jid:jid(), jid:jid(), binary()) ->
-    {ok, short_room_desc()} | {internal | user_not_found | room_not_found | xmpp_error, iolist()}.
+    {ok, short_room_desc()} | {internal | user_not_found | could_not_create_room, iolist()}.
 create_instant_room(BareRoomJID = #jid{luser = Name, lresource = <<>>}, OwnerJID, Nick) ->
     %% Because these stanzas are sent on the owner's behalf through
     %% the HTTP API, they will certainly receive stanzas as a
@@ -109,7 +110,7 @@ create_instant_room(BareRoomJID = #jid{luser = Name, lresource = <<>>}, OwnerJID
         #jid{} = UserRoomJID = jid:replace_resource(BareRoomJID, Nick),
         ok ?= create_room(OwnerJID, UserRoomJID),
         ok ?= unlock_room(OwnerJID, BareRoomJID),
-        ok ?= verify_room(BareRoomJID, OwnerJID),
+        ok ?= verify_room_creation(BareRoomJID, OwnerJID),
         {ok, #{jid => BareRoomJID, title => Name, private => false, users_number => 0}}
     end.
 
@@ -122,29 +123,31 @@ verify_user(JID) ->
     end.
 
 %% Send presence to create a room.
--spec create_room(jid:jid(), jid:jid()) -> ok | {xmpp_error, iolist()}.
+-spec create_room(jid:jid(), jid:jid()) -> ok | {could_not_create_room, iolist()}.
 create_room(OwnerJID, UserRoomJID) ->
     CreationStanza = presence(OwnerJID, UserRoomJID, undefined),
     ResponseAcc = ejabberd_router:route(OwnerJID, UserRoomJID, CreationStanza),
     ResponseEl = mongoose_acc:element(ResponseAcc),
-    verify_xmpp_response(ResponseEl).
+    verify_routing_result(ResponseEl).
 
 %% Send IQ set to unlock the room.
--spec unlock_room(jid:jid(), jid:jid()) -> ok | {xmpp_error, iolist()}.
+-spec unlock_room(jid:jid(), jid:jid()) -> ok | {could_not_create_room, iolist()}.
 unlock_room(OwnerJID, BareRoomJID) ->
     UnlockStanza = declination(OwnerJID, BareRoomJID),
     ResponseAcc = ejabberd_router:route(OwnerJID, BareRoomJID, UnlockStanza),
-    ResponseEl = mongoose_acc:element(ResponseAcc),
-    verify_xmpp_response(ResponseEl).
+    ResponseEl = #xmlel{} = mongoose_acc:element(ResponseAcc),
+    verify_routing_result(ResponseEl).
 
 %% Check if the stanza has an <error/> element.
--spec verify_xmpp_response(exml:element() | undefined) -> ok | {xmpp_error, iolist()}.
-verify_xmpp_response(undefined) ->
-    {xmpp_error, "No response from the server"};
-verify_xmpp_response(#xmlel{} = Response) ->
+-spec verify_routing_result(exml:element()) -> ok | {could_not_create_room, iolist()}.
+verify_routing_result(#xmlel{} = Response) ->
     case exml_query:subelement(Response, <<"error">>) of
-        undefined -> ok;
-        #xmlel{children = [#xmlel{name = Error}]} -> {xmpp_error, binary_to_list(Error)}
+        undefined ->
+            ok;
+        #xmlel{children = [#xmlel{name = <<"service-unavailable">>}]} ->
+            {could_not_create_room, "Could not create room due to incorrect domain"};
+        #xmlel{children = [#xmlel{name = _Error}]} ->
+            ?COULD_NOT_CREATE_ROOM_RESULT
     end.
 
 -spec modify_room_config(jid:jid(), jid:jid(), room_conf_mod_fun()) ->
@@ -495,6 +498,17 @@ room_desc_to_map(Desc) ->
             Private = {-1, 0} =/= PrivatePos,
             Number = binary_to_integer(binary:part(Desc, NumberPos)),
             #{title => Title, private => Private, users_number => Number}
+    end.
+
+-spec verify_room_creation(jid:jid(), jid:jid()) -> ok | {could_not_create_room, term()}.
+verify_room_creation(BareRoomJID, OwnerJID) ->
+    case verify_room(BareRoomJID, OwnerJID) of
+        ok ->
+            ok;
+        {internal, "Room is locked"} ->
+            {could_not_create_room, "Could not unlock room after creation"};
+        ?ROOM_NOT_FOUND_RESULT ->
+            ?COULD_NOT_CREATE_ROOM_RESULT
     end.
 
 -spec verify_room(jid:jid(), jid:jid()) -> ok | {internal | room_not_found, term()}.
