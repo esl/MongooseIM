@@ -50,6 +50,7 @@ user_muc_tests() ->
      user_try_delete_nonexistent_room,
      user_try_delete_room_by_not_owner,
      user_try_create_instant_room_with_nonexistent_domain,
+     user_try_create_instant_room_with_nonexistent_subdomain,
      user_try_create_instant_room_with_invalid_args,
      user_list_rooms,
      user_try_list_rooms_for_nonexistent_domain,
@@ -114,6 +115,7 @@ admin_muc_tests() ->
      admin_create_and_delete_room,
      admin_create_room_with_unprepped_name,
      admin_try_create_instant_room_with_nonexistent_domain,
+     admin_try_create_instant_room_with_nonexistent_subdomain,
      admin_try_create_instant_room_with_nonexistent_user,
      admin_try_create_instant_room_with_invalid_args,
      admin_try_delete_nonexistent_room,
@@ -426,7 +428,17 @@ admin_try_create_instant_room_with_nonexistent_domain(Config) ->
 
 admin_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
     Res = create_instant_room(jid:make_bare(rand_name(), <<"unknown">>), Alice, <<"Ali">>, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
+    ?assertEqual(<<"Error while creating a room">>, get_err_msg(Res)).
+
+admin_try_create_instant_room_with_nonexistent_subdomain(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun admin_try_create_instant_room_with_nonexistent_subdomain_story/2).
+
+admin_try_create_instant_room_with_nonexistent_subdomain_story(Config, Alice) ->
+    TopDomain = escalus_client:server(Alice),
+    RoomJID = jid:make_bare(rand_name(), <<"unknown_muc.", TopDomain/binary>>),
+    Res = create_instant_room(RoomJID, Alice, <<"Ali">>, Config),
+    ?assertEqual(<<"Could not create room due to incorrect domain">>, get_err_msg(Res)).
 
 admin_try_create_instant_room_with_nonexistent_user(Config) ->
     RoomJID = jid:make_bare(rand_name(), muc_helper:muc_host()),
@@ -1131,7 +1143,17 @@ user_try_create_instant_room_with_nonexistent_domain(Config) ->
 user_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
     RoomJID = jid:make_bare(rand_name(), <<"unknown">>),
     Res = user_create_instant_room(Alice, RoomJID, <<"Ali">>, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
+    ?assertEqual(<<"Error while creating a room">>, get_err_msg(Res)).
+
+user_try_create_instant_room_with_nonexistent_subdomain(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_try_create_instant_room_with_nonexistent_subdomain_story/2).
+
+user_try_create_instant_room_with_nonexistent_subdomain_story(Config, Alice) ->
+    TopDomain = escalus_client:server(Alice),
+    RoomJID = jid:make_bare(rand_name(), <<"unknown_muc.", TopDomain/binary>>),
+    Res = user_create_instant_room(Alice, RoomJID, <<"Ali">>, Config),
+    ?assertEqual(<<"Could not create room due to incorrect domain">>, get_err_msg(Res)).
 
 user_try_create_instant_room_with_invalid_args(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
