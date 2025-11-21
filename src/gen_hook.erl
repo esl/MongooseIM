@@ -21,7 +21,7 @@
 %% exported for unit tests only
 -export([error_running_hook/5]).
 
--ignore_xref([start_link/0, add_handlers/1, delete_handlers/1]).
+-ignore_xref([start_link/0, delete_handler/5]).
 
 -include("safely.hrl").
 -include("mongoose.hrl").
