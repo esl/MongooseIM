@@ -39,7 +39,7 @@ hooks(HostType) ->
 
 -doc "For user status events, add timestamp and session count. Filter out other events.".
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
-                 gen_hook:extra()) -> {ok | stop, mod_event_pusher:acc()}.
+                 gen_hook:extra()) -> gen_hook:hook_fn_ret(mod_event_pusher:push_event_acc()).
 push_event(HookAcc = #{acc := Acc}, #{event := #user_status_event{jid = JID}}, _Extra) ->
     #{metadata := Metadata} = HookAcc,
     NewMetadata = Metadata#{timestamp => mongoose_acc:timestamp(Acc),
