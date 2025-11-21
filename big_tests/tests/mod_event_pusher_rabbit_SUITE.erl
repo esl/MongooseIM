@@ -50,7 +50,8 @@ all() ->
      {group, only_presence_status_publish},
      {group, chat_message_publish},
      {group, group_chat_message_publish},
-     {group, instrumentation}
+     {group, instrumentation},
+     {group, filter_and_metadata}
     ].
 
 groups() ->
@@ -61,7 +62,8 @@ groups() ->
      {only_presence_status_publish, [], only_presence_status_publish_tests()},
      {chat_message_publish, [], chat_message_publish_tests()},
      {group_chat_message_publish, [], group_chat_message_publish_tests()},
-     {instrumentation, [], instrumentation_tests()}].
+     {instrumentation, [], instrumentation_tests()},
+     {filter_and_metadata, [], filter_and_metadata_tests()}].
 
 pool_startup_tests() ->
     [rabbit_pool_starts_with_default_config].
@@ -96,6 +98,10 @@ instrumentation_tests() ->
     [connections_events_are_executed,
      messages_published_events_are_executed].
 
+filter_and_metadata_tests() ->
+    [messages_published_events_are_not_executed,
+     presence_messages_are_properly_formatted_with_metadata].
+
 suite() ->
     escalus:suite().
 
@@ -112,6 +118,7 @@ init_per_suite(Config) ->
             start_rabbit_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
+            mongoose_helper:inject_module(mod_event_pusher_filter),
             escalus:init_per_suite(Config);
         false ->
             {skip, "RabbitMQ server is not available on default port."}
@@ -132,6 +139,9 @@ init_per_group(GroupName, Config0) ->
 
 required_modules(pool_startup) ->
     [{mod_event_pusher, stopped}];
+required_modules(filter_and_metadata = GroupName) ->
+    [{mod_event_pusher_filter, #{}},
+     {mod_event_pusher, #{rabbit => mod_event_pusher_rabbit_opts(GroupName)}}];
 required_modules(GroupName) ->
     [{mod_event_pusher, #{rabbit => mod_event_pusher_rabbit_opts(GroupName)}}].
 
@@ -218,7 +228,7 @@ only_presence_exchange_is_created_on_module_startup(Config) ->
     ?assertNot(is_exchange_present(Connection, {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType})).
 
 %%--------------------------------------------------------------------
-%% GROUP (only_)presence_status_publish
+%% GROUP (only_)presence_status_publish, filter_and_metadata
 %%--------------------------------------------------------------------
 
 connected_users_push_presence_events_when_change_status(Config) ->
@@ -236,19 +246,30 @@ connected_users_push_presence_events_when_change_status(Config) ->
       end).
 
 presence_messages_are_properly_formatted(Config) ->
-    escalus:story(
+    escalus:fresh_story_with_config(
+      Config, [{bob, 1}], fun presence_messages_are_properly_formatted_story/2).
+
+presence_messages_are_properly_formatted_with_metadata(Config) ->
+    escalus:fresh_story_with_config(
       Config, [{bob, 1}],
-      fun(Bob) ->
-              %% GIVEN
-              BobJID = client_lower_short_jid(Bob),
-              BobFullJID = client_lower_full_jid(Bob),
-              listen_to_presence_events_from_rabbit([BobJID], Config),
-              %% WHEN user logout
-              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
-              %% THEN receive message
-              ?assertMatch(#{<<"user_id">> := BobFullJID, <<"present">> := false},
-                           get_decoded_message_from_rabbit(BobJID))
+      fun(_, Bob) ->
+              TS = rpc(mim(), erlang, system_time, [microsecond]),
+              DecodedMessage = presence_messages_are_properly_formatted_story(Config, Bob),
+              #{<<"timestamp">> := T, <<"session_count">> := 0} = DecodedMessage,
+              ?assert(is_integer(T) andalso T > TS)
       end).
+
+presence_messages_are_properly_formatted_story(Config, Bob) ->
+    %% GIVEN
+    BobJID = client_lower_short_jid(Bob),
+    BobFullJID = client_lower_full_jid(Bob),
+    listen_to_presence_events_from_rabbit([BobJID], Config),
+    %% WHEN user logout
+    escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+    %% THEN receive message
+    DecodedMessage = get_decoded_message_from_rabbit(BobJID),
+    ?assertMatch(#{<<"user_id">> := BobFullJID, <<"present">> := false}, DecodedMessage),
+    DecodedMessage.
 
 messages_published_events_are_not_executed(Config) ->
     escalus:story(
@@ -702,6 +723,7 @@ send_presence_stanza(User, NumOfMsgs) ->
 get_decoded_message_from_rabbit(RoutingKey) ->
     receive
         {#'basic.deliver'{routing_key = RoutingKey}, #amqp_msg{payload = Msg}} ->
+            ct:log("Decoded rabbit message, rk=~p~nmessage:~ts", [RoutingKey, Msg]),
             jiffy:decode(Msg, [return_maps])
     after
         5000 -> ct:fail("Timeout when decoding message, rk=~p", [RoutingKey])

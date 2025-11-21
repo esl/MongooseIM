@@ -12,7 +12,6 @@
 -module(mod_event_pusher_push).
 -author('rafal.slota@erlang-solutions.com').
 -behavior(gen_mod).
--behavior(mod_event_pusher).
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 357}, {version, "0.4.1"}]).
 
@@ -29,13 +28,13 @@
 %%--------------------------------------------------------------------
 
 %% gen_mod behaviour
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0]).
 
 %% mongoose_module_metrics behaviour
 -export([config_metrics/1]).
 
-%% mod_event_pusher behaviour
--export([push_event/2]).
+%% hook handlers
+-export([push_event/3]).
 
 %% Hooks and IQ handlers
 -export([iq_handler/4,
@@ -66,7 +65,6 @@ start(HostType, Opts) ->
     mod_event_pusher_push_backend:init(HostType, Opts),
     mod_event_pusher_push_plugin:init(HostType, Opts),
     init_iq_handlers(HostType, Opts),
-    gen_hook:add_handler(remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 90),
     ok.
 
 start_pool(HostType, #{wpool := WpoolOpts}) ->
@@ -80,13 +78,16 @@ init_iq_handlers(HostType, #{iqdisc := IQDisc}) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handler(remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 90),
-
     gen_iq_handler:remove_iq_handler(ejabberd_sm, HostType, ?NS_PUSH),
     gen_iq_handler:remove_iq_handler(ejabberd_local, HostType, ?NS_PUSH),
 
     mongoose_wpool:stop(generic, HostType, pusher_push),
     ok.
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 90},
+     {push_event, HostType, fun ?MODULE:push_event/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -109,21 +110,6 @@ wpool_spec() ->
     Wpool#section{include = always}.
 
 %%--------------------------------------------------------------------
-%% mod_event_pusher callbacks
-%%--------------------------------------------------------------------
--spec push_event(mongoose_acc:t(),  mod_event_pusher:event()) -> mongoose_acc:t().
-push_event(Acc, Event = #chat_event{direction = out, to = To, type = Type})
-  when Type =:= groupchat;
-       Type =:= chat ->
-    BareRecipient = jid:to_bare(To),
-    do_push_event(Acc, Event, BareRecipient);
-push_event(Acc, Event = #unack_msg_event{to = To}) ->
-    BareRecipient = jid:to_bare(To),
-    do_push_event(Acc, Event, BareRecipient);
-push_event(Acc, _) ->
-    Acc.
-
-%%--------------------------------------------------------------------
 %% Hooks and IQ handlers
 %%--------------------------------------------------------------------
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
@@ -134,6 +120,23 @@ remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
     R = mod_event_pusher_push_backend:disable(LServer, jid:make_noprep(LUser, LServer, <<>>)),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     {ok, Acc}.
+
+-spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
+                 gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
+push_event(HookAcc, #{event := Event = #chat_event{direction = out, to = To, type = Type}}, _Extra)
+  when Type =:= groupchat;
+       Type =:= chat ->
+    #{acc := Acc} = HookAcc,
+    BareRecipient = jid:to_bare(To),
+    NewAcc = do_push_event(Acc, Event, BareRecipient),
+    {ok, HookAcc#{acc := NewAcc}};
+push_event(HookAcc = #{acc := Acc}, #{event := Event = #unack_msg_event{to = To}}, _Extra) ->
+    BareRecipient = jid:to_bare(To),
+    #{acc := Acc} = HookAcc,
+    NewAcc = do_push_event(Acc, Event, BareRecipient),
+    {ok, HookAcc#{acc := NewAcc}};
+push_event(HookAcc, _Params, _Extra) ->
+    {ok, HookAcc}.
 
 -spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) ->

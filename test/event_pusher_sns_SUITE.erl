@@ -134,20 +134,23 @@ send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
     Sender = ?config(sender, Config),
     Recipient = ?config(recipient, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(?ACC_PARAMS),
-                                    #chat_event{type = chat, direction = in,
-                                                from = Sender, to = Recipient,
-                                                packet = Packet}).
+    push_event(#chat_event{type = chat, direction = in,
+                           from = Sender, to = Recipient,
+                           packet = Packet}).
 
 user_present_callback(Config) ->
     Jid = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(?ACC_PARAMS),
-                                    #user_status_event{jid = Jid, status = online}).
+    push_event(#user_status_event{jid = Jid, status = online}).
 
 user_not_present_callback(Config) ->
     Jid = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(?ACC_PARAMS),
-                                    #user_status_event{jid = Jid, status = offline}).
+    push_event(#user_status_event{jid = Jid, status = offline}).
+
+push_event(Event) ->
+    HookAcc = #{acc => mongoose_acc:new(?ACC_PARAMS), metadata => #{}},
+    HookParams = #{event => Event},
+    HookExtra = #{host_type => host_type()},
+    mod_event_pusher_sns:push_event(HookAcc, HookParams, HookExtra).
 
 %% Helpers
 
