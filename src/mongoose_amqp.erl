@@ -54,8 +54,8 @@
 %%%===================================================================
 
 -spec network_params(map()) -> #amqp_params_network{}.
-network_params(#{host := Host, port := Port, username := UserName, password := Password}) ->
-    #amqp_params_network{host = Host, port = Port, username = UserName, password = Password}.
+network_params(#{host := Host, port := Port, username := UserName, password := Password, virtual_host := VirtualHost}) ->
+    #amqp_params_network{host = Host, port = Port, username = UserName, password = Password, virtual_host = VirtualHost}.
 
 -spec exchange_declare(Exchange :: binary(), Type :: binary()) -> method().
 exchange_declare(Exchange, Type) ->
