@@ -144,6 +144,8 @@
          node_cleanup/1,
          node_cleanup_for_host_type/2]).
 
+-export([push_event/2]).
+
 -ignore_xref([remove_domain/2]).
 -ignore_xref([mam_archive_sync/1, mam_muc_archive_sync/1]).
 
@@ -1376,6 +1378,11 @@ mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
 mod_global_distrib_unknown_recipient(GlobalHost, Info) ->
     run_hook_for_host_type(mod_global_distrib_unknown_recipient, GlobalHost, Info, #{}).
 
+%%% @doc The `push_event' hook is called when `mod_event_pusher' publishes an event.
+-spec push_event(mongoose_acc:t(), mod_event_pusher:event()) -> mod_event_pusher:push_event_acc().
+push_event(Acc, Event) ->
+    HostType = mongoose_acc:host_type(Acc),
+    run_hook_for_host_type(push_event, HostType, #{acc => Acc, metadata => #{}}, #{event => Event}).
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
