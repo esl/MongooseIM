@@ -118,7 +118,16 @@ containers:
       - ENV_FILE_SH_MODE: 755
     entrypoint: *ENTRYPOINT
   - &redis_container
-    image: cimg/redis:__REDIS_VERSION__
+    image: redis:__REDIS_VERSION__
+    environment:
+      - OLD_ENTRYPOINT: "redis-server --tls-port 6379 --port 0 --tls-cert-file /certs/cert.pem --tls-key-file /certs/privkey.pem --tls-ca-cert-file /certs/cacert.pem --tls-auth-clients no"
+      - ENV_FILE_CERT_PATH: "/certs/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/certs/privkey.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+      - ENV_FILE_CACERT_PATH: "/certs/cacert.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+    entrypoint: *ENTRYPOINT
   - &rabbit_container
     image: rabbitmq:__RMQ_VERSION__
   - &minio_container
