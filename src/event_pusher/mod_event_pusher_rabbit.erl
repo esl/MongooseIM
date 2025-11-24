@@ -26,7 +26,6 @@
 
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
--behaviour(mod_event_pusher).
 
 %%%===================================================================
 %%% Definitions
@@ -44,10 +43,10 @@
 %%%===================================================================
 
 %% MIM module callbacks
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0]).
 
-%% API
--export([push_event/2]).
+%% hook handlers
+-export([push_event/3]).
 
 %%%===================================================================
 %%% Callbacks
@@ -61,6 +60,10 @@ start(HostType, Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{push_event, HostType, fun ?MODULE:push_event/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -85,21 +88,16 @@ exchange_spec(Name) ->
              defaults = #{<<"name">> => Name,
                           <<"type">> => <<"topic">>}}.
 
--spec push_event(mongoose_acc:t(), mod_event_pusher:event()) -> mongoose_acc:t().
-push_event(Acc, Event) ->
-    case event_to_key(Event) of
-        {ok, ExchangeKey} ->
-            HostType = mongoose_acc:host_type(Acc),
-            case exchange_opts(HostType, ExchangeKey) of
-                {ok, ExchangeOpts} ->
-                    handle_event(HostType, Event, ExchangeOpts),
-                    Acc;
-                {error, not_found} ->
-                    Acc
-            end;
-        skip ->
-            Acc
-    end.
+-spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
+                 gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
+push_event(HookAcc, #{event := Event}, #{host_type := HostType}) ->
+    maybe
+        {ok, ExchangeKey} ?= event_to_key(Event),
+        {ok, ExchangeOpts} ?= exchange_opts(HostType, ExchangeKey),
+        #{metadata := Metadata} = HookAcc,
+        handle_event(HostType, Event, Metadata, ExchangeOpts)
+    end,
+    {ok, HookAcc}.
 
 %%%===================================================================
 %%% Internal functions
@@ -116,13 +114,14 @@ create_exchange(HostType, #{name := ExName, type := Type}) ->
     call_rabbit_worker(HostType, {amqp_call, mongoose_amqp:exchange_declare(ExName, Type)}).
 
 -spec handle_event(mongooseim:host_type(), #user_status_event{} | #chat_event{},
-                   exchange_opts()) -> ok.
-handle_event(HostType, Event, ExchangeOpts = #{name := ExchangeName}) ->
+                   mod_event_pusher:metadata(), exchange_opts()) -> ok.
+handle_event(HostType, Event, Metadata, ExchangeOpts = #{name := ExchangeName}) ->
     case message(Event) of
         Message = #{} ->
+            MessageJSON = iolist_to_binary(jiffy:encode(maps:merge(Message, Metadata))),
             RoutingKey = routing_key(Event, ExchangeOpts),
             PublishMethod = mongoose_amqp:basic_publish(ExchangeName, RoutingKey),
-            AMQPMessage = mongoose_amqp:message(iolist_to_binary(jiffy:encode(Message))),
+            AMQPMessage = mongoose_amqp:message(MessageJSON),
             cast_rabbit_worker(HostType, {amqp_publish, PublishMethod, AMQPMessage});
         skip ->
             ok

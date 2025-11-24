@@ -25,7 +25,10 @@
 
 -type backend() :: http | push | rabbit | sns.
 -type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
--export_type([event/0]).
+-type metadata() :: #{atom() => atom() | binary() | number()}.
+-type push_event_params() :: #{event := event()}.
+-type push_event_acc() :: #{acc := mongoose_acc:t(), metadata := metadata()}.
+-export_type([event/0, metadata/0, push_event_acc/0, push_event_params/0]).
 
 -export([deps/2, start/2, stop/1, config_spec/0, push_event/2]).
 
@@ -34,21 +37,14 @@
 -ignore_xref([behaviour_info/1]).
 
 %%--------------------------------------------------------------------
-%% Callbacks
-%%--------------------------------------------------------------------
-
--callback push_event(mongoose_acc:t(), event()) -> mongoose_acc:t().
-
-%%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
 %% @doc Pushes the event to each backend registered with the event_pusher.
 -spec push_event(mongoose_acc:t(), event()) -> mongoose_acc:t().
 push_event(Acc, Event) ->
-    HostType = mongoose_acc:host_type(Acc),
-    Backends = maps:keys(gen_mod:get_loaded_module_opts(HostType, ?MODULE)),
-    lists:foldl(fun(B, Acc0) -> (backend_module(B)):push_event(Acc0, Event) end, Acc, Backends).
+    #{acc := NewAcc} = mongoose_hooks:push_event(Acc, Event),
+    NewAcc.
 
 %%--------------------------------------------------------------------
 %% gen_mod API

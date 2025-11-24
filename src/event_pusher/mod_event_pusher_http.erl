@@ -11,7 +11,6 @@
 -ignore_xref([behaviour_info/1]).
 
 -behaviour(gen_mod).
--behaviour(mod_event_pusher).
 -behaviour(mongoose_module_metrics).
 
 -callback should_make_req(Acc :: mongoose_acc:t(),
@@ -39,7 +38,10 @@
 -include("jlib.hrl").
 
 %% API
--export([start/2, stop/1, config_spec/0, push_event/2, instrumentation/1]).
+-export([start/2, stop/1, hooks/1, config_spec/0, instrumentation/1]).
+
+%% hook handlers
+-export([push_event/3]).
 
 %% config spec callbacks
 -export([fix_path/1]).
@@ -57,6 +59,10 @@ start(_HostType, _Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{push_event, HostType, fun ?MODULE:push_event/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -81,13 +87,16 @@ instrumentation(HostType) ->
     [{?SENT_METRIC, #{host_type => HostType},
       #{metrics => #{count => spiral, response_time => histogram, failure_count => spiral}}}].
 
-push_event(Acc, #chat_event{direction = Dir, from = From, to = To, packet = Packet}) ->
-    HostType = mongoose_acc:host_type(Acc),
+-spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
+                 gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
+push_event(HookAcc, #{event := #chat_event{direction = Dir, from = From, to = To, packet = Packet}},
+           #{host_type := HostType}) ->
+    #{acc := Acc} = HookAcc,
     lists:map(fun(Opts) -> push_event(Acc, Dir, From, To, Packet, Opts) end,
               gen_mod:get_module_opt(HostType, ?MODULE, handlers)),
-    Acc;
-push_event(Acc, _Event) ->
-    Acc.
+    {ok, HookAcc};
+push_event(HookAcc, _Params, _Extra) ->
+    {ok, HookAcc}.
 
 push_event(Acc, Dir, From, To, Packet, Opts = #{callback_module := Mod}) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),

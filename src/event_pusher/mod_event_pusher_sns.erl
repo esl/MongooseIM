@@ -1,7 +1,6 @@
 -module(mod_event_pusher_sns).
 
 -behaviour(gen_mod).
--behaviour(mod_event_pusher).
 
 -include("mod_event_pusher_events.hrl").
 -include("mongoose.hrl").
@@ -32,10 +31,13 @@
 %%%===================================================================
 
 %% MIM module callbacks
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0]).
 
 %% API
--export([try_publish/5, push_event/2]).
+-export([try_publish/5]).
+
+%% hook handlers
+-export([push_event/3]).
 
 -ignore_xref([behaviour_info/1, try_publish/5]).
 
@@ -48,8 +50,7 @@ start(HostType, Opts) ->
     start_pool(HostType, Opts),
     ok.
 
--spec start_pool(mongooseim:host_type(), gen_mod:module_opts()) ->
-    term().
+-spec start_pool(mongooseim:host_type(), gen_mod:module_opts()) -> term().
 start_pool(HostType, Opts) ->
     {ok, _} = mongoose_wpool:start(generic, HostType, pusher_sns, pool_opts(Opts)).
 
@@ -66,6 +67,10 @@ get_worker_num(Opts) ->
 stop(HostType) ->
     mongoose_wpool:stop(generic, HostType, pusher_sns),
     ok.
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{push_event, HostType, fun ?MODULE:push_event/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -96,14 +101,18 @@ config_spec() ->
                    }
     }.
 
-push_event(Acc, #user_status_event{jid = UserJID, status = Status}) ->
-    user_presence_changed(mongoose_acc:host_type(Acc), UserJID, Status == online),
-    Acc;
-push_event(Acc, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
-    handle_packet(mongoose_acc:host_type(Acc), From, To, Packet),
-    Acc;
-push_event(Acc, _) ->
-    Acc.
+-spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
+                 gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
+push_event(HookAcc, #{event := #user_status_event{jid = UserJID, status = Status}},
+           #{host_type := HostType}) ->
+    user_presence_changed(HostType, UserJID, Status == online),
+    {ok, HookAcc};
+push_event(HookAcc, #{event := #chat_event{direction = in, from = From, to = To, packet = Packet}},
+           #{host_type := HostType}) ->
+    handle_packet(HostType, From, To, Packet),
+    {ok, HookAcc};
+push_event(HookAcc, _Params, _Extra) ->
+    {ok, HookAcc}.
 
 %%%===================================================================
 %%% Internal functions
