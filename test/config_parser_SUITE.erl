@@ -103,6 +103,7 @@ groups() ->
      {auth, [parallel], [auth_methods,
                          auth_password,
                          auth_sasl_external,
+                         auth_sasl_external_common_name,
                          auth_allow_multiple_connections,
                          auth_anonymous_protocol,
                          auth_sasl_mechanisms,
@@ -728,6 +729,15 @@ auth_sasl_external(_Config) ->
                                  <<"common_name">>,
                                  <<"cyrsasl_external_verification">>]}}),
     ?errh(#{<<"auth">> => #{<<"sasl_external">> => [<<"unknown">>]}}).
+
+auth_sasl_external_common_name(_Config) ->
+    T = fun(Opts) -> #{<<"auth">> => #{<<"sasl_external_common_name">> => Opts}} end,
+    P = [auth, sasl_external_common_name],
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [prefix], <<"user_">>, T(#{<<"prefix">> => <<"user_">>})),
+    ?cfgh(P ++ [suffix], <<".users">>, T(#{<<"suffix">> => <<".users">>})),
+    ?errh(T(#{<<"prefix">> => <<"user&">>})),
+    ?errh(T(#{<<"suffix">> => <<"@domain.com">>})).
 
 auth_sasl_mechanisms(_Config) ->
     Default = cyrsasl:default_modules(),
