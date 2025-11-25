@@ -8,9 +8,9 @@
 -include_lib("jid/include/jid.hrl").
 
 -type validator() ::
-        any | non_empty | non_negative | positive | module | {module, Prefix :: atom()}
-      | jid | domain | subdomain_template | url | ip_address | ip_mask | network_address | port
-      | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}.
+        any | non_empty | non_negative | positive | module | {module, Prefix :: atom()} | jid
+      | jid_localpart | domain | subdomain_template | url | ip_address | ip_mask | network_address
+      | port | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}.
 
 -type section_validator() :: any | non_empty.
 
@@ -27,6 +27,7 @@ validate(V, binary, subdomain_template) -> validate_subdomain_template(V);
 validate(V, binary, {module, Prefix}) ->
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ binary_to_list(V)));
 validate(V, binary, jid) -> validate_jid(V);
+validate(V, binary, jid_localpart) -> validate_jid_localpart(V);
 validate(V, binary, ldap_filter) -> validate_ldap_filter(V);
 validate(V, integer, non_negative) -> validate_non_negative_integer(V);
 validate(V, integer, positive) -> validate_positive_integer(V);
@@ -124,6 +125,16 @@ validate_jid(Jid) ->
             ok;
         _ ->
             error(#{what => validate_jid_failed, value => Jid})
+    end.
+
+validate_jid_localpart(Value) ->
+    case jid:nodeprep(Value) of
+        <<_/binary>> ->
+            ok;
+        error ->
+            error(#{what => validate_jid_localpart_failed,
+                    value => Value,
+                    text => <<"Invalid JID localpart">>})
     end.
 
 validate_ldap_filter(Value) ->
