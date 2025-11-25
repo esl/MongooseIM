@@ -35,7 +35,8 @@
 
 -type exchange_key() :: presence_exchange | chat_msg_exchange | groupchat_msg_exchange.
 -type exchange_opts() :: #{name := binary(), type := binary(),
-                           sent_topic => binary(), recv_topic => binary()}.
+                           sent_topic => binary(), recv_topic => binary(),
+                           durable := boolean()}.
 -type worker_call_result() :: {ok | error | exit | throw, term()}.
 
 %%%===================================================================
@@ -84,9 +85,11 @@ exchange_spec(Name) ->
     #section{items = #{<<"name">> => #option{type = binary,
                                              validate = non_empty},
                        <<"type">> => #option{type = binary,
-                                             validate = non_empty}},
+                                             validate = non_empty},
+                       <<"durable">> => #option{type = boolean}},
              defaults = #{<<"name">> => Name,
-                          <<"type">> => <<"topic">>}}.
+                          <<"type">> => <<"topic">>,
+                          <<"durable">> => false}}.
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
                  gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
@@ -110,8 +113,8 @@ create_exchanges(HostType, Opts) ->
     verify_exchanges_were_created_or_crash(Results).
 
 -spec create_exchange(mongooseim:host_type(), exchange_opts()) -> worker_call_result().
-create_exchange(HostType, #{name := ExName, type := Type}) ->
-    call_rabbit_worker(HostType, {amqp_call, mongoose_amqp:exchange_declare(ExName, Type)}).
+create_exchange(HostType, #{name := ExName, type := Type, durable := Durable}) ->
+    call_rabbit_worker(HostType, {amqp_call, mongoose_amqp:exchange_declare(ExName, Type, Durable)}).
 
 -spec handle_event(mongooseim:host_type(), #user_status_event{} | #chat_event{},
                    mod_event_pusher:metadata(), exchange_opts()) -> ok.
