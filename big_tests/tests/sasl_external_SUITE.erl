@@ -22,6 +22,7 @@ groups() ->
      {not_registered, [parallel], [cert_one_xmpp_addrs_no_identity_not_registered]},
      {standard, [parallel], standard_test_cases()},
      {use_common_name, [parallel], use_common_name_test_cases()},
+     {use_common_name_with_prefix, [parallel], use_common_name_test_cases()},
      {allow_just_user_identity, [parallel], allow_just_user_identity_test_cases()},
      {demo_verification_module, [parallel], demo_verification_module_test_cases()},
      {self_signed_certs_allowed, [parallel], self_signed_certs_allowed_test_cases()},
@@ -40,6 +41,7 @@ base_groups() ->
      {group, standard},
      {group, standard_keep_auth},
      {group, use_common_name},
+     {group, use_common_name_with_prefix},
      {group, allow_just_user_identity},
      {group, demo_verification_module}
     ].
@@ -160,6 +162,9 @@ auth_opts(use_common_name) ->
     #{methods => [pki],
       sasl_mechanisms => [cyrsasl_external],
       sasl_external => [standard, common_name]};
+auth_opts(use_common_name_with_prefix) ->
+    Opts = auth_opts(use_common_name),
+    Opts#{sasl_external_common_name => #{prefix => <<"user_">>, suffix => <<"-test">>}};
 auth_opts(allow_just_user_identity) ->
     #{methods => [pki],
       sasl_mechanisms => [cyrsasl_external],
@@ -261,6 +266,7 @@ cert_with_cn_no_xmpp_addrs_identity_correct(C) ->
     UserSpec = [{requested_name, requested_name(User)} |
                 generate_user_tcp(C, User)],
     {ok, Client, _} = escalus_connection:start(UserSpec),
+    check_username(User, C, escalus_client:username(Client)),
     escalus_connection:stop(Client).
 
 cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C) ->
@@ -445,3 +451,13 @@ add_domain_str(User) ->
 -spec add_domain(User :: binary()) -> binary().
 add_domain(User) ->
     <<User/binary, "@", (domain())/binary>>.
+
+-spec check_username(string(), ct_suite:ct_config(), jid:luser()) -> ok.
+check_username(RequestedNameStr, Config, ActualName) ->
+    RequestedName = list_to_binary(RequestedNameStr),
+    case proplists:get_value(auth_opts, Config) of
+        #{sasl_external_common_name := #{prefix := Prefix, suffix := Suffix}} ->
+            ?assertEqual(<<Prefix/binary, RequestedName/binary, Suffix/binary>>, ActualName);
+        _ ->
+            ?assertEqual(RequestedName, ActualName)
+    end.
