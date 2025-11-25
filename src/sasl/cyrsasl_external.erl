@@ -156,12 +156,23 @@ common_name_verification(Creds) ->
     CommonName = get_credentials(Creds, common_name),
     case AuthId of
         undefined when is_binary(CommonName) ->
-            {ok, CommonName};
+            {ok, common_name_to_user_name(Creds, CommonName)};
         _ ->
             case verify_server(AuthId, Server) of
-                {ok, CommonName} -> {ok, CommonName};
+                {ok, CommonName} -> {ok, common_name_to_user_name(Creds, CommonName)};
                 _ -> {error, <<"invalid-authzid">>}
             end
+    end.
+
+-doc "Add user name prefix/suffix if configured.".
+-spec common_name_to_user_name(mongoose_credentials:t(), binary()) -> binary().
+common_name_to_user_name(Creds, CommonName) ->
+    HostType = mongoose_credentials:host_type(Creds),
+    case mongoose_config:lookup_opt([{auth, HostType}, sasl_external_common_name]) of
+        {ok, #{prefix := Prefix, suffix := Suffix}} ->
+            <<Prefix/binary, CommonName/binary, Suffix/binary>>;
+        {error, not_found} ->
+            CommonName
     end.
 
 auth_id_verification(Creds) ->
