@@ -95,6 +95,7 @@
 {suites, "tests", rest_SUITE}.
 {suites, "tests", rest_client_SUITE}.
 {suites, "tests", sasl_SUITE}.
+{suites, "tests", sasl_external_SUITE}.
 {suites, "tests", sasl2_SUITE}.
 {suites, "tests", sic_SUITE}.
 {suites, "tests", smart_markers_SUITE}.
@@ -120,7 +121,6 @@
 {suites, "tests", last_SUITE}.
 {suites, "tests", metrics_api_SUITE}.
 {suites, "tests", persistent_cluster_id_SUITE}.
-{suites, "tests", sasl_external_SUITE}.
 {suites, "tests", service_domain_db_SUITE}.
 
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
