@@ -134,6 +134,7 @@ groups() ->
                          pool_http_connection_tls,
                          pool_redis,
                          pool_redis_connection,
+                         pool_redis_connection_tls,
                          pool_cassandra,
                          pool_cassandra_connection,
                          pool_cassandra_connection_auth_plain,
@@ -1026,6 +1027,12 @@ pool_redis_connection(_Config) ->
     ?err(T(#{<<"port">> => 666666})),
     ?err(T(#{<<"database">> => -1})),
     ?err(T(#{<<"password">> => 0})).
+
+pool_redis_connection_tls(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    T = fun(Opts) -> pool_conn_raw(<<"redis">>, #{<<"tls">> => Opts}) end,
+    ?cfg(P, config([outgoing_pools, redis, default, conn_opts, tls], tls_ca()), T(tls_ca_raw())),
+    test_just_tls_client(P, T).
 
 pool_cassandra(_Config) ->
     test_pool_opts(cassandra, #{<<"connection">> => #{}}).

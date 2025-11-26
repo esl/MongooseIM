@@ -220,6 +220,8 @@ Logical database index (zero-based).
 * **Default:** `""`
 * **Example:** `password = "topsecret"`
 
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
+
 ## Cassandra options
 
 ### `outgoing_pools.cassandra.*.connection.servers`
