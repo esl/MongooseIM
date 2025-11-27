@@ -6,7 +6,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
--import(domain_helper, [domain/0]).
+-import(domain_helper, [host_type/0, domain/0]).
+-import(distributed_helper, [mim/0]).
 
 all() ->
     [
@@ -95,72 +96,98 @@ self_signed_certs_not_allowed_test_cases() ->
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite(Config),
     Config1 = ejabberd_node_utils:init(Config0),
-    ejabberd_node_utils:backup_config_file(Config1),
     generate_certs(Config1).
 
 end_per_suite(Config) ->
-    ejabberd_node_utils:restore_config_file(Config),
-    ejabberd_node_utils:restart_application(mongooseim),
     escalus:end_per_suite(Config).
 
 init_per_group(ca_signed, Config) ->
-    [{signed, ca},
-     {ssl_options, "\n  tls.disconnect_on_failure = false"},
-     {verify_mode, "\n  tls.verify_mode = \"peer\""} | Config];
+    [{signed, ca} | Config];
 init_per_group(self_signed, Config) ->
-    [{signed, self},
-     {ssl_options, "\n  tls.disconnect_on_failure = false"},
-     {verify_mode, "\n  tls.verify_mode = \"selfsigned_peer\""} | Config];
-init_per_group(standard, Config) ->
-    modify_config_and_restart("\"standard\"", Config),
-    Config;
-init_per_group(standard_keep_auth, Config) ->
-    Config1 = [{auth_methods, []} | Config],
-    modify_config_and_restart("\"standard\"", Config1),
-    case mongoose_helper:supports_sasl_module(cyrsasl_external) of
-        false -> {skip, "SASL External not supported"};
-        true -> Config1
-    end;
+    [{signed, self} | Config];
 init_per_group(registered, Config) ->
     escalus:create_users(Config, [{bob, generate_user_tcp(Config, username("bob", Config))}]);
-init_per_group(use_common_name, Config) ->
-    modify_config_and_restart("\"standard\", \"common_name\"", Config),
+init_per_group(not_registered, Config) ->
     Config;
-init_per_group(allow_just_user_identity, Config) ->
-    modify_config_and_restart("\"standard\", \"auth_id\"", Config),
-    Config;
-init_per_group(demo_verification_module, Config) ->
-    modify_config_and_restart("\"cyrsasl_external_verification\"", Config),
-    Config;
-init_per_group(self_signed_certs_allowed, Config) ->
-    modify_config_and_restart("\"standard\"", Config),
-    Config;
-init_per_group(self_signed_certs_not_allowed, Config) ->
-    modify_config_and_restart("\"standard\"", Config),
-    Config;
-init_per_group(_, Config) ->
-    Config.
+init_per_group(standard_keep_auth = GroupName, Config) ->
+    Config1 = configure(GroupName, Config),
+    %% Currently only LDAP supports SASL External
+    case mongoose_helper:supports_sasl_module(cyrsasl_external) of
+        false ->
+            restore(Config1), % required because end_per_group is skipped
+            {skip, "SASL External not supported"};
+        true ->
+            Config1
+    end;
+init_per_group(GroupName, Config) ->
+    configure(GroupName, Config).
 
-modify_config_and_restart(CyrsaslExternalConfig, Config) ->
-    VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
-    SSLOpts = escalus_config:get_config(ssl_options, Config, ""),
-    AuthMethods = escalus_config:get_config(auth_methods, Config,
-                                            [{auth_method, "pki"}, {auth_method_opts, false}]),
-    CACertFile = filename:join([path_helper:repo_dir(Config),
-                                "tools", "ssl", "ca-clients", "cacert.pem"]),
-    TLSOpts = "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
-              "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"
-              "  tls.cacertfile = \"" ++ CACertFile ++ "\"" ++ VerifyMode,
-    NewConfigValues = [{tls_config, TLSOpts ++ SSLOpts},
-                       {https_config, TLSOpts},
-                       {cyrsasl_external, CyrsaslExternalConfig},
-		       {sasl_mechanisms, "\"external\""} | AuthMethods],
-    ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
-    ejabberd_node_utils:restart_application(mongooseim).
+configure(GroupName, Config) ->
+    AuthOpts = auth_opts(GroupName),
+    Config1 = mongoose_helper:backup_and_set_config(Config, config_opts(AuthOpts)),
+    TLSOpts = tls_opts(Config1),
+    HTTPSOpts = maps:remove(disconnect_on_failure, TLSOpts), % there is no such option for HTTPS
+    OrigListeners = [restart_listener(c2s_port, mongoose_c2s_listener, TLSOpts),
+                     restart_listener(cowboy_secure_port, ejabberd_cowboy, HTTPSOpts)],
+    [{orig_listeners, OrigListeners}, {auth_opts, AuthOpts} | Config1].
 
+restart_listener(PortName, Module, NewOpts) ->
+    Port = ct:get_config({hosts, mim, PortName}),
+    [Listener] = mongoose_helper:get_listeners(mim(), #{port => Port, module => Module}),
+    NewListener = add_tls_opts(Listener, NewOpts),
+    ok = mongoose_helper:restart_listener(mim(), NewListener),
+    Listener.
+
+tls_opts(Config) ->
+    #{disconnect_on_failure => false,
+      verify_mode => verify_mode(proplists:get_value(signed, Config)),
+      cacertfile => filename:join([path_helper:repo_dir(Config),
+                                   "tools", "ssl", "ca-clients", "cacert.pem"])}.
+
+verify_mode(ca) -> peer;
+verify_mode(self) -> selfsigned_peer.
+
+add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
+    C2SListener#{tls => maps:merge(TLS, Extra)}.
+
+config_opts(AuthOpts) ->
+    #{[{auth, host_type()}, Opt] => Value || Opt := Value <- AuthOpts}.
+
+auth_opts(standard_keep_auth) ->
+    #{sasl_mechanisms => [cyrsasl_external],
+      sasl_external => [standard]};
+auth_opts(use_common_name) ->
+    #{methods => [pki],
+      sasl_mechanisms => [cyrsasl_external],
+      sasl_external => [standard, common_name]};
+auth_opts(allow_just_user_identity) ->
+    #{methods => [pki],
+      sasl_mechanisms => [cyrsasl_external],
+      sasl_external => [standard, auth_id]};
+auth_opts(demo_verification_module) ->
+    #{methods => [pki],
+      sasl_mechanisms => [cyrsasl_external],
+      sasl_external => [{mod, cyrsasl_external_verification}]};
+auth_opts(_GroupName) ->
+    #{methods => [pki],
+      sasl_mechanisms => [cyrsasl_external],
+      sasl_external => [standard]}.
+
+end_per_group(ca_signed, _Config) ->
+    ok;
+end_per_group(self_signed, _Config) ->
+    ok;
 end_per_group(registered, Config) ->
     escalus:delete_users(Config, [{bob, generate_user_tcp(Config, username("bob", Config))}]);
-end_per_group(_, _Config) ->
+end_per_group(not_registered, _Config) ->
+    ok;
+end_per_group(_, Config) ->
+    restore(Config).
+
+restore(Config) ->
+    mongoose_helper:restore_config(Config),
+    OrigListeners = proplists:get_value(orig_listeners, Config, []),
+    [mongoose_helper:restart_listener(mim(), Listener) || Listener <- OrigListeners],
     ok.
 
 cert_more_xmpp_addrs_identity_correct(C) ->
