@@ -30,12 +30,14 @@
 -define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
 -define(WPOOL_CFG, #{scope => host_type,
                      opts => #{workers => 20, strategy => best_worker, call_timeout => 5000}}).
--define(IF_EXCHANGE_EXISTS_RETRIES, 30).
--define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
+
+-define(RABBIT_HTTP_ENDPOINT, "http://127.0.0.1:15672").
 
 -type rabbit_binding() :: {Queue :: binary(),
                            Exchange :: binary(),
                            RoutingKey :: binary()}.
+
+-type json_object() :: #{binary() => json:decode_value()}.
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -110,6 +112,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    inets:start(),
     case is_rabbitmq_available() of
         true ->
             instrument_helper:start(
@@ -158,7 +161,8 @@ exchanges(_GroupName) ->
     basic_exchanges().
 
 basic_exchanges() ->
-    #{presence_exchange => #{name => ?PRESENCE_EXCHANGE},
+    #{presence_exchange => #{name => ?PRESENCE_EXCHANGE,
+                             durable => true},
       chat_msg_exchange => #{name => ?CHAT_MSG_EXCHANGE,
                              sent_topic => ?CHAT_MSG_SENT_TOPIC,
                              recv_topic => ?CHAT_MSG_RECV_TOPIC},
@@ -187,6 +191,7 @@ end_per_testcase(rabbit_pool_starts_with_default_config, _Config) ->
 end_per_testcase(CaseName, Config) ->
     maybe_cleanup_muc(CaseName, Config),
     close_rabbit_connection(Config),
+    ensure_no_queues(),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -209,23 +214,23 @@ rabbit_pool_starts_with_default_config(_Config) ->
     %% CLEANUP
     stop_rabbit_wpool(RabbitWpool).
 
-exchanges_are_created_on_module_startup(Config) ->
+exchanges_are_created_on_module_startup(_Config) ->
     %% GIVEN module is started with custom exchange types
-    Connection = proplists:get_value(rabbit_connection, Config),
-    ExCustomType = <<"headers">>,
-    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE, ?GROUP_CHAT_MSG_EXCHANGE],
+    BaseAttrs = #{<<"type">> => <<"headers">>},
+    Expected = [BaseAttrs#{<<"name">> => ?PRESENCE_EXCHANGE, <<"durable">> => true},
+                BaseAttrs#{<<"name">> => ?CHAT_MSG_EXCHANGE, <<"durable">> => false},
+                BaseAttrs#{<<"name">> => ?GROUP_CHAT_MSG_EXCHANGE, <<"durable">> => false}],
     %% THEN exchanges are created
-    [ensure_exchange_present(Connection, {Exchange, ExCustomType}) || Exchange <- Exchanges].
+    ensure_exchanges_present(Expected).
 
-only_presence_exchange_is_created_on_module_startup(Config) ->
+only_presence_exchange_is_created_on_module_startup(_Config) ->
     %% GIVEN module is started with custom exchange types
-    Connection = proplists:get_value(rabbit_connection, Config),
-    ExCustomType = <<"headers">>,
-    %% THEN only the enabled exchanges are created
-    ensure_exchange_present(Connection, {?PRESENCE_EXCHANGE, ExCustomType}),
+    Expected = [#{<<"name">> => ?PRESENCE_EXCHANGE, <<"type">> => ?DEFAULT_EXCHANGE_TYPE}],
     ct:sleep(200), % wait for any unwanted exchanges
-    ?assertNot(is_exchange_present(Connection, {?CHAT_MSG_EXCHANGE, ExCustomType})),
-    ?assertNot(is_exchange_present(Connection, {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType})).
+    %% THEN only the enabled exchanges are created
+    {ok, Exchanges} = ensure_exchanges_present(Expected),
+    ?assertNot(is_exchange_present(#{<<"name">> => ?CHAT_MSG_EXCHANGE}, Exchanges)),
+    ?assertNot(is_exchange_present(#{<<"name">> => ?GROUP_CHAT_MSG_EXCHANGE}, Exchanges)).
 
 %%--------------------------------------------------------------------
 %% GROUP (only_)presence_status_publish, filter_and_metadata
@@ -611,22 +616,15 @@ listen_to_group_chat_msg_recv_events_from_rabbit(JIDs, Config) ->
                                    Config :: proplists:proplist()) ->
     ok | term().
 listen_to_events_from_rabbit(QueueBindings, Config) ->
-    Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
     declare_temporary_rabbit_queue(Channel, ?QUEUE_NAME),
-    wait_for_exchanges_to_be_created(Connection, get_enabled_exchanges()),
+    ensure_exchanges_present(get_enabled_exchanges()),
     bind_queues_to_exchanges(Channel, QueueBindings),
     subscribe_to_rabbit_queue(Channel, ?QUEUE_NAME).
 
 get_enabled_exchanges() ->
     Opts = rpc(mim(), gen_mod, get_module_opts, [domain(), mod_event_pusher_rabbit]),
-    [{Name, ?DEFAULT_EXCHANGE_TYPE} || _Name := #{name := Name} <- Opts].
-
--spec wait_for_exchanges_to_be_created(Connection :: pid(),
-                                       Exchanges :: [binary()]) -> pid().
-wait_for_exchanges_to_be_created(Connection, Exchanges) ->
-    [ensure_exchange_present(Connection, Exchange) || Exchange <- Exchanges],
-    ok.
+    [#{<<"name">> => Name} || _ := #{name := Name} <- Opts].
 
 -spec declare_temporary_rabbit_queue(Channel :: pid(), Queue :: binary()) -> binary().
 declare_temporary_rabbit_queue(Channel, Queue) ->
@@ -675,26 +673,43 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                                                  routing_key = RoutingKey,
                                                  queue = Queue}).
 
--spec ensure_exchange_present(Connection :: pid(), Exchange :: {binary(), binary()}) ->
-                                     {ok, true} | {timeout, any()}.
-ensure_exchange_present(Connection, Exchange = {ExName, _}) ->
-    Opts = #{time_left => ?WAIT_FOR_EXCHANGE_INTERVAL * ?IF_EXCHANGE_EXISTS_RETRIES / 1000,
-             sleep_time => ?WAIT_FOR_EXCHANGE_INTERVAL,
-             name => binary_to_atom(ExName)},
-    wait_helper:wait_until(fun() -> is_exchange_present(Connection, Exchange) end, true, Opts).
+-spec ensure_exchanges_present([json_object()]) -> {ok, [json_object()]}.
+ensure_exchanges_present(Expected) ->
+    Opts = #{name => ?FUNCTION_NAME,
+             validator => fun(Exchanges) -> are_exchanges_present(Expected, Exchanges) end},
+    wait_helper:wait_until(fun list_exchanges/0, true, Opts).
 
--spec is_exchange_present(Connection :: pid(), Exchange :: {binary(), binary()}) -> boolean().
-is_exchange_present(Connection, {ExName, ExType}) ->
-    {ok, Channel} = amqp_connection:open_channel(Connection),
-    try amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
-                                                       type = ExType,
-                                                       %% this option allows to
-                                                       %% check if an exchange exists
-                                                       passive = true}) of
-        {'exchange.declare_ok'} -> true
-    catch
-        _Error:_Reason -> false
+-spec ensure_no_queues() -> {ok, []}.
+ensure_no_queues() ->
+    wait_helper:wait_until(fun list_queues/0, [], #{name => ?FUNCTION_NAME}).
+
+-spec are_exchanges_present([json_object()], [json_object()]) -> boolean().
+are_exchanges_present(AttrsList, Exchanges) ->
+    lists:all(fun(Attrs) -> is_exchange_present(Attrs, Exchanges) end, AttrsList).
+
+-spec is_exchange_present(json_object(), [json_object()]) -> boolean().
+is_exchange_present(Attrs, Exchanges) ->
+    Keys = maps:keys(Attrs),
+    case lists:filter(fun(Exchange) ->  maps:with(Keys, Exchange) =:= Attrs end, Exchanges) of
+        [] -> false;
+        [_] -> true
     end.
+
+-spec list_exchanges() -> [json_object()].
+list_exchanges() ->
+    call_http_api("/api/exchanges").
+
+-spec list_queues() -> [json_object()].
+list_queues() ->
+    call_http_api("/api/queues").
+
+-spec call_http_api(string()) -> [json_object()].
+call_http_api(Path) ->
+    Auth = "Basic " ++ binary_to_list(base64:encode("guest:guest")),
+    Headers = [{"Authorization", Auth}],
+    URL = ?RABBIT_HTTP_ENDPOINT ++ Path,
+    {ok, {{_, 200, "OK"}, _Headers, Body}} = httpc:request(get, {URL, Headers}, [], []),
+    json:decode(iolist_to_binary(Body)).
 
 -spec subscribe_to_rabbit_queue(Channel :: pid(), Queue :: binary()) -> ok.
 subscribe_to_rabbit_queue(Channel, Queue) ->
