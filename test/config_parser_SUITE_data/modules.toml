@@ -68,11 +68,12 @@
     callback_module = "mod_event_pusher_http_defaults"
 
   [modules.mod_event_pusher.rabbit]
-    presence_exchange.name ="presence"
+    presence_exchange.name ="my_presence"
     presence_exchange.type = "topic"
+    presence_exchange.durable = true
     chat_msg_exchange.name = "chat_msg"
-    chat_msg_exchange.sent_topic = "chat_msg_sent"
-    chat_msg_exchange.recv_topic = "chat_msg_recv"
+    chat_msg_exchange.sent_topic = "chat_msg_sent_topic"
+    chat_msg_exchange.recv_topic = "chat_msg_recv_topic"
     groupchat_msg_exchange.name = "groupchat_msg"
     groupchat_msg_exchange.sent_topic = "groupchat_msg_sent"
     groupchat_msg_exchange.recv_topic = "groupchat_msg_recv"

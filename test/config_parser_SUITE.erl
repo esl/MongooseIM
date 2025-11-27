@@ -1917,8 +1917,10 @@ test_event_pusher_rabbit_exchange(P, T) ->
     ?cfgh(P, default_config(P), T(#{})),
     ?cfgh(P ++ [name], <<"notifications">>, T(#{<<"name">> => <<"notifications">>})),
     ?cfgh(P ++ [type], <<"direct">>, T(#{<<"type">> => <<"direct">>})),
+    ?cfgh(P ++ [durable], true, T(#{<<"durable">> => true})),
     ?errh(T(#{<<"name">> => <<>>})),
-    ?errh(T(#{<<"type">> => <<>>})).
+    ?errh(T(#{<<"type">> => <<>>})),
+    ?errh(T(#{<<"durable">> => <<"maybe">>})).
 
 mod_http_upload(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
