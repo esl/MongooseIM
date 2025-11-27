@@ -337,8 +337,7 @@ http_protocol() ->
 
 %% path: (host_config[].)auth
 auth() ->
-    Items = maps:from_list([{a2b(Method), ejabberd_auth:config_spec(Method)} ||
-                               Method <- all_auth_methods()]),
+    Items = #{a2b(Method) => ejabberd_auth:config_spec(Method) || Method <- all_auth_methods()},
     #section{
        items = Items#{<<"methods">> => #list{items = #option{type = atom,
                                                              validate = {module, ejabberd_auth}}},
@@ -346,6 +345,7 @@ auth() ->
                       <<"sasl_external">> =>
                           #list{items = #option{type = atom,
                                                 process = fun ?MODULE:process_sasl_external/1}},
+                      <<"sasl_external_common_name">> => sasl_external_common_name(),
                       <<"sasl_mechanisms">> =>
                           #list{items = #option{type = atom,
                                                 validate = {module, cyrsasl},
@@ -359,6 +359,13 @@ auth() ->
        process = fun ?MODULE:process_auth/1,
        wrap = host_config
       }.
+
+%% path: (host_config[].)auth.sasl_external_common_name
+sasl_external_common_name() ->
+    #section{items = #{<<"prefix">> => #option{type = binary, validate = jid_localpart},
+                       <<"suffix">> => #option{type = binary, validate = jid_localpart}},
+             defaults = #{<<"prefix">> => <<>>,
+                          <<"suffix">> => <<>>}}.
 
 %% path: (host_config[].)auth.password
 auth_password() ->

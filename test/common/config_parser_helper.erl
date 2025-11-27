@@ -734,12 +734,7 @@ extra_auth() ->
       rdbms => #{users_number_estimate => true}}.
 
 default_auth() ->
-    #{methods => [],
-      password => #{format => scram,
-                    scram_iterations => 10000},
-      sasl_external => [standard],
-      sasl_mechanisms => cyrsasl:default_modules(),
-      max_users_per_domain => infinity}.
+    default_config([auth]).
 
 pgsql_s2s() ->
     Addresses = #{<<"fed1">> => #{ip_address => "127.0.0.1",
@@ -1107,6 +1102,16 @@ extra_component_listener_config() ->
       conflict_behaviour => disconnect,
       connection_type => component}.
 
+default_config([auth]) ->
+    #{methods => [],
+      password => #{format => scram,
+                    scram_iterations => 10000},
+      sasl_external => [standard],
+      sasl_mechanisms => cyrsasl:default_modules(),
+      max_users_per_domain => infinity};
+default_config([auth, sasl_external_common_name]) ->
+    #{prefix => <<>>,
+      suffix => <<>>};
 default_config([instrumentation]) ->
     #{probe_interval => 15};
 default_config([instrumentation, log]) ->

@@ -81,6 +81,10 @@ There are three possible ways of using the `SASL EXTERNAL` mechanism:
 
 This option allows you to list the enabled ones in the order of preference (they are tried until one succeeds or the list is exhausted).
 
+!!! Note
+    There is another possibility: a custom verification module that you can implement using [cyrsasl_external_verification](https://github.com/esl/MongooseIM/blob/master/src/sasl/cyrsasl_external_verification.erl) as an example.
+    After including the module in your MongooseIM release, you can put its name in the list of values of the `sasl_external` option.
+
 ### `auth.max_users_per_domain`
 * **Syntax:** positive integer or string `"infinity"`, representing maximum amount of users that can be registered in a domain
 * **Default:** `"infinity"`
@@ -90,6 +94,24 @@ Limits the number of users that can be registered for each domain. If the option
 
 !!! Warning
     The limit only works for the following authentication methods: `internal`, `rdbms` and `ldap`.
+
+## SASL External common name options
+
+These options are only effective for the `SASL EXTERNAL` mechanism using `common_name` (see [`sasl_external`](#authsasl_external)).
+
+#### `auth.sasl_external_common_name.prefix`
+* **Syntax:** string, a valid [JID localpart](https://www.rfc-editor.org/rfc/rfc6122.html#appendix-A)
+* **Default:** empty string
+* **Example:** `sasl_external_common_name.prefix = "user_"`
+
+An optional prefix prepended to the value of `common_name` in order to convert it to a user name.
+
+#### `auth.sasl_external_common_name.suffix`
+* **Syntax:** string, a valid [JID localpart](https://www.rfc-editor.org/rfc/rfc6122.html#appendix-A)
+* **Default:** empty string
+* **Example:** `sasl_external_common_name.prefix = ".1"`
+
+An optional suffix appended to the value of `common_name` in order to convert it to a user name.
 
 ## Password-related options
 
