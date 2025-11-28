@@ -334,6 +334,8 @@ Enables/disables one-to-one publishers confirms.
 
 Sets a limit of messages in a worker's mailbox above which the worker starts dropping the messages. If a worker message queue length reaches the limit, messages from the head of the queue are dropped until the queue length is again below the limit. Use `infinity` to disable.
 
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
+
 ## LDAP options
 
 ### `outgoing_pools.ldap.*.connection.servers`
