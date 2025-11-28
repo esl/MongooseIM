@@ -118,7 +118,7 @@ init_per_suite(Config) ->
             instrument_helper:start(
                 [{wpool_rabbit_connections, #{host_type => domain(), pool_tag => test_tag}},
                  {wpool_rabbit_messages_published, #{host_type => domain(), pool_tag => event_pusher}}]),
-            start_rabbit_wpool(domain()),
+            start_rabbit_tls_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
             mongoose_helper:inject_module(mod_event_pusher_filter),
@@ -765,6 +765,15 @@ assert_no_message_from_rabbit(RoutingKeys) ->
 
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).
+
+start_rabbit_tls_wpool(Host) ->
+    BasicOpts = ?WPOOL_CFG,
+    start_rabbit_wpool(Host, BasicOpts#{conn_opts => #{tls => tls_config(), port => 5671}}).
+
+tls_config() ->
+    #{certfile => "priv/ssl/fake_cert.pem",
+      keyfile => "priv/ssl/fake_key.pem",
+      cacertfile => "priv/ssl/cacert.pem"}.
 
 start_rabbit_wpool(Host, WpoolConfig) ->
     rpc(mim(), mongoose_wpool, ensure_started, []),
