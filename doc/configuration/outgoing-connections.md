@@ -128,6 +128,7 @@ When MongooseIM fails to connect to the DB, it retries with an exponential backo
 * **Default:** no default; required for `pgsql`, `cockroachdb` and `mysql`
 * **Example:** `password = "mim-password"`
 
+---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options. There is one additonal option for PostgreSQL and CockroachDB:
 
 #### `outgoing_pools.rdbms.*.connection.tls.required`
@@ -186,6 +187,7 @@ Initial part of path which will be common to all calls. Prefix will be automatic
 
 Number of milliseconds after which http call to the server will time out. It should be lower than `call_timeout` set at the pool level.
 
+---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## Redis-specific options
@@ -220,6 +222,7 @@ Logical database index (zero-based).
 * **Default:** `""`
 * **Example:** `password = "topsecret"`
 
+---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## Cassandra options
@@ -248,6 +251,7 @@ To use plain text authentication (using cqerl_auth_plain_handler module):
 
 Support for other authentication modules may be added in the future.
 
+---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## Elasticsearch options
@@ -334,6 +338,7 @@ Enables/disables one-to-one publishers confirms.
 
 Sets a limit of messages in a worker's mailbox above which the worker starts dropping the messages. If a worker message queue length reaches the limit, messages from the head of the queue are dropped until the queue length is again below the limit. Use `infinity` to disable.
 
+---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## LDAP options
@@ -367,6 +372,7 @@ Leaving out this option makes it an anonymous connection, which most likely is w
 
 Reconnect interval after a failed connection.
 
+---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## TLS options
