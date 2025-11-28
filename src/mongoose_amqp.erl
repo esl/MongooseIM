@@ -54,8 +54,10 @@
 %%%===================================================================
 
 -spec network_params(map()) -> #amqp_params_network{}.
-network_params(#{host := Host, port := Port, username := UserName, password := Password}) ->
-    #amqp_params_network{host = Host, port = Port, username = UserName, password = Password}.
+network_params(ConnOpts) ->
+    #{host := Host, port := Port, username := UserName, password := Password} = ConnOpts,
+    #amqp_params_network{host = Host, port = Port, username = UserName, password = Password,
+                         ssl_options = ssl_options(ConnOpts)}.
 
 -spec exchange_declare(Exchange :: binary(), Type :: binary(), Durable :: boolean()) -> method().
 exchange_declare(Exchange, Type, Durable) ->
@@ -84,3 +86,8 @@ confirm_select_ok() ->
 -spec message(Payload :: binary()) -> message().
 message(Payload) ->
     #amqp_msg{payload = Payload}.
+
+%% Helpers
+
+ssl_options(#{tls := TLSOpts}) -> just_tls:make_client_opts(TLSOpts);
+ssl_options(#{}) -> none.
