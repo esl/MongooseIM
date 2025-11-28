@@ -145,6 +145,7 @@ groups() ->
                          pool_elastic_connection,
                          pool_rabbit,
                          pool_rabbit_connection,
+                         pool_rabbit_connection_tls,
                          pool_ldap,
                          pool_ldap_connection,
                          pool_ldap_connection_tls]},
@@ -1110,6 +1111,11 @@ pool_rabbit_connection(_Config) ->
     ?err(T(#{<<"password">> => <<>>})),
     ?err(T(#{<<"confirms_enabled">> => <<"yes">>})),
     ?err(T(#{<<"max_worker_queue_len">> => -1})).
+
+pool_rabbit_connection_tls(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    T = fun(Opts) -> pool_conn_raw(<<"rabbit">>, #{<<"tls">> => Opts}) end,
+    test_just_tls_client(P, T).
 
 pool_ldap(_Config) ->
     test_pool_opts(ldap, #{<<"connection">> => #{}}).
