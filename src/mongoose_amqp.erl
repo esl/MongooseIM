@@ -23,7 +23,7 @@
 
 -include_lib("amqp_client/include/amqp_client.hrl").
 
--export([network_params/1, exchange_declare/2,
+-export([network_params/1, exchange_declare/3,
          exchange_declare_ok/0, exchange_delete/1, basic_publish/2,
          confirm_select/0, confirm_select_ok/0, message/1]).
 
@@ -57,9 +57,9 @@
 network_params(#{host := Host, port := Port, username := UserName, password := Password}) ->
     #amqp_params_network{host = Host, port = Port, username = UserName, password = Password}.
 
--spec exchange_declare(Exchange :: binary(), Type :: binary()) -> method().
-exchange_declare(Exchange, Type) ->
-    #'exchange.declare'{exchange = Exchange, type = Type}.
+-spec exchange_declare(Exchange :: binary(), Type :: binary(), Durable :: boolean()) -> method().
+exchange_declare(Exchange, Type, Durable) ->
+    #'exchange.declare'{exchange = Exchange, type = Type, durable = Durable}.
 
 -spec exchange_declare_ok() -> method().
 exchange_declare_ok() ->

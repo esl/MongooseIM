@@ -661,16 +661,12 @@ custom_mod_event_pusher_push() ->
                  call_timeout => 5000}}.
 
 custom_mod_event_pusher_rabbit() ->
-    #{chat_msg_exchange => #{name => <<"chat_msg">>,
-                             recv_topic => <<"chat_msg_recv">>,
-                             sent_topic => <<"chat_msg_sent">>,
-                             type => <<"topic">>},
-      groupchat_msg_exchange => #{name => <<"groupchat_msg">>,
-                                  recv_topic => <<"groupchat_msg_recv">>,
-                                  sent_topic => <<"groupchat_msg_sent">>,
-                                  type => <<"topic">>},
-      presence_exchange => #{name => <<"presence">>,
-                             type => <<"topic">>}}.
+    config([modules, mod_event_pusher, rabbit],
+           #{chat_msg_exchange => #{recv_topic => <<"chat_msg_recv_topic">>,
+                                    sent_topic => <<"chat_msg_sent_topic">>},
+             groupchat_msg_exchange => #{},
+             presence_exchange => #{name => <<"my_presence">>,
+                                    durable => true}}).
 
 custom_mod_event_pusher_sns() ->
     #{access_key_id => "AKIAIOSFODNN7EXAMPLE",
@@ -1195,12 +1191,12 @@ default_config([modules, mod_event_pusher, push, wpool]) ->
 default_config([modules, mod_pubsub, wpool]) ->
     default_wpool_opts();
 default_config([modules, mod_event_pusher, rabbit, presence_exchange]) ->
-    #{name => <<"presence">>, type => <<"topic">>};
+    #{name => <<"presence">>, type => <<"topic">>, durable => false};
 default_config([modules, mod_event_pusher, rabbit, chat_msg_exchange]) ->
-    #{name => <<"chat_msg">>, type => <<"topic">>,
+    #{name => <<"chat_msg">>, type => <<"topic">>, durable => false,
       sent_topic => <<"chat_msg_sent">>, recv_topic => <<"chat_msg_recv">>};
 default_config([modules, mod_event_pusher, rabbit, groupchat_msg_exchange]) ->
-    #{name => <<"groupchat_msg">>, type => <<"topic">>,
+    #{name => <<"groupchat_msg">>, type => <<"topic">>, durable => false,
       sent_topic => <<"groupchat_msg_sent">>, recv_topic => <<"groupchat_msg_recv">>};
 default_config([modules, mod_event_pusher, sns]) ->
     #{plugin_module => mod_event_pusher_sns_defaults,

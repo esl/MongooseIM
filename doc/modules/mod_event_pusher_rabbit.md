@@ -42,6 +42,13 @@ Defines RabbitMQ presence exchange name.
 
 Defines RabbitMQ presence exchange type.
 
+### `modules.mod_event_pusher.rabbit.presence_exchange.durable`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `durable = true`
+
+When set to `true`, the RabbitMQ exchange is created as durable; otherwise it is transient.
+
 ## Chat message options
 
 To enable private chat message notifications, you need to include the `chat_msg_exchange` section in your configuration.
@@ -60,6 +67,13 @@ Defines RabbitMQ chat message exchange name.
 * **Example:** `type = "custom_msg_topic"`
 
 Defines RabbitMQ chat message exchange type.
+
+### `modules.mod_event_pusher.rabbit.presence_exchange.durable`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `durable = true`
+
+When set to `true`, the RabbitMQ exchange is created as durable; otherwise it is transient.
 
 ### `modules.mod_event_pusher.rabbit.chat_msg_exchange.sent_topic`
 * **Syntax:** non-empty string
@@ -93,6 +107,13 @@ Defines RabbitMQ group chat message exchange name.
 * **Example:** `type = "custom_group_msg_topic"`
 
 Defines RabbitMQ group chat message exchange type.
+
+### `modules.mod_event_pusher.rabbit.presence_exchange.durable`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `durable = true`
+
+When set to `true`, the RabbitMQ exchange is created as durable; otherwise it is transient.
 
 ### `modules.mod_event_pusher.rabbit.groupchat_msg_exchange.sent_topic`
 * **Syntax:** non-empty string
