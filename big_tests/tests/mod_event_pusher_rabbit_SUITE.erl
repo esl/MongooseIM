@@ -201,12 +201,11 @@ end_per_testcase(CaseName, Config) ->
 rabbit_pool_starts_with_default_config(_Config) ->
     %% GIVEN
     Domain = domain(),
-    DefaultWpoolConfig = #{type => rabbit, scope => host_type, tag => rabbit_event_pusher_default,
-                           opts => #{workers => 10, strategy => best_worker, call_timeout => 5000},
-                           conn_opts => #{amqp_port => 5672, confirms_enabled => false, max_worker_queue_len => 1000}},
+    Tag = rabbit_event_pusher_default,
+    DefaultWpoolConfig = #{type => rabbit, scope => host_type, tag => Tag},
     RabbitWpool = {rabbit, Domain, rabbit_event_pusher_default},
     %% WHEN
-    start_rabbit_wpool(Domain, DefaultWpoolConfig),
+    start_rabbit_wpool(Domain, config([modules, mod_event_pusher, rabbit, Tag], DefaultWpoolConfig)),
     %% THEN
     Pools = rpc(mim(), mongoose_wpool, get_pools, []),
     ?assertMatch(RabbitWpool,
