@@ -81,6 +81,7 @@ groups() ->
                            verify_peer_ignores_when_client_has_no_cert]},
         {just_tls, [{group, verify_peer} | tls_groups()]},
         {session_replacement, [], [same_resource_replaces_session,
+                                   same_resource_replaces_session_with_colon,
                                    clean_close_of_replaced_session,
                                    replaced_session_cannot_terminate,
                                    replaced_session_cannot_terminate_different_nodes]},
@@ -591,6 +592,21 @@ bind_server_generated_resource(Config) ->
 
 same_resource_replaces_session(Config) ->
     UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
+    {ok, Alice1, _} = escalus_connection:start(UserSpec),
+
+    {ok, Alice2, _} = escalus_connection:start(UserSpec),
+
+    ConflictError = escalus:wait_for_stanza(Alice1),
+    escalus:assert(is_stream_error, [<<"conflict">>, <<>>], ConflictError),
+
+    wait_helper:wait_until(fun() -> escalus_connection:is_connected(Alice1) end, false),
+
+    escalus_connection:stop(Alice2).
+
+%% Test that resources containing colons work correctly with session management.
+%% This is a regression test for https://github.com/esl/MongooseIM/issues/868
+same_resource_replaces_session_with_colon(Config) ->
+    UserSpec = [{resource, <<"device:with:colons">>} | escalus_users:get_userspec(Config, alice)],
     {ok, Alice1, _} = escalus_connection:start(UserSpec),
 
     {ok, Alice2, _} = escalus_connection:start(UserSpec),
