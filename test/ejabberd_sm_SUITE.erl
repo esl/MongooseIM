@@ -59,7 +59,10 @@ tests() ->
      kv_can_be_updated_for_session,
      kv_can_be_removed_for_session,
      store_info_sends_message_to_the_session_owner,
-     remove_info_sends_message_to_the_session_owner
+     remove_info_sends_message_to_the_session_owner,
+     parse_session_key_s5_format,
+     parse_session_key_s4_format,
+     parse_session_key_s4_format_with_colon_in_sid
     ].
 
 redis_only_tests() ->
@@ -107,6 +110,11 @@ init_per_testcase(too_many_sessions, Config) ->
     set_test_case_meck(?MAX_USER_SESSIONS, true),
     setup_sm(Config),
     Config;
+init_per_testcase(Case, Config) when Case =:= parse_session_key_s5_format;
+                                      Case =:= parse_session_key_s4_format;
+                                      Case =:= parse_session_key_s4_format_with_colon_in_sid ->
+    %% No setup needed - these are pure function tests
+    Config;
 init_per_testcase(Case, Config) ->
     set_test_case_meck(infinity, should_meck_c2s(Case)),
     setup_sm(Config),
@@ -116,6 +124,10 @@ should_meck_c2s(store_info_sends_message_to_the_session_owner) -> false;
 should_meck_c2s(remove_info_sends_message_to_the_session_owner) -> false;
 should_meck_c2s(_) -> true.
 
+end_per_testcase(Case, Config) when Case =:= parse_session_key_s5_format;
+                                     Case =:= parse_session_key_s4_format;
+                                     Case =:= parse_session_key_s4_format_with_colon_in_sid ->
+    Config;
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
     terminate_sm(),
@@ -386,6 +398,36 @@ clean_up_s4_backward_compatibility(_C) ->
     ejabberd_sm_redis:cleanup(node()),
     %% Verify cleanup succeeded (node set should be empty)
     [] = mongoose_redis:cmd(["SMEMBERS", n(node())]).
+
+parse_session_key_s5_format(_Config) ->
+    %% Test new s5: format with hex-encoded resource
+    U = <<"user">>,
+    S = <<"server">>,
+    R = <<"resource">>,
+    Sid = {erlang:timestamp(), self()},
+    HexResource = binary:encode_hex(R, lowercase),
+    Key = iolist_to_binary(["s5:", U, ":", S, ":", HexResource, ":", term_to_binary(Sid)]),
+    {U, S, R, Sid} = ejabberd_sm_redis:parse_session_key(Key).
+
+parse_session_key_s4_format(_Config) ->
+    %% Test old s4: format parsing
+    U = <<"user">>,
+    S = <<"server">>,
+    R = <<"resource">>,
+    Sid = {erlang:timestamp(), self()},
+    Key = iolist_to_binary(["s4:", U, ":", S, ":", R, ":", term_to_binary(Sid)]),
+    {U, S, R, Sid} = ejabberd_sm_redis:parse_session_key(Key).
+
+parse_session_key_s4_format_with_colon_in_sid(_Config) ->
+    %% Test s4: format where BinarySID happens to contain colon bytes
+    %% The parser handles this by joining SIDEncoded parts back together
+    U = <<"user">>,
+    S = <<"server">>,
+    R = <<"resource">>,
+    Sid = {erlang:timestamp(), self()},
+    BinarySid = term_to_binary(Sid),
+    Key = iolist_to_binary(["s4:", U, ":", S, ":", R, ":", BinarySid]),
+    {U, S, R, Sid} = ejabberd_sm_redis:parse_session_key(Key).
 
 ensure_empty(_C, 0, Sessions) ->
     [] = Sessions;

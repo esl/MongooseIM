@@ -22,9 +22,10 @@
          cleanup/1,
          maybe_initial_cleanup/2,
          total_count/0,
-         unique_count/0]).
+         unique_count/0,
+         parse_session_key/1]).
 
--ignore_xref([maybe_initial_cleanup/2]).
+-ignore_xref([maybe_initial_cleanup/2, parse_session_key/1]).
 
 -spec init(map()) -> ok.
 init(_Opts) ->
