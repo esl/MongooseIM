@@ -35,7 +35,7 @@ opts() ->
 
 groups() ->
     [{mnesia, [], tests()},
-     {redis, [], tests()},
+     {redis, [], tests() ++ redis_only_tests()},
      {cets, [], tests()}].
 
 tests() ->
@@ -61,6 +61,9 @@ tests() ->
      store_info_sends_message_to_the_session_owner,
      remove_info_sends_message_to_the_session_owner
     ].
+
+redis_only_tests() ->
+    [clean_up_s4_backward_compatibility].
 
 init_per_group(mnesia, Config) ->
     ok = mnesia:create_schema([node()]),
@@ -358,6 +361,31 @@ clean_up_with_colon_in_resource(C) ->
     ?B(C):cleanup(node()),
     %% give sm backend some time to clean all sessions
     ensure_empty(C, 10, ?B(C):get_sessions()).
+
+%% Redis-only test: verify backward compatibility with old s4: key format
+clean_up_s4_backward_compatibility(_C) ->
+    %% This test verifies that old s4: format keys are still parsed correctly
+    %% during cleanup (for rolling upgrades)
+    U = <<"testuser">>,
+    S = <<"localhost">>,
+    R = <<"resource">>,
+    Sid = make_sid(),
+    %% Create session using the new format (s5:)
+    Session = #session{sid = Sid, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
+    ejabberd_sm_redis:set_session(U, S, R, Session),
+    %% Manually insert an old-format s4: key into Redis to simulate legacy data
+    OldFormatKey = iolist_to_binary(["s4:", U, ":", S, ":", R, ":", term_to_binary(Sid)]),
+    mongoose_redis:cmd(["SADD", n(node()), OldFormatKey]),
+    %% Also add the session data so delete_session can find it
+    Sid2 = make_sid(),
+    Session2 = #session{sid = Sid2, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
+    BSession2 = term_to_binary(Session2),
+    mongoose_redis:cmd(["SADD", hash(U, S), BSession2]),
+    mongoose_redis:cmd(["SADD", hash(U, S, R), BSession2]),
+    %% Cleanup should handle both s4: and s5: keys
+    ejabberd_sm_redis:cleanup(node()),
+    %% Verify cleanup succeeded (node set should be empty)
+    [] = mongoose_redis:cmd(["SMEMBERS", n(node())]).
 
 ensure_empty(_C, 0, Sessions) ->
     [] = Sessions;
