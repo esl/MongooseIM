@@ -191,7 +191,7 @@ parse_session_key(<<"s5:", Rest/binary>>) ->
     {User, Server, Resource, SID};
 parse_session_key(<<"s4:", _/binary>> = Key) ->
     %% Old format: s4:User:Server:Resource:BinarySID (Resource may contain colons)
-    [_, User, Server, Resource | SIDEncoded] = re:split(Key, ":"),
+    [_, User, Server, Resource | SIDEncoded] = binary:split(Key, <<":">>, [global]),
     %% Add possible removed ":" from encoded SID
     SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
     {User, Server, Resource, SID}.
