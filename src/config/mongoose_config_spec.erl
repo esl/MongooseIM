@@ -543,7 +543,8 @@ outgoing_pool_connection(<<"rabbit">>) ->
                                            validate = non_empty},
                  <<"confirms_enabled">> => #option{type = boolean},
                  <<"max_worker_queue_len">> => #option{type = int_or_infinity,
-                                                       validate = non_negative}
+                                                       validate = non_negative},
+                 <<"tls">> => tls([client])
                 },
        include = always,
        defaults = #{<<"host">> => "localhost",

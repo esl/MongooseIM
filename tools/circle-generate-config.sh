@@ -30,6 +30,8 @@ CASSA_ENTRY=$(cat32 tools/db_configs/cassandra/docker_entry.sh)
 CASSA_MIM_CQL_ENTRY=$(cat32 priv/cassandra.cql)
 CASSA_TEST_CQL_ENTRY=$(cat32 big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql)
 
+RMQ_TLS_CONFIG=$(cat32 tools/db_configs/rmq/20-tls.conf)
+
 MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
 MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
 MIM_PRIV_KEY=$(cat32 tools/ssl/mongooseim/privkey.pem)
@@ -70,6 +72,7 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__CASSA_VERSION__/${CASSANDRA_VERSION}/" \
     -e "s/__ELASTICSEARCH_VERSION__/${ELASTICSEARCH_VERSION}/" \
     -e "s/__RMQ_VERSION__/${RMQ_VERSION}/" \
+    -e "s/__RMQ_TLS_CONFIG__/${RMQ_TLS_CONFIG}/" \
     -e "s/__MINIO_VERSION__/${MINIO_VERSION}/" \
     -e "s/__MINIO_MC_VERSION__/${MINIO_MC_VERSION}/" \
     -e "s/__MIM_CERT__/${MIM_CERT}/" \
