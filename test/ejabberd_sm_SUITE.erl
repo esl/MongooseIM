@@ -47,6 +47,7 @@ tests() ->
      session_is_updated_when_created_twice,
      delete_session,
      clean_up,
+     clean_up_with_colon_in_resource,
      too_many_sessions,
      unique_count,
      session_info_is_stored,
@@ -348,6 +349,16 @@ clean_up(C) ->
     %% give sm backend some time to clean all sessions
     ensure_empty(C, 10, ?B(C):get_sessions()).
 
+clean_up_with_colon_in_resource(C) ->
+    %% Test that resources containing colons are handled correctly during cleanup
+    Users = [generate_user(<<"user1">>, <<"localhost">>, <<"device:with:colons">>),
+             generate_user(<<"user2">>, <<"localhost">>, <<"smile:)">>),
+             generate_user(<<"user3">>, <<"otherhost">>, <<"a]b:c[d">>)],
+    [given_session_opened(Sid, USR) || {Sid, USR} <- Users],
+    ?B(C):cleanup(node()),
+    %% give sm backend some time to clean all sessions
+    ensure_empty(C, 10, ?B(C):get_sessions()).
+
 ensure_empty(_C, 0, Sessions) ->
     [] = Sessions;
 ensure_empty(C, N, Sessions) ->
@@ -500,7 +511,7 @@ do_verify_session_opened(ejabberd_sm_mnesia, Sid, {U, S, R} = USR) ->
 do_verify_session_opened(ejabberd_sm_cets, Sid, {U, S, R} = USR) ->
     general_session_check(ejabberd_sm_cets, Sid, USR, U, S, R);
 do_verify_session_opened(ejabberd_sm_redis, Sid, {U, S, R} = USR) ->
-    UHash = iolist_to_binary(hash(U, S, R, Sid)),
+    UHash = iolist_to_binary(hash_v2(U, S, R, Sid)),
     Hashes = mongoose_redis:cmd(["SMEMBERS", n(node())]),
     true = lists:member(UHash, Hashes),
     SessionsUSEncoded = mongoose_redis:cmd(["SMEMBERS", hash(U, S)]),
@@ -581,6 +592,11 @@ hash(Val1, Val2, Val3) ->
 -spec hash(binary(), binary(), binary(), binary()) -> iolist().
 hash(Val1, Val2, Val3, Val4) ->
     ["s4:", Val1, ":", Val2, ":", Val3, ":", term_to_binary(Val4)].
+
+%% New format with hex-encoded resource (matches ejabberd_sm_redis:hash_v2/4)
+-spec hash_v2(binary(), binary(), binary(), binary()) -> iolist().
+hash_v2(User, Server, Resource, SID) ->
+    ["s5:", User, ":", Server, ":", binary:encode_hex(Resource, lowercase), ":", term_to_binary(SID)].
 
 
 -spec n(atom()) -> iolist().
