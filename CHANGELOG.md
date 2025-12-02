@@ -1,3 +1,65 @@
+# [MongooseIM 6.5.0](https://github.com/esl/MongooseIM/releases/tag/6.5.0) - 2025-12-08
+
+## Highlights
+- Enhanced and enriched implementation of `mod_event_pusher_rabbit`
+- Enabled TLS support for Redis and RabbitMQ connections
+- Support for XEP-0402 PEP Native Bookmarks
+- Support for Erlang 28 and dropped support for Erlang 26
+- Various enhancements and bug fixes
+- Refactoring and improvements of tests
+
+## Added
+- XEP-0402 PEP Native Bookmarks (#4545)
+- Implement support for blocking a user for any groupchat (#4548)
+- Support Erlang 28 (#4549)
+- Enable selected rabbit exchanges (#4576)
+- Enable TLS connections to Redis (#4579)
+- Support common name prefix/suffix for SASL External (#4580)
+- Support durable exchanges in `mod_event_pusher_rabbit` (#4582)
+- Support TLS in RabbitMQ connection pools (#4583)
+- Support RabbitMQ virtual hosts (#4585)
+
+## Changed
+- Use cached affiliations in MUC Light API (#4552)
+- Refactor logging to use `c2s_data` consistently in log messages (#4561)
+- Separate certfile and keyfile (#4566)
+- Deprecate MSSQL backend (#4574)
+- Skip all messages without body in `mod_event_pusher_rabbit` (#4577)
+- Use a hook with handlers in `mod_event_pusher` (#4578)
+
+## Fixed
+- Fix and update GraphiQL (#4543)
+- Strip Acc when it is buffered to save memory (#4544)
+- Fix Missing Presence Unavailable Notifications in Stream Management (#4557)
+- Fix missing stream tag for connection-timeout errors (#4559)
+- Fix tls error logs (#4565)
+- Fix component IsValidFromJid returning non boolean (#4572)
+- Fix colon escaping in Redis session backend (#4584)
+- Fix race condition in mod_mam create_user_archive (#4592)
+
+## Removed
+- Drop support for Erlang 26 (#4549)
+
+## Other
+- Update Debian release and minor OTP versions (#4555)
+- Rework tests for invalid stream opening tag/element (#4556)
+- Fix documentation of mod_blocking (#4560)
+- Use the PGDATA directory in docker-setup-postgres (#4563)
+- Fix heading levels in mod_inbox doc (#4570)
+- Fix the test runner script (#4573)
+- Refactor mod_muc_api:create_instant_room/3 (#4575)
+- Refactor sasl_external_SUITE (#4581)
+- Enable "Rerun Failed Tests" for Small Tests (#4586)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.5.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue%20is%3Aclosed%20closed%3A2025-06-26..2025-12-08)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2025-06-26&to=2025-12-08&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.5.0+sort%3Aupdated-desc)
+
 # [MongooseIM 6.4.0](https://github.com/esl/MongooseIM/releases/tag/6.4.0) - 2025-06-25
 
 ## Highlights
