@@ -35,7 +35,7 @@ opts() ->
 
 groups() ->
     [{mnesia, [], tests()},
-     {redis, [], tests()},
+     {redis, [], tests() ++ redis_only_tests()},
      {cets, [], tests()}].
 
 tests() ->
@@ -47,6 +47,7 @@ tests() ->
      session_is_updated_when_created_twice,
      delete_session,
      clean_up,
+     clean_up_with_colon_in_resource,
      too_many_sessions,
      unique_count,
      session_info_is_stored,
@@ -58,8 +59,14 @@ tests() ->
      kv_can_be_updated_for_session,
      kv_can_be_removed_for_session,
      store_info_sends_message_to_the_session_owner,
-     remove_info_sends_message_to_the_session_owner
+     remove_info_sends_message_to_the_session_owner,
+     parse_session_key_s5_format,
+     parse_session_key_s4_format,
+     parse_session_key_s4_format_with_colon_in_sid
     ].
+
+redis_only_tests() ->
+    [clean_up_s4_backward_compatibility].
 
 init_per_group(mnesia, Config) ->
     ok = mnesia:create_schema([node()]),
@@ -103,6 +110,11 @@ init_per_testcase(too_many_sessions, Config) ->
     set_test_case_meck(?MAX_USER_SESSIONS, true),
     setup_sm(Config),
     Config;
+init_per_testcase(Case, Config) when Case =:= parse_session_key_s5_format;
+                                      Case =:= parse_session_key_s4_format;
+                                      Case =:= parse_session_key_s4_format_with_colon_in_sid ->
+    %% No setup needed - these are pure function tests
+    Config;
 init_per_testcase(Case, Config) ->
     set_test_case_meck(infinity, should_meck_c2s(Case)),
     setup_sm(Config),
@@ -112,6 +124,10 @@ should_meck_c2s(store_info_sends_message_to_the_session_owner) -> false;
 should_meck_c2s(remove_info_sends_message_to_the_session_owner) -> false;
 should_meck_c2s(_) -> true.
 
+end_per_testcase(Case, Config) when Case =:= parse_session_key_s5_format;
+                                     Case =:= parse_session_key_s4_format;
+                                     Case =:= parse_session_key_s4_format_with_colon_in_sid ->
+    Config;
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
     terminate_sm(),
@@ -348,6 +364,71 @@ clean_up(C) ->
     %% give sm backend some time to clean all sessions
     ensure_empty(C, 10, ?B(C):get_sessions()).
 
+clean_up_with_colon_in_resource(C) ->
+    %% Test that resources containing colons are handled correctly during cleanup
+    Users = [generate_user(<<"user1">>, <<"localhost">>, <<"device:with:colons">>),
+             generate_user(<<"user2">>, <<"localhost">>, <<"smile:)">>),
+             generate_user(<<"user3">>, <<"otherhost">>, <<"a]b:c[d">>)],
+    [given_session_opened(Sid, USR) || {Sid, USR} <- Users],
+    ?B(C):cleanup(node()),
+    %% give sm backend some time to clean all sessions
+    ensure_empty(C, 10, ?B(C):get_sessions()).
+
+%% Redis-only test: verify backward compatibility with old s4: key format
+clean_up_s4_backward_compatibility(_C) ->
+    %% This test verifies that old s4: format keys are still parsed correctly
+    %% during cleanup (for rolling upgrades)
+    U = <<"testuser">>,
+    S = <<"localhost">>,
+    R = <<"resource">>,
+    Sid = make_sid(),
+    %% Create session using the new format (s5:)
+    Session = #session{sid = Sid, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
+    ejabberd_sm_redis:set_session(U, S, R, Session),
+    %% Manually insert an old-format s4: key into Redis to simulate legacy data
+    OldFormatKey = iolist_to_binary(["s4:", U, ":", S, ":", R, ":", term_to_binary(Sid)]),
+    mongoose_redis:cmd(["SADD", n(node()), OldFormatKey]),
+    %% Also add the session data so delete_session can find it
+    Sid2 = make_sid(),
+    Session2 = #session{sid = Sid2, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
+    BSession2 = term_to_binary(Session2),
+    mongoose_redis:cmd(["SADD", hash(U, S), BSession2]),
+    mongoose_redis:cmd(["SADD", hash(U, S, R), BSession2]),
+    %% Cleanup should handle both s4: and s5: keys
+    ejabberd_sm_redis:cleanup(node()),
+    %% Verify cleanup succeeded (node set should be empty)
+    [] = mongoose_redis:cmd(["SMEMBERS", n(node())]).
+
+parse_session_key_s5_format(_Config) ->
+    %% Test new s5: format with hex-encoded resource
+    U = <<"user">>,
+    S = <<"server">>,
+    R = <<"resource">>,
+    Sid = {erlang:timestamp(), self()},
+    HexResource = binary:encode_hex(R, lowercase),
+    Key = iolist_to_binary(["s5:", U, ":", S, ":", HexResource, ":", term_to_binary(Sid)]),
+    {U, S, R, Sid} = ejabberd_sm_redis:parse_session_key(Key).
+
+parse_session_key_s4_format(_Config) ->
+    %% Test old s4: format parsing
+    U = <<"user">>,
+    S = <<"server">>,
+    R = <<"resource">>,
+    Sid = {erlang:timestamp(), self()},
+    Key = iolist_to_binary(["s4:", U, ":", S, ":", R, ":", term_to_binary(Sid)]),
+    {U, S, R, Sid} = ejabberd_sm_redis:parse_session_key(Key).
+
+parse_session_key_s4_format_with_colon_in_sid(_Config) ->
+    %% Test s4: format where BinarySID happens to contain colon bytes
+    %% The parser handles this by joining SIDEncoded parts back together
+    U = <<"user">>,
+    S = <<"server">>,
+    R = <<"resource">>,
+    Sid = {erlang:timestamp(), self()},
+    BinarySid = term_to_binary(Sid),
+    Key = iolist_to_binary(["s4:", U, ":", S, ":", R, ":", BinarySid]),
+    {U, S, R, Sid} = ejabberd_sm_redis:parse_session_key(Key).
+
 ensure_empty(_C, 0, Sessions) ->
     [] = Sessions;
 ensure_empty(C, N, Sessions) ->
@@ -500,7 +581,7 @@ do_verify_session_opened(ejabberd_sm_mnesia, Sid, {U, S, R} = USR) ->
 do_verify_session_opened(ejabberd_sm_cets, Sid, {U, S, R} = USR) ->
     general_session_check(ejabberd_sm_cets, Sid, USR, U, S, R);
 do_verify_session_opened(ejabberd_sm_redis, Sid, {U, S, R} = USR) ->
-    UHash = iolist_to_binary(hash(U, S, R, Sid)),
+    UHash = iolist_to_binary(hash_v2(U, S, R, Sid)),
     Hashes = mongoose_redis:cmd(["SMEMBERS", n(node())]),
     true = lists:member(UHash, Hashes),
     SessionsUSEncoded = mongoose_redis:cmd(["SMEMBERS", hash(U, S)]),
@@ -581,6 +662,11 @@ hash(Val1, Val2, Val3) ->
 -spec hash(binary(), binary(), binary(), binary()) -> iolist().
 hash(Val1, Val2, Val3, Val4) ->
     ["s4:", Val1, ":", Val2, ":", Val3, ":", term_to_binary(Val4)].
+
+%% New format with hex-encoded resource (matches ejabberd_sm_redis:hash_v2/4)
+-spec hash_v2(binary(), binary(), binary(), binary()) -> iolist().
+hash_v2(User, Server, Resource, SID) ->
+    ["s5:", User, ":", Server, ":", binary:encode_hex(Resource, lowercase), ":", term_to_binary(SID)].
 
 
 -spec n(atom()) -> iolist().
