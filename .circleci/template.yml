@@ -331,6 +331,18 @@ commands:
           name: Run Small Tests
           command: |
             tools/test.sh -p small_tests -s true -e true
+      - run:
+          when: always
+          name: Copy small test results for Insights
+          command: |
+            LATEST_CT_RUN=$(ls -td _build/test/logs/ct_run.* 2>/dev/null | head -1)
+            if [ -n "$LATEST_CT_RUN" ] && [ -f "$LATEST_CT_RUN/junit_report.xml" ]; then
+              mkdir -p small_tests_test_results
+              cp "$LATEST_CT_RUN/junit_report.xml" small_tests_test_results/junit_report.xml
+            fi
+      - store_test_results:
+          when: always
+          path: small_tests_test_results
   run_docker_smoke_test:
     steps:
       - checkout
@@ -637,10 +649,15 @@ jobs:
                 when: always
                 name: Copy test results for Insights
                 command: |
-                  cp big_tests/ct_report/*/junit_report.xml .
+                  LATEST_BIG_CT_RUN=$(ls -td big_tests/ct_report/ct_run.* 2>/dev/null | head -1)
+                  if [ -n "$LATEST_BIG_CT_RUN" ] && [ -f "$LATEST_BIG_CT_RUN/junit_report.xml" ]; then
+                    cp "$LATEST_BIG_CT_RUN/junit_report.xml" big_tests_junit_report.xml
+                  else
+                    echo "No big test junit_report.xml found"
+                  fi
             - store_test_results:
                 when: always
-                path: junit_report.xml
+                path: big_tests_junit_report.xml
       - run_coverage_analysis
       - run:
           name: Build Failed - Logs

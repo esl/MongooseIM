@@ -78,6 +78,43 @@ choose_newest_directory() {
   fi
 }
 
+circleci_tests_available() {
+  command -v circleci >/dev/null 2>&1 && [[ "$CIRCLECI" == "true" ]]
+}
+
+select_circleci_suites() {
+  local glob_pattern="$1"
+  local output_file="$2"
+
+  rm -f "$output_file"
+  # Use xargs to normalize input to newlines, then sed to process
+  # This follows CircleCI docs recommendation to use xargs for input handling
+  if ! circleci tests glob "$glob_pattern" | \
+      circleci tests run --command="xargs -n1 echo | sed 's|.*/||; s|\.erl$||' >>$output_file" --verbose
+  then
+    echo "circleci tests run failed for pattern $glob_pattern"
+    return 1
+  fi
+
+  if [ ! -s "$output_file" ]; then
+    echo "circleci tests run returned no suites for pattern $glob_pattern"
+    return 1
+  fi
+}
+
+maybe_select_small_test_suites() {
+  if circleci_tests_available && select_circleci_suites "test/**/*_SUITE.erl" selected_small_suites; then
+    if [ -s selected_small_suites ]; then
+      # Convert newline-separated suites to comma-separated list for rebar3
+      SELECTED_SUITES=$(cat selected_small_suites | tr '\n' ',' | sed 's/,$//')
+      echo "Selected small test suites: $SELECTED_SUITES"
+      export SUITE="$SELECTED_SUITES"
+    fi
+  else
+    echo "CircleCI did not return specific small-test suites to rerun; executing default list"
+  fi
+}
+
 run_small_tests() {
   tools/print-dots.sh start
   tools/print-dots.sh monitor $$
@@ -85,6 +122,7 @@ run_small_tests() {
     REBAR_CT_EXTRA_ARGS=" -c $REBAR_CT_EXTRA_ARGS "
   fi
   export REBAR_CT_EXTRA_ARGS="$REBAR_CT_EXTRA_ARGS"
+  maybe_select_small_test_suites
   make ct
   RESULT="$?"
   tools/print-dots.sh stop
@@ -159,11 +197,15 @@ run_test_preset() {
 }
 
 maybe_select_suites() {
-    if command -v circleci >/dev/null 2>&1 && [[ "$CIRCLECI" == "true" ]]; then
-        circleci tests glob tests/*_SUITE.erl | \
-            circleci tests run --command=">selected_suites xargs -d' ' -I {} basename {} .erl"
-        escript ../tools/select_suites_to_run.erl $TESTSPEC $(<selected_suites)
+  if circleci_tests_available && select_circleci_suites "tests/*_SUITE.erl" selected_suites; then
+    if [ -s selected_suites ]; then
+      escript ../tools/select_suites_to_run.erl $TESTSPEC $(<selected_suites)
+    else
+      echo "CircleCI returned an empty suite list for big tests; running defaults"
     fi
+  else
+    echo "CircleCI did not provide failed big-test suites; running defaults"
+  fi
 }
 
 print_running_nodes() {
