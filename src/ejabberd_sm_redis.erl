@@ -22,9 +22,10 @@
          cleanup/1,
          maybe_initial_cleanup/2,
          total_count/0,
-         unique_count/0]).
+         unique_count/0,
+         parse_session_key/1]).
 
--ignore_xref([maybe_initial_cleanup/2]).
+-ignore_xref([maybe_initial_cleanup/2, parse_session_key/1]).
 
 -spec init(map()) -> ok.
 init(_Opts) ->
@@ -82,14 +83,14 @@ set_session(User, Server, Resource, Session) ->
         {value, OldSession} ->
             BOldSession = term_to_binary(OldSession),
             BSession = term_to_binary(Session),
-            mongoose_redis:cmds([["SADD", n(Node), hash(User, Server, Resource, Session#session.sid)],
+            mongoose_redis:cmds([["SADD", n(Node), hash_v2(User, Server, Resource, Session#session.sid)],
                                  ["SREM", hash(User, Server), BOldSession],
                                  ["SREM", hash(User, Server, Resource), BOldSession],
                                  ["SADD", hash(User, Server), BSession],
                                  ["SADD", hash(User, Server, Resource), BSession]]);
         false ->
             BSession = term_to_binary(Session),
-            mongoose_redis:cmds([["SADD", n(Node), hash(User, Server, Resource, Session#session.sid)],
+            mongoose_redis:cmds([["SADD", n(Node), hash_v2(User, Server, Resource, Session#session.sid)],
                                  ["SADD", hash(User, Server), BSession],
                                  ["SADD", hash(User, Server, Resource), BSession]])
     end.
@@ -105,7 +106,7 @@ delete_session(SID, User, Server, Resource) ->
             BSession = term_to_binary(Session),
             mongoose_redis:cmds([["SREM", hash(User, Server), BSession],
                                  ["SREM", hash(User, Server, Resource), BSession],
-                                 ["SREM", n(sid_to_node(SID)), hash(User, Server, Resource, SID)]]);
+                                 ["SREM", n(sid_to_node(SID)), hash_v2(User, Server, Resource, SID)]]);
         false ->
             ok
     end.
@@ -120,9 +121,7 @@ maybe_initial_cleanup(Node, Initial) ->
     Hashes = mongoose_redis:cmd(["SMEMBERS", n(Node)]),
     mongoose_redis:cmd(["DEL", n(Node)]),
     Sessions = lists:map(fun(H) ->
-                          [_, U, S, R | SIDEncoded] = re:split(H, ":"),
-                          %% Add possible removed ":" from encoded SID
-                          SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
+                          {U, S, R, SID} = parse_session_key(H),
                           delete_session(SID, U, S, R),
                           case Initial of
                               true ->
@@ -159,10 +158,6 @@ hash(Val1, Val2) ->
 hash(Val1, Val2, Val3) ->
     ["s3:", Val1, ":", Val2, ":", Val3].
 
--spec hash(binary(), binary(), binary(), ejabberd_sm:sid()) -> iolist().
-hash(Val1, Val2, Val3, Val4) ->
-    ["s4:", Val1, ":", Val2, ":", Val3, ":", term_to_binary(Val4)].
-
 -spec n(atom()) -> iolist().
 n(Node) ->
     ["n:", atom_to_list(Node)].
@@ -170,3 +165,34 @@ n(Node) ->
 sid_to_node(SID) ->
     {_, Pid} = SID,
     node(Pid).
+
+%% New format (s5:) uses hex-encoded resource to handle colons in resource
+-spec hash_v2(binary(), binary(), binary(), ejabberd_sm:sid()) -> iolist().
+hash_v2(User, Server, Resource, SID) ->
+    ["s5:", User, ":", Server, ":", encode_resource(Resource), ":", term_to_binary(SID)].
+
+-spec encode_resource(binary()) -> binary().
+encode_resource(Resource) ->
+    binary:encode_hex(Resource, lowercase).
+
+-spec decode_resource(binary()) -> binary().
+decode_resource(HexResource) ->
+    binary:decode_hex(HexResource).
+
+%% Parse session key supporting both old (s4:) and new (s5:) formats
+-spec parse_session_key(binary()) -> {binary(), binary(), binary(), ejabberd_sm:sid()}.
+parse_session_key(<<"s5:", Rest/binary>>) ->
+    %% New format: s5:User:Server:HexEncodedResource:BinarySID
+    %% HexResource contains only [0-9a-f], so we can safely split on first 3 colons
+    [User, Rest1] = binary:split(Rest, <<":">>),
+    [Server, Rest2] = binary:split(Rest1, <<":">>),
+    [HexResource, BinarySID] = binary:split(Rest2, <<":">>),
+    Resource = decode_resource(HexResource),
+    SID = binary_to_term(BinarySID),
+    {User, Server, Resource, SID};
+parse_session_key(<<"s4:", _/binary>> = Key) ->
+    %% Old format: s4:User:Server:Resource:BinarySID (Resource may contain colons)
+    [_, User, Server, Resource | SIDEncoded] = binary:split(Key, <<":">>, [global]),
+    %% Add possible removed ":" from encoded SID
+    SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
+    {User, Server, Resource, SID}.

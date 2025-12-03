@@ -145,6 +145,7 @@ groups() ->
                          pool_elastic_connection,
                          pool_rabbit,
                          pool_rabbit_connection,
+                         pool_rabbit_connection_tls,
                          pool_ldap,
                          pool_ldap_connection,
                          pool_ldap_connection_tls]},
@@ -1102,14 +1103,21 @@ pool_rabbit_connection(_Config) ->
     ?cfg(P ++ [port], 9999, T(#{<<"port">> => 9999})),
     ?cfg(P ++ [username], <<"user">>, T(#{<<"username">> => <<"user">>})),
     ?cfg(P ++ [password], <<"pass">>, T(#{<<"password">> => <<"pass">>})),
+    ?cfg(P ++ [virtual_host], <<"vh">>, T(#{<<"virtual_host">> => <<"vh">>})),
     ?cfg(P ++ [confirms_enabled], true, T(#{<<"confirms_enabled">> => true})),
     ?cfg(P ++ [max_worker_queue_len], 100, T(#{<<"max_worker_queue_len">> => 100})),
     ?err(T(#{<<"host">> => <<>>})),
     ?err(T(#{<<"port">> => 123456})),
     ?err(T(#{<<"username">> => <<>>})),
     ?err(T(#{<<"password">> => <<>>})),
+    ?err(T(#{<<"virtual_host">> => <<>>})),
     ?err(T(#{<<"confirms_enabled">> => <<"yes">>})),
     ?err(T(#{<<"max_worker_queue_len">> => -1})).
+
+pool_rabbit_connection_tls(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    T = fun(Opts) -> pool_conn_raw(<<"rabbit">>, #{<<"tls">> => Opts}) end,
+    test_just_tls_client(P, T).
 
 pool_ldap(_Config) ->
     test_pool_opts(ldap, #{<<"connection">> => #{}}).

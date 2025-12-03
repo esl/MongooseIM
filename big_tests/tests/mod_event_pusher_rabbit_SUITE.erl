@@ -30,6 +30,7 @@
 -define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
 -define(WPOOL_CFG, #{scope => host_type,
                      opts => #{workers => 20, strategy => best_worker, call_timeout => 5000}}).
+-define(VHOST, <<"vh1">>).
 
 -define(RABBIT_HTTP_ENDPOINT, "http://127.0.0.1:15672").
 
@@ -118,7 +119,7 @@ init_per_suite(Config) ->
             instrument_helper:start(
                 [{wpool_rabbit_connections, #{host_type => domain(), pool_tag => test_tag}},
                  {wpool_rabbit_messages_published, #{host_type => domain(), pool_tag => event_pusher}}]),
-            start_rabbit_wpool(domain()),
+            start_rabbit_tls_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
             mongoose_helper:inject_module(mod_event_pusher_filter),
@@ -201,12 +202,11 @@ end_per_testcase(CaseName, Config) ->
 rabbit_pool_starts_with_default_config(_Config) ->
     %% GIVEN
     Domain = domain(),
-    DefaultWpoolConfig = #{type => rabbit, scope => host_type, tag => rabbit_event_pusher_default,
-                           opts => #{workers => 10, strategy => best_worker, call_timeout => 5000},
-                           conn_opts => #{amqp_port => 5672, confirms_enabled => false, max_worker_queue_len => 1000}},
+    Tag = rabbit_event_pusher_default,
+    DefaultWpoolConfig = #{type => rabbit, scope => host_type, tag => Tag},
     RabbitWpool = {rabbit, Domain, rabbit_event_pusher_default},
     %% WHEN
-    start_rabbit_wpool(Domain, DefaultWpoolConfig),
+    start_rabbit_wpool(Domain, config([modules, mod_event_pusher, rabbit, Tag], DefaultWpoolConfig)),
     %% THEN
     Pools = rpc(mim(), mongoose_wpool, get_pools, []),
     ?assertMatch(RabbitWpool,
@@ -566,7 +566,7 @@ messages_published_events_are_executed(Config) ->
 -spec connect_to_rabbit() -> proplists:proplist().
 connect_to_rabbit() ->
     {ok, Connection} =
-        amqp_connection:start(#amqp_params_network{}),
+        amqp_connection:start(#amqp_params_network{virtual_host = ?VHOST}),
     {ok, Channel} = amqp_connection:open_channel(Connection),
     [{rabbit_connection, Connection}, {rabbit_channel, Channel}].
 
@@ -697,19 +697,37 @@ is_exchange_present(Attrs, Exchanges) ->
 
 -spec list_exchanges() -> [json_object()].
 list_exchanges() ->
-    call_http_api("/api/exchanges").
+    call_http_api_get("exchanges").
 
 -spec list_queues() -> [json_object()].
 list_queues() ->
-    call_http_api("/api/queues").
+    call_http_api_get("queues").
 
--spec call_http_api(string()) -> [json_object()].
-call_http_api(Path) ->
+-spec ensure_vhost(binary()) -> ok.
+ensure_vhost(VHost) ->
+    call_http_api_put("vhosts/" ++ binary_to_list(VHost)).
+
+-spec call_http_api_get(string()) -> [json_object()].
+call_http_api_get(Path) ->
+    get_json_body(call_http_api(get, Path)).
+
+-spec call_http_api_put(string()) -> ok.
+call_http_api_put(Path) ->
+    {{_, Code, Status}, _Headers, _Body} = call_http_api(put, Path),
+    assert_created_or_no_content(Code, Status).
+
+get_json_body({{_, 200, "OK"}, _Headers, Body}) ->
+    json:decode(iolist_to_binary(Body)).
+
+call_http_api(Method, Path) ->
     Auth = "Basic " ++ binary_to_list(base64:encode("guest:guest")),
     Headers = [{"Authorization", Auth}],
-    URL = ?RABBIT_HTTP_ENDPOINT ++ Path,
-    {ok, {{_, 200, "OK"}, _Headers, Body}} = httpc:request(get, {URL, Headers}, [], []),
-    json:decode(iolist_to_binary(Body)).
+    URL = ?RABBIT_HTTP_ENDPOINT ++ "/api/" ++ Path,
+    {ok, Response} = httpc:request(Method, {URL, Headers}, [], []),
+    Response.
+
+assert_created_or_no_content(201, "Created") -> ok;
+assert_created_or_no_content(204, "No Content") -> ok.
 
 -spec subscribe_to_rabbit_queue(Channel :: pid(), Queue :: binary()) -> ok.
 subscribe_to_rabbit_queue(Channel, Queue) ->
@@ -765,6 +783,17 @@ assert_no_message_from_rabbit(RoutingKeys) ->
 
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).
+
+start_rabbit_tls_wpool(Host) ->
+    BasicOpts = ?WPOOL_CFG,
+    ConnOpts = #{tls => tls_config(), port => 5671, virtual_host => ?VHOST},
+    ensure_vhost(?VHOST),
+    start_rabbit_wpool(Host, BasicOpts#{conn_opts => ConnOpts}).
+
+tls_config() ->
+    #{certfile => "priv/ssl/fake_cert.pem",
+      keyfile => "priv/ssl/fake_key.pem",
+      cacertfile => "priv/ssl/cacert.pem"}.
 
 start_rabbit_wpool(Host, WpoolConfig) ->
     rpc(mim(), mongoose_wpool, ensure_started, []),

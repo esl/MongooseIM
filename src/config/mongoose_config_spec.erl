@@ -541,15 +541,19 @@ outgoing_pool_connection(<<"rabbit">>) ->
                                            validate = non_empty},
                  <<"password">> => #option{type = binary,
                                            validate = non_empty},
+                 <<"virtual_host">> => #option{type = binary,
+                                               validate = non_empty},
                  <<"confirms_enabled">> => #option{type = boolean},
                  <<"max_worker_queue_len">> => #option{type = int_or_infinity,
-                                                       validate = non_negative}
+                                                       validate = non_negative},
+                 <<"tls">> => tls([client])
                 },
        include = always,
        defaults = #{<<"host">> => "localhost",
                     <<"port">> => 5672,
                     <<"username">> => <<"guest">>,
                     <<"password">> => <<"guest">>,
+                    <<"virtual_host">> => <<"/">>,
                     <<"confirms_enabled">> => false,
                     <<"max_worker_queue_len">> => 1000}
       };

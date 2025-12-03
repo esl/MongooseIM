@@ -130,6 +130,17 @@ containers:
     entrypoint: *ENTRYPOINT
   - &rabbit_container
     image: rabbitmq:__RMQ_VERSION__
+    environment:
+      - OLD_ENTRYPOINT: "docker-entrypoint.sh rabbitmq-server"
+      - ENV_FILE_TLS_CONFIG_PATH: "/etc/rabbitmq/conf.d/20-tls.conf"
+      - ENV_FILE_TLS_CONFIG_DATA: "__RMQ_TLS_CONFIG__"
+      - ENV_FILE_CERT_PATH: "/certs/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/certs/privkey.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+      - ENV_FILE_CACERT_PATH: "/certs/cacert.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+    entrypoint: *ENTRYPOINT
   - &minio_container
     image: minio/minio:__MINIO_VERSION__
     environment:
