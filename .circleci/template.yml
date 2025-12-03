@@ -326,9 +326,8 @@ commands:
     steps:
       - run:
           name: Coverage
-          when: on_success
+          when: always
           command: |
-            echo "Success!"
             ./rebar3 codecov analyze
             tools/circle-upload-codecov.sh
   run_small_tests:
