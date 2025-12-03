@@ -85,12 +85,10 @@ function last_ct_run_name
 }
 
 
-function small_suite_path
+function last_small_ct_run_name
 {
     if [ -d _build/test/logs ]; then
-        cd _build/test/logs
-        ls -t -1 ct_run.mongooseim@localhost.*/lib.mongooseim.logs/run.*/suite.log.html
-        cd ../../..
+        ls -1 -t _build/test/logs/ | grep ct_run | head -n1
     fi
 }
 
@@ -106,8 +104,8 @@ function ct_small_url
 {
     local CT_REPORTS=$(ct_reports_dir)
     local SMALL_TESTS_URL="$(archive_reader_url small ${CT_REPORTS})"
-    local SUFFIX=$(small_suite_path)
-    echo "$SMALL_TESTS_URL/$SUFFIX"
+    local RUN_PART=$(echo "$(last_small_ct_run_name)" | sed "s/@/%40/g")
+    echo "$SMALL_TESTS_URL/$RUN_PART/index.html"
 }
 
 function reports_url
