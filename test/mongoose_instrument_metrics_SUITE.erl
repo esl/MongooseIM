@@ -10,6 +10,24 @@
 -define(HOST_TYPE, <<"localhost">>).
 -define(HOST_TYPE2, <<"test type">>).
 
+-define(assertRelEqual(Expect, Actual, Tolerance),
+    (fun() -> 
+        __Exp = (Expect),
+        __Act = (Actual),
+        __Tol = (Tolerance),
+        case __Exp == 0 of
+            true -> ?assertEqual(__Exp, __Act);
+            false ->
+                __RelErr = abs(__Exp - __Act) / __Exp,
+                __Check = case __RelErr < __Tol of
+                    true -> ok;
+                    false -> {fail, [{expected, __Exp}, {actual, __Act}, 
+                                        {rel_error, __RelErr}, {tolerance, __Tol}]}
+                end,
+                ?assertEqual(ok, __Check)
+        end
+    end)()).
+
 -import(mongoose_instrument_exometer, [exometer_metric_name/3]).
 %% Setup and teardown
 
@@ -30,6 +48,7 @@ groups() ->
                                prometheus_counter_cannot_be_decreased,
                                prometheus_counter_is_updated_separately_for_different_labels,
                                prometheus_histogram_is_created_and_updated,
+                               prometheus_histogram_is_calculated_correctly,
                                prometheus_histogram_is_updated_separately_for_different_labels,
                                multiple_prometheus_metrics_are_updated]},
      {exometer, [parallel], [exometer_skips_non_metric_event,
@@ -184,13 +203,33 @@ prometheus_histogram_is_created_and_updated(Config) ->
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
 
     %% Prometheus histogram shows no value if there is no data
-    ?assertEqual(undefined, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ?assertEqual(undefined, prometheus_quantile_summary:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
-    ?assertMatch({[1, 0|_], 1}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ?assertMatch({1, 1, _}, prometheus_quantile_summary:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
-    ?assertMatch({[2, 0|_], 2}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ?assertMatch({2, 2, _}, prometheus_quantile_summary:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 2}),
-    ?assertMatch({[2, 1|_], 4}, prometheus_histogram:value(Metric, [?HOST_TYPE])).
+    ?assertMatch({3, 4, _}, prometheus_quantile_summary:value(Metric, [?HOST_TYPE])).
+
+prometheus_histogram_is_calculated_correctly(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, time),
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
+
+    %% Prometheus histogram shows no value if there is no data
+    ?assertEqual(undefined, prometheus_quantile_summary:value(Metric, [?HOST_TYPE])),
+    Values = [1, 2, 2, 2, 2, 2, 2, 9, 9, 10],
+    lists:foreach(fun(V) -> ok = mongoose_instrument:execute(Event, ?LABELS, #{time => V}) end, Values),
+    Sum = lists:sum(Values),
+    Length = length(Values),
+    ?assertMatch({Length, Sum, _}, prometheus_quantile_summary:value(Metric, [?HOST_TYPE])),
+    %% Check some quantiles
+    {_, _, Quantiles} = prometheus_quantile_summary:value(Metric, [?HOST_TYPE]),
+    Tolerance = 0.01,
+    ?assertRelEqual(2, proplists:get_value(0.5, Quantiles), Tolerance),
+    ?assertRelEqual(9, proplists:get_value(0.9, Quantiles), Tolerance),
+    ?assertRelEqual(10, proplists:get_value(0.95, Quantiles), Tolerance),
+    ?assertRelEqual(10, proplists:get_value(0.99, Quantiles), Tolerance).
 
 prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
@@ -199,8 +238,8 @@ prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{time => histogram}}),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
     ok = mongoose_instrument:execute(Event, ?LABELS2, #{time => 2}),
-    ?assertMatch({[1, 0|_], 1}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
-    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(Metric, [?HOST_TYPE2])).
+    ?assertMatch({1, 1, _}, prometheus_quantile_summary:value(Metric, [?HOST_TYPE])),
+    ?assertMatch({1, 2, _}, prometheus_quantile_summary:value(Metric, [?HOST_TYPE2])).
 
 multiple_prometheus_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
@@ -211,18 +250,18 @@ multiple_prometheus_metrics_are_updated(Config) ->
     %% Update both metrics
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1, time => 2}),
     ?assertEqual(1, prometheus_counter:value(Counter, [?HOST_TYPE])),
-    HistogramValue = prometheus_histogram:value(Histogram, [?HOST_TYPE]),
-    ?assertMatch({[0, 1|_], 2}, HistogramValue),
+    HistogramValue = prometheus_quantile_summary:value(Histogram, [?HOST_TYPE]),
+    ?assertMatch({1, 2, _}, HistogramValue),
 
     %% Update only one metric
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
     ?assertEqual(3, prometheus_counter:value(Counter, [?HOST_TYPE])),
-    ?assertEqual(HistogramValue, prometheus_histogram:value(Histogram, [?HOST_TYPE])),
+    ?assertEqual(HistogramValue, prometheus_quantile_summary:value(Histogram, [?HOST_TYPE])),
 
     %% No update
     ok = mongoose_instrument:execute(Event, ?LABELS, #{something => irrelevant}),
     ?assertEqual(3, prometheus_counter:value(Counter, [?HOST_TYPE])),
-    ?assertEqual(HistogramValue, prometheus_histogram:value(Histogram, [?HOST_TYPE])).
+    ?assertEqual(HistogramValue, prometheus_quantile_summary:value(Histogram, [?HOST_TYPE])).
 
 exometer_skips_non_metric_event(Config) ->
     Event = ?config(event, Config),
@@ -386,7 +425,7 @@ prometheus_and_exometer_metrics_are_updated(Config) ->
     ?assertEqual({ok, [{count, 1}]}, exometer:get_value([?HOST_TYPE, Event, count], count)),
     ?assertEqual({ok, [{mean, 2}]}, exometer:get_value([?HOST_TYPE, Event, time], mean)),
     ?assertEqual(1, prometheus_counter:value(prom_name(Event, count), [?HOST_TYPE])),
-    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(prom_name(Event, time), [?HOST_TYPE])).
+    ?assertMatch({1, 2, _}, prometheus_quantile_summary:value(prom_name(Event, time), [?HOST_TYPE])).
 
 %% Helpers
 
