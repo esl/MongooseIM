@@ -50,16 +50,17 @@ All metrics are divided into the following groups:
 
     <h3>`histogram`</h3>
 
-    A histogram collects values and groups them in buckets.
+    A histogram collects values over a 60-second sliding window and exposes the number of observations and their sum (as counters), along with the 50th, 75th, 90th, 95th, 99th, and 99.9th percentiles.
 
     **Example:**
         ```
-        # TYPE xmpp_element_in_byte_size histogram
+        # TYPE xmpp_element_in_byte_size summary
         # HELP xmpp_element_in_byte_size Event: xmpp_element_in, Metric: byte_size
-        xmpp_element_in_byte_size_bucket{connection_type="c2s",host_type="localhost",le="1"} 0
+        xmpp_element_in_byte_size_count{connection_type="c2s",host_type="localhost"} 0
+        xmpp_element_in_byte_size_sum{connection_type="c2s",host_type="localhost"} 0
+        xmpp_element_in_byte_size{connection_type="c2s",host_type="localhost",quantile="0.5"} 0
         ...
-        xmpp_element_in_byte_size_bucket{connection_type="c2s",host_type="localhost",le="1073741824"} 0
-        xmpp_element_in_byte_size_bucket{connection_type="c2s",host_type="localhost",le="+Inf"} 0
+        xmpp_element_in_byte_size{connection_type="c2s",host_type="localhost",quantile="0.999"} 0
         ```
 
 === "Exometer"
