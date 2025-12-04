@@ -57,7 +57,13 @@ declare_metric(MetricSpec, counter) ->
 declare_metric(MetricSpec, spiral) ->
     prometheus_counter:declare(MetricSpec);
 declare_metric(MetricSpec, histogram) ->
-    prometheus_quantile_summary:declare([{quantiles, [0.5, 0.75, 0.90, 0.95, 0.99, 0.999]} | MetricSpec]).
+    prometheus_quantile_summary:declare([
+        {quantiles, [0.5, 0.75, 0.90, 0.95, 0.99, 0.999]},
+        {error, 0.01},
+        %% Measuring in µs suffices for actions lasting up to a day (with 1% accuracy).
+        %% Measuring in bytes suffices for sizes up to 81 GB (with 1% accuracy).
+        {bound, 1260}
+    | MetricSpec]).
 
 -spec reset_metric(name(), [mongoose_instrument:label_value()],
                    mongoose_instrument:metric_type()) -> boolean().
