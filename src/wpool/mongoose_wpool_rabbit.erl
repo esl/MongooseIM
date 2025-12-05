@@ -12,14 +12,11 @@ init() ->
 -spec start(mongooseim:host_type_or_global(), mongoose_wpool:tag(),
             mongoose_wpool:pool_opts(), mongoose_wpool:conn_opts()) -> {ok, pid()} | {error, any()}.
 start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
-    #{confirms_enabled := Confirms, max_worker_queue_len := MaxQueueLen} = ConnOpts,
     PoolName = mongoose_wpool:make_pool_name(rabbit, HostType, Tag),
     Worker = {mongoose_rabbit_worker,
-              [{amqp_client_opts, mongoose_amqp:network_params(ConnOpts)},
-               {host_type, HostType},
-               {pool_tag, Tag},
-               {confirms, Confirms},
-               {max_queue_len, MaxQueueLen}]},
+              #{host_type => HostType,
+                pool_tag => Tag,
+                opts => ConnOpts}},
     WpoolOpts = [{worker, Worker}, {pool_sup_shutdown, timer:seconds(5)} | WpoolOptsIn],
     mongoose_wpool:start_sup_pool(rabbit, PoolName, WpoolOpts).
 
