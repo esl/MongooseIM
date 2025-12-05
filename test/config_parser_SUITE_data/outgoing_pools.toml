@@ -55,6 +55,8 @@
     username = "guest"
     password = "guest"
     confirms_enabled = true
+    reconnect.attempts = 5
+    reconnect.delay = 1000
 
 [outgoing_pools.ldap.default]
   scope = "host_type"

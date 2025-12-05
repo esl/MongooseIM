@@ -363,7 +363,8 @@ options("outgoing_pools") ->
                           servers => ["ldap-server.example.com"]}},
          #{type => rabbit, scope => host_type, tag => event_pusher,
            opts => #{workers => 20, max_worker_queue_len => 100},
-           conn_opts => #{confirms_enabled => true}},
+           conn_opts => #{confirms_enabled => true,
+                          reconnect => #{attempts => 5, delay => 1000}}},
          #{type => rdbms,
            opts => #{workers => 5},
            conn_opts => #{query_timeout => 5000, keepalive_interval => 30,
@@ -828,7 +829,8 @@ default_pool_conn_opts(rabbit) ->
       username => <<"guest">>,
       password => <<"guest">>,
       virtual_host => <<"/">>,
-      confirms_enabled => false};
+      confirms_enabled => false,
+      reconnect => default_config([outgoing_pools, rabbit, tag, conn_opts, reconnect])};
 default_pool_conn_opts(redis) ->
     #{host => "127.0.0.1",
       port => 6379,
@@ -1302,6 +1304,8 @@ default_config([outgoing_pools, Type, _Tag, opts]) ->
     default_pool_wpool_opts(Type);
 default_config([outgoing_pools, Type, _Tag, conn_opts]) ->
     default_pool_conn_opts(Type);
+default_config([outgoing_pools, rabbit, _Tag, conn_opts, reconnect]) ->
+    #{attempts => 0, delay => 2000};
 default_config([outgoing_pools, _Type, _Tag, conn_opts, tls]) ->
     maps:merge(default_tls(), #{server_name_indication => default_sni()});
 default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
