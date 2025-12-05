@@ -54,13 +54,9 @@ end_per_suite(Config) ->
     Config.
 
 init_per_testcase(_Case, Config) ->
-    WorkerOpts = [{host_type, ?HOST_TYPE},
-                  {pool_tag, test_tag},
-                  {amqp_client_opts, []},
-                  {confirms, false},
-                  {max_queue_len, ?MAX_QUEUE_LEN}],
     mongoose_instrument:start_link(),
     mongoose_instrument:set_up(mongoose_wpool_rabbit:instrumentation(?HOST_TYPE, test_tag)),
+    WorkerOpts = #{host_type => ?HOST_TYPE, pool_tag => test_tag, opts => conn_opts()},
     {ok, WorkerPid} = gen_server:start(mongoose_rabbit_worker, WorkerOpts, []),
     Config ++ [{worker_pid, WorkerPid}].
 
@@ -172,6 +168,9 @@ worker_drops_msgs_when_queue_msg_len_limit_is_reached(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+conn_opts() ->
+    config_parser_helper:default_config([outgoing_pools, rabbit, test_tag, conn_opts]).
 
 mock_amqp() ->
     [meck:new(M, [no_link, passthrough]) || M <- ?AMQP_MOCK_MODULES],
