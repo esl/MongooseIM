@@ -47,7 +47,12 @@
                   password := binary(),
                   virtual_host := binary(),
                   confirms_enabled := boolean(),
-                  max_worker_queue_len := non_neg_integer() | infinity}.
+                  max_worker_queue_len := non_neg_integer() | infinity,
+                  reconnect => reconnect()}.
+
+-type reconnect() :: #{attempts := pos_integer(),
+                       delay := non_neg_integer() % milliseconds
+                      }.
 
 -type publish_result() :: boolean() | timeout | {channel_exception, any(), any()}.
 
@@ -190,7 +195,30 @@ maybe_restart_rabbit_connection(#{connection := Conn} = State) ->
     end.
 
 -spec establish_rabbit_connection(state()) -> state().
+establish_rabbit_connection(State = #{opts := #{reconnect := #{attempts := Attempts}}}) ->
+    establish_rabbit_connection(State, Attempts);
 establish_rabbit_connection(State) ->
+    establish_rabbit_connection(State, 0).
+
+-spec establish_rabbit_connection(state(), non_neg_integer()) -> state().
+establish_rabbit_connection(State, RemainingAttempts) ->
+    case start_amqp_connection(State) of
+        {ok, NewState} ->
+            NewState;
+        {error, Error} when RemainingAttempts > 0 ->
+            ?LOG_WARNING(#{what => rabbit_connection_failed, reason => Error, worker_state => State,
+                           remaining_attempts => RemainingAttempts}),
+            #{opts := #{reconnect := #{delay := Delay}}} = State,
+            timer:sleep(Delay),
+            establish_rabbit_connection(State, RemainingAttempts - 1);
+        {error, Error} when RemainingAttempts =:= 0 ->
+            ErrorInfo = #{what => rabbit_connection_failed, reason => Error, worker_state => State},
+            ?LOG_ERROR(ErrorInfo),
+            exit(ErrorInfo)
+    end.
+
+-spec start_amqp_connection(state()) -> {ok, state()} | {error, term()}.
+start_amqp_connection(State) ->
     #{opts := Opts, host_type := HostType, pool_tag := PoolTag} = State,
     case amqp_connection:start(mongoose_amqp:network_params(Opts)) of
         {ok, Connection} ->
@@ -201,14 +229,12 @@ establish_rabbit_connection(State) ->
             maybe_enable_confirms(Channel, Opts),
             ?LOG_DEBUG(#{what => rabbit_connection_established,
                          host_type => HostType, pool_tag => PoolTag, opts => Opts}),
-            State#{connection => Connection, channel => Channel};
+            {ok, State#{connection => Connection, channel => Channel}};
         {error, Error} ->
             mongoose_instrument:execute(wpool_rabbit_connections,
                                         #{host_type => HostType, pool_tag => PoolTag},
                                         #{failed => 1}),
-            ?LOG_ERROR(#{what => rabbit_connection_failed, reason => Error,
-                         host_type => HostType, pool_tag => PoolTag, opts => Opts}),
-            exit("connection to a Rabbit server failed")
+            {error, Error}
     end.
 
 -spec close_rabbit_connection(Connection :: pid(), Channel :: pid(),
