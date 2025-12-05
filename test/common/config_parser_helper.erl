@@ -363,7 +363,8 @@ options("outgoing_pools") ->
          #{type => rabbit, scope => host_type, tag => event_pusher,
            opts => #{workers => 20},
            conn_opts => #{confirms_enabled => true,
-                          max_worker_queue_len => 100}},
+                          max_worker_queue_len => 100,
+                          reconnect => #{attempts => 5, delay => 2000}}},
          #{type => rdbms,
            opts => #{workers => 5},
            conn_opts => #{query_timeout => 5000, keepalive_interval => 30,
@@ -1302,6 +1303,8 @@ default_config([outgoing_pools, Type, _Tag, opts]) ->
     default_pool_wpool_opts(Type);
 default_config([outgoing_pools, Type, _Tag, conn_opts]) ->
     default_pool_conn_opts(Type);
+default_config([outgoing_pools, rabbit, _Tag, conn_opts, reconnect]) ->
+    #{attempts => 10, delay => 5000};
 default_config([outgoing_pools, _Type, _Tag, conn_opts, tls]) ->
     maps:merge(default_tls(), #{server_name_indication => default_sni()});
 default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
