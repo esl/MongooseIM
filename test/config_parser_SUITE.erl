@@ -1152,9 +1152,13 @@ test_pool_opts(Type, Required) ->
     ?cfg(P, default_config([outgoing_pools, Type, default, opts]), T(Required)),
     ?cfg(P ++ [workers], 11, T(Required#{<<"workers">> => 11})),
     ?cfg(P ++ [strategy], random_worker, T(Required#{<<"strategy">> => <<"random_worker">>})),
+    ?cfg(P ++ [max_worker_queue_len], 1000, T(Required#{<<"max_worker_queue_len">> => 1000})),
     ?cfg(P ++ [call_timeout], 999, T(Required#{<<"call_timeout">> => 999})),
     ?err(T(Required#{<<"workers">> => 0})),
     ?err(T(Required#{<<"strategy">> => <<"worst_worker">>})),
+    ?err(T(Required#{<<"max_worker_queue_len">> => -1})),
+    ?err(T(Required#{<<"strategy">> => <<"random_worker">>,
+                     <<"max_worker_queue_len">> => 1000})), % this opt is only for best_worker
     ?err(T(Required#{<<"call_timeout">> => 0})).
 
 test_just_tls_client(P, T) ->
