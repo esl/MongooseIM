@@ -91,6 +91,11 @@ handle_cast({amqp_publish, Method, Payload}, State) ->
     handle_amqp_publish(Method, Payload, State).
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
+handle_info({'DOWN', _Ref, process, Connection, _}, State) ->
+    {noreply, case State of
+                  #{connection := Connection} -> establish_rabbit_connection(State);
+                  #{} -> State % probably already reconnected
+              end};
 handle_info(Req, State) ->
     ?UNEXPECTED_INFO(Req),
     {noreply, State}.
@@ -201,6 +206,7 @@ start_amqp_connection(State) ->
     #{opts := Opts, host_type := HostType, pool_tag := PoolTag} = State,
     case amqp_connection:start(mongoose_amqp:network_params(Opts)) of
         {ok, Connection} ->
+            monitor(process, Connection), % resulting ref is ignored as there is only one monitor
             mongoose_instrument:execute(wpool_rabbit_connections,
                                         #{host_type => HostType, pool_tag => PoolTag},
                                         #{active => 1, opened => 1}),
