@@ -700,30 +700,34 @@ is_redis_running() ->
     end.
 
 is_redis_running_tls() ->
-    % Try TLS connection without client certificates first
+    % Try TLS connection using just_tls for proper TLS option formatting
     ct:log("Attempting TLS connection to Redis on 127.0.0.1:6379"),
-    case eredis:start_link([
-        {host, "127.0.0.1"},
-        {port, 6379},
-        {tls, true},
-        {tls_opts, [
-            {verify, verify_none}
-        ]}
-    ]) of
-        {ok, Client} ->
-            ct:log("TLS connection to Redis succeeded"),
-            Result = eredis:q(Client, [<<"PING">>], 5000),
-            eredis:stop(Client),
-            case Result of
-                {ok,<<"PONG">>} ->
-                    ct:log("Redis TLS connection: PING successful"),
-                    true;
-                TlsPingError ->
-                    ct:log("Redis TLS connection: PING failed with ~p", [TlsPingError]),
-                    false
-            end;
-        TlsError ->
-            ct:log("TLS connection to Redis failed: ~p", [TlsError]),
+    try
+        TlsOpts = just_tls:make_client_opts(#{verify => verify_none}),
+        case eredis:start_link([
+            {host, "127.0.0.1"},
+            {port, 6379},
+            {tls, TlsOpts}
+        ]) of
+            {ok, Client} ->
+                ct:log("TLS connection to Redis succeeded"),
+                Result = eredis:q(Client, [<<"PING">>], 5000),
+                eredis:stop(Client),
+                case Result of
+                    {ok,<<"PONG">>} ->
+                        ct:log("Redis TLS connection: PING successful"),
+                        true;
+                    TlsPingError ->
+                        ct:log("Redis TLS connection: PING failed with ~p", [TlsPingError]),
+                        false
+                end;
+            TlsError ->
+                ct:log("TLS connection to Redis failed: ~p", [TlsError]),
+                false
+        end
+    catch
+        Error ->
+            ct:log("TLS connection attempt failed with exception: ~p", [Error]),
             false
     end.
 
