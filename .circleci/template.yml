@@ -661,13 +661,14 @@ jobs:
                 command: |
                   LATEST_BIG_CT_RUN=$(ls -td big_tests/ct_report/ct_run.* 2>/dev/null | head -1)
                   if [ -n "$LATEST_BIG_CT_RUN" ] && [ -f "$LATEST_BIG_CT_RUN/junit_report.xml" ]; then
-                    cp "$LATEST_BIG_CT_RUN/junit_report.xml" big_tests_junit_report.xml
+                    mkdir -p big_tests_test_results
+                    cp "$LATEST_BIG_CT_RUN/junit_report.xml" big_tests_test_results/junit_report.xml
                   else
                     echo "No big test junit_report.xml found"
                   fi
             - store_test_results:
                 when: always
-                path: big_tests_junit_report.xml
+                path: big_tests_test_results
       - run_coverage_analysis
       - run:
           name: Build Failed - Logs
