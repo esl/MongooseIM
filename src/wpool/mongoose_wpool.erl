@@ -380,7 +380,14 @@ expand_pools(Pools, PerHostType, HostTypes) ->
 prepare_pool_map(Pool = #{scope := HT, opts := Opts}) ->
     %% Rename "scope" field to "host_type" and change wpool opts to a KV list
     Pool1 = maps:remove(scope, Pool),
-    Pool1#{host_type => HT, opts => maps:to_list(Opts)}.
+    Pool1#{host_type => HT, opts => maps:to_list(prepare_pool_opts(Opts))}.
+
+-spec prepare_pool_opts(pool_map_in()) -> pool_map_in().
+prepare_pool_opts(Opts = #{strategy := best_worker, queue_limit := Limit}) ->
+    Opts1 = maps:remove(queue_limit, Opts),
+    Opts1#{strategy := fun(Name) -> best_worker_with_limit(Name, Limit) end};
+prepare_pool_opts(Opts) ->
+    Opts.
 
 -spec get_unique_types([pool_map_in()], [pool_map_in()]) -> [pool_type()].
 get_unique_types(Pools, HostTypeSpecific) ->
@@ -402,4 +409,14 @@ instrumentation(PoolType, HostType, Tag) ->
             CallbackModule:instrumentation(HostType, Tag);
         false ->
             []
+    end.
+
+-spec best_worker_with_limit(wpool:name(), pos_integer()) -> atom().
+best_worker_with_limit(Name, Limit) ->
+    Worker = wpool_pool:best_worker(Name),
+    case process_info(whereis(Worker), message_queue_len) of
+        {_, QueueLen} when QueueLen >= Limit ->
+            exit(no_workers);
+        _ ->
+            Worker
     end.
