@@ -675,7 +675,35 @@ n(Node) ->
 
 
 is_redis_running() ->
+    % Try plain connection first (for local development)
     case eredis:start_link([{host, "127.0.0.1"}]) of
+        {ok, Client} ->
+            Result = eredis:q(Client, [<<"PING">>], 5000),
+            eredis:stop(Client),
+            case Result of
+                {ok,<<"PONG">>} ->
+                    true;
+                _ ->
+                    false
+            end;
+        _ ->
+            % Try TLS connection (for CI environment)
+            is_redis_running_tls()
+    end.
+
+is_redis_running_tls() ->
+    case eredis:start_link([
+        {host, "127.0.0.1"},
+        {port, 6379},
+        {tls, true},
+        {tls_opts, [
+            {cacertfile, "tools/ssl/ca/cacert.pem"},
+            {certfile, "tools/ssl/mongooseim/cert.pem"},
+            {keyfile, "tools/ssl/mongooseim/key.pem"},
+            {server_name_indication, disabled},
+            {verify, verify_peer}
+        ]}
+    ]) of
         {ok, Client} ->
             Result = eredis:q(Client, [<<"PING">>], 5000),
             eredis:stop(Client),
