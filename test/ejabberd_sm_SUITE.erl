@@ -675,45 +675,52 @@ n(Node) ->
 
 
 is_redis_running() ->
+    ct:log("Checking if Redis is running..."),
     % Try plain connection first (for local development)
     case eredis:start_link([{host, "127.0.0.1"}]) of
         {ok, Client} ->
+            ct:log("Plain connection to Redis succeeded"),
             Result = eredis:q(Client, [<<"PING">>], 5000),
             eredis:stop(Client),
             case Result of
                 {ok,<<"PONG">>} ->
+                    ct:log("Redis plain connection: PING successful"),
                     true;
-                _ ->
+                Error ->
+                    ct:log("Redis plain connection: PING failed with ~p", [Error]),
                     false
             end;
-        _ ->
+        PlainError ->
+            ct:log("Plain connection to Redis failed: ~p, trying TLS...", [PlainError]),
             % Try TLS connection (for CI environment)
             is_redis_running_tls()
     end.
 
 is_redis_running_tls() ->
+    % Try TLS connection without client certificates first
+    ct:log("Attempting TLS connection to Redis on 127.0.0.1:6379"),
     case eredis:start_link([
         {host, "127.0.0.1"},
         {port, 6379},
         {tls, true},
         {tls_opts, [
-            {cacertfile, "tools/ssl/ca/cacert.pem"},
-            {certfile, "tools/ssl/mongooseim/cert.pem"},
-            {keyfile, "tools/ssl/mongooseim/key.pem"},
-            {server_name_indication, disabled},
-            {verify, verify_peer}
+            {verify, verify_none}
         ]}
     ]) of
         {ok, Client} ->
+            ct:log("TLS connection to Redis succeeded"),
             Result = eredis:q(Client, [<<"PING">>], 5000),
             eredis:stop(Client),
             case Result of
                 {ok,<<"PONG">>} ->
+                    ct:log("Redis TLS connection: PING successful"),
                     true;
-                _ ->
+                TlsPingError ->
+                    ct:log("Redis TLS connection: PING failed with ~p", [TlsPingError]),
                     false
             end;
-        _ ->
+        TlsError ->
+            ct:log("TLS connection to Redis failed: ~p", [TlsError]),
             false
     end.
 
