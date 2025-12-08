@@ -20,7 +20,7 @@ clean:
 # REBAR_CT_EXTRA_ARGS comes from a test runner
 ct:
 	@(if [ "$(SUITE)" ]; \
-		then $(RUN) $(REBAR) ct --dir test --suite $(SUITE) ; \
+		then $(RUN) $(REBAR) ct --dir test --suite $(SUITE) $(REBAR_CT_EXTRA_ARGS); \
 		else $(RUN) $(REBAR) ct $(REBAR_CT_EXTRA_ARGS); fi)
 
 eunit:
