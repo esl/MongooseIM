@@ -47,7 +47,6 @@
                   password := binary(),
                   virtual_host := binary(),
                   confirms_enabled := boolean(),
-                  max_worker_queue_len := non_neg_integer() | infinity,
                   reconnect => reconnect()}.
 
 -type reconnect() :: #{attempts := pos_integer(),
@@ -78,20 +77,25 @@ init(State) ->
     {ok, establish_rabbit_connection(State)}.
 
 -spec handle_call({amqp_call, mongoose_amqp:method()}, gen_server:from(), state()) ->
-          {reply, request_dropped | {ok | error | exit | throw, mongoose_amqp:method() | atom()},
-           state()}.
-handle_call(Req, From, State) ->
-    maybe_handle_request(fun do_handle_call/3, [Req, From, State],
-                         {reply, request_dropped, State}).
+          {reply, {ok | error | exit | throw, mongoose_amqp:method() | atom()}, state()}.
+handle_call({amqp_call, Method}, _From, State = #{channel := Channel}) ->
+    try amqp_channel:call(Channel, Method) of
+        Res ->
+            {reply, {ok, Res}, State}
+    catch
+        Error:Reason ->
+            {reply, {Error, Reason}, maybe_restart_rabbit_connection(State)}
+    end.
 
 -spec handle_cast({amqp_publish, mongoose_amqp:method(), mongoose_amqp:message()}, state()) ->
           {noreply, state()}.
-handle_cast(Req, State) ->
-    maybe_handle_request(fun do_handle_cast/2, [Req, State], {noreply, State}).
+handle_cast({amqp_publish, Method, Payload}, State) ->
+    handle_amqp_publish(Method, Payload, State).
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info(Req, State) ->
-    maybe_handle_request(fun do_handle_info/2, [Req, State], {noreply, State}).
+    ?UNEXPECTED_INFO(Req),
+    {noreply, State}.
 
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, #{connection := Connection, channel := Channel,
@@ -102,27 +106,6 @@ terminate(_Reason, #{connection := Connection, channel := Channel,
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
--spec do_handle_call({amqp_call, mongoose_amqp:method()}, gen_server:from(), state()) ->
-          {reply, {ok | error | exit | throw, mongoose_amqp:method() | atom()}, state()}.
-do_handle_call({amqp_call, Method}, _From, State = #{channel := Channel}) ->
-    try amqp_channel:call(Channel, Method) of
-        Res ->
-            {reply, {ok, Res}, State}
-    catch
-        Error:Reason ->
-            {reply, {Error, Reason}, maybe_restart_rabbit_connection(State)}
-    end.
-
--spec do_handle_cast({amqp_publish, mongoose_amqp:method(), mongoose_amqp:message()}, state()) ->
-          {noreply, state()}.
-do_handle_cast({amqp_publish, Method, Payload}, State) ->
-    handle_amqp_publish(Method, Payload, State).
-
--spec do_handle_info(term(), state()) -> {noreply, state()}.
-do_handle_info(Req, State) ->
-    ?UNEXPECTED_INFO(Req),
-    {noreply, State}.
 
 -spec handle_amqp_publish(mongoose_amqp:method(), mongoose_amqp:message(), state()) ->
           {noreply, state()}.
@@ -257,26 +240,3 @@ maybe_enable_confirms(Channel, #{confirms_enabled := true}) ->
     ok;
 maybe_enable_confirms(_Channel, #{}) ->
     ok.
-
--spec maybe_handle_request(Callback :: function(), Args :: [term()], Reply :: term()) -> term().
-maybe_handle_request(Callback, Args, Reply) ->
-    #{opts := #{max_worker_queue_len := Limit}} = lists:last(Args),
-    case is_msq_queue_max_limit_reached(Limit) of
-        false ->
-            apply(Callback, Args);
-        true ->
-            ?LOG_WARNING(#{what => rabbit_worker_request_dropped,
-                           reason => queue_message_length_limit_reached,
-                           limit => Limit}),
-            Reply
-    end.
-
--spec is_msq_queue_max_limit_reached(Limit :: infinity | non_neg_integer()) -> boolean().
-is_msq_queue_max_limit_reached(infinity) -> false;
-is_msq_queue_max_limit_reached(Limit) ->
-    case process_info(self(), message_queue_len) of
-        {_, QueueLen} when QueueLen > Limit ->
-            true;
-        _Else ->
-            false
-    end.

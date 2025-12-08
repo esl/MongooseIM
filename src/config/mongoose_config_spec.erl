@@ -544,8 +544,6 @@ outgoing_pool_connection(<<"rabbit">>) ->
                  <<"virtual_host">> => #option{type = binary,
                                                validate = non_empty},
                  <<"confirms_enabled">> => #option{type = boolean},
-                 <<"max_worker_queue_len">> => #option{type = int_or_infinity,
-                                                       validate = non_negative},
                  <<"tls">> => tls([client]),
                  <<"reconnect">> => rabbit_reconnect()
                 },
@@ -555,8 +553,7 @@ outgoing_pool_connection(<<"rabbit">>) ->
                     <<"username">> => <<"guest">>,
                     <<"password">> => <<"guest">>,
                     <<"virtual_host">> => <<"/">>,
-                    <<"confirms_enabled">> => false,
-                    <<"max_worker_queue_len">> => 1000}
+                    <<"confirms_enabled">> => false}
       };
 outgoing_pool_connection(<<"rdbms">>) ->
     #section{
