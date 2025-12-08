@@ -79,13 +79,13 @@ init_per_group(cets, Config) ->
     {ok, Pid} = cets_discovery:start(DiscoOpts),
     [{backend, ejabberd_sm_cets}, {cets_disco_pid, Pid} | Config].
 
-init_redis_group(true, Config) ->
+init_redis_group({true, ConnType}, Config) ->
     Self = self(),
     proc_lib:spawn(fun() ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
-                  Pool = default_config([outgoing_pools, redis, default]),
+                  Pool = redis_pool_config(ConnType),
                   mongoose_wpool:start_configured_pools([Pool], [], []),
                   Self ! ready,
                   receive stop -> ok end
@@ -94,6 +94,13 @@ init_redis_group(true, Config) ->
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
+
+redis_pool_config(plain) ->
+    default_config([outgoing_pools, redis, default]);
+redis_pool_config(tls) ->
+    Pool = default_config([outgoing_pools, redis, default]),
+    #{conn_opts := ConnOpts} = Pool,
+    Pool#{conn_opts := ConnOpts#{tls => #{verify_mode => none}}}.
 
 end_per_group(mnesia, Config) ->
     mnesia:stop(),
@@ -685,7 +692,7 @@ is_redis_running() ->
             case Result of
                 {ok,<<"PONG">>} ->
                     ct:log("Redis plain connection: PING successful"),
-                    true;
+                    {true, plain};
                 {error, tcp_closed} ->
                     ct:log("Plain connection was closed by server (likely TLS-only mode), trying TLS..."),
                     is_redis_running_tls();
@@ -716,7 +723,7 @@ is_redis_running_tls() ->
                 case Result of
                     {ok,<<"PONG">>} ->
                         ct:log("Redis TLS connection: PING successful"),
-                        true;
+                        {true, tls};
                     TlsPingError ->
                         ct:log("Redis TLS connection: PING failed with ~p", [TlsPingError]),
                         false
