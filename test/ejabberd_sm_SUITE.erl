@@ -703,7 +703,7 @@ is_redis_running_tls() ->
     % Try TLS connection using just_tls for proper TLS option formatting
     ct:log("Attempting TLS connection to Redis on 127.0.0.1:6379"),
     try
-        TlsOpts = just_tls:make_client_opts(#{verify => verify_none}),
+        TlsOpts = just_tls:make_client_opts(#{verify_mode => none}),
         case eredis:start_link([
             {host, "127.0.0.1"},
             {port, 6379},
