@@ -30,9 +30,9 @@
 ## Fixed
 - Fix and update GraphiQL (#4543)
 - Strip Acc when it is buffered to save memory (#4544)
-- Fix Missing Presence Unavailable Notifications in Stream Management (#4557)
+- Fix missing presence unavailable notifications in Stream Management (#4557)
 - Fix missing stream tag for connection-timeout errors (#4559)
-- Fix tls error logs (#4565)
+- Fix TLS error logs (#4565)
 - Fix component IsValidFromJid returning non boolean (#4572)
 - Fix colon escaping in Redis session backend (#4584)
 - Fix race condition in mod_mam create_user_archive (#4592)
