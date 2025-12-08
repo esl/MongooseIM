@@ -679,19 +679,22 @@ is_redis_running() ->
     % Try plain connection first (for local development)
     case eredis:start_link([{host, "127.0.0.1"}]) of
         {ok, Client} ->
-            ct:log("Plain connection to Redis succeeded"),
+            ct:log("Plain TCP connection to Redis succeeded"),
             Result = eredis:q(Client, [<<"PING">>], 5000),
             eredis:stop(Client),
             case Result of
                 {ok,<<"PONG">>} ->
                     ct:log("Redis plain connection: PING successful"),
                     true;
+                {error, tcp_closed} ->
+                    ct:log("Plain connection was closed by server (likely TLS-only mode), trying TLS..."),
+                    is_redis_running_tls();
                 Error ->
                     ct:log("Redis plain connection: PING failed with ~p", [Error]),
                     false
             end;
         PlainError ->
-            ct:log("Plain connection to Redis failed: ~p, trying TLS...", [PlainError]),
+            ct:log("Plain TCP connection to Redis failed: ~p, trying TLS...", [PlainError]),
             % Try TLS connection (for CI environment)
             is_redis_running_tls()
     end.
