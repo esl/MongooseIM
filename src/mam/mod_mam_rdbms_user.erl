@@ -28,8 +28,8 @@
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(_HostType, _Opts) ->
-    prepare_queries(),
+start(HostType, _Opts) ->
+    prepare_queries(HostType),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
@@ -54,13 +54,16 @@ hooks2(HostType) ->
      {MUC, mam_muc_archive_id, fun ?MODULE:archive_id/3, 50},
      {MUC and AR, mam_muc_remove_archive, fun ?MODULE:remove_archive/3, 90}].
 
-prepare_queries() ->
-    mongoose_rdbms:prepare(mam_user_insert, mam_server_user, [server, user_name],
-                            <<"INSERT INTO mam_server_user (server, user_name) VALUES (?, ?)">>),
+prepare_queries(HostType) ->
     mongoose_rdbms:prepare(mam_user_select, mam_server_user, [server, user_name],
                             <<"SELECT id FROM mam_server_user WHERE server=? AND user_name=?">>),
     mongoose_rdbms:prepare(mam_user_remove, mam_server_user, [server, user_name],
                             <<"DELETE FROM mam_server_user WHERE server=? AND user_name=?">>),
+    rdbms_queries:prepare_upsert(HostType, mam_user_upsert, mam_server_user,
+                                 [<<"server">>, <<"user_name">>],
+                                 [],
+                                 [<<"server">>, <<"user_name">>]),
+
     ok.
 
 %%====================================================================
@@ -117,18 +120,14 @@ query_archive_id(HostType, LServer, LUser, Tries) when Tries > 0 ->
 
 -spec create_user_archive(mongooseim:host_type(), jid:lserver(), jid:luser()) -> ok.
 create_user_archive(HostType, LServer, LUser) ->
-    Res = mongoose_rdbms:execute(HostType, mam_user_insert, [LServer, LUser]),
-    case Res of
-        {updated, 1} ->
+    InsertParams = [LServer, LUser],
+    UpdateParams = [], %% On duplicate key do nothing
+    UniqueKeyValues  = [LServer, LUser],
+
+    case rdbms_queries:execute_upsert(HostType, mam_user_upsert,
+                                      InsertParams, UpdateParams, UniqueKeyValues) of
+        {updated, _} ->
             ok;
-        _ ->
-            %% There is a common race condition case
-            %% Duplicate entry ... for key 'uc_mam_server_user_name'.
-            %% In this case Res can de:
-            %% - {error, duplicate_key}
-            %% - {error, "[FreeTDS][SQL Server]Violation of UNIQUE KEY constraint" ++ _}
-            %% Let's ignore the errors and just retry in query_archive_id
-            ?LOG_WARNING(#{what => create_user_archive_failed, reason => Res,
-                           user => LUser, host => HostType, server => LServer}),
-            ok
+        _Error ->
+            error(create_user_archive_failed)
     end.
