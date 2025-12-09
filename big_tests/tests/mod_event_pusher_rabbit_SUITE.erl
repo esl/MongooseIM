@@ -101,6 +101,7 @@ group_chat_message_publish_tests() ->
 
 instrumentation_tests() ->
     [connections_events_are_executed,
+     connection_failed_events_are_executed,
      messages_published_events_are_executed].
 
 filter_and_metadata_tests() ->
@@ -120,6 +121,7 @@ init_per_suite(Config) ->
         true ->
             instrument_helper:start(
                 [{wpool_rabbit_connections, #{host_type => domain(), pool_tag => test_tag}},
+                 {wpool_rabbit_connections, #{host_type => domain(), pool_tag => fail_tag}},
                  {wpool_rabbit_messages_published, #{host_type => domain(), pool_tag => event_pusher}}]),
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
@@ -531,6 +533,22 @@ connections_events_are_executed(_Config) ->
     stop_rabbit_wpool(RabbitWpool),
     assert_disconnection_event(Tag).
 
+connection_failed_events_are_executed(_Config) ->
+    %% GIVEN incorrect configuration (plain TCP connection to the TLS port)
+    Tag = fail_tag,
+    WpoolConfig = #{type => rabbit, scope => host_type, tag => Tag,
+                    conn_opts => #{port => 5671}},
+    Pool = config([outgoing_pools, rabbit, event_pusher], WpoolConfig),
+
+    %% WHEN the pool is started
+    Result = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool], [domain()]]),
+
+    %% THEN connection fails, instrumentation event is emitted, and pool is not started
+    ?assertMatch([{error, _}], Result),
+    assert_connection_failed_event(Tag),
+    Pools = rpc(mim(), mongoose_wpool, get_pools, []),
+    ?assertEqual(false, lists:keyfind(Tag, 3, Pools)).
+
 messages_published_events_are_executed(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
@@ -885,9 +903,14 @@ is_rabbitmq_available() ->
 assert_connection_event(Tag) ->
     instrument_helper:wait_and_assert(wpool_rabbit_connections,
                                       #{host_type => domain(), pool_tag => Tag},
-                                      fun(#{active := 1, opened := 1}) -> true end).
+                                      fun(M) -> M =:= #{active => 1, opened => 1} end).
+
+assert_connection_failed_event(Tag) ->
+    instrument_helper:wait_and_assert(wpool_rabbit_connections,
+                                      #{host_type => domain(), pool_tag => Tag},
+                                      fun(M) -> M =:= #{failed => 1} end).
 
 assert_disconnection_event(Tag) ->
     instrument_helper:wait_and_assert(wpool_rabbit_connections,
                                       #{host_type => domain(), pool_tag => Tag},
-                                      fun(#{active := -1, closed := 1}) -> true end).
+                                      fun(M) -> M =:= #{active => -1, closed => 1} end).
