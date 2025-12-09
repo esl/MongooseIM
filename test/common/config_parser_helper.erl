@@ -361,9 +361,8 @@ options("outgoing_pools") ->
                           root_dn => <<"cn=admin,dc=example,dc=com">>,
                           servers => ["ldap-server.example.com"]}},
          #{type => rabbit, scope => host_type, tag => event_pusher,
-           opts => #{workers => 20},
-           conn_opts => #{confirms_enabled => true,
-                          max_worker_queue_len => 100}},
+           opts => #{workers => 20, max_worker_queue_len => 100},
+           conn_opts => #{confirms_enabled => true}},
          #{type => rdbms,
            opts => #{workers => 5},
            conn_opts => #{query_timeout => 5000, keepalive_interval => 30,
@@ -827,8 +826,7 @@ default_pool_conn_opts(rabbit) ->
       username => <<"guest">>,
       password => <<"guest">>,
       virtual_host => <<"/">>,
-      confirms_enabled => false,
-      max_worker_queue_len => 1000};
+      confirms_enabled => false};
 default_pool_conn_opts(redis) ->
     #{host => "127.0.0.1",
       port => 6379,

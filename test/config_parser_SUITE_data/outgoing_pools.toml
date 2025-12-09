@@ -47,6 +47,7 @@
 [outgoing_pools.rabbit.event_pusher]
   scope = "host_type"
   workers = 20
+  max_worker_queue_len = 100
 
   [outgoing_pools.rabbit.event_pusher.connection]
     host = "localhost"
@@ -54,7 +55,6 @@
     username = "guest"
     password = "guest"
     confirms_enabled = true
-    max_worker_queue_len = 100
 
 [outgoing_pools.ldap.default]
   scope = "host_type"
