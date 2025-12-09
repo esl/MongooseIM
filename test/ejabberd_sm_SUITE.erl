@@ -11,7 +11,7 @@
 -define(B(C), (proplists:get_value(backend, C))).
 -define(MAX_USER_SESSIONS, 2).
 
--import(config_parser_helper, [default_config/1]).
+-import(config_parser_helper, [config/2, default_config/1]).
 
 all() -> [{group, mnesia}, {group, redis}, {group, cets}].
 
@@ -85,7 +85,7 @@ init_redis_group({true, ConnType}, Config) ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
-                  Pool = redis_pool_config(ConnType),
+                  Pool = config([outgoing_pools, redis, default], redis_pool_config(ConnType)),
                   mongoose_wpool:start_configured_pools([Pool], [], []),
                   Self ! ready,
                   receive stop -> ok end
@@ -96,11 +96,9 @@ init_redis_group(_, _) ->
     {skip, "redis not running"}.
 
 redis_pool_config(plain) ->
-    default_config([outgoing_pools, redis, default]);
+    #{};
 redis_pool_config(tls) ->
-    Pool = default_config([outgoing_pools, redis, default]),
-    #{conn_opts := ConnOpts} = Pool,
-    Pool#{conn_opts := ConnOpts#{tls => #{verify_mode => none}}}.
+    #{conn_opts => #{tls => #{verify_mode => none}}}.
 
 end_per_group(mnesia, Config) ->
     mnesia:stop(),
@@ -687,54 +685,48 @@ is_redis_running() ->
     case eredis:start_link([{host, "127.0.0.1"}]) of
         {ok, Client} ->
             ct:log("Plain TCP connection to Redis succeeded"),
-            Result = eredis:q(Client, [<<"PING">>], 5000),
-            eredis:stop(Client),
-            case Result of
-                {ok,<<"PONG">>} ->
-                    ct:log("Redis plain connection: PING successful"),
+            case check_redis_ping(Client, plain) of
+                {true, plain} ->
                     {true, plain};
-                {error, tcp_closed} ->
-                    ct:log("Plain connection was closed by server (likely TLS-only mode), trying TLS..."),
-                    is_redis_running_tls();
-                Error ->
-                    ct:log("Redis plain connection: PING failed with ~p", [Error]),
-                    false
+                false ->
+                    %% tcp_closed case handled inside check_redis_ping returns false
+                    is_redis_running_tls()
             end;
         PlainError ->
             ct:log("Plain TCP connection to Redis failed: ~p, trying TLS...", [PlainError]),
-            % Try TLS connection (for CI environment)
             is_redis_running_tls()
     end.
 
 is_redis_running_tls() ->
-    % Try TLS connection using just_tls for proper TLS option formatting
     ct:log("Attempting TLS connection to Redis on 127.0.0.1:6379"),
     try
         TlsOpts = just_tls:make_client_opts(#{verify_mode => none}),
-        case eredis:start_link([
-            {host, "127.0.0.1"},
-            {port, 6379},
-            {tls, TlsOpts}
-        ]) of
-            {ok, Client} ->
-                ct:log("TLS connection to Redis succeeded"),
-                Result = eredis:q(Client, [<<"PING">>], 5000),
-                eredis:stop(Client),
-                case Result of
-                    {ok,<<"PONG">>} ->
-                        ct:log("Redis TLS connection: PING successful"),
-                        {true, tls};
-                    TlsPingError ->
-                        ct:log("Redis TLS connection: PING failed with ~p", [TlsPingError]),
-                        false
-                end;
-            TlsError ->
-                ct:log("TLS connection to Redis failed: ~p", [TlsError]),
-                false
-        end
+        try_redis_tls_connection(TlsOpts)
     catch
         Error ->
             ct:log("TLS connection attempt failed with exception: ~p", [Error]),
+            false
+    end.
+
+try_redis_tls_connection(TlsOpts) ->
+    case eredis:start_link([{host, "127.0.0.1"}, {port, 6379}, {tls, TlsOpts}]) of
+        {ok, Client} ->
+            ct:log("TLS connection to Redis succeeded"),
+            check_redis_ping(Client, tls);
+        TlsError ->
+            ct:log("TLS connection to Redis failed: ~p", [TlsError]),
+            false
+    end.
+
+check_redis_ping(Client, ConnType) ->
+    Result = eredis:q(Client, [<<"PING">>], 5000),
+    eredis:stop(Client),
+    case Result of
+        {ok, <<"PONG">>} ->
+            ct:log("Redis ~p connection: PING successful", [ConnType]),
+            {true, ConnType};
+        Error ->
+            ct:log("Redis ~p connection: PING failed with ~p", [ConnType, Error]),
             false
     end.
 
