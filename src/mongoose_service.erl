@@ -36,7 +36,7 @@
 -type service_list() :: [{service(), options()}].
 -type service_map() :: #{service() => options()}.
 
--export_type([service/0, service_list/0, service_map/0, options/0]).
+-export_type([service/0, service_list/0, service_map/0, options/0, start_result/0]).
 
 -callback start(options()) -> start_result().
 -callback stop() -> any().

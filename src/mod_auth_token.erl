@@ -43,7 +43,10 @@
 -export_type([period/0,
               sequence_no/0,
               token/0,
-              token_type/0]).
+              token_type/0,
+              error/0,
+              serialized/0,
+              validation_result/0]).
 
 -ignore_xref([
     behaviour_info/1, datetime_to_seconds/1, deserialize/1,
@@ -57,7 +60,7 @@
                     unit := days | hours | minutes | seconds}.
 -type sequence_no() :: integer().
 -type serialized() :: binary().
--type token() :: #token{}.
+-opaque token() :: #token{}.
 -type token_type() :: access | refresh | provision.
 -type validation_result() :: {ok, module(), jid:user()}
                            | {ok, module(), jid:user(), binary()}
@@ -427,7 +430,7 @@ config_metrics(HostType) ->
 -spec disco_local_features(mongoose_disco:feature_acc(),
                            map(),
                            map()) -> {ok, mongoose_disco:feature_acc()}.
-disco_local_features(Acc = #{node := <<>>}, _, _) ->
+disco_local_features(#{node := <<>>} = Acc, _, _) ->
     {ok, mongoose_disco:add_features([?NS_ESL_TOKEN_AUTH], Acc)};
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
