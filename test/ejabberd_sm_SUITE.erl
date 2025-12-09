@@ -11,7 +11,7 @@
 -define(B(C), (proplists:get_value(backend, C))).
 -define(MAX_USER_SESSIONS, 2).
 
--import(config_parser_helper, [default_config/1]).
+-import(config_parser_helper, [config/2, default_config/1]).
 
 all() -> [{group, mnesia}, {group, redis}, {group, cets}].
 
@@ -79,13 +79,13 @@ init_per_group(cets, Config) ->
     {ok, Pid} = cets_discovery:start(DiscoOpts),
     [{backend, ejabberd_sm_cets}, {cets_disco_pid, Pid} | Config].
 
-init_redis_group(true, Config) ->
+init_redis_group({true, ConnType}, Config) ->
     Self = self(),
     proc_lib:spawn(fun() ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
-                  Pool = default_config([outgoing_pools, redis, default]),
+                  Pool = config([outgoing_pools, redis, default], redis_pool_config(ConnType)),
                   mongoose_wpool:start_configured_pools([Pool], [], []),
                   Self ! ready,
                   receive stop -> ok end
@@ -94,6 +94,11 @@ init_redis_group(true, Config) ->
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
+
+redis_pool_config(plain) ->
+    #{};
+redis_pool_config(tls) ->
+    #{conn_opts => #{tls => #{verify_mode => none}}}.
 
 end_per_group(mnesia, Config) ->
     mnesia:stop(),
@@ -675,17 +680,53 @@ n(Node) ->
 
 
 is_redis_running() ->
+    ct:log("Checking if Redis is running..."),
+    % Try plain connection first (for local development)
     case eredis:start_link([{host, "127.0.0.1"}]) of
         {ok, Client} ->
-            Result = eredis:q(Client, [<<"PING">>], 5000),
-            eredis:stop(Client),
-            case Result of
-                {ok,<<"PONG">>} ->
-                    true;
-                _ ->
-                    false
+            ct:log("Plain TCP connection to Redis succeeded"),
+            case check_redis_ping(Client, plain) of
+                {true, plain} ->
+                    {true, plain};
+                false ->
+                    %% tcp_closed case handled inside check_redis_ping returns false
+                    is_redis_running_tls()
             end;
-        _ ->
+        PlainError ->
+            ct:log("Plain TCP connection to Redis failed: ~p, trying TLS...", [PlainError]),
+            is_redis_running_tls()
+    end.
+
+is_redis_running_tls() ->
+    ct:log("Attempting TLS connection to Redis on 127.0.0.1:6379"),
+    try
+        TlsOpts = just_tls:make_client_opts(#{verify_mode => none}),
+        try_redis_tls_connection(TlsOpts)
+    catch
+        Error ->
+            ct:log("TLS connection attempt failed with exception: ~p", [Error]),
+            false
+    end.
+
+try_redis_tls_connection(TlsOpts) ->
+    case eredis:start_link([{host, "127.0.0.1"}, {port, 6379}, {tls, TlsOpts}]) of
+        {ok, Client} ->
+            ct:log("TLS connection to Redis succeeded"),
+            check_redis_ping(Client, tls);
+        TlsError ->
+            ct:log("TLS connection to Redis failed: ~p", [TlsError]),
+            false
+    end.
+
+check_redis_ping(Client, ConnType) ->
+    Result = eredis:q(Client, [<<"PING">>], 5000),
+    eredis:stop(Client),
+    case Result of
+        {ok, <<"PONG">>} ->
+            ct:log("Redis ~p connection: PING successful", [ConnType]),
+            {true, ConnType};
+        Error ->
+            ct:log("Redis ~p connection: PING failed with ~p", [ConnType, Error]),
             false
     end.
 
