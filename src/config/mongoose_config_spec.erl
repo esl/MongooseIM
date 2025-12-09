@@ -24,8 +24,7 @@
          process_acl_condition/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
-         process_infinity_as_zero/1,
-         validate_tls_options/1]).
+         process_infinity_as_zero/1]).
 
 %% For tests
 -export([configurable_modules/0]).
