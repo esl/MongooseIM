@@ -1173,7 +1173,9 @@ test_just_tls_common(P, T) ->
     ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
     M = tls_ca_raw(),
     ?cfg(P ++ [cacertfile], "priv/ca.pem", T(M)),
-    ?cfg(P ++ [certfile], "priv/cert.pem", T(M#{<<"certfile">> => <<"priv/cert.pem">>})),
+    %% Certfile with keyfile should work
+    ?cfg(P ++ [certfile], "priv/cert.pem", T(M#{<<"certfile">> => <<"priv/cert.pem">>,
+                                                <<"keyfile">> => <<"priv/dc1.pem">>})),
     ?cfg(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
          T(M#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
     ?cfg(P ++ [keyfile], "priv/dc1.pem", T(M#{<<"keyfile">> => <<"priv/dc1.pem">>})),
@@ -1181,12 +1183,15 @@ test_just_tls_common(P, T) ->
     ?cfg(P ++ [versions], ['tlsv1.2', 'tlsv1.3'],
          T(M#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
     ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
-    ?err(T(M#{<<"certfile">> => <<"no_such_file.pem">>})),
     ?err(T(M#{<<"cacertfile">> => <<"no_such_file.pem">>})),
     ?err(T(M#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
     ?err(T(M#{<<"keyfile">> => <<"no_such_file.pem">>})),
     ?err(T(M#{<<"password">> => false})),
-    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})).
+    ?err(T(M#{<<"versions">> => <<"tlsv1.2">>})),
+    %% Certfile without keyfile should fail (OTP 28.1+ requirement)
+    ?err(T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?err(T(M#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?err(T(M#{<<"certfile">> => <<"no_such_file.pem">>})).
 
 test_just_tls_client_sni(ParentP, ParentT) ->
     P = ParentP ++ [server_name_indication],
@@ -1447,7 +1452,8 @@ s2s_outgoing_tls(_Config) ->
     ?cfgh(P, default_config(P), T(#{})), % default options if tls section is present
     ?cfgh(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
     ?cfgh(P ++ [cacertfile], "priv/ca.pem", T(tls_ca_raw())),
-    ?cfgh(P ++ [certfile], "priv/cert.pem", T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfgh(P ++ [certfile], "priv/cert.pem", T(#{<<"certfile">> => <<"priv/cert.pem">>,
+                                                <<"keyfile">> => <<"priv/dc1.pem">>})),
     ?cfgh(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
           T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
     ?cfgh(P ++ [keyfile], "priv/dc1.pem", T(#{<<"keyfile">> => <<"priv/dc1.pem">>})),
@@ -1455,12 +1461,14 @@ s2s_outgoing_tls(_Config) ->
     ?cfgh(P ++ [versions], ['tlsv1.2', 'tlsv1.3'],
           T(#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
     ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
-    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
     ?err(T(#{<<"cacertfile">> => <<"no_such_file.pem">>})),
     ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
     ?err(T(#{<<"keyfile">> => <<"no_such_file.pem">>})),
     ?err(T(#{<<"password">> => false})),
-    ?err(T(#{<<"versions">> => <<"tlsv1.2">>})).
+    ?err(T(#{<<"versions">> => <<"tlsv1.2">>})),
+    %% Certfile without keyfile should fail (OTP 28.1+ requirement)
+    ?err(T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})).
 
 %% modules
 

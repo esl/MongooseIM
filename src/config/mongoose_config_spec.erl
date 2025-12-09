@@ -24,7 +24,8 @@
          process_acl_condition/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
-         process_infinity_as_zero/1]).
+         process_infinity_as_zero/1,
+         validate_tls_options/1]).
 
 %% For tests
 -export([configurable_modules/0]).
@@ -655,7 +656,8 @@ tls(common) ->
                       },
              defaults = #{<<"verify_mode">> => peer,
                           <<"disconnect_on_failure">> => true,
-                          <<"crl_files">> => []}};
+                          <<"crl_files">> => []},
+             process = fun validate_tls_options/1};
 tls(server) ->
     #section{items = #{<<"dhfile">> => #option{type = string, validate = filename},
                        <<"early_data">> => #option{type = boolean},
@@ -1096,3 +1098,17 @@ ip_version(T) when tuple_size(T) =:= 8 -> inet6.
 
 process_infinity_as_zero(infinity) -> 0;
 process_infinity_as_zero(Num) -> Num.
+
+%% Validate that certfile and keyfile are separate files
+%% OTP 28.1+ doesn't allow concatenated certificate with private key
+validate_tls_options(TLSConfig) ->
+    case maps:is_key(certfile, TLSConfig) andalso not maps:is_key(keyfile, TLSConfig) of
+        true ->
+            error(#{what => tls_certfile_without_keyfile,
+                    text => <<"TLS certfile provided without a separate keyfile. "
+                              "Since OTP 28.1, concatenated certificate and private key files "
+                              "are not supported. Please provide a separate keyfile option.">>,
+                    certfile => maps:get(certfile, TLSConfig)});
+        false ->
+            TLSConfig
+    end.
