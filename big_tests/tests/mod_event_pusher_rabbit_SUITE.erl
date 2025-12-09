@@ -50,6 +50,7 @@ all() ->
      {group, module_startup},
      {group, only_presence_module_startup},
      {group, presence_status_publish},
+     {group, presence_status_publish_with_confirms},
      {group, only_presence_status_publish},
      {group, chat_message_publish},
      {group, group_chat_message_publish},
@@ -62,6 +63,7 @@ groups() ->
      {module_startup, [], module_startup_tests()},
      {only_presence_module_startup, [], only_presence_module_startup_tests()},
      {presence_status_publish, [], presence_status_publish_tests()},
+     {presence_status_publish_with_confirms, [], presence_status_publish_tests()},
      {only_presence_status_publish, [], only_presence_status_publish_tests()},
      {chat_message_publish, [], chat_message_publish_tests()},
      {group_chat_message_publish, [], group_chat_message_publish_tests()},
@@ -119,7 +121,6 @@ init_per_suite(Config) ->
             instrument_helper:start(
                 [{wpool_rabbit_connections, #{host_type => domain(), pool_tag => test_tag}},
                  {wpool_rabbit_messages_published, #{host_type => domain(), pool_tag => event_pusher}}]),
-            start_rabbit_tls_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
             mongoose_helper:inject_module(mod_event_pusher_filter),
@@ -129,7 +130,6 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
-    stop_rabbit_wpool(domain()),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config),
@@ -137,6 +137,7 @@ end_per_suite(Config) ->
 
 init_per_group(GroupName, Config0) ->
     Domain = domain(),
+    start_rabbit_tls_wpool(Domain, GroupName),
     Config = dynamic_modules:save_modules(Domain, Config0),
     dynamic_modules:ensure_modules(Domain, required_modules(GroupName)),
     Config.
@@ -177,7 +178,8 @@ extra_exchange_opts(_) -> #{}.
 
 end_per_group(_, Config) ->
     delete_exchanges(),
-    dynamic_modules:restore_modules(Config).
+    dynamic_modules:restore_modules(Config),
+    stop_rabbit_wpool(domain()).
 
 init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
     Config;
@@ -784,11 +786,17 @@ assert_no_message_from_rabbit(RoutingKeys) ->
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).
 
-start_rabbit_tls_wpool(Host) ->
+start_rabbit_tls_wpool(Host, GroupName) ->
     BasicOpts = ?WPOOL_CFG,
-    ConnOpts = #{tls => tls_config(), port => 5671, virtual_host => ?VHOST},
+    BasicConnOpts = #{tls => tls_config(), port => 5671, virtual_host => ?VHOST},
+    ConnOpts = maps:merge(BasicConnOpts, extra_conn_opts(GroupName)),
     ensure_vhost(?VHOST),
     start_rabbit_wpool(Host, BasicOpts#{conn_opts => ConnOpts}).
+
+extra_conn_opts(presence_status_publish_with_confirms) ->
+    #{confirms_enabled => true};
+extra_conn_opts(_GroupName) ->
+    #{}.
 
 tls_config() ->
     #{certfile => "priv/ssl/fake_cert.pem",
