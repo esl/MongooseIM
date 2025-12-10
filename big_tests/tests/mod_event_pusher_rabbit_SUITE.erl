@@ -50,6 +50,7 @@ all() ->
      {group, module_startup},
      {group, only_presence_module_startup},
      {group, presence_status_publish},
+     {group, presence_status_publish_with_confirms},
      {group, only_presence_status_publish},
      {group, chat_message_publish},
      {group, group_chat_message_publish},
@@ -62,6 +63,7 @@ groups() ->
      {module_startup, [], module_startup_tests()},
      {only_presence_module_startup, [], only_presence_module_startup_tests()},
      {presence_status_publish, [], presence_status_publish_tests()},
+     {presence_status_publish_with_confirms, [], presence_status_publish_tests()},
      {only_presence_status_publish, [], only_presence_status_publish_tests()},
      {chat_message_publish, [], chat_message_publish_tests()},
      {group_chat_message_publish, [], group_chat_message_publish_tests()},
@@ -99,6 +101,7 @@ group_chat_message_publish_tests() ->
 
 instrumentation_tests() ->
     [connections_events_are_executed,
+     connection_failed_events_are_executed,
      messages_published_events_are_executed].
 
 filter_and_metadata_tests() ->
@@ -118,8 +121,8 @@ init_per_suite(Config) ->
         true ->
             instrument_helper:start(
                 [{wpool_rabbit_connections, #{host_type => domain(), pool_tag => test_tag}},
+                 {wpool_rabbit_connections, #{host_type => domain(), pool_tag => fail_tag}},
                  {wpool_rabbit_messages_published, #{host_type => domain(), pool_tag => event_pusher}}]),
-            start_rabbit_tls_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
             mongoose_helper:inject_module(mod_event_pusher_filter),
@@ -129,7 +132,6 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
-    stop_rabbit_wpool(domain()),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config),
@@ -137,6 +139,7 @@ end_per_suite(Config) ->
 
 init_per_group(GroupName, Config0) ->
     Domain = domain(),
+    start_rabbit_tls_wpool(Domain, GroupName),
     Config = dynamic_modules:save_modules(Domain, Config0),
     dynamic_modules:ensure_modules(Domain, required_modules(GroupName)),
     Config.
@@ -177,7 +180,8 @@ extra_exchange_opts(_) -> #{}.
 
 end_per_group(_, Config) ->
     delete_exchanges(),
-    dynamic_modules:restore_modules(Config).
+    dynamic_modules:restore_modules(Config),
+    stop_rabbit_wpool(domain()).
 
 init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
     Config;
@@ -529,6 +533,22 @@ connections_events_are_executed(_Config) ->
     stop_rabbit_wpool(RabbitWpool),
     assert_disconnection_event(Tag).
 
+connection_failed_events_are_executed(_Config) ->
+    %% GIVEN incorrect configuration (plain TCP connection to the TLS port)
+    Tag = fail_tag,
+    WpoolConfig = #{type => rabbit, scope => host_type, tag => Tag,
+                    conn_opts => #{port => 5671}},
+    Pool = config([outgoing_pools, rabbit, event_pusher], WpoolConfig),
+
+    %% WHEN the pool is started
+    Result = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool], [domain()]]),
+
+    %% THEN connection fails, instrumentation event is emitted, and pool is not started
+    ?assertMatch([{error, _}], Result),
+    assert_connection_failed_event(Tag),
+    Pools = rpc(mim(), mongoose_wpool, get_pools, []),
+    ?assertEqual(false, lists:keyfind(Tag, 3, Pools)).
+
 messages_published_events_are_executed(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
@@ -784,11 +804,17 @@ assert_no_message_from_rabbit(RoutingKeys) ->
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).
 
-start_rabbit_tls_wpool(Host) ->
+start_rabbit_tls_wpool(Host, GroupName) ->
     BasicOpts = ?WPOOL_CFG,
-    ConnOpts = #{tls => tls_config(), port => 5671, virtual_host => ?VHOST},
+    BasicConnOpts = #{tls => tls_config(), port => 5671, virtual_host => ?VHOST},
+    ConnOpts = maps:merge(BasicConnOpts, extra_conn_opts(GroupName)),
     ensure_vhost(?VHOST),
     start_rabbit_wpool(Host, BasicOpts#{conn_opts => ConnOpts}).
+
+extra_conn_opts(presence_status_publish_with_confirms) ->
+    #{confirms_enabled => true};
+extra_conn_opts(_GroupName) ->
+    #{}.
 
 tls_config() ->
     #{certfile => "priv/ssl/fake_cert.pem",
@@ -877,9 +903,14 @@ is_rabbitmq_available() ->
 assert_connection_event(Tag) ->
     instrument_helper:wait_and_assert(wpool_rabbit_connections,
                                       #{host_type => domain(), pool_tag => Tag},
-                                      fun(#{active := 1, opened := 1}) -> true end).
+                                      fun(M) -> M =:= #{active => 1, opened => 1} end).
+
+assert_connection_failed_event(Tag) ->
+    instrument_helper:wait_and_assert(wpool_rabbit_connections,
+                                      #{host_type => domain(), pool_tag => Tag},
+                                      fun(M) -> M =:= #{failed => 1} end).
 
 assert_disconnection_event(Tag) ->
     instrument_helper:wait_and_assert(wpool_rabbit_connections,
                                       #{host_type => domain(), pool_tag => Tag},
-                                      fun(#{active := -1, closed := 1}) -> true end).
+                                      fun(M) -> M =:= #{active => -1, closed => 1} end).

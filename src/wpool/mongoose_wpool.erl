@@ -169,6 +169,7 @@ start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
                                                 call_timeout = CallTimeout}),
             {ok, Pid};
         Error ->
+            mongoose_instrument:tear_down(instrumentation(PoolType, HostType, Tag)),
             Error
     end.
 
