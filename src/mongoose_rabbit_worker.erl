@@ -33,8 +33,6 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
--ignore_xref([start_link/0]).
-
 -type state() :: #{host_type := mongooseim:host_type_or_global(),
                    pool_tag := atom(),
                    opts := opts(),
