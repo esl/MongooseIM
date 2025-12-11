@@ -139,7 +139,7 @@ select_domain(Domain) ->
         {selected, []} ->
             {error, not_found};
         {selected, [Row]} ->
-            {ok, maps:put(domain, Domain, row_to_map(Row))}
+            {ok, row_to_map(Row)}
     end.
 
 select_all_domains() ->
