@@ -403,10 +403,10 @@ db_get_all_domains(_) ->
     AllDomains = get_all_domains(mim()),
 
     %% Verify Domain1 is disabled and Domain2 is enabled
-    ?assertMatch(#{domain := Domain1, status := disabled},
-                 lists:keyfind(Domain1, #{domain}, AllDomains)),
-    ?assertMatch(#{domain := Domain2, status := enabled},
-                 lists:keyfind(Domain2, #{domain}, AllDomains)).
+    [Domain1Map] = [D || D <- AllDomains, maps:get(domain, D) == Domain1],
+    ?assertMatch(#{domain := Domain1, host_type := <<"type1">>, status := disabled}, Domain1Map),
+    [Domain2Map] = [D || D <- AllDomains, maps:get(domain, D) == Domain2],
+    ?assertMatch(#{domain := Domain2, host_type := <<"type1">>, status := enabled}, Domain2Map).
 
 db_get_all_dynamic(_) ->
     Domain1 = random_domain_name(),
