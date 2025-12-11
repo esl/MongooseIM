@@ -25,7 +25,8 @@
 %% Public API
 -export([authenticate/2,
          revoke/2,
-         token/3]).
+         token/3,
+         create_tokens/2]).
 
 %% Token serialization
 -export([deserialize/1,
@@ -337,6 +338,14 @@ token(HostType, User, Type) ->
                          user => User#jid.luser, server => User#jid.lserver,
                          class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, {Class, Reason}}
+    end.
+
+-spec create_tokens(mongooseim:host_type(), jid:jid()) -> {ok, binary(), binary()} | error().
+create_tokens(HostType, User) ->
+    case {token(HostType, User, access), token(HostType, User, refresh)} of
+        {#token{} = AccessToken, #token{} = RefreshToken} ->
+            {ok, serialize(AccessToken), serialize(RefreshToken)};
+        _ -> error
     end.
 
 -spec expiry_datetime(mongooseim:host_type(), token_type(), non_neg_integer()) ->

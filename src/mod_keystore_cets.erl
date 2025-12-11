@@ -11,6 +11,8 @@
 
 -ignore_xref([get_key/1, init/2, init_ram_key/1]).
 
+-dialyzer({nowarn_function, init_ram_key/1}).
+
 -include("mod_keystore.hrl").
 -include("mongoose_logger.hrl").
 
