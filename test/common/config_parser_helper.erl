@@ -478,7 +478,7 @@ all_modules() ->
                                     connections_per_endpoint => 30,
                                     tls => config([modules, mod_global_distrib, connections, tls],
                                                   #{cacertfile => "priv/ca.pem",
-                                                    certfile => "priv/dc1.pem",
+                                                    certfile => "priv/cert.pem",
                                                     keyfile => "priv/dc1.pem"})
                                    })
                       }),
