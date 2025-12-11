@@ -171,11 +171,10 @@ maybe_wait_for_confirms(_, _) ->
     true.
 
 -spec maybe_restart_rabbit_connection(state()) -> state().
-maybe_restart_rabbit_connection(#{connection := Conn} = State) ->
-    case is_process_alive(Conn) of
+maybe_restart_rabbit_connection(#{connection := Connection, opts := Opts} = State) ->
+    case is_process_alive(Connection) of
         true ->
-            {ok, Channel} = amqp_connection:open_channel(Conn),
-            State#{channel := Channel};
+            State#{channel := open_amqp_channel(Connection, Opts)};
         false ->
             establish_rabbit_connection(State)
     end.
@@ -210,8 +209,7 @@ start_amqp_connection(State) ->
             mongoose_instrument:execute(wpool_rabbit_connections,
                                         #{host_type => HostType, pool_tag => PoolTag},
                                         #{active => 1, opened => 1}),
-            {ok, Channel} = amqp_connection:open_channel(Connection),
-            maybe_enable_confirms(Channel, Opts),
+            Channel = open_amqp_channel(Connection, Opts),
             ?LOG_DEBUG(#{what => rabbit_connection_established,
                          host_type => HostType, pool_tag => PoolTag, opts => Opts}),
             {ok, State#{connection => Connection, channel => Channel}};
@@ -221,6 +219,12 @@ start_amqp_connection(State) ->
                                         #{failed => 1}),
             {error, Error}
     end.
+
+-spec open_amqp_channel(pid(), opts()) -> pid().
+open_amqp_channel(Connection, Opts) ->
+    {ok, Channel} = amqp_connection:open_channel(Connection),
+    maybe_enable_confirms(Channel, Opts),
+    Channel.
 
 -spec close_rabbit_connection(Connection :: pid(), Channel :: pid(),
                               HostType :: mongooseim:host_type_or_global(), PoolTag :: atom()) ->
