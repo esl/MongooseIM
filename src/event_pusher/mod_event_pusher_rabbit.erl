@@ -23,6 +23,7 @@
 
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
 -include_lib("mongooseim/include/mongoose_config_spec.hrl").
+-include_lib("mongooseim/include/mongoose.hrl").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
@@ -140,7 +141,14 @@ call_rabbit_worker(HostType, Msg) ->
 
 -spec cast_rabbit_worker(mongooseim:host_type(), Msg :: term()) -> ok.
 cast_rabbit_worker(HostType, Msg) ->
-    mongoose_wpool:cast(rabbit, HostType, ?POOL_TAG, Msg).
+    try
+        mongoose_wpool:cast(rabbit, HostType, ?POOL_TAG, Msg)
+    catch
+        exit:no_workers ->
+            ?LOG_NOTICE(#{what => no_event_pusher_rabbit_worker_available,
+                          text => <<"Dropping request because no rabbit worker is available">>,
+                          host_type => HostType, dropped_request => Msg})
+    end.
 
 -spec exchange_keys() -> [exchange_key()].
 exchange_keys() ->
