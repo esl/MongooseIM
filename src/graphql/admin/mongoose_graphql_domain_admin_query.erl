@@ -18,6 +18,7 @@ execute(_Ctx, admin, <<"domainsByHostType">>, #{<<"hostType">> := HostType}) ->
             format_result(Error, #{hostType => HostType})
     end;
 execute(_Ctx, admin, <<"allDomains">>, _Args) ->
-    {ok, mongoose_domain_api:get_all_domains()};
+    Domains = mongoose_domain_api:get_all_domains(),
+    {ok, [ {ok, D} || D <- Domains ]};
 execute(_Ctx, admin, <<"domainDetails">>, #{<<"domain">> := Domain}) ->
     format_result(mongoose_domain_api:get_domain_details(Domain), #{domain => Domain}).
