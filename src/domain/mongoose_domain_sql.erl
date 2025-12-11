@@ -87,7 +87,7 @@ start(_) ->
               " WHERE domain_events.id >= ? AND domain_events.id <= ? "
               " ORDER BY domain_events.id ">>),
     prepare(domain_select_all, domain_settings, [],
-            <<"SELECT domain, host_type, status FROM domain_settings">>),
+            <<"SELECT domain, host_type, status FROM domain_settings order by domain">>),
     %% Admins
     prepare(domain_insert_admin, domain_admins, [domain, pass_details],
             <<"INSERT INTO domain_admins (domain, pass_details) VALUES (?, ?)">>),

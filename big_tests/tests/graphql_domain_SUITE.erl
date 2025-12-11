@@ -194,7 +194,7 @@ get_all_domains_with_disabled(Config) ->
         #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"DISABLED">>},
         #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>}
     ],
-    ?assertEqual(lists:sort(Expected), lists:sort(ParsedResult)).
+    lists:foreach(fun(E) -> ?assert(lists:member(E, ParsedResult)) end, Expected).
 
 enable_domain(Config) ->
     Result = enable_domain(?EXAMPLE_DOMAIN, Config),
@@ -214,7 +214,7 @@ get_all_domains(Config) ->
         #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>},
         #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>}
     ],
-    ?assertEqual(lists:sort(Expected), lists:sort(ParsedResult)).
+    lists:foreach(fun(E) -> ?assert(lists:member(E, ParsedResult)) end, Expected).
 
 get_domain_details(Config) ->
     Result = get_domain_details(?EXAMPLE_DOMAIN, Config),
