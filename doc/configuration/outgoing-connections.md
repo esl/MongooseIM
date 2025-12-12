@@ -349,6 +349,27 @@ Sets the RabbitMQ Virtual Host. The host needs to exist, as it is **not** create
 
 Enables/disables one-to-one publishers confirms.
 
+### `outgoing_pools.rabbit.*.connection.reconnect.attempts`
+* **Syntax:** non-negative integer
+* **Default:** 0
+* **Example:** `reconnect.attempts = 5`
+
+By default, a failed connection attempt results in an immediate restart of the affected worker.
+When this happens, its incoming request queue is lost, and any requests present in the queue are dropped.
+To avoid this, you can use this option to specify a number of reconnection attempts before the worker is restarted.
+
+!!! Warning
+    Using this option might result in a lot of requests being accumulated in the worker queues - especially if `reconnect.delay` multiplied by `reconnect.attempts` is a long time period.
+    Thus, we recommend using the [`max_worker_queue_len`](#outgoing_poolsmax_worker_queue_len) option as a safety valve is such cases.
+
+### `outgoing_pools.rabbit.*.connection.reconnect.delay`
+* **Syntax:** non-negative integer (milliseconds)
+* **Default:** 2000
+* **Example:** `reconnect.delay = 5000`
+
+Delay (in milliseconds) between consecutive reconnection attempts.
+This option is effective only if the value of `reconnect.attempts` is positive.
+
 ---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
