@@ -99,6 +99,7 @@
   max_stanza_size = 131072
   tls.dhfile = "priv/dh.pem"
   tls.certfile = "priv/cert.pem"
+  tls.keyfile = "priv/dc1.pem"
   tls.cacertfile = "priv/ca.pem"
 
 [[listen.component]]
