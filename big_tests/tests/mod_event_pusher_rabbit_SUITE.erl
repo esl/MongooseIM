@@ -72,7 +72,7 @@ groups() ->
      {group_chat_message_publish, [], group_chat_message_publish_tests()},
      {instrumentation, [], instrumentation_tests()},
      {filter_and_metadata, [], filter_and_metadata_tests()},
-     {single_worker, [], single_worker_tests()}].
+     {single_worker, [{repeat_until_any_fail, 50}], single_worker_tests()}].
 
 pool_startup_tests() ->
     [rabbit_pool_starts_with_default_config].
