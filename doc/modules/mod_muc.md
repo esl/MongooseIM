@@ -53,6 +53,8 @@ Access Rule to determine who is allowed to create rooms.
 
 Access Rule to determine who is the administrator in all rooms.
 
+Note: Setting this option to `"all"` results in every user being considered a MUC admin. This means that they cannot be added to a room, since it would mean changing their affiliation to `member` which can't be done for a global admin. However, any user is then free to send and receive messages from any room.
+
 ### `modules.mod_muc.access_persistent`
  * **Syntax:** non-empty string
  * **Default:** `"all"`
