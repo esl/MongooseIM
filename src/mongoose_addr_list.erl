@@ -10,6 +10,8 @@
 
 -export([get_addr_list/3]).
 
+-export_type([with_tls/0]).
+
 -type hostname() :: string().
 -type dns_ip_type() :: a | aaaa.
 -type dns_ip_types() :: [a | aaaa, ...].
@@ -45,7 +47,7 @@ get_addr_list(HostType, LServer, EnforceTls) ->
         [] ?= lookup_services(HostType, Domain, EnforceTls),
         lookup_addrs(HostType, Domain, EnforceTls)
     else
-        [_|_] = Res ->
+        [_ | _] = Res ->
             Res
     end.
 
@@ -203,7 +205,7 @@ get_dns(HostType) ->
 -spec prepare_addr
     ([inet:ip4_address()], inet:port_number(), with_tls(), hostname(), a) -> [addr()];
     ([inet:ip6_address()], inet:port_number(), with_tls(), hostname(), aaaa) -> [addr()].
-prepare_addr([_|_] = Addrs, Port, Tls, _, Type) ->
+prepare_addr([_ | _] = Addrs, Port, Tls, _, Type) ->
     MapFun = fun(Addr) -> #{ip_tuple => Addr, ip_version => dns_to_inet_type(Type),
                             port => Port, tls => Tls} end,
     lists:map(MapFun, Addrs);
@@ -220,7 +222,7 @@ prepare_addr([], _, _, Domain, Type) ->
                   EnforceTls :: with_tls()) -> [srv_tls()] | {error, atom()}.
 srv_lookups(HostType, Domain, true) ->
     case dns_lookup(HostType, build_service_name(true, Domain), srv) of
-        [_|_] = TlsAddrList ->
+        [_ | _] = TlsAddrList ->
             tag_tls(TlsAddrList, true);
         [] ->
             {error, timeout}
@@ -229,11 +231,11 @@ srv_lookups(HostType, Domain, _) ->
     TlsHostEnt = dns_lookup(HostType, build_service_name(true, Domain), srv),
     HostEnt = dns_lookup(HostType, build_service_name(false, Domain), srv),
     case {TlsHostEnt, HostEnt} of
-        {[_|_] = TlsAddrList, [_|_] = AddrList} ->
+        {[_ | _] = TlsAddrList, [_ | _] = AddrList} ->
             tag_tls(TlsAddrList, true) ++ tag_tls(AddrList, false);
-        {[_|_] = TlsAddrList, []} ->
+        {[_ | _] = TlsAddrList, []} ->
             tag_tls(TlsAddrList, true);
-        {[], [_|_] = AddrList} ->
+        {[], [_ | _] = AddrList} ->
             tag_tls(AddrList, false);
         {[], []} ->
             {error, timeout}
@@ -263,7 +265,7 @@ dns_lookup(_Domain, _DnsRrType, _, 0) ->
     [];
 dns_lookup(Domain, DnsRrType, Timeout, Retries) ->
     case inet_res:lookup(Domain, in, DnsRrType, [], Timeout) of
-        [_|_] = List ->
+        [_ | _] = List ->
             List;
         _ ->
             dns_lookup(Domain, DnsRrType, Timeout, Retries - 1)
