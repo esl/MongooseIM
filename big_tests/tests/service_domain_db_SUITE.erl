@@ -96,6 +96,7 @@ db_cases() -> [
     db_can_check_domain_password,
     db_cannot_check_password_for_unknown_domain,
     db_deleting_domain_deletes_domain_admin,
+    db_get_all_domains,
     sql_select_from,
     db_could_sync_between_nodes,
     db_gaps_are_getting_filled_automatically
@@ -390,6 +391,22 @@ db_get_all_static(_) ->
      {<<"erlang-solutions.local">>, <<"type2">>},
      {<<"example.cfg">>, <<"type1">>}] =
         lists:sort(get_all_static(mim())).
+
+db_get_all_domains(_) ->
+    Domain1 = random_domain_name(),
+    Domain2 = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain1, <<"type1">>),
+    {ok, _} = insert_domain(mim(), Domain2, <<"type1">>),
+    disable_domain(mim(), Domain1),
+    sync(),
+
+    AllDomains = get_all_domains(mim()),
+
+    %% Verify Domain1 is disabled and Domain2 is enabled
+    [Domain1Map] = [D || D <- AllDomains, maps:get(domain, D) == Domain1],
+    ?assertMatch(#{domain := Domain1, host_type := <<"type1">>, status := disabled}, Domain1Map),
+    [Domain2Map] = [D || D <- AllDomains, maps:get(domain, D) == Domain2],
+    ?assertMatch(#{domain := Domain2, host_type := <<"type1">>, status := enabled}, Domain2Map).
 
 db_get_all_dynamic(_) ->
     Domain1 = random_domain_name(),
@@ -1146,6 +1163,9 @@ get_all_static(Node) ->
 
 get_all_dynamic(Node) ->
     rpc(Node, mongoose_domain_api, get_all_dynamic, []).
+
+get_all_domains(Node) ->
+    rpc(Node, mongoose_domain_api, get_all_domains, []).
 
 disable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, disable_domain, [Domain]).

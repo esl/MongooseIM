@@ -22,7 +22,8 @@
 %% domain API
 -export([get_domain_host_type/1,
          get_all_static/0,
-         get_domains_by_host_type/1]).
+         get_domains_by_host_type/1,
+         get_all_domains/0]).
 
 %% domain admin API
 -export([check_domain_password/2]).
@@ -225,6 +226,10 @@ get_all_dynamic() ->
 -spec get_domains_by_host_type(host_type()) -> [domain()].
 get_domains_by_host_type(HostType) ->
     mongoose_domain_core:get_domains_by_host_type(HostType).
+
+-spec get_all_domains() -> [domain_info()].
+get_all_domains() ->
+    mongoose_domain_sql:select_all_domains().
 
 -type password() :: binary().
 
