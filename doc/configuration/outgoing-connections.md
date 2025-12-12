@@ -57,6 +57,17 @@ Number of workers to be started by the pool.
 
 Number of milliseconds after which a call to the pool will time out.
 
+### `outgoing_pools.*.*.max_worker_queue_len`
+* **Syntax:** non-negative integer
+* **Default:** not set
+* **Example:** `max_worker_queue_len = 1000`
+
+Maximum number of requests waiting in the incoming message queue of a worker. By default there is no such limit.
+When this queue length is reached for all workers, further incoming requests will be dropped.
+
+!!! Note
+    This option is applicable only to the `best_worker` strategy. Using it for other strategies is not allowed.
+
 ## Connection options
 
 Options specific to a pool connection are defined in a subsection starting with `[outgoing_pools.*.*.connection]`.
@@ -337,13 +348,6 @@ Sets the RabbitMQ Virtual Host. The host needs to exist, as it is **not** create
 * **Example:** `confirms_enabled = false`
 
 Enables/disables one-to-one publishers confirms.
-
-### `outgoing_pools.rabbit.*.connection.max_worker_queue_len`
-* **Syntax:** non-negative integer or `"infinity"`
-* **Default:** `1000`
-* **Example:** `max_worker_queue_len = "infinity"`
-
-Sets a limit of messages in a worker's mailbox above which the worker starts dropping the messages. If a worker message queue length reaches the limit, messages from the head of the queue are dropped until the queue length is again below the limit. Use `infinity` to disable.
 
 ---
 To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
