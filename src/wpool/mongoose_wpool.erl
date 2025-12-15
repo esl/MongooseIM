@@ -234,7 +234,7 @@ get_worker(PoolType, HostType) ->
 get_worker(PoolType, HostType, Tag) ->
     case get_pool(PoolType, HostType, Tag) of
         {ok, #mongoose_wpool{strategy = Strategy} = Pool} ->
-            Worker = wpool_pool:Strategy(make_pool_name(Pool)),
+            Worker = get_wpool_worker(make_pool_name(Pool), Strategy),
             {ok, whereis(Worker)};
         Err ->
             Err
@@ -381,7 +381,14 @@ expand_pools(Pools, PerHostType, HostTypes) ->
 prepare_pool_map(Pool = #{scope := HT, opts := Opts}) ->
     %% Rename "scope" field to "host_type" and change wpool opts to a KV list
     Pool1 = maps:remove(scope, Pool),
-    Pool1#{host_type => HT, opts => maps:to_list(Opts)}.
+    Pool1#{host_type => HT, opts => maps:to_list(prepare_pool_opts(Opts))}.
+
+-spec prepare_pool_opts(pool_map_in()) -> pool_map_in().
+prepare_pool_opts(Opts = #{strategy := best_worker, max_worker_queue_len := MaxQueueLen}) ->
+    Opts1 = maps:remove(max_worker_queue_len, Opts),
+    Opts1#{strategy := fun(Name) -> best_worker_with_max_queue_len(Name, MaxQueueLen) end};
+prepare_pool_opts(Opts) ->
+    Opts.
 
 -spec get_unique_types([pool_map_in()], [pool_map_in()]) -> [pool_type()].
 get_unique_types(Pools, HostTypeSpecific) ->
@@ -395,6 +402,12 @@ get_pool(PoolType, HostType, Tag) ->
         [Pool] -> {ok, Pool}
     end.
 
+-spec get_wpool_worker(wpool:name(), wpool:strategy()) -> proc_name().
+get_wpool_worker(PoolName, Strategy) when is_atom(Strategy) ->
+    wpool_pool:Strategy(PoolName);
+get_wpool_worker(PoolName, StrategyFun) when is_function(StrategyFun, 1) ->
+    StrategyFun(PoolName).
+
 -spec instrumentation(pool_type(), host_type_or_global(), tag()) -> [mongoose_instrument:spec()].
 instrumentation(PoolType, HostType, Tag) ->
     CallbackModule = make_callback_module_name(PoolType),
@@ -403,4 +416,14 @@ instrumentation(PoolType, HostType, Tag) ->
             CallbackModule:instrumentation(HostType, Tag);
         false ->
             []
+    end.
+
+-spec best_worker_with_max_queue_len(wpool:name(), pos_integer()) -> atom().
+best_worker_with_max_queue_len(Name, MaxQueueLen) ->
+    Worker = wpool_pool:best_worker(Name),
+    case process_info(whereis(Worker), message_queue_len) of
+        {_, QueueLen} when QueueLen >= MaxQueueLen ->
+            exit(no_available_workers);
+        _ ->
+            Worker
     end.
