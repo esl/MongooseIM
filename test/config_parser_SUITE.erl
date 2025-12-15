@@ -1105,14 +1105,12 @@ pool_rabbit_connection(_Config) ->
     ?cfg(P ++ [password], <<"pass">>, T(#{<<"password">> => <<"pass">>})),
     ?cfg(P ++ [virtual_host], <<"vh">>, T(#{<<"virtual_host">> => <<"vh">>})),
     ?cfg(P ++ [confirms_enabled], true, T(#{<<"confirms_enabled">> => true})),
-    ?cfg(P ++ [max_worker_queue_len], 100, T(#{<<"max_worker_queue_len">> => 100})),
     ?err(T(#{<<"host">> => <<>>})),
     ?err(T(#{<<"port">> => 123456})),
     ?err(T(#{<<"username">> => <<>>})),
     ?err(T(#{<<"password">> => <<>>})),
     ?err(T(#{<<"virtual_host">> => <<>>})),
-    ?err(T(#{<<"confirms_enabled">> => <<"yes">>})),
-    ?err(T(#{<<"max_worker_queue_len">> => -1})).
+    ?err(T(#{<<"confirms_enabled">> => <<"yes">>})).
 
 pool_rabbit_connection_tls(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],
@@ -1152,9 +1150,13 @@ test_pool_opts(Type, Required) ->
     ?cfg(P, default_config([outgoing_pools, Type, default, opts]), T(Required)),
     ?cfg(P ++ [workers], 11, T(Required#{<<"workers">> => 11})),
     ?cfg(P ++ [strategy], random_worker, T(Required#{<<"strategy">> => <<"random_worker">>})),
+    ?cfg(P ++ [max_worker_queue_len], 1000, T(Required#{<<"max_worker_queue_len">> => 1000})),
     ?cfg(P ++ [call_timeout], 999, T(Required#{<<"call_timeout">> => 999})),
     ?err(T(Required#{<<"workers">> => 0})),
     ?err(T(Required#{<<"strategy">> => <<"worst_worker">>})),
+    ?err(T(Required#{<<"max_worker_queue_len">> => -1})),
+    ?err(T(Required#{<<"strategy">> => <<"random_worker">>,
+                     <<"max_worker_queue_len">> => 1000})), % this opt is only for best_worker
     ?err(T(Required#{<<"call_timeout">> => 0})).
 
 test_just_tls_client(P, T) ->

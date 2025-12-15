@@ -21,6 +21,8 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(config_parser_helper, [config/2]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -38,7 +40,9 @@ all() ->
      dead_pool_is_restarted,
      dead_pool_is_stopped_before_restarted,
      redis_pool_cant_be_started_with_available_worker_strategy,
-     cassandra_prepare_opts
+     cassandra_prepare_opts,
+     max_worker_queue_len_with_one_worker,
+     max_worker_queue_len_with_two_workers
     ].
 
 %%--------------------------------------------------------------------
@@ -261,6 +265,45 @@ cassandra_prepare_opts(_Config) ->
                   {tcp_opts, [{keepalive, true}]}],
                   mongoose_wpool_cassandra:prepare_cqerl_opts(AuthCfg)).
 
+max_worker_queue_len_with_one_worker(_C) ->
+    Pools = [config([outgoing_pools, generic, default],
+                    #{opts => #{workers => 1, max_worker_queue_len => 1}})],
+    StartRes = mongoose_wpool:start_configured_pools(Pools),
+    [W] = get_workers(generic, global, default),
+    ?assertMatch([{ok, _}], StartRes),
+    [?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})) ||
+        _ <- lists:seq(1, 2)],
+    %% The worker is waiting and has a queue length of 1
+    ?assertExit(no_available_workers,
+                mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 1}]})),
+    unblock_worker(W),
+    %% The worker is still waiting but has a queue length of 0
+    ?assertEqual(ok,
+                 mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 2}]})),
+    unblock_worker(W),
+    %% The worker is not waiting anymore
+    ?assertEqual(2, get_msg()).
+
+max_worker_queue_len_with_two_workers(_C) ->
+    Pools = [config([outgoing_pools, generic, default],
+                    #{opts => #{workers => 2, max_worker_queue_len => 1}})],
+    ct:pal("Pools to start: ~p", [Pools]),
+    StartRes = mongoose_wpool:start_configured_pools(Pools),
+    ?assertMatch([{ok, _}], StartRes),
+    [W1, _] = get_workers(generic, global, default),
+    [?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})) ||
+        _ <- lists:seq(1, 4)],
+    %% Each worker is waiting and has a queue length of 1
+    ?assertExit(no_available_workers,
+                mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 1}]})),
+    unblock_worker(W1),
+    %% One worker is still waiting but has a queue length of 0
+    ?assertEqual(ok,
+                 mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 2}]})),
+    unblock_worker(W1),
+    %% The worker is not waiting anymore
+    ?assertEqual(2, get_msg()).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -322,3 +365,25 @@ set_killing_switch(KillingSwitch, Value) ->
     ets:update_element(KillingSwitch, kill_worker, {2, Value}).
 
 echo(Val) -> Val.
+
+wait(Caller) ->
+    Caller ! {waiting, self()},
+    receive {continue, Caller} -> ok end.
+
+unblock_worker(Worker) ->
+    receive {waiting, Worker} ->
+            Worker ! {continue, self()}
+    after 5000 ->
+            ct:fail("Timeout: 'waiting' not received from worker")
+    end.
+
+get_msg() ->
+    receive {msg, Id} ->
+            Id
+    after 5000 ->
+            ct:fail("Timeout: 'msg' not received from worker")
+    end.
+
+get_workers(Type, Scope, Tag) ->
+    WorkerNames = wpool:get_workers(mongoose_wpool:make_pool_name(Type, Scope, Tag)),
+    lists:map(fun whereis/1, WorkerNames).

@@ -452,7 +452,9 @@ wpool(ExtraDefaults) ->
                        <<"strategy">> => #option{type = atom,
                                                  validate = {enum, wpool_strategy_values()}},
                        <<"call_timeout">> => #option{type = integer,
-                                                     validate = positive}
+                                                     validate = positive},
+                       <<"max_worker_queue_len">> => #option{type = integer,
+                                                             validate = non_negative}
                       },
              defaults = maps:merge(#{<<"workers">> => 10,
                                      <<"strategy">> => best_worker,
@@ -544,8 +546,6 @@ outgoing_pool_connection(<<"rabbit">>) ->
                  <<"virtual_host">> => #option{type = binary,
                                                validate = non_empty},
                  <<"confirms_enabled">> => #option{type = boolean},
-                 <<"max_worker_queue_len">> => #option{type = int_or_infinity,
-                                                       validate = non_negative},
                  <<"tls">> => tls([client])
                 },
        include = always,
@@ -554,8 +554,7 @@ outgoing_pool_connection(<<"rabbit">>) ->
                     <<"username">> => <<"guest">>,
                     <<"password">> => <<"guest">>,
                     <<"virtual_host">> => <<"/">>,
-                    <<"confirms_enabled">> => false,
-                    <<"max_worker_queue_len">> => 1000}
+                    <<"confirms_enabled">> => false}
       };
 outgoing_pool_connection(<<"rdbms">>) ->
     #section{
@@ -1048,7 +1047,7 @@ check_auth_method(Method, Opts) ->
 
 process_pool([Tag, Type | _], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
     Scope = pool_scope(ScopeIn),
-    Opts = maps:without([scope, host, connection], AllOpts),
+    Opts = verify_pool_strategy(maps:without([scope, host, connection], AllOpts)),
     #{type => b2a(Type),
       scope => Scope,
       tag => b2a(Tag),
@@ -1059,8 +1058,16 @@ process_host_config_pool([Tag, Type, _Pools, {host, HT} | _], AllOpts = #{connec
     #{type => b2a(Type),
       scope => HT,
       tag => b2a(Tag),
-      opts => maps:remove(connection, AllOpts),
+      opts => verify_pool_strategy(maps:remove(connection, AllOpts)),
       conn_opts => Connection}.
+
+verify_pool_strategy(Opts = #{strategy := Strategy, max_worker_queue_len := _})
+  when Strategy =/= best_worker ->
+    error(#{what => invalid_worker_pool_strategy_option,
+            text => <<"max_worker_queue_len can only be set for the best_worker strategy">>,
+            pool_options => Opts});
+verify_pool_strategy(Opts) ->
+    Opts.
 
 pool_scope(host) -> host_type;
 pool_scope(host_type) -> host_type;
