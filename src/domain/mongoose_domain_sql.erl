@@ -12,6 +12,7 @@
          delete_domain_admin/1]).
 
 -export([select_domain/1,
+         select_all_domains/0,
          get_minmax_event_id/0,
          count_events_between_ids/2,
          get_event_ids_between/2,
@@ -85,6 +86,8 @@ start(_) ->
                    "domain_settings.status = ", Enabled/binary, ") "
               " WHERE domain_events.id >= ? AND domain_events.id <= ? "
               " ORDER BY domain_events.id ">>),
+    prepare(domain_select_all, domain_settings, [],
+            <<"SELECT domain, host_type, status FROM domain_settings order by domain">>),
     %% Admins
     prepare(domain_insert_admin, domain_admins, [domain, pass_details],
             <<"INSERT INTO domain_admins (domain, pass_details) VALUES (?, ?)">>),
@@ -138,6 +141,13 @@ select_domain(Domain) ->
         {selected, [Row]} ->
             {ok, row_to_map(Row)}
     end.
+
+select_all_domains() ->
+    Pool = get_db_pool(),
+    {selected, Rows} = execute_successfully(Pool, domain_select_all, []),
+    [#{domain => Domain,
+       host_type => HostType,
+       status => int_to_status(mongoose_rdbms:result_to_integer(Status))} || {Domain, HostType, Status} <- Rows].
 
 delete_domain(Domain, HostType) ->
     transaction(fun(Pool) ->

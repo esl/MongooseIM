@@ -2,6 +2,9 @@ type DomainAdminQuery @use(services: ["service_domain_db"]) @protected{
   "Get all enabled domains by hostType. Only for global admin"
   domainsByHostType(hostType: String!): [DomainName!]
     @protected(type: GLOBAL) @use
+  "Get all domains with details. Returns a list of Domain objects. Only for global admin"
+  allDomains: [Domain!]
+    @protected(type: GLOBAL) @use
   "Get information about the domain"
   domainDetails(domain: DomainName!): Domain
     @protected(type: DOMAIN, args: ["domain"]) @use

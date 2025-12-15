@@ -41,8 +41,10 @@ domain_tests() ->
      wrong_host_type_error_formatting,
      invalid_domain_name_error,
      disable_domain,
+     get_all_domains_with_disabled,
      enable_domain,
      get_domains_by_host_type,
+     get_all_domains,
      get_domain_details,
      delete_domain,
      request_delete_domain,
@@ -60,6 +62,7 @@ domain_admin_tests() ->
      domain_admin_disable_domain_no_permission,
      domain_admin_enable_domain_no_permission,
      domain_admin_get_domains_by_host_type_no_permission,
+     domain_admin_get_all_domains_no_permission,
      domain_admin_get_domain_details_no_permission,
      domain_admin_delete_domain_no_permission,
      domain_admin_set_domain_password_no_permission,
@@ -94,9 +97,15 @@ end_per_group(domain_admin_tests, _Config) ->
 end_per_group(_GroupName, _Config) ->
     graphql_helper:clean().
 
+init_per_testcase(get_all_domains_with_disabled, Config) ->
+    disable_domain(?EXAMPLE_DOMAIN, Config),
+    escalus:init_per_testcase(get_all_domains_with_disabled, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(get_all_domains_with_disabled, Config) ->
+    enable_domain(?EXAMPLE_DOMAIN, Config),
+    escalus:end_per_testcase(get_all_domains_with_disabled, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -178,6 +187,15 @@ disable_domain(Config) ->
     {ok, Domain} = rpc(mim(), mongoose_domain_sql, select_domain, [?EXAMPLE_DOMAIN]),
     ?assertEqual(#{host_type => ?HOST_TYPE, status => disabled}, Domain).
 
+get_all_domains_with_disabled(Config) ->
+    Result = execute_command(<<"domain">>, <<"allDomains">>, #{}, Config),
+    ParsedResult = get_ok_value([data, domain, allDomains], Result),
+    Expected = [
+        #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"DISABLED">>},
+        #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>}
+    ],
+    lists:foreach(fun(E) -> ?assert(lists:member(E, ParsedResult)) end, Expected).
+
 enable_domain(Config) ->
     Result = enable_domain(?EXAMPLE_DOMAIN, Config),
     ParsedResult = get_ok_value([data, domain, enableDomain], Result),
@@ -188,6 +206,15 @@ get_domains_by_host_type(Config) ->
     ParsedResult = get_ok_value([data, domain, domainsByHostType], Result),
     ?assertEqual(lists:sort([?EXAMPLE_DOMAIN, ?SECOND_EXAMPLE_DOMAIN]),
                  lists:sort(ParsedResult)).
+
+get_all_domains(Config) ->
+    Result = execute_command(<<"domain">>, <<"allDomains">>, #{}, Config),
+    ParsedResult = get_ok_value([data, domain, allDomains], Result),
+    Expected = [
+        #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>},
+        #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>}
+    ],
+    lists:foreach(fun(E) -> ?assert(lists:member(E, ParsedResult)) end, Expected).
 
 get_domain_details(Config) ->
     Result = get_domain_details(?EXAMPLE_DOMAIN, Config),
@@ -275,6 +302,9 @@ domain_admin_enable_domain_no_permission(Config) ->
 domain_admin_get_domains_by_host_type_no_permission(Config) ->
     get_unauthorized(get_domains_by_host_type(?HOST_TYPE, Config)),
     get_unauthorized(get_domains_by_host_type(domain_helper:host_type(), Config)).
+
+domain_admin_get_all_domains_no_permission(Config) ->
+    get_unauthorized(execute_command(<<"domain">>, <<"allDomains">>, #{}, Config)).
 
 domain_admin_get_domain_details_no_permission(Config) ->
     get_unauthorized(get_domain_details(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)),
