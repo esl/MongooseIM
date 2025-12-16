@@ -546,7 +546,8 @@ outgoing_pool_connection(<<"rabbit">>) ->
                  <<"virtual_host">> => #option{type = binary,
                                                validate = non_empty},
                  <<"confirms_enabled">> => #option{type = boolean},
-                 <<"tls">> => tls([client])
+                 <<"tls">> => tls([client]),
+                 <<"reconnect">> => rabbit_reconnect()
                 },
        include = always,
        defaults = #{<<"host">> => "localhost",
@@ -630,6 +631,15 @@ sql_tls() ->
 
 sql_tls_extra() ->
     #section{items = #{<<"required">> => #option{type = boolean}}}.
+
+%% path: outgoing_pools.rabbit.*.connection.reconnect
+rabbit_reconnect() ->
+    #section{items = #{<<"attempts">> => #option{type = integer, validate = non_negative},
+                       <<"delay">> => #option{type = integer, validate = non_negative}},
+             defaults = #{<<"attempts">> => 0,
+                          <<"delay">> => 2000 % milliseconds
+                         },
+             include = always}.
 
 %% TLS options
 
