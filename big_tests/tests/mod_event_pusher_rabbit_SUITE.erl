@@ -34,6 +34,8 @@
 
 -define(RABBIT_HTTP_ENDPOINT, "http://127.0.0.1:15672").
 
+-define(UTILS_MODULE, mod_event_pusher_rabbit_utils).
+
 -type rabbit_binding() :: {Queue :: binary(),
                            Exchange :: binary(),
                            RoutingKey :: binary()}.
@@ -55,7 +57,8 @@ all() ->
      {group, chat_message_publish},
      {group, group_chat_message_publish},
      {group, instrumentation},
-     {group, filter_and_metadata}
+     {group, filter_and_metadata},
+     {group, single_worker}
     ].
 
 groups() ->
@@ -68,7 +71,8 @@ groups() ->
      {chat_message_publish, [], chat_message_publish_tests()},
      {group_chat_message_publish, [], group_chat_message_publish_tests()},
      {instrumentation, [], instrumentation_tests()},
-     {filter_and_metadata, [], filter_and_metadata_tests()}].
+     {filter_and_metadata, [], filter_and_metadata_tests()},
+     {single_worker, [], single_worker_tests()}].
 
 pool_startup_tests() ->
     [rabbit_pool_starts_with_default_config].
@@ -108,6 +112,12 @@ filter_and_metadata_tests() ->
     [messages_published_events_are_not_executed,
      presence_messages_are_properly_formatted_with_metadata].
 
+single_worker_tests() ->
+    [connection_is_restarted_on_error,
+     connection_is_restarted_with_retries,
+     connection_is_restarted_with_retries_and_queue_limit,
+     worker_is_restarted_after_failed_retries].
+
 suite() ->
     escalus:suite().
 
@@ -126,12 +136,15 @@ init_per_suite(Config) ->
             {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
             mongoose_helper:inject_module(mod_event_pusher_filter),
+            mongoose_helper:inject_module(?UTILS_MODULE),
+            rpc(mim(), ?UTILS_MODULE, start, []),
             escalus:init_per_suite(Config);
         false ->
             {skip, "RabbitMQ server is not available on default port."}
     end.
 
 end_per_suite(Config) ->
+    rpc(mim(), ?UTILS_MODULE, stop, []),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config),
@@ -579,6 +592,86 @@ messages_published_events_are_executed(Config) ->
                                      end, #{expected_count => 2}) % for sender and receiver
         end).
 
+connection_is_restarted_on_error(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN intermittent rabbit connection failure
+              BobJID = client_lower_short_jid(Bob),
+              listen_to_presence_events_from_rabbit([BobJID], Config),
+              {ok, Worker} = get_rabbit_worker(),
+              simulate_rabbit_connection_error(),
+
+              %% WHEN user sends presence
+              send_presence_stanzas([Bob], 1),
+
+              %% THEN event is delivered because the worker kept its queue
+              ?assertReceivedMatch({#'basic.deliver'{routing_key = BobJID},
+                                    #amqp_msg{}}, timer:seconds(5)),
+              ?assertEqual({ok, Worker}, get_rabbit_worker())
+      end).
+
+connection_is_restarted_with_retries(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN an intermittent rabbit connection failure lasting for 2 connect attempts
+              BobJID = client_lower_short_jid(Bob),
+              listen_to_presence_events_from_rabbit([BobJID], Config),
+              {ok, Worker} = get_rabbit_worker(),
+              simulate_rabbit_connection_error(2),
+
+              %% WHEN user sends presence
+              send_presence_stanzas([Bob], 1),
+
+              %% THEN event is delivered because the worker kept its queue
+              ?assertReceivedMatch({#'basic.deliver'{routing_key = BobJID},
+                                    #amqp_msg{}}, timer:seconds(5)),
+              ?assertEqual({ok, Worker}, get_rabbit_worker())
+      end).
+
+connection_is_restarted_with_retries_and_queue_limit(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN an intermittent rabbit connection failure lasting for 2 connect attempts
+              BobJID = client_lower_short_jid(Bob),
+              listen_to_presence_events_from_rabbit([BobJID], Config),
+              {ok, Worker} = get_rabbit_worker(),
+              simulate_rabbit_connection_error(2),
+
+              %% WHEN user sends 2 presences
+              send_presence_stanzas([Bob], 2),
+
+              %% THEN: - first event is delivered because the worker kept its queue
+              %%       - second event is dropped because max_worker_queue_len is 1
+              DecodedMessage = get_decoded_message_from_rabbit(BobJID),
+              ?assertMatch(#{<<"present">> := false}, DecodedMessage),
+              assert_no_message_from_rabbit([BobJID]),
+              ?assertEqual({ok, Worker}, get_rabbit_worker())
+      end).
+
+worker_is_restarted_after_failed_retries(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN an intermittent rabbit connection failure lasting for 3 connect attempts
+              BobJID = client_lower_short_jid(Bob),
+              listen_to_presence_events_from_rabbit([BobJID], Config),
+              {ok, Worker} = get_rabbit_worker(),
+              simulate_rabbit_connection_error(3),
+
+              %% WHEN user sends presence
+              send_presence_stanzas([Bob], 1),
+
+              %% THEN event is dropped because worker is restarted (reconnect.attempts was 2)
+              assert_no_message_from_rabbit([BobJID]),
+              wait_for_new_rabbit_worker(Worker),
+              send_presence_stanzas([Bob], 1),
+              ?assertReceivedMatch({#'basic.deliver'{routing_key = BobJID}, #amqp_msg{}},
+                                   timer:seconds(5))
+      end).
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
@@ -797,6 +890,21 @@ assert_no_message_from_rabbit(RoutingKeys) ->
         500 -> ok % To save time, this timeout is shorter than in the positive test
     end.
 
+simulate_rabbit_connection_error() ->
+    rpc(mim(), ?UTILS_MODULE, ?FUNCTION_NAME, [domain(), 5671, 0]).
+
+simulate_rabbit_connection_error(Count) ->
+    rpc(mim(), ?UTILS_MODULE, ?FUNCTION_NAME, [domain(), 5671, Count]).
+
+wait_for_new_rabbit_worker(OldWorker) ->
+    {ok, {ok, NewWorker}} =
+        wait_helper:wait_until(fun get_rabbit_worker/0, true,
+                               #{validator => fun({ok, Worker}) -> Worker =/= OldWorker end}),
+    NewWorker.
+
+get_rabbit_worker() ->
+     rpc(mim(), mongoose_wpool, get_worker, [rabbit, domain(), event_pusher]).
+
 %%--------------------------------------------------------------------
 %% Utils
 %%--------------------------------------------------------------------
@@ -809,11 +917,18 @@ start_rabbit_tls_wpool(Host, GroupName) ->
     BasicConnOpts = #{tls => tls_config(), port => 5671, virtual_host => ?VHOST},
     ConnOpts = maps:merge(BasicConnOpts, extra_conn_opts(GroupName)),
     ensure_vhost(?VHOST),
-    start_rabbit_wpool(Host, BasicOpts#{conn_opts => ConnOpts}).
+    start_rabbit_wpool(Host, maps:merge(BasicOpts#{conn_opts => ConnOpts}, extra_opts(GroupName))).
 
 extra_conn_opts(presence_status_publish_with_confirms) ->
     #{confirms_enabled => true};
+extra_conn_opts(single_worker) ->
+    #{reconnect => #{attempts => 2, delay => 1000}}; % Note: in case of flaky tests, increase delay
 extra_conn_opts(_GroupName) ->
+    #{}.
+
+extra_opts(single_worker) ->
+    #{opts => #{workers => 1, max_worker_queue_len => 1}};
+extra_opts(_) ->
     #{}.
 
 tls_config() ->

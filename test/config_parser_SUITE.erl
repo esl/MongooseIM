@@ -145,6 +145,7 @@ groups() ->
                          pool_elastic_connection,
                          pool_rabbit,
                          pool_rabbit_connection,
+                         pool_rabbit_connection_reconnect,
                          pool_rabbit_connection_tls,
                          pool_ldap,
                          pool_ldap_connection,
@@ -1111,6 +1112,15 @@ pool_rabbit_connection(_Config) ->
     ?err(T(#{<<"password">> => <<>>})),
     ?err(T(#{<<"virtual_host">> => <<>>})),
     ?err(T(#{<<"confirms_enabled">> => <<"yes">>})).
+
+pool_rabbit_connection_reconnect(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, reconnect],
+    T = fun(Opts) -> pool_conn_raw(<<"rabbit">>, #{<<"reconnect">> => Opts}) end,
+    ?cfg(P, default_config([outgoing_pools, rabbit, default, conn_opts, reconnect]), T(#{})),
+    ?cfg(P ++ [attempts], 5, T(#{<<"attempts">> => 5})),
+    ?cfg(P ++ [delay], 0, T(#{<<"delay">> => 0})),
+    ?err(T(#{<<"attempts">> => -1})),
+    ?err(T(#{<<"delay">> => <<"infinity">>})).
 
 pool_rabbit_connection_tls(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],

@@ -44,7 +44,12 @@
                   username := binary(),
                   password := binary(),
                   virtual_host := binary(),
-                  confirms_enabled := boolean()}.
+                  confirms_enabled := boolean(),
+                  reconnect := reconnect()}.
+
+-type reconnect() :: #{attempts := non_neg_integer(),
+                       delay := non_neg_integer() % milliseconds
+                      }.
 
 -type publish_result() :: boolean() | timeout | {channel_exception, any(), any()}.
 
@@ -86,6 +91,11 @@ handle_cast({amqp_publish, Method, Payload}, State) ->
     handle_amqp_publish(Method, Payload, State).
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
+handle_info({'DOWN', _Ref, process, Connection, _}, State) ->
+    {noreply, case State of
+                  #{connection := Connection} -> establish_rabbit_connection(State);
+                  #{} -> State % probably already reconnected
+              end};
 handle_info(Req, State) ->
     ?UNEXPECTED_INFO(Req),
     {noreply, State}.
@@ -161,36 +171,60 @@ maybe_wait_for_confirms(_, _) ->
     true.
 
 -spec maybe_restart_rabbit_connection(state()) -> state().
-maybe_restart_rabbit_connection(#{connection := Conn} = State) ->
-    case is_process_alive(Conn) of
+maybe_restart_rabbit_connection(#{connection := Connection, opts := Opts} = State) ->
+    case is_process_alive(Connection) of
         true ->
-            {ok, Channel} = amqp_connection:open_channel(Conn),
-            State#{channel := Channel};
+            State#{channel := open_amqp_channel(Connection, Opts)};
         false ->
             establish_rabbit_connection(State)
     end.
 
 -spec establish_rabbit_connection(state()) -> state().
-establish_rabbit_connection(State) ->
+establish_rabbit_connection(State = #{opts := #{reconnect := #{attempts := Attempts}}}) ->
+    establish_rabbit_connection(State, Attempts).
+
+-spec establish_rabbit_connection(state(), non_neg_integer()) -> state().
+establish_rabbit_connection(State, RemainingAttempts) ->
+    case start_amqp_connection(State) of
+        {ok, NewState} ->
+            NewState;
+        {error, Error} when RemainingAttempts > 0 ->
+            ?LOG_WARNING(#{what => rabbit_connection_failed, reason => Error, worker_state => State,
+                           remaining_attempts => RemainingAttempts}),
+            #{opts := #{reconnect := #{delay := Delay}}} = State,
+            timer:sleep(Delay),
+            establish_rabbit_connection(State, RemainingAttempts - 1);
+        {error, Error} when RemainingAttempts =:= 0 ->
+            ErrorInfo = #{what => rabbit_connection_failed, reason => Error, worker_state => State},
+            ?LOG_ERROR(ErrorInfo),
+            exit(ErrorInfo)
+    end.
+
+-spec start_amqp_connection(state()) -> {ok, state()} | {error, term()}.
+start_amqp_connection(State) ->
     #{opts := Opts, host_type := HostType, pool_tag := PoolTag} = State,
     case amqp_connection:start(mongoose_amqp:network_params(Opts)) of
         {ok, Connection} ->
+            monitor(process, Connection), % resulting ref is ignored as there is only one monitor
             mongoose_instrument:execute(wpool_rabbit_connections,
                                         #{host_type => HostType, pool_tag => PoolTag},
                                         #{active => 1, opened => 1}),
-            {ok, Channel} = amqp_connection:open_channel(Connection),
-            maybe_enable_confirms(Channel, Opts),
+            Channel = open_amqp_channel(Connection, Opts),
             ?LOG_DEBUG(#{what => rabbit_connection_established,
                          host_type => HostType, pool_tag => PoolTag, opts => Opts}),
-            State#{connection => Connection, channel => Channel};
+            {ok, State#{connection => Connection, channel => Channel}};
         {error, Error} ->
             mongoose_instrument:execute(wpool_rabbit_connections,
                                         #{host_type => HostType, pool_tag => PoolTag},
                                         #{failed => 1}),
-            ?LOG_ERROR(#{what => rabbit_connection_failed, reason => Error,
-                         host_type => HostType, pool_tag => PoolTag, opts => Opts}),
-            exit("connection to a Rabbit server failed")
+            {error, Error}
     end.
+
+-spec open_amqp_channel(pid(), opts()) -> pid().
+open_amqp_channel(Connection, Opts) ->
+    {ok, Channel} = amqp_connection:open_channel(Connection),
+    maybe_enable_confirms(Channel, Opts),
+    Channel.
 
 -spec close_rabbit_connection(Connection :: pid(), Channel :: pid(),
                               HostType :: mongooseim:host_type_or_global(), PoolTag :: atom()) ->
