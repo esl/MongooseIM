@@ -18,7 +18,7 @@
 
 -ignore_xref([pairs_foreach/2, wait_until/3]).
 
--export_type([microseconds/0]).
+-export_type([microseconds/0, message_type/0]).
 -export([pmap/2, pmap/3]).
 -ignore_xref([pmap/3]).
 
@@ -40,7 +40,7 @@
 -spec log_if_backend_error(V :: any(), % value return by called backend fun
                            Module :: atom(), % caller
                            Line :: integer(),
-                           Args :: any() ) -> ok.
+                           Args :: any()) -> ok.
 log_if_backend_error(ok, _Module, _Line, _Args) -> ok;
 log_if_backend_error({ok, _}, _Module, _Line, _Args) -> ok;
 log_if_backend_error({atomic, _}, _Module, _Line, _Args) -> ok;
@@ -86,7 +86,7 @@ maps_foreach(Fun, Map) when is_function(Fun, 2) ->
 pairs_foreach(Fun, List) when is_function(Fun, 1) ->
     lists:foreach(Fun, List);
 pairs_foreach(Fun, List) when is_function(Fun, 2) ->
-    lists:foreach(fun({K,V}) -> Fun(K,V) end, List).
+    lists:foreach(fun({K, V}) -> Fun(K, V) end, List).
 
 maps_or_pairs_foreach(Fun, Map) when is_map(Map) ->
     maps_foreach(Fun, Map);
@@ -191,7 +191,7 @@ pmap(F, Es) ->
 
 pmap(F, Es, Timeout) ->
     TimerRef = erlang:start_timer(Timeout, self(), pmap_timeout),
-    Running = 
+    Running =
         [spawn_monitor(fun() -> exit({pmap_result, F(E)}) end)
             || E <- Es],
     Result = collect(Running, TimerRef),

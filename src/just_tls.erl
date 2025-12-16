@@ -10,7 +10,7 @@
 
 -include_lib("public_key/include/public_key.hrl").
 
--type cert() :: {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
+-type cert() :: {ok, Cert :: any()} | {bad_cert, bitstring()} | no_peer_cert.
 
 %% Options used for client-side and server-side TLS connections.
 %% All modules implementing this behaviour have to support the mandatory 'verify_mode' option.

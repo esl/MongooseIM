@@ -11,6 +11,8 @@
 
 -ignore_xref([get_key/1, init/2, init_ram_key/1]).
 
+-dialyzer({nowarn_function, init_ram_key/1}).
+
 -include("mod_keystore.hrl").
 -include("mongoose_logger.hrl").
 
@@ -47,6 +49,6 @@ init_ram_key(#key{id = Id = {_, HostType}, key = PropKey}) ->
     {ok, #key{id = Id, key = Key}}.
 
 -spec get_key(Id :: mod_keystore:key_id()) -> mod_keystore:key_list().
-get_key(Id = {_, HostType}) ->
+get_key({_, HostType} = Id) ->
     Tab = table_name(HostType),
     ets:lookup(Tab, Id).

@@ -40,6 +40,8 @@
 
 -ignore_xref(?MODULE).
 
+-export_type([c2s_element_info/0]).
+
 -type c2s_element_info() :: #{name := binary(),
                               contents := binary(),
                               ref := reference(),
@@ -63,7 +65,7 @@ c2s_elements_between_jids(TargetBinJids) ->
     lists:filter(fun(#{from_jid := From, to_jid := To}) ->
                          case match_target_jids(From, Targets) of
                              [] -> false;
-                             [H|_] -> match_target_jids(To, Targets -- [H]) =/= []
+                             [H | _] -> match_target_jids(To, Targets -- [H]) =/= []
                          end
                  end, c2s_elements()).
 

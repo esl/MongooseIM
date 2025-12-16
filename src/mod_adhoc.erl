@@ -143,7 +143,8 @@ run_request_hook(adhoc_sm_commands, HostType, From, To, AdhocRequest) ->
       Acc :: mongoose_disco:item_acc(),
       Params :: map(),
       Extra :: #{host_type := mongooseim:host_type()}.
-disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>, lang := Lang}, _, #{host_type := HostType}) ->
+disco_local_items(Acc = #{to_jid := ToJid, node := <<>>, lang := Lang}, _, #{host_type := HostType}) ->
+    #jid{lserver = LServer} = ToJid,
     Items = case are_commands_visible(HostType) of
                 false ->
                     [];

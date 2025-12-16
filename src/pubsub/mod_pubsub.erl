@@ -1210,11 +1210,11 @@ iq_disco_items_transaction(Host, From, Node, RSM,
                       NodeItems),
     {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
 
--spec iq_sm(From ::jid:jid(),
-            To   ::jid:jid(),
-            Acc :: mongoose_acc:t(),
-            IQ   :: jlib:iq())
-        -> {mongoose_acc:t(), jlib:iq()}.
+-spec iq_sm(From :: jid:jid(),
+            To   :: jid:jid(),
+            Acc  :: mongoose_acc:t(),
+            IQ   :: #iq{})
+    -> {mongoose_acc:t(), #iq{}}.
 iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = IQ) ->
     ServerHost = To#jid.lserver,
     LOwner = jid:to_lower(jid:to_bare(To)),
@@ -1540,7 +1540,13 @@ iq_command(Host, ServerHost, From, IQ, Access, Plugins) ->
         Err -> Err
     end.
 
+-spec iq_command(binary(), any(), jid:jid(), jlib:iq(), any(), [binary()]) ->
+    {result, [exml:element()]} | {error, exml:element()}.
+
 %% @doc <p>Processes an Ad Hoc Command.</p>
+%% Types aligned to records to avoid opaque breakage in dialyzer
+-spec adhoc_request(binary(), any(), jid:jid(), #adhoc_request{}, any(), [binary()]) ->
+    exml:element() | {error, exml:element()}.
 adhoc_request(Host, _ServerHost, Owner,
               Request = #adhoc_request{node = ?NS_PUBSUB_GET_PENDING,
                                        action = <<"execute">>,

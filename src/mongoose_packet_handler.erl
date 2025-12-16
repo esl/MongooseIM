@@ -14,7 +14,7 @@
          }).
 -type extra() :: map().
 -type t() :: #packet_handler{}.
--export_type([t/0]).
+-export_type([t/0, extra/0]).
 
 -define(ARGS, Acc :: mongoose_acc:t(),
               From :: jid:jid(),
@@ -38,24 +38,24 @@ new(Module) ->
 
 -spec new(Module :: module(), Extra :: extra()) -> t().
 new(Module, Extra) when is_atom(Module), is_map(Extra) ->
-    #packet_handler{handler = fun Module:process_packet/5, extra = Extra }.
+    #packet_handler{handler = fun Module:process_packet/5, extra = Extra}.
 
 -spec process(Handler :: t(),
               Acc :: mongoose_acc:t(),
-              From ::jid:jid(),
-              To ::jid:jid(),
+              From :: jid:jid(),
+              To :: jid:jid(),
               El :: exml:element()) -> mongoose_acc:t().
-process(#packet_handler{handler = ProcessPacket, extra = Extra }, Acc, From, To, El) ->
+process(#packet_handler{handler = ProcessPacket, extra = Extra}, Acc, From, To, El) ->
     ProcessPacket(Acc, From, To, El, Extra).
 
-module(#packet_handler{handler = ProcessPacket }) ->
+module(#packet_handler{handler = ProcessPacket}) ->
     {_, Module} = erlang:fun_info(ProcessPacket, module),
     Module.
 
-extra(#packet_handler{ extra = Extra }) ->
+extra(#packet_handler{extra = Extra}) ->
     Extra.
 
-add_extra(#packet_handler{ extra = OldExtra } = Handler, Extra) ->
+add_extra(#packet_handler{extra = OldExtra} = Handler, Extra) ->
     %% KV pairs from the OldExtra map will remain unchanged, only
     %% the new keys from Extra map will be added to the NewExtra map
     NewExtra = maps:merge(Extra, OldExtra),

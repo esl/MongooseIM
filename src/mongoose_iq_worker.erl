@@ -13,9 +13,10 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
--spec start() -> {ok,pid()}.
+-spec start() -> {ok, pid()}.
 start() ->
     supervisor:start_child(ejabberd_iq_sup, []).
+
 
 -spec start_link() ->
     'ignore' | {'error', _} | {'ok', pid()}.

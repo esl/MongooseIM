@@ -85,7 +85,7 @@
 
 -export_type([msg/0]).
 
--type poppers() :: monitored_map:t({jid:luser(), jid:lserver()}, pid()).
+-type poppers() :: monitored_map:t().
 
 -record(state, {host_type :: mongooseim:host_type(),
                 access_max_user_messages :: atom(),

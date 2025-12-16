@@ -110,7 +110,7 @@ remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type :
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     {ok, Acc}.
 
--spec remove_domain(Acc, Params, Extra) -> {ok , Acc} when
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_domain_api:remove_domain_acc(),
       Params :: #{domain := jid:lserver()},
       Extra :: gen_hook:extra().
@@ -161,8 +161,9 @@ process_iq(Acc, _From, _To, IQ, _Extra) ->
 
 choose_strategy(true, get) -> get;
 choose_strategy(true, set) -> set;
-choose_strategy(_,    _  ) -> forbidden.
+choose_strategy(_, _) -> forbidden.
 
+-spec element_to_namespace(term()) -> binary().
 element_to_namespace(#xmlel{} = El) ->
     exml_query:attr(El, <<"xmlns">>, <<>>);
 element_to_namespace(_) ->
@@ -170,11 +171,11 @@ element_to_namespace(_) ->
 
 %% Skip invalid elements.
 to_map(Elems) ->
-    [{NS, Elem} || Elem <- Elems, is_valid_namespace(NS = element_to_namespace(Elem))].
+    [{NS, Elem} || Elem <- Elems,
+                  NS <- [element_to_namespace(Elem)],
+                  NS =/= <<>>].
 
-is_valid_namespace(Namespace) -> Namespace =/= <<>>.
-
-error_iq(IQ=#iq{sub_el=SubElem}, ErrorStanza) ->
+error_iq(IQ = #iq{sub_el = SubElem}, ErrorStanza) ->
     IQ#iq{type = error, sub_el = [SubElem, ErrorStanza]}.
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].

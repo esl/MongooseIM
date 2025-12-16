@@ -9,6 +9,8 @@
 
 -define(CMD_TIMEOUT, 300000).
 
+-export_type([error_code/0]).
+
 -type error_code() :: user_does_not_exist_error | wrong_filename_error |
                       file_creation_permission_denied_error | location_is_a_directory_error.
 

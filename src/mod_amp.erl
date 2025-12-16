@@ -243,7 +243,7 @@ server_jid(#jid{lserver = Host}) ->
     jid:from_binary(Host).
 
 find(_Pred, []) -> not_found;
-find(Pred, [H|T]) ->
+find(Pred, [H | T]) ->
     case Pred(H) of
         true -> {found, H};
         false -> find(Pred, T)
