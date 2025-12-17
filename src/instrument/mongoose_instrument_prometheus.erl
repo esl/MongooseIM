@@ -13,6 +13,13 @@
 start(#{}) ->
     Apps = [prometheus, prometheus_httpd, prometheus_cowboy],
     {ok, _} = application:ensure_all_started(Apps, permanent),
+    %% Start sliding window manager for histogram metrics
+    case whereis(mongoose_prometheus_sliding_window) of
+        undefined ->
+            {ok, _} = mongoose_prometheus_sliding_window:start_link();
+        _ ->
+            ok
+    end,
     ok.
 
 -spec set_up(mongoose_instrument:event_name(), mongoose_instrument:labels(),
@@ -57,13 +64,15 @@ declare_metric(MetricSpec, counter) ->
 declare_metric(MetricSpec, spiral) ->
     prometheus_counter:declare(MetricSpec);
 declare_metric(MetricSpec, histogram) ->
-    prometheus_quantile_summary:declare([
-        {quantiles, [0.5, 0.75, 0.90, 0.95, 0.99, 0.999]},
-        {error, 0.01},
+    SWResult = mongoose_prometheus_sliding_window:declare(MetricSpec),
+    PromResult = prometheus_quantile_summary:declare([
+        {quantiles, mongoose_prometheus_sliding_window:default_quantiles()},
+        {error, mongoose_prometheus_sliding_window:default_error()},
         %% Measuring in µs suffices for actions lasting up to a day (with 1% accuracy).
         %% Measuring in bytes suffices for sizes up to 81 GB (with 1% accuracy).
         {bound, 1260}
-    | MetricSpec]).
+    | MetricSpec]),
+    SWResult or PromResult.
 
 -spec reset_metric(name(), [mongoose_instrument:label_value()],
                    mongoose_instrument:metric_type()) -> boolean().
@@ -74,6 +83,7 @@ reset_metric(Name, LabelValues, counter) ->
 reset_metric(Name, LabelValues, spiral) ->
     prometheus_counter:remove(Name, LabelValues);
 reset_metric(Name, LabelValues, histogram) ->
+    mongoose_prometheus_sliding_window:remove(Name, LabelValues),
     prometheus_quantile_summary:remove(Name, LabelValues).
 
 -spec initialize_metric(name(), [mongoose_instrument:label_value()],
@@ -136,4 +146,5 @@ update_metric(Name, Labels, counter, Value) when is_integer(Value) ->
 update_metric(Name, Labels, spiral, Value) when is_integer(Value), Value >= 0 ->
     ok = prometheus_counter:inc(Name, Labels, Value);
 update_metric(Name, Labels, histogram, Value) when is_integer(Value) ->
+    ok = mongoose_prometheus_sliding_window:observe(Name, Labels, Value),
     ok = prometheus_quantile_summary:observe(Name, Labels, Value).

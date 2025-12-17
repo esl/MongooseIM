@@ -19,7 +19,7 @@
  {<<"credentials_obfuscation">>,
   {pkg,<<"credentials_obfuscation">>,<<"3.5.0">>},
   1},
- {<<"ddskerl">>,{pkg,<<"ddskerl">>,<<"0.4.2">>},1},
+ {<<"ddskerl">>,{pkg,<<"ddskerl">>,<<"0.4.2">>},0},
  {<<"eini">>,{pkg,<<"eini">>,<<"1.2.9">>},1},
  {<<"epgsql">>,{pkg,<<"epgsql">>,<<"4.7.1">>},0},
  {<<"eredis">>,{pkg,<<"eredis">>,<<"1.7.1">>},0},
