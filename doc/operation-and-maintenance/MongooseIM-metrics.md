@@ -50,7 +50,7 @@ All metrics are divided into the following groups:
 
     <h3>`histogram`</h3>
 
-    A histogram collects values and exposes the number of observations and their sum (as counters), along with the 50th, 75th, 90th, 95th, 99th, and 99.9th percentiles with 1% accuracy.
+    A histogram collects values over a 60-second sliding window and exposes the number of observations and their sum (as counters), along with the 50th, 75th, 90th, 95th, 99th, and 99.9th percentiles with 1% accuracy.
 
     **Example:**
         ```
