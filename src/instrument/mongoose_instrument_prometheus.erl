@@ -20,6 +20,7 @@ start(#{}) ->
         _ ->
             ok
     end,
+    prometheus_registry:register_collector(mongoose_prometheus_sliding_window_collector),
     ok.
 
 -spec set_up(mongoose_instrument:event_name(), mongoose_instrument:labels(),

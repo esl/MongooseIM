@@ -5,8 +5,10 @@
 
 -export([declare/1,
          observe/3,
-         value/2,
-         remove/2]).
+         values/1,
+         remove/2,
+         get_all_metric_names/0,
+         get_metric_spec/1]).
 
 -export([start_link/0,
          init/1,
@@ -32,7 +34,8 @@ default_error() -> 0.01.
 
 -record(state, {
     timer_ref :: reference() | undefined,
-    metrics = #{} :: #{name() => #{label_values() => metric_state()}}
+    metrics = #{} :: #{name() => #{label_values() => metric_state()}},
+    metric_specs = #{} :: #{name() => proplists:proplist()}
 }).
 
 -type name() :: string().
@@ -51,14 +54,21 @@ declare(MetricSpec) ->
 observe(Name, LabelValues, Value) ->
     gen_server:cast(?MODULE, {observe, Name, LabelValues, Value}).
 
--spec value(name(), label_values()) ->
-    undefined | {non_neg_integer(), number(), [{number(), number()}]}.
-value(Name, LabelValues) ->
-    gen_server:call(?MODULE, {value, Name, LabelValues}).
+-spec values(name()) -> [{label_values(), {non_neg_integer(), number(), [{number(), number()}]}}].
+values(Name) ->
+    gen_server:call(?MODULE, {values, Name}).
 
 -spec remove(name(), label_values()) -> boolean().
 remove(Name, LabelValues) ->
     gen_server:call(?MODULE, {remove, Name, LabelValues}).
+
+-spec get_all_metric_names() -> [name()].
+get_all_metric_names() ->
+    gen_server:call(?MODULE, get_all_metric_names).
+
+-spec get_metric_spec(name()) -> proplists:proplist() | undefined.
+get_metric_spec(Name) ->
+    gen_server:call(?MODULE, {get_metric_spec, Name}).
 
 %% gen_server callbacks
 
@@ -69,26 +79,35 @@ init([]) ->
     TimerRef = erlang:start_timer(?WINDOW_DURATION_MS, self(), rotate),
     {ok, #state{timer_ref = TimerRef}}.
 
-handle_call({declare, Name, _MetricSpec}, _From, State) ->
+handle_call({declare, Name, MetricSpec}, _From, State) ->
     case maps:is_key(Name, State#state.metrics) of
         true ->
             {reply, false, State};
         false ->
             NewMetrics = maps:put(Name, #{}, State#state.metrics),
-            {reply, true, State#state{metrics = NewMetrics}}
+            NewSpecs = maps:put(Name, MetricSpec, State#state.metric_specs),
+            {reply, true, State#state{metrics = NewMetrics, metric_specs = NewSpecs}}
     end;
 
 handle_call({observe, Name, LabelValues, Value}, _From, State) ->
     NewState = do_observe(Name, LabelValues, Value, State),
     {reply, ok, NewState};
 
-handle_call({value, Name, LabelValues}, _From, State) ->
-    {Result, NewState} = get_value(Name, LabelValues, State),
+handle_call({values, Name}, _From, State) ->
+    {Result, NewState} = get_values(Name, State),
     {reply, Result, NewState};
 
 handle_call({remove, Name, LabelValues}, _From, State) ->
     NewState = do_remove(Name, LabelValues, State),
     {reply, true, NewState};
+
+handle_call(get_all_metric_names, _From, State) ->
+    Names = maps:keys(State#state.metrics),
+    {reply, Names, State};
+
+handle_call({get_metric_spec, Name}, _From, State) ->
+    Spec = maps:get(Name, State#state.metric_specs, undefined),
+    {reply, Spec, State};
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
@@ -207,6 +226,25 @@ get_value(Name, LabelValues, State) ->
                     {Count, Sum, Quantiles}
             end,
             {Result, NewState}
+    end.
+
+-spec get_values(name(), #state{}) -> {[{label_values(), {non_neg_integer(), number(), [{number(), number()}]}}], #state{}}.
+get_values(Name, State) ->
+    case maps:find(Name, State#state.metrics) of
+        error ->
+            {[], State};
+        {ok, MetricState} ->
+            Keys = maps:keys(MetricState),
+            {ResultsRev, FinalState} = lists:foldl(
+                fun({_, LabelValues}, {AccRes, S}) ->
+                    {Res, S2} = get_value(Name, LabelValues, S),
+                    NewAcc = case Res of
+                        undefined -> AccRes;
+                        _ -> [{LabelValues, Res} | AccRes]
+                    end,
+                    {NewAcc, S2}
+                end, {[], State}, Keys),
+            {lists:reverse(ResultsRev), FinalState}
     end.
 
 -spec do_remove(name(), label_values(), #state{}) -> #state{}.
