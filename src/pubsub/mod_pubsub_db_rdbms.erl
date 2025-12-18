@@ -384,7 +384,9 @@ execute_delete_all_subscriptions(Nidx, LU, LS, LR) ->
 -spec execute_delete_all_subscriptions_id(Nidx :: mod_pubsub:nodeIdx()) ->
     mongoose_rdbms:query_result().
 execute_delete_all_subscriptions_id(Nidx) ->
-    mongoose_rdbms:execute_successfully(global, pubsub_delete_all_subscriptions_id, [Nidx]).
+    mongoose_rdbms:transaction_with_delayed_retry(global, fun() ->
+        mongoose_rdbms:execute(global, pubsub_delete_all_subscriptions_id, [Nidx])
+    end, #{retries => 5, delay => 100}).
 
 -spec execute_delete_user_subscriptions(LS :: jid:lserver(), LU :: jid:luser()) ->
     mongoose_rdbms:query_result().
