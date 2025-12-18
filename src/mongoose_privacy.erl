@@ -63,7 +63,7 @@ privacy_check_packet(Acc0, #jid{luser = LUser, lserver = LServer} = JID,
         allow ->
             {allow, Acc};
         check ->
-            % check if it is there, if not then set default and run a hook
+            % check if it is there, if not then run a hook
             Key = {cached_check, LServer, LUser, From, To, Name, Type, Dir},
             case mongoose_acc:get(privacy, Key, undefined, Acc) of
                 undefined ->
@@ -75,6 +75,7 @@ privacy_check_packet(Acc0, #jid{luser = LUser, lserver = LServer} = JID,
                     {Res, Acc}
             end
     end.
+
 %% allow iq result send in response to my own request
 basic_check(<<"iq">>,
             #jid{luser = U, lserver = S} = _From,
@@ -85,6 +86,4 @@ basic_check(<<"iq">>,
             #jid{luser = <<>>, lserver = S} = _From,
             #jid{lserver = S} = _To,
             _) -> allow;
-%% do not bother checking if privacy list is empty
-basic_check(_, _, _, #privacy{lists = []}) -> allow;
 basic_check(_, _, _, _) -> check.
