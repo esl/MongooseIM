@@ -18,7 +18,6 @@ BuildArch:         %{architecture}
 BuildRequires:     git
 BuildRequires:     make
 BuildRequires:     zlib-devel
-BuildRequires:     unixODBC-devel
 BuildRequires:     gcc
 BuildRequires:     gcc-c++
 BuildRequires:     openssl

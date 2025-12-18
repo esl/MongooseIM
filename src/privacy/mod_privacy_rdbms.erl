@@ -114,9 +114,7 @@ prepare_default_list_upsert(HostType) ->
 default_list_upsert(HostType, LServer, LUser, Name) ->
     InsertParams = [LServer, LUser, Name],
     UpdateParams = [Name],
-    UniqueKeyValues = [LServer, LUser],
-    rdbms_queries:execute_upsert(HostType, privacy_default_upsert,
-                                 InsertParams, UpdateParams, UniqueKeyValues).
+    rdbms_queries:execute_upsert(HostType, privacy_default_upsert, InsertParams, UpdateParams).
 
 get_default_list(HostType, LUser, LServer) ->
     case get_default_list_name(HostType, LUser, LServer) of

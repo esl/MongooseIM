@@ -93,9 +93,6 @@ Script examples:
 ./tools/test-runner.sh --skip-small-tests --db redis mysql --preset mysql_redis
     CI build job with mysql_redis
 
-./tools/test-runner.sh --skip-small-tests --db redis mssql --preset odbc_mssql_mnesia
-    CI build job with odbc_mssql_mnesia
-
 ./tools/test-runner.sh --skip-small-tests --db redis ldap --preset ldap_mnesia
     CI build job with ldap_mnesia
 
@@ -275,7 +272,6 @@ DBS_ARRAY=(
     pgsql
     cassandra
     elasticsearch
-    mssql
     redis
     ldap
 )

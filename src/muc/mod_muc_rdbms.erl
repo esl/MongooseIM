@@ -212,9 +212,7 @@ store_nick_transaction(HostType, MucHost, Jid, Nick, true) ->
     {LU, LS} = jid:to_lus(Jid),
     InsertParams = [MucHost, LU, LS, Nick],
     UpdateParams = [Nick],
-    UniqueKeyValues  = [MucHost, LU, LS],
-    case rdbms_queries:execute_upsert(HostType, muc_nick_upsert,
-                                      InsertParams, UpdateParams, UniqueKeyValues) of
+    case rdbms_queries:execute_upsert(HostType, muc_nick_upsert, InsertParams, UpdateParams) of
         {updated, _} -> ok;
         Error -> Error
     end.

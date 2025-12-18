@@ -28,7 +28,7 @@
         * Mnesia
         * Redis
     * Persistent:
-        * RDBMS: MySQL, PostgreSQL, generic ODBC
+        * RDBMS: MySQL, PostgreSQL
         * NoSQL: Cassandra
 * Integration with third-party services
     * [Amazon Simple Notification Service](../modules/mod_event_pusher_sns.md)

@@ -24,12 +24,6 @@ The following sections describe the installation process for different operating
 
 === "CentOS compatible: AlmaLinux / Rocky Linux"
 
-    An ODBC (RDBMS) driver must be installed on your machine to unpack and install from RPM packages. Enter the following command in a terminal window to install the latest unixODBC driver:
-
-    ```bash
-    sudo yum install unixODBC
-    ```
-
     Once the RPM file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
 
     ```bash

@@ -122,10 +122,8 @@ query_archive_id(HostType, LServer, LUser, Tries) when Tries > 0 ->
 create_user_archive(HostType, LServer, LUser) ->
     InsertParams = [LServer, LUser],
     UpdateParams = [], %% On duplicate key do nothing
-    UniqueKeyValues  = [LServer, LUser],
 
-    case rdbms_queries:execute_upsert(HostType, mam_user_upsert,
-                                      InsertParams, UpdateParams, UniqueKeyValues) of
+    case rdbms_queries:execute_upsert(HostType, mam_user_upsert, InsertParams, UpdateParams) of
         {updated, _} ->
             ok;
         _Error ->

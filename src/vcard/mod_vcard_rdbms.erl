@@ -42,7 +42,7 @@
 -include("mod_vcard.hrl").
 
 -type filter_type() :: equal | like.
--type limit_type() :: infinity | top | limit.
+-type limit_type() :: infinity | limit.
 -type sql_column() :: binary().
 -type sql_value() :: binary().
 -type sql_filter() :: {filter_type(), sql_column(), sql_value()}.
@@ -149,14 +149,12 @@ handle_result({error, Reason})   -> {error, Reason}.
 update_vcard_t(HostType, LUser, LServer, XML) ->
     InsertParams = [LUser, LServer, XML],
     UpdateParams = [XML],
-    UniqueKeyValues = [LUser, LServer],
-    rdbms_queries:execute_upsert(HostType, vcard_upsert, InsertParams, UpdateParams, UniqueKeyValues).
+    rdbms_queries:execute_upsert(HostType, vcard_upsert, InsertParams, UpdateParams).
 
 update_vcard_search_t(HostType, LUser, LServer, SearchArgs) ->
     InsertParams = [LUser, LServer|SearchArgs],
     UpdateParams = SearchArgs,
-    UniqueKeyValues = [LUser, LServer],
-    rdbms_queries:execute_upsert(HostType, vcard_search_upsert, InsertParams, UpdateParams, UniqueKeyValues).
+    rdbms_queries:execute_upsert(HostType, vcard_search_upsert, InsertParams, UpdateParams).
 
 %% Search vCards fields callback
 search_fields(_HostType, _VHost) ->
@@ -211,10 +209,7 @@ search(HostType, LServer, Data) ->
 limit_type(infinity) ->
     infinity;
 limit_type(_Limit) ->
-    case mongoose_rdbms:db_type() of
-        mssql -> top;
-        _ -> limit
-    end.
+    limit.
 
 %% Encodes filter column names using short format
 filters_to_statement_name(Filters, LimitType) ->
@@ -225,10 +220,9 @@ filters_to_statement_name(Filters, LimitType) ->
 filters_to_columns(Filters, LimitType) ->
    Columns = [Col || {_Type, Col, _Val} <- Filters],
    %% <<"limit">> is a pseudocolumn: does not exist in the schema,
-   %% but mssql's driver code needs to know which type to use for the placeholder.
+   %% but the DB driver code needs to know which type to use for the placeholder.
    case LimitType of
        infinity -> Columns;
-       top      -> [<<"limit">>|Columns];
        limit    -> Columns ++ [<<"limit">>]
    end.
 
@@ -236,7 +230,6 @@ filters_to_args(Filters, LimitType, Limit) ->
    Args = [Val || {_Type, _Col, Val} <- Filters],
    case LimitType of
        infinity -> Args;
-       top      -> [Limit|Args];
        limit    -> Args ++ [Limit]
    end.
 
@@ -246,9 +239,9 @@ search_sql_binary(_, Filters, LimitType) ->
     iolist_to_binary(search_sql(Filters, LimitType)).
 
 search_sql(Filters, LimitType) ->
-    {TopSQL, LimitSQL} = limit_type_to_sql(LimitType),
+    LimitSQL = limit_type_to_sql(LimitType),
     RestrictionSQL = filters_to_sql(Filters),
-    [<<"SELECT ">>, TopSQL,
+    [<<"SELECT ">>,
      <<" username, server, fn, family, given, middle, "
        "nickname, bday, ctry, locality, "
        "email, orgname, orgunit "
@@ -256,22 +249,20 @@ search_sql(Filters, LimitType) ->
         RestrictionSQL, LimitSQL].
 
 search_sql_cockroachdb(Filters, LimitType) ->
-    {TopSQL, LimitSQL} = limit_type_to_sql(LimitType),
+    LimitSQL = limit_type_to_sql(LimitType),
     RestrictionSQL = filters_to_sql(Filters),
-    [<<"SELECT ">>, TopSQL,
+    [<<"SELECT ">>,
      <<" \"username\", \"server\", \"fn\", \"family\", \"given\", \"middle\", "
        "\"nickname\", \"bday\", \"ctry\", \"locality\", "
        "\"email\", \"orgname\", \"orgunit\" "
        "FROM vcard_search ">>,
         RestrictionSQL, LimitSQL].
 
--spec limit_type_to_sql(limit_type()) -> {binary(), binary()}.
+-spec limit_type_to_sql(limit_type()) -> binary().
 limit_type_to_sql(infinity) ->
-    {<<>>, <<>>};
-limit_type_to_sql(top) ->
-    {<<" TOP (?) ">>, <<>>};
+    <<>>;
 limit_type_to_sql(limit) ->
-    {<<>>, <<" LIMIT ? ">>}.
+    rdbms_queries:limit().
 
 filters_to_sql([Filter|Filters]) ->
     [" WHERE ", filter_to_sql(Filter)|
@@ -324,8 +315,7 @@ value_type(Val) ->
     end.
 
 limit_type_to_id(infinity) -> "inf";
-limit_type_to_id(limit)    -> "lim";
-limit_type_to_id(top)      -> "top".
+limit_type_to_id(limit)    -> "lim".
 
 type_to_id(like)  -> "l";
 type_to_id(equal) -> "e".

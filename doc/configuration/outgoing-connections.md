@@ -85,7 +85,7 @@ For example:
 ### RDBMS options
 
 #### `outgoing_pools.rdbms.*.connection.driver`
-* **Syntax:** string, one of `"pgsql"`, `"mysql"`, `"cockroachdb"` or `"odbc"` (a supported driver)
+* **Syntax:** string, one of `"pgsql"`, `"mysql"`, `"cockroachdb"`
 * **Default:** none - this option is mandatory
 * **Example:** `driver = "psgql"`
 
@@ -148,34 +148,6 @@ To enable TLS, you need to include the [TLS section](#tls-options) in the connec
 * **Example:** `tls.required = true`
 
 This option can be used to enforce a TLS connection.
-
-### ODBC options
-
-#### `outgoing_pools.rdbms.*.connection.settings`
-* **Syntax:** string
-* **Default:** no default; required if the `"odbc"` driver is specified
-* **Example:** `settings = "DSN=mydb"`
-
-ODBC - specific string defining connection parameters.
-
-#### ODBC SSL connection setup
-
-If you've configured MongooseIM to use an ODBC driver, then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
-
-To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
-Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
-
-##### Example ~/.odbc.ini configuration
-
-```ini
-[mydb]
-Driver      = ...
-ServerName  = ...
-Port        = ...
-...
-sslmode     = verify-full
-sslrootcert = /path/to/ca/cert
-```
 
 ## HTTP options
 

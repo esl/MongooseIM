@@ -168,11 +168,11 @@ init(_HostType, _Opts) ->
     mongoose_rdbms:prepare(pubsub_get_items, pubsub_items, [nidx],
         <<"SELECT ", ItemColumns/binary, " FROM pubsub_items WHERE nidx = ? "
           "ORDER BY modified_at DESC">>),
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    LimitSQL = rdbms_queries:limit(),
     mongoose_rdbms:prepare(pubsub_get_items_limit, pubsub_items,
-        rdbms_queries:add_limit_arg(limit, [nidx]),
-        <<"SELECT ", LimitMSSQL/binary, " ", ItemColumns/binary,
-          " FROM pubsub_items WHERE nidx = ? ORDER BY modified_at DESC ", LimitSQL/binary>>),
+        [nidx, limit],
+        <<"SELECT ", ItemColumns/binary,
+          " FROM pubsub_items WHERE nidx = ? ORDER BY modified_at DESC", LimitSQL/binary>>),
     mongoose_rdbms:prepare(pubsub_del_item, pubsub_items, [nidx, itemid],
         <<"DELETE FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
 
@@ -254,17 +254,14 @@ stop() ->
 
 %% ------------------------ Queries execution --------------------
 prepare_select_nodes_by_owner() ->
-    case {mongoose_rdbms:db_engine(global), mongoose_rdbms:db_type()} of
-        {mysql, _} ->
+    case mongoose_rdbms:db_engine(global) of
+        mysql ->
             mongoose_rdbms:prepare(pubsub_select_nodes_by_owner, pubsub_nodes, [owners],
                 <<"SELECT name, type FROM pubsub_nodes WHERE owners = convert(?, JSON);">>);
-        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:prepare(pubsub_select_nodes_by_owner, pubsub_nodes, [owners],
                 <<"SELECT name, type FROM pubsub_nodes WHERE owners ::json->>0 like ? "
-                  "AND JSON_ARRAY_LENGTH(owners) = 1">>);
-        {odbc, mssql} ->
-            mongoose_rdbms:prepare(pubsub_select_nodes_by_owner, pubsub_nodes, [owners],
-                <<"SELECT name, type FROM pubsub_nodes WHERE cast(owners as nvarchar(max)) = ?;">>)
+                  "AND JSON_ARRAY_LENGTH(owners) = 1">>)
     end.
 % -------------------- State building ----------------------------
 -spec execute_get_item_rows_id(Nidx :: mod_pubsub:nodeIdx()) ->
@@ -435,7 +432,7 @@ execute_get_items(Nidx) ->
 -spec execute_get_items(Nidx :: mod_pubsub:nodeIdx(), Limit :: pos_integer()) ->
           mongoose_rdbms:query_result().
 execute_get_items(Nidx, Limit) ->
-    Args = rdbms_queries:add_limit_arg(Limit, [Nidx]),
+    Args = [Nidx, Limit],
     mongoose_rdbms:execute_successfully(global, pubsub_get_items_limit, Args).
 
 -spec execute_del_item(Nidx :: mod_pubsub:nodeIdx(),
@@ -675,9 +672,7 @@ set_item(#pubsub_item{itemid = {ItemId, NodeIdx},
                     Publisher, PayloadXML],
     UpdateParams = [ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
                     Publisher, PayloadXML],
-    UniqueKeyValues  = [NodeIdx, ItemId],
-    {updated, _} = rdbms_queries:execute_upsert(global, pubsub_item_upsert,
-                                                InsertParams, UpdateParams, UniqueKeyValues),
+    {updated, _} = rdbms_queries:execute_upsert(global, pubsub_item_upsert, InsertParams, UpdateParams),
     ok.
 
 -spec del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
@@ -891,9 +886,8 @@ set_affiliation(Nidx, { LU, LS, _ }, Affiliation) ->
     Aff = aff2int(Affiliation),
     InsertParams = [Nidx, LU, LS, Aff],
     UpdateParams = [Aff],
-    UniqueKeyValues  = [Nidx, LU, LS],
     {updated, _} = rdbms_queries:execute_upsert(global, pubsub_affiliation_upsert,
-                                                InsertParams, UpdateParams, UniqueKeyValues),
+                                                InsertParams, UpdateParams),
     ok.
 
 -spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),

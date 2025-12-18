@@ -200,21 +200,19 @@ execute_roster_get_groups_by_jid(HostType, LUser, LServer, BinJID) ->
     mongoose_rdbms:execute_successfully(HostType, roster_group_get_by_jid, [LServer, LUser, BinJID]).
 
 -spec roster_upsert(mongooseim:host_type(), list()) -> mongoose_rdbms:query_result().
-roster_upsert(HostType, [LServer, LUser, BinJID | Rest] = RosterRow) ->
+roster_upsert(HostType, [_LServer, _LUser, _BinJID | Rest] = RosterRow) ->
     InsertParams = RosterRow,
     UpdateParams = Rest,
-    UniqueKeyValues = [LServer, LUser, BinJID],
     {updated, _} = rdbms_queries:execute_upsert(HostType, roster_upsert,
-                                                InsertParams, UpdateParams, UniqueKeyValues).
+                                                InsertParams, UpdateParams).
 
 -spec version_upsert(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:version()) ->
           mongoose_rdbms:query_result().
 version_upsert(HostType, LUser, LServer, Version) ->
     InsertParams = [LServer, LUser, Version],
     UpdateParams = [Version],
-    UniqueKeyValues = [LServer, LUser],
     {updated, _} = rdbms_queries:execute_upsert(HostType, roster_version_upsert,
-                                                InsertParams, UpdateParams, UniqueKeyValues).
+                                                InsertParams, UpdateParams).
 
 -spec get_groups_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
           [binary()].

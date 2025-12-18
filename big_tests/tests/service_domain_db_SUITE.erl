@@ -35,7 +35,7 @@ all() ->
     ].
 
 groups() ->
-    ParallelConfig = distributed_helper:maybe_parallel_group(),
+    ParallelConfig = [parallel],
     [
         {no_db, ParallelConfig, no_db_cases()},
         {db, [], [

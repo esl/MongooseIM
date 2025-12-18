@@ -72,9 +72,7 @@ execute_remove_user(HostType, LServer, LUser) ->
 execute_upsert_last(HostType, LServer, LUser, Seconds, State) ->
     InsertParams = [LServer, LUser, Seconds, State],
     UpdateParams = [Seconds, State],
-    UniqueKeyValues = [LServer, LUser],
-    rdbms_queries:execute_upsert(HostType, last_upsert,
-                                 InsertParams, UpdateParams, UniqueKeyValues).
+    rdbms_queries:execute_upsert(HostType, last_upsert, InsertParams, UpdateParams).
 
 %% API functions
 -spec get_last(host_type(), jid:luser(), jid:lserver()) ->
@@ -141,22 +139,20 @@ prepare_cleanup_tasks(Records) ->
     [{1, last_upsert, Rec} || Rec <- Singles2].
 
 run_tasks_in_parallel(RunTaskF, AllTasks) ->
-    %% MSSQL fails with "Transaction (Process ID 52)  was deadlocked on lock resources with
-    %% another process and has been chosen as the deadlock victim. Rerun the transaction"
-    Workers = case mongoose_rdbms:db_type() of mssql -> 1; _ -> 8 end,
+    Workers = 8,
     TasksForWorkers = spread(Workers, AllTasks),
     RunTasksF = fun(Tasks) -> lists:map(RunTaskF, Tasks) end,
     Results = mongoose_lib:pmap(RunTasksF, TasksForWorkers, timer:minutes(1)),
     [check_result(Res) || Res <- Results],
     ok.
 
-run_upsert(HostType, 1, QueryName, InsertParams = [S, U|_], UpdateParams) ->
+run_upsert(HostType, 1, QueryName, InsertParams = [_S, _U|_], UpdateParams) ->
     {updated, _} = rdbms_queries:execute_upsert(HostType, QueryName,
-                                 InsertParams, UpdateParams, [S, U]);
+                                                InsertParams, UpdateParams);
 run_upsert(HostType, _Count, QueryName, InsertParams, UpdateParams) ->
     %% MySQL replace returns wrong numbers
     {updated, _} = rdbms_queries:execute_upsert_many(HostType, QueryName,
-                                 InsertParams, UpdateParams).
+                                                     InsertParams, UpdateParams).
 
 check_result({ok, Results}) ->
     lists:foreach(fun({updated, _}) -> ok end, Results);

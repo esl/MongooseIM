@@ -2,7 +2,7 @@ Source: mongooseim
 Section: net
 Priority: extra
 Maintainer: Erlang Solutions <packages@erlang-solutions.com>
-Build-Depends: debhelper (>= 8.0.0), git, make, zlib1g-dev, libssl-dev, unixodbc-dev, gcc, g++,  esl-erlang
+Build-Depends: debhelper (>= 8.0.0), git, make, zlib1g-dev, libssl-dev, gcc, g++,  esl-erlang
 Version: @VER@
 Standards-Version: 3.9.2
 Homepage: http://erlang-solutions.com

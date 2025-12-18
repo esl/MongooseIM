@@ -42,8 +42,7 @@ Persistent Data:
 
 * RDBMS - MongooseIM has a strong backend support for relational databases.
  Reliable and battle proven, they are a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
- Never loose your data.
- Use MySQL, MariaDB, PostgreSQL, CockroachDB, or MS SQL Server.
+ Supported databases include MySQL, MariaDB, PostgreSQL and CockroachDB.
 
 * Cassandra - Only for MAM (Message Archive Management).
 
@@ -153,112 +152,6 @@ You should also configure the CockroachDB database in the `mongooseim.toml` file
 Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options)
 and [general database options](general.md#database-settings)
 for more information.
-
-### Microsoft SQL Server
-
-!!! Warning
-    MSSQL backend is deprecated and will be removed in the next release.
-
-Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
-
-!!! Warning
-    MongooseIM can only connect to MSSQL [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).
-
-**This can be used for:**
-
-* users (credentials)
-* vcards
-* roster
-* private storage
-* privacy/block lists
-* last activity
-* mam (message archive management)
-* muc_light rooms
-
-**Setup**
-
-MSSQL can be used from MongooseIM through the ODBC layer with FreeTDS driver, so you need them installed on your system.
-
-```bash
-# Ubuntu
-$ sudo apt install freetds-dev tdsodbc
-
-# CentOS compatible systems (Rocky, Alma)
-$ sudo yum install freetds
-
-# macOS
-$ brew install freetds
-```
-
-Then you need to configure the connection.
-Add your database (`mongooseim` here) to the `/etc/odbc.ini` or `$HOME/.odbc.ini` file:
-
-```ini
-[mongoose-mssql]
-; Ubuntu
-Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
-Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
-; CentOS compatible
-; Driver      = /usr/lib64/libtdsodbc.so.0
-; Setup       = /usr/lib64/libtdsS.so
-; macOS
-; Driver      = /usr/local/Cellar/freetds/[current version]/lib/libtdsodbc.so
-Server      = 127.0.0.1
-Port        = 1433
-Database    = mongooseim
-Charset     = UTF-8
-TDS_Version = 7.2
-client_charset = UTF-8
-```
-
-Please amend the paths above to match your current OS if necessary.
-
-For more details, please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.html) and
-[unixodbc documentation](http://www.unixodbc.org/odbcinst.html).
-
-MongooseIM is built with ODBC support by default.
-
-**Deadlocks notice**
-
-If muc_light's backend is set to ODBC and there are many rooms created in parallel in your system,
-there may be some deadlocks due to the `READ_COMMITTED_SNAPSHOT` set to `OFF` by default.
-In this case we recommend setting this database property to `ON`, this will enable row level locking which significantly reduces
-deadlock chances around muc_light operations.
-
-This property can be set by the following `ALTER DATABASE` query:
-
-```sql
-ALTER DATABASE $name_of_your_db SET READ_COMMITTED_SNAPSHOT ON
-```
-
-The command above may take some time.
-
-Then you need to import the SQL schema from  ``mssql2012.sql``.
-You can use a Microsoft's GUI tool (the provided .sql files should work with it) or isql, but after a slight modification of the dump file:
-
-```bash
-cat mssql2012.sql | tr -d '\r' | tr '\n' ' ' | sed 's/GO/\n/g' |
-isql mongoose-mssql username password -b
-```
-
-The final step is to configure ``mongooseim.toml`` appropriately.
-Set the following option in the `general` section:
-
-```toml
-[general]
-  rdbms_server_type = "mssql"
-```
-
-Configure the `outgoing_pools.rdbms` section as follows:
-
-```toml
-[outgoing_pools.rdbms.default]
-  workers = 5
-
-  [outgoing_pools.rdbms.default.connection]
-    driver = "odbc"
-    settings = "DSN=mongoose-mssql;UID=username;PWD=password"
-```
 
 ## NoSQL
 

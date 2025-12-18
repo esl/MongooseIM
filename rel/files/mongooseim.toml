@@ -17,9 +17,6 @@
   {{#http_server_name}}
   http_server_name = {{{http_server_name}}}
   {{/http_server_name}}
-  {{#rdbms_server_type}}
-  rdbms_server_type = {{{rdbms_server_type}}}
-  {{/rdbms_server_type}}
 
 [[listen.http]]
   port = {{{http_port}}}

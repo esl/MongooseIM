@@ -6,7 +6,7 @@ ARG target_image
 FROM $builder_image AS builder
 
 # Install the build dependencies
-RUN dnf install -y rpm-build rpmdevtools git make zlib-devel unixODBC-devel gcc gcc-c++ \
+RUN dnf install -y rpm-build rpmdevtools git make zlib-devel gcc gcc-c++ \
     openssl openssl-devel chrpath glibc-locale-source systemd-rpm-macros rpm-sign
 
 # Fix locale setup

@@ -18,7 +18,6 @@ options("host_types") ->
      {listen, []},
      {loglevel, warning},
      {outgoing_pools, []},
-     {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{service_domain_db => config([services, service_domain_db],
@@ -77,7 +76,6 @@ options("miscellaneous") ->
                })]},
      {loglevel, warning},
      {outgoing_pools, []},
-     {rdbms_server_type, mssql},
      {registration_timeout, 600},
      {routing_modules,
       xmpp_router:expand_routing_modules([mongoose_router_global, mongoose_router_localdomain])},
@@ -121,7 +119,6 @@ options("modules") ->
      {listen, []},
      {loglevel, warning},
      {outgoing_pools, []},
-     {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
@@ -263,7 +260,6 @@ options("mongooseim-pgsql") ->
                          }
           }
         ])},
-     {rdbms_server_type, generic},
      {registration_timeout, infinity},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services,
@@ -376,7 +372,6 @@ options("outgoing_pools") ->
                          }
           }
         ])},
-     {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
@@ -410,7 +405,6 @@ options("s2s_only") ->
      {listen, []},
      {loglevel, warning},
      {outgoing_pools, []},
-     {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
