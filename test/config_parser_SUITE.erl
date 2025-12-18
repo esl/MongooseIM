@@ -78,7 +78,6 @@ groups() ->
                             component_backend,
                             s2s_backend,
                             http_server_name,
-                            rdbms_server_type,
                             route_subdomains,
                             routing_modules,
                             replaced_wait_timeout,
@@ -123,7 +122,6 @@ groups() ->
      {pool, [parallel], [pool_basics,
                          pool_scope,
                          pool_rdbms,
-                         pool_rdbms_connection_odbc,
                          pool_rdbms_connection_pgsql,
                          pool_rdbms_connection_cockroachdb,
                          pool_rdbms_connection_mysql,
@@ -422,12 +420,6 @@ http_server_name(_Config) ->
     ?cfg(http_server_name, "my server",
          #{<<"general">> => #{<<"http_server_name">> => <<"my server">>}}),
     ?err(#{<<"general">> => #{<<"http_server_name">> => #{}}}).
-
-rdbms_server_type(_Config) ->
-    ?cfg(rdbms_server_type, generic, #{}), % default
-    ?cfg(rdbms_server_type, mssql, #{<<"general">> => #{<<"rdbms_server_type">> => <<"mssql">>}}),
-    ?cfg(rdbms_server_type, pgsql, #{<<"general">> => #{<<"rdbms_server_type">> => <<"pgsql">>}}),
-    ?err(#{<<"general">> => #{<<"rdbms_server_type">> => <<"nosql">>}}).
 
 route_subdomains(_Config) ->
     ?cfgh(route_subdomains, s2s, #{<<"general">> => #{<<"route_subdomains">> => <<"s2s">>}}),
@@ -905,16 +897,6 @@ pool_scope(_Config) ->
 
 pool_rdbms(_Config) ->
     test_pool_opts(rdbms, #{<<"connection">> => raw_sql_opts(pgsql)}).
-
-pool_rdbms_connection_odbc(_Config) ->
-    P = [outgoing_pools, 1, conn_opts],
-    Required = #{<<"driver">> => <<"odbc">>, <<"settings">> => <<"DSN=mydb">>},
-    T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Opts) end,
-    test_pool_rdbms_connection_common_opts(P, T, Required),
-    ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts],
-                   #{driver => odbc, settings => "DSN=mydb"}), T(Required)),
-    ?err(T(Required#{<<"settings">> => true})),
-    [?err(T(maps:remove(K, Required))) || K <- maps:keys(Required)].
 
 pool_rdbms_connection_pgsql(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
@@ -2529,7 +2511,7 @@ mod_private(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
     P = [modules, mod_private],
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
-    ?errh(T(#{<<"backend">> => <<"mssql">>})).
+    ?errh(T(#{<<"backend">> => <<"mysql">>})).
 
 mod_pubsub(_Config) ->
     check_iqdisc(mod_pubsub),
