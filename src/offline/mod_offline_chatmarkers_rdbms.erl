@@ -49,8 +49,7 @@ execute_delete_user(HostType, Jid) ->
 execute_maybe_store(HostType, Jid, Thread, Room, Timestamp) ->
     rdbms_queries:execute_upsert(HostType, offline_chatmarkers_upsert,
                                  [Jid, Thread, Room, Timestamp],
-                                 [],
-                                 [Jid, Thread, Room]).
+                                 []).
 %%% @doc
 %%% Jid, Thread, and Room parameters serve as a composite database key. If
 %%% key is not available in the database, then it must be added with the

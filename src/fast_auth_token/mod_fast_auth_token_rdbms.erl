@@ -68,7 +68,7 @@ store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, false)
     Key = [LServer, LUser, AgentId],
     Upd = [Token, ExpireTS, 0, mech_id(Mech)],
     Ins = Key ++ Upd,
-    rdbms_queries:execute_upsert(HostType, fast_upsert, Ins, Upd, Key),
+    rdbms_queries:execute_upsert(HostType, fast_upsert, Ins, Upd),
     ok;
 store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCurrent) ->
     %% Move new_token into the current_token slot
@@ -82,7 +82,7 @@ store_new_token(HostType, LServer, LUser, AgentId, ExpireTS, Token, Mech, SetCur
     Upd = [Token, ExpireTS, 0, mech_id(Mech),
            CurrentToken, CurrentExpire, CurrentCount, mech_id(CurrentMechId)],
     Ins = Key ++ Upd,
-    rdbms_queries:execute_upsert(HostType, fast_upsert_and_set_current, Ins, Upd, Key),
+    rdbms_queries:execute_upsert(HostType, fast_upsert_and_set_current, Ins, Upd),
     ok.
 
 -spec read_tokens(HostType, LServer, LUser, AgentId) ->

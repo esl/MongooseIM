@@ -98,11 +98,7 @@ prepare_remove_domain(#{delete_domain_limit := infinity}) ->
     mongoose_rdbms:prepare(
       inbox_delete_domain, inbox, [lserver], <<"DELETE FROM inbox WHERE lserver = ?">>);
 prepare_remove_domain(#{delete_domain_limit := Limit}) ->
-    LimitSQL = case mongoose_rdbms:db_type() of
-                        mssql -> throw(delete_domain_limit_not_supported_for_mssql);
-                        _ -> {MaybeLimitSQL, _} = rdbms_queries:get_db_specific_limits_binaries(Limit),
-                             MaybeLimitSQL
-                    end,
+    LimitSQL = rdbms_queries:limit(Limit),
     ServerTable = <<"(SELECT * FROM ",
                         "(SELECT lserver, luser, remote_bare_jid FROM inbox",
                         " WHERE lserver = ? ", LimitSQL/binary, ") AS T)">>,
@@ -141,10 +137,9 @@ get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
       Timestamp :: integer().
 set_inbox(HostType, {LUser, LServer, LToBareJid}, Packet, Count, MsgId, Timestamp) ->
     Content = exml:to_binary(Packet),
-    Unique = [LUser, LServer, LToBareJid],
     Update = [MsgId, <<"inbox">>, Content, Count, Timestamp],
     Insert = [LUser, LServer, LToBareJid, MsgId, <<"inbox">>, Content, Count, Timestamp],
-    Res = rdbms_queries:execute_upsert(HostType, inbox_upsert, Insert, Update, Unique),
+    Res = rdbms_queries:execute_upsert(HostType, inbox_upsert, Insert, Update),
     %% MySQL returns 1 when an upsert is an insert
     %% and 2, when an upsert acts as update
     check_result_is_expected(Res, [1, 2]).
@@ -204,10 +199,9 @@ set_inbox_incr_unread(HostType, Entry, Packet, MsgId, Timestamp) ->
                             Incrs :: pos_integer()) -> mod_inbox:count_res().
 set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Packet, MsgId, Timestamp, Incrs) ->
     Content = exml:to_binary(Packet),
-    Unique = [LUser, LServer, LToBareJid],
     Update = [MsgId, <<"inbox">>, Content, Incrs, Timestamp],
     Insert = [LUser, LServer, LToBareJid, MsgId, <<"inbox">>, Content, Incrs, Timestamp],
-    Res = rdbms_queries:execute_upsert(HostType, inbox_upsert_incr_unread, Insert, Update, Unique),
+    Res = rdbms_queries:execute_upsert(HostType, inbox_upsert_incr_unread, Insert, Update),
     check_result(Res).
 
 -spec reset_unread(HostType :: mongooseim:host_type(),
@@ -318,19 +312,19 @@ set_entry_properties_t(HostType, QueryName, LUser, LServer, RemBareJID, Properti
 -spec lookup_query(mod_inbox:get_inbox_params()) -> iolist().
 lookup_query(#{order := Order} = Params) ->
     OrderSQL = order_to_sql(Order),
-    {LimitSQL, MSLimitSQL}  = sql_and_where_limit(maps:get(limit, Params, undefined)),
+    LimitSQL = sql_and_where_limit(maps:get(limit, Params, undefined)),
     Conditions = [lookup_sql_condition(Key, maps:get(Key, Params, undefined))
                   || Key <- [start, 'end', hidden_read, box]],
-    ["SELECT ", MSLimitSQL, query_row(),
+    ["SELECT ", query_row(),
      " FROM inbox WHERE luser = ? AND lserver = ?", Conditions,
-     " ORDER BY timestamp ", OrderSQL, " ", LimitSQL].
+     " ORDER BY timestamp ", OrderSQL, LimitSQL].
 
 -spec lookup_query_args(jid:lserver(), jid:luser(), mod_inbox:get_inbox_params()) -> list().
 lookup_query_args(LServer, LUser, Params) ->
     Args = [LUser, LServer | [maps:get(Key, Params) || Key <- lookup_arg_keys(Params)]],
     case maps:get(limit, Params, undefined) of
         undefined -> Args;
-        Limit -> rdbms_queries:add_limit_arg(Limit, Args)
+        Limit -> Args ++ [Limit]
     end.
 
 -spec lookup_query_columns(mod_inbox:get_inbox_params()) -> [atom()].
@@ -338,7 +332,7 @@ lookup_query_columns(Params) ->
     Columns = [luser, lserver | lists:map(fun param_to_column/1, lookup_arg_keys(Params))],
     case maps:get(limit, Params, undefined) of
         undefined -> Columns;
-        _ -> rdbms_queries:add_limit_arg(limit, Columns)
+        _ -> Columns ++ [limit]
     end.
 
 -spec lookup_arg_keys(mod_inbox:get_inbox_params()) -> [atom()].
@@ -381,11 +375,11 @@ param_id(hidden_read, false) -> "".
 order_to_sql(asc) -> <<"ASC">>;
 order_to_sql(desc) -> <<"DESC">>.
 
--spec sql_and_where_limit(non_neg_integer() | undefined) -> {iolist(), iolist()}.
+-spec sql_and_where_limit(non_neg_integer() | undefined) -> binary().
 sql_and_where_limit(undefined) ->
-    {"", ""};
+    <<>>;
 sql_and_where_limit(_) ->
-    rdbms_queries:get_db_specific_limits().
+    rdbms_queries:limit().
 
 -spec lookup_sql_condition(Key :: atom(), Value :: any()) -> string().
 lookup_sql_condition(start, Timestamp) when is_integer(Timestamp) ->
