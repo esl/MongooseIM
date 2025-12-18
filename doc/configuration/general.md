@@ -72,21 +72,6 @@ This domain is used as a default when one cannot be determined, for example when
 
 Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
 
-## Database settings
-
-!!! Warning
-    MSSQL backend is deprecated and will be removed in the next release.
-
-RDBMS connection pools are set using [outgoing connections configuration](./outgoing-connections.md).
-There are some additional options that influence all database connections in the server:
-
-### `general.rdbms_server_type`
-* **Syntax:** string, `"mssql"` or `"pgsql"`
-* **Default:** not set
-* **Example:** `rdbms_server_type = "mssql"`
-
-When using MSSQL or PostgreSQL databases, this option allows MongooseIM to optimize some queries for these DBs (e.g. `mod_mam_rdbms_user` uses different queries for `mssql`).
-
 ## Access management
 
 User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections.

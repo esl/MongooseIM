@@ -38,11 +38,6 @@ For every `id` in the `muc_light_rooms` table, you need to execute:
 INSERT INTO muc_light_config(room_id, opt, val) VALUES ('put id here', 'background', 'new default value');
 ```
 
-## MSSQL connectivity via ODBC
-
-We have observed some issues with he ODBC driver used by MongooseIM in the past.
-The problems should now be resolved, and MSSQL is verified to work on Ubuntu 20.04.2 LTS.
-
 ## GDPR retrieval for MAM MUC limitation
 
 When the personal data retrieval is executed for a user in a specific domain, Message Archive Management for groupchats must be running for this particular domain.

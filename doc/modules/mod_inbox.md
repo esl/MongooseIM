@@ -56,9 +56,6 @@ How often the automatic garbage collection runs over the bin.
 
 Domain deletion can be an expensive operation, as it requires to delete potentially many thousands of records from the DB. By default, the delete operation deletes everything in a transaction, but it might be desired, to handle timeouts and table locks more gracefully, to delete the records in batches. This limit establishes the size of the batch.
 
-!!! Note
-    Not supported by MSSQL.
-
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`
@@ -116,8 +113,7 @@ The special value `infinity` means no limit.
 Inbox currently supports the following DBs:
 
 * MySQL via native driver
-* PgSQL via native driver
-* MSSQL via ODBC driver
+* PostgreSQL via native driver
 
 ## Legacy MUC support
 Inbox comes with support for the legacy MUC as well. It stores all groupchat messages sent to
