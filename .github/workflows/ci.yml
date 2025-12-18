@@ -65,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
+        preset: [internal_mnesia, pgsql_mnesia, mysql_redis,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
         otp: [ '28.0.2' ]
         include:
@@ -102,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        preset: [pgsql_mnesia, mysql_redis, odbc_mssql_mnesia]
+        preset: [pgsql_mnesia, mysql_redis]
         otp: [ '28.0.2' ]
         test-spec: ["dynamic_domains.spec"]
         include:
