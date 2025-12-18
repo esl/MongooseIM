@@ -144,8 +144,7 @@ skip_or_run_inbox_tests(TestCases) ->
     end.
 
 maybe_run_in_parallel(Gs) ->
-    NewParams = distributed_helper:maybe_parallel_group(),
-    ct_helper:add_params_to_list(Gs, NewParams, non_parallel_groups()).
+    ct_helper:add_params_to_list(Gs, [parallel], non_parallel_groups()).
 
 non_parallel_groups() ->
     [muclight_config, bin, regular, async_pools].

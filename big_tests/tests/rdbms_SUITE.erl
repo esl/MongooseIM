@@ -196,33 +196,7 @@ ascii_string_values() ->
 
 unicode_values() ->
     ascii_string_values() ++
-    [<<"юникод"/utf8>>, <<"😁"/utf8>>]
-    ++
-    %% Would fail with binary_data_8k and mssql.
-    %% For some reason mssql returns string "7878...." of length 4000.
-    %% What is 78? 16#78 = 120 = $x.
-    %% i.e. half of 8000 bytes for data.
-    %% Probably 2 bytes encoding is used for this.
-%   [binary:copy(<<$x>>, 4001),
-    %% Helps to debug if we don't consume all data from a buffer.
-    %% Than there would be a gap of missing numbers in the middle.
-    %% 1000 of 1-es, 1000 of 2-s, ..., 1000 of 10-s.
-    %%
-    %% In one version of eodbc, it returns 5,5,5,5... instead of 1,1,1,1...
-    %%
-    %% Also,
-    %% eodbc:sql_query(Conn, "SELECT convert(varbinary(max), binary_data_8k) FROM test_types") = gives correct result.
-    %% but
-    %% eodbc:sql_query(Conn, "SELECT binary_data_8k FROM test_types") = gives not correct result.
-    %%
-    %% eodbc:sql_query(Conn, "SELECT convert(varbinary(1000), binary_data_8k) FROM test_types") = gives correct result.
-    %% gives 010101.... as expected
-    [iolist_to_binary([lists:duplicate(1000, X) || X <- lists:seq(1, 10)]),
-     binary:copy(<<$a>>, 10000),
-    %% There is a bug with 8001 chars limit in upstream odbc
-    %% We use a fork arcusfelis/eodbc, that has the bug fixed
-    %% https://bugs.erlang.org/browse/ERL-421
-     binary:copy(<<10>>, 10000), null].
+    [<<"юникод"/utf8>>, <<"😁"/utf8>>].
 
 binary_values() ->
     [<<0>>, <<"255">>,
@@ -234,19 +208,13 @@ binary_values() ->
     %% two kilobytes
     binary:copy(<<2>>, 2048),
     binary:copy(<<5>>, 1024*5),
-    %% There is a bug with 8001 chars limit in upstream odbc
-    %% We use a fork arcusfelis/eodbc, that has the bug fixed
-    %% https://bugs.erlang.org/browse/ERL-421
-    binary:copy(<<8>>, 8002),
     binary:copy(<<0>>, 100000),
     null
     ] ++
-    case is_odbc() orelse is_pgsql() orelse is_cockroachdb() of
+    case is_pgsql() orelse is_cockroachdb() of
         true ->
             [];
         false ->
-            %% FIXME long data causes timeout with mssql
-            %%
             %% FIXME %% epgsql_sock:handle_info/2 is not optimized
             %% The query takes 30 seconds on Postgres
             %% mongoose_rdbms:sql_query(<<"localhost">>, <<"SELECT binary_data_16m FROM test_types">>).
@@ -428,7 +396,7 @@ arguments_from_two_tables(Config) ->
     erase_users(Config),
     ok.
 
-%% Ensures that ODBC uses a correct type when encoding NULL
+%% Ensures that DB uses a correct type when encoding NULL
 %% and it does not interfere with non-null values
 insert_batch_with_null_case(Config) ->
     erase_table(Config),
@@ -647,24 +615,14 @@ called_times(N) ->
     called_times(N - 1).
 
 test_incremental_upsert(Config) ->
-    case is_odbc() of
-        true ->
-            ok;
-        false ->
-            do_test_incremental_upsert(Config)
-    end.
-
-do_test_incremental_upsert(Config) ->
     KeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
     InsertFields = KeyFields ++ [<<"msg_id">>, <<"content">>, <<"unread_count">>, <<"timestamp">>],
-
-    Key = [<<"alice">>, <<"localhost">>, <<"bob@localhost">>],
     Insert = [<<"alice">>, <<"localhost">>, <<"bob@localhost">>, <<"msg_id">>, <<"content">>, 1],
     sql_prepare_upsert(Config, upsert_incr, inbox,
                        InsertFields, [<<"timestamp">>], KeyFields, <<"timestamp">>),
-    sql_execute_upsert(Config, upsert_incr, Insert ++ [42], [42], Key),
-    sql_execute_upsert(Config, upsert_incr, Insert ++ [43], [43], Key),
-    sql_execute_upsert(Config, upsert_incr, Insert ++ [0], [0], Key),
+    sql_execute_upsert(Config, upsert_incr, Insert ++ [42], [42]),
+    sql_execute_upsert(Config, upsert_incr, Insert ++ [43], [43]),
+    sql_execute_upsert(Config, upsert_incr, Insert ++ [0], [0]),
     SelectResult = sql_query(Config, <<"SELECT timestamp FROM inbox">>),
     ?assertEqual({selected, [{<<"43">>}]}, selected_to_binary(SelectResult)).
 
@@ -809,9 +767,9 @@ execute_wrapped_request_and_wait_response(HostType, Name, Parameters, WrapperFun
     RequestId = mongoose_rdbms:execute_wrapped_request(HostType, Name, Parameters, WrapperFun),
     gen_server:wait_response(RequestId, 100).
 
-sql_execute_upsert(Config, Name, Insert, Update, Unique) ->
+sql_execute_upsert(Config, Name, Insert, Update) ->
     ScopeAndTag = scope_and_tag(Config),
-    slow_rpc(rdbms_queries, execute_upsert, ScopeAndTag ++ [Name, Insert, Update, Unique]).
+    slow_rpc(rdbms_queries, execute_upsert, ScopeAndTag ++ [Name, Insert, Update]).
 
 sql_execute_upsert_many(Config, Name, Insert, Update) ->
     ScopeAndTag = scope_and_tag(Config),
@@ -914,7 +872,6 @@ integer_to_binary_or_null(X) -> integer_to_binary(X).
 
 %% Helper function to transform values to an uniform format.
 %% Single tuple, single element case.
-%% In ODBC int32 is integer, but int64 is binary.
 selected_to_binary({selected, Rows}) ->
     {selected, [row_to_binary(Row) || Row <- Rows]};
 selected_to_binary(Other) ->
@@ -1022,7 +979,7 @@ check_binary(Config, Value, Column) ->
                         selected_unescape(Config, SelectResult),
                         #{erase_result => EraseResult,
                           inserted_length => byte_size_or_null(Value),
-                          %% pgsql+odbc can truncate binaries
+                          %% pgsql can truncate binaries
                           maybe_selected_length => maybe_selected_length(Config, SelectResult),
                           maybe_selected_tail => maybe_selected_tail(Config, SelectResult),
                           compare_selected => compare_selected(Config, selected_unescape(Config, SelectResult), Value),
@@ -1132,15 +1089,12 @@ check_prep_ascii_string(Config, Value) ->
     check_generic_prep(Config, Value, <<"ascii_string">>).
 
 check_prep_binary_65k(Config, Value) ->
-    %% MSSQL returns binaries in HEX encoding
     check_generic_prep(Config, Value, <<"binary_data_65k">>, unescape_binary).
 
 check_prep_binary_8k(Config, Value) ->
-    %% MSSQL returns binaries in HEX encoding
     check_generic_prep(Config, Value, <<"binary_data_8k">>, unescape_binary).
 
 check_prep_binary_16m(Config, Value) ->
-    %% MSSQL returns binaries in HEX encoding
     check_generic_prep(Config, Value, <<"binary_data_16m">>, unescape_binary).
 
 check_generic_prep_integer(Config, Value, Column) ->
@@ -1151,17 +1105,6 @@ check_prep_enum_char(Config, Value) ->
 
 check_prep_boolean(Config, Value) ->
     check_generic_prep(Config, Value, <<"bool_flag">>, boolean_to_binary_int).
-
-%% Data types
-%% {ok, Conn} = odbc:connect("DSN=mongoose-mssql;UID=sa;PWD=mongooseim_secret+ESL123", []).
-%% odbc:describe_table(Conn, "test_types").
-%% [{"unicode",{sql_wvarchar,536870911}},
-%%  {"binary_data_65k",'SQL_VARBINARY'},
-%%  {"ascii_char",{sql_char,1}},
-%%  {"ascii_string",{sql_varchar,250}},
-%%  {"int32",sql_integer},
-%%  {"int64",'SQL_BIGINT'},
-%%  {"int8",sql_tinyint}]
 
 check_generic_prep(Config, Value, Column) ->
     check_generic_prep(Config, Value, Column, to_binary).
@@ -1190,14 +1133,7 @@ check_generic_prep(Config, Value, Column, TransformResult) ->
                           select_query => SelectQuery,
                           select_result => SelectResult,
                           insert_result => InsertResult}),
-    check_generic_filtered_prep(Config, Value, Column, TransformResult),
-    case is_odbc() of
-        true ->
-            %% TOP is mssql feature, all other databases use LIMIT.
-            check_generic_filtered_top_prep(Config, Value, Column, TransformResult);
-        false ->
-            ok
-    end.
+    check_generic_filtered_prep(Config, Value, Column, TransformResult).
 
 %% We want to ensure that variable substitution works in SELECTS too.
 %% We also want to check the result value is encoded correctly.
@@ -1220,30 +1156,6 @@ check_generic_filtered_prep(Config, Value, Column, TransformResult) ->
                           prepare_result => PrepareResult,
                           select_query => SelectQuery,
                           select_result => SelectResult}).
-
-check_generic_filtered_top_prep(_Config, null, _Column, _TransformResult) ->
-    skip_null_test;
-check_generic_filtered_top_prep(Config, Value, Column, TransformResult) ->
-    %% SQL Server requires you to place parenthesis around the argument to top if you pass in a variable:
-    %% https://stackoverflow.com/questions/7038818/ms-sql-exception-incorrect-syntax-near-p0
-    SelectQuery = <<"SELECT TOP (?) ", Column/binary,
-            " FROM test_types WHERE ", Column/binary, " = ?">>,
-    Name = list_to_atom("select_filtered_top_" ++ binary_to_list(Column)),
-    Table = test_types,
-    Fields = [limit, binary_to_atom(Column, utf8)],
-    PrepareResult = sql_prepare(Config, Name, Table, Fields, SelectQuery),
-    Parameters = [30, Value],
-    SelectResult = sql_execute(Config, Name, Parameters),
-    %% Compare as binaries
-    ?assert_equal_extra({selected, [{value_to_binary(Value)}]},
-                        transform_selected(TransformResult, Config, SelectResult),
-                        #{column => Column,
-                          test_value => Value,
-                          prepare_result => PrepareResult,
-                          select_query => SelectQuery,
-                          select_result => SelectResult}).
-
-
 
 transform_selected(to_binary, _Config, SelectResult) ->
     selected_to_binary(SelectResult);
@@ -1309,9 +1221,6 @@ drop_common_prefix(Pos, SelValue, Value) ->
 
 db_engine() ->
     escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]).
-
-is_odbc() ->
-    db_engine() == odbc.
 
 is_pgsql() ->
     db_engine() == pgsql.
