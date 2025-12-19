@@ -58,7 +58,7 @@ get_xmpp_addresses(Cert) ->
         [Addr || Addr <- XmppAddrs, is_binary(Addr)]
     catch
         Class:Exception:StackTrace ->
-                log_exception(Cert, Class, Exception, StackTrace),
+            log_exception(Cert, Class, Exception, StackTrace),
             []
     end.
 

@@ -121,8 +121,8 @@ get_ldap_attr(LDAPAttr, Attributes) ->
 get_user_part(String, Pattern) ->
     F = fun(S, P) ->
         {First, _} = binary:match(P, <<"%u">>),
-    TailLength = byte_size(P) - (First + 1),
-    binary:part(S, First, byte_size(S) - TailLength - First + 1)
+        TailLength = byte_size(P) - (First + 1),
+        binary:part(S, First, byte_size(S) - TailLength - First + 1)
         end,
     case catch F(String, Pattern) of
             {'EXIT', _} ->
@@ -375,6 +375,6 @@ maybe_b2list(O) ->
 maybe_list2b(L) when is_list(L) ->
         list_to_binary(L);
 maybe_list2b(B) when is_binary(B) ->
-        B;
+    B;
 maybe_list2b(O) ->
-        {error, {unknown_type, O}}.
+    {error, {unknown_type, O}}.

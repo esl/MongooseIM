@@ -1528,6 +1528,8 @@ iq_pubsub_owner_action(IQType, Name, Host, From, Node, ExtraParams) ->
             {error, mongoose_xmpp_errors:feature_not_implemented()}
     end.
 
+-spec iq_command(binary(), any(), jid:jid(), jlib:iq(), any(), [binary()]) ->
+    {result, [exml:element()]} | {error, exml:element()}.
 iq_command(Host, ServerHost, From, IQ, Access, Plugins) ->
     case adhoc:parse_request(IQ) of
         Req when is_record(Req, adhoc_request) ->
@@ -1540,8 +1542,7 @@ iq_command(Host, ServerHost, From, IQ, Access, Plugins) ->
         Err -> Err
     end.
 
--spec iq_command(binary(), any(), jid:jid(), jlib:iq(), any(), [binary()]) ->
-    {result, [exml:element()]} | {error, exml:element()}.
+
 
 %% @doc <p>Processes an Ad Hoc Command.</p>
 %% Types aligned to records to avoid opaque breakage in dialyzer

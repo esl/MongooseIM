@@ -427,10 +427,7 @@ handle_info(Info, SName, State) ->
 terminate(Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
     mod_bosh_backend:delete_session(Sid),
-    _ = try mongoose_c2s:stop(S#state.c2s_pid, normal)
-        catch
-            _:_ -> ok
-        end,
+    mongoose_c2s:stop(S#state.c2s_pid, normal),
     ?LOG_DEBUG(ls(#{what => bosh_socket_closing_session, reason => Reason,
                     state_name => StateName, handlers => Handlers,
                     pending => S#state.pending}, S)).
