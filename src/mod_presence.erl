@@ -3,7 +3,7 @@
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
 
--behavior(gen_mod).
+-behaviour(gen_mod).
 
 -type presence() ::
          available

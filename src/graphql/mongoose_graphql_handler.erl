@@ -7,7 +7,7 @@
 -module(mongoose_graphql_handler).
 
 -behaviour(mongoose_http_handler).
--behavior(cowboy_rest).
+-behaviour(cowboy_rest).
 
 %% mongoose_http_handler callbacks
 -export([config_spec/0,

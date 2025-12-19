@@ -11,7 +11,7 @@
 -include("mongoose.hrl").
 -include("session.hrl").
 
--behavior(ejabberd_sm_backend).
+-behaviour(ejabberd_sm_backend).
 -export([init/1,
          get_sessions/0,
          get_sessions/1,

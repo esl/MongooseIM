@@ -6,7 +6,7 @@
 %%%----------------------------------------------------------------------------
 -module(mod_smart_markers_rdbms).
 -author("denysgonchar").
--behavior(mod_smart_markers_backend).
+-behaviour(mod_smart_markers_backend).
 
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").

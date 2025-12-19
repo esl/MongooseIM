@@ -11,7 +11,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_push_service_mongoosepush).
 -author('rafal.slota@erlang-solutions.com').
--behavior(gen_mod).
+-behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
