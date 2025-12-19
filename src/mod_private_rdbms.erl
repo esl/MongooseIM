@@ -72,9 +72,7 @@ multi_set_data_t(HostType, LUser, LServer, NS2XML) ->
 upsert_data_t(HostType, LUser, LServer, NS, XML) ->
     InsertParams = [LServer, LUser, NS, XML],
     UpdateParams = [XML],
-    UniqueKeyValues = [LServer, LUser, NS],
-    rdbms_queries:execute_upsert(HostType, private_upsert,
-                                 InsertParams, UpdateParams, UniqueKeyValues).
+    rdbms_queries:execute_upsert(HostType, private_upsert, InsertParams, UpdateParams).
 
 make_xml_binary(NS2XML) ->
     [{NS, exml:to_binary(XML)} || {NS, XML} <- NS2XML].

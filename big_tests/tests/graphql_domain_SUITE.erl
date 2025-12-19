@@ -29,6 +29,8 @@ groups() ->
 
 domain_tests() ->
     [create_domain,
+     create_domain_fails_if_db_transaction_fails_constantly,
+     create_domain_succeeds_if_db_transaction_fails_once,
      unknown_host_type_error_formatting,
      add_static_domain_error_formatting,
      remove_static_domain_error_formatting,
@@ -100,17 +102,37 @@ end_per_group(_GroupName, _Config) ->
 init_per_testcase(get_all_domains_with_disabled, Config) ->
     disable_domain(?EXAMPLE_DOMAIN, Config),
     escalus:init_per_testcase(get_all_domains_with_disabled, Config);
+init_per_testcase(CaseName, Config)
+  when CaseName =:= create_domain_fails_if_db_transaction_fails_constantly;
+       CaseName =:= create_domain_succeeds_if_db_transaction_fails_once ->
+    rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(get_all_domains_with_disabled, Config) ->
     enable_domain(?EXAMPLE_DOMAIN, Config),
     escalus:end_per_testcase(get_all_domains_with_disabled, Config);
+end_per_testcase(CaseName, Config)
+  when CaseName =:= create_domain_fails_if_db_transaction_fails_constantly;
+       CaseName =:= create_domain_succeeds_if_db_transaction_fails_once ->
+    rpc(mim(), meck, unload, [mongoose_rdbms]),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 create_domain(Config) ->
-    create_domain(?EXAMPLE_DOMAIN, Config),
+    create_domain(?EXAMPLE_DOMAIN, Config).
+
+create_domain_fails_if_db_transaction_fails_constantly(Config) ->
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms, sql_transaction, 2,
+                                   {aborted, simulated_db_error}]),
+    Result = add_domain(?SECOND_EXAMPLE_DOMAIN, ?HOST_TYPE, Config),
+    ?assertEqual(<<"Unexpected DomainAdminMutation resolver crash">>, get_err_msg(Result)).
+
+create_domain_succeeds_if_db_transaction_fails_once(Config) ->
+    Seq = meck:seq([{aborted, simulated_db_error}, meck:passthrough()]),
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms, sql_transaction, 2, Seq]),
     create_domain(?SECOND_EXAMPLE_DOMAIN, Config).
 
 create_domain(DomainName, Config) ->

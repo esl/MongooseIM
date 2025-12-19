@@ -412,7 +412,7 @@ prepare_queries(HostType) ->
             <<"DELETE FROM users WHERE server = ? AND username = ?">>),
     prepare(auth_list_users, users, [server],
             <<"SELECT username FROM users WHERE server = ?">>),
-    LimitOffset = rdbms_queries:limit_offset_sql(),
+    LimitOffset = rdbms_queries:limit_offset(),
     prepare(auth_list_users_range, users,
             [server, limit, offset],
             <<"SELECT username FROM users WHERE server = ? ORDER BY username ",
@@ -426,11 +426,11 @@ prepare_queries(HostType) ->
             <<"SELECT username FROM users "
               "WHERE server = ? AND username LIKE ? ESCAPE '$' ORDER BY username ",
               LimitOffset/binary>>),
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    LimitSQL = rdbms_queries:limit(),
     prepare(auth_list_users_without_scram, users,
             [server, limit],
-            <<"SELECT ", LimitMSSQL/binary, " username, password FROM users "
-              "WHERE server = ? AND pass_details is NULL ", LimitSQL/binary>>),
+            <<"SELECT username, password FROM users "
+              "WHERE server = ? AND pass_details is NULL", LimitSQL/binary>>),
     prepare(auth_count_users_prefix, users,
             [server, username],
             <<"SELECT COUNT(*) FROM users WHERE server = ? AND username LIKE ? ESCAPE '$'">>),
@@ -490,13 +490,13 @@ execute_list_users(HostType, LServer, #{from := Start, to := End} = OptMap) ->
     Map = maps:without([from, to], OptMap),
     execute_list_users(HostType, LServer, Map#{limit => End - Start + 1, offset => Start - 1});
 execute_list_users(HostType, LServer, #{prefix := Prefix, limit := Limit, offset := Offset}) ->
-    Args = [LServer, prefix_to_like(Prefix)] ++ rdbms_queries:limit_offset_args(Limit, Offset),
+    Args = [LServer, prefix_to_like(Prefix), Limit, Offset],
     execute_successfully(HostType, auth_list_users_prefix_range, Args);
 execute_list_users(HostType, LServer, #{prefix := Prefix}) ->
     Args = [LServer, prefix_to_like(Prefix)],
     execute_successfully(HostType, auth_list_users_prefix, Args);
 execute_list_users(HostType, LServer, #{limit := Limit, offset := Offset}) ->
-    Args = [LServer] ++ rdbms_queries:limit_offset_args(Limit, Offset),
+    Args = [LServer, Limit, Offset],
     execute_successfully(HostType, auth_list_users_range, Args);
 execute_list_users(HostType, LServer, #{}) ->
     execute_successfully(HostType, auth_list_users, [LServer]).

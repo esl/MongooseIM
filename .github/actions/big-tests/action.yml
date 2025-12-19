@@ -34,9 +34,6 @@ runs:
     - name: set required env variables for preset
       shell: bash
       run: tools/gh-actions-configure-preset.sh "${{inputs.preset}}" "TESTSPEC='${{inputs.test-spec}}'"
-    - if: ${{ inputs.preset == 'odbc_mssql_mnesia' }}
-      shell: bash
-      run: sudo apt-get install -y tdsodbc
     - name: configure releases
       shell: bash
       run: tools/configure $REL_CONFIG

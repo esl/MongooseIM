@@ -9,7 +9,7 @@ MongooseIM is compatible with MAM 0.4-1.1.0.
 
 Configure MAM with different storage backends:
 
-* RDBMS (databases like MySQL, PostgreSQL, CockroachDB, MS SQL Server)
+* RDBMS (databases like MySQL, PostgreSQL, CockroachDB)
 * Cassandra (NoSQL)
 * ElasticSearch (NoSQL)
 
@@ -345,9 +345,6 @@ See [Message Archive Management extensions](../open-extensions/mam.md).
 * **Example:** `modules.mod_mam.delete_domain_limit = 10000`
 
 Domain deletion can be an expensive operation, as it requires to delete potentially many thousands of records from the DB. By default, the delete operation deletes everything in a transaction, but it might be desired, to handle timeouts and table locks more gracefully, to delete the records in batches. This limit establishes the size of the batch.
-
-!!! Note
-    Not supported by MSSQL.
 
 #### `modules.mod_mam.db_jid_format`
 

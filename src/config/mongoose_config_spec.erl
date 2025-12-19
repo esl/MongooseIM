@@ -184,9 +184,6 @@ general() ->
                                               wrap = global_config},
                  <<"http_server_name">> => #option{type = string,
                                                    wrap = global_config},
-                 <<"rdbms_server_type">> => #option{type = atom,
-                                                    validate = {enum, [mssql, pgsql]},
-                                                    wrap = global_config},
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
                                                    wrap = host_config},
@@ -213,7 +210,6 @@ general_defaults() ->
       <<"sm_backend">> => mnesia,
       <<"component_backend">> => mnesia,
       <<"s2s_backend">> => mnesia,
-      <<"rdbms_server_type">> => generic,
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
       <<"hide_service_name">> => false}.
@@ -560,16 +556,13 @@ outgoing_pool_connection(<<"rabbit">>) ->
 outgoing_pool_connection(<<"rdbms">>) ->
     #section{
        items = #{<<"driver">> => #option{type = atom,
-                                         validate = {enum, [odbc, pgsql, mysql, cockroachdb]}},
+                                         validate = {enum, [pgsql, mysql, cockroachdb]}},
                  <<"keepalive_interval">> => #option{type = integer,
                                                      validate = positive},
                  <<"query_timeout">> => #option{type = integer,
                                                 validate = non_negative},
                  <<"max_start_interval">> => #option{type = integer,
                                                      validate = positive},
-
-                 % odbc
-                 <<"settings">> => #option{type = string},
 
                  % mysql, pgsql, cockroachdb
                  <<"host">> => #option{type = string,

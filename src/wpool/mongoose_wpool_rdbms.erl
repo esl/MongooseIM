@@ -11,7 +11,7 @@
 %% mongoose_wpool callbacks
 -spec init() -> ok.
 init() ->
-    {ok, _} = application:ensure_all_started([mysql, epgsql, eodbc], permanent),
+    {ok, _} = application:ensure_all_started([mysql, epgsql], permanent),
     ejabberd_sup:create_ets_table(
       prepared_statements, [named_table, public, {read_concurrency, true}]).
 
@@ -75,9 +75,6 @@ get_port_from_rdbms_connection({{ok, DB, Pid}, _WorkerPid}) when DB =:= mysql;
                                                                  DB =:= cockroachdb ->
     ProcState = sys:get_state(Pid),
     get_port_from_proc_state(DB, ProcState);
-get_port_from_rdbms_connection({{ok, odbc, Pid}, WorkerPid}) ->
-    Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
-    [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
 get_port_from_rdbms_connection(_) ->
     undefined.
 

@@ -22,7 +22,7 @@ all() ->
      {group, early_data}].
 
 groups() ->
-    Parallel = distributed_helper:maybe_parallel_group(),
+    Parallel = [parallel],
     [{default, [], group_names_for_mechanisms(Parallel, default)},
      {early_data, [], group_names_for_mechanisms(Parallel, early_data)}]
     ++ groups_for_mechanisms(Parallel, all).

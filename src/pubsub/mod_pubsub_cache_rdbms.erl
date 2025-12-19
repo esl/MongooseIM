@@ -46,9 +46,7 @@ upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
      CreatedAt, PayloadBin} = prepare_upsert_params(Publisher, Payload),
     UpdateParams = [ItemID, ModifiedLUser, ModifiedLServer, CreatedAt, PayloadBin],
     InsertParams = [Nidx | UpdateParams],
-    UniqueKeyValues = [Nidx],
-    Res = rdbms_queries:execute_upsert(ServerHost, pubsub_last_item_upsert,
-                                       InsertParams, UpdateParams, UniqueKeyValues),
+    Res = rdbms_queries:execute_upsert(ServerHost, pubsub_last_item_upsert, InsertParams, UpdateParams),
     convert_rdbms_response(Res).
 
 -spec delete_last_item(ServerHost :: binary(),

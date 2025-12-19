@@ -34,9 +34,7 @@ write(HostType, {Node, SubNode}, Features) ->
     Encoded = jiffy:encode(Features),
     InsertParams = [Node, SubNode, Encoded],
     UpdateParams = [Encoded],
-    UniqueKeyValues = [Node, SubNode],
-    rdbms_queries:execute_upsert(HostType, caps_upsert,
-                                 InsertParams, UpdateParams, UniqueKeyValues),
+    rdbms_queries:execute_upsert(HostType, caps_upsert, InsertParams, UpdateParams),
     ok.
 
 -spec delete_node(mongooseim:host_type(), mod_caps:node_pair()) -> ok.

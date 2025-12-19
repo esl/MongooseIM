@@ -60,7 +60,7 @@ Generated build configs:
 ```sh
 $ cat configure.out rel/configure.vars.config
 export MONGOOSEIM_CONFIGURED="yes"
-export APPS="mysql eodbc epgsql eredis nksip cqerl tirerl erlcloud"
+export APPS="mysql epgsql eredis nksip cqerl tirerl erlcloud"
 export PREFIX="/tmp/mim-sandbox-system"
 export RELTOOL_VARS="rel/configure.vars.config"
 export SYSTEM="yes"

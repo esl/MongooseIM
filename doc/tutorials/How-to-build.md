@@ -21,7 +21,6 @@ To compile MongooseIM you need:
         * `erlang` EPEL package, or,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: `openssl` and `openssl-devel`,
-      *   ODBC library: `unixODBC-devel`,
       *   Zlib 1.2.3 or higher: `zlib-devel`.
 
 === "Ubuntu"
@@ -32,7 +31,6 @@ To compile MongooseIM you need:
         * `erlang` package, or,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: `olibssl-dev`,
-      *   ODBC library: `unixodbc-dev`,
       *   Zlib 1.2.3 or higher: `zlib1g-dev`.
 
 === "macOS"
@@ -42,7 +40,6 @@ To compile MongooseIM you need:
         * [`erlang`](https://formulae.brew.sh/formula/erlang) from Homebrew,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: [`openssl`](https://formulae.brew.sh/formula/openssl@3.0) from Homebrew
-      *   ODBC library: [`unixodbc`](https://formulae.brew.sh/formula/unixodbc) from Homebrew.
 
 ### OpenSSL Version Compatibility
 
@@ -56,7 +53,7 @@ To compile MongooseIM you need:
     Please install the required dependencies:
 
     ```bash
-    sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++
+    sudo yum install git make zlib-devel openssl openssl-devel gcc gcc-c++
     wget https://binaries2.erlang-solutions.com/rockylinux/8/esl-erlang_26.2.4_1~rockylinux~8_x86_64.rpm
     sudo dnf -Uvh esl-erlang_26.2.4_1~rockylinux~8_x86_64.rpm
     ```
@@ -68,7 +65,7 @@ To compile MongooseIM you need:
     Please install the required dependencies:
 
     ```bash
-    sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
+    sudo apt install git make zlib1g-dev libssl-dev gcc g++ erlang
     ```
 
     Now, please proceed to the "Building" section.
@@ -93,7 +90,7 @@ To compile MongooseIM you need:
     Install dependencies with Brew.
 
     ```bash
-    brew install erlang openssl unixodbc
+    brew install erlang openssl
     ```
 
     **Step 4**

@@ -23,15 +23,6 @@ is_sm_backend_distributed(Other) -> {false, Other}.
 db_engine() ->
     rpc(mim(), mongoose_rdbms, db_engine, [domain_helper:host_type()]).
 
-%% To avoid DB timeouts, disables parallel execution for MSSQL
-maybe_parallel_group() ->
-    case catch db_engine() of
-        odbc ->
-            [];
-        _ ->
-            [parallel]
-    end.
-
 add_node_to_cluster(Config) ->
     Node2 = mim2(),
     add_node_to_cluster(Node2, Config).

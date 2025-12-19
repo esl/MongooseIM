@@ -35,7 +35,6 @@ end_per_suite(_Config) ->
     mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
-    [ok = application:stop(App) || App <- [prometheus_cowboy, prometheus_httpd, prometheus]],
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -176,7 +175,6 @@ minimal_config_opts() ->
       listen => [],
       loglevel => warning,
       outgoing_pools => [],
-      rdbms_server_type => generic,
       registration_timeout => 600,
       routing_modules => mongoose_router:default_routing_modules(),
       services => #{},

@@ -40,7 +40,7 @@
 -export_type([row/0]).
 
 start(_) ->
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    LimitSQL = rdbms_queries:limit(),
     Enabled = integer_to_binary(status_to_int(enabled)),
     %% Settings
     prepare(domain_insert_settings, domain_settings, [domain, host_type],
@@ -57,12 +57,11 @@ start(_) ->
             <<"SELECT host_type, status "
               "FROM domain_settings WHERE domain = ?">>),
     prepare(domain_select_from, domain_settings,
-            rdbms_queries:add_limit_arg(limit, [id]),
-            <<"SELECT ", LimitMSSQL/binary,
-              " id, domain, host_type "
+            [id, limit],
+            <<"SELECT id, domain, host_type "
               " FROM domain_settings "
               " WHERE id > ? AND status = ", Enabled/binary, " "
-              " ORDER BY id ",
+              " ORDER BY id",
               LimitSQL/binary>>),
     %% Events
     prepare(domain_insert_event, domain_events, [domain],
@@ -224,7 +223,7 @@ delete_domain_admin(Pool, Domain) ->
 %% Returns smallest id first
 select_from(FromId, Limit) ->
     Pool = get_db_pool(),
-    Args = rdbms_queries:add_limit_arg(Limit, [FromId]),
+    Args =  [FromId, Limit],
     {selected, Rows} = execute_successfully(Pool, domain_select_from, Args),
     Rows.
 
@@ -277,32 +276,9 @@ insert_full_event(EventId, Domain) ->
     Res.
 
 insert_full_events(EventIdDomain) ->
-    case mongoose_rdbms:db_type() of
-        mssql ->
-            insert_full_events_mssql(EventIdDomain);
-        _ ->
-            Pool = get_db_pool(),
-            [catch execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
-             || {EventId, Domain} <- EventIdDomain]
-    end.
-
-insert_full_events_mssql(EventIdDomain) ->
-    %% MSSQL does not allow to specify ids,
-    %% that are supposed to be autoincremented, easily
-    %% https://docs.microsoft.com/pl-pl/sql/t-sql/statements/set-identity-insert-transact-sql
-    transaction(fun(Pool) ->
-            %% This query could not be a prepared query
-            %% You will get an error:
-            %% "No SQL-driver information available."
-            %% when trying to execute
-            mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events ON">>),
-            try
-                [catch execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
-                 || {EventId, Domain} <- EventIdDomain]
-            after
-                mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events OFF">>)
-            end
-        end).
+    Pool = get_db_pool(),
+    [catch execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+     || {EventId, Domain} <- EventIdDomain].
 
 %% ----------------------------------------------------------------------------
 %% For testing
@@ -384,9 +360,6 @@ get_db_pool() ->
 transaction(F) ->
     transaction(F, 3, []).
 
-%% MSSQL especially likes to kill a connection deadlocked by tablock connections.
-%% But that's fine, we could just restart
-%% (there is no logic, that would suffer by a restart of a transaction).
 transaction(_F, 0, Errors) ->
     {error, {db_error, Errors}};
 transaction(F, Tries, Errors) when Tries > 0 ->

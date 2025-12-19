@@ -70,14 +70,14 @@ lookup_sql(QueryType, Table, Env, Filters, Order, OffsetLimit) ->
     IndexHintSQL = index_hint_sql(Env),
     FilterSQL = filters_to_sql(Filters),
     OrderSQL = order_to_sql(Order),
-    {LimitSQL, TopSQL} = limit_sql(OffsetLimit),
-    ["SELECT ", TopSQL, " ", columns_sql(Env, QueryType),
+    LimitSQL = limit_sql(OffsetLimit),
+    ["SELECT ", columns_sql(Env, QueryType),
      " FROM ", atom_to_list(Table), " ",
      IndexHintSQL, FilterSQL, OrderSQL, LimitSQL].
 
-limit_sql(all) -> {"", ""};
-limit_sql({0, _Limit}) -> rdbms_queries:get_db_specific_limits();
-limit_sql({_Offset, _Limit}) -> {rdbms_queries:limit_offset_sql(), ""}.
+limit_sql(all) -> <<>>;
+limit_sql({0, _Limit}) -> rdbms_queries:limit();
+limit_sql({_Offset, _Limit}) -> rdbms_queries:limit_offset().
 
 filters_to_columns(Filters, OffsetLimit) ->
     offset_limit_to_columns(OffsetLimit, [Column || {_Op, Column, _Value} <- Filters]).
@@ -88,16 +88,16 @@ filters_to_args(Filters, OffsetLimit) ->
 offset_limit_to_args(all, Args) ->
     Args;
 offset_limit_to_args({0, Limit}, Args) ->
-    rdbms_queries:add_limit_arg(Limit, Args);
+    Args ++ [Limit];
 offset_limit_to_args({Offset, Limit}, Args) ->
-    Args ++ rdbms_queries:limit_offset_args(Limit, Offset).
+    Args ++ [Limit, Offset].
 
 offset_limit_to_columns(all, Columns) ->
     Columns;
 offset_limit_to_columns({0, _Limit}, Columns) ->
-    rdbms_queries:add_limit_arg(limit, Columns);
+    Columns ++ [limit];
 offset_limit_to_columns({_Offset, _Limit}, Columns) ->
-    Columns ++ rdbms_queries:limit_offset_args(limit, offset).
+    Columns ++ [limit, offset].
 
 filters_to_statement_name(Env, QueryType, Table, Filters, Order, OffsetLimit) ->
     QueryId = query_type_to_id(QueryType),
@@ -112,9 +112,9 @@ order_type_to_id(desc) -> "d";
 order_type_to_id(asc) -> "a";
 order_type_to_id(unordered) -> "u".
 
-order_to_sql(asc) -> " ORDER BY id ";
-order_to_sql(desc) -> " ORDER BY id DESC ";
-order_to_sql(unordered) -> " ".
+order_to_sql(asc) -> " ORDER BY id";
+order_to_sql(desc) -> " ORDER BY id DESC";
+order_to_sql(unordered) -> "".
 
 offset_limit_to_id({0, _Limit}) -> "limit";
 offset_limit_to_id({_Offset, _Limit}) -> "offlim";

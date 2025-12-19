@@ -53,12 +53,11 @@ prepare_queries() ->
               "(username, server, timestamp, expire,"
               " from_jid, packet, permanent_fields) "
               "VALUES (?, ?, ?, ?, ?, ?, ?)">>),
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    LimitSQL = rdbms_queries:limit(),
     prepare(offline_count_limit, offline_message,
-            rdbms_queries:add_limit_arg(limit, [server, username]),
-            <<"SELECT ", LimitMSSQL/binary,
-              " count(*) FROM offline_message "
-              "WHERE server = ? AND username = ? ", LimitSQL/binary>>),
+            [server, username, limit],
+            <<"SELECT count(*) FROM offline_message "
+              "WHERE server = ? AND username = ?", LimitSQL/binary>>),
     prepare(offline_select, offline_message,
             [server, username, expire],
             <<"SELECT timestamp, from_jid, packet, permanent_fields "
@@ -85,7 +84,7 @@ prepare_queries() ->
                                      pos_integer()) ->
           mongoose_rdbms:query_result().
 execute_count_offline_messages(HostType, LUser, LServer, Limit) ->
-    Args = rdbms_queries:add_limit_arg(Limit, [LServer, LUser]),
+    Args = [LServer, LUser, Limit],
     execute_successfully(HostType, offline_count_limit, Args).
 
 -spec execute_fetch_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),

@@ -60,6 +60,5 @@ execute_delete_token(HostType, Owner) ->
 
 -spec get_sequence_number_t(mongooseim:host_type(), jid:literal_jid()) -> mongoose_rdbms:query_result().
 get_sequence_number_t(HostType, Owner) ->
-    {updated, _} =
-        rdbms_queries:execute_upsert(HostType, auth_token_upsert, [Owner, 1], [], [Owner]),
+    {updated, _} = rdbms_queries:execute_upsert(HostType, auth_token_upsert, [Owner, 1], []),
     mongoose_rdbms:execute_successfully(HostType, auth_token_select, [Owner]).

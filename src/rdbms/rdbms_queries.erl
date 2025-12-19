@@ -26,16 +26,10 @@
 -module(rdbms_queries).
 -author("mremond@process-one.net").
 
--export([get_db_type/0,
-         begin_trans/0,
-         get_db_specific_limits/0,
-         get_db_specific_limits/1,
-         get_db_specific_limits_binaries/0,
-         get_db_specific_limits_binaries/1,
-         get_db_specific_offset/2,
-         add_limit_arg/2,
-         limit_offset_sql/0,
-         limit_offset_args/2,
+-export([begin_trans/0,
+         limit/0,
+         limit/1,
+         limit_offset/0,
          sql_transaction/2,
          count_records_where/3,
          create_bulk_insert_query/3]).
@@ -44,24 +38,11 @@
          prepare_upsert/6,
          prepare_upsert/7,
          prepare_upsert_many/7,
-         execute_upsert/5, execute_upsert/6,
+         execute_upsert/4, execute_upsert/5,
          execute_upsert_many/4, execute_upsert_many/5,
-         request_upsert/5]).
+         request_upsert/4]).
 
--ignore_xref([
-    execute_upsert/6, count_records_where/3,
-    execute_upsert_many/5,
-    get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
-]).
-
-%% We have only two compile time options for db queries:
-%%-define(generic, true).
-%%-define(mssql, true).
--ifndef(mssql).
--undef(generic).
--endif.
-
--define(RDBMS_TYPE, (mongoose_rdbms:db_type())).
+-ignore_xref([execute_upsert/5, count_records_where/3, execute_upsert_many/5]).
 
 -include("mongoose.hrl").
 
@@ -77,31 +58,22 @@ join([H|T], Sep) ->
 %% -----------------
 %% Generic queries
 
-get_db_type() ->
-    ?RDBMS_TYPE.
-
 -spec execute_upsert(HostType :: mongooseim:host_type_or_global(),
                      Name :: atom(),
                      InsertParams :: [any()],
-                     UpdateParams :: [any()],
-                     UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
-execute_upsert(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    execute_upsert(HostType, default, Name, InsertParams, UpdateParams, UniqueKeyValues).
+                     UpdateParams :: [any()]) -> mongoose_rdbms:query_result().
+execute_upsert(HostType, Name, InsertParams, UpdateParams) ->
+    execute_upsert(HostType, default, Name, InsertParams, UpdateParams).
 
 -spec execute_upsert(HostType :: mongooseim:host_type_or_global(),
                      PoolTag :: mongoose_wpool:tag(),
                      Name :: atom(),
                      InsertParams :: [any()],
-                     UpdateParams :: [any()],
-                     UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
-execute_upsert(HostType, PoolTag, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
-        {mysql, _} ->
+                     UpdateParams :: [any()]) -> mongoose_rdbms:query_result().
+execute_upsert(HostType, PoolTag, Name, InsertParams, UpdateParams) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        Driver when Driver =:= mysql; Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
-        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
-            mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
-        {odbc, mssql} ->
-            mongoose_rdbms:execute(HostType, PoolTag, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
@@ -118,29 +90,22 @@ execute_upsert_many(HostType, Name, InsertParams, UpdateParams) ->
                           InsertParams :: [any()],
                           UpdateParams :: [any()]) -> mongoose_rdbms:query_result().
 execute_upsert_many(HostType, PoolTag, Name, InsertParams, UpdateParams) ->
-    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
-        {mysql, _} ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
-        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
-        {odbc, mssql} ->
-            mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
 -spec request_upsert(HostType :: mongooseim:host_type_or_global(),
                      Name :: atom(),
                      InsertParams :: [any()],
-                     UpdateParams :: [any()],
-                     UniqueKeyValues :: [any()]) -> gen_server:request_id().
-request_upsert(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
-        {mysql, _} ->
+                     UpdateParams :: [any()]) -> gen_server:request_id().
+request_upsert(HostType, Name, InsertParams, UpdateParams) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        Driver when Driver =:= mysql; Driver =:= pgsql; Driver =:= cockroachdb ->
             mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
-        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
-            mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
-        {odbc, mssql} ->
-            mongoose_rdbms:execute_request(HostType, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
@@ -174,28 +139,17 @@ prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields, In
                        UniqueKeyFieldsTransformed, IncrementalFieldTransformed),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
-    Fields = prepared_upsert_fields(InsertFieldsTransformed, UpdatesTransformed,
-                                    UniqueKeyFieldsTransformed),
+    Fields = prepared_upsert_fields(InsertFieldsTransformed, UpdatesTransformed),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
-prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
+prepared_upsert_fields(InsertFields, Updates) ->
     UpdateFields = lists:filtermap(fun get_field_name/1, Updates),
-    case mongoose_rdbms:db_type() of
-        mssql ->
-            UniqueKeyFields ++ InsertFields ++ UpdateFields;
-        _ ->
-            InsertFields ++ UpdateFields
-    end.
+    InsertFields ++ UpdateFields.
 
-prepared_upsert_many_fields(RecordCount, InsertFields, Updates, _UniqueKeyFields) ->
+prepared_upsert_many_fields(RecordCount, InsertFields, Updates) ->
     InsertFieldsMany = lists:append(lists:duplicate(RecordCount, InsertFields)),
     UpdateFields = lists:filtermap(fun get_field_name/1, Updates),
-    case mongoose_rdbms:db_type() of
-        mssql ->
-            InsertFieldsMany;
-        _ ->
-            InsertFieldsMany ++ UpdateFields
-    end.
+    InsertFieldsMany ++ UpdateFields.
 
 -spec prepare_upsert_many(HostType :: mongooseim:host_type_or_global(),
                           RecordCount :: pos_integer(),
@@ -213,29 +167,24 @@ prepare_upsert_many(HostType, RecordCount, Name, Table, InsertFields, Updates, U
                             UpdatesTransformed, UniqueKeyFieldsTransformed),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
-    Fields = prepared_upsert_many_fields(RecordCount, InsertFieldsTransformed,
-                                         UpdatesTransformed, UniqueKeyFieldsTransformed),
+    Fields = prepared_upsert_many_fields(RecordCount, InsertFieldsTransformed, UpdatesTransformed),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
 upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
-    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
-        {mysql, _} ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql ->
             upsert_mysql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
-        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
             upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
-        {odbc, mssql} ->
-            upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
 upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
-    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
-        {mysql, _} ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql ->
             upsert_many_mysql_query(RecordCount, Table, InsertFields);
-        {Driver, _} when Driver =:= pgsql; Driver =:= cockroachdb ->
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
             upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
-        {odbc, mssql} ->
-            upsert_many_mssql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
@@ -314,44 +263,6 @@ pgsql_ensure_increments(Table, IncrementalField) ->
     TableName = atom_to_list(Table),
     [" WHERE ", TableName, ".", IncrementalField, " < EXCLUDED.", IncrementalField].
 
-upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields) ->
-    UniqueKeysInSelect = [[" ? AS ", Key] || Key <- UniqueKeyFields],
-    BinTab = atom_to_binary(Table, utf8),
-    UniqueConstraint = [[BinTab, ".", Key, " = source.", Key] || Key <- UniqueKeyFields],
-    JoinedInsertFields = join(InsertFields, ", "),
-    Placeholders = lists:duplicate(length(InsertFields), $?),
-    ["MERGE INTO ", BinTab, " WITH (SERIALIZABLE)"
-     " USING (SELECT ", join(UniqueKeysInSelect, ", "), ")"
-            " AS source (", join(UniqueKeyFields, ", "), ")"
-        " ON (", join(UniqueConstraint, " AND "), ")"
-     " WHEN NOT MATCHED THEN INSERT"
-       " (", JoinedInsertFields, ")"
-         " VALUES (", join(Placeholders, ", "), ")" | mssql_on_conflict(Updates)].
-
-%% see prepared_upsert_many_fields
-upsert_many_mssql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
-    BinTab = atom_to_binary(Table, utf8),
-    UniqueConstraint = [["tgt.", Key, " = new.", Key] || Key <- UniqueKeyFields],
-    NewJoinedInsertFields = join([["new.", Column] || Column <- InsertFields], ", "),
-    JoinedInsertFields = join(InsertFields, ", "),
-    Placeholders = lists:duplicate(length(InsertFields), $?),
-    Values = ["(", join(Placeholders, ", "), ")"],
-    ManyValues = join(lists:duplicate(RecordCount, Values), ", "),
-    ["MERGE ", BinTab, " AS tgt",
-     " USING (VALUES", ManyValues, ")"
-     " AS new (", JoinedInsertFields, ")"
-     " ON (", join(UniqueConstraint, " AND "), ")"
-     " WHEN MATCHED THEN UPDATE SET ", tgt_equals_new(Updates),
-     " WHEN NOT MATCHED THEN INSERT (", JoinedInsertFields, ")",
-     " VALUES(", NewJoinedInsertFields, ");"].
-
-tgt_equals_new(Updates) ->
-    join([["tgt.", ColumnName, "=new.", ColumnName] || ColumnName <- Updates], ", ").
-
-mssql_on_conflict([]) -> ";";
-mssql_on_conflict(Updates) ->
-     [" WHEN MATCHED THEN UPDATE SET ", update_fields_on_conflict(Updates), ";"].
-
 get_field_expression({Op, ColumnName, Expr}) when Op =:= assignment; Op =:= expression ->
     [ColumnName, " = ", Expr];
 get_field_expression(Field) when is_binary(Field) ->
@@ -371,11 +282,6 @@ sql_transaction(LServer, F) ->
     mongoose_rdbms:sql_transaction(LServer, F).
 
 begin_trans() ->
-    begin_trans(?RDBMS_TYPE).
-
-begin_trans(mssql) ->
-    rdbms_queries_mssql:begin_trans();
-begin_trans(_) ->
     [<<"BEGIN;">>].
 
 %% Count number of records in a table given a where clause
@@ -402,66 +308,17 @@ create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
     Fields2 = lists:append(lists:duplicate(RowsNum, Fields)),
     {Sql, Fields2}.
 
-get_db_specific_limits() ->
-    do_get_db_specific_limits(?RDBMS_TYPE, "?", true).
+-spec limit() -> binary().
+limit() ->
+    <<" LIMIT ?">>.
 
-get_db_specific_limits_binaries() ->
-    {LimitSQL, LimitMSSQL} = get_db_specific_limits(),
-    {list_to_binary(LimitSQL), list_to_binary(LimitMSSQL)}.
+-spec limit(integer()) -> binary().
+limit(Limit) ->
+    <<" LIMIT ", (integer_to_binary(Limit))/binary>>.
 
--spec get_db_specific_limits(integer())
-        -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
-get_db_specific_limits(Limit) ->
-    LimitStr = integer_to_list(Limit),
-    do_get_db_specific_limits(?RDBMS_TYPE, LimitStr, false).
-
--spec get_db_specific_offset(integer(), integer()) -> iolist().
-get_db_specific_offset(Offset, Limit) ->
-    do_get_db_specific_offset(?RDBMS_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
-
-
-%% Arguments:
-%% - Type (atom) - database type
-%% - LimitStr (string) - a field value
-%% - Wrap (boolean) - add parentheses around a field for MSSQL
-do_get_db_specific_limits(mssql, LimitStr, _Wrap = false) ->
-    {"", "TOP " ++ LimitStr};
-do_get_db_specific_limits(mssql, LimitStr, _Wrap = true) ->
-    {"", "TOP (" ++ LimitStr ++ ")"};
-do_get_db_specific_limits(_, LimitStr, _Wrap) ->
-    {"LIMIT " ++ LimitStr, ""}.
-
-do_get_db_specific_offset(mssql, Offset, Limit) ->
-    [" OFFSET ", Offset, " ROWS"
-    " FETCH NEXT ", Limit, " ROWS ONLY"];
-do_get_db_specific_offset(_, Offset, _Limit) ->
-    [" OFFSET ", Offset].
-
-add_limit_arg(Limit, Args) ->
-    add_limit_arg(?RDBMS_TYPE, Limit, Args).
-
-add_limit_arg(mssql, Limit, Args) ->
-    [Limit|Args];
-add_limit_arg(_, Limit, Args) ->
-    Args ++ [Limit].
-
-get_db_specific_limits_binaries(Limit) ->
-    {LimitSQL, LimitMSSQL} = get_db_specific_limits(Limit),
-    {list_to_binary(LimitSQL), list_to_binary(LimitMSSQL)}.
-
-limit_offset_sql() ->
-    limit_offset_sql(?RDBMS_TYPE).
-
-limit_offset_sql(mssql) ->
-    <<" OFFSET (?) ROWS FETCH NEXT (?) ROWS ONLY">>;
-limit_offset_sql(_) ->
+-spec limit_offset() -> binary().
+limit_offset() ->
     <<" LIMIT ? OFFSET ?">>.
-
-limit_offset_args(Limit, Offset) ->
-    limit_offset_args(?RDBMS_TYPE, Limit, Offset).
-
-limit_offset_args(mssql, Limit, Offset) -> [Offset, Limit];
-limit_offset_args(_, Limit, Offset) -> [Limit, Offset].
 
 format_fields_for_db(_, none) ->
     none;
@@ -476,7 +333,7 @@ format_fields_for_db(HostType, Field) when is_binary(Field) ->
     case mongoose_rdbms:db_engine(HostType) of
         cockroachdb ->
             transform_field(Field);
-        _ -> 
+        _ ->
             Field
     end.
 

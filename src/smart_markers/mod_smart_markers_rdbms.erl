@@ -62,8 +62,7 @@ update_chat_marker(HostType, #{from := #jid{luser = LU, lserver = LS},
     KeyValues = [LS, LU, ToEncoded, ThreadEncoded, TypeEncoded],
     UpdateValues = [Id, TS],
     InsertValues = KeyValues ++ UpdateValues,
-    Res = rdbms_queries:execute_upsert(HostType, smart_markers_upsert,
-                                       InsertValues, UpdateValues, KeyValues),
+    Res = rdbms_queries:execute_upsert(HostType, smart_markers_upsert, InsertValues, UpdateValues),
     verify(Res, Marker).
 
 -spec get_conv_chat_marker(HostType :: mongooseim:host_type(),

@@ -24,29 +24,6 @@ an environment variable in your `~/.bashrc`:
 export DOCKER=podman
 ```
 
-### FreeTDS for MSSQL connectivity
-
-MongooseIM requires FreeTDS in order to connect to MSSQL container.
-
-Please install the driver:
-
-```bash
-# Ubuntu
-$ sudo apt install freetds-dev tdsodbc
-
-# CentOS compatible systems (Rocky, Alma)
-$ sudo yum install freetds
-
-# macOS
-$ brew install freetds
-```
-
-In case you are using an operating system different from Ubuntu or MacOS or have a custom FreeTDS installation,
-you may have to modify the `tools/setup-db.sh` script to use the proper paths.
-Find a configuration block starting with `[mongoose-mssql]` and change the `Driver` and `Setup`.
-For example, for CentOS compatible systems change them to `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so`
-respectively.
-
 ## How to print the instructions
 
 The help command prints a list of supported options.
@@ -139,12 +116,6 @@ This command opens PgSQL shell interface:
 ./tools/open-test-database-shell.sh pgsql
 ```
 
-This command opens [MSSQL shell interface](https://docs.microsoft.com/en-us/sql/tools/sqlcmd-utility):
-
-```bash
-./tools/open-test-database-shell.sh mssql
-```
-
 You can use this command to execute SQL queries directly. It's useful when designing
 new SQL queries.
 
@@ -189,10 +160,10 @@ Most important options are preset and database:
 # Runs privacy_SUITE and private_SUITE with PostgreSQL
 ./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia -- privacy private
 
-# Runs rdbms_SUITE with MSSQL
+# Runs rdbms_SUITE with PostgreSQL
 # Initialises a single MongooseIM node (works for some tests only)
 # Disables cover
-./tools/test-runner.sh --skip-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 --skip-cover -- rdbms
+./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia --test-hosts mim --dev-nodes mim1 --skip-cover -- rdbms
 ```
 
 ### TL;DR

@@ -1,8 +1,8 @@
 %% During dev you would use something similar to:
-%% TEST_HOSTS="mim" ./tools/test.sh -c false -s false -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/test.sh -c false -s false -p pgsql_cets
 %%
 %% If you also want to start just mim1 node use:
-%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/test.sh -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/test.sh -c false -s false -p pgsql_cets
 %%
 %% TEST_HOSTS variable contains host names from hosts in big_tests/test.config.
 %% DEV_NODES variable contains release names from profiles in rebar.config.
@@ -12,7 +12,7 @@
 %% Valid DEV_NODES are mim1, mim2, mim3, fed1, reg1.
 %%
 %% Example with two nodes:
-%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/test.sh -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/test.sh -c false -s false -p pgsql_cets
 %%
 %% Environment variable PRESET_ENABLED is true by default.
 %% PRESET_ENABLED=false disables preset application and forces to run
@@ -268,7 +268,7 @@ enable_preset(Props, Name, PresetVars, N, Tests) ->
                           [N, Tests, Name]).
 
 %% Specify just some nodes to run the tests on:
-%% TEST_HOSTS="mim" ./tools/test.sh -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/test.sh -p pgsql_cets
 maybe_enable_preset_on_node(Node, PresetVars, HostVars, HostName) ->
     case is_test_host_enabled(HostName) of
         true ->

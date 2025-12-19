@@ -110,21 +110,19 @@ register_prepared_queries(Opts) ->
     mongoose_rdbms:prepare(mam_muc_make_tombstone, mam_muc_message, [message, room_id, id],
                            <<"UPDATE mam_muc_message SET message = ?, search_body = '' "
                              "WHERE room_id = ? AND id = ?">>),
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(1),
+    LimitSQL = rdbms_queries:limit(1),
     mongoose_rdbms:prepare(mam_muc_select_messages_to_retract_on_origin_id, mam_muc_message,
                            [room_id, sender_id, origin_id],
-                           <<"SELECT ", LimitMSSQL/binary,
-                             " id, message FROM mam_muc_message"
+                           <<"SELECT id, message FROM mam_muc_message"
                              " WHERE room_id = ? AND sender_id = ? "
                              " AND origin_id = ?"
-                             " ORDER BY id DESC ", LimitSQL/binary>>),
+                             " ORDER BY id DESC", LimitSQL/binary>>),
     mongoose_rdbms:prepare(mam_muc_select_messages_to_retract_on_stanza_id, mam_muc_message,
                            [room_id, sender_id, id],
-                           <<"SELECT ", LimitMSSQL/binary,
-                             " origin_id, message FROM mam_muc_message"
+                           <<"SELECT origin_id, message FROM mam_muc_message"
                              " WHERE room_id = ? AND sender_id = ? "
                              " AND id = ?"
-                             " ORDER BY id DESC ", LimitSQL/binary>>),
+                             " ORDER BY id DESC", LimitSQL/binary>>),
     mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message, [sender_id],
                            <<"SELECT id, message FROM mam_muc_message "
                              " WHERE sender_id = ? ORDER BY id">>).
@@ -136,19 +134,15 @@ prepare_remove_domain(#{delete_domain_limit := infinity}) ->
     mongoose_rdbms:prepare(mam_muc_remove_domain_users, mam_server_user, [server],
                            <<"DELETE FROM mam_server_user WHERE server = ? ">>);
 prepare_remove_domain(#{delete_domain_limit := Limit}) ->
-    LimitSQL = case mongoose_rdbms:db_type() of
-                        mssql -> throw(delete_domain_limit_not_supported_for_mssql);
-                        _ -> {MaybeLimitSQL, _} = rdbms_queries:get_db_specific_limits_binaries(Limit),
-                             MaybeLimitSQL
-                    end,
+    LimitSQL = rdbms_queries:limit(Limit),
     IdTable = <<"(SELECT * FROM ",
                     "(SELECT msg.room_id, msg.id FROM mam_muc_message msg",
                     " INNER JOIN mam_server_user msu ON msu.id=msg.room_id",
-                    " WHERE msu.server = ? ", LimitSQL/binary, ") AS T)">>,
+                    " WHERE msu.server = ?", LimitSQL/binary, ") AS T)">>,
     mongoose_rdbms:prepare(mam_muc_incr_remove_domain, mam_muc_message, ['mam_server_user.server'],
                            <<"DELETE FROM mam_muc_message WHERE (room_id, id) IN ", IdTable/binary>>),
     ServerTable = <<"(SELECT * FROM",
-                        "(SELECT id FROM mam_server_user WHERE server = ? ", LimitSQL/binary, ") as t)">>,
+                        "(SELECT id FROM mam_server_user WHERE server = ?", LimitSQL/binary, ") as t)">>,
     mongoose_rdbms:prepare(mam_muc_incr_remove_domain_users, mam_server_user, [server],
                            <<"DELETE FROM mam_server_user WHERE id IN ", ServerTable/binary>>).
 

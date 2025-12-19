@@ -76,7 +76,6 @@
          transaction_with_delayed_retry/3,
          to_bool/1,
          db_engine/1,
-         db_type/0,
          use_escaped/1]).
 
 %% Unicode escaping
@@ -164,10 +163,15 @@
 -type dirty_result() :: {ok, any()} | {error, any()}.
 -export_type([query_name/0, query_result/0, transaction_result/0]).
 
--type backend() :: pgsql | mysql | odbc | cockroachdb.
+-type backend() :: pgsql | mysql | cockroachdb.
 -type options() :: #{driver := backend(),
                      max_start_interval := pos_integer(),
                      query_timeout := pos_integer(),
+                     host := nonempty_string(),
+                     database := nonempty_string(),
+                     username := nonempty_string(),
+                     password := nonempty_string(),
+                     port := inet:port_number(),
                      atom() => any()}.
 
 -export_type([options/0, backend/0]).
@@ -177,8 +181,6 @@
 %%%----------------------------------------------------------------------
 
 -spec process_options(map()) -> options().
-process_options(Opts = #{driver := odbc, settings := _}) ->
-    Opts;
 process_options(Opts = #{host := _Host, database := _DB, username := _User, password := _Pass}) ->
     ensure_db_port(process_tls_options(Opts));
 process_options(Opts) ->
@@ -838,12 +840,7 @@ apply_transaction_function(F) ->
     end.
 
 sql_query_internal(Query, #state{db_ref = DBRef, query_timeout = QueryTimeout}) ->
-    case mongoose_rdbms_backend:query(DBRef, Query, QueryTimeout) of
-        {error, "No SQL-driver information available."} ->
-            {updated, 0}; %% workaround for odbc bug
-        Result ->
-            Result
-    end.
+    mongoose_rdbms_backend:query(DBRef, Query, QueryTimeout).
 
 sql_dirty_internal(F, State) ->
     put_state(State),
@@ -915,16 +912,6 @@ abort_on_driver_error(_) ->
 db_engine(_HostType) ->
     try mongoose_backend:get_backend_name(global, ?MODULE)
     catch error:badarg -> undefined end.
-
-%% @doc Used to optimise queries for different databases.
-%% @todo Should be refactored to use host types with this module.
-%% Also, this parameter should not be global, but pool-name parameterized
--spec db_type() -> mssql | generic.
-db_type() ->
-    case mongoose_config:get_opt(rdbms_server_type) of
-        mssql -> mssql;
-        _ -> generic
-    end.
 
 -spec connect(options(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
               MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
