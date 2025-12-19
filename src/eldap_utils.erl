@@ -366,14 +366,14 @@ collect_parts_bit([], Acc, Uacc) ->
     maybe_list2b([Uacc | lists:reverse(Acc)]).
 
 maybe_b2list(B) when is_binary(B) ->
-        binary_to_list(B);
+    binary_to_list(B);
 maybe_b2list(L) when is_list(L) ->
-        L;
+    L;
 maybe_b2list(O) ->
-        {error, {unknown_type, O}}.
+    {error, {unknown_type, O}}.
 
 maybe_list2b(L) when is_list(L) ->
-        list_to_binary(L);
+    list_to_binary(L);
 maybe_list2b(B) when is_binary(B) ->
     B;
 maybe_list2b(O) ->

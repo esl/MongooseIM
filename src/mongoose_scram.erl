@@ -119,7 +119,7 @@ check_password(Password, ScramMap) when is_map(ScramMap) ->
     ClientStoredKey == base64:decode(StoredKey).
 
 serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
-                      salt = Salt, iterationcount = IterationCount}) ->
+                 salt = Salt, iterationcount = IterationCount}) ->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
        StoredKey/binary, $,, ServerKey/binary,

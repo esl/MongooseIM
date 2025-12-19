@@ -17,7 +17,6 @@
 start() ->
     supervisor:start_child(ejabberd_iq_sup, []).
 
-
 -spec start_link() ->
     'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->

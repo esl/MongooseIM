@@ -198,9 +198,9 @@ handle_graphql_result({error, Reason}) ->
 format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
                {mongoose_status, MS}, {os_pid, OSPid}, {uptime, UptimeHMS},
                {dist_proto, DistProto}, {logs, LogFiles}]) ->
-     (["MongooseIM node ", ?A2L(Node), ":\n",
+    (["MongooseIM node ", ?A2L(Node), ":\n",
        "    operating system pid: ", OSPid, "\n",
-         "    Erlang VM status: ", ?A2L(IS), " (of: starting | started | stopping)\n",
+       "    Erlang VM status: ", ?A2L(IS), " (of: starting | started | stopping)\n",
        "    boot script status: ", io_lib:format("~p", [PS]), "\n",
        "    version: ", case MS of
                                   {running, App, Version} -> [Version, " (as ", ?A2L(App), ")"];

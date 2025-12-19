@@ -179,7 +179,7 @@ prop_aff_change_success() ->
                         true = validate_owner(NewAffUsers0, false, WithOwner),
                         % changes list applied to old list should produce the same result
                         ChangeRes = mod_muc_light_utils:change_aff_users(host_type(), AffUsers,
-                                                                          AffUsersChanged),
+                                                                         AffUsersChanged),
                         {ok, NewAffUsers1, _, _, _} = ChangeRes,
                         NewAffUsers0 = NewAffUsers1,
                         true;
