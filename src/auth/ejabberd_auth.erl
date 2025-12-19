@@ -348,7 +348,11 @@ does_user_exist(HostType, Jid, RequestType) ->
     Params :: map(),
     Extra :: map().
 on_does_user_exist(false, #{jid := Jid, request_type := stored}, #{host_type := HostType}) ->
-    {ok, true =:= does_stored_user_exist(HostType, Jid)};
+    {ok, case does_stored_user_exist(HostType, Jid) of
+             true -> true;
+             false -> false;
+             {error, _} -> false
+         end};
 on_does_user_exist(false,
                    #{jid := #jid{luser = LUser, lserver = LServer}, request_type := with_anonymous},
                    #{host_type := HostType}) ->

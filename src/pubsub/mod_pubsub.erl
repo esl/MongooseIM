@@ -1704,13 +1704,7 @@ find_authorization_response(El) ->
 %% @doc Send a message to JID with the supplied Subscription
 send_authorization_approval(Host, JID, SNode, Subscription) ->
     Attrs1 = node_attr(SNode),
-    Attrs2 = case Subscription of
-                %  {S, SID} ->
-                %      Attrs1#{<<"subscription">> => subscription_to_string(S),
-                %              <<"subid">> => SID};
-                 S ->
-                     Attrs1#{<<"subscription">> => subscription_to_string(S)}
-             end,
+    Attrs2 = Attrs1#{<<"subscription">> => subscription_to_string(Subscription)},
     Stanza = event_stanza(<<"subscription">>,
                           Attrs2#{<<"jid">> => jid:to_binary(JID)}),
     ejabberd_router:route(service_jid(Host), JID, Stanza).
@@ -2243,9 +2237,9 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                      extended_error(mongoose_xmpp_errors:bad_request(), <<"payload-required">>)},
                     {(PayloadCount > 1) or (PayloadCount == 0),
                      extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-payload">>)},
-                    {(DeliverPayloads == false) and (PersistItems == false) and (PayloadSize > 0),
+                    {not DeliverPayloads andalso not PersistItems andalso (PayloadSize > 0),
                      extended_error(mongoose_xmpp_errors:bad_request(), <<"item-forbidden">>)},
-                    {((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0),
+                    {(DeliverPayloads orelse PersistItems) andalso (PayloadSize == 0),
                      extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)},
                     {PubOptsFeature andalso check_publish_options(Type, PublishOptions, Options),
                      extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
@@ -2712,9 +2706,13 @@ set_affiliations(Host, Node, From, #{action_el := ActionEl} ) ->
                                    JID = jid:from_binary(exml_query:attr(El, <<"jid">>, <<>>)),
                                    Affiliation = string_to_affiliation(
                                                    exml_query:attr(El, <<"affiliation">>, <<>>)),
-                                   case (JID == error) or (Affiliation == false) of
-                                       true -> error;
-                                       false -> [{jid:to_lower(JID), Affiliation} | Acc]
+                                   case {JID, Affiliation} of
+                                       {error, _} ->
+                                           error;
+                                       {_, false} ->
+                                           error;
+                                       _ ->
+                                           [{jid:to_lower(JID), Affiliation} | Acc]
                                    end;
                                (_, _) ->
                                    error
@@ -3041,9 +3039,13 @@ set_subscriptions(Host, Node, From, #{action_el := ActionEl} ) ->
                                    Sub = string_to_subscription(
                                            exml_query:attr(El, <<"subscription">>, <<>>)),
                                    SubId = exml_query:attr(El, <<"subid">>, <<>>),
-                                   case (JID == error) or (Sub == false) of
-                                       true -> error;
-                                       false -> [{jid:to_lower(JID), Sub, SubId} | Acc]
+                                   case {JID, Sub} of
+                                       {error, _} ->
+                                           error;
+                                       {_, false} ->
+                                           error;
+                                       _ ->
+                                           [{jid:to_lower(JID), Sub, SubId} | Acc]
                                    end;
                               (_, _) ->
                                    error
@@ -4007,7 +4009,10 @@ maybe_start_cache_module(ServerHost, #{last_item_cache := Cache} = Opts) ->
     end.
 
 is_last_item_cache_enabled(Host) ->
-    cache_backend(Host) =/= false.
+    case cache_backend(Host) of
+        false -> false;
+        _ -> true
+    end.
 
 cache_backend(Host) ->
     gen_mod:get_module_opt(serverhost(Host), mod_pubsub, last_item_cache).

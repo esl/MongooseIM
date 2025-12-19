@@ -292,9 +292,8 @@ is_room_owner(HostType, Acc, UserJid, RoomJid) ->
                               UserJid :: jid:jid(),
                               RoomJid :: jid:jid()) -> boolean().
 is_user_identity_hidden(HostType, UserJid, RoomJid) ->
-    case mongoose_hooks:can_access_identity(HostType, RoomJid, UserJid) of
-        CanAccess when is_boolean(CanAccess) -> not CanAccess
-    end.
+    CanAccess = mongoose_hooks:can_access_identity(HostType, RoomJid, UserJid),
+    not CanAccess.
 
 -spec can_access_room(HostType :: host_type(),
                       Acc :: mongoose_acc:t(),

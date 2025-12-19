@@ -352,14 +352,14 @@ check_event_chatstates(Acc, From, To, Packet) ->
         {false, false, _} ->
             true;
         %% There a chatstates subelement and other stuff, but no x:event
-        {false, CEl, true} when CEl /= false ->
+        {false, _CEl, true} ->
             true;
         %% There was only a subelement: a chatstates
-        {false, CEl, false} when CEl /= false ->
+        {false, _CEl, false} ->
             %% Don't allow offline storage
             false;
         %% There was an x:event element, and maybe also other stuff
-        {El, _, _} when El /= false ->
+        {El, _, _} ->
             inspect_xevent(Acc, From, To, Packet, El)
     end.
 

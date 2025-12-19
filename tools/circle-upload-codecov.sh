@@ -3,8 +3,8 @@
 set -eo pipefail
 
 if [[ "${CODECOV_SKIP_UPLOAD}" == "1" || "${CODECOV_SKIP_UPLOAD}" == "true" ]]; then
-	echo "Skipping Codecov upload (partial test selection detected)"
-	exit 0
+  echo "Skipping Codecov upload (partial test selection detected)"
+  exit 0
 fi
 
 PLATFORM=$(uname -m)
