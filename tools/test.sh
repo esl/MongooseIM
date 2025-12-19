@@ -90,7 +90,7 @@ select_circleci_suites() {
   # Use xargs to normalize input to newlines, then sed to process
   # This follows CircleCI docs recommendation to use xargs for input handling
   if ! circleci tests glob "$glob_pattern" | \
-      circleci tests run --command="xargs -n1 echo | sed 's|.*/||; s|\.erl$||' >>$output_file" --verbose
+      circleci tests run --command="xargs -n1 echo | sed 's|.*/||; s|\.erl$||' | sed '/^$/d' >>$output_file" --verbose
   then
     echo "circleci tests run failed for pattern $glob_pattern"
     return 1
