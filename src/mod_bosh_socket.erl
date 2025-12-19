@@ -842,7 +842,7 @@ return_surplus_handlers(SName, #state{pending = Pending} = S)
 
 
 -spec bosh_unwrap(EventTag :: mod_bosh:event_type(), exml:element(), state())
-   -> {[jlib:xmlstreamel()], state()}.
+    -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
   when StreamEvent =:= streamstart ->
     Wait = min(get_attr(<<"wait">>, Body, S#state.wait), S#state.max_wait),
