@@ -169,23 +169,23 @@ check_token(_, _) ->
 
 %% List:
 %% https://www.iana.org/assignments/named-information/named-information.xhtml#hash-alg
-%% 1 	sha-256 	256 bits 	[RFC6920] 	current
-%% 2 	sha-256-128 	128 bits 	[RFC6920] 	current
-%% 3 	sha-256-120 	120 bits 	[RFC6920] 	current
-%% 4 	sha-256-96 	96 bits 	[RFC6920] 	current
-%% 5 	sha-256-64 	64 bits 	[RFC6920] 	current
-%% 6 	sha-256-32 	32 bits 	[RFC6920] 	current
-%% 7 	sha-384 	384 bits 	[FIPS 180-4] 	current
-%% 8 	sha-512 	512 bits 	[FIPS 180-4] 	current
-%% 9 	sha3-224 	224 bits 	[FIPS 202] 	current
-%% 10 	sha3-256 	256 bits 	[FIPS 202] 	current
-%% 11 	sha3-384 	384 bits 	[FIPS 202] 	current
-%% 12 	sha3-512 	512 bits 	[FIPS 202] 	current
-%% 	blake2s-256 	256 bits 	[RFC7693] 	current
-%% 	blake2b-256 	256 bits 	[RFC7693] 	current
-%% 	blake2b-512 	512 bits 	[RFC7693] 	current
-%% 	k12-256 	256 bits 	[draft-irtf-cfrg-kangarootwelve-06] 	current
-%% 	k12-512 	512 bits 	[draft-irtf-cfrg-kangarootwelve-06] 	current
+%% 1  sha-256       256 bits  [RFC6920]  current
+%% 2  sha-256-128   128 bits  [RFC6920]  current
+%% 3  sha-256-120   120 bits  [RFC6920]  current
+%% 4  sha-256-96    96 bits   [RFC6920]  current
+%% 5  sha-256-64    64 bits   [RFC6920]  current
+%% 6  sha-256-32    32 bits   [RFC6920]  current
+%% 7  sha-384       384 bits  [FIPS 180-4]  current
+%% 8  sha-512       512 bits  [FIPS 180-4]  current
+%% 9  sha3-224      224 bits  [FIPS 202]  current
+%% 10 sha3-256      256 bits  [FIPS 202]  current
+%% 11 sha3-384      384 bits  [FIPS 202]  current
+%% 12 sha3-512      512 bits  [FIPS 202]  current
+%%    blake2s-256   256 bits  [RFC7693]  current
+%%    blake2b-256   256 bits  [RFC7693]  current
+%%    blake2b-512   512 bits  [RFC7693]  current
+%%    k12-256       256 bits  [draft-irtf-cfrg-kangarootwelve-06]  current
+%%    k12-512       512 bits  [draft-irtf-cfrg-kangarootwelve-06]  current
 -spec mech_to_algo(mod_fast_auth_token:mechanism()) -> atom().
 mech_to_algo(<<"HT-SHA-256-NONE">>) -> sha256;
 mech_to_algo(<<"HT-SHA-384-NONE">>) -> sha384;

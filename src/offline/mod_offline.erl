@@ -571,10 +571,10 @@ discard_warn_sender(Msgs) ->
               ejabberd_router:route(To, From, Acc1, Err)
       end, Msgs).
 
-fallback_timestamp(HowManyDays, TS_MicroSeconds) ->
+fallback_timestamp(HowManyDays, TSMicroSeconds) ->
     HowManySeconds = HowManyDays * 86400,
     HowManyMicroSeconds = erlang:convert_time_unit(HowManySeconds, second, microsecond),
-    TS_MicroSeconds - HowManyMicroSeconds.
+    TSMicroSeconds - HowManyMicroSeconds.
 
 config_metrics(HostType) ->
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

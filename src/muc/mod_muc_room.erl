@@ -1937,7 +1937,7 @@ decode_http_auth_response(Body) ->
         {0, _} ->
             allowed;
         {AuthCode, Msg} ->
-            {invalid_password, iolist_to_binary([integer_to_list(AuthCode), $ , Msg])}
+            {invalid_password, iolist_to_binary([integer_to_list(AuthCode), $\s, Msg])}
     catch
         error:_ -> error
     end.

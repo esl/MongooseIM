@@ -33,7 +33,9 @@ trails() ->
   PropRoomParticipantReq = #{
     <<"user">> => #{
       type => <<"string">>,
-      description => <<"This is the user's JID (Jabber ID) which consist of username and server parts. Example: alice@wonderland.com">>,
+      description =>
+        <<"This is the user's JID (Jabber ID) which consist of username and server parts. ",
+          "Example: alice@wonderland.com">>,
       default => <<"alice@wonderland.com">>
     }
   },
@@ -90,20 +92,26 @@ trails() ->
         ?HTTP_204_NO_CONTENT => #{description => <<"User was successfully added to the room">>},
         ?HTTP_400_BAD_REQUEST => #{description => <<"Bad Request">>},
         ?HTTP_401_UNAUTHORIZED => #{description => <<"Unauthorized">>},
-        ?HTTP_403_FORBIDDEN => #{description => <<"When the authenticated user is not allowed to add users to the room">>},
+        ?HTTP_403_FORBIDDEN =>
+          #{description =>
+              <<"When the authenticated user is not allowed to add users to the room">>},
         ?HTTP_404_NOT_FOUND => #{description => <<"When there is no room with the given ID">>},
         ?HTTP_500_INTERNAL_SERVER_ERROR => #{description => <<"Internal Server Error">>}
       }
     },
     delete => #{
       tags => ["Rooms"],
-      description => <<"Removes a user from the room. The owner can remove any user. The occupant can also use this method, but can only remove themself">>,
+      description =>
+        <<"Removes a user from the room. The owner can remove any user. ",
+          "The occupant can also use this method, but can only remove themself">>,
       parameters => [RequestPushRoomId, RequestPushRoomUser],
       responses => #{
         ?HTTP_204_NO_CONTENT => #{description => <<"User was successfully added to the room">>},
         ?HTTP_400_BAD_REQUEST => #{description => <<"Bad Request">>},
         ?HTTP_401_UNAUTHORIZED => #{description => <<"Unauthorized">>},
-        ?HTTP_403_FORBIDDEN => #{description => <<"When the authenticated user is not allowed to add users to the room">>},
+        ?HTTP_403_FORBIDDEN =>
+          #{description =>
+              <<"When the authenticated user is not allowed to add users to the room">>},
         ?HTTP_404_NOT_FOUND => #{description => <<"When there is no room with the given ID">>},
         ?HTTP_500_INTERNAL_SERVER_ERROR => #{description => <<"Internal Server Error">>}
       }
@@ -115,8 +123,12 @@ trails() ->
 
   %% Options
   StoreOptions = [
-    {PathClientApiRoomsConfig, #{path => PathClientApiRoomsConfig}, MetadataClientApiRoomUsers, mongoose_client_api_rooms_users}
+    {PathClientApiRoomsConfig,
+     #{path => PathClientApiRoomsConfig},
+     MetadataClientApiRoomUsers,
+     mongoose_client_api_rooms_users}
   ],
 
   %% Trail all data
-  [trails:trail(Path, Module, Options, Metadata) || {Path, Options, Metadata, Module} <- StoreOptions].
+  [trails:trail(Path, Module, Options, Metadata)
+   || {Path, Options, Metadata, Module} <- StoreOptions].
