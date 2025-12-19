@@ -47,27 +47,33 @@ default_error() -> 0.01.
 
 -spec declare(proplists:proplist()) -> boolean().
 declare(MetricSpec) ->
+    ok = ensure_started(),
     Name = proplists:get_value(name, MetricSpec),
     gen_server:call(?MODULE, {declare, Name, MetricSpec}).
 
 -spec observe(name(), label_values(), number()) -> ok.
 observe(Name, LabelValues, Value) ->
+    ok = ensure_started(),
     gen_server:cast(?MODULE, {observe, Name, LabelValues, Value}).
 
 -spec values(name()) -> [{label_values(), {non_neg_integer(), number(), [{number(), number()}]}}].
 values(Name) ->
+    ok = ensure_started(),
     gen_server:call(?MODULE, {values, Name}).
 
 -spec remove(name(), label_values()) -> boolean().
 remove(Name, LabelValues) ->
+    ok = ensure_started(),
     gen_server:call(?MODULE, {remove, Name, LabelValues}).
 
 -spec get_all_metric_names() -> [name()].
 get_all_metric_names() ->
+    ok = ensure_started(),
     gen_server:call(?MODULE, get_all_metric_names).
 
 -spec get_metric_spec(name()) -> proplists:proplist() | undefined.
 get_metric_spec(Name) ->
+    ok = ensure_started(),
     gen_server:call(?MODULE, {get_metric_spec, Name}).
 
 %% gen_server callbacks
@@ -132,6 +138,21 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% Internal helpers
+
+-spec ensure_started() -> ok.
+ensure_started() ->
+    case whereis(?MODULE) of
+        undefined ->
+            case start_link() of
+                {ok, _Pid} -> ok;
+                {error, {already_started, _Pid}} -> ok;
+                {error, Reason} -> exit(Reason)
+            end;
+        _Pid ->
+            ok
+    end.
 
 %% Internal functions
 
