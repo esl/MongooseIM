@@ -71,7 +71,7 @@ declare_metric(MetricSpec, histogram) ->
         {error, mongoose_prometheus_sliding_window:default_error()},
         %% Measuring in µs suffices for actions lasting up to a day (with 1% accuracy).
         %% Measuring in bytes suffices for sizes up to 81 GB (with 1% accuracy).
-        {bound, 1260}
+        {bound, mongoose_prometheus_sliding_window:default_bound()}
     | MetricSpec]),
     SWResult or PromResult.
 

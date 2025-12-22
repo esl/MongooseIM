@@ -18,7 +18,7 @@
          terminate/2,
          code_change/3]).
 
--export([default_quantiles/0, default_error/0]).
+-export([default_quantiles/0, default_error/0, default_bound/0]).
 
 -behaviour(gen_server).
 
@@ -26,21 +26,29 @@
 -define(WINDOW_DURATION_MS, 3000). % 3 seconds per window
 -define(TOTAL_WINDOW_MS, (?WINDOW_COUNT * ?WINDOW_DURATION_MS)). % 60 seconds total
 
+
 -spec default_quantiles() -> [number()].
 default_quantiles() -> [0.5, 0.75, 0.90, 0.95, 0.99, 0.999].
 
 -spec default_error() -> number().
 default_error() -> 0.01.
 
+-spec default_bound() -> non_neg_integer().
+default_bound() -> 1260.
+
 -record(state, {
     timer_ref :: reference() | undefined,
-    metrics = #{} :: #{name() => #{label_values() => metric_state()}},
+    ets_table :: ets:tab() | undefined,
+    metrics = #{} :: #{name() => #{{name(), label_values()} => metric_state()}},
     metric_specs = #{} :: #{name() => proplists:proplist()}
 }).
 
 -type name() :: string().
 -type label_values() :: [mongoose_instrument:label_value()].
--type metric_state() :: #{windows => [{ddskerl_ets:ddsketch(), non_neg_integer()}],
+-type window_data() :: #{sketch := ddskerl_ets:ddsketch(),
+                         ref := ets:tab(),
+                         name := term()}.
+-type metric_state() :: #{windows => [{window_data(), non_neg_integer()}],
                           current_index => non_neg_integer()}.
 
 %% Public API
@@ -82,8 +90,9 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
+    EtsTable = ets:new(?MODULE, [set, private, {read_concurrency, true}, {write_concurrency, true}]),
     TimerRef = erlang:start_timer(?WINDOW_DURATION_MS, self(), rotate),
-    {ok, #state{timer_ref = TimerRef}}.
+    {ok, #state{timer_ref = TimerRef, ets_table = EtsTable}}.
 
 handle_call({declare, Name, MetricSpec}, _From, State) ->
     case maps:is_key(Name, State#state.metrics) of
@@ -169,7 +178,9 @@ do_observe(Name, LabelValues, Value, State) ->
 
             %% Get current window and add observation
             {CurrentWindow, WindowStartTime} = lists:nth(CurrentIndex + 1, Windows),
-            UpdatedWindow = ddskerl_std:insert(CurrentWindow, Value),
+            Sketch = maps:get(sketch, CurrentWindow),
+            UpdatedSketch = ddskerl_ets:insert(Sketch, Value),
+            UpdatedWindow = CurrentWindow#{sketch := UpdatedSketch},
 
             %% Update windows list and metric state
             UpdatedWindows = set_nth(CurrentIndex + 1, {UpdatedWindow, WindowStartTime}, Windows),
@@ -183,12 +194,12 @@ do_observe(Name, LabelValues, Value, State) ->
     end.
 
 -spec ensure_windows_rotated({name(), label_values()}, non_neg_integer(), #state{}) ->
-    {[{ddskerl_std:ddsketch(), non_neg_integer()}], non_neg_integer()}.
+    {[{window_data(), non_neg_integer()}], non_neg_integer()}.
 ensure_windows_rotated(Key, CurrentTime, State) ->
     case get_metric_state(Key, State) of
         undefined ->
             %% Initialize new windows, all starting at current time (they'll be rotated as needed)
-            Windows = [{ddskerl_std:new(#{error => default_error()}), CurrentTime} || _ <- lists:seq(1, ?WINDOW_COUNT)],
+            Windows = [new_window(Key, Index, CurrentTime, State) || Index <- lists:seq(0, ?WINDOW_COUNT - 1)],
             {Windows, 0};
         #{windows := Windows, current_index := CurrentIndex} ->
             {_CurrentWindow, WindowStartTime} = lists:nth(CurrentIndex + 1, Windows),
@@ -196,8 +207,9 @@ ensure_windows_rotated(Key, CurrentTime, State) ->
             if
                 Elapsed >= ?WINDOW_DURATION_MS ->
                     NewIndex = (CurrentIndex + 1) rem ?WINDOW_COUNT,
-                    NewWindow = {ddskerl_std:new(#{error => default_error()}), CurrentTime},
-                    UpdatedWindows = set_nth(CurrentIndex + 1, NewWindow, Windows),
+                    {CurrentWindow, _} = lists:nth(CurrentIndex + 1, Windows),
+                    ResetWindow = reset_window(CurrentWindow),
+                    UpdatedWindows = set_nth(CurrentIndex + 1, {ResetWindow, CurrentTime}, Windows),
                     {UpdatedWindows, NewIndex};
                 true ->
                     {Windows, CurrentIndex}
@@ -230,21 +242,26 @@ get_value(Name, LabelValues, State) ->
                                       StartTime >= CutoffTime],
 
             %% Merge all active windows
-            Merged = lists:foldl(fun(Window, Acc) ->
-                                    case Acc of
-                                        undefined -> Window;
-                                        _ -> ddskerl_std:merge(Acc, Window)
-                                    end
-                                end, undefined, ActiveWindows),
+            WindowTuples = [window_tuple(Window) || Window <- ActiveWindows],
+            Merged = lists:foldl(fun
+                                      (undefined, Acc) -> Acc;
+                                      (Val, undefined) -> Val;
+                                      (Val, Acc) -> ddskerl_ets:merge_tuples(Acc, Val)
+                                  end, undefined, WindowTuples),
 
             Result = case Merged of
                 undefined ->
                     undefined;
                 _ ->
-                    Count = ddskerl_std:total(Merged),
-                    Sum = ddskerl_std:sum(Merged),
-                    Quantiles = [{Q, ddskerl_std:quantile(Merged, Q)} || Q <- default_quantiles()],
-                    {Count, Sum, Quantiles}
+                    Count = ddskerl_ets:total_tuple(Merged),
+                    case Count of
+                        0 ->
+                            undefined;
+                        _ ->
+                            Sum = ddskerl_ets:sum_tuple(Merged),
+                            Quantiles = [{Q, ddskerl_ets:quantile_tuple(Merged, Q)} || Q <- default_quantiles()],
+                            {Count, Sum, Quantiles}
+                    end
             end,
             {Result, NewState}
     end.
@@ -275,7 +292,7 @@ do_remove(Name, LabelValues, State) ->
         error ->
             State;
         {ok, MetricState} ->
-            UpdatedMetricState = maps:remove(Key, MetricState),
+            UpdatedMetricState = remove_metric_state(Key, MetricState),
             if
                 map_size(UpdatedMetricState) == 0 ->
                     UpdatedMetrics = maps:remove(Name, State#state.metrics),
@@ -300,3 +317,64 @@ set_nth(1, Value, [_ | Rest]) ->
     [Value | Rest];
 set_nth(N, Value, [H | Rest]) when N > 1 ->
     [H | set_nth(N - 1, Value, Rest)].
+
+%% Window helpers
+
+-spec metric_options(name(), #state{}) -> {number(), non_neg_integer()}.
+metric_options(Name, State) ->
+    MetricSpec = maps:get(Name, State#state.metric_specs, []),
+    Error = proplists:get_value(error, MetricSpec, default_error()),
+    Bound = proplists:get_value(bound, MetricSpec, default_bound()),
+    {Error, Bound}.
+
+-spec window_name({name(), label_values()}, non_neg_integer()) -> term().
+window_name({Name, LabelValues}, Index) ->
+    {Name, LabelValues, Index}.
+
+-spec new_window({name(), label_values()}, non_neg_integer(), non_neg_integer(), #state{}) ->
+    {window_data(), non_neg_integer()}.
+new_window(Key = {Name, _LabelValues}, Index, StartTime, State) ->
+    {Error, Bound} = metric_options(Name, State),
+    WindowName = window_name(Key, Index),
+    Sketch = ddskerl_ets:new(#{ets_table => State#state.ets_table,
+                               name => WindowName,
+                               error => Error,
+                               bound => Bound}),
+    WindowData = #{sketch => Sketch,
+                   ref => State#state.ets_table,
+                   name => WindowName},
+    {WindowData, StartTime}.
+
+-spec reset_window(window_data()) -> window_data().
+reset_window(WindowData) ->
+    Sketch = maps:get(sketch, WindowData),
+    ResetSketch = ddskerl_ets:reset(Sketch),
+    WindowData#{sketch := ResetSketch}.
+
+-spec window_tuple(window_data()) -> ddskerl_ets:object() | undefined.
+window_tuple(WindowData) ->
+    Ref = maps:get(ref, WindowData),
+    Name = maps:get(name, WindowData),
+    case ets:lookup(Ref, Name) of
+        [Val] -> Val;
+        [] -> undefined
+    end.
+
+-spec remove_metric_state({name(), label_values()}, #{}) -> #{}.
+remove_metric_state(Key, MetricState) ->
+    UpdatedMetricState =
+        case maps:find(Key, MetricState) of
+            error ->
+                MetricState;
+            {ok, #{windows := Windows}} ->
+                lists:foreach(fun({Window, _}) -> delete_window(Window) end, Windows),
+                maps:remove(Key, MetricState)
+        end,
+    UpdatedMetricState.
+
+-spec delete_window(window_data()) -> ok.
+delete_window(WindowData) ->
+    Ref = maps:get(ref, WindowData),
+    Name = maps:get(name, WindowData),
+    ets:delete(Ref, Name),
+    ok.
