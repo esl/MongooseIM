@@ -105,7 +105,11 @@ handle_info(Msg, #state{async_request = {AsyncRequest, ReqTask}} = State) ->
      end.
 
 maybe_request_retry(ReqTask, State = #state{retries_left = 0}) ->
-    ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_dropped, txt => <<"Async request dropped, no more retries">>, task => ReqTask})),
+    ?LOG_ERROR(
+        log_fields(State,
+                   #{what => asynchronous_request_dropped,
+                     txt => <<"Async request dropped, no more retries">>,
+                     task => ReqTask})),
     cancel_request_retry(State);
 maybe_request_retry(ReqTask, State = #state{retries_left = Left}) ->
     case make_async_request(ReqTask, State#state{async_request = no_request_pending, retries_left = Left - 1}) of

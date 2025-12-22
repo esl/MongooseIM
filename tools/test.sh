@@ -109,6 +109,9 @@ maybe_select_small_test_suites() {
       SELECTED_SUITES=$(cat selected_small_suites | tr '\n' ',' | sed 's/,$//')
       echo "Selected small test suites: $SELECTED_SUITES"
       export SUITE="$SELECTED_SUITES"
+      # When CircleCI is rerunning only failed tests, coverage is partial and can
+      # significantly distort Codecov results for the commit.
+      export CODECOV_SKIP_UPLOAD=1
     fi
   else
     echo "CircleCI did not return specific small-test suites to rerun; executing default list"
@@ -200,6 +203,9 @@ maybe_select_suites() {
   if circleci_tests_available && select_circleci_suites "tests/*_SUITE.erl" selected_suites; then
     if [ -s selected_suites ]; then
       escript ../tools/select_suites_to_run.erl $TESTSPEC $(<selected_suites)
+      # When CircleCI is rerunning only failed tests, the selected suite list is a subset.
+      # Uploading that partial coverage can cause a big drop in overall Codecov percentage.
+      export CODECOV_SKIP_UPLOAD=1
     else
       echo "CircleCI returned an empty suite list for big tests; running defaults"
     fi

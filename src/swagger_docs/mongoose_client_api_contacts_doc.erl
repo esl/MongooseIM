@@ -37,7 +37,9 @@ trails() ->
   PropPostContsReq = #{
     <<"jid">> => #{
       type => <<"string">>,
-      description => <<"This is user's JID (Jabber ID) which consist of username and server. Example: alice@wonderland.com">>,
+      description =>
+        <<"This is user's JID (Jabber ID) which consist of username and server. ",
+          "Example: alice@wonderland.com">>,
       default => <<"alice@wonderland.lit">>
     }
   },
@@ -50,12 +52,19 @@ trails() ->
     },
     <<"subscription">> => #{
       type => <<"string">>,
-      description => <<"Subscription state of me vs contact. there are four possible state: 'none', 'both', 'to' - I receive updates about the contact's presence, 'from' - the contact receives updates about my presence">>,
+      description =>
+        <<"Subscription state of me vs contact. there are four possible state: ",
+          "'none', 'both', 'to' - I receive updates about the contact's presence, ",
+          "'from' - the contact receives updates about my presence">>,
       default => <<"none">>
     },
     <<"ask">> => #{
       type => <<"string">>,
-      description => <<"Tells whether one of us has asked the other for subscription to presence info and is waiting for approval. Possible states: 'none', 'both', 'out' - I asked the contact and am waiting for his approval, 'in' - my contact asked me, it is up to me to decide">>,
+      description =>
+        <<"Tells whether one of us has asked the other for subscription to presence info ",
+          "and is waiting for approval. Possible states: 'none', 'both', 'out' - ",
+          "I asked the contact and am waiting for his approval, 'in' - my contact asked me, ",
+          "it is up to me to decide">>,
       default => <<"none">>
     }
   },
@@ -210,7 +219,11 @@ trails() ->
       produces => ["application/json"],
       parameters => [RequestBodyContactsUserAction, RequestPushContactWith],
       responses => #{
-        ?HTTP_204_NO_CONTENT => #{description => <<"A subscription request was sent to the contact with value 'subscribe' or 'subscribed' (it may and may not change the 'subscription' and 'ask' states, depending what they were)">>},
+        ?HTTP_204_NO_CONTENT =>
+          #{description =>
+              <<"A subscription request was sent to the contact with value 'subscribe' ",
+                "or 'subscribed' (it may and may not change the 'subscription' and 'ask' ",
+                "states, depending what they were)">>},
         ?HTTP_401_UNAUTHORIZED => #{description => <<"Unauthorized">>},
         ?HTTP_404_NOT_FOUND => #{description => <<"The contact is not in the user's roster">>},
         ?HTTP_500_INTERNAL_SERVER_ERROR => #{description => <<"Internal Server Error">>}
@@ -224,9 +237,16 @@ trails() ->
 
   %% Options
   StoreOptions = [
-    {PathClientApiContacts, #{path => PathClientApiContacts}, MetadataClientApiContacts, mongoose_client_api_contacts},
-    {PathClientApiContactsWithJid, #{path => PathClientApiContactsWithJid}, MetadataClientApiWithJid, mongoose_client_api_contacts}
+    {PathClientApiContacts,
+     #{path => PathClientApiContacts},
+     MetadataClientApiContacts,
+     mongoose_client_api_contacts},
+    {PathClientApiContactsWithJid,
+     #{path => PathClientApiContactsWithJid},
+     MetadataClientApiWithJid,
+     mongoose_client_api_contacts}
   ],
 
   %% Trail all data
-  [trails:trail(Path, Module, Options, Metadata) || {Path, Options, Metadata, Module} <- StoreOptions].
+  [trails:trail(Path, Module, Options, Metadata)
+   || {Path, Options, Metadata, Module} <- StoreOptions].

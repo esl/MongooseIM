@@ -45,7 +45,7 @@
                 | #'confirm.select'{}
                 | #'confirm.select_ok'{}.
 
--type message() :: #amqp_msg{}.
+-opaque message() :: #amqp_msg{}.
 
 -define(DEFAULT_PORT, 5672).
 
@@ -53,7 +53,7 @@
 %%% API
 %%%===================================================================
 
--spec network_params(map()) -> #amqp_params_network{}.
+-spec network_params(map()) -> network_params().
 network_params(ConnOpts) ->
     #{host := Host, port := Port, username := UserName, password := Password,
       virtual_host := VirtualHost} = ConnOpts,

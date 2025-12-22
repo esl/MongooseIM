@@ -135,12 +135,10 @@ init([]) ->
                                 {read_concurrency, true}]),
     %% ?REGISTRATION_TABLE is protected only for traceability purposes
     ets:new(?REGISTRATION_TABLE, [set, named_table, protected]),
-    %% no need for state, everything is kept in ETS tables
-    {ok, ok}.
+    {ok, #{}}.
 
 handle_call({register, HostType, SubdomainPattern, PacketHandler}, From, State) ->
-    %% handle_register/4 must reply to the caller using gen_server:reply/2 interface
-    handle_register(HostType, SubdomainPattern, PacketHandler, From),
+    handle_register_sync(HostType, SubdomainPattern, PacketHandler, From),
     {noreply, State};
 handle_call({unregister, HostType, SubdomainPattern}, _From, State) ->
     Result = handle_unregister(HostType, SubdomainPattern),
@@ -175,9 +173,10 @@ code_change(_OldVsn, State, _Extra) ->
 %% local functions
 %%--------------------------------------------------------------------
 
--spec handle_register(host_type(), subdomain_pattern(),
-                      mongoose_packet_handler:t(), any()) -> ok.
-handle_register(HostType, SubdomainPattern, PacketHandler, From) ->
+
+-spec handle_register_sync(host_type(), subdomain_pattern(),
+                           mongoose_packet_handler:t(), any()) -> ok.
+handle_register_sync(HostType, SubdomainPattern, PacketHandler, From) ->
     SubdomainType = mongoose_subdomain_utils:subdomain_type(SubdomainPattern),
     RegItem = {{HostType, SubdomainPattern}, SubdomainType, PacketHandler},
     case ets:insert_new(?REGISTRATION_TABLE, RegItem) of

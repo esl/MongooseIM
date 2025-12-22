@@ -62,7 +62,7 @@
 -include("mongoose_rsm.hrl").
 
 %% Stream types defined in exml/include/exml_stream.hrl
--type xmlstreamerror()  :: #xmlstreamerror{}.
+-opaque xmlstreamerror() :: #xmlstreamerror{}.
 -type xmlstreamel() :: exml:element() | exml_stream:start() | exml_stream:stop() | xmlstreamerror().
 
 -type iq() :: #iq{}.
@@ -193,7 +193,7 @@ remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = maps:remove(Attr, Attrs),
     XE#xmlel{attrs = NewAttrs}.
 
--spec iq_query_info(exml:element()) -> 'invalid' | 'not_iq' | 'reply' | iq().
+-spec iq_query_info(exml:element()) -> 'invalid' | 'not_iq' | 'reply' | #iq{}.
 iq_query_info(El) ->
     iq_info_internal(El, request).
 
@@ -268,14 +268,14 @@ iq_info_internal(#xmlel{name = Name, children = Els} = Element, Filter) when Nam
 iq_info_internal(_, _) ->
     not_iq.
 
--spec iq_type_to_binary(set|get|result|error) -> invalid | binary().
+-spec iq_type_to_binary(set | get | result | error) -> invalid | binary().
 iq_type_to_binary(set) -> <<"set">>;
 iq_type_to_binary(get) -> <<"get">>;
 iq_type_to_binary(result) -> <<"result">>;
 iq_type_to_binary(error) -> <<"error">>;
 iq_type_to_binary(_) -> invalid.
 
--spec iq_to_xml(iq()) -> exml:element().
+-spec iq_to_xml(#iq{}) -> exml:element().
 iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) when ID /= "" ->
     #xmlel{name = <<"iq">>,
         attrs = #{<<"id">> => ID, <<"type">> => iq_type_to_binary(Type)},
@@ -289,12 +289,12 @@ iq_to_xml(#iq{type = Type, sub_el = SubEl}) ->
 %% @end
 -spec sub_el_to_els([exml:element()] | exml:element()) -> [exml:element()].
 %% for requests.
-sub_el_to_els(#xmlel{}=E) -> [E];
+sub_el_to_els(#xmlel{} = E) -> [E];
 %% for replies.
 sub_el_to_els(Es) when is_list(Es) -> Es.
 
--spec rsm_decode(exml:element() | iq()) -> none | #rsm_in{}.
-rsm_decode(#iq{sub_el = SubEl})->
+-spec rsm_decode(exml:element() | #iq{}) -> none | rsm_in().
+rsm_decode(#iq{sub_el = SubEl}) ->
     rsm_decode(SubEl);
 rsm_decode(#xmlel{} = SubEl) ->
     case exml_query:subelement(SubEl, <<"set">>) of
@@ -319,32 +319,32 @@ rsm_parse_element(#xmlel{name = <<"index">>, attrs = Attrs} = Elem, RsmIn) when 
     IndexStr = exml_query:cdata(Elem),
     {Index, _} = string:to_integer(binary_to_list(IndexStr)),
     RsmIn#rsm_in{index = Index};
-rsm_parse_element(_, RsmIn)->
+rsm_parse_element(_, RsmIn) ->
     RsmIn.
 
--spec rsm_encode(none | rsm_out()) -> [exml:element()].
+-spec rsm_encode(none | #rsm_out{}) -> [exml:element()].
 rsm_encode(none) ->
     [];
 rsm_encode(RsmOut) ->
     [#xmlel{name = <<"set">>, attrs = #{<<"xmlns">> => ?NS_RSM},
             children = lists:reverse(rsm_encode_out(RsmOut))}].
 
--spec rsm_encode_out(rsm_out()) -> [exml:element()].
-rsm_encode_out(#rsm_out{count = Count, index = Index, first = First, last = Last})->
+-spec rsm_encode_out(#rsm_out{}) -> [exml:element()].
+rsm_encode_out(#rsm_out{count = Count, index = Index, first = First, last = Last}) ->
     El = rsm_encode_first(First, Index, []),
     El2 = rsm_encode_last(Last, El),
     rsm_encode_count(Count, El2).
 
 -spec rsm_encode_first(First :: undefined | binary(),
                        Index :: 'undefined' | integer(),
-                       Arr::[exml:element()]) -> [exml:element()].
+                       Arr :: [exml:element()]) -> [exml:element()].
 rsm_encode_first(undefined, undefined, Arr) ->
     Arr;
 rsm_encode_first(First, undefined, Arr) ->
     [#xmlel{name = <<"first">>, children = [#xmlcdata{content = First}]} | Arr];
 rsm_encode_first(First, Index, Arr) ->
     [#xmlel{name = <<"first">>, attrs = #{<<"index">> => i2b(Index)},
-            children = [#xmlcdata{content = First}]}|Arr].
+            children = [#xmlcdata{content = First}]} | Arr].
 
 -spec rsm_encode_last(Last :: 'undefined', Arr :: [exml:element()]) -> [exml:element()].
 rsm_encode_last(undefined, Arr) -> Arr;
@@ -371,29 +371,29 @@ timestamp_to_xml(TimestampString, FromJID, Desc) ->
            end,
     From = case FromJID of
                undefined -> #{};
-               _ -> #{<<"from">> =>jid:to_binary(FromJID)}
+               _ -> #{<<"from">> => jid:to_binary(FromJID)}
            end,
     #xmlel{name = <<"delay">>,
            attrs = From#{<<"xmlns">> => ?NS_DELAY,
                          <<"stamp">> => list_to_binary(TimestampString)},
            children = Text}.
 
--spec stanza_error( Code :: binary()
-   , Type :: binary()
-   , Condition :: binary()
-   , SpecTag :: binary()
-   , SpecNs :: binary() | undefined) -> exml:element().
+-spec stanza_error(Code :: binary(),
+                         Type :: binary(),
+                         Condition :: binary(),
+                         SpecTag :: binary(),
+                         SpecNs :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     Er = stanza_error(Code, Type, Condition),
-    Spec = #xmlel{ name = SpecTag, attrs = #{<<"xmlns">> => SpecNs}},
+    Spec = #xmlel{name = SpecTag, attrs = #{<<"xmlns">> => SpecNs}},
     NCh = [Spec | Er#xmlel.children],
     Er#xmlel{children = NCh}.
 
 %% TODO: remove `code' attribute (currently it used for backward-compatibility)
 
--spec stanza_error( Code :: binary()
-                 , Type :: binary()
-                 , Condition :: binary() | undefined) -> exml:element().
+-spec stanza_error(Code :: binary(),
+                   Type :: binary(),
+                   Condition :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition) ->
   #xmlel{ name = <<"error">>
         , attrs = #{<<"code">> => Code, <<"type">> => Type}
@@ -402,11 +402,11 @@ stanza_error(Code, Type, Condition) ->
                              }]
         }.
 
--spec stanza_errort( Code :: binary()
-                  , Type :: binary()
-                  , Condition :: binary()
-                  , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> exml:element().
+-spec stanza_errort(Code :: binary(),
+                    Type :: binary(),
+                    Condition :: binary(),
+                    Lang :: ejabberd:lang(),
+                    Text :: binary()) -> exml:element().
 stanza_errort(Code, Type, Condition, Lang, Text) ->
   Txt = service_translations:do(Lang, Text),
   #xmlel{ name = <<"error">>
@@ -429,9 +429,9 @@ stream_error(Condition) ->
                      ]
         }.
 
--spec stream_errort( Condition :: binary()
-                  , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> exml:element().
+-spec stream_errort(Condition :: binary(),
+                    Lang :: ejabberd:lang(),
+                    Text :: binary()) -> exml:element().
 stream_errort(Condition, Lang, Text) ->
   Txt = service_translations:do(Lang, Text),
   #xmlel{ name = <<"stream:error">>

@@ -26,9 +26,9 @@
           monitors = #{} :: #{reference() => term()}
          }).
 
--type t() :: #monitored_map{}.
--type t(KeyT, ValueT) :: #monitored_map{map :: #{KeyT => {ValueT, pid(), reference()}},
-                                        monitors :: #{reference() => KeyT}}.
+-opaque t() :: #monitored_map{}.
+-opaque t(KeyT, ValueT) :: #monitored_map{map :: #{KeyT => {ValueT, pid(), reference()}},
+                                          monitors :: #{reference() => KeyT}}.
 
 -export_type([t/0, t/2]).
 

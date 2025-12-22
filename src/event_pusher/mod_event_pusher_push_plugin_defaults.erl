@@ -11,7 +11,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_push_plugin_defaults).
--behavior(mod_event_pusher_push_plugin).
+-behaviour(mod_event_pusher_push_plugin).
 -author('rafal.slota@erlang-solutions.com').
 
 -include("jlib.hrl").

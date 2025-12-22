@@ -6,7 +6,7 @@
 %%%----------------------------------------------------------------------------
 -module(mod_smart_markers_rdbms).
 -author("denysgonchar").
--behavior(mod_smart_markers_backend).
+-behaviour(mod_smart_markers_backend).
 
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
@@ -86,13 +86,15 @@ one2one_get_conv_chat_marker(HostType,
                      Thread, TS, Private) ->
     {selected, ChatMarkersFrom} = mongoose_rdbms:execute_successfully(
                                 HostType, smart_markers_select_conv,
-                                [FromLServer, FromLUser, encode_jid(To), encode_thread(Thread), TS]),
+                                [FromLServer, FromLUser, encode_jid(To),
+                                 encode_thread(Thread), TS]),
     ChatMarkers = case Private of
                       true -> ChatMarkersFrom;
                       false ->
                           {selected, ChatMarkersTo} = mongoose_rdbms:execute_successfully(
                                                         HostType, smart_markers_select_conv,
-                                                        [ToLServer, ToLUser, encode_jid(From), encode_thread(Thread), TS]),
+                                                        [ToLServer, ToLUser, encode_jid(From),
+                                                         encode_thread(Thread), TS]),
                           ChatMarkersFrom ++ ChatMarkersTo
                   end,
     [ decode_chat_marker(Tuple) || Tuple <- ChatMarkers].

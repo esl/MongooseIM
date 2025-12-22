@@ -62,6 +62,8 @@
 
 -type direction() :: sent | received.
 
+-export_type([direction/0]).
+
 supported_features() -> [dynamic_domains].
 
 -spec is_carbon_copy(exml:element()) -> boolean().

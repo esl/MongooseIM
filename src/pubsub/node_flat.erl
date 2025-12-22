@@ -363,12 +363,16 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
     end,
     %% ^^^^^^^^^^^^ TODO: Whole this block may be refactored when we migrate pubsub_item
     %%                    as GenState won't be needed anymore.
-    Allowed = (PublishModel == open) or
-              (PublishModel == publishers) and
-              ( (Affiliation == owner) or
-                (Affiliation == publisher) or
-                (Affiliation == publish_only) ) or
-              (Subscribed == true),
+        SubscribedAllowed = case Subscribed of
+                                                        true -> true;
+                                                        _ -> false
+                                                end,
+        Allowed = (PublishModel == open) or
+                            (PublishModel == publishers) and
+                            ( (Affiliation == owner) or
+                                (Affiliation == publisher) or
+                                (Affiliation == publish_only) ) or
+                            SubscribedAllowed,
     case Allowed of
         false  ->
             {error, mongoose_xmpp_errors:forbidden()};

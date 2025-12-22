@@ -28,7 +28,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_pm).
--behavior(gen_mod).
+-behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 %% ----------------------------------------------------------------------
 %% Exports

@@ -39,6 +39,9 @@
 -type execution_type() :: mongoose_iq_handler:execution_type().
 -type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
 
+-export_type([execution_type/0,
+              subdomain_pattern/0]).
+
 %%====================================================================
 %% Old API. Get rid of it once all the modules adopted.
 %%====================================================================

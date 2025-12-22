@@ -18,7 +18,7 @@
 
 -type direction() :: in | out.
 -type decision() :: allow | deny | block.
--type userlist() :: #userlist{}.
+-opaque userlist() :: #userlist{}.
 -export_type([direction/0, decision/0, userlist/0]).
 
 %%% API %%%

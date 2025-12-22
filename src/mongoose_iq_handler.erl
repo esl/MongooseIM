@@ -10,7 +10,7 @@
                      extra :: map(),
                      execution_method :: execution_method()}).
 
--type t() :: #iq_handler{}.
+-opaque t() :: #iq_handler{}.
 
 -type handler_fn() :: fun((Acc :: mongoose_acc:t(),
                            From :: jid:jid(),
@@ -101,7 +101,7 @@ add_extra(#iq_handler{ extra = OldExtra } = Handler, Extra) ->
                       To :: jid:jid(),
                       IQ :: jlib:iq()) -> mongoose_acc:t().
 execute_handler(#iq_handler{handler_fn = IQHandlerFn, extra = Extra},
-                Acc, From, To, IQ = #iq{sub_el = SubEl, lang = Lang}) ->
+                Acc, From, To, #iq{sub_el = SubEl, lang = Lang} = IQ) ->
     try IQHandlerFn(Acc, From, To, IQ, Extra) of
         {Acc1, ignore} ->
             Acc1;

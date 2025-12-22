@@ -19,6 +19,8 @@
 -export([replace_modules/3, ensure_stopped/2, ensure_started/3]).
 -ignore_xref([replace_modules/3, ensure_stopped/2, ensure_started/3]).
 
+-export_type([module_opts/0, module_map/0]).
+
 -type module_opts() :: gen_mod:module_opts().
 -type module_map() :: gen_mod_deps:module_map().
 -type module_list() :: gen_mod_deps:module_list().

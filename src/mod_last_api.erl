@@ -9,6 +9,8 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
+-export_type([old_user/0, info/0, timestamp/0, status/0]).
+
 -type old_user() :: {jid:jid(), null | timestamp()}.
 -type info() :: #{timestamp := mod_last:timestamp(), status := mod_last:status()}.
 -type timestamp() :: mod_last:timestamp().

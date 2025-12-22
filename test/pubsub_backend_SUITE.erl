@@ -108,10 +108,14 @@ get_subnodes_case_tr() ->
     undefined = proplists:get_value(4, HolyDescendants), %% No such item on depth 4
 
     compare_lists([<<"Holy Kujo">>], nodes_to_names(proplists:get_value(0, HolyAncestors))),
-    compare_lists([<<"Joseph Joestar">>, <<"Suzi Q Joestar">>], nodes_to_names(proplists:get_value(1, HolyAncestors))),
-    compare_lists([<<"George Joestar II">>, <<"Elizabeth Joestar">>], nodes_to_names(proplists:get_value(2, HolyAncestors))),
-    compare_lists([<<"Erina Joestar">>, <<"Jonathan Joestar">>], nodes_to_names(proplists:get_value(3, HolyAncestors))),
-    compare_lists([<<"George Joestar I">>, <<"Mary Joestar">>], nodes_to_names(proplists:get_value(4, HolyAncestors))),
+    compare_lists([<<"Joseph Joestar">>, <<"Suzi Q Joestar">>],
+                  nodes_to_names(proplists:get_value(1, HolyAncestors))),
+    compare_lists([<<"George Joestar II">>, <<"Elizabeth Joestar">>],
+                  nodes_to_names(proplists:get_value(2, HolyAncestors))),
+    compare_lists([<<"Erina Joestar">>, <<"Jonathan Joestar">>],
+                  nodes_to_names(proplists:get_value(3, HolyAncestors))),
+    compare_lists([<<"George Joestar I">>, <<"Mary Joestar">>],
+                  nodes_to_names(proplists:get_value(4, HolyAncestors))),
     undefined = proplists:get_value(5, HolyAncestors),
 
     %% Dio not found

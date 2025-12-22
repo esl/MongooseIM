@@ -231,6 +231,6 @@ set_entry_properties(HostType, InboxEntryKey, Params) ->
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 callback_funs() ->
-  [get_inbox, set_inbox, set_inbox_incr_unread,
-   reset_unread, remove_inbox_row, clear_inbox, get_inbox_unread,
-   get_full_entry, get_entry_properties, set_entry_properties, remove_domain].
+    [get_inbox, set_inbox, set_inbox_incr_unread,
+     reset_unread, remove_inbox_row, clear_inbox, get_inbox_unread,
+     get_full_entry, get_entry_properties, set_entry_properties, remove_domain].
