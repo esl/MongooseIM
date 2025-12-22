@@ -30,8 +30,6 @@
 
 -type host_type() :: mongooseim:host_type().
 
--export_type([host_type/0]).
-
 -spec init(host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, _Opts) ->
     prepare_queries(HostType),

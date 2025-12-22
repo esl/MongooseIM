@@ -203,14 +203,14 @@ format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
        "    Erlang VM status: ", ?A2L(IS), " (of: starting | started | stopping)\n",
        "    boot script status: ", io_lib:format("~p", [PS]), "\n",
        "    version: ", case MS of
-                                  {running, App, Version} -> [Version, " (as ", ?A2L(App), ")"];
+                          {running, App, Version} -> [Version, " (as ", ?A2L(App), ")"];
                           not_running -> "unavailable - neither ejabberd nor mongooseim is running"
                         end, "\n",
        "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS), "\n",
        "    distribution protocol: ", DistProto, "\n"] ++
       ["    logs: none - maybe enable logging to a file in app.config?\n" || LogFiles == [] ] ++
       ["    logs:\n" || LogFiles /= [] ] ++ [
-        ["        ", LogFile, "\n"] || LogFile <- LogFiles]).
+      ["        ", LogFile, "\n"] || LogFile <- LogFiles]).
 
 %%-----------------------------
 %% Print help

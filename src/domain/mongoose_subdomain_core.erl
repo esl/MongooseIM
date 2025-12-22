@@ -135,7 +135,7 @@ init([]) ->
                                 {read_concurrency, true}]),
     %% ?REGISTRATION_TABLE is protected only for traceability purposes
     ets:new(?REGISTRATION_TABLE, [set, named_table, protected]),
-        {ok, #{}}.
+    {ok, #{}}.
 
 handle_call({register, HostType, SubdomainPattern, PacketHandler}, From, State) ->
     handle_register_sync(HostType, SubdomainPattern, PacketHandler, From),

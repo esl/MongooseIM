@@ -1009,8 +1009,8 @@ remove_all_items(Nidx) ->
 get_user_payloads(LUser, LServer) ->
     case execute_get_user_items(LUser, LServer) of
         {selected, Items} ->
-            [[NodeName, ItemId, strip_payload(PayloadDB)] || {NodeName, ItemId, PayloadDB} <- Items]
-        ;
+            [[NodeName, ItemId, strip_payload(PayloadDB)]
+             || {NodeName, ItemId, PayloadDB} <- Items];
         _ ->
             []
     end.

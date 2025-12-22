@@ -29,8 +29,6 @@
 
 -type host_type() :: mongooseim:host_type().
 
--export_type([host_type/0]).
-
 -spec init(host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
     mongoose_mnesia:create_table(last_activity,

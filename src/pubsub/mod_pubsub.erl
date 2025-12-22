@@ -1542,8 +1542,6 @@ iq_command(Host, ServerHost, From, IQ, Access, Plugins) ->
         Err -> Err
     end.
 
-
-
 %% @doc <p>Processes an Ad Hoc Command.</p>
 %% Types aligned to records to avoid opaque breakage in dialyzer
 -spec adhoc_request(binary(), any(), jid:jid(), #adhoc_request{}, any(), [binary()]) ->
