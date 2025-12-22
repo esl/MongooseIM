@@ -153,7 +153,7 @@ sasl_challenge_stanza(ServerOut) ->
            children = [#xmlcdata{content = base64:encode(ServerOut)}]}.
 
 -spec successful_resource_binding(jlib:iq(),
-                                 jid:literal:jid() |
+                                 jid:ljid() |
                                  jid:simple_bare_jid() |
                                  jid:simple_jid() |
                                  jid:jid()) -> exml:element().
