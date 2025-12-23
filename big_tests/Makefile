@@ -41,6 +41,9 @@ else
 SED := gsed
 endif
 
+dialyzer:
+	ERL_LIBS=../_build/default/lib ../rebar3 dialyzer
+
 test_clean: get-deps
 	rm -rf tests/*.beam
 	$(MAKE) test

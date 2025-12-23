@@ -476,7 +476,6 @@ connect_with_almost_expired_token_in_the_current_slot(Config) ->
     ConnectRes = auth_with_token(success, CurrentToken, Config, Spec),
     #{token := NewToken} = parse_connect_result(ConnectRes),
     ?assertNotEqual(Token, NewToken),
-    ?assertNotEqual(Token, CurrentToken),
     #{new_token => NewToken, spec => Spec, old_token => CurrentToken}.
 
 connect_and_ask_for_token(Config) ->

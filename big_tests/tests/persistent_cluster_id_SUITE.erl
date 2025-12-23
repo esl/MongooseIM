@@ -109,7 +109,7 @@ end_per_testcase(_TestCase, _Config) ->
 %%%===================================================================
 
 can_start_with_cluster_id_in_cets_only(_Config) ->
-    Toml = "[general]
+    Toml = <<"[general]
     hosts = [\"example.com\"]
     default_server_domain = \"example.com\"
     sm_backend = \"cets\"
@@ -117,7 +117,7 @@ can_start_with_cluster_id_in_cets_only(_Config) ->
     component_backend = \"cets\"
     [internal_databases.cets]
     backend = \"file\"
-    node_list_file = \"etc/cets_disco.txt\"",
+    node_list_file = \"etc/cets_disco.txt\"">>,
     ejabberd_node_utils:replace_config_file(Toml),
     ejabberd_node_utils:restart_application(mongooseim).
 

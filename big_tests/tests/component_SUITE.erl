@@ -417,7 +417,6 @@ register_in_cluster(Config) ->
 
 clear_on_node_down(Config) ->
     CompSpec = component_helper:spec(component1),
-    ?assertMatch({_, _, _}, component_helper:connect_component(CompSpec)),
     ?assertThrow({stream_error, _}, component_helper:connect_component(CompSpec)),
 
     distributed_helper:stop_node(mim(), Config),

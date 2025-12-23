@@ -407,7 +407,7 @@ log_non_existent(Config) ->
 blocked_user(_Config) ->
     [{_, Spec}] = escalus_users:get_users([alice]),
     try
-        {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
+        {ok, _Alice, _Spec2} = escalus_connection:start(Spec),
         ct:fail("Alice authenticated but shouldn't")
     catch
         error:{assertion_failed, assert, is_iq_result, Stanza, _Bin} ->

@@ -154,6 +154,7 @@ jobs:
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p dialyzer_only
+      - run: tools/test.sh -p dialyzer_big_tests
 
   xref:
     name: xref on OTP ${{matrix.otp}}
