@@ -513,8 +513,8 @@ msg_sent_to_not_existing_user(Config) ->
 
 user_has_two_unread_messages(Config) ->
     escalus:fresh_story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
-        inbox_helper:send_msg(Kate, Mike, "Hello"),
-        inbox_helper:send_msg(Kate, Mike, "How are you"),
+        inbox_helper:send_msg(Kate, Mike, <<"Hello">>),
+        inbox_helper:send_msg(Kate, Mike, <<"How are you">>),
         %% Mike has two unread messages in conversation with Kate
         check_inbox(Mike, [#conv{unread = 2, from = Kate, to = Mike, content = <<"How are you">>}]),
         %% Kate has one conv in her inbox (no unread messages)
@@ -527,8 +527,8 @@ other_resources_do_not_interfere(Config) ->
         Prio = #xmlel{name = <<"priority">>, children = [#xmlcdata{content = <<"100">>}]},
         escalus_client:send(Kate2, escalus_stanza:presence(<<"available">>, [Prio])),
         escalus_client:wait_for_stanza(Kate),
-        inbox_helper:send_msg(Kate, Mike, "Hello"),
-        inbox_helper:send_msg(Kate, Mike, "How are you"),
+        inbox_helper:send_msg(Kate, Mike, <<"Hello">>),
+        inbox_helper:send_msg(Kate, Mike, <<"How are you">>),
         %% Mike has two unread messages in conversation with Kate
         check_inbox(Mike, [#conv{unread = 2, from = Kate, to = Mike, content = <<"How are you">>}]),
         %% Kate has one conv in her inbox (no unread messages)

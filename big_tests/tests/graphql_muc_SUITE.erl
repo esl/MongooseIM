@@ -1882,7 +1882,7 @@ assert_user_affiliation(RoomJID, User, Aff) ->
 rand_name() ->
     rpc(mim(), mongoose_bin, gen_from_crypto, []).
 
--spec assert_room_users([{jid:jid(), binary(), binary()}], [map()]) -> ok.
+-spec assert_room_users([{binary() | null | undefined, binary(), binary()}], [map()]) -> ok.
 assert_room_users(Expected, Actual) ->
     ActualTuples = [{JID, Nick, Role} || #{<<"jid">> := JID, <<"role">> := Role, <<"nick">> := Nick} <- Actual],
     ?assertEqual(lists:sort(Expected), lists:sort(ActualTuples)).

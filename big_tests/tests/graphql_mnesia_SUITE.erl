@@ -420,13 +420,13 @@ check_created_file(FullPath, ExpectedContent) ->
     delete_file(FullPath).
 
 create_file(FullPath) ->
-    file:open(FullPath, [write]),
-    file:close(FullPath).
+    {ok, File} = file:open(FullPath, [write]),
+    file:close(File).
 
 create_and_write_file(FullPath) ->
     {ok, File} = file:open(FullPath, [write]),
     io:format(File, "~s~n", ["TEST"]),
-    file:close(FullPath).
+    file:close(File).
 
 check_if_response_contains(Response, String) ->
     ParsedLoadRes = io_lib:format("~p", [Response]),

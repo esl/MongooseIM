@@ -85,10 +85,15 @@
 -define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
 
 -type inbox_query_params() :: #{
+        % asdf czy te undefined są tu niezbędne?
         order => asc | desc | undefined, % by timestamp
         start => binary() | undefined, % ISO timestamp
         'end' => binary() | undefined, % ISO timestamp
-        box => all | inbox | archive | other,
+        before => binary() | undefined, % ISO timestamp
+        'after' => binary() | undefined, % ISO timestamp
+        limit => non_neg_integer() | undefined,
+        hidden_read => boolean() | undefined,
+        box => all | inbox | archive | other | bin,
         archive => boolean()
        }.
 
@@ -513,7 +518,7 @@ bool_to_bin(true) -> <<"true">>;
 bool_to_bin(false) -> <<"false">>.
 
 -spec given_conversations_between(From :: escalus:client(), ToList :: [escalus:client()]) ->
-    #{ escalus:client() => [#conv{}] }.
+    #{ escalus:client() := [#conv{}], time_before := binary()}.
 given_conversations_between(From, ToList) ->
     lists:foldl(fun(N, #{ From := FromConvs } = Convs) ->
                         Ord = integer_to_binary(N),
@@ -804,7 +809,7 @@ key_to_binary(count) ->
     <<"count">>.
 
 send_msg(From, To) ->
-    send_msg(From, To, "Test").
+    send_msg(From, To, <<"Test">>).
 
 send_msg(From, To, Body) ->
     MsgId = escalus_stanza:id(),
@@ -816,7 +821,7 @@ send_msg(From, To, Body) ->
 
 
 send_and_mark_msg(From, To) ->
-    send_and_mark_msg(From, To, "Test").
+    send_and_mark_msg(From, To, <<"Test">>).
 
 send_and_mark_msg(From, To, Body) ->
     Msg = send_msg(From, To, Body),

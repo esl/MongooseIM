@@ -55,12 +55,14 @@
 -import(mongoose_helper, [backup_and_set_config_option/3, restore_config_option/2]).
 -import(config_parser_helper, [config/2, default_mod_config/1]).
 
+-dialyzer({nowarn_function, pagination_index_out_of_range_below/1}).
+
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
 -define(WAIT_TIME, 1500).
 -define(WAIT_TIMEOUT, 10000).
 
--define(FAKEPID, fakepid).
+-define(FAKEPID, c:pid(0, 1, 1)).
 
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
@@ -82,7 +84,7 @@
 
 -record(rsm_out, {
         index :: non_neg_integer() | undefined,
-        count :: non_neg_integer(),
+        count :: non_neg_integer() | undefined,
         first :: binary() | undefined,
         last  :: binary() | undefined,
         items :: [#xmlel{}]
@@ -4184,10 +4186,10 @@ pagination_index_out_of_range_above(Config) ->
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
-pagination_index_out_of_range_bellow(Config) ->
+pagination_index_out_of_range_below(Config) ->
     F = fun(Alice) ->
         RSM = #rsm_in{index = -1},
-        escalus:send(Alice, stanza_room_list_request(<<"index_out_of_range_bellow_range">>, RSM)),
+        escalus:send(Alice, stanza_room_list_request(<<"index_out_of_range_below_range">>, RSM)),
         wait_empty_rset(Alice, 15),
         ok
         end,
@@ -4742,7 +4744,8 @@ create_already_registered_room(Config) ->
     RoomJID = mongoose_helper:make_jid(Room, Host, <<>>),
     {ok, Pid} = rpc(mim(), mod_muc, room_jid_to_pid, [RoomJID]),
     %% Check that the stored pid is the same as the mecked pid
-    ?assert_equal(?FAKEPID, Pid).
+    P = ?FAKEPID,
+    ?assert_equal(P, Pid).
 
 check_presence_route_to_offline_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -4751,7 +4754,8 @@ check_presence_route_to_offline_room(Config) ->
         escalus:send(Alice, stanza_groupchat_enter_room_no_nick(Room)),
 
         %% Check that we receive the mecked pid instead of a real one
-        ?assertReceivedMatch(?FAKEPID, 3000)
+        P = ?FAKEPID,
+        ?assertReceivedMatch(P, 3000)
     end).
 
 check_message_route_to_offline_room(Config) ->
@@ -4764,7 +4768,8 @@ check_message_route_to_offline_room(Config) ->
         escalus:send(Alice, stanza_room_subject(Room, <<"Subject line">>)),
 
         %% Check that we receive the mecked pid instead of a real one
-        ?assertReceivedMatch(?FAKEPID, 3000)
+        P = ?FAKEPID,
+        ?assertReceivedMatch(P, 3000)
     end).
 
 %%--------------------------------------------------------------------

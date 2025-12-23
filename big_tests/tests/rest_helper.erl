@@ -17,11 +17,11 @@
         role := role(),
         method := binary(),
         creds => credentials(),
-        path := binary(),
-        body := binary(),
+        path := binary() | string(),
+        body => binary() | map(),
         headers => [{binary(), binary()}],
-        return_headers := boolean(),
-        server := distributed_helper:rpc_spec(),
+        return_headers => boolean(),
+        server => distributed_helper:rpc_spec(),
         port => inet:port_number(),
         return_maps => boolean()}.
 
@@ -108,15 +108,13 @@ delete(Role, Path, Cred, Body) ->
 -spec make_request(request_params()) ->
     {{Number :: binary(), Text :: binary()},
      Headers :: [{binary(), binary()}],
-     Body :: map() | binary()}.
+     Body :: jiffy:json_value()}
+  | {{Number :: binary(), Text :: binary()},
+     Body :: jiffy:json_value()}.
 make_request(#{ return_headers := true } = Params) ->
     NormalizedParams = normalize_path(normalize_body(fill_default_server(Params))),
-    case fusco_request(NormalizedParams) of
-        {RCode, RHeaders, Body, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body, Params)};
-        {RCode, RHeaders, Body, _, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body, Params)}
-    end;
+    {RCode, RHeaders, Body, _, _} = fusco_request(NormalizedParams),
+    {RCode, normalize_headers(RHeaders), decode(Body, Params)};
 make_request(#{ return_headers := false } = Params) ->
     {Code, _, Body} = make_request(Params#{ return_headers := true }),
     {Code, Body};
@@ -142,20 +140,22 @@ fill_default_server(Params) ->
 
 decode(<<>>, _P) ->
     <<"">>;
-decode(RespBody, #{return_maps := true}) ->
+decode(RespBody, #{return_maps := true}) when is_binary(RespBody) ->
     try
         jiffy:decode(RespBody, [return_maps])
     catch
         error:_ ->
             RespBody
     end;
-decode(RespBody, _P) ->
+decode(RespBody, _P) when is_binary(RespBody) ->
     try
         jiffy:decode(RespBody)
     catch
         error:_ ->
             RespBody
-    end.
+    end;
+decode(Res, _) ->
+    Res.
 
 normalize_headers(Headers) ->
     lists:map(fun({K, V}) when is_binary(V) -> {K, V};

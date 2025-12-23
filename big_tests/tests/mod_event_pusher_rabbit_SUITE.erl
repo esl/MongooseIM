@@ -646,7 +646,7 @@ get_enabled_exchanges() ->
     Opts = rpc(mim(), gen_mod, get_module_opts, [domain(), mod_event_pusher_rabbit]),
     [#{<<"name">> => Name} || _ := #{name := Name} <- Opts].
 
--spec declare_temporary_rabbit_queue(Channel :: pid(), Queue :: binary()) -> binary().
+-spec declare_temporary_rabbit_queue(Channel :: pid(), Queue :: binary()) -> term().
 declare_temporary_rabbit_queue(Channel, Queue) ->
     #'queue.declare_ok'{} =
         amqp_channel:call(Channel, #'queue.declare'{queue = Queue,
@@ -761,12 +761,12 @@ subscribe_to_rabbit_queue(Channel, Queue) ->
                                 "channel=~p, queue=~p", [Channel, Queue]))
     end.
 
--spec send_presence_stanzas(Users :: [binary()], NumOfMsgs :: non_neg_integer())
+-spec send_presence_stanzas(Users :: [escalus:client()], NumOfMsgs :: non_neg_integer())
                            -> [[ok]] | term().
 send_presence_stanzas(Users, NumOfMsgs) ->
     [send_presence_stanza(User, NumOfMsgs) || User <- Users].
 
--spec send_presence_stanza(Users :: [binary()], NumOfMsgs :: non_neg_integer())
+-spec send_presence_stanza(User :: escalus:client(), NumOfMsgs :: non_neg_integer())
                           -> [ok] | term().
 send_presence_stanza(User, NumOfMsgs) ->
     [escalus:send(User, escalus_stanza:presence(make_pres_type(X)))
