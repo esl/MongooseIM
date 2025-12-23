@@ -153,7 +153,7 @@ handle_metric_event(EventName, Labels, MetricName, MetricType, Measurements) ->
             ok
     end.
 
--spec update_metric(exometer:name(), spiral | histogram, integer()) -> ok.
+-spec update_metric(exometer:name(), mongoose_instrument:metric_type(), integer()) -> ok.
 update_metric(Name, gauge, Value) when is_integer(Value) ->
     ok = exometer:update(Name, Value);
 update_metric(Name, counter, Value) when is_integer(Value) ->

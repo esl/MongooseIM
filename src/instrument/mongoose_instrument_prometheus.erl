@@ -13,6 +13,14 @@
 start(#{}) ->
     Apps = [prometheus, prometheus_httpd, prometheus_cowboy],
     {ok, _} = application:ensure_all_started(Apps, permanent),
+    %% Start sliding window manager for histogram metrics
+    case whereis(mongoose_prometheus_sliding_window) of
+        undefined ->
+            {ok, _} = mongoose_prometheus_sliding_window:start_link();
+        _ ->
+            ok
+    end,
+    prometheus_registry:register_collector(mongoose_prometheus_sliding_window_collector),
     ok.
 
 -spec set_up(mongoose_instrument:event_name(), mongoose_instrument:labels(),
@@ -57,7 +65,15 @@ declare_metric(MetricSpec, counter) ->
 declare_metric(MetricSpec, spiral) ->
     prometheus_counter:declare(MetricSpec);
 declare_metric(MetricSpec, histogram) ->
-    prometheus_histogram:declare([{buckets, histogram_buckets()} | MetricSpec]).
+    SWResult = mongoose_prometheus_sliding_window:declare(MetricSpec),
+    PromResult = prometheus_quantile_summary:declare([
+        {quantiles, mongoose_prometheus_sliding_window:default_quantiles()},
+        {error, mongoose_prometheus_sliding_window:default_error()},
+        %% Measuring in µs suffices for actions lasting up to a day (with 1% accuracy).
+        %% Measuring in bytes suffices for sizes up to 81 GB (with 1% accuracy).
+        {bound, mongoose_prometheus_sliding_window:default_bound()}
+    | MetricSpec]),
+    SWResult or PromResult.
 
 -spec reset_metric(name(), [mongoose_instrument:label_value()],
                    mongoose_instrument:metric_type()) -> boolean().
@@ -68,7 +84,8 @@ reset_metric(Name, LabelValues, counter) ->
 reset_metric(Name, LabelValues, spiral) ->
     prometheus_counter:remove(Name, LabelValues);
 reset_metric(Name, LabelValues, histogram) ->
-    prometheus_histogram:remove(Name, LabelValues).
+    mongoose_prometheus_sliding_window:remove(Name, LabelValues),
+    prometheus_quantile_summary:remove(Name, LabelValues).
 
 -spec initialize_metric(name(), [mongoose_instrument:label_value()],
                         mongoose_instrument:metric_type()) -> ok.
@@ -91,15 +108,6 @@ metric_spec(EventName, LabelKeys, MetricName) ->
      {labels, LabelKeys},
      {duration_unit, false} % prevent unwanted implicit conversions, e.g. seconds -> microseconds
     ].
-
--spec histogram_buckets() -> [integer()].
-histogram_buckets() ->
-    histogram_buckets([], 1 bsl 30). % ~1.07 * 10^9
-
-histogram_buckets(AccBuckets, Val) when Val > 0 ->
-    histogram_buckets([Val | AccBuckets], Val bsr 1);
-histogram_buckets(AccBuckets, _Val) ->
-    AccBuckets.
 
 -spec handle_metric_event(mongoose_instrument:event_name(), [mongoose_instrument:label_value()],
                           mongoose_instrument:metric_name(), mongoose_instrument:metric_type(),
@@ -139,4 +147,5 @@ update_metric(Name, Labels, counter, Value) when is_integer(Value) ->
 update_metric(Name, Labels, spiral, Value) when is_integer(Value), Value >= 0 ->
     ok = prometheus_counter:inc(Name, Labels, Value);
 update_metric(Name, Labels, histogram, Value) when is_integer(Value) ->
-    ok = prometheus_histogram:observe(Name, Labels, Value).
+    ok = mongoose_prometheus_sliding_window:observe(Name, Labels, Value),
+    ok = prometheus_quantile_summary:observe(Name, Labels, Value).
