@@ -318,7 +318,7 @@ default_conflict(Config) ->
         %% skip responses
         escalus_client:wait_for_stanzas(Alice, 4),
         %% make a default list for Alice2
-        R1 = escalus_stanza:privacy_set_default(Alice2, <<"deny_client">>),
+        R1 = escalus_stanza:privacy_set_default(<<"deny_client">>),
         escalus_client:send(Alice2, R1),
         escalus:assert_many([is_privacy_set, is_privacy_set, is_iq_result],
                             escalus_client:wait_for_stanzas(Alice2, 3)),

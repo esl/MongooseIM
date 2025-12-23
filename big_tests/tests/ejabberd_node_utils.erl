@@ -73,7 +73,7 @@ restart_application(ApplicationName) ->
     Node = distributed_helper:mim(),
     restart_application(Node#{timeout => timer:seconds(30)}, ApplicationName).
 
--spec restart_application(node(), atom()) -> ok.
+-spec restart_application(distributed_helper:rpc_spec(), atom()) -> ok.
 restart_application(Node, ApplicationName) ->
     ok = call_fun(Node, application, stop, [ApplicationName]),
     ok = call_fun(Node, application, start, [ApplicationName]).
@@ -83,17 +83,17 @@ ensure_started_application(ApplicationName) ->
     Node = distributed_helper:mim(),
     ensure_started_application(Node#{timeout => timer:seconds(30)}, ApplicationName).
 
--spec ensure_started_application(node(), atom()) -> ok.
+-spec ensure_started_application(distributed_helper:rpc_spec(), atom()) -> ok.
 ensure_started_application(Node, ApplicationName) ->
     call_fun(Node, application, stop, [ApplicationName]),
     ok = call_fun(Node, application, start, [ApplicationName]).
 
--spec backup_config_file(ct_config()) -> ct_config().
+-spec backup_config_file(ct_config()) -> {ok, ct_config()}.
 backup_config_file(Config) ->
     Node = distributed_helper:mim(),
     backup_config_file(Node, Config).
 
--spec backup_config_file(distributed_helper:rpc_spec(), ct_config()) -> ct_config().
+-spec backup_config_file(distributed_helper:rpc_spec(), ct_config()) -> {ok, ct_config()}.
 backup_config_file(#{node := Node} = RPCSpec, Config) ->
     {ok, _} = call_fun(RPCSpec, file, copy, [get_config_path(RPCSpec),
                                              backup_config_path(Node, Config, toml)]).
@@ -108,12 +108,12 @@ restore_config_file(#{node := Node} = RPCSpec, Config) ->
     ok = call_fun(RPCSpec, file, rename, [backup_config_path(Node, Config, toml),
                                           update_config_path(RPCSpec, toml)]).
 
--spec call_fun(module(), atom(), []) -> term() | {badrpc, term()}.
+-spec call_fun(module(), atom(), [term()]) -> term() | {badrpc, term()}.
 call_fun(M, F, A) ->
     Node = distributed_helper:mim(),
     call_fun(Node, M, F, A).
 
--spec call_fun(distributed_helper:rpc_spec(), module(), atom(), []) ->
+-spec call_fun(distributed_helper:rpc_spec(), module(), atom(), [term()]) ->
     term() | {badrpc, term()}.
 call_fun(Node, M, F, A) ->
     distributed_helper:rpc(Node, M, F, A).
@@ -139,7 +139,7 @@ call_ctl_with_args(Node, CmdAndArgs, Config) ->
 file_exists(Filename) ->
     call_fun(filelib, is_file, [Filename]).
 
--spec file_exists(node(), file:name_all()) -> term() | {badrpc, term()}.
+-spec file_exists(distributed_helper:rpc_spec(), file:name_all()) -> term() | {badrpc, term()}.
 file_exists(Node, Filename) ->
     call_fun(Node, filelib, is_file, [Filename]).
 
@@ -156,14 +156,14 @@ file_exists(Node, Filename) ->
 %%    modify_config_file([NewHosts], Config).'''
 -spec modify_config_file([{ConfigVariable, Value}], ct_config()) -> ok when
       ConfigVariable :: atom(),
-      Value :: string().
+      Value :: string() | boolean().
 modify_config_file(CfgVarsToChange, Config) ->
     modify_config_file(mim, CfgVarsToChange, Config, toml).
 
 -spec modify_config_file(Host, [{ConfigVariable, Value}], ct_config(), toml) -> ok when
       Host :: atom(),
       ConfigVariable :: atom(),
-      Value :: string().
+      Value :: string() | boolean().
 modify_config_file(Host, VarsToChange, Config, Format) ->
     NodeVarsFile = ct:get_config({hosts, Host, vars}, Config) ++ "." ++ vars_file(Format),
     TemplatePath = config_template_path(Config, Format),
@@ -184,7 +184,7 @@ replace_config_file(TomlContent) ->
     Node = distributed_helper:mim(),
     replace_config_file(Node, TomlContent).
 
--spec replace_config_file(distributed_helper:node_spec(), binary()) -> ok.
+-spec replace_config_file(distributed_helper:rpc_spec(), binary()) -> ok.
 replace_config_file(RPCSpec, TomlContent) ->
     NewCfgPath = update_config_path(RPCSpec, toml),
     ok = call_fun(RPCSpec, file, write_file, [NewCfgPath, TomlContent]).
@@ -238,7 +238,7 @@ preset_vars(Config, Format) ->
         Name -> ct:get_config({presets, Format, list_to_existing_atom(Name)})
     end.
 
--spec get_cwd(node(), ct_config()) -> string().
+-spec get_cwd(node() | distributed_helper:rpc_spec(), ct_config()) -> string().
 get_cwd(Node, Config) ->
     cwd(Node, Config).
 

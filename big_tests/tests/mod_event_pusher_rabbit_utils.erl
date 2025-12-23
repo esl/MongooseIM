@@ -6,6 +6,7 @@ This module is injected into the mongooseim node.
 """.
 
 -export([start/0, stop/0, simulate_rabbit_connection_error/3]).
+-dialyzer({nowarn_function, simulate_rabbit_connection_error/3}).
 
 start() ->
     meck:new(gen_tcp, [unstick, no_link, passthrough]).
