@@ -662,6 +662,19 @@ jobs:
           command: |
             ./tools/test.sh -p dialyzer_only -s false
 
+  dialyzer_big_tests:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Dialyzer on big tests
+          command: |
+            ./tools/test.sh -p dialyzer_big_tests -s false
+
   xref:
     executor: << parameters.executor >>
     parameters:
@@ -927,6 +940,13 @@ workflows:
           context: mongooseim-org
           requires:
             - latest_otp_docker
+          filters: *all_tags
+      - dialyzer_big_tests:
+          name: dialyzer_28_big_tests
+          executor: otp_28
+          context: mongooseim-org
+          requires:
+            - otp_28_docker
           filters: *all_tags
       # ============= XREF =============
       - xref:

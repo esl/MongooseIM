@@ -1,6 +1,9 @@
 -module(push_http_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+% cowboy accepts '_' as path but dialyzer thinks it does not
+-dialyzer({nowarn_function, [start_http_listener/0, init_per_suite/1]}).
+
 -include_lib("eunit/include/eunit.hrl").
 
 -define(ETS_TABLE, push_http).

@@ -933,7 +933,7 @@ wait_for_session_close(Sid, LeftTime) ->
     wait_helper:wait_until(fun() -> is_session_alive(Sid) end, false,
                            #{
                              time_left => timer:seconds(10),
-                             time_sleep => LeftTime,
+                             sleep_time => LeftTime,
                              name => is_session_alive
                             }).
 
@@ -941,7 +941,7 @@ wait_for_handler(Pid, Count) ->
     wait_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
                            #{
                              time_left => timer:seconds(10),
-                             time_sleep => timer:seconds(1),
+                             sleep_time => timer:seconds(1),
                              name => get_handlers
                             }).
 
@@ -950,14 +950,14 @@ wait_for_handler(Pid, Count, LeftTime) ->
     wait_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
                            #{
                              time_left => LeftTime,
-                             time_sleep => timer:seconds(1),
+                             sleep_time => timer:seconds(1),
                              name => get_handlers
                             }).
 
 wait_until_user_has_no_stanzas(User) ->
     wait_helper:wait_until(fun() ->
                                    escalus_assert:has_no_stanzas(User)
-                           end, ok, #{left_time => 2 * timer:seconds(?INACTIVITY)}).
+                           end, ok, #{time_left => 2 * timer:seconds(?INACTIVITY)}).
 
 wait_for_zero_bosh_sessions() ->
     wait_helper:wait_until(fun() ->

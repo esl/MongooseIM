@@ -23,6 +23,10 @@
 -type check_fun() :: fun((measurements()) -> boolean()).
 -type event_count() :: non_neg_integer() | positive.
 -type opts() :: #{min_timestamp => integer(),
+                  retries => non_neg_integer(),
+                  delay => non_neg_integer(),
+                  expected_count => event_count()}.
+-type fullopts() :: #{min_timestamp := integer(),
                   retries := non_neg_integer(),
                   delay := non_neg_integer(),
                   expected_count := event_count()}.
@@ -120,11 +124,10 @@ timestamp() ->
 
 %% Internal functions
 
--spec default_opts() -> opts().
 default_opts() ->
     #{retries => 0, delay => timer:seconds(1), expected_count => positive}.
 
--spec assert_loop(event_name(), labels(), check_fun(), opts()) -> ok.
+-spec assert_loop(event_name(), labels(), check_fun(), fullopts()) -> ok.
 assert_loop(EventName, Labels, CheckF, Opts) ->
     #{retries := Retries, expected_count := ExpectedCount, delay := Delay} = Opts,
     All = case Opts of
