@@ -37,6 +37,7 @@ user_account_tests() ->
 
 admin_account_tests() ->
     [admin_list_users,
+     admin_list_users_pagination,
      admin_list_users_unknown_domain,
      admin_count_users,
      admin_count_users_unknown_domain,
@@ -238,6 +239,33 @@ admin_list_users(Config) ->
     ?assert(lists:member(JID, Users)),
     Resp2 = list_users(unprep(Domain), Config),
     ?assertEqual(Users, get_ok_value([data, account, listUsers], Resp2)).
+
+admin_list_users_pagination(Config) ->
+    Domain = domain_helper:domain(),
+    % Ensure we have at least 2 users
+    Username1 = <<"user1">>,
+    Username2 = <<"user2">>,
+    JID1 = <<Username1/binary, "@", Domain/binary>>,
+    JID2 = <<Username2/binary, "@", Domain/binary>>,
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID1), <<"pass">>]),
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID2), <<"pass">>]),
+
+    % List all to get the full sorted list
+    RespAll = list_users(Domain, Config),
+    AllUsers = get_ok_value([data, account, listUsers], RespAll),
+    ?assert(length(AllUsers) >= 2),
+
+    % Page 1 (limit 1, index 0)
+    RespP1 = list_users_paged(Domain, 1, 0, Config),
+    UsersP1 = get_ok_value([data, account, listUsers], RespP1),
+    ?assertEqual(1, length(UsersP1)),
+    ?assertEqual(lists:nth(1, AllUsers), lists:nth(1, UsersP1)),
+
+    % Page 2 (limit 1, index 1)
+    RespP2 = list_users_paged(Domain, 1, 1, Config),
+    UsersP2 = get_ok_value([data, account, listUsers], RespP2),
+    ?assertEqual(1, length(UsersP2)),
+    ?assertEqual(lists:nth(2, AllUsers), lists:nth(1, UsersP2)).
 
 admin_list_users_unknown_domain(Config) ->
     Resp = list_users(<<"unknown-domain">>, Config),
@@ -607,6 +635,10 @@ domain_admin_change_user_password_no_permission(Config) ->
     % Change external domain user password
     escalus:fresh_story(Config, [{alice_bis, 1}], fun(AliceBis) ->
         BinJID = escalus_client:full_jid(AliceBis),
+list_users_paged(Domain, Limit, Index, Config) ->
+    Vars = #{<<"domain">> => Domain, <<"limit">> => Limit, <<"index">> => Index},
+    execute_command(<<"account">>, <<"listUsers">>, Vars, Config).
+
         Resp2 = change_user_password(BinJID, NewPassword, Config),
         get_unauthorized(Resp2)
     end).

@@ -7,7 +7,7 @@
 
 -include("../mongoose_graphql_types.hrl").
 
--import(mongoose_graphql_helper, [format_result/2, make_error/3]).
+-import(mongoose_graphql_helper, [format_result/2, make_error/3, null_to_undefined/1]).
 
 execute(_Ctx, _Obj, <<"listUsers">>, Args) ->
     list_users(Args);
@@ -23,8 +23,12 @@ execute(_Ctx, _Obj, <<"checkUser">>, Args) ->
 % Internal
 
 -spec list_users(map()) -> {ok, [{ok, binary()}]} | {error, resolver_error()}.
-list_users(#{<<"domain">> := Domain}) ->
-    case mongoose_account_api:list_users(jid:nameprep(Domain)) of
+list_users(#{<<"domain">> := Domain} = Args) ->
+    Limit = null_to_undefined(maps:get(<<"limit">>, Args, undefined)),
+    Index = null_to_undefined(maps:get(<<"index">>, Args, undefined)),
+    Opts = lists:filter(fun({_, V}) -> V =/= undefined end,
+                        [{limit, Limit}, {offset, Index}]),
+    case mongoose_account_api:list_users(jid:nameprep(Domain), maps:from_list(Opts)) of
         {domain_not_found, Msg} ->
             make_error(domain_not_found, Msg, #{domain => Domain});
         {ok, Users} ->

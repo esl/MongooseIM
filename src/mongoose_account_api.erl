@@ -2,6 +2,7 @@
 -module(mongoose_account_api).
 
 -export([list_users/1,
+         list_users/2,
          count_users/1,
          register_user/3,
          register_generated_user/2,
@@ -44,10 +45,14 @@
 %% API
 
 -spec list_users(jid:server()) -> list_user_result().
-list_users(Domain) ->
+listlist_users(Domain, #{}).
+
+-spec list_users(jid:server(), map()) -> list_user_result().
+list_users(Domain, Opts) ->
     PrepDomain = jid:nameprep(Domain),
     case mongoose_domain_api:get_domain_host_type(PrepDomain) of
         {ok, _} ->
+            Users = ejabberd_auth:get_vh_registered_users(PrepDomain, maps:to_list(Opts)
             Users = ejabberd_auth:get_vh_registered_users(PrepDomain),
             SUsers = lists:sort(Users),
             {ok, [jid:to_binary(US) || US <- SUsers]};
