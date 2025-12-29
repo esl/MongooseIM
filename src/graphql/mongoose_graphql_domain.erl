@@ -10,5 +10,7 @@ execute(_Ctx, #{status := Status}, <<"status">>, _Args) ->
     {ok, Status};
 execute(_Ctx, #{domain := Name}, <<"domain">>, _Args) ->
     {ok, Name};
+execute(_Ctx, #{type := Type}, <<"type">>, _Args) ->
+    {ok, Type};
 execute(_Ctx, #{}, _, _Args) ->
     {ok, null}.

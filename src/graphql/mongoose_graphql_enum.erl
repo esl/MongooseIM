@@ -38,6 +38,8 @@ input(<<"MetricType">>, Name) -> {ok, Name}.
 
 output(<<"DomainStatus">>, Type) ->
     {ok, string:uppercase(atom_to_binary(Type))};
+output(<<"DomainType">>, Type) ->
+    {ok, string:uppercase(atom_to_binary(Type))};
 output(<<"PresenceShow">>, Show) ->
     {ok, string:uppercase(Show)};
 output(<<"PresenceType">>, Type) ->
