@@ -45,15 +45,15 @@
 %% API
 
 -spec list_users(jid:server()) -> list_user_result().
-listlist_users(Domain, #{}).
+list_users(Domain) ->
+    list_users(Domain, #{}).
 
 -spec list_users(jid:server(), map()) -> list_user_result().
 list_users(Domain, Opts) ->
     PrepDomain = jid:nameprep(Domain),
     case mongoose_domain_api:get_domain_host_type(PrepDomain) of
         {ok, _} ->
-            Users = ejabberd_auth:get_vh_registered_users(PrepDomain, maps:to_list(Opts)
-            Users = ejabberd_auth:get_vh_registered_users(PrepDomain),
+            Users = ejabberd_auth:get_vh_registered_users(PrepDomain, maps:to_list(Opts)),
             SUsers = lists:sort(Users),
             {ok, [jid:to_binary(US) || US <- SUsers]};
         {error, not_found} ->
