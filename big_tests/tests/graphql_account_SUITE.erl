@@ -635,10 +635,6 @@ domain_admin_change_user_password_no_permission(Config) ->
     % Change external domain user password
     escalus:fresh_story(Config, [{alice_bis, 1}], fun(AliceBis) ->
         BinJID = escalus_client:full_jid(AliceBis),
-list_users_paged(Domain, Limit, Index, Config) ->
-    Vars = #{<<"domain">> => Domain, <<"limit">> => Limit, <<"index">> => Index},
-    execute_command(<<"account">>, <<"listUsers">>, Vars, Config).
-
         Resp2 = change_user_password(BinJID, NewPassword, Config),
         get_unauthorized(Resp2)
     end).
@@ -664,6 +660,10 @@ user_change_password(User, Password, Config) ->
 
 list_users(Domain, Config) ->
     Vars = #{<<"domain">> => Domain},
+    execute_command(<<"account">>, <<"listUsers">>, Vars, Config).
+
+list_users_paged(Domain, Limit, Index, Config) ->
+    Vars = #{<<"domain">> => Domain, <<"limit">> => Limit, <<"index">> => Index},
     execute_command(<<"account">>, <<"listUsers">>, Vars, Config).
 
 count_users(Domain, Config) ->
