@@ -235,8 +235,21 @@ set_password(HostType, LUser, LServer, _Password) ->
 
 -spec get_registered_users(mongooseim:host_type(), jid:lserver(), list()) ->
           [jid:simple_bare_jid()].
-get_registered_users(_HostType, LServer, _) ->
-    [{U, S} || #session{us = {U, S}} <- ejabberd_sm:get_vh_session_list(LServer)].
+get_registered_users(_HostType, LServer, Opts) ->
+    Users = [{U, S} || #session{us = {U, S}} <- ejabberd_sm:get_vh_session_list(LServer)],
+    Limit = proplists:get_value(limit, Opts),
+    Offset = proplists:get_value(offset, Opts, 0),
+    slice_users(Users, Limit, Offset).
+
+slice_users(Users, undefined, 0) ->
+    Users;
+slice_users(Users, undefined, Offset) ->
+    SortedUsers = lists:sort(Users),
+    try lists:nthtail(Offset, SortedUsers)
+    catch _:_ -> [] end;
+slice_users(Users, Limit, Offset) ->
+    SortedUsers = lists:sort(Users),
+    lists:sublist(SortedUsers, Offset + 1, Limit).
 
 %% @doc Return password of permanent user or false for anonymous users
 -spec get_password(HostType :: mongooseim:host_type(),

@@ -208,28 +208,58 @@ get_registered_users(_, LServer, Opts) ->
 
 -type query_keyword() :: from | to | limit | offset | prefix.
 -type query_value() :: integer() | binary().
+
 -spec get_users(LServer :: jid:lserver(),
                 Query :: [{query_keyword(), query_value()}]
                ) -> [jid:simple_bare_jid()].
-get_users(LServer, [{from, Start}, {to, End}])
-        when is_integer(Start) and is_integer(End) ->
-    get_users(LServer, [{limit, End-Start+1}, {offset, Start}]);
-get_users(LServer, [{limit, Limit}, {offset, Offset}])
-        when is_integer(Limit) and is_integer(Offset) ->
-    get_users_within_interval(get_users(LServer), Limit, Offset);
-get_users(LServer, [{prefix, Prefix}])
-        when is_binary(Prefix) ->
-    Users = matching_users(Prefix, get_users(LServer)),
+get_users(LServer, Opts) ->
+    {Limit, Offset, Prefix} = extract_pagination_opts(Opts),
+    Users = get_users(LServer),
+    FilteredUsers = apply_prefix_filter(Prefix, Users),
+    apply_pagination(FilteredUsers, Limit, Offset, Prefix).
+
+-spec extract_pagination_opts(Opts :: [{atom(), any()}]) ->
+          {Limit :: integer() | undefined, Offset :: integer(), Prefix :: binary() | undefined}.
+extract_pagination_opts(Opts) ->
+    Prefix = proplists:get_value(prefix, Opts),
+    From = proplists:get_value(from, Opts),
+    To = proplists:get_value(to, Opts),
+    Limit = proplists:get_value(limit, Opts),
+    Offset = proplists:get_value(offset, Opts, 0),
+    {RealLimit, RealOffset} = calculate_real_pagination(From, To, Limit, Offset),
+    {RealLimit, RealOffset, Prefix}.
+
+-spec calculate_real_pagination(From :: integer() | undefined,
+                                To :: integer() | undefined,
+                                Limit :: integer() | undefined,
+                                Offset :: integer()) ->
+          {Limit :: integer() | undefined, Offset :: integer()}.
+calculate_real_pagination(From, To, _Limit, _Offset) when is_integer(From), is_integer(To) ->
+    {To - From + 1, From - 1};
+calculate_real_pagination(_From, _To, Limit, Offset) ->
+    {Limit, Offset}.
+
+-spec apply_prefix_filter(Prefix :: binary() | undefined, Users :: [jid:simple_bare_jid()]) ->
+          [jid:simple_bare_jid()].
+apply_prefix_filter(Prefix, Users) when is_binary(Prefix) ->
+    matching_users(Prefix, Users);
+apply_prefix_filter(_Prefix, Users) ->
+    Users.
+
+-spec apply_pagination(Users :: [jid:simple_bare_jid()],
+                       Limit :: integer() | undefined,
+                       Offset :: integer(),
+                       Prefix :: binary() | undefined) ->
+          [jid:simple_bare_jid()].
+apply_pagination(Users, undefined, 0, undefined) ->
+    %% No pagination, no prefix → return users as-is
+    Users;
+apply_pagination(Users, undefined, 0, _Prefix) ->
+    %% Prefix applied but no pagination → sort before returning
     lists:keysort(1, Users);
-get_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
-        when is_binary(Prefix) and is_integer(Start) and is_integer(End) ->
-    get_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
-get_users(LServer, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
-        when is_binary(Prefix) and is_integer(Limit) and is_integer(Offset) ->
-    Users = matching_users(Prefix, get_users(LServer)),
-    get_users_within_interval(Users, Limit, Offset);
-get_users(LServer, _) ->
-    get_users(LServer).
+apply_pagination(Users, Limit, Offset, _Prefix) ->
+    %% Pagination requested → apply offset and limit
+    get_users_within_interval(Users, Limit, Offset).
 
 -spec get_users_number(LServer :: jid:server()) -> non_neg_integer().
 get_users_number(LServer) ->
@@ -365,11 +395,15 @@ get_scram(HostType, Password) ->
         false -> Password
     end.
 
--spec get_users_within_interval(list(), integer(), integer()) -> list().
+-spec get_users_within_interval(list(), integer() | undefined, integer()) -> list().
 get_users_within_interval([], _Limit, _Offset) -> [];
+get_users_within_interval(Users, undefined, Offset) ->
+    SortedUsers = lists:keysort(1, Users),
+    try lists:nthtail(Offset, SortedUsers)
+    catch _:_ -> [] end;
 get_users_within_interval(Users, Limit, Offset) ->
     SortedUsers = lists:keysort(1, Users),
-    lists:sublist(SortedUsers, Offset, Limit).
+    lists:sublist(SortedUsers, Offset + 1, Limit).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].

@@ -486,20 +486,32 @@ execute_delete_user(HostType, LServer, LUser) ->
 
 -spec execute_list_users(mongooseim:host_type(), jid:lserver(), map()) ->
           mongoose_rdbms:query_result().
-execute_list_users(HostType, LServer, #{from := Start, to := End} = OptMap) ->
-    Map = maps:without([from, to], OptMap),
-    execute_list_users(HostType, LServer, Map#{limit => End - Start + 1, offset => Start - 1});
-execute_list_users(HostType, LServer, #{prefix := Prefix, limit := Limit, offset := Offset}) ->
-    Args = [LServer, prefix_to_like(Prefix), Limit, Offset],
-    execute_successfully(HostType, auth_list_users_prefix_range, Args);
-execute_list_users(HostType, LServer, #{prefix := Prefix}) ->
-    Args = [LServer, prefix_to_like(Prefix)],
-    execute_successfully(HostType, auth_list_users_prefix, Args);
-execute_list_users(HostType, LServer, #{limit := Limit, offset := Offset}) ->
-    Args = [LServer, Limit, Offset],
-    execute_successfully(HostType, auth_list_users_range, Args);
-execute_list_users(HostType, LServer, #{}) ->
-    execute_successfully(HostType, auth_list_users, [LServer]).
+execute_list_users(HostType, LServer, Opts) ->
+    Prefix = maps:get(prefix, Opts, undefined),
+    From = maps:get(from, Opts, undefined),
+    To = maps:get(to, Opts, undefined),
+    Limit = maps:get(limit, Opts, undefined),
+    Offset = maps:get(offset, Opts, 0),
+
+    {RealLimit, RealOffset} =
+        if
+            is_integer(From), is_integer(To) ->
+                {To - From + 1, From - 1};
+            true ->
+                {Limit, Offset}
+        end,
+
+    case {Prefix, RealLimit} of
+        {undefined, undefined} ->
+            execute_successfully(HostType, auth_list_users, [LServer]);
+        {undefined, _} ->
+            execute_successfully(HostType, auth_list_users_range, [LServer, RealLimit, RealOffset]);
+        {_, undefined} ->
+            execute_successfully(HostType, auth_list_users_prefix, [LServer, prefix_to_like(Prefix)]);
+        {_, _} ->
+            execute_successfully(HostType, auth_list_users_prefix_range,
+                                 [LServer, prefix_to_like(Prefix), RealLimit, RealOffset])
+    end.
 
 -spec execute_list_users_without_scram(mongooseim:host_type(), jid:lserver(), non_neg_integer()) ->
           mongoose_rdbms:query_result().
