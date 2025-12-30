@@ -126,8 +126,7 @@ use_directive() ->
      use_dir_auth_user_module_service_and_db_not_loaded,
      use_dir_auth_admin_db_not_loaded,
      use_dir_auth_user_db_not_loaded,
-     use_dir_host_type_not_found,
-     use_dir_host_type_fallback_to_context
+     use_dir_host_type_not_found
     ].
 
 user_listener() ->
@@ -304,8 +303,7 @@ init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
                                   C =:= use_dir_auth_admin_module_service_and_db_not_loaded;
                                   C =:= use_dir_auth_admin_db_not_loaded;
                                   C =:= use_dir_auth_user_db_not_loaded;
-                                  C =:= use_dir_host_type_not_found;
-                                  C =:= use_dir_host_type_fallback_to_context ->
+                                  C =:= use_dir_host_type_not_found ->
     {Mapping, Pattern} = example_directives_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -1033,32 +1031,13 @@ use_dir_auth_admin_db_not_loaded(Config) ->
     use_dir_auth_db_not_loaded(<<"admin">>, Config).
 
 use_dir_host_type_not_found(Config) ->
-    % When host type cannot be determined from arg AND there's no user/admin context,
-    % the directive allows the resolver to run (it doesn't block with deps_not_loaded).
-    % This lets the resolver handle the invalid arg appropriately.
+    % When host type cannot be determined from arg, the directive allows the resolver
+    % to run (it doesn't block with deps_not_loaded). This lets the resolver handle
+    % the invalid arg appropriately (e.g., returning domain_not_found errors).
     Doc = <<"{catA { command(domain: \"unknown-domain.com\")} }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{data := #{<<"catA">> := #{<<"command">> := _}}} = execute_ast(Config, Ctx2, Ast).
-
-use_dir_host_type_fallback_to_context(Config) ->
-    % When host type cannot be determined from arg BUT there IS a user context,
-    % the directive falls back to checking modules for the user's host type.
-    % This prevents crashes when user calls with an invalid domain arg.
-    Doc = <<"{catA { command(domain: \"unknown-domain.com\")} }">>,
-    % User is from test-domain.com which only has mod_a and mod_d loaded (not mod_b)
-    UserJid = jid:make_bare(<<"alice">>, <<"test-domain.com">>),
-    Ctx = #{user => UserJid},
-    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
-    % mod_b is not loaded for test-domain.com, so deps_not_loaded is returned
-    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_b">>]
-         },
-      message := <<"Some of the required modules are not loaded">>,
-      path := [<<"catA">>, <<"command">>]
-     } = Error.
 
 %% Helpers
 

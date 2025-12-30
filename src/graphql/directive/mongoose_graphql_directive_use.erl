@@ -80,14 +80,6 @@ get_arg_value(_UseCtx, #{user := #jid{lserver = Domain}}) ->
 get_arg_value(_UseCtx, #{admin := #jid{lserver = Domain}}) ->
     Domain.
 
--spec host_type_from_ctx(ctx()) -> {ok, mongooseim:host_type()} | {error, not_found}.
-host_type_from_ctx(#{user := #jid{lserver = Domain}}) ->
-    host_type_from_arg(Domain);
-host_type_from_ctx(#{admin := #jid{lserver = Domain}}) ->
-    host_type_from_arg(Domain);
-host_type_from_ctx(_) ->
-    {error, not_found}.
-
 -spec aggregate_use_ctx(list(), ctx()) -> use_ctx().
 aggregate_use_ctx(Args, #{use_dir := #{modules := Modules0, services := Services0,
                                        internal_databases := Databases0}}) ->
@@ -134,18 +126,10 @@ filter_unloaded_modules(UseCtx, Ctx, Modules) ->
             filter_unloaded_modules(HostType, Modules);
         {error, not_found} ->
             % Host type can't be determined from arg (e.g. unknown domain/JID).
-            % Try falling back to context - if we have a user/admin JID with a valid
-            % host type, use that for module checks. This handles the case where
-            % the query arg is invalid but the authenticated user has a valid host type.
-            case host_type_from_ctx(Ctx) of
-                {ok, HostType} ->
-                    filter_unloaded_modules(HostType, Modules);
-                {error, not_found} ->
-                    % No valid host type from arg OR context.
-                    % Let resolver run - it will handle the invalid arg appropriately
-                    % (returning domain_not_found, user_does_not_exist, etc.).
-                    []
-            end
+            % Let resolver run - it will handle the invalid arg appropriately
+            % (returning domain_not_found, user_does_not_exist, etc.)
+            % or check module loading itself if needed.
+            []
     end.
 
 -spec filter_unloaded_modules(host_type(), [binary()]) -> [binary()].
