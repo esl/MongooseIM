@@ -54,6 +54,12 @@
 %% Utilities
 -export([dirty_get_registered_users/0]).
 
+%% Pagination helpers (exported for testing)
+-export([extract_pagination_opts/1,
+         calculate_real_pagination/4,
+         apply_prefix_filter/2,
+         apply_pagination/4]).
+
 -ignore_xref([dirty_get_registered_users/0, scram_passwords/0]).
 
 -include("mongoose.hrl").
