@@ -208,7 +208,15 @@ jobs:
           
       - name: build package
         run: tools/test.sh -p pkg
-
+        
+      - name: Verify Docker image exists
+      run: |
+        docker images | grep mongooseim-ubuntu-jammy
+        if ! docker image inspect mongooseim-ubuntu-jammy:6.5.0-1.faca11c1f >/dev/null 2>&1; then
+          echo "Docker image not found!"
+          exit 1
+        fi
+        
       - name: Save Docker image
         if: always()
         run: |
