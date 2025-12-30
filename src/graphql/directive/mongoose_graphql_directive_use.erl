@@ -80,6 +80,14 @@ get_arg_value(_UseCtx, #{user := #jid{lserver = Domain}}) ->
 get_arg_value(_UseCtx, #{admin := #jid{lserver = Domain}}) ->
     Domain.
 
+-spec host_type_from_ctx(ctx()) -> {ok, mongooseim:host_type()} | {error, not_found}.
+host_type_from_ctx(#{user := #jid{lserver = Domain}}) ->
+    host_type_from_arg(Domain);
+host_type_from_ctx(#{admin := #jid{lserver = Domain}}) ->
+    host_type_from_arg(Domain);
+host_type_from_ctx(_) ->
+    {error, not_found}.
+
 -spec aggregate_use_ctx(list(), ctx()) -> use_ctx().
 aggregate_use_ctx(Args, #{use_dir := #{modules := Modules0, services := Services0,
                                        internal_databases := Databases0}}) ->
@@ -125,9 +133,16 @@ filter_unloaded_modules(UseCtx, Ctx, Modules) ->
         {ok, HostType} ->
             filter_unloaded_modules(HostType, Modules);
         {error, not_found} ->
-            % Cannot determine host type - assume modules are not loaded to fail safely.
-            % This prevents crashes when the domain is not configured.
-            Modules
+            % If the host type can't be determined from the directive arg (e.g. unknown domain),
+            % try falling back to the request context (authenticated user/admin). This keeps
+            % expected domain/user-not-found semantics while still guarding against crashes.
+            case host_type_from_ctx(Ctx) of
+                {ok, HostType} ->
+                    filter_unloaded_modules(HostType, Modules);
+                {error, not_found} ->
+                    % Cannot determine host type at all - fail safely.
+                    Modules
+            end
     end.
 
 -spec filter_unloaded_modules(host_type(), [binary()]) -> [binary()].
