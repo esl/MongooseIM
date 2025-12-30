@@ -172,6 +172,16 @@ init_per_testcase(domain_admin_check_plain_password_hash_no_permission = C, Conf
 init_per_testcase(domain_admin_register_user = C, Config) ->
     Config1 = [{user, {<<"gql_domain_admin_registration_test">>, domain_helper:domain()}} | Config],
     escalus:init_per_testcase(C, Config1);
+init_per_testcase(admin_list_users_pagination = C, Config) ->
+    Domain = domain_helper:domain(),
+    Username1 = <<"user1">>,
+    Username2 = <<"user2">>,
+    JID1 = <<Username1/binary, "@", Domain/binary>>,
+    JID2 = <<Username2/binary, "@", Domain/binary>>,
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID1), <<"pass">>]),
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID2), <<"pass">>]),
+    Config1 = [{pagination_users, {Username1, Username2, Domain}} | Config],
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -202,6 +212,11 @@ end_per_testcase(CaseName, Config)
     Domain = domain_helper:domain(),
     rpc(mim(), mongoose_account_api, unregister_user, [<<"john">>, Domain]),
     escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(admin_list_users_pagination = C, Config) ->
+    {Username1, Username2, Domain} = proplists:get_value(pagination_users, Config),
+    rpc(mim(), mongoose_account_api, unregister_user, [Username1, Domain]),
+    rpc(mim(), mongoose_account_api, unregister_user, [Username2, Domain]),
+    escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -242,14 +257,6 @@ admin_list_users(Config) ->
 
 admin_list_users_pagination(Config) ->
     Domain = domain_helper:domain(),
-    % Ensure we have at least 2 users
-    Username1 = <<"user1">>,
-    Username2 = <<"user2">>,
-    JID1 = <<Username1/binary, "@", Domain/binary>>,
-    JID2 = <<Username2/binary, "@", Domain/binary>>,
-    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID1), <<"pass">>]),
-    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID2), <<"pass">>]),
-
     % List all to get the full sorted list
     RespAll = list_users(Domain, Config),
     AllUsers = get_ok_value([data, account, listUsers], RespAll),
