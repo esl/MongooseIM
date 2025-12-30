@@ -156,14 +156,14 @@ file_exists(Node, Filename) ->
 %%    modify_config_file([NewHosts], Config).'''
 -spec modify_config_file([{ConfigVariable, Value}], ct_config()) -> ok when
       ConfigVariable :: atom(),
-      Value :: string().
+      Value :: string() | boolean().
 modify_config_file(CfgVarsToChange, Config) ->
     modify_config_file(mim, CfgVarsToChange, Config, toml).
 
 -spec modify_config_file(Host, [{ConfigVariable, Value}], ct_config(), toml) -> ok when
       Host :: atom(),
       ConfigVariable :: atom(),
-      Value :: string().
+      Value :: string() | boolean().
 modify_config_file(Host, VarsToChange, Config, Format) ->
     NodeVarsFile = ct:get_config({hosts, Host, vars}, Config) ++ "." ++ vars_file(Format),
     TemplatePath = config_template_path(Config, Format),
@@ -184,7 +184,7 @@ replace_config_file(TomlContent) ->
     Node = distributed_helper:mim(),
     replace_config_file(Node, TomlContent).
 
--spec replace_config_file(distributed_helper:node_spec(), binary()) -> ok.
+-spec replace_config_file(distributed_helper:rpc_spec(), binary()) -> ok.
 replace_config_file(RPCSpec, TomlContent) ->
     NewCfgPath = update_config_path(RPCSpec, toml),
     ok = call_fun(RPCSpec, file, write_file, [NewCfgPath, TomlContent]).

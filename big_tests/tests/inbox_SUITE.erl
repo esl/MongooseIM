@@ -9,6 +9,8 @@
 -include_lib("inbox.hrl").
 -include("muc_light.hrl").
 
+-dialyzer({nowarn_function, returns_error_when_unknown_field_sent/1}).
+
 %% tests
 -import(muc_light_helper, [room_bin_jid/1]).
 -import(inbox_helper, [
@@ -350,8 +352,8 @@ returns_error_when_no_reset_field_jid(Config) ->
 
 returns_error_when_first_bad_form_field_encountered(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:make_inbox_stanza(#{<<"start">> => <<"invalid">>,
-                                                  <<"end">> => <<"invalid">>}, false),
+        Stanza = inbox_helper:make_inbox_stanza(#{start => <<"invalid">>,
+                                                  'end' => <<"invalid">>}, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
@@ -361,12 +363,12 @@ returns_error_when_first_bad_form_field_encountered(Config) ->
 
 returns_error_when_unknown_field_sent(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:make_inbox_stanza(#{<<"unknown_field">> => <<"unknown_field_value">>}, false),
+        Stanza = inbox_helper:make_inbox_stanza(#{unknown_field => <<"unknown_field_value">>}, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
         ErrorMsg = inbox_helper:get_error_message(ResIQ),
-        inbox_helper:assert_message_content(ErrorMsg, <<"field=unknown_field">>, <<"value=unknown_field_value">>)
+        inbox_helper:assert_message_content(ErrorMsg, 'field=unknown_field', <<"value=unknown_field_value">>)
       end).
 
 

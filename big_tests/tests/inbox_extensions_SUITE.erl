@@ -983,7 +983,7 @@ muted_status(unmuted, Outer) ->
     ?assertEqual(<<"0">>, Res);
 muted_status(MutedDiff, Outer) ->
     GivenRfcTimestamp = exml_query:path(Outer, [{element, <<"result">>}, {element, <<"mute">>}, cdata]),
-    GivenMutedUntil = calendar:rfc3339_to_system_time(binary_to_list(GivenRfcTimestamp), [{offset, "Z"}, {unit, microsecond}]),
+    GivenMutedUntil = calendar:rfc3339_to_system_time(binary_to_list(GivenRfcTimestamp), [{unit, microsecond}]),
     Now = erlang:system_time(microsecond),
     Diff = erlang:convert_time_unit(MutedDiff, second, microsecond),
     ?assert(Now + Diff < GivenMutedUntil).

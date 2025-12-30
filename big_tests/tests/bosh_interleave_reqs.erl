@@ -8,6 +8,8 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-dialyzer({nowarn_function, [test/1, prop/1]}). % proper has invalid spec
+
 -export([test/1, sample/0, prop/1]).
 
 -export([initial_state/0, initial_state/1, command/1, precondition/2, postcondition/3,
@@ -35,6 +37,7 @@ test(Config) ->
 sample() ->
     proper_gen:pick(commands(?MODULE)).
 
+-spec prop(proplists:proplist()) -> proper:outer_test().
 prop(Config) ->
     Pid = spawn_link(?MODULE, ct_config_giver, [Config]),
     ?FORALL(Cmds, commands(?MODULE, initial_state(Pid)),

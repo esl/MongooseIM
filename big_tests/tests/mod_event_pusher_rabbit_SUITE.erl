@@ -681,12 +681,12 @@ group_chat_msg_recv_bindings(Queue, JIDs) ->
 
 -spec bind_queues_to_exchanges(Channel :: pid(),
                                Bindings :: [rabbit_binding()]) ->
-    [amqp_client:amqp_method() | ok | blocked | closing].
+    [#'queue.bind_ok'{}].
 bind_queues_to_exchanges(Channel, Bindings) ->
     [bind_queue_to_exchange(Channel, Binding) || Binding <- Bindings].
 
 -spec bind_queue_to_exchange(Channel :: pid(), rabbit_binding()) ->
-    amqp_client:amqp_method() | ok | blocked | closing.
+    #'queue.bind_ok'{}.
 bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
     #'queue.bind_ok'{} =
         amqp_channel:call(Channel, #'queue.bind'{exchange = Exchange,
