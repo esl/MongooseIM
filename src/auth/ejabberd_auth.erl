@@ -591,7 +591,9 @@ is_user_number_below_limit(Domain) ->
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
             Limit = mongoose_config:get_opt([{auth, HostType}, max_users_per_domain]),
-            Current = get_vh_registered_users_number(Domain),
+            %% max_users_per_domain must be enforced accurately; do not rely on any
+            %% approximate counting optimizations (e.g. RDBMS estimates).
+            Current = get_vh_registered_users_number(Domain, [{accurate, true}]),
             Current < Limit;
         {error, not_found} ->
             true
