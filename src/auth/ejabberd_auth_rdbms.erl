@@ -541,19 +541,10 @@ execute_list_users_without_scram(HostType, LServer, Limit) ->
 
 -spec execute_count_users(mongooseim:host_type(), jid:lserver(), map()) ->
           mongoose_rdbms:query_result().
-execute_count_users(HostType, LServer, Opts) when is_map(Opts) ->
-    case maps:get(prefix, Opts, undefined) of
-        Prefix when is_binary(Prefix) ->
-            Args = [LServer, prefix_to_like(Prefix)],
-            execute_successfully(HostType, auth_count_users_prefix, Args);
-        undefined ->
-            Accurate = maps:get(accurate, Opts, false),
-            execute_count_users_no_prefix(HostType, LServer, Accurate)
-    end.
-
-execute_count_users_no_prefix(HostType, LServer, true) ->
-    execute_successfully(HostType, auth_count_users, [LServer]);
-execute_count_users_no_prefix(HostType, LServer, false) ->
+execute_count_users(HostType, LServer, #{prefix := Prefix}) ->
+    Args = [LServer, prefix_to_like(Prefix)],
+    execute_successfully(HostType, auth_count_users_prefix, Args);
+execute_count_users(HostType, LServer, #{}) ->
     case {mongoose_config:get_opt([{auth, HostType}, rdbms, users_number_estimate]),
           mongoose_rdbms:db_engine(LServer)} of
         {true, mysql} ->
