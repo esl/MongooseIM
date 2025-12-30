@@ -222,8 +222,10 @@ jobs:
         run: |
           IMAGE_TAG=$(docker images mongooseim-ubuntu-jammy --format "{{.Tag}}" | head -n1)
           echo "Using tag: $IMAGE_TAG"
-          docker save mongooseim-ubuntu-jammy:$IMAGE_TAG | gzip > mongooseim-ubuntu-jammy.tar.gz
-
+          if ! docker image inspect mongooseim-ubuntu-jammy:$IMAGE_TAG >/dev/null 2>&1; then
+            echo "Docker image not found!"
+            exit 1
+          fi
       - name: Upload Docker image artifact
         if: always()
         uses: actions/upload-artifact@v4
