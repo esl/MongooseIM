@@ -133,15 +133,18 @@ filter_unloaded_modules(UseCtx, Ctx, Modules) ->
         {ok, HostType} ->
             filter_unloaded_modules(HostType, Modules);
         {error, not_found} ->
-            % If the host type can't be determined from the directive arg (e.g. unknown domain),
-            % try falling back to the request context (authenticated user/admin). This keeps
-            % expected domain/user-not-found semantics while still guarding against crashes.
+            % Host type can't be determined from arg (e.g. unknown domain/JID).
+            % Try falling back to context - if we have a user/admin JID with a valid
+            % host type, use that for module checks. This handles the case where
+            % the query arg is invalid but the authenticated user has a valid host type.
             case host_type_from_ctx(Ctx) of
                 {ok, HostType} ->
                     filter_unloaded_modules(HostType, Modules);
                 {error, not_found} ->
-                    % Cannot determine host type at all - fail safely.
-                    Modules
+                    % No valid host type from arg OR context.
+                    % Let resolver run - it will handle the invalid arg appropriately
+                    % (returning domain_not_found, user_does_not_exist, etc.).
+                    []
             end
     end.
 
