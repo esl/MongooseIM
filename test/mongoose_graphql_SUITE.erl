@@ -125,7 +125,8 @@ use_directive() ->
      use_dir_auth_admin_module_service_and_db_not_loaded,
      use_dir_auth_user_module_service_and_db_not_loaded,
      use_dir_auth_admin_db_not_loaded,
-     use_dir_auth_user_db_not_loaded
+     use_dir_auth_user_db_not_loaded,
+     use_dir_host_type_not_found
     ].
 
 user_listener() ->
@@ -212,7 +213,10 @@ init_per_group(domain_permissions, Config) ->
     [{domains, Domains} | Config];
 init_per_group(use_directive, Config) ->
     Config1 = meck_domain_api(Config),
-    mongoose_config:set_opts(#{internal_databases => #{db_a => #{}}}),
+    Hosts = ?config(hosts, Config1),
+    mongoose_config:set_opts(#{internal_databases => #{db_a => #{}},
+                               hosts => Hosts,
+                               host_types => []}),
     meck_module_and_service_checking(Config1);
 init_per_group(_G, Config) ->
     Config.
@@ -298,7 +302,8 @@ init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
                                   C =:= use_dir_auth_user_module_service_and_db_not_loaded;
                                   C =:= use_dir_auth_admin_module_service_and_db_not_loaded;
                                   C =:= use_dir_auth_admin_db_not_loaded;
-                                  C =:= use_dir_auth_user_db_not_loaded ->
+                                  C =:= use_dir_auth_user_db_not_loaded;
+                                  C =:= use_dir_host_type_not_found ->
     {Mapping, Pattern} = example_directives_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -1024,6 +1029,19 @@ use_dir_auth_user_db_not_loaded(Config) ->
 
 use_dir_auth_admin_db_not_loaded(Config) ->
     use_dir_auth_db_not_loaded(<<"admin">>, Config).
+
+use_dir_host_type_not_found(Config) ->
+    Doc = <<"{catA { command(domain: \"unknown-domain.com\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_b">>]
+         },
+      message := <<"Some of the required modules are not loaded">>,
+      path := [<<"catA">>, <<"command">>]
+     } = Error.
 
 %% Helpers
 
