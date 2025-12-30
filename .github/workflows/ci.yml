@@ -190,7 +190,7 @@ jobs:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p edoc_only
 
-  pkg:
+pkg:
   name: ${{matrix.pkg}} package
   strategy:
     fail-fast: false
