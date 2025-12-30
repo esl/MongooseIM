@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-  # Doing temp change in branch  
+    # Doing temp change in branch  
     branches: [ ci ]
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -21,13 +21,10 @@ env:
 
 jobs:
   small_tests:
-    name: small_tests on OTP ${{matrix.otp}}
+    name: small_tests on OTP ${{ matrix.otp }}
     strategy:
       fail-fast: false
       matrix:
-        ## the full list of supported (prebuilt) OTP versions for ubuntu-22.04 runners
-        ## can be found here:
-        ##     https://builds.hex.pm/builds/otp/ubuntu-22.04/builds.txt
         otp: [ '27.3.4.2', '28.0.2' ]
     runs-on: ubuntu-22.04
     env:
@@ -54,7 +51,7 @@ jobs:
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          flag-name: small_tests on OTP ${{matrix.otp}}
+          flag-name: small_tests on OTP ${{ matrix.otp }}
           path-to-lcov: ./lcov.info
           parallel: true
       - name: upload common test results on failure
@@ -62,7 +59,7 @@ jobs:
         run: tools/gh-upload-to-s3.sh _build/test/logs test_logs
 
   big_tests:
-    name: ${{matrix.preset}} on OTP ${{matrix.otp}}
+    name: ${{ matrix.preset }} on OTP ${{ matrix.otp }}
     strategy:
       fail-fast: false
       matrix:
@@ -87,10 +84,10 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/big-tests
         with:
-          otp: ${{matrix.otp}}
-          preset: ${{matrix.preset}}
-          gh-token: ${{secrets.GITHUB_TOKEN}}
-          test-spec: ${{matrix.test-spec}}
+          otp: ${{ matrix.otp }}
+          preset: ${{ matrix.preset }}
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          test-spec: ${{ matrix.test-spec }}
       - name: upload common test results on failure
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
@@ -99,7 +96,7 @@ jobs:
         run: tools/gh-report-failing-testcases-to-ga4.sh
 
   dynamic_domains_big_tests:
-    name: dynamic domains ${{matrix.preset}} on OTP ${{matrix.otp}}
+    name: dynamic domains ${{ matrix.preset }} on OTP ${{ matrix.otp }}
     strategy:
       fail-fast: false
       matrix:
@@ -118,10 +115,10 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/big-tests
         with:
-          otp: ${{matrix.otp}}
-          preset: ${{matrix.preset}}
-          gh-token: ${{secrets.GITHUB_TOKEN}}
-          test-spec: ${{matrix.test-spec}}
+          otp: ${{ matrix.otp }}
+          preset: ${{ matrix.preset }}
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          test-spec: ${{ matrix.test-spec }}
       - name: upload common test results on failure
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
@@ -140,7 +137,7 @@ jobs:
           parallel-finished: true
 
   dialyzer:
-    name: dialyzer on OTP ${{matrix.otp}}
+    name: dialyzer on OTP ${{ matrix.otp }}
     strategy:
       fail-fast: false
       matrix:
@@ -153,11 +150,11 @@ jobs:
           persist-credentials: false
       - uses: erlef/setup-beam@v1.16.0
         with:
-          otp-version: ${{matrix.otp}}
+          otp-version: ${{ matrix.otp }}
       - run: tools/test.sh -p dialyzer_only
 
   xref:
-    name: xref on OTP ${{matrix.otp}}
+    name: xref on OTP ${{ matrix.otp }}
     strategy:
       fail-fast: false
       matrix:
@@ -170,11 +167,11 @@ jobs:
           persist-credentials: false
       - uses: erlef/setup-beam@v1.16.0
         with:
-          otp-version: ${{matrix.otp}}
+          otp-version: ${{ matrix.otp }}
       - run: tools/test.sh -p xref_only
 
   edoc:
-    name: edoc on OTP ${{matrix.otp}}
+    name: edoc on OTP ${{ matrix.otp }}
     strategy:
       fail-fast: false
       matrix:
@@ -187,40 +184,39 @@ jobs:
           persist-credentials: false
       - uses: erlef/setup-beam@v1.16.0
         with:
-          otp-version: ${{matrix.otp}}
+          otp-version: ${{ matrix.otp }}
       - run: tools/test.sh -p edoc_only
 
-pkg:
-  name: ${{matrix.pkg}} package
-  strategy:
-    fail-fast: false
-    matrix:
-      pkg: [ubuntu-jammy]
-  runs-on: ubuntu-22.04
-  env:
-    pkg_OTP_VERSION: "28.0.2"
-    pkg_PLATFORM: ${{matrix.pkg}}
-    GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
-    GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-    GPG_PASS: ${{ secrets.GPG_PASS }}
-  steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        persist-credentials: false
-        
-    - name: build package
-      run: tools/test.sh -p pkg
+  pkg:
+    name: ${{ matrix.pkg }} package
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: [ubuntu-jammy]
+    runs-on: ubuntu-22.04
+    env:
+      pkg_OTP_VERSION: "28.0.2"
+      pkg_PLATFORM: ${{ matrix.pkg }}
+      GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASS: ${{ secrets.GPG_PASS }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          
+      - name: build package
+        run: tools/test.sh -p pkg
 
-    - name: Save Docker image
-      if: always()
-      run: |
-        docker save mongooseim-ubuntu-jammy:6.5.0-1.faca11c1f | gzip > mongooseim-ubuntu-jammy.tar.gz
+      - name: Save Docker image
+        if: always()
+        run: |
+          docker save mongooseim-ubuntu-jammy:6.5.0-1.faca11c1f | gzip > mongooseim-ubuntu-jammy.tar.gz
 
-    - name: Upload Docker image artifact
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: docker-image-${{ matrix.pkg }}
-        path: mongooseim-ubuntu-jammy.tar.gz
-
+      - name: Upload Docker image artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ matrix.pkg }}
+          path: mongooseim-ubuntu-jammy.tar.gz
