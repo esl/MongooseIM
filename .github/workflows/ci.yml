@@ -200,6 +200,7 @@ jobs:
       GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASS: ${{ secrets.GPG_PASS }}
+      
     steps:
       - uses: actions/checkout@v3
         with:
