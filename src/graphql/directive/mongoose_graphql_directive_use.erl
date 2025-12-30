@@ -121,12 +121,13 @@ filter_unloaded_modules(_UseCtx, _Ctx, []) ->
     [];
 filter_unloaded_modules(UseCtx, Ctx, Modules) ->
     ArgValue = get_arg_value(UseCtx, Ctx),
-    % Assume that loaded modules can be checked only when host type can be obtained
     case host_type_from_arg(ArgValue) of
         {ok, HostType} ->
             filter_unloaded_modules(HostType, Modules);
         {error, not_found} ->
-            []
+            % Cannot determine host type - assume modules are not loaded to fail safely.
+            % This prevents crashes when the domain is not configured.
+            Modules
     end.
 
 -spec filter_unloaded_modules(host_type(), [binary()]) -> [binary()].
