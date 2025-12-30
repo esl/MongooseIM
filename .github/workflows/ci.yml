@@ -200,24 +200,23 @@ jobs:
       GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASS: ${{ secrets.GPG_PASS }}
-      
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           persist-credentials: false
-          
+
       - name: build package
         run: tools/test.sh -p pkg
-        
+
       - name: Verify Docker image exists
-      run: |
-        docker images | grep mongooseim-ubuntu-jammy
-        if ! docker image inspect mongooseim-ubuntu-jammy:6.5.0-1.faca11c1f >/dev/null 2>&1; then
-          echo "Docker image not found!"
-          exit 1
-        fi
-        
+        run: |
+          docker images | grep mongooseim-ubuntu-jammy
+          if ! docker image inspect mongooseim-ubuntu-jammy:6.5.0-1.faca11c1f >/dev/null 2>&1; then
+            echo "Docker image not found!"
+            exit 1
+          fi
+
       - name: Save Docker image
         if: always()
         run: |
