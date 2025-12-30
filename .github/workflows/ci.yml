@@ -208,4 +208,17 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - run: tools/test.sh -p pkg
+          
+      - name: build package
+        run: tools/test.sh -p pkg
+
+      - name: upload package artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.pkg }}
+          path: |
+            _build/pkg/**
+            *.deb
+            *.tar.gz   
+     
