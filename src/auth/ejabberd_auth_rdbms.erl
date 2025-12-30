@@ -52,7 +52,12 @@
 
 -export([scram_passwords/2, scram_passwords/4]).
 
--ignore_xref([scram_passwords/2, scram_passwords/4]).
+%% Pagination helpers (exported for testing)
+-export([extract_list_users_opts/1,
+         calculate_list_users_pagination/4]).
+
+-ignore_xref([scram_passwords/2, scram_passwords/4, extract_list_users_opts/1,
+              calculate_list_users_pagination/4]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
@@ -486,20 +491,49 @@ execute_delete_user(HostType, LServer, LUser) ->
 
 -spec execute_list_users(mongooseim:host_type(), jid:lserver(), map()) ->
           mongoose_rdbms:query_result().
-execute_list_users(HostType, LServer, #{from := Start, to := End} = OptMap) ->
-    Map = maps:without([from, to], OptMap),
-    execute_list_users(HostType, LServer, Map#{limit => End - Start + 1, offset => Start - 1});
-execute_list_users(HostType, LServer, #{prefix := Prefix, limit := Limit, offset := Offset}) ->
-    Args = [LServer, prefix_to_like(Prefix), Limit, Offset],
-    execute_successfully(HostType, auth_list_users_prefix_range, Args);
-execute_list_users(HostType, LServer, #{prefix := Prefix}) ->
-    Args = [LServer, prefix_to_like(Prefix)],
-    execute_successfully(HostType, auth_list_users_prefix, Args);
-execute_list_users(HostType, LServer, #{limit := Limit, offset := Offset}) ->
-    Args = [LServer, Limit, Offset],
-    execute_successfully(HostType, auth_list_users_range, Args);
-execute_list_users(HostType, LServer, #{}) ->
-    execute_successfully(HostType, auth_list_users, [LServer]).
+execute_list_users(HostType, LServer, Opts) ->
+    {Limit, Offset, Prefix} = extract_list_users_opts(Opts),
+    select_list_users_query(HostType, LServer, {Prefix, Limit, Offset}).
+
+-spec extract_list_users_opts(map()) ->
+          {Limit :: integer() | undefined, Offset :: integer(), Prefix :: binary() | undefined}.
+extract_list_users_opts(Opts) ->
+    Prefix = maps:get(prefix, Opts, undefined),
+    From = maps:get(from, Opts, undefined),
+    To = maps:get(to, Opts, undefined),
+    Limit = maps:get(limit, Opts, undefined),
+    Offset = maps:get(offset, Opts, 0),
+    {RealLimit, RealOffset} = calculate_list_users_pagination(From, To, Limit, Offset),
+    {RealLimit, RealOffset, Prefix}.
+
+-spec calculate_list_users_pagination(From :: integer() | undefined,
+                                      To :: integer() | undefined,
+                                      Limit :: integer() | undefined,
+                                      Offset :: integer()) ->
+          {Limit :: integer() | undefined, Offset :: integer()}.
+calculate_list_users_pagination(From, To, _Limit, _Offset) when is_integer(From), is_integer(To) ->
+    {To - From + 1, From - 1};
+calculate_list_users_pagination(_From, _To, Limit, Offset) ->
+    {Limit, Offset}.
+
+-spec select_list_users_query(mongooseim:host_type(), jid:lserver(),
+                              {Prefix :: binary() | undefined,
+                               Limit :: integer() | undefined,
+                               Offset :: integer()}) ->
+          mongoose_rdbms:query_result().
+select_list_users_query(HostType, LServer, {undefined, undefined, _Offset}) ->
+    %% No prefix, no limit → fetch all users
+    execute_successfully(HostType, auth_list_users, [LServer]);
+select_list_users_query(HostType, LServer, {undefined, Limit, Offset}) ->
+    %% No prefix, with limit → fetch range
+    execute_successfully(HostType, auth_list_users_range, [LServer, Limit, Offset]);
+select_list_users_query(HostType, LServer, {Prefix, undefined, _Offset}) when is_binary(Prefix) ->
+    %% With prefix, no limit → fetch all matching
+    execute_successfully(HostType, auth_list_users_prefix, [LServer, prefix_to_like(Prefix)]);
+select_list_users_query(HostType, LServer, {Prefix, Limit, Offset}) when is_binary(Prefix) ->
+    %% With prefix and limit → fetch range of matching
+    execute_successfully(HostType, auth_list_users_prefix_range,
+                         [LServer, prefix_to_like(Prefix), Limit, Offset]).
 
 -spec execute_list_users_without_scram(mongooseim:host_type(), jid:lserver(), non_neg_integer()) ->
           mongoose_rdbms:query_result().

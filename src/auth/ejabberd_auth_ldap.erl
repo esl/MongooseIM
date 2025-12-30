@@ -51,9 +51,10 @@
 
 %% Internal
 -export([check_password/4,
-         check_password/6]).
+         check_password/6,
+         slice_users/3]).
 
--ignore_xref([start_link/1]).
+-ignore_xref([start_link/1, slice_users/3]).
 
 -include("mongoose_config_spec.hrl").
 -include_lib("eldap/include/eldap.hrl").
@@ -197,11 +198,24 @@ try_register(HostType, LUser, _LServer, Password) ->
 -spec get_registered_users(HostType :: mongooseim:host_type(),
                            LServer :: jid:lserver(),
                            Opts :: list()) -> [jid:simple_bare_jid()].
-get_registered_users(HostType, LServer, _) ->
+get_registered_users(HostType, LServer, Opts) ->
     case catch get_registered_users_ldap(HostType, LServer) of
       {'EXIT', _} -> [];
-      Result -> Result
+      Result ->
+          Limit = proplists:get_value(limit, Opts),
+          Offset = proplists:get_value(offset, Opts, 0),
+          slice_users(Result, Limit, Offset)
     end.
+
+slice_users(Users, undefined, 0) ->
+    Users;
+slice_users(Users, undefined, Offset) ->
+    SortedUsers = lists:sort(Users),
+    try lists:nthtail(Offset, SortedUsers)
+    catch _:_ -> [] end;
+slice_users(Users, Limit, Offset) ->
+    SortedUsers = lists:sort(Users),
+    lists:sublist(SortedUsers, Offset + 1, Limit).
 
 
 -spec get_registered_users_number(HostType :: mongooseim:host_type(),

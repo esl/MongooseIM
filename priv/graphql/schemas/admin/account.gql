@@ -3,7 +3,7 @@ Allow admin to get information about accounts.
 """
 type AccountAdminQuery @protected{
   "List users per domain"
-  listUsers(domain: DomainName!): [String!]
+  listUsers(domain: DomainName!, limit: PosInt, index: NonNegInt): [String!]
     @protected(type: DOMAIN, args: ["domain"])
   "Get number of users per domain"
   countUsers(domain: DomainName!): Int
