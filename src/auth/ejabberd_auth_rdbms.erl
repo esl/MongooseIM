@@ -56,7 +56,8 @@
 -export([extract_list_users_opts/1,
          calculate_list_users_pagination/4]).
 
--ignore_xref([scram_passwords/2, scram_passwords/4]).
+-ignore_xref([scram_passwords/2, scram_passwords/4, extract_list_users_opts/1,
+              calculate_list_users_pagination/4]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 

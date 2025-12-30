@@ -54,7 +54,7 @@
          check_password/6,
          slice_users/3]).
 
--ignore_xref([start_link/1]).
+-ignore_xref([start_link/1, slice_users/3]).
 
 -include("mongoose_config_spec.hrl").
 -include_lib("eldap/include/eldap.hrl").
