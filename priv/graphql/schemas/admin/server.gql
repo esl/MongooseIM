@@ -11,6 +11,9 @@ type ServerAdminQuery @protected{
   "Get the Erlang cookie of this node"
   getCookie: String
     @protected(type: GLOBAL)
+  "List configured host types with their modules and backends"
+  hostTypes: [HostTypeInfo!]!
+    @protected(type: GLOBAL)
 }
 
 """
@@ -82,4 +85,30 @@ enum LogLevel {
   DEBUG
   "Log everything"
   ALL
+}
+
+"""Backend information for a module (best-effort)."""
+type BackendInfo {
+  "Backend configured in module opts (may be null if not specified)"
+  configured: String
+  "Backend resolved at runtime by mongoose_backend (may be null if not initialized)"
+  runtime: String
+}
+
+"""Information about a loaded module for a given host type."""
+type ModuleInfo {
+  "Module name (atom as string, e.g. 'mod_roster')"
+  name: String!
+  "Backend information when available"
+  backend: BackendInfo
+}
+
+"""Information about a host type."""
+type HostTypeInfo {
+  "Host type name"
+  name: String!
+  "Domains mapped to this host type (may be empty)"
+  domains: [String!]!
+  "Loaded modules for this host type"
+  modules: [ModuleInfo!]!
 }
