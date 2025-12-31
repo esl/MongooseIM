@@ -134,8 +134,29 @@ filter_unloaded_modules(UseCtx, Ctx, Modules) ->
 
 -spec filter_unloaded_modules(host_type(), [binary()]) -> [binary()].
 filter_unloaded_modules(HostType, Modules) ->
-    lists:filter(fun(M) -> not gen_mod:is_loaded(HostType, binary_to_existing_atom(M)) end,
+    lists:filter(fun(M) -> not is_module_loaded(HostType, binary_to_existing_atom(M)) end,
                  Modules).
+
+%% @doc Check if a module is loaded for the given host type.
+%% Special handling for mod_mam_pm and mod_mam_muc which are submodules of mod_mam.
+%% They are enabled via the `pm' and `muc' options in mod_mam config respectively.
+-spec is_module_loaded(host_type(), module()) -> boolean().
+is_module_loaded(HostType, mod_mam_pm) ->
+    is_mam_submodule_enabled(HostType, pm);
+is_module_loaded(HostType, mod_mam_muc) ->
+    is_mam_submodule_enabled(HostType, muc);
+is_module_loaded(HostType, Module) ->
+    gen_mod:is_loaded(HostType, Module).
+
+-spec is_mam_submodule_enabled(host_type(), pm | muc) -> boolean().
+is_mam_submodule_enabled(HostType, SubModule) ->
+    case gen_mod:is_loaded(HostType, mod_mam) of
+        false ->
+            false;
+        true ->
+            Opts = gen_mod:get_loaded_module_opts(HostType, mod_mam),
+            maps:is_key(SubModule, Opts)
+    end.
 
 -spec filter_unloaded_services([binary()]) -> [binary()].
 filter_unloaded_services(Services) ->

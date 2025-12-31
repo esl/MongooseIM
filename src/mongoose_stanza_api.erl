@@ -156,29 +156,24 @@ send(#{host_type := HostType, from := From, to := To, stanza := Stanza}) ->
 
 lookup_messages(#{user := UserJid, with := WithJid, before := Before, limit := Limit,
                   host_type := HostType}) ->
-    case gen_mod:is_loaded(HostType, mod_mam_pm) of
-        false ->
-            {error, not_found};
-        true ->
-            #jid{luser = LUser, lserver = LServer} = UserJid,
-            MaxResultLimit = mod_mam_params:max_result_limit(mod_mam_pm, HostType),
-            Limit2 = min(Limit, MaxResultLimit),
-            Params = #{archive_id => mod_mam_pm:archive_id(LServer, LUser),
-                       owner_jid => UserJid,
-                       borders => undefined,
-                       rsm => #rsm_in{direction = before, id = undefined}, % last msgs
-                       start_ts => undefined,
-                       end_ts => Before,
-                       now => os:system_time(microsecond),
-                       with_jid => WithJid,
-                       search_text => undefined,
-                       page_size => Limit2,
-                       limit_passed => false,
-                       max_result_limit => MaxResultLimit,
-                       is_simple => true},
-            {ok, {_, _, Rows}} = mod_mam_pm:lookup_messages(HostType, Params),
-            {ok, {Rows, Limit2}}
-    end.
+    #jid{luser = LUser, lserver = LServer} = UserJid,
+    MaxResultLimit = mod_mam_params:max_result_limit(mod_mam_pm, HostType),
+    Limit2 = min(Limit, MaxResultLimit),
+    Params = #{archive_id => mod_mam_pm:archive_id(LServer, LUser),
+               owner_jid => UserJid,
+               borders => undefined,
+               rsm => #rsm_in{direction = before, id = undefined}, % last msgs
+               start_ts => undefined,
+               end_ts => Before,
+               now => os:system_time(microsecond),
+               with_jid => WithJid,
+               search_text => undefined,
+               page_size => Limit2,
+               limit_passed => false,
+               max_result_limit => MaxResultLimit,
+               is_simple => true},
+    {ok, {_, _, Rows}} = mod_mam_pm:lookup_messages(HostType, Params),
+    {ok, {Rows, Limit2}}.
 
 do_open_session(#{host_type := HostType, user := JID}) ->
     SID = ejabberd_sm:make_new_sid(),
