@@ -36,7 +36,7 @@
         {report_after :: non_neg_integer(),
          reporter_monitor = none :: none | reference(),
          reporter_pid = none :: none | pid(),
-         exometer_enabled = false :: boolean(),
+         metrics_module = none :: mongoose_system_metrics_collector:metrics_module(),
          prev_report = [] :: [mongoose_system_metrics_collector:report_struct()],
          tracking_ids :: [tracking_id()]}).
 
@@ -104,10 +104,10 @@ init(Opts) ->
             #{initial_report := InitialReport, periodic_report := PeriodicReport} = Opts,
             TrackingIds = tracking_ids(Opts),
             erlang:send_after(InitialReport, self(), spawn_reporter),
-            ExometerEnabled = exometer_loaded(),
+            MetricsModule = detect_metrics_module(),
             {ok, #system_metrics_state{report_after = PeriodicReport,
                                        tracking_ids = TrackingIds,
-                                       exometer_enabled = ExometerEnabled}}
+                                       metrics_module = MetricsModule}}
     end.
 
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
@@ -115,13 +115,13 @@ handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_pid = none,
                                                   prev_report = PrevReport,
                                                   tracking_ids = TrackingIds,
-                                                  exometer_enabled = ExometerEnabled} = State) ->
+                                                  metrics_module = MetricsModule} = State) ->
     ServicePid = self(),
     case get_client_id() of
         {ok, ClientId} ->
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
-                    Reports = mongoose_system_metrics_collector:collect(PrevReport, ExometerEnabled),
+                    Reports = mongoose_system_metrics_collector:collect(PrevReport, MetricsModule),
                     mongoose_system_metrics_sender:send(ClientId, Reports, TrackingIds),
                     mongoose_system_metrics_file:save(Reports),
                     ServicePid ! {prev_report, Reports}
@@ -213,9 +213,13 @@ msg_accept_terms_and_conditions() ->
     "- MongooseIM GitHub page - https://github.com/esl/MongooseIM \n"
     "The last sent report is also written to a file ~s">>.
 
--spec exometer_loaded() -> boolean().
-exometer_loaded() ->
-    case mongoose_config:lookup_opt([instrumentation, exometer]) of
-        {ok, _} -> true;
-        _ -> false
+-spec detect_metrics_module() -> mongoose_system_metrics_collector:metrics_module().
+detect_metrics_module() ->
+    case mongoose_config:lookup_opt([instrumentation, prometheus]) of
+        {ok, _} -> prometheus;
+        _ ->
+            case mongoose_config:lookup_opt([instrumentation, exometer]) of
+                {ok, _} -> exometer;
+                _ -> none
+            end
     end.
