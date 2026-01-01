@@ -31,6 +31,7 @@ all() ->
      can_load_split_schema,
      unexpected_internal_error,
      admin_and_user_load_global_types,
+    admin_schema_has_server_host_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, error_handling},
@@ -134,7 +135,8 @@ user_listener() ->
 
 admin_listener() ->
     [no_creds_defined_admin_can_access_protected,
-     auth_admin_can_access_protected_types | common_tests()].
+     auth_admin_can_access_protected_types,
+     admin_server_get_host_types | common_tests()].
 
 domain_admin_listener() ->
     [auth_domain_admin_can_access_protected_types,
@@ -181,6 +183,32 @@ init_per_group(user_listener, Config) ->
     ListenerOpts = #{schema_endpoint => user},
     init_ep_listener(5557, user_schema_ep, ListenerOpts, Config2);
 init_per_group(admin_listener, Config) ->
+    % Mock mongoose_config for hostTypes query
+    meck:new(mongoose_config, [passthrough, no_link]),
+    meck:expect(mongoose_config, get_opt, fun(hosts) -> [<<"localhost">>];
+                                             (host_types) -> [];
+                                             (Key) -> meck:passthrough([Key])
+                                          end),
+    % Mock gen_mod for module listing
+    meck:new(gen_mod, [passthrough, no_link]),
+    meck:expect(gen_mod, loaded_modules_with_opts,
+                fun(<<"localhost">>) ->
+                    #{mod_roster => #{backend => rdbms},
+                      mod_ping => #{}};
+                   (_) -> #{}
+                end),
+    % Mock mongoose_domain_api for domains
+    meck:new(mongoose_domain_api, [passthrough, no_link]),
+    meck:expect(mongoose_domain_api, get_domains_by_host_type,
+                fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
+                   (_) -> []
+                end),
+    % Mock mongoose_backend for runtime backend info
+    meck:new(mongoose_backend, [passthrough, no_link]),
+    meck:expect(mongoose_backend, get_backend_name,
+                fun(<<"localhost">>, mod_roster) -> rdbms;
+                   (_, _) -> erlang:error(badarg)
+                end),
     ListenerOpts = #{username => <<"admin">>,
                      password => <<"secret">>,
                      schema_endpoint => admin},
@@ -223,6 +251,10 @@ end_per_group(user_listener, Config) ->
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(admin_listener, Config) ->
+    meck:unload(mongoose_config),
+    meck:unload(gen_mod),
+    meck:unload(mongoose_domain_api),
+    meck:unload(mongoose_backend),
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(domain_admin_listener, Config) ->
@@ -350,6 +382,23 @@ admin_and_user_load_global_types(_Config) ->
     ?assertMatch(#scalar_type{id = <<"JID">>}, graphql_schema:get(UserEp, <<"JID">>)),
     ?assertMatch(#directive_type{id = <<"protected">>},
                  graphql_schema:get(UserEp, <<"protected">>)).
+
+admin_schema_has_server_host_types(_Config) ->
+    mongoose_graphql:init(),
+    AdminEp = mongoose_graphql:get_endpoint(admin),
+    ?assertMatch(#object_type{id = <<"ServerAdminQuery">>},
+                 graphql_schema:get(AdminEp, <<"ServerAdminQuery">>)),
+    ?assertMatch(#object_type{id = <<"HostTypeInfo">>},
+                 graphql_schema:get(AdminEp, <<"HostTypeInfo">>)),
+    #object_type{fields = ServerFields} = graphql_schema:get(AdminEp, <<"ServerAdminQuery">>),
+    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"HostTypeInfo">>}}}},
+                 maps:get(<<"hostTypes">>, ServerFields)),
+    #object_type{fields = HostTypeFields} = graphql_schema:get(AdminEp, <<"HostTypeInfo">>),
+    ?assertMatch(#schema_field{ty = {non_null, <<"String">>}}, maps:get(<<"name">>, HostTypeFields)),
+    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"String">>}}}},
+                 maps:get(<<"domains">>, HostTypeFields)),
+    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"ModuleInfo">>}}}},
+                 maps:get(<<"modules">>, HostTypeFields)).
 
 %% Protected graphql
 
@@ -713,6 +762,41 @@ auth_admin_can_access_protected_types(Config) ->
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
     assert_access_granted(Status, Data).
+
+admin_server_get_host_types(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Query = <<"query { server { hostTypes { name domains modules { name backend { configured runtime } } } } }">>,
+    Body = #{query => Query},
+    {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
+    ?assertEqual({<<"200">>, <<"OK">>}, Status),
+    ?assertMatch(#{<<"data">> := #{<<"server">> := #{<<"hostTypes">> := HostTypes}}} when is_list(HostTypes), Data),
+    #{<<"data">> := #{<<"server">> := #{<<"hostTypes">> := HostTypes}}} = Data,
+    % Validate structure of first host type (if any)
+    case HostTypes of
+        [FirstHostType | _] ->
+            ?assertMatch(#{<<"name">> := _}, FirstHostType),
+            ?assertMatch(#{<<"domains">> := Domains} when is_list(Domains), FirstHostType),
+            ?assertMatch(#{<<"modules">> := Modules} when is_list(Modules), FirstHostType),
+            #{<<"modules">> := Modules} = FirstHostType,
+            % Validate module structure
+            lists:foreach(
+                fun(Module) ->
+                    ?assertMatch(#{<<"name">> := _}, Module),
+                    % Backend may be null or an object
+                    case maps:get(<<"backend">>, Module, undefined) of
+                        null -> ok;
+                        undefined -> ok;
+                        Backend when is_map(Backend) ->
+                            % Backend must have configured and runtime fields
+                            ?assert(maps:is_key(<<"configured">>, Backend)),
+                            ?assert(maps:is_key(<<"runtime">>, Backend))
+                    end
+                end,
+                Modules
+            );
+        [] ->
+            ct:pal("No host types returned (empty list)")
+    end.
 
 auth_domain_admin_can_access_protected_types(Config) ->
     Ep = ?config(endpoint_addr, Config),
