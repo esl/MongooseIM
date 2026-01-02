@@ -19,7 +19,8 @@ execute(_Ctx, _Obj, Cmd, _Attrs) when Cmd =:= <<"catA">>;
                                       Cmd =:= <<"command3">>;
                                       Cmd =:= <<"command4">>;
                                       Cmd =:= <<"command5">>;
-                                      Cmd =:= <<"command6">> ->
+                                      Cmd =:= <<"command6">>;
+                                      Cmd =:= <<"commandMamPm">> ->
     {ok, Cmd};
 execute(_Ctx, _Obj, Field, _Attrs) ->
     {error, {not_implemented, Field}}.
