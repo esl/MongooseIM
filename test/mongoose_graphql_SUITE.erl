@@ -304,7 +304,8 @@ init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
                                   C =:= use_dir_auth_admin_module_service_and_db_not_loaded;
                                   C =:= use_dir_auth_admin_db_not_loaded;
                                   C =:= use_dir_auth_user_db_not_loaded;
-                                  C =:= use_dir_host_type_not_found ->
+                                  C =:= use_dir_host_type_not_found;
+                                  C =:= use_dir_mod_mam_pm_loaded ->
     {Mapping, Pattern} = example_directives_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
