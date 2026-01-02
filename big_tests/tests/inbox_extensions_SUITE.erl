@@ -362,6 +362,7 @@ box_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         set_inbox_properties(Bob, Alice, [{box, archive}]),
         % But then Alice keeps writing:
         inbox_helper:send_msg(Alice, Bob, Body),
+        wait_for_auto_unarchive_broadcast(Bob, Alice, false),
         % Then the conversation is automatically in the inbox and not in the archive box
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
                                  #{box => inbox}),
@@ -377,6 +378,7 @@ box_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         set_inbox_properties(Alice, Bob, [{box, archive}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
+        wait_for_auto_unarchive_broadcast(Alice, Bob, true),
         % Then the conversation is automatically in the inbox and not in the archive box
         inbox_helper:check_inbox(Alice, [], #{box => archive}),
         inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
@@ -493,6 +495,7 @@ archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % But then Alice keeps writing:
         inbox_helper:send_msg(Alice, Bob, Body),
+        wait_for_auto_unarchive_broadcast(Bob, Alice, false),
         % Then the conversation is automatically in the active and not in the archive box
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
                                  #{archive => false}),
@@ -508,11 +511,22 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         set_inbox_properties(Alice, Bob, [{archive, true}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
+        wait_for_auto_unarchive_broadcast(Alice, Bob, true),
         % Then the conversation is automatically in the active and not in the archive box
         inbox_helper:check_inbox(Alice, [], #{archive => true}),
         inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
                                  #{archive => false})
     end).
+
+wait_for_auto_unarchive_broadcast(User, Remote, ReadVal) ->
+    Msg = escalus:wait_for_stanza(User),
+    ?assert(escalus_pred:is_message(Msg)),
+    [X] = exml_query:subelements(Msg, <<"x">>),
+    ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
+    ?assertEqual(escalus_utils:get_short_jid(Remote), exml_query:attr(X, <<"jid">>)),
+    assert_property(X, box, inbox),
+    assert_property(X, archive, false),
+    assert_property(X, read, ReadVal).
 
 archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
