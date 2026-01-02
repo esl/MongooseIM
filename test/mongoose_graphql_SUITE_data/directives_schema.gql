@@ -35,6 +35,8 @@ type Category @protected {
     @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_x"], arg: "domain")
   command6(domain: String): String
     @use(modules: ["mod_x"], services: ["service_x"], internal_databases: ["db_x"], arg: "domain")
+  commandMamPm(domain: String): String
+    @use(modules: ["mod_mam_pm"], arg: "domain")
 }
 
 type CategoryB

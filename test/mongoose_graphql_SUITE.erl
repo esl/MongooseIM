@@ -125,8 +125,9 @@ use_directive() ->
      use_dir_auth_admin_module_service_and_db_not_loaded,
      use_dir_auth_user_module_service_and_db_not_loaded,
      use_dir_auth_admin_db_not_loaded,
-     use_dir_auth_user_db_not_loaded,
-     use_dir_host_type_not_found
+    use_dir_auth_user_db_not_loaded,
+    use_dir_host_type_not_found,
+    use_dir_mod_mam_pm_loaded
     ].
 
 user_listener() ->
@@ -162,7 +163,7 @@ common_tests() ->
 
 init_per_suite(Config) ->
     %% Register atoms for `binary_to_existing_atom`
-    [mod_x, mod_z, service_x, service_d, db_x],
+    [mod_x, mod_z, mod_mam, mod_mam_pm, service_x, service_d, db_x],
     application:ensure_all_started(cowboy),
     application:ensure_all_started(jid),
     Config.
@@ -871,6 +872,13 @@ use_dir_module_not_loaded(Config) ->
       path := [<<"catA">>, <<"command">>]
      } = Error.
 
+use_dir_mod_mam_pm_loaded(Config) ->
+    Doc = <<"{catA { commandMamPm(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catA">> => #{<<"commandMamPm">> => <<"commandMamPm">>}}}, Res).
+
 use_dir_all_modules_and_services_loaded(Config) ->
     Doc = <<"{catA { command2(domain: \"localhost\")} }">>,
     Ctx = #{},
@@ -1241,12 +1249,18 @@ unmeck_domain_api(_Config) ->
 
 meck_module_and_service_checking(Config) ->
     LoadedModules = #{<<"test-domain.com">> => [mod_a, mod_d],
-                      <<"localhost">> => [mod_a, mod_b, mod_c]},
+                      <<"localhost">> => [mod_a, mod_b, mod_c, mod_mam]},
     LoadedServices = [service_a, service_b],
     % gen_mod
     meck:new(gen_mod, [no_link]),
     meck:expect(gen_mod, is_loaded,
                 fun (Domain, M) -> lists:member(M, maps:get(Domain, LoadedModules, [])) end),
+    meck:expect(gen_mod, get_loaded_module_opts,
+                fun
+                    (<<"localhost">>, mod_mam) -> #{pm => #{}};
+                    (_, mod_mam) -> #{};
+                    (_, _) -> #{}
+                end),
     % mongoose_service
     meck:new(mongoose_service, [no_link]),
     meck:expect(mongoose_service, is_loaded, fun (M) -> lists:member(M, LoadedServices) end),
