@@ -30,6 +30,16 @@ pipeline {
         }
       }
 
+      options {
+        skipDefaultCheckout()
+      }
+
+      environment {
+        REBAR_CACHE_DIR = "${WORKSPACE}/.rebar3"
+        HEX_HOME        = "${WORKSPACE}/.hex"
+        HOME            = "${WORKSPACE}"
+      }
+
       stages {
 
         stage('Prepare Certs') {
@@ -68,9 +78,7 @@ pipeline {
 
         stage('Small Tests') {
           steps {
-            sh '''
-              tools/test.sh -p small_tests -s true -e true
-            '''
+            sh 'tools/test.sh -p small_tests -s true -e true'
           }
         }
 
@@ -81,9 +89,7 @@ pipeline {
             TLS_DIST = 'true'
           }
           steps {
-            sh '''
-              tools/test.sh -p pgsql_mnesia -s false
-            '''
+            sh 'tools/test.sh -p pgsql_mnesia -s false'
           }
         }
       }
@@ -119,10 +125,14 @@ pipeline {
 
   post {
     always {
-      sh 'ls -lh _build || true'
+      node {
+        sh 'ls -lh _build || true'
+      }
     }
     failure {
-      sh 'tail -100 _build/*/rel/mongooseim/log/*.log || true'
+      node {
+        sh 'tail -100 _build/*/rel/mongooseim/log/*.log || true'
+      }
     }
   }
 }
