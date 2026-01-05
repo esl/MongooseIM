@@ -7,7 +7,7 @@ pipeline {
     }
 
     triggers {
-        // Runs on every push (webhook preferred)
+        // Runs on every push (webhook recommended)
         pollSCM('')
     }
 
@@ -24,6 +24,7 @@ pipeline {
                 sh '''
                     mkdir -p ${CERTS_CACHE_DIR}
                     tools/make-certs-cache-key.sh > ${CERTS_CACHE_KEY_FILE}
+                    echo "Cert cache key:"
                     cat ${CERTS_CACHE_KEY_FILE}
                 '''
             }
@@ -34,7 +35,11 @@ pipeline {
                 sh '''
                     if [ -d "${CERTS_CACHE_DIR}/tools" ]; then
                         echo "Restoring cached certificates"
-                        cp -r ${CERTS_CACHE_DIR}/tools ${WORKSPACE}/ || true
+
+                        # Clean existing certs to avoid permission issues
+                        rm -rf tools/ssl
+
+                        cp -r ${CERTS_CACHE_DIR}/tools ${WORKSPACE}/
                     else
                         echo "No cert cache found"
                     fi
@@ -65,7 +70,9 @@ pipeline {
 
         stage('Validate Certificates') {
             steps {
-                sh 'test -f tools/ssl/mongooseim/key.pem'
+                sh '''
+                    test -f tools/ssl/mongooseim/key.pem
+                '''
             }
         }
 
@@ -84,7 +91,7 @@ pipeline {
                 sh '''
                     tools/circle-generate-config.sh generated_config.yml
                     echo "Generated config:"
-                    ls -l generated_config.yml
+                    ls -lh generated_config.yml
                 '''
             }
         }
