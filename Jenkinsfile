@@ -1,233 +1,114 @@
 pipeline {
-  agent none
+    agent any
 
-  environment {
-    KEEP_COVER_RUNNING = '1'
-    SKIP_AUTO_COMPILE  = 'true'
-    REBAR_CACHE_DIR   = "${WORKSPACE}/.rebar-cache"
-  }
-
-  /***********************
-   * GLOBAL CLEANUP
-   ***********************/
-  stages {
-    stage('Clean workspace') {
-      agent any
-      steps {
-        sh '''
-          set -eux
-          rm -rf _build .rebar3 .rebar-cache || true
-          rm -rf ~/.cache/rebar3 || true
-        '''
-      }
+    environment {
+        CERTS_CACHE_KEY_FILE = "certs_cache_key"
+        CERTS_CACHE_DIR = "${WORKSPACE}/.certs-cache"
     }
 
-    /***********************
-     * SMALL TESTS
-     ***********************/
-    stage('small_tests') {
-      matrix {
-        axes {
-          axis {
-            name 'OTP'
-            values '27.3.4.2', '28.0.2'
-          }
-        }
-        agent {
-          docker {
-            image "erlang:${OTP}"
-            args '-u root'
-          }
-        }
-        stages {
-          stage('Checkout') {
-            steps { checkout scm }
-          }
+    triggers {
+        // Run on every push (when Jenkins is connected to GitHub/GitLab webhook)
+        pollSCM('')   // optional if webhook is configured
+    }
 
-          stage('Clean') {
+    stages {
+
+        stage('Checkout') {
             steps {
-              sh 'rm -rf _build .rebar3 .rebar-cache || true'
+                checkout scm
             }
-          }
+        }
 
-          stage('Run small tests') {
+        stage('Prepare Cert Cache Key') {
             steps {
-              sh 'tools/test.sh -p small_tests -s true -e true'
+                sh '''
+                    mkdir -p ${CERTS_CACHE_DIR}
+                    tools/make-certs-cache-key.sh > ${CERTS_CACHE_KEY_FILE}
+                    cat ${CERTS_CACHE_KEY_FILE}
+                '''
             }
-          }
         }
-      }
-    }
 
-    /***********************
-     * BIG TESTS
-     ***********************/
-    stage('big_tests') {
-      matrix {
-        axes {
-          axis {
-            name 'PRESET'
-            values 'internal_mnesia',
-                   'pgsql_mnesia',
-                   'mysql_redis',
-                   'ldap_mnesia',
-                   'elasticsearch_and_cassandra_mnesia'
-          }
-          axis {
-            name 'OTP'
-            values '28.0.2'
-          }
-        }
-        agent {
-          docker {
-            image "erlang:${OTP}"
-            args '-u root --privileged'
-          }
-        }
-        stages {
-          stage('Checkout') {
-            steps { checkout scm }
-          }
-
-          stage('Clean') {
+        stage('Restore Certificates Cache') {
             steps {
-              sh 'rm -rf _build .rebar3 .rebar-cache || true'
+                sh '''
+                    if [ -d "${CERTS_CACHE_DIR}/tools" ]; then
+                        echo "Restoring cached certificates"
+                        cp -r ${CERTS_CACHE_DIR}/tools ${WORKSPACE}/ || true
+                    else
+                        echo "No cert cache found"
+                    fi
+                '''
             }
-          }
+        }
 
-          stage('Run big tests') {
+        stage('Build Certificates If Missing') {
             steps {
-              sh '''
-                SPEC="default.spec"
-                if [ "$PRESET" = "elasticsearch_and_cassandra_mnesia" ]; then
-                  SPEC="mam.spec"
-                fi
-                tools/test.sh -p $PRESET -t $SPEC
-              '''
+                sh '''
+                    if [ ! -f tools/ssl/mongooseim/key.pem ]; then
+                        echo "Certificates not found, building..."
+                        make certs
+                    else
+                        echo "Certificates already exist, skipping build"
+                    fi
+                '''
             }
-          }
         }
-      }
-    }
 
-    /********************************
-     * DYNAMIC DOMAINS BIG TESTS
-     ********************************/
-    stage('dynamic_domains_big_tests') {
-      matrix {
-        axes {
-          axis {
-            name 'PRESET'
-            values 'pgsql_mnesia', 'mysql_redis'
-          }
-          axis {
-            name 'OTP'
-            values '28.0.2'
-          }
-        }
-        agent {
-          docker {
-            image "erlang:${OTP}"
-            args '-u root --privileged'
-          }
-        }
-        stages {
-          stage('Checkout') {
-            steps { checkout scm }
-          }
-
-          stage('Clean') {
+        stage('Print Cert Hashes') {
             steps {
-              sh 'rm -rf _build .rebar3 .rebar-cache || true'
+                sh '''
+                    find tools/ssl -type f -exec md5sum {} \\; | sort
+                '''
             }
-          }
+        }
 
-          stage('Run dynamic domain tests') {
+        stage('Validate Certificates') {
             steps {
-              sh 'tools/test.sh -p $PRESET -t dynamic_domains.spec'
+                sh '''
+                    test -f tools/ssl/mongooseim/key.pem
+                '''
             }
-          }
         }
-      }
-    }
 
-    /***********************
-     * DIALYZER
-     ***********************/
-    stage('dialyzer') {
-      agent {
-        docker {
-          image 'erlang:27.3.4.2'
-          args '-u root'
+        stage('Save Certificates Cache') {
+            steps {
+                sh '''
+                    rm -rf ${CERTS_CACHE_DIR}/tools
+                    mkdir -p ${CERTS_CACHE_DIR}
+                    cp -r tools ${CERTS_CACHE_DIR}/
+                '''
+            }
         }
-      }
-      steps {
-        checkout scm
-        sh 'rm -rf _build .rebar3 .rebar-cache || true'
-        sh 'tools/test.sh -p dialyzer_only'
-      }
-    }
 
-    /***********************
-     * XREF
-     ***********************/
-    stage('xref') {
-      agent {
-        docker {
-          image 'erlang:27.3.4.2'
-          args '-u root'
+        stage('Generate Config') {
+            steps {
+                sh '''
+                    tools/circle-generate-config.sh generated_config.yml
+                    echo "Generated config:"
+                    ls -l generated_config.yml
+                '''
+            }
         }
-      }
-      steps {
-        checkout scm
-        sh 'rm -rf _build .rebar3 .rebar-cache || true'
-        sh 'tools/test.sh -p xref_only'
-      }
+
+        // OPTIONAL: run build/test steps that were in generated_config.yml
+        // stage('Build / Test') {
+        //     steps {
+        //         sh 'make test'
+        //     }
+        // }
+
     }
 
-    /***********************
-     * EDOC
-     ***********************/
-    stage('edoc') {
-      agent {
-        docker {
-          image 'erlang:27.3.4.2'
-          args '-u root'
+    post {
+        always {
+            archiveArtifacts artifacts: 'generated_config.yml', fingerprint: true
         }
-      }
-      steps {
-        checkout scm
-        sh 'rm -rf _build .rebar3 .rebar-cache || true'
-        sh 'tools/test.sh -p edoc_only'
-      }
+        failure {
+            echo "❌ Pipeline failed"
+        }
+        success {
+            echo "✅ Pipeline completed successfully"
+        }
     }
-
-    /***********************
-     * PKG (Ubuntu only)
-     ***********************/
-    stage('pkg') {
-      agent { label 'linux' }   // Ubuntu Jenkins node (NOT Docker)
-      environment {
-        pkg_OTP_VERSION = '28.0.2'
-        pkg_PLATFORM    = 'ubuntu-jammy'
-        GPG_PUBLIC_KEY  = credentials('gpg-public-key')
-        GPG_PRIVATE_KEY = credentials('gpg-private-key')
-        GPG_PASS        = credentials('gpg-pass')
-      }
-      steps {
-        checkout scm
-
-        sh '''
-          sudo apt-get update
-          sudo apt-get install -y \
-            dpkg rpm fakeroot gnupg \
-            build-essential curl
-        '''
-
-        sh 'rm -rf _build .rebar3 .rebar-cache || true'
-        sh 'tools/test.sh -p pkg'
-      }
-    }
-  }
 }
-
