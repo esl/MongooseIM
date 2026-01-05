@@ -3,7 +3,6 @@ pipeline {
 
   options {
     timestamps()
-    ansiColor('xterm')
     timeout(time: 4, unit: 'HOURS')
   }
 
@@ -22,9 +21,6 @@ pipeline {
 
   stages {
 
-    /*********************************
-     * SMALL TESTS
-     *********************************/
     stage('small_tests') {
       matrix {
         axes {
@@ -60,7 +56,7 @@ pipeline {
             steps { checkout scm }
           }
 
-          stage('Create certs') {
+          stage('Certs') {
             steps { sh 'make certs' }
           }
 
@@ -71,17 +67,8 @@ pipeline {
           }
         }
       }
-
-      post {
-        failure {
-          sh 'tools/gh-upload-to-s3.sh _build/test/logs test_logs || true'
-        }
-      }
     }
 
-    /*********************************
-     * BIG TESTS
-     *********************************/
     stage('big_tests') {
       matrix {
         axes {
@@ -107,7 +94,7 @@ pipeline {
         }
 
         stages {
-          stage('Install deps') {
+          stage('Deps') {
             steps {
               sh '''
                 apt-get update
@@ -115,8 +102,7 @@ pipeline {
                   build-essential \
                   unixodbc-dev \
                   libssl-dev \
-                  libncurses-dev \
-                  git curl ca-certificates
+                  libncurses-dev
               '''
             }
           }
@@ -128,27 +114,18 @@ pipeline {
           stage('Run big tests') {
             steps {
               sh '''
-                TEST_SPEC="default.spec"
+                SPEC="default.spec"
                 if [ "$PRESET" = "elasticsearch_and_cassandra_mnesia" ]; then
-                  TEST_SPEC="mam.spec"
+                  SPEC="mam.spec"
                 fi
-                tools/test.sh -p "$PRESET" -t "$TEST_SPEC"
+                tools/test.sh -p "$PRESET" -t "$SPEC"
               '''
             }
           }
         }
       }
-
-      post {
-        failure {
-          sh 'tools/gh-upload-to-s3.sh big_tests/ct_report || true'
-        }
-      }
     }
 
-    /*********************************
-     * DYNAMIC DOMAINS BIG TESTS
-     *********************************/
     stage('dynamic_domains_big_tests') {
       matrix {
         axes {
@@ -170,15 +147,13 @@ pipeline {
         }
 
         stages {
-          stage('Install deps') {
+          stage('Deps') {
             steps {
               sh '''
                 apt-get update
                 apt-get install -y \
                   build-essential \
-                  unixodbc-dev \
-                  libssl-dev \
-                  libncurses-dev
+                  unixodbc-dev
               '''
             }
           }
@@ -187,24 +162,15 @@ pipeline {
             steps { checkout scm }
           }
 
-          stage('Run dynamic domain tests') {
+          stage('Run tests') {
             steps {
               sh 'tools/test.sh -p $PRESET -t dynamic_domains.spec'
             }
           }
         }
       }
-
-      post {
-        failure {
-          sh 'tools/gh-upload-to-s3.sh big_tests/ct_report || true'
-        }
-      }
     }
 
-    /*********************************
-     * DIALYZER
-     *********************************/
     stage('dialyzer') {
       agent {
         docker {
@@ -218,9 +184,6 @@ pipeline {
       }
     }
 
-    /*********************************
-     * XREF
-     *********************************/
     stage('xref') {
       agent {
         docker {
@@ -234,9 +197,6 @@ pipeline {
       }
     }
 
-    /*********************************
-     * EDOC
-     *********************************/
     stage('edoc') {
       agent {
         docker {
@@ -250,9 +210,6 @@ pipeline {
       }
     }
 
-    /*********************************
-     * PKG (HOST UBUNTU ONLY)
-     *********************************/
     stage('pkg') {
       agent any
       environment {
@@ -276,10 +233,10 @@ pipeline {
       archiveArtifacts artifacts: '_build/**/log/**,ct.log', allowEmptyArchive: true
     }
     success {
-      echo '✅ CI pipeline completed successfully'
+      echo 'CI SUCCESS'
     }
     failure {
-      echo '❌ CI pipeline failed'
+      echo 'CI FAILED'
     }
   }
 }
