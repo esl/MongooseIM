@@ -7,12 +7,15 @@ pipeline {
   }
 
   environment {
-    SKIP_CERT_BUILD = '1'
+    SKIP_CERT_BUILD   = '1'
     SKIP_AUTO_COMPILE = 'true'
   }
 
   stages {
 
+    /* =======================
+       CHECKOUT
+       ======================= */
     stage('Checkout') {
       agent any
       steps {
@@ -22,11 +25,14 @@ pipeline {
       }
     }
 
+    /* =======================
+       BUILD + TEST (OTP 28)
+       ======================= */
     stage('Build & Test (OTP 28)') {
       agent {
         docker {
           image 'erlangsolutions/erlang:cimg-28.0.2'
-          args '--network host -v /var/run/docker.sock:/var/run/docker.sock'
+          args '--network host'
         }
       }
 
@@ -54,7 +60,7 @@ pipeline {
         stage('Build Dependencies') {
           steps {
             sh '''
-              tools/configure
+              tools/configure with-all
               tools/build-deps.sh
               tools/build-test-deps.sh
             '''
@@ -84,8 +90,8 @@ pipeline {
 
         stage('Big Tests (pgsql_mnesia)') {
           environment {
-            PRESET = 'pgsql_mnesia'
-            DB = 'postgres redis'
+            PRESET   = 'pgsql_mnesia'
+            DB       = 'postgres redis'
             TLS_DIST = 'true'
           }
           steps {
@@ -95,6 +101,10 @@ pipeline {
       }
     }
 
+    /* =======================
+       DOCKER BUILD & PUSH
+       (ONLY ON TAG)
+       ======================= */
     stage('Build & Push Docker Image') {
       when {
         buildingTag()
@@ -121,16 +131,35 @@ pipeline {
         }
       }
     }
+
+    /* =======================
+       DOCKER SMOKE TEST
+       ======================= */
+    stage('Docker Smoke Test') {
+      when {
+        buildingTag()
+      }
+      agent any
+      steps {
+        sh '''
+          source tools/circleci-prepare-mongooseim-docker.sh
+          ./smoke_test.sh
+        '''
+      }
+    }
   }
 
+  /* =======================
+     POST ACTIONS
+     ======================= */
   post {
     always {
-      node {
+      node('any') {
         sh 'ls -lh _build || true'
       }
     }
     failure {
-      node {
+      node('any') {
         sh 'tail -100 _build/*/rel/mongooseim/log/*.log || true'
       }
     }
