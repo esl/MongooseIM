@@ -5,20 +5,16 @@ pipeline {
     KEEP_COVER_RUNNING = '1'
     SKIP_AUTO_COMPILE  = 'true'
 
-    // AWS creds from Jenkins Credentials
-    AWS_DEFAULT_REGION     = 'u-central-003'
+    // Backblaze B2 / S3-compatible
+    AWS_DEFAULT_REGION     = 'eu-central-003'
     AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
     AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-
-    // Optional (only if scripts need them)
-  //  GA4_API_SECRET        = credentials('ga4-api-secret')
-  //  GA4_MEASUREMENT_API   = credentials('ga4-measurement-api')
   }
 
   stages {
 
     /***********************
-     * SMALL TESTS (KEEP)
+     * SMALL TESTS
      ***********************/
     stage('small_tests') {
       matrix {
@@ -38,15 +34,11 @@ pipeline {
 
         stages {
           stage('Checkout') {
-            steps {
-              checkout scm
-            }
+            steps { checkout scm }
           }
 
           stage('Create certificates') {
-            steps {
-              sh 'make certs'
-            }
+            steps { sh 'make certs' }
           }
 
           stage('Run small tests') {
@@ -81,13 +73,12 @@ pipeline {
             values 'internal_mnesia',
                    'pgsql_mnesia',
                    'mysql_redis',
-                   'odbc_mssql_mnesia',
                    'ldap_mnesia',
                    'elasticsearch_and_cassandra_mnesia'
           }
           axis {
             name 'OTP'
-            values '28.0.2'
+            values '28.0.2',
           }
         }
 
@@ -100,21 +91,12 @@ pipeline {
 
         stages {
           stage('Checkout') {
-            steps {
-              checkout scm
-            }
+            steps { checkout scm }
           }
 
           stage('Run big tests') {
             steps {
-              sh '''
-                TEST_SPEC="default.spec"
-                if [ "$PRESET" = "elasticsearch_and_cassandra_mnesia" ]; then
-                  TEST_SPEC="mam.spec"
-                fi
-
-                tools/test.sh -p $PRESET -t $TEST_SPEC
-              '''
+              sh 'tools/test.sh -p $PRESET'
             }
           }
         }
@@ -135,9 +117,7 @@ pipeline {
         axes {
           axis {
             name 'PRESET'
-            values 'pgsql_mnesia',
-                   'mysql_redis',
-                   'odbc_mssql_mnesia'
+            values 'pgsql_mnesia', 'mysql_redis'
           }
           axis {
             name 'OTP'
@@ -154,14 +134,12 @@ pipeline {
 
         stages {
           stage('Checkout') {
-            steps {
-              checkout scm
-            }
+            steps { checkout scm }
           }
 
           stage('Run dynamic domains tests') {
             steps {
-              sh 'tools/test.sh -p $PRESET -t dynamic_domains.spec'
+              sh 'tools/test.sh -p $PRESET'
             }
           }
         }
@@ -171,6 +149,72 @@ pipeline {
             sh 'tools/gh-upload-to-s3.sh big_tests/ct_report || true'
           }
         }
+      }
+    }
+
+    /***********************
+     * DIALYZER
+     ***********************/
+    stage('dialyzer') {
+      agent {
+        docker {
+          image 'erlang:27.3.4.2'
+          args '-u root'
+        }
+      }
+      steps {
+        checkout scm
+        sh 'tools/test.sh -p dialyzer_only'
+      }
+    }
+
+    /***********************
+     * XREF
+     ***********************/
+    stage('xref') {
+      agent {
+        docker {
+          image 'erlang:27.3.4.2'
+          args '-u root'
+        }
+      }
+      steps {
+        checkout scm
+        sh 'tools/test.sh -p xref_only'
+      }
+    }
+
+    /***********************
+     * EDOC
+     ***********************/
+    stage('edoc') {
+      agent {
+        docker {
+          image 'erlang:27.3.4.2'
+          args '-u root'
+        }
+      }
+      steps {
+        checkout scm
+        sh 'tools/test.sh -p edoc_only'
+      }
+    }
+
+    /***********************
+     * PKG (HOST UBUNTU ONLY)
+     ***********************/
+    stage('pkg') {
+      agent any   // MUST run on Ubuntu host, NOT Docker
+      environment {
+        pkg_OTP_VERSION = '28.0.2'
+        pkg_PLATFORM    = 'ubuntu-jammy'
+        GPG_PUBLIC_KEY  = credentials('gpg-public-key')
+        GPG_PRIVATE_KEY = credentials('gpg-private-key')
+        GPG_PASS        = credentials('gpg-pass')
+      }
+      steps {
+        checkout scm
+        sh 'tools/test.sh -p pkg'
       }
     }
   }
