@@ -1,118 +1,194 @@
 pipeline {
-    agent any
+  agent any
 
-    environment {
-        CERTS_CACHE_KEY_FILE = "certs_cache_key"
-        CERTS_CACHE_DIR = "${WORKSPACE}/.certs-cache"
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+  }
+
+  triggers {
+    // Trigger via GitHub webhook or polling
+    githubPush()
+  }
+
+  environment {
+    SKIP_CERT_BUILD   = '1'
+    SKIP_AUTO_COMPILE = 'true'
+  }
+
+  stages {
+
+    /* ============================================================
+       CHECKOUT
+       ============================================================ */
+    stage('Checkout') {
+      steps {
+        checkout scm
+        sh 'git describe --tags --exact-match || true'
+      }
     }
 
-    triggers {
-        pollSCM('')
+    /* ============================================================
+       CIRCLECI DYNAMIC CONFIG (TEMP – FOR PARITY)
+       ============================================================ */
+    stage('Generate CircleCI Config') {
+      steps {
+        sh '''
+          tools/circle-generate-config.sh generated_config.yml
+          ls -lh generated_config.yml
+        '''
+      }
     }
 
-    stages {
-
-        stage('Clean Workspace') {
-            steps {
-                cleanWs()
-            }
-        }
-
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Prepare Cert Cache Key') {
-            steps {
-                sh '''
-                    mkdir -p ${CERTS_CACHE_DIR}
-                    tools/make-certs-cache-key.sh > ${CERTS_CACHE_KEY_FILE}
-                    echo "Cert cache key:"
-                    cat ${CERTS_CACHE_KEY_FILE}
-                '''
-            }
-        }
-
-        stage('Restore Certificates Cache') {
-            steps {
-                sh '''
-                    if [ -d "${CERTS_CACHE_DIR}/tools" ]; then
-                        echo "Restoring cached certificates"
-                        cp -r ${CERTS_CACHE_DIR}/tools ${WORKSPACE}/
-                    else
-                        echo "No cert cache found"
-                    fi
-                '''
-            }
-        }
-
-        stage('Build Certificates If Missing') {
-            steps {
-                sh '''
-                    if [ ! -f tools/ssl/mongooseim/key.pem ]; then
-                        echo "Certificates not found, building..."
-                        make certs
-                    else
-                        echo "Certificates already exist, skipping build"
-                    fi
-                '''
-            }
-        }
-
-        stage('Print Cert Hashes') {
-            steps {
-                sh '''
-                    find tools/ssl -type f -exec md5sum {} \\; | sort
-                '''
-            }
-        }
-
-        stage('Validate Certificates') {
-            steps {
-                sh 'test -f tools/ssl/mongooseim/key.pem'
-            }
-        }
-
-        stage('Save Certificates Cache') {
-            steps {
-                sh '''
-                    rm -rf ${CERTS_CACHE_DIR}/tools
-                    mkdir -p ${CERTS_CACHE_DIR}
-                    cp -r tools ${CERTS_CACHE_DIR}/
-                '''
-            }
-        }
-
-        stage('Generate Config') {
-            steps {
-                sh '''
-                    tools/circle-generate-config.sh generated_config.yml
-                    ls -lh generated_config.yml
-                '''
-            }
-        }
-
-        stage('Make Test') {
-            steps {
-                sh '''
-                    echo "Running tests"
-                    make test
-                '''
-            }
-        }
+    /* ============================================================
+       CERTS (CACHED)
+       ============================================================ */
+    stage('Prepare Certs') {
+      steps {
+        sh '''
+          tools/make-certs-cache-key.sh > certs_cache_key || true
+          test -f tools/ssl/mongooseim/key.pem || make certs
+        '''
+      }
     }
 
-    post {
-        always {
-            archiveArtifacts artifacts: 'generated_config.yml', fingerprint: true
-        }
-        success {
-            echo "✅ Pipeline completed successfully"
-        }
-        failure {
-            echo "❌ Pipeline failed"
-        }
+    /* ============================================================
+       BUILD DEPENDENCIES
+       ============================================================ */
+    stage('Build Dependencies') {
+      steps {
+        sh '''
+          tools/configure with-all
+          tools/build-deps.sh
+          tools/build-test-deps.sh
+        '''
+      }
     }
+
+    /* ============================================================
+       COMPILE
+       ============================================================ */
+    stage('Compile') {
+      steps {
+        sh './rebar3 compile'
+      }
+    }
+
+    /* ============================================================
+       RELEASE BUILD
+       ============================================================ */
+    stage('Build Release Artifacts') {
+      steps {
+        sh '''
+          ./tools/build-releases.sh
+          make rel
+          make xeplist
+        '''
+      }
+    }
+
+    /* ============================================================
+       SMALL TESTS
+       ============================================================ */
+    stage('Small Tests (OTP 28)') {
+      agent {
+        docker {
+          image 'erlangsolutions/erlang:cimg-28.0.2'
+          args '--network host'
+        }
+      }
+      steps {
+        sh '''
+          tools/wait-for-it.sh -p 6379 || true
+          tools/test.sh -p small_tests -s true -e true
+        '''
+      }
+    }
+
+    /* ============================================================
+       BIG TESTS
+       ============================================================ */
+    stage('Big Tests (pgsql_mnesia)') {
+      agent {
+        docker {
+          image 'erlangsolutions/erlang:cimg-28.0.2'
+          args '--network host'
+        }
+      }
+      environment {
+        PRESET   = 'pgsql_mnesia'
+        DB       = 'postgres redis'
+        TLS_DIST = 'true'
+      }
+      steps {
+        sh '''
+          ./tools/circle-wait-for-db.sh
+          ./tools/test.sh -p pgsql_mnesia -s false
+        '''
+      }
+    }
+
+    /* ============================================================
+       DOCKER BUILD & PUSH (TAG ONLY)
+       ============================================================ */
+    stage('Build & Push Docker Image') {
+      when {
+        buildingTag()
+      }
+      steps {
+        withCredentials([
+          usernamePassword(
+            credentialsId: 'dockerhub-creds',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASS'
+          )
+        ]) {
+          sh '''
+            docker version
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+            # CircleCI-equivalent docker build & push
+            tools/circle-build-and-push-docker.sh
+
+            docker logout || true
+          '''
+        }
+      }
+    }
+
+    /* ============================================================
+       DOCKER SMOKE TEST
+       ============================================================ */
+    stage('Docker Smoke Test') {
+      when {
+        buildingTag()
+      }
+      steps {
+        sh '''
+          source tools/circleci-prepare-mongooseim-docker.sh
+          ./smoke_test.sh
+        '''
+      }
+    }
+  }
+
+  /* ============================================================
+     POST ACTIONS
+     ============================================================ */
+  post {
+    always {
+      sh 'tools/prepare-log-dir.sh || true'
+    }
+
+    success {
+      archiveArtifacts artifacts: '''
+        generated_config.yml
+        _build/**/rel/mongooseim/**
+      ''', fingerprint: true
+    }
+
+    failure {
+      sh 'tail -100 _build/*/rel/mongooseim/log/*.log || true'
+    }
+  }
 }
