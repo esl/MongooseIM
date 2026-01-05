@@ -11,8 +11,8 @@ pipeline {
     AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
 
     // Optional (only if scripts need them)
-    GA4_API_SECRET        = credentials('ga4-api-secret')
-    GA4_MEASUREMENT_API   = credentials('ga4-measurement-api')
+  //  GA4_API_SECRET        = credentials('ga4-api-secret')
+  //  GA4_MEASUREMENT_API   = credentials('ga4-measurement-api')
   }
 
   stages {
