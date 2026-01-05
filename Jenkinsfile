@@ -7,8 +7,8 @@ pipeline {
     }
 
     triggers {
-        // Run on every push (when Jenkins is connected to GitHub/GitLab webhook)
-        pollSCM('')   // optional if webhook is configured
+        // Runs on every push (webhook preferred)
+        pollSCM('')
     }
 
     stages {
@@ -65,9 +65,7 @@ pipeline {
 
         stage('Validate Certificates') {
             steps {
-                sh '''
-                    test -f tools/ssl/mongooseim/key.pem
-                '''
+                sh 'test -f tools/ssl/mongooseim/key.pem'
             }
         }
 
@@ -91,13 +89,14 @@ pipeline {
             }
         }
 
-        // OPTIONAL: run build/test steps that were in generated_config.yml
-        // stage('Build / Test') {
-        //     steps {
-        //         sh 'make test'
-        //     }
-        // }
-
+        stage('Make Test') {
+            steps {
+                sh '''
+                    echo "Running tests"
+                    make test
+                '''
+            }
+        }
     }
 
     post {
