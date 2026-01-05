@@ -5,7 +5,6 @@ pipeline {
     KEEP_COVER_RUNNING = '1'
     SKIP_AUTO_COMPILE  = 'true'
 
-    // Backblaze B2 / S3-compatible
     AWS_DEFAULT_REGION     = 'eu-central-003'
     AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
     AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
@@ -53,11 +52,11 @@ pipeline {
             }
           }
         }
+      }
 
-        post {
-          failure {
-            sh 'tools/gh-upload-to-s3.sh _build/test/logs test_logs || true'
-          }
+      post {
+        failure {
+          sh 'tools/gh-upload-to-s3.sh _build/test/logs test_logs || true'
         }
       }
     }
@@ -78,7 +77,7 @@ pipeline {
           }
           axis {
             name 'OTP'
-            values '28.0.2',
+            values '28.0.2'
           }
         }
 
@@ -100,11 +99,11 @@ pipeline {
             }
           }
         }
+      }
 
-        post {
-          failure {
-            sh 'tools/gh-upload-to-s3.sh big_tests/ct_report || true'
-          }
+      post {
+        failure {
+          sh 'tools/gh-upload-to-s3.sh big_tests/ct_report || true'
         }
       }
     }
@@ -143,11 +142,11 @@ pipeline {
             }
           }
         }
+      }
 
-        post {
-          failure {
-            sh 'tools/gh-upload-to-s3.sh big_tests/ct_report || true'
-          }
+      post {
+        failure {
+          sh 'tools/gh-upload-to-s3.sh big_tests/ct_report || true'
         }
       }
     }
@@ -201,10 +200,10 @@ pipeline {
     }
 
     /***********************
-     * PKG (HOST UBUNTU ONLY)
+     * PKG (UBUNTU HOST)
      ***********************/
     stage('pkg') {
-      agent any   // MUST run on Ubuntu host, NOT Docker
+      agent any
       environment {
         pkg_OTP_VERSION = '28.0.2'
         pkg_PLATFORM    = 'ubuntu-jammy'
