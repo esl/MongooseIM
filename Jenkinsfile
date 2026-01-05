@@ -4,12 +4,12 @@ pipeline {
   environment {
     KEEP_COVER_RUNNING = '1'
     SKIP_AUTO_COMPILE  = 'true'
-    PRESET = 'small_tests'
+    PRESET             = 'small_tests'
   }
 
   stages {
 
-    stage('small_tests') {
+    stage('Small Tests Matrix') {
       matrix {
         axes {
           axis {
@@ -21,7 +21,8 @@ pipeline {
         agent {
           docker {
             image "erlang:${OTP}"
-            args '-u root'
+            args '--user root'
+            reuseNode true
           }
         }
 
@@ -33,7 +34,24 @@ pipeline {
             }
           }
 
-          stage('Cache rebar3') {
+          stage('Install system dependencies') {
+            steps {
+              sh '''
+                apt-get update
+                apt-get install -y \
+                  build-essential \
+                  gcc \
+                  g++ \
+                  make \
+                  unixodbc-dev \
+                  libssl-dev \
+                  git \
+                  curl
+              '''
+            }
+          }
+
+          stage('Prepare rebar3 cache') {
             steps {
               sh 'mkdir -p ~/.cache/rebar3'
             }
@@ -52,6 +70,9 @@ pipeline {
           }
 
           stage('Prepare coverage') {
+            when {
+              expression { fileExists('rebar3') }
+            }
             steps {
               sh './rebar3 codecov analyze --lcov --json false'
             }
