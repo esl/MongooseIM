@@ -1,26 +1,30 @@
 pipeline {
   agent none
 
-  options {
-    timestamps()
-    timeout(time: 4, unit: 'HOURS')
-  }
-
   environment {
     KEEP_COVER_RUNNING = '1'
     SKIP_AUTO_COMPILE  = 'true'
-
-    AWS_DEFAULT_REGION     = 'eu-central-003'
-    AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
-    AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-
-    GPG_PUBLIC_KEY  = credentials('gpg-public-key')
-    GPG_PRIVATE_KEY = credentials('gpg-private-key')
-    GPG_PASS        = credentials('gpg-pass')
+    REBAR_CACHE_DIR   = "${WORKSPACE}/.rebar-cache"
   }
 
+  /***********************
+   * GLOBAL CLEANUP
+   ***********************/
   stages {
+    stage('Clean workspace') {
+      agent any
+      steps {
+        sh '''
+          set -eux
+          rm -rf _build .rebar3 .rebar-cache || true
+          rm -rf ~/.cache/rebar3 || true
+        '''
+      }
+    }
 
+    /***********************
+     * SMALL TESTS
+     ***********************/
     stage('small_tests') {
       matrix {
         axes {
@@ -29,35 +33,21 @@ pipeline {
             values '27.3.4.2', '28.0.2'
           }
         }
-
         agent {
           docker {
             image "erlang:${OTP}"
-            args '-u root --privileged'
+            args '-u root'
           }
         }
-
         stages {
-          stage('Install deps') {
-            steps {
-              sh '''
-                apt-get update
-                apt-get install -y \
-                  build-essential \
-                  unixodbc-dev \
-                  libssl-dev \
-                  libncurses-dev \
-                  git curl ca-certificates
-              '''
-            }
-          }
-
           stage('Checkout') {
             steps { checkout scm }
           }
 
-          stage('Certs') {
-            steps { sh 'make certs' }
+          stage('Clean') {
+            steps {
+              sh 'rm -rf _build .rebar3 .rebar-cache || true'
+            }
           }
 
           stage('Run small tests') {
@@ -69,6 +59,9 @@ pipeline {
       }
     }
 
+    /***********************
+     * BIG TESTS
+     ***********************/
     stage('big_tests') {
       matrix {
         axes {
@@ -85,30 +78,21 @@ pipeline {
             values '28.0.2'
           }
         }
-
         agent {
           docker {
             image "erlang:${OTP}"
             args '-u root --privileged'
           }
         }
-
         stages {
-          stage('Deps') {
-            steps {
-              sh '''
-                apt-get update
-                apt-get install -y \
-                  build-essential \
-                  unixodbc-dev \
-                  libssl-dev \
-                  libncurses-dev
-              '''
-            }
-          }
-
           stage('Checkout') {
             steps { checkout scm }
+          }
+
+          stage('Clean') {
+            steps {
+              sh 'rm -rf _build .rebar3 .rebar-cache || true'
+            }
           }
 
           stage('Run big tests') {
@@ -118,7 +102,7 @@ pipeline {
                 if [ "$PRESET" = "elasticsearch_and_cassandra_mnesia" ]; then
                   SPEC="mam.spec"
                 fi
-                tools/test.sh -p "$PRESET" -t "$SPEC"
+                tools/test.sh -p $PRESET -t $SPEC
               '''
             }
           }
@@ -126,6 +110,9 @@ pipeline {
       }
     }
 
+    /********************************
+     * DYNAMIC DOMAINS BIG TESTS
+     ********************************/
     stage('dynamic_domains_big_tests') {
       matrix {
         axes {
@@ -138,31 +125,24 @@ pipeline {
             values '28.0.2'
           }
         }
-
         agent {
           docker {
             image "erlang:${OTP}"
             args '-u root --privileged'
           }
         }
-
         stages {
-          stage('Deps') {
-            steps {
-              sh '''
-                apt-get update
-                apt-get install -y \
-                  build-essential \
-                  unixodbc-dev
-              '''
-            }
-          }
-
           stage('Checkout') {
             steps { checkout scm }
           }
 
-          stage('Run tests') {
+          stage('Clean') {
+            steps {
+              sh 'rm -rf _build .rebar3 .rebar-cache || true'
+            }
+          }
+
+          stage('Run dynamic domain tests') {
             steps {
               sh 'tools/test.sh -p $PRESET -t dynamic_domains.spec'
             }
@@ -171,6 +151,9 @@ pipeline {
       }
     }
 
+    /***********************
+     * DIALYZER
+     ***********************/
     stage('dialyzer') {
       agent {
         docker {
@@ -180,10 +163,14 @@ pipeline {
       }
       steps {
         checkout scm
+        sh 'rm -rf _build .rebar3 .rebar-cache || true'
         sh 'tools/test.sh -p dialyzer_only'
       }
     }
 
+    /***********************
+     * XREF
+     ***********************/
     stage('xref') {
       agent {
         docker {
@@ -193,10 +180,14 @@ pipeline {
       }
       steps {
         checkout scm
+        sh 'rm -rf _build .rebar3 .rebar-cache || true'
         sh 'tools/test.sh -p xref_only'
       }
     }
 
+    /***********************
+     * EDOC
+     ***********************/
     stage('edoc') {
       agent {
         docker {
@@ -206,37 +197,37 @@ pipeline {
       }
       steps {
         checkout scm
+        sh 'rm -rf _build .rebar3 .rebar-cache || true'
         sh 'tools/test.sh -p edoc_only'
       }
     }
 
+    /***********************
+     * PKG (Ubuntu only)
+     ***********************/
     stage('pkg') {
-      agent any
+      agent { label 'linux' }   // Ubuntu Jenkins node (NOT Docker)
       environment {
         pkg_OTP_VERSION = '28.0.2'
         pkg_PLATFORM    = 'ubuntu-jammy'
+        GPG_PUBLIC_KEY  = credentials('gpg-public-key')
+        GPG_PRIVATE_KEY = credentials('gpg-private-key')
+        GPG_PASS        = credentials('gpg-pass')
       }
       steps {
         checkout scm
+
         sh '''
-          which dpkg
-          which fakeroot
-          which gpg
-          tools/test.sh -p pkg
+          sudo apt-get update
+          sudo apt-get install -y \
+            dpkg rpm fakeroot gnupg \
+            build-essential curl
         '''
+
+        sh 'rm -rf _build .rebar3 .rebar-cache || true'
+        sh 'tools/test.sh -p pkg'
       }
     }
   }
-
-  post {
-    always {
-      archiveArtifacts artifacts: '_build/**/log/**,ct.log', allowEmptyArchive: true
-    }
-    success {
-      echo 'CI SUCCESS'
-    }
-    failure {
-      echo 'CI FAILED'
-    }
-  }
 }
+
