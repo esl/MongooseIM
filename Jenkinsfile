@@ -7,11 +7,16 @@ pipeline {
     }
 
     triggers {
-        // Runs on every push (webhook recommended)
         pollSCM('')
     }
 
     stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
 
         stage('Checkout') {
             steps {
@@ -35,10 +40,6 @@ pipeline {
                 sh '''
                     if [ -d "${CERTS_CACHE_DIR}/tools" ]; then
                         echo "Restoring cached certificates"
-
-                        # Clean existing certs to avoid permission issues
-                        rm -rf tools/ssl
-
                         cp -r ${CERTS_CACHE_DIR}/tools ${WORKSPACE}/
                     else
                         echo "No cert cache found"
@@ -70,9 +71,7 @@ pipeline {
 
         stage('Validate Certificates') {
             steps {
-                sh '''
-                    test -f tools/ssl/mongooseim/key.pem
-                '''
+                sh 'test -f tools/ssl/mongooseim/key.pem'
             }
         }
 
@@ -90,7 +89,6 @@ pipeline {
             steps {
                 sh '''
                     tools/circle-generate-config.sh generated_config.yml
-                    echo "Generated config:"
                     ls -lh generated_config.yml
                 '''
             }
@@ -110,11 +108,11 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'generated_config.yml', fingerprint: true
         }
-        failure {
-            echo "❌ Pipeline failed"
-        }
         success {
             echo "✅ Pipeline completed successfully"
+        }
+        failure {
+            echo "❌ Pipeline failed"
         }
     }
 }
