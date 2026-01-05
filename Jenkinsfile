@@ -17,7 +17,7 @@ pipeline {
        CHECKOUT
        ======================= */
     stage('Checkout') {
-      agent any
+      agent { label 'built-in' }
       steps {
         checkout scm
         sh 'git fetch --tags'
@@ -26,13 +26,13 @@ pipeline {
     }
 
     /* =======================
-       BUILD + TEST (OTP 28)
+       BUILD & TEST
        ======================= */
     stage('Build & Test (OTP 28)') {
       agent {
         docker {
           image 'erlangsolutions/erlang:cimg-28.0.2'
-          args '--network host'
+          args '--network host -u root'
         }
       }
 
@@ -60,7 +60,7 @@ pipeline {
         stage('Build Dependencies') {
           steps {
             sh '''
-              tools/configure with-all
+              tools/configure
               tools/build-deps.sh
               tools/build-test-deps.sh
             '''
@@ -103,7 +103,6 @@ pipeline {
 
     /* =======================
        DOCKER BUILD & PUSH
-       (ONLY ON TAG)
        ======================= */
     stage('Build & Push Docker Image') {
       when {
@@ -112,7 +111,7 @@ pipeline {
       agent {
         docker {
           image 'docker:26'
-          args '-v /var/run/docker.sock:/var/run/docker.sock'
+          args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
         }
       }
       steps {
@@ -132,14 +131,11 @@ pipeline {
       }
     }
 
-    /* =======================
-       DOCKER SMOKE TEST
-       ======================= */
     stage('Docker Smoke Test') {
       when {
         buildingTag()
       }
-      agent any
+      agent { label 'built-in' }
       steps {
         sh '''
           source tools/circleci-prepare-mongooseim-docker.sh
@@ -149,17 +145,14 @@ pipeline {
     }
   }
 
-  /* =======================
-     POST ACTIONS
-     ======================= */
   post {
     always {
-      node('any') {
+      node('built-in') {
         sh 'ls -lh _build || true'
       }
     }
     failure {
-      node('any') {
+      node('built-in') {
         sh 'tail -100 _build/*/rel/mongooseim/log/*.log || true'
       }
     }
