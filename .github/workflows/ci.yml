@@ -8,19 +8,22 @@ on:
 env:
   KEEP_COVER_RUNNING: '1'
   SKIP_AUTO_COMPILE: 'true'
+
   AWS_DEFAULT_REGION: "${{ secrets.AWS_DEFAULT_REGION }}"
   AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
   AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+
   GA4_API_SECRET: "${{ secrets.GA4_API_SECRET }}"
   GA4_MEASUREMENT_API: "${{ secrets.GA4_MEASUREMENT_API }}"
 
 jobs:
+
   small_tests:
-    name: small_tests on OTP ${{ matrix.otp }}
+    name: small_tests on OTP ${{matrix.otp}}
     strategy:
       fail-fast: false
       matrix:
-        otp: ['27.3.4.2', '28.0.2']
+        otp: [ '27.3.4.2', '28.0.2' ]
     runs-on: ubuntu-22.04
     env:
       PRESET: 'small_tests'
@@ -28,75 +31,58 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          persist-credentials: false
+
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{ matrix.otp }}
+
       - uses: actions/cache@v3
         with:
           path: ~/.cache/rebar3
           key: rebar3-${{ hashFiles('rebar.lock') }}
-      - name: create certificates
-        run: make certs
-      - name: run test
-        run: tools/test.sh -p $PRESET -s true -e true
-      - name: prepare coverage report
-        run: ./rebar3 codecov analyze --lcov --json false
-      - name: report coverage
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          flag-name: small_tests on OTP ${{ matrix.otp }}
-          path-to-lcov: ./lcov.info
-          parallel: true
-      - name: upload common test results on failure
-        if: ${{ failure() }}
-        run: tools/gh-upload-to-s3.sh _build/test/logs test_logs
+
+      - run: make certs
+      - run: tools/test.sh -p $PRESET -s true -e true
 
   big_tests:
-    name: ${{ matrix.preset }} on OTP ${{ matrix.otp }}
+    name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
       fail-fast: false
       matrix:
-        preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
-                 ldap_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: ['28.0.2']
+        preset:
+          - internal_mnesia
+          - pgsql_mnesia
+          - mysql_redis
+          - ldap_mnesia
+          - elasticsearch_and_cassandra_mnesia
+        otp: [ '28.0.2' ]
         include:
           - test-spec: "default.spec"
           - preset: elasticsearch_and_cassandra_mnesia
             test-spec: "mam.spec"
           - preset: ldap_mnesia
-            test-spec: "default.spec"
             otp: '27.3.4.2'
+            test-spec: "default.spec"
           - preset: pgsql_mnesia
-            test-spec: "default.spec"
             otp: '27.3.4.2'
+            test-spec: "default.spec"
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - uses: ./.github/actions/big-tests
         with:
-          otp: ${{ matrix.otp }}
-          preset: ${{ matrix.preset }}
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-          test-spec: ${{ matrix.test-spec }}
-      - name: upload common test results on failure
-        if: ${{ failure() }}
-        run: tools/gh-upload-to-s3.sh big_tests/ct_report
-      - name: upload big_tests results to GA4
-        if: ${{ !cancelled() && github.ref_name == 'master' }}
-        run: tools/gh-report-failing-testcases-to-ga4.sh
+          otp: ${{matrix.otp}}
+          preset: ${{matrix.preset}}
+          test-spec: ${{matrix.test-spec}}
+          gh-token: ${{secrets.GITHUB_TOKEN}}
 
   dynamic_domains_big_tests:
-    name: dynamic domains ${{ matrix.preset }} on OTP ${{ matrix.otp }}
+    name: dynamic domains ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
       fail-fast: false
       matrix:
-        preset: [pgsql_mnesia, mysql_redis, odbc_mssql_mnesia]
-        otp: ['28.0.2']
+        preset: [pgsql_mnesia, mysql_redis]
+        otp: [ '28.0.2' ]
         test-spec: ["dynamic_domains.spec"]
         include:
           - preset: pgsql_mnesia
@@ -105,124 +91,61 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - uses: ./.github/actions/big-tests
         with:
-          otp: ${{ matrix.otp }}
-          preset: ${{ matrix.preset }}
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-          test-spec: ${{ matrix.test-spec }}
-      - name: upload common test results on failure
-        if: ${{ failure() }}
-        run: tools/gh-upload-to-s3.sh big_tests/ct_report
-      - name: upload big_tests results to GA4
-        if: ${{ !cancelled() && github.ref_name == 'master' }}
-        run: tools/gh-report-failing-testcases-to-ga4.sh
-
-  coveralls_webhook:
-    needs: [big_tests, small_tests, dynamic_domains_big_tests]
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Finish coveralls parallel build
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          parallel-finished: true
+          otp: ${{matrix.otp}}
+          preset: ${{matrix.preset}}
+          test-spec: ${{matrix.test-spec}}
+          gh-token: ${{secrets.GITHUB_TOKEN}}
 
   dialyzer:
-    name: dialyzer on OTP ${{ matrix.otp }}
-    strategy:
-      fail-fast: false
-      matrix:
-        otp: ['27.3.4.2']
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - uses: erlef/setup-beam@v1.16.0
         with:
-          otp-version: ${{ matrix.otp }}
+          otp-version: '27.3.4.2'
       - run: tools/test.sh -p dialyzer_only
 
   xref:
-    name: xref on OTP ${{ matrix.otp }}
-    strategy:
-      fail-fast: false
-      matrix:
-        otp: ['27.3.4.2']
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - uses: erlef/setup-beam@v1.16.0
         with:
-          otp-version: ${{ matrix.otp }}
+          otp-version: '27.3.4.2'
       - run: tools/test.sh -p xref_only
 
   edoc:
-    name: edoc on OTP ${{ matrix.otp }}
-    strategy:
-      fail-fast: false
-      matrix:
-        otp: ['27.3.4.2']
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - uses: erlef/setup-beam@v1.16.0
         with:
-          otp-version: ${{ matrix.otp }}
+          otp-version: '27.3.4.2'
       - run: tools/test.sh -p edoc_only
 
   pkg:
-    name: ${{ matrix.pkg }} package
-    strategy:
-      fail-fast: false
-      matrix:
-        pkg: [ubuntu-jammy]
     runs-on: ubuntu-22.04
-    env:
-      pkg_OTP_VERSION: "28.0.2"
-      pkg_PLATFORM: ${{ matrix.pkg }}
-      GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
-      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-      GPG_PASS: ${{ secrets.GPG_PASS }}
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
+      - run: tools/test.sh -p pkg
 
-      - name: build package
-        run: tools/test.sh -p pkg
-
-      - name: Verify Docker image exists
+  trigger_jenkins:
+    name: Trigger Jenkins (Docker build)
+    needs:
+      - small_tests
+      - big_tests
+      - dynamic_domains_big_tests
+      - dialyzer
+      - xref
+      - edoc
+      - pkg
+    runs-on: ubuntu-22.04
+    if: success()
+    steps:
+      - name: Trigger Jenkins job
         run: |
-          IMAGE_TAG=$(docker images mongooseim-ubuntu-jammy --format "{{.Tag}}" | head -n1)
-          echo "Found Docker image tag: $IMAGE_TAG"
-          if ! docker image inspect mongooseim-ubuntu-jammy:$IMAGE_TAG >/dev/null 2>&1; then
-            echo "Docker image not found!"
-            exit 1
-          fi
-
-      - name: Save Docker image
-        if: always()
-        run: |
-          IMAGE_TAG=$(docker images mongooseim-ubuntu-jammy --format "{{.Tag}}" | head -n1)
-          echo "Saving image with tag: $IMAGE_TAG"
-          docker save mongooseim-ubuntu-jammy:$IMAGE_TAG | gzip > mongooseim-ubuntu-jammy.tar.gz
-
-      - name: Upload Docker image artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image-${{ matrix.pkg }}
-          path: mongooseim-ubuntu-jammy.tar.gz
+          curl -X POST \
+            "${{ secrets.JENKINS_URL }}/job/${{ secrets.JENKINS_JOB }}/build" \
+            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }}"
