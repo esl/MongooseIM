@@ -1,46 +1,41 @@
-# -------- Build stage --------
-FROM erlang:27.3.4 AS builder
+FROM erlang:27
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    curl \
+    ca-certificates \
+    unixodbc-dev \
+    libssl-dev \
+    libexpat1-dev \
+    libyaml-dev \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Install system deps
-RUN apt-get update && apt-get install -y \
-    git \
-    make \
-    gcc \
-    libssl-dev \
-    ca-certificates \
-    curl \
- && rm -rf /var/lib/apt/lists/*
-
-# Copy source
+# Copy only what we need (dockerignore will protect us)
 COPY . .
 
 # Build MongooseIM release
 RUN make rel
 
-# -------- Runtime stage --------
-FROM debian:12-slim
+# ---- Runtime image (smaller) ----
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    openssl \
+    unixodbc \
+    libssl3 \
+    libexpat1 \
+    libyaml-0-2 \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/mongooseim
 
-# Runtime deps
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    openssl \
-    curl \
-    ca-certificates \
- && rm -rf /var/lib/apt/lists/*
-
 # Copy built release
-COPY --from=builder /build/_build/prod/rel/mongooseim ./
+COPY --from=0 /build/_build/prod/rel/mongooseim .
 
-# Expose ports
 EXPOSE 5222 5269 5280
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
-  CMD bin/mongooseim ping || exit 1
-
-# Start server
 CMD ["bin/mongooseim", "foreground"]
