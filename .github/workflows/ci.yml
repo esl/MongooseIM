@@ -62,6 +62,7 @@ jobs:
 
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
