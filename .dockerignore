@@ -1,45 +1,20 @@
-# Secrets / runtime
-.erlang.cookie
-
-# Git
-.git
-.gitignore
-
-# CI & test artifacts
-big_tests/
-logs/
-log/
-_build/
-.coverdata
-*.beam
-*.o
-*.so
+# big_tests directory
+big_tests
+# everything inside _builde
+_build/*
+#except of _build/default so that we don't fetch deps when they are fetched
+!_build/default
+# no .so files (C code copilation artifacts)
+**/*.so
+# no .o files (C code copilation artifacts)
+**/*.o
+# no beam files
+**/*.beam
+#no erlcinfo files (in order to have cleaner logs when compiling in the container)
 **/erlcinfo
+# no vim temp files
+**/.*.sw*
+.git
 
-# Tests (not needed in runtime image)
-test/
-big_tests/
-
-# Editor / OS junk
-.DS_Store
-.idea
-.vscode
-
-# Jenkins
-Jenkinsfile
-
-# Packaging (ignore by default)
-tools/pkg/
-
-#####################################
-# ✅ Docker build exceptions (IMPORTANT)
-#####################################
-
-# Allow wait script
-!tools/wait-for-it.sh
-
-# Allow pkg scripts required by Dockerfile_deb
-!tools/pkg/scripts/
-!tools/pkg/scripts/deb/
-!tools/pkg/scripts/deb/smoke_test.sh
-!tools/pkg/scripts/deb/smoke_templates.escript
+tools/pkg/Dockerfile_rpm
+tools/pkg/packages/
