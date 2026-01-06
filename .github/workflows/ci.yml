@@ -277,8 +277,7 @@ jobs:
 
   steps:
     - name: Trigger Jenkins job
-      run: |
-        echo "Triggering Jenkins build..."
-        curl -X POST \
-          "${{ secrets.JENKINS_URL }}/job/${{ secrets.JENKINS_JOB }}/build" \
-          --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}"
+  run: |
+    curl -X POST \
+      "${{ secrets.JENKINS_URL }}/job/${{ secrets.JENKINS_JOB }}/buildWithParameters?token=${{ secrets.JENKINS_TRIGGER_TOKEN }}&BRANCH=ci" \
+      --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}"
