@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mongooseim
+    ports:
+      - "5432:5432"
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: mongooseim
+
+  redis:
+    image: redis:7
+
+  ldap:
+    image: osixia/openldap:1.5.0
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.15
+    environment:
+      discovery.type: single-node
+
+  cassandra:
+    image: cassandra:4.1
