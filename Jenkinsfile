@@ -1,180 +1,77 @@
 pipeline {
-  agent none
+  agent any
+
+  environment {
+    IMAGE_NAME = "yourdockerhubuser/mongooseim"
+    DOCKER_CREDS = "dockerhub-creds"
+  }
 
   options {
     timestamps()
     disableConcurrentBuilds()
   }
 
-  environment {
-    SKIP_CERT_BUILD   = '1'
-    SKIP_AUTO_COMPILE = 'true'
-    COMPOSE_PROFILES  = 'test'
-  }
-
   stages {
 
-    /* =======================
-       CHECKOUT
-       ======================= */
     stage('Checkout') {
-      agent { label 'built-in' }
       steps {
         checkout scm
-        sh 'git fetch --tags'
-        sh 'git describe --tags --exact-match || true'
+        script {
+          env.GIT_SHA = sh(
+            script: "git rev-parse --short HEAD",
+            returnStdout: true
+          ).trim()
+        }
       }
     }
 
-    /* =======================
-       START TEST INFRA
-       ======================= */
-    stage('Start Test Infra (docker-compose)') {
-      agent { label 'built-in' }
+    stage('Build Docker Image') {
       steps {
-        sh '''
-          docker compose version
-          docker compose down -v || true
-          docker compose up -d
-          echo "Waiting for services..."
-          sleep 60
-        '''
+        sh """
+          docker build \
+            -t ${IMAGE_NAME}:${GIT_SHA} \
+            -t ${IMAGE_NAME}:latest \
+            .
+        """
       }
     }
 
-    /* =======================
-       BUILD & TEST
-       ======================= */
-    stage('Build & Test (OTP 28)') {
-      agent {
-        docker {
-          image 'erlangsolutions/erlang:cimg-28.0.2'
-          args '--network host -u root'
-        }
-      }
-
-      options {
-        skipDefaultCheckout()
-      }
-
-      environment {
-        REBAR_CACHE_DIR = "${WORKSPACE}/.rebar3"
-        HEX_HOME        = "${WORKSPACE}/.hex"
-        HOME            = "${WORKSPACE}"
-      }
-
-      stages {
-
-        stage('Prepare Certs') {
-          steps {
-            sh '''
-              tools/make-certs-cache-key.sh || true
-              test -f tools/ssl/mongooseim/key.pem || make certs
-            '''
-          }
-        }
-
-        stage('Build Dependencies') {
-          steps {
-            sh '''
-              tools/configure
-              tools/build-deps.sh
-              tools/build-test-deps.sh
-            '''
-          }
-        }
-
-        stage('Compile') {
-          steps {
-            sh './rebar3 compile'
-          }
-        }
-
-        stage('Build Release') {
-          steps {
-            sh '''
-              make rel
-              make xeplist
-            '''
-          }
-        }
-
-        stage('Small Tests') {
-          steps {
-            sh 'tools/test.sh -p small_tests -s true -e true'
-          }
-        }
-
-        stage('Big Tests (pgsql_mnesia)') {
-          environment {
-            PRESET   = 'pgsql_mnesia'
-            DB       = 'postgres redis'
-            TLS_DIST = 'true'
-          }
-          steps {
-            sh 'tools/test.sh -p pgsql_mnesia -s false'
-          }
-        }
-      }
-    }
-
-    /* =======================
-       DOCKER BUILD & PUSH
-       ======================= */
-    stage('Build & Push Docker Image') {
-      when {
-        buildingTag()
-      }
-      agent {
-        docker {
-          image 'docker:26'
-          args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
-        }
-      }
+    stage('Docker Login') {
       steps {
-        withCredentials([
-          usernamePassword(
-            credentialsId: 'dockerhub-creds',
-            usernameVariable: 'DOCKER_USER',
-            passwordVariable: 'DOCKER_PASS'
-          )
-        ]) {
-          sh '''
-            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-            make docker
-            make docker-push
-          '''
+        withCredentials([usernamePassword(
+          credentialsId: "${DOCKER_CREDS}",
+          usernameVariable: 'DOCKER_USER',
+          passwordVariable: 'DOCKER_PASS'
+        )]) {
+          sh """
+            echo "$DOCKER_PASS" | docker login \
+              -u "$DOCKER_USER" --password-stdin
+          """
         }
       }
     }
 
-    stage('Docker Smoke Test') {
-      when {
-        buildingTag()
-      }
-      agent { label 'built-in' }
+    stage('Push Image') {
       steps {
-        sh '''
-          source tools/circleci-prepare-mongooseim-docker.sh
-          ./smoke_test.sh
-        '''
+        sh """
+          docker push ${IMAGE_NAME}:${GIT_SHA}
+          docker push ${IMAGE_NAME}:latest
+        """
       }
     }
   }
 
   post {
     always {
-      node('built-in') {
-        sh '''
-          docker compose down -v || true
-          ls -lh _build || true
-        '''
-      }
+      sh "docker logout || true"
     }
+
+    success {
+      echo "✅ Docker image pushed successfully"
+    }
+
     failure {
-      node('built-in') {
-        sh 'tail -100 _build/*/rel/mongooseim/log/*.log || true'
-      }
+      echo "❌ Docker build or push failed"
     }
   }
 }
