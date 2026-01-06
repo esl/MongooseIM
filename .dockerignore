@@ -1,3 +1,5 @@
+# erlang runtime secret (DO NOT send to docker context)
+.erlang.cookie
 # big_tests directory
 big_tests
 # everything inside _builde
