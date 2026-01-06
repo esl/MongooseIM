@@ -9,6 +9,7 @@ pipeline {
   environment {
     SKIP_CERT_BUILD   = '1'
     SKIP_AUTO_COMPILE = 'true'
+    COMPOSE_PROFILES  = 'test'
   }
 
   stages {
@@ -22,6 +23,22 @@ pipeline {
         checkout scm
         sh 'git fetch --tags'
         sh 'git describe --tags --exact-match || true'
+      }
+    }
+
+    /* =======================
+       START TEST INFRA
+       ======================= */
+    stage('Start Test Infra (docker-compose)') {
+      agent { label 'built-in' }
+      steps {
+        sh '''
+          docker compose version
+          docker compose down -v || true
+          docker compose up -d
+          echo "Waiting for services..."
+          sleep 60
+        '''
       }
     }
 
@@ -148,7 +165,10 @@ pipeline {
   post {
     always {
       node('built-in') {
-        sh 'ls -lh _build || true'
+        sh '''
+          docker compose down -v || true
+          ls -lh _build || true
+        '''
       }
     }
     failure {
