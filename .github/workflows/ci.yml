@@ -21,15 +21,20 @@ env:
 
 jobs:
 
+# =====================================================
+# SMALL TESTS (BLOCKING)
+# =====================================================
   small_tests:
     name: small_tests on OTP ${{ matrix.otp }}
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         otp: [ '27.3.4.2', '28.0.2' ]
-    runs-on: ubuntu-22.04
+
     env:
       PRESET: 'small_tests'
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -63,13 +68,18 @@ jobs:
           parallel: true
 
       - name: upload common test results on failure
-        if: ${{ failure() }}
+        if: failure()
         run: tools/gh-upload-to-s3.sh _build/test/logs test_logs
 
 
+# =====================================================
+# BIG TESTS (NON-BLOCKING – INFORMATIVE ONLY)
+# =====================================================
   big_tests:
     name: ${{ matrix.preset }} on OTP ${{ matrix.otp }}
+    runs-on: ubuntu-22.04
     continue-on-error: true
+
     strategy:
       fail-fast: false
       matrix:
@@ -90,14 +100,16 @@ jobs:
           - preset: pgsql_mnesia
             otp: '27.3.4.2'
             test-spec: "default.spec"
-    runs-on: ubuntu-22.04
+
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: ./.github/actions/big-tests
+      - name: Run big tests (non-blocking)
+        uses: ./.github/actions/big-tests
+        continue-on-error: true
         with:
           otp: ${{ matrix.otp }}
           preset: ${{ matrix.preset }}
@@ -105,7 +117,7 @@ jobs:
           test-spec: ${{ matrix.test-spec }}
 
       - name: upload common test results on failure
-        if: ${{ failure() }}
+        if: failure()
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
 
       - name: upload big_tests results to GA4
@@ -113,26 +125,34 @@ jobs:
         run: tools/gh-report-failing-testcases-to-ga4.sh
 
 
+# =====================================================
+# DYNAMIC DOMAIN BIG TESTS (NON-BLOCKING)
+# =====================================================
   dynamic_domains_big_tests:
     name: dynamic domains ${{ matrix.preset }} on OTP ${{ matrix.otp }}
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+
     strategy:
       fail-fast: false
       matrix:
-        preset: [pgsql_mnesia, mysql_redis]
+        preset: [ pgsql_mnesia, mysql_redis ]
         otp: [ '28.0.2' ]
-        test-spec: ["dynamic_domains.spec"]
+        test-spec: [ "dynamic_domains.spec" ]
         include:
           - preset: pgsql_mnesia
             otp: '27.3.4.2'
             test-spec: "dynamic_domains.spec"
-    runs-on: ubuntu-22.04
+
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: ./.github/actions/big-tests
+      - name: Run dynamic big tests (non-blocking)
+        uses: ./.github/actions/big-tests
+        continue-on-error: true
         with:
           otp: ${{ matrix.otp }}
           preset: ${{ matrix.preset }}
@@ -140,7 +160,7 @@ jobs:
           test-spec: ${{ matrix.test-spec }}
 
       - name: upload common test results on failure
-        if: ${{ failure() }}
+        if: failure()
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
 
       - name: upload big_tests results to GA4
@@ -148,8 +168,11 @@ jobs:
         run: tools/gh-report-failing-testcases-to-ga4.sh
 
 
+# =====================================================
+# COVERALLS FINALIZER
+# =====================================================
   coveralls_webhook:
-    needs: [big_tests, small_tests, dynamic_domains_big_tests]
+    needs: [ small_tests, big_tests, dynamic_domains_big_tests ]
     runs-on: ubuntu-22.04
     steps:
       - name: Finish coveralls parallel build
@@ -159,91 +182,79 @@ jobs:
           parallel-finished: true
 
 
+# =====================================================
+# STATIC CHECKS (BLOCKING)
+# =====================================================
   dialyzer:
     name: dialyzer on OTP ${{ matrix.otp }}
+    runs-on: ubuntu-22.04
     strategy:
-      fail-fast: false
       matrix:
         otp: [ '27.3.4.2' ]
-    runs-on: ubuntu-22.04
+
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{ matrix.otp }}
-
       - run: tools/test.sh -p dialyzer_only
 
 
   xref:
     name: xref on OTP ${{ matrix.otp }}
+    runs-on: ubuntu-22.04
     strategy:
-      fail-fast: false
       matrix:
         otp: [ '27.3.4.2' ]
-    runs-on: ubuntu-22.04
+
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{ matrix.otp }}
-
       - run: tools/test.sh -p xref_only
 
 
   edoc:
     name: edoc on OTP ${{ matrix.otp }}
+    runs-on: ubuntu-22.04
     strategy:
-      fail-fast: false
       matrix:
         otp: [ '27.3.4.2' ]
-    runs-on: ubuntu-22.04
+
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{ matrix.otp }}
-
       - run: tools/test.sh -p edoc_only
 
 
+# =====================================================
+# PACKAGE BUILD (BLOCKING)
+# =====================================================
   pkg:
     name: ${{ matrix.pkg }} package
-    strategy:
-      fail-fast: false
-      matrix:
-        pkg: [ubuntu-jammy]
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        pkg: [ ubuntu-jammy ]
+
     env:
       pkg_OTP_VERSION: "28.0.2"
       pkg_PLATFORM: ${{ matrix.pkg }}
       GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASS: ${{ secrets.GPG_PASS }}
+
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
       - run: tools/test.sh -p pkg
 
 
-  # =====================================================
-  # 🆕 NEW JOB: Trigger Jenkins after ALL tests pass
-  # =====================================================
+# =====================================================
+# 🚀 JENKINS TRIGGER (FINAL STEP)
+# =====================================================
   trigger_jenkins:
     name: Trigger Jenkins Docker Build
     runs-on: ubuntu-22.04
@@ -257,7 +268,7 @@ jobs:
       - edoc
       - pkg
 
-    if: success()
+    if: success() && github.ref == 'refs/heads/ci'
 
     steps:
       - name: Trigger Jenkins job
