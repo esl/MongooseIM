@@ -54,14 +54,16 @@ WORKDIR /root
 # 👉 Copy built debs
 COPY --from=builder /root/*.deb .
 
-# 👉 Copy smoke test scripts (FIXED PATH)
-COPY --from=builder /root/mongooseim/tools/pkg/scripts/smoke_test.sh .
-COPY --from=builder /root/mongooseim/tools/pkg/scripts/smoke_templates.escript .
+# 👉 Copy smoke test scripts (CORRECT PATH)
+COPY --from=builder /root/mongooseim/tools/pkg/scripts/deb/smoke_test.sh .
+COPY --from=builder /root/mongooseim/tools/pkg/scripts/deb/smoke_templates.escript .
 
 # 👉 Copy helper script
 COPY --from=builder /root/mongooseim/tools/wait-for-it.sh .
 
+# 👉 Fix permissions
 RUN chmod +x smoke_test.sh wait-for-it.sh
+
 
 # ----------------------------
 # Smoke test
