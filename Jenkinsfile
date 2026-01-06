@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   environment {
-    IMAGE_NAME = "yourdockerhubuser/mongooseim"
+    IMAGE_NAME = "xmppjaspreet/mongooseim"
     DOCKER_CREDS = "dockerhub-creds"
   }
 
@@ -39,14 +39,14 @@ pipeline {
     stage('Docker Login') {
       steps {
         withCredentials([usernamePassword(
-          credentialsId: "${DOCKER_CREDS}",
+          credentialsId: DOCKER_CREDS,
           usernameVariable: 'DOCKER_USER',
           passwordVariable: 'DOCKER_PASS'
         )]) {
-          sh """
+          sh '''
             echo "$DOCKER_PASS" | docker login \
               -u "$DOCKER_USER" --password-stdin
-          """
+          '''
         }
       }
     }
