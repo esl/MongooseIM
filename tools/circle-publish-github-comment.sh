@@ -171,15 +171,24 @@ JOB_URL="$CIRCLE_BUILD_URL"
 DESC_BODY="[$CIRCLE_JOB]($JOB_URL) / $PRESET / $CIRCLE_SHA1"$'\n'
 # This file is created by ct_markdown_errors_hook
 ERRORS_BODY="$(cat /tmp/ct_markdown || echo '/tmp/ct_markdown missing')"
-COMMENT_MARKER="<!-- circleci-comment:${CIRCLE_JOB}:${PRESET} -->"
-BODY="${DESC_BODY}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"$'\n'$'\n'"${COMMENT_MARKER}"$'\n'
+COMMENT_MARKER="<!-- circleci-comment:${CIRCLE_SHA1} -->"
+SECTION_BEGIN="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:begin -->"
+SECTION_END="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:end -->"
+
+SECTION_BODY="${DESC_BODY}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"$'\n'
+SECTION="${SECTION_BEGIN}"$'\n'"${SECTION_BODY}"$'\n'"${SECTION_END}"$'\n'
+
+# Body for a brand new comment
+BODY_NEW="CircleCI results for $CIRCLE_SHA1"$'\n'$'\n'"${SECTION}"$'\n'"${COMMENT_MARKER}"$'\n'
+
+BODY_TO_PUBLISH="$BODY_NEW"
 
 function post_new_comment
 {
 # Create a comment GitHub API doc
 # https://developer.github.com/v3/issues/comments/#create-a-comment
 echo "Posting a new comment"
-POST_BODY=$(BODY_ENV="$BODY" jq -n '{body: env.BODY_ENV}')
+POST_BODY=$(BODY_ENV="$BODY_TO_PUBLISH" jq -n '{body: env.BODY_ENV}')
 curl -o /dev/null -i \
     -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
@@ -193,7 +202,7 @@ function update_comment
 # https://developer.github.com/v3/issues/comments/#edit-a-comment
 COMMENT_ID="$1"
 echo "Updating comment $COMMENT_ID"
-PATCH_BODY=$(BODY_ENV="$BODY" jq -n '{body: env.BODY_ENV}')
+PATCH_BODY=$(BODY_ENV="$BODY_TO_PUBLISH" jq -n '{body: env.BODY_ENV}')
 curl -o /dev/null -i \
     -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
@@ -236,5 +245,38 @@ COMMENT_ID=$(cat /tmp/gh_comment | jq .id)
 if [ "$COMMENT_ID" = "null" ]; then
     post_new_comment
 else
+    EXISTING_BODY=$(cat /tmp/gh_comment | jq -r '.body // ""')
+    BODY_TO_PUBLISH=$(python3 - <<'PY'
+import os
+
+existing = os.environ.get('EXISTING_BODY', '')
+section_begin = os.environ['SECTION_BEGIN']
+section_end = os.environ['SECTION_END']
+section = os.environ['SECTION']
+comment_marker = os.environ['COMMENT_MARKER']
+
+if section_begin in existing and section_end in existing:
+    start = existing.index(section_begin)
+    end = existing.index(section_end) + len(section_end)
+    # Replace the whole section block (including markers)
+    merged = existing[:start] + section.rstrip('\n') + "\n" + existing[end:]
+else:
+    if comment_marker in existing:
+        # Insert before the final marker, keep marker at end
+        parts = existing.split(comment_marker, 1)
+        merged = parts[0].rstrip('\n') + "\n\n" + section.rstrip('\n') + "\n\n" + comment_marker + parts[1]
+    else:
+        merged = existing.rstrip('\n') + "\n\n" + section.rstrip('\n') + "\n\n" + comment_marker + "\n"
+
+# Normalize: ensure trailing newline
+if not merged.endswith('\n'):
+    merged += '\n'
+print(merged, end='')
+PY
+EXISTING_BODY="$EXISTING_BODY" \
+SECTION_BEGIN="$SECTION_BEGIN" \
+SECTION_END="$SECTION_END" \
+SECTION="$SECTION" \
+COMMENT_MARKER="$COMMENT_MARKER")
     update_comment "$COMMENT_ID"
 fi
