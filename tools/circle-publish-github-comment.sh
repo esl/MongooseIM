@@ -252,7 +252,7 @@ else
         SECTION_ENV="$SECTION" \
         COMMENT_MARKER_ENV="$COMMENT_MARKER" \
         jq -rn '
-            def rtrim: sub("\\n+$"; "");
+            def rtrim: sub("\n+$"; "");
             . as $null
             | (env.EXISTING_BODY_ENV) as $existing
             | (env.SECTION_BEGIN_ENV) as $begin
@@ -268,11 +268,11 @@ else
                                  | $before + $section + $after_end)
               elif ($existing | contains($marker)) then
                 (($existing | split($marker)) as $parts
-                 | ($parts[0] | rtrim) + "\\n\\n" + $section + "\\n\\n" + $marker + ($parts[1] // ""))
+                 | ($parts[0] | rtrim) + "\n\n" + $section + "\n\n" + $marker + ($parts[1] // ""))
               else
-                (($existing | rtrim) + "\\n\\n" + $section + "\\n\\n" + $marker + "\\n")
+                (($existing | rtrim) + "\n\n" + $section + "\n\n" + $marker + "\n")
               end
-            | if endswith("\\n") then . else . + "\\n" end
+            | if endswith("\n") then . else . + "\n" end
         ')
     update_comment "$COMMENT_ID"
 fi
