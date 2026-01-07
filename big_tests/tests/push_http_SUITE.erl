@@ -145,7 +145,7 @@ clear_events_collection() ->
     ets:delete_all_objects(?ETS_TABLE).
 
 start_http_listener() ->
-    http_helper:start(http_notifications_port(), '_', fun process_notification/1).
+    http_helper:start(http_notifications_port(), "", fun process_notification/1).
 
 stop_http_listener() ->
     http_helper:stop().

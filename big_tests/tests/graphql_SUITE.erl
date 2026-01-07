@@ -321,7 +321,7 @@ assert_auth(Auth, {Status, Data}) ->
 get_graphiql_website(EpName) ->
     Request =
       #{port => graphql_helper:get_listener_port(EpName),
-        role => {graphql, atom_to_binary(EpName)},
+        role => {graphql, EpName},
         method => <<"GET">>,
         headers => [{<<"Accept">>, <<"text/html">>}],
         return_maps => true,

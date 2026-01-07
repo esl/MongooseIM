@@ -203,7 +203,7 @@ generate_message(JidMike, JidKate, TimestampDaysAgo, TimestampExpiringDaysAgo) -
     JidRecordMike = jid:from_binary(user_to_bin(JidMike)),
     JidRecordKate = jid:from_binary(user_to_bin(JidKate)),
     Domain = domain(),
-    Msg1 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>, "Rolling stones"),
+    Msg1 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>, <<"Rolling stones">>),
     OldTimestamp = fallback_timestamp(TimestampDaysAgo, os:system_time(microsecond)),
     ExpirationTime = fallback_timestamp(TimestampExpiringDaysAgo, os:system_time(microsecond)),
     OfflineOld = generate_offline_expired_message(JidRecordMike,
