@@ -223,9 +223,14 @@ get_comments_page 1
 jq -s "map(.) | add" /tmp/gh_comments_page* > /tmp/gh_comments
 
 # Filter out all comments for a particular user
-# Then filter out all comments that have our marker in the body text
-# Then take first comment (we don't expect more comments anyway)
-cat /tmp/gh_comments | jq "map(select(.user.login == \"$COMMENTER_GITHUB_USER\")) | map(select(.body | contains(\"$COMMENT_MARKER\")))[0]" > /tmp/gh_comment
+# Then filter out all comments that have our marker in the body text (new behavior)
+# Then take the most recent matching comment.
+cat /tmp/gh_comments | jq "
+    map(select(.user.login == \"$COMMENTER_GITHUB_USER\"))
+    | map(select(.body | contains(\"$COMMENT_MARKER\")))
+    | sort_by(.created_at)
+    | last
+" > /tmp/gh_comment
 COMMENT_ID=$(cat /tmp/gh_comment | jq .id)
 
 if [ "$COMMENT_ID" = "null" ]; then
