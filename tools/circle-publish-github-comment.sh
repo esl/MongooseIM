@@ -246,37 +246,33 @@ if [ "$COMMENT_ID" = "null" ]; then
     post_new_comment
 else
     EXISTING_BODY=$(cat /tmp/gh_comment | jq -r '.body // ""')
-    BODY_TO_PUBLISH=$(python3 - <<'PY'
-import os
-
-existing = os.environ.get('EXISTING_BODY', '')
-section_begin = os.environ['SECTION_BEGIN']
-section_end = os.environ['SECTION_END']
-section = os.environ['SECTION']
-comment_marker = os.environ['COMMENT_MARKER']
-
-if section_begin in existing and section_end in existing:
-    start = existing.index(section_begin)
-    end = existing.index(section_end) + len(section_end)
-    # Replace the whole section block (including markers)
-    merged = existing[:start] + section.rstrip('\n') + "\n" + existing[end:]
-else:
-    if comment_marker in existing:
-        # Insert before the final marker, keep marker at end
-        parts = existing.split(comment_marker, 1)
-        merged = parts[0].rstrip('\n') + "\n\n" + section.rstrip('\n') + "\n\n" + comment_marker + parts[1]
-    else:
-        merged = existing.rstrip('\n') + "\n\n" + section.rstrip('\n') + "\n\n" + comment_marker + "\n"
-
-# Normalize: ensure trailing newline
-if not merged.endswith('\n'):
-    merged += '\n'
-print(merged, end='')
-PY
-EXISTING_BODY="$EXISTING_BODY" \
-SECTION_BEGIN="$SECTION_BEGIN" \
-SECTION_END="$SECTION_END" \
-SECTION="$SECTION" \
-COMMENT_MARKER="$COMMENT_MARKER")
+    BODY_TO_PUBLISH=$(EXISTING_BODY_ENV="$EXISTING_BODY" \
+        SECTION_BEGIN_ENV="$SECTION_BEGIN" \
+        SECTION_END_ENV="$SECTION_END" \
+        SECTION_ENV="$SECTION" \
+        COMMENT_MARKER_ENV="$COMMENT_MARKER" \
+        jq -rn '
+            def rtrim: sub("\\n+$"; "");
+            . as $null
+            | (env.EXISTING_BODY_ENV) as $existing
+            | (env.SECTION_BEGIN_ENV) as $begin
+            | (env.SECTION_END_ENV) as $end
+            | (env.SECTION_ENV | rtrim) as $section
+            | (env.COMMENT_MARKER_ENV) as $marker
+            | if ($existing | contains($begin)) and ($existing | contains($end)) then
+                                (($existing | split($begin)) as $parts
+                                 | ($parts[0]) as $before
+                                 | ($parts[1:] | join($begin)) as $after_begin
+                                 | ($after_begin | split($end)) as $parts2
+                                 | ($parts2[1:] | join($end)) as $after_end
+                                 | $before + $section + $after_end)
+              elif ($existing | contains($marker)) then
+                (($existing | split($marker)) as $parts
+                 | ($parts[0] | rtrim) + "\\n\\n" + $section + "\\n\\n" + $marker + ($parts[1] // ""))
+              else
+                (($existing | rtrim) + "\\n\\n" + $section + "\\n\\n" + $marker + "\\n")
+              end
+            | if endswith("\\n") then . else . + "\\n" end
+        ')
     update_comment "$COMMENT_ID"
 fi
