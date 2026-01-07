@@ -283,4 +283,4 @@ allowed_categories() ->
     [<<"checkAuth">>, <<"account">>, <<"domain">>, <<"last">>, <<"muc">>, <<"muc_light">>,
      <<"session">>, <<"stanza">>, <<"roster">>, <<"vcard">>, <<"private">>, <<"metric">>,
      <<"stat">>, <<"gdpr">>, <<"mnesia">>, <<"server">>, <<"inbox">>, <<"http_upload">>,
-     <<"offline">>, <<"token">>].
+     <<"offline">>, <<"token">>, <<"cets">>].
