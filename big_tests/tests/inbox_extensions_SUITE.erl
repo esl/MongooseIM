@@ -522,11 +522,8 @@ wait_for_auto_unarchive_broadcast(User, Remote, ReadVal) ->
     Msg = escalus:wait_for_stanza(User),
     ?assert(escalus_pred:is_message(Msg)),
     [X] = exml_query:subelements(Msg, <<"x">>),
-    ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
     ?assertEqual(escalus_utils:get_short_jid(Remote), exml_query:attr(X, <<"jid">>)),
-    assert_property(X, box, inbox),
-    assert_property(X, archive, false),
-    assert_property(X, read, ReadVal).
+    assert_conversation_properties(X, [{box, inbox}, {archive, false}, {read, ReadVal}], #{}).
 
 archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -914,9 +911,11 @@ check_message_with_properties(From, Stanza, Properties, QueryOpts) ->
     ?assert(escalus_pred:is_message(Message)),
     ?assert(has_same_id(Stanza, Message)),
     [X] = exml_query:subelements(Message, <<"x">>),
+    assert_conversation_properties(X, Properties, QueryOpts).
+
+assert_conversation_properties(X, Properties, QueryOpts) ->
     ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
     inbox_helper:maybe_check_queryid(X, QueryOpts),
-    % ?assertEqual(QueryId, exml_query:attr(X, <<"queryid">>)),
     lists:foreach(fun({Key, Val}) -> assert_property(X, Key, Val) end, Properties).
 
 -spec check_iq_result_for_property(escalus:client(), exml:element()) -> ok.
