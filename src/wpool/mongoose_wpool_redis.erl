@@ -33,8 +33,8 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
     Worker = {eredis_client, makeargs(ConnOpts)},
     [{worker, Worker} | WpoolOptsIn].
 
-makeargs(Opts = #{host := _Host, port := _Port, database := _Database, password := _Password}) ->
-    BaseOpts = maps:with([host, port, database, password], Opts),
+makeargs(Opts = #{host := _Host, port := _Port, database := _Database}) ->
+    BaseOpts = maps:with([host, port, database, username, password], Opts),
     TlsOpts = tls_opts(Opts),
     proplists:from_map(BaseOpts) ++ TlsOpts ++ [{reconnect_sleep, 100}, {connect_timeout, 5000}].
 
