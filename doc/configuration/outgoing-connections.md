@@ -200,9 +200,14 @@ There are two important limitations:
 
 Logical database index (zero-based).
 
+### `outgoing_pools.redis.*.connection.username`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `password = "alice"`
+
 ### `outgoing_pools.redis.*.connection.password`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** not set
 * **Example:** `password = "topsecret"`
 
 ---
