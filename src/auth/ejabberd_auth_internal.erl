@@ -403,14 +403,9 @@ get_scram(HostType, Password) ->
     end.
 
 -spec get_users_within_interval(list(), integer() | undefined, integer()) -> list().
-get_users_within_interval([], _Limit, _Offset) -> [];
-get_users_within_interval(Users, undefined, Offset) ->
-    SortedUsers = lists:keysort(1, Users),
-    try lists:nthtail(Offset, SortedUsers)
-    catch _:_ -> [] end;
 get_users_within_interval(Users, Limit, Offset) ->
     SortedUsers = lists:keysort(1, Users),
-    lists:sublist(SortedUsers, Offset + 1, Limit).
+    mongoose_pagination_utils:slice(SortedUsers, Limit, Offset).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].

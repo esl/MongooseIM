@@ -6,7 +6,7 @@
 all() ->
     [api_list_users_pagination,
      resolver_list_users_pagination,
-     ldap_slicing].
+     pagination_utils].
 
 init_per_suite(Config) ->
     application:ensure_all_started(jid),
@@ -79,19 +79,19 @@ resolver_list_users_pagination(_C) ->
     %% Cleanup
     lists:foreach(fun(U) -> mnesia:dirty_delete({passwd, {U, Domain}}) end, Users).
 
-ldap_slicing(_C) ->
+pagination_utils(_C) ->
     Users = [<<"u3">>, <<"u1">>, <<"u2">>],
 
-    %% No pagination
-    ?assertEqual(Users, ejabberd_auth_ldap:slice_users(Users, undefined, 0)),
+    %% No pagination (returns as is)
+    ?assertEqual(Users, mongoose_pagination_utils:slice(Users, undefined, 0)),
 
-    %% Limit
-    ?assertEqual([<<"u1">>, <<"u2">>], ejabberd_auth_ldap:slice_users(Users, 2, 0)),
+    %% Limit (returns first N)
+    ?assertEqual([<<"u3">>, <<"u1">>], mongoose_pagination_utils:slice(Users, 2, 0)),
 
-    %% Offset
-    ?assertEqual([<<"u2">>, <<"u3">>], ejabberd_auth_ldap:slice_users(Users, undefined, 1)),
+    %% Offset (skips first N)
+    ?assertEqual([<<"u1">>, <<"u2">>], mongoose_pagination_utils:slice(Users, undefined, 1)),
 
-    %% Both
-    ?assertEqual([<<"u2">>], ejabberd_auth_ldap:slice_users(Users, 1, 1)).
+    %% Both (skip 1, take 1)
+    ?assertEqual([<<"u1">>], mongoose_pagination_utils:slice(Users, 1, 1)).
 
 host_type() -> <<"test_host_type">>.
