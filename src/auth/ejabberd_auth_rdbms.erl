@@ -493,7 +493,16 @@ execute_delete_user(HostType, LServer, LUser) ->
           mongoose_rdbms:query_result().
 execute_list_users(HostType, LServer, Opts) ->
     {Limit, Offset, Prefix} = extract_list_users_opts(Opts),
-    select_list_users_query(HostType, LServer, {Prefix, Limit, Offset}).
+    Res = select_list_users_query(HostType, LServer, {Prefix, Limit, Offset}),
+    maybe_apply_offset_only(Res, Limit, Offset).
+
+-spec maybe_apply_offset_only(mongoose_rdbms:query_result(), integer() | undefined, integer()) ->
+          mongoose_rdbms:query_result().
+maybe_apply_offset_only({selected, Rows}, undefined, Offset) when is_integer(Offset), Offset > 0 ->
+    SortedRows = lists:sort(Rows),
+    {selected, mongoose_pagination_utils:slice(SortedRows, undefined, Offset)};
+maybe_apply_offset_only(Res, _Limit, _Offset) ->
+    Res.
 
 -spec extract_list_users_opts(map()) ->
           {Limit :: integer() | undefined, Offset :: integer(), Prefix :: binary() | undefined}.
@@ -511,7 +520,8 @@ extract_list_users_opts(Opts) ->
                                       Limit :: integer() | undefined,
                                       Offset :: integer()) ->
           {Limit :: integer() | undefined, Offset :: integer()}.
-calculate_list_users_pagination(From, To, _Limit, _Offset) when is_integer(From), is_integer(To) ->
+calculate_list_users_pagination(From, To, _Limit, _Offset)
+        when is_integer(From), is_integer(To), From >= 1, To >= From ->
     {To - From + 1, From - 1};
 calculate_list_users_pagination(_From, _To, Limit, Offset) ->
     {Limit, Offset}.
@@ -521,14 +531,21 @@ calculate_list_users_pagination(_From, _To, Limit, Offset) ->
                                Limit :: integer() | undefined,
                                Offset :: integer()}) ->
           mongoose_rdbms:query_result().
-select_list_users_query(HostType, LServer, {undefined, undefined, _Offset}) ->
-    %% No prefix, no limit → fetch all users
+select_list_users_query(HostType, LServer, {undefined, undefined, 0}) ->
+    %% No prefix, no limit, no offset → fetch all users
+    execute_successfully(HostType, auth_list_users, [LServer]);
+select_list_users_query(HostType, LServer, {undefined, undefined, Offset}) when is_integer(Offset), Offset > 0 ->
+    %% Offset-only (no limit) → fetch all users and apply offset in Erlang
     execute_successfully(HostType, auth_list_users, [LServer]);
 select_list_users_query(HostType, LServer, {undefined, Limit, Offset}) ->
     %% No prefix, with limit → fetch range
     execute_successfully(HostType, auth_list_users_range, [LServer, Limit, Offset]);
-select_list_users_query(HostType, LServer, {Prefix, undefined, _Offset}) when is_binary(Prefix) ->
-    %% With prefix, no limit → fetch all matching
+select_list_users_query(HostType, LServer, {Prefix, undefined, 0}) when is_binary(Prefix) ->
+    %% With prefix, no limit, no offset → fetch all matching
+    execute_successfully(HostType, auth_list_users_prefix, [LServer, prefix_to_like(Prefix)]);
+select_list_users_query(HostType, LServer, {Prefix, undefined, Offset})
+        when is_binary(Prefix), is_integer(Offset), Offset > 0 ->
+    %% With prefix, offset-only → fetch all matching and apply offset in Erlang
     execute_successfully(HostType, auth_list_users_prefix, [LServer, prefix_to_like(Prefix)]);
 select_list_users_query(HostType, LServer, {Prefix, Limit, Offset}) when is_binary(Prefix) ->
     %% With prefix and limit → fetch range of matching

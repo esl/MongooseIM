@@ -241,7 +241,8 @@ extract_pagination_opts(Opts) ->
                                 Limit :: integer() | undefined,
                                 Offset :: integer()) ->
           {Limit :: integer() | undefined, Offset :: integer()}.
-calculate_real_pagination(From, To, _Limit, _Offset) when is_integer(From), is_integer(To) ->
+calculate_real_pagination(From, To, _Limit, _Offset)
+        when is_integer(From), is_integer(To), From >= 1, To >= From ->
     {To - From + 1, From - 1};
 calculate_real_pagination(_From, _To, Limit, Offset) ->
     {Limit, Offset}.
