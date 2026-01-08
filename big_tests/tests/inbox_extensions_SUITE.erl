@@ -361,8 +361,7 @@ box_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{box, archive}]),
         % But then Alice keeps writing:
-        inbox_helper:send_msg(Alice, Bob, Body),
-        wait_for_auto_unarchive_broadcast(Bob, Alice, false),
+        send_msg_expect_broadcast_and_receipt(Alice, Bob, Body, false),
         % Then the conversation is automatically in the inbox and not in the archive box
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
                                  #{box => inbox}),
@@ -494,8 +493,7 @@ archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % But then Alice keeps writing:
-        inbox_helper:send_msg(Alice, Bob, Body),
-        wait_for_auto_unarchive_broadcast(Bob, Alice, false),
+        send_msg_expect_broadcast_and_receipt(Alice, Bob, Body, false),
         % Then the conversation is automatically in the active and not in the archive box
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
                                  #{archive => false}),
@@ -1010,3 +1008,36 @@ verify_returns_error(User, Params, Error) ->
     escalus:assert(is_iq_error, [Stanza], ResIQ),
     Type = exml_query:path(ResIQ, [{element, <<"error">>}, {element, Error}]),
     ?assertNotEqual(undefined, Type).
+
+send_msg_expect_broadcast_and_receipt(Sender, Receiver, Body, ExpectedBroadcastReadVal) ->
+    MsgId = escalus_stanza:id(),
+    Msg = escalus_stanza:set_id(escalus_stanza:chat_to(Receiver, Body), MsgId),
+    escalus:send(Sender, Msg),
+
+    Stanza1 = escalus:wait_for_stanza(Receiver),
+    Stanza2 = escalus:wait_for_stanza(Receiver),
+
+    [Broadcast, ChatMessage] =
+        case is_broadcast_stanza(Stanza1) of
+            true -> [Stanza1, Stanza2];
+            false -> [Stanza2, Stanza1]
+        end,
+
+    %% Verify broadcast
+    ?assert(escalus_pred:is_message(Broadcast)),
+    [X] = exml_query:subelements(Broadcast, <<"x">>),
+    ?assertEqual(escalus_utils:get_short_jid(Sender), exml_query:attr(X, <<"jid">>)),
+    assert_conversation_properties(X, [{box, inbox}, {archive, false}, {read, ExpectedBroadcastReadVal}], #{}),
+
+    %% Verify message
+    ?assert(escalus_pred:is_chat_message(ChatMessage)),
+    ?assertEqual(MsgId, exml_query:attr(ChatMessage, <<"id">>)),
+    ChatMessage.
+
+is_broadcast_stanza(Msg) ->
+    escalus_pred:is_message(Msg) andalso
+    case exml_query:subelements(Msg, <<"x">>) of
+        [X] -> exml_query:attr(X, <<"xmlns">>) == inbox_helper:inbox_ns_conversation();
+        _ -> false
+    end.
+
