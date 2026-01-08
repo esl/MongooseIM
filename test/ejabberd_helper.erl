@@ -26,7 +26,8 @@ data(Config, Path) ->
     rel(Config, data_dir, Path).
 
 %% This is the private config of a particular testcase and run, i.e.
-%% .../mongooseim/apps/ejabberd/logs/ct_run.test@x4.local.2014-10-08_16.33.48/apps.ejabberd.ejabberd_config_SUITE.split_config.logs/run.2014-10-08_16.33.48/log_private/
+%% .../mongooseim/apps/ejabberd/logs/ct_run.test@x4.local.2014-10-08_16.33.48/
+%% apps.ejabberd.ejabberd_config_SUITE.split_config.logs/run.2014-10-08_16.33.48/log_private/
 priv(Config, Path) ->
     rel(Config, priv_dir, Path).
 
@@ -48,4 +49,4 @@ suite_priv(Config, PathSuffix) ->
 
 
 preserve_trailing_slash($/, Path) -> Path ++ [$/];
-preserve_trailing_slash(__, Path) -> Path.
+preserve_trailing_slash(_Any, Path) -> Path.

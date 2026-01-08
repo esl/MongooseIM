@@ -25,7 +25,8 @@
 -callback write_messages(mongooseim:host_type(), jid:luser(), jid:lserver(), [mod_offline:msg()]) ->
     ok | {error, any()}.
 
--callback count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(), Limit :: mod_offline:msg_count()) ->
+-callback count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                                 Limit :: mod_offline:msg_count()) ->
     mod_offline:msg_count().
 
 -callback remove_expired_messages(mongooseim:host_type(), jid:lserver()) ->
@@ -93,6 +94,6 @@ remove_domain(HostType, LServer) ->
     case mongoose_backend:is_exported(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, 2) of
         true ->
             mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args);
-        false -> 
+        false ->
             ok
     end.

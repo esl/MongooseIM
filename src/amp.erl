@@ -22,23 +22,26 @@
 -ignore_xref([binaries_to_rule/3, is_amp_request/1, rule_to_xmlel/1]).
 
 -export_type([amp_rule/0,
-              amp_rules/0]).
+              amp_rules/0,
+              amp_any_rule/0,
+              amp_error/0,
+              amp_invalid_rule/0]).
 
 
 -spec binaries_to_rule(binary(), binary(), binary()) -> amp_rule() | amp_invalid_rule().
 binaries_to_rule(<<"deliver">> = Condition, Value, Action) ->
     case are_valid_deliver_params(Value, Action) of
-        true -> mk_amp_rule('deliver', from_bin_(Value), from_bin_(Action));
+        true -> mk_amp_rule('deliver', from_bin(Value), from_bin(Action));
         false -> mk_amp_invalid_rule(Condition, Value, Action)
     end;
 binaries_to_rule(<<"match-resource">> = Condition, Value, Action) ->
     case are_valid_match_resource_params(Value, Action) of
-        true -> mk_amp_rule('match-resource', from_bin_(Value), from_bin_(Action));
+        true -> mk_amp_rule('match-resource', from_bin(Value), from_bin(Action));
         false -> mk_amp_invalid_rule(Condition, Value, Action)
     end;
 binaries_to_rule(<<"expire-at">> = Condition, Value, Action) ->
     case are_valid_expire_at_params(Value, Action) of
-        true -> mk_amp_rule('expire-at', Value, from_bin_(Action)); %% Value is binary here!
+        true -> mk_amp_rule('expire-at', Value, from_bin(Action)); %% Value is binary here!
         false -> mk_amp_invalid_rule(Condition, Value, Action)
     end;
 binaries_to_rule(Condition, Value, Action) ->
@@ -62,7 +65,7 @@ make_response(Rule, User, Packet) ->
 
     Amp = #xmlel{name = <<"amp">>,
                  attrs = #{<<"xmlns">> => ?NS_AMP,
-                           <<"status">> => to_bin_(Rule#amp_rule.action),
+                           <<"status">> => to_bin(Rule#amp_rule.action),
                            <<"to">> => OriginalRecipient,
                            <<"from">> => OriginalSender},
                  children = [rule_to_xmlel(Rule)]},
@@ -73,7 +76,7 @@ make_response(Rule, User, Packet) ->
 
 -spec make_error_response([amp_error()], [amp_any_rule()], jid:jid(), #xmlel{})
                          -> #xmlel{}.
-make_error_response([E|_] = Errors, [_|_] = Rules, User, Packet) ->
+make_error_response([E | _] = Errors, [_ | _] = Rules, User, Packet) ->
     OriginalId = exml_query:attr(Packet, <<"id">>, <<"original-id-missing">>),
     Error = make_error_el(Errors, Rules),
     Amp = #xmlel{name = <<"amp">>,
@@ -116,12 +119,12 @@ make_error_el(Errors, Rules) ->
            children = [ErrorMarker, RuleContainer]}.
 
 -spec rule_to_xmlel(amp_any_rule()) -> #xmlel{}.
-rule_to_xmlel(#amp_rule{condition=C, value=V, action=A}) ->
+rule_to_xmlel(#amp_rule{condition = C, value = V, action = A}) ->
     #xmlel{name = <<"rule">>,
-           attrs = #{<<"condition">> => to_bin_(C),
-                     <<"value">> => to_bin_(V),
-                     <<"action">> => to_bin_(A)}};
-rule_to_xmlel(#amp_invalid_rule{condition=C, value=V, action=A}) ->
+           attrs = #{<<"condition">> => to_bin(C),
+                     <<"value">> => to_bin(V),
+                     <<"action">> => to_bin(A)}};
+rule_to_xmlel(#amp_invalid_rule{condition = C, value = V, action = A}) ->
     #xmlel{name = <<"rule">>,
            attrs = #{<<"condition">> => C,
                      <<"value">> => V,
@@ -211,34 +214,34 @@ rule_container_name('unsupported-actions') -> <<"unsupported-actions">>;
 rule_container_name('unsupported-conditions') -> <<"unsupported-conditions">>;
 rule_container_name('undefined-condition') -> <<"failed-rules">>.
 
--spec to_bin_(amp_action() | amp_condition() | amp_value() | amp_error()) ->
+-spec to_bin(amp_action() | amp_condition() | amp_value() | amp_error()) ->
                      binary().
-to_bin_(A) when is_atom(A) -> atom_to_binary(A, utf8);
-to_bin_(X) when is_binary(X) -> X.
+to_bin(A) when is_atom(A) -> atom_to_binary(A, utf8);
+to_bin(X) when is_binary(X) -> X.
 
--spec from_bin_(binary()) -> amp_action() | amp_condition() |
+-spec from_bin(binary()) -> amp_action() | amp_condition() |
                              amp_value() | amp_error().
 %% @doc WARNING! This is a partial function. Only values that have been
 %% verified as legal in binaries_to_rule/3 should be passed here.
 %% DO NOT EXPORT!!!
 %% conditons
-from_bin_(<<"deliver">>) -> 'deliver';
-from_bin_(<<"expire-at">>) -> 'expire-at';
-from_bin_(<<"match-resource">>) -> 'match-resource';
+from_bin(<<"deliver">>) -> 'deliver';
+from_bin(<<"expire-at">>) -> 'expire-at';
+from_bin(<<"match-resource">>) -> 'match-resource';
 %% non-date values
-from_bin_(<<"direct">>) -> 'direct';
-from_bin_(<<"forward">>) -> 'forward';
-from_bin_(<<"gateway">>) -> 'gateway';
-from_bin_(<<"none">>) -> 'none';
-from_bin_(<<"stored">>) -> 'stored';
-from_bin_(<<"any">>) -> 'any';
-from_bin_(<<"exact">>) -> 'exact';
-from_bin_(<<"other">>) -> 'other';
+from_bin(<<"direct">>) -> 'direct';
+from_bin(<<"forward">>) -> 'forward';
+from_bin(<<"gateway">>) -> 'gateway';
+from_bin(<<"none">>) -> 'none';
+from_bin(<<"stored">>) -> 'stored';
+from_bin(<<"any">>) -> 'any';
+from_bin(<<"exact">>) -> 'exact';
+from_bin(<<"other">>) -> 'other';
 %% actions
-from_bin_(<<"alert">>) -> 'alert';
-from_bin_(<<"drop">>) -> 'drop';
-from_bin_(<<"error">>) -> 'error';
-from_bin_(<<"notify">>) -> 'notify';
+from_bin(<<"alert">>) -> 'alert';
+from_bin(<<"drop">>) -> 'drop';
+from_bin(<<"error">>) -> 'error';
+from_bin(<<"notify">>) -> 'notify';
 %% amp error types
-from_bin_(<<"unsupported-actions">>) -> 'unsupported-actions';
-from_bin_(<<"unsupported-conditions">>) -> 'unsupported-conditions'.
+from_bin(<<"unsupported-actions">>) -> 'unsupported-actions';
+from_bin(<<"unsupported-conditions">>) -> 'unsupported-conditions'.

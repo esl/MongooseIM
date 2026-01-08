@@ -22,6 +22,8 @@
 -type certificate() :: binary() | #'Certificate'{} | #'OTPCertificate'{}.
 -type general_name() :: term().
 
+-export_type([certificate/0]).
+
 -spec get_common_name(certificate()) -> bitstring() | error.
 get_common_name(Cert) ->
     try
@@ -56,7 +58,7 @@ get_xmpp_addresses(Cert) ->
         [Addr || Addr <- XmppAddrs, is_binary(Addr)]
     catch
         Class:Exception:StackTrace ->
-            log_exception(Cert, Class, Exception,StackTrace),
+            log_exception(Cert, Class, Exception, StackTrace),
             []
     end.
 

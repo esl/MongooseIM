@@ -3,7 +3,7 @@
 %%% @end
 %%% @copyright (C) 2022, Erlang Solutions Ltd.
 -module(mod_smart_markers_rdbms_async).
--behavior(mod_smart_markers_backend).
+-behaviour(mod_smart_markers_backend).
 -behaviour(mongoose_aggregator_worker).
 
 -include("jlib.hrl").

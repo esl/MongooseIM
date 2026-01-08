@@ -329,7 +329,11 @@ foreign_event(Acc, #{c2s_data := StateData,
         error ->
             {stop, mongoose_c2s_acc:to_acc(Acc, hard_stop, bad_stream_management_request)}
     end;
-foreign_event(Acc, #{c2s_data := StateData, event_type := {timeout, ?MODULE}, event_content := check_buffer_full}, _Extra) ->
+foreign_event(Acc,
+              #{c2s_data := StateData,
+                event_type := {timeout, ?MODULE},
+                event_content := check_buffer_full},
+              _Extra) ->
     #sm_state{buffer_size = BufferSize, buffer_max = BufferMax} = get_mod_state(StateData),
     case is_buffer_full(BufferSize, BufferMax) of
         true ->
@@ -355,8 +359,16 @@ handle_user_stopping(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
         SmState ->
             Timeout = get_resume_timeout(HostType),
             NewSmState = notify_unacknowledged_messages(Acc, StateData, SmState),
-            Actions = [{push_callback_module, ?MODULE}, {{timeout, ?MODULE}, Timeout, resume_timeout}, hibernate],
-            ToAcc = [{c2s_state, ?EXT_C2S_STATE(resume_session)}, {actions, Actions}, {state_mod, {?MODULE, NewSmState}}],
+            Actions = [
+                {push_callback_module, ?MODULE},
+                {{timeout, ?MODULE}, Timeout, resume_timeout},
+                hibernate
+            ],
+            ToAcc = [
+                {c2s_state, ?EXT_C2S_STATE(resume_session)},
+                {actions, Actions},
+                {state_mod, {?MODULE, NewSmState}}
+            ],
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}
     end.
 
@@ -380,7 +392,11 @@ notify_unacknowledged_msg(Acc, Jid) ->
 
 -spec reroute_unacked_messages(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
-reroute_unacked_messages(Acc, #{c2s_state := C2SState, c2s_data := StateData, reason := Reason}, #{host_type := HostType}) ->
+reroute_unacked_messages(Acc,
+                         #{c2s_state := C2SState,
+                           c2s_data := StateData,
+                           reason := Reason},
+                         #{host_type := HostType}) ->
     MaybeSmState = get_mod_state(StateData),
     maybe_handle_stream_mgmt_reroute(Acc, C2SState, StateData, HostType, Reason, MaybeSmState).
 
@@ -391,18 +407,27 @@ user_terminate(Acc, #{c2s_state := ?EXT_C2S_STATE(resume_session)}, _Extra) ->
 user_terminate(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
--spec maybe_handle_stream_mgmt_reroute(
-        mongoose_acc:t(), mongoose_c2s:state(), mongoose_c2s:data(), mongooseim:host_type(), term(), maybe_sm_state()) ->
+-spec maybe_handle_stream_mgmt_reroute(mongoose_acc:t(),
+                                       mongoose_c2s:state(),
+                                       mongoose_c2s:data(),
+                                       mongooseim:host_type(),
+                                       term(),
+                                       maybe_sm_state()) ->
     mongoose_c2s_hooks:result().
-maybe_handle_stream_mgmt_reroute(Acc, ?EXT_C2S_STATE(resume_session), StateData, HostType, Reason, #sm_state{counter_in = H} = SmState) ->
+maybe_handle_stream_mgmt_reroute(Acc,
+                                 ?EXT_C2S_STATE(resume_session),
+                                 StateData, HostType, Reason,
+                                 #sm_state{counter_in = H} = SmState) ->
     Sid = mongoose_c2s:get_sid(StateData),
     do_remove_smid(HostType, Sid, H),
     NewSmState = handle_user_terminate(SmState, StateData, HostType, Reason),
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmState})};
-maybe_handle_stream_mgmt_reroute(Acc, _C2SState, StateData, HostType, Reason, #sm_state{} = SmState) ->
+maybe_handle_stream_mgmt_reroute(Acc, _C2SState,
+                                 StateData, HostType, Reason,
+                                 #sm_state{} = SmState) ->
     NewSmState = handle_user_terminate(SmState, StateData, HostType, Reason),
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmState})};
-maybe_handle_stream_mgmt_reroute(Acc, _C2SState,_StateData, _HostType, _Reason, {error, not_found}) ->
+maybe_handle_stream_mgmt_reroute(Acc, _C2SState, _StateData, _HostType, _Reason, {error, not_found}) ->
     {ok, Acc}.
 
 -spec handle_user_terminate(sm_state(), mongoose_c2s:data(), mongooseim:host_type(), term()) -> sm_state().
@@ -647,11 +672,12 @@ get_all_stanzas_to_forward(StateData, SMID) ->
     Resumed = mod_stream_management_stanzas:stream_mgmt_resumed(SMID, Counter),
     LServer = mongoose_c2s:get_lserver(StateData),
     FromServer = jid:make_noprep(<<>>, LServer, <<>>),
-    ToForward = [ begin
-                      AccWithTS = maybe_add_timestamp(Acc, FromServer),
-                      mongoose_acc:element(AccWithTS)
-                  end || Acc <- lists:reverse(Buffer)],
+    ToForward = [buffer_acc_to_element(Acc, FromServer) || Acc <- lists:reverse(Buffer)],
     {Resumed, ToForward}.
+
+buffer_acc_to_element(Acc, FromServer) ->
+    AccWithTS = maybe_add_timestamp(Acc, FromServer),
+    mongoose_acc:element(AccWithTS).
 
 maybe_add_timestamp(Acc, FromServer) ->
     TS = mongoose_acc:timestamp(Acc),

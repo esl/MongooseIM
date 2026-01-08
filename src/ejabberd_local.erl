@@ -155,7 +155,7 @@ get_iq_callback_in_cluster(ID, _Acc) ->
 
 -spec process_packet(Acc :: mongoose_acc:t(),
                      From :: jid:jid(),
-                     To ::jid:jid(),
+                     To :: jid:jid(),
                      El :: exml:element(),
                      Extra :: map()) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, _Extra) ->

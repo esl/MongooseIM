@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mod_event_pusher_push_plugin_enhanced).
--behavior(mod_event_pusher_push_plugin).
+-behaviour(mod_event_pusher_push_plugin).
 
 -include("mod_event_pusher_events.hrl").
 
