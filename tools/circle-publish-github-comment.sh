@@ -253,19 +253,20 @@ else
         COMMENT_MARKER_ENV="$COMMENT_MARKER" \
         jq -rn '
             def rtrim: sub("\n+$"; "");
+            def escape_regex: gsub("([\\\\^$.|?*+()\\[\\]{}])"; "\\\\$1");
             . as $null
             | (env.EXISTING_BODY_ENV) as $existing
             | (env.SECTION_BEGIN_ENV) as $begin
             | (env.SECTION_END_ENV) as $end
             | (env.SECTION_ENV | rtrim) as $section
             | (env.COMMENT_MARKER_ENV) as $marker
-            | if ($existing | contains($begin)) and ($existing | contains($end)) then
-                                (($existing | split($begin)) as $parts
-                                 | ($parts[0]) as $before
-                                 | ($parts[1:] | join($begin)) as $after_begin
-                                 | ($after_begin | split($end)) as $parts2
-                                 | ($parts2[1:] | join($end)) as $after_end
-                                 | $before + $section + $after_end)
+
+            | ($begin | escape_regex) as $begin_re
+            | ($end | escape_regex) as $end_re
+            | ("(?s)" + $begin_re + ".*" + $end_re) as $pattern
+
+            | if ($existing | test($pattern)) then
+                $existing | sub($pattern; $section)
               elif ($existing | contains($marker)) then
                 (($existing | split($marker)) as $parts
                  | ($parts[0] | rtrim) + "\n\n" + $section + "\n\n" + $marker + ($parts[1] // ""))
