@@ -76,7 +76,8 @@ blocking_test_cases() ->
      block_all_message,
      block_jid_presence_in,
      block_jid_presence_out,
-     block_jid_iq,
+     block_iq_rejects_iq_from_users,
+     block_iq_allows_server_responses,
      block_jid_all,
      block_jid_message_but_not_presence,
      newly_blocked_presense_jid_by_new_list,
@@ -675,16 +676,9 @@ iq_with_to_attribute_is_treated_as_regular_one(Config) ->
             escalus_assert:has_no_stanzas(Alice)
         end).
 
-block_jid_iq(Config) ->
+block_iq_rejects_iq_from_users(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-
-        LServer = escalus_utils:get_server(Bob),
-        privacy_helper:set_list(Alice, {<<"deny_server_iq">>, LServer}),
-        %% activate it (this is actually redundant, but asserts iq result always comes through)
-        Stanza = escalus_stanza:privacy_activate(<<"deny_server_iq">>),
-        escalus_client:send(Alice, Stanza),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)), % we should get a result
-
+        deny_all_iq(Alice),
         %% bob queries for version and gets an error, Alice doesn't receive the query
         escalus_client:send(Bob, version_iq(<<"get">>, Bob, Alice)),
         timer:sleep(?SLEEP_TIME),
@@ -700,22 +694,26 @@ block_jid_iq(Config) ->
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice),
         escalus_assert:has_no_stanzas(Bob),
+        ok
+        end).
 
+block_iq_allows_server_responses(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        deny_all_iq(Alice),
         %% assert iqs upon my request are received
         RStanza = escalus_stanza:roster_add_contact(Bob, [], <<"a random guy">>),
         escalus:send(Alice, RStanza),
         Received = escalus:wait_for_stanzas(Alice, 2),
         escalus:assert_many([is_roster_set, is_iq_result], Received),
-
-        %% assert direct iq from server is received
-        ServerStanza = version_iq(<<"get">>, <<"localhost">>, escalus_utils:get_jid(Alice)),
-        rpc(mim(), ejabberd_router, route, [jid:from_binary(<<"localhost">>),
-                                            jid:from_binary(escalus_utils:get_jid(Alice)),
-                                            ServerStanza]),
-        escalus:assert(is_iq_get, escalus:wait_for_stanza(Alice)) ,
-
         ok
         end).
+
+deny_all_iq(User) ->
+    privacy_helper:set_list(User, <<"deny_all_iq">>),
+    %% activate it (this is actually redundant, but asserts iq result always comes through)
+    Stanza = escalus_stanza:privacy_activate(<<"deny_all_iq">>),
+    escalus_client:send(User, Stanza),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(User)). % we should get a result
 
 block_jid_all(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
