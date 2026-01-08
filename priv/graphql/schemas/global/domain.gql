@@ -11,6 +11,21 @@ type Domain{
   status: DomainStatus
 }
 
+"""
+A domain representation with type.
+Some operation could return incomplete object i.e. some fields can be null.
+"""
+type DomainWithType{
+  "Domain name"
+  domain: DomainName
+  "Domain hostType"
+  hostType: String
+  "Is domain enabled?"
+  status: DomainStatus
+  "Domain source type"
+  type: DomainType
+}
+
 enum DomainStatus {
   "Domain is enabled and ready to route traffic"
   ENABLED
@@ -20,4 +35,11 @@ enum DomainStatus {
   DELETING
   "Domain is deleted and does not exist anymore"
   DELETED
+}
+
+enum DomainType {
+  "Domain is defined in the configuration file"
+  STATIC
+  "Domain is stored in the database"
+  DYNAMIC
 }

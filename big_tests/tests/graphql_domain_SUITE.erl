@@ -48,6 +48,7 @@ domain_tests() ->
      get_domains_by_host_type,
      get_all_domains,
      get_domain_details,
+     get_static_domain_details,
      delete_domain,
      request_delete_domain,
      get_domains_after_deletion,
@@ -213,8 +214,8 @@ get_all_domains_with_disabled(Config) ->
     Result = execute_command(<<"domain">>, <<"allDomains">>, #{}, Config),
     ParsedResult = get_ok_value([data, domain, allDomains], Result),
     Expected = [
-        #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"DISABLED">>},
-        #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>}
+        #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"DISABLED">>, <<"type">> => <<"DYNAMIC">>},
+        #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>, <<"type">> => <<"DYNAMIC">>}
     ],
     lists:foreach(fun(E) -> ?assert(lists:member(E, ParsedResult)) end, Expected).
 
@@ -233,8 +234,9 @@ get_all_domains(Config) ->
     Result = execute_command(<<"domain">>, <<"allDomains">>, #{}, Config),
     ParsedResult = get_ok_value([data, domain, allDomains], Result),
     Expected = [
-        #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>},
-        #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>}
+        #{<<"domain">> => ?EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>, <<"type">> => <<"DYNAMIC">>},
+        #{<<"domain">> => ?SECOND_EXAMPLE_DOMAIN, <<"hostType">> => ?HOST_TYPE, <<"status">> => <<"ENABLED">>, <<"type">> => <<"DYNAMIC">>},
+        #{<<"domain">> => <<"localhost">>, <<"hostType">> => <<"localhost">>, <<"status">> => <<"ENABLED">>, <<"type">> => <<"STATIC">>}
     ],
     lists:foreach(fun(E) -> ?assert(lists:member(E, ParsedResult)) end, Expected).
 
@@ -243,7 +245,16 @@ get_domain_details(Config) ->
     ParsedResult = get_ok_value([data, domain, domainDetails], Result),
     ?assertEqual(#{<<"domain">> => ?EXAMPLE_DOMAIN,
                    <<"hostType">> => ?HOST_TYPE,
-                   <<"status">> => <<"ENABLED">>}, ParsedResult).
+                   <<"status">> => <<"ENABLED">>,
+                   <<"type">> => <<"DYNAMIC">>}, ParsedResult).
+
+get_static_domain_details(Config) ->
+    Result = get_domain_details(<<"localhost">>, Config),
+    ParsedResult = get_ok_value([data, domain, domainDetails], Result),
+    ?assertEqual(#{<<"domain">> => <<"localhost">>,
+                   <<"hostType">> => <<"localhost">>,
+                   <<"status">> => <<"ENABLED">>,
+                   <<"type">> => <<"STATIC">>}, ParsedResult).
 
 delete_domain(Config) ->
     Result1 = remove_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config),
@@ -302,7 +313,8 @@ domain_admin_get_domain_details(Config) ->
     ParsedResult = get_ok_value([data, domain, domainDetails], Result),
     ?assertEqual(#{<<"domain">> => ?DOMAIN_ADMIN_EXAMPLE_DOMAIN,
                    <<"hostType">> => ?HOST_TYPE,
-                   <<"status">> => <<"ENABLED">>}, ParsedResult).
+                   <<"status">> => <<"ENABLED">>,
+                   <<"type">> => <<"DYNAMIC">>}, ParsedResult).
 
 domain_admin_set_domain_password(Config) ->
     Result = set_domain_password(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, <<"secret">>, Config),
