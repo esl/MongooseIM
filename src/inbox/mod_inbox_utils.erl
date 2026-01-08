@@ -110,17 +110,14 @@ write_to_receiver_inbox(HostType, Sender, Receiver, Packet, Acc) ->
 maybe_broadcast_auto_unarchived(_HostType, _Owner, _Remote, _InboxEntryKey, _EntryProps0,
                                 _Acc, _IsRead, {error, _}) ->
     ok;
-maybe_broadcast_auto_unarchived(_HostType, _Owner, _Remote, _InboxEntryKey, _EntryProps0,
-                                _Acc, _IsRead, {error, _, _}) ->
-    ok;
 maybe_broadcast_auto_unarchived(_HostType, Owner, _Remote, {_, _, RemoteBareJidBin},
                                 #{box := <<"archive">>} = ArchivedProps, Acc, IsRead, WriteRes) ->
     %% If this entry was archived before the message write, then the message write will
     %% automatically move it back to inbox. Broadcast the state change to the owner's bare JID.
     UnreadCount = calculate_unread_count(IsRead, WriteRes, ArchivedProps),
-    CurrentTS = mongoose_acc:timestamp(Acc),
     Props = ArchivedProps#{box => <<"inbox">>,
                            unread_count => UnreadCount},
+    CurrentTS = mongoose_acc:timestamp(Acc),
     Children = build_entry_result_elements(Props, CurrentTS),
     X = #xmlel{name = <<"x">>,
                attrs = #{<<"xmlns">> => ?NS_ESL_INBOX_CONVERSATION,
@@ -129,7 +126,7 @@ maybe_broadcast_auto_unarchived(_HostType, Owner, _Remote, {_, _, RemoteBareJidB
     Msg = #xmlel{name = <<"message">>,
                  attrs = #{<<"id">> => mongoose_bin:gen_from_timestamp()},
                  children = [X]},
-    _Acc1 = ejabberd_router:route(Owner, jid:to_bare(Owner), Acc, Msg),
+    ejabberd_router:route(Owner, jid:to_bare(Owner), Acc, Msg),
     ok;
 
 maybe_broadcast_auto_unarchived(_HostType, _Owner, _Remote, _InboxEntryKey, _EntryProps0,
@@ -141,8 +138,6 @@ calculate_unread_count(true, _WriteRes, _ArchivedProps) ->
 calculate_unread_count(false, {ok, UnreadCount}, _ArchivedProps) when is_integer(UnreadCount) ->
     UnreadCount;
 calculate_unread_count(false, ok, ArchivedProps) ->
-    maps:get(unread_count, ArchivedProps, 0) + 1;
-calculate_unread_count(false, _WriteRes, ArchivedProps) ->
     maps:get(unread_count, ArchivedProps, 0) + 1.
 
 

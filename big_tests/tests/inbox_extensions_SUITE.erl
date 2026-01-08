@@ -517,11 +517,9 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
     end).
 
 wait_for_auto_unarchive_broadcast(User, Remote, ReadVal) ->
-    Msg = escalus:wait_for_stanza(User),
-    ?assert(escalus_pred:is_message(Msg)),
-    [X] = exml_query:subelements(Msg, <<"x">>),
-    ?assertEqual(escalus_utils:get_short_jid(Remote), exml_query:attr(X, <<"jid">>)),
-    assert_conversation_properties(X, [{box, inbox}, {archive, false}, {read, ReadVal}], #{}).
+    Properties = [{jid, escalus_utils:get_short_jid(Remote)},
+                  {box, inbox}, {archive, false}, {read, ReadVal}],
+    check_message_with_properties(User, undefined, Properties, #{}).
 
 archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -903,11 +901,18 @@ set_inbox_properties(From, To, Properties, QueryOpts) ->
     check_message_with_properties(From, Stanza, Properties, QueryOpts),
     check_iq_result_for_property(From, Stanza).
 
--spec check_message_with_properties(escalus:client(), exml:element(), proplists:proplist(), map()) -> ok.
+-spec check_message_with_properties(escalus:client(), exml:element() | undefined, proplists:proplist(), map()) -> ok.
 check_message_with_properties(From, Stanza, Properties, QueryOpts) ->
     Message = escalus:wait_for_stanza(From),
+    check_message_pushed(Message, Stanza, Properties, QueryOpts).
+
+-spec check_message_pushed(exml:element(), exml:element() | undefined, proplists:proplist(), map()) -> ok.
+check_message_pushed(Message, Stanza, Properties, QueryOpts) ->
     ?assert(escalus_pred:is_message(Message)),
-    ?assert(has_same_id(Stanza, Message)),
+    case Stanza of
+        undefined -> ok;
+        _ -> ?assert(has_same_id(Stanza, Message))
+    end,
     [X] = exml_query:subelements(Message, <<"x">>),
     assert_conversation_properties(X, Properties, QueryOpts).
 
@@ -963,6 +968,8 @@ props_to_children([{Key, Value} | Rest], Acc) ->
     props_to_children(Rest,
       [#xmlel{name = to_bin(Key), children = [#xmlcdata{content = to_bin(Value)}]} | Acc]).
 
+assert_property(X, jid, Val) ->
+    ?assertEqual(to_bin(Val), exml_query:attr(X, <<"jid">>));
 assert_property(X, read, Val) ->
     ?assertEqual(to_bin(Val), exml_query:path(X, [{element, <<"read">>}, cdata]));
 assert_property(X, box, Val) ->
@@ -1014,20 +1021,20 @@ send_msg_expect_broadcast_and_receipt(Sender, Receiver, Body, ExpectedBroadcastR
     Msg = escalus_stanza:set_id(escalus_stanza:chat_to(Receiver, Body), MsgId),
     escalus:send(Sender, Msg),
 
-    Stanza1 = escalus:wait_for_stanza(Receiver),
-    Stanza2 = escalus:wait_for_stanza(Receiver),
+    [Stanza1, Stanza2] = escalus:wait_for_stanzas(Receiver, 2),
+    escalus:assert_many([fun is_broadcast_stanza/1, fun escalus_pred:is_chat_message/1], [Stanza1, Stanza2]),
 
-    [Broadcast, ChatMessage] =
+    {Broadcast, ChatMessage} =
         case is_broadcast_stanza(Stanza1) of
-            true -> [Stanza1, Stanza2];
-            false -> [Stanza2, Stanza1]
+            true -> {Stanza1, Stanza2};
+            false -> {Stanza2, Stanza1}
         end,
 
     %% Verify broadcast
-    ?assert(escalus_pred:is_message(Broadcast)),
-    [X] = exml_query:subelements(Broadcast, <<"x">>),
-    ?assertEqual(escalus_utils:get_short_jid(Sender), exml_query:attr(X, <<"jid">>)),
-    assert_conversation_properties(X, [{box, inbox}, {archive, false}, {read, ExpectedBroadcastReadVal}], #{}),
+    check_message_pushed(Broadcast, undefined,
+                         [{jid, escalus_utils:get_short_jid(Sender)},
+                          {box, inbox}, {archive, false}, {read, ExpectedBroadcastReadVal}],
+                         #{}),
 
     %% Verify message
     ?assert(escalus_pred:is_chat_message(ChatMessage)),
@@ -1040,4 +1047,5 @@ is_broadcast_stanza(Msg) ->
         [X] -> exml_query:attr(X, <<"xmlns">>) == inbox_helper:inbox_ns_conversation();
         _ -> false
     end.
+
 
