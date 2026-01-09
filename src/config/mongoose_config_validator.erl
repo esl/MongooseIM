@@ -66,7 +66,7 @@ validate_section([_|_], non_empty) -> ok;
 validate_section(L, any) when is_list(L) -> ok.
 
 %% validators
-%% 
+%%
 validate_instrumentation_loglevel(none) ->
     error(#{what => validate_instrumentation_loglevel_failed,
             value => none});

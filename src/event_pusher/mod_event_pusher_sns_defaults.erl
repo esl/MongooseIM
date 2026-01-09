@@ -12,7 +12,7 @@
 -module(mod_event_pusher_sns_defaults).
 -author("Rafal Slota").
 
--behavior(mod_event_pusher_sns).
+-behaviour(mod_event_pusher_sns).
 
 -include("jlib.hrl").
 

@@ -461,7 +461,8 @@ execute_select_properties(HostType, LUser, LServer, RemBareJID) ->
     mongoose_rdbms:execute_successfully(HostType, inbox_select_properties,
                                         [LUser, LServer, RemBareJID]).
 
--spec execute_reset_unread(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid(), binary() | undefined, integer()) ->
+-spec execute_reset_unread(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid(),
+                           binary() | undefined, integer()) ->
           mongoose_rdbms:query_result().
 execute_reset_unread(HostType, LUser, LServer, RemBareJID, undefined, TS) ->
     mongoose_rdbms:execute_successfully(HostType, inbox_reset_unread,

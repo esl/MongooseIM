@@ -266,7 +266,7 @@ get_session_ip(JID) ->
             end
     end.
 
--spec get_session(JID) -> offline | session() when
+-spec get_session(JID) -> offline | #session{} when
       JID :: jid:jid().
 get_session(JID) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
@@ -277,7 +277,7 @@ get_session(JID) ->
             lists:max(Ss)
     end.
 
--spec get_raw_sessions(jid:jid()) -> [session()].
+-spec get_raw_sessions(jid:jid()) -> [#session{}].
 get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
     clean_session_list(
       ejabberd_sm_backend:get_sessions(LUser, LServer)).
@@ -329,7 +329,7 @@ get_vh_session_number(Server) ->
     length(ejabberd_sm_backend:get_sessions(Server)).
 
 
--spec get_vh_session_list(jid:server()) -> [session()].
+-spec get_vh_session_list(jid:server()) -> [#session{}].
 get_vh_session_list(Server) ->
     ejabberd_sm_backend:get_sessions(Server).
 
@@ -340,7 +340,7 @@ get_node_sessions_number() ->
     Listeners = [Ref || {Ref, _, _, [mongoose_c2s_listener | _]} <- Children],
     lists:sum([maps:get(active_connections, ranch:info(Ref)) || Ref <- Listeners]).
 
--spec get_full_session_list() -> [session()].
+-spec get_full_session_list() -> [#session{}].
 get_full_session_list() ->
     ejabberd_sm_backend:get_sessions().
 
@@ -423,7 +423,7 @@ node_cleanup(Acc, #{node := Node}, _) ->
     Res = gen_server:call(?MODULE, {node_cleanup, Node}, Timeout),
     {ok, maps:put(?MODULE, Res, Acc)}.
 
--spec check_in_subscription(Acc, Args, Extra)-> {ok, Acc} | {stop, false} when
+-spec check_in_subscription(Acc, Args, Extra) -> {ok, Acc} | {stop, false} when
       Acc :: any(),
       Args :: #{to := jid:jid()},
       Extra :: map().
@@ -815,12 +815,12 @@ route_message_by_type(_, From, To, Acc, Packet) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec clean_session_list([session()]) -> [session()].
+-spec clean_session_list([#session{}]) -> [#session{}].
 clean_session_list(Ss) ->
     clean_session_list(lists:keysort(#session.usr, Ss), []).
 
 
--spec clean_session_list([session()], [session()]) -> [session()].
+-spec clean_session_list([#session{}], [#session{}]) -> [#session{}].
 clean_session_list([], Res) ->
     Res;
 clean_session_list([S], Res) ->
@@ -965,13 +965,14 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
         [{_, IQHandler}] ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
-            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Unknown xmlns=", XMLNS/binary, " for host=", Host/binary>>),
+            Msg = <<"Unknown xmlns=", XMLNS/binary, " for host=", Host/binary>>,
+            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, Msg),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             ejabberd_router:route(To, From, Acc1, Err)
     end;
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
-   ejabberd_router:route(To, From, Acc1, Err).
+    ejabberd_router:route(To, From, Acc1, Err).
 
 -spec user_resources(UserStr :: string(), ServerStr :: string()) -> [binary()].
 user_resources(UserStr, ServerStr) ->

@@ -11,7 +11,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_push_service_mongoosepush).
 -author('rafal.slota@erlang-solutions.com').
--behavior(gen_mod).
+-behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
@@ -130,9 +130,9 @@ send_push_notifications([Notification | Notifications], Fun, Result) ->
 -spec http_notification(Host :: jid:server(), post,
                         binary(), proplists:proplist(), binary()) ->
     ok | {error, Reason :: term()}.
-http_notification(Host, Method, URL, ReqHeaders, Payload) ->
+http_notification(Host, post, URL, ReqHeaders, Payload) ->
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name),
-    case mongoose_http_client:Method(Host, PoolName, URL, ReqHeaders, Payload) of
+    case mongoose_http_client:post(Host, PoolName, URL, ReqHeaders, Payload) of
         {ok, {BinStatusCode, Body}} ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->

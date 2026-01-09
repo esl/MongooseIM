@@ -23,7 +23,7 @@
 -type parsed_form() :: #{type => binary(), ns => binary(), kvs := kv_map()}.
 -type kv_map() :: #{binary() => [binary()]}.
 
--export_type([form/0, field/0, option/0, validate/0, kv_map/0]).
+-export_type([form/0, field/0, option/0, validate/0, kv_map/0, parsed_form/0]).
 
 -ignore_xref([is_form/1]). % exported for consistency, might be used later
 

@@ -674,6 +674,19 @@ jobs:
           name: Run Xref
           command: |
             ./tools/test.sh -p xref_only -s false
+
+  elvis:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Elvis
+          command: |
+            make elvis
   edoc:
     executor: << parameters.executor >>
     parameters:
@@ -923,6 +936,14 @@ workflows:
           requires:
             - otp_28_docker
           filters: *all_tags
+      # ============= ELVIS =============
+      - elvis:
+          name: elvis
+          executor: otp_28
+          context: mongooseim-org
+          requires:
+            - otp_28_docker
+          filters: *all_tags
       # ============= EDOC =============
       - edoc:
           name: edoc
@@ -1088,6 +1109,7 @@ workflows:
             - small_tests_28_arm64
 
             - xref
+            - elvis
             - edoc
 
           filters: *all_tags

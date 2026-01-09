@@ -38,7 +38,7 @@ report_mnesia_table_error(Table, Opts, Res) ->
 
 maybe_add_copies(Table, Opts, Type) ->
     case proplists:get_value(Type, Opts) of
-        [_|_] ->
+        [_ | _] ->
             mnesia:add_table_copy(Table, node(), Type),
             ok;
         _ ->

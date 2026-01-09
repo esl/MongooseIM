@@ -12,6 +12,8 @@
 -include("amp.hrl").
 -include("jlib.hrl").
 
+-export_type([amp_strategy/0]).
+
 -spec determine_strategy(StrategyAcc, Params, Extra) -> {ok, StrategyAcc} when
       StrategyAcc :: mod_amp:amp_strategy(),
       Params :: #{to := jid:jid() | undefined, event := mod_amp:amp_event()},
@@ -62,5 +64,5 @@ deliver_strategy(_, delivered) -> [direct].
 %% in test/amp_resolver_SUITE.erl
 %%
 match_resource_strategy({offline, []}) -> undefined;
-match_resource_strategy({offline, [_|_ManyRes]}) -> other;
-match_resource_strategy({online, [_|_ManyRes]}) -> exact.
+match_resource_strategy({offline, [_ | _ManyRes]}) -> other;
+match_resource_strategy({online, [_ | _ManyRes]}) -> exact.

@@ -21,8 +21,8 @@ start() ->
 
 %% Session key (sid) is unique, so we don't expect conflicts
 %% So, the confict resolution could be avoided
--spec create_session(mod_bosh:session()) -> any().
-create_session(Session) ->
+-spec create_session(mod_bosh:session()) -> ok.
+create_session(#bosh_session{} = Session) ->
     cets:insert(?TABLE, Session).
 
 -spec delete_session(mod_bosh:sid()) -> any().

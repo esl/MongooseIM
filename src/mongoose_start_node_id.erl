@@ -46,7 +46,7 @@ do_init() ->
     StartId = mongoose_bin:gen_from_crypto(),
     persistent_term:put(mongoose_start_node_id, StartId),
     [register_on_remote_node(RemoteNode, StartId)
-     || RemoteNode <- [node()|nodes()]],
+        || RemoteNode <- [node() | nodes()]],
     {ok, #state{start_id = StartId, mon_ref_to_start_id = #{}}}.
 
 handle_call(_Request, _From, State) ->

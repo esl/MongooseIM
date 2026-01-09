@@ -38,7 +38,8 @@ do_private_get(JID, Element, Ns) ->
              children = [SubEl] }] = ResIq#iq.sub_el,
     {ok, SubEl}.
 
-send_iq(Method, Xml, From = To = _JID, HostType) ->
+send_iq(Method, Xml, JID, HostType) ->
+    From = To = JID,
     IQ = {iq, <<>>, Method, ?NS_PRIVATE, <<>>,
           #xmlel{ name = <<"query">>,
                   attrs = #{<<"xmlns">> => ?NS_PRIVATE},

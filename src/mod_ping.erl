@@ -8,7 +8,7 @@
 -module(mod_ping).
 -author('piotr.nosek@erlang-solutions.com').
 
--behavior(gen_mod).
+-behaviour(gen_mod).
 -xep([{xep, 199}, {version, "2.0.1"}]).
 
 -include("jlib.hrl").

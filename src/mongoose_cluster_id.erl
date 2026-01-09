@@ -12,6 +12,8 @@
 -record(mongoose_cluster_id, {key :: atom(), value :: cluster_id()}).
 -type cluster_id() :: binary().
 -type maybe_cluster_id() :: {ok, cluster_id()} | {error, any()}.
+
+-export_type([maybe_cluster_id/0]).
 -type persistent_backend() :: rdbms | {error, none}.
 -type volatile_backend() :: mnesia | cets.
 

@@ -59,11 +59,15 @@ filter_local_packet({From, To, Acc0, Packet}, _, _) ->
 user_send_message(Acc, _, _) ->
     Packet = mongoose_acc:packet(Acc),
     ChatType = chat_type(Acc),
-    ResultAcc = if
-        Packet == undefined -> Acc;
-        ChatType == false -> Acc;
-        true -> push_chat_event(Acc, ChatType, Packet, in)
-    end,
+    ResultAcc =
+        case {Packet, ChatType} of
+            {undefined, _} ->
+                Acc;
+            {_, false} ->
+                Acc;
+            {_, Type} ->
+                push_chat_event(Acc, Type, Packet, in)
+        end,
     {ok, ResultAcc}.
 
 -spec user_present(Acc, Args, Extra) -> {ok, Acc} when

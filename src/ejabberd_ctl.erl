@@ -53,7 +53,7 @@
 -define(ASCII_SPACE_CHARACTER, $\s).
 -define(PRINT(Format, Args), io:format(lists:flatten(Format), Args)).
 -define(TIME_HMS_FORMAT, "~B days ~2.10.0B:~2.10.0B:~2.10.0B").
--define(a2l(A), atom_to_list(A)).
+-define(A2L(A), atom_to_list(A)).
 
 %%-----------------------------
 %% Module
@@ -198,19 +198,19 @@ handle_graphql_result({error, Reason}) ->
 format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
                {mongoose_status, MS}, {os_pid, OSPid}, {uptime, UptimeHMS},
                {dist_proto, DistProto}, {logs, LogFiles}]) ->
-    ( ["MongooseIM node ", ?a2l(Node), ":\n",
+    (["MongooseIM node ", ?A2L(Node), ":\n",
        "    operating system pid: ", OSPid, "\n",
-       "    Erlang VM status: ", ?a2l(IS), " (of: starting | started | stopping)\n",
+       "    Erlang VM status: ", ?A2L(IS), " (of: starting | started | stopping)\n",
        "    boot script status: ", io_lib:format("~p", [PS]), "\n",
        "    version: ", case MS of
-                          {running, App, Version} -> [Version, " (as ", ?a2l(App), ")"];
+                          {running, App, Version} -> [Version, " (as ", ?A2L(App), ")"];
                           not_running -> "unavailable - neither ejabberd nor mongooseim is running"
                         end, "\n",
        "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS), "\n",
        "    distribution protocol: ", DistProto, "\n"] ++
       ["    logs: none - maybe enable logging to a file in app.config?\n" || LogFiles == [] ] ++
       ["    logs:\n" || LogFiles /= [] ] ++ [
-      ["        ", LogFile, "\n"] || LogFile <- LogFiles ] ).
+      ["        ", LogFile, "\n"] || LogFile <- LogFiles]).
 
 %%-----------------------------
 %% Print help
@@ -323,7 +323,7 @@ print_usage_commands(MaxC, ShCode, Commands) ->
 -spec get_shell_info() -> {integer(), boolean()}.
 get_shell_info() ->
     case io:columns() of
-        {ok, C} -> {C-2, true};
+        {ok, C} -> {C - 2, true};
         {error, enotsup} -> {78, false}
     end.
 
@@ -365,7 +365,7 @@ join(L, Words) ->
            Words :: [nonempty_string()],
            LenLastSeg :: non_neg_integer(),
            LastSeg :: [nonempty_string()],
-           ResSeg :: [[[any(), ...]]] ) -> [[[any(), ...]], ...].
+           ResSeg :: [[[any(), ...]]]) -> [[[any(), ...]], ...].
 join(_L, [], _LenLastSeg, LastSeg, ResSeg) ->
     ResSeg2 = [lists:reverse(LastSeg) | ResSeg],
     lists:reverse(ResSeg2);
@@ -377,9 +377,9 @@ join(L, [Word | Words], LenLastSeg, LastSeg, ResSeg) ->
             %% If this word ends with "\n", reset column counter
             case string:str(Word, "\n") of
                 0 ->
-                    join(L, Words, LenLastSeg+LWord+1, [" ", Word | LastSeg], ResSeg);
+                    join(L, Words, LenLastSeg + LWord + 1, [" ", Word | LastSeg], ResSeg);
                 _ ->
-                    join(L, Words, LWord+1, [" ", Word | LastSeg], ResSeg)
+                    join(L, Words, LWord + 1, [" ", Word | LastSeg], ResSeg)
             end;
         false ->
             join(L, Words, LWord, [" ", Word], [lists:reverse(LastSeg) | ResSeg])
@@ -402,7 +402,7 @@ format_command_lines(CALD, MaxCmdLen, MaxC, ShCode) ->
     % Dual mode
     lists:map(
         fun({Cmd, Args, CmdArgsL, Desc}) ->
-            DescFmt = prepare_description(MaxCmdLen+4, MaxC, Desc),
+            DescFmt = prepare_description(MaxCmdLen + 4, MaxC, Desc),
             ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args],
              string:chars(?ASCII_SPACE_CHARACTER, MaxCmdLen - CmdArgsL + 1),
              DescFmt, "\n"]

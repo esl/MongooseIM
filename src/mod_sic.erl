@@ -81,7 +81,7 @@ supported_features() -> [dynamic_domains].
 %%% IQ handlers
 %%%
 
--spec process_local_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) 
+-spec process_local_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map())
         -> {mongoose_acc:t(), jlib:iq()}.
 process_local_iq(Acc, #jid{} = JID, _To,
                  #iq{type = 'get', sub_el = _SubEl} = IQ, _Extra) ->
@@ -89,7 +89,7 @@ process_local_iq(Acc, #jid{} = JID, _To,
 process_local_iq(Acc, _From, _To, #iq{type = 'set', sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}}.
 
--spec process_sm_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) 
+-spec process_sm_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map())
         -> {mongoose_acc:t(), jlib:iq()}.
 process_sm_iq(Acc,
               #jid{luser = LUser, lserver = LServer} = JID,

@@ -10,6 +10,12 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
+-export_type([amp_rule_support/0,
+              amp_rules/0,
+              amp_match_result/0,
+              amp_strategy/0,
+              amp_rule/0]).
+
 -spec verify_support(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [amp_rule_support()],
     Params :: #{rules := amp_rules()},

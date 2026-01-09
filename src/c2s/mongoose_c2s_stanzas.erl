@@ -152,7 +152,11 @@ sasl_challenge_stanza(ServerOut) ->
            attrs = #{<<"xmlns">> => ?NS_SASL},
            children = [#xmlcdata{content = base64:encode(ServerOut)}]}.
 
--spec successful_resource_binding(jlib:iq(), jid:jid()) -> exml:element().
+-spec successful_resource_binding(jlib:iq(),
+                                  jid:ljid() |
+                                  jid:simple_bare_jid() |
+                                  jid:simple_jid() |
+                                  jid:jid()) -> exml:element().
 successful_resource_binding(IQ, Jid) ->
     JIDEl = #xmlel{name = <<"jid">>,
                    children = [#xmlcdata{content = jid:to_binary(Jid)}]},
