@@ -10,9 +10,6 @@ all() ->
      extract_pagination_opts_with_limit,
      extract_pagination_opts_with_offset,
      extract_pagination_opts_with_prefix,
-     extract_pagination_opts_with_from_to,
-     calculate_real_pagination_from_to,
-     calculate_real_pagination_limit_offset,
      apply_prefix_filter_with_prefix,
      apply_prefix_filter_without_prefix,
      apply_pagination_no_pagination,
@@ -21,58 +18,38 @@ all() ->
      %% ejabberd_auth_rdbms tests
      extract_list_users_opts_no_options,
      extract_list_users_opts_with_limit,
-     extract_list_users_opts_with_prefix,
-     extract_list_users_opts_with_from_to,
-     calculate_list_users_pagination_from_to,
-     calculate_list_users_pagination_limit_offset
+    extract_list_users_opts_with_prefix
     ].
 
 %%%------- ejabberd_auth_internal tests --------
 
 extract_pagination_opts_no_options(_Config) ->
-    Opts = [],
+    Opts = #{},
     {Limit, Offset, Prefix} = ejabberd_auth_internal:extract_pagination_opts(Opts),
     ?assertEqual(undefined, Limit),
     ?assertEqual(0, Offset),
     ?assertEqual(undefined, Prefix).
 
 extract_pagination_opts_with_limit(_Config) ->
-    Opts = [{limit, 10}],
+    Opts = #{limit => 10},
     {Limit, Offset, Prefix} = ejabberd_auth_internal:extract_pagination_opts(Opts),
     ?assertEqual(10, Limit),
     ?assertEqual(0, Offset),
     ?assertEqual(undefined, Prefix).
 
 extract_pagination_opts_with_offset(_Config) ->
-    Opts = [{offset, 5}],
+    Opts = #{offset => 5},
     {Limit, Offset, Prefix} = ejabberd_auth_internal:extract_pagination_opts(Opts),
     ?assertEqual(undefined, Limit),
     ?assertEqual(5, Offset),
     ?assertEqual(undefined, Prefix).
 
 extract_pagination_opts_with_prefix(_Config) ->
-    Opts = [{prefix, <<"test">>}],
+    Opts = #{prefix => <<"test">>},
     {Limit, Offset, Prefix} = ejabberd_auth_internal:extract_pagination_opts(Opts),
     ?assertEqual(undefined, Limit),
     ?assertEqual(0, Offset),
     ?assertEqual(<<"test">>, Prefix).
-
-extract_pagination_opts_with_from_to(_Config) ->
-    Opts = [{from, 5}, {to, 10}],
-    {Limit, Offset, Prefix} = ejabberd_auth_internal:extract_pagination_opts(Opts),
-    ?assertEqual(6, Limit),  %% 10 - 5 + 1
-    ?assertEqual(4, Offset),  %% 5 - 1
-    ?assertEqual(undefined, Prefix).
-
-calculate_real_pagination_from_to(_Config) ->
-    {Limit, Offset} = ejabberd_auth_internal:calculate_real_pagination(5, 10, undefined, 0),
-    ?assertEqual(6, Limit),
-    ?assertEqual(4, Offset).
-
-calculate_real_pagination_limit_offset(_Config) ->
-    {Limit, Offset} = ejabberd_auth_internal:calculate_real_pagination(undefined, undefined, 10, 5),
-    ?assertEqual(10, Limit),
-    ?assertEqual(5, Offset).
 
 apply_prefix_filter_with_prefix(_Config) ->
     Users = [{<<"alice">>, <<"example.com">>}, {<<"bob">>, <<"example.com">>}, {<<"abc">>, <<"example.com">>}],
@@ -123,19 +100,3 @@ extract_list_users_opts_with_prefix(_Config) ->
     ?assertEqual(0, Offset),
     ?assertEqual(<<"test">>, Prefix).
 
-extract_list_users_opts_with_from_to(_Config) ->
-    Opts = #{from => 5, to => 10},
-    {Limit, Offset, Prefix} = ejabberd_auth_rdbms:extract_list_users_opts(Opts),
-    ?assertEqual(6, Limit),
-    ?assertEqual(4, Offset),
-    ?assertEqual(undefined, Prefix).
-
-calculate_list_users_pagination_from_to(_Config) ->
-    {Limit, Offset} = ejabberd_auth_rdbms:calculate_list_users_pagination(5, 10, undefined, 0),
-    ?assertEqual(6, Limit),
-    ?assertEqual(4, Offset).
-
-calculate_list_users_pagination_limit_offset(_Config) ->
-    {Limit, Offset} = ejabberd_auth_rdbms:calculate_list_users_pagination(undefined, undefined, 10, 5),
-    ?assertEqual(10, Limit),
-    ?assertEqual(5, Offset).

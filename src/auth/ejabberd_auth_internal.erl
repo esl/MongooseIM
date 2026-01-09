@@ -56,12 +56,11 @@
 
 %% Pagination helpers (exported for testing)
 -export([extract_pagination_opts/1,
-         calculate_real_pagination/4,
          apply_prefix_filter/2,
          apply_pagination/4]).
 
 -ignore_xref([dirty_get_registered_users/0, scram_passwords/0, extract_pagination_opts/1,
-              calculate_real_pagination/4, apply_prefix_filter/2, apply_pagination/4]).
+              apply_prefix_filter/2, apply_pagination/4]).
 
 -include("mongoose.hrl").
 -include("scram.hrl").
@@ -213,11 +212,8 @@ get_users(LServer) ->
 get_registered_users(_, LServer, Opts) ->
     get_users(LServer, Opts).
 
--type query_keyword() :: from | to | limit | offset | prefix.
--type query_value() :: integer() | binary().
-
 -spec get_users(LServer :: jid:lserver(),
-                Query :: [{query_keyword(), query_value()}]
+                Query :: map()
                ) -> [jid:simple_bare_jid()].
 get_users(LServer, Opts) ->
     {Limit, Offset, Prefix} = extract_pagination_opts(Opts),
@@ -225,27 +221,13 @@ get_users(LServer, Opts) ->
     FilteredUsers = apply_prefix_filter(Prefix, Users),
     apply_pagination(FilteredUsers, Limit, Offset, Prefix).
 
--spec extract_pagination_opts(Opts :: [{atom(), any()}]) ->
+-spec extract_pagination_opts(Opts :: map()) ->
           {Limit :: integer() | undefined, Offset :: integer(), Prefix :: binary() | undefined}.
 extract_pagination_opts(Opts) ->
-    Prefix = proplists:get_value(prefix, Opts),
-    From = proplists:get_value(from, Opts),
-    To = proplists:get_value(to, Opts),
-    Limit = proplists:get_value(limit, Opts),
-    Offset = proplists:get_value(offset, Opts, 0),
-    {RealLimit, RealOffset} = calculate_real_pagination(From, To, Limit, Offset),
-    {RealLimit, RealOffset, Prefix}.
-
--spec calculate_real_pagination(From :: integer() | undefined,
-                                To :: integer() | undefined,
-                                Limit :: integer() | undefined,
-                                Offset :: integer()) ->
-          {Limit :: integer() | undefined, Offset :: integer()}.
-calculate_real_pagination(From, To, _Limit, _Offset)
-        when is_integer(From), is_integer(To), From >= 1, To >= From ->
-    {To - From + 1, From - 1};
-calculate_real_pagination(_From, _To, Limit, Offset) ->
-    {Limit, Offset}.
+    Prefix = maps:get(prefix, Opts, undefined),
+    Limit = maps:get(limit, Opts, undefined),
+    Offset = maps:get(offset, Opts, 0),
+    {Limit, Offset, Prefix}.
 
 -spec apply_prefix_filter(Prefix :: binary() | undefined, Users :: [jid:simple_bare_jid()]) ->
           [jid:simple_bare_jid()].

@@ -53,11 +53,9 @@
 -export([scram_passwords/2, scram_passwords/4]).
 
 %% Pagination helpers (exported for testing)
--export([extract_list_users_opts/1,
-         calculate_list_users_pagination/4]).
+-export([extract_list_users_opts/1]).
 
--ignore_xref([scram_passwords/2, scram_passwords/4, extract_list_users_opts/1,
-              calculate_list_users_pagination/4]).
+-ignore_xref([scram_passwords/2, scram_passwords/4, extract_list_users_opts/1]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
@@ -203,11 +201,11 @@ try_register(HostType, LUser, LServer, Password) ->
             {error, exists} %% XXX wrong error type - fix type in a separate PR
     end.
 
--spec get_registered_users(mongooseim:host_type(), jid:lserver(), Opts :: list()) ->
+-spec get_registered_users(mongooseim:host_type(), jid:lserver(), Opts :: map()) ->
           [jid:simple_bare_jid()].
 get_registered_users(HostType, LServer, Opts) ->
     try
-        {selected, Res} = execute_list_users(HostType, LServer, maps:from_list(Opts)),
+        {selected, Res} = execute_list_users(HostType, LServer, Opts),
         [{U, LServer} || {U} <- Res]
     catch error:Reason:StackTrace ->
         ?LOG_ERROR(#{what => get_vh_registered_users_failed, server => LServer,
@@ -215,17 +213,18 @@ get_registered_users(HostType, LServer, Opts) ->
         []
     end.
 
--spec get_registered_users_number(mongooseim:host_type(), jid:lserver(), Opts :: list()) ->
+-spec get_registered_users_number(mongooseim:host_type(), jid:lserver(), Opts :: map()) ->
           non_neg_integer().
 get_registered_users_number(HostType, LServer, Opts) ->
     try
-        Selected = execute_count_users(HostType, LServer, maps:from_list(Opts)),
+        Selected = execute_count_users(HostType, LServer, Opts),
         mongoose_rdbms:selected_to_integer(Selected)
     catch error:Reason:StackTrace ->
         ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed, server => LServer,
                      class => error, reason => Reason, stacktrace => StackTrace}),
         0
     end.
+
 
 -spec get_password(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
           ejabberd_auth:passterm() | false.
@@ -508,23 +507,9 @@ maybe_apply_offset_only(Res, _Limit, _Offset) ->
           {Limit :: integer() | undefined, Offset :: integer(), Prefix :: binary() | undefined}.
 extract_list_users_opts(Opts) ->
     Prefix = maps:get(prefix, Opts, undefined),
-    From = maps:get(from, Opts, undefined),
-    To = maps:get(to, Opts, undefined),
     Limit = maps:get(limit, Opts, undefined),
     Offset = maps:get(offset, Opts, 0),
-    {RealLimit, RealOffset} = calculate_list_users_pagination(From, To, Limit, Offset),
-    {RealLimit, RealOffset, Prefix}.
-
--spec calculate_list_users_pagination(From :: integer() | undefined,
-                                      To :: integer() | undefined,
-                                      Limit :: integer() | undefined,
-                                      Offset :: integer()) ->
-          {Limit :: integer() | undefined, Offset :: integer()}.
-calculate_list_users_pagination(From, To, _Limit, _Offset)
-        when is_integer(From), is_integer(To), From >= 1, To >= From ->
-    {To - From + 1, From - 1};
-calculate_list_users_pagination(_From, _To, Limit, Offset) ->
-    {Limit, Offset}.
+    {Limit, Offset, Prefix}.
 
 -spec select_list_users_query(mongooseim:host_type(), jid:lserver(),
                               {Prefix :: binary() | undefined,

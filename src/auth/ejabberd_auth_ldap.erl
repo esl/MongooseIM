@@ -196,13 +196,13 @@ try_register(HostType, LUser, _LServer, Password) ->
 
 -spec get_registered_users(HostType :: mongooseim:host_type(),
                            LServer :: jid:lserver(),
-                           Opts :: list()) -> [jid:simple_bare_jid()].
+                           Opts :: map()) -> [jid:simple_bare_jid()].
 get_registered_users(HostType, LServer, Opts) ->
     case catch get_registered_users_ldap(HostType, LServer) of
       {'EXIT', _} -> [];
       Result ->
-          Limit = proplists:get_value(limit, Opts),
-          Offset = proplists:get_value(offset, Opts, 0),
+          Limit = maps:get(limit, Opts, undefined),
+          Offset = maps:get(offset, Opts, 0),
           case {Limit, Offset} of
               {undefined, 0} -> Result;
               _ ->
@@ -214,7 +214,7 @@ get_registered_users(HostType, LServer, Opts) ->
 
 -spec get_registered_users_number(HostType :: mongooseim:host_type(),
                                   LServer :: jid:lserver(),
-                                  Opts :: list()) -> non_neg_integer().
+                                  Opts :: map()) -> non_neg_integer().
 get_registered_users_number(HostType, LServer, Opts) ->
     length(get_registered_users(HostType, LServer, Opts)).
 

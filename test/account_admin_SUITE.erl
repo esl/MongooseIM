@@ -44,6 +44,10 @@ api_list_users_pagination(_C) ->
     {ok, Result3} = mongoose_account_api:list_users(Domain, #{offset => 1}),
     ?assertEqual([<<"u2@api.com">>, <<"u3@api.com">>], Result3),
 
+    %% Compatibility: accept proplist opts at the public ejabberd_auth boundary
+    Res4 = ejabberd_auth:get_vh_registered_users(Domain, [{limit, 1}, {offset, 1}]),
+    ?assertEqual([{<<"u2">>, Domain}], Res4),
+
     %% Cleanup
     lists:foreach(fun(U) -> mnesia:dirty_delete({passwd, {U, Domain}}) end, Users).
 

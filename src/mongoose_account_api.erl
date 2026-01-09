@@ -53,7 +53,7 @@ list_users(Domain, Opts) ->
     PrepDomain = jid:nameprep(Domain),
     case mongoose_domain_api:get_domain_host_type(PrepDomain) of
         {ok, _} ->
-            Users = ejabberd_auth:get_vh_registered_users(PrepDomain, maps:to_list(Opts)),
+            Users = ejabberd_auth:get_vh_registered_users(PrepDomain, Opts),
             SUsers = lists:sort(Users),
             {ok, [jid:to_binary(US) || US <- SUsers]};
         {error, not_found} ->

@@ -233,12 +233,12 @@ set_password(HostType, LUser, LServer, _Password) ->
             {error, not_allowed}
     end.
 
--spec get_registered_users(mongooseim:host_type(), jid:lserver(), list()) ->
+-spec get_registered_users(mongooseim:host_type(), jid:lserver(), map()) ->
           [jid:simple_bare_jid()].
 get_registered_users(_HostType, LServer, Opts) ->
     Users = [{U, S} || #session{us = {U, S}} <- ejabberd_sm:get_vh_session_list(LServer)],
-    Limit = proplists:get_value(limit, Opts),
-    Offset = proplists:get_value(offset, Opts, 0),
+    Limit = maps:get(limit, Opts, undefined),
+    Offset = maps:get(offset, Opts, 0),
     case {Limit, Offset} of
         {undefined, 0} -> Users;
         _ ->
