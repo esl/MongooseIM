@@ -3,7 +3,13 @@ Allow admin to get information about accounts.
 """
 type AccountAdminQuery @protected{
   "List users per domain"
-  listUsers(domain: DomainName!): [String!]
+  listUsers(
+    domain: DomainName!
+    "Maximum number of users to return. If omitted, returns all users (or all remaining users after applying index)."
+    limit: PosInt
+    "Zero-based index of the first user to return. If omitted, defaults to 0."
+    index: NonNegInt
+  ): [String!]
     @protected(type: DOMAIN, args: ["domain"])
   "Get number of users per domain"
   countUsers(domain: DomainName!): Int

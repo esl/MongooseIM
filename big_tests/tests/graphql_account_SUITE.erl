@@ -37,6 +37,7 @@ user_account_tests() ->
 
 admin_account_tests() ->
     [admin_list_users,
+     admin_list_users_pagination,
      admin_list_users_unknown_domain,
      admin_count_users,
      admin_count_users_unknown_domain,
@@ -171,6 +172,16 @@ init_per_testcase(domain_admin_check_plain_password_hash_no_permission = C, Conf
 init_per_testcase(domain_admin_register_user = C, Config) ->
     Config1 = [{user, {<<"gql_domain_admin_registration_test">>, domain_helper:domain()}} | Config],
     escalus:init_per_testcase(C, Config1);
+init_per_testcase(admin_list_users_pagination = C, Config) ->
+    Domain = domain_helper:domain(),
+    Username1 = <<"user1">>,
+    Username2 = <<"user2">>,
+    JID1 = <<Username1/binary, "@", Domain/binary>>,
+    JID2 = <<Username2/binary, "@", Domain/binary>>,
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID1), <<"pass">>]),
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID2), <<"pass">>]),
+    Config1 = [{pagination_users, {Username1, Username2, Domain}} | Config],
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -201,6 +212,11 @@ end_per_testcase(CaseName, Config)
     Domain = domain_helper:domain(),
     rpc(mim(), mongoose_account_api, unregister_user, [<<"john">>, Domain]),
     escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(admin_list_users_pagination = C, Config) ->
+    {Username1, Username2, Domain} = proplists:get_value(pagination_users, Config),
+    rpc(mim(), mongoose_account_api, unregister_user, [Username1, Domain]),
+    rpc(mim(), mongoose_account_api, unregister_user, [Username2, Domain]),
+    escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -238,6 +254,25 @@ admin_list_users(Config) ->
     ?assert(lists:member(JID, Users)),
     Resp2 = list_users(unprep(Domain), Config),
     ?assertEqual(Users, get_ok_value([data, account, listUsers], Resp2)).
+
+admin_list_users_pagination(Config) ->
+    Domain = domain_helper:domain(),
+    % List all to get the full sorted list
+    RespAll = list_users(Domain, Config),
+    AllUsers = get_ok_value([data, account, listUsers], RespAll),
+    ?assert(length(AllUsers) >= 2),
+
+    % Page 1 (limit 1, index 0)
+    RespP1 = list_users_paged(Domain, 1, 0, Config),
+    UsersP1 = get_ok_value([data, account, listUsers], RespP1),
+    ?assertEqual(1, length(UsersP1)),
+    ?assertEqual(lists:nth(1, AllUsers), lists:nth(1, UsersP1)),
+
+    % Page 2 (limit 1, index 1)
+    RespP2 = list_users_paged(Domain, 1, 1, Config),
+    UsersP2 = get_ok_value([data, account, listUsers], RespP2),
+    ?assertEqual(1, length(UsersP2)),
+    ?assertEqual(lists:nth(2, AllUsers), lists:nth(1, UsersP2)).
 
 admin_list_users_unknown_domain(Config) ->
     Resp = list_users(<<"unknown-domain">>, Config),
@@ -632,6 +667,10 @@ user_change_password(User, Password, Config) ->
 
 list_users(Domain, Config) ->
     Vars = #{<<"domain">> => Domain},
+    execute_command(<<"account">>, <<"listUsers">>, Vars, Config).
+
+list_users_paged(Domain, Limit, Index, Config) ->
+    Vars = #{<<"domain">> => Domain, <<"limit">> => Limit, <<"index">> => Index},
     execute_command(<<"account">>, <<"listUsers">>, Vars, Config).
 
 count_users(Domain, Config) ->
