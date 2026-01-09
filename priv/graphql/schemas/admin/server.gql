@@ -14,6 +14,9 @@ type ServerAdminQuery @protected{
   "List configured host types with their modules and backends"
   hostTypes: [HostTypeInfo!]!
     @protected(type: GLOBAL)
+  "Global services and internal databases"
+  globalInfo: GlobalInfo!
+    @protected(type: GLOBAL)
 }
 
 """
@@ -103,6 +106,20 @@ type ModuleInfo {
   backend: BackendInfo
 }
 
+"""Information about a loaded service."""
+type ServiceInfo {
+  "Service name (atom as string, e.g. 'service_domain_db')"
+  name: String!
+}
+
+"""Global services and internal databases."""
+type GlobalInfo {
+  "Loaded services"
+  services: [ServiceInfo!]!
+  "Internal databases configured"
+  internalDatabases: [String!]!
+}
+
 """Information about a host type."""
 type HostTypeInfo {
   "Host type name"
@@ -111,4 +128,6 @@ type HostTypeInfo {
   domains: [String!]!
   "Loaded modules for this host type"
   modules: [ModuleInfo!]!
+  "Authentication methods configured for this host type"
+  authMethods: [String!]!
 }

@@ -40,7 +40,8 @@ all() ->
      {group, domain_permissions},
      {group, use_directive},
      {group, user_listener},
-     {group, admin_listener},
+    {group, admin_api_listener},
+    {group, admin_listener},
      {group, domain_admin_listener}].
 
 groups() ->
@@ -52,6 +53,7 @@ groups() ->
      {domain_permissions, [parallel], domain_permissions()},
      {use_directive, [parallel], use_directive()},
      {admin_listener, [parallel], admin_listener()},
+    {admin_api_listener, [parallel], admin_api_listener()},
      {domain_admin_listener, [parallel], domain_admin_listener()},
      {user_listener, [parallel], user_listener()}].
 
@@ -135,8 +137,11 @@ user_listener() ->
 
 admin_listener() ->
     [no_creds_defined_admin_can_access_protected,
-     auth_admin_can_access_protected_types,
-     admin_server_get_host_types | common_tests()].
+    auth_admin_can_access_protected_types | common_tests()].
+
+admin_api_listener() ->
+    [admin_server_get_host_types,
+    admin_server_get_global_info].
 
 domain_admin_listener() ->
     [auth_domain_admin_can_access_protected_types,
@@ -213,6 +218,39 @@ init_per_group(admin_listener, Config) ->
                      password => <<"secret">>,
                      schema_endpoint => admin},
     init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
+init_per_group(admin_api_listener, Config) ->
+     meck:new(mongoose_config, [passthrough, no_link]),
+     meck:expect(mongoose_config, get_opt,
+                     fun(hosts) -> [<<"localhost">>];
+                         (host_types) -> [];
+                         (internal_databases) -> #{mnesia => #{}};
+                         ([{auth, <<"localhost">>}, methods]) -> [internal];
+                         (Key) -> meck:passthrough([Key])
+                     end),
+     meck:new(gen_mod, [passthrough, no_link]),
+     meck:expect(gen_mod, loaded_modules_with_opts,
+                     fun(<<"localhost">>) ->
+                                #{mod_roster => #{backend => rdbms},
+                                  mod_ping => #{}};
+                         (_) -> #{}
+                     end),
+     meck:new(mongoose_domain_api, [passthrough, no_link]),
+     meck:expect(mongoose_domain_api, get_domains_by_host_type,
+                     fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
+                         (_) -> []
+                     end),
+     meck:new(mongoose_backend, [passthrough, no_link]),
+     meck:expect(mongoose_backend, get_backend_name,
+                     fun(<<"localhost">>, mod_roster) -> rdbms;
+                         (_, _) -> erlang:error(badarg)
+                     end),
+     meck:new(mongoose_service, [passthrough, no_link]),
+     meck:expect(mongoose_service, loaded_services_with_opts,
+                     fun() -> #{service_domain_db => #{}} end),
+     ListenerOpts = #{username => <<"admin">>,
+                            password => <<"secret">>,
+                            schema_endpoint => admin},
+    init_listener_with_init(5561, admin_api_listener, ListenerOpts, fun mongoose_graphql:init/0, Config);
 init_per_group(domain_admin_listener, Config) ->
     Config1 = meck_module_and_service_checking(Config),
     Config2 = meck_domain_api(Config1),
@@ -255,6 +293,14 @@ end_per_group(admin_listener, Config) ->
     meck:unload(gen_mod),
     meck:unload(mongoose_domain_api),
     meck:unload(mongoose_backend),
+    ?config(test_process, Config) ! stop,
+    Config;
+end_per_group(admin_api_listener, Config) ->
+    meck:unload(mongoose_config),
+    meck:unload(gen_mod),
+    meck:unload(mongoose_domain_api),
+    meck:unload(mongoose_backend),
+    meck:unload(mongoose_service),
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(domain_admin_listener, Config) ->
@@ -393,12 +439,16 @@ admin_schema_has_server_host_types(_Config) ->
     #object_type{fields = ServerFields} = graphql_schema:get(AdminEp, <<"ServerAdminQuery">>),
     ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"HostTypeInfo">>}}}},
                  maps:get(<<"hostTypes">>, ServerFields)),
+    ?assertMatch(#schema_field{ty = {non_null, <<"GlobalInfo">>}},
+                 maps:get(<<"globalInfo">>, ServerFields)),
     #object_type{fields = HostTypeFields} = graphql_schema:get(AdminEp, <<"HostTypeInfo">>),
     ?assertMatch(#schema_field{ty = {non_null, <<"String">>}}, maps:get(<<"name">>, HostTypeFields)),
     ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"String">>}}}},
                  maps:get(<<"domains">>, HostTypeFields)),
     ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"ModuleInfo">>}}}},
-                 maps:get(<<"modules">>, HostTypeFields)).
+                 maps:get(<<"modules">>, HostTypeFields)),
+    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"String">>}}}},
+                 maps:get(<<"authMethods">>, HostTypeFields)).
 
 %% Protected graphql
 
@@ -765,7 +815,7 @@ auth_admin_can_access_protected_types(Config) ->
 
 admin_server_get_host_types(Config) ->
     Ep = ?config(endpoint_addr, Config),
-    Query = <<"query { server { hostTypes { name domains modules { name backend { configured runtime } } } } }">>,
+    Query = <<"query { server { hostTypes { name domains authMethods modules { name backend { configured runtime } } } } }">>,
     Body = #{query => Query},
     {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
     ?assertEqual({<<"200">>, <<"OK">>}, Status),
@@ -777,6 +827,7 @@ admin_server_get_host_types(Config) ->
             ?assertMatch(#{<<"name">> := _}, FirstHostType),
             ?assertMatch(#{<<"domains">> := Domains} when is_list(Domains), FirstHostType),
             ?assertMatch(#{<<"modules">> := Modules} when is_list(Modules), FirstHostType),
+            ?assertMatch(#{<<"authMethods">> := AuthMethods} when is_list(AuthMethods), FirstHostType),
             #{<<"modules">> := Modules} = FirstHostType,
             % Validate module structure
             lists:foreach(
@@ -797,6 +848,16 @@ admin_server_get_host_types(Config) ->
         [] ->
             ct:pal("No host types returned (empty list)")
     end.
+
+admin_server_get_global_info(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Query = <<"query { server { globalInfo { services { name } internalDatabases } } }">>,
+    Body = #{query => Query},
+    {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
+    ?assertEqual({<<"200">>, <<"OK">>}, Status),
+    #{<<"data">> := #{<<"server">> := #{<<"globalInfo">> := GlobalInfo}}} = Data,
+    ?assertMatch(#{<<"services">> := Services, <<"internalDatabases">> := DBs}
+                   when is_list(Services) andalso is_list(DBs), GlobalInfo).
 
 auth_domain_admin_can_access_protected_types(Config) ->
     Ep = ?config(endpoint_addr, Config),
@@ -1254,6 +1315,33 @@ init_ep_listener(Port, EpName, ListenerOpts, Config) ->
                     {ok, _} = mongoose_graphql:create_endpoint(EpName, Mapping, [Pattern]),
                     receive
                         stop ->
+                            ok
+                    end
+                end),
+    [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
+
+-spec init_listener_only(integer(), atom(), listener_opts(), [{atom(), term()}]) ->
+    [{atom(), term()}].
+init_listener_only(Port, Ref, ListenerOpts, Config) ->
+    Pid = spawn(fun() ->
+                    ok = start_listener(Ref, Port, ListenerOpts),
+                    receive
+                        stop ->
+                            cowboy:stop_listener(Ref),
+                            ok
+                    end
+                end),
+    [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
+
+-spec init_listener_with_init(integer(), atom(), listener_opts(), fun(() -> any()), [{atom(), term()}]) ->
+    [{atom(), term()}].
+init_listener_with_init(Port, Ref, ListenerOpts, InitFun, Config) ->
+    Pid = spawn(fun() ->
+                    _ = InitFun(),
+                    ok = start_listener(Ref, Port, ListenerOpts),
+                    receive
+                        stop ->
+                            cowboy:stop_listener(Ref),
                             ok
                     end
                 end),

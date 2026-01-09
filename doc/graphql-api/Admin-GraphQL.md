@@ -63,7 +63,7 @@ Executing some of the queries requires authorization. Just add the following JSO
 
 ## Example query
 
-List host types configured on the server, with loaded modules and their configured/runtime backend names (when available):
+List host types configured on the server, with auth methods, loaded modules and their configured/runtime backend names (when available), plus global services and internal databases:
 
 ```graphql
 query {
@@ -71,6 +71,7 @@ query {
       hostTypes {
          name
          domains
+         authMethods
          modules {
             name
             backend {
@@ -78,6 +79,12 @@ query {
                runtime
             }
          }
+      }
+      globalInfo {
+         services {
+            name
+         }
+         internalDatabases
       }
    }
 }
