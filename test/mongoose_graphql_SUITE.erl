@@ -31,7 +31,7 @@ all() ->
      can_load_split_schema,
      unexpected_internal_error,
      admin_and_user_load_global_types,
-    admin_schema_has_server_host_types,
+     admin_schema_has_server_host_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, error_handling},
@@ -40,8 +40,8 @@ all() ->
      {group, domain_permissions},
      {group, use_directive},
      {group, user_listener},
-    {group, admin_api_listener},
-    {group, admin_listener},
+     {group, admin_api_listener},
+     {group, admin_listener},
      {group, domain_admin_listener}].
 
 groups() ->
@@ -53,7 +53,7 @@ groups() ->
      {domain_permissions, [parallel], domain_permissions()},
      {use_directive, [parallel], use_directive()},
      {admin_listener, [parallel], admin_listener()},
-    {admin_api_listener, [parallel], admin_api_listener()},
+     {admin_api_listener, [parallel], admin_api_listener()},
      {domain_admin_listener, [parallel], domain_admin_listener()},
      {user_listener, [parallel], user_listener()}].
 
