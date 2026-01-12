@@ -323,7 +323,8 @@ execute_delete_affiliation(Nidx, LU, LS) ->
 -spec execute_delete_all_affiliations(Nidx :: mod_pubsub:nodeIdx()) ->
     mongoose_rdbms:query_result().
 execute_delete_all_affiliations(Nidx) ->
-    mongoose_rdbms:execute_successfully(global, pubsub_delete_all_affiliations, [Nidx]).
+    mongoose_rdbms:execute_successfully_with_retry(
+        global, default, pubsub_delete_all_affiliations, [Nidx], 30, 100, #{}).
 
 % ------------------- Subscriptions --------------------------------
 -spec execute_insert_subscription(Nidx :: mod_pubsub:nodeIdx(),
@@ -381,7 +382,7 @@ execute_delete_all_subscriptions(Nidx, LU, LS, LR) ->
 -spec execute_delete_all_subscriptions_id(Nidx :: mod_pubsub:nodeIdx()) ->
     mongoose_rdbms:query_result().
 execute_delete_all_subscriptions_id(Nidx) ->
-    mongoose_rdbms:execute_successfully(global, pubsub_delete_all_subscriptions_id, [Nidx]).
+    mongoose_rdbms:execute_successfully_with_retry(global, default, pubsub_delete_all_subscriptions_id, [Nidx], 30, 100, #{}).
 
 -spec execute_delete_user_subscriptions(LS :: jid:lserver(), LU :: jid:luser()) ->
     mongoose_rdbms:query_result().
@@ -417,7 +418,8 @@ execute_delete_item(LS, Nidx, LU, ItemId) ->
 
 -spec execute_delete_all_items(Nidx :: mod_pubsub:nodeIdx()) -> mongoose_rdbms:query_result().
 execute_delete_all_items(Nidx) ->
-    mongoose_rdbms:execute_successfully(global, pubsub_delete_all_items, [Nidx]).
+    mongoose_rdbms:execute_successfully_with_retry(
+        global, default, pubsub_delete_all_items, [Nidx], 30, 100, #{}).
 
 -spec execute_get_item(Nidx :: mod_pubsub:nodeIdx(),
                        ItemId :: mod_pubsub:itemId()) ->
