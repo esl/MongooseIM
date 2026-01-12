@@ -171,7 +171,9 @@ JOB_URL="$CIRCLE_BUILD_URL"
 DESC_BODY="[$CIRCLE_JOB]($JOB_URL) / $PRESET / $CIRCLE_SHA1"$'\n'
 # This file is created by ct_markdown_errors_hook
 ERRORS_BODY="$(cat /tmp/ct_markdown || echo '/tmp/ct_markdown missing')"
-COMMENT_MARKER="<!-- circleci-comment:${CIRCLE_SHA1} -->"
+
+# One persistent marker per PR so subsequent commits edit the same comment
+COMMENT_MARKER="<!-- circleci-comment:pr-${PR_NUM} -->"
 SECTION_BEGIN="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:begin -->"
 SECTION_END="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:end -->"
 
