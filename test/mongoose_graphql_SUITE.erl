@@ -250,7 +250,7 @@ init_per_group(admin_api_listener, Config) ->
      ListenerOpts = #{username => <<"admin">>,
                             password => <<"secret">>,
                             schema_endpoint => admin},
-    init_listener_with_init(5561, admin_api_listener, ListenerOpts, fun mongoose_graphql:init/0, Config);
+    init_listener_with_init(5562, admin_api_listener, ListenerOpts, fun mongoose_graphql:init/0, Config);
 init_per_group(domain_admin_listener, Config) ->
     Config1 = meck_module_and_service_checking(Config),
     Config2 = meck_domain_api(Config1),
@@ -1336,15 +1336,22 @@ init_listener_only(Port, Ref, ListenerOpts, Config) ->
 -spec init_listener_with_init(integer(), atom(), listener_opts(), fun(() -> any()), [{atom(), term()}]) ->
     [{atom(), term()}].
 init_listener_with_init(Port, Ref, ListenerOpts, InitFun, Config) ->
+    Parent = self(),
     Pid = spawn(fun() ->
                     _ = InitFun(),
-                    ok = start_listener(Ref, Port, ListenerOpts),
+                    Name = list_to_atom("gql_listener_" ++ atom_to_list(Ref)),
+                    ok = start_listener(Name, Port, ListenerOpts),
+                    Parent ! {listener_started, self()},
                     receive
                         stop ->
-                            cowboy:stop_listener(Ref),
                             ok
                     end
                 end),
+    receive
+        {listener_started, Pid} -> ok
+    after 5000 ->
+        error(timeout_starting_listener)
+    end,
     [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
 
 -spec start_listener(atom(), integer(), listener_opts()) -> ok.
