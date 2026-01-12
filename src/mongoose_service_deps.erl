@@ -4,6 +4,8 @@
 
 -export([resolve_deps/1, sort_deps/1]).
 
+-export_type([service_list/0, service_map/0]).
+
 -type service_list() :: mongoose_service:service_list().
 -type service_map() :: mongoose_service:service_map().
 

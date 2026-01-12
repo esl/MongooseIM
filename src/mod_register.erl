@@ -168,7 +168,7 @@ process_unauthenticated_iq(Acc, StateData, Iq, HostType) ->
     LServer = mongoose_c2s:get_lserver(StateData),
     FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     ResIQ = process_unauthenticated_iq(HostType,
-                                       no_JID,
+                                       no_jid,
                                        %% For the above: the client is
                                        %% not registered (no JID), at
                                        %% least not yet, so they can
@@ -277,7 +277,7 @@ attempt_cancelation(HostType, #jid{} = ClientJID, #jid{lserver = ServerDomain}, 
             error_response(IQ, mongoose_xmpp_errors:not_allowed())
     end.
 
-inband_registration_and_cancelation_allowed(_HostType, _ServerDomain, no_JID) ->
+inband_registration_and_cancelation_allowed(_HostType, _ServerDomain, no_jid) ->
     true;
 inband_registration_and_cancelation_allowed(HostType, ServerDomain, JID) ->
     Rule = gen_mod:get_module_opt(HostType, ?MODULE, access),

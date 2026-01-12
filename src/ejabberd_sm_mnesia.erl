@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_mnesia).
 
--behavior(ejabberd_sm_backend).
+-behaviour(ejabberd_sm_backend).
 
 -include("mongoose.hrl").
 -include("session.hrl").
@@ -44,7 +44,7 @@ get_sessions() ->
 get_sessions(Server) ->
     mnesia:dirty_select(
         session,
-          [{#session{usr = '$1', sid='$2', priority='$3', info='$4', _ = '_' },
+        [{#session{usr = '$1', sid = '$2', priority = '$3', info = '$4', _ = '_'},
           [{'==', {element, 2, '$1'}, Server}],
           ['$_']}]).
 

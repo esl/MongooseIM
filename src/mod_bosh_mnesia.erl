@@ -62,8 +62,8 @@ node_cleanup(Node) ->
                        [{#bosh_session{sid = '$1', socket = '$2'},
                          [{'==', {node, '$2'}, Node}],
                          ['$1']}]),
-                lists:foreach(fun(SID) ->
-                                      mnesia:delete({bosh_session, SID})
+                lists:foreach(fun(Sid) ->
+                                      mnesia:delete({bosh_session, Sid})
                               end, SIDs)
         end,
     mnesia:async_dirty(F).

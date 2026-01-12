@@ -240,8 +240,8 @@ my_disco_name(Lang) ->
 
 
 -spec compose_iq_reply(IQ :: jlib:iq(),
-		       PutUrl :: binary(),
-		       GetUrl :: binary(),
+                       PutUrl :: binary(),
+                       GetUrl :: binary(),
                        Headers :: #{binary() => binary()}) ->
     Reply :: jlib:iq().
 compose_iq_reply(IQ, PutUrl, GetUrl, Headers) ->

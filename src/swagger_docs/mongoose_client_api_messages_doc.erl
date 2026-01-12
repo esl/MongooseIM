@@ -34,7 +34,9 @@ trails() ->
   PropSendMsgsReq = #{
     <<"to">> => #{
       type => <<"string">>,
-      description => <<"This is user's JID (Jabber ID) which consist of username and server. Example: alice@wonderland.com">>,
+      description =>
+        <<"This is user's JID (Jabber ID) which consist of username and server. ",
+          "Example: alice@wonderland.com">>,
       default => <<"alice@wonderland.lit">>
     },
     <<"body">> => #{
@@ -199,9 +201,16 @@ trails() ->
 
   %% Options
   StoreOptions = [
-    {PathClientApiMessages, #{path => PathClientApiMessages}, MetadataClientApiMessages, mongoose_client_api_messages},
-    {PathClientApiMessagesWith, #{path => PathClientApiMessagesWith}, MetadataClientApiMessagesGetWith, mongoose_client_api_messages}
+    {PathClientApiMessages,
+     #{path => PathClientApiMessages},
+     MetadataClientApiMessages,
+     mongoose_client_api_messages},
+    {PathClientApiMessagesWith,
+     #{path => PathClientApiMessagesWith},
+     MetadataClientApiMessagesGetWith,
+     mongoose_client_api_messages}
   ],
 
   %% Trail all data
-  [trails:trail(Path, Module, Options, Metadata) || {Path, Options, Metadata, Module} <- StoreOptions].
+  [trails:trail(Path, Module, Options, Metadata)
+   || {Path, Options, Metadata, Module} <- StoreOptions].

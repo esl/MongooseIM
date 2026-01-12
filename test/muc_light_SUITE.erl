@@ -178,7 +178,9 @@ prop_aff_change_success() ->
                         % are there no owners or there is exactly one?
                         true = validate_owner(NewAffUsers0, false, WithOwner),
                         % changes list applied to old list should produce the same result
-                        {ok, NewAffUsers1, _, _, _} = mod_muc_light_utils:change_aff_users(host_type(), AffUsers, AffUsersChanged),
+                        ChangeRes = mod_muc_light_utils:change_aff_users(host_type(), AffUsers,
+                                                                         AffUsersChanged),
+                        {ok, NewAffUsers1, _, _, _} = ChangeRes,
                         NewAffUsers0 = NewAffUsers1,
                         true;
                     _ ->

@@ -174,15 +174,15 @@ fetch_markers(IQ, Acc, From, Peer, Thread, TS, Private) ->
     IQ#iq{type = result, sub_el = SubEl}.
 
 build_result(Markers) ->
-    [ begin
-        Attrs = maybe_thread(MsgThread),
-        #xmlel{name = <<"marker">>,
-             attrs = Attrs#{<<"id">> => MsgId,
-                            <<"from">> => jid:to_binary(From),
-                            <<"type">> => atom_to_binary(Type),
-                            <<"timestamp">> => ts_to_bin(MsgTS)}}
-      end
-      || #{from := From, thread := MsgThread, type := Type, timestamp := MsgTS, id := MsgId} <- Markers ].
+    [marker_to_xmlel(Marker) || Marker <- Markers].
+
+marker_to_xmlel(#{from := From, thread := MsgThread, type := Type, timestamp := MsgTS, id := MsgId}) ->
+    Attrs = maybe_thread(MsgThread),
+    #xmlel{name = <<"marker">>,
+          attrs = Attrs#{<<"id">> => MsgId,
+                         <<"from">> => jid:to_binary(From),
+                         <<"type">> => atom_to_binary(Type),
+                         <<"timestamp">> => ts_to_bin(MsgTS)}}.
 
 ts_to_bin(TS) ->
     list_to_binary(calendar:system_time_to_rfc3339(TS, [{offset, "Z"}, {unit, microsecond}])).
@@ -319,7 +319,7 @@ is_valid_host(Acc, From, To) ->
     end.
 
 -spec extract_chat_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
-	[chat_marker()].
+    [chat_marker()].
 extract_chat_markers(Acc, From, To, Packet) ->
     case mongoose_chat_markers:list_chat_markers(Packet) of
         [] -> [];

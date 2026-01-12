@@ -90,7 +90,7 @@ report_module_with_opts(Module, Opts) ->
     #{name => module_with_opt, params =>
         lists:foldl(
             fun
-                ({none, _}, Acc) -> 
+                ({none, _}, Acc) ->
                     Acc;
                 ({OptKey, OptValue}, Acc) ->
                     maps:put(OptKey, OptValue, Acc)

@@ -3,7 +3,7 @@
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
 
--behavior(gen_mod).
+-behaviour(gen_mod).
 
 -type presence() ::
          available
@@ -30,7 +30,13 @@
           pres_last :: undefined | exml:element(),
           pres_timestamp :: undefined | integer() % unix time in microseconds
          }).
--type state() :: #presences_state{}.
+-opaque state() :: #presences_state{}.
+
+-export_type([priority/0,
+              maybe_priority/0,
+              available/0,
+              subscriptions/0,
+              state/0]).
 
 -export([start/2, stop/1, hooks/1, supported_features/0]).
 -export([

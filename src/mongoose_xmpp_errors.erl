@@ -19,156 +19,156 @@
 -export_type([stanza_error/0]).
 
 bad_request() ->
-    jlib:stanza_error(<<"400">>,<<"modify">>,<<"bad-request">>).
+    jlib:stanza_error(<<"400">>, <<"modify">>, <<"bad-request">>).
 
 conflict() ->
-    jlib:stanza_error(<<"409">>,<<"cancel">>,<<"conflict">>).
+    jlib:stanza_error(<<"409">>, <<"cancel">>, <<"conflict">>).
 
 feature_not_implemented() ->
-    jlib:stanza_error(<<"501">>,<<"cancel">>,<<"feature-not-implemented">>).
+    jlib:stanza_error(<<"501">>, <<"cancel">>, <<"feature-not-implemented">>).
 
 forbidden() ->
-    jlib:stanza_error(<<"403">>,<<"auth">>,  <<"forbidden">>).
+    jlib:stanza_error(<<"403">>, <<"auth">>, <<"forbidden">>).
 
 gone() ->
-    jlib:stanza_error(<<"302">>,<<"modify">>,<<"gone">>).
+    jlib:stanza_error(<<"302">>, <<"modify">>, <<"gone">>).
 
 internal_server_error() ->
-    jlib:stanza_error(<<"500">>,<<"wait">>,  <<"internal-server-error">>).
+    jlib:stanza_error(<<"500">>, <<"wait">>, <<"internal-server-error">>).
 
 item_not_found() ->
-    jlib:stanza_error(<<"404">>,<<"cancel">>,<<"item-not-found">>).
+    jlib:stanza_error(<<"404">>, <<"cancel">>, <<"item-not-found">>).
 
 jid_malformed() ->
-    jlib:stanza_error(<<"400">>,<<"modify">>,<<"jid-malformed">>).
+    jlib:stanza_error(<<"400">>, <<"modify">>, <<"jid-malformed">>).
 
 not_acceptable() ->
-    jlib:stanza_error(<<"406">>,<<"modify">>,<<"not-acceptable">>).
+    jlib:stanza_error(<<"406">>, <<"modify">>, <<"not-acceptable">>).
 
 not_acceptable_cancel() ->
-    jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>).
+    jlib:stanza_error(<<"406">>, <<"cancel">>, <<"not-acceptable">>).
 
 not_acceptable_blocked() ->
-    jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>, <<"blocked">>, ?NS_BLOCKING_ERRORS).
+    jlib:stanza_error(<<"406">>, <<"cancel">>, <<"not-acceptable">>, <<"blocked">>, ?NS_BLOCKING_ERRORS).
 
 not_allowed() ->
-    jlib:stanza_error(<<"405">>,<<"cancel">>,<<"not-allowed">>).
+    jlib:stanza_error(<<"405">>, <<"cancel">>, <<"not-allowed">>).
 
 not_authorized() ->
-    jlib:stanza_error(<<"401">>,<<"auth">>,  <<"not-authorized">>).
+    jlib:stanza_error(<<"401">>, <<"auth">>, <<"not-authorized">>).
 
 payment_required() ->
-    jlib:stanza_error(<<"402">>,<<"auth">>,  <<"payment-required">>).
+    jlib:stanza_error(<<"402">>, <<"auth">>, <<"payment-required">>).
 
 recipient_unavailable() ->
-    jlib:stanza_error(<<"404">>,<<"wait">>,  <<"recipient-unavailable">>).
+    jlib:stanza_error(<<"404">>, <<"wait">>, <<"recipient-unavailable">>).
 
 redirect() ->
-    jlib:stanza_error(<<"302">>,<<"modify">>,<<"redirect">>).
+    jlib:stanza_error(<<"302">>, <<"modify">>, <<"redirect">>).
 
 registration_required() ->
-    jlib:stanza_error(<<"407">>,<<"auth">>,  <<"registration-required">>).
+    jlib:stanza_error(<<"407">>, <<"auth">>, <<"registration-required">>).
 
 remote_server_not_found() ->
-    jlib:stanza_error(<<"404">>,<<"cancel">>,<<"remote-server-not-found">>).
+    jlib:stanza_error(<<"404">>, <<"cancel">>, <<"remote-server-not-found">>).
 
 remote_server_timeout() ->
-    jlib:stanza_error(<<"504">>,<<"wait">>,  <<"remote-server-timeout">>).
+    jlib:stanza_error(<<"504">>, <<"wait">>, <<"remote-server-timeout">>).
 
 resource_constraint() ->
-    jlib:stanza_error(<<"500">>,<<"wait">>,  <<"resource-constraint">>).
+    jlib:stanza_error(<<"500">>, <<"wait">>, <<"resource-constraint">>).
 
 service_unavailable() ->
-    jlib:stanza_error(<<"503">>,<<"cancel">>,<<"service-unavailable">>).
+    jlib:stanza_error(<<"503">>, <<"cancel">>, <<"service-unavailable">>).
 
 service_unavailable_wait() ->
-    jlib:stanza_error(<<"502">>,<<"wait">>,<<"service-unavailable">>).
+    jlib:stanza_error(<<"502">>, <<"wait">>, <<"service-unavailable">>).
 
 subscription_required() ->
-    jlib:stanza_error(<<"407">>,<<"auth">>,  <<"subscription-required">>).
+    jlib:stanza_error(<<"407">>, <<"auth">>, <<"subscription-required">>).
 
 unexpected_request() ->
-    jlib:stanza_error(<<"400">>,<<"wait">>,  <<"unexpected-request">>).
+    jlib:stanza_error(<<"400">>, <<"wait">>, <<"unexpected-request">>).
 
 unexpected_request_cancel() ->
-    jlib:stanza_error(<<"401">>,<<"cancel">>,<<"unexpected-request">>).
+    jlib:stanza_error(<<"401">>, <<"cancel">>, <<"unexpected-request">>).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Text Stanza Errors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 bad_request(Lang, Text) ->
-    jlib:stanza_errort(<<"400">>,<<"modify">>,<<"bad-request">>, Lang, Text).
+    jlib:stanza_errort(<<"400">>, <<"modify">>, <<"bad-request">>, Lang, Text).
 
 conflict(Lang, Text) ->
-    jlib:stanza_errort(<<"409">>,<<"cancel">>,<<"conflict">>, Lang, Text).
+    jlib:stanza_errort(<<"409">>, <<"cancel">>, <<"conflict">>, Lang, Text).
 
 feature_not_implemented(Lang, Text) ->
-    jlib:stanza_errort(<<"501">>,<<"cancel">>,<<"feature-not-implemented">>, Lang, Text).
+    jlib:stanza_errort(<<"501">>, <<"cancel">>, <<"feature-not-implemented">>, Lang, Text).
 
 forbidden(Lang, Text) ->
-    jlib:stanza_errort(<<"403">>,<<"auth">>,  <<"forbidden">>, Lang, Text).
+    jlib:stanza_errort(<<"403">>, <<"auth">>, <<"forbidden">>, Lang, Text).
 
 gone(Lang, Text) ->
-    jlib:stanza_errort(<<"302">>,<<"modify">>,<<"gone">>, Lang, Text).
+    jlib:stanza_errort(<<"302">>, <<"modify">>, <<"gone">>, Lang, Text).
 
 internal_server_error(Lang, Text) ->
-    jlib:stanza_errort(<<"500">>,<<"wait">>,  <<"internal-server-error">>, Lang, Text).
+    jlib:stanza_errort(<<"500">>, <<"wait">>, <<"internal-server-error">>, Lang, Text).
 
 item_not_found(Lang, Text) ->
-    jlib:stanza_errort(<<"404">>,<<"cancel">>,<<"item-not-found">>, Lang, Text).
+    jlib:stanza_errort(<<"404">>, <<"cancel">>, <<"item-not-found">>, Lang, Text).
 
 jid_malformed(Lang, Text) ->
-    jlib:stanza_errort(<<"400">>,<<"modify">>,<<"jid-malformed">>, Lang, Text).
+    jlib:stanza_errort(<<"400">>, <<"modify">>, <<"jid-malformed">>, Lang, Text).
 
 not_acceptable(Lang, Text) ->
-    jlib:stanza_errort(<<"406">>,<<"modify">>,<<"not-acceptable">>, Lang, Text).
+    jlib:stanza_errort(<<"406">>, <<"modify">>, <<"not-acceptable">>, Lang, Text).
 
 not_allowed(Lang, Text) ->
-    jlib:stanza_errort(<<"405">>,<<"cancel">>,<<"not-allowed">>, Lang, Text).
+    jlib:stanza_errort(<<"405">>, <<"cancel">>, <<"not-allowed">>, Lang, Text).
 
 not_authorized(Lang, Text) ->
-    jlib:stanza_errort(<<"401">>,<<"auth">>,  <<"not-authorized">>, Lang, Text).
+    jlib:stanza_errort(<<"401">>, <<"auth">>, <<"not-authorized">>, Lang, Text).
 
 payment_required(Lang, Text) ->
-    jlib:stanza_errort(<<"402">>,<<"auth">>,  <<"payment-required">>, Lang, Text).
+    jlib:stanza_errort(<<"402">>, <<"auth">>, <<"payment-required">>, Lang, Text).
 
 recipient_unavailable(Lang, Text) ->
-    jlib:stanza_errort(<<"404">>,<<"wait">>,  <<"recipient-unavailable">>, Lang, Text).
+    jlib:stanza_errort(<<"404">>, <<"wait">>, <<"recipient-unavailable">>, Lang, Text).
 
 redirect(Lang, Text) ->
-    jlib:stanza_errort(<<"302">>,<<"modify">>,<<"redirect">>, Lang, Text).
+    jlib:stanza_errort(<<"302">>, <<"modify">>, <<"redirect">>, Lang, Text).
 
 registration_required(Lang, Text) ->
-    jlib:stanza_errort(<<"407">>,<<"auth">>,  <<"registration-required">>, Lang, Text).
+    jlib:stanza_errort(<<"407">>, <<"auth">>, <<"registration-required">>, Lang, Text).
 
 remote_server_not_found(Lang, Text) ->
-    jlib:stanza_errort(<<"404">>,<<"cancel">>,<<"remote-server-not-found">>, Lang, Text).
+    jlib:stanza_errort(<<"404">>, <<"cancel">>, <<"remote-server-not-found">>, Lang, Text).
 
 remote_server_timeout(Lang, Text) ->
-    jlib:stanza_errort(<<"504">>,<<"wait">>,  <<"remote-server-timeout">>, Lang, Text).
+    jlib:stanza_errort(<<"504">>, <<"wait">>, <<"remote-server-timeout">>, Lang, Text).
 
 resource_constraint(Lang, Text) ->
-    jlib:stanza_errort(<<"500">>,<<"wait">>,  <<"resource-constraint">>, Lang, Text).
+    jlib:stanza_errort(<<"500">>, <<"wait">>, <<"resource-constraint">>, Lang, Text).
 
 service_unavailable(Lang, Text) ->
-    jlib:stanza_errort(<<"503">>,<<"cancel">>,<<"service-unavailable">>, Lang, Text).
+    jlib:stanza_errort(<<"503">>, <<"cancel">>, <<"service-unavailable">>, Lang, Text).
 
 subscription_required(Lang, Text) ->
-    jlib:stanza_errort(<<"407">>,<<"auth">>,  <<"subscription-required">>, Lang, Text).
+    jlib:stanza_errort(<<"407">>, <<"auth">>, <<"subscription-required">>, Lang, Text).
 
 unexpected_request(Lang, Text) ->
-    jlib:stanza_errort(<<"400">>,<<"wait">>,  <<"unexpected-request">>, Lang, Text).
+    jlib:stanza_errort(<<"400">>, <<"wait">>, <<"unexpected-request">>, Lang, Text).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Auth Stanza Errors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 auth_no_resource_provided(Lang) ->
-    not_acceptable(Lang,<<"No resource provided">>).
+    not_acceptable(Lang, <<"No resource provided">>).
 
 auth_bad_resource_format(Lang) ->
-    not_acceptable(Lang,<<"Illegal resource format">>).
+    not_acceptable(Lang, <<"Illegal resource format">>).
 
 auth_resource_conflict(Lang) ->
     conflict(Lang, <<"Resource conflict">>).

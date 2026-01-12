@@ -5,7 +5,7 @@
 %% @copyright 2014 Erlang Solutions, Ltd.
 -module(mod_amp).
 
--behavior(gen_mod).
+-behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 79}, {version, "1.2"}, {status, partial}]).
 -export([start/2, stop/1, supported_features/0]).
@@ -243,7 +243,7 @@ server_jid(#jid{lserver = Host}) ->
     jid:from_binary(Host).
 
 find(_Pred, []) -> not_found;
-find(Pred, [H|T]) ->
+find(Pred, [H | T]) ->
     case Pred(H) of
         true -> {found, H};
         false -> find(Pred, T)

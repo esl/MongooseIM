@@ -39,7 +39,8 @@
               check_password_result/0,
               check_password_hash_result/0,
               check_account_result/0,
-              list_user_result/0]).
+              list_user_result/0,
+              count_user_result/0]).
 
 %% API
 
@@ -166,7 +167,7 @@ check_password_hash(JID, PasswordHash, HashMethod) ->
             {wrong_method, Msg};
         {_, PasswordHash} ->
             {ok, "Password hash is correct"};
-        _->
+        _ ->
             {incorrect, "Password hash is incorrect"}
     end.
 

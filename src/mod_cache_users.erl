@@ -60,7 +60,7 @@ remove_user(Acc, #{jid := Jid}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, Jid),
     {ok, Acc}.
 
--spec remove_domain(Acc, Params, Extra) -> {ok , Acc} when
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_domain_api:remove_domain_acc(),
       Params :: #{domain := jid:lserver()},
       Extra :: #{host_type := mongooseim:host_type()}.
@@ -68,7 +68,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_domain(HostType, ?MODULE, Domain),
     {ok, Acc}.
 
--spec does_cached_user_exist(Acc, Params, Extra) -> {stop | ok , Acc} when
+-spec does_cached_user_exist(Acc, Params, Extra) -> {stop | ok, Acc} when
       Acc :: boolean(),
       Params :: #{jid := jid:jid(), request_type := ejabberd_auth:exist_type()},
       Extra :: #{host_type := mongooseim:host_type()}.
@@ -82,7 +82,7 @@ does_cached_user_exist(false,
 does_cached_user_exist(Acc, _, _) ->
     {ok, Acc}.
 
--spec maybe_put_user_into_cache(Acc, Params, Extra) -> {ok , Acc} when
+-spec maybe_put_user_into_cache(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: boolean(),
       Params :: #{jid := jid:jid(), request_type := ejabberd_auth:exist_type()},
       Extra :: #{host_type := mongooseim:host_type()}.

@@ -27,7 +27,7 @@ instrumentation_metrics_names() ->
      conflict_nodes,
      conflict_tables].
 
-probe(cets_info, _labels) ->
+probe(cets_info, _Labels) ->
     try cets_status:status(mongoose_cets_discovery) of
         #{available_nodes := AvNodes,
           unavailable_nodes := UnNodes,

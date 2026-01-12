@@ -51,5 +51,5 @@ encode_crypto(Text) -> binary:encode_hex(crypto:hash(sha, Text), lowercase).
 %% ---------------------------------------------------
 join_s([], _Sep) ->
     [];
-join_s([H|T], Sep) ->
+join_s([H | T], Sep) ->
     [H, [[Sep, X] || X <- T]].

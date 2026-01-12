@@ -24,6 +24,8 @@
                    last_query_info := map(), expire_time := non_neg_integer(),
                    node_ip_binary := binary(), address_pairs := #{binary() => binary()}}.
 
+-export_type([opts/0, state/0]).
+
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := ClusterName, node_name_to_insert := Node})
        when is_binary(ClusterName), is_binary(Node) ->
@@ -170,7 +172,7 @@ timestamp() ->
 %% Returns a next free node id based on the currently registered ids
 first_free_num(Nums) ->
     %% 0 is default node_num, so lets start from 1
-    [FirstFreeNum | _] = lists:seq(1, length(Nums)+1) -- Nums,
+    [FirstFreeNum | _] = lists:seq(1, length(Nums) + 1) -- Nums,
     FirstFreeNum.
 
 -ifdef(TEST).

@@ -41,7 +41,7 @@
 -type key_list() :: [{key_id(), raw_key()}].
 -type key_type() :: ram | {file, file:name_all()}.
 
--type key() :: #key{id :: key_id(), key :: raw_key()}.
+-opaque key() :: #key{id :: key_id(), key :: raw_key()}.
 
 %%
 %% gen_mod callbacks
@@ -133,7 +133,7 @@ clear_keystore_ets(HostType) ->
     Pattern = {{'_', HostType}, '$1'},
     ets:match_delete(keystore, Pattern).
 
-init_keys(HostType, Opts = #{keys := Keys}) ->
+init_keys(HostType, #{keys := Keys} = Opts) ->
     maps:map(fun(KeyName, KeyType) -> init_key({KeyName, KeyType}, HostType, Opts) end, Keys).
 
 -spec init_key({key_name(), key_type()}, mongooseim:host_type(), gen_mod:module_opts()) -> ok.

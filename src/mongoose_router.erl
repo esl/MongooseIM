@@ -63,6 +63,7 @@ default_routing_modules() ->
             ejabberd_s2s],
     xmpp_router:expand_routing_modules(List).
 
+-spec routing_modules_list() -> [xmpp_router:t()].
 routing_modules_list() ->
     mongoose_config:get_opt(routing_modules).
 

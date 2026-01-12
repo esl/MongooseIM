@@ -70,7 +70,7 @@ start_link() ->
 %% the next module in sequence.
 -spec route(From   :: jid:jid(),
     To     :: jid:jid(),
-    Packet :: mongoose_acc:t()|exml:element()) -> mongoose_acc:t().
+    Packet :: mongoose_acc:t() | exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     % ?LOG_ERROR("Deprecated - it should be Acc: ~p", [Packet]),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -164,7 +164,7 @@ route(_From, To, Acc, _Packet, []) ->
     ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc, host_type => HT}),
     mongoose_instrument:execute(router_no_route_found, #{host_type => HT}, #{count => 1, to => To}),
     mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
-route(OrigFrom, OrigTo, Acc0, OrigPacket, [M|Tail]) ->
+route(OrigFrom, OrigTo, Acc0, OrigPacket, [M | Tail]) ->
     try xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc0, OrigPacket) of
         drop ->
             mongoose_acc:append(router, result, {drop, M}, Acc0);

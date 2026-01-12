@@ -106,7 +106,7 @@ do_password_to_scram(Password, IterationCount, HashType) ->
                  server_key => base64:encode(ServerKey),
                  stored_key => base64:encode(StoredKey)}}.
 
-check_password(Password, Scram) when is_record(Scram, scram)->
+check_password(Password, Scram) when is_record(Scram, scram) ->
     ScramMap = scram_record_to_map(Scram),
     check_password(Password, ScramMap);
 check_password(Password, ScramMap) when is_map(ScramMap) ->
@@ -119,7 +119,7 @@ check_password(Password, ScramMap) when is_map(ScramMap) ->
     ClientStoredKey == base64:decode(StoredKey).
 
 serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
-                 salt = Salt, iterationcount = IterationCount})->
+                 salt = Salt, iterationcount = IterationCount}) ->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
        StoredKey/binary, $,, ServerKey/binary,
@@ -131,13 +131,13 @@ serialize(#{iteration_count := IterationCount} = ScramMap) ->
     Header = [?MULTI_SCRAM_SERIAL_PREFIX, IterationCountBin],
     do_serialize(Header, ScramMap, ConfigedSha).
 
-do_serialize(Serialized, _ ,[]) ->
+do_serialize(Serialized, _, []) ->
     erlang:iolist_to_binary(Serialized);
 do_serialize(Header, ScramMap, [{Sha, Prefix} | RemainingSha]) ->
     #{Sha := #{salt := Salt,
                server_key := ServerKey,
                stored_key := StoredKey}} = ScramMap,
-    ShaSerialization = [$, , Prefix, Salt, $|, StoredKey, $|, ServerKey],
+    ShaSerialization = [$,, Prefix, Salt, $|, StoredKey, $|, ServerKey],
     NewHeader = [Header | ShaSerialization],
     do_serialize(NewHeader, ScramMap, RemainingSha).
 
@@ -204,9 +204,9 @@ check_digest(Scram, Digest, DigestGen, Password) when is_record(Scram, scram) ->
 check_digest(ScramMap, Digest, DigestGen, Password) ->
     do_check_digest(supported_sha_types(), ScramMap, Digest, DigestGen, Password).
 
-do_check_digest([] , _, _, _, _) ->
+    do_check_digest([], _, _, _, _) ->
     false;
-do_check_digest([{Sha,_Prefix} | RemainingSha], ScramMap, Digest, DigestGen, Password) ->
+    do_check_digest([{Sha, _Prefix} | RemainingSha], ScramMap, Digest, DigestGen, Password) ->
     #{Sha := #{stored_key := StoredKey}} = ScramMap,
     Passwd = base64:decode(StoredKey),
     case ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd) of

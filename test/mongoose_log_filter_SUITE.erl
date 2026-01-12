@@ -27,9 +27,9 @@ format_c2s_state_with_invalid_c2s_state(_Config) ->
     Event = #{
         msg => {report, #{what => test_invalid, c2s_state => <<"not_a_record">>}}
     },
-    
+
     Result = mongoose_log_filter:format_c2s_state_filter(Event, no_state),
-    
+
     % The result should be unchanged when c2s_state contains invalid data
     ?assertEqual(Event, Result).
 
@@ -38,8 +38,8 @@ format_c2s_state_with_no_c2s_keys(_Config) ->
     Event = #{
         msg => {report, #{what => test_no_c2s}}
     },
-    
+
     Result = mongoose_log_filter:format_c2s_state_filter(Event, no_state),
-    
+
     % The result should be unchanged
     ?assertEqual(Event, Result).

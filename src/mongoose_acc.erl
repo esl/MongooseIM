@@ -93,7 +93,11 @@
 
 -export_type([t/0,
               stanza_metadata/0,
-              new_acc_params/0]).
+              new_acc_params/0,
+              strip_params/0,
+              stanza_params/0,
+              ns_key/0,
+              ns_key_value/0]).
 
 -type new_acc_params() :: #{
         location := location(),

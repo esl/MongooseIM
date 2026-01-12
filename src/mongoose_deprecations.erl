@@ -32,6 +32,8 @@
 -type unix_timestamp() :: mod_mam:unix_timestamp().
 -type log_map() :: map().
 
+-export_type([deprecation_tag/0, log_level/0, log_map/0]).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Public API

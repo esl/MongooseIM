@@ -108,7 +108,8 @@ start_link(HostType, PoolId, PoolOpts) ->
     Supervisor = sup_name(HostType, PoolId),
     supervisor:start_link({local, Supervisor}, ?MODULE, {HostType, PoolId, PoolOpts}).
 
--spec init({mongooseim:host_type(), pool_id(), pool_opts()}) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init({mongooseim:host_type(), pool_id(), pool_opts()}) ->
+    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init({HostType, PoolId, PoolOpts}) ->
     WPoolOpts = process_pool_opts(HostType, PoolId, PoolOpts),
     PoolName = gen_pool_name(HostType, PoolId),

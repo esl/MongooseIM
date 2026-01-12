@@ -14,6 +14,8 @@
 -export([get_backend_module/2]).
 -ignore_xref([get_backend_module/2]).
 
+-export_type([function_name/0, main_module/0, backend_module/0, host_type_or_global/0]).
+
 -type function_name() :: atom().
 -type main_module() :: module().
 -type backend_module() :: module().
