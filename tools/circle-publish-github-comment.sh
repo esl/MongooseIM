@@ -181,7 +181,7 @@ SECTION_BEGIN="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:begin -->"
 SECTION_END="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:end -->"
 
 SECTION_BODY="${DESC_BODY}${STATUS_LINE}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"$'\n'
-SECTION="${SECTION_BEGIN}"$'\n'"---"$'\n'"${SECTION_BODY}"$'\n'"---"$'\n'"${SECTION_END}"$'\n'
+SECTION="${SECTION_BEGIN}"$'\n'"---"$'\n'"${SECTION_BODY}"$'\n'"${SECTION_END}"$'\n'
 
 # Body for a brand new comment
 BODY_NEW="CircleCI results for $CIRCLE_SHA1"$'\n'$'\n'"${SECTION}"$'\n'"${COMMENT_MARKER}"$'\n'
