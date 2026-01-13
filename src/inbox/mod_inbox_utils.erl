@@ -9,6 +9,7 @@
 
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
+-include("mongoose_ns.hrl").
 
 -type inbox_fun() :: fun((mongooseim:host_type(),
                           jid:jid(),
@@ -79,14 +80,17 @@ reset_unread_count(HostType, From, Remote, MsgId, TS) ->
                             Sender :: jid:jid(),
                             Receiver :: jid:jid(),
                             Packet :: exml:element(),
-                            Acc :: mongoose_acc:t()) -> ok.
+                            Acc :: mongoose_acc:t()) -> mod_inbox:write_res().
 write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
     Timestamp = mongoose_acc:timestamp(Acc),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
     InboxEntryKey = build_inbox_entry_key(Sender, Receiver),
-    mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Packet, Count, MsgId, Timestamp).
+    EntryProps0 = mod_inbox_backend:get_entry_properties(HostType, InboxEntryKey),
+    Res = mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Packet, Count, MsgId, Timestamp),
+    maybe_broadcast_auto_unarchived(HostType, Sender, Receiver, InboxEntryKey, EntryProps0, Acc, true, Res),
+    Res.
 
 -spec write_to_receiver_inbox(HostType :: mongooseim:host_type(),
                               Sender :: jid:jid(),
@@ -97,8 +101,42 @@ write_to_receiver_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
     Timestamp = mongoose_acc:timestamp(Acc),
     InboxEntryKey = build_inbox_entry_key(Receiver, Sender),
-    mod_inbox_backend:set_inbox_incr_unread(HostType, InboxEntryKey,
-                                            Packet, MsgId, Timestamp).
+    EntryProps0 = mod_inbox_backend:get_entry_properties(HostType, InboxEntryKey),
+    Res = mod_inbox_backend:set_inbox_incr_unread(HostType, InboxEntryKey,
+                                                  Packet, MsgId, Timestamp),
+    maybe_broadcast_auto_unarchived(HostType, Receiver, Sender, InboxEntryKey, EntryProps0, Acc, false, Res),
+    Res.
+
+maybe_broadcast_auto_unarchived(_HostType, _Owner, _Remote, _InboxEntryKey, _EntryProps0,
+                                _Acc, _IsRead, {error, _}) ->
+    ok;
+maybe_broadcast_auto_unarchived(_HostType, Owner, _Remote, {_, _, RemoteBareJidBin},
+                                #{box := <<"archive">>} = ArchivedProps, Acc, IsRead, WriteRes) ->
+    %% If this entry was archived before the message write, then the message write will
+    %% automatically move it back to inbox. Broadcast the state change to the owner's bare JID.
+    UnreadCount = calculate_unread_count(IsRead, WriteRes, ArchivedProps),
+    Props = ArchivedProps#{box => <<"inbox">>,
+                           unread_count => UnreadCount},
+    CurrentTS = mongoose_acc:timestamp(Acc),
+    Children = build_entry_result_elements(Props, CurrentTS),
+    MsgId = mongoose_bin:gen_from_timestamp(),
+    XAttrs = #{<<"xmlns">> => ?NS_ESL_INBOX_CONVERSATION,
+               <<"jid">> => RemoteBareJidBin},
+    mod_inbox_entries:broadcast_inbox_update(Acc, Owner, MsgId, XAttrs, Children),
+    ok;
+
+maybe_broadcast_auto_unarchived(_HostType, _Owner, _Remote, _InboxEntryKey, _EntryProps0,
+                                _Acc, _IsRead, _WriteRes) ->
+    ok.
+
+calculate_unread_count(true, _WriteRes, _ArchivedProps) ->
+    0;
+calculate_unread_count(false, {ok, UnreadCount}, _ArchivedProps) when is_integer(UnreadCount) ->
+    UnreadCount;
+calculate_unread_count(false, ok, ArchivedProps) ->
+    maps:get(unread_count, ArchivedProps, 0) + 1.
+
+
 
 -spec clear_inbox(HostType :: mongooseim:host_type(),
                   User :: jid:user(),
