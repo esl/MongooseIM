@@ -57,12 +57,12 @@
 
 -callback get_registered_users(HostType :: mongooseim:host_type(),
                                Server :: jid:lserver(),
-                               Opts :: list()) ->
+                               Opts :: map()) ->
     [jid:simple_bare_jid()].
 
 -callback get_registered_users_number(HostType :: mongooseim:host_type(),
                                       Server :: jid:lserver(),
-                                      Opts :: list()) ->
+                                      Opts :: map()) ->
     non_neg_integer().
 
 -callback get_password(HostType :: mongooseim:host_type(),
@@ -182,7 +182,7 @@ try_register(Mod, HostType, LUser, LServer, Password) ->
     end.
 
 -spec get_registered_users(ejabberd_auth:authmodule(), mongooseim:host_type(),
-                           jid:lserver(), list()) ->
+                           jid:lserver(), map()) ->
           [jid:simple_bare_jid()].
 get_registered_users(Mod, HostType, LServer, Opts) ->
     case is_exported(Mod, get_registered_users, 3) of
@@ -191,7 +191,7 @@ get_registered_users(Mod, HostType, LServer, Opts) ->
     end.
 
 -spec get_registered_users_number(ejabberd_auth:authmodule(), mongooseim:host_type(),
-                                  jid:lserver(), list()) ->
+                                  jid:lserver(), map()) ->
           non_neg_integer().
 get_registered_users_number(Mod, HostType, LServer, Opts) ->
     case is_exported(Mod, get_registered_users_number, 3) of

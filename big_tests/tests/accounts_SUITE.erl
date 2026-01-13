@@ -375,15 +375,15 @@ list_selected_users(_Config) ->
     Alice = {<<"alice">>, domain()},
     Bob = {<<"bob">>, domain()},
     ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
-                              [domain(), [{from, 1}, {to, 1}]])),
+                                                            [domain(), #{limit => 1, offset => 0}])),
     ?assertEqual([Bob], rpc(mim(), ejabberd_auth, get_vh_registered_users,
-                            [domain(), [{from, 2}, {to, 10}]])),
+                                                        [domain(), #{limit => 1, offset => 1}])),
     ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
-                              [domain(), [{prefix, <<"a">>}]])),
+                              [domain(), #{prefix => <<"a">>}])),
     ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
-                              [domain(), [{prefix, <<"a">>}, {from, 1}, {to, 10}]])),
+                                                            [domain(), #{prefix => <<"a">>, limit => 1, offset => 0}])),
     ?assertEqual([Bob], rpc(mim(), ejabberd_auth, get_vh_registered_users,
-                            [domain(), [{prefix, <<>>}, {from, 2}, {to, 10}]])).
+                                                        [domain(), #{prefix => <<>>, limit => 1, offset => 1}])).
 
 count_users(_Config) ->
     ?assertEqual(2, rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [domain()])).
@@ -394,7 +394,7 @@ count_users_estimate(_Config) ->
 
 count_selected_users(_Config) ->
     ?assertEqual(1, rpc(mim(), ejabberd_auth, get_vh_registered_users_number,
-                        [domain(), [{prefix, <<"a">>}]])).
+                        [domain(), #{prefix => <<"a">>}])).
 
 %%--------------------------------------------------------------------
 %% Helpers

@@ -30,16 +30,6 @@
     path_prefix = "/"
     request_timeout = 2000
 
-[outgoing_pools.redis.default]
-  scope = "global"
-
-  [outgoing_pools.redis.default.connection]
-    host = "redis.example.com"
-    port = 6380
-    database = 2
-    username = "alice"
-    password = "p1pp0"
-
 [outgoing_pools.cassandra.default]
   scope = "global"
 

@@ -119,7 +119,7 @@ When set, enables authentication for the admin API, otherwise it is disabled. Re
 * **Example:** `password = "secret"`
 
 ### `listen.http.handlers.mongoose_graphql_handler.allowed_categories`
-* **Syntax:** non-empty array of strings. Allowed values: `"checkAuth", "account", "domain", "last", "muc", "muc_light", "session", "stanza", "roster", "vcard", "private", "metric", "stat", "gdpr", "mnesia", "server", "inbox", "http_upload", "offline", "token", "cets"`
+* **Syntax:** non-empty array of strings. Allowed values: `"checkAuth", "account", "domain", "last", "muc", "muc_light", "session", "stanza", "roster", "vcard", "private", "metric", "stat", "gdpr", "mnesia", "server", "inbox", "http_upload", "offline", "token"`
 * **Default:** all GraphQL categories enabled
 * **Example:** `allowed_categories = ["domain", "last"]`
 

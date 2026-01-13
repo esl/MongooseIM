@@ -35,7 +35,7 @@ You can also push `"docker.io/library/mongooseim"` to some registry.
 Full tutorial on running a docker image is available on [mongooseim-docker](https://github.com/esl/mongooseim-docker) GitHub. Here only simple and one-node configuration will be presented. In order to run it execute:
 
 ```bash
-docker run -dt -h first-node --name first-node mongooseim
+docker run -dt -h first-node --name first-node -e JOIN_CLUSTER=false mongooseim
 ```
 
 which starts a single MongooseIM node named `first-node`.

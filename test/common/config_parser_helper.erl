@@ -369,10 +369,8 @@ options("outgoing_pools") ->
                           tls => #{required => true,
                                    cacertfile => "priv/ca.pem",
                                    server_name_indication => #{enabled => false}}
-                         }},
-          #{type => redis, scope => global, tag => default, opts => #{},
-           conn_opts => #{host => "redis.example.com", port => 6380, database => 2,
-                          username => "alice", password => "p1pp0"}}
+                         }
+          }
         ])},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -830,7 +828,8 @@ default_pool_conn_opts(rabbit) ->
 default_pool_conn_opts(redis) ->
     #{host => "127.0.0.1",
       port => 6379,
-      database => 0};
+      database => 0,
+      password => ""};
 default_pool_conn_opts(rdbms) ->
     #{query_timeout => 5000, max_start_interval => 30};
 default_pool_conn_opts(_Type) ->

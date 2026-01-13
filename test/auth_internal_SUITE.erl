@@ -6,7 +6,8 @@
 
 all() ->
     [passwords_as_records_are_still_supported,
-     passwords_in_plain_can_be_converted_to_scram].
+     passwords_in_plain_can_be_converted_to_scram,
+     get_registered_users_pagination].
 
 init_per_suite(C) ->
     application:ensure_all_started(jid),
@@ -88,6 +89,36 @@ passwords_in_plain_can_be_converted_to_scram(_C) ->
                    sha := #{salt       := _,
                             server_key := _,
                             stored_key := _}}}], AfterMigrationScram).
+
+get_registered_users_pagination(_C) ->
+    Domain = <<"pagination.com">>,
+    mongoose_domain_core:start_link([{Domain, host_type()}], []),
+
+    Users = [<<"u1">>, <<"u2">>, <<"u3">>, <<"u4">>, <<"u5">>],
+    lists:foreach(fun(U) ->
+        mnesia:dirty_write({passwd, {U, Domain}, <<"password">>})
+    end, Users),
+
+    %% Limit
+    ?assertEqual([{<<"u1">>, Domain}, {<<"u2">>, Domain}],
+                 ejabberd_auth_internal:get_registered_users(host_type(), Domain, #{limit => 2})),
+
+    %% Offset
+    ?assertEqual([{<<"u3">>, Domain}, {<<"u4">>, Domain}, {<<"u5">>, Domain}],
+                 ejabberd_auth_internal:get_registered_users(host_type(), Domain, #{offset => 2})),
+
+    %% Limit + Offset
+    ?assertEqual([{<<"u2">>, Domain}, {<<"u3">>, Domain}],
+                 ejabberd_auth_internal:get_registered_users(host_type(), Domain, #{limit => 2, offset => 1})),
+
+    %% Prefix
+    ?assertEqual([{<<"u1">>, Domain}],
+                 ejabberd_auth_internal:get_registered_users(host_type(), Domain, #{prefix => <<"u1">>, limit => 10})),
+
+    %% Cleanup
+    lists:foreach(fun(U) ->
+        mnesia:dirty_delete({passwd, {U, Domain}})
+    end, Users).
 
 gen_user() ->
     {base64:encode(crypto:strong_rand_bytes(5)),

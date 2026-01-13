@@ -269,11 +269,11 @@ do_try_register_if_does_not_exist(_, JID, Password) ->
 get_vh_registered_users(Server) ->
     get_vh_registered_users(Server, []).
 
--spec get_vh_registered_users(Server :: jid:server(), Opts :: [any()]) ->
+-spec get_vh_registered_users(Server :: jid:server(), Opts :: list() | map()) ->
     [jid:simple_bare_jid()].
 get_vh_registered_users(Server, Opts) ->
     LServer = jid:nameprep(Server),
-    do_get_vh_registered_users(LServer, Opts).
+    do_get_vh_registered_users(LServer, normalize_auth_opts(Opts)).
 
 do_get_vh_registered_users(error, _) ->
     [];
@@ -287,10 +287,10 @@ do_get_vh_registered_users(LServer, Opts) ->
 get_vh_registered_users_number(Server) ->
     get_vh_registered_users_number(Server, []).
 
--spec get_vh_registered_users_number(Server :: jid:server(), Opts :: list()) -> integer().
+-spec get_vh_registered_users_number(Server :: jid:server(), Opts :: list() | map()) -> integer().
 get_vh_registered_users_number(Server, Opts) ->
     LServer = jid:nameprep(Server),
-    do_get_vh_registered_users_number(LServer, Opts).
+    do_get_vh_registered_users_number(LServer, normalize_auth_opts(Opts)).
 
 do_get_vh_registered_users_number(error, _) ->
     0;
@@ -299,6 +299,12 @@ do_get_vh_registered_users_number(LServer, Opts) ->
                 mongoose_gen_auth:get_registered_users_number(Mod, HostType, LServer, Opts)
         end,
     lists:sum(call_auth_modules_for_domain(LServer, F, #{default => [], op => map})).
+
+-spec normalize_auth_opts(list() | map()) -> map().
+normalize_auth_opts(Opts) when is_map(Opts) ->
+    Opts;
+normalize_auth_opts(Opts) when is_list(Opts) ->
+    maps:from_list(Opts).
 
 -spec get_password_s(JID :: jid:jid() | error) -> binary().
 get_password_s(#jid{luser = LUser, lserver = LServer}) ->
