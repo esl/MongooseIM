@@ -74,10 +74,7 @@ query {
          authMethods
          modules {
             name
-            backend {
-               configured
-               runtime
-            }
+            backend
          }
       }
       globalInfo {
