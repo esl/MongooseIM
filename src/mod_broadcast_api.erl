@@ -7,6 +7,13 @@
          abort_broadcast/1,
          delete_broadcasts/1]).
 
+%% Exported for testing
+-export([normalize_recipients/2,
+         make_job_id/0,
+         validate_message_content/2,
+         normalize_limit/1,
+         normalize_index/1]).
+
 -include("mongoose_logger.hrl").
 
 -define(MAX_RECIPIENTS, 10000).
@@ -98,6 +105,7 @@ abort_broadcast(Id) when is_integer(Id), Id > 0 ->
             case mod_broadcast_rdbms:abort_job(HostType, Id) of
                 {ok, UpdatedJob} ->
                     maybe_notify_manager(UpdatedJob),
+                    mongoose_instrument:execute(mod_broadcast_aborted, #{host_type => HostType}, #{count => 1}),
                     {ok, UpdatedJob};
                 not_found -> {not_found, <<"Broadcast not found">>};
                 not_running -> {not_allowed, <<"Broadcast is not running">>};
@@ -163,6 +171,8 @@ do_start_broadcast(HostType, Domain, Name, SenderJid, Subject, Body, Rate, Recip
                 ok ->
                     ok = mod_broadcast_manager:ensure_started(HostType),
                     ok = mod_broadcast_manager:start_job(HostType, JobId),
+                    mongoose_instrument:execute(mod_broadcast_started, #{host_type => HostType}, #{count => 1}),
+                    mongoose_instrument:execute(mod_broadcast_recipients, #{host_type => HostType}, #{count => length(RecipientUsers)}),
                     {ok, Job0};
                 {error, Reason} ->
                     ?LOG_ERROR(#{what => mod_broadcast_create_failed,

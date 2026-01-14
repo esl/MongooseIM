@@ -35,6 +35,7 @@ loop(HostType, Domain, FromJid, Subject, Body, Job = #{id := JobId, delay_ms := 
         case mod_broadcast_rdbms:next_recipients(HostType, JobId, 200) of
             {ok, []} ->
                 _ = mod_broadcast_rdbms:finish_job(HostType, JobId, success),
+                mongoose_instrument:execute(mod_broadcast_completed, #{host_type => HostType}, #{count => 1}),
                 ok;
             {ok, Users} ->
                 {NewFailedCount, ShouldAbort} = process_users(HostType, Domain, FromJid, Subject, Body, JobId, Users, DelayMs, maps:get(failed_count, Job, 0)),
@@ -42,6 +43,7 @@ loop(HostType, Domain, FromJid, Subject, Body, Job = #{id := JobId, delay_ms := 
                     true ->
                         ErrorMsg = io_lib:format("Too many failures: ~p", [NewFailedCount]),
                         _ = mod_broadcast_rdbms:fail_job(HostType, JobId, aborted_errors, iolist_to_binary(ErrorMsg)),
+                        mongoose_instrument:execute(mod_broadcast_failed, #{host_type => HostType}, #{count => 1}),
                         ok;
                     false ->
                         loop(HostType, Domain, FromJid, Subject, Body, Job#{failed_count => NewFailedCount})
@@ -63,6 +65,7 @@ process_users(HostType, Domain, FromJid, Subject, Body, JobId, [LUser | Rest], D
             SentTS = erlang:system_time(second),
             _ = mod_broadcast_rdbms:mark_recipient_sent(HostType, JobId, LUser, SentTS),
             _ = mod_broadcast_rdbms:increment_progress(HostType, JobId, 1),
+            mongoose_instrument:execute(mod_broadcast_messages_sent, #{host_type => HostType}, #{count => 1}),
             timer:sleep(DelayMs),
             FailedCount;
         {ErrCode, Msg} ->
@@ -73,6 +76,7 @@ process_users(HostType, Domain, FromJid, Subject, Body, JobId, [LUser | Rest], D
                            message => iolist_to_binary(Msg)}),
             %% Mark as failed but continue to next recipient
             _ = mod_broadcast_rdbms:mark_recipient_sent(HostType, JobId, LUser, 0),
+            mongoose_instrument:execute(mod_broadcast_messages_failed, #{host_type => HostType}, #{count => 1}),
             FailedCount + 1
     end,
     %% Abort if more than 10% of recipients fail or more than 100 failures

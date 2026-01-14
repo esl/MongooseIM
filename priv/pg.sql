@@ -552,7 +552,8 @@ CREATE TABLE broadcast_recipients(
     job_id BIGINT NOT NULL,
     luser VARCHAR(250) NOT NULL,
     sent_ts BIGINT,
-    PRIMARY KEY(job_id, luser)
+    PRIMARY KEY(job_id, luser),
+    FOREIGN KEY(job_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
 );
 
 CREATE INDEX i_broadcast_recipients_job_sent ON broadcast_recipients(job_id, sent_ts);

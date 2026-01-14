@@ -1,7 +1,8 @@
 -module(mod_broadcast).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
--export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, instrumentation/1]).
 
 %% Internal API (used by GraphQL/API layer)
 -export([start_broadcast_worker/2, stop_broadcast_worker/1]).
@@ -27,6 +28,23 @@ stop(HostType) ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(_HostType) ->
     [].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_broadcast_started, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_aborted, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_completed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_failed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_recipients, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_messages_sent, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_messages_failed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

@@ -83,9 +83,10 @@ terminate(_Reason, _State) ->
 
 resume_jobs(State = #state{host_type = HostType0}) ->
     %% Resume jobs owned by this node (best-effort) and still running.
-    %% We list globally and then filter by host_type to avoid a dedicated query.
-    case mod_broadcast_rdbms:list_jobs(HostType0, undefined, 500, 0) of
-        {ok, #{items := Jobs}} ->
+    %% Use optimized query that fetches only running jobs for this node.
+    OwnerNode = atom_to_binary(node(), utf8),
+    case mod_broadcast_rdbms:list_running_jobs(HostType0, OwnerNode) of
+        {ok, Jobs} ->
             Owned = [J || J = #{host_type := HostTypeJob, status := running} <- Jobs,
                           HostTypeJob =:= HostType0,
                           maps:get(owner_node, J, undefined) =:= atom_to_binary(node(), utf8)],

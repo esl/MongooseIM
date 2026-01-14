@@ -609,6 +609,7 @@ CREATE TABLE fast_auth_token(
     luser VARCHAR(250) NOT NULL,
     sent_ts BIGINT,
     PRIMARY KEY(job_id, luser),
-    INDEX i_broadcast_recipients_job_sent(job_id, sent_ts)
+    INDEX i_broadcast_recipients_job_sent(job_id, sent_ts),
+    FOREIGN KEY(job_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
   ) CHARACTER SET utf8mb4
     ROW_FORMAT=DYNAMIC;

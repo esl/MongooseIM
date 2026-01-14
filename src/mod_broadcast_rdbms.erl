@@ -4,6 +4,7 @@
          create_job/3,
          get_job/2,
          list_jobs/4,
+         list_running_jobs/2,
          claim_job/2,
          next_recipients/3,
          mark_recipient_sent/4,
@@ -13,6 +14,9 @@
          abort_job/2,
          delete_jobs/2,
          cleanup_stale_jobs/2]).
+
+%% Exported for testing
+-export([status_to_bin/1, bin_to_status/1]).
 
 -import(rdbms_queries, [limit_offset/0]).
 
@@ -50,6 +54,12 @@ init(_HostType, _Opts) ->
     mongoose_rdbms:prepare(broadcast_count_jobs, broadcast_jobs,
                            [domain, domain],
                            <<"SELECT COUNT(*) FROM broadcast_jobs WHERE (? IS NULL OR domain = ?)">>),
+
+    mongoose_rdbms:prepare(broadcast_list_running_owned, broadcast_jobs,
+                           [owner_node, host_type],
+                           <<"SELECT id, host_type, domain, name, sender_jid, subject, body, status, start_ts, stop_ts, "
+                             "rate_per_second, recipient_count, progress_count, owner_node, heartbeat_ts, last_error "
+                             "FROM broadcast_jobs WHERE status = 'running' AND owner_node = ? AND host_type = ?">>),
 
     mongoose_rdbms:prepare(broadcast_claim_job, broadcast_jobs,
                            [owner_node, heartbeat_ts, id, owner_node],
@@ -170,6 +180,16 @@ list_jobs(HostType, Domain, Limit, Index) ->
 
 domain_param(undefined) -> null;
 domain_param(Domain) -> Domain.
+
+-spec list_running_jobs(mongooseim:host_type_or_global(), binary()) -> {ok, [pos_integer()]} | {error, term()}.
+list_running_jobs(HostType, OwnerNode) ->
+    case mongoose_rdbms:execute(HostType, broadcast_list_running_owned, [OwnerNode]) of
+        {selected, Rows} ->
+            JobIds = [Id || {Id} <- Rows],
+            {ok, JobIds};
+        Other ->
+            {error, Other}
+    end.
 
 -spec claim_job(mongooseim:host_type_or_global(), pos_integer()) -> ok | not_claimed | {error, term()}.
 claim_job(HostType, Id) ->
