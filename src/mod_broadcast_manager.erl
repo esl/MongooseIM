@@ -86,11 +86,8 @@ resume_jobs(State = #state{host_type = HostType0}) ->
     %% Use optimized query that fetches only running jobs for this node.
     OwnerNode = atom_to_binary(node(), utf8),
     case mod_broadcast_rdbms:list_running_jobs(HostType0, OwnerNode) of
-        {ok, Jobs} ->
-            Owned = [J || J = #{host_type := HostTypeJob, status := running} <- Jobs,
-                          HostTypeJob =:= HostType0,
-                          maps:get(owner_node, J, undefined) =:= atom_to_binary(node(), utf8)],
-            lists:foldl(fun(#{id := Id}, St) -> ensure_runner(Id, St) end, State, Owned);
+        {ok, JobIds} ->
+            lists:foldl(fun(Id, St) -> ensure_runner(Id, St) end, State, JobIds);
         _ ->
             State
     end.

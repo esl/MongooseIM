@@ -47,11 +47,7 @@ get_broadcast(Id) when is_integer(Id), Id > 0 ->
     %% In multi-tenant setup, jobs are visible across all host_types
     HostType = case mongoose_domain_api:get_all_static() of
                    [] -> global;
-                   [D | _] ->
-                       case mongoose_domain_api:get_domain_host_type(D) of
-                           {ok, HT} -> HT;
-                           _ -> global
-                       end
+                   [{_D, HT} | _] -> HT
                end,
     case mod_broadcast_rdbms:get_job(HostType, Id) of
         {ok, Job} -> {ok, Job};
@@ -76,11 +72,7 @@ list_broadcasts(#{domain := Domain, limit := Limit, index := Index}) ->
                    undefined ->
                        case mongoose_domain_api:get_all_static() of
                            [] -> global;
-                           [FirstDomain | _] ->
-                               case mongoose_domain_api:get_domain_host_type(FirstDomain) of
-                                   {ok, HT} -> HT;
-                                   _ -> global
-                               end
+                           [{_Domain, HT} | _] -> HT
                        end;
                    Dom ->
                        case mongoose_domain_api:get_domain_host_type(Dom) of
@@ -123,11 +115,7 @@ delete_broadcasts(#{ids := Ids}) ->
     %% Use first available host_type - delete operates across all host_types
     HostType = case mongoose_domain_api:get_all_static() of
                    [] -> global;
-                   [D | _] ->
-                       case mongoose_domain_api:get_domain_host_type(D) of
-                           {ok, HT} -> HT;
-                           _ -> global
-                       end
+                   [{_D, HT} | _] -> HT
                end,
     case mod_broadcast_rdbms:delete_jobs(HostType, Ids) of
         {ok, DeletedCount} -> {ok, #{deleted_count => DeletedCount}};
@@ -190,9 +178,7 @@ do_start_broadcast(HostType, Domain, Name, SenderJid, Subject, Body, Rate, Recip
 
 maybe_notify_manager(#{host_type := HostType, id := JobId}) ->
     ok = mod_broadcast_manager:ensure_started(HostType),
-    ok = mod_broadcast_manager:abort_job(HostType, JobId);
-maybe_notify_manager(_) ->
-    ok.
+    ok = mod_broadcast_manager:abort_job(HostType, JobId).
 
 make_job_id() ->
     %% 16-bit node hash + 48-bit unique int.
@@ -221,19 +207,24 @@ validate_message_content(Subject, Body) ->
         0 ->
             {error, <<"Body cannot be empty">>};
         _ ->
-            case Subject of
-                undefined -> ok;
-                null -> ok;
-                _ ->
-                    SubjectBin = iolist_to_binary(Subject),
-                    case byte_size(SubjectBin) of
-                        SN when SN > ?MAX_SUBJECT_LENGTH ->
-                            {error, io_lib:format("Subject too long (~p bytes), maximum is ~p", [SN, ?MAX_SUBJECT_LENGTH])};
+            %% Check body for invalid characters first
+            case has_invalid_chars(BodyBin) of
+                true -> {error, <<"Message contains invalid control characters">>};
+                false ->
+                    %% Then check subject if present
+                    case Subject of
+                        undefined -> ok;
+                        null -> ok;
                         _ ->
-                            %% Check for control characters (except tab, LF, CR)
-                            case has_invalid_chars(SubjectBin) orelse has_invalid_chars(BodyBin) of
-                                true -> {error, <<"Message contains invalid control characters">>};
-                                false -> ok
+                            SubjectBin = iolist_to_binary(Subject),
+                            case byte_size(SubjectBin) of
+                                SN when SN > ?MAX_SUBJECT_LENGTH ->
+                                    {error, io_lib:format("Subject too long (~p bytes), maximum is ~p", [SN, ?MAX_SUBJECT_LENGTH])};
+                                _ ->
+                                    case has_invalid_chars(SubjectBin) of
+                                        true -> {error, <<"Message contains invalid control characters">>};
+                                        false -> ok
+                                    end
                             end
                     end
             end

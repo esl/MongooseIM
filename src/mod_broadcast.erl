@@ -10,7 +10,7 @@
 -include("mongoose_logger.hrl").
 -include("mongoose_config_spec.hrl").
 
--spec supported_features() -> [gen_mod:module_feature()].
+-spec supported_features() -> [atom()].
 supported_features() ->
     [dynamic_domains].
 
@@ -57,13 +57,7 @@ start_broadcast_worker(HostType, Opts) ->
     ChildSpec = {Proc, {mod_broadcast_manager, start_link, [HostType, Opts]},
                  permanent, 5000, worker, [mod_broadcast_manager]},
     case ejabberd_sup:start_child(ChildSpec) of
-        {ok, _Pid} -> ok;
-        {error, {already_started, _Pid}} -> ok;
-        {error, Reason} ->
-            ?LOG_ERROR(#{what => mod_broadcast_start_failed,
-                         host_type => HostType,
-                         reason => Reason}),
-            erlang:error({mod_broadcast_start_failed, Reason})
+        {ok, _Pid} -> ok
     end.
 
 stop_broadcast_worker(HostType) ->
