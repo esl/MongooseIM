@@ -6,8 +6,6 @@
 
 -export([revoke_token_command/1, create_token/1]).
 
--import(mod_auth_token, [token/3, serialize/1]).
-
 -spec revoke_token_command(User) -> Result when
     User :: jid:jid(),
     Result :: {ok, string()} | {not_found | internal_server_error, string()}.
@@ -38,10 +36,10 @@ create_token(User) ->
     #jid{lserver = LServer} = User,
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
-            case {token(HostType, User, access), token(HostType, User, refresh)} of
-                {#token{} = AccessToken, #token{} = RefreshToken} ->
-                    {ok, #{<<"access">> => serialize(AccessToken),
-                           <<"refresh">> => serialize(RefreshToken)}};
+            case mod_auth_token:create_tokens(HostType, User) of
+                {ok, AccessTokenBin, RefreshTokenBin} ->
+                    {ok, #{<<"access">> => AccessTokenBin,
+                           <<"refresh">> => RefreshTokenBin}};
                 _ -> {internal_server_error, "Internal server error"}
             end;
         _ ->

@@ -52,9 +52,9 @@ process_iq(Acc, _From, _To, #iq{type = get} = IQ, _Extra) ->
                   attrs = #{<<"xmlns">> => ?NS_VERSION},
                   children =
                   [#xmlel{name = <<"name">>,
-                          children =[#xmlcdata{content = Name}]},
+                          children = [#xmlcdata{content = Name}]},
                    #xmlel{name = <<"version">>,
-                          children =[#xmlcdata{content = Version}]}
+                          children = [#xmlcdata{content = Version}]}
                   ] ++ add_os_info(HostType)}]}}.
 
 -spec add_os_info(mongooseim:host_type()) -> [exml:element()] | [].

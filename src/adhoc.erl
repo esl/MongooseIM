@@ -42,7 +42,7 @@
 
 %% @doc Parse an ad-hoc request.  Return either an adhoc_request record or
 %% an {error, ErrorType} tuple.
--spec parse_request(jlib:iq()) -> request() | {error, exml:element()}.
+-spec parse_request(jlib:iq()) -> #adhoc_request{} | {error, exml:element()}.
 parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}) ->
     ?LOG_DEBUG(#{what => adhoc_parse_request,
                  text => <<"entering parse_request...">>,
@@ -71,7 +71,7 @@ parse_request(_) ->
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record, filling in values for language, node and session id from
 %% the request.
--spec produce_response(request(), response() | atom()) -> #xmlel{}.
+-spec produce_response(#adhoc_request{}, response() | atom()) -> #xmlel{}.
 produce_response(Request, Status) when is_atom(Status) ->
     produce_response(Request, Status, <<>>, []);
 produce_response(#adhoc_request{lang = Lang,
@@ -85,7 +85,7 @@ produce_response(#adhoc_request{lang = Lang,
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record, filling in values for language, node and session id from
 %% the request.
--spec produce_response(request(), Status :: atom(), DefaultAction :: binary(),
+-spec produce_response(#adhoc_request{}, Status :: atom(), DefaultAction :: binary(),
                        Elements :: [exml:element()]) -> exml:element().
 produce_response(Request, Status, DefaultAction, Elements) ->
     #adhoc_request{lang = Lang, node = Node, session_id = SessionID} = Request,

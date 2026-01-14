@@ -76,12 +76,16 @@ trails() ->
   PropItemGetRoomWithIdResp = #{
     <<"user">> => #{
       type => <<"string">>,
-      description => <<"This is the user's JID (Jabber ID) which consist of username and server parts. Example: alice@wonderland.com">>,
+      description =>
+        <<"This is the user's JID (Jabber ID) which consist of username and server parts. ",
+          "Example: alice@wonderland.com">>,
       default => <<"alice@wonderland.com">>
     },
     <<"role">> => #{
       type => <<"string">>,
-      description => <<"The role of the user in a given room (can be 'owner' or 'member'). = ['owner', 'member']">>,
+      description =>
+        <<"The role of the user in a given room (can be 'owner' or 'member'). ",
+          "= ['owner', 'member']">>,
       default => <<"owner">>
     }
   },
@@ -208,9 +212,16 @@ trails() ->
 
   %% Options
   StoreOptions = [
-    {PathClientApiRooms, #{path => PathClientApiRooms}, MetadataClientApiRoom, mongoose_client_api_rooms},
-    {PathClientApiRoomsWithId, #{path => PathClientApiRoomsWithId}, MetadataClientApiRoomWithId, mongoose_client_api_rooms}
+    {PathClientApiRooms,
+     #{path => PathClientApiRooms},
+     MetadataClientApiRoom,
+     mongoose_client_api_rooms},
+    {PathClientApiRoomsWithId,
+     #{path => PathClientApiRoomsWithId},
+     MetadataClientApiRoomWithId,
+     mongoose_client_api_rooms}
   ],
 
   %% Trail all data
-  [trails:trail(Path, Module, Options, Metadata) || {Path, Options, Metadata, Module} <- StoreOptions].
+  [trails:trail(Path, Module, Options, Metadata)
+   || {Path, Options, Metadata, Module} <- StoreOptions].

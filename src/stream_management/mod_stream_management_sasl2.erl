@@ -103,7 +103,8 @@ handle_bind_enable(SaslAcc, #{c2s_data := C2SData}, Inline, El) ->
             do_handle_bind_enable(SaslAcc, C2SData, SmState, Inline, El)
     end.
 
--spec do_handle_bind_enable(SaslAcc, mongoose_c2s:data(), mod_stream_management:sm_state(), mod_sasl2:inline_request(), exml:element()) ->
+-spec do_handle_bind_enable(SaslAcc, mongoose_c2s:data(), mod_stream_management:sm_state(),
+                            mod_sasl2:inline_request(), exml:element()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 do_handle_bind_enable(SaslAcc, C2SData, SmState, Inline, El) ->
     case exml_query:attr(El, <<"resume">>, false) of

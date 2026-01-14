@@ -88,7 +88,7 @@ maybe_send_back_error(From, To, Acc, FPacketAcc) ->
             Acc2 = mongoose_acc:set_permanent(domain_isolation, ignore, true, Acc),
             send_back_error(Err, From, To, Acc2),
             drop
-   end.
+    end.
 
 -spec send_back_error(Etype, From, To, Acc) -> Acc when
     Etype :: exml:element(),

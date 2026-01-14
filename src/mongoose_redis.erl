@@ -7,24 +7,18 @@
 -ignore_xref([cmd/2, cmds/2]).
 
 -include_lib("eredis/include/eredis.hrl").
+-export_type([return_value/0]).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
--spec cmd(iolist()) -> undefined
-                       | binary()
-                       | [binary() | [binary() | integer()] | integer() | {'error', _}]
-                       | integer()
-                       | {'error', _}.
+-spec cmd(iolist()) -> return_value() | {error, _}.
 cmd(Cmd) ->
     cmd(Cmd, 5000).
 
--spec cmds([iolist()]) -> undefined
-                          | binary()
-                          | [binary() | [binary() | integer()] | integer() | {'error', _}]
-                          | integer()
-                          | {'error', _}.
+-spec cmds([iolist()]) ->
+    [{ok, return_value()} | {error, Reason :: binary()}] | {error, no_connection}.
 cmds(Cmd) ->
     cmds(Cmd, 5000).
 
@@ -37,7 +31,7 @@ cmd(Cmd, Timeout) ->
     end.
 
 -spec cmds([iolist()], integer()) ->
-    [{ok, return_value()} | {error, Reason::binary()}] | {error, no_connection}.
+    [{ok, return_value()} | {error, Reason :: binary()}] | {error, no_connection}.
 cmds(Cmd, Timeout) ->
     {ok, Worker} = mongoose_wpool:get_worker(redis, global, default),
     eredis:qp(Worker, Cmd, Timeout).

@@ -1,6 +1,6 @@
 -module(ejabberd_sm_cets).
 
--behavior(ejabberd_sm_backend).
+-behaviour(ejabberd_sm_backend).
 
 -include("mongoose.hrl").
 -include("session.hrl").

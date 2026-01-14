@@ -263,12 +263,12 @@ supports_sasl_module(HostType, cyrsasl_plain) ->
 supports_sasl_module(HostType, cyrsasl_digest) ->
     is_protocol_enabled(HostType, login_anon);
 supports_sasl_module(HostType, Mechanism) ->
-   case mongoose_scram:enabled(HostType, Mechanism) of
-      true ->
-          is_protocol_enabled(HostType, login_anon);
-      _ ->
-          false
-end.
+    case mongoose_scram:enabled(HostType, Mechanism) of
+        true ->
+            is_protocol_enabled(HostType, login_anon);
+        _ ->
+            false
+    end.
 
 %% @doc Returns true if the requested anonymous protocol is enabled
 -spec is_protocol_enabled(mongooseim:host_type(), sasl_anon | login_anon) -> boolean().

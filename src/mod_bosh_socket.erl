@@ -90,10 +90,14 @@
                 %% Report scheduled for sending at the earliest
                 %% possible occasion.
                 report = false  :: {rid(), Time :: non_neg_integer()} | 'false'}).
--type state() :: #state{}.
+-opaque state() :: #state{}.
 
 -type statename() :: 'accumulate' | 'normal' | 'closing'.
 -type fsm_return() :: {'next_state', statename(), state()}.
+
+-export_type([cached_response/0,
+              state/0,
+              fsm_return/0]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -423,7 +427,7 @@ handle_info(Info, SName, State) ->
 terminate(Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
     mod_bosh_backend:delete_session(Sid),
-    catch mongoose_c2s:stop(S#state.c2s_pid, normal),
+    mongoose_c2s:stop(S#state.c2s_pid, normal),
     ?LOG_DEBUG(ls(#{what => bosh_socket_closing_session, reason => Reason,
                     state_name => StateName, handlers => Handlers,
                     pending => S#state.pending}, S)).
@@ -495,7 +499,7 @@ maybe_add(Rid1, Rid2) when is_integer(Rid1),
 -spec maybe_diff(rid(), rid() | undefined)
   -> non_neg_integer() | undefined.
 maybe_diff(_, undefined) -> undefined;
-maybe_diff(Rid, Expected) -> abs(Rid-Expected).
+maybe_diff(Rid, Expected) -> abs(Rid - Expected).
 
 -spec resend_cached(cached_response(), state()) -> state().
 resend_cached({_Rid, _, CachedBody}, S) ->
@@ -506,7 +510,7 @@ resend_cached({_Rid, _, CachedBody}, S) ->
                                     Body :: exml:element(),
                                     Rid :: 'undefined' | rid()},
                                 SName :: any(),
-                                S :: state() ) -> state().
+                                S :: state()) -> state().
 process_acked_stream_event({EventTag, Body, Rid}, SName,
                            #state{} = S) ->
     MaybeBAck = exml_query:attr(Body, <<"ack">>),
@@ -534,7 +538,7 @@ rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
 determine_report_action(undefined, true, Rid, LastProcessed) ->
-    ?WARNING_MSG_IF(Rid+1 /= LastProcessed, "expected 'ack' attribute on ~p~n", [Rid]),
+    ?WARNING_MSG_IF(Rid + 1 /= LastProcessed, "expected 'ack' attribute on ~p~n", [Rid]),
     {noreport, undefined};
 determine_report_action(BinAck, _, _, LastProcessed) ->
     Ack = binary_to_integer(BinAck),
@@ -680,11 +684,11 @@ send_to_handler(Data, State) ->
 %% Return handler and new state if a handler is available
 %% or `false` otherwise.
 -spec pick_handler(state()) -> {{rid(), pid()}, state()} | false.
-pick_handler(#state{ handlers = [] }) ->
+pick_handler(#state{handlers = []}) ->
     false;
-pick_handler(#state{ handlers = Handlers, rid = Rid } = S) ->
+pick_handler(#state{handlers = Handlers, rid = Rid} = S) ->
     case lists:sort(Handlers) of
-        [{HandlerRid, TRef, Pid} | HRest] when HandlerRid =< Rid->
+        [{HandlerRid, TRef, Pid} | HRest] when HandlerRid =< Rid ->
             %% The cancellation might fail if the timer already fired.
             %% Don't worry, it's handled on receiving the timeout message.
             erlang:cancel_timer(TRef),
@@ -696,7 +700,7 @@ pick_handler(#state{ handlers = Handlers, rid = Rid } = S) ->
 
 -spec send_to_handler({_, atom() | pid() | port() | {atom(), atom()}},
                       Wrapped :: [any()] | exml:element(),
-                      State :: state() ) -> state().
+                      State :: state()) -> state().
 send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
     send_wrapped_to_handler(Pid, Wrapped, State);
 send_to_handler({Rid, Pid}, Data, State) ->
@@ -838,7 +842,7 @@ return_surplus_handlers(SName, #state{pending = Pending} = S)
 
 
 -spec bosh_unwrap(EventTag :: mod_bosh:event_type(), exml:element(), state())
-   -> {[jlib:xmlstreamel()], state()}.
+    -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
   when StreamEvent =:= streamstart ->
     Wait = min(get_attr(<<"wait">>, Body, S#state.wait), S#state.max_wait),
@@ -869,7 +873,7 @@ bosh_unwrap(normal, Body, #state{sid = Sid} = State) ->
      State}.
 
 
--spec get_client_acks(streamstart, exml:element(), boolean(), #state{}) -> boolean().
+-spec get_client_acks(streamstart, exml:element(), boolean(), state()) -> boolean().
 get_client_acks(streamstart, Element, Default, State) ->
     case exml_query:attr(Element, <<"ack">>) of
         undefined ->
@@ -948,7 +952,7 @@ bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
     Attrs1 = #{<<"wait">> => integer_to_binary(S#state.wait),
                <<"requests">> => integer_to_binary(?CONCURRENT_REQUESTS),
                <<"hold">> => integer_to_binary(S#state.hold),
-               <<"from">> => maps:get(<<"from">>, Attrs,undefined),
+               <<"from">> => maps:get(<<"from">>, Attrs, undefined),
                % TODO: how to support these with cowbo?
                <<"accept">> => <<"deflate, gzip">>,
                <<"sid">> => S#state.sid,
@@ -968,16 +972,16 @@ bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
 
 
 -spec inactivity('infinity' | 'undefined' | pos_integer(), exml:attrs()) -> exml:attrs().
-inactivity(I, Attrs) when is_integer(I)->
+inactivity(I, Attrs) when is_integer(I) ->
     Attrs#{<<"inactivity">> => integer_to_binary(I)};
 inactivity(_, Attrs) ->
     Attrs.
 
 
 -spec maxpause('undefined' | pos_integer(), exml:attrs()) -> exml:attrs().
-maxpause(MP, Attrs) when is_integer(MP)->
+maxpause(MP, Attrs) when is_integer(MP) ->
     Attrs#{<<"maxpause">> =>  integer_to_binary(MP)};
-maxpause(_MP, Attrs)->
+maxpause(_MP, Attrs) ->
     Attrs.
 
 -spec server_ack('false' | 'true' | 'undefined', 'undefined' | rid(), exml:attrs())
@@ -1116,6 +1120,6 @@ is_ssl(_Socket) ->
 -include_lib("eunit/include/eunit.hrl").
 
 cache_up_to_test_() ->
-    [?_test(?assertEqual( [4, 5], cache_up_to(2, [1, 2, 3, 4, 5]) ))].
+    [?_test(?assertEqual([4, 5], cache_up_to(2, [1, 2, 3, 4, 5])))].
 
 -endif.

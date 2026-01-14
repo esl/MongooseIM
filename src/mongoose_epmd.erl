@@ -18,6 +18,8 @@
 -export([lookup_ip/1]).
 -export([match_node_name/2]).
 
+-export_type([lookup_error/0]).
+
 -type lookup_error() ::
     {no_ip_in_db, node()}
   | {cannot_connect_to_epmd, node(), inet:ip_address()}

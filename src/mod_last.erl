@@ -124,7 +124,7 @@ supported_features() -> [dynamic_domains].
 %%% Uptime of ejabberd node
 %%%
 -spec process_local_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map())
-        -> {mongoose_acc:t(), jlib:iq()}.
+    -> {mongoose_acc:t(), jlib:iq()}.
 process_local_iq(Acc, _From, _To, #iq{type = Type, sub_el = SubEl} = IQ, _Extra) ->
     case Type of
         set ->
@@ -145,7 +145,7 @@ get_node_uptime() ->
         {ok, {node_start, Seconds}} ->
             erlang:system_time(second) - Seconds;
         {error, not_found} ->
-            trunc(element(1, erlang:statistics(wall_clock))/1000)
+            trunc(element(1, erlang:statistics(wall_clock)) / 1000)
     end.
 
 %%%

@@ -174,7 +174,10 @@ get_blocking(_HostType, UserUS, _MUCServer, WhatWhos) ->
     Blocklist = dirty_get_blocking_raw(UserUS),
     case lists:any(
            fun(WhatWho) ->
-                   lists:keyfind(WhatWho, #muc_light_blocking.item, Blocklist) =/= false
+                   case lists:keyfind(WhatWho, #muc_light_blocking.item, Blocklist) of
+                       false -> false;
+                       _ -> true
+                   end
            end, WhatWhos) of
         true -> deny;
         false -> allow

@@ -31,7 +31,10 @@ make_from_to(#jid{lserver = FromServer}, #jid{lserver = ToServer}) ->
                           (string() | jid:lserver(), string) -> string() | false.
 domain_utf8_to_ascii(Domain, binary) ->
     Result = domain_utf8_to_ascii(Domain),
-    false =/= Result andalso list_to_binary(Result);
+    case Result of
+        false -> false;
+        _ -> list_to_binary(Result)
+    end;
 domain_utf8_to_ascii(Domain, string) ->
     domain_utf8_to_ascii(Domain).
 

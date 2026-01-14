@@ -11,7 +11,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_push).
 -author('rafal.slota@erlang-solutions.com').
--behavior(gen_mod).
+-behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 357}, {version, "0.4.1"}]).
 

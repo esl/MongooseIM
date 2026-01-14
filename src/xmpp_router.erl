@@ -18,7 +18,7 @@
           filter :: filter_fun(),
           route :: route_fun()
          }).
--type t() :: #router_handler{}.
+-opaque t() :: #router_handler{}.
 -type filter_fun() :: fun((?ARGS) -> drop | filter()).
 -type route_fun() :: fun((?ARGS) -> {done, mongoose_acc:t()} | filter()).
 -type filter() :: {?ARGS}.

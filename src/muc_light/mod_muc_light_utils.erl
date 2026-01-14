@@ -57,7 +57,9 @@
 %% API
 %%====================================================================
 
--spec change_aff_users(HostType :: mongooseim:host_type(), CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
+-spec change_aff_users(HostType :: mongooseim:host_type(),
+                       CurrentAffUsers :: aff_users(),
+                       AffUsersChangesAssorted :: aff_users()) ->
     change_aff_success() | {error, bad_request()}.
 change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
     case {lists:keyfind(owner, 2, AffUsers), lists:keyfind(owner, 2, AffUsersChangesAssorted)} of

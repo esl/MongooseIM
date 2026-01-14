@@ -71,7 +71,7 @@
           exts = [] :: [binary()]
         }).
 
--type caps() :: #caps{}.
+-opaque caps() :: #caps{}.
 -type caps_resources() :: gb_trees:tree(jid:simple_jid(), caps()).
 
 -export_type([caps/0, node_pair/0, maybe_pending_features/0]).
@@ -280,9 +280,9 @@ user_receive_presence(Acc0, #{c2s_data := C2SData}, _Extra) ->
                         end,
                     Caps = read_caps(Els),
                     NewRs = case Caps of
-                                nothing when Insert == true ->
+                                nothing when Insert ->
                                     Rs;
-                                _ when Insert == true ->
+                                _ when Insert ->
                                     ?LOG_DEBUG(#{what => caps_set_caps,
                                                  caps => Caps,
                                                  to => jid:to_binary(To),
@@ -584,7 +584,7 @@ gb_trees_fold_iter(F, Acc, Iter) ->
 
 is_valid_node(Node) ->
     case mongoose_bin:tokens(Node, <<"#">>) of
-        [?MONGOOSE_URI|_] ->
+        [?MONGOOSE_URI | _] ->
             true;
         _ ->
             false

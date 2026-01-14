@@ -7,7 +7,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_push_rdbms).
--behavior(mod_event_pusher_push_backend).
+-behaviour(mod_event_pusher_push_backend).
 
 %%--------------------------------------------------------------------
 %% Exports

@@ -886,7 +886,7 @@ process_message_from_allowed_user(From, Packet, StateData) ->
 can_send_broadcasts(Role, StateData) ->
     (Role == moderator)
     or (Role == participant)
-    or ((StateData#state.config)#config.moderated == false).
+    or not (StateData#state.config)#config.moderated.
 
 broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
     TS = erlang:system_time(microsecond),
@@ -1937,7 +1937,7 @@ decode_http_auth_response(Body) ->
         {0, _} ->
             allowed;
         {AuthCode, Msg} ->
-            {invalid_password, iolist_to_binary([integer_to_list(AuthCode), $ , Msg])}
+            {invalid_password, iolist_to_binary([integer_to_list(AuthCode), $\s, Msg])}
     catch
         error:_ -> error
     end.
@@ -2266,8 +2266,8 @@ send_new_presence_to(NJID, Reason, Receivers, StateData) ->
 send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presence = Presence},
                             BAffiliation, BRole, Reason, ReceiverInfo, StateData) ->
     ItemAttrs =
-    case (ReceiverInfo#user.role == moderator) orelse
-         ((StateData#state.config)#config.anonymous == false) of
+        case (ReceiverInfo#user.role == moderator) orelse
+                 not (StateData#state.config)#config.anonymous of
         true ->
             #{<<"jid">> => jid:to_binary(RealJID),
               <<"affiliation">> => BAffiliation,
@@ -2288,7 +2288,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
                  false ->
                      []
              end,
-    Status2 = case (NJID == ReceiverInfo#user.jid) of
+    Status2 = case NJID == ReceiverInfo#user.jid of
                   true ->
                       Status0 = case (StateData#state.config)#config.logging of
                                     true ->
@@ -2296,18 +2296,11 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
                                     false ->
                                         Status
                                 end,
-                      Status1 = case ((StateData#state.config)#config.anonymous==false) of
-                                    true ->
-                                        [status_code(100) | Status0];
-                                    false ->
-                                        Status0
+                      Status1 = case (StateData#state.config)#config.anonymous of
+                                    false -> [status_code(100) | Status0];
+                                    true -> Status0
                                 end,
-                      case ((NJID == ReceiverInfo#user.jid)==true) of
-                          true ->
-                              [status_code(110) | Status1];
-                          false ->
-                              Status1
-                      end;
+                      [status_code(110) | Status1];
                   false ->
                       Status
               end,
@@ -2343,7 +2336,7 @@ send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
                        Role, RealToJID, StateData) ->
     FromAffiliation = get_affiliation(FromJID, StateData),
     ItemAttrs =
-    case (Role == moderator) orelse ((StateData#state.config)#config.anonymous == false) of
+    case (Role == moderator) orelse not (StateData#state.config)#config.anonymous of
         true ->
             #{<<"jid">> => jid:to_binary(FromJID),
               <<"affiliation">> => affiliation_to_binary(FromAffiliation),
@@ -2447,7 +2440,7 @@ send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
 is_nick_change_public(UserInfo, RoomConfig) ->
     UserInfo#user.role == moderator
     orelse
-    RoomConfig#config.anonymous == false.
+    not RoomConfig#config.anonymous.
 
 -spec status_code(integer()) -> exml:element().
 status_code(Code) ->
@@ -3092,7 +3085,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
     F = fun(Info) ->
           JidAttrList =
             case (Info#user.role == moderator) orelse
-                 ((StateData#state.config)#config.anonymous == false) of
+                                 not (StateData#state.config)#config.anonymous of
                 true -> #{<<"jid">> => BannedJIDString};
                 false -> #{}
                 end,

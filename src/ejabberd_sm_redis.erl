@@ -11,7 +11,7 @@
 -include("mongoose.hrl").
 -include("session.hrl").
 
--behavior(ejabberd_sm_backend).
+-behaviour(ejabberd_sm_backend).
 -export([init/1,
          get_sessions/0,
          get_sessions/1,
@@ -75,24 +75,32 @@ get_sessions(User, Server, Resource) ->
 -spec set_session(User :: jid:luser(),
                   Server :: jid:lserver(),
                   Resource :: jid:lresource(),
-                  Session :: ejabberd_sm:session()) -> ok | {error, term()}.
+                  Session :: #session{}) -> ok | {error, term()}.
 set_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
     Node = sid_to_node(Session#session.sid),
+    BSession = term_to_binary(Session),
+    AddCmds = [["SADD", hash(User, Server), BSession],
+               ["SADD", hash(User, Server, Resource), BSession]],
+    NodeCmd = ["SADD", n(Node), hash_v2(User, Server, Resource, Session#session.sid)],
     case lists:keysearch(Session#session.sid, #session.sid, OldSessions) of
         {value, OldSession} ->
             BOldSession = term_to_binary(OldSession),
-            BSession = term_to_binary(Session),
-            mongoose_redis:cmds([["SADD", n(Node), hash_v2(User, Server, Resource, Session#session.sid)],
-                                 ["SREM", hash(User, Server), BOldSession],
-                                 ["SREM", hash(User, Server, Resource), BOldSession],
-                                 ["SADD", hash(User, Server), BSession],
-                                 ["SADD", hash(User, Server, Resource), BSession]]);
+            RemoveCmds = [["SREM", hash(User, Server), BOldSession],
+                          ["SREM", hash(User, Server, Resource), BOldSession]],
+            cmds_to_result(mongoose_redis:cmds([NodeCmd | RemoveCmds ++ AddCmds]));
         false ->
-            BSession = term_to_binary(Session),
-            mongoose_redis:cmds([["SADD", n(Node), hash_v2(User, Server, Resource, Session#session.sid)],
-                                 ["SADD", hash(User, Server), BSession],
-                                 ["SADD", hash(User, Server, Resource), BSession]])
+            cmds_to_result(mongoose_redis:cmds([NodeCmd | AddCmds]))
+    end.
+
+cmds_to_result({error, Reason}) ->
+    {error, Reason};
+cmds_to_result(Results) when is_list(Results) ->
+    case lists:filter(fun({error, _}) -> true;
+                         (_) -> false
+                      end, Results) of
+        [] -> ok;
+        [FirstError | _] -> {error, FirstError}
     end.
 
 -spec delete_session(SID :: ejabberd_sm:sid(),

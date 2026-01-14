@@ -10,7 +10,7 @@
          extend/2,
          register/3]).
 
--export_type([t/0, opts/0]).
+-export_type([t/0, opts/0, auth_event/0]).
 
 -record(mongoose_credentials, {lserver, host_type, registry = [], extra = [], modules}).
 

@@ -454,7 +454,7 @@ process_list_get(Acc, HostType, LUser, LServer, Name) ->
 
 -spec process_iq_set(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{from := jid:jid(), iq := jlib:iq()},
+    Params :: #{from := jid:jid(), iq := #iq{}},
     Extra :: gen_hook:extra().
 process_iq_set(Acc,
                #{from := From, iq := #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}},
@@ -564,7 +564,7 @@ is_item_needdb(#listitem{type = subscription}) -> true;
 is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
--spec get_user_list(Acc, Params, Extra) -> {ok, Acc} when
+-spec get_user_list(Acc, Params, Extra) -> {ok, #userlist{}} when
     Acc :: mongoose_privacy:userlist(),
     Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().

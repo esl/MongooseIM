@@ -24,7 +24,6 @@
 %%%----------------------------------------------------------------------
 
 -module(service_translations).
--author('alexey@process-one.net').
 
 -behaviour(mongoose_service).
 -behaviour(mongoose_module_metrics).
@@ -58,13 +57,13 @@ do(Lang, Msg) ->
         false ->
             Msg;
         true ->
-            do_(Lang, Msg)
+            do_translation(Lang, Msg)
     end.
 
 %% Private
 
--spec do_(ejabberd:lang(), binary()) -> binary().
-do_(Lang, Msg) ->
+-spec do_translation(ejabberd:lang(), binary()) -> binary().
+do_translation(Lang, Msg) ->
     LLang = to_lower(Lang),
     case get_translation(LLang, Msg) of
         {ok, Trans} -> Trans;
@@ -108,8 +107,8 @@ lang_from_file_name(Filename) ->
     string:lowercase(filename:rootname(Filename)).
 
 -spec has_msg_extension(file:filename()) -> boolean().
-has_msg_extension(FileName) ->
-    filename:extension(FileName) == ".msg".
+has_msg_extension(Filename) ->
+    filename:extension(Filename) == ".msg".
 
 -spec load_file(string(), file:name()) -> ok.
 load_file(Lang, File) ->

@@ -459,8 +459,8 @@ execute_insert_parent(Name, ParentName) ->
                                  Nidx :: mod_pubsub:nodeIdx()) ->
                                      mongoose_rdbms:query_result().
 execute_update_pubsub_node(Type, OwnersJid, Opts, Nidx) ->
-        mongoose_rdbms:execute_successfully(global, pubsub_update_pubsub_node,
-            [Type, OwnersJid, Opts, Nidx]).
+    mongoose_rdbms:execute_successfully(global, pubsub_update_pubsub_node,
+        [Type, OwnersJid, Opts, Nidx]).
 
 -spec execute_select_node_by_key_and_name(Key :: binary() | jid:ljid(),
                                           Node :: mod_pubsub:nodeId()) ->
@@ -1009,7 +1009,10 @@ remove_all_items(Nidx) ->
 get_user_payloads(LUser, LServer) ->
     case execute_get_user_items(LUser, LServer) of
         {selected, Items} ->
-            [[NodeName, ItemId, strip_payload(PayloadDB)] || {NodeName, ItemId, PayloadDB} <- Items]
+            [[NodeName, ItemId, strip_payload(PayloadDB)]
+             || {NodeName, ItemId, PayloadDB} <- Items];
+        _ ->
+            []
     end.
 
 get_user_nodes(LUser, LServer) ->

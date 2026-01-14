@@ -373,7 +373,11 @@ is_valid_message(_Mod, _Dir, Packet, ArchiveChatMarkers) ->
     has_any([Store, Body, ChatMarker, Retract]) andalso not has_any([Result, Delay, NoStore]).
 
 has_any(Elements) ->
-    lists:any(fun(El) -> El =/= false end, Elements).
+    lists:any(fun
+                  (false) -> false;
+                  (_) -> true
+              end,
+              Elements).
 
 has_chat_marker(Packet) ->
     mongoose_chat_markers:has_chat_markers(Packet).

@@ -67,12 +67,16 @@ trails() ->
   PropRoomGetMsgsResp = #{
     <<"type">> => #{
       type => <<"string">>,
-      description => <<"The type of a message, possible values are: 'message' for regular message 'affiliation' for affiliation changes. = ['message', 'affiliation']">>,
+      description =>
+        <<"The type of a message, possible values are: 'message' for regular message, ",
+          "'affiliation' for affiliation changes. = ['message', 'affiliation']">>,
       default => <<"message">>
     },
     <<"from">> => #{
       type => <<"string">>,
-      description => <<"The JID of message sender. In case of a regular message sent by room's participant the JID will be a full JID with the sender's bare JID as a resource part of room's JID">>,
+      description =>
+        <<"The JID of message sender. In case of a regular message sent by room's participant ",
+          "the JID will be a full JID with the sender's bare JID as a resource part of room's JID">>,
       default => <<"alice@wonderland.com">>
     },
     <<"id">> => #{
@@ -196,7 +200,9 @@ trails() ->
         ?HTTP_200_OK => #{description => <<"OK">>, schema => cowboy_swagger:schema(DefSendMesgRoomResp)},
         ?HTTP_400_BAD_REQUEST => #{description => <<"Bad Request">>},
         ?HTTP_401_UNAUTHORIZED => #{description => <<"Unauthorized">>},
-        ?HTTP_403_FORBIDDEN => #{description => <<"When the authenticated user is not allowed to add users to the room">>},
+        ?HTTP_403_FORBIDDEN =>
+          #{description =>
+              <<"When the authenticated user is not allowed to add users to the room">>},
         ?HTTP_404_NOT_FOUND => #{description => <<"When there is no room with the given ID">>},
         ?HTTP_500_INTERNAL_SERVER_ERROR => #{description => <<"Internal Server Error">>}
       }
@@ -209,7 +215,9 @@ trails() ->
         ?HTTP_200_OK => #{description => <<"OK">>, schema => cowboy_swagger:schema(DefGetMesgsRoomResp)},
         ?HTTP_400_BAD_REQUEST => #{description => <<"Bad Request">>},
         ?HTTP_401_UNAUTHORIZED => #{description => <<"Unauthorized">>},
-        ?HTTP_403_FORBIDDEN => #{description => <<"When the authenticated user is not allowed to add users to the room">>},
+        ?HTTP_403_FORBIDDEN =>
+          #{description =>
+              <<"When the authenticated user is not allowed to add users to the room">>},
         ?HTTP_404_NOT_FOUND => #{description => <<"When there is no room with the given ID">>},
         ?HTTP_500_INTERNAL_SERVER_ERROR => #{description => <<"Internal Server Error">>}
       }
@@ -221,8 +229,12 @@ trails() ->
 
   %% Options
   StoreOptions = [
-    {PathClientApiRoomsConfig, #{path => PathClientApiRoomsConfig}, MetadataClientApiRoomUsers, mongoose_client_api_rooms_messages}
+    {PathClientApiRoomsConfig,
+     #{path => PathClientApiRoomsConfig},
+     MetadataClientApiRoomUsers,
+     mongoose_client_api_rooms_messages}
   ],
 
   %% Trail all data
-  [trails:trail(Path, Module, Options, Metadata) || {Path, Options, Metadata, Module} <- StoreOptions].
+  [trails:trail(Path, Module, Options, Metadata)
+   || {Path, Options, Metadata, Module} <- StoreOptions].

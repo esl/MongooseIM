@@ -85,7 +85,7 @@
 
 -export_type([msg/0]).
 
--type poppers() :: monitored_map:t({jid:luser(), jid:lserver()}, pid()).
+-type poppers() :: monitored_map:t().
 
 -record(state, {host_type :: mongooseim:host_type(),
                 access_max_user_messages :: atom(),
@@ -352,14 +352,14 @@ check_event_chatstates(Acc, From, To, Packet) ->
         {false, false, _} ->
             true;
         %% There a chatstates subelement and other stuff, but no x:event
-        {false, CEl, true} when CEl /= false ->
+        {false, _CEl, true} ->
             true;
         %% There was only a subelement: a chatstates
-        {false, CEl, false} when CEl /= false ->
+        {false, _CEl, false} ->
             %% Don't allow offline storage
             false;
         %% There was an x:event element, and maybe also other stuff
-        {El, _, _} when El /= false ->
+        {El, _, _} ->
             inspect_xevent(Acc, From, To, Packet, El)
     end.
 
@@ -571,10 +571,10 @@ discard_warn_sender(Msgs) ->
               ejabberd_router:route(To, From, Acc1, Err)
       end, Msgs).
 
-fallback_timestamp(HowManyDays, TS_MicroSeconds) ->
+fallback_timestamp(HowManyDays, TSMicroSeconds) ->
     HowManySeconds = HowManyDays * 86400,
     HowManyMicroSeconds = erlang:convert_time_unit(HowManySeconds, second, microsecond),
-    TS_MicroSeconds - HowManyMicroSeconds.
+    TSMicroSeconds - HowManyMicroSeconds.
 
 config_metrics(HostType) ->
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
