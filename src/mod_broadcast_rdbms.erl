@@ -11,7 +11,8 @@
          finish_job/3,
          fail_job/4,
          abort_job/2,
-         delete_jobs/2]).
+         delete_jobs/2,
+         cleanup_stale_jobs/2]).
 
 -import(rdbms_queries, [limit_offset/0]).
 
@@ -90,6 +91,12 @@ init(_HostType, _Opts) ->
                            [id],
                            <<"DELETE FROM broadcast_jobs WHERE id = ? AND status <> 'running'">>),
 
+    mongoose_rdbms:prepare(broadcast_cleanup_stale, broadcast_jobs,
+                           [stale_threshold],
+                           <<"UPDATE broadcast_jobs SET status = 'aborted_errors', "
+                             "stop_ts = heartbeat_ts, last_error = 'Stale job (no heartbeat)' "
+                             "WHERE status = 'running' AND heartbeat_ts < ?">>),
+
     ok.
 
 -spec create_job(mongooseim:host_type_or_global(), map(), [binary()]) -> ok | {error, term()}.
@@ -129,9 +136,15 @@ insert_job_t(HostType, #{id := Id,
 
 insert_recipients_t(_HostType, _JobId, []) ->
     ok;
-insert_recipients_t(HostType, JobId, [LUser | Rest]) ->
-    _ = mongoose_rdbms:execute(HostType, broadcast_insert_recipient, [JobId, LUser]),
-    insert_recipients_t(HostType, JobId, Rest).
+insert_recipients_t(HostType, JobId, Users) ->
+    batch_insert_recipients(HostType, JobId, Users, 1000).
+
+batch_insert_recipients(_HostType, _JobId, [], _BatchSize) ->
+    ok;
+batch_insert_recipients(HostType, JobId, Users, BatchSize) ->
+    {Batch, Rest} = lists:split(erlang:min(BatchSize, length(Users)), Users),
+    _ = [mongoose_rdbms:execute(HostType, broadcast_insert_recipient, [JobId, LUser]) || LUser <- Batch],
+    batch_insert_recipients(HostType, JobId, Rest, BatchSize).
 
 -spec get_job(mongooseim:host_type_or_global(), pos_integer()) -> {ok, map()} | not_found | {error, term()}.
 get_job(HostType, Id) ->
@@ -275,6 +288,13 @@ row_to_job({Id, HostType, Domain, Name, SenderJid, Subject, Body,
       owner_node => OwnerNode,
       heartbeat_ts => Heartbeat,
       last_error => LastError}.
+
+-spec cleanup_stale_jobs(mongooseim:host_type_or_global(), non_neg_integer()) -> ok | {error, term()}.
+cleanup_stale_jobs(HostType, StaleThreshold) ->
+    case mongoose_rdbms:execute(HostType, broadcast_cleanup_stale, [StaleThreshold]) of
+        {updated, _Count} -> ok;
+        Other -> {error, Other}
+    end.
 
 bin_to_status(<<"running">>) -> running;
 bin_to_status(<<"success">>) -> success;

@@ -40,6 +40,8 @@ abort_job(HostType, JobId) ->
 init([HostType]) ->
     process_flag(trap_exit, true),
     State0 = #state{host_type = HostType, runners = #{}},
+    %% Schedule periodic cleanup of stale jobs (every 5 minutes)
+    erlang:send_after(300000, self(), cleanup_stale_jobs),
     {ok, resume_jobs(State0)}.
 
 handle_call(_Req, _From, State) ->
@@ -59,6 +61,18 @@ handle_cast(_Msg, State) ->
 handle_info({'EXIT', Pid, _Reason}, State = #state{runners = Runners}) ->
     Runners2 = maps:filter(fun(_JobId, RP) -> RP =/= Pid end, Runners),
     {noreply, State#state{runners = Runners2}};
+handle_info(cleanup_stale_jobs, State = #state{host_type = HostType}) ->
+    %% Cleanup jobs that have been running for > 1 hour without heartbeat
+    case cleanup_stale(HostType) of
+        ok -> ok;
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => mod_broadcast_cleanup_failed,
+                          host_type => HostType,
+                          reason => Reason})
+    end,
+    %% Schedule next cleanup
+    erlang:send_after(300000, self(), cleanup_stale_jobs),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -70,7 +84,7 @@ terminate(_Reason, _State) ->
 resume_jobs(State = #state{host_type = HostType0}) ->
     %% Resume jobs owned by this node (best-effort) and still running.
     %% We list globally and then filter by host_type to avoid a dedicated query.
-    case mod_broadcast_rdbms:list_jobs(global, undefined, 500, 0) of
+    case mod_broadcast_rdbms:list_jobs(HostType0, undefined, 500, 0) of
         {ok, #{items := Jobs}} ->
             Owned = [J || J = #{host_type := HostTypeJob, status := running} <- Jobs,
                           HostTypeJob =:= HostType0,
@@ -84,7 +98,7 @@ ensure_runner(JobId, State = #state{host_type = HostType, runners = Runners}) ->
     case maps:is_key(JobId, Runners) of
         true -> State;
         false ->
-            case mod_broadcast_rdbms:claim_job(global, JobId) of
+            case mod_broadcast_rdbms:claim_job(HostType, JobId) of
                 ok ->
                     Pid = spawn_link(fun() -> mod_broadcast_runner:run(HostType, JobId) end),
                     State#state{runners = Runners#{JobId => Pid}};
@@ -93,3 +107,9 @@ ensure_runner(JobId, State = #state{host_type = HostType, runners = Runners}) ->
                     State
             end
     end.
+
+cleanup_stale(HostType) ->
+    %% Mark stale jobs as aborted_errors if heartbeat is > 1 hour old
+    Now = erlang:system_time(second),
+    StaleThreshold = Now - 3600,
+    mod_broadcast_rdbms:cleanup_stale_jobs(HostType, StaleThreshold).

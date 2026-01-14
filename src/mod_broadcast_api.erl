@@ -9,6 +9,8 @@
 
 -include("mongoose_logger.hrl").
 
+-define(MAX_RECIPIENTS, 10000).
+
 -type api_error() :: {domain_not_found | not_found | not_allowed | bad_request | server_error, iodata()}.
 
 %% Input maps are used to keep API stable for GraphQL additions.
@@ -32,7 +34,17 @@ start_broadcast(_) ->
 
 -spec get_broadcast(pos_integer()) -> {ok, map()} | api_error().
 get_broadcast(Id) when is_integer(Id), Id > 0 ->
-    case mod_broadcast_rdbms:get_job(global, Id) of
+    %% Use first available host_type for global queries
+    %% In multi-tenant setup, jobs are visible across all host_types
+    HostType = case mongoose_domain_api:get_all_static() of
+                   [] -> global;
+                   [D | _] ->
+                       case mongoose_domain_api:get_domain_host_type(D) of
+                           {ok, HT} -> HT;
+                           _ -> global
+                       end
+               end,
+    case mod_broadcast_rdbms:get_job(HostType, Id) of
         {ok, Job} -> {ok, Job};
         not_found -> {not_found, <<"Broadcast not found">>};
         {error, Reason} ->
@@ -50,7 +62,24 @@ list_broadcasts(#{domain := Domain, limit := Limit, index := Index}) ->
               end,
     Limit2 = normalize_limit(Limit),
     Index2 = normalize_index(Index),
-    case mod_broadcast_rdbms:list_jobs(global, Domain2, Limit2, Index2) of
+    %% Determine host_type from domain or use first available
+    HostType = case Domain2 of
+                   undefined ->
+                       case mongoose_domain_api:get_all_static() of
+                           [] -> global;
+                           [FirstDomain | _] ->
+                               case mongoose_domain_api:get_domain_host_type(FirstDomain) of
+                                   {ok, HT} -> HT;
+                                   _ -> global
+                               end
+                       end;
+                   Dom ->
+                       case mongoose_domain_api:get_domain_host_type(Dom) of
+                           {ok, HT} -> HT;
+                           _ -> global
+                       end
+               end,
+    case mod_broadcast_rdbms:list_jobs(HostType, Domain2, Limit2, Index2) of
         {ok, Payload} -> {ok, Payload};
         {error, Reason} ->
             ?LOG_ERROR(#{what => mod_broadcast_list_failed, reason => Reason}),
@@ -61,22 +90,36 @@ list_broadcasts(_) ->
 
 -spec abort_broadcast(pos_integer()) -> {ok, map()} | api_error().
 abort_broadcast(Id) when is_integer(Id), Id > 0 ->
-    case mod_broadcast_rdbms:abort_job(global, Id) of
-        {ok, Job} ->
-            maybe_notify_manager(Job),
-            {ok, Job};
-        not_found -> {not_found, <<"Broadcast not found">>};
-        not_running -> {not_allowed, <<"Broadcast is not running">>};
-        {error, Reason} ->
-            ?LOG_ERROR(#{what => mod_broadcast_abort_failed, id => Id, reason => Reason}),
-            {server_error, <<"Database error">>}
+    %% First get the job to determine host_type
+    case get_broadcast(Id) of
+        {ok, #{host_type := HostType}} ->
+            case mod_broadcast_rdbms:abort_job(HostType, Id) of
+                {ok, UpdatedJob} ->
+                    maybe_notify_manager(UpdatedJob),
+                    {ok, UpdatedJob};
+                not_found -> {not_found, <<"Broadcast not found">>};
+                not_running -> {not_allowed, <<"Broadcast is not running">>};
+                {error, Reason} ->
+                    ?LOG_ERROR(#{what => mod_broadcast_abort_failed, id => Id, reason => Reason}),
+                    {server_error, <<"Database error">>}
+            end;
+        Error -> Error
     end;
 abort_broadcast(_) ->
     {bad_request, <<"Invalid broadcast id">>}.
 
 -spec delete_broadcasts(map()) -> {ok, map()} | api_error().
 delete_broadcasts(#{ids := Ids}) ->
-    case mod_broadcast_rdbms:delete_jobs(global, Ids) of
+    %% Use first available host_type - delete operates across all host_types
+    HostType = case mongoose_domain_api:get_all_static() of
+                   [] -> global;
+                   [D | _] ->
+                       case mongoose_domain_api:get_domain_host_type(D) of
+                           {ok, HT} -> HT;
+                           _ -> global
+                       end
+               end,
+    case mod_broadcast_rdbms:delete_jobs(HostType, Ids) of
         {ok, DeletedCount} -> {ok, #{deleted_count => DeletedCount}};
         {error, Reason} ->
             ?LOG_ERROR(#{what => mod_broadcast_delete_failed, reason => Reason}),
@@ -112,7 +155,7 @@ do_start_broadcast(HostType, Domain, Name, SenderJid, Subject, Body, Rate, Recip
                     owner_node => atom_to_binary(node(), utf8),
                     heartbeat_ts => StartTS,
                     last_error => undefined},
-            case mod_broadcast_rdbms:create_job(global, Job0, RecipientUsers) of
+            case mod_broadcast_rdbms:create_job(HostType, Job0, RecipientUsers) of
                 ok ->
                     ok = mod_broadcast_manager:ensure_started(HostType),
                     ok = mod_broadcast_manager:start_job(HostType, JobId),
@@ -155,9 +198,22 @@ maybe_bin(Io) -> iolist_to_binary(Io).
 
 normalize_recipients(Domain, #{type := all_users}) ->
     Users = ejabberd_auth:get_vh_registered_users(Domain),
-    {ok, [LU || {LU, _LS} <- Users]};
+    UserList = [LU || {LU, _LS} <- Users],
+    case length(UserList) of
+        N when N > ?MAX_RECIPIENTS ->
+            {error, io_lib:format("Too many recipients (~p), maximum is ~p", [N, ?MAX_RECIPIENTS])};
+        _ ->
+            {ok, UserList}
+    end;
 normalize_recipients(_Domain, #{type := usernames, usernames := Usernames}) when is_list(Usernames) ->
     %% Usernames are expected to be binaries (UserName scalar).
-    {ok, lists:usort([U || U <- Usernames, is_binary(U), byte_size(U) > 0])};
+    Filtered = lists:usort([U || U <- Usernames, is_binary(U), byte_size(U) > 0]),
+    case length(Filtered) of
+        0 -> {error, <<"No valid recipients provided">>};
+        N when N > ?MAX_RECIPIENTS ->
+            {error, io_lib:format("Too many recipients (~p), maximum is ~p", [N, ?MAX_RECIPIENTS])};
+        _ ->
+            {ok, Filtered}
+    end;
 normalize_recipients(_, _) ->
     {error, <<"Invalid recipients input">>}.

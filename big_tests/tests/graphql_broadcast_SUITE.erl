@@ -114,7 +114,8 @@ ensure_broadcast_stopped(Config) ->
 
 cleanup_stopped_jobs() ->
     %% Keep DB clean between tests/suites. We only delete stopped jobs.
-    _ = rpc_call(mod_broadcast_rdbms, delete_jobs, [global, undefined]),
+    HostType = host_type(),
+    _ = rpc_call(mod_broadcast_rdbms, delete_jobs, [HostType, undefined]),
     ok.
 
 %% Admin tests

@@ -7,7 +7,7 @@
 
 run(HostType, JobId) ->
     process_flag(trap_exit, true),
-    case mod_broadcast_rdbms:get_job(global, JobId) of
+    case mod_broadcast_rdbms:get_job(HostType, JobId) of
         {ok, Job} ->
             run_job(HostType, Job);
         not_found ->
@@ -29,22 +29,22 @@ loop(HostType, Domain, FromJid, Subject, Body, Job = #{id := JobId, delay_ms := 
         {'EXIT', _From, abort} ->
             ok;
         {'EXIT', _From, Reason} ->
-            ok = mod_broadcast_rdbms:fail_job(global, JobId, aborted_errors, iolist_to_binary(io_lib:format("~p", [Reason]))),
+            ok = mod_broadcast_rdbms:fail_job(HostType, JobId, aborted_errors, iolist_to_binary(io_lib:format("~p", [Reason]))),
             ok
     after 0 ->
-        case mod_broadcast_rdbms:next_recipients(global, JobId, 200) of
+        case mod_broadcast_rdbms:next_recipients(HostType, JobId, 200) of
             {ok, []} ->
-                _ = mod_broadcast_rdbms:finish_job(global, JobId, success),
+                _ = mod_broadcast_rdbms:finish_job(HostType, JobId, success),
                 ok;
             {ok, Users} ->
                 case process_users(HostType, Domain, FromJid, Subject, Body, JobId, Users, DelayMs) of
                     ok -> loop(HostType, Domain, FromJid, Subject, Body, Job);
                     {error, ErrBin} ->
-                        _ = mod_broadcast_rdbms:fail_job(global, JobId, aborted_errors, ErrBin),
+                        _ = mod_broadcast_rdbms:fail_job(HostType, JobId, aborted_errors, ErrBin),
                         ok
                 end;
             {error, Reason} ->
-                _ = mod_broadcast_rdbms:fail_job(global, JobId, aborted_errors,
+                _ = mod_broadcast_rdbms:fail_job(HostType, JobId, aborted_errors,
                                                 iolist_to_binary(io_lib:format("db_error:~p", [Reason]))),
                 ok
         end
@@ -58,8 +58,8 @@ process_users(HostType, Domain, FromJid, Subject, Body, JobId, [LUser | Rest], D
     case mongoose_stanza_api:send_stanza(undefined, Stanza) of
         {ok, _} ->
             SentTS = erlang:system_time(second),
-            _ = mod_broadcast_rdbms:mark_recipient_sent(global, JobId, LUser, SentTS),
-            _ = mod_broadcast_rdbms:increment_progress(global, JobId, 1),
+            _ = mod_broadcast_rdbms:mark_recipient_sent(HostType, JobId, LUser, SentTS),
+            _ = mod_broadcast_rdbms:increment_progress(HostType, JobId, 1),
             timer:sleep(DelayMs),
             process_users(HostType, Domain, FromJid, Subject, Body, JobId, Rest, DelayMs);
         {ErrCode, Msg} ->
