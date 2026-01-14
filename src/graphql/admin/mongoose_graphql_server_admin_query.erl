@@ -57,20 +57,9 @@ get_internal_databases() ->
     InternalDatabasesWithOpts = mongoose_config:get_opt(internal_databases),
     lists:sort(maps:keys(InternalDatabasesWithOpts)).
 
-module_info(HostType, Module, Opts) ->
+module_info(_, Module, Opts) ->
     #{<<"name">> => atom_to_binary(Module, utf8),
-      <<"backend">> => backend_info(HostType, Module, Opts)}.
-
-backend_info(HostType, Module, Opts) ->
-    Configured = configured_backend(Opts),
-    Runtime = runtime_backend(HostType, Module),
-    case {Configured, Runtime} of
-        {null, null} ->
-            null;
-        _ ->
-            #{<<"configured">> => Configured,
-              <<"runtime">> => Runtime}
-    end.
+      <<"backend">> => configured_backend(Opts)}.
 
 configured_backend(Opts) ->
     case maps:get(backend, Opts, undefined) of
@@ -78,9 +67,3 @@ configured_backend(Opts) ->
         Backend -> atom_to_binary(Backend, utf8)
     end.
 
-runtime_backend(HostType, Module) ->
-    try mongoose_backend:get_backend_name(HostType, Module) of
-        Backend -> atom_to_binary(Backend, utf8)
-    catch
-        error:badarg -> null
-    end.

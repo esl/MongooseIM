@@ -208,12 +208,6 @@ init_per_group(admin_listener, Config) ->
                 fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
                    (_) -> []
                 end),
-    % Mock mongoose_backend for runtime backend info
-    meck:new(mongoose_backend, [passthrough, no_link]),
-    meck:expect(mongoose_backend, get_backend_name,
-                fun(<<"localhost">>, mod_roster) -> rdbms;
-                   (_, _) -> erlang:error(badarg)
-                end),
     ListenerOpts = #{username => <<"admin">>,
                      password => <<"secret">>,
                      schema_endpoint => admin},
@@ -238,11 +232,6 @@ init_per_group(admin_api_listener, Config) ->
      meck:expect(mongoose_domain_api, get_domains_by_host_type,
                      fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
                          (_) -> []
-                     end),
-     meck:new(mongoose_backend, [passthrough, no_link]),
-     meck:expect(mongoose_backend, get_backend_name,
-                     fun(<<"localhost">>, mod_roster) -> rdbms;
-                         (_, _) -> erlang:error(badarg)
                      end),
      meck:new(mongoose_service, [passthrough, no_link]),
      meck:expect(mongoose_service, loaded_services_with_opts,
@@ -292,14 +281,12 @@ end_per_group(admin_listener, Config) ->
     meck:unload(mongoose_config),
     meck:unload(gen_mod),
     meck:unload(mongoose_domain_api),
-    meck:unload(mongoose_backend),
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(admin_api_listener, Config) ->
     meck:unload(mongoose_config),
     meck:unload(gen_mod),
     meck:unload(mongoose_domain_api),
-    meck:unload(mongoose_backend),
     meck:unload(mongoose_service),
     ?config(test_process, Config) ! stop,
     Config;
@@ -815,7 +802,7 @@ auth_admin_can_access_protected_types(Config) ->
 
 admin_server_get_host_types(Config) ->
     Ep = ?config(endpoint_addr, Config),
-    Query = <<"query { server { hostTypes { name domains authMethods modules { name backend { configured runtime } } } } }">>,
+    Query = <<"query { server { hostTypes { name domains authMethods modules { name backend } } } }">>,
     Body = #{query => Query},
     {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
     ?assertEqual({<<"200">>, <<"OK">>}, Status),
@@ -833,14 +820,11 @@ admin_server_get_host_types(Config) ->
             lists:foreach(
                 fun(Module) ->
                     ?assertMatch(#{<<"name">> := _}, Module),
-                    % Backend may be null or an object
+                    % Backend may be null or a string
                     case maps:get(<<"backend">>, Module, undefined) of
                         null -> ok;
                         undefined -> ok;
-                        Backend when is_map(Backend) ->
-                            % Backend must have configured and runtime fields
-                            ?assert(maps:is_key(<<"configured">>, Backend)),
-                            ?assert(maps:is_key(<<"runtime">>, Backend))
+                        Backend when is_binary(Backend) -> ok
                     end
                 end,
                 Modules

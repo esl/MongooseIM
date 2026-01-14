@@ -90,20 +90,12 @@ enum LogLevel {
   ALL
 }
 
-"""Backend information for a module (best-effort)."""
-type BackendInfo {
-  "Backend configured in module opts (may be null if not specified)"
-  configured: String
-  "Backend resolved at runtime by mongoose_backend (may be null if not initialized)"
-  runtime: String
-}
-
 """Information about a loaded module for a given host type."""
 type ModuleInfo {
   "Module name (atom as string, e.g. 'mod_roster')"
   name: String!
-  "Backend information when available"
-  backend: BackendInfo
+  "Backend configured in module opts (may be null if not specified)"
+  backend: String
 }
 
 """Information about a loaded service."""
