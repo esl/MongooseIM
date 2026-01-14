@@ -57,9 +57,8 @@ init(_HostType, _Opts) ->
 
     mongoose_rdbms:prepare(broadcast_list_running_owned, broadcast_jobs,
                            [owner_node, host_type],
-                           <<"SELECT id, host_type, domain, name, sender_jid, subject, body, status, start_ts, stop_ts, "
-                             "rate_per_second, recipient_count, progress_count, owner_node, heartbeat_ts, last_error "
-                             "FROM broadcast_jobs WHERE status = 'running' AND owner_node = ? AND host_type = ?">>),
+                           <<"SELECT id FROM broadcast_jobs "
+                             "WHERE status = 'running' AND owner_node = ? AND host_type = ?">>),
 
     mongoose_rdbms:prepare(broadcast_claim_job, broadcast_jobs,
                            [owner_node, heartbeat_ts, id, owner_node],
@@ -182,8 +181,10 @@ domain_param(undefined) -> null;
 domain_param(Domain) -> Domain.
 
 -spec list_running_jobs(mongooseim:host_type_or_global(), binary()) -> {ok, [pos_integer()]} | {error, term()}.
+list_running_jobs(global, _OwnerNode) ->
+    {ok, []};
 list_running_jobs(HostType, OwnerNode) ->
-    case mongoose_rdbms:execute(HostType, broadcast_list_running_owned, [OwnerNode]) of
+    case mongoose_rdbms:execute(HostType, broadcast_list_running_owned, [OwnerNode, HostType]) of
         {selected, Rows} ->
             JobIds = [Id || {Id} <- Rows],
             {ok, JobIds};
