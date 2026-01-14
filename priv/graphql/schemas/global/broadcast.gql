@@ -1,0 +1,48 @@
+"Broadcast execution status"
+enum BroadcastStatus {
+  RUNNING
+  SUCCESS
+  ABORTED_ERRORS
+  ABORTED_ADMIN
+}
+
+"Recipient selection mode"
+enum BroadcastRecipientType {
+  ALL_USERS
+  USERNAMES
+}
+
+input BroadcastRecipientsInput {
+  type: BroadcastRecipientType!
+  "Used only when type=USERNAMES"
+  usernames: [UserName!]
+}
+
+"A single broadcast job"
+type Broadcast {
+  id: PosInt!
+  domain: DomainName!
+  name: NonEmptyString!
+  senderJid: BareJID!
+  subject: String
+  body: String!
+  status: BroadcastStatus!
+  startTs: PosInt!
+  stopTs: PosInt
+  ratePerSecond: PosInt!
+  recipientCount: NonNegInt!
+  progressCount: NonNegInt!
+  ownerNode: NodeName
+  lastError: String
+}
+
+type BroadcastsPayload {
+  items: [Broadcast!]!
+  limit: PosInt!
+  index: NonNegInt!
+  totalCount: NonNegInt!
+}
+
+type DeleteBroadcastsPayload {
+  deletedCount: NonNegInt!
+}

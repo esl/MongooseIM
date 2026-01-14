@@ -1,0 +1,37 @@
+"""
+Allow admin to manage Message Broadcast jobs.
+"""
+type BroadcastAdminQuery @protected @use(modules: ["mod_broadcast"]) {
+  "List broadcasts globally or for a specified domain"
+  getBroadcasts(domain: DomainName, limit: PosInt, index: NonNegInt): BroadcastsPayload
+    @protected(type: DOMAIN, args: ["domain"])
+
+  "Get broadcast details by id"
+  getBroadcast(id: PosInt!): Broadcast
+    @protected(type: GLOBAL)
+}
+
+"""
+Allow admin to control Message Broadcast jobs.
+"""
+type BroadcastAdminMutation @protected @use(modules: ["mod_broadcast"]) {
+  "Start a new broadcast"
+  startBroadcast(
+    domain: DomainName!
+    name: NonEmptyString!
+    senderJid: BareJID!
+    subject: String
+    body: String!
+    ratePerSecond: PosInt!
+    recipients: BroadcastRecipientsInput!
+  ): Broadcast
+    @protected(type: DOMAIN, args: ["domain"])
+
+  "Abort a running broadcast"
+  abortBroadcast(id: PosInt!): Broadcast
+    @protected(type: GLOBAL)
+
+  "Delete stopped broadcasts. If ids is not provided, deletes all stopped broadcasts"
+  deleteBroadcasts(ids: [PosInt!]): DeleteBroadcastsPayload
+    @protected(type: GLOBAL)
+}

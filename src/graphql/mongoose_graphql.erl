@@ -169,6 +169,8 @@ admin_mapping_rules() ->
         'AdminMutation' => mongoose_graphql_admin_mutation,
         'AdminSubscription' => mongoose_graphql_admin_subscription,
         'AdminAuthInfo' => mongoose_graphql_admin_auth_info,
+        'BroadcastAdminQuery' => mongoose_graphql_broadcast_admin_query,
+        'BroadcastAdminMutation' => mongoose_graphql_broadcast_admin_mutation,
         'DomainAdminQuery' => mongoose_graphql_domain_admin_query,
         'GdprAdminQuery' => mongoose_graphql_gdpr_admin_query,
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,

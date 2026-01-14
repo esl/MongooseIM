@@ -519,3 +519,39 @@ CREATE TABLE fast_auth_token(
      new_mech_id smallint,
      PRIMARY KEY(server, username, user_agent_id)
 );
+
+-- Message Broadcast (MB)
+-- Module: mod_broadcast
+CREATE TYPE broadcast_status_type AS ENUM('running', 'success', 'aborted_errors', 'aborted_admin');
+
+CREATE TABLE broadcast_jobs(
+    id BIGINT NOT NULL,
+    host_type VARCHAR(250) NOT NULL,
+    domain VARCHAR(250) NOT NULL,
+    name TEXT NOT NULL,
+    sender_jid VARCHAR(250) NOT NULL,
+    subject TEXT,
+    body TEXT NOT NULL,
+    status broadcast_status_type NOT NULL,
+    start_ts BIGINT NOT NULL,
+    stop_ts BIGINT,
+    rate_per_second INT NOT NULL,
+    recipient_count INT NOT NULL,
+    progress_count INT NOT NULL,
+    owner_node VARCHAR(250),
+    heartbeat_ts BIGINT,
+    last_error TEXT,
+    PRIMARY KEY(id)
+);
+
+CREATE INDEX i_broadcast_jobs_domain_status_start ON broadcast_jobs(domain, status, start_ts);
+CREATE INDEX i_broadcast_jobs_host_type_status ON broadcast_jobs(host_type, status);
+
+CREATE TABLE broadcast_recipients(
+    job_id BIGINT NOT NULL,
+    luser VARCHAR(250) NOT NULL,
+    sent_ts BIGINT,
+    PRIMARY KEY(job_id, luser)
+);
+
+CREATE INDEX i_broadcast_recipients_job_sent ON broadcast_recipients(job_id, sent_ts);

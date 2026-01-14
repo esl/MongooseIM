@@ -31,6 +31,8 @@ execute(_Ctx, _Obj, <<"private">>, _Args) ->
     {ok, private};
 execute(_Ctx, _Obj, <<"roster">>, _Args) ->
     {ok, roster};
+execute(_Ctx, _Obj, <<"broadcast">>, _Args) ->
+    {ok, broadcast};
 execute(_Ctx, _Obj, <<"server">>, _Args) ->
     {ok, server};
 execute(_Ctx, _Obj, <<"session">>, _Args) ->

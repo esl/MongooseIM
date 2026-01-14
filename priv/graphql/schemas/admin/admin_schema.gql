@@ -43,6 +43,9 @@ type AdminQuery{
   cets: CETSAdminQuery
   "Server info and management"
   server: ServerAdminQuery
+
+  "Message Broadcast management"
+  broadcast: BroadcastAdminQuery
 }
 
 """
@@ -82,6 +85,9 @@ type AdminMutation @protected{
   mnesia: MnesiaAdminMutation
   "Server info and management"
   server: ServerAdminMutation
+
+  "Message Broadcast management"
+  broadcast: BroadcastAdminMutation
 }
 
 type AdminSubscription {
