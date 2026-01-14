@@ -546,6 +546,7 @@ CREATE TABLE broadcast_jobs(
 
 CREATE INDEX i_broadcast_jobs_domain_status_start ON broadcast_jobs(domain, status, start_ts);
 CREATE INDEX i_broadcast_jobs_host_type_status ON broadcast_jobs(host_type, status);
+CREATE INDEX i_broadcast_jobs_status_owner ON broadcast_jobs(status, owner_node) WHERE status = 'running';
 
 CREATE TABLE broadcast_recipients(
     job_id BIGINT NOT NULL,

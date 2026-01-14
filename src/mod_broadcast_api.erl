@@ -10,6 +10,8 @@
 -include("mongoose_logger.hrl").
 
 -define(MAX_RECIPIENTS, 10000).
+-define(MAX_BODY_LENGTH, 10000).
+-define(MAX_SUBJECT_LENGTH, 1000).
 
 -type api_error() :: {domain_not_found | not_found | not_allowed | bad_request | server_error, iodata()}.
 
@@ -131,8 +133,10 @@ delete_broadcasts(_) ->
 %% Internal
 
 do_start_broadcast(HostType, Domain, Name, SenderJid, Subject, Body, Rate, Recipients) ->
-    case normalize_recipients(Domain, Recipients) of
-        {ok, RecipientUsers} ->
+    case validate_message_content(Subject, Body) of
+        ok ->
+            case normalize_recipients(Domain, Recipients) of
+                {ok, RecipientUsers} ->
             JobId = make_job_id(),
             StartTS = erlang:system_time(second),
             SenderBin = jid:to_binary(jid:to_bare(SenderJid)),
@@ -167,8 +171,11 @@ do_start_broadcast(HostType, Domain, Name, SenderJid, Subject, Body, Rate, Recip
                                  reason => Reason}),
                     {server_error, <<"Database error">>}
             end;
-        {error, Msg} ->
-            {bad_request, Msg}
+                {error, Msg} ->
+                    {bad_request, Msg}
+            end;
+        {error, ValidationError} ->
+            {bad_request, ValidationError}
     end.
 
 maybe_notify_manager(#{host_type := HostType, id := JobId}) ->
@@ -195,6 +202,39 @@ maybe_bin(undefined) -> undefined;
 maybe_bin(null) -> undefined;
 maybe_bin(B) when is_binary(B) -> B;
 maybe_bin(Io) -> iolist_to_binary(Io).
+
+validate_message_content(Subject, Body) ->
+    BodyBin = iolist_to_binary(Body),
+    case byte_size(BodyBin) of
+        N when N > ?MAX_BODY_LENGTH ->
+            {error, io_lib:format("Body too long (~p bytes), maximum is ~p", [N, ?MAX_BODY_LENGTH])};
+        0 ->
+            {error, <<"Body cannot be empty">>};
+        _ ->
+            case Subject of
+                undefined -> ok;
+                null -> ok;
+                _ ->
+                    SubjectBin = iolist_to_binary(Subject),
+                    case byte_size(SubjectBin) of
+                        SN when SN > ?MAX_SUBJECT_LENGTH ->
+                            {error, io_lib:format("Subject too long (~p bytes), maximum is ~p", [SN, ?MAX_SUBJECT_LENGTH])};
+                        _ ->
+                            %% Check for control characters (except tab, LF, CR)
+                            case has_invalid_chars(SubjectBin) orelse has_invalid_chars(BodyBin) of
+                                true -> {error, <<"Message contains invalid control characters">>};
+                                false -> ok
+                            end
+                    end
+            end
+    end.
+
+has_invalid_chars(Bin) ->
+    %% Allow tab (9), LF (10), CR (13), reject other control chars (0-8, 11-12, 14-31)
+    case binary:match(Bin, [<<C>> || C <- lists:seq(0, 31), C =/= 9, C =/= 10, C =/= 13]) of
+        nomatch -> false;
+        _ -> true
+    end.
 
 normalize_recipients(Domain, #{type := all_users}) ->
     Users = ejabberd_auth:get_vh_registered_users(Domain),

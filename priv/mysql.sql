@@ -599,7 +599,8 @@ CREATE TABLE fast_auth_token(
     last_error TEXT,
     PRIMARY KEY(id),
     INDEX i_broadcast_jobs_domain_status_start(domain, status, start_ts),
-    INDEX i_broadcast_jobs_host_type_status(host_type, status)
+    INDEX i_broadcast_jobs_host_type_status(host_type, status),
+    INDEX i_broadcast_jobs_status_owner(status, owner_node)
   ) CHARACTER SET utf8mb4
     ROW_FORMAT=DYNAMIC;
 

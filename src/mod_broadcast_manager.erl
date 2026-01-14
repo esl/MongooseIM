@@ -28,7 +28,7 @@ ensure_started(HostType) ->
 -spec start_job(mongooseim:host_type(), pos_integer()) -> ok.
 start_job(HostType, JobId) ->
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
-    gen_server:cast(Proc, {start_job, JobId}).
+    gen_server:call(Proc, {start_job, JobId}).
 
 -spec abort_job(mongooseim:host_type(), pos_integer()) -> ok.
 abort_job(HostType, JobId) ->
@@ -44,11 +44,11 @@ init([HostType]) ->
     erlang:send_after(300000, self(), cleanup_stale_jobs),
     {ok, resume_jobs(State0)}.
 
+handle_call({start_job, JobId}, _From, State) ->
+    {reply, ok, ensure_runner(JobId, State)};
 handle_call(_Req, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({start_job, JobId}, State) ->
-    {noreply, ensure_runner(JobId, State)};
 handle_cast({abort_job, JobId}, State = #state{runners = Runners}) ->
     case maps:get(JobId, Runners, undefined) of
         undefined -> ok;
