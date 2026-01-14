@@ -944,8 +944,10 @@ send_last_published_item_no_items_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              %% Note: when Bob subscribes, the last item would is sent to him
+              %% Note: when Bob subscribes, no last item is sent (there are none)
+              %% Receive subscription response to clear the mailbox before checking
               pubsub_tools:subscribe(Bob, Node, [{receive_response, false}]),
+              pubsub_tools:receive_subscribe_response(Bob, Node, []),
               escalus_assert:has_no_stanzas(Bob),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
