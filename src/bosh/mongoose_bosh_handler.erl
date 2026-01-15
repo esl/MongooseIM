@@ -212,7 +212,7 @@ forward_body(Req, #xmlel{} = Body, #rstate{opts = Opts} = S) ->
             end;
         _ ->
             Sid = exml_query:attr(Body, <<"sid">>),
-            case service_bosh:get_session_socket(Sid) of
+            case mod_bosh:get_session_socket(Sid) of
                 {ok, Socket} ->
                     %% Forward request from a client to c2s process
                     handle_request(Socket, Type, Body),
@@ -278,7 +278,7 @@ maybe_start_session_on_known_host_unsafe(HostType, Req, Body, Opts) ->
 start_session(HostType, Peer, PeerCert, Body, Opts) ->
     Sid = make_sid(),
     {ok, Socket} = mongoose_bosh_socket:start(HostType, Sid, Peer, PeerCert, Opts),
-    service_bosh:store_session(Sid, Socket),
+    mod_bosh:store_session(HostType, Sid, Socket),
     handle_request(Socket, streamstart, Body),
     ?LOG_DEBUG(#{what => bosh_start_session, sid => Sid}).
 

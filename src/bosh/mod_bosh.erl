@@ -23,14 +23,14 @@ BOSH support for MongooseIM. Requires mongoose_bosh_handler to handle incoming c
 -export([node_cleanup/3]).
 
 %% Internal API
--export([get_session_socket/1, store_session/2, delete_session/1]).
+-export([get_session_socket/1, store_session/3, delete_session/1]).
 
 %% API for testing and debugging
 -export([get_sessions/0]).
 -ignore_xref([get_sessions/0]).
 
 -include("mongoose_config_spec.hrl").
--include("mongoose_bosh.hrl").
+-include("mod_bosh.hrl").
 
 -type socket() :: #bosh_socket{}.
 -type session() :: #bosh_session{sid :: sid(), socket :: pid()}.
@@ -98,9 +98,9 @@ get_session_socket(Sid) ->
             {error, item_not_found}
     end.
 
--spec store_session(sid(), pid()) -> any().
-store_session(Sid, Socket) ->
-    service_bosh_backend:create_session(#bosh_session{sid = Sid, socket = Socket}).
+-spec store_session(mongooseim:host_type(), sid(), pid()) -> any().
+store_session(HostType, Sid, Socket) ->
+    mod_bosh_backend:create_session(HostType, #bosh_session{sid = Sid, socket = Socket}).
 
 -spec delete_session(sid()) -> any().
 delete_session(Sid) ->
