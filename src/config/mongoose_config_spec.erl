@@ -700,8 +700,9 @@ services() ->
       }.
 
 configurable_services() ->
-    [service_mongoose_system_metrics,
+    [service_bosh,
      service_domain_db,
+     service_mongoose_system_metrics,
      service_translations].
 
 %% path: (host_config[].)modules
@@ -719,12 +720,12 @@ configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
      mod_blocking,
-     mod_bosh,
      mod_cache_users,
      mod_caps,
      mod_carboncopy,
      mod_csi,
      mod_disco,
+     mod_domain_isolation,
      mod_event_pusher,
      mod_extdisco,
      mod_fast_auth_token,
@@ -753,8 +754,7 @@ configurable_modules() ->
      mod_stream_management,
      mod_time,
      mod_vcard,
-     mod_version,
-     mod_domain_isolation].
+     mod_version].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->
