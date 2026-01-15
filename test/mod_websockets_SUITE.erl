@@ -48,9 +48,7 @@ setup(Config) ->
                                      (A, B, C) -> meck:passthrough([A, B, C]) end),
     mongoose_config:set_opts(#{default_server_name => <<"localhost">>}),
     %% Start websocket cowboy listening
-    Handlers = [config([listen, http, handlers, mod_bosh],
-                       #{host => '_', path => "/http-bind"}),
-                config([listen, http, handlers, mod_websockets],
+    Handlers = [config([listen, http, handlers, mod_websockets],
                        #{host => '_', path => "/ws-xmpp",
                          timeout => ?IDLE_TIMEOUT, ping_rate => ?FAST_PING_RATE})],
     Opts = #{module => ejabberd_cowboy,
