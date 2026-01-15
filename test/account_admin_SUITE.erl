@@ -77,7 +77,9 @@ resolver_list_users_pagination(_C) ->
 
     %% Case 4: Both
     {ok, Res4} = mongoose_graphql_account_admin_query:execute(#{}, #{}, <<"listUsers">>,
-                                                              #{<<"domain">> => Domain, <<"limit">> => 1, <<"index">> => 2}),
+                                                              #{<<"domain">> => Domain,
+                                                                <<"limit">> => 1,
+                                                                <<"index">> => 2}),
     ?assertEqual([{ok, <<"u3@resolver.com">>}], Res4),
 
     %% Cleanup
