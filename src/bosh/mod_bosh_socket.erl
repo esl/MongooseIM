@@ -6,9 +6,8 @@
 %% API
 -export([start/5,
          start_link/5,
-         start_supervisor/0,
-         is_supervisor_started/0,
-         stop_supervisor/0,
+         start_supervisor/1,
+         stop_supervisor/1,
          handle_request/2,
          pause/2]).
 
@@ -43,8 +42,7 @@
          terminate/3,
          code_change/4]).
 
--ignore_xref([{mod_bosh_backend, delete_session, 1},
-              accumulate/2, accumulate/3, closing/2,
+-ignore_xref([accumulate/2, accumulate/3, closing/2,
               closing/3, get_cached_responses/1,
               get_client_acks/1, get_handlers/1, get_peer_certificate/1,
               get_pending/1, normal/2, normal/3,
@@ -75,7 +73,7 @@
                 rid             :: rid() | undefined,
                 %% Requests deferred for later processing because
                 %% of having Rid greater than expected.
-                deferred = []   :: [{rid(), {mod_bosh:event_type(), exml:element()}}],
+                deferred = []   :: [{rid(), {mongoose_bosh_handler:event_type(), exml:element()}}],
                 client_acks = ?DEFAULT_CLIENT_ACKS :: boolean(),
                 sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
@@ -107,7 +105,7 @@
             binary() | undefined, map()) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(HostType, Sid, Peer, PeerCert, Opts) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [HostType, Sid, Peer, PeerCert, Opts]).
+    supervisor:start_child(supervisor_name(HostType), [HostType, Sid, Peer, PeerCert, Opts]).
 
 -spec start_link(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
                  binary() | undefined, map()) ->
@@ -115,9 +113,9 @@ start(HostType, Sid, Peer, PeerCert, Opts) ->
 start_link(HostType, Sid, Peer, PeerCert, Opts) ->
     gen_fsm_compat:start_link(?MODULE, [{HostType, Sid, Peer, PeerCert, Opts}], []).
 
--spec start_supervisor() -> {ok, pid()} | {error, any()}.
-start_supervisor() ->
-    ChildId = ?BOSH_SOCKET_SUP,
+-spec start_supervisor(mongooseim:host_type()) -> {ok, pid()} | {error, any()}.
+start_supervisor(HostType) ->
+    ChildId = supervisor_name(HostType),
     ChildSpec = ejabberd_sup:template_supervisor_spec(ChildId, ?MODULE),
     case supervisor:start_child(ejabberd_sup, ChildSpec) of
         {ok, undefined} ->
@@ -132,16 +130,16 @@ start_supervisor() ->
             {error, Reason}
     end.
 
--spec is_supervisor_started() -> boolean().
-is_supervisor_started() ->
-    is_pid(whereis(?BOSH_SOCKET_SUP)).
+-spec stop_supervisor(mongooseim:host_type()) -> ok | {error, any()}.
+stop_supervisor(HostType) ->
+    ejabberd_sup:stop_child(supervisor_name(HostType)).
 
--spec stop_supervisor() -> ok | {error, any()}.
-stop_supervisor() ->
-    ejabberd_sup:stop_child(?BOSH_SOCKET_SUP).
+-spec supervisor_name(mongooseim:host_type()) -> atom().
+supervisor_name(HostType) ->
+    binary_to_atom(<<"mod_bosh_socket_sup_", HostType/binary>>).
 
 -spec handle_request(Pid :: pid(),
-                    {EventTag :: mod_bosh:event_type(),
+                    {EventTag :: mongoose_bosh_handler:event_type(),
                      Handler :: pid(),
                      Body :: exml:element()}) -> ok.
 handle_request(Pid, Request) ->
@@ -506,7 +504,7 @@ resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
 
 
--spec process_acked_stream_event({EventTag :: mod_bosh:event_type(),
+-spec process_acked_stream_event({EventTag :: mongoose_bosh_handler:event_type(),
                                     Body :: exml:element(),
                                     Rid :: 'undefined' | rid()},
                                 SName :: any(),
@@ -603,7 +601,7 @@ maybe_send_report(#state{} = S) ->
     send_or_store([], S).
 
 
--spec process_stream_event(mod_bosh:event_type(), exml:element(), _SName,
+-spec process_stream_event(mongoose_bosh_handler:event_type(), exml:element(), _SName,
                            state()) -> state().
 process_stream_event(pause, Body, SName, State) ->
     Seconds = binary_to_integer(exml_query:attr(Body, <<"pause">>)),
@@ -841,7 +839,7 @@ return_surplus_handlers(SName, #state{pending = Pending} = S)
     send_or_store(Pending, S#state{pending = []}).
 
 
--spec bosh_unwrap(EventTag :: mod_bosh:event_type(), exml:element(), state())
+-spec bosh_unwrap(EventTag :: mongoose_bosh_handler:event_type(), exml:element(), state())
     -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
   when StreamEvent =:= streamstart ->

@@ -3,18 +3,18 @@
 -behaviour(mod_bosh_backend).
 
 %% mod_bosh_backend callbacks
--export([start/0,
-         create_session/1,
-         delete_session/1,
-         get_session/1,
-         get_sessions/0,
-         node_cleanup/1]).
+-export([start/1,
+         create_session/2,
+         delete_session/2,
+         get_session/2,
+         get_sessions/1,
+         node_cleanup/2]).
 
 -include("mod_bosh.hrl").
 
--spec start() -> any().
-start() ->
-    mongoose_mnesia:create_table(bosh_session,
+-spec start(mongooseim:host_type()) -> any().
+start(HostType) ->
+    mongoose_mnesia:create_table(table_name(HostType),
         [{ram_copies, [node()]},
          {attributes, record_info(fields, bosh_session)}]).
 
@@ -35,27 +35,25 @@ start() ->
 %% operation returns, all nodes in the cluster will have access to currently
 %% valid data -- that's why a transaction is used instead of a dirty write.
 
--spec create_session(mod_bosh:session()) -> any().
-create_session(#bosh_session{} = Session) ->
-    mnesia:sync_transaction(fun mnesia:write/1, [Session]).
+-spec create_session(mongooseim:host_type(), mod_bosh:session()) -> any().
+create_session(HostType, #bosh_session{} = Session) ->
+    mnesia:sync_transaction(fun mnesia:write/3, [table_name(HostType), Session, write]).
 
+-spec delete_session(mongooseim:host_type(), mod_bosh:sid()) -> any().
+delete_session(HostType, Sid) ->
+    mnesia:transaction(fun mnesia:delete/3, [table_name(HostType), {bosh_session, Sid}, write]).
 
--spec delete_session(mod_bosh:sid()) -> any().
-delete_session(Sid) ->
-    mnesia:transaction(fun mnesia:delete/1, [{bosh_session, Sid}]).
+-spec get_session(mongooseim:host_type(), mod_bosh:sid()) -> [mod_bosh:session()].
+get_session(HostType, Sid) ->
+    mnesia:dirty_read(table_name(HostType), Sid).
 
+-spec get_sessions(mongooseim:host_type()) -> [mod_bosh:session()].
+get_sessions(HostType) ->
+    mnesia:dirty_match_object(mnesia:table_info(table_name(HostType), wild_pattern)).
 
--spec get_session(mod_bosh:sid()) -> [mod_bosh:session()].
-get_session(Sid) ->
-    mnesia:dirty_read(bosh_session, Sid).
-
-
--spec get_sessions() -> [mod_bosh:session()].
-get_sessions() ->
-    mnesia:dirty_match_object(mnesia:table_info(bosh_session, wild_pattern)).
-
--spec node_cleanup(atom()) -> any().
-node_cleanup(Node) ->
+-spec node_cleanup(mongooseim:host_type(), atom()) -> any().
+node_cleanup(HostType, Node) ->
+    Table = table_name(HostType),
     F = fun() ->
                 SIDs = mnesia:select(
                        bosh_session,
@@ -63,8 +61,14 @@ node_cleanup(Node) ->
                          [{'==', {node, '$2'}, Node}],
                          ['$1']}]),
                 lists:foreach(fun(Sid) ->
-                                      mnesia:delete({bosh_session, Sid})
+                                      mnesia:delete({Table, Sid})
                               end, SIDs)
         end,
     mnesia:async_dirty(F).
 
+
+%% Helpers
+
+-spec table_name(mongooseim:host_type()) -> atom().
+table_name(HostType) ->
+    binary_to_atom(<<"mod_bosh_mnesia_", HostType/binary>>).

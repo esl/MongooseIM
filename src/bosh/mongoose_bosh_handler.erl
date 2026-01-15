@@ -4,68 +4,33 @@
 %%%
 %%% @end
 %%%===================================================================
--module(mod_bosh).
--behaviour(gen_mod).
--behaviour(mongoose_module_metrics).
+-module(mongoose_bosh_handler).
 %% cowboy_loop is a long polling handler
 -behaviour(cowboy_loop).
-%% Implements mongoose_http_handler, but we cannot add the option
-%% because we would get conflicting config_spec/0 callback warning.
-%% config_spec/0 is not called by mongoose_http_handler, because
-%% mod_bosh is not in a list of configurable HTTP handlers.
-%%-behaviour(mongoose_http_handler).
+-behaviour(mongoose_http_handler).
 
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11.2"}]).
-
-%% gen_mod callbacks
--export([start/2,
-         stop/1,
-         config_spec/0,
-         supported_features/0]).
 
 %% cowboy_loop_handler callbacks
 -export([init/2,
          info/3,
          terminate/3]).
 
-%% Hooks callbacks
--export([node_cleanup/3]).
-
-%% For testing and debugging
--export([get_session_socket/1, store_session/2]).
-
 %% mongoose_http_listener callbacks
 -export([instrumentation/0]).
 
--export([config_metrics/1]).
-
--ignore_xref([get_session_socket/1, store_session/2, instrumentation/0]).
+-ignore_xref([store_session/2, instrumentation/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--include("mod_bosh.hrl").
--include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_ALLOW_ORIGIN, <<"*">>).
 
--export_type([session/0,
-              sid/0,
-              event_type/0,
-              socket/0,
-              rstate/0,
-              req/0,
-              info/0
-             ]).
+-export_type([event_type/0, rstate/0, req/0, info/0]).
 
--type socket() :: #bosh_socket{}.
--type session() :: #bosh_session{
-                    sid :: mod_bosh:sid(),
-                    socket :: pid()
-                   }.
--type sid() :: binary().
 -type event_type() :: streamstart
                     | restart
                     | normal
@@ -88,73 +53,13 @@
               | {close, _}
               | {wrong_method, _}.
 
-%%--------------------------------------------------------------------
-%% gen_mod callbacks
-%%--------------------------------------------------------------------
-
--spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(_HostType, Opts) ->
-    case mod_bosh_socket:is_supervisor_started() of
-        true ->
-            ok; % There is only one backend implementation (mnesia), so it is started globally
-        false ->
-            mod_bosh_backend:start(Opts),
-            {ok, _Pid} = mod_bosh_socket:start_supervisor(),
-            gen_hook:add_handlers(hooks())
-    end.
-
--spec stop(mongooseim:host_type()) -> ok.
-stop(_HostType) ->
-    mod_bosh_socket:stop_supervisor(),
-    gen_hook:delete_handlers(hooks()),
-    ok.
-
--spec hooks() -> gen_hook:hook_list().
-hooks() ->
-    [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
-
 %% mongoose_http_handler instrumentation
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
-    [{mod_bosh_data_sent, #{},
+    [{bosh_data_sent, #{},
       #{metrics => #{byte_size => spiral}}},
-     {mod_bosh_data_received, #{},
+     {bosh_data_received, #{},
       #{metrics => #{byte_size => spiral}}}].
-
--spec config_spec() -> mongoose_config_spec:config_section().
-config_spec() ->
-    #section{items = #{<<"backend">> => #option{type = atom,
-                                                validate = {module, mod_bosh}},
-                       <<"inactivity">> => #option{type = int_or_infinity,
-                                                   validate = positive},
-                       <<"max_wait">> => #option{type = int_or_infinity,
-                                                 validate = positive},
-                       <<"server_acks">> => #option{type = boolean},
-                       <<"max_pause">> => #option{type = integer,
-                                                  validate = positive}
-                      },
-             defaults = #{<<"backend">> => mnesia,
-                          <<"inactivity">> => 30, % seconds
-                          <<"max_wait">> => infinity, % seconds
-                          <<"server_acks">> => false,
-                          <<"max_pause">> => 120} % seconds
-            }.
-
--spec supported_features() -> [atom()].
-supported_features() ->
-    [dynamic_domains].
-
-%%--------------------------------------------------------------------
-%% Hooks handlers
-%%--------------------------------------------------------------------
-
--spec node_cleanup(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: map(),
-    Params :: #{node := node()},
-    Extra :: gen_hook:extra().
-node_cleanup(Acc, #{node := Node}, _) ->
-    Res = mod_bosh_backend:node_cleanup(Node),
-    {ok, maps:put(?MODULE, Res, Acc)}.
 
 %%--------------------------------------------------------------------
 %% cowboy_loop_handler callbacks
@@ -198,8 +103,8 @@ info(forward_body, Req, S) ->
     forward_body(Req1, BodyElem, S#rstate{req_sid = Sid});
 info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
-    %% 'mod_bosh_data_sent' metric includes 'body' wrapping elements and resending attempts
-    mongoose_instrument:execute(mod_bosh_data_sent, #{}, #{byte_size => byte_size(BEl)}),
+    %% 'bosh_data_sent' metric includes 'body' wrapping elements and resending attempts
+    mongoose_instrument:execute(bosh_data_sent, #{}, #{byte_size => byte_size(BEl)}),
     ?LOG_DEBUG(#{what => bosh_send, req_sid => S#rstate.req_sid, reply_body => BEl,
                  sid => exml_query:attr(El, <<"sid">>, <<"missing">>)}),
     Headers = bosh_reply_headers(),
@@ -307,7 +212,7 @@ forward_body(Req, #xmlel{} = Body, #rstate{opts = Opts} = S) ->
             end;
         _ ->
             Sid = exml_query:attr(Body, <<"sid">>),
-            case get_session_socket(Sid) of
+            case service_bosh:get_session_socket(Sid) of
                 {ok, Socket} ->
                     %% Forward request from a client to c2s process
                     handle_request(Socket, Type, Body),
@@ -323,20 +228,9 @@ forward_body(Req, #xmlel{} = Body, #rstate{opts = Opts} = S) ->
 
 -spec handle_request(pid(), event_type(), exml:element()) -> ok.
 handle_request(Socket, EventType, Body) ->
-    %% 'mod_bosh_data_received' metric includes 'body' wrapping elements
-    mongoose_instrument:execute(mod_bosh_data_received, #{}, #{byte_size => exml:xml_size(Body)}),
-    mod_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
-
-
--spec get_session_socket(mod_bosh:sid()) -> {ok, pid()} | {error, item_not_found}.
-get_session_socket(Sid) ->
-    case mod_bosh_backend:get_session(Sid) of
-        [BS] ->
-            {ok, BS#bosh_session.socket};
-        [] ->
-            {error, item_not_found}
-    end.
-
+    %% 'bosh_data_received' metric includes 'body' wrapping elements
+    mongoose_instrument:execute(bosh_data_received, #{}, #{byte_size => exml:xml_size(Body)}),
+    mongoose_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
 
 -spec maybe_start_session(req(), exml:element(), map()) ->
     {SessionStarted :: boolean(), req()}.
@@ -383,14 +277,10 @@ maybe_start_session_on_known_host_unsafe(HostType, Req, Body, Opts) ->
                     binary() | undefined, exml:element(), map()) -> any().
 start_session(HostType, Peer, PeerCert, Body, Opts) ->
     Sid = make_sid(),
-    {ok, Socket} = mod_bosh_socket:start(HostType, Sid, Peer, PeerCert, Opts),
-    store_session(Sid, Socket),
+    {ok, Socket} = mongoose_bosh_socket:start(HostType, Sid, Peer, PeerCert, Opts),
+    service_bosh:store_session(Sid, Socket),
     handle_request(Socket, streamstart, Body),
     ?LOG_DEBUG(#{what => bosh_start_session, sid => Sid}).
-
--spec store_session(Sid :: sid(), Socket :: pid()) -> any().
-store_session(Sid, Socket) ->
-    mod_bosh_backend:create_session(#bosh_session{sid = Sid, socket = Socket}).
 
 %% MUST be unique and unpredictable
 %% https://xmpp.org/extensions/xep-0124.html#security-sidrid
@@ -495,7 +385,3 @@ maybe_set_max_hold(_, _) ->
 -spec cowboy_reply(non_neg_integer(), headers_list(), binary(), req()) -> req().
 cowboy_reply(Code, Headers, Body, Req) when is_list(Headers) ->
     cowboy_req:reply(Code, maps:from_list(Headers), Body, Req).
-
--spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
-config_metrics(HostType) ->
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

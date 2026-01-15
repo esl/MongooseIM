@@ -93,6 +93,7 @@ groups() ->
                            listen_http,
                            listen_http_tls,
                            listen_http_transport,
+                           listen_http_protocol,
                            listen_http_handlers_invalid,
                            listen_http_handlers_bosh,
                            listen_http_handlers_websockets,
@@ -570,7 +571,7 @@ listen_http_handlers_invalid(_Config) ->
                                    <<"path">> => <<"/cutlery">>}]})).
 
 listen_http_handlers_bosh(_Config) ->
-    test_listen_http_handler(mod_bosh).
+    test_listen_http_handler(mongoose_bosh_handler).
 
 listen_http_handlers_websockets(_Config) ->
     {P, T} = test_listen_http_handler(mod_websockets),

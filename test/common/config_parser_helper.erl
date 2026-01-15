@@ -190,24 +190,24 @@ options("mongooseim-pgsql") ->
        config([listen, http],
               #{port => 5280,
                 handlers =>
-                    [config([listen, http, handlers, mod_bosh],
-                            #{host => '_', path => "/http-bind"}),
-                     config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp"})
+                    [config([listen, http, handlers, mod_websockets],
+                            #{host => '_', path => "/ws-xmpp"}),
+                     config([listen, http, handlers, mongoose_bosh_handler],
+                            #{host => '_', path => "/http-bind"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                }),
        config([listen, http],
               #{port => 5285,
                 handlers =>
-                    [config([listen, http, handlers, mod_bosh],
-                            #{host => '_', path => "/http-bind"}),
-                     config([listen, http, handlers, mod_websockets],
+                    [config([listen, http, handlers, mod_websockets],
                             #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
                               ping_rate => 120000, timeout => infinity}),
                      config([listen, http, handlers, mongoose_admin_api],
                             #{host => "localhost", path => "/api",
-                              username => <<"ala">>, password => <<"makotaipsa">>})
+                              username => <<"ala">>, password => <<"makotaipsa">>}),
+                     config([listen, http, handlers, mongoose_bosh_handler],
+                            #{host => '_', path => "/http-bind"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem",
