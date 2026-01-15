@@ -139,4 +139,3 @@ doc/mongooseim.doap
 doc/user-guide/Supported-XEPs.md
 big_tests/.DS_Store
 .vscode
-*.code-workspace

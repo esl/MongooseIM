@@ -590,14 +590,14 @@ outgoing_pool_connection(<<"redis">>) ->
                                        validate = port},
                  <<"database">> => #option{type = integer,
                                            validate = non_negative},
+                 <<"username">> => #option{type = string},
                  <<"password">> => #option{type = string},
                  <<"tls">> => tls([client])
                 },
        include = always,
        defaults = #{<<"host">> => "127.0.0.1",
                     <<"port">> => 6379,
-                    <<"database">> => 0,
-                    <<"password">> => ""}
+                    <<"database">> => 0}
       }.
 
 cassandra_server() ->
