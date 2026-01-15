@@ -14,9 +14,10 @@
 
 -export([collect/2]).
 
-collect(PrevReport, ExometerEnabled) ->
+-spec collect([report_struct()], metrics_module()) -> [report_struct()].
+collect(PrevReport, MetricsModule) ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
-    StanzasCount = get_xmpp_stanzas_count(PrevReport, ExometerEnabled),
+    StanzasCount = get_xmpp_stanzas_count(PrevReport, MetricsModule),
     lists:flatten(ReportResults ++ StanzasCount).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
