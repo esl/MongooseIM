@@ -59,31 +59,14 @@ privacy_check_packet(Acc0, #jid{luser = LUser, lserver = LServer} = JID,
                        _ ->
                            {Acc0, mongoose_acc:stanza_name(Acc0), mongoose_acc:stanza_type(Acc0)}
                    end,
-    case basic_check(Name, From, To, PrivacyList) of
-        allow ->
-            {allow, Acc};
-        check ->
-            % check if it is there, if not then run a hook
-            Key = {cached_check, LServer, LUser, From, To, Name, Type, Dir},
-            case mongoose_acc:get(privacy, Key, undefined, Acc) of
-                undefined ->
-                    Acc1 = mongoose_hooks:privacy_check_packet(Acc, JID, PrivacyList,
-                                                               {From, To, Name, Type}, Dir),
-                    Res = mongoose_acc:get(hook, result, Acc1),
-                    {Res, mongoose_acc:set(privacy, Key, Res, Acc1)};
-                Res ->
-                    {Res, Acc}
-            end
+    % check if it is there, if not then set default and run a hook
+    Key = {cached_check, LServer, LUser, From, To, Name, Type, Dir},
+    case mongoose_acc:get(privacy, Key, undefined, Acc) of
+        undefined ->
+            Acc1 = mongoose_hooks:privacy_check_packet(Acc, JID, PrivacyList,
+                                                       {From, To, Name, Type}, Dir),
+            Res = mongoose_acc:get(hook, result, Acc1),
+            {Res, mongoose_acc:set(privacy, Key, Res, Acc1)};
+        Res ->
+            {Res, Acc}
     end.
-
-%% allow iq result send in response to my own request
-basic_check(<<"iq">>,
-            #jid{luser = U, lserver = S} = _From,
-            #jid{luser = U, lserver = S} = _To,
-            _) -> allow;
-%% allow iqs sent to me by my server (privacy is meant to block other users)
-basic_check(<<"iq">>,
-            #jid{luser = <<>>, lserver = S} = _From,
-            #jid{lserver = S} = _To,
-            _) -> allow;
-basic_check(_, _, _, _) -> check.
