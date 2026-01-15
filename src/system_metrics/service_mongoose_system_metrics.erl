@@ -215,11 +215,8 @@ msg_accept_terms_and_conditions() ->
 
 -spec detect_metrics_module() -> mongoose_system_metrics_collector:metrics_module().
 detect_metrics_module() ->
-    case mongoose_config:lookup_opt([instrumentation, prometheus]) of
-        {ok, _} -> prometheus;
-        _ ->
-            case mongoose_config:lookup_opt([instrumentation, exometer]) of
-                {ok, _} -> exometer;
-                _ -> none
-            end
+    case mongoose_config:get_opt(instrumentation) of
+        #{prometheus := _} -> prometheus;
+        #{exometer := _} -> exometer;
+        _ -> none
     end.
