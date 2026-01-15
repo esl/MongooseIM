@@ -2,6 +2,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include("mongoose_bosh.hrl").
 -include("mongoose.hrl").
 
 -compile([export_all, nowarn_export_all]).
@@ -63,13 +64,13 @@ init_per_group(component, Config) ->
     mongoose_config:set_opt(component_backend, ?config(backend, Config)),
     [{needs_component, true} | Config];
 init_per_group(Group, Config) ->
-    start_modules(Group, Config),
+    start_services_and_modules(Group, Config),
     Config.
 
 end_per_group(cets, Config) ->
     stop_cets_disco(Config);
 end_per_group(Group, Config) ->
-    stop_modules(Group, Config).
+    stop_services_and_modules(Group, Config).
 
 init_per_testcase(s2s, Config) ->
     mongoose_config:set_opt(s2s_backend, ?config(backend, Config)),
@@ -79,43 +80,62 @@ init_per_testcase(auth_anonymous, Config) ->
     Config;
 init_per_testcase(TestCase, Config) ->
     start_component_if_needed(?config(needs_component, Config)),
-    start_modules(TestCase, Config),
+    start_services_and_modules(TestCase, Config),
     Config.
 
 end_per_testcase(auth_anonymous, _Config) ->
     mongoose_gen_auth:stop(ejabberd_auth_anonymous, ?HOST);
 end_per_testcase(TestCase, Config) ->
-    stop_modules(TestCase, Config),
+    stop_services_and_modules(TestCase, Config),
     stop_component_if_needed(?config(needs_component, Config)).
 
+start_services_and_modules(GroupOrCase, Config) ->
+    start_services(GroupOrCase, Config),
+    start_modules(GroupOrCase, Config).
+
+stop_services_and_modules(GroupOrCase, Config) ->
+    stop_services(GroupOrCase, Config),
+    stop_modules(GroupOrCase, Config).
+
+start_services(GroupOrCase, Config) ->
+    Services = required_services(GroupOrCase, Config),
+    mongoose_service:replace_services([], config_parser_helper:config([services], Services)).
+
+stop_services(GroupOrCase, Config) ->
+    Services = required_services(GroupOrCase, Config),
+    mongoose_service:replace_services(maps:keys(Services), #{}).
+
 start_modules(GroupOrCase, Config) ->
-    mongoose_modules:replace_modules(?HOST, [], required_modules(GroupOrCase, Config)).
+    Modules = required_modules(GroupOrCase, Config),
+    mongoose_modules:replace_modules(?HOST, [], config_parser_helper:config([modules], Modules)).
 
 stop_modules(GroupOrCase, Config) ->
-    mongoose_modules:replace_modules(?HOST, maps:keys(required_modules(GroupOrCase, Config)), #{}).
+    Modules = required_modules(GroupOrCase, Config),
+    mongoose_modules:replace_modules(?HOST, maps:keys(Modules), #{}).
 
 opts() ->
     #{hosts => [?HOST],
       host_types => [],
       s2s_backend => mnesia,
       {auth, ?HOST} => config_parser_helper:extra_auth(),
+      services => #{},
       {modules, ?HOST} => #{},
       instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 meck_mods() ->
-    [exometer, mod_bosh_socket, mongoose_bin, ejabberd_sm, ejabberd_local].
+    [exometer, mongoose_bosh_socket, mongoose_bin, ejabberd_sm, ejabberd_local].
 
-required_modules(muc, Config) ->
-    required_module(mod_muc, #{online_backend => ?config(backend, Config), backend => mnesia});
-required_modules(bosh, Config) ->
-    required_module(mod_bosh, #{backend => ?config(backend, Config)});
-required_modules(stream_management, Config) ->
-    required_module(mod_stream_management, #{backend => ?config(backend, Config)});
-required_modules(_GroupOrCase, _Config) ->
+required_services(bosh, Config) ->
+    #{service_bosh => #{backend => ?config(backend, Config)}};
+required_services(_GroupOrCase, _Config) ->
     #{}.
 
-required_module(Module, ExtraOpts) ->
-    #{Module => config_parser_helper:mod_config(Module, ExtraOpts)}.
+required_modules(muc, Config) ->
+    #{mod_muc => #{online_backend => ?config(backend, Config), backend => mnesia}};
+required_modules(stream_management, Config) ->
+    #{mod_stream_management => #{backend => ?config(backend, Config)}};
+required_modules(_GroupOrCase, _Config) ->
+    #{}.
 
 start_component_if_needed(true) ->
     mongoose_router:start(),
@@ -221,11 +241,12 @@ s2s(_Config) ->
 bosh(_Config) ->
     SID = <<"sid">>,
     Self = self(),
-    {error, _} = mod_bosh:get_session_socket(SID),
-    mod_bosh:store_session(SID, Self),
-    {ok, Self} = mod_bosh:get_session_socket(SID),
+    {error, _} = service_bosh:get_session_socket(SID),
+    service_bosh:store_session(SID, Self),
+    [#bosh_session{sid = SID, socket = Self}] = service_bosh:get_sessions(),
+    {ok, Self} = service_bosh:get_session_socket(SID),
     mongoose_hooks:node_cleanup(node()),
-    {error, _} = mod_bosh:get_session_socket(SID),
+    {error, _} = service_bosh:get_session_socket(SID),
     ok.
 
 component(_Config) ->
@@ -295,9 +316,9 @@ setup_meck(ejabberd_local) ->
 setup_meck(mongoose_bin) ->
     meck:new(mongoose_bin, [passthrough, no_link]),
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"123456">> end);
-setup_meck(mod_bosh_socket) ->
-    meck:new(mod_bosh_socket, [passthrough, no_link]),
-    meck:expect(mod_bosh_socket, start_supervisor, fun() -> {ok, self()} end).
+setup_meck(mongoose_bosh_socket) ->
+    meck:new(mongoose_bosh_socket, [passthrough, no_link]),
+    meck:expect(mongoose_bosh_socket, start_supervisor, fun() -> {ok, self()} end).
 
 unload_meck(Module) ->
     meck:validate(Module),
