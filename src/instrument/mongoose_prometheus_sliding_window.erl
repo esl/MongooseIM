@@ -103,34 +103,24 @@ handle_call({declare, Name, MetricSpec}, _From, State) ->
             NewSpecs = maps:put(Name, MetricSpec, State#state.metric_specs),
             {reply, true, State#state{metrics = NewMetrics, metric_specs = NewSpecs}}
     end;
-
-handle_call({observe, Name, LabelValues, Value}, _From, State) ->
-    NewState = do_observe(Name, LabelValues, Value, State),
-    {reply, ok, NewState};
-
 handle_call({values, Name}, _From, State) ->
     {Result, NewState} = get_values(Name, State),
     {reply, Result, NewState};
-
 handle_call({remove, Name, LabelValues}, _From, State) ->
     NewState = do_remove(Name, LabelValues, State),
     {reply, true, NewState};
-
 handle_call(get_all_metric_names, _From, State) ->
     Names = maps:keys(State#state.metrics),
     {reply, Names, State};
-
 handle_call({get_metric_spec, Name}, _From, State) ->
     Spec = maps:get(Name, State#state.metric_specs, undefined),
     {reply, Spec, State};
-
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 handle_cast({observe, Name, LabelValues, Value}, State) ->
     NewState = do_observe(Name, LabelValues, Value, State),
     {noreply, NewState};
-
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -138,7 +128,6 @@ handle_info({timeout, _TimerRef, rotate}, State) ->
     %% The rotation is handled in ensure_windows_rotated, so we just reschedule
     TimerRef = erlang:start_timer(?WINDOW_DURATION_MS, self(), rotate),
     {noreply, State#state{timer_ref = TimerRef}};
-
 handle_info(_Info, State) ->
     {noreply, State}.
 
