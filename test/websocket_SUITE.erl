@@ -1,4 +1,4 @@
--module(mod_websockets_SUITE).
+-module(websocket_SUITE).
 -compile([export_all, nowarn_export_all]).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -48,7 +48,7 @@ setup(Config) ->
                                      (A, B, C) -> meck:passthrough([A, B, C]) end),
     mongoose_config:set_opts(#{default_server_name => <<"localhost">>}),
     %% Start websocket cowboy listening
-    Handlers = [config([listen, http, handlers, mod_websockets],
+    Handlers = [config([listen, http, handlers, mongoose_websocket_handler],
                        #{host => '_', path => "/ws-xmpp",
                          timeout => ?IDLE_TIMEOUT, ping_rate => ?FAST_PING_RATE})],
     Opts = #{module => ejabberd_cowboy,
@@ -135,8 +135,7 @@ ws_handshake(Opts) ->
     Packet = erlang:decode_packet(http, Handshake, []),
     {ok, {http_response, {1,1}, 101, "Switching Protocols"}, Rest} = Packet,
     {Headers, _} = consume_headers(Rest, []),
-    InternalSocket = get_websocket(),
-    #{socket => Socket, internal_socket => InternalSocket, headers => Headers}.
+    #{socket => Socket, headers => Headers}.
 
 consume_headers(Data, Headers) ->
     case erlang:decode_packet(httph, Data, []) of
@@ -167,13 +166,6 @@ wait_for_ping(Socket, Try, Timeout) ->
 ws_rx_frame(Payload, Opcode) ->
     Length = byte_size(Payload),
     <<1:1, 0:3, Opcode:4, 0:1, Length:7, Payload/binary>>.
-
-get_websocket() ->
-    %% Assumption: there's only one ranch protocol process running and
-    %% it's the one which started due to our gen_tcp:connect in ws_handshake/1
-    [{cowboy_clear, Pid}] = get_ranch_connections(),
-    %% This is a record! See mod_websockets: #websocket{}.
-    {websocket, Pid, fake_peername, undefined}.
 
 get_child_by_mod(Sup, Mod) ->
     Kids = supervisor:which_children(Sup),
@@ -265,7 +257,6 @@ check_subprotocol(Comment, ProtoList, ExpectedProtocol) ->
              expected_protocol => ExpectedProtocol,
              request_headers => ReqHeaders},
     #{headers := RespHeaders, socket := Socket} = ws_handshake(#{extra_headers => ReqHeaders}),
-    %% get_websocket/0 does not support more than one open connection
     gen_tcp:close(Socket),
     wait_for_no_ranch_connections(10),
     RespProtocol = proplists:get_value("Sec-Websocket-Protocol", RespHeaders),

@@ -69,7 +69,7 @@ options("miscellaneous") ->
       [config([listen, http],
               #{port => 5280,
                 handlers =>
-                    [config([listen, http, handlers, mod_websockets],
+                    [config([listen, http, handlers, mongoose_websocket_handler],
                             #{host => '_', path => "/ws-xmpp"}
                            )],
                 transport => #{num_acceptors => 10, max_connections => 1024}
@@ -190,24 +190,24 @@ options("mongooseim-pgsql") ->
        config([listen, http],
               #{port => 5280,
                 handlers =>
-                    [config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp"}),
-                     config([listen, http, handlers, mongoose_bosh_handler],
-                            #{host => '_', path => "/http-bind"})
+                    [config([listen, http, handlers, mongoose_bosh_handler],
+                            #{host => '_', path => "/http-bind"}),
+                     config([listen, http, handlers, mongoose_websocket_handler],
+                            #{host => '_', path => "/ws-xmpp"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                }),
        config([listen, http],
               #{port => 5285,
                 handlers =>
-                    [config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
-                              ping_rate => 120000, timeout => infinity}),
-                     config([listen, http, handlers, mongoose_admin_api],
+                    [config([listen, http, handlers, mongoose_admin_api],
                             #{host => "localhost", path => "/api",
                               username => <<"ala">>, password => <<"makotaipsa">>}),
                      config([listen, http, handlers, mongoose_bosh_handler],
-                            #{host => '_', path => "/http-bind"})
+                            #{host => '_', path => "/http-bind"}),
+                     config([listen, http, handlers, mongoose_websocket_handler],
+                            #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
+                              ping_rate => 120000, timeout => infinity})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem",
@@ -1126,10 +1126,10 @@ default_config([listen, http]) ->
                                 protocol => default_config([listen, http, protocol]),
                                 handlers => [],
                                 connection_type => http};
-default_config([listen, http, handlers, mod_websockets]) ->
+default_config([listen, http, handlers, mongoose_websocket_handler]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
-      module => mod_websockets,
+      module => mongoose_websocket_handler,
       state_timeout => 5000,
       backwards_compatible_session => true};
 default_config([listen, http, handlers, mongoose_admin_api]) ->
