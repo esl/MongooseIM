@@ -61,6 +61,32 @@ Executing some of the queries requires authorization. Just add the following JSO
 }
 ```
 
+## Example query
+
+List host types configured on the server, with auth methods, loaded modules and their configured/runtime backend names (when available), plus global services and internal databases:
+
+```graphql
+query {
+   server {
+      hostTypes {
+         name
+         domains
+         authMethods
+         modules {
+            name
+            backend
+         }
+      }
+      globalInfo {
+         services {
+            name
+         }
+         internalDatabases
+      }
+   }
+}
+```
+
 ## Static documentation
 
 <a style="float: right; padding: 5px" href="../admin-graphql-doc.html" target="_blank" rel="noopener noreferrer">Open GraphQL documentation as a full page</a>
