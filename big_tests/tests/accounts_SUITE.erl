@@ -14,7 +14,7 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
--define(REGISTRATION_TIMEOUT, 2).  %% seconds
+-define(REGISTRATION_TIMEOUT, 3).  %% seconds
 
 all() ->
     [
