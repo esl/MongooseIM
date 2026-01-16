@@ -43,7 +43,8 @@ all() ->
      xmpp_stanzas_counts_are_reported,
      config_type_is_reported,
      {group, module_opts},
-     {group, log_transparency}
+     {group, log_transparency},
+     {group, exometer_instrumentation}
     ].
 
 groups() ->
@@ -57,7 +58,10 @@ groups() ->
                              in_config_unmodified_logs_request_for_agreement,
                              in_config_with_explicit_no_report_goes_off_silently,
                              in_config_with_explicit_reporting_goes_on_silently
-                            ]}
+                            ]},
+     {exometer_instrumentation, [], [
+                           xmpp_stanzas_counts_are_reported
+                          ]}
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -86,6 +90,13 @@ init_per_group(log_transparency, Config) ->
     logger_ct_backend:start(),
     logger_ct_backend:capture(warning),
     Config;
+init_per_group(exometer_instrumentation, Config) ->
+    %% Disable prometheus to test exometer
+    %% (the default config has both prometheus and exometer enabled,
+    %% but prometheus takes precedence in detect_metrics_module/0)
+    InstrumentationConfig = mongoose_helper:successful_rpc(mongoose_config, get_opt, [instrumentation]),
+    ExometerOnlyConfig = maps:remove(prometheus, InstrumentationConfig),
+    mongoose_helper:backup_and_set_config_option(Config, instrumentation, ExometerOnlyConfig);
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -94,6 +105,8 @@ end_per_group(module_opts, Config) ->
 end_per_group(log_transparency, Config) ->
     logger_ct_backend:stop_capture(),
     Config;
+end_per_group(exometer_instrumentation, Config) ->
+    mongoose_helper:restore_config(Config);
 end_per_group(_GroupName, Config) ->
     Config.
 

@@ -5,16 +5,19 @@
 -type report_struct() ::
     #{
         name := term(),
-        params := #{term() := term()}
+        params := #{term() => term()}
     }.
 
--export_type([report_struct/0]).
+-type metrics_module() :: exometer | prometheus | none.
+
+-export_type([report_struct/0, metrics_module/0]).
 
 -export([collect/2]).
 
-collect(PrevReport, ExometerEnabled) ->
+-spec collect([report_struct()], metrics_module()) -> [report_struct()].
+collect(PrevReport, MetricsModule) ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
-    StanzasCount = get_xmpp_stanzas_count(PrevReport, ExometerEnabled),
+    StanzasCount = get_xmpp_stanzas_count(PrevReport, MetricsModule),
     lists:flatten(ReportResults ++ StanzasCount).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
@@ -180,12 +183,12 @@ get_outgoing_pools() ->
     [#{name => outgoing_pool,
        params => #{value => Type}} || #{type := Type} <- OutgoingPools].
 
-get_xmpp_stanzas_count(_PrevReport, false = _ExometerEnabled) ->
+get_xmpp_stanzas_count(_PrevReport, none = _MetricsModule) ->
     [];
-get_xmpp_stanzas_count(PrevReport, true) ->
+get_xmpp_stanzas_count(PrevReport, MetricsModule) ->
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
                    xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
-    NewCount = [count_stanzas(StanzaType) || StanzaType <- StanzaTypes],
+    NewCount = [count_stanzas(StanzaType, MetricsModule) || StanzaType <- StanzaTypes],
     StanzasCount = calculate_stanza_rate(PrevReport, NewCount),
     [#{name => xmpp_stanza_count,
        params => #{
@@ -194,18 +197,33 @@ get_xmpp_stanzas_count(PrevReport, true) ->
         increment => Increment
        }} || {StanzaType, Total, Increment} <- StanzasCount].
 
-count_stanzas(StanzaType) ->
-    ExometerResults = exometer:get_values(['_' | metric_name(StanzaType)]),
+count_stanzas(StanzaType, exometer) ->
+    ExometerResults = exometer:get_values(['_' | exometer_metric_name(StanzaType)]),
     StanzaCount = lists:foldl(fun({ _, [{count, Count}, {one, _}]}, Sum) -> Count + Sum end,
                               0, ExometerResults),
+    {StanzaType, StanzaCount};
+count_stanzas(StanzaType, prometheus) ->
+    PrometheusName = prometheus_metric_name(StanzaType),
+    StanzaCount = sum_prometheus_counter_values(PrometheusName),
     {StanzaType, StanzaCount}.
 
-metric_name(xmppMessageSent) -> [xmpp_element_in, '_', message_count];
-metric_name(xmppIqSent) -> [xmpp_element_in, '_', iq_count];
-metric_name(xmppPresenceSent) -> [xmpp_element_in, '_', presence_count];
-metric_name(xmppMessageReceived) -> [xmpp_element_out, '_', message_count];
-metric_name(xmppIqReceived) -> [xmpp_element_out, '_', iq_count];
-metric_name(xmppPresenceReceived) -> [xmpp_element_out, '_', presence_count].
+sum_prometheus_counter_values(MetricName) ->
+    Values = prometheus_counter:values(default, MetricName),
+    lists:foldl(fun({_Labels, Count}, Sum) -> Count + Sum end, 0, Values).
+
+exometer_metric_name(xmppMessageSent) -> [xmpp_element_in, '_', message_count];
+exometer_metric_name(xmppIqSent) -> [xmpp_element_in, '_', iq_count];
+exometer_metric_name(xmppPresenceSent) -> [xmpp_element_in, '_', presence_count];
+exometer_metric_name(xmppMessageReceived) -> [xmpp_element_out, '_', message_count];
+exometer_metric_name(xmppIqReceived) -> [xmpp_element_out, '_', iq_count];
+exometer_metric_name(xmppPresenceReceived) -> [xmpp_element_out, '_', presence_count].
+
+prometheus_metric_name(xmppMessageSent) -> "xmpp_element_in_message_count";
+prometheus_metric_name(xmppIqSent) -> "xmpp_element_in_iq_count";
+prometheus_metric_name(xmppPresenceSent) -> "xmpp_element_in_presence_count";
+prometheus_metric_name(xmppMessageReceived) -> "xmpp_element_out_message_count";
+prometheus_metric_name(xmppIqReceived) -> "xmpp_element_out_iq_count";
+prometheus_metric_name(xmppPresenceReceived) -> "xmpp_element_out_presence_count".
 
 calculate_stanza_rate([], NewCount) ->
     [{Type, Count, Count} || {Type, Count} <- NewCount];
