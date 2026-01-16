@@ -14,7 +14,7 @@ init_per_suite(Config) ->
     mnesia:start(),
 
     mongoose_config:set_opts(#{
-        {auth, host_type()} => #{methods => [internal], internal => #{}}
+        {auth, host_type()} => #{methods => [internal], internal => #{}, password => #{format => plain}}
     }),
     ejabberd_auth_internal:start(host_type()),
     Config.
@@ -31,7 +31,7 @@ api_list_users_pagination(_C) ->
 
     Users = [<<"u1">>, <<"u2">>, <<"u3">>],
     lists:foreach(fun(U) ->
-        mnesia:dirty_write({passwd, {U, Domain}, <<"pass">>})
+        ok = ejabberd_auth_internal:try_register(host_type(), U, Domain, <<"pass">>)
     end, Users),
 
     %% Test API with options
@@ -57,7 +57,7 @@ resolver_list_users_pagination(_C) ->
 
     Users = [<<"u1">>, <<"u2">>, <<"u3">>],
     lists:foreach(fun(U) ->
-        mnesia:dirty_write({passwd, {U, Domain}, <<"pass">>})
+        ok = ejabberd_auth_internal:try_register(host_type(), U, Domain, <<"pass">>)
     end, Users),
 
     %% Test Resolver

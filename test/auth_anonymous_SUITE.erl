@@ -43,10 +43,11 @@ get_registered_users_pagination(_C) ->
     Users = [<<"u1">>, <<"u2">>, <<"u3">>, <<"u4">>, <<"u5">>],
 
     %% Register sessions directly in mnesia backend
-    lists:foreach(fun(U) ->
-        SID = {now(), self()},
+    Sessions = lists:map(fun(U) ->
+        SID = {erlang:unique_integer([monotonic, positive]), self()},
         Session = #session{sid = SID, usr = {U, Domain, <<"res">>}, us = {U, Domain}, priority = 1, info = []},
-        ejabberd_sm_mnesia:set_session(U, Domain, <<"res">>, Session)
+        ok = ejabberd_sm_mnesia:set_session(U, Domain, <<"res">>, Session),
+        {SID, U}
     end, Users),
 
     %% Verify pagination
@@ -62,11 +63,9 @@ get_registered_users_pagination(_C) ->
     ?assertEqual([{<<"u2">>, Domain}, {<<"u3">>, Domain}],
                  ejabberd_auth_anonymous:get_registered_users(host_type(), Domain, #{limit => 2, offset => 1})),
 
-    %% Cleanup
-    lists:foreach(fun(U) ->
-        %% We can't easily delete by user without SID in mnesia backend API,
-        %% but since we are in a test suite, we can just leave them or clear table if needed.
-        ok
-    end, Users).
+    %% Cleanup by SID
+    lists:foreach(fun({SID, U}) ->
+        ok = ejabberd_sm_mnesia:delete_session(SID, U, Domain, <<"res">>)
+    end, Sessions).
 
 host_type() -> <<"test_host_type">>.

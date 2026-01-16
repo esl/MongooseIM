@@ -26,9 +26,9 @@ execute(_Ctx, _Obj, <<"checkUser">>, Args) ->
 list_users(#{<<"domain">> := Domain} = Args) ->
     Limit = null_to_undefined(maps:get(<<"limit">>, Args, undefined)),
     Index = null_to_undefined(maps:get(<<"index">>, Args, undefined)),
-    Opts = lists:filter(fun({_, V}) -> V =/= undefined end,
-                        [{limit, Limit}, {offset, Index}]),
-    case mongoose_account_api:list_users(jid:nameprep(Domain), maps:from_list(Opts)) of
+    Opts = maps:filter(fun(_K, V) -> V =/= undefined end,
+                       #{limit => Limit, offset => Index}),
+    case mongoose_account_api:list_users(jid:nameprep(Domain), Opts) of
         {domain_not_found, Msg} ->
             make_error(domain_not_found, Msg, #{domain => Domain});
         {ok, Users} ->

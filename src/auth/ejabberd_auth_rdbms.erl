@@ -225,7 +225,6 @@ get_registered_users_number(HostType, LServer, Opts) ->
         0
     end.
 
-
 -spec get_password(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
           ejabberd_auth:passterm() | false.
 get_password(HostType, LUser, LServer) ->
@@ -517,20 +516,20 @@ extract_list_users_opts(Opts) ->
                                Offset :: integer()}) ->
           mongoose_rdbms:query_result().
 select_list_users_query(HostType, LServer, {undefined, undefined, 0}) ->
-    %% No prefix, no limit, no offset → fetch all users
+    %% No prefix, no limit. Used also for offset-only, where the offset is applied in Erlang.
     execute_successfully(HostType, auth_list_users, [LServer]);
-select_list_users_query(HostType, LServer, {undefined, undefined, Offset}) when is_integer(Offset), Offset > 0 ->
-    %% Offset-only (no limit) → fetch all users and apply offset in Erlang
+select_list_users_query(HostType, LServer, {undefined, undefined, Offset}) when is_integer(Offset) ->
+    %% Same SQL as the Offset=0 case; offset is applied in maybe_apply_offset_only/3.
     execute_successfully(HostType, auth_list_users, [LServer]);
 select_list_users_query(HostType, LServer, {undefined, Limit, Offset}) ->
     %% No prefix, with limit → fetch range
     execute_successfully(HostType, auth_list_users_range, [LServer, Limit, Offset]);
 select_list_users_query(HostType, LServer, {Prefix, undefined, 0}) when is_binary(Prefix) ->
-    %% With prefix, no limit, no offset → fetch all matching
+    %% With prefix, no limit. Used also for offset-only, where the offset is applied in Erlang.
     execute_successfully(HostType, auth_list_users_prefix, [LServer, prefix_to_like(Prefix)]);
 select_list_users_query(HostType, LServer, {Prefix, undefined, Offset})
-        when is_binary(Prefix), is_integer(Offset), Offset > 0 ->
-    %% With prefix, offset-only → fetch all matching and apply offset in Erlang
+        when is_binary(Prefix), is_integer(Offset) ->
+    %% Same SQL as the Offset=0 case; offset is applied in maybe_apply_offset_only/3.
     execute_successfully(HostType, auth_list_users_prefix, [LServer, prefix_to_like(Prefix)]);
 select_list_users_query(HostType, LServer, {Prefix, Limit, Offset}) when is_binary(Prefix) ->
     %% With prefix and limit → fetch range of matching
