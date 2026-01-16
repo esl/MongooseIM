@@ -62,9 +62,6 @@ Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html
 ### [mod_bind2](../modules/mod_bind2.md)
 Implements [XEP-0386: Bind 2](http://xmpp.org/extensions/xep-0386.html).
 
-### [mod_bosh](../modules/mod_bosh.md)
-Allows users to connect to MongooseIM using BOSH (Bidirectional-streams Over Synchronous HTTP), the HTTP long-polling technique described in [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html) and [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html).
-
 ### [mod_caps](../modules/mod_caps.md)
 Implements [XEP-0115: Entity Capabilities](https://xmpp.org/extensions/xep-0115.html).
 It queries clients for their supported functionalities and caches them in Mnesia.

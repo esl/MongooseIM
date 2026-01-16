@@ -16,7 +16,7 @@ Typical services are already specified in the example configuration file.
   event_max_age = 5000
 ```
 
-## service_mongoose_system_metrics
+## `service_mongoose_system_metrics`
 
 MongooseIM system metrics are being gathered to analyze the trends and needs of our users, improve MongooseIM, and get to know where to focus our efforts.
 See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-Privacy-Policy.md) for more details.
@@ -63,7 +63,7 @@ Metrics will not be collected and shared.
 It will generate a notification that the feature is not being used.
 The notification can be silenced by setting the `no_report` option explicitly.
 
-## service_domain_db
+## `service_domain_db`
 
 This service is needed to use the dynamic domains API.
 It is used to synchronise dynamic domains between nodes after starting.
@@ -93,12 +93,96 @@ The number of seconds between cleaning attempts of the `domain_events` table.
 
 The number of seconds after an event must be deleted from the `domain_events` table.
 
-## service_translations
+## `service_translations`
 
 Enables translations for system messages.
 Support is minimal, you can check `priv/translations/` for translated messages.
 
+## `service_bosh`
+
+This service implements [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html) (using [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html)),
+allowing clients to connect to MongooseIM over regular HTTP long-lived connections.
+
+In order to accept BOSH connections, you will need to configure an HTTP listener with [`mongoose_bosh_handler`](../listeners/listen-http.md#handler-types-bosh-mongoose_bosh_handler) enabled.
+
+## Options
+
+### `services.service_bosh.backend`
+* **Syntax:** string: `"mnesia"` or `"cets"`
+* **Default:** `"mnesia"`
+* **Example:** `backend = "mnesia"`
+
+Backend to use for storing BOSH connections.
+
+!!! Warning
+    The corresponding [internal database](../configuration/internal-databases.md) has to be enabled.
+
+### `services.service_bosh.inactivity`
+ * **Syntax:** positive integer or the string `"infinity"`
+ * **Default:** `30`
+ * **Example:** `inactivity = 30`
+
+Maximum allowed inactivity time (in seconds) for a BOSH connection.
+Please note that a long-polling request is not considered to be an inactivity.
+
+### `services.service_bosh.max_wait`
+ * **Syntax:** positive integer or the string `"infinity"`
+ * **Default:** `"infinity"`
+ * **Example:** `max_wait = 30`
+
+This is the longest time (in seconds) that the connection manager will wait before responding to any request during the session.
+
+### `services.service_bosh.server_acks`
+ * **Syntax:** boolean
+ * **Default:** `false`
+ * **Example:** `server_acks = true`
+
+Enables/disables [acks](http://xmpp.org/extensions/xep-0124.html#ack-request) sent by server.
+
+### `services.service_bosh.max_pause`
+ * **Syntax:** positive integer
+ * **Default:** `120`
+ * **Example:** `max_pause = 30`
+
+Maximum allowed pause in seconds (e.g. to switch between pages and then resume connection) to request by client-side.
+
+### `services.service_bosh.host_types`
+ * **Syntax:** list of strings representing host types or static hosts
+ * **Default:** not set
+ * **Example:** `host_types = ["localhost", "my host type"]`
+
+When set, allows to limit the BOSH functionality to selected [host types](../configuration/general.md#generalhost_types) or static [hosts](../configuration/general.md#generalhosts).
+Connections to non-matching hosts will be refused.
+By default, there is no such limit, and any host type is allowed.
+
+### Example Configuration
+
+In the `listen` section:
+
+```toml
+[[listen.http]]
+  port = 5280
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_bosh_handler]]
+    host = "_"
+    path = "/http-bind"
+```
+
+In the `services` section:
+
+```toml
+[services.service_bosh]
+  inactivity = 20
+  max_wait = "infinity"
+  server_acks = true
+  max_pause = 120
+```
+
 ## Example configuration
+
+The example below shows two services configured:
 
 ```toml
 [services.service_mongoose_system_metrics]
