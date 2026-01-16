@@ -161,14 +161,14 @@ try_register(HostType, LUser, LServer, Password) ->
 
 -spec get_registered_users(HostType :: mongooseim:host_type(),
                            LServer :: jid:lserver(),
-                           Opts :: list()) -> [jid:simple_bare_jid()].
+                           Opts :: map()) -> [jid:simple_bare_jid()].
 get_registered_users(HostType, LServer, Opts)  ->
     ejabberd_auth_internal:get_registered_users(HostType, LServer, Opts).
 
 
 -spec get_registered_users_number(HostType :: mongooseim:host_type(),
                                      LServer :: jid:lserver(),
-                                     Opts :: list()) -> non_neg_integer().
+                                     Opts :: map()) -> non_neg_integer().
 get_registered_users_number(HostType, LServer, Opts) ->
     ejabberd_auth_internal:get_registered_users_number(HostType, LServer, Opts).
 
