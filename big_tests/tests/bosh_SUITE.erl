@@ -26,6 +26,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
+-import(config_parser_helper, [config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -50,7 +51,7 @@ all() ->
 
 groups() ->
     [
-     {without_bosh, [], [reject_connection_when_mod_bosh_is_disabled]},
+     {without_bosh, [], [reject_connection_when_bosh_is_disabled]},
      {essential, [sequence], essential_test_cases()},
      {essential_https, [sequence], essential_test_cases()},
      {chat, [shuffle], chat_test_cases()},
@@ -108,31 +109,31 @@ acks_test_cases() ->
 
 init_per_suite(Config) ->
     instrument_helper:start(instrumentation_events()),
-    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    Config1 = dynamic_services:save_services(Config),
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config1]).
 
 end_per_suite(Config) ->
     instrument_helper:stop(),
-    dynamic_modules:restore_modules(Config),
+    dynamic_services:restore_services(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(time, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(time)),
+    dynamic_services:ensure_services(required_services(time)),
     Config;
 init_per_group(GroupName, Config) when GroupName =:= essential;
                                        GroupName =:= without_bosh ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+    dynamic_services:ensure_services(required_services(GroupName)),
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(essential_https)),
+    dynamic_services:ensure_services(required_services(essential_https)),
     [{user, carol_s} | Config];
 init_per_group(chat_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(chat_https)),
+    dynamic_services:ensure_services(required_services(chat_https)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol_s} | Config1];
 init_per_group(GroupName, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+    dynamic_services:ensure_services(required_services(GroupName)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol} | Config1].
 
@@ -153,12 +154,12 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per group
 
-required_modules(without_bosh) ->
-    [{mod_bosh, stopped}];
-required_modules(GroupName) ->
+required_services(without_bosh) ->
+    [{service_bosh, stopped}];
+required_services(GroupName) ->
     Backend = ct_helper:get_internal_database(),
-    ModOpts = config_parser_helper:mod_config(mod_bosh, #{backend => Backend}),
-    [{mod_bosh, maps:merge(ModOpts, required_bosh_opts(GroupName))}].
+    Opts = (required_bosh_opts(GroupName))#{backend => Backend},
+    [{service_bosh, config([services, service_bosh], Opts)}].
 
 required_bosh_opts(time) ->
     #{max_wait => ?MAX_WAIT, inactivity => ?INACTIVITY};
@@ -194,7 +195,7 @@ create_and_terminate_session(Config) ->
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().
 
-reject_connection_when_mod_bosh_is_disabled(Config) ->
+reject_connection_when_bosh_is_disabled(Config) ->
     {Domain, Path, Client} = get_fusco_connection(Config),
     Rid = rand:uniform(1000000),
     Body = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
@@ -419,22 +420,13 @@ escape_attr_chat(Config) ->
 
 cant_send_invalid_rid(Config) ->
     escalus:story(Config, [{?config(user, Config), 1}], fun(Carol) ->
-        %% ct:pal("This test will leave invalid rid, session not found"
-        %%        " errors in the server log~n"),
-
         %% NOTICE 1
         %% This test will provoke the server to log the following message:
         %%
-        %% mod_bosh_socket:handle_stream_event:401
-        %% invalid rid XXX, expected YYY, difference ?INVALID_RID_OFFSET:
+        %% mongoose_bosh_socket:handle_stream_event:***
+        %% invalid rid XXX, expected YYY, difference ?INVALID_RID_OFFSET
 
         %% NOTICE 2
-        %% Escalus will try to close the session under test when the story
-        %% completes. This will leave the following message in the log:
-        %%
-        %% mod_bosh:forward_body:265 session not found!
-
-        %% NOTICE 3
         %% We enable quickfail mode, because sometimes request with invalid RID
         %% arrives before empty body req. with valid RID, so server returns an error
         %% only for the first req. and escalus_bosh in normal mode would get stuck
@@ -826,14 +818,14 @@ force_cache_trimming(Config) ->
 %%--------------------------------------------------------------------
 
 get_bosh_sessions() ->
-    rpc(mim(), mod_bosh_backend, get_sessions, []).
+    rpc(mim(), service_bosh, get_sessions, []).
 
 get_bosh_session(Sid) ->
     BoshSessions = get_bosh_sessions(),
     lists:keyfind(Sid, 2, BoshSessions).
 
 get_handlers(BoshSessionPid) ->
-    rpc(mim(), mod_bosh_socket, get_handlers, [BoshSessionPid]).
+    rpc(mim(), mongoose_bosh_socket, get_handlers, [BoshSessionPid]).
 
 get_bosh_sid(#client{rcv_pid = Pid}) ->
     escalus_bosh:get_sid(Pid).
@@ -898,10 +890,10 @@ ack_body(Body, Rid) ->
     Body#xmlel{attrs = NewAttrs}.
 
 set_client_acks(SessionPid, Enabled) ->
-    rpc(mim(), mod_bosh_socket, set_client_acks, [SessionPid, Enabled]).
+    rpc(mim(), mongoose_bosh_socket, set_client_acks, [SessionPid, Enabled]).
 
 get_cached_responses(SessionPid) ->
-    rpc(mim(), mod_bosh_socket, get_cached_responses, [SessionPid]).
+    rpc(mim(), mongoose_bosh_socket, get_cached_responses, [SessionPid]).
 
 is_session_alive(Sid) ->
     BoshSessions = get_bosh_sessions(),
@@ -948,7 +940,7 @@ wait_for_zero_bosh_sessions() ->
                            #{name => get_bosh_sessions}).
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mod_bosh, [])
+    instrument_helper:declared_events(mongoose_bosh_handler, [])
     ++ [{c2s_message_processed, #{host_type => host_type()}},
         {xmpp_element_out, #{host_type => host_type(), connection_type => c2s}},
         {xmpp_element_in, #{host_type => host_type(), connection_type => c2s}}].
