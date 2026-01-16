@@ -62,7 +62,7 @@
 -define(WAIT_TIME, 1500).
 -define(WAIT_TIMEOUT, 10000).
 
--define(FAKEPID, fakepid).
+-define(FAKEPID, c:pid(0, 1, 1)).
 
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
@@ -551,10 +551,11 @@ unload_meck() ->
 
 %% Meck will register a fake room right before a 'real' room is started
 meck_room_start() ->
-    rpc(mim(), meck, expect, [mod_muc_room, init, fun ?MODULE:meck_init/1]).
+    RoomPid = ?FAKEPID,
+    rpc(mim(), meck, expect, [mod_muc_room, init, fun(A) -> meck_init(A, RoomPid) end]).
 
-meck_init(#{muc_host := Host, host_type := HostType, room_name := Room} = Args) ->
-    mod_muc:register_room(HostType, Host, Room, ?FAKEPID),
+meck_init(#{muc_host := Host, host_type := HostType, room_name := Room} = Args, RoomPid) ->
+    mod_muc:register_room(HostType, Host, Room, RoomPid),
     meck:passthrough([Args]).
 
 %% Meck will forward all calls to route to the test case instead
