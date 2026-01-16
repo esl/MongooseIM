@@ -104,7 +104,7 @@ Certificate authentication only.
     host = "_"
     path = "/http-bind"
 
-  [[listen.http.handlers.mod_websockets]]
+  [[listen.http.handlers.mongoose_websocket_handler]]
     host = "_"
     path = "/ws-xmpp"
 
