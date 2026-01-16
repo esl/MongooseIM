@@ -41,6 +41,9 @@ get_current_services() ->
 get_current_services(Node) ->
     rpc(Node, mongoose_service, loaded_services_with_opts, []).
 
+ensure_services(RequiredServices) ->
+    ensure_services(mim(), RequiredServices).
+
 ensure_services(Node, RequiredServices) ->
     ToStop = [M || {M, stopped} <- RequiredServices],
     ToEnsure = maps:without(ToStop, maps:from_list(RequiredServices)),
