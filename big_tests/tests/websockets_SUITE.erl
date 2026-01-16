@@ -93,7 +93,7 @@ setup_listeners(Config) ->
 update_listener(Listener = #{handlers := Handlers}) ->
     Listener#{handlers := lists:map(fun update_handler/1, Handlers)}.
 
-update_handler(Handler = #{module := mod_websockets}) ->
+update_handler(Handler = #{module := mongoose_websocket_handler}) ->
     Handler#{max_stanza_size := ?MAX_STANZA_SIZE};
 update_handler(Handler) ->
     Handler.
@@ -178,7 +178,7 @@ escape_attrs(Config) ->
     end).
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mod_websockets, [])
+    instrument_helper:declared_events(mongoose_websocket_handler, [])
     ++ [{c2s_message_processed, #{host_type => host_type()}},
         {xmpp_element_out, #{host_type => host_type(), connection_type => c2s}},
         {xmpp_element_in, #{host_type => host_type(), connection_type => c2s}}].
