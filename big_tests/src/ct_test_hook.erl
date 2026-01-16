@@ -15,6 +15,8 @@
 % -define(ADD_LOG(State), (State)).
 -define(ADD_LOG(State), (State#state{log = [?MFA | State#state.log]})).
 
+-dialyzer({no_unknown, [start_tracing/0, stop_tracing/0]}).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CT hook callbacks
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

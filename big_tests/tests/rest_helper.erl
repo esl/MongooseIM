@@ -17,11 +17,11 @@
         role := role(),
         method := binary(),
         creds => credentials(),
-        path := binary(),
-        body := binary(),
+        path := binary() | string(),
+        body => binary() | map(),
         headers => [{binary(), binary()}],
-        return_headers := boolean(),
-        server := distributed_helper:rpc_spec(),
+        return_headers => boolean(),
+        server => distributed_helper:rpc_spec(),
         port => inet:port_number(),
         return_maps => boolean()}.
 
@@ -108,15 +108,13 @@ delete(Role, Path, Cred, Body) ->
 -spec make_request(request_params()) ->
     {{Number :: binary(), Text :: binary()},
      Headers :: [{binary(), binary()}],
-     Body :: map() | binary()}.
+     Body :: jiffy:json_value()}
+  | {{Number :: binary(), Text :: binary()},
+     Body :: jiffy:json_value()}.
 make_request(#{ return_headers := true } = Params) ->
     NormalizedParams = normalize_path(normalize_body(fill_default_server(Params))),
-    case fusco_request(NormalizedParams) of
-        {RCode, RHeaders, Body, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body, Params)};
-        {RCode, RHeaders, Body, _, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body, Params)}
-    end;
+    {RCode, RHeaders, Body, _, _} = fusco_request(NormalizedParams),
+    {RCode, normalize_headers(RHeaders), decode(Body, Params)};
 make_request(#{ return_headers := false } = Params) ->
     {Code, _, Body} = make_request(Params#{ return_headers := true }),
     {Code, Body};
@@ -142,20 +140,22 @@ fill_default_server(Params) ->
 
 decode(<<>>, _P) ->
     <<"">>;
-decode(RespBody, #{return_maps := true}) ->
+decode(RespBody, #{return_maps := true}) when is_binary(RespBody); is_list(RespBody) ->
     try
         jiffy:decode(RespBody, [return_maps])
     catch
         error:_ ->
             RespBody
     end;
-decode(RespBody, _P) ->
+decode(RespBody, _P) when is_binary(RespBody); is_list(RespBody) ->
     try
         jiffy:decode(RespBody)
     catch
         error:_ ->
             RespBody
-    end.
+    end;
+decode(Res, _) ->
+    Res.
 
 normalize_headers(Headers) ->
     lists:map(fun({K, V}) when is_binary(V) -> {K, V};
@@ -238,7 +238,7 @@ get_ssl_status(Role, Node) ->
 
 % @doc Changes the control credentials for admin by restarting the listener
 % with new options.
--spec change_admin_creds({User :: binary(), Password :: binary()}) -> 'ok' | 'error'.
+-spec change_admin_creds({User :: binary(), Password :: binary()} | any) -> 'ok' | 'error'.
 change_admin_creds(Creds) ->
     stop_admin_listener(),
     ok = start_admin_listener(Creds).
@@ -249,7 +249,7 @@ stop_admin_listener() ->
     [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     rpc(mim(), mongoose_listener, stop_listener, [Opts]).
 
--spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
+-spec start_admin_listener(Creds :: {binary(), binary()} | any) -> {'error', pid()} | 'ok'.
 start_admin_listener(Creds) ->
     Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
     [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
@@ -495,22 +495,6 @@ make_msg_stanza_with_thread_and_parent(ToJID, MsgID, ThreadID, ThreadParentID) -
             <thread parent='",ThreadParentID/binary,"'>",ThreadID/binary,"</thread>
         </message>">>).
 
-
-simple_request(Method, Path) when is_binary(Method)->
-    simple_request(Method, Path, <<>>).
-simple_request(Method, Path, Port) when is_binary(Method) and is_integer(Port) ->
-    simple_request(Method, Path, Port, <<>>).
-simple_request(Method, Path, Port, Body) ->
-    ReqParams = #{
-        role => client,
-        method => Method,
-        path => Path,
-        body => Body,
-        return_headers => true,
-        port => Port,
-        return_maps => true
-    },
-    rest_helper:make_request(ReqParams).
 
 assert_status(Status, {{S, _R}, _H, _B}) when is_integer(Status) ->
     ?assertEqual(integer_to_binary(Status), S).

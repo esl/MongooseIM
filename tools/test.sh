@@ -367,6 +367,14 @@ if [ "$PRESET" == "dialyzer_only" ]; then
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
+elif [ "$PRESET" == "dialyzer_big_tests" ]; then
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
+  cd big_tests
+  make dialyzer
+  RESULT=$?
+  ../tools/print-dots.sh stop
+  exit ${RESULT}
 elif [ "$PRESET" == "xref_only" ]; then
   tools/print-dots.sh start
   tools/print-dots.sh monitor $$

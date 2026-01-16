@@ -255,7 +255,7 @@ stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
 kv_el(K, V) ->
     #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
 
--spec to_lus(Config :: list(), UserAtom :: atom()) -> {binary(), binary()}.
+-spec to_lus(UserAtom :: atom() | escalus_client:client(), Config :: list()) -> {binary(), binary()}.
 to_lus(UserAtom, Config) when is_atom(UserAtom) ->
     {lbin(escalus_users:get_username(Config, UserAtom)),
      lbin(escalus_users:get_server(Config, UserAtom))};

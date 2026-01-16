@@ -228,7 +228,7 @@ no_user_error_get(Config) ->
 
 private_input() ->
     #xmlel{name = <<"my_element">>,
-           attrs = #{<<"xmlns">> => "alice:private:ns"},
+           attrs = #{<<"xmlns">> => <<"alice:private:ns">>},
            children = [#xmlcdata{content = <<"DATA">>}]}.
 
 % Admin private not configured test cases

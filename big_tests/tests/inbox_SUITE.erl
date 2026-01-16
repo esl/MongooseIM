@@ -9,6 +9,8 @@
 -include_lib("inbox.hrl").
 -include("muc_light.hrl").
 
+-dialyzer({nowarn_function, returns_error_when_unknown_field_sent/1}).
+
 %% tests
 -import(muc_light_helper, [room_bin_jid/1]).
 -import(inbox_helper, [
@@ -350,8 +352,8 @@ returns_error_when_no_reset_field_jid(Config) ->
 
 returns_error_when_first_bad_form_field_encountered(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:make_inbox_stanza(#{<<"start">> => <<"invalid">>,
-                                                  <<"end">> => <<"invalid">>}, false),
+        Stanza = inbox_helper:make_inbox_stanza(#{start => <<"invalid">>,
+                                                  'end' => <<"invalid">>}, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
@@ -361,12 +363,12 @@ returns_error_when_first_bad_form_field_encountered(Config) ->
 
 returns_error_when_unknown_field_sent(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:make_inbox_stanza(#{<<"unknown_field">> => <<"unknown_field_value">>}, false),
+        Stanza = inbox_helper:make_inbox_stanza(#{unknown_field => <<"unknown_field_value">>}, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
         ErrorMsg = inbox_helper:get_error_message(ResIQ),
-        inbox_helper:assert_message_content(ErrorMsg, <<"field=unknown_field">>, <<"value=unknown_field_value">>)
+        inbox_helper:assert_message_content(ErrorMsg, 'field=unknown_field', <<"value=unknown_field_value">>)
       end).
 
 
@@ -513,8 +515,8 @@ msg_sent_to_not_existing_user(Config) ->
 
 user_has_two_unread_messages(Config) ->
     escalus:fresh_story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
-        inbox_helper:send_msg(Kate, Mike, "Hello"),
-        inbox_helper:send_msg(Kate, Mike, "How are you"),
+        inbox_helper:send_msg(Kate, Mike, <<"Hello">>),
+        inbox_helper:send_msg(Kate, Mike, <<"How are you">>),
         %% Mike has two unread messages in conversation with Kate
         check_inbox(Mike, [#conv{unread = 2, from = Kate, to = Mike, content = <<"How are you">>}]),
         %% Kate has one conv in her inbox (no unread messages)
@@ -527,8 +529,8 @@ other_resources_do_not_interfere(Config) ->
         Prio = #xmlel{name = <<"priority">>, children = [#xmlcdata{content = <<"100">>}]},
         escalus_client:send(Kate2, escalus_stanza:presence(<<"available">>, [Prio])),
         escalus_client:wait_for_stanza(Kate),
-        inbox_helper:send_msg(Kate, Mike, "Hello"),
-        inbox_helper:send_msg(Kate, Mike, "How are you"),
+        inbox_helper:send_msg(Kate, Mike, <<"Hello">>),
+        inbox_helper:send_msg(Kate, Mike, <<"How are you">>),
         %% Mike has two unread messages in conversation with Kate
         check_inbox(Mike, [#conv{unread = 2, from = Kate, to = Mike, content = <<"How are you">>}]),
         %% Kate has one conv in her inbox (no unread messages)

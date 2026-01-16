@@ -16,6 +16,7 @@
 -module(connect_SUITE).
 
 -compile([export_all, nowarn_export_all]).
+-dialyzer({nowarn_function, connect_with_bad_xml/2}).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -695,10 +696,7 @@ close_connection_if_service_type_is_hidden(_Config) ->
     % GIVEN the option to hide service name is enabled
     % WHEN we send non-XMPP payload
     % THEN connection is closed without any response from the server
-    FailIfAnyDataReturned = fun(Reply) ->
-                                    ct:fail({unexpected_data, Reply})
-                            end,
-    Connection = escalus_tcp:connect(#{ on_reply => FailIfAnyDataReturned }),
+    Connection = escalus_tcp:connect(#{ on_reply => fun fail_if_ran/1 }),
     Ref = monitor(process, Connection),
     escalus_tcp:send(Connection, <<"malformed">>),
     receive
@@ -707,6 +705,10 @@ close_connection_if_service_type_is_hidden(_Config) ->
         5000 ->
             ct:fail(connection_not_closed)
     end.
+
+-spec fail_if_ran(term()) -> no_return().
+fail_if_ran(Reply) ->
+    ct:fail({unexpected_data, Reply}).
 
 close_connection_if_start_stream_duplicated(Config) ->
     close_connection_if_protocol_violation(Config, [start_stream, stream_features]).
@@ -837,7 +839,7 @@ configure_c2s_listener(Config, ExtraC2SOpts, RemovedC2SKeys) ->
     ct:pal("C2S listener: ~p", [NewC2SListener]),
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
-tls_opts(Mode, Config) ->
+tls_opts(Mode, _Config) ->
     ExtraOpts = #{mode => Mode, verify_mode => none,
                   cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, keyfile => ?KEY_FILE,
                   dhfile => ?DH_FILE},
@@ -889,7 +891,8 @@ pipeline_connect(UserSpec) ->
     Bind = escalus_stanza:bind(<<?MODULE_STRING "_resource">>),
     Session = escalus_stanza:session(),
 
-    escalus_connection:send(Conn, [Stream, Auth, Stream, Bind, Session]),
+    lists:foreach(fun(Stanza) -> escalus_connection:send(Conn, Stanza) end,
+                  [Stream, Auth, Stream, Bind, Session]),
     Conn.
 
 send_proxy_header(Conn, UnusedFeatures) ->
