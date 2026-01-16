@@ -12,7 +12,7 @@ enum ProtectionType{
   DEFAULT
 }
 
-directive @use(modules: [String!] = [], services: [String!] = [], arg: String)
+directive @use(modules: [String!] = [], services: [String!] = [], args: [String!] = [])
   on FIELD_DEFINITION | OBJECT
 
 """

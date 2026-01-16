@@ -125,7 +125,13 @@ use_directive() ->
      use_dir_auth_admin_module_service_and_db_not_loaded,
      use_dir_auth_user_module_service_and_db_not_loaded,
      use_dir_auth_admin_db_not_loaded,
-     use_dir_auth_user_db_not_loaded
+     use_dir_auth_user_db_not_loaded,
+     use_dir_multiple_args_module_loaded,
+     use_dir_multiple_args_module_partially_not_loaded,
+     use_dir_multiple_args_module_not_loaded,
+     use_dir_arg_list_module_loaded,
+     use_dir_arg_list_module_partially_not_loaded,
+     use_dir_arg_list_module_not_loaded
     ].
 
 user_listener() ->
@@ -298,7 +304,13 @@ init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
                                   C =:= use_dir_auth_user_module_service_and_db_not_loaded;
                                   C =:= use_dir_auth_admin_module_service_and_db_not_loaded;
                                   C =:= use_dir_auth_admin_db_not_loaded;
-                                  C =:= use_dir_auth_user_db_not_loaded ->
+                                  C =:= use_dir_auth_user_db_not_loaded;
+                                  C =:= use_dir_multiple_args_module_loaded;
+                                  C =:= use_dir_multiple_args_module_partially_not_loaded;
+                                  C =:= use_dir_multiple_args_module_not_loaded;
+                                  C =:= use_dir_arg_list_module_loaded;
+                                  C =:= use_dir_arg_list_module_partially_not_loaded;
+                                  C =:= use_dir_arg_list_module_not_loaded ->
     {Mapping, Pattern} = example_directives_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -1025,6 +1037,58 @@ use_dir_auth_user_db_not_loaded(Config) ->
 use_dir_auth_admin_db_not_loaded(Config) ->
     use_dir_auth_db_not_loaded(<<"admin">>, Config).
 
+use_dir_multiple_args_module_loaded(Config) ->
+    Doc = <<"{ catE { command(domain1: \"test-domain.com\", domain2: \"localhost\") } }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{data := #{<<"catE">> := #{<<"command">> := <<"command">>}}} = execute_ast(Config, Ctx2, Ast).
+
+use_dir_multiple_args_module_partially_not_loaded(Config) ->
+    Doc = <<"{ catE { command2(domain1: \"test-domain.com\", domain2: \"localhost\") } }">>,
+    use_dir_multiple_args_module_not_loaded(Config, Doc).
+
+use_dir_multiple_args_module_not_loaded(Config) ->
+    Doc = <<"{ catE { command2(domain1: \"test-domain.com\", domain2: \"test-domain.com\") } } ">>,
+    use_dir_multiple_args_module_not_loaded(Config, Doc).
+
+use_dir_multiple_args_module_not_loaded(Config, Doc) ->
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_b">>]},
+      message :=
+        <<"Some of the required modules are not loaded">>,
+      path := [<<"catE">>, <<"command2">>]
+     } = Error.
+
+use_dir_arg_list_module_loaded(Config) ->
+    Doc = <<"{ catE { command3(domains: [\"test-domain.com\", \"localhost\"]) } }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{data := #{<<"catE">> := #{<<"command3">> := <<"command3">>}}} = execute_ast(Config, Ctx2, Ast).
+
+use_dir_arg_list_module_partially_not_loaded(Config) ->
+    Doc = <<"{ catE { command4(domains: [\"test-domain.com\", \"localhost\"]) } }">>,
+    use_dir_arg_list_module_not_loaded(Config, Doc).
+
+use_dir_arg_list_module_not_loaded(Config) ->
+    Doc = <<"{ catE { command4(domains: [\"test-domain.com\", \"test-domain.com\"]) } }">>,
+    use_dir_arg_list_module_not_loaded(Config, Doc).
+
+use_dir_arg_list_module_not_loaded(Config, Doc) ->
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_b">>]},
+      message :=
+        <<"Some of the required modules are not loaded">>,
+      path := [<<"catE">>, <<"command4">>]
+     } = Error.
+
 %% Helpers
 
 assert_code(Code, Data) ->
@@ -1231,8 +1295,8 @@ meck_module_and_service_checking(Config) ->
     LoadedServices = [service_a, service_b],
     % gen_mod
     meck:new(gen_mod, [no_link]),
-    meck:expect(gen_mod, is_loaded,
-                fun (Domain, M) -> lists:member(M, maps:get(Domain, LoadedModules, [])) end),
+    meck:expect(gen_mod, loaded_modules,
+                fun(Domain) -> maps:get(Domain, LoadedModules, []) end),
     % mongoose_service
     meck:new(mongoose_service, [no_link]),
     meck:expect(mongoose_service, is_loaded, fun (M) -> lists:member(M, LoadedServices) end),

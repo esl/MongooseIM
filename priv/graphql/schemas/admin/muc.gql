@@ -4,37 +4,37 @@ Allow admin to manage Multi-User Chat rooms.
 type MUCAdminMutation @protected @use(modules: ["mod_muc"]){
   "Create a MUC room under the given XMPP hostname"
   createInstantRoom(room: BareJID!, owner: JID!, nick: ResourceName!): MUCRoomDesc
-    @protected(type: DOMAIN, args: ["owner"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["room"])
   "Invite a user to a MUC room"
   inviteUser(room: BareJID!, sender: JID!, recipient: JID!, reason: String): String
-    @protected(type: DOMAIN, args: ["sender"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["sender"]) @use(args: ["room"])
   "Kick a user from a MUC room"
   kickUser(room: BareJID!, nick: ResourceName!, reason: String): String
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Send a message to a MUC room"
   sendMessageToRoom(room: BareJID!, from: FullJID!, body: String!): String
-    @protected(type: DOMAIN, args: ["from"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["from"]) @use(args: ["room"])
   "Send a private message to a MUC room user"
   sendPrivateMessage(room: BareJID!, from: FullJID!, toNick: ResourceName!, body: String!): String
-    @protected(type: DOMAIN, args: ["from"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["from"]) @use(args: ["room"])
   "Remove a MUC room"
   deleteRoom(room: BareJID!, reason: String): String
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Change configuration of a MUC room"
   changeRoomConfiguration(room: BareJID!, config: MUCRoomConfigInput!): MUCRoomConfig
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Change a user role"
   setUserRole(room: BareJID!, nick: ResourceName!, role: MUCRole!): String
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Change a user affiliation"
   setUserAffiliation(room: BareJID!, user: JID!, affiliation: MUCAffiliation!): String
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Make a user enter the room with a given nick"
   enterRoom(room: BareJID!, user: FullJID!, nick: ResourceName!, password: String): String
-    @protected(type: DOMAIN, args: ["user"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["user"]) @use(args: ["room"])
   "Make a user with the given nick exit the room"
   exitRoom(room: BareJID!, user: FullJID!, nick: ResourceName!): String
-    @protected(type: DOMAIN, args: ["user"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["user"]) @use(args: ["room"])
 }
 
 """
@@ -43,17 +43,17 @@ Allow admin to get information about Multi-User Chat rooms.
 type MUCAdminQuery @protected @use(modules: ["mod_muc"]){
   "Get MUC rooms under the given MUC domain"
   listRooms(mucDomain: DomainName!, from: JID!, limit: PosInt, index: NonNegInt): MUCRoomsPayload
-    @protected(type: DOMAIN, args: ["from"]) @use(arg: "mucDomain")
+    @protected(type: DOMAIN, args: ["from"]) @use(args: ["mucDomain"])
   "Get configuration of the MUC room"
   getRoomConfig(room: BareJID!): MUCRoomConfig
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Get the user list of a given MUC room"
   listRoomUsers(room: BareJID!): [MUCRoomUser!]
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Get the affiliation list of given MUC room"
   listRoomAffiliations(room: BareJID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
   "Get the MUC room archived messages"
   getRoomMessages(room: BareJID!, pageSize: PosInt, before: DateTime): StanzasPayload
-    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room", modules: ["mod_mam_muc"])
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"], modules: ["mod_mam_muc"])
 }

@@ -1,25 +1,25 @@
 """
 Allow user to manage user rester/contacts.
 """
-type RosterUserMutation @protected{
+type RosterUserMutation @use(modules: ["mod_roster"]) @protected{
   "Add a new contact to a user's roster without subscription"
-  addContact(contact: JID!, name: String, groups: [String!]): String
+  addContact(contact: JID!, name: String, groups: [String!]): String @use
   "Add new contacts to a user's roster without subscription"
-  addContacts(contacts: [ContactInput!]!) : [String]!
+  addContacts(contacts: [ContactInput!]!) : [String] @use
   "Manage the user subscription to the contact"
-  subscription(contact: JID!, action: SubAction!): String
+  subscription(contact: JID!, action: SubAction!): String @use
   "Delete user's contact"
-  deleteContact(contact: JID!): String
+  deleteContact(contact: JID!): String @use
   "Delete user's contacts"
-  deleteContacts(contacts: [JID!]!): [String]!
+  deleteContacts(contacts: [JID!]!): [String] @use
 }
 
 """
 Allow user to get information about user roster/contacts.
 """
-type RosterUserQuery @protected{
+type RosterUserQuery @use(modules: ["mod_roster"]) @protected{
   "Get the user's roster/contacts"
-  listContacts: [Contact!]
+  listContacts: [Contact!] @use
   "Get the user's contact"
-  getContact(contact: JID!): Contact
+  getContact(contact: JID!): Contact @use
 }
