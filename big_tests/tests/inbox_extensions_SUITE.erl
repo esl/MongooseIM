@@ -361,7 +361,7 @@ box_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{box, archive}]),
         % But then Alice keeps writing:
-        inbox_helper:send_msg(Alice, Bob, Body),
+        send_msg_expect_broadcast_and_receipt(Alice, Bob, Body),
         % Then the conversation is automatically in the inbox and not in the archive box
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
                                  #{box => inbox}),
@@ -377,6 +377,7 @@ box_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         set_inbox_properties(Alice, Bob, [{box, archive}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
+        wait_for_auto_unarchive_broadcast(Alice, Bob, true),
         % Then the conversation is automatically in the inbox and not in the archive box
         inbox_helper:check_inbox(Alice, [], #{box => archive}),
         inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
@@ -492,7 +493,7 @@ archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % But then Alice keeps writing:
-        inbox_helper:send_msg(Alice, Bob, Body),
+        send_msg_expect_broadcast_and_receipt(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
                                  #{archive => false}),
@@ -508,11 +509,17 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         set_inbox_properties(Alice, Bob, [{archive, true}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
+        wait_for_auto_unarchive_broadcast(Alice, Bob, true),
         % Then the conversation is automatically in the active and not in the archive box
         inbox_helper:check_inbox(Alice, [], #{archive => true}),
         inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
                                  #{archive => false})
     end).
+
+wait_for_auto_unarchive_broadcast(User, Remote, ReadVal) ->
+    Properties = [{jid, escalus_utils:get_short_jid(Remote)},
+                  {box, inbox}, {archive, false}, {read, ReadVal}],
+    check_message_with_properties(User, undefined, Properties, #{}).
 
 archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -894,15 +901,25 @@ set_inbox_properties(From, To, Properties, QueryOpts) ->
     check_message_with_properties(From, Stanza, Properties, QueryOpts),
     check_iq_result_for_property(From, Stanza).
 
--spec check_message_with_properties(escalus:client(), exml:element(), proplists:proplist(), map()) -> ok.
+-spec check_message_with_properties(escalus:client(), exml:element() | undefined, proplists:proplist(), map()) -> true.
 check_message_with_properties(From, Stanza, Properties, QueryOpts) ->
     Message = escalus:wait_for_stanza(From),
+    check_message_pushed(Message, Stanza, Properties, QueryOpts).
+
+-spec check_message_pushed(exml:element(), exml:element() | undefined, proplists:proplist(), map()) -> true.
+check_message_pushed(Message, Stanza, Properties, QueryOpts) ->
     ?assert(escalus_pred:is_message(Message)),
-    ?assert(has_same_id(Stanza, Message)),
+    case Stanza of
+        undefined -> ok;
+        _ -> ?assert(has_same_id(Stanza, Message))
+    end,
     [X] = exml_query:subelements(Message, <<"x">>),
+    ok = assert_conversation_properties(X, Properties, QueryOpts),
+    true.
+
+assert_conversation_properties(X, Properties, QueryOpts) ->
     ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
     inbox_helper:maybe_check_queryid(X, QueryOpts),
-    % ?assertEqual(QueryId, exml_query:attr(X, <<"queryid">>)),
     lists:foreach(fun({Key, Val}) -> assert_property(X, Key, Val) end, Properties).
 
 -spec check_iq_result_for_property(escalus:client(), exml:element()) -> ok.
@@ -952,6 +969,8 @@ props_to_children([{Key, Value} | Rest], Acc) ->
     props_to_children(Rest,
       [#xmlel{name = to_bin(Key), children = [#xmlcdata{content = to_bin(Value)}]} | Acc]).
 
+assert_property(X, jid, Val) ->
+    ?assertEqual(to_bin(Val), exml_query:attr(X, <<"jid">>));
 assert_property(X, read, Val) ->
     ?assertEqual(to_bin(Val), exml_query:path(X, [{element, <<"read">>}, cdata]));
 assert_property(X, box, Val) ->
@@ -997,3 +1016,34 @@ verify_returns_error(User, Params, Error) ->
     escalus:assert(is_iq_error, [Stanza], ResIQ),
     Type = exml_query:path(ResIQ, [{element, <<"error">>}, {element, Error}]),
     ?assertNotEqual(undefined, Type).
+
+send_msg_expect_broadcast_and_receipt(Sender, Receiver, Body) ->
+    MsgId = escalus_stanza:id(),
+    Msg = escalus_stanza:set_id(escalus_stanza:chat_to(Receiver, Body), MsgId),
+    escalus:send(Sender, Msg),
+
+    [Stanza1, Stanza2] = escalus:wait_for_stanzas(Receiver, 2),
+
+    BroadcastPred = fun(S) ->
+        is_broadcast_stanza(S) andalso
+            check_message_pushed(S, undefined,
+                                 [{jid, escalus_utils:get_short_jid(Sender)},
+                                  {box, inbox}, {archive, false}, {read, false}],
+                                 #{})
+    end,
+
+    escalus:assert_many([BroadcastPred,
+                        fun(S) -> is_valid_chat_message(S, MsgId) end],
+                       [Stanza1, Stanza2]).
+
+is_broadcast_stanza(Msg) ->
+    escalus_pred:is_message(Msg) andalso
+    case exml_query:subelements(Msg, <<"x">>) of
+        [X] -> exml_query:attr(X, <<"xmlns">>) == inbox_helper:inbox_ns_conversation();
+        _ -> false
+    end.
+
+is_valid_chat_message(Msg, MsgId) ->
+    escalus_pred:is_chat_message(Msg) andalso
+    exml_query:attr(Msg, <<"id">>) == MsgId.
+
