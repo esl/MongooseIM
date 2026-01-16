@@ -96,7 +96,7 @@ groups() ->
                            listen_http_protocol,
                            listen_http_handlers_invalid,
                            listen_http_handlers_bosh,
-                           listen_http_handlers_websockets,
+                           listen_http_handlers_websocket,
                            listen_http_handlers_client_api,
                            listen_http_handlers_admin_api,
                            listen_http_handlers_graphql]},
@@ -573,8 +573,8 @@ listen_http_handlers_invalid(_Config) ->
 listen_http_handlers_bosh(_Config) ->
     test_listen_http_handler(mongoose_bosh_handler).
 
-listen_http_handlers_websockets(_Config) ->
-    {P, T} = test_listen_http_handler(mod_websockets),
+listen_http_handlers_websocket(_Config) ->
+    {P, T} = test_listen_http_handler(mongoose_websocket_handler),
     ?cfg(P ++ [timeout], 30000, T(#{<<"timeout">> => 30000})),
     ?cfg(P ++ [ping_rate], 20, T(#{<<"ping_rate">> => 20})),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
