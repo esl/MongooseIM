@@ -1,6 +1,5 @@
-%%% @doc A proxy interface module between the main mod_bosh module and the backend modules.
-%%% There is only one backend implementation (mnesia), so the backend module is global.
--module(mod_bosh_backend).
+-module(service_bosh_backend).
+-moduledoc "A proxy interface module between the main service_bosh module and the backend modules.".
 
 -export([start/1,
          create_session/1,
@@ -9,42 +8,42 @@
          get_sessions/0,
          node_cleanup/1]).
 
--define(MAIN_MODULE, mod_bosh).
+-define(MAIN_MODULE, service_bosh).
 
 %% Callbacks
 
 -callback start() -> any().
 
--callback create_session(mod_bosh:session()) -> any().
+-callback create_session(service_bosh:session()) -> any().
 
--callback delete_session(mod_bosh:sid()) -> any().
+-callback delete_session(service_bosh:sid()) -> any().
 
--callback get_session(mod_bosh:sid()) -> [mod_bosh:session()].
+-callback get_session(service_bosh:sid()) -> [service_bosh:session()].
 
--callback get_sessions() -> [mod_bosh:session()].
+-callback get_sessions() -> [service_bosh:session()].
 
 -callback node_cleanup(Node :: atom()) -> any().
 
 %% API Functions
 
--spec start(gen_mod:module_opts()) -> any().
+-spec start(mongoose_service:options()) -> any().
 start(Opts) ->
     mongoose_backend:init(global, ?MAIN_MODULE, [], Opts),
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, []).
 
--spec create_session(mod_bosh:session()) -> any().
+-spec create_session(service_bosh:session()) -> any().
 create_session(Session) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [Session]).
 
--spec delete_session(mod_bosh:sid()) -> any().
+-spec delete_session(service_bosh:sid()) -> any().
 delete_session(Sid) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [Sid]).
 
--spec get_session(mod_bosh:sid()) -> [mod_bosh:session()].
+-spec get_session(service_bosh:sid()) -> [service_bosh:session()].
 get_session(Sid) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [Sid]).
 
--spec get_sessions() -> [mod_bosh:session()].
+-spec get_sessions() -> [service_bosh:session()].
 get_sessions() ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, []).
 

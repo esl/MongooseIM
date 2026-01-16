@@ -1,13 +1,16 @@
--module(mod_bosh_socket).
+-module(mongoose_bosh_socket).
+-moduledoc """
+This module allows mongoose_c2s to communicate with a BOSH connection.
+Also, it implements the state machine for handling incoming data.
+""".
 
 -behaviour(gen_fsm_compat).
 -behaviour(mongoose_xmpp_socket).
 
 %% API
--export([start/5,
-         start_link/5,
+-export([start/4,
+         start_link/4,
          start_supervisor/0,
-         is_supervisor_started/0,
          stop_supervisor/0,
          handle_request/2,
          pause/2]).
@@ -43,17 +46,16 @@
          terminate/3,
          code_change/4]).
 
--ignore_xref([{mod_bosh_backend, delete_session, 1},
-              accumulate/2, accumulate/3, closing/2,
+-ignore_xref([accumulate/2, accumulate/3, closing/2,
               closing/3, get_cached_responses/1,
               get_client_acks/1, get_handlers/1, get_peer_certificate/1,
               get_pending/1, normal/2, normal/3,
-              pause/2, set_client_acks/2, start_link/5]).
+              pause/2, set_client_acks/2, start_link/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--include("mod_bosh.hrl").
+-include("mongoose_bosh.hrl").
 -define(ACCUMULATE_PERIOD, 10).
 -define(DEFAULT_HOLD, 1).
 -define(CONCURRENT_REQUESTS, 2).
@@ -69,13 +71,13 @@
                 handlers = []   :: [{rid(), reference(), pid()}],
                 %% Elements buffered for sending to the client.
                 pending = []    :: [jlib:xmlstreamel()],
-                sid             :: mod_bosh:sid(),
+                sid             :: service_bosh:sid(),
                 wait = ?DEFAULT_WAIT :: integer(),
                 hold = ?DEFAULT_HOLD :: integer(),
                 rid             :: rid() | undefined,
                 %% Requests deferred for later processing because
                 %% of having Rid greater than expected.
-                deferred = []   :: [{rid(), {mod_bosh:event_type(), exml:element()}}],
+                deferred = []   :: [{rid(), {mongoose_bosh_handler:event_type(), exml:element()}}],
                 client_acks = ?DEFAULT_CLIENT_ACKS :: boolean(),
                 sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
@@ -103,17 +105,16 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
-            binary() | undefined, map()) ->
+-spec start(service_bosh:sid(), mongoose_transport:peer(), binary() | undefined, map()) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(HostType, Sid, Peer, PeerCert, Opts) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [HostType, Sid, Peer, PeerCert, Opts]).
+start(Sid, Peer, PeerCert, Opts) ->
+    supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer, PeerCert, Opts]).
 
--spec start_link(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
+-spec start_link(service_bosh:sid(), mongoose_transport:peer(),
                  binary() | undefined, map()) ->
     'ignore' | {'error', _} | {'ok', pid()}.
-start_link(HostType, Sid, Peer, PeerCert, Opts) ->
-    gen_fsm_compat:start_link(?MODULE, [{HostType, Sid, Peer, PeerCert, Opts}], []).
+start_link(Sid, Peer, PeerCert, Opts) ->
+    gen_fsm_compat:start_link(?MODULE, [{Sid, Peer, PeerCert, Opts}], []).
 
 -spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
@@ -132,16 +133,12 @@ start_supervisor() ->
             {error, Reason}
     end.
 
--spec is_supervisor_started() -> boolean().
-is_supervisor_started() ->
-    is_pid(whereis(?BOSH_SOCKET_SUP)).
-
 -spec stop_supervisor() -> ok | {error, any()}.
 stop_supervisor() ->
     ejabberd_sup:stop_child(?BOSH_SOCKET_SUP).
 
 -spec handle_request(Pid :: pid(),
-                    {EventTag :: mod_bosh:event_type(),
+                    {EventTag :: mongoose_bosh_handler:event_type(),
                      Handler :: pid(),
                      Body :: exml:element()}) -> ok.
 handle_request(Pid, Request) ->
@@ -192,10 +189,10 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
--spec init([{mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(), undefined |
+-spec init([{service_bosh:sid(), mongoose_transport:peer(), undefined |
              binary(), map()}]) ->
     {ok, accumulate, state()}.
-init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
+init([{Sid, Peer, PeerCert, ListenerOpts}]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = ListenerOpts#{access => all,
                             shaper => none,
@@ -205,7 +202,7 @@ init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
                             backwards_compatible_session => true,
                             proto => tcp},
     {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
-    Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
+    Opts = mongoose_config:get_opt([services, service_bosh]),
     State = new_state(Sid, C2SPid, Opts),
     ?LOG_DEBUG(ls(#{what => bosh_socket_init, peer => Peer}, State)),
     {ok, accumulate, State}.
@@ -426,7 +423,7 @@ handle_info(Info, SName, State) ->
 
 terminate(Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
-    mod_bosh_backend:delete_session(Sid),
+    service_bosh:delete_session(Sid),
     mongoose_c2s:stop(S#state.c2s_pid, normal),
     ?LOG_DEBUG(ls(#{what => bosh_socket_closing_session, reason => Reason,
                     state_name => StateName, handlers => Handlers,
@@ -506,7 +503,7 @@ resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
 
 
--spec process_acked_stream_event({EventTag :: mod_bosh:event_type(),
+-spec process_acked_stream_event({EventTag :: mongoose_bosh_handler:event_type(),
                                     Body :: exml:element(),
                                     Rid :: 'undefined' | rid()},
                                 SName :: any(),
@@ -603,7 +600,7 @@ maybe_send_report(#state{} = S) ->
     send_or_store([], S).
 
 
--spec process_stream_event(mod_bosh:event_type(), exml:element(), _SName,
+-spec process_stream_event(mongoose_bosh_handler:event_type(), exml:element(), _SName,
                            state()) -> state().
 process_stream_event(pause, Body, SName, State) ->
     Seconds = binary_to_integer(exml_query:attr(Body, <<"pause">>)),
@@ -841,7 +838,7 @@ return_surplus_handlers(SName, #state{pending = Pending} = S)
     send_or_store(Pending, S#state{pending = []}).
 
 
--spec bosh_unwrap(EventTag :: mod_bosh:event_type(), exml:element(), state())
+-spec bosh_unwrap(EventTag :: mongoose_bosh_handler:event_type(), exml:element(), state())
     -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
   when StreamEvent =:= streamstart ->
@@ -1054,25 +1051,25 @@ ignore_undefined(Map) ->
 
 %% mongoose_xmpp_socket callbacks
 
--spec peername(mod_bosh:socket()) -> mongoose_transport:peer().
+-spec peername(service_bosh:socket()) -> mongoose_transport:peer().
 peername(#bosh_socket{peer = Peer}) ->
     Peer.
 
--spec tcp_to_tls(mod_bosh:socket(), mongoose_listener:options(), mongoose_xmpp_socket:side()) ->
-  {ok, mod_bosh:socket()} | {error, term()}.
+-spec tcp_to_tls(service_bosh:socket(), mongoose_listener:options(), mongoose_xmpp_socket:side()) ->
+  {ok, service_bosh:socket()} | {error, term()}.
 tcp_to_tls(_Socket, _LOpts, server) ->
     {error, tcp_to_tls_not_allowed_on_bosh}.
 
--spec handle_data(mod_bosh:socket(), {tcp | ssl, term(), iodata()}) ->
+-spec handle_data(service_bosh:socket(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
 handle_data(_Socket, {_Kind, _Term, Packet}) ->
     {raw, [Packet]}.
 
--spec activate(mod_bosh:socket()) -> ok.
+-spec activate(service_bosh:socket()) -> ok.
 activate(_Socket) ->
     ok.
 
--spec send_xml(mod_bosh:socket(),
+-spec send_xml(service_bosh:socket(),
                       iodata() | exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
 send_xml(#bosh_socket{pid = Pid}, XMLs) when is_list(XMLs) ->
@@ -1082,12 +1079,12 @@ send_xml(#bosh_socket{pid = Pid}, XML) ->
     Pid ! {send, XML},
     ok.
 
--spec close(mod_bosh:socket()) -> ok.
+-spec close(service_bosh:socket()) -> ok.
 close(#bosh_socket{pid = Pid}) ->
     Pid ! close,
     ok.
 
--spec get_peer_certificate(mod_bosh:socket()) ->
+-spec get_peer_certificate(service_bosh:socket()) ->
     mongoose_transport:peercert_return().
 get_peer_certificate(#bosh_socket{peercert = undefined}) ->
     no_peer_cert;
@@ -1095,19 +1092,19 @@ get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
     Decoded = public_key:pkix_decode_cert(PeerCert, plain),
     {ok, Decoded}.
 
--spec has_peer_cert(mod_bosh:socket(), mongoose_listener:options()) -> boolean().
+-spec has_peer_cert(service_bosh:socket(), mongoose_listener:options()) -> boolean().
 has_peer_cert(Socket, _) ->
     get_peer_certificate(Socket) /= no_peer_cert.
 
--spec is_channel_binding_supported(mod_bosh:socket()) -> boolean().
+-spec is_channel_binding_supported(service_bosh:socket()) -> boolean().
 is_channel_binding_supported(_Socket) ->
     false.
 
--spec export_key_materials(mod_bosh:socket(), _, _, _, _) -> {error, atom()}.
+-spec export_key_materials(service_bosh:socket(), _, _, _, _) -> {error, atom()}.
 export_key_materials(_Socket, _, _, _, _) ->
     {error, export_key_materials_not_allowed_on_bosh}.
 
--spec is_ssl(mod_bosh:socket()) -> boolean().
+-spec is_ssl(service_bosh:socket()) -> boolean().
 is_ssl(_Socket) ->
     false.
 

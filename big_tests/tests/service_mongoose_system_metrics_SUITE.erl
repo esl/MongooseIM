@@ -223,7 +223,6 @@ module_opts_are_reported(_Config) ->
     wait_helper:wait_until(fun are_modules_reported/0, true),
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     MemBackend = ct_helper:get_internal_database(),
-    check_module_backend(mod_bosh, MemBackend),
     check_module_backend(mod_event_pusher, push),
     check_module_backend(mod_event_pusher_push, Backend),
     check_module_backend(mod_http_upload, s3),
@@ -346,8 +345,7 @@ required_modules(CaseName) ->
 modules_to_test(module_opts_are_reported) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     MemBackend = ct_helper:get_internal_database(),
-    [required_module(mod_bosh, #{backend => MemBackend}),
-     required_module(mod_event_pusher,
+    [required_module(mod_event_pusher,
                      #{push => config([modules, mod_event_pusher, push], #{backend => Backend})}),
      required_module(mod_http_upload, s3),
      required_module(mod_last, Backend),
