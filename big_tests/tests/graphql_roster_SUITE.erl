@@ -162,8 +162,7 @@ init_per_group(domain_admin, Config) ->
     ensure_roster_started(Config),
     graphql_helper:init_domain_admin_handler(Config);
 init_per_group(GroupName, Config) when GroupName == user_configured;
-                                       GroupName == admin_configured;
-                                       GroupName == domain_admin ->
+                                       GroupName == admin_configured ->
     ensure_roster_started(Config),
     Config;
 init_per_group(GroupName, Config) when GroupName == user_not_configured;
@@ -175,7 +174,8 @@ end_per_group(GroupName, _Config) when GroupName == user;
                                        GroupName == admin_http;
                                        GroupName == admin_cli;
                                        GroupName == domain_admin ->
-    graphql_helper:clean();
+    graphql_helper:clean(),
+    escalus_fresh:clean();
 end_per_group(_GroupName, _Config) ->
     escalus_fresh:clean().
 

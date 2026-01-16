@@ -8,5 +8,6 @@ directive @use(
   services: [String!] = [],
   "The list of internal databases used by the category or command"
   internal_databases: [String!] = [],
-  "The name of argument that contains domain or host type"
-  arg: String) on FIELD_DEFINITION | OBJECT
+  "The argument names that contains domains or host types"
+  args: [String!] = []
+) on FIELD_DEFINITION | OBJECT
