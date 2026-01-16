@@ -145,12 +145,13 @@ get_api() ->
                              end, #{}, ApiList)}].
 
 filter_unknown_api(ApiList) ->
-    AllowedToReport = [mongoose_client_api, mongoose_admin_api, mongoose_bosh_handler, mod_websockets],
+    AllowedToReport = [mongoose_client_api, mongoose_admin_api,
+                       mongoose_bosh_handler, mongoose_websocket_handler],
     [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 
 get_transport_mechanisms() ->
     HTTP = [Mod || Mod <- get_http_handler_modules(),
-                   Mod =:= mongoose_bosh_handler orelse Mod =:= mod_websockets],
+                   Mod =:= mongoose_bosh_handler orelse Mod =:= mongoose_websocket_handler],
     TCP = lists:usort([tcp || #{proto := tcp} <- get_listeners(mongoose_c2s_listener)]),
     [#{name => transport_mechanism,
        params => lists:foldl(fun(Element, Acc) ->
