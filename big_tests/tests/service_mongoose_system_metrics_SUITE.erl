@@ -94,8 +94,9 @@ init_per_group(exometer_instrumentation, Config) ->
     %% Disable prometheus to test exometer
     %% (the default config has both prometheus and exometer enabled,
     %% but prometheus takes precedence in detect_metrics_module/0)
-    InstrumentationConfig = #{exometer => #{}},
-    mongoose_helper:backup_and_set_config_option(Config, instrumentation, InstrumentationConfig);
+    InstrumentationConfig = mongoose_helper:successful_rpc(mongoose_config, get_opt, [instrumentation]),
+    ExometerOnlyConfig = maps:remove(prometheus, InstrumentationConfig),
+    mongoose_helper:backup_and_set_config_option(Config, instrumentation, ExometerOnlyConfig);
 init_per_group(_GroupName, Config) ->
     Config.
 
