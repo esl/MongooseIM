@@ -335,8 +335,8 @@ Since Exometer doesn't support labels, `ConnType` is included in the metrics nam
     | `tcp_data_out_byte_size` | `connection_type` | counter | Amount of data sent to a client, another XMPP server or component via TCP channel. |
     | `tls_data_in_byte_size` | `connection_type` | counter | Amount of data received from a client, another XMPP server or component via TLS channel. |
     | `tls_data_out_byte_size` | `connection_type` | counter | Amount of data sent to a client, another XMPP server or component via TLS channel. |
-    | `mod_bosh_data_received_byte_size` | - | counter | Amount of data received from a client via BOSH connection. |
-    | `mod_bosh_data_sent_byte_size` | - | counter | Amount of data sent to a client via BOSH connection. |
+    | `bosh_data_received_byte_size` | - | counter | Amount of data received from a client via BOSH connection. |
+    | `bosh_data_sent_byte_size` | - | counter | Amount of data sent to a client via BOSH connection. |
     | `mod_websocket_data_received_byte_size` | - | counter | Amount of data received from a client via WebSocket connection. |
     | `mod_websocket_data_sent_byte_size` | - | counter | Amount of data sent to a client via WebSocket connection. |
 
@@ -348,8 +348,8 @@ Since Exometer doesn't support labels, `ConnType` is included in the metrics nam
     | `[global, tcp_data_out, ConnType, byte_size]` | spiral | Amount of data sent to a client, another XMPP server or component via TCP channel. |
     | `[global, tls_data_in, ConnType, byte_size]` | spiral | Amount of data received from a client, another XMPP server or component via TLS channel. |
     | `[global, tls_data_out, ConnType, byte_size]` | spiral | Amount of data sent to a client, another XMPP server or component via TLS channel. |
-    | `[global, mod_bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
-    | `[global, mod_bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
+    | `[global, bosh_data_received, byte_size]` | spiral | Amount of data received from a client via BOSH connection. |
+    | `[global, bosh_data_sent, byte_size]` | spiral | Amount of data sent to a client via BOSH connection. |
     | `[global, mod_websocket_data_received, byte_size]` | spiral | Amount of data received from a client via WebSocket connection. |
     | `[global, mod_websocket_data_sent, byte_size]` | spiral | Amount of data sent to a client via WebSocket connection. |
 

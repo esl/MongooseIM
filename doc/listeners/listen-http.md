@@ -11,7 +11,7 @@ For each HTTP listener, all the [general](../configuration/listen.md#general-lis
 ### `listen.http.handlers`
 * **Syntax:** each handler is specified in a subsection starting with `[[listen.http.handlers.type]]` where `type` is one of the allowed handler types, handling different connection types:
 
-    * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
+    * `mongoose_bosh_handler` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
     * `mod_websockets` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
     * `mongoose_prometheus_handler` - for [Prometheus](https://prometheus.io/) metrics,
     * `mongoose_graphql_handler` - for GraphQL API,
@@ -23,7 +23,7 @@ For each HTTP listener, all the [general](../configuration/listen.md#general-lis
 * **Default:** `[]` - no handlers enabled, all of them need to be specified explicitly.
 * **Example:** two handlers, one for BOSH and one for WebSockets
 ```toml
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
@@ -48,10 +48,10 @@ Host name for this handler or `"_"` for any host.
 
 Path for this handler.
 
-## Handler types: BOSH - `mod_bosh`
+## Handler types: BOSH - `mongoose_bosh_handler`
 
 The recommended configuration is shown in [Example 1](#example-1-bosh-and-ws) below.
-To handle incoming BOSH traffic you need to configure the `mod_bosh` module in the `modules` section as well.
+To handle incoming BOSH traffic you need to configure [`service_bosh`](../configuration/Services.md#service_bosh) in the `services` section as well.
 
 ## Handler types: WebSockets - `mod_websockets`
 
@@ -244,7 +244,7 @@ The following listener accepts BOSH and WebSocket connections and has TLS config
   tls.keyfile = "mykey.pem"
   tls.password =  "secret"
 
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 

@@ -100,7 +100,7 @@ Certificate authentication only.
   tls.cacertfile = "ca.pem"
   tls.verify_peer = true
 
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
