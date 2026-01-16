@@ -49,7 +49,9 @@ api_list_users_pagination(_C) ->
     ?assertEqual([{<<"u2">>, Domain}], Res4),
 
     %% Cleanup
-    lists:foreach(fun(U) -> mnesia:dirty_delete({passwd, {U, Domain}}) end, Users).
+    lists:foreach(fun(U) ->
+        ejabberd_auth_internal:remove_user(host_type(), U, Domain)
+    end, Users).
 
 resolver_list_users_pagination(_C) ->
     Domain = <<"resolver.com">>,
@@ -83,7 +85,9 @@ resolver_list_users_pagination(_C) ->
     ?assertEqual([{ok, <<"u3@resolver.com">>}], Res4),
 
     %% Cleanup
-    lists:foreach(fun(U) -> mnesia:dirty_delete({passwd, {U, Domain}}) end, Users).
+    lists:foreach(fun(U) ->
+        ejabberd_auth_internal:remove_user(host_type(), U, Domain)
+    end, Users).
 
 pagination_utils(_C) ->
     Users = [<<"u3">>, <<"u1">>, <<"u2">>],

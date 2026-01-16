@@ -176,10 +176,8 @@ init_per_testcase(admin_list_users_pagination = C, Config) ->
     Domain = domain_helper:domain(),
     Username1 = <<"user1">>,
     Username2 = <<"user2">>,
-    JID1 = <<Username1/binary, "@", Domain/binary>>,
-    JID2 = <<Username2/binary, "@", Domain/binary>>,
-    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID1), <<"pass">>]),
-    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(JID2), <<"pass">>]),
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(<<Username1/binary, "@", Domain/binary>>), <<"pass">>]),
+    rpc(mim(), ejabberd_auth, try_register, [jid:from_binary(<<Username2/binary, "@", Domain/binary>>), <<"pass">>]),
     Config1 = [{pagination_users, {Username1, Username2, Domain}} | Config],
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(CaseName, Config) ->

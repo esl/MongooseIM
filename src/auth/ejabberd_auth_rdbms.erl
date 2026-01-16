@@ -515,19 +515,16 @@ extract_list_users_opts(Opts) ->
                                Limit :: integer() | undefined,
                                Offset :: integer()}) ->
           mongoose_rdbms:query_result().
-select_list_users_query(HostType, LServer, {undefined, undefined, Offset}) when is_integer(Offset) ->
+select_list_users_query(HostType, LServer, {undefined, undefined, _Offset}) ->
     %% No prefix, no limit. Offset (if any) is applied in maybe_apply_offset_only/3.
     execute_successfully(HostType, auth_list_users, [LServer]);
-select_list_users_query(HostType, LServer, {undefined, Limit, Offset})
-        when is_integer(Limit), is_integer(Offset) ->
+select_list_users_query(HostType, LServer, {undefined, Limit, Offset}) ->
     %% No prefix, with limit → fetch range
     execute_successfully(HostType, auth_list_users_range, [LServer, Limit, Offset]);
-select_list_users_query(HostType, LServer, {Prefix, undefined, Offset})
-        when is_binary(Prefix), is_integer(Offset) ->
+select_list_users_query(HostType, LServer, {Prefix, undefined, _Offset}) when is_binary(Prefix) ->
     %% With prefix, no limit. Offset (if any) is applied in maybe_apply_offset_only/3.
     execute_successfully(HostType, auth_list_users_prefix, [LServer, prefix_to_like(Prefix)]);
-select_list_users_query(HostType, LServer, {Prefix, Limit, Offset})
-        when is_binary(Prefix), is_integer(Limit), is_integer(Offset) ->
+select_list_users_query(HostType, LServer, {Prefix, Limit, Offset}) when is_binary(Prefix) ->
     %% With prefix and limit → fetch range of matching
     execute_successfully(HostType, auth_list_users_prefix_range,
                          [LServer, prefix_to_like(Prefix), Limit, Offset]).

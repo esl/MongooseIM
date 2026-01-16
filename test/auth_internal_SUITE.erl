@@ -96,7 +96,7 @@ get_registered_users_pagination(_C) ->
 
     Users = [<<"u1">>, <<"u2">>, <<"u3">>, <<"u4">>, <<"u5">>],
     lists:foreach(fun(U) ->
-        mnesia:dirty_write({passwd, {U, Domain}, <<"password">>})
+        ejabberd_auth_internal:try_register(host_type(), U, Domain, <<"password">>)
     end, Users),
 
     %% Limit
@@ -117,7 +117,7 @@ get_registered_users_pagination(_C) ->
 
     %% Cleanup
     lists:foreach(fun(U) ->
-        mnesia:dirty_delete({passwd, {U, Domain}})
+        ejabberd_auth_internal:remove_user(host_type(), U, Domain)
     end, Users).
 
 gen_user() ->
