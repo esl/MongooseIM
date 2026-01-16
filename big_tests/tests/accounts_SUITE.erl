@@ -379,7 +379,7 @@ list_selected_users(_Config) ->
     ?assertEqual([Bob], rpc(mim(), ejabberd_auth, get_vh_registered_users,
                             [domain(), #{limit => 1, offset => 1}])),
     ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
-                              [domain(), #{prefix => <<"a">>}]))),
+                              [domain(), #{prefix => <<"a">>}])),
     ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
                               [domain(), #{prefix => <<"a">>, limit => 1, offset => 0}])),
     ?assertEqual([Bob], rpc(mim(), ejabberd_auth, get_vh_registered_users,
