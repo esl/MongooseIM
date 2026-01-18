@@ -66,7 +66,9 @@ parallel_props() ->
     case rpc(mim(), mongoose_rdbms, db_engine, [host_type()]) of
         cockroachdb ->
             %% Parallel pubsub tests are flaky on CockroachDB
-            [parallel, {repeat_until_all_ok, 5}];
+            %% [parallel, {repeat_until_all_ok, 5}];
+            [parallel, {repeat_until_any_fail, 50}];
+            %% [parallel];
         _ ->
             [parallel]
     end.
