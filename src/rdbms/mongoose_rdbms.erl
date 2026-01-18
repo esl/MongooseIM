@@ -66,7 +66,6 @@
          execute_request/3, execute_request/4,
          execute_wrapped_request/4, execute_wrapped_request/5,
          execute_successfully/3, execute_successfully/4,
-         execute_successfully_with_retry/7,
          sql_query/2, sql_query/3,
          sql_query_cast/2, sql_query_cast/3,
          sql_query_request/2, sql_query_request/3,
@@ -295,53 +294,6 @@ query_name_to_string(Name) ->
             not_found;
         [{_, _Table, _Fields, Statement}] ->
             Statement
-    end.
-
-execute_successfully_with_retry(HostType, PoolTag, Name, Parameters, Retries, Delay, Info) ->
-    try execute(HostType, PoolTag, Name, Parameters) of
-        {selected, _} = Result ->
-            ?LOG_WARNING(Info#{what => sql_execute_success_retrying, retries_left => Retries}),
-            Result;
-        {updated, _} = Result ->
-            ?LOG_WARNING(Info#{what => sql_execute_success_retrying, retries_left => Retries}),
-            Result;
-        {aborted, Reason} when Retries > 0 ->
-            ?LOG_WARNING(Info#{what => sql_execute_aborted_retrying_result, host => HostType, statement_name => Name,
-                    statement_query => query_name_to_string(Name),
-                    statement_params => Parameters, reason => Reason, retries_left => Retries}),
-            timer:sleep(Delay),
-            execute_successfully_with_retry(HostType, PoolTag, Name, Parameters, Retries - 1, Delay, Info);
-        {aborted, Reason} ->
-            Log = Info#{what => sql_execute_aborted_retrying_no_retries_left, host => HostType, statement_name => Name,
-                    statement_query => query_name_to_string(Name),
-                    statement_params => Parameters, reason => Reason},
-            error(Log);
-        Other ->
-            Log = #{what => sql_execute_failed_retrying, host => HostType, statement_name => Name,
-                    statement_query => query_name_to_string(Name),
-                    statement_params => Parameters, reason => Other},
-            ?LOG_ERROR(Log),
-            error(Log)
-    catch Error:Reason:Stacktrace when Retries > 0 ->
-            SQL_State = case get_state() of
-                undefined ->
-                    undefined;
-                #state{db_ref = DBRef, query_timeout = QueryTimeout} = State ->
-                    sql_query_internal([<<"rollback;">>], State),
-                    {DBRef, QueryTimeout}
-            end,
-            ?LOG_WARNING(Info#{what => sql_execute_exception_retrying, host => HostType, statement_name => Name,
-                    statement_query => query_name_to_string(Name), error => Error, sql_state => SQL_State,
-                    statement_params => Parameters, reason => Reason, retries_left => Retries}),
-            timer:sleep(Delay),
-            execute_successfully_with_retry(HostType, PoolTag, Name, Parameters, Retries - 1, Delay, Info);
-          _:Reason:Stacktrace ->
-            Log = Info#{what => sql_execute_exception_retrying_no_retries_left, host => HostType, statement_name => Name,
-                    statement_query => query_name_to_string(Name),
-                    statement_params => Parameters,
-                    reason => Reason, stacktrace => Stacktrace},
-            ?LOG_ERROR(Log),
-            erlang:raise(error, Reason, Stacktrace)
     end.
 
 -spec sql_query(mongooseim:host_type_or_global(), Query :: any()) -> query_result().
