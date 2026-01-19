@@ -54,14 +54,17 @@
 -export_type([session/0,
               sid/0,
               event_type/0,
-              socket/0
+              socket/0,
+              rstate/0,
+              req/0,
+              info/0
              ]).
 
 -type socket() :: #bosh_socket{}.
 -type session() :: #bosh_session{
-                      sid :: mod_bosh:sid(),
-                      socket :: pid()
-                     }.
+                    sid :: mod_bosh:sid(),
+                    socket :: pid()
+                   }.
 -type sid() :: binary().
 -type event_type() :: streamstart
                     | restart
@@ -73,7 +76,7 @@
 
 %% Request State
 -record(rstate, {req_sid, opts}).
--type rstate() :: #rstate{}.
+-opaque rstate() :: #rstate{}.
 -type req() :: cowboy_req:req().
 
 -type info() :: accept_options

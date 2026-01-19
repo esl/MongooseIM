@@ -358,11 +358,11 @@ process_local_iq(Acc, _From, _To, IQ = #iq{type = get}, _Extra) ->
                                       ]}]}}.
 
 -spec process_sm_iq(Acc :: mongoose_acc:t(),
-                    From :: jid:jid(),
-                    To :: jid:jid(),
-                    IQ :: jlib:iq(),
-                    Extra :: map()) ->
-     {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+                From :: jid:jid(),
+                To :: jid:jid(),
+                IQ :: #iq{},
+                Extra :: map()) ->
+    {stop, mongoose_acc:t()} | {mongoose_acc:t(), #iq{}}.
 process_sm_iq(Acc, From, To, IQ = #iq{type = set, sub_el = VCARD}, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     process_sm_iq_set(HostType, From, To, Acc, IQ, VCARD);
@@ -470,6 +470,8 @@ remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := 
 %% ------------------------------------------------------------------
 %% Internal
 %% ------------------------------------------------------------------
+-spec do_route(mongooseim:host_type(), binary(), jid:jid(), jid:jid(), mongoose_acc:t(),
+                             invalid | not_iq | #iq{}) -> any().
 do_route(_HostType, _LServer, From,
          #jid{luser = LUser, lresource = LResource} = To, Acc, _IQ)
   when (LUser /= <<>>) or (LResource /= <<>>) ->

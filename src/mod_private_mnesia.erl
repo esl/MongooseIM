@@ -75,7 +75,7 @@ get_all_nss(_HostType, LUser, LServer) ->
 %% @doc Return stored value or default.
 get_data(LUser, LServer, NS, Default) ->
     case mnesia:dirty_read(private_storage, {LUser, LServer, NS}) of
-        [#private_storage{xml=XML}] -> XML;
+        [#private_storage{xml = XML}] -> XML;
         [] -> Default
     end.
 
@@ -95,7 +95,7 @@ remove_domain(_HostType, _LServer) ->
 select_namespaces_t(LUser, LServer) ->
     Result = mnesia:select(
         private_storage,
-        [{#private_storage{usns={LUser, LServer, '$1'}, _ = '_'},
+        [{#private_storage{usns = {LUser, LServer, '$1'}, _ = '_'},
          [],
          ['$$']}]),
     [NS || [NS] <- Result].

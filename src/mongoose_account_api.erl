@@ -2,6 +2,7 @@
 -module(mongoose_account_api).
 
 -export([list_users/1,
+         list_users/2,
          count_users/1,
          register_user/3,
          register_generated_user/2,
@@ -39,16 +40,21 @@
               check_password_result/0,
               check_password_hash_result/0,
               check_account_result/0,
-              list_user_result/0]).
+              list_user_result/0,
+              count_user_result/0]).
 
 %% API
 
 -spec list_users(jid:server()) -> list_user_result().
 list_users(Domain) ->
+    list_users(Domain, #{}).
+
+-spec list_users(jid:server(), map()) -> list_user_result().
+list_users(Domain, Opts) ->
     PrepDomain = jid:nameprep(Domain),
     case mongoose_domain_api:get_domain_host_type(PrepDomain) of
         {ok, _} ->
-            Users = ejabberd_auth:get_vh_registered_users(PrepDomain),
+            Users = ejabberd_auth:get_vh_registered_users(PrepDomain, Opts),
             SUsers = lists:sort(Users),
             {ok, [jid:to_binary(US) || US <- SUsers]};
         {error, not_found} ->
@@ -166,7 +172,7 @@ check_password_hash(JID, PasswordHash, HashMethod) ->
             {wrong_method, Msg};
         {_, PasswordHash} ->
             {ok, "Password hash is correct"};
-        _->
+        _ ->
             {incorrect, "Password hash is incorrect"}
     end.
 

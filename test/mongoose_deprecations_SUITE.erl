@@ -87,13 +87,13 @@ default_lvl_is_error(_Config) ->
 % One can specify the level error on warning. It does not affect the default
 % level.
 specified_lvl_logged_default_stays(_Config) ->
-    mongoose_deprecations:log(some_tag, ?LOG_MSG, 
+    mongoose_deprecations:log(some_tag, ?LOG_MSG,
                               [{cooldown, ?TEST_COOLDOWN},
                                {log_level, warning}]),
     timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),
     mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
     timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),
-    mongoose_deprecations:log(some_tag, ?LOG_MSG, 
+    mongoose_deprecations:log(some_tag, ?LOG_MSG,
                               [{cooldown, ?TEST_COOLDOWN},
                                {log_level, warning}]),
     timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),

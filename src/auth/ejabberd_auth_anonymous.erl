@@ -233,10 +233,18 @@ set_password(HostType, LUser, LServer, _Password) ->
             {error, not_allowed}
     end.
 
--spec get_registered_users(mongooseim:host_type(), jid:lserver(), list()) ->
+-spec get_registered_users(mongooseim:host_type(), jid:lserver(), map()) ->
           [jid:simple_bare_jid()].
-get_registered_users(_HostType, LServer, _) ->
-    [{U, S} || #session{us = {U, S}} <- ejabberd_sm:get_vh_session_list(LServer)].
+get_registered_users(_HostType, LServer, Opts) ->
+    Users = [{U, S} || #session{us = {U, S}} <- ejabberd_sm:get_vh_session_list(LServer)],
+    Limit = maps:get(limit, Opts, undefined),
+    Offset = maps:get(offset, Opts, 0),
+    case {Limit, Offset} of
+        {undefined, 0} -> Users;
+        _ ->
+            SortedUsers = lists:sort(Users),
+            mongoose_pagination_utils:slice(SortedUsers, Limit, Offset)
+    end.
 
 %% @doc Return password of permanent user or false for anonymous users
 -spec get_password(HostType :: mongooseim:host_type(),
@@ -263,12 +271,12 @@ supports_sasl_module(HostType, cyrsasl_plain) ->
 supports_sasl_module(HostType, cyrsasl_digest) ->
     is_protocol_enabled(HostType, login_anon);
 supports_sasl_module(HostType, Mechanism) ->
-   case mongoose_scram:enabled(HostType, Mechanism) of
-      true ->
-          is_protocol_enabled(HostType, login_anon);
-      _ ->
-          false
-end.
+    case mongoose_scram:enabled(HostType, Mechanism) of
+        true ->
+            is_protocol_enabled(HostType, login_anon);
+        _ ->
+            false
+    end.
 
 %% @doc Returns true if the requested anonymous protocol is enabled
 -spec is_protocol_enabled(mongooseim:host_type(), sasl_anon | login_anon) -> boolean().

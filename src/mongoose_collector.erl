@@ -58,7 +58,7 @@ handle_info(Info, State) ->
     ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
-schedule_check(State = #watchdog{interval = Interval}) ->
+schedule_check(#watchdog{interval = Interval} = State) ->
     State#watchdog{timer_ref = erlang:start_timer(Interval, self(), run_action)}.
 
 run_action(#watchdog{host_type = HostType, action = Fun, opts = Opts}) ->

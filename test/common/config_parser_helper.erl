@@ -1120,7 +1120,9 @@ default_config([instrumentation, exometer, report, Name]) ->
             Common#{module => exometer_report_graphite,
                     port => 2003,
                     connect_timeout => 5000,
-                    api_key => ""}
+                    api_key => ""};
+        _ ->
+            Common
     end;
 default_config([instrumentation, _]) ->
     #{};

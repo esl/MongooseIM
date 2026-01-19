@@ -93,4 +93,7 @@ trails() ->
   PathClientApiRoomsConfig = "/api/rooms/[:id]/config",
 
   %% Trail all data
-  [trails:trail(PathClientApiRoomsConfig, mongoose_client_api_rooms_config, #{path => PathClientApiRoomsConfig}, MetadataClientApiRoomConfig)].
+  [trails:trail(PathClientApiRoomsConfig,
+                mongoose_client_api_rooms_config,
+                #{path => PathClientApiRoomsConfig},
+                MetadataClientApiRoomConfig)].

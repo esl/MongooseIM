@@ -121,9 +121,9 @@ get_ldap_attr(LDAPAttr, Attributes) ->
 get_user_part(String, Pattern) ->
     F = fun(S, P) ->
         {First, _} = binary:match(P, <<"%u">>),
-                TailLength = byte_size(P) - (First+1),
-        binary:part(S, First, byte_size(S)-TailLength-First+1)
-        end,
+        TailLength = byte_size(P) - (First + 1),
+        binary:part(S, First, byte_size(S) - TailLength - First + 1)
+    end,
     case catch F(String, Pattern) of
             {'EXIT', _} ->
                 {error, badmatch};
@@ -144,19 +144,19 @@ get_user_part(String, Pattern) ->
 
 -spec generate_substring_list(binary())
       -> [{'any', binary()} | {'final', binary()} | {'initial', binary()}].
-generate_substring_list(Value)->
+generate_substring_list(Value) ->
     Splits = binary:split(Value, <<"*">>, [global]),
-    {Acc, S}=case Splits of
-        [<<"">>|T]->{[], maybe_b2list(T)};
-        [H|T]-> {[{initial, maybe_b2list(H)}], T}
+    {Acc, S} = case Splits of
+        [<<"">> | T] -> {[], maybe_b2list(T)};
+        [H | T] -> {[{initial, maybe_b2list(H)}], T}
     end,
     lists:reverse(generate_substring_list(S, Acc)).
-generate_substring_list([<<"">>], Acc)->
+generate_substring_list([<<"">>], Acc) ->
     Acc;
-generate_substring_list([Last], Acc)->
-    [{final, Last}|Acc];
-generate_substring_list([H|T], Acc)->
-    generate_substring_list(T, [{any, H}|Acc]).
+generate_substring_list([Last], Acc) ->
+    [{final, Last} | Acc];
+generate_substring_list([H | T], Acc) ->
+    generate_substring_list(T, [{any, H} | Acc]).
 
 
 -spec make_filter([{binary(), [binary()]}], [{binary(), binary()}]) -> any().
@@ -264,18 +264,18 @@ singleton_value(_) ->
 -define(N_EMBEDDED_PDV, 11).
 -define(N_SEQUENCE, 16).
 -define(N_SET, 17).
--define(N_NumericString, 18).
--define(N_PrintableString, 19).
--define(N_TeletexString, 20).
--define(N_VideotexString, 21).
--define(N_IA5String, 22).
--define(N_UTCTime, 23).
--define(N_GeneralizedTime, 24).
--define(N_GraphicString, 25).
--define(N_VisibleString, 26).
--define(N_GeneralString, 27).
--define(N_UniversalString, 28).
--define(N_BMPString, 30).
+-define(N_NUMERIC_STRING, 18).
+-define(N_PRINTABLE_STRING, 19).
+-define(N_TELETEX_STRING, 20).
+-define(N_VIDEOTEX_STRING, 21).
+-define(N_IA5_STRING, 22).
+-define(N_UTC_TIME, 23).
+-define(N_GENERALIZED_TIME, 24).
+-define(N_GRAPHIC_STRING, 25).
+-define(N_VISIBLE_STRING, 26).
+-define(N_GENERAL_STRING, 27).
+-define(N_UNIVERSAL_STRING, 28).
+-define(N_BMP_STRING, 30).
 
 
 -spec decode_octet_string(_, _, list()) -> binary().
@@ -289,7 +289,7 @@ decode_restricted_string(Tlv, Range, TagsIn) ->
     Val = match_tags(Tlv, TagsIn),
     Val2 =
         case Val of
-            PartList = [_H|_T] -> % constructed val
+            PartList = [_H | _T] -> % constructed val
                 collect_parts(PartList);
             Bin ->
                 Bin
@@ -299,11 +299,11 @@ decode_restricted_string(Tlv, Range, TagsIn) ->
 
 -spec check_and_convert_restricted_string(iolist(), _) -> binary().
 check_and_convert_restricted_string(Val, Range) ->
-    {StrLen, NewVal} = if is_binary(Val) ->
-                              {size(Val), Val};
-                         true ->
-                              {length(Val), list_to_binary(Val)}
-                      end,
+    {StrLen, NewVal} =
+        case is_binary(Val) of
+            true -> {size(Val), Val};
+            false -> {length(Val), list_to_binary(Val)}
+        end,
     case Range of
         [] -> % No length constraint
             NewVal;
@@ -311,7 +311,7 @@ check_and_convert_restricted_string(Val, Range) ->
             NewVal;
         {{Lb, _Ub}, []} when StrLen >= Lb ->
             NewVal;
-        {{Lb, _Ub}, _Ext=[Min|_]} when StrLen >= Lb; StrLen >= Min ->
+        {{Lb, _Ub}, _Ext = [Min | _]} when StrLen >= Lb; StrLen >= Min ->
             NewVal;
         {{Lb1, Ub1}, {Lb2, Ub2}} when StrLen >= Lb1, StrLen =< Ub1;
                                    StrLen =< Ub2, StrLen >= Lb2 ->
@@ -331,15 +331,15 @@ check_and_convert_restricted_string(Val, Range) ->
 %%----------------------------------------
 match_tags({T, V}, [T]) ->
     V;
-match_tags({T, V}, [T|Tt]) ->
+match_tags({T, V}, [T | Tt]) ->
     match_tags(V, Tt);
-match_tags([{T, V}], [T|Tt]) ->
+match_tags([{T, V}], [T | Tt]) ->
     match_tags(V, Tt);
-match_tags(Vlist = [{T, _V}|_], [T]) ->
+match_tags(Vlist = [{T, _V} | _], [T]) ->
     Vlist;
 match_tags(Tlv, []) ->
     Tlv;
-match_tags({Tag, _V}, [T|_Tt]) ->
+match_tags({Tag, _V}, [T | _Tt]) ->
     {error, {asn1, {wrong_tag, {Tag, T}}}}.
 
 
@@ -349,32 +349,32 @@ collect_parts(TlvList) ->
 
 
 -spec collect_parts([{_, _}], [any()]) -> binary().
-collect_parts([{_, L}|Rest], Acc) when is_list(L) ->
-    collect_parts(Rest, [collect_parts(L)|Acc]);
-collect_parts([{?N_BIT_STRING, <<Unused, Bits/binary>>}|Rest], _Acc) ->
+collect_parts([{_, L} | Rest], Acc) when is_list(L) ->
+    collect_parts(Rest, [collect_parts(L) | Acc]);
+collect_parts([{?N_BIT_STRING, <<Unused, Bits/binary>>} | Rest], _Acc) ->
     collect_parts_bit(Rest, [Bits], Unused);
-collect_parts([{_T, V}|Rest], Acc) ->
-    collect_parts(Rest, [V|Acc]);
+collect_parts([{_T, V} | Rest], Acc) ->
+    collect_parts(Rest, [V | Acc]);
 collect_parts([], Acc) ->
     list_to_binary(lists:reverse(Acc)).
 
 
 -spec collect_parts_bit([{3, binary()}], [binary(), ...], non_neg_integer()) -> binary().
-collect_parts_bit([{?N_BIT_STRING, <<Unused, Bits/binary>>}|Rest], Acc, Uacc) ->
-    collect_parts_bit(Rest, [Bits|Acc], Unused+Uacc);
+collect_parts_bit([{?N_BIT_STRING, <<Unused, Bits/binary>>} | Rest], Acc, Uacc) ->
+    collect_parts_bit(Rest, [Bits | Acc], Unused + Uacc);
 collect_parts_bit([], Acc, Uacc) ->
-    maybe_list2b([Uacc|lists:reverse(Acc)]).
+    maybe_list2b([Uacc | lists:reverse(Acc)]).
 
 maybe_b2list(B) when is_binary(B) ->
-  binary_to_list(B);
+    binary_to_list(B);
 maybe_b2list(L) when is_list(L) ->
-  L;
+    L;
 maybe_b2list(O) ->
-  {error, {unknown_type, O}}.
+    {error, {unknown_type, O}}.
 
 maybe_list2b(L) when is_list(L) ->
-  list_to_binary(L);
+    list_to_binary(L);
 maybe_list2b(B) when is_binary(B) ->
-  B;
+    B;
 maybe_list2b(O) ->
-  {error, {unknown_type, O}}.
+    {error, {unknown_type, O}}.

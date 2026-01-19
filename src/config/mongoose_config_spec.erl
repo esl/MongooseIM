@@ -934,7 +934,7 @@ process_dynamic_domains(Items) ->
                     Items;
                 {Methods, Modules} ->
                     error(#{what => dynamic_domains_not_supported,
-                            text => ("Dynamic modules not supported by the specified authentication "
+                            text => ("Dynamic domains not supported by the specified authentication "
                                      "methods and/or extension modules"),
                             unsupported_auth_methods => Methods,
                             unsupported_modules => Modules})

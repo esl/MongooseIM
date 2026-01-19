@@ -32,7 +32,7 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
--export_type([rule_name/0]).
+-export_type([rule_name/0, rule_clause/0, acl_result/0]).
 
 %% A rule consists of clauses matched from top to bottom
 %% Each clause returns specific values (results) for specific acl's

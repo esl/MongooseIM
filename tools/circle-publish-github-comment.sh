@@ -137,13 +137,16 @@ fi
 
 COUNTERS_FILE=/tmp/ct_stats_vars
 COUNTERS_BODY=""
+STATUS_LINE=""
 if [ -f "$COUNTERS_FILE" ]; then
     . "$COUNTERS_FILE"
     COUNTERS_BODY="**OK: $CT_COUNTER_OK** "
     if [ "$CT_COUNTER_FAILED" != "0" ]; then
         COUNTERS_BODY="$COUNTERS_BODY/ **Failed: $CT_COUNTER_FAILED** "
+        STATUS_LINE="Status: 🔴 Failed"$'\n'
     else
         COUNTERS_BODY="$COUNTERS_BODY/ Failed: 0 "
+        STATUS_LINE="Status: 🟢 Passed"$'\n'
     fi
     if [ "$CT_COUNTER_USER_SKIPPED" != "0" ]; then
         COUNTERS_BODY="$COUNTERS_BODY/ **User-skipped: $CT_COUNTER_USER_SKIPPED** "
@@ -171,12 +174,14 @@ JOB_URL="$CIRCLE_BUILD_URL"
 DESC_BODY="[$CIRCLE_JOB]($JOB_URL) / $PRESET / $CIRCLE_SHA1"$'\n'
 # This file is created by ct_markdown_errors_hook
 ERRORS_BODY="$(cat /tmp/ct_markdown || echo '/tmp/ct_markdown missing')"
-COMMENT_MARKER="<!-- circleci-comment:${CIRCLE_SHA1} -->"
+
+# One persistent marker per PR so subsequent commits edit the same comment
+COMMENT_MARKER="<!-- circleci-comment:pr-${PR_NUM} -->"
 SECTION_BEGIN="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:begin -->"
 SECTION_END="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:end -->"
 
-SECTION_BODY="${DESC_BODY}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"$'\n'
-SECTION="${SECTION_BEGIN}"$'\n'"${SECTION_BODY}"$'\n'"${SECTION_END}"$'\n'
+SECTION_BODY="${DESC_BODY}${STATUS_LINE}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"$'\n'
+SECTION="${SECTION_BEGIN}"$'\n'"---"$'\n'"${SECTION_BODY}"$'\n'"${SECTION_END}"$'\n'
 
 # Body for a brand new comment
 BODY_NEW="CircleCI results for $CIRCLE_SHA1"$'\n'$'\n'"${SECTION}"$'\n'"${COMMENT_MARKER}"$'\n'

@@ -292,9 +292,8 @@ is_room_owner(HostType, Acc, UserJid, RoomJid) ->
                               UserJid :: jid:jid(),
                               RoomJid :: jid:jid()) -> boolean().
 is_user_identity_hidden(HostType, UserJid, RoomJid) ->
-    case mongoose_hooks:can_access_identity(HostType, RoomJid, UserJid) of
-        CanAccess when is_boolean(CanAccess) -> not CanAccess
-    end.
+    CanAccess = mongoose_hooks:can_access_identity(HostType, RoomJid, UserJid),
+    not CanAccess.
 
 -spec can_access_room(HostType :: host_type(),
                       Acc :: mongoose_acc:t(),
@@ -607,7 +606,8 @@ handle_error_iq(Acc, _HostType, _To, _Action, IQ) ->
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
-    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout in mod_mam_muc">>)]}};
+    ErrEl = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout in mod_mam_muc">>),
+    {error, timeout, IQ#iq{type = error, sub_el = [ErrEl]}};
 return_error_iq(IQ, invalid_stanza_id) ->
     Text = mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"Invalid stanza ID provided">>),
     {error, invalid_stanza_id, IQ#iq{type = error, sub_el = [Text]}};
@@ -615,7 +615,8 @@ return_error_iq(IQ, item_not_found) ->
     Text = mongoose_xmpp_errors:item_not_found(<<"en">>, <<"Message with specified ID is not found">>),
     {error, item_not_found, IQ#iq{type = error, sub_el = [Text]}};
 return_error_iq(IQ, not_implemented) ->
-    {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_mam_muc">>)]}};
+    ErrEl = mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_mam_muc">>),
+    {error, not_implemented, IQ#iq{type = error, sub_el = [ErrEl]}};
 return_error_iq(IQ, missing_with_jid) ->
     Error =  mongoose_xmpp_errors:bad_request(<<"en">>,
                                <<"Limited set of queries allowed in the conversation mode.",

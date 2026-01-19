@@ -137,6 +137,6 @@ remove_domain(HostType, LServer) ->
     case mongoose_backend:is_exported(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, 2) of
         true ->
             mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args);
-        false -> 
+        false ->
             ok
     end.

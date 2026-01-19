@@ -10,6 +10,8 @@
 -include("mongoose_rsm.hrl").
 -include("mongoose_logger.hrl").
 
+-export_type([stream/0]).
+
 -type stream() :: #{jid := jid:jid(),
                     sid := ejabberd_sm:sid(),
                     host_type := mongooseim:host_type()}.
@@ -69,21 +71,21 @@ close_session(#{jid := Jid = #jid{lserver = S}, sid := Sid, host_type := HostTyp
 %% Steps
 
 %% @doc Determine the user's bare JID and the 'from' JID, and check if they match
-check_sender(M = #{user := User = #jid{}, from := From = #jid{}}) ->
+check_sender(#{user := #jid{} = User, from := #jid{} = From} = M) ->
     case jid:are_bare_equal(User, From) of
         true ->
             M#{check_user => false};
         false ->
             {invalid_sender, <<"Sender's JID is different from the user's JID">>}
     end;
-check_sender(M = #{from := From = #jid{}}) ->
+check_sender(#{from := #jid{} = From} = M) ->
     M#{user => jid:to_bare(From), check_user => true};
-check_sender(M = #{user := User = #jid{}}) ->
+check_sender(#{user := #jid{} = User} = M) ->
     M#{from => User, check_user => false};
 check_sender(#{}) ->
     {no_sender, <<"Missing sender JID">>}.
 
-extract_from_jid(M = #{stanza := Stanza}) ->
+extract_from_jid(#{stanza := Stanza} = M) ->
     case exml_query:attr(Stanza, <<"from">>) of
         undefined ->
             M;
@@ -94,7 +96,7 @@ extract_from_jid(M = #{stanza := Stanza}) ->
             end
     end.
 
-extract_to_jid(M = #{stanza := Stanza}) ->
+extract_to_jid(#{stanza := Stanza} = M) ->
     case exml_query:attr(Stanza, <<"to">>) of
         undefined ->
             {no_recipient, <<"Missing recipient JID">>};
@@ -105,20 +107,20 @@ extract_to_jid(M = #{stanza := Stanza}) ->
             end
     end.
 
-prepare_chat_message(M = #{from := From, to := To, body := Body}) ->
+prepare_chat_message(#{from := From, to := To, body := Body} = M) ->
     FromBin = jid:to_binary(From),
     ToBin = jid:to_binary(To),
     M#{stanza => build_chat_message(FromBin, ToBin, Body)}.
 
-prepare_headline_message(M = #{from := From, to := To, body := Body, subject := Subject}) ->
+prepare_headline_message(#{from := From, to := To, body := Body, subject := Subject} = M) ->
     FromBin = jid:to_binary(From),
     ToBin = jid:to_binary(To),
     M#{stanza => build_headline_message(FromBin, ToBin, Body, Subject)}.
 
-prepare_stanza(M = #{stanza := Stanza}) ->
+prepare_stanza(#{stanza := Stanza} = M) ->
     M#{stanza := ensure_id(Stanza)}.
 
-get_host_type(M = #{user := #jid{lserver = LServer}}) ->
+get_host_type(#{user := #jid{lserver = LServer}} = M) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             M#{host_type => HostType};
@@ -126,9 +128,9 @@ get_host_type(M = #{user := #jid{lserver = LServer}}) ->
             {unknown_user, <<"User's domain does not exist">>}
     end.
 
-check_user(M = #{check_user := false}) ->
+check_user(#{check_user := false} = M) ->
     M;
-check_user(M = #{check_user := true, user := UserJid, host_type := HostType}) ->
+check_user(#{check_user := true, user := UserJid, host_type := HostType} = M) ->
     case ejabberd_auth:does_user_exist(HostType, UserJid, stored) of
         true ->
             M;
@@ -175,13 +177,13 @@ lookup_messages(#{user := UserJid, with := WithJid, before := Before, limit := L
     {ok, {_, _, Rows}} = mod_mam_pm:lookup_messages(HostType, Params),
     {ok, {Rows, Limit2}}.
 
-do_open_session(#{host_type := HostType, user := JID}) ->
-    SID = ejabberd_sm:make_new_sid(),
+do_open_session(#{host_type := HostType, user := Jid}) ->
+    Sid = ejabberd_sm:make_new_sid(),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Resource = <<"sse-", UUID/binary>>,
-    NewJid = jid:replace_resource(JID, Resource),
-    ejabberd_sm:open_session(HostType, SID, NewJid, 1, #{}),
-    {ok, #{sid => SID, jid => NewJid, host_type => HostType}}.
+    NewJid = jid:replace_resource(Jid, Resource),
+    ejabberd_sm:open_session(HostType, Sid, NewJid, 1, #{}),
+    {ok, #{sid => Sid, jid => NewJid, host_type => HostType}}.
 
 %% Helpers
 

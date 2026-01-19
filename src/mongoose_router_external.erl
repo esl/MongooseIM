@@ -27,7 +27,7 @@ route(From, To, Acc0, Packet) ->
     case mongoose_component:lookup_component(LDstDomain) of
         [] ->
             {From, To, Acc0, Packet};
-        [#external_component{handler = Handler}|_] -> %% may be multiple on various nodes
+        [#external_component{handler = Handler} | _] -> %% may be multiple on various nodes
             Acc1 = mongoose_local_delivery:do_route(From, To, Acc0, Packet, Handler),
             {done, Acc1}
     end.

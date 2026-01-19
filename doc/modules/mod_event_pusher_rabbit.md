@@ -68,7 +68,7 @@ Defines RabbitMQ chat message exchange name.
 
 Defines RabbitMQ chat message exchange type.
 
-### `modules.mod_event_pusher.rabbit.presence_exchange.durable`
+### `modules.mod_event_pusher.rabbit.chat_msg_exchange.durable`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `durable = true`
@@ -108,7 +108,7 @@ Defines RabbitMQ group chat message exchange name.
 
 Defines RabbitMQ group chat message exchange type.
 
-### `modules.mod_event_pusher.rabbit.presence_exchange.durable`
+### `modules.mod_event_pusher.rabbit.groupchat_msg_exchange.durable`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `durable = true`

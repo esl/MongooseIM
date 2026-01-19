@@ -10,6 +10,8 @@
 
 -define(MAIN_MODULE, mod_private).
 
+-export_type([ns/0, ns_xml/0]).
+
 -type ns() :: binary().
 -type ns_xml() :: {ns(), exml:element()}.
 

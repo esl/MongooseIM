@@ -20,14 +20,19 @@ PREFIX="${CT_REPORTS//\//_}"
 # and with reasonable directory names
 LOG_DIR_ROOT=${CT_REPORTS}/logs/${PREFIX}_${now}
 LOG_ZIP=${CT_REPORTS_FULL}/logs_${PREFIX}_${now}.tar.gz
+mkdir -p "${LOG_DIR_ROOT}"
 for dev_node_logs_path in `find _build -name log -type d`; do
 	dev_node=$(basename $(dirname $(dirname $(dirname ${dev_node_logs_path}))))
         LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/
 	mkdir -p ${LOG_DIR}
-	mv ${dev_node_logs_path}/* ${LOG_DIR}
+  if compgen -G "${dev_node_logs_path}/*" > /dev/null; then
+      mv ${dev_node_logs_path}/* ${LOG_DIR}
+  fi
 done
 
-mv *.log ${LOG_DIR_ROOT}
+if compgen -G "*.log" > /dev/null; then
+  mv *.log "${LOG_DIR_ROOT}"
+fi
 mv big_tests/*.log ${LOG_DIR_ROOT} || true
 
 # cd so we don't include nested dirs in the archive (for example, PR/4366/236412)

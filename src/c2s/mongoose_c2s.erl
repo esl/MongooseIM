@@ -112,7 +112,10 @@ handle_event(internal, #xmlstreamerror{name = <<"element too big">> = Err}, _, S
     c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(StateData#c2s_data.lang, Err));
 handle_event(internal, #xmlstreamerror{name = Err}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(StateData#c2s_data.lang, Err));
-handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, SaslAcc, Retries}, StateData) ->
+handle_event(internal,
+             #xmlel{name = <<"starttls">>} = El,
+             {wait_for_feature_before_auth, SaslAcc, Retries},
+             StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_TLS ->
             handle_starttls(StateData, El, SaslAcc, Retries);
@@ -342,7 +345,7 @@ handle_stream_start(S0, Attrs, StreamState) ->
         {authenticated, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
             S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
             stream_start_features_after_auth(S);
-        {_, ?NS_STREAM, _Pre1_0, {ok, HostType}} ->
+        {_, ?NS_STREAM, _Pre10, {ok, HostType}} ->
             %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
             S = S0#c2s_data{host_type = HostType, lserver = LServer, jid = From, lang = Lang},
             stream_start_error(S, mongoose_xmpp_errors:unsupported_version());
