@@ -181,6 +181,10 @@ executors:
     docker:
       - image: *LATEST_OTP
     resource_class: medium+
+  latest_otp_large:
+    docker:
+      - image: *LATEST_OTP
+    resource_class: large
   legacy_otp_redis:
     docker:
       - image: *LEGACY_OTP
@@ -943,10 +947,10 @@ workflows:
           filters: *all_tags
       - dialyzer_big_tests:
           name: dialyzer_28_big_tests
-          executor: otp_28
+          executor: latest_otp_large
           context: mongooseim-org
           requires:
-            - otp_28_docker
+            - latest_otp_docker
           filters: *all_tags
       # ============= XREF =============
       - xref:
