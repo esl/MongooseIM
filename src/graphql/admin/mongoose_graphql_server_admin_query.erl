@@ -28,7 +28,14 @@ status_code(true) -> <<"RUNNING">>;
 status_code(false) -> <<"NOT_RUNNING">>.
 
 all_host_types() ->
-    mongoose_config:get_opt(hosts) ++ mongoose_config:get_opt(host_types).
+    Hosts = mongoose_config:get_opt(hosts),
+    HostTypes = mongoose_config:get_opt(host_types),
+    HostTypesFromHosts = host_types_from_hosts(Hosts),
+    lists:usort(HostTypes ++ HostTypesFromHosts).
+
+host_types_from_hosts(Hosts) ->
+    [HostType || Host <- Hosts,
+                 {ok, HostType} <- [mongoose_domain_api:get_host_type(Host)]].
 
 host_type_info(HostType) ->
     Domains = lists:sort(mongoose_domain_api:get_domains_by_host_type(HostType)),
@@ -54,7 +61,10 @@ get_loaded_services() ->
 
 get_internal_databases() ->
     InternalDatabasesWithOpts = mongoose_config:get_opt(internal_databases),
-    lists:sort(maps:keys(InternalDatabasesWithOpts)).
+    case is_map(InternalDatabasesWithOpts) of
+        true -> lists:sort(maps:keys(InternalDatabasesWithOpts));
+        false -> []
+    end.
 
 module_info(_, Module, Opts) ->
     #{<<"name">> => atom_to_binary(Module, utf8),
