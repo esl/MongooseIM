@@ -7,6 +7,7 @@
 % Inbox extensions
 -export([process_iq_conversation/5]).
 -export([should_be_stored_in_inbox/1]).
+-export([broadcast_inbox_update/5]).
 
 -type entry_query() :: mod_inbox:entry_properties().
 
@@ -116,21 +117,25 @@ process_requests(Acc, IQ, From, EntryJID, Params) ->
 
 -spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties()) ->
     {mongoose_acc:t(), jlib:iq()}.
-forward_result(Acc, IQ = #iq{id = IqId}, From, {_, _, ToBareJidBin}, Result) ->
+forward_result(Acc, IQ = #iq{id = IqId, sub_el = Query}, From, {_, _, ToBareJidBin}, Result) ->
     Children0 = build_query_children(Acc, Result, IQ, only_properties),
-    Children1 = iq_x_wrapper(IQ, ToBareJidBin, Children0),
-    Msg = #xmlel{name = <<"message">>, attrs = #{<<"id">> => IqId}, children = Children1},
-    Acc1 = ejabberd_router:route(From, jid:to_bare(From), Acc, Msg),
+    QueryId = exml_query:attr(Query, <<"queryid">>, IqId),
+    XAttrs = #{<<"xmlns">> => ?NS_ESL_INBOX_CONVERSATION,
+               <<"jid">> => ToBareJidBin,
+               <<"queryid">> => QueryId},
+    Acc1 = broadcast_inbox_update(Acc, From, IqId, XAttrs, Children0),
     Res = IQ#iq{type = result, sub_el = []},
     {Acc1, Res}.
 
--spec iq_x_wrapper(jlib:iq(), binary(), [exml:element()]) -> [exml:element()].
-iq_x_wrapper(#iq{id = IqId, sub_el = Query}, Jid, Properties) ->
-    [#xmlel{name = <<"x">>,
-            attrs = #{<<"xmlns">> => ?NS_ESL_INBOX_CONVERSATION,
-                      <<"jid">> => Jid,
-                      <<"queryid">> => exml_query:attr(Query, <<"queryid">>, IqId)},
-            children = Properties}].
+-spec broadcast_inbox_update(mongoose_acc:t(), jid:jid(), binary(),
+                              map(), [exml:element()]) ->
+    mongoose_acc:t().
+broadcast_inbox_update(Acc, Owner, MsgId, XAttrs, Children) ->
+    X = #xmlel{name = <<"x">>, attrs = XAttrs, children = Children},
+    Msg = #xmlel{name = <<"message">>,
+                 attrs = #{<<"id">> => MsgId},
+                 children = [X]},
+    ejabberd_router:route(Owner, jid:to_bare(Owner), Acc, Msg).
 
 maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
     case mod_inbox_utils:extract_attr_jid(ResetStanza) of
