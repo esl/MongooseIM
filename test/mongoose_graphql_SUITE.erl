@@ -208,6 +208,10 @@ init_per_group(admin_listener, Config) ->
                 fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
                    (_) -> []
                 end),
+     meck:expect(mongoose_domain_api, get_host_type,
+                     fun(<<"localhost">>) -> {ok, <<"localhost">>};
+                         (_) -> {error, not_found}
+                     end),
     ListenerOpts = #{username => <<"admin">>,
                      password => <<"secret">>,
                      schema_endpoint => admin},
@@ -233,6 +237,10 @@ init_per_group(admin_api_listener, Config) ->
                 fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
                    (_) -> []
                 end),
+     meck:expect(mongoose_domain_api, get_host_type,
+                     fun(<<"localhost">>) -> {ok, <<"localhost">>};
+                         (_) -> {error, not_found}
+                     end),
     meck:new(mongoose_service, [passthrough, no_link]),
     meck:expect(mongoose_service, loaded_services_with_opts,
                 fun() -> #{service_domain_db => #{}} end),
