@@ -1197,40 +1197,6 @@ init_ep_listener(Port, EpName, ListenerOpts, Config) ->
                 end),
     [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
 
--spec init_listener_only(integer(), atom(), listener_opts(), [{atom(), term()}]) ->
-    [{atom(), term()}].
-init_listener_only(Port, Ref, ListenerOpts, Config) ->
-    Pid = spawn(fun() ->
-                    ok = start_listener(Ref, Port, ListenerOpts),
-                    receive
-                        stop ->
-                            cowboy:stop_listener(Ref),
-                            ok
-                    end
-                end),
-    [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
-
--spec init_listener_with_init(integer(), atom(), listener_opts(), fun(() -> any()), [{atom(), term()}]) ->
-    [{atom(), term()}].
-init_listener_with_init(Port, Ref, ListenerOpts, InitFun, Config) ->
-    Parent = self(),
-    Pid = spawn(fun() ->
-                    _ = InitFun(),
-                    Name = list_to_atom("gql_listener_" ++ atom_to_list(Ref)),
-                    ok = start_listener(Name, Port, ListenerOpts),
-                    Parent ! {listener_started, self()},
-                    receive
-                        stop ->
-                            ok
-                    end
-                end),
-    receive
-        {listener_started, Pid} -> ok
-    after 5000 ->
-        error(timeout_starting_listener)
-    end,
-    [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
-
 -spec start_listener(atom(), integer(), listener_opts()) -> ok.
 start_listener(Ref, Port, Opts) ->
     Dispatch = cowboy_router:compile([
