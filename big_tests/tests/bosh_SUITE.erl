@@ -25,7 +25,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
--import(domain_helper, [host_type/0, domain/0]).
+-import(domain_helper, [host_type/0, anonymous_host_type/0, domain/0]).
 -import(config_parser_helper, [config/2]).
 
 %%--------------------------------------------------------------------
@@ -46,7 +46,9 @@ all() ->
      {group, time},
      {group, acks},
      {group, server_acks},
-     {group, interleave_requests_statem}
+     {group, interleave_requests_statem},
+     {group, host_type},
+     {group, anonymous_host_type}
     ].
 
 groups() ->
@@ -59,7 +61,9 @@ groups() ->
      {time, [parallel], time_test_cases()},
      {acks, [shuffle], acks_test_cases()},
      {server_acks, [], [server_acks]},
-     {interleave_requests_statem, [parallel], [interleave_requests_statem]}
+     {interleave_requests_statem, [parallel], [interleave_requests_statem]},
+     {host_type, [], [create_and_terminate_session]},
+     {anonymous_host_type, [], [cannot_create_session_for_disallowed_host_type]}
     ].
 
 suite() ->
@@ -67,6 +71,7 @@ suite() ->
 
 essential_test_cases() ->
     [create_and_terminate_session,
+     cannot_create_session_for_unknown_domain,
      accept_higher_hold_value,
      do_not_accept_0_hold_value,
      options_request,
@@ -165,25 +170,34 @@ required_bosh_opts(time) ->
     #{max_wait => ?MAX_WAIT, inactivity => ?INACTIVITY};
 required_bosh_opts(server_acks) ->
     #{server_acks => true};
+required_bosh_opts(host_type) ->
+    #{host_types => [host_type()]};
+required_bosh_opts(anonymous_host_type) ->
+    #{host_types => [anonymous_host_type()]};
 required_bosh_opts(_Group) ->
     #{}.
 
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+cannot_create_session_for_unknown_domain(Config) ->
+    {Conn, StreamEnd} = create_session(<<"unknown-domain">>, Config),
+    escalus:assert(is_stream_end, StreamEnd),
+    %% Assert that no BOSH session was created.
+    [] = get_bosh_sessions(),
+    wait_helper:wait_until(fun() -> escalus_connection:is_connected(Conn) end, false).
+
+%% Only the anonymous host type is allowed, so the default domain fails
+cannot_create_session_for_disallowed_host_type(Config) ->
+    {Conn, StreamEnd} = create_session(domain(), Config),
+    escalus:assert(is_stream_end, StreamEnd),
+    %% Assert that no BOSH session was created.
+    [] = get_bosh_sessions(),
+    wait_helper:wait_until(fun() -> escalus_connection:is_connected(Conn) end, false).
 
 create_and_terminate_session(Config) ->
-    NamedSpecs = escalus_config:get_config(escalus_users, Config),
-    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
-    Conn = escalus_connection:connect(CarolSpec),
-
-    %% Assert there are no BOSH sessions on the server.
-    [] = get_bosh_sessions(),
-
-    Domain = domain(),
-    Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
-    ok = bosh_send_raw(Conn, Body),
-    escalus_connection:get_stanza(Conn, session_creation_response),
+    {Conn, StreamStart} = create_session(domain(), Config),
+    escalus:assert(is_stream_start, StreamStart),
 
     %% Assert that a BOSH session was created.
     [_] = get_bosh_sessions(),
@@ -194,6 +208,19 @@ create_and_terminate_session(Config) ->
 
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().
+
+create_session(Domain, Config) ->
+    NamedSpecs = escalus_config:get_config(escalus_users, Config),
+    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
+    UpdatedSpecs = lists:keystore(server, 1, CarolSpec, {server, Domain}),
+    Conn = escalus_connection:connect(CarolSpec),
+
+    %% Assert there are no BOSH sessions on the server.
+    [] = get_bosh_sessions(),
+    Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
+    ok = bosh_send_raw(Conn, Body),
+    Response = escalus_connection:get_stanza(Conn, session_creation_response),
+    {Conn, Response}.
 
 reject_connection_when_bosh_is_disabled(Config) ->
     {Domain, Path, Client} = get_fusco_connection(Config),
