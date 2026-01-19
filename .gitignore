@@ -86,9 +86,6 @@ site
 test.log
 cover_test_preset.log
 
-# Local VS Code workspace file
-MongooseIM.code-workspace
-
 # Dialyzer
 .mongooseim_combo_dialyzer.plt
 
