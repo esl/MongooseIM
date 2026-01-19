@@ -136,8 +136,6 @@ calculate_unread_count(false, {ok, UnreadCount}, _ArchivedProps) when is_integer
 calculate_unread_count(false, ok, ArchivedProps) ->
     maps:get(unread_count, ArchivedProps, 0) + 1.
 
-
-
 -spec clear_inbox(HostType :: mongooseim:host_type(),
                   User :: jid:user(),
                   Server :: jid:server()) -> mod_inbox:write_res().
