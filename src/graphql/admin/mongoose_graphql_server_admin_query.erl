@@ -44,7 +44,7 @@ host_type_info(HostType) ->
     AuthMethods = get_auth_methods(HostType),
     #{<<"name">> => HostType,
       <<"domains">> => [{ok, D} || D <- Domains],
-      <<"modules">> => [{ok, module_info(HostType, Module, Opts)} || {Module, Opts} <- Modules],
+      <<"modules">> => [{ok, module_info(Module, Opts)} || {Module, Opts} <- Modules],
       <<"authMethods">> => [{ok, M} || M <- AuthMethods]}.
 
 get_auth_methods(HostType) ->
@@ -66,7 +66,7 @@ get_internal_databases() ->
         false -> []
     end.
 
-module_info(_, Module, Opts) ->
+module_info(Module, Opts) ->
     #{<<"name">> => atom_to_binary(Module, utf8),
       <<"backend">> => configured_backend(Opts)}.
 
