@@ -7,7 +7,6 @@
 
 -include("../mongoose_graphql_types.hrl").
 
-
 execute(_Ctx, server, <<"status">>, _) ->
     {ok, {Status, Message, Version, CommitHash}} = mongoose_server_api:status(),
     {ok, #{<<"statusCode">> => status_code(Status), <<"message">> => Message,
@@ -37,9 +36,9 @@ host_type_info(HostType) ->
     Modules = lists:keysort(1, maps:to_list(ModulesWithOpts)),
     AuthMethods = get_auth_methods(HostType),
     #{<<"name">> => HostType,
-    <<"domains">> => [{ok, D} || D <- Domains],
-    <<"modules">> => [{ok, module_info(HostType, Module, Opts)} || {Module, Opts} <- Modules],
-    <<"authMethods">> => [{ok, M} || M <- AuthMethods]}.
+      <<"domains">> => [{ok, D} || D <- Domains],
+      <<"modules">> => [{ok, module_info(HostType, Module, Opts)} || {Module, Opts} <- Modules],
+      <<"authMethods">> => [{ok, M} || M <- AuthMethods]}.
 
 get_auth_methods(HostType) ->
     try mongoose_config:get_opt([{auth, HostType}, methods]) of

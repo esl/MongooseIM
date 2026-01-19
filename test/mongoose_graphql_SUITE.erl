@@ -137,11 +137,11 @@ user_listener() ->
 
 admin_listener() ->
     [no_creds_defined_admin_can_access_protected,
-    auth_admin_can_access_protected_types | common_tests()].
+     auth_admin_can_access_protected_types | common_tests()].
 
 admin_api_listener() ->
     [admin_server_get_host_types,
-    admin_server_get_global_info].
+     admin_server_get_global_info].
 
 domain_admin_listener() ->
     [auth_domain_admin_can_access_protected_types,
@@ -213,32 +213,32 @@ init_per_group(admin_listener, Config) ->
                      schema_endpoint => admin},
     init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
 init_per_group(admin_api_listener, Config) ->
-     meck:new(mongoose_config, [passthrough, no_link]),
-     meck:expect(mongoose_config, get_opt,
-                     fun(hosts) -> [<<"localhost">>];
-                         (host_types) -> [];
-                         (internal_databases) -> #{mnesia => #{}};
-                         ([{auth, <<"localhost">>}, methods]) -> [internal];
-                         (Key) -> meck:passthrough([Key])
-                     end),
-     meck:new(gen_mod, [passthrough, no_link]),
-     meck:expect(gen_mod, loaded_modules_with_opts,
-                     fun(<<"localhost">>) ->
-                                #{mod_roster => #{backend => rdbms},
-                                  mod_ping => #{}};
-                         (_) -> #{}
-                     end),
-     meck:new(mongoose_domain_api, [passthrough, no_link]),
-     meck:expect(mongoose_domain_api, get_domains_by_host_type,
-                     fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
-                         (_) -> []
-                     end),
-     meck:new(mongoose_service, [passthrough, no_link]),
-     meck:expect(mongoose_service, loaded_services_with_opts,
-                     fun() -> #{service_domain_db => #{}} end),
-     ListenerOpts = #{username => <<"admin">>,
-                            password => <<"secret">>,
-                            schema_endpoint => admin},
+    meck:new(mongoose_config, [passthrough, no_link]),
+    meck:expect(mongoose_config, get_opt,
+                fun(hosts) -> [<<"localhost">>];
+                    (host_types) -> [];
+                    (internal_databases) -> #{mnesia => #{}};
+                    ([{auth, <<"localhost">>}, methods]) -> [internal];
+                    (Key) -> meck:passthrough([Key])
+                end),
+    meck:new(gen_mod, [passthrough, no_link]),
+    meck:expect(gen_mod, loaded_modules_with_opts,
+                fun(<<"localhost">>) ->
+                    #{mod_roster => #{backend => rdbms},
+                      mod_ping => #{}};
+                   (_) -> #{}
+                end),
+    meck:new(mongoose_domain_api, [passthrough, no_link]),
+    meck:expect(mongoose_domain_api, get_domains_by_host_type,
+                fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
+                   (_) -> []
+                end),
+    meck:new(mongoose_service, [passthrough, no_link]),
+    meck:expect(mongoose_service, loaded_services_with_opts,
+                fun() -> #{service_domain_db => #{}} end),
+    ListenerOpts = #{username => <<"admin">>,
+                     password => <<"secret">>,
+                     schema_endpoint => admin},
     init_listener_with_init(5562, admin_api_listener, ListenerOpts, fun mongoose_graphql:init/0, Config);
 init_per_group(domain_admin_listener, Config) ->
     Config1 = meck_module_and_service_checking(Config),
