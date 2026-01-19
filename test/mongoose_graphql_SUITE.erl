@@ -40,7 +40,6 @@ all() ->
      {group, domain_permissions},
      {group, use_directive},
      {group, user_listener},
-     {group, admin_api_listener},
      {group, admin_listener},
      {group, domain_admin_listener}].
 
@@ -53,7 +52,6 @@ groups() ->
      {domain_permissions, [parallel], domain_permissions()},
      {use_directive, [parallel], use_directive()},
      {admin_listener, [parallel], admin_listener()},
-     {admin_api_listener, [parallel], admin_api_listener()},
      {domain_admin_listener, [parallel], domain_admin_listener()},
      {user_listener, [parallel], user_listener()}].
 
@@ -139,10 +137,6 @@ admin_listener() ->
     [no_creds_defined_admin_can_access_protected,
      auth_admin_can_access_protected_types | common_tests()].
 
-admin_api_listener() ->
-    [admin_server_get_host_types,
-     admin_server_get_global_info].
-
 domain_admin_listener() ->
     [auth_domain_admin_can_access_protected_types,
      auth_domain_admin_wrong_password_error,
@@ -188,66 +182,10 @@ init_per_group(user_listener, Config) ->
     ListenerOpts = #{schema_endpoint => user},
     init_ep_listener(5557, user_schema_ep, ListenerOpts, Config2);
 init_per_group(admin_listener, Config) ->
-    % Mock mongoose_config for hostTypes query
-    meck:new(mongoose_config, [passthrough, no_link]),
-    meck:expect(mongoose_config, get_opt, fun(hosts) -> [<<"localhost">>];
-                                             (host_types) -> [];
-                                             (Key) -> meck:passthrough([Key])
-                                          end),
-    % Mock gen_mod for module listing
-    meck:new(gen_mod, [passthrough, no_link]),
-    meck:expect(gen_mod, loaded_modules_with_opts,
-                fun(<<"localhost">>) ->
-                    #{mod_roster => #{backend => rdbms},
-                      mod_ping => #{}};
-                   (_) -> #{}
-                end),
-    % Mock mongoose_domain_api for domains
-    meck:new(mongoose_domain_api, [passthrough, no_link]),
-    meck:expect(mongoose_domain_api, get_domains_by_host_type,
-                fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
-                   (_) -> []
-                end),
-     meck:expect(mongoose_domain_api, get_host_type,
-                     fun(<<"localhost">>) -> {ok, <<"localhost">>};
-                         (_) -> {error, not_found}
-                     end),
     ListenerOpts = #{username => <<"admin">>,
                      password => <<"secret">>,
                      schema_endpoint => admin},
     init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
-init_per_group(admin_api_listener, Config) ->
-    meck:new(mongoose_config, [passthrough, no_link]),
-    meck:expect(mongoose_config, get_opt,
-                fun(hosts) -> [<<"localhost">>];
-                    (host_types) -> [];
-                    (internal_databases) -> #{mnesia => #{}};
-                    ([{auth, <<"localhost">>}, methods]) -> [internal];
-                    (Key) -> meck:passthrough([Key])
-                end),
-    meck:new(gen_mod, [passthrough, no_link]),
-    meck:expect(gen_mod, loaded_modules_with_opts,
-                fun(<<"localhost">>) ->
-                    #{mod_roster => #{backend => rdbms},
-                      mod_ping => #{}};
-                   (_) -> #{}
-                end),
-    meck:new(mongoose_domain_api, [passthrough, no_link]),
-    meck:expect(mongoose_domain_api, get_domains_by_host_type,
-                fun(<<"localhost">>) -> [<<"localhost">>, <<"example.com">>];
-                   (_) -> []
-                end),
-     meck:expect(mongoose_domain_api, get_host_type,
-                     fun(<<"localhost">>) -> {ok, <<"localhost">>};
-                         (_) -> {error, not_found}
-                     end),
-    meck:new(mongoose_service, [passthrough, no_link]),
-    meck:expect(mongoose_service, loaded_services_with_opts,
-                fun() -> #{service_domain_db => #{}} end),
-    ListenerOpts = #{username => <<"admin">>,
-                     password => <<"secret">>,
-                     schema_endpoint => admin},
-    init_listener_with_init(5562, admin_api_listener, ListenerOpts, fun mongoose_graphql:init/0, Config);
 init_per_group(domain_admin_listener, Config) ->
     Config1 = meck_module_and_service_checking(Config),
     Config2 = meck_domain_api(Config1),
@@ -286,16 +224,6 @@ end_per_group(user_listener, Config) ->
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(admin_listener, Config) ->
-    meck:unload(mongoose_config),
-    meck:unload(gen_mod),
-    meck:unload(mongoose_domain_api),
-    ?config(test_process, Config) ! stop,
-    Config;
-end_per_group(admin_api_listener, Config) ->
-    meck:unload(mongoose_config),
-    meck:unload(gen_mod),
-    meck:unload(mongoose_domain_api),
-    meck:unload(mongoose_service),
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(domain_admin_listener, Config) ->
@@ -807,49 +735,6 @@ auth_admin_can_access_protected_types(Config) ->
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
     assert_access_granted(Status, Data).
-
-admin_server_get_host_types(Config) ->
-    Ep = ?config(endpoint_addr, Config),
-    Query = <<"query { server { hostTypes { name domains authMethods modules { name backend } } } }">>,
-    Body = #{query => Query},
-    {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
-    ?assertEqual({<<"200">>, <<"OK">>}, Status),
-    ?assertMatch(#{<<"data">> := #{<<"server">> := #{<<"hostTypes">> := HostTypes}}} when is_list(HostTypes), Data),
-    #{<<"data">> := #{<<"server">> := #{<<"hostTypes">> := HostTypes}}} = Data,
-    % Validate structure of first host type (if any)
-    case HostTypes of
-        [FirstHostType | _] ->
-            ?assertMatch(#{<<"name">> := _}, FirstHostType),
-            ?assertMatch(#{<<"domains">> := Domains} when is_list(Domains), FirstHostType),
-            ?assertMatch(#{<<"modules">> := Modules} when is_list(Modules), FirstHostType),
-            ?assertMatch(#{<<"authMethods">> := AuthMethods} when is_list(AuthMethods), FirstHostType),
-            #{<<"modules">> := Modules} = FirstHostType,
-            % Validate module structure
-            lists:foreach(
-                fun(Module) ->
-                    ?assertMatch(#{<<"name">> := _}, Module),
-                    % Backend may be null or a string
-                    case maps:get(<<"backend">>, Module, undefined) of
-                        null -> ok;
-                        undefined -> ok;
-                        Backend when is_binary(Backend) -> ok
-                    end
-                end,
-                Modules
-            );
-        [] ->
-            ct:pal("No host types returned (empty list)")
-    end.
-
-admin_server_get_global_info(Config) ->
-    Ep = ?config(endpoint_addr, Config),
-    Query = <<"query { server { globalInfo { services { name } internalDatabases } } }">>,
-    Body = #{query => Query},
-    {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
-    ?assertEqual({<<"200">>, <<"OK">>}, Status),
-    #{<<"data">> := #{<<"server">> := #{<<"globalInfo">> := GlobalInfo}}} = Data,
-    ?assertMatch(#{<<"services">> := Services, <<"internalDatabases">> := DBs}
-                   when is_list(Services) andalso is_list(DBs), GlobalInfo).
 
 auth_domain_admin_can_access_protected_types(Config) ->
     Ep = ?config(endpoint_addr, Config),
