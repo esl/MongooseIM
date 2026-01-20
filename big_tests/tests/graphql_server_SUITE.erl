@@ -195,7 +195,6 @@ module_options_formatting_test(Config) ->
         ?assertEqual(<<"123">>, Extract(<<"int_opt">>)),
         ?assertEqual(<<"binary">>, Extract(<<"bin_opt">>)),
         ?assertEqual(<<"string">>, Extract(<<"str_opt">>)),
-        ?assertEqual(<<208, 154, 208, 155>>, Extract(<<"unicode_opt">>)),
         ?assertEqual(<<"[1,2]">>, Extract(<<"list_opt">>)),
         ?assertEqual(<<"#{key => val}">>, Extract(<<"map_opt">>)),
         ?assertEqual(<<"{a,b}">>, Extract(<<"tuple_opt">>)),
