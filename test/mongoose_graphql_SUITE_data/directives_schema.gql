@@ -13,35 +13,36 @@ enum ProtectionType{
 }
 
 directive @use(modules: [String!] = [], services: [String!] = [],
-               internal_databases: [String!] = [], arg: String) on FIELD_DEFINITION | OBJECT
+               internal_databases: [String!] = [], args: [String!] = []) on FIELD_DEFINITION | OBJECT
 
 type UserQuery {
   catA: Category
   catB: CategoryB
   catC: CategoryC
   catD: CategoryD
+  catE: CategoryE
 }
 
 type Category @protected {
   command(domain: String): String
-    @use(modules: ["mod_b"], arg: "domain")
+    @use(modules: ["mod_b"], args: ["domain"])
   command2(domain: String): String
-    @use(modules: ["mod_b"], services: ["service_a", "service_b"], arg: "domain")
+    @use(modules: ["mod_b"], services: ["service_a", "service_b"], args: ["domain"])
   command3(domain: String): String
-    @use(modules: ["mod_a", "mod_z"], services: ["service_a", "service_d"], arg: "domain")
+    @use(modules: ["mod_a", "mod_z"], services: ["service_a", "service_d"], args: ["domain"])
   command4(domain: String): String
-    @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_a"], arg: "domain")
+    @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_a"], args: ["domain"])
   command5(domain: String): String
-    @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_x"], arg: "domain")
+    @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_x"], args: ["domain"])
   command6(domain: String): String
-    @use(modules: ["mod_x"], services: ["service_x"], internal_databases: ["db_x"], arg: "domain")
+    @use(modules: ["mod_x"], services: ["service_x"], internal_databases: ["db_x"], args: ["domain"])
 }
 
 type CategoryB
   @use(modules: ["mod_x"], services: ["service_x"], internal_databases: ["db_x"])
   @protected {
   command(domain: String): String
-    @use(modules: ["mod_a"], arg: "domain")
+    @use(modules: ["mod_a"], args: ["domain"])
   command2: String
     @use
 }
@@ -50,7 +51,7 @@ type CategoryC
   @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_a"])
   @protected {
   command(domain: String): String
-    @use(modules: ["mod_b"], arg: "domain")
+    @use(modules: ["mod_b"], args: ["domain"])
   command2(domain: String): String
     @use(modules: ["mod_b"])
 }
@@ -59,11 +60,23 @@ type CategoryD
   @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_x"])
   @protected {
   command(domain: String): String
-    @use(modules: ["mod_x"], arg: "domain")
+    @use(modules: ["mod_x"], args: ["domain"])
   command2: String
     @use
   command3: String
     @use(services: ["service_x"])
+}
+
+type CategoryE
+  @use(modules: ["mod_a"]) {
+  command(domain1: String, domain2: String): String
+    @use(args: ["domain1", "domain2"])
+  command2(domain1: String, domain2: String): String
+    @use(modules: ["mod_b"], args: ["domain1", "domain2"])
+  command3(domains: [String]): String
+    @use(args: ["domains"])
+  command4(domains: [String]): String
+    @use(modules: ["mod_b"], args: ["domains"])
 }
 
 type UserMutation @protected{

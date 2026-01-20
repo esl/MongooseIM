@@ -4,21 +4,21 @@ Allow user to manage Multi-User Chat Light rooms.
 type MUCLightUserMutation @protected @use(modules: ["mod_muc_light"]){
   "Create a MUC light room under the given XMPP hostname"
   createRoom(mucDomain: DomainName!, name: String, subject: String, id: RoomName, options: [RoomConfigDictEntryInput!]): Room
-    @use(arg: "mucDomain")
+    @use(args: ["mucDomain"])
   "Change configuration of a MUC Light room"
-  changeRoomConfiguration(room: BareJID!, name: String, subject: String, options: [RoomConfigDictEntryInput!]): Room @use(arg: "room")
+  changeRoomConfiguration(room: BareJID!, name: String, subject: String, options: [RoomConfigDictEntryInput!]): Room @use(args: ["room"])
   "Invite a user to a MUC Light room"
   inviteUser(room: BareJID!, recipient: JID!): String
-    @use(arg: "room")
+    @use(args: ["room"])
   "Remove a MUC Light room"
   deleteRoom(room: BareJID!): String
-    @use(arg: "room")
+    @use(args: ["room"])
   "Kick a user from a MUC Light room"
   kickUser(room: BareJID!, user: JID): String
-    @use(arg: "room")
+    @use(args: ["room"])
   "Send a message to a MUC Light room"
   sendMessageToRoom(room: BareJID!, body: String!): String
-    @use(arg: "room")
+    @use(args: ["room"])
   "Set the user blocking list"
   setBlockingList(items: [BlockingInput!]!): String
     @use
@@ -30,13 +30,13 @@ Allow user to get information about Multi-User Chat Light rooms.
 type MUCLightUserQuery @protected @use(modules: ["mod_muc_light"]){
   "Get the MUC Light room archived messages"
   getRoomMessages(room: BareJID!, pageSize: PosInt, before: DateTime): StanzasPayload
-    @use(arg: "room", modules: ["mod_mam_muc"])
+    @use(args: ["room"], modules: ["mod_mam_muc"])
   "Get configuration of the MUC Light room"
   getRoomConfig(room: BareJID!): Room
-    @use(arg: "room")
+    @use(args: ["room"])
   "Get users list of given MUC Light room"
   listRoomUsers(room: BareJID!): [RoomUser!]
-    @use(arg: "room")
+    @use(args: ["room"])
   "Get the list of MUC Light rooms that the user participates in"
   listRooms: [JID!]
     @use

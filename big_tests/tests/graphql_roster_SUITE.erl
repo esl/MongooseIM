@@ -3,10 +3,11 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(domain_helper, [host_type/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_value/2, get_err_msg/1,
                          get_err_msg/2, get_bad_request/1, user_to_jid/1, user_to_bin/1,
-                         get_unauthorized/1, get_err_code/1]).
+                         get_unauthorized/1, get_err_code/1, get_not_loaded/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("../../include/mod_roster.hrl").
@@ -15,18 +16,34 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_roster},
-     {group, admin_roster_http},
-     {group, admin_roster_cli},
-     {group, domain_admin_roster}].
+    [{group, user},
+     {group, admin_http},
+     {group, admin_cli},
+     {group, domain_admin}].
 
 groups() ->
-    [{user_roster, [], user_roster_tests()},
-     {admin_roster_http, [], admin_roster_tests()},
-     {admin_roster_cli, [], admin_roster_tests()},
-     {domain_admin_roster, [], domain_admin_tests()}].
+    [{user, [], user_groups()},
+     {admin_http, [], admin_groups()},
+     {admin_cli, [], admin_groups()},
+     {domain_admin, [], domain_admin_tests()},
+     {user_configured, [], user_tests()},
+     {user_not_configured, [], user_not_configured_tests()},
+     {admin_configured, [], admin_tests()},
+     {admin_not_configured, [], admin_not_configured_tests()}].
 
-user_roster_tests() ->
+user_groups() ->
+    [{group, user_configured},
+     {group, user_not_configured}].
+
+admin_groups() ->
+    [{group, admin_configured},
+     {group, admin_not_configured}].
+
+domain_admin_groups() ->
+    [{group, domain_admin_configured},
+     {group, domain_admin_not_configured}].
+
+user_tests() ->
     [user_add_and_delete_contact,
      user_try_add_nonexistent_contact,
      user_add_contacts,
@@ -39,7 +56,15 @@ user_roster_tests() ->
      user_get_nonexistent_contact
     ].
 
-admin_roster_tests() ->
+user_not_configured_tests() ->
+    [user_add_and_delete_contact_not_configured,
+     user_add_contacts_not_configured,
+     user_subscription_not_configured,
+     user_delete_contacts_not_configured,
+     user_list_contacts_not_configured,
+     user_get_contact_not_configured].
+
+admin_tests() ->
     [admin_add_and_delete_contact,
      admin_try_add_nonexistent_contact,
      admin_try_add_contact_to_nonexistent_user,
@@ -68,6 +93,17 @@ admin_roster_tests() ->
      admin_get_contact_wrong_user,
      admin_subscribe_all_to_all_empty_list
     ].
+
+admin_not_configured_tests() ->
+    [admin_add_and_delete_contact_not_configured,
+     admin_add_contacts_not_configured,
+     admin_subscription_not_configured,
+     admin_delete_contacts_not_configured,
+     admin_set_mutual_subscription_not_configured,
+     admin_subscribe_to_all_not_configured,
+     admin_subscribe_all_to_all_not_configured,
+     admin_list_contacts_not_configured,
+     admin_get_contact_not_configured].
 
 domain_admin_tests() ->
     [admin_add_and_delete_contact,
@@ -107,24 +143,40 @@ init_per_suite(Config) ->
     instrument_helper:start([{mod_roster_get, #{host_type => HostType}}]),
     Config1 = ejabberd_node_utils:init(mim(), Config),
     Config2 = escalus:init_per_suite(Config1),
-    dynamic_modules:save_modules(HostType, Config2).
+    Config3 = dynamic_modules:save_modules(HostType, Config2),
+    RosterOpts = dynamic_modules:get_saved_config(HostType, mod_roster, Config3),
+    [{mod_roster_opts, RosterOpts} | Config3].
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config),
     instrument_helper:stop().
 
-init_per_group(admin_roster_http, Config) ->
+init_per_group(user, Config) ->
+    graphql_helper:init_user(Config);
+init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
-init_per_group(admin_roster_cli, Config) ->
+init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
-init_per_group(domain_admin_roster, Config) ->
+init_per_group(domain_admin, Config) ->
+    ensure_roster_started(Config),
     graphql_helper:init_domain_admin_handler(Config);
-init_per_group(user_roster, Config) ->
-    graphql_helper:init_user(Config).
+init_per_group(GroupName, Config) when GroupName == user_configured;
+                                       GroupName == admin_configured ->
+    ensure_roster_started(Config),
+    Config;
+init_per_group(GroupName, Config) when GroupName == user_not_configured;
+                                       GroupName == admin_not_configured ->
+    ensure_roster_stopped(),
+    Config.
 
-end_per_group(_GroupName, _Config) ->
+end_per_group(GroupName, _Config) when GroupName == user;
+                                       GroupName == admin_http;
+                                       GroupName == admin_cli;
+                                       GroupName == domain_admin ->
     graphql_helper:clean(),
+    escalus_fresh:clean();
+end_per_group(_GroupName, _Config) ->
     escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
@@ -132,6 +184,13 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+ensure_roster_started(Config) ->
+    RosterOpts = proplists:get_value(mod_roster_opts, Config),
+    dynamic_modules:ensure_modules(host_type(), [{mod_roster, RosterOpts}]).
+
+ensure_roster_stopped() ->
+    dynamic_modules:ensure_modules(host_type(), [{mod_roster, stopped}]).
 
 -define(ADD_CONTACT_PATH, [data, roster, addContact]).
 -define(ADD_CONTACTS_PATH, [data, roster, addContacts]).
@@ -433,6 +492,80 @@ admin_subscribe_all_to_all_empty_list(Config) ->
     Res = admin_subscribe_all_to_all([], Config),
     ?assertEqual([], get_ok_value(?SUBSCRIBE_ALL_TO_ALL_PATH, Res)).
 
+admin_add_and_delete_contact_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_add_and_delete_contact_not_configured_story/3).
+
+admin_add_and_delete_contact_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_add_contact(Alice, Bob, Config),
+    get_not_loaded(Res),
+    Res2 = admin_delete_contact(Alice, Bob, Config),
+    get_not_loaded(Res2).
+
+admin_add_contacts_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_add_contacts_not_configured_story/3).
+
+admin_add_contacts_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_add_contacts(Alice, [Bob, ?NONEXISTENT_DOMAIN_USER], Config),
+    get_not_loaded(Res).
+
+admin_subscription_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_subscription_not_configured_story/3).
+
+admin_subscription_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_subscription(Alice, Bob, <<"INVITE">>, Config),
+    get_not_loaded(Res).
+
+admin_delete_contacts_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_delete_contacts_not_configured_story/3).
+
+admin_delete_contacts_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_delete_contacts(Alice, [Bob, ?NONEXISTENT_DOMAIN_USER], Config),
+    get_not_loaded(Res).
+
+admin_set_mutual_subscription_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_set_mutual_subscription_not_configured_story/3).
+
+admin_set_mutual_subscription_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_mutual_subscription(Alice, Bob, <<"CONNECT">>, Config),
+    get_not_loaded(Res).
+
+admin_subscribe_to_all_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_subscribe_to_all_not_configured_story/3).
+
+admin_subscribe_to_all_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_subscribe_to_all(Alice, [Bob, ?NONEXISTENT_DOMAIN_USER], Config),
+    get_not_loaded(Res).
+
+admin_subscribe_all_to_all_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_subscribe_all_to_all_not_configured_story/3).
+
+admin_subscribe_all_to_all_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_subscribe_all_to_all([Alice, Bob, ?NONEXISTENT_DOMAIN_USER], Config),
+    get_not_loaded(Res).
+
+admin_list_contacts_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun admin_list_contacts_not_configured_story/2).
+
+admin_list_contacts_not_configured_story(Config, Alice) ->
+    Res = admin_list_contacts(Alice, Config),
+    get_not_loaded(Res).
+
+admin_get_contact_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_get_contact_not_configured_story/3).
+
+admin_get_contact_not_configured_story(Config, Alice, Bob) ->
+    Res = admin_get_contact(Alice, Bob, Config),
+    get_not_loaded(Res).
+
 %% User test cases
 
 user_add_and_delete_contact(Config) ->
@@ -570,6 +703,56 @@ user_get_nonexistent_contact(Config) ->
 user_get_nonexistent_contact_story(Config, Alice) ->
     Res = user_get_contact(Alice, ?NONEXISTENT_DOMAIN_USER, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)).
+
+user_add_and_delete_contact_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_add_and_delete_contact_not_configured_story/3).
+
+user_add_and_delete_contact_not_configured_story(Config, Alice, Bob) ->
+    Res = user_add_contact(Alice, Bob, Config),
+    get_not_loaded(Res),
+    Res2 = user_delete_contact(Alice, Bob, Config),
+    get_not_loaded(Res2).
+
+user_add_contacts_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_add_contacts_not_configured_story/3).
+
+user_add_contacts_not_configured_story(Config, Alice, Bob) ->
+    Res = user_add_contacts(Alice, [Bob, ?NONEXISTENT_DOMAIN_USER], Config),
+    get_not_loaded(Res).
+
+user_subscription_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_subscription_not_configured_story/3).
+
+user_subscription_not_configured_story(Config, Alice, Bob) ->
+    Res = user_subscription(Alice, Bob, <<"INVITE">>, Config),
+    get_not_loaded(Res).
+
+user_delete_contacts_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_delete_contacts_not_configured_story/3).
+
+user_delete_contacts_not_configured_story(Config, Alice, Bob) ->
+    Res = user_delete_contacts(Alice, [Bob, ?NONEXISTENT_DOMAIN_USER], Config),
+    get_not_loaded(Res).
+
+user_list_contacts_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_list_contacts_not_configured_story/2).
+
+user_list_contacts_not_configured_story(Config, Alice) ->
+    Res = user_list_contacts(Alice, Config),
+    get_not_loaded(Res).
+
+user_get_contact_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_get_contact_not_configured_story/3).
+
+user_get_contact_not_configured_story(Config, Alice, Bob) ->
+    Res = user_get_contact(Alice, Bob, Config),
+    get_not_loaded(Res).
 
 % Domain admin test cases
 

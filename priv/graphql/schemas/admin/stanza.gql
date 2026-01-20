@@ -5,7 +5,7 @@ type StanzaAdminQuery @protected{
   """
   getLastMessages(caller: JID!, with: JID, limit: PosInt = 50, before: DateTime): StanzasPayload
     @protected(type: DOMAIN, args: ["caller"])
-    @use(modules: ["mod_mam_pm"], arg: "caller")
+    @use(modules: ["mod_mam_pm"], args: ["caller"])
 }
 
 type StanzaAdminMutation @protected{

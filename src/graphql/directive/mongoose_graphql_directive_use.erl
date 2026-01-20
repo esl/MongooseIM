@@ -9,7 +9,7 @@
 %% so we need to specify the `arg'.
 %% ```
 %% type Category @use(modules: ["module_a"]){
-%%     command1(domain: String!): String @use(arg: "domain")
+%%     command1(domain: String!): String @use(args: ["domain"])
 %%     command2: String
 %%}
 %%'''
@@ -37,13 +37,12 @@
 
 -import(mongoose_graphql_directive_helper, [name/1, get_arg/2]).
 
--type host_type() :: mongooseim:host_type().
 -type ctx() :: mongoose_graphql_directive:ctx().
 -type use_ctx() ::
     #{modules := [binary()],
       services := [binary()],
       internal_databases := [binary()],
-      arg => binary(),
+      args => [binary()],
       atom => term()}.
 -type dependency_type() :: internal_databases | modules | services.
 -type dependency_name() :: binary().
@@ -57,7 +56,7 @@ handle_directive(#directive{id = <<"use">>, args = Args}, #schema_field{} = Fiel
         Items = [{modules, filter_unloaded_modules(UseCtx, Ctx, Modules)},
                  {services, filter_unloaded_services(Services)},
                  {internal_databases, filter_unloaded_db(DB)}],
-    case lists:filter(fun({_, Names}) -> Names =/= [] end, Items) of
+    case lists:filter(fun({_, List}) -> List =/= [] end, Items) of
         [] ->
             Field;
         NotLoaded ->
@@ -72,13 +71,13 @@ handle_object_directive(#directive{id = <<"use">>, args = Args}, Object, Ctx) ->
 
 %% Internal
 
--spec get_arg_value(use_ctx(), ctx()) -> jid:jid() | jid:lserver() | mongooseim:host_type().
-get_arg_value(#{arg := DomainArg}, #{field_args := FieldArgs}) ->
-    get_arg(DomainArg, FieldArgs);
-get_arg_value(_UseCtx, #{user := #jid{lserver = Domain}}) ->
-    Domain;
-get_arg_value(_UseCtx, #{admin := #jid{lserver = Domain}}) ->
-    Domain.
+-spec get_args(use_ctx(), ctx()) -> [jid:jid() | jid:lserver()].
+get_args(#{args := Args}, #{field_args := FieldArgs}) ->
+    lists:flatten([get_arg(Arg, FieldArgs) || Arg <- Args]);
+get_args(_UseCtx, #{user := #jid{lserver = Domain}}) ->
+    [Domain];
+get_args(_UseCtx, #{admin := #jid{lserver = Domain}}) ->
+    [Domain].
 
 -spec aggregate_use_ctx(list(), ctx()) -> use_ctx().
 aggregate_use_ctx(Args, #{use_dir := #{modules := Modules0, services := Services0,
@@ -100,19 +99,18 @@ prepare_use_dir_args(Args) ->
     maps:merge(Default, RdyArgs).
 
 -spec host_type_from_arg(jid:jid() | jid:lserver() | mongooseim:host_type()) ->
-                            {ok, mongooseim:host_type()} | {error, not_found}.
+                            {true, mongooseim:host_type()} | false.
 host_type_from_arg(#jid{lserver = Domain}) ->
     host_type_from_arg(Domain);
 host_type_from_arg(ArgValue) ->
+    % Assume that loaded modules can be checked only when host type can be obtained
     case mongoose_domain_api:get_host_type(ArgValue) of
         {ok, HostType} ->
-            {ok, HostType};
+            {true, HostType};
         {error, not_found} ->
             case lists:member(ArgValue, ?ALL_HOST_TYPES) of
-                true ->
-                    {ok, ArgValue};
-                false ->
-                    {error, not_found}
+                true -> {true, ArgValue};
+                false -> false
             end
     end.
 
@@ -120,19 +118,17 @@ host_type_from_arg(ArgValue) ->
 filter_unloaded_modules(_UseCtx, _Ctx, []) ->
     [];
 filter_unloaded_modules(UseCtx, Ctx, Modules) ->
-    ArgValue = get_arg_value(UseCtx, Ctx),
-    % Assume that loaded modules can be checked only when host type can be obtained
-    case host_type_from_arg(ArgValue) of
-        {ok, HostType} ->
-            filter_unloaded_modules(HostType, Modules);
-        {error, not_found} ->
-            []
-    end.
+    ArgValues = get_args(UseCtx, Ctx),
+    HostTypes = lists:filtermap(fun host_type_from_arg/1, ArgValues),
+    filter_unloaded_modules(HostTypes, Modules).
 
--spec filter_unloaded_modules(host_type(), [binary()]) -> [binary()].
-filter_unloaded_modules(HostType, Modules) ->
-    lists:filter(fun(M) -> not gen_mod:is_loaded(HostType, binary_to_existing_atom(M)) end,
-                 Modules).
+-spec filter_unloaded_modules([mongooseim:host_type()], [binary()]) -> [binary()].
+filter_unloaded_modules(HostTypes, Modules) ->
+    NotLoaded = lists:flatmap(fun(HT) ->
+                                  Modules -- lists:map(fun atom_to_binary/1, gen_mod:loaded_modules(HT))
+                              end,
+                              HostTypes),
+    lists:usort(NotLoaded).
 
 -spec filter_unloaded_services([binary()]) -> [binary()].
 filter_unloaded_services(Services) ->
