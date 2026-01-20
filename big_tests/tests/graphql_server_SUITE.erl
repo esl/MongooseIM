@@ -1,3 +1,4 @@
+%% -*- coding: utf-8 -*-
 -module(graphql_server_SUITE).
 
 -compile([export_all, nowarn_export_all]).
@@ -39,7 +40,8 @@ admin_tests() ->
      set_and_get_loglevel_test,
      get_status_test,
      get_host_types_test,
-     get_global_info_test].
+     get_global_info_test,
+     module_options_formatting_test].
 
 clustering_tests() ->
     [join_successful,
@@ -164,6 +166,46 @@ get_global_info_test(Config) ->
     InternalDatabases = maps:get(<<"internalDatabases">>, GlobalInfo, []),
     ?assert(is_list(InternalDatabases)),
     ok.
+
+module_options_formatting_test(Config) ->
+    HostType = domain_helper:host_type(),
+    Node = mim(),
+    %% Load the test module
+    rpc(Node, mongoose_modules, ensure_started, [HostType, mod_graphql_test, #{}]),
+
+    try
+        HostTypes = get_ok_value([data, server, hostTypes],
+                                  execute_command(<<"server">>, <<"hostTypes">>, #{}, Config)),
+        [GraphqlTestModule] = [M || RPCHostType <- HostTypes,
+                                    maps:get(<<"name">>, RPCHostType) == HostType,
+                                    M <- maps:get(<<"modules">>, RPCHostType),
+                                    maps:get(<<"name">>, M) == <<"mod_graphql_test">>],
+        Options = maps:get(<<"options">>, GraphqlTestModule),
+
+        Extract = fun(K) ->
+            case lists:keyfind(K, 1, [ {maps:get(<<"key">>, O), maps:get(<<"value">>, O)} || O <- Options]) of
+                {_, V} -> V;
+                false -> undefined
+            end
+        end,
+
+        ?assertEqual(<<"atom_val">>, Extract(<<"atom_opt">>)),
+        ?assertEqual(<<"123">>, Extract(<<"int_opt">>)),
+        ?assertEqual(<<"binary">>, Extract(<<"bin_opt">>)),
+        ?assertEqual(<<"string">>, Extract(<<"str_opt">>)),
+        ?assertEqual(<<208, 154, 208, 155>>, Extract(<<"unicode_opt">>)),
+        ?assertEqual(<<"[1,2]">>, Extract(<<"list_opt">>)),
+        ?assertEqual(<<"#{key => val}">>, Extract(<<"map_opt">>)),
+        ?assertEqual(<<"{a,b}">>, Extract(<<"tuple_opt">>)),
+
+        FloatVal = Extract(<<"float_opt">>),
+        %% Loose check for float because formatting matches ~tp
+        ?assert(binary:match(FloatVal, <<"123.456">>) /= nomatch orelse binary:match(FloatVal, <<"1.23456">>) /= nomatch)
+
+    after
+        %% Unload
+        rpc(Node, mongoose_modules, ensure_stopped, [HostType, mod_graphql_test])
+    end.
 
 
 join_successful(Config) ->
