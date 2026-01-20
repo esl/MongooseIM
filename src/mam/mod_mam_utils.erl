@@ -792,7 +792,7 @@ message_form_fields(Mod, HostType, <<"urn:xmpp:mam:1">>) ->
     TextSearch =
         case has_full_text_search(Mod, HostType) of
             true -> [#{type => <<"text-single">>,
-                       var => <<"{https://erlang-solutions.com/}full-text-search">>}];
+                       var => <<"{urn:xmpp:fulltext:0}fulltext">>}];
             false -> []
         end,
     [#{type => <<"jid-single">>, var => <<"with">>},
@@ -802,7 +802,7 @@ message_form_fields(Mod, HostType, <<"urn:xmpp:mam:2">>) ->
     TextSearch =
         case has_full_text_search(Mod, HostType) of
             true -> [#{type => <<"text-single">>,
-                       var => <<"{https://erlang-solutions.com/}full-text-search">>}];
+                       var => <<"{urn:xmpp:fulltext:0}fulltext">>}];
             false -> []
         end,
     [#{type => <<"jid-single">>, var => <<"with">>},
@@ -815,7 +815,11 @@ message_form_fields(Mod, HostType, <<"urn:xmpp:mam:2">>) ->
        validate => #{method => open, datatype => <<"xs:string">>}} | TextSearch].
 
 -spec form_to_text(_) -> 'undefined' | binary().
+% old ESL implementation, for backward compatibility
 form_to_text(#{<<"full-text-search">> := [Text]}) ->
+    Text;
+% conformant to XEP-0431
+form_to_text(#{<<"fulltext">> := [Text]}) ->
     Text;
 form_to_text(#{}) ->
     undefined.

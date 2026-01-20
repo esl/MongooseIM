@@ -50,6 +50,7 @@
          maybe_wait_for_archive/1,
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
+         stanza_text_search_archive_request/4,
          stanza_include_groupchat_request/3,
          stanza_fetch_by_id_request/3,
          stanza_fetch_by_id_request/4,
@@ -1406,7 +1407,7 @@ text_search_is_available(Config) ->
         escalus:assert(is_iq_with_ns, [Namespace], Res),
         QueryEl = exml_query:subelement(Res, <<"query">>),
         XEl = exml_query:subelement(QueryEl, <<"x">>),
-        escalus:assert(has_field_with_type, [<<"{https://erlang-solutions.com/}full-text-search">>,
+        escalus:assert(has_field_with_type, [<<"{urn:xmpp:fulltext:0}fulltext">>,
                                              <<"text-single">>], XEl),
         ok
         end,
@@ -1423,7 +1424,7 @@ easy_text_search_request(Config) ->
         maybe_wait_for_archive(Config), %% yz lag
 
         %% 'Cat' query
-        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
+        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>, compat)),
         Res1 = wait_archive_respond(Alice),
         assert_respond_size(2, Res1),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res1)),

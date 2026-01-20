@@ -253,6 +253,9 @@ stanza_filtered_by_jid_request(P, BWithJID) ->
     stanza_lookup_messages_iq(P, Params).
 
 stanza_text_search_archive_request(P, QueryId, TextSearch) ->
+    stanza_text_search_archive_request(P, QueryId, TextSearch, official).
+
+stanza_text_search_archive_request(P, QueryId, TextSearch, Implementation) ->
     Params = #{
         query_id => QueryId,
         text_search => TextSearch
@@ -278,6 +281,9 @@ stanza_fetch_by_id_request(P, QueryId, IDs, RSM) ->
     stanza_lookup_messages_iq(P, Params).
 
 stanza_lookup_messages_iq(P, Params) ->
+    stanza_lookup_messages_iq(P, Params, official).
+
+stanza_lookup_messages_iq(P, Params, Implementation) ->
     QueryId = maps:get(query_id, Params, undefined),
     BStart = maps:get(start, Params, undefined),
     BEnd = maps:get(stop, Params, undefined),
@@ -293,23 +299,28 @@ stanza_lookup_messages_iq(P, Params) ->
        name = <<"query">>,
        attrs = maybe_attr(<<"queryid">>, QueryId, Attrs),
        children = skip_undefined([
-           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat, MessagesIDs),
+           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat, MessagesIDs, Implementation),
            maybe_rsm_elem(RSM),
            maybe_flip_page(FlipPage)])
     }]).
 
-form_x(undefined, undefined, undefined, undefined, undefined, undefined, undefined) ->
+form_x(undefined, undefined, undefined, undefined, undefined, undefined, undefined, _) ->
     undefined;
-form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat, MessagesIDs) ->
+form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat, MessagesIDs, Implementation) ->
     Fields = skip_undefined([form_field(<<"start">>, BStart),
                              form_field(<<"end">>, BEnd),
                              form_field(<<"with">>, BWithJID),
-                             form_field(<<"full-text-search">>, TextSearch),
+                             fulltext_field(TextSearch, Implementation),
                              form_field(<<"include-groupchat">>, IncludeGroupChat),
                              form_field(<<"ids">>, MessagesIDs)]
                             ++ form_extra_fields(RSM)
                             ++ form_border_fields(RSM)),
     form_helper:form(#{fields => Fields}).
+
+fulltext_field(TextSearch, official) ->
+    form_field(<<"fulltext">>, TextSearch);
+fulltext_field(TextSearch, compat) ->
+    form_field(<<"full-text-search">>, TextSearch).
 
 form_extra_fields(undefined) ->
     [];
