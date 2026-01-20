@@ -171,6 +171,8 @@ module_options_formatting_test(Config) ->
     HostType = domain_helper:host_type(),
     Node = mim(),
     %% Load the test module
+    {mod_graphql_test, Bin, Fname} = code:get_object_code(mod_graphql_test),
+    {module, mod_graphql_test} = rpc(Node, code, load_binary, [mod_graphql_test, Fname, Bin]),
     rpc(Node, mongoose_modules, ensure_started, [HostType, mod_graphql_test, #{}]),
 
     try
