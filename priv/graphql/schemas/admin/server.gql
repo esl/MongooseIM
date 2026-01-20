@@ -90,12 +90,20 @@ enum LogLevel {
   ALL
 }
 
+"""Key/value pair describing a module option."""
+type ModuleOption {
+  "Option key (atom or string)"
+  key: String!
+  "Configured value rendered as string when available"
+  value: String
+}
+
 """Information about a loaded module for a given host type."""
 type ModuleInfo {
   "Module name (atom as string, e.g. 'mod_roster')"
   name: String!
-  "Backend configured in module opts (may be null if not specified)"
-  backend: String
+  "Subset of relevant configuration options"
+  options: [ModuleOption!]!
 }
 
 """Information about a loaded service."""
@@ -116,8 +124,6 @@ type GlobalInfo {
 type HostTypeInfo {
   "Host type name"
   name: String!
-  "Domains mapped to this host type (may be empty)"
-  domains: [String!]!
   "Loaded modules for this host type"
   modules: [ModuleInfo!]!
   "Authentication methods configured for this host type"

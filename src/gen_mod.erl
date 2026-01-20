@@ -73,6 +73,8 @@
 -callback supported_features() -> [module_feature()].
 -callback config_spec() -> mongoose_config_spec:config_section().
 -callback instrumentation(host_type()) -> [mongoose_instrument:spec()].
+%% Return subset of configuration options suitable for external APIs.
+-callback reported_module_options(host_type(), module_opts()) -> [{opt_key(), opt_value()}].
 
 %% Optional callback specifying module dependencies.
 %% The dependent module can specify parameters with which the dependee should be
@@ -87,7 +89,8 @@
 %% function).
 -callback deps(host_type(), module_opts()) -> gen_mod_deps:deps().
 
--optional_callbacks([hooks/1, config_spec/0, supported_features/0, instrumentation/1, deps/2]).
+-optional_callbacks([hooks/1, config_spec/0, supported_features/0, instrumentation/1,
+                    reported_module_options/2, deps/2]).
 
 %% @doc This function should be called by mongoose_modules only.
 %% To start a new module at runtime, use mongoose_modules:ensure_module/3 instead.

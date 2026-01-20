@@ -6,13 +6,14 @@
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
+-include("mongoose.hrl").
 
 execute(_Ctx, server, <<"status">>, _) ->
     {ok, {Status, Message, Version, CommitHash}} = mongoose_server_api:status(),
     {ok, #{<<"statusCode">> => status_code(Status), <<"message">> => Message,
            <<"version">> => Version, <<"commitHash">> => CommitHash}};
 execute(_Ctx, server, <<"hostTypes">>, _) ->
-    HostTypes = lists:sort(all_host_types()),
+    HostTypes = host_types(),
     {ok, [{ok, host_type_info(HostType)} || HostType <- HostTypes]};
 execute(_Ctx, server, <<"globalInfo">>, _) ->
     Services = get_loaded_services(),
@@ -27,24 +28,15 @@ execute(_Ctx, server, <<"getCookie">>, _) ->
 status_code(true) -> <<"RUNNING">>;
 status_code(false) -> <<"NOT_RUNNING">>.
 
-all_host_types() ->
-    Hosts = mongoose_config:get_opt(hosts),
-    HostTypes = mongoose_config:get_opt(host_types),
-    HostTypesFromHosts = host_types_from_hosts(Hosts),
-    lists:usort(HostTypes ++ HostTypesFromHosts).
-
-host_types_from_hosts(Hosts) ->
-    [HostType || Host <- Hosts,
-                 {ok, HostType} <- [mongoose_domain_api:get_host_type(Host)]].
+host_types() ->
+    lists:usort(?ALL_HOST_TYPES).
 
 host_type_info(HostType) ->
-    Domains = lists:sort(mongoose_domain_api:get_domains_by_host_type(HostType)),
     ModulesWithOpts = gen_mod:loaded_modules_with_opts(HostType),
     Modules = lists:keysort(1, maps:to_list(ModulesWithOpts)),
     AuthMethods = get_auth_methods(HostType),
     #{<<"name">> => HostType,
-      <<"domains">> => [{ok, D} || D <- Domains],
-      <<"modules">> => [{ok, module_info(Module, Opts)} || {Module, Opts} <- Modules],
+      <<"modules">> => [{ok, module_info(HostType, Module, Opts)} || {Module, Opts} <- Modules],
       <<"authMethods">> => [{ok, M} || M <- AuthMethods]}.
 
 get_auth_methods(HostType) ->
@@ -66,13 +58,62 @@ get_internal_databases() ->
         false -> []
     end.
 
-module_info(Module, Opts) ->
+module_info(HostType, Module, Opts) ->
+    Options = module_options(HostType, Module, Opts),
     #{<<"name">> => atom_to_binary(Module, utf8),
-      <<"backend">> => configured_backend(Opts)}.
+      <<"options">> => [{ok, OptionMap} || OptionMap <- Options]}.
 
-configured_backend(Opts) ->
-    case maps:get(backend, Opts, undefined) of
-        undefined -> null;
-        Backend -> atom_to_binary(Backend, utf8)
+module_options(HostType, Module, Opts) ->
+    RawOptions = module_options_to_report(HostType, Module, Opts),
+    Formatted = [format_module_option(Entry) || Entry <- RawOptions],
+    lists:sort(fun compare_module_options/2, Formatted).
+
+%% Modules can optionally export reported_module_options/2 to control the reported
+%% configuration keys.
+module_options_to_report(HostType, Module, Opts) ->
+    case erlang:function_exported(Module, reported_module_options, 2) of
+        true ->
+            try Module:reported_module_options(HostType, Opts) of
+                Options when is_list(Options) -> Options;
+                _ -> default_options_to_report(Opts)
+            catch
+                _:_ -> default_options_to_report(Opts)
+            end;
+        false ->
+            default_options_to_report(Opts)
+    end.
+
+default_options_to_report(Opts) ->
+    [{Key, Value} || {Key, Value} <- maps:to_list(Opts), is_backend_option(Key)].
+
+is_backend_option(Key) when is_atom(Key) ->
+    lists:suffix("backend", atom_to_list(Key));
+is_backend_option(_) ->
+    false.
+
+format_module_option({Key, Value}) ->
+    #{<<"key">> => format_option_key(Key),
+      <<"value">> => format_option_value(Value)};
+format_module_option(Other) ->
+    format_module_option({Other, undefined}).
+
+compare_module_options(#{<<"key">> := Key1}, #{<<"key">> := Key2}) ->
+    Key1 =< Key2.
+
+format_option_key(Key) ->
+    format_term(Key).
+
+format_option_value(undefined) -> null;
+format_option_value(null) -> null;
+format_option_value(Value) ->
+    format_term(Value).
+
+format_term(Term) when is_binary(Term) -> Term;
+format_term(Term) when is_atom(Term) -> atom_to_binary(Term, utf8);
+format_term(Term) when is_integer(Term) -> integer_to_binary(Term);
+format_term(Term) ->
+    case io_lib:printable_unicode_list(Term) of
+        true -> unicode:characters_to_binary(Term);
+        false -> unicode:characters_to_binary(io_lib:format("~tp", [Term]))
     end.
 

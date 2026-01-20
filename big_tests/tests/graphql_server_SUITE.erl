@@ -37,7 +37,9 @@ admin_http_groups() ->
 admin_tests() ->
     [get_cookie_test,
      set_and_get_loglevel_test,
-     get_status_test].
+     get_status_test,
+     get_host_types_test,
+     get_global_info_test].
 
 clustering_tests() ->
     [join_successful,
@@ -145,6 +147,23 @@ get_status_test(Config) ->
     ?assert(is_binary(maps:get(<<"message">>, Result))),
     ?assert(is_binary(maps:get(<<"version">>, Result))),
     ?assert(is_binary(maps:get(<<"commitHash">>, Result))).
+
+get_host_types_test(Config) ->
+    HostTypes = get_ok_value([data, server, hostTypes],
+                              execute_command(<<"server">>, <<"hostTypes">>, #{}, Config)),
+    ?assert(is_list(HostTypes)),
+    ?assert(length(HostTypes) > 0),
+    lists:foreach(fun assert_host_type/1, HostTypes).
+
+get_global_info_test(Config) ->
+    GlobalInfo = get_ok_value([data, server, globalInfo],
+                               execute_command(<<"server">>, <<"globalInfo">>, #{}, Config)),
+    Services = maps:get(<<"services">>, GlobalInfo, []),
+    ?assert(is_list(Services)),
+    lists:foreach(fun assert_service_info/1, Services),
+    InternalDatabases = maps:get(<<"internalDatabases">>, GlobalInfo, []),
+    ?assert(is_list(InternalDatabases)),
+    ok.
 
 
 join_successful(Config) ->
@@ -362,3 +381,27 @@ stop_node(Node, Config) ->
 
 remove_node(Node, Config) ->
     execute_command(Node, <<"server">>, <<"removeNode">>, #{<<"node">> => Node}, Config).
+
+assert_host_type(HostType) ->
+    ?assertMatch(#{<<"name">> := _}, HostType),
+    ?assertMatch(#{<<"authMethods">> := AuthMethods} when is_list(AuthMethods), HostType),
+    ?assertMatch(#{<<"modules">> := Modules} when is_list(Modules), HostType),
+    lists:foreach(fun assert_module_info/1, maps:get(<<"modules">>, HostType, [])).
+
+assert_module_info(Module) ->
+    ?assertMatch(#{<<"name">> := _}, Module),
+    Options = maps:get(<<"options">>, Module, []),
+    ?assert(is_list(Options)),
+    lists:foreach(fun assert_option_info/1, Options).
+
+assert_option_info(Option) ->
+    ?assertMatch(#{<<"key">> := _}, Option),
+    Value = maps:get(<<"value">>, Option, undefined),
+    case Value of
+        undefined -> ?assert(false);
+        null -> ok;
+        Bin when is_binary(Bin) -> ok
+    end.
+
+assert_service_info(Service) ->
+    ?assertMatch(#{<<"name">> := _}, Service).

@@ -40,6 +40,7 @@
          supported_features/0,
          config_spec/0,
          instrumentation/1,
+         reported_module_options/2,
          process_room_affiliation/1,
          room_destroyed/4,
          store_room/4,
@@ -1280,6 +1281,11 @@ count_rooms(Pid, Counts = #{online := Online, hibernated := Hibernated}) ->
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend, online_backend]).
+
+-spec reported_module_options(mongooseim:host_type(), gen_mod:module_opts()) ->
+          [{gen_mod:opt_key(), gen_mod:opt_value()}].
+reported_module_options(HostType, _Opts) ->
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend, online_backend, db_pool]).
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
