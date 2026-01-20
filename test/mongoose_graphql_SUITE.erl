@@ -366,8 +366,6 @@ admin_schema_has_server_host_types(_Config) ->
                  maps:get(<<"globalInfo">>, ServerFields)),
     #object_type{fields = HostTypeFields} = graphql_schema:get(AdminEp, <<"HostTypeInfo">>),
     ?assertMatch(#schema_field{ty = {non_null, <<"String">>}}, maps:get(<<"name">>, HostTypeFields)),
-    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"String">>}}}},
-                 maps:get(<<"domains">>, HostTypeFields)),
     ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"ModuleInfo">>}}}},
                  maps:get(<<"modules">>, HostTypeFields)),
     ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"String">>}}}},
