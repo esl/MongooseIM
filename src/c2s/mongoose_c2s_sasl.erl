@@ -23,12 +23,12 @@
 -type continue() :: #{server_out := binary()}.
 -type failure()  :: #{server_out := binary() | {binary(), undefined | iodata()},
                       maybe_username := maybe_username()}.
--type error() :: #{type := atom(), text := binary()}.
+-type error() :: #{type := mongoose_xmpp_errors:stream_error(), text := binary()}.
 -type result() :: {success,  mongoose_acc:t(), success()}
                 | {continue, mongoose_acc:t(), continue()}
                 | {failure,  mongoose_acc:t(), failure()}
                 | {error,  mongoose_acc:t(), error()}.
--export_type([result/0, success/0, continue/0, failure/0, error/0, mechanism/0]).
+-export_type([result/0, success/0, continue/0, failure/0, error/0, mechanism/0, maybe_username/0]).
 
 -spec new(mongoose_c2s:data()) -> mongoose_acc:t().
 new(C2SData) ->
@@ -44,9 +44,12 @@ new(C2SData) ->
 start(C2SData, SaslAcc, Mech, ClientIn) ->
     Socket = mongoose_c2s:get_socket(C2SData),
     LOpts = mongoose_c2s:get_listener_opts(C2SData),
-    case {mongoose_xmpp_socket:is_ssl(Socket), LOpts} of
-        {false, #{tls := #{mode := starttls_required}}} ->
-            {error, SaslAcc, #{type => policy_violation, text => <<"Use of STARTTLS required">>}};
+    Result = mongoose_acc:get(hook, result, undefined, SaslAcc),
+    case {mongoose_xmpp_socket:is_ssl(Socket), LOpts, Result} of
+        {false, #{tls := #{mode := starttls_required}}, _} ->
+            {error, SaslAcc, #{type => encryption_required, text => <<"Use of STARTTLS required">>}};
+        {_, _, Error} when Error /= undefined ->
+            {error, SaslAcc, Error};
         _ ->
             AuthMech = mongoose_c2s:get_auth_mechs(C2SData),
             %% Provide SaslAcc for readonly access, so the cyrsasl mechanism

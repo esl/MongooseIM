@@ -16,7 +16,16 @@
     | service_unavailable | service_unavailable_wait | subscription_required
     | unexpected_request | unexpected_request_cancel.
 
--export_type([stanza_error/0]).
+-type stream_error() ::
+    bad_format | bad_namespace_prefix | connection_timeout | encryption_required
+    | host_gone | host_unknown | improper_addressing | invalid_from | invalid_id
+    | invalid_namespace | invalid_xml | malformed_request | policy_violation
+    | remote_connection_failed | restricted_xml | see_other_host | stream_conflict
+    | stream_internal_server_error | stream_not_authorized | stream_resource_constraint
+    | system_shutdown | undefined_condition | unsupported_encoding | unsupported_stanza_type
+    | unsupported_version | xml_not_well_formed.
+
+-export_type([stanza_error/0, stream_error/0]).
 
 bad_request() ->
     jlib:stanza_error(<<"400">>, <<"modify">>, <<"bad-request">>).
@@ -189,6 +198,9 @@ stream_conflict() ->
 connection_timeout() ->
     jlib:stream_error(<<"connection-timeout">>).
 
+encryption_required() ->
+    jlib:stream_error(<<"encryption-required">>).
+
 host_gone() ->
     jlib:stream_error(<<"host-gone">>).
 
@@ -212,6 +224,9 @@ invalid_namespace() ->
 
 invalid_xml() ->
     jlib:stream_error(<<"invalid-xml">>).
+
+malformed_request() ->
+    jlib:stream_error(<<"malformed-request">>).
 
 stream_not_authorized() ->
     jlib:stream_error(<<"not-authorized">>).
@@ -266,6 +281,9 @@ stream_conflict(Lang, Text) ->
 connection_timeout(Lang, Text) ->
     jlib:stream_errort(<<"connection-timeout">>, Lang, Text).
 
+encryption_required(Lang, Text) ->
+    jlib:stream_errort(<<"encryption-required">>, Lang, Text).
+
 host_gone(Lang, Text) ->
     jlib:stream_errort(<<"host-gone">>, Lang, Text).
 
@@ -289,6 +307,9 @@ invalid_namespace(Lang, Text) ->
 
 invalid_xml(Lang, Text) ->
     jlib:stream_errort(<<"invalid-xml">>, Lang, Text).
+
+malformed_request(Lang, Text) ->
+    jlib:stream_errort(<<"malformed-request">>, Lang, Text).
 
 stream_not_authorized(Lang, Text) ->
     jlib:stream_errort(<<"not-authorized">>, Lang, Text).
