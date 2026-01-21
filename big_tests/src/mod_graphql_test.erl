@@ -1,7 +1,7 @@
 -module(mod_graphql_test).
 -behavior(gen_mod).
 
--export([start/2, stop/1, reported_module_options/2, does_module_support/2]).
+-export([start/2, stop/1, reported_module_options/2, supported_features/0]).
 
 start(_HostType, _Opts) -> ok.
 stop(_HostType) -> ok.
@@ -19,7 +19,5 @@ reported_module_options(_HostType, _Opts) ->
      {tuple_opt, {a, b}}
     ].
 
-does_module_support(_Module, dynamic_domains) ->
-    true;
-does_module_support(_Module, _Feature) ->
-    false.
+supported_features() ->
+    [dynamic_domains].
