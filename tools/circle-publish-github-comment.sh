@@ -141,7 +141,7 @@ STATUS_LINE=""
 if [ -f "$COUNTERS_FILE" ]; then
     . "$COUNTERS_FILE"
     COUNTERS_BODY="**OK: $CT_COUNTER_OK** "
-    if [ "$CT_COUNTER_FAILED" != "0" ]; then
+    if [ "$CT_COUNTER_FAILED" != "0" ] || [ "$CT_COUNTER_AUTO_SKIPPED" != "0" ] || [ "$CT_COUNTER_OK" = "0" ]; then
         COUNTERS_BODY="$COUNTERS_BODY/ **Failed: $CT_COUNTER_FAILED** "
         STATUS_LINE="Status: 🔴 Failed"$'\n'
     else
