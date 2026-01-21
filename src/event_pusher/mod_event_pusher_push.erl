@@ -37,7 +37,7 @@
 -export([push_event/3]).
 
 %% Hooks and IQ handlers
--export([iq_handler/4,
+-export([iq_handler/5,
          remove_user/3,
          remove_domain/3]).
 
@@ -46,7 +46,7 @@
 -export([is_virtual_pubsub_host/3]).
 -export([disable_node/4]).
 
--ignore_xref([iq_handler/4]).
+-ignore_xref([iq_handler/5]).
 
 %% Types
 -type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
@@ -72,15 +72,15 @@ start_pool(HostType, #{wpool := WpoolOpts}) ->
     {ok, _} = mongoose_wpool:start(generic, HostType, pusher_push, maps:to_list(WpoolOpts)).
 
 init_iq_handlers(HostType, #{iqdisc := IQDisc}) ->
-    gen_iq_handler:add_iq_handler(ejabberd_local, HostType, ?NS_PUSH, ?MODULE,
-                                  iq_handler, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, HostType, ?NS_PUSH, ?MODULE,
-                                  iq_handler, IQDisc).
+    gen_iq_handler:add_iq_handler_for_domain(
+        HostType, ?NS_PUSH, ejabberd_local, fun ?MODULE:iq_handler/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(
+        HostType, ?NS_PUSH, ejabberd_sm, fun ?MODULE:iq_handler/5, #{}, IQDisc).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, HostType, ?NS_PUSH),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, HostType, ?NS_PUSH),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PUSH, ejabberd_sm),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PUSH, ejabberd_local),
 
     mongoose_wpool:stop(generic, HostType, pusher_push),
     ok.
@@ -117,9 +117,9 @@ wpool_spec() ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
-remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
-    R = mod_event_pusher_push_backend:disable(LServer, jid:make_noprep(LUser, LServer, <<>>)),
+      Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
+    R = mod_event_pusher_push_backend:disable(HostType, jid:make_noprep(LUser, LServer, <<>>)),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     {ok, Acc}.
 
@@ -152,12 +152,12 @@ push_event(HookAcc = #{acc := Acc}, #{event := Event = #unack_msg_event{to = To}
 push_event(HookAcc, _Params, _Extra) ->
     {ok, HookAcc}.
 
--spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: jlib:iq()) ->
+-spec iq_handler(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
+                 IQ :: jlib:iq(), Extra :: gen_hook:extra()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
-iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
+iq_handler(Acc, _From, _To, IQ = #iq{type = get, sub_el = SubEl}, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
+iq_handler(Acc, From, _To, IQ = #iq{type = set, sub_el = Request}, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     Res = case parse_request(Request) of
               {enable, BarePubSubJID, Node, FormFields} ->
