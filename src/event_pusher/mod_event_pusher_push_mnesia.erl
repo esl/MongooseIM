@@ -21,7 +21,8 @@
 -export([enable/5,
          disable/2,
          disable/4,
-         get_publish_services/2]).
+         get_publish_services/2,
+         remove_domain/2]).
 
 %%--------------------------------------------------------------------
 %% Definitions
@@ -148,3 +149,13 @@ make_record(UserJID, PubsubJID, Node, Form) ->
 -spec key(jid:jid()) -> key().
 key(JID) ->
     jid:to_lus(JID).
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(_HostType, Domain) ->
+    Pattern = #push_subscription{user_jid = {'_', Domain}, _ = '_'},
+    F = fun() ->
+            Subs = mnesia:match_object(Pattern),
+            lists:foreach(fun(Sub) -> mnesia:delete_object(Sub) end, Subs)
+        end,
+    {atomic, ok} = mnesia:transaction(F),
+    ok.

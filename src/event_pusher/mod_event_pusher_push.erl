@@ -28,7 +28,7 @@
 %%--------------------------------------------------------------------
 
 %% gen_mod behaviour
--export([start/2, stop/1, hooks/1, config_spec/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% mongoose_module_metrics behaviour
 -export([config_metrics/1]).
@@ -38,7 +38,8 @@
 
 %% Hooks and IQ handlers
 -export([iq_handler/4,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/3]).
 
 %% Plugin utils
 -export([cast/3]).
@@ -87,6 +88,7 @@ stop(HostType) ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 90},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
      {push_event, HostType, fun ?MODULE:push_event/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -119,6 +121,18 @@ wpool_spec() ->
 remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
     R = mod_event_pusher_push_backend:disable(LServer, jid:make_noprep(LUser, LServer, <<>>)),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
+    {ok, Acc}.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
+
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_domain_api:remove_domain_acc(),
+      Params :: #{domain := jid:lserver()},
+      Extra :: gen_hook:extra().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
+    mod_event_pusher_push_backend:remove_domain(HostType, Domain),
     {ok, Acc}.
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),

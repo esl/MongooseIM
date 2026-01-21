@@ -17,7 +17,8 @@
 -export([enable/5,
          disable/2,
          disable/4,
-         get_publish_services/2]).
+         get_publish_services/2,
+         remove_domain/2]).
 
 %%--------------------------------------------------------------------
 %% Backend callbacks
@@ -111,6 +112,9 @@ prepare_queries() ->
                            [owner_jid, node, pubsub_jid],
                            <<"DELETE FROM event_pusher_push_subscription "
                              "WHERE owner_jid = ? AND node = ? AND pubsub_jid = ?">>),
+    mongoose_rdbms:prepare(event_pusher_push_remove_domain, event_pusher_push_subscription,
+                           [owner_jid],
+                           <<"DELETE FROM event_pusher_push_subscription WHERE owner_jid LIKE ?">>),
     ok.
 
 -spec execute_insert(mongooseim:host_type(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
@@ -140,3 +144,9 @@ execute_delete(HostType, OwnerJid, PubSubJid) ->
 execute_delete(HostType, OwnerJid, Node, PubSubJid) ->
     mongoose_rdbms:execute_successfully(HostType, event_pusher_push_delete_node,
                                         [OwnerJid, Node, PubSubJid]).
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(HostType, Domain) ->
+    LikePattern = <<"%@", Domain/binary>>,
+    mongoose_rdbms:execute_successfully(HostType, event_pusher_push_remove_domain, [LikePattern]),
+    ok.

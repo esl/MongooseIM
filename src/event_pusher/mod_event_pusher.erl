@@ -30,7 +30,7 @@
 -type push_event_acc() :: #{acc := mongoose_acc:t(), metadata := metadata()}.
 -export_type([event/0, metadata/0, push_event_acc/0, push_event_params/0]).
 
--export([deps/2, start/2, stop/1, config_spec/0, push_event/2]).
+-export([deps/2, start/2, stop/1, config_spec/0, push_event/2, supported_features/0]).
 
 -export([config_metrics/1]).
 
@@ -89,3 +89,7 @@ backend_module(sns) -> mod_event_pusher_sns.
 
 all_backends() ->
     [http, push, rabbit, sns].
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
