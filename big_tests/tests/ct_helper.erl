@@ -9,7 +9,9 @@
          get_internal_database/0,
          add_params_to_list/3]).
 
--dialyzer({nowarn_function, get_preset_var/3}). % ct does not support 4th level
+%%ct's specs say config keys can be only three levels deep, but its implementation handles
+%%more; since we are using four here we have to ignore warnings.
+-dialyzer({nowarn_function, get_preset_var/3}).
 
 -type group_name() :: atom().
 

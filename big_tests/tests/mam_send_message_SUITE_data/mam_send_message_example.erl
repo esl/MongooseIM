@@ -44,7 +44,6 @@ extend_message(_HostType, _ArcJID, Row = #{}) ->
     Row#{some_hash => erlang:phash2(Row, 32)}.
 
 send_message(Row, From, To, Mess) ->
-    ?LOG_ERROR("asdf Row: ~p", [Row]),
     Res = exml_query:subelement(Mess, <<"result">>),
     Res2 = jlib:append_subtags(Res, [new_subelem(Row)]),
     Mess2 = jlib:replace_subelement(Mess, Res2),

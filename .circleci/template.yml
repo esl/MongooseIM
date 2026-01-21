@@ -946,7 +946,7 @@ workflows:
             - latest_otp_docker
           filters: *all_tags
       - dialyzer_big_tests:
-          name: dialyzer_28_big_tests
+          name: dialyzer_latest_big_tests
           executor: latest_otp_large
           context: mongooseim-org
           requires:

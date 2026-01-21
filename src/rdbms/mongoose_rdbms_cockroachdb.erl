@@ -52,7 +52,7 @@ prepare(Connection, Name, Table, Fields, Statement) ->
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
               Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 execute(Connection, StatementRef, Params, Timeout) ->
-    Result = execute_with_retry(Connection, StatementRef, Params, Timeout, 3, 3, #{}).
+    execute_with_retry(Connection, StatementRef, Params, Timeout, 3, 3, #{}).
 
 do_execute(Connection, StatementRef, Params, Timeout) ->
     mongoose_rdbms_pgsql:execute(Connection, StatementRef, Params, Timeout).

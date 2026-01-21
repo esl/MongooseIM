@@ -4135,7 +4135,7 @@ pagination_after10(Config) ->
         RSM = #rsm_in{max=5, direction='after',
                       id=generate_room_name(10)},
         escalus:send(Alice, stanza_room_list_request(<<"after10">>, RSM)),
-%%        wait_room_range(Alice, 11, 15),
+        wait_room_range(Alice, 11, 15),
         ok
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
