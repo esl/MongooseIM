@@ -11,8 +11,8 @@ For each HTTP listener, all the [general](../configuration/listen.md#general-lis
 ### `listen.http.handlers`
 * **Syntax:** each handler is specified in a subsection starting with `[[listen.http.handlers.type]]` where `type` is one of the allowed handler types, handling different connection types:
 
-    * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
-    * `mod_websockets` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
+    * `mongoose_bosh_handler` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
+    * `mongoose_websocket_handler` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
     * `mongoose_prometheus_handler` - for [Prometheus](https://prometheus.io/) metrics,
     * `mongoose_graphql_handler` - for GraphQL API,
     * `mongoose_admin_api`, `mongoose_client_api` - for REST API.
@@ -23,11 +23,11 @@ For each HTTP listener, all the [general](../configuration/listen.md#general-lis
 * **Default:** `[]` - no handlers enabled, all of them need to be specified explicitly.
 * **Example:** two handlers, one for BOSH and one for WebSockets
 ```toml
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
-  [[listen.http.handlers.mod_websockets]]
+  [[listen.http.handlers.mongoose_websocket_handler]]
     host = "_"
     path = "/ws-xmpp"
 ```
@@ -48,32 +48,32 @@ Host name for this handler or `"_"` for any host.
 
 Path for this handler.
 
-## Handler types: BOSH - `mod_bosh`
+## Handler types: BOSH - `mongoose_bosh_handler`
 
 The recommended configuration is shown in [Example 1](#example-1-bosh-and-ws) below.
-To handle incoming BOSH traffic you need to configure the `mod_bosh` module in the `modules` section as well.
+To handle incoming BOSH traffic you need to configure [`service_bosh`](../configuration/Services.md#service_bosh) in the `services` section as well.
 
-## Handler types: WebSockets - `mod_websockets`
+## Handler types: WebSockets - `mongoose_websocket_handler`
 
 The recommended configuration is shown in [Example 1](#example-1-bosh-and-ws) below.
-Websocket connections as defined in [RFC 7395](https://tools.ietf.org/html/rfc7395).
+WebSocket connections as defined in [RFC 7395](https://tools.ietf.org/html/rfc7395).
 You can pass the following optional parameters:
 
-### `listen.http.handlers.mod_websockets.timeout`
+### `listen.http.handlers.mongoose_websocket_handler.timeout`
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `"infinity"`
 * **Example:** `timeout = 60_000`
 
 The time (in milliseconds) after which an inactive user is disconnected.
 
-### `listen.http.handlers.mod_websockets.ping_rate`
+### `listen.http.handlers.mongoose_websocket_handler.ping_rate`
 * **Syntax:** positive integer
 * **Default:** not set - pings disabled
 * **Example:** `ping_rate = 10_000`
 
 The time (in milliseconds) between pings sent by server. By setting this option you enable server-side pinging.
 
-### `listen.http.handlers.mod_websockets.max_stanza_size`
+### `listen.http.handlers.mongoose_websocket_handler.max_stanza_size`
 * **Syntax:** positive integer or the string `"infinity"`
 * **Default:** `"infinity"`
 * **Example:** `max_stanza_size = 10_000`
@@ -82,11 +82,11 @@ Maximum allowed incoming stanza size in bytes.
 !!! Warning
     This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
-### `listen.http.handlers.mod_websockets.state_timeout`
+### `listen.http.handlers.mongoose_websocket_handler.state_timeout`
 
 Same as the [XMPP option](../configuration/listen.md#listenstate_timeout).
 
-### `listen.http.handlers.mod_websockets.backwards_compatible_session`
+### `listen.http.handlers.mongoose_websocket_handler.backwards_compatible_session`
 
 Same as the [C2S option](listen-c2s.md#listenc2sbackwards_compatible_session).
 
@@ -244,11 +244,11 @@ The following listener accepts BOSH and WebSocket connections and has TLS config
   tls.keyfile = "mykey.pem"
   tls.password =  "secret"
 
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
-  [[listen.http.handlers.mod_websockets]]
+  [[listen.http.handlers.mongoose_websocket_handler]]
     host = "_"
     path = "/ws-xmpp"
 ```

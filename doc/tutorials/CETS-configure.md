@@ -23,13 +23,13 @@ If you want to use CETS instead of Mnesia, ensure that these options are set:
 [modules.mod_stream_management]
   backend = "cets"
 
-[modules.mod_bosh]
-  backend = "cets"
-
 [modules.mod_muc]
   online_backend = "cets"
 
 [modules.mod_jingle_sip]
+  backend = "cets"
+
+[services.service_bosh]
   backend = "cets"
 ```
 

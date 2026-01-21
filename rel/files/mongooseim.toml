@@ -23,11 +23,11 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
-  [[listen.http.handlers.mod_websockets]]
+  [[listen.http.handlers.mongoose_websocket_handler]]
     host = "_"
     path = "/ws-xmpp"
 
@@ -39,11 +39,11 @@
   {{{https_config}}}
   {{/https_config}}
 
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
-  [[listen.http.handlers.mod_websockets]]
+  [[listen.http.handlers.mongoose_websocket_handler]]
     host = "_"
     path = "/ws-xmpp"
 
@@ -195,12 +195,18 @@
 #    tls.server_name_indication.enabled = false
 {{/outgoing_pools}}
 
-[services.service_mongoose_system_metrics]
+[services.service_bosh]
+  {{#bosh_backend}}
+  backend = {{{bosh_backend}}}
+  {{/bosh_backend}}
 
 {{#service_domain_db}}
 [services.service_domain_db]
 {{{service_domain_db}}}
+
 {{/service_domain_db}}
+[services.service_mongoose_system_metrics]
+
 [modules.mod_adhoc]
 
 {{#mod_amp}}
@@ -258,10 +264,6 @@
 [modules.mod_vcard]
 {{{mod_vcard}}}
 {{/mod_vcard}}
-[modules.mod_bosh]
-  {{#bosh_backend}}
-  backend = {{{bosh_backend}}}
-  {{/bosh_backend}}
 
 [modules.mod_carboncopy]
 

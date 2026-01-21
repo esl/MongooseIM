@@ -1,8 +1,8 @@
--module(mod_bosh_cets).
+-module(service_bosh_cets).
 
--behaviour(mod_bosh_backend).
+-behaviour(service_bosh_backend).
 
-%% mod_bosh_backend callbacks
+%% service_bosh_backend callbacks
 -export([start/0,
          create_session/1,
          delete_session/1,
@@ -10,7 +10,7 @@
          get_sessions/0,
          node_cleanup/1]).
 
--include("mod_bosh.hrl").
+-include("mongoose_bosh.hrl").
 
 -define(TABLE, cets_bosh).
 
@@ -21,19 +21,19 @@ start() ->
 
 %% Session key (sid) is unique, so we don't expect conflicts
 %% So, the confict resolution could be avoided
--spec create_session(mod_bosh:session()) -> ok.
+-spec create_session(service_bosh:session()) -> ok.
 create_session(#bosh_session{} = Session) ->
     cets:insert(?TABLE, Session).
 
--spec delete_session(mod_bosh:sid()) -> any().
+-spec delete_session(service_bosh:sid()) -> any().
 delete_session(Sid) ->
     cets:delete(?TABLE, Sid).
 
--spec get_session(mod_bosh:sid()) -> [mod_bosh:session()].
+-spec get_session(service_bosh:sid()) -> [service_bosh:session()].
 get_session(Sid) ->
     ets:lookup(?TABLE, Sid).
 
--spec get_sessions() -> [mod_bosh:session()].
+-spec get_sessions() -> [service_bosh:session()].
 get_sessions() ->
     ets:tab2list(?TABLE).
 

@@ -16,12 +16,6 @@
   validity_period.access = {value = 13, unit = "minutes"}
   validity_period.refresh = {value = 13, unit = "days"}
 
-[modules.mod_bosh]
-  inactivity = 20
-  max_wait = "infinity"
-  server_acks = true
-  max_pause = 120
-
 [modules.mod_caps]
   cache_size = 1000
   cache_life_time = 86
