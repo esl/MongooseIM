@@ -308,8 +308,16 @@ commands:
           name: Coverage
           when: always
           command: |
+            set +e
             ./rebar3 codecov analyze
+            ANALYZE_STATUS=$?
             tools/circle-upload-codecov.sh
+            UPLOAD_STATUS=$?
+            if [ "$ANALYZE_STATUS" -ne 0 ] || [ "$UPLOAD_STATUS" -ne 0 ]; then
+              echo "Coverage step failed (analyze=$ANALYZE_STATUS, upload=$UPLOAD_STATUS)" > /tmp/ci_job_failed_reason
+              touch /tmp/ci_job_failed
+            fi
+            exit 0
   run_small_tests:
     steps:
       - restore_workspace
@@ -565,6 +573,13 @@ jobs:
       - run_coverage_analysis
       - upload_results_to_aws
       - publish_github_comment
+      - run:
+          name: Fail job if needed
+          when: always
+          command: |
+            if [ -f /tmp/ci_job_failed ]; then
+              exit 1
+            fi
 
   big_tests_in_docker:
     executor: << parameters.executor >>
@@ -648,6 +663,13 @@ jobs:
       - upload_results_to_aws
       - publish_github_comment
       - report_failed_test_cases_to_ga4
+      - run:
+          name: Fail job if needed
+          when: always
+          command: |
+            if [ -f /tmp/ci_job_failed ]; then
+              exit 1
+            fi
 
   dialyzer:
     executor: << parameters.executor >>
