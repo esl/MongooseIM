@@ -1,7 +1,7 @@
 -module(mongoose_prometheus_sliding_window).
 
-%% Manages a sliding window of 20 DDSketch instances (3 seconds each = 60 seconds total)
-%% Each window uses ddskerl to store quantile summaries
+%% Manages a sliding window using DDSketch instances for quantile summaries.
+%% Window parameters are configurable via WINDOW_SIZE_MS and WINDOW_STEP_MS constants.
 
 -export([child_spec/0,
          declare/1,
@@ -19,15 +19,16 @@
          terminate/2,
          code_change/3]).
 
--export([default_quantiles/0, default_error/0, default_bound/0]).
+-export([default_quantiles/0, default_error/0, default_bound/0, window_size_s/0]).
 
 -ignore_xref([start_link/0]).
 
 -behaviour(gen_server).
 
--define(WINDOW_COUNT, 20).
--define(WINDOW_DURATION_MS, 3000). % 3 seconds per window
--define(TOTAL_WINDOW_MS, (?WINDOW_COUNT * ?WINDOW_DURATION_MS)). % 60 seconds total
+%% Configurable window parameters
+-define(WINDOW_SIZE_MS, 60000). % Total window size: 60 seconds
+-define(WINDOW_STEP_MS, 3000).  % Step size: 3 seconds per sub-window
+-define(WINDOW_COUNT, (?WINDOW_SIZE_MS div ?WINDOW_STEP_MS)). % Number of sub-windows
 
 
 -spec default_quantiles() -> [number()].
@@ -38,6 +39,9 @@ default_error() -> 0.01.
 
 -spec default_bound() -> non_neg_integer().
 default_bound() -> 1260.
+
+-spec window_size_s() -> pos_integer().
+window_size_s() -> ?WINDOW_SIZE_MS div 1000.
 
 -record(state, {
     timer_ref :: reference() | undefined,
@@ -88,7 +92,7 @@ start_link() ->
 
 init([]) ->
     EtsTable = ets:new(?MODULE, [set, private, {read_concurrency, true}, {write_concurrency, true}]),
-    TimerRef = erlang:start_timer(?WINDOW_DURATION_MS, self(), rotate),
+    TimerRef = erlang:start_timer(?WINDOW_STEP_MS, self(), rotate),
     {ok, #state{timer_ref = TimerRef, ets_table = EtsTable}}.
 
 handle_call({declare, Name, MetricSpec}, _From, State) ->
@@ -123,7 +127,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({timeout, _TimerRef, rotate}, State) ->
     %% The rotation is handled in ensure_windows_rotated, so we just reschedule
-    TimerRef = erlang:start_timer(?WINDOW_DURATION_MS, self(), rotate),
+    TimerRef = erlang:start_timer(?WINDOW_STEP_MS, self(), rotate),
     {noreply, State#state{timer_ref = TimerRef}};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -187,7 +191,7 @@ ensure_windows_rotated(Key, CurrentTime, State) ->
             {_CurrentWindow, WindowStartTime} = lists:nth(CurrentIndex + 1, Windows),
             Elapsed = CurrentTime - WindowStartTime,
             if
-                Elapsed >= ?WINDOW_DURATION_MS ->
+                Elapsed >= ?WINDOW_STEP_MS ->
                     NewIndex = (CurrentIndex + 1) rem ?WINDOW_COUNT,
                     {CurrentWindow, _} = lists:nth(CurrentIndex + 1, Windows),
                     ResetWindow = reset_window(CurrentWindow),
@@ -218,8 +222,8 @@ get_value(Name, LabelValues, State) ->
             UpdatedMetrics = maps:put(Name, UpdatedMetricState, State#state.metrics),
             NewState = State#state{metrics = UpdatedMetrics},
 
-            %% Filter windows to only include those within the last 60 seconds
-            CutoffTime = CurrentTime - ?TOTAL_WINDOW_MS,
+            %% Filter windows to only include those within the last window size
+            CutoffTime = CurrentTime - ?WINDOW_SIZE_MS,
             ActiveWindows = [Window || {Window, StartTime} <- UpdatedWindows,
                                       StartTime >= CutoffTime],
 

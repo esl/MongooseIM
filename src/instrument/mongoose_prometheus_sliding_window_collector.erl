@@ -28,12 +28,14 @@ collect_metric_family(Name, Callback) ->
         _ ->
             SWName = sliding_window_metric_name(Name),
             MetricSpec = mongoose_prometheus_sliding_window:get_metric_spec(Name),
+            WindowSizeS = mongoose_prometheus_sliding_window:window_size_s(),
+            WindowSizeSStr = integer_to_list(WindowSizeS),
             Help = case MetricSpec of
                        undefined ->
-                           "60-second sliding window quantile summary for " ++ Name;
+                           WindowSizeSStr ++ "-second sliding window quantile summary for " ++ Name;
                        Spec ->
                            BaseHelp = proplists:get_value(help, Spec, ""),
-                           BaseHelp ++ " (60s sliding window)"
+                           BaseHelp ++ " (" ++ WindowSizeSStr ++ "s sliding window)"
                    end,
             LabelKeys = case MetricSpec of
                             undefined -> [];
@@ -48,7 +50,8 @@ collect_metric_family(Name, Callback) ->
     end.
 
 sliding_window_metric_name(Name) ->
-    Name ++ "_60s".
+    WindowSizeS = mongoose_prometheus_sliding_window:window_size_s(),
+    Name ++ "_" ++ integer_to_list(WindowSizeS) ++ "s".
 
 create_summary_metric(LabelKeys, LabelValues, Count, Sum, Quantiles) ->
     %% Convert label keys and values to label pairs format
