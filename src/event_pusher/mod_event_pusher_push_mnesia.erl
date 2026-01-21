@@ -152,10 +152,17 @@ key(JID) ->
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(_HostType, Domain) ->
-    Pattern = #push_subscription{user_jid = {'_', Domain}, _ = '_'},
     F = fun() ->
-            Subs = mnesia:match_object(Pattern),
-            lists:foreach(fun(Sub) -> mnesia:delete_object(Sub) end, Subs)
+            mnesia:foldl(
+              fun(#push_subscription{user_jid = {_, UserDomain}} = Sub, Acc) ->
+                      case UserDomain of
+                          Domain -> mnesia:delete_object(Sub);
+                          _ -> ok
+                      end,
+                      Acc
+              end,
+              ok,
+              push_subscription)
         end,
     {atomic, ok} = mnesia:transaction(F),
     ok.
