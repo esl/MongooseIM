@@ -45,6 +45,7 @@ start_link() ->
 init(noargs) ->
     Hooks = worker_spec(gen_hook),
     Instrument = worker_spec(mongoose_instrument),
+    PrometheusSlidingWindow = mongoose_prometheus_sliding_window:child_spec(),
     Cleaner = worker_spec(mongoose_cleaner),
     Router = worker_spec(ejabberd_router),
     S2S = worker_spec(ejabberd_s2s),
@@ -70,6 +71,7 @@ init(noargs) ->
            PG,
            Hooks,
            Instrument,
+           PrometheusSlidingWindow,
            Cleaner,
            SMBackendSupervisor,
            OutgoingPoolsSupervisor

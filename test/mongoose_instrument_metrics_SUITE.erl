@@ -80,9 +80,14 @@ init_per_group(Group, Config) ->
     mongoose_config:set_opts(#{hosts => [?HOST_TYPE],
                                host_types => [?HOST_TYPE2],
                                instrumentation => opts(Group)}),
-    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
+    Config1 = async_helper:start(Config, extra_processes(Group) ++
+                                 [{mongoose_instrument, start_link, []}]),
     mongoose_instrument:persist(),
     Config1 ++ extra_config(Group).
+
+extra_processes(prometheus) -> [{mongoose_prometheus_sliding_window, start_link, []}];
+extra_processes(prometheus_and_exometer) -> [{mongoose_prometheus_sliding_window, start_link, []}];
+extra_processes(_) -> [].
 
 end_per_group(Group, Config) ->
     async_helper:stop_all(Config),

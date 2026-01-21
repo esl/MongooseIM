@@ -3,7 +3,8 @@
 %% Manages a sliding window of 20 DDSketch instances (3 seconds each = 60 seconds total)
 %% Each window uses ddskerl to store quantile summaries
 
--export([declare/1,
+-export([child_spec/0,
+         declare/1,
          observe/3,
          values/1,
          remove/2,
@@ -19,6 +20,8 @@
          code_change/3]).
 
 -export([default_quantiles/0, default_error/0, default_bound/0]).
+
+-ignore_xref([start_link/0]).
 
 -behaviour(gen_server).
 
@@ -55,33 +58,27 @@ default_bound() -> 1260.
 
 -spec declare(proplists:proplist()) -> boolean().
 declare(MetricSpec) ->
-    ok = ensure_started(),
     Name = proplists:get_value(name, MetricSpec),
     gen_server:call(?MODULE, {declare, Name, MetricSpec}).
 
 -spec observe(name(), label_values(), number()) -> ok.
 observe(Name, LabelValues, Value) ->
-    ok = ensure_started(),
     gen_server:cast(?MODULE, {observe, Name, LabelValues, Value}).
 
 -spec values(name()) -> [{label_values(), {non_neg_integer(), number(), [{number(), number()}]}}].
 values(Name) ->
-    ok = ensure_started(),
     gen_server:call(?MODULE, {values, Name}).
 
 -spec remove(name(), label_values()) -> boolean().
 remove(Name, LabelValues) ->
-    ok = ensure_started(),
     gen_server:call(?MODULE, {remove, Name, LabelValues}).
 
 -spec get_all_metric_names() -> [name()].
 get_all_metric_names() ->
-    ok = ensure_started(),
     gen_server:call(?MODULE, get_all_metric_names).
 
 -spec get_metric_spec(name()) -> proplists:proplist() | undefined.
 get_metric_spec(Name) ->
-    ok = ensure_started(),
     gen_server:call(?MODULE, {get_metric_spec, Name}).
 
 %% gen_server callbacks
@@ -137,20 +134,16 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-%% Internal helpers
+%% Child spec for supervision tree
 
--spec ensure_started() -> ok.
-ensure_started() ->
-    case whereis(?MODULE) of
-        undefined ->
-            case start_link() of
-                {ok, _Pid} -> ok;
-                {error, {already_started, _Pid}} -> ok;
-                {error, Reason} -> exit(Reason)
-            end;
-        _Pid ->
-            ok
-    end.
+-spec child_spec() -> supervisor:child_spec().
+child_spec() ->
+    #{id => ?MODULE,
+      start => {?MODULE, start_link, []},
+      restart => permanent,
+      shutdown => timer:seconds(5),
+      type => worker,
+      modules => [?MODULE]}.
 
 %% Internal functions
 

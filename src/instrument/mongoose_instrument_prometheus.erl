@@ -13,13 +13,6 @@
 start(#{}) ->
     Apps = [prometheus, prometheus_httpd, prometheus_cowboy],
     {ok, _} = application:ensure_all_started(Apps, permanent),
-    %% Start sliding window manager for histogram metrics
-    case whereis(mongoose_prometheus_sliding_window) of
-        undefined ->
-            {ok, _} = mongoose_prometheus_sliding_window:start_link();
-        _ ->
-            ok
-    end,
     prometheus_registry:register_collector(mongoose_prometheus_sliding_window_collector),
     ok.
 

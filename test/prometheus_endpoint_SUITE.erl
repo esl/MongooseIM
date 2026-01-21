@@ -23,7 +23,8 @@ init_per_suite(Config) ->
     mongoose_config:set_opts(opts()),
     Config1 = async_helper:start(Config, [{mongoose_instrument, start_link, []},
                                           {mim_ct_sup, start_link, [ejabberd_sup]},
-                                          {mongoose_listener_sup, start_link, []}]),
+                                          {mongoose_listener_sup, start_link, []},
+                                          {mongoose_prometheus_sliding_window, start_link, []}]),
     mongoose_listener:start(),
     Config1.
 
