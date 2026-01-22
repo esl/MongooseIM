@@ -90,7 +90,7 @@ enum LogLevel {
   ALL
 }
 
-"""Key/value pair describing a module option."""
+"Key/value pair describing a module option."
 type ModuleOption {
   "Option key (atom or string)"
   key: String!
@@ -98,7 +98,7 @@ type ModuleOption {
   value: String
 }
 
-"""Information about a loaded module for a given host type."""
+"Information about a loaded module for a given host type."
 type ModuleInfo {
   "Module name (atom as string, e.g. 'mod_roster')"
   name: String!
@@ -106,13 +106,13 @@ type ModuleInfo {
   options: [ModuleOption!]!
 }
 
-"""Information about a loaded service."""
+"Information about a loaded service."
 type ServiceInfo {
   "Service name (atom as string, e.g. 'service_domain_db')"
   name: String!
 }
 
-"""Global services and internal databases."""
+"Global services and internal databases."
 type GlobalInfo {
   "Loaded services"
   services: [ServiceInfo!]!
@@ -120,7 +120,7 @@ type GlobalInfo {
   internalDatabases: [String!]!
 }
 
-"""Information about a host type."""
+"Information about a host type."
 type HostTypeInfo {
   "Host type name"
   name: String!

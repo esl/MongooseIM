@@ -13,8 +13,7 @@ execute(_Ctx, server, <<"status">>, _) ->
     {ok, #{<<"statusCode">> => status_code(Status), <<"message">> => Message,
            <<"version">> => Version, <<"commitHash">> => CommitHash}};
 execute(_Ctx, server, <<"hostTypes">>, _) ->
-    HostTypes = host_types(),
-    {ok, [{ok, host_type_info(HostType)} || HostType <- HostTypes]};
+    {ok, [{ok, host_type_info(HostType)} || HostType <- ?ALL_HOST_TYPES]};
 execute(_Ctx, server, <<"globalInfo">>, _) ->
     Services = get_loaded_services(),
     InternalDatabases = get_internal_databases(),
@@ -27,9 +26,6 @@ execute(_Ctx, server, <<"getCookie">>, _) ->
 
 status_code(true) -> <<"RUNNING">>;
 status_code(false) -> <<"NOT_RUNNING">>.
-
-host_types() ->
-    lists:usort(?ALL_HOST_TYPES).
 
 host_type_info(HostType) ->
     ModulesWithOpts = gen_mod:loaded_modules_with_opts(HostType),
@@ -71,16 +67,9 @@ module_options(HostType, Module, Opts) ->
 %% Modules can optionally export reported_module_options/2 to control the reported
 %% configuration keys.
 module_options_to_report(HostType, Module, Opts) ->
-    case erlang:function_exported(Module, reported_module_options, 2) of
-        true ->
-            try Module:reported_module_options(HostType, Opts) of
-                Options when is_list(Options) -> Options;
-                _ -> default_options_to_report(Opts)
-            catch
-                _:_ -> default_options_to_report(Opts)
-            end;
-        false ->
-            default_options_to_report(Opts)
+    case gen_mod:reported_module_options(Module, HostType, Opts) of
+        {ok, Options} when is_list(Options) -> Options;
+        _ -> default_options_to_report(Opts)
     end.
 
 default_options_to_report(Opts) ->
@@ -93,9 +82,7 @@ is_backend_option(_) ->
 
 format_module_option({Key, Value}) ->
     #{<<"key">> => format_option_key(Key),
-      <<"value">> => format_option_value(Value)};
-format_module_option(Other) ->
-    format_module_option({Other, undefined}).
+      <<"value">> => format_option_value(Value)}.
 
 compare_module_options(#{<<"key">> := Key1}, #{<<"key">> := Key2}) ->
     Key1 =< Key2.

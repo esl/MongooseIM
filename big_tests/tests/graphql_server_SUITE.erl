@@ -176,37 +176,41 @@ module_options_formatting_test(Config) ->
     rpc(Node, mongoose_modules, ensure_started, [HostType, mod_graphql_test, #{}]),
 
     try
-        HostTypes = get_ok_value([data, server, hostTypes],
-                                  execute_command(<<"server">>, <<"hostTypes">>, #{}, Config)),
-        [GraphqlTestModule] = [M || RPCHostType <- HostTypes,
-                                    maps:get(<<"name">>, RPCHostType) == HostType,
-                                    M <- maps:get(<<"modules">>, RPCHostType),
-                                    maps:get(<<"name">>, M) == <<"mod_graphql_test">>],
-        Options = maps:get(<<"options">>, GraphqlTestModule),
-
-        Extract = fun(K) ->
-            case lists:keyfind(K, 1, [ {maps:get(<<"key">>, O), maps:get(<<"value">>, O)} || O <- Options]) of
-                {_, V} -> V;
-                false -> undefined
-            end
-        end,
-
-        ?assertEqual(<<"atom_val">>, Extract(<<"atom_opt">>)),
-        ?assertEqual(<<"123">>, Extract(<<"int_opt">>)),
-        ?assertEqual(<<"binary">>, Extract(<<"bin_opt">>)),
-        ?assertEqual(<<"string">>, Extract(<<"str_opt">>)),
-        ?assertEqual(<<"[1,2]">>, Extract(<<"list_opt">>)),
-        ?assertEqual(<<"#{key => val}">>, Extract(<<"map_opt">>)),
-        ?assertEqual(<<"{a,b}">>, Extract(<<"tuple_opt">>)),
-
-        FloatVal = Extract(<<"float_opt">>),
-        %% Loose check for float because formatting matches ~tp
-        ?assert(binary:match(FloatVal, <<"123.456">>) /= nomatch orelse binary:match(FloatVal, <<"1.23456">>) /= nomatch)
-
+        Options = get_test_module_options(HostType, Config),
+        assert_module_option_values(Options)
     after
         %% Unload
         rpc(Node, mongoose_modules, ensure_stopped, [HostType, mod_graphql_test])
     end.
+
+get_test_module_options(HostType, Config) ->
+    HostTypes = get_ok_value([data, server, hostTypes],
+                              execute_command(<<"server">>, <<"hostTypes">>, #{}, Config)),
+    [GraphqlTestModule] = [M || RPCHostType <- HostTypes,
+                                maps:get(<<"name">>, RPCHostType) == HostType,
+                                M <- maps:get(<<"modules">>, RPCHostType),
+                                maps:get(<<"name">>, M) == <<"mod_graphql_test">>],
+    maps:get(<<"options">>, GraphqlTestModule).
+
+assert_module_option_values(Options) ->
+    Extract = fun(K) ->
+        case lists:keyfind(K, 1, [{maps:get(<<"key">>, O), maps:get(<<"value">>, O)} || O <- Options]) of
+            {_, V} -> V;
+            false -> undefined
+        end
+    end,
+
+    ?assertEqual(<<"atom_val">>, Extract(<<"atom_opt">>)),
+    ?assertEqual(<<"123">>, Extract(<<"int_opt">>)),
+    ?assertEqual(<<"binary">>, Extract(<<"bin_opt">>)),
+    ?assertEqual(<<"string">>, Extract(<<"str_opt">>)),
+    ?assertEqual(<<"[1,2]">>, Extract(<<"list_opt">>)),
+    ?assertEqual(<<"#{key => val}">>, Extract(<<"map_opt">>)),
+    ?assertEqual(<<"{a,b}">>, Extract(<<"tuple_opt">>)),
+
+    FloatVal = Extract(<<"float_opt">>),
+    %% Loose check for float because formatting matches ~tp
+    ?assert(binary:match(FloatVal, <<"123.456">>) /= nomatch orelse binary:match(FloatVal, <<"1.23456">>) /= nomatch).
 
 
 join_successful(Config) ->

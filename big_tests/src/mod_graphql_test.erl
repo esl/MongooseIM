@@ -1,5 +1,5 @@
 -module(mod_graphql_test).
--behavior(gen_mod).
+-behaviour(gen_mod).
 
 -export([start/2, stop/1, reported_module_options/2, supported_features/0]).
 

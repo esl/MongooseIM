@@ -1284,8 +1284,8 @@ config_metrics(HostType) ->
 
 -spec reported_module_options(mongooseim:host_type(), gen_mod:module_opts()) ->
           [{gen_mod:opt_key(), gen_mod:opt_value()}].
-reported_module_options(HostType, _Opts) ->
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend, online_backend, db_pool]).
+reported_module_options(_HostType, Opts) ->
+    [{Key, maps:get(Key, Opts)} || Key <- [backend, online_backend, db_pool], maps:is_key(Key, Opts)].
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->

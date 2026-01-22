@@ -51,7 +51,8 @@
          hosts_and_opts_with_module/1,
          get_module_proc/2,
          is_loaded/2,
-         get_deps/3]).
+         get_deps/3,
+         reported_module_options/3]).
 
 -export([is_app_running/1]). % we have to mock it in some tests
 
@@ -369,4 +370,11 @@ get_required_services(HostType, Module, Options) ->
             [Service || {service, Service} <- Module:deps(HostType, Options)];
         _ ->
             []
+    end.
+
+-spec reported_module_options(module(), host_type(), module_opts()) -> {ok, [{opt_key(), opt_value()}]} | error.
+reported_module_options(Module, HostType, Opts) ->
+    case erlang:function_exported(Module, reported_module_options, 2) of
+        true -> {ok, Module:reported_module_options(HostType, Opts)};
+        false -> error
     end.
