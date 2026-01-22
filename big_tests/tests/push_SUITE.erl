@@ -719,9 +719,10 @@ stop_hook_listener(Config) ->
     rpc(?MODULE, rpc_stop_hook_handler, [TestCasePid, PubSubJID]).
 
 rpc_start_hook_handler(TestCasePid, PubSubJID) ->
-    gen_hook:add_handler(push_notifications,  <<"localhost">>,
+    HostType = domain_helper:host_type(),
+    gen_hook:add_handler(push_notifications, HostType,
                          fun ?MODULE:hook_handler_fn/3,
-                         #{pid => TestCasePid, jid => PubSubJID}, 50).
+                         #{pid => TestCasePid, jid => PubSubJID, host_type => HostType}, 50).
 
 hook_handler_fn(Acc,
                 #{notification_forms := [PayloadMap], options := OptionMap} = _Params,
@@ -742,9 +743,10 @@ hook_handler_fn(Acc,
     {ok, Acc}.
 
 rpc_stop_hook_handler(TestCasePid, PubSubJID) ->
-    gen_hook:delete_handler(push_notifications, <<"localhost">>,
+    HostType = domain_helper:host_type(),
+    gen_hook:delete_handler(push_notifications, HostType,
                             fun ?MODULE:hook_handler_fn/3,
-                            #{pid => TestCasePid, jid => PubSubJID}, 50).
+                            #{pid => TestCasePid, jid => PubSubJID, host_type => HostType}, 50).
 
 %%--------------------------------------------------------------------
 %% Test helpers
