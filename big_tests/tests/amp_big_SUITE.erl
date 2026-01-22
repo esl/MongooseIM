@@ -750,7 +750,7 @@ user_has_incoming_offline_message(FreshConfig, UserName, MsgText) ->
     Presence = escalus:wait_for_stanza(Client),
     escalus:assert(is_presence, Presence),
     case is_module_loaded(mod_mam_pm) of
-        true -> client_has_mam_message(Client);
+        true -> mam_helper:wait_for_archive_size(Client, 1);
         false -> ok
     end,
     escalus_client:stop(FreshConfig, Client).
@@ -760,12 +760,6 @@ client_has_no_mam_messages(User) ->
     escalus:send(User, mam_helper:stanza_archive_request(P, <<"q1">>)),
     Res = mam_helper:wait_archive_respond(User),
     mam_helper:assert_respond_size(0, Res).
-
-client_has_mam_message(User) ->
-    P = mam_helper:mam04_props(),
-    escalus:send(User, mam_helper:stanza_archive_request(P, <<"q1">>)),
-    Res = mam_helper:wait_archive_respond(User),
-    mam_helper:assert_respond_size(1, Res).
 
 rules(Config, Default) ->
     case lists:keysearch(rules, 1, Config) of
