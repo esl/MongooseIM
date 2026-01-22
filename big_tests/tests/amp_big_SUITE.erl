@@ -803,7 +803,7 @@ client_receives_message(Client, MsgText) ->
     escalus:assert(is_chat_message, [MsgText], Received).
 
 client_receives_notification(Client, IntendedRecipient, Rule) ->
-    Msg = escalus_client:wait_for_stanza(Client),
+    Msg = escalus_client:wait_for_stanza(Client, 10000), %% increased timeout to reduce flakiness in CI
     assert_notification(Client, IntendedRecipient, Msg, Rule).
 
 disco_info() ->
