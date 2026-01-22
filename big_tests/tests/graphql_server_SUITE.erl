@@ -212,7 +212,6 @@ assert_module_option_values(Options) ->
     %% Loose check for float because formatting matches ~tp
     ?assert(binary:match(FloatVal, <<"123.456">>) /= nomatch orelse binary:match(FloatVal, <<"1.23456">>) /= nomatch).
 
-
 join_successful(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
     leave_cluster(Config),
