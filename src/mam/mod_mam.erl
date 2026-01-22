@@ -20,6 +20,7 @@
 -xep([{xep, 313}, {version, "1.1.0"}, {legacy_versions, ["0.5"]}]).
 -xep([{xep, 441}, {version, "0.2.0"}]).
 -xep([{xep, 424}, {version, "0.3.0"}]).
+-xep([{xep, 431}, {version, "0.2.0"}]).
 
 -include("mod_mam.hrl").
 -include("mongoose_config_spec.hrl").
