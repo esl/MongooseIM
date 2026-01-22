@@ -152,6 +152,8 @@ key(JID) ->
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(_HostType, Domain) ->
+    %% Iterate through all push subscriptions and delete those belonging to the removed domain
+    %% User JID is stored as {LUser, LServer} tuple, we match on LServer
     F = fun() ->
             mnesia:foldl(
               fun(#push_subscription{user_jid = {_, UserDomain}} = Sub, Acc) ->

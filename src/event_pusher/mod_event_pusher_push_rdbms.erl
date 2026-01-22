@@ -147,6 +147,8 @@ execute_delete(HostType, OwnerJid, Node, PubSubJid) ->
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(HostType, Domain) ->
+    %% Match all subscriptions owned by users of the given domain
+    %% Users are stored as 'user@domain' in owner_jid, so we use LIKE '%@domain'
     LikePattern = <<"%@", Domain/binary>>,
     mongoose_rdbms:execute_successfully(HostType, event_pusher_push_remove_domain, [LikePattern]),
     ok.
