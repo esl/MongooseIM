@@ -114,9 +114,6 @@ handle_call({value, Name, LabelValues}, _From, State) ->
 handle_call({get_label_values, Name}, _From, State) ->
     Result = do_get_label_values(Name, State),
     {reply, Result, State};
-handle_call({values, Name}, _From, State) ->
-    {Result, NewState} = get_values(Name, State),
-    {reply, Result, NewState};
 handle_call({remove, Name, LabelValues}, _From, State) ->
     NewState = do_remove(Name, LabelValues, State),
     {reply, true, NewState};
@@ -165,7 +162,7 @@ child_spec() ->
 do_observe(Name, LabelValues, Value, State) ->
     case maps:find(Name, State#state.metrics) of
         error ->
-            State; % metric not declared, ignore
+            erlang:error({unknown_metric, Name});
         {ok, MetricState} ->
             Key = {Name, LabelValues},
             CurrentTime = erlang:monotonic_time(millisecond),
@@ -260,25 +257,6 @@ get_value(Name, LabelValues, State) ->
                     end
             end,
             {Result, NewState}
-    end.
-
--spec get_values(name(), #state{}) -> {[{label_values(), {non_neg_integer(), number(), [{number(), number()}]}}], #state{}}.
-get_values(Name, State) ->
-    case maps:find(Name, State#state.metrics) of
-        error ->
-            {[], State};
-        {ok, MetricState} ->
-            Keys = maps:keys(MetricState),
-            {ResultsRev, FinalState} = lists:foldl(
-                fun({_, LabelValues}, {AccRes, S}) ->
-                    {Res, S2} = get_value(Name, LabelValues, S),
-                    NewAcc = case Res of
-                        undefined -> AccRes;
-                        _ -> [{LabelValues, Res} | AccRes]
-                    end,
-                    {NewAcc, S2}
-                end, {[], State}, Keys),
-            {lists:reverse(ResultsRev), FinalState}
     end.
 
 -spec do_get_label_values(name(), #state{}) -> [label_values()].
