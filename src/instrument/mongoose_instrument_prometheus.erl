@@ -58,15 +58,7 @@ declare_metric(MetricSpec, counter) ->
 declare_metric(MetricSpec, spiral) ->
     prometheus_counter:declare(MetricSpec);
 declare_metric(MetricSpec, histogram) ->
-    SWResult = mongoose_prometheus_sliding_window:declare(MetricSpec),
-    PromResult = prometheus_quantile_summary:declare([
-        {quantiles, mongoose_prometheus_sliding_window:default_quantiles()},
-        {error, mongoose_prometheus_sliding_window:default_error()},
-        %% Measuring in µs suffices for actions lasting up to a day (with 1% accuracy).
-        %% Measuring in bytes suffices for sizes up to 81 GB (with 1% accuracy).
-        {bound, mongoose_prometheus_sliding_window:default_bound()}
-    | MetricSpec]),
-    SWResult or PromResult.
+    mongoose_prometheus_sliding_window:declare(MetricSpec).
 
 -spec reset_metric(name(), [mongoose_instrument:label_value()],
                    mongoose_instrument:metric_type()) -> boolean().
@@ -77,8 +69,7 @@ reset_metric(Name, LabelValues, counter) ->
 reset_metric(Name, LabelValues, spiral) ->
     prometheus_counter:remove(Name, LabelValues);
 reset_metric(Name, LabelValues, histogram) ->
-    mongoose_prometheus_sliding_window:remove(Name, LabelValues),
-    prometheus_quantile_summary:remove(Name, LabelValues).
+    mongoose_prometheus_sliding_window:remove(Name, LabelValues).
 
 -spec initialize_metric(name(), [mongoose_instrument:label_value()],
                         mongoose_instrument:metric_type()) -> ok.
@@ -140,5 +131,4 @@ update_metric(Name, Labels, counter, Value) when is_integer(Value) ->
 update_metric(Name, Labels, spiral, Value) when is_integer(Value), Value >= 0 ->
     ok = prometheus_counter:inc(Name, Labels, Value);
 update_metric(Name, Labels, histogram, Value) when is_integer(Value) ->
-    ok = mongoose_prometheus_sliding_window:observe(Name, Labels, Value),
-    ok = prometheus_quantile_summary:observe(Name, Labels, Value).
+    ok = mongoose_prometheus_sliding_window:observe(Name, Labels, Value).

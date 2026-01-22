@@ -6,6 +6,7 @@
 -export([child_spec/0,
          declare/1,
          observe/3,
+         value/2,
          values/1,
          remove/2,
          get_all_metric_names/0,
@@ -19,9 +20,7 @@
          terminate/2,
          code_change/3]).
 
--export([default_quantiles/0, default_error/0, default_bound/0, window_size_s/0]).
-
--ignore_xref([start_link/0]).
+-ignore_xref([start_link/0, value/2]).
 
 -behaviour(gen_server).
 
@@ -39,9 +38,6 @@ default_error() -> 0.01.
 
 -spec default_bound() -> non_neg_integer().
 default_bound() -> 1260.
-
--spec window_size_s() -> pos_integer().
-window_size_s() -> ?WINDOW_SIZE_MS div 1000.
 
 -record(state, {
     timer_ref :: reference() | undefined,
@@ -69,9 +65,17 @@ declare(MetricSpec) ->
 observe(Name, LabelValues, Value) ->
     gen_server:cast(?MODULE, {observe, Name, LabelValues, Value}).
 
+-spec value(name(), label_values()) -> undefined | {non_neg_integer(), number(), [{number(), number()}]}.
+value(Name, LabelValues) ->
+    gen_server:call(?MODULE, {value, Name, LabelValues}).
+
 -spec values(name()) -> [{label_values(), {non_neg_integer(), number(), [{number(), number()}]}}].
 values(Name) ->
-    gen_server:call(?MODULE, {values, Name}).
+    [{LV, V} || LV <- get_label_values(Name), V <- [value(Name, LV)], V =/= undefined].
+
+-spec get_label_values(name()) -> [label_values()].
+get_label_values(Name) ->
+    gen_server:call(?MODULE, {get_label_values, Name}).
 
 -spec remove(name(), label_values()) -> boolean().
 remove(Name, LabelValues) ->
@@ -104,6 +108,12 @@ handle_call({declare, Name, MetricSpec}, _From, State) ->
             NewSpecs = maps:put(Name, MetricSpec, State#state.metric_specs),
             {reply, true, State#state{metrics = NewMetrics, metric_specs = NewSpecs}}
     end;
+handle_call({value, Name, LabelValues}, _From, State) ->
+    {Result, NewState} = get_value(Name, LabelValues, State),
+    {reply, Result, NewState};
+handle_call({get_label_values, Name}, _From, State) ->
+    Result = do_get_label_values(Name, State),
+    {reply, Result, State};
 handle_call({values, Name}, _From, State) ->
     {Result, NewState} = get_values(Name, State),
     {reply, Result, NewState};
@@ -271,6 +281,15 @@ get_values(Name, State) ->
             {lists:reverse(ResultsRev), FinalState}
     end.
 
+-spec do_get_label_values(name(), #state{}) -> [label_values()].
+do_get_label_values(Name, State) ->
+    case State#state.metrics of
+       #{Name := MetricState} ->
+           [LabelValues || {_, LabelValues} <- maps:keys(MetricState)];
+       #{} ->
+           []
+   end.
+
 -spec do_remove(name(), label_values(), #state{}) -> #state{}.
 do_remove(Name, LabelValues, State) ->
     Key = {Name, LabelValues},
@@ -279,14 +298,8 @@ do_remove(Name, LabelValues, State) ->
             State;
         {ok, MetricState} ->
             UpdatedMetricState = remove_metric_state(Key, MetricState),
-            if
-                map_size(UpdatedMetricState) == 0 ->
-                    UpdatedMetrics = maps:remove(Name, State#state.metrics),
-                    State#state{metrics = UpdatedMetrics};
-                true ->
-                    UpdatedMetrics = maps:put(Name, UpdatedMetricState, State#state.metrics),
-                    State#state{metrics = UpdatedMetrics}
-            end
+            UpdatedMetrics = maps:put(Name, UpdatedMetricState, State#state.metrics),
+            State#state{metrics = UpdatedMetrics}
     end.
 
 -spec get_metric_state({name(), label_values()}, #state{}) -> undefined | metric_state().
