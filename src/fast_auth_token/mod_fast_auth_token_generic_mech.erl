@@ -30,6 +30,8 @@
 mech_new(_Host, Creds, _SocketData = #{sasl_state := SaslState, socket := Socket}, Mech) ->
     SaslModState = mod_sasl2:get_mod_state(SaslState),
     case SaslModState of
+        #{encoded_id := not_provided} ->
+            {error, <<"no-user-agent">>};
         #{encoded_id := AgentId} ->
             Count = mongoose_acc:get(mod_fast_auth_token, fast_count, undefined, SaslState),
             CBData = mech_to_cb_data(Mech, Socket),

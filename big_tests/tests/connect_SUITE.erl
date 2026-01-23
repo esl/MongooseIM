@@ -419,7 +419,7 @@ should_fail_to_authenticate_without_starttls(Config) ->
     catch
         throw:{auth_failed, User, AuthReply} ->
             ?assertEqual(UserName, User),
-            escalus:assert(is_stream_error, [<<"policy-violation">>,
+            escalus:assert(is_stream_error, [<<"encryption-required">>,
                                              <<"Use of STARTTLS required">>],
                            AuthReply)
     end.
@@ -578,7 +578,7 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
 
     %% Auth response
     AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
-    escalus:assert(is_stream_error, [<<"policy-violation">>, <<"Use of STARTTLS required">>],
+    escalus:assert(is_stream_error, [<<"encryption-required">>, <<"Use of STARTTLS required">>],
                    AuthResponse).
 
 bind_server_generated_resource(Config) ->
