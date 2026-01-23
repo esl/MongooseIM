@@ -31,6 +31,7 @@ all() ->
      can_load_split_schema,
      unexpected_internal_error,
      admin_and_user_load_global_types,
+     admin_schema_has_server_host_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, error_handling},
@@ -362,6 +363,25 @@ admin_and_user_load_global_types(_Config) ->
     ?assertMatch(#scalar_type{id = <<"JID">>}, graphql_schema:get(UserEp, <<"JID">>)),
     ?assertMatch(#directive_type{id = <<"protected">>},
                  graphql_schema:get(UserEp, <<"protected">>)).
+
+admin_schema_has_server_host_types(_Config) ->
+    mongoose_graphql:init(),
+    AdminEp = mongoose_graphql:get_endpoint(admin),
+    ?assertMatch(#object_type{id = <<"ServerAdminQuery">>},
+                 graphql_schema:get(AdminEp, <<"ServerAdminQuery">>)),
+    ?assertMatch(#object_type{id = <<"HostTypeInfo">>},
+                 graphql_schema:get(AdminEp, <<"HostTypeInfo">>)),
+    #object_type{fields = ServerFields} = graphql_schema:get(AdminEp, <<"ServerAdminQuery">>),
+    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"HostTypeInfo">>}}}},
+                 maps:get(<<"hostTypes">>, ServerFields)),
+    ?assertMatch(#schema_field{ty = {non_null, <<"GlobalInfo">>}},
+                 maps:get(<<"globalInfo">>, ServerFields)),
+    #object_type{fields = HostTypeFields} = graphql_schema:get(AdminEp, <<"HostTypeInfo">>),
+    ?assertMatch(#schema_field{ty = {non_null, <<"String">>}}, maps:get(<<"name">>, HostTypeFields)),
+    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"ModuleInfo">>}}}},
+                 maps:get(<<"modules">>, HostTypeFields)),
+    ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"String">>}}}},
+                 maps:get(<<"authMethods">>, HostTypeFields)).
 
 %% Protected graphql
 

@@ -151,18 +151,30 @@ mechanisms_elems(Mechs) ->
 mechanisms() ->
     mod_fast_auth_token_generic_mech:mechanisms().
 
--spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
-    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
+-spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) -> {ok | stop, SaslAcc} when
+    SaslAcc :: mongoose_acc:t().
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
     Req = exml_query:path(El, [{element_with_ns, <<"request-token">>, ?NS_FAST}]),
     Fast = exml_query:path(El, [{element_with_ns, <<"fast">>, ?NS_FAST}]),
-    Parsed = parse_fast_stanza(Fast),
-    Count = maps:get(count, Parsed, undefined),
     AgentId = exml_query:path(El, [{element, <<"user-agent">>}, {attr, <<"id">>}]),
-    SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
-    SaslAcc3 = mongoose_acc:set(?MODULE, fast_count, Count, SaslAcc2),
-    SaslAcc4 = maybe_put_inline_request(SaslAcc3, ?REQ, Req),
-    {ok, maybe_put_inline_request(SaslAcc4, ?FAST, Fast)}.
+    case maybe_ensure_agent_id(Req, AgentId) of
+        ok ->
+            Parsed = parse_fast_stanza(Fast),
+            Count = maps:get(count, Parsed, undefined),
+            SaslAcc2 = mongoose_acc:set(?MODULE, agent_id, AgentId, SaslAcc),
+            SaslAcc3 = mongoose_acc:set(?MODULE, fast_count, Count, SaslAcc2),
+            SaslAcc4 = maybe_put_inline_request(SaslAcc3, ?REQ, Req),
+            {ok, maybe_put_inline_request(SaslAcc4, ?FAST, Fast)};
+        error ->
+            Error = #{type => malformed_request, text => <<"User agent required">>},
+            SaslAcc2 = mongoose_acc:set(hook, result, Error, SaslAcc),
+            {stop, SaslAcc2}
+    end.
+
+maybe_ensure_agent_id(Req, undefined) when Req /= undefined ->
+    error;
+maybe_ensure_agent_id(_Req, _AgentId) ->
+    ok.
 
 maybe_put_inline_request(SaslAcc, _Module, undefined) ->
     SaslAcc;

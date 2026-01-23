@@ -212,7 +212,7 @@ handle_sasl_abort(C2SData, C2SState, _El, SaslAcc, Retries) ->
     Jid = mongoose_c2s:get_jid(C2SData),
     Error = #{server_out => <<"aborted">>, maybe_username => Jid},
     OriginalStateData = #{c2s_state => C2SState, c2s_data => C2SData},
-    handle_sasl_failure(SaslAcc, Error, OriginalStateData, Retries).
+    handle_sasl_failure(SaslAcc, Error, Jid, OriginalStateData, Retries).
 
 -spec handle_sasl_step(mongoose_c2s_sasl:result(), c2s_state_data(), mongoose_c2s:retries()) ->
     mongoose_c2s:fsm_res().
@@ -220,11 +220,10 @@ handle_sasl_step({success, NewSaslAcc, Result}, OriginalStateData, _Retries) ->
     handle_sasl_success(NewSaslAcc, Result, OriginalStateData);
 handle_sasl_step({continue, NewSaslAcc, Result}, OriginalStateData, Retries) ->
     handle_sasl_continue(NewSaslAcc, Result, OriginalStateData, Retries);
-handle_sasl_step({failure, NewSaslAcc, Result}, OriginalStateData, Retries) ->
-    handle_sasl_failure(NewSaslAcc, Result, OriginalStateData, Retries);
-handle_sasl_step({error, NewSaslAcc, #{type := Type}}, OriginalStateData, Retries) ->
-    handle_sasl_failure(NewSaslAcc, #{server_out => atom_to_binary(Type),
-                                      maybe_username => undefined}, OriginalStateData, Retries).
+handle_sasl_step({failure, NewSaslAcc, #{maybe_username := MaybeUsername} = Result}, OriginalStateData, Retries) ->
+    handle_sasl_failure(NewSaslAcc, Result, MaybeUsername, OriginalStateData, Retries);
+handle_sasl_step({error, NewSaslAcc, Result}, OriginalStateData, Retries) ->
+    handle_sasl_failure(NewSaslAcc, Result, undefined, OriginalStateData, Retries).
 
 -spec handle_sasl_success(mongoose_acc:t(), mongoose_c2s_sasl:success(), c2s_state_data()) ->
     mongoose_c2s:fsm_res().
@@ -253,17 +252,21 @@ handle_sasl_continue(SaslAcc,
     SaslAcc1 = mongoose_c2s_acc:to_acc_many(SaslAcc, ToAcc),
     mongoose_c2s:handle_state_after_packet(C2SData, C2SState, SaslAcc1).
 
--spec handle_sasl_failure(
-        mongoose_acc:t(), mongoose_c2s_sasl:failure(), c2s_state_data(), mongoose_c2s:retries()) ->
+-spec handle_sasl_failure(mongoose_acc:t(),
+                          mongoose_c2s_sasl:failure() | mongoose_c2s_sasl:error(),
+                          mongoose_c2s_sasl:maybe_username(),
+                          c2s_state_data(),
+                          mongoose_c2s:retries()) ->
     mongoose_c2s:fsm_res().
 handle_sasl_failure(SaslAcc,
-                    #{server_out := ServerOut, maybe_username := Username},
+                    Result,
+                    MaybeUsername,
                     #{c2s_data := C2SData, c2s_state := C2SState},
                     Retries) ->
     LServer = mongoose_c2s:get_lserver(C2SData),
     ?LOG_INFO(#{what => auth_failed, text => <<"Failed SASL authentication">>,
-                username => Username, lserver => LServer, c2s_state => C2SData}),
-    El = failure_stanza(ServerOut),
+                username => MaybeUsername, lserver => LServer, c2s_state => C2SData}),
+    El = failure_stanza(Result),
     case mongoose_c2s:maybe_retry_state(C2SState) of
         {stop, Reason} ->
             {stop, Reason, C2SData};
@@ -370,10 +373,22 @@ challenge_stanza(ServerOut) ->
     Challenge = #xmlcdata{content = base64:encode(ServerOut)},
     sasl2_ns_stanza(<<"challenge">>, [Challenge]).
 
--spec failure_stanza(binary()) -> exml:element().
-failure_stanza(Reason) ->
+-spec failure_stanza(mongoose_c2s_sasl:failure() | mongoose_c2s_sasl:error()) -> exml:element().
+failure_stanza(#{server_out := Reason}) ->
+    failure_stanza(Reason, undefined);
+failure_stanza(#{type := Type, text := Text}) ->
+    #xmlel{children = [#xmlel{name = Reason} | _]} = mongoose_xmpp_errors:Type(),
+    failure_stanza(Reason, Text).
+
+failure_stanza(Reason, Text) ->
     SaslErrorCode = #xmlel{name = Reason, attrs = ?XMLNS_SASL},
-    sasl2_ns_stanza(<<"failure">>, [SaslErrorCode]).
+    sasl2_ns_stanza(<<"failure">>, [SaslErrorCode | maybe_text_tag(Text)]).
+
+maybe_text_tag(undefined) ->
+    [];
+maybe_text_tag(Text) ->
+    [#xmlel{name = <<"text">>,
+            children = [#xmlcdata{content = Text}]}].
 
 -spec sasl2_ns_stanza(binary(), [exml:element() | exml:cdata()]) -> exml:element().
 sasl2_ns_stanza(Name, Children) ->
