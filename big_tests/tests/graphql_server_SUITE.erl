@@ -1,3 +1,4 @@
+%% -*- coding: utf-8 -*-
 -module(graphql_server_SUITE).
 
 -compile([export_all, nowarn_export_all]).
@@ -37,7 +38,10 @@ admin_http_groups() ->
 admin_tests() ->
     [get_cookie_test,
      set_and_get_loglevel_test,
-     get_status_test].
+     get_status_test,
+     get_host_types_test,
+     get_global_info_test,
+     module_options_formatting_test].
 
 clustering_tests() ->
     [join_successful,
@@ -146,6 +150,67 @@ get_status_test(Config) ->
     ?assert(is_binary(maps:get(<<"version">>, Result))),
     ?assert(is_binary(maps:get(<<"commitHash">>, Result))).
 
+get_host_types_test(Config) ->
+    HostTypes = get_ok_value([data, server, hostTypes],
+                              execute_command(<<"server">>, <<"hostTypes">>, #{}, Config)),
+    ?assert(is_list(HostTypes)),
+    ?assert(length(HostTypes) > 0),
+    lists:foreach(fun assert_host_type/1, HostTypes).
+
+get_global_info_test(Config) ->
+    GlobalInfo = get_ok_value([data, server, globalInfo],
+                               execute_command(<<"server">>, <<"globalInfo">>, #{}, Config)),
+    Services = maps:get(<<"services">>, GlobalInfo, []),
+    ?assert(is_list(Services)),
+    lists:foreach(fun assert_service_info/1, Services),
+    InternalDatabases = maps:get(<<"internalDatabases">>, GlobalInfo, []),
+    ?assert(is_list(InternalDatabases)),
+    ok.
+
+module_options_formatting_test(Config) ->
+    HostType = domain_helper:host_type(),
+    Node = mim(),
+    %% Load the test module
+    {mod_graphql_test, Bin, Fname} = code:get_object_code(mod_graphql_test),
+    {module, mod_graphql_test} = rpc(Node, code, load_binary, [mod_graphql_test, Fname, Bin]),
+    rpc(Node, mongoose_modules, ensure_started, [HostType, mod_graphql_test, #{}]),
+
+    try
+        Options = get_test_module_options(HostType, Config),
+        assert_module_option_values(Options)
+    after
+        %% Unload
+        rpc(Node, mongoose_modules, ensure_stopped, [HostType, mod_graphql_test])
+    end.
+
+get_test_module_options(HostType, Config) ->
+    HostTypes = get_ok_value([data, server, hostTypes],
+                              execute_command(<<"server">>, <<"hostTypes">>, #{}, Config)),
+    [GraphqlTestModule] = [M || RPCHostType <- HostTypes,
+                                maps:get(<<"name">>, RPCHostType) == HostType,
+                                M <- maps:get(<<"modules">>, RPCHostType),
+                                maps:get(<<"name">>, M) == <<"mod_graphql_test">>],
+    maps:get(<<"options">>, GraphqlTestModule).
+
+assert_module_option_values(Options) ->
+    Extract = fun(K) ->
+        case lists:keyfind(K, 1, [{maps:get(<<"key">>, O), maps:get(<<"value">>, O)} || O <- Options]) of
+            {_, V} -> V;
+            false -> undefined
+        end
+    end,
+
+    ?assertEqual(<<"atom_val">>, Extract(<<"atom_opt">>)),
+    ?assertEqual(<<"123">>, Extract(<<"int_opt">>)),
+    ?assertEqual(<<"binary">>, Extract(<<"bin_opt">>)),
+    ?assertEqual(<<"string">>, Extract(<<"str_opt">>)),
+    ?assertEqual(<<"[1,2]">>, Extract(<<"list_opt">>)),
+    ?assertEqual(<<"#{key => val}">>, Extract(<<"map_opt">>)),
+    ?assertEqual(<<"{a,b}">>, Extract(<<"tuple_opt">>)),
+
+    FloatVal = Extract(<<"float_opt">>),
+    %% Loose check for float because formatting matches ~tp
+    ?assert(binary:match(FloatVal, <<"123.456">>) /= nomatch orelse binary:match(FloatVal, <<"1.23456">>) /= nomatch).
 
 join_successful(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
@@ -362,3 +427,27 @@ stop_node(Node, Config) ->
 
 remove_node(Node, Config) ->
     execute_command(Node, <<"server">>, <<"removeNode">>, #{<<"node">> => Node}, Config).
+
+assert_host_type(HostType) ->
+    ?assertMatch(#{<<"name">> := _}, HostType),
+    ?assertMatch(#{<<"authMethods">> := AuthMethods} when is_list(AuthMethods), HostType),
+    ?assertMatch(#{<<"modules">> := Modules} when is_list(Modules), HostType),
+    lists:foreach(fun assert_module_info/1, maps:get(<<"modules">>, HostType, [])).
+
+assert_module_info(Module) ->
+    ?assertMatch(#{<<"name">> := _}, Module),
+    Options = maps:get(<<"options">>, Module, []),
+    ?assert(is_list(Options)),
+    lists:foreach(fun assert_option_info/1, Options).
+
+assert_option_info(Option) ->
+    ?assertMatch(#{<<"key">> := _}, Option),
+    Value = maps:get(<<"value">>, Option, undefined),
+    case Value of
+        undefined -> ?assert(false);
+        null -> ok;
+        Bin when is_binary(Bin) -> ok
+    end.
+
+assert_service_info(Service) ->
+    ?assertMatch(#{<<"name">> := _}, Service).

@@ -11,6 +11,12 @@ type ServerAdminQuery @protected{
   "Get the Erlang cookie of this node"
   getCookie: String
     @protected(type: GLOBAL)
+  "List configured host types with their modules and backends"
+  hostTypes: [HostTypeInfo!]!
+    @protected(type: GLOBAL)
+  "Global services and internal databases"
+  globalInfo: GlobalInfo!
+    @protected(type: GLOBAL)
 }
 
 """
@@ -82,4 +88,44 @@ enum LogLevel {
   DEBUG
   "Log everything"
   ALL
+}
+
+"Key/value pair describing a module option."
+type ModuleOption {
+  "Option key (atom or string)"
+  key: String!
+  "Configured value rendered as string when available"
+  value: String
+}
+
+"Information about a loaded module for a given host type."
+type ModuleInfo {
+  "Module name (atom as string, e.g. 'mod_roster')"
+  name: String!
+  "Subset of relevant configuration options"
+  options: [ModuleOption!]!
+}
+
+"Information about a loaded service."
+type ServiceInfo {
+  "Service name (atom as string, e.g. 'service_domain_db')"
+  name: String!
+}
+
+"Global services and internal databases."
+type GlobalInfo {
+  "Loaded services"
+  services: [ServiceInfo!]!
+  "Internal databases configured"
+  internalDatabases: [String!]!
+}
+
+"Information about a host type."
+type HostTypeInfo {
+  "Host type name"
+  name: String!
+  "Loaded modules for this host type"
+  modules: [ModuleInfo!]!
+  "Authentication methods configured for this host type"
+  authMethods: [String!]!
 }

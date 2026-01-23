@@ -92,7 +92,8 @@
               mam_type/0
              ]).
 
--export([start/2, stop/1, config_spec/0, supported_features/0, deps/2, config_metrics/1]).
+-export([start/2, stop/1, config_spec/0, supported_features/0, deps/2, config_metrics/1,
+         reported_module_options/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -347,3 +348,8 @@ add_dep(Dep, Opts, Deps) ->
 
 config_metrics(Host) ->
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).
+
+-spec reported_module_options(mongooseim:host_type(), gen_mod:module_opts()) ->
+          [{gen_mod:opt_key(), gen_mod:opt_value()}].
+reported_module_options(_HostType, Opts) ->
+    [{Key, maps:get(Key, Opts)} || Key <- [backend, db_pool], maps:is_key(Key, Opts)].
