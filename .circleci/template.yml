@@ -181,6 +181,10 @@ executors:
     docker:
       - image: *LATEST_OTP
     resource_class: medium+
+  latest_otp_large:
+    docker:
+      - image: *LATEST_OTP
+    resource_class: large
   legacy_otp_redis:
     docker:
       - image: *LEGACY_OTP
@@ -662,6 +666,19 @@ jobs:
           command: |
             ./tools/test.sh -p dialyzer_only -s false
 
+  dialyzer_big_tests:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Dialyzer on big tests
+          command: |
+            ./tools/test.sh -p dialyzer_big_tests -s false
+
   xref:
     executor: << parameters.executor >>
     parameters:
@@ -924,6 +941,13 @@ workflows:
       - dialyzer:
           name: dialyzer_latest
           executor: latest_otp
+          context: mongooseim-org
+          requires:
+            - latest_otp_docker
+          filters: *all_tags
+      - dialyzer_big_tests:
+          name: dialyzer_latest_big_tests
+          executor: latest_otp_large
           context: mongooseim-org
           requires:
             - latest_otp_docker

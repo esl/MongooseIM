@@ -61,7 +61,7 @@ stop_capture() ->
 stop_capture(Node) ->
     successful_rpc(Node, gen_server, call, [?MODULE, {stop_capture, self()}]).
 
--spec recv(filter_fun()) -> ReceivedLogs :: [binary()].
+-spec recv(filter_fun()) -> ReceivedLogs :: [{logger:level(), binary()}].
 recv(FilterFun) ->
     recv(FilterFun, []).
 
@@ -109,7 +109,7 @@ terminate(_Reason, _State) ->
 %% ------------------------------------------------------------
 %% Internal functions
 %% ------------------------------------------------------------
--spec recv(FilterFun :: filter_fun(), OtherMsgs :: [term()]) -> ReceivedLogs :: [binary()].
+-spec recv(FilterFun :: filter_fun(), OtherMsgs :: [term()]) -> ReceivedLogs :: [{logger:level(), binary()}].
 recv(FilterFun, OtherMsgs) ->
     receive
         {captured_log, Severity, Msg} ->

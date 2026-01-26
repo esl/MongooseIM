@@ -585,7 +585,7 @@ assert_count_users_with_status(ExpectedCount, Domain, Status, Config) ->
     Count = get_ok_value([data, session, countUsersWithStatus], Res),
     ?assertEqual(ExpectedCount, Count).
 
--spec check_users([jid:literal_jid()], [#{user := jid:literal_jid()}]) -> boolean().
+-spec check_users([jid:literal_jid()], [#{user := jid:literal_jid()}]) -> ok.
 check_users(Expected, ActualUsers) ->
     ActualJIDs = [JID || #{<<"user">> := JID} <- ActualUsers],
     ?assertEqual(lists:sort(Expected), lists:sort(ActualJIDs)).

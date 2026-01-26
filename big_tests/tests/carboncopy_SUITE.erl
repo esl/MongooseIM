@@ -5,6 +5,11 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-dialyzer({nowarn_function, [run_prop/2,
+                             prop_forward_received_chat_messages/1,
+                             prop_forward_sent_chat_messages/1,
+                             prop_normal_routing_to_bare_jid/1]}). % proper has invalid spec
+
 -define(AE(Expected, Actual), ?assertEqual(Expected, Actual)).
 -define(BODY, <<"And pious action">>).
 

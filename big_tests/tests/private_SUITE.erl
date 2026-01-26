@@ -16,6 +16,8 @@
 -module(private_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-dialyzer({nowarn_function, missing_ns/1}).
+
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").

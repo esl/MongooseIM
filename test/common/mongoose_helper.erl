@@ -338,7 +338,7 @@ wait_for_user(Config, User, LeftTime) ->
                        escalus_users:verify_creation(escalus_users:create_user(Config, User))
                end, ok,
                #{sleep_time => 400,
-                 left_time => LeftTime,
+                 time_left => LeftTime,
                  name => 'escalus_users:create_user'}).
 
 % Loads a module present in big tests into a MongooseIM node

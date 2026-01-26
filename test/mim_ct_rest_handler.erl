@@ -7,7 +7,7 @@
 
 -module(mim_ct_rest_handler).
 
--behaviour(cowboy_http_handler).
+-behaviour(cowboy_handler).
 
 % cowboy_http_handler exports
 -export([init/2, terminate/3]).
