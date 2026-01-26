@@ -136,17 +136,17 @@ else
 fi
 
 COUNTERS_FILE=/tmp/ct_stats_vars
+JOB_FAILED=0
 COUNTERS_BODY=""
 STATUS_LINE=""
 if [ -f "$COUNTERS_FILE" ]; then
     . "$COUNTERS_FILE"
     COUNTERS_BODY="**OK: $CT_COUNTER_OK** "
-    if [ "$CT_COUNTER_FAILED" != "0" ]; then
+    if [ "$CT_COUNTER_FAILED" != "0" ] || [ "$CT_COUNTER_AUTO_SKIPPED" != "0" ] || [ "$CT_COUNTER_OK" = "0" ]; then
         COUNTERS_BODY="$COUNTERS_BODY/ **Failed: $CT_COUNTER_FAILED** "
-        STATUS_LINE="Status: 🔴 Failed"$'\n'
+        JOB_FAILED=1
     else
         COUNTERS_BODY="$COUNTERS_BODY/ Failed: 0 "
-        STATUS_LINE="Status: 🟢 Passed"$'\n'
     fi
     if [ "$CT_COUNTER_USER_SKIPPED" != "0" ]; then
         COUNTERS_BODY="$COUNTERS_BODY/ **User-skipped: $CT_COUNTER_USER_SKIPPED** "
@@ -159,6 +159,22 @@ if [ -f "$COUNTERS_FILE" ]; then
         COUNTERS_BODY="$COUNTERS_BODY/ Auto-skipped: 0 "
     fi
     COUNTERS_BODY="$COUNTERS_BODY"$'\n'
+fi
+
+JOB_FAIL_REASON_FILE=/tmp/ci_job_failed_reason
+JOB_FAILED_FILE=/tmp/ci_job_failed
+JOB_FAIL_BODY=""
+if [ -f "$JOB_FAIL_REASON_FILE" ]; then
+    JOB_FAILED=1
+    JOB_FAIL_BODY="Job failure: $(cat "$JOB_FAIL_REASON_FILE")"$'\n'
+elif [ -f "$JOB_FAILED_FILE" ]; then
+    JOB_FAILED=1
+fi
+
+if [ "$JOB_FAILED" = "1" ]; then
+    STATUS_LINE="Status: 🔴 Failed"$'\n'
+else
+    STATUS_LINE="Status: 🟢 Passed"$'\n'
 fi
 
 TRUNCATED_BODY=""
@@ -180,7 +196,7 @@ COMMENT_MARKER="<!-- circleci-comment:pr-${PR_NUM} -->"
 SECTION_BEGIN="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:begin -->"
 SECTION_END="<!-- circleci-section:${CIRCLE_JOB}:${PRESET}:end -->"
 
-SECTION_BODY="${DESC_BODY}${STATUS_LINE}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"$'\n'
+SECTION_BODY="${DESC_BODY}${STATUS_LINE}${JOB_FAIL_BODY}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"$'\n'
 SECTION="${SECTION_BEGIN}"$'\n'"---"$'\n'"${SECTION_BODY}"$'\n'"${SECTION_END}"$'\n'
 
 # Body for a brand new comment

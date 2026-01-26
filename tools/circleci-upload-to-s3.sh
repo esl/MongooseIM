@@ -32,3 +32,11 @@ aws configure set default.region $AWS_DEFAULT_REGION
 aws configure set default.s3.max_concurrent_requests 64
 
 time aws s3 cp ${CT_REPORTS} s3://circleci-mim-results/${CT_REPORTS} --acl public-read --recursive --quiet
+
+echo "Log links:"
+for f in ${CT_REPORTS}/*.tar.gz; do
+    if [ -f "$f" ]; then
+        FILENAME=$(basename "$f")
+        echo "https://esl.github.io/html-zip-reader/${CT_REPORTS}/${FILENAME}/"
+    fi
+done
