@@ -9,6 +9,7 @@
 %% This way, we can decouple SASL from the client process core code.
 %% @end
 -module(mongoose_c2s_sasl).
+-xep([{xep, 440}, {version, "1.0.0"}]).
 
 -include_lib("kernel/include/logger.hrl").
 
