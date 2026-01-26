@@ -151,11 +151,12 @@ filter_room_packet(Packet, EventData, #{host_type := HostType}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
                  packet => Packet, event_data => EventData}),
     IsArchivable = is_archivable_message(HostType, incoming, Packet),
+    StableID = maps:get(stable_stanza_id, EventData, 0),
     case IsArchivable of
         true ->
             #{from_nick := FromNick, from_jid := FromJID, room_jid := RoomJID,
               role := Role, affiliation := Affiliation, timestamp := TS} = EventData,
-            {ok, archive_room_packet(HostType, Packet, FromNick, FromJID,
+            {ok, archive_room_packet(HostType, Packet, StableID, FromNick, FromJID,
                                      RoomJID, Role, Affiliation, TS)};
         false ->
             {ok, Packet}
@@ -163,11 +164,12 @@ filter_room_packet(Packet, EventData, #{host_type := HostType}) ->
 
 %% @doc Archive without validation.
 -spec archive_room_packet(HostType :: host_type(),
-                          Packet :: packet(), FromNick :: jid:user(),
+                          Packet :: packet(), StableID :: non_neg_integer(),
+                          FromNick :: jid:user(),
                           FromJID :: jid:jid(), RoomJID :: jid:jid(),
                           Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation(),
                           TS :: integer()) -> packet().
-archive_room_packet(HostType, Packet, FromNick, FromJID = #jid{},
+archive_room_packet(HostType, Packet, StableID, FromNick, FromJID = #jid{},
                     RoomJID = #jid{}, Role, Affiliation, TS) ->
     ArcID = archive_id_int(HostType, RoomJID),
     %% Occupant JID <room@service/nick>
@@ -181,7 +183,10 @@ archive_room_packet(HostType, Packet, FromNick, FromJID = #jid{},
         end,
     case IsInteresting andalso IsMamMucEnabled of
         true ->
-            MessID = mod_mam_utils:generate_message_id(TS),
+            MessID = case StableID of
+                         0 -> mod_mam_utils:generate_message_id(TS);
+                         I -> I
+                     end,
             Packet1 = mod_mam_utils:replace_x_user_element(FromJID, Role, Affiliation, Packet),
             OriginID = mod_mam_utils:get_origin_id(Packet),
             Params = #{message_id => MessID,
