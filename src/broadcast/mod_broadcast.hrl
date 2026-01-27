@@ -1,0 +1,44 @@
+%%%-------------------------------------------------------------------
+%%% @doc Common types and records for mod_broadcast.
+%%%-------------------------------------------------------------------
+
+-type execution_state() :: running | finished | abort_error | abort_admin.
+-type recipient_group() :: all_users_in_domain.
+
+-record(broadcast_job, {
+    id :: integer(),
+    name :: binary(),
+    host_type :: mongooseim:host_type(),
+    domain :: jid:lserver(),
+    sender :: jid:jid(),
+    subject :: binary(),
+    body :: binary(),
+    message_rate :: pos_integer(),
+    recipient_group :: recipient_group(),
+    owner_node :: node(),
+    recipient_count :: non_neg_integer(),
+    execution_state :: execution_state(),
+    abortion_reason :: binary() | undefined,
+    created_at :: calendar:datetime(),
+    started_at :: calendar:datetime() | undefined,
+    stopped_at :: calendar:datetime() | undefined
+}).
+
+-type broadcast_job() :: #broadcast_job{}.
+
+-record(broadcast_worker_state, {
+    cursor :: binary() | undefined,
+    progress :: non_neg_integer()
+}).
+
+-type broadcast_worker_state() :: #broadcast_worker_state{}.
+
+-type job_spec() :: #{
+    name := binary(),
+    domain := jid:lserver(),
+    sender := jid:jid(),
+    subject := binary(),
+    body := binary(),
+    message_rate := pos_integer(),
+    recipient_group := recipient_group()
+}.

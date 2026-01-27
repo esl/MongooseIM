@@ -577,3 +577,41 @@ CREATE TABLE fast_auth_token(
      new_mech_id TINYINT UNSIGNED,
      PRIMARY KEY(server, username, user_agent_id)
 );
+
+-- Message Broadcast
+-- Module: mod_broadcast
+CREATE TABLE broadcast_jobs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(250) NOT NULL,
+    server VARCHAR(250) NOT NULL,
+    from_jid VARCHAR(250) NOT NULL,
+    subject VARCHAR(1024) NOT NULL,
+    message TEXT NOT NULL,
+    rate INT NOT NULL,
+    recipient_group ENUM('all_users_in_domain') NOT NULL,
+    owner_node VARCHAR(250) NOT NULL,
+    recipient_count INT NOT NULL,
+    execution_state ENUM('running', 'finished', 'abort_error', 'abort_admin') NOT NULL DEFAULT 'running',
+    abortion_reason TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP NULL,
+    stopped_at TIMESTAMP NULL,
+    INDEX i_broadcast_jobs_server (server, id)
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+-- Only one running job per domain (partial unique index emulated via generated column)
+ALTER TABLE broadcast_jobs
+    ADD COLUMN running_server VARCHAR(250) GENERATED ALWAYS AS (
+        CASE WHEN execution_state = 'running' THEN server ELSE NULL END
+    ) STORED,
+    ADD UNIQUE INDEX u_broadcast_jobs_one_running_per_server (running_server);
+
+CREATE TABLE broadcast_worker_state (
+    broadcast_id INT NOT NULL,
+    cursor_user VARCHAR(250),
+    progress INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (broadcast_id),
+    FOREIGN KEY (broadcast_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;

@@ -519,3 +519,40 @@ CREATE TABLE fast_auth_token(
      new_mech_id smallint,
      PRIMARY KEY(server, username, user_agent_id)
 );
+
+-- Message Broadcast
+-- Module: mod_broadcast
+CREATE TYPE broadcast_state AS ENUM ('running', 'finished', 'abort_error', 'abort_admin');
+CREATE TYPE broadcast_recipient_group AS ENUM ('all_users_in_domain');
+
+CREATE TABLE broadcast_jobs (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(250) NOT NULL,
+    server VARCHAR(250) NOT NULL,
+    from_jid VARCHAR(250) NOT NULL,
+    subject VARCHAR(1024) NOT NULL,
+    message TEXT NOT NULL,
+    rate INTEGER NOT NULL,
+    recipient_group broadcast_recipient_group NOT NULL,
+    owner_node VARCHAR(250) NOT NULL,
+    recipient_count INTEGER NOT NULL,
+    execution_state broadcast_state NOT NULL DEFAULT 'running',
+    abortion_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at TIMESTAMPTZ,
+    stopped_at TIMESTAMPTZ
+);
+
+-- Index for listing jobs by domain
+CREATE INDEX i_broadcast_jobs_server ON broadcast_jobs USING btree (server, id);
+
+-- Only one running job per domain
+CREATE UNIQUE INDEX u_broadcast_jobs_one_running_per_server
+    ON broadcast_jobs (server) WHERE execution_state = 'running';
+
+CREATE TABLE broadcast_worker_state (
+    broadcast_id INTEGER NOT NULL REFERENCES broadcast_jobs(id) ON DELETE CASCADE,
+    cursor_user VARCHAR(250),
+    progress INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (broadcast_id)
+);
