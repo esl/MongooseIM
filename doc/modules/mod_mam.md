@@ -77,6 +77,8 @@ Database backend to use.
 
 Do not add a `<stanza-id/>` element from MAM v1.1.0.
 
+_This setting may be overridden by `mod_stanzaid`._
+
 ### `modules.mod_mam.is_archivable_message`
 * **Syntax:** non-empty string
 * **Default:** `"mod_mam_utils"`
@@ -154,6 +156,8 @@ When enabled, MAM will store groupchat messages in recipients' individual archiv
 * **Example:** `modules.mod_mam.pm.same_mam_id_for_peers = true`
 
 When enabled, MAM will set the same MAM ID for both sender and recipient. This can be useful in combination with [retraction on the stanza-id](#retraction-on-the-stanza-id). Note that this might not work with clients across federation, as the recipient might not implement the same retraction, nor the same IDs.
+
+_This setting may be overridden by `mod_stanzaid`._
 
 ### Enable MUC message archive
 
