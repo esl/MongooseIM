@@ -41,7 +41,7 @@ All we need to do now is to set up [MongoosePush][].
 
 ## Starting [MongoosePush][]
 
-The easiest way to start [MongoosePush][] is using its [docker image](https://hub.docker.com/r/mongooseim/mongoose-push).
+The easiest way to start [MongoosePush][] is using its [docker image](https://hub.docker.com/r/erlangsolutions/mongoose-push).
 But before you can set [MongoosePush][] up, you need a _FCM_ application token and/or an _APNS_ application certificate.
 You can get the _FCM_ token [here](https://console.firebase.google.com/) and the easiest way of getting an _APNS_ application certificate is by running [this](https://github.com/fastlane/fastlane/tree/master/pem) script (please note that you need the certificate in `pem` format).
 
@@ -68,7 +68,7 @@ docker run -v `pwd`/priv:/opt/app/priv \
   -e PUSH_FCM_APP_FILE="MY_FCM_SECRET_TOKEN" \
   -e PUSH_HTTPS_CERTFILE="/opt/app/priv/ssl/rest_cert.pem" \
   -e PUSH_HTTPS_KEYFILE="/opt/app/priv/ssl/rest_key.pem" \
-  -it --rm mongooseim/mongoose-push:2.0.0
+  -it --rm erlangsolutions/mongoose-push
 ```
 
 If you don't want to use either _APNS_ or _FCM_, you simply need to pass `PUSH_APNS_ENABLED=0` or
