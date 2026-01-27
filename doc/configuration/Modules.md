@@ -168,6 +168,9 @@ This module, when enabled, will inject roster entries fetched from LDAP.
 ### [mod_sic](../modules/mod_sic.md)
 Implements [XEP-0279: Server IP Check](http://xmpp.org/extensions/xep-0279.html) that enables a client to discover its external IP address.
 
+### [mod_stanzaid](../modules/mod_stanzaid.md)
+Implements [XEP-0359: Unique and Stable Stanza ID](http://xmpp.org/extensions/xep-0359.html) that ensures that every message has a unique stanza id which is known to recipient, used by message archive and possibly other components that need it.
+
 ### [mod_stream_management](../modules/mod_stream_management.md)
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html) functionality that defines the active management of an XML stream between two XMPP entities, including features for stanza acknowledgements and stream resumption.
 
