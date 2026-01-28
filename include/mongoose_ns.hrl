@@ -85,6 +85,7 @@
 -define(NS_TLS,                 <<"urn:ietf:params:xml:ns:xmpp-tls">>).
 -define(NS_SASL,                <<"urn:ietf:params:xml:ns:xmpp-sasl">>).
 -define(NS_SASL_2,              <<"urn:xmpp:sasl:2">>).
+-define(NS_SASL_CB,             <<"urn:xmpp:sasl-cb:0">>).
 -define(NS_SESSION,             <<"urn:ietf:params:xml:ns:xmpp-session">>).
 -define(NS_BIND,                <<"urn:ietf:params:xml:ns:xmpp-bind">>).
 -define(NS_BIND_2,              <<"urn:xmpp:bind:0">>).

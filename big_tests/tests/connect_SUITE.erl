@@ -455,7 +455,7 @@ correct_features_are_advertised_for_optional_starttls(Config) ->
              stream_features,
              {?MODULE, verify_features_with_optional_starttls},
              maybe_use_ssl,
-             {?MODULE, verify_features_without_starttls},
+             {?MODULE, verify_features_with_optional_starttls_post},
              authenticate],
     escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps).
 
@@ -465,7 +465,7 @@ correct_features_are_advertised_for_required_starttls(Config) ->
              stream_features,
              {?MODULE, verify_features_with_required_starttls},
              maybe_use_ssl,
-             {?MODULE, verify_features_without_starttls},
+             {?MODULE, verify_features_with_optional_starttls_post},
              authenticate],
     escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps).
 
@@ -477,6 +477,18 @@ verify_features_without_starttls(Conn, Features) ->
 verify_features_with_optional_starttls(Conn, Features) ->
     ?assertEqual({starttls, true}, get_feature(starttls, Features)),
     ?assertMatch({sasl_mechanisms, [_|_]}, get_feature(sasl_mechanisms, Features)),
+    {Conn, Features}.
+
+verify_features_with_optional_starttls_post(Conn, Features) ->
+    ?assertEqual({starttls, false}, get_feature(starttls, Features)),
+    {sasl_mechanisms, Mechanisms} = get_feature(sasl_mechanisms, Features),
+    case lists:any(fun(M) -> re:run(M, "-PLUS$") /= nomatch end, Mechanisms) of
+        true ->
+            ?assertEqual({sasl_channel_bindings, [<<"tls-exporter">>]},
+                         get_feature(sasl_channel_bindings, Features));
+        false ->
+            ok
+    end,
     {Conn, Features}.
 
 verify_features_with_required_starttls(Conn, Features) ->
