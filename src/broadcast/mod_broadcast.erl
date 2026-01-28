@@ -8,7 +8,10 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
+%%====================================================================
 %% gen_mod callbacks
+%%====================================================================
+
 -export([start/2,
          stop/1,
          supported_features/0,

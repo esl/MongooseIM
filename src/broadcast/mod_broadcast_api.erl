@@ -1,0 +1,153 @@
+%% @doc Provide an interface for frontends (like graphql or ctl) to manage message broadcasts.
+
+-module(mod_broadcast_api).
+-author('piotr.nosek@erlang-solutions.com').
+
+-export([get_broadcasts/3,
+         get_broadcast/2,
+         start_broadcast/1,
+         abort_broadcast/2,
+         delete_inactive_broadcasts_by_ids/2,
+         delete_inactive_broadcasts_by_domain/1]).
+
+-include("jlib.hrl").
+-include("mod_broadcast.hrl").
+
+%%====================================================================
+%% API
+%%====================================================================
+
+-spec get_broadcasts(jid:lserver(), pos_integer(), non_neg_integer()) ->
+    {ok, [broadcast_job()]} | {domain_not_found, binary()}.
+get_broadcasts(Domain, Limit, Index) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            mod_broadcast_backend:get_jobs_by_domain(HostType, Domain, Limit, Index);
+        {error, not_found} ->
+            error_result(domain_not_found)
+    end.
+
+-spec get_broadcast(jid:lserver(), pos_integer()) ->
+    {ok, broadcast_job()} | {domain_not_found | broadcast_not_found, binary()}.
+get_broadcast(Domain, Id) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            case mod_broadcast_backend:get_job(HostType, Id) of
+                {ok, #broadcast_job{domain = Domain} = Job} ->
+                    {ok, Job};
+                {ok, #broadcast_job{}} ->
+                    %% Job exists but belongs to different domain
+                    error_result(broadcast_not_found);
+                {error, not_found} ->
+                    error_result(broadcast_not_found)
+            end;
+        {error, not_found} ->
+            error_result(domain_not_found)
+    end.
+
+-spec start_broadcast(job_spec()) ->
+    {ok, pos_integer()} | {atom(), binary()}.
+start_broadcast(#{domain := Domain} = JobSpec) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            case broadcast_manager:start_job(HostType, JobSpec) of
+                {ok, JobId} ->
+                    {ok, JobId};
+                {error, already_running} ->
+                    error_result(already_running);
+                {error, sender_not_found} ->
+                    error_result(sender_not_found);
+                {error, Reason} ->
+                    {internal_error, format_error(Reason)}
+            end;
+        {error, not_found} ->
+            error_result(domain_not_found)
+    end.
+
+-spec abort_broadcast(jid:lserver(), pos_integer()) ->
+    {ok, pos_integer()} | {atom(), binary()}.
+abort_broadcast(Domain, Id) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            %% First verify the job exists and belongs to this domain
+            case mod_broadcast_backend:get_job(HostType, Id) of
+                {ok, #broadcast_job{domain = Domain, execution_state = running}} ->
+                    case broadcast_manager:stop_job(HostType, Id) of
+                        ok ->
+                            {ok, Id};
+                        {error, not_found} ->
+                            error_result(broadcast_not_found)
+                    end;
+                {ok, #broadcast_job{domain = Domain}} ->
+                    {not_running, <<"Broadcast job is not running">>};
+                {ok, #broadcast_job{}} ->
+                    %% Job exists but belongs to different domain
+                    error_result(broadcast_not_found);
+                {error, not_found} ->
+                    error_result(broadcast_not_found)
+            end;
+        {error, not_found} ->
+            error_result(domain_not_found)
+    end.
+
+-spec delete_inactive_broadcasts_by_ids(jid:lserver(), [pos_integer()]) ->
+    {ok, [pos_integer()]} | {atom(), binary()}.
+delete_inactive_broadcasts_by_ids(Domain, Ids) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            DeletedIds = lists:filtermap(
+                fun(Id) ->
+                    case try_delete_inactive_job(HostType, Domain, Id) of
+                        ok -> {true, Id};
+                        {error, _} -> false
+                    end
+                end, Ids),
+            {ok, DeletedIds};
+        {error, not_found} ->
+            error_result(domain_not_found)
+    end.
+
+-spec delete_inactive_broadcasts_by_domain(jid:lserver()) ->
+    {ok, [pos_integer()]} | {atom(), binary()}.
+delete_inactive_broadcasts_by_domain(Domain) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            mod_broadcast_backend:delete_inactive_jobs_by_domain(HostType, Domain);
+        {error, not_found} ->
+            error_result(domain_not_found)
+    end.
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+-spec try_delete_inactive_job(mongooseim:host_type(), jid:lserver(), pos_integer()) ->
+    ok | {error, term()}.
+try_delete_inactive_job(HostType, Domain, Id) ->
+    case mod_broadcast_backend:get_job(HostType, Id) of
+        {ok, #broadcast_job{domain = Domain, execution_state = State}}
+          when State =/= running ->
+            mod_broadcast_backend:delete_job(HostType, Id);
+        {ok, #broadcast_job{domain = Domain}} ->
+            {error, still_running};
+        {error, not_found} ->
+            {error, not_found}
+    end.
+
+-spec error_result(atom()) -> {atom(), binary()}.
+error_result(domain_not_found) ->
+    {domain_not_found, <<"Domain not found">>};
+error_result(broadcast_not_found) ->
+    {broadcast_not_found, <<"Broadcast job not found">>};
+error_result(sender_not_found) ->
+    {sender_not_found, <<"Sender account does not exist">>};
+error_result(already_running) ->
+    {already_running, <<"A broadcast job is already running for this domain">>}.
+
+-spec format_error(term()) -> binary().
+format_error(Reason) when is_binary(Reason) ->
+    Reason;
+format_error(Reason) when is_atom(Reason) ->
+    atom_to_binary(Reason, utf8);
+format_error(Reason) ->
+    iolist_to_binary(io_lib:format("~p", [Reason])).

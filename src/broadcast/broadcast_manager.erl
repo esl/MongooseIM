@@ -162,9 +162,9 @@ find_worker_pid(SupName, JobId) ->
         _ -> error
     end.
 
-%%--------------------------------------------------------------------
+%%====================================================================
 %% Resumption on init
-%%--------------------------------------------------------------------
+%%====================================================================
 
 -spec resume_running_jobs(#state{}) -> ok.
 resume_running_jobs(#state{host_type = HostType}) ->
@@ -216,9 +216,9 @@ resume_job_if_needed(Job, RunningIds, HostType) ->
     end,
     ok.
 
-%%--------------------------------------------------------------------
+%%====================================================================
 %% Validation
-%%--------------------------------------------------------------------
+%%====================================================================
 
 -spec validate_job_spec(mongooseim:host_type(), job_spec()) -> ok | {error, term()}.
 validate_job_spec(HostType, JobSpec) ->
@@ -252,5 +252,5 @@ validate_sender_exists(HostType, #{sender := SenderJid}) ->
         false ->
             ?LOG_WARNING(#{what => broadcast_sender_not_found,
                            sender => jid:to_binary(SenderJid)}),
-            {error, {sender_not_found, SenderJid}}
+            {error, sender_not_found}
     end.

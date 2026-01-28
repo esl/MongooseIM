@@ -36,6 +36,8 @@
 
 -record(data, {
     host_type :: mongooseim:host_type(),
+    %% Note: worker cares only about static data in #broadcast_job{},
+    %% so recipients_processed in job record is not updated, only in worker state.
     job :: broadcast_job(),
     state :: broadcast_worker_state(),
     batch_size :: pos_integer(),
@@ -90,7 +92,7 @@ init({HostType, JobId}) ->
                         job_id => JobId,
                         domain => Job#broadcast_job.domain,
                         total_recipients => Job#broadcast_job.recipient_count,
-                        processed => WorkerState#broadcast_worker_state.progress}),
+                        processed => WorkerState#broadcast_worker_state.recipients_processed}),
             {ok, loading_batch, Data, [{next_event, internal, load_batch}]};
         {error, Reason} ->
             ?LOG_ERROR(#{what => broadcast_worker_load_failed,
@@ -162,9 +164,9 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
     end,
 
     %% Update progress
-    Processed = WorkerState#broadcast_worker_state.progress,
+    Processed = WorkerState#broadcast_worker_state.recipients_processed,
     NewProcessed = Processed + 1,
-    NewState = WorkerState#broadcast_worker_state{progress = NewProcessed},
+    NewState = WorkerState#broadcast_worker_state{recipients_processed = NewProcessed},
     NewData = Data#data{state = NewState, current_batch = Rest},
 
     %% Calculate delay for rate limiting
@@ -195,7 +197,7 @@ finished(internal, finalize, Data) ->
     ?LOG_INFO(#{what => broadcast_worker_finished,
                 job_id => Job#broadcast_job.id,
                 domain => Job#broadcast_job.domain,
-                total_processed => WorkerState#broadcast_worker_state.progress}),
+                total_processed => WorkerState#broadcast_worker_state.recipients_processed}),
     {stop, normal, Data};
 finished(EventType, Event, Data) ->
     handle_common(EventType, Event, finished, Data).
@@ -330,7 +332,7 @@ persist_abort_admin(#data{host_type = HostType, job = Job, state = WorkerState})
     ?LOG_INFO(#{what => broadcast_job_aborted_by_admin,
                 job_id => JobId,
                 domain => Job#broadcast_job.domain,
-                processed => WorkerState#broadcast_worker_state.progress,
+                processed => WorkerState#broadcast_worker_state.recipients_processed,
                 total_recipients => Job#broadcast_job.recipient_count}),
     case mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
         ok -> ok;
@@ -356,4 +358,4 @@ maybe_init_worker_state(_HostType, _JobId, WorkerState) when WorkerState =/= und
     WorkerState;
 maybe_init_worker_state(HostType, JobId, undefined) ->
     mark_job_started(HostType, JobId),
-    #broadcast_worker_state{cursor = undefined, progress = 0}.
+    #broadcast_worker_state{cursor = undefined, recipients_processed = 0}.

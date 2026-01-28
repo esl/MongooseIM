@@ -1,0 +1,49 @@
+"""
+Queries for managing broadcast jobs.
+"""
+type BroadcastAdminQuery @protected @use(modules: ["mod_broadcast"]) {
+  "Get a paginated list of all broadcast jobs for a domain"
+  getBroadcasts(
+    domain: DomainName!,
+    "Maximum number of entries to return"
+    limit: PosInt = 50,
+    "Zero-based index of the first broadcast to return"
+    index: NonNegInt = 0
+  ): [Broadcast!]
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+  "Get information about a specific broadcast job"
+  getBroadcast(domain: DomainName!, id: Int!): Broadcast
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+}
+
+"""
+Mutations for managing broadcast jobs.
+"""
+type BroadcastAdminMutation @protected @use(modules: ["mod_broadcast"]) {
+  "Start a new broadcast job for a domain. Only one running job per domain is allowed"
+  startBroadcast(
+    "Human-readable label of the broadcast"
+    name: String!,
+    domain: DomainName!,
+    "Message subject to be included in <subject> element"
+    messageSubject: String!,
+    "Message body to be included in <body> element"
+    messageBody: String!,
+    "Bare JID for the 'from' attribute. Unless executed by global admin, must belong to broadcast domain"
+    senderJid: BareJID!,
+    "Number of messages per second to route (1-1000)"
+    messageRate: PosInt!,
+    "The group of recipients to target"
+    recipientGroup: BroadcastRecipientGroup!
+  ): BroadcastMutationResult
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+  "Abort an existing broadcast job"
+  abortBroadcast(domain: DomainName!, id: Int!): BroadcastMutationResult
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+  "Delete finished or aborted broadcasts by their IDs. Returns broadcast IDs that were actually deleted"
+  deleteInactiveBroadcastsByIds(domain: DomainName!, ids: [Int!]!): BroadcastMutationResult
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+  "Delete all finished or aborted broadcasts within a specific domain. Will skip broadcasts that are still running. Returns broadcast IDs that were actually deleted"
+  deleteInactiveBroadcastsByDomain(domain: DomainName!): BroadcastMutationResult
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+}

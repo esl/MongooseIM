@@ -610,7 +610,7 @@ ALTER TABLE broadcast_jobs
 CREATE TABLE broadcast_worker_state (
     broadcast_id INT NOT NULL,
     cursor_user VARCHAR(250),
-    progress INT NOT NULL DEFAULT 0,
+    recipients_processed INT NOT NULL DEFAULT 0,
     PRIMARY KEY (broadcast_id),
     FOREIGN KEY (broadcast_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4

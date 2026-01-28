@@ -11,19 +11,24 @@
 -export([init/2,
          create_job/2,
          get_job/2,
+         get_jobs_by_domain/4,
          get_running_jobs/1,
          get_worker_state/2,
          set_job_started/2,
          update_worker_state/3,
          set_job_finished/2,
          set_job_aborted/3,
-         set_job_aborted_admin/2]).
+         set_job_aborted_admin/2,
+         delete_job/2,
+         delete_inactive_jobs_by_domain/2]).
 
 -include("mod_broadcast.hrl").
 
 -define(MAIN_MODULE, mod_broadcast).
 
+%%====================================================================
 %% Callbacks
+%%====================================================================
 
 -callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
@@ -55,7 +60,19 @@
 -callback set_job_aborted_admin(mongooseim:host_type(), JobId :: integer()) ->
     ok | {error, term()}.
 
+-callback get_jobs_by_domain(mongooseim:host_type(), jid:lserver(),
+                             Limit :: pos_integer(), Offset :: non_neg_integer()) ->
+    {ok, [broadcast_job()]} | {error, term()}.
+
+-callback delete_job(mongooseim:host_type(), JobId :: integer()) ->
+    ok | {error, term()}.
+
+-callback delete_inactive_jobs_by_domain(mongooseim:host_type(), jid:lserver()) ->
+    {ok, [integer()]} | {error, term()}.
+
+%%====================================================================
 %% API
+%%====================================================================
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
@@ -115,4 +132,22 @@ set_job_aborted(HostType, JobId, Reason) ->
     ok | {error, term()}.
 set_job_aborted_admin(HostType, JobId) ->
     Args = [HostType, JobId],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec get_jobs_by_domain(mongooseim:host_type(), jid:lserver(),
+                         Limit :: pos_integer(), Offset :: non_neg_integer()) ->
+    {ok, [broadcast_job()]} | {error, term()}.
+get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
+    Args = [HostType, Domain, Limit, Offset],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec delete_job(mongooseim:host_type(), JobId :: integer()) -> ok | {error, term()}.
+delete_job(HostType, JobId) ->
+    Args = [HostType, JobId],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec delete_inactive_jobs_by_domain(mongooseim:host_type(), jid:lserver()) ->
+    {ok, [integer()]} | {error, term()}.
+delete_inactive_jobs_by_domain(HostType, Domain) ->
+    Args = [HostType, Domain],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

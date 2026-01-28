@@ -4,6 +4,7 @@
 
 -type execution_state() :: running | finished | abort_error | abort_admin.
 -type recipient_group() :: all_users_in_domain.
+-type recipients_processed() :: non_neg_integer().
 
 -record(broadcast_job, {
     id :: integer(),
@@ -17,6 +18,7 @@
     recipient_group :: recipient_group(),
     owner_node :: node(),
     recipient_count :: non_neg_integer(),
+    recipients_processed :: recipients_processed(),
     execution_state :: execution_state(),
     abortion_reason :: binary() | undefined,
     created_at :: calendar:datetime(),
@@ -28,7 +30,7 @@
 
 -record(broadcast_worker_state, {
     cursor :: binary() | undefined,
-    progress :: non_neg_integer()
+    recipients_processed :: recipients_processed()
 }).
 
 -type broadcast_worker_state() :: #broadcast_worker_state{}.

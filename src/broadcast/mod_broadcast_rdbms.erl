@@ -10,13 +10,16 @@
 -export([init/2,
          create_job/2,
          get_job/2,
+         get_jobs_by_domain/4,
          get_running_jobs/1,
          get_worker_state/2,
          set_job_started/2,
          update_worker_state/3,
          set_job_finished/2,
          set_job_aborted/3,
-         set_job_aborted_admin/2]).
+         set_job_aborted_admin/2,
+         delete_job/2,
+         delete_inactive_jobs_by_domain/2]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
@@ -79,13 +82,23 @@ get_running_jobs(HostType) ->
             {ok, Jobs}
     end.
 
+-spec get_jobs_by_domain(mongooseim:host_type(), jid:lserver(),
+                         Limit :: pos_integer(), Offset :: non_neg_integer()) ->
+    {ok, [broadcast_job()]} | {error, term()}.
+get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
+    case execute_successfully(HostType, broadcast_get_jobs_by_domain, [Domain, Limit, Offset]) of
+        {selected, Rows} ->
+            Jobs = [row_to_job(HostType, R) || R <- Rows],
+            {ok, Jobs}
+    end.
+
 -spec get_worker_state(mongooseim:host_type(), JobId :: integer()) ->
     {ok, broadcast_worker_state()} | {error, not_found | term()}.
 get_worker_state(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_get_worker_state, [JobId]) of
-        {selected, [{Cursor, Progress}]} ->
+        {selected, [{Cursor, RecipientsProcessed}]} ->
             {ok, #broadcast_worker_state{cursor = maybe_null(Cursor),
-                                         progress = Progress}};
+                                         recipients_processed = RecipientsProcessed}};
         {selected, []} ->
             {error, not_found}
     end.
@@ -102,9 +115,9 @@ set_job_started(HostType, JobId) ->
     ok | {error, term()}.
 update_worker_state(HostType, JobId, WorkerState) ->
     Cursor = null_if_undefined(WorkerState#broadcast_worker_state.cursor),
-    Progress = WorkerState#broadcast_worker_state.progress,
+    RecipientsProcessed = WorkerState#broadcast_worker_state.recipients_processed,
     {updated, _} = execute_successfully(HostType, broadcast_upsert_worker_state,
-                                  [JobId, Cursor, Progress]),
+                                        [JobId, Cursor, RecipientsProcessed]),
     ok.
 
 -spec set_job_finished(mongooseim:host_type(), JobId :: integer()) -> ok | {error, term()}.
@@ -130,6 +143,33 @@ set_job_aborted_admin(HostType, JobId) ->
         {updated, 0} -> {error, not_found}
     end.
 
+-spec delete_job(mongooseim:host_type(), JobId :: integer()) ->
+    ok | {error, term()}.
+delete_job(HostType, JobId) ->
+    %% First delete worker state (foreign key), then the job itself
+    _ = execute_successfully(HostType, broadcast_delete_worker_state, [JobId]),
+    case execute_successfully(HostType, broadcast_delete_job, [JobId]) of
+        {updated, 1} -> ok;
+        {updated, 0} -> {error, not_found}
+    end.
+
+-spec delete_inactive_jobs_by_domain(mongooseim:host_type(), jid:lserver()) ->
+    {ok, [integer()]} | {error, term()}.
+delete_inactive_jobs_by_domain(HostType, Domain) ->
+    %% Get IDs of inactive jobs first, then delete them
+    case execute_successfully(HostType, broadcast_get_inactive_job_ids_by_domain, [Domain]) of
+        {selected, Rows} ->
+            JobIds = [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows],
+            %% Delete worker states first (foreign key constraint)
+            lists:foreach(
+              fun(JobId) ->
+                  _ = execute_successfully(HostType, broadcast_delete_worker_state, [JobId])
+              end, JobIds),
+            %% Delete the jobs
+            _ = execute_successfully(HostType, broadcast_delete_inactive_jobs_by_domain, [Domain]),
+            {ok, JobIds}
+    end.
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -146,22 +186,27 @@ prepare_queries() ->
 
     prepare(broadcast_get_job, broadcast_jobs,
             [id],
-            <<"SELECT id, name, server, from_jid, subject, message, rate, "
-              "recipient_group, owner_node, recipient_count, "
-              "execution_state, abortion_reason, created_at, started_at, stopped_at "
-              "FROM broadcast_jobs WHERE id = ?">>),
+            <<"SELECT j.id, j.name, j.server, j.from_jid, j.subject, j.message, j.rate, "
+              "j.recipient_group, j.owner_node, j.recipient_count, "
+              "COALESCE(ws.recipients_processed, 0), "
+              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
+              "FROM broadcast_jobs j "
+              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
+              "WHERE j.id = ?">>),
 
     prepare(broadcast_get_running_jobs, broadcast_jobs,
             [owner_node],
-            <<"SELECT id, name, server, from_jid, subject, message, rate, "
-              "recipient_group, owner_node, recipient_count, "
-              "execution_state, abortion_reason, created_at, started_at, stopped_at "
-              "FROM broadcast_jobs "
-              "WHERE owner_node = ? AND execution_state = 'running'">>),
+            <<"SELECT j.id, j.name, j.server, j.from_jid, j.subject, j.message, j.rate, "
+              "j.recipient_group, j.owner_node, j.recipient_count, "
+              "COALESCE(ws.recipients_processed, 0), "
+              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
+              "FROM broadcast_jobs j "
+              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
+              "WHERE j.owner_node = ? AND j.execution_state = 'running'">>),
 
     prepare(broadcast_get_worker_state, broadcast_worker_state,
             [broadcast_id],
-            <<"SELECT cursor_user, progress FROM broadcast_worker_state "
+            <<"SELECT cursor_user, recipients_processed FROM broadcast_worker_state "
               "WHERE broadcast_id = ?">>),
 
     prepare(broadcast_set_job_started, broadcast_jobs,
@@ -170,7 +215,7 @@ prepare_queries() ->
 
     %% Upsert worker state (INSERT ... ON CONFLICT for Postgres, handled by RDBMS layer)
     prepare(broadcast_upsert_worker_state, broadcast_worker_state,
-            [broadcast_id, cursor_user, progress],
+            [broadcast_id, cursor_user, recipients_processed],
             upsert_worker_state_query()),
 
     prepare(broadcast_set_job_finished, broadcast_jobs,
@@ -191,24 +236,54 @@ prepare_queries() ->
             <<"UPDATE broadcast_jobs "
               "SET execution_state = 'abort_admin', stopped_at = CURRENT_TIMESTAMP "
               "WHERE id = ? AND execution_state = 'running'">>),
+
+    prepare(broadcast_get_jobs_by_domain, broadcast_jobs,
+            [server, limit, offset],
+            <<"SELECT j.id, j.name, j.server, j.from_jid, j.subject, j.message, j.rate, "
+              "j.recipient_group, j.owner_node, j.recipient_count, "
+              "COALESCE(ws.recipients_processed, 0), "
+              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
+              "FROM broadcast_jobs j "
+              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
+              "WHERE j.server = ? "
+              "ORDER BY j.id DESC LIMIT ? OFFSET ?">>),
+
+    prepare(broadcast_delete_job, broadcast_jobs,
+            [id],
+            <<"DELETE FROM broadcast_jobs WHERE id = ?">>),
+
+    prepare(broadcast_delete_worker_state, broadcast_worker_state,
+            [broadcast_id],
+            <<"DELETE FROM broadcast_worker_state WHERE broadcast_id = ?">>),
+
+    prepare(broadcast_get_inactive_job_ids_by_domain, broadcast_jobs,
+            [server],
+            <<"SELECT id FROM broadcast_jobs "
+              "WHERE server = ? AND execution_state != 'running'">>),
+
+    prepare(broadcast_delete_inactive_jobs_by_domain, broadcast_jobs,
+            [server],
+            <<"DELETE FROM broadcast_jobs "
+              "WHERE server = ? AND execution_state != 'running'">>),
     ok.
 
 upsert_worker_state_query() ->
     case mongoose_rdbms:db_engine_name() of
         pgsql ->
-            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, progress) "
+            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed) "
               "VALUES (?, ?, ?) "
               "ON CONFLICT (broadcast_id) DO UPDATE "
-              "SET cursor_user = EXCLUDED.cursor_user, progress = EXCLUDED.progress">>;
+              "SET cursor_user = EXCLUDED.cursor_user, "
+              "recipients_processed = EXCLUDED.recipients_processed">>;
         mysql ->
-            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, progress) "
+            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed) "
               "VALUES (?, ?, ?) "
               "ON DUPLICATE KEY UPDATE cursor_user = VALUES(cursor_user), "
-              "progress = VALUES(progress)">>
+              "recipients_processed = VALUES(recipients_processed)">>
     end.
 
 row_to_job(HostType, {JobId, Name, Server, FromJid, Subject, Message, Rate,
-                      RecipientGroup, OwnerNode, RecipientCount,
+                      RecipientGroup, OwnerNode, RecipientCount, RecipientsProcessed,
                       ExecutionState, AbortionReason, CreatedAt, StartedAt, StoppedAt}) ->
     #broadcast_job{id = JobId,
                    name = Name,
@@ -221,6 +296,7 @@ row_to_job(HostType, {JobId, Name, Server, FromJid, Subject, Message, Rate,
                    recipient_group = decode_recipient_group(RecipientGroup),
                    owner_node = binary_to_atom(OwnerNode, utf8),
                    recipient_count = RecipientCount,
+                   recipients_processed = RecipientsProcessed,
                    execution_state = decode_execution_state(ExecutionState),
                    abortion_reason = maybe_null(AbortionReason),
                    created_at = decode_timestamp(CreatedAt),

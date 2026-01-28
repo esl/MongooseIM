@@ -1,0 +1,69 @@
+"""
+Represents a broadcast job for sending messages to users in bulk.
+"""
+type Broadcast {
+  "Unique identifier of the broadcast job"
+  id: Int!
+  "Human-readable name of the broadcast"
+  name: String!
+  "Domain to which the broadcast job is assigned"
+  domain: DomainName!
+  "Message subject to be included in <subject> element"
+  messageSubject: String!
+  "Message body to be included in <body> element"
+  messageBody: String!
+  "Bare JID provided in 'from' attribute of the message"
+  senderJid: BareJID!
+  "Number of messages routed per second"
+  messageRate: PosInt!
+  "Erlang node name that owns the broadcast job"
+  ownerNode: String!
+  "Timestamp when the job was created"
+  createTimestamp: DateTime!
+  "Timestamp when the job was started"
+  startTimestamp: DateTime
+  "Timestamp when the job was stopped"
+  stopTimestamp: DateTime
+  "Current execution state of the broadcast job"
+  executionState: BroadcastJobState!
+  "Error reason if job was aborted automatically, empty otherwise"
+  abortionReason: String
+  "The recipient group for this broadcast"
+  recipientGroup: BroadcastRecipientGroup!
+  "Total number of recipients"
+  recipientCount: PosInt!
+  "Number of recipients already processed"
+  recipientsProcessed: NonNegInt!
+}
+
+"""
+The recipient group targeted by a broadcast job.
+"""
+enum BroadcastRecipientGroup {
+  "All users registered in the domain"
+  ALL_USERS_IN_DOMAIN
+}
+
+"""
+The execution state of a broadcast job.
+"""
+enum BroadcastJobState {
+  "Broadcast job is currently running"
+  RUNNING
+  "Broadcast job finished successfully"
+  FINISHED
+  "Broadcast job was aborted due to an error"
+  ABORT_ERROR
+  "Broadcast job was aborted by an administrator"
+  ABORT_ADMIN
+}
+
+"""
+Result of a broadcast mutation operation.
+"""
+type BroadcastMutationResult {
+  "Success or status message"
+  message: String!
+  "Affected broadcast job IDs"
+  ids: [Int!]!
+}
