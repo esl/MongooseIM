@@ -100,10 +100,8 @@ mnesia_remove_domain_deletes_subscriptions(_Config) ->
     ok = mod_event_pusher_push_mnesia:enable(?HOST_TYPE, User2, PubSubJID, Node, Form),
 
     %% Verify subscriptions exist
-    {ok, Services1} = mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User1),
-    {ok, Services2} = mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User2),
-    ?assertEqual(1, length(Services1)),
-    ?assertEqual(1, length(Services2)),
+    ?assertMatch({ok, [_]}, mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User1)),
+    ?assertMatch({ok, [_]}, mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User2)),
 
     %% WHEN remove_domain is called
     ok = mod_event_pusher_push_mnesia:remove_domain(?HOST_TYPE, ?DOMAIN),
@@ -129,10 +127,8 @@ mnesia_remove_domain_keeps_other_domain_subscriptions(_Config) ->
     ok = mod_event_pusher_push_mnesia:remove_domain(?HOST_TYPE, ?DOMAIN),
 
     %% THEN subscriptions for OTHER_DOMAIN are preserved
-    {ok, ServicesAfter1} = mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User1),
-    {ok, ServicesAfter2} = mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User2),
-    ?assertEqual([], ServicesAfter1),
-    ?assertEqual(1, length(ServicesAfter2)).
+    ?assertEqual({ok, []}, mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User1)),
+    ?assertMatch({ok, [_]}, mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User2)).
 
 mnesia_remove_domain_empty_table(_Config) ->
     %% GIVEN empty table
