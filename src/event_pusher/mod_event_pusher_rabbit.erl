@@ -45,7 +45,7 @@
 %%%===================================================================
 
 %% MIM module callbacks
--export([start/2, stop/1, hooks/1, config_spec/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% hook handlers
 -export([push_event/3]).
@@ -62,6 +62,10 @@ start(HostType, Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->

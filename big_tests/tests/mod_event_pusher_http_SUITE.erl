@@ -88,7 +88,7 @@ proper_http_message_encode_decode(Config) ->
         fun(Alice, Bob) ->
             Sender = jid:nameprep(escalus_client:username(Alice)),
             Receiver = jid:nameprep(escalus_client:username(Bob)),
-            Server = jid:nodeprep(escalus_users:get_host(Config, alice)),
+            Server = domain_helper:domain(),
             Message = <<"Hi Test!&escape=Hello">>,
 
             Stanza = escalus_stanza:chat_to(Bob, Message),

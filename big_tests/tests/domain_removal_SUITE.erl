@@ -28,6 +28,7 @@ all() ->
      {group, markers_removal},
      {group, vcard_removal},
      {group, last_removal},
+     {group, push_removal},
      {group, removal_failures}
     ].
 
@@ -50,6 +51,7 @@ groups() ->
      {markers_removal, [], [markers_removal]},
      {vcard_removal, [], [vcard_removal]},
      {last_removal, [], [last_removal]},
+     {push_removal, [], [push_removal]},
      {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
 
@@ -143,7 +145,10 @@ group_to_modules(markers_removal) ->
 group_to_modules(vcard_removal) ->
     [{mod_vcard, mod_config(mod_vcard, #{backend => rdbms})}];
 group_to_modules(last_removal) ->
-    [{mod_last, mod_config(mod_last, #{backend => rdbms})}].
+    [{mod_last, mod_config(mod_last, #{backend => rdbms})}];
+group_to_modules(push_removal) ->
+    PushOpts = #{backend => rdbms},
+    [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}].
 
 is_internal_or_rdbms() ->
     AuthMods = mongoose_helper:auth_modules(),
@@ -453,6 +458,26 @@ last_removal(Config0) ->
             escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
         end,
     escalus:fresh_story_with_config(Config0, [{alice, 1}, {bob, 1}], F).
+
+push_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        %% Alice enables push notifications
+        PubsubJID = <<"pubsub.localhost">>,
+        Node = <<"test_node">>,
+        EnableStanza = push_helper:enable_stanza(PubsubJID, Node),
+        escalus:send(Alice, EnableStanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        %% Check that the subscription exists in the database
+        AliceJid = jid:from_binary(escalus_client:short_jid(Alice)),
+        {ok, Services} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                             [host_type(), AliceJid]),
+        ?assertMatch([_], Services),
+        %% Remove domain and check that push subscriptions are removed
+        run_remove_domain(),
+        {ok, ServicesAfter} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                  [host_type(), AliceJid]),
+        ?assertMatch([], ServicesAfter)
+    end).
 
 removal_stops_if_handler_fails(Config0) ->
     mongoose_helper:inject_module(?MODULE),

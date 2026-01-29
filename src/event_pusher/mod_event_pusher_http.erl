@@ -38,7 +38,7 @@
 -include("jlib.hrl").
 
 %% API
--export([start/2, stop/1, hooks/1, config_spec/0, instrumentation/1]).
+-export([start/2, stop/1, hooks/1, config_spec/0, instrumentation/1, supported_features/0]).
 
 %% hook handlers
 -export([push_event/3]).
@@ -59,6 +59,10 @@ start(_HostType, _Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->

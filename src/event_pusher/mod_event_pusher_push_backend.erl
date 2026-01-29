@@ -11,7 +11,8 @@
          enable/5,
          disable/2,
          disable/4,
-         get_publish_services/2]).
+         get_publish_services/2,
+         remove_domain/2]).
 
 -define(MAIN_MODULE, mod_event_pusher_push).
 
@@ -35,6 +36,8 @@
 
 -callback get_publish_services(mongooseim:host_type(), UserJID :: jid:jid()) ->
     {ok, [mod_event_pusher_push:publish_service()]} | {error, Reason :: term()}.
+
+-callback remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 
 %% API
 
@@ -72,3 +75,8 @@ disable(HostType, UserJID, PubsubJID, Node) ->
 get_publish_services(HostType, User) ->
     Args = [HostType, User],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(HostType, Domain) ->
+    Args = [HostType, Domain],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

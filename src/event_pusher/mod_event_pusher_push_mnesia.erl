@@ -21,7 +21,8 @@
 -export([enable/5,
          disable/2,
          disable/4,
-         get_publish_services/2]).
+         get_publish_services/2,
+         remove_domain/2]).
 
 %%--------------------------------------------------------------------
 %% Definitions
@@ -148,3 +149,22 @@ make_record(UserJID, PubsubJID, Node, Form) ->
 -spec key(jid:jid()) -> key().
 key(JID) ->
     jid:to_lus(JID).
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(_HostType, Domain) ->
+    %% Iterate through all push subscriptions and delete those belonging to the removed domain
+    %% User JID is stored as {LUser, LServer} tuple, we match on LServer
+    F = fun() ->
+            mnesia:foldl(
+              fun(#push_subscription{user_jid = {_, UserDomain}} = Sub, Acc) ->
+                      case UserDomain of
+                          Domain -> mnesia:delete_object(Sub);
+                          _ -> ok
+                      end,
+                      Acc
+              end,
+              ok,
+              push_subscription)
+        end,
+    {atomic, ok} = mnesia:transaction(F),
+    ok.

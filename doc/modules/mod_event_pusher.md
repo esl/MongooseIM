@@ -5,9 +5,6 @@ The events include presence updates and incoming/outgoing messages.
 Currently supported backends include [http], [push], [rabbit] and [sns].
 Refer to their specific documentation to learn more about their functions and configuration options.
 
-!!! Warning
-    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
-
 ## Configuration
 
 Each backend is configured in a corresponding subsection.
