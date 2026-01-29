@@ -9,6 +9,8 @@
 -module(mod_event_pusher_push_rdbms).
 -behaviour(mod_event_pusher_push_backend).
 
+-define(REMOVE_DOMAIN_BATCH_SIZE, 1000).
+
 %%--------------------------------------------------------------------
 %% Exports
 %%--------------------------------------------------------------------
@@ -19,6 +21,10 @@
          disable/4,
          get_publish_services/2,
          remove_domain/2]).
+
+-ifdef(TEST).
+-export([remove_domain_batches/5]).
+-endif.
 
 %%--------------------------------------------------------------------
 %% Backend callbacks
@@ -112,9 +118,10 @@ prepare_queries() ->
                            [owner_jid, node, pubsub_jid],
                            <<"DELETE FROM event_pusher_push_subscription "
                              "WHERE owner_jid = ? AND node = ? AND pubsub_jid = ?">>),
-    mongoose_rdbms:prepare(event_pusher_push_remove_domain, event_pusher_push_subscription,
-                           [owner_jid],
-                           <<"DELETE FROM event_pusher_push_subscription WHERE owner_jid LIKE ?">>),
+        mongoose_rdbms:prepare(event_pusher_push_select_domain_batch, event_pusher_push_subscription,
+                                                     [owner_jid, limit],
+                                                     <<"SELECT DISTINCT owner_jid FROM event_pusher_push_subscription "
+                                                         "WHERE owner_jid LIKE ? LIMIT ?">>),
     ok.
 
 -spec execute_insert(mongooseim:host_type(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
@@ -150,5 +157,33 @@ remove_domain(HostType, Domain) ->
     %% Match all subscriptions owned by users of the given domain
     %% Users are stored as 'user@domain' in owner_jid, so we use LIKE '%@domain'
     LikePattern = <<"%@", Domain/binary>>,
-    mongoose_rdbms:execute_successfully(HostType, event_pusher_push_remove_domain, [LikePattern]),
-    ok.
+    remove_domain_batches(HostType, LikePattern, ?REMOVE_DOMAIN_BATCH_SIZE,
+                          fun select_domain_batch/3,
+                          fun delete_domain_batch/2).
+
+-spec remove_domain_batches(mongooseim:host_type(), binary(), pos_integer(),
+                            fun((mongooseim:host_type(), binary(), pos_integer()) -> [jid:literal_jid()]),
+                            fun((mongooseim:host_type(), [jid:literal_jid()]) -> ok)) -> ok.
+remove_domain_batches(HostType, LikePattern, BatchSize, SelectFun, DeleteFun) ->
+    case SelectFun(HostType, LikePattern, BatchSize) of
+        [] ->
+            ok;
+        OwnerJids ->
+            DeleteFun(HostType, OwnerJids),
+            remove_domain_batches(HostType, LikePattern, BatchSize, SelectFun, DeleteFun)
+    end.
+
+-spec select_domain_batch(mongooseim:host_type(), binary(), pos_integer()) -> [jid:literal_jid()].
+select_domain_batch(HostType, LikePattern, BatchSize) ->
+    {selected, Rows} = mongoose_rdbms:execute_successfully(
+                        HostType,
+                        event_pusher_push_select_domain_batch,
+                        [LikePattern, BatchSize]),
+    [OwnerJid || {OwnerJid} <- Rows].
+
+-spec delete_domain_batch(mongooseim:host_type(), [jid:literal_jid()]) -> ok.
+delete_domain_batch(_HostType, []) ->
+    ok;
+delete_domain_batch(HostType, [OwnerJid | Rest]) ->
+    execute_delete(HostType, OwnerJid),
+    delete_domain_batch(HostType, Rest).

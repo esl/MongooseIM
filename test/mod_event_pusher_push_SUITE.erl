@@ -24,20 +24,16 @@
 
 all() ->
     [{group, mnesia_backend},
-     {group, rdbms_backend},
+     rdbms_remove_domain_calls_execute_successfully,
      supported_features_tests].
 
 groups() ->
-    [{mnesia_backend, [sequence], mnesia_tests()},
-     {rdbms_backend, [sequence], rdbms_tests()}].
+    [{mnesia_backend, [sequence], mnesia_tests()}].
 
 mnesia_tests() ->
     [mnesia_remove_domain_deletes_subscriptions,
      mnesia_remove_domain_keeps_other_domain_subscriptions,
      mnesia_remove_domain_empty_table].
-
-rdbms_tests() ->
-    [rdbms_remove_domain_calls_execute_successfully].
 
 %%--------------------------------------------------------------------
 %% Init/End per suite
@@ -63,14 +59,9 @@ end_per_suite(Config) ->
 
 init_per_group(mnesia_backend, Config) ->
     [{backend, mnesia} | Config];
-init_per_group(rdbms_backend, Config) ->
-    meck:new(mongoose_rdbms, [passthrough]),
-    [{backend, rdbms} | Config];
 init_per_group(_, Config) ->
     Config.
 
-end_per_group(rdbms_backend, _Config) ->
-    meck:unload(mongoose_rdbms);
 end_per_group(_, Config) ->
     Config.
 
@@ -83,8 +74,6 @@ init_per_testcase(TestCase, Config) when TestCase =:= mnesia_remove_domain_delet
                                          TestCase =:= mnesia_remove_domain_empty_table ->
     ok = mod_event_pusher_push_mnesia:init(?HOST_TYPE, #{}),
     Config;
-init_per_testcase(rdbms_remove_domain_calls_execute_successfully, Config) ->
-    Config;
 init_per_testcase(_, Config) ->
     Config.
 
@@ -92,9 +81,6 @@ end_per_testcase(TestCase, _Config) when TestCase =:= mnesia_remove_domain_delet
                                          TestCase =:= mnesia_remove_domain_keeps_other_domain_subscriptions;
                                          TestCase =:= mnesia_remove_domain_empty_table ->
     mnesia:clear_table(push_subscription),
-    ok;
-end_per_testcase(rdbms_remove_domain_calls_execute_successfully, _Config) ->
-    meck:reset(mongoose_rdbms),
     ok;
 end_per_testcase(_, _Config) ->
     ok.
@@ -159,18 +145,36 @@ mnesia_remove_domain_empty_table(_Config) ->
 rdbms_remove_domain_calls_execute_successfully(_Config) ->
     %% GIVEN expected LIKE pattern for the domain
     LikePattern = <<"%@", ?DOMAIN/binary>>,
-    meck:expect(mongoose_rdbms, execute_successfully,
-                fun(?HOST_TYPE, event_pusher_push_remove_domain, [ActualPattern]) ->
+    CounterTab = ets:new(?MODULE, [set, private]),
+    ets:insert(CounterTab, [{select_calls, 0}, {deleted_owner_jids, []}]),
+    SelectFun = fun(_HostType, ActualPattern, _Limit) ->
                         ?assertEqual(LikePattern, ActualPattern),
+                        Calls = ets:update_counter(CounterTab, select_calls, 1, {select_calls, 0}) - 1,
+                        case Calls of
+                            0 ->
+                                [<<"user1@", ?DOMAIN/binary>>, <<"user2@", ?DOMAIN/binary>>];
+                            _ ->
+                                []
+                        end
+                end,
+    DeleteFun = fun(_HostType, OwnerJids) ->
+                        [{deleted_owner_jids, Deleted}] = ets:lookup(CounterTab, deleted_owner_jids),
+                        ets:insert(CounterTab, {deleted_owner_jids, OwnerJids ++ Deleted}),
                         ok
-                end),
+                end,
 
     %% WHEN remove_domain is called
-    ok = mod_event_pusher_push_rdbms:remove_domain(?HOST_TYPE, ?DOMAIN),
+    ok = mod_event_pusher_push_rdbms:remove_domain_batches(?HOST_TYPE, LikePattern, 2,
+                                                           SelectFun, DeleteFun),
 
-    %% THEN mongoose_rdbms:execute_successfully was called exactly once
-    ?assertEqual(1, meck:num_calls(mongoose_rdbms, execute_successfully,
-                                    [?HOST_TYPE, event_pusher_push_remove_domain, [LikePattern]])).
+    %% THEN all expected deletes were issued
+    [{select_calls, SelectCalls}] = ets:lookup(CounterTab, select_calls),
+    [{deleted_owner_jids, DeleteArgs}] = ets:lookup(CounterTab, deleted_owner_jids),
+    ets:delete(CounterTab),
+    ?assertEqual(2, SelectCalls),
+    ?assertEqual(lists:sort([<<"user1@", ?DOMAIN/binary>>,
+                             <<"user2@", ?DOMAIN/binary>>]),
+                 lists:sort(DeleteArgs)).
 
 %%--------------------------------------------------------------------
 %% Test cases - supported_features
