@@ -60,6 +60,7 @@
 {suites, "tests", mod_event_pusher_sns_SUITE}.
 {suites, "tests", mod_http_upload_SUITE}.
 {suites, "tests", mod_ping_SUITE}.
+{suites, "tests", mod_stanzaid_SUITE}.
 {suites, "tests", mod_time_SUITE}.
 {suites, "tests", mod_version_SUITE}.
 {suites, "tests", mongoose_cassandra_SUITE}.
