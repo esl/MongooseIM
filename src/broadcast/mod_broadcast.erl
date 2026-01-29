@@ -7,6 +7,7 @@
 
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
+-behaviour(mongoose_instrument_probe).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -15,7 +16,11 @@
 -export([start/2,
          stop/1,
          supported_features/0,
-         config_spec/0]).
+         config_spec/0,
+         instrumentation/1]).
+
+%% mongoose_instrument_probe callback
+-export([probe/2]).
 
 -include("mongoose_config_spec.hrl").
 -include("mod_broadcast.hrl").
@@ -58,3 +63,43 @@ start_supervisor(HostType) ->
 stop_supervisor(HostType) ->
     SupName = gen_mod:get_module_proc(HostType, broadcast_sup),
     ejabberd_sup:stop_child(SupName).
+
+%%====================================================================
+%% Instrumentation
+%%====================================================================
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [
+     %% Running jobs gauge (polled via probe)
+     {mod_broadcast_running_jobs, #{host_type => HostType},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
+     %% Job lifecycle counters
+     {mod_broadcast_jobs_started, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     {mod_broadcast_jobs_finished, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     {mod_broadcast_jobs_aborted_admin, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     {mod_broadcast_jobs_aborted_error, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     %% Recipient processing spirals
+     {mod_broadcast_recipients_processed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_recipients_success, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_recipients_skipped, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}
+    ].
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+          mongoose_instrument:measurements().
+probe(mod_broadcast_running_jobs, #{host_type := HostType}) ->
+    SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
+    try supervisor:which_children(SupName) of
+        Children when is_list(Children) ->
+            #{count => length(Children)}
+    catch
+        exit:{noproc, _} ->
+            #{count => 0}
+    end.

@@ -152,15 +152,23 @@ sending_batch(EventType, send_one, #data{current_batch = [], state = WorkerState
     end;
 sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} = Data)
   when EventType == internal; EventType == state_timeout ->
-    #data{job = Job, state = WorkerState, batch_t0 = T0} = Data,
+    #data{host_type = HostType, job = Job, state = WorkerState, batch_t0 = T0} = Data,
     %% Send message to this recipient (log on failure but continue)
-    case send_message(Job, RecipientJid) of
-        ok -> ok;
+    SendResult = send_message(Job, RecipientJid),
+    %% Instrument recipient processing
+    mongoose_instrument:execute(mod_broadcast_recipients_processed,
+                                #{host_type => HostType}, #{count => 1}),
+    case SendResult of
+        ok ->
+            mongoose_instrument:execute(mod_broadcast_recipients_success,
+                                        #{host_type => HostType}, #{count => 1});
         {error, Reason} ->
+            mongoose_instrument:execute(mod_broadcast_recipients_skipped,
+                                        #{host_type => HostType}, #{count => 1}),
             ?LOG_WARNING(#{what => broadcast_send_failed,
-                            job_id => Job#broadcast_job.id,
-                            recipient => jid:to_binary(RecipientJid),
-                            reason => Reason})
+                           job_id => Job#broadcast_job.id,
+                           recipient => jid:to_binary(RecipientJid),
+                           reason => Reason})
     end,
 
     %% Update progress
@@ -194,6 +202,8 @@ finished(internal, finalize, Data) ->
                            job_id => Job#broadcast_job.id, reason => Reason})
     end,
     persist_completion(HostType, Job),
+    mongoose_instrument:execute(mod_broadcast_jobs_finished,
+                                #{host_type => HostType}, #{count => 1}),
     ?LOG_INFO(#{what => broadcast_worker_finished,
                 job_id => Job#broadcast_job.id,
                 domain => Job#broadcast_job.domain,
@@ -207,6 +217,8 @@ finished(EventType, Event, Data) ->
 aborted(internal, {finalize, {Fmt, Args}}, Data) ->
     #data{host_type = HostType, job = Job} = Data,
     AbortReason = abort_job(HostType, Job#broadcast_job.id, Fmt, Args),
+    mongoose_instrument:execute(mod_broadcast_jobs_aborted_error,
+                                #{host_type => HostType}, #{count => 1}),
     ?LOG_ERROR(#{what => broadcast_worker_aborted,
                  job_id => Job#broadcast_job.id,
                  domain => Job#broadcast_job.domain,
@@ -329,6 +341,8 @@ abort_job(HostType, JobId, Fmt, Args) ->
 -spec persist_abort_admin(data()) -> ok.
 persist_abort_admin(#data{host_type = HostType, job = Job, state = WorkerState}) ->
     JobId = Job#broadcast_job.id,
+    mongoose_instrument:execute(mod_broadcast_jobs_aborted_admin,
+                                #{host_type => HostType}, #{count => 1}),
     ?LOG_INFO(#{what => broadcast_job_aborted_by_admin,
                 job_id => JobId,
                 domain => Job#broadcast_job.domain,
@@ -344,6 +358,8 @@ persist_abort_admin(#data{host_type = HostType, job = Job, state = WorkerState})
 
 -spec mark_job_started(mongooseim:host_type(), integer()) -> ok.
 mark_job_started(HostType, JobId) ->
+    mongoose_instrument:execute(mod_broadcast_jobs_started,
+                                #{host_type => HostType}, #{count => 1}),
     case mod_broadcast_backend:set_job_started(HostType, JobId) of
         ok -> ok;
         {error, Reason} ->
