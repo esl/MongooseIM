@@ -1177,6 +1177,7 @@ test_just_tls_common(P, T) ->
     ?cfg(P ++ [password], "secret", T(M#{<<"password">> => <<"secret">>})),
     ?cfg(P ++ [versions], ['tlsv1.2', 'tlsv1.3'],
          T(M#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
+    ?cfg(P ++ [keep_secrets], true, T(M#{<<"keep_secrets">> => true})),
     ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
     ?err(T(M#{<<"cacertfile">> => <<"no_such_file.pem">>})),
     ?err(T(M#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),

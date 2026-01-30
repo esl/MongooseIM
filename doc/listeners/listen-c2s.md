@@ -126,6 +126,15 @@ Additionally empty client certificate is treated as an error.
 When set to `false`, TLS handshake will succeed even if there were errors in client certificate verification.
 This allows to use other methods of authentication (like SASL) later as part of XMPP stream.
 
+### `listen.c2s.tls.keep_secrets`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `tls.keep_secrets = false`
+
+When set to `true`, TLS session keys are written to the file specified by the `SSLKEYLOGFILE` environment variable. This allows tools like Wireshark to decrypt TLS traffic.
+
+**IMPORTANT:** Use only in trusted environments for debugging purposes.
+
 ### `listen.c2s.tls.versions`
 * **Syntax:** array of strings
 * **Default:** not set, all supported versions are accepted

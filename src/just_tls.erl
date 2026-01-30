@@ -23,6 +23,7 @@
                      ciphers => string(),
                      dhfile => string(), % server-only
                      disconnect_on_failure => boolean(),
+                     keep_secrets => boolean(),
                      keyfile => string(),
                      password => string(),
                      versions => [atom()],
@@ -72,21 +73,26 @@ make_server_opts(Opts) ->
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-format_opts(Opts, ClientOrServer) ->
-    SslOpts0 = maps:to_list(maps:with(ssl_option_keys(), Opts)),
-    SslOpts1 = verify_mode_opt(SslOpts0, Opts),
-    SslOpts2 = verify_fun_opt(SslOpts1, Opts),
-    SslOpts3 = hibernate_opt(SslOpts2, Opts),
-    SslOpts4 = session_tickets_opt(ClientOrServer, SslOpts3, Opts),
-    SslOpts5 = early_data_opt(ClientOrServer, SslOpts4, Opts),
-    SslOpts6 = maybe_use_system_certificates(SslOpts5, Opts),
-    case ClientOrServer of
-        client -> sni_opts(SslOpts6, Opts);
-        server -> fail_if_no_peer_cert_opt(SslOpts6, Opts)
-    end.
+format_opts(Opts, Mode) ->
+    SslOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
+    lists:foldl(fun(Fun, Acc) -> Fun(Acc, Opts) end,
+                SslOpts,
+                [fun verify_mode_opt/2,
+                 fun verify_fun_opt/2,
+                 fun hibernate_opt/2,
+                 fun maybe_use_system_certificates/2,
+                 fun maybe_keep_secrets/2
+                 | mode_funs(Mode)]).
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
+
+mode_funs(client) ->
+    [fun sni_opts/2];
+mode_funs(server) ->
+    [fun session_tickets_opt/2,
+     fun early_data_opt/2,
+     fun fail_if_no_peer_cert_opt/2].
 
 %% Use CA certificates provided by the OS when `verify_mode` is peer
 %% or selfsigned_peer and `cacertfile` was not set
@@ -97,6 +103,19 @@ maybe_use_system_certificates(Opts, #{verify_mode := Mode})
     [{cacerts, public_key:cacerts_get()} | Opts];
 maybe_use_system_certificates(Opts, #{}) ->
     Opts.
+
+maybe_keep_secrets(Opts, #{keep_secrets := true}) ->
+    case os:getenv("SSLKEYLOGFILE") of
+        false -> Opts;
+        Value -> [{keep_secrets, {keylog, keylog_fun(Value)}} | Opts]
+    end;
+maybe_keep_secrets(Opts, #{}) ->
+    Opts.
+
+keylog_fun(Filename) ->
+    fun(#{items := Items}) ->
+        file:write_file(Filename, [[I, "\n"] || I <- Items], [append])
+    end.
 
 %% accept empty peer certificate if explicitly requested not to fail
 fail_if_no_peer_cert_opt(Opts, #{disconnect_on_failure := false}) ->
@@ -122,14 +141,14 @@ hibernate_opt(Opts, #{hibernate_after := Timeout}) ->
 hibernate_opt(Opts, #{}) ->
     Opts.
 
-session_tickets_opt(server, SslOpts, _Opts = #{session_tickets := stateless}) ->
+session_tickets_opt(SslOpts, _Opts = #{session_tickets := stateless}) ->
     [{session_tickets, stateless} | SslOpts];
-session_tickets_opt(_ClientOrServer, SslOpts, _Opts) ->
+session_tickets_opt(SslOpts, _Opts) ->
     SslOpts.
 
-early_data_opt(server, SslOpts, #{early_data := true}) ->
+early_data_opt(SslOpts, #{early_data := true}) ->
     [{early_data, enabled} | SslOpts];
-early_data_opt(_ClientOrServer, SslOpts, _Opts) ->
+early_data_opt(SslOpts, _Opts) ->
     SslOpts.
 
 %% This function translates TLS options to the function

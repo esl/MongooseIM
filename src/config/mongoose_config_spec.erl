@@ -653,7 +653,8 @@ tls(common) ->
                        <<"versions">> => #list{items = #option{type = atom}},
                        <<"disconnect_on_failure">> => #option{type = boolean},
                        <<"crl_files">> => #list{items = #option{type = string,
-                                                                validate = filename}}
+                                                                validate = filename}},
+                       <<"keep_secrets">> => #option{type = boolean}
                       },
              defaults = #{<<"verify_mode">> => peer,
                           <<"disconnect_on_failure">> => true,

@@ -52,6 +52,7 @@ all() ->
         {group, incorrect_behaviors},
         {group, proxy_protocol},
         {group, disconnect},
+        {group, keep_secrets},
         %% these groups must be last, as they really... complicate configuration
         {group, just_tls}
     ].
@@ -92,6 +93,7 @@ groups() ->
                                            close_connection_if_protocol_violation_after_authentication,
                                            close_connection_if_protocol_violation_after_binding]},
         {disconnect, [], [disconnect_inactive_tcp_connection_after_timeout]},
+        {keep_secrets, [], [log_tls_secrets]},
         {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
                                       connect_with_proxy_header]}
     ].
@@ -183,11 +185,19 @@ init_per_group(proxy_protocol, Config) ->
 init_per_group(disconnect, Config) ->
     configure_c2s_listener(Config, #{state_timeout => 100}),
     Config;
+init_per_group(keep_secrets, Config) ->
+    TlsOpts = (tls_opts(starttls_required, Config))#{keep_secrets => true},
+    configure_c2s_listener(Config, #{tls => TlsOpts}),
+    SslKeylog = filename:join(path_helper:ct_run_dir(Config), "sslkeylog.txt"),
+    rpc(mim(), os, putenv, ["SSLKEYLOGFILE", SslKeylog]),
+    [{sslkeylog, SslKeylog} | Config];
 init_per_group(verify_peer, Config) ->
     Config;
 init_per_group(_, Config) ->
     Config.
 
+end_per_group(keep_secrets, _Config) ->
+    rpc(mim(), os, unsetenv, ["SSLKEYLOGFILE"]);
 end_per_group(_, _Config) ->
     ok.
 
@@ -512,6 +522,21 @@ metrics_test(Config) ->
                                                (#{time := Time}) -> Time > 0 end)
      || {Event, Label} <- instrumentation_events(),
         Event =/= c2s_message_processed].
+
+log_tls_secrets(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    Steps = [start_stream,
+             stream_features,
+             maybe_use_ssl,
+             authenticate],
+    escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps),
+    SslKeylog = proplists:get_value(sslkeylog, Config),
+    {ok, Content} = file:read_file(SslKeylog),
+    [?assertNotEqual(nomatch, binary:match(Content, K))
+     || K <- [<<"CLIENT_HANDSHAKE_TRAFFIC_SECRET">>,
+              <<"CLIENT_TRAFFIC_SECRET_0">>,
+              <<"SERVER_HANDSHAKE_TRAFFIC_SECRET">>,
+              <<"SERVER_TRAFFIC_SECRET_0">>]].
 
 tls_authenticate(Config) ->
     %% Given
