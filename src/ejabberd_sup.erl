@@ -45,7 +45,6 @@ start_link() ->
 init(noargs) ->
     Hooks = worker_spec(gen_hook),
     Instrument = worker_spec(mongoose_instrument),
-    PrometheusSlidingWindow = mongoose_prometheus_sliding_window:child_spec(),
     Cleaner = worker_spec(mongoose_cleaner),
     Router = worker_spec(ejabberd_router),
     S2S = worker_spec(ejabberd_s2s),
@@ -70,8 +69,8 @@ init(noargs) ->
           [StartIdServer,
            PG,
            Hooks,
-           Instrument,
-           PrometheusSlidingWindow,
+           Instrument
+           ] ++ prometheus_sliding_window_spec() ++ [
            Cleaner,
            SMBackendSupervisor,
            OutgoingPoolsSupervisor
@@ -123,6 +122,12 @@ template_supervisor_spec(Name, Module) ->
 
 supervisor_spec(Mod) ->
     {Mod, {Mod, start_link, []}, permanent, infinity, supervisor, [Mod]}.
+
+prometheus_sliding_window_spec() ->
+    case mongoose_config:get_opt([instrumentation, prometheus], undefined) of
+        undefined -> [];
+        #{} -> [mongoose_prometheus_sliding_window:child_spec()]
+    end.
 
 worker_spec(Mod) ->
     worker_spec(Mod, []).

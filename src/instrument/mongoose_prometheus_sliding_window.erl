@@ -36,6 +36,10 @@ default_quantiles() -> [0.5, 0.75, 0.90, 0.95, 0.99, 0.999].
 -spec default_error() -> number().
 default_error() -> 0.01.
 
+%% Setting the default bound to 1260 means that:
+%% * measuring in µs suffices for actions lasting up to a day (with 1% accuracy),
+%% * measuring in bytes suffices for sizes up to 81 GB (with 1% accuracy).
+%% See: https://hexdocs.pm/ddskerl/ddskerl_ets.html
 -spec default_bound() -> non_neg_integer().
 default_bound() -> 1260.
 
