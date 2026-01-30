@@ -84,7 +84,7 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(muc, Config) ->
     muc_helper:unload_muc(),
-    end_per_testcase(generic, Config);
+    end_per_group(generic, Config);
 end_per_group(_, Config) ->
     dynamic_modules:restore_modules(Config),
     Config.
@@ -111,10 +111,12 @@ init_per_testcase(stanza_id_muclight_mam, Config) ->
     Config1;
 init_per_testcase(CaseName, Config) ->
     Config1 = dynamic_modules:save_modules(domain_helper:host_type(), Config),
+    inject_handler(),
     escalus:init_per_testcase(CaseName, Config1).
 
 end_per_testcase(CaseName, Config) ->
     dynamic_modules:restore_modules(Config),
+    remove_handler(),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -134,7 +136,6 @@ stanza_id_pm_mam(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            inject_handler(),
             message(Alice, Bob, <<"Hi!">>),
             Message = escalus:wait_for_stanza(Bob),
             % get our stable stanza id
@@ -160,7 +161,6 @@ stanza_id_muc(Config) ->
         escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Alice, 3),
 %%
-        inject_handler(),
         Msg = <<"chat message">>,
         Id = <<"MyID">>,
         Stanza = escalus_stanza:set_id(
@@ -186,7 +186,6 @@ stanza_id_muc_mam(Config) ->
         escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Alice, 3),
 %%
-        inject_handler(),
         Msg = <<"chat message">>,
         Id = <<"MyID">>,
         Stanza = escalus_stanza:set_id(
@@ -211,7 +210,6 @@ stanza_id_muclight(Config) ->
         muc_light_helper:create_room(RoomName, muc_light_helper:muc_host(),
                                      Alice, [Bob], Config, muc_light_helper:ver(1)),
 %%
-        inject_handler(),
         Stanza = escalus_stanza:groupchat_to(muc_light_helper:room_bin_jid(RoomName), <<"Hello">>),
         escalus:send(Bob, Stanza),
         AliceStanza = escalus:wait_for_stanza(Alice, 100),
@@ -229,7 +227,6 @@ stanza_id_muclight_mam(Config) ->
         muc_light_helper:create_room(RoomName, muc_light_helper:muc_host(),
                                      Alice, [Bob], Config, muc_light_helper:ver(1)),
 %%
-        inject_handler(),
         Stanza = escalus_stanza:groupchat_to(muc_light_helper:room_bin_jid(RoomName), <<"Hello">>),
         escalus:send(Bob, Stanza),
         AliceStanza = escalus:wait_for_stanza(Alice, 100),
@@ -281,19 +278,25 @@ inject_handler() ->
     Tpid = self(),
     distributed_helper:rpc(distributed_helper:mim(), ?MODULE, start_handler, [Tpid, domain_helper:host_type()]).
 
+remove_handler() ->
+    Tpid = self(),
+    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, stop_handler, [Tpid, domain_helper:host_type()]).
+
 start_handler(Pid, HostType) ->
     gen_hook:add_handler(user_send_message, HostType,
                          fun ?MODULE:send_stanza_id/3,
                          #{pid => Pid}, 50),
     ok.
 
+stop_handler(Pid, HostType) ->
+    gen_hook:delete_handler(user_send_message, HostType,
+                            fun ?MODULE:send_stanza_id/3,
+                            #{pid => Pid}, 50),
+    ok.
+
 send_stanza_id(Acc, _, #{pid := Pid}) ->
     Pid ! {stanza_id, mongoose_acc:get(stable_stanza_id, value, 0, Acc)},
     {ok, Acc}.
-
-message_to_room(From, Room , Txt) ->
-    M = escalus_stanza:from(escalus_stanza:message(Txt, #{}), From),
-    muc_helper:stanza_to_room(M, Room).
 
 receive_stanza_id() ->
     OurStanzaID = receive
