@@ -36,7 +36,7 @@ init(_HostType, _Opts) ->
     ok.
 
 -spec create_job(mongooseim:host_type(), mod_broadcast_backend:job_spec()) ->
-    {ok, JobId :: integer()} | {error, already_running | term()}.
+    {ok, JobId :: broadcast_job_id()} | {error, already_running | term()}.
 create_job(HostType, JobSpec) ->
     #{name := Name, domain := Domain, sender := Sender,
       subject := Subject, body := Body, message_rate := Rate,
@@ -62,7 +62,7 @@ create_job(HostType, JobSpec) ->
             {error, already_running}
     end.
 
--spec get_job(mongooseim:host_type(), JobId :: integer()) ->
+-spec get_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     {ok, broadcast_job()} | {error, not_found | term()}.
 get_job(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_get_job, [JobId]) of
@@ -92,7 +92,7 @@ get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
             {ok, Jobs}
     end.
 
--spec get_worker_state(mongooseim:host_type(), JobId :: integer()) ->
+-spec get_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     {ok, broadcast_worker_state()} | {error, not_found | term()}.
 get_worker_state(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_get_worker_state, [JobId]) of
@@ -103,14 +103,14 @@ get_worker_state(HostType, JobId) ->
             {error, not_found}
     end.
 
--spec set_job_started(mongooseim:host_type(), JobId :: integer()) -> ok | {error, term()}.
+-spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, term()}.
 set_job_started(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_set_job_started, [JobId]) of
         {updated, 1} -> ok;
         {updated, 0} -> {error, not_found}
     end.
 
--spec update_worker_state(mongooseim:host_type(), JobId :: integer(),
+-spec update_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id(),
                           WorkerState :: broadcast_worker_state()) ->
     ok | {error, term()}.
 update_worker_state(HostType, JobId, WorkerState) ->
@@ -120,14 +120,14 @@ update_worker_state(HostType, JobId, WorkerState) ->
                                         [JobId, Cursor, RecipientsProcessed]),
     ok.
 
--spec set_job_finished(mongooseim:host_type(), JobId :: integer()) -> ok | {error, term()}.
+-spec set_job_finished(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, term()}.
 set_job_finished(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_set_job_finished, [JobId]) of
         {updated, 1} -> ok;
         {updated, 0} -> {error, not_found}
     end.
 
--spec set_job_aborted(mongooseim:host_type(), JobId :: integer(), Reason :: binary()) ->
+-spec set_job_aborted(mongooseim:host_type(), JobId :: broadcast_job_id(), Reason :: binary()) ->
     ok | {error, term()}.
 set_job_aborted(HostType, JobId, Reason) ->
     case execute_successfully(HostType, broadcast_set_job_aborted, [Reason, JobId]) of
@@ -135,7 +135,7 @@ set_job_aborted(HostType, JobId, Reason) ->
         {updated, 0} -> {error, not_found}
     end.
 
--spec set_job_aborted_admin(mongooseim:host_type(), JobId :: integer()) ->
+-spec set_job_aborted_admin(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     ok | {error, term()}.
 set_job_aborted_admin(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_set_job_aborted_admin, [JobId]) of
@@ -143,7 +143,7 @@ set_job_aborted_admin(HostType, JobId) ->
         {updated, 0} -> {error, not_found}
     end.
 
--spec delete_job(mongooseim:host_type(), JobId :: integer()) ->
+-spec delete_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     ok | {error, term()}.
 delete_job(HostType, JobId) ->
     %% First delete worker state (foreign key), then the job itself

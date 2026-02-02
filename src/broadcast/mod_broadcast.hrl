@@ -2,12 +2,13 @@
 %%% @doc Common types and records for mod_broadcast.
 %%%-------------------------------------------------------------------
 
+-type broadcast_job_id() :: non_neg_integer().
 -type execution_state() :: running | finished | abort_error | abort_admin.
 -type recipient_group() :: all_users_in_domain.
 -type recipients_processed() :: non_neg_integer().
 
 -record(broadcast_job, {
-    id :: integer(),
+    id :: broadcast_job_id(),
     name :: binary(),
     host_type :: mongooseim:host_type(),
     domain :: jid:lserver(),

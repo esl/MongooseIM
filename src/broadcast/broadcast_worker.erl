@@ -52,7 +52,7 @@
 %% API
 %%====================================================================
 
--spec start_link(mongooseim:host_type(), JobId :: integer()) -> gen_statem:start_ret().
+-spec start_link(mongooseim:host_type(), JobId :: broadcast_job_id()) -> gen_statem:start_ret().
 start_link(HostType, JobId) ->
     gen_statem:start_link(?MODULE, {HostType, JobId}, []).
 
@@ -63,6 +63,8 @@ stop(WorkerPid) ->
     catch
         exit:{timeout, _} ->
             %% Worker didn't respond in time, forcibly kill it
+            ?LOG_WARNING(#{what => broadcast_worker_killed_timeout,
+                           worker_pid => WorkerPid}),
             exit(WorkerPid, kill),
             ok
     end.
@@ -75,7 +77,7 @@ stop(WorkerPid) ->
 callback_mode() ->
     state_functions.
 
--spec init({mongooseim:host_type(), integer()}) -> gen_statem:init_result(state(), data()).
+-spec init({mongooseim:host_type(), broadcast_job_id()}) -> gen_statem:init_result(state(), data()).
 init({HostType, JobId}) ->
     process_flag(trap_exit, true),
     case load_job(HostType, JobId) of
@@ -249,7 +251,7 @@ code_change(_OldVsn, State, Data, _Extra) ->
 %% Internal functions
 %%====================================================================
 
--spec load_job(mongooseim:host_type(), integer()) ->
+-spec load_job(mongooseim:host_type(), broadcast_job_id()) ->
     {ok, broadcast_job(), broadcast_worker_state() | undefined} | {error, term()}.
 load_job(HostType, JobId) ->
     case mod_broadcast_backend:get_job(HostType, JobId) of
@@ -289,7 +291,7 @@ send_message(Job, RecipientJid) ->
             {error, {Class, Reason}}
     end.
 
--spec make_message_id(integer(), jid:jid()) -> binary().
+-spec make_message_id(broadcast_job_id(), jid:jid()) -> binary().
 make_message_id(JobId, RecipientJid) ->
     %% Deterministic message ID: mb- + hex(first 16 bytes of sha256("JobId:recipient"))
     JobIdBin = integer_to_binary(JobId),
@@ -318,7 +320,7 @@ build_message_stanza(Job, RecipientJid, MessageId) ->
                      <<"from">> => jid:to_binary(Job#broadcast_job.sender)},
            children = [SubjectEl, BodyEl, OriginIdEl]}.
 
--spec persist_worker_state(mongooseim:host_type(), integer(), broadcast_worker_state()) ->
+-spec persist_worker_state(mongooseim:host_type(), broadcast_job_id(), broadcast_worker_state()) ->
     ok | {error, term()}.
 persist_worker_state(HostType, JobId, State) ->
     mod_broadcast_backend:update_worker_state(HostType, JobId, State).
@@ -327,7 +329,7 @@ persist_worker_state(HostType, JobId, State) ->
 persist_completion(HostType, Job) ->
     mod_broadcast_backend:set_job_finished(HostType, Job#broadcast_job.id).
 
--spec abort_job(mongooseim:host_type(), integer(), string(), [term()]) -> binary().
+-spec abort_job(mongooseim:host_type(), broadcast_job_id(), string(), [term()]) -> binary().
 abort_job(HostType, JobId, Fmt, Args) ->
     Reason = iolist_to_binary(io_lib:format(Fmt, Args)),
     case mod_broadcast_backend:set_job_aborted(HostType, JobId, Reason) of
@@ -356,7 +358,7 @@ persist_abort_admin(#data{host_type = HostType, job = Job, state = WorkerState})
     end,
     ok.
 
--spec mark_job_started(mongooseim:host_type(), integer()) -> ok.
+-spec mark_job_started(mongooseim:host_type(), broadcast_job_id()) -> ok.
 mark_job_started(HostType, JobId) ->
     mongoose_instrument:execute(mod_broadcast_jobs_started,
                                 #{host_type => HostType}, #{count => 1}),
@@ -368,7 +370,7 @@ mark_job_started(HostType, JobId) ->
     end,
     ok.
 
--spec maybe_init_worker_state(mongooseim:host_type(), integer(), broadcast_worker_state() | undefined) ->
+-spec maybe_init_worker_state(mongooseim:host_type(), broadcast_job_id(), broadcast_worker_state() | undefined) ->
     broadcast_worker_state().
 maybe_init_worker_state(_HostType, _JobId, WorkerState) when WorkerState =/= undefined ->
     WorkerState;
