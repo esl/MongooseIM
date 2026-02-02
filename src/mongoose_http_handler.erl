@@ -85,7 +85,6 @@ cowboy_host(Host) -> Host.
 %% @doc Only the handlers implementing config_spec/0 are listed here
 configurable_handler_modules() ->
     [mongoose_client_api,
-     mongoose_admin_api,
      mongoose_graphql_handler,
      mongoose_websocket_handler].
 

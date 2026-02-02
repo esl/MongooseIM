@@ -145,7 +145,7 @@ get_api() ->
                              end, #{}, ApiList)}].
 
 filter_unknown_api(ApiList) ->
-    AllowedToReport = [mongoose_client_api, mongoose_admin_api,
+    AllowedToReport = [mongoose_client_api,
                        mongoose_bosh_handler, mongoose_websocket_handler],
     [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 

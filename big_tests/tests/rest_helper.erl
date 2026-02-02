@@ -236,40 +236,6 @@ get_ssl_status(Role, Node) ->
     [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
     maps:is_key(tls, Opts).
 
-% @doc Changes the control credentials for admin by restarting the listener
-% with new options.
--spec change_admin_creds({User :: binary(), Password :: binary()} | any) -> 'ok' | 'error'.
-change_admin_creds(Creds) ->
-    stop_admin_listener(),
-    ok = start_admin_listener(Creds).
-
--spec stop_admin_listener() -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-stop_admin_listener() ->
-    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
-    [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
-    rpc(mim(), mongoose_listener, stop_listener, [Opts]).
-
--spec start_admin_listener(Creds :: {binary(), binary()} | any) -> {'error', pid()} | 'ok'.
-start_admin_listener(Creds) ->
-    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
-    [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
-    NewOpts = insert_creds(Opts, Creds),
-    rpc(mim(), mongoose_listener, start_listener, [NewOpts]).
-
-insert_creds(Opts = #{handlers := Handlers}, Creds) ->
-    NewHandlers = [inject_creds_to_opts(Handler, Creds) || Handler <- Handlers],
-    Opts#{handlers := NewHandlers}.
-
-inject_creds_to_opts(Handler = #{module := mongoose_admin_api}, Creds) ->
-    case Creds of
-        {UserName, Password} ->
-            Handler#{username => UserName, password => Password};
-        any ->
-            maps:without([username, password], Handler)
-    end;
-inject_creds_to_opts(Handler, _Creds) ->
-    Handler.
-
 % @doc Checks whether a config for a port is an admin, client or GraphQL one.
 % This is determined based on handler modules used.
 is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, {graphql, SchemaEndpoint}) ->
@@ -283,7 +249,6 @@ is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, Role) ->
     lists:any(fun(#{module := Module}) -> Module =:= RoleModule end, Handlers);
 is_roles_config(_, _) -> false.
 
-role_to_module(admin) -> mongoose_admin_api;
 role_to_module(client) -> mongoose_client_api.
 
 mapfromlist(L) ->

@@ -21,7 +21,7 @@
 -import(mongoose_client_api, [parse_body/1, parse_qs/1, try_handle_request/3, throw_error/2]).
 
 -type req() :: cowboy_req:req().
--type state() :: mongoose_admin_api:state().
+-type state() :: #{atom() => any()}.
 
 -include_lib("exml/include/exml.hrl").
 

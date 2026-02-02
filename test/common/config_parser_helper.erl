@@ -200,9 +200,7 @@ options("mongooseim-pgsql") ->
        config([listen, http],
               #{port => 5285,
                 handlers =>
-                    [config([listen, http, handlers, mongoose_admin_api],
-                            #{host => "localhost", path => "/api",
-                              username => <<"ala">>, password => <<"makotaipsa">>}),
+                    [
                      config([listen, http, handlers, mongoose_bosh_handler],
                             #{host => '_', path => "/http-bind"}),
                      config([listen, http, handlers, mongoose_websocket_handler],
@@ -214,15 +212,6 @@ options("mongooseim-pgsql") ->
                          keyfile => "priv/dc1.pem",
                          password => "",
                          verify_mode => none}
-               }),
-       config([listen, http],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8088,
-                transport => #{num_acceptors => 10, max_connections => 1024},
-                handlers =>
-                    [config([listen, http, handlers, mongoose_admin_api],
-                            #{host => "localhost", path => "/api"})]
                }),
        config([listen, http],
               #{port => 8089,
