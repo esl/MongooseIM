@@ -481,7 +481,7 @@ listen_c2s_just_tls(_Config) ->
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
-    test_just_tls_server(P, T),
+    test_just_tls_xmpp(P, T),
     ?cfg(P ++ [mode], tls, T(M#{<<"mode">> => <<"tls">>})),
     ?cfg(P ++ [disconnect_on_failure], false, T(M#{<<"disconnect_on_failure">> => false})),
     ?cfg(P ++ [crl_files], ["priv/cert.pem"], % note: this is not a real CRL file
@@ -508,7 +508,7 @@ listen_s2s_tls(_Config) ->
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
-    test_just_tls_server(P, T).
+    test_just_tls_xmpp(P, T).
 
 listen_component(_Config) ->
     Defs = #{<<"port">> => 8888, <<"password">> => <<"secret">>},
@@ -537,7 +537,7 @@ listen_component_tls(_Config) ->
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(config_parser_helper:default_xmpp_tls_tls(), tls_ca()), T(M)),
-    test_just_tls_server(P, T).
+    test_just_tls_xmpp(P, T).
 
 listen_http(_Config) ->
     T = fun(Opts) -> listen_raw(http, maps:merge(#{<<"port">> => 5280}, Opts)) end,
@@ -1163,6 +1163,14 @@ test_just_tls_server(P, T) ->
     M = tls_ca_raw(),
     ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
     ?err(T(M#{<<"dhfile">> => <<"no_such_file.pem">>})).
+
+test_just_tls_xmpp(P, T) ->
+    test_just_tls_common(P, T),
+    M = tls_ca_raw(),
+    ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P ++ [keep_secrets], true, T(M#{<<"keep_secrets">> => true})),
+    ?err(T(M#{<<"dhfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"keep_secrets">> => <<"sslkeylog.txt">>})).
 
 test_just_tls_common(P, T) ->
     ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),

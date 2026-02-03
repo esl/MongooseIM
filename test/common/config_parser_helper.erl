@@ -1335,10 +1335,12 @@ default_config(Path) when is_list(Path) ->
     #{}.
 
 default_xmpp_tls() ->
-    (default_tls())#{mode => starttls}.
+    (default_tls())#{mode => starttls,
+                     keep_secrets => false}.
 
 default_xmpp_tls_tls() ->
-    (default_tls())#{mode => tls}.
+    (default_tls())#{mode => tls,
+                     keep_secrets => false}.
 
 default_tls() ->
     #{verify_mode => peer,

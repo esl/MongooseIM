@@ -18,8 +18,7 @@ repo_dir(_Config) ->
 test_dir(_Config) ->
     get_env_var("TEST_DIR").
 
-%% @doc Returns`big_tests/ct_report/ct_run.*' directory
-%% Run it from a test case functions only (not group or suite functions)
+%% @doc Returns `big_tests/ct_report/ct_run.*' directory
 ct_run_dir(Config) ->
     PrivDir = proplists:get_value(priv_dir, Config),
     %% Remove: *SUITE.logs/run.*/log_private/

@@ -668,14 +668,19 @@ tls(client) ->
     #section{items = #{<<"server_name_indication">> => server_name_indication()}};
 tls(xmpp) ->
     #section{items = #{<<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}},
-             defaults = #{<<"mode">> => starttls}
+                                             validate = {enum, [tls, starttls, starttls_required]}},
+                       <<"keep_secrets">> => #option{type = boolean}
+                      },
+             defaults = #{<<"mode">> => starttls,
+                          <<"keep_secrets">> => false}
             };
 %% For XMPP components:
 tls(xmpp_tls) ->
     #section{items = #{<<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}},
-             defaults = #{<<"mode">> => tls}
+                                             validate = {enum, [tls, starttls, starttls_required]}},
+                       <<"keep_secrets">> => #option{type = boolean}},
+             defaults = #{<<"mode">> => tls,
+                          <<"keep_secrets">> => false}
             }.
 
 server_name_indication() ->
