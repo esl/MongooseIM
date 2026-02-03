@@ -45,7 +45,7 @@
     {ok, broadcast_worker_state()} | {error, not_found | term()}.
 
 -callback set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    ok | {error, term()}.
+    ok | {error, not_found}.
 
 -callback update_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id(),
                               WorkerState :: broadcast_worker_state()) ->
@@ -105,7 +105,7 @@ get_worker_state(HostType, JobId) ->
     Args = [HostType, JobId],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, term()}.
+-spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, not_found}.
 set_job_started(HostType, JobId) ->
     Args = [HostType, JobId],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

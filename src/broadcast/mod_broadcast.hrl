@@ -45,3 +45,22 @@
     message_rate := pos_integer(),
     recipient_group := recipient_group()
 }.
+
+-type broadcast_job_map() :: #{
+    id := broadcast_job_id(),
+    name := binary(),
+    domain := jid:lserver(),
+    subject := binary(),
+    body := binary(),
+    sender := jid:jid(),
+    message_rate := pos_integer(),
+    owner_node := node(),
+    create_timestamp := calendar:datetime(),
+    start_timestamp := calendar:datetime() | undefined,
+    stop_timestamp := calendar:datetime() | undefined,
+    execution_state := execution_state(),
+    abortion_reason := binary() | undefined,
+    recipient_group := recipient_group(),
+    recipient_count := non_neg_integer(),
+    recipients_processed := recipients_processed()
+}.

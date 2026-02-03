@@ -82,7 +82,7 @@ init({HostType, JobId}) ->
     process_flag(trap_exit, true),
     case load_job(HostType, JobId) of
         {ok, Job, WorkerStateFromDB} ->
-            WorkerState = maybe_init_worker_state(HostType, JobId, WorkerStateFromDB),
+            WorkerState = maybe_init_worker_state(WorkerStateFromDB),
             BatchSize = Job#broadcast_job.message_rate * 10,
             Data = #data{host_type = HostType,
                          job = Job,
@@ -267,10 +267,25 @@ load_job(HostType, JobId) ->
 
 -spec load_next_batch(broadcast_job(), broadcast_worker_state()) ->
     {ok, [jid:jid()], binary() | undefined} | {error, term()}.
-load_next_batch(_Job, _WorkerState) ->
-    %% TODO: Implement recipient paging via auth backend
-    %% Returns {ok, Recipients, NewCursor} or {ok, [], undefined} when done
-    {error, not_implemented}.
+load_next_batch(Job, WorkerState) ->
+    #broadcast_job{host_type = HostType, domain = Domain, created_at = CreatedAt} = Job,
+    #broadcast_worker_state{cursor = Cursor} = WorkerState,
+
+    BatchSize = Job#broadcast_job.message_rate * 10,
+    Params = case Cursor of
+        undefined ->
+            #{limit => BatchSize, snapshot_timestamp => CreatedAt};
+        _ ->
+            #{limit => BatchSize, cursor => Cursor}
+    end,
+
+    case mongoose_gen_auth:get_registered_users_snapshot(ejabberd_auth_rdbms, HostType, Domain, Params) of
+        {ok, {Usernames, NewCursor}} ->
+            Recipients = [jid:make_bare(Username, Domain) || Username <- Usernames],
+            {ok, Recipients, NewCursor};
+        {error, _} = Error ->
+            Error
+    end.
 
 -spec send_message(broadcast_job(), jid:jid()) -> ok | {error, term()}.
 send_message(Job, RecipientJid) ->
@@ -358,22 +373,9 @@ persist_abort_admin(#data{host_type = HostType, job = Job, state = WorkerState})
     end,
     ok.
 
--spec mark_job_started(mongooseim:host_type(), broadcast_job_id()) -> ok.
-mark_job_started(HostType, JobId) ->
-    mongoose_instrument:execute(mod_broadcast_jobs_started,
-                                #{host_type => HostType}, #{count => 1}),
-    case mod_broadcast_backend:set_job_started(HostType, JobId) of
-        ok -> ok;
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => broadcast_start_persist_failed,
-                           job_id => JobId, reason => Reason})
-    end,
-    ok.
-
--spec maybe_init_worker_state(mongooseim:host_type(), broadcast_job_id(), broadcast_worker_state() | undefined) ->
+-spec maybe_init_worker_state(broadcast_worker_state() | undefined) ->
     broadcast_worker_state().
-maybe_init_worker_state(_HostType, _JobId, WorkerState) when WorkerState =/= undefined ->
+maybe_init_worker_state(WorkerState) when WorkerState =/= undefined ->
     WorkerState;
-maybe_init_worker_state(HostType, JobId, undefined) ->
-    mark_job_started(HostType, JobId),
+maybe_init_worker_state(undefined) ->
     #broadcast_worker_state{cursor = undefined, recipients_processed = 0}.

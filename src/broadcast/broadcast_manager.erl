@@ -16,6 +16,9 @@
          start_job/2,
          stop_job/2]).
 
+%% Test-only API (will become proper user API in future iteration)
+-export([abort_running_jobs_for_domain/2]).
+
 %% Error types
 -export_type([create_job_error/0,
               stop_job_error/0,
@@ -63,6 +66,17 @@ stop_job(HostType, JobId) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, {stop_job, JobId}).
 
+-ifdef(TEST).
+%% @doc Abort all running broadcast jobs for a specific domain.
+%% This is currently test-only but will become a proper user-facing API
+%% in a future iteration to allow domain administrators to abort all
+%% broadcasts in their domain at once.
+-spec abort_running_jobs_for_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+abort_running_jobs_for_domain(HostType, Domain) ->
+    ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
+    gen_server:call(ProcName, {abort_running_jobs_for_domain, Domain}).
+-endif.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -75,6 +89,7 @@ init(HostType) ->
 handle_continue({start_worker_for, JobId}, State) ->
     case start_worker(State#state.host_type, JobId) of
         {ok, _WorkerPid} ->
+            mark_job_started(State#state.host_type, JobId),
             ?LOG_INFO(#{what => broadcast_job_started,
                         job_id => JobId});
         {error, Reason} ->
@@ -104,7 +119,9 @@ handle_call({stop_job, JobId}, _From, State) ->
         error ->
             {reply, {error, not_found}, State}
     end;
-
+handle_call({abort_running_jobs_for_domain, Domain}, _From, State) ->
+    abort_running_jobs_for_domain(State#state.host_type, Domain),
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     {reply, {error, not_implemented}, State}.
 
@@ -162,6 +179,18 @@ start_worker(HostType, JobId) ->
                   modules => [broadcast_worker]},
     supervisor:start_child(SupName, ChildSpec).
 
+-spec mark_job_started(mongooseim:host_type(), broadcast_job_id()) -> ok.
+mark_job_started(HostType, JobId) ->
+    mongoose_instrument:execute(mod_broadcast_jobs_started,
+                                #{host_type => HostType}, #{count => 1}),
+    case mod_broadcast_backend:set_job_started(HostType, JobId) of
+        ok -> ok;
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => broadcast_start_persist_failed,
+                           job_id => JobId, reason => Reason})
+    end,
+    ok.
+
 -spec find_worker_pid(atom(), broadcast_job_id()) -> {ok, pid()} | error.
 find_worker_pid(SupName, JobId) ->
     Children = supervisor:which_children(SupName),
@@ -169,6 +198,31 @@ find_worker_pid(SupName, JobId) ->
         {JobId, Pid, _, _} when is_pid(Pid) -> {ok, Pid};
         _ -> error
     end.
+
+-spec abort_running_jobs_for_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+abort_running_jobs_for_domain(HostType, Domain) ->
+    case mod_broadcast_backend:get_running_jobs(HostType) of
+        {ok, Jobs} ->
+            SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
+            DomainJobs = [Job#broadcast_job.id || Job <- Jobs, Job#broadcast_job.domain =:= Domain],
+            %% TODO: Take into account that Pid may be 'restarting' or 'undefined'
+            lists:foreach(fun({WorkerId, WorkerPid, _, _}) ->
+                    case lists:member(WorkerId, DomainJobs) of
+                        true ->
+                            ?LOG_INFO(#{what => aborting_broadcast_job,
+                                        job_id => WorkerId,
+                                        domain => Domain}),
+                            % TODO: Proper error handling
+                            catch broadcast_worker:stop(WorkerPid);
+                        false ->
+                            ok
+                    end
+                end, supervisor:which_children(SupName));
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => broadcast_abort_get_jobs_failed,
+                         domain => Domain, reason => Reason})
+    end,
+    ok.
 
 %%====================================================================
 %% Resumption on init

@@ -29,6 +29,9 @@
 
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
+    %% This will be refined/relaxed in future iterations, when more backends are supported
+    %% or when more recipient sources are added.
+    ensure_rdbms_auth_enabled(HostType),
     mod_broadcast_backend:init(HostType, Opts),
     start_supervisor(HostType),
     ok.
@@ -49,6 +52,15 @@ config_spec() ->
                                            validate = {enum, [rdbms]}}},
         defaults = #{<<"backend">> => rdbms}
     }.
+
+ensure_rdbms_auth_enabled(HostType) ->
+    case lists:member(ejabberd_auth_rdbms, ejabberd_auth:auth_modules_for_host_type(HostType)) of
+        true -> ok;
+        false ->
+            error(#{what => mod_broadcast_requires_rdbms_auth,
+                    text => <<"mod_broadcast requires ejabberd_auth_rdbms to be enabled">>,
+                    host_type => HostType})
+    end.
 
 start_supervisor(HostType) ->
     SupName = gen_mod:get_module_proc(HostType, broadcast_sup),

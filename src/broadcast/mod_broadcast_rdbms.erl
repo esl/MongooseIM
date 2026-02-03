@@ -31,8 +31,8 @@
 %%====================================================================
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-init(_HostType, _Opts) ->
-    prepare_queries(),
+init(HostType, _Opts) ->
+    prepare_queries(HostType),
     ok.
 
 -spec create_job(mongooseim:host_type(), mod_broadcast_backend:job_spec()) ->
@@ -54,11 +54,7 @@ create_job(HostType, JobSpec) ->
         {updated, 1, [{JobId}]} ->
             {ok, JobId}
     catch
-        error:{badmatch, {error, {1062, _}}} ->
-            %% MySQL duplicate key error
-            {error, already_running};
-        error:{badmatch, {error, #{'23505' := _}}} ->
-            %% PostgreSQL unique violation
+        error:#{reason := {error, duplicate_key}} ->
             {error, already_running}
     end.
 
@@ -103,7 +99,7 @@ get_worker_state(HostType, JobId) ->
             {error, not_found}
     end.
 
--spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, term()}.
+-spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, not_found}.
 set_job_started(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_set_job_started, [JobId]) of
         {updated, 1} -> ok;
@@ -174,7 +170,7 @@ delete_inactive_jobs_by_domain(HostType, Domain) ->
 %% Internal functions
 %%====================================================================
 
-prepare_queries() ->
+prepare_queries(HostType) ->
     prepare(broadcast_create_job, broadcast_jobs,
             [name, server, from_jid, subject, message, rate,
              recipient_group, owner_node, recipient_count],
@@ -211,12 +207,13 @@ prepare_queries() ->
 
     prepare(broadcast_set_job_started, broadcast_jobs,
             [id],
-            <<"UPDATE broadcast_jobs SET started_at = CURRENT_TIMESTAMP WHERE id = ?">>),
+            <<"UPDATE broadcast_jobs SET started_at = CURRENT_TIMESTAMP"
+              " WHERE id = ?">>),
 
     %% Upsert worker state (INSERT ... ON CONFLICT for Postgres, handled by RDBMS layer)
     prepare(broadcast_upsert_worker_state, broadcast_worker_state,
             [broadcast_id, cursor_user, recipients_processed],
-            upsert_worker_state_query()),
+            upsert_worker_state_query(HostType)),
 
     prepare(broadcast_set_job_finished, broadcast_jobs,
             [id],
@@ -267,8 +264,8 @@ prepare_queries() ->
               "WHERE server = ? AND execution_state != 'running'">>),
     ok.
 
-upsert_worker_state_query() ->
-    case mongoose_rdbms:db_engine_name() of
+upsert_worker_state_query(HostType) ->
+    case mongoose_rdbms:db_engine(HostType) of
         pgsql ->
             <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed) "
               "VALUES (?, ?, ?) "
@@ -299,9 +296,9 @@ row_to_job(HostType, {JobId, Name, Server, FromJid, Subject, Message, Rate,
                    recipients_processed = RecipientsProcessed,
                    execution_state = decode_execution_state(ExecutionState),
                    abortion_reason = maybe_null(AbortionReason),
-                   created_at = decode_timestamp(CreatedAt),
-                   started_at = maybe_decode_timestamp(StartedAt),
-                   stopped_at = maybe_decode_timestamp(StoppedAt)}.
+                   created_at = postprocess_timestamp(CreatedAt),
+                   started_at = postprocess_timestamp(StartedAt),
+                   stopped_at = postprocess_timestamp(StoppedAt)}.
 
 encode_recipient_group(all_users_in_domain) -> <<"all_users_in_domain">>.
 
@@ -312,13 +309,10 @@ decode_execution_state(<<"abort_admin">>) -> abort_admin.
 
 decode_recipient_group(<<"all_users_in_domain">>) -> all_users_in_domain.
 
-decode_timestamp(Timestamp) when is_binary(Timestamp) ->
-    mongoose_rdbms_timestamp:parse(Timestamp);
-decode_timestamp({{_, _, _}, {_, _, _}} = Timestamp) ->
-    Timestamp.
-
-maybe_decode_timestamp(null) -> undefined;
-maybe_decode_timestamp(Timestamp) -> decode_timestamp(Timestamp).
+postprocess_timestamp({Date, {Hour, Min, Sec}}) ->
+    {Date, {Hour, Min, round(Sec)}};
+postprocess_timestamp(null) ->
+    undefined.
 
 maybe_null(null) -> undefined;
 maybe_null(Value) -> Value.

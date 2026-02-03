@@ -10,6 +10,9 @@
          delete_inactive_broadcasts_by_ids/2,
          delete_inactive_broadcasts_by_domain/1]).
 
+%% For now exported only for tests
+-export([broadcast_job_to_map/1]).
+
 -include("jlib.hrl").
 -include("mod_broadcast.hrl").
 -include("mongoose.hrl").
@@ -167,3 +170,43 @@ format_error(Reason) when is_atom(Reason) ->
     atom_to_binary(Reason, utf8);
 format_error(Reason) ->
     iolist_to_binary(io_lib:format("~p", [Reason])).
+
+%%====================================================================
+%% Broadcast job properties conversion, for now used only in tests
+%%====================================================================
+
+-spec broadcast_job_to_map(broadcast_job()) -> broadcast_job_map().
+broadcast_job_to_map(#broadcast_job{
+    id = Id,
+    name = Name,
+    domain = Domain,
+    subject = MessageSubject,
+    body = MessageBody,
+    sender = SenderJid,
+    message_rate = MessageRate,
+    owner_node = OwnerNode,
+    created_at = CreateTimestamp,
+    started_at = StartTimestamp,
+    stopped_at = StopTimestamp,
+    execution_state = ExecutionState,
+    abortion_reason = AbortionReason,
+    recipient_group = RecipientGroup,
+    recipient_count = RecipientCount,
+    recipients_processed = RecipientsProcessed
+}) ->
+    #{id => Id,
+      name => Name,
+      domain => Domain,
+      subject => MessageSubject,
+      body => MessageBody,
+      sender => SenderJid,
+      message_rate => MessageRate,
+      owner_node => OwnerNode,
+      create_timestamp => CreateTimestamp,
+      start_timestamp => StartTimestamp,
+      stop_timestamp => StopTimestamp,
+      execution_state => ExecutionState,
+      abortion_reason => AbortionReason,
+      recipient_group => RecipientGroup,
+      recipient_count => RecipientCount,
+      recipients_processed => RecipientsProcessed}.
