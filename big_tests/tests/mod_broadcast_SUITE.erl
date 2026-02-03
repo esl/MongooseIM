@@ -18,6 +18,7 @@
 -export([start_broadcast_ok_returns_job_id/1,
          start_broadcast_already_running/1,
          start_broadcast_two_domains_both_ok/1,
+         resume_jobs_after_restart/1,
          abort_broadcast_running_ok/1,
          abort_broadcast_not_found/1,
          abort_broadcast_not_running_returns_not_running/1,
@@ -74,6 +75,7 @@ lifecycle_tests() ->
     [start_broadcast_ok_returns_job_id,
      start_broadcast_already_running,
      start_broadcast_two_domains_both_ok,
+     resume_jobs_after_restart,
      abort_broadcast_running_ok,
      abort_broadcast_not_found,
      abort_broadcast_not_running_returns_not_running,
@@ -105,15 +107,17 @@ retrieval_tests() ->
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules([domain(), secondary_domain()], Config),
     Config2 = instrument_helper:ensure_frequent_probes(Config1),
-    ensure_broadcast_started(domain()),
-    ensure_broadcast_started(secondary_domain()),
+    ensure_mod_broadcast_started(domain()),
+    ensure_mod_broadcast_started(secondary_domain()),
     create_many_users(100, domain()),
+    create_many_users(100, secondary_domain()),
     clean_broadcast_jobs(),
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     delete_many_users(100, domain()),
+    delete_many_users(100, secondary_domain()),
     dynamic_modules:restore_modules(Config),
     instrument_helper:restore_probe_interval(Config),
     escalus:end_per_suite(Config).
@@ -140,6 +144,10 @@ init_per_testcase(TestCase, Config) ->
 
 end_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
     instrument_helper:stop(),
+    clean_broadcast_jobs(),
+    escalus:end_per_testcase(TestCase, Config);
+end_per_testcase(resume_jobs_after_restart = TestCase, Config) ->
+    delete_rogue_broadcast_job(secondary_domain()),
     clean_broadcast_jobs(),
     escalus:end_per_testcase(TestCase, Config);
 end_per_testcase(TestCase, Config) ->
@@ -177,6 +185,33 @@ start_broadcast_two_domains_both_ok(Config) ->
         assert_non_neg_integer(JobIdA),
         assert_non_neg_integer(JobIdB),
         ?assertNotEqual(JobIdA, JobIdB)
+    end).
+
+resume_jobs_after_restart(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
+        DomainA = domain(),
+        DomainB = secondary_domain(),
+        AliceJid = escalus_client:short_jid(Alice),
+        AliceBisJid = escalus_client:short_jid(AliceBis),
+        JobSpecA = slow_job_spec(DomainA, AliceJid),
+        JobSpecB = slow_job_spec(DomainB, AliceBisJid),
+
+        {ok, JobIdA} = start_broadcast(JobSpecA),
+        {ok, JobIdB} = start_broadcast(JobSpecB),
+
+        true = does_worker_for_job_exist(DomainA, JobIdA),
+        true = does_worker_for_job_exist(DomainB, JobIdB),
+
+        stop_mod_broadcast(DomainA),
+        stop_mod_broadcast(DomainB),
+
+        update_job_owner_node(DomainB, JobIdB, bogus_owner_node()),
+
+        ensure_mod_broadcast_started(DomainA),
+        ensure_mod_broadcast_started(DomainB),
+
+        true = does_worker_for_job_exist(DomainA, JobIdA),
+        false = does_worker_for_job_exist(DomainB, JobIdB)
     end).
 
 abort_broadcast_running_ok(Config) ->
@@ -605,8 +640,11 @@ broadcast_job_to_map(JobRecord) ->
 call_manager(Function, Args) ->
     rpc(mim(), broadcast_manager, Function, Args).
 
-ensure_broadcast_started(HostType) ->
+ensure_mod_broadcast_started(HostType) ->
     dynamic_modules:ensure_modules(HostType, [{mod_broadcast, #{backend => rdbms}}]).
+
+stop_mod_broadcast(HostType) ->
+    {stopped, _} = dynamic_modules:stop(HostType, mod_broadcast).
 
 clean_broadcast_jobs() ->
     ok = call_manager(abort_running_jobs_for_domain, [domain(), domain()]),
@@ -615,12 +653,36 @@ clean_broadcast_jobs() ->
     {ok, _} = delete_inactive_broadcasts_by_domain(secondary_domain()),
     ok.
 
+does_worker_for_job_exist(Domain, JobId) ->
+    call_manager(does_worker_for_job_exist, [Domain, JobId]).
+
+update_job_owner_node(Domain, JobId, OwnerNode) ->
+    Query = ["UPDATE broadcast_jobs SET owner_node = ",
+             "'", OwnerNode, "'",
+             " WHERE id = ", integer_to_binary(JobId),
+             " AND server = ", "'", Domain, "'"],
+    {updated, 1} = sql_query(Domain, Query),
+    ok.
+
+bogus_owner_node() ->
+    <<"silly_goose@nowhere">>.
+
+delete_rogue_broadcast_job(Domain) ->
+    Query = ["DELETE FROM broadcast_jobs",
+             " WHERE owner_node = '", bogus_owner_node(), "'",
+             ""],
+    _ = sql_query(Domain, Query),
+    ok.
+
+sql_query(HostType, Query) ->
+    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
+
 %%====================================================================
 %% Other
 %%====================================================================
 
 unknown_domain() ->
-    <<"unknown.test">>.
+    <<"mystery-pizza.invalid">>.
 
 %%====================================================================
 %% User management helpers

@@ -172,7 +172,7 @@ format_error(Reason) ->
     iolist_to_binary(io_lib:format("~p", [Reason])).
 
 %%====================================================================
-%% Broadcast job properties conversion, for now used only in tests
+%% Broadcast job record to map conversion
 %%====================================================================
 
 -spec broadcast_job_to_map(broadcast_job()) -> broadcast_job_map().

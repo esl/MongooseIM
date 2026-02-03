@@ -17,7 +17,8 @@
          stop_job/2]).
 
 %% Test-only API (will become proper user API in future iteration)
--export([abort_running_jobs_for_domain/2]).
+-export([abort_running_jobs_for_domain/2,
+         does_worker_for_job_exist/2]).
 
 %% Error types
 -export_type([create_job_error/0,
@@ -75,6 +76,11 @@ abort_running_jobs_for_domain(HostType, Domain) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, {abort_running_jobs_for_domain, Domain}).
 
+-spec does_worker_for_job_exist(mongooseim:host_type(), broadcast_job_id()) -> boolean().
+does_worker_for_job_exist(HostType, JobId) ->
+    ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
+    gen_server:call(ProcName, {does_worker_for_job_exist, JobId}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -109,7 +115,7 @@ handle_call({start_job, JobSpec}, _From, State) ->
     end;
 
 handle_call({stop_job, JobId}, _From, State) ->
-    SupName = gen_mod:get_module_proc(State#state.host_type, broadcast_jobs_sup),
+    SupName = get_sup_name(State#state.host_type),
     case find_worker_pid(SupName, JobId) of
         {ok, WorkerPid} ->
             broadcast_worker:stop(WorkerPid),
@@ -121,6 +127,13 @@ handle_call({stop_job, JobId}, _From, State) ->
 handle_call({abort_running_jobs_for_domain, Domain}, _From, State) ->
     do_abort_running_jobs_for_domain(State#state.host_type, Domain),
     {reply, ok, State};
+handle_call({does_worker_for_job_exist, JobId}, _From, State) ->
+    SupName = get_sup_name(State#state.host_type),
+    Reply = case find_worker_pid(SupName, JobId) of
+                {ok, _Pid} -> true;
+                error -> false
+            end,
+    {reply, Reply, State};
 handle_call(_Request, _From, State) ->
     {reply, {error, not_implemented}, State}.
 
@@ -169,7 +182,7 @@ do_create_job(HostType, JobSpec) ->
 -spec start_worker(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     {ok, pid()} | {error, term()}.
 start_worker(HostType, JobId) ->
-    SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
+    SupName = get_sup_name(HostType),
     ChildSpec = #{id => JobId,
                   start => {broadcast_worker, start_link, [HostType, JobId]},
                   restart => temporary,
@@ -216,7 +229,7 @@ find_worker_pid(SupName, JobId) ->
 do_abort_running_jobs_for_domain(HostType, Domain) ->
     case mod_broadcast_backend:get_running_jobs(HostType) of
         {ok, Jobs} ->
-            SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
+            SupName = get_sup_name(HostType),
             DomainJobs = [Job#broadcast_job.id || Job <- Jobs, Job#broadcast_job.domain =:= Domain],
             %% TODO: Take into account that Pid may be 'restarting' or 'undefined'
             lists:foreach(fun({WorkerId, WorkerPid, _, _}) ->
@@ -246,7 +259,7 @@ do_abort_running_jobs_for_domain(HostType, Domain) ->
 resume_running_jobs(#state{host_type = HostType}) ->
     case mod_broadcast_backend:get_running_jobs(HostType) of
         {ok, Jobs} ->
-            SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
+            SupName = get_sup_name(HostType),
             RunningIds = get_running_job_ids(SupName),
 
             lists:foreach(fun(Job) ->
@@ -287,6 +300,10 @@ resume_job_if_needed(#broadcast_job{id = JobId} = Job, RunningIds, HostType) ->
             end
     end,
     ok.
+
+-spec get_sup_name(mongooseim:host_type()) -> atom().
+get_sup_name(HostType) ->
+    gen_mod:get_module_proc(HostType, broadcast_jobs_sup).
 
 %%====================================================================
 %% Validation
