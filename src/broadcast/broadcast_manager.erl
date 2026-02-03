@@ -66,7 +66,6 @@ stop_job(HostType, JobId) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, {stop_job, JobId}).
 
--ifdef(TEST).
 %% @doc Abort all running broadcast jobs for a specific domain.
 %% This is currently test-only but will become a proper user-facing API
 %% in a future iteration to allow domain administrators to abort all
@@ -75,7 +74,6 @@ stop_job(HostType, JobId) ->
 abort_running_jobs_for_domain(HostType, Domain) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, {abort_running_jobs_for_domain, Domain}).
--endif.
 
 %%====================================================================
 %% gen_server callbacks
@@ -121,7 +119,7 @@ handle_call({stop_job, JobId}, _From, State) ->
             {reply, {error, not_found}, State}
     end;
 handle_call({abort_running_jobs_for_domain, Domain}, _From, State) ->
-    abort_running_jobs_for_domain(State#state.host_type, Domain),
+    do_abort_running_jobs_for_domain(State#state.host_type, Domain),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
     {reply, {error, not_implemented}, State}.
@@ -214,8 +212,8 @@ find_worker_pid(SupName, JobId) ->
         _ -> error
     end.
 
--spec abort_running_jobs_for_domain(mongooseim:host_type(), jid:lserver()) -> ok.
-abort_running_jobs_for_domain(HostType, Domain) ->
+-spec do_abort_running_jobs_for_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+do_abort_running_jobs_for_domain(HostType, Domain) ->
     case mod_broadcast_backend:get_running_jobs(HostType) of
         {ok, Jobs} ->
             SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
