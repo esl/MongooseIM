@@ -210,7 +210,6 @@ prepare_queries(HostType) ->
             <<"UPDATE broadcast_jobs SET started_at = CURRENT_TIMESTAMP"
               " WHERE id = ?">>),
 
-    %% Upsert worker state (INSERT ... ON CONFLICT for Postgres, handled by RDBMS layer)
     prepare(broadcast_upsert_worker_state, broadcast_worker_state,
             [broadcast_id, cursor_user, recipients_processed],
             upsert_worker_state_query(HostType)),

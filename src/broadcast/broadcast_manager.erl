@@ -89,7 +89,7 @@ init(HostType) ->
 handle_continue({start_worker_for, JobId}, State) ->
     case start_worker(State#state.host_type, JobId) of
         {ok, _WorkerPid} ->
-            mark_job_started(State#state.host_type, JobId),
+            persist_job_started(State#state.host_type, JobId),
             ?LOG_INFO(#{what => broadcast_job_started,
                         job_id => JobId});
         {error, Reason} ->
@@ -115,6 +115,7 @@ handle_call({stop_job, JobId}, _From, State) ->
     case find_worker_pid(SupName, JobId) of
         {ok, WorkerPid} ->
             broadcast_worker:stop(WorkerPid),
+            persist_job_aborted_by_admin(State#state.host_type, JobId),
             {reply, ok, State};
         error ->
             {reply, {error, not_found}, State}
@@ -179,14 +180,28 @@ start_worker(HostType, JobId) ->
                   modules => [broadcast_worker]},
     supervisor:start_child(SupName, ChildSpec).
 
--spec mark_job_started(mongooseim:host_type(), broadcast_job_id()) -> ok.
-mark_job_started(HostType, JobId) ->
+-spec persist_job_started(mongooseim:host_type(), broadcast_job_id()) -> ok.
+persist_job_started(HostType, JobId) ->
     mongoose_instrument:execute(mod_broadcast_jobs_started,
                                 #{host_type => HostType}, #{count => 1}),
     case mod_broadcast_backend:set_job_started(HostType, JobId) of
         ok -> ok;
         {error, Reason} ->
             ?LOG_WARNING(#{what => broadcast_start_persist_failed,
+                           job_id => JobId, reason => Reason})
+    end,
+    ok.
+
+-spec persist_job_aborted_by_admin(mongooseim:host_type(), broadcast_job_id()) -> ok.
+persist_job_aborted_by_admin(HostType, JobId) ->
+    mongoose_instrument:execute(mod_broadcast_jobs_aborted_admin,
+                                #{host_type => HostType}, #{count => 1}),
+    ?LOG_INFO(#{what => broadcast_job_aborted_by_admin,
+                job_id => JobId}),
+    case mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
+        ok -> ok;
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => broadcast_abort_admin_persist_failed,
                            job_id => JobId, reason => Reason})
     end,
     ok.
@@ -213,7 +228,8 @@ abort_running_jobs_for_domain(HostType, Domain) ->
                                         job_id => WorkerId,
                                         domain => Domain}),
                             % TODO: Proper error handling
-                            catch broadcast_worker:stop(WorkerPid);
+                            catch broadcast_worker:stop(WorkerPid),
+                            persist_job_aborted_by_admin(HostType, WorkerId);
                         false ->
                             ok
                     end

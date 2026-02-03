@@ -23,7 +23,8 @@
          abort_broadcast_not_running_returns_not_running/1,
          delete_inactive_by_ids_skips_running/1,
          delete_inactive_by_domain_empty_ok/1,
-         delete_inactive_by_domain_deletes_only_inactive/1]).
+         delete_inactive_by_domain_deletes_only_inactive/1,
+         broadcast_instrumentation_metrics/1]).
 %% validation
 -export([start_broadcast_domain_not_found/1,
          start_broadcast_sender_not_found/1,
@@ -78,7 +79,8 @@ lifecycle_tests() ->
      abort_broadcast_not_running_returns_not_running,
      delete_inactive_by_ids_skips_running,
      delete_inactive_by_domain_empty_ok,
-     delete_inactive_by_domain_deletes_only_inactive].
+     delete_inactive_by_domain_deletes_only_inactive,
+     broadcast_instrumentation_metrics].
 
 validation_tests() ->
     [start_broadcast_domain_not_found,
@@ -102,16 +104,18 @@ retrieval_tests() ->
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules([domain(), secondary_domain()], Config),
+    Config2 = instrument_helper:ensure_frequent_probes(Config1),
     ensure_broadcast_started(domain()),
     ensure_broadcast_started(secondary_domain()),
     create_many_users(100, domain()),
     clean_broadcast_jobs(),
-    escalus:init_per_suite(Config1).
+    escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     delete_many_users(100, domain()),
     dynamic_modules:restore_modules(Config),
+    instrument_helper:restore_probe_interval(Config),
     escalus:end_per_suite(Config).
 
 %%====================================================================
@@ -128,9 +132,16 @@ end_per_group(_Group, _Config) ->
 %% Test case setup/teardown
 %%====================================================================
 
+init_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
+    instrument_helper:start(instrument_helper:declared_events(mod_broadcast)),
+    escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(TestCase, Config) ->
     escalus:init_per_testcase(TestCase, Config).
 
+end_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
+    instrument_helper:stop(),
+    clean_broadcast_jobs(),
+    escalus:end_per_testcase(TestCase, Config);
 end_per_testcase(TestCase, Config) ->
     clean_broadcast_jobs(),
     escalus:end_per_testcase(TestCase, Config).
@@ -142,74 +153,63 @@ end_per_testcase(TestCase, Config) ->
 start_broadcast_ok_returns_job_id(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        JobSpec = valid_job_spec(domain(), AliceJid),
+        JobSpec = slow_job_spec(domain(), AliceJid),
         {ok, JobId} = start_broadcast(JobSpec),
-        ?assert(is_integer(JobId)),
-        ?assert(JobId >= 0)
+        assert_non_neg_integer(JobId)
     end).
 
 start_broadcast_already_running(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        %% Use slow job spec with 100 users created in init_per_suite
         JobSpec = slow_job_spec(domain(), AliceJid),
         {ok, _JobId1} = start_broadcast(JobSpec),
-        Result = start_broadcast(JobSpec),
-        ?assertMatch({already_running, _}, Result)
+        {already_running, _} = start_broadcast(JobSpec)
     end).
 
 start_broadcast_two_domains_both_ok(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
         AliceJid = escalus_client:short_jid(Alice),
         AliceBisJid = escalus_client:short_jid(AliceBis),
-        JobSpecA = valid_job_spec(domain(), AliceJid),
-        JobSpecB = valid_job_spec(secondary_domain(), AliceBisJid),
+        JobSpecA = slow_job_spec(domain(), AliceJid),
+        JobSpecB = slow_job_spec(secondary_domain(), AliceBisJid),
         {ok, JobIdA} = start_broadcast(JobSpecA),
         {ok, JobIdB} = start_broadcast(JobSpecB),
-        ?assert(is_integer(JobIdA)),
-        ?assert(is_integer(JobIdB)),
+        assert_non_neg_integer(JobIdA),
+        assert_non_neg_integer(JobIdB),
         ?assertNotEqual(JobIdA, JobIdB)
     end).
 
 abort_broadcast_running_ok(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        JobSpec = valid_job_spec(domain(), AliceJid),
+        JobSpec = slow_job_spec(domain(), AliceJid),
         {ok, JobId} = start_broadcast(JobSpec),
-        {ok, ReturnedId} = abort_broadcast(domain(), JobId),
-        ?assertEqual(JobId, ReturnedId),
+        {ok, JobId} = abort_broadcast(domain(), JobId),
         %% Verify state changed (poll with bounded retries)
-        wait_until_job_stops(domain(), JobId)
+        wait_until_job_state(domain(), JobId, abort_admin)
     end).
 
 abort_broadcast_not_found(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(_Alice, AliceBis) ->
         AliceBisJid = escalus_client:short_jid(AliceBis),
         %% Create a job in domain B
-        JobIdB = create_job_in_domain(secondary_domain(), AliceBisJid),
+        ForeignDomainJobID = create_job_in_domain(secondary_domain(), AliceBisJid),
+        NonExistentID = 999999,
 
-        %% Table-driven: nonexistent ID and ID from other domain
-        Cases = [
-            {<<"nonexistent_id">>, 999999, domain()},
-            {<<"cross_domain_id">>, JobIdB, domain()}
-        ],
-        lists:foreach(fun({Desc, Id, Domain}) ->
-            Result = abort_broadcast(Domain, Id),
-            ?assertMatch({broadcast_not_found, _}, Result, Desc)
-        end, Cases)
+        {broadcast_not_found, _} = abort_broadcast(domain(), NonExistentID),
+        {broadcast_not_found, _} = abort_broadcast(domain(), ForeignDomainJobID)
     end).
 
 abort_broadcast_not_running_returns_not_running(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        JobSpec = valid_job_spec(domain(), AliceJid),
+        JobSpec = slow_job_spec(domain(), AliceJid),
         {ok, JobId} = start_broadcast(JobSpec),
         %% First abort it
         {ok, _} = abort_broadcast(domain(), JobId),
-        wait_until_job_stops(domain(), JobId),
+        wait_until_job_state(domain(), JobId, abort_admin),
         %% Now try to abort again - it's already not running
-        Result = abort_broadcast(domain(), JobId),
-        ?assertMatch({not_running, _}, Result)
+        {not_running, _} = abort_broadcast(domain(), JobId)
     end).
 
 delete_inactive_by_ids_skips_running(Config) ->
@@ -220,14 +220,12 @@ delete_inactive_by_ids_skips_running(Config) ->
         {ok, InactiveId} = start_and_abort_job(JobSpec),
         {ok, RunningId} = start_broadcast(JobSpec),
 
-        %% Use a bogus ID to verify that non-existent IDs are ignored and don't cause failure
         BogusId = 999999,
         {ok, [InactiveId]} = delete_inactive_broadcasts_by_ids(domain(),
                                                                [RunningId, InactiveId, BogusId]),
 
-        ?assertMatch({broadcast_not_found, _},
-                     get_broadcast(domain(), InactiveId)),
-        ?assertMatch({ok, _}, get_broadcast(domain(), RunningId))
+        {broadcast_not_found, _} = get_broadcast(domain(), InactiveId),
+        {ok, _} = get_broadcast(domain(), RunningId)
     end).
 
 delete_inactive_by_domain_empty_ok(Config) ->
@@ -250,6 +248,65 @@ delete_inactive_by_domain_deletes_only_inactive(Config) ->
         ?assertMatch({ok, _}, get_broadcast(domain(), RunningId))
     end).
 
+broadcast_instrumentation_metrics(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        AliceJid = escalus_client:short_jid(Alice),
+        Labels = labels(),
+
+        wait_for_running_jobs_count(0),
+
+        %% Phase 1: Fast job that finishes normally
+        TS0 = instrument_helper:timestamp(),
+        FastJobSpec = fast_job_spec(domain(), AliceJid),
+        {ok, FastJobId} = start_broadcast(FastJobSpec),
+        wait_until_job_state(domain(), FastJobId, finished),
+
+        instrument_helper:assert(mod_broadcast_jobs_started, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 1, min_timestamp => TS0}),
+        instrument_helper:assert(mod_broadcast_jobs_finished, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 1, min_timestamp => TS0}),
+        instrument_helper:assert(mod_broadcast_jobs_aborted_admin, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 0, min_timestamp => TS0}),
+        instrument_helper:assert(mod_broadcast_jobs_aborted_error, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 0, min_timestamp => TS0}),
+
+        instrument_helper:assert(mod_broadcast_recipients_processed, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => positive, min_timestamp => TS0}),
+        instrument_helper:assert(mod_broadcast_recipients_success, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => positive, min_timestamp => TS0}),
+        instrument_helper:assert(mod_broadcast_recipients_skipped, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 0, min_timestamp => TS0}),
+
+        %% Phase 2: Slow job that gets aborted
+        TS1 = instrument_helper:timestamp(),
+        SlowJobSpec = slow_job_spec(domain(), AliceJid),
+        {ok, SlowJobId} = start_broadcast(SlowJobSpec),
+
+        wait_for_running_jobs_count(1),
+
+        {ok, SlowJobId} = abort_broadcast(domain(), SlowJobId),
+        wait_until_job_state(domain(), SlowJobId, abort_admin),
+
+        wait_for_running_jobs_count(0),
+
+        instrument_helper:assert(mod_broadcast_jobs_started, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 1, min_timestamp => TS1}),
+        instrument_helper:assert(mod_broadcast_jobs_aborted_admin, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 1, min_timestamp => TS1}),
+        instrument_helper:assert(mod_broadcast_jobs_aborted_error, Labels,
+                                 fun(#{count := 1}) -> true end,
+                                 #{expected_count => 0, min_timestamp => TS1})
+    end).
+
 %%====================================================================
 %% Validation tests
 %%====================================================================
@@ -257,27 +314,27 @@ delete_inactive_by_domain_deletes_only_inactive(Config) ->
 start_broadcast_domain_not_found(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        JobSpec = valid_job_spec(unknown_domain(), AliceJid),
-        Result = start_broadcast(JobSpec),
-        ?assertMatch({domain_not_found, _}, Result)
+        JobSpec = slow_job_spec(unknown_domain(), AliceJid),
+        {domain_not_found, _} = start_broadcast(JobSpec)
     end).
 
 start_broadcast_sender_not_found(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
-        %% Use a non-existent sender
         NonExistentJid = jid:make_noprep(<<"nonexistent">>, domain(), <<>>),
-        JobSpec = valid_job_spec(domain(), NonExistentJid),
-        Result = start_broadcast(JobSpec),
-        ?assertMatch({sender_not_found, _}, Result)
+        JobSpec = slow_job_spec(domain(), NonExistentJid),
+        {sender_not_found, _} = start_broadcast(JobSpec)
     end).
 
 start_broadcast_bad_message_rate(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        %% Table-driven: 0, negative, >1000
-        InvalidRates = [0, -1, -100, 1001, 9999],
+        InvalidRates = [
+            % too low
+            0, -1,
+            % too high
+            1001, 9999],
         lists:foreach(fun(Rate) ->
-            JobSpec = (valid_job_spec(domain(), AliceJid))#{message_rate := Rate},
+            JobSpec = (slow_job_spec(domain(), AliceJid))#{message_rate := Rate},
             Result = start_broadcast(JobSpec),
             ?assertMatch({bad_parameter, _}, Result,
                          io_lib:format("message_rate ~p should fail", [Rate]))
@@ -290,7 +347,7 @@ start_broadcast_bad_name(Config) ->
         %% Empty and too long
         InvalidNames = [<<>>, binary:copy(<<"a">>, 251)],
         lists:foreach(fun(Name) ->
-            JobSpec = (valid_job_spec(domain(), AliceJid))#{name := Name},
+            JobSpec = (slow_job_spec(domain(), AliceJid))#{name := Name},
             Result = start_broadcast(JobSpec),
             ?assertMatch({bad_parameter, _}, Result,
                          io_lib:format("name length ~p should fail", [byte_size(Name)]))
@@ -302,7 +359,7 @@ start_broadcast_bad_subject(Config) ->
         AliceJid = escalus_client:short_jid(Alice),
         %% Too long (>1024)
         TooLongSubject = binary:copy(<<"a">>, 1025),
-        JobSpec = (valid_job_spec(domain(), AliceJid))#{subject := TooLongSubject},
+        JobSpec = (slow_job_spec(domain(), AliceJid))#{subject := TooLongSubject},
         Result = start_broadcast(JobSpec),
         ?assertMatch({bad_parameter, _}, Result)
     end).
@@ -313,7 +370,7 @@ start_broadcast_bad_body(Config) ->
         %% Empty and too long
         InvalidBodies = [<<>>, binary:copy(<<"a">>, 16001)],
         lists:foreach(fun(Body) ->
-            JobSpec = (valid_job_spec(domain(), AliceJid))#{body := Body},
+            JobSpec = (slow_job_spec(domain(), AliceJid))#{body := Body},
             Result = start_broadcast(JobSpec),
             ?assertMatch({bad_parameter, _}, Result,
                          io_lib:format("body length ~p should fail", [byte_size(Body)]))
@@ -332,25 +389,16 @@ start_broadcast_string_limits_ok(Config) ->
         ],
         lists:foreach(fun({Field, MinVal, MaxVal}) ->
             %% Test minimum
-            JobSpecMin = maps:put(Field, MinVal, valid_job_spec(domain(), AliceJid)),
-            ResultMin = start_broadcast(JobSpecMin),
+            JobSpecMin = maps:put(Field, MinVal, slow_job_spec(domain(), AliceJid)),
+            ResultMin = start_and_abort_job(JobSpecMin),
             ?assertMatch({ok, _}, ResultMin,
                          io_lib:format("~p min value should succeed", [Field])),
-            %% Abort to allow next test
-            {ok, JobIdMin} = ResultMin,
-            abort_broadcast(domain(), JobIdMin),
-            wait_until_job_stops(domain(), JobIdMin),
 
             %% Test maximum
-            JobSpecMax = maps:put(Field, MaxVal,
-                                  valid_job_spec_named(domain(), AliceJid, <<"maxtest">>)),
-            ResultMax = start_broadcast(JobSpecMax),
+            JobSpecMax = maps:put(Field, MaxVal, slow_job_spec(domain(), AliceJid)),
+            ResultMax = start_and_abort_job(JobSpecMax),
             ?assertMatch({ok, _}, ResultMax,
-                         io_lib:format("~p max value should succeed", [Field])),
-            %% Abort for cleanup
-            {ok, JobIdMax} = ResultMax,
-            abort_broadcast(domain(), JobIdMax),
-            wait_until_job_stops(domain(), JobIdMax)
+                         io_lib:format("~p max value should succeed", [Field]))
         end, BoundaryCases)
     end).
 
@@ -360,25 +408,18 @@ start_broadcast_string_limits_ok(Config) ->
 
 get_broadcast_domain_not_found(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
-        Result = get_broadcast(unknown_domain(), 1),
-        ?assertMatch({domain_not_found, _}, Result)
+        {domain_not_found, _} = get_broadcast(unknown_domain(), 1)
     end).
 
 get_broadcast_not_found(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(_Alice, AliceBis) ->
         %% First create a job in domain B
         AliceBisJid = escalus_client:short_jid(AliceBis),
-        JobIdB = create_job_in_domain(secondary_domain(), AliceBisJid),
+        ForeignDomainJobID = create_job_in_domain(secondary_domain(), AliceBisJid),
 
-        %% Table-driven: nonexistent ID and ID from other domain
-        Cases = [
-            {<<"nonexistent_id">>, 999999, domain()},
-            {<<"cross_domain_id">>, JobIdB, domain()}
-        ],
-        lists:foreach(fun({Desc, Id, Domain}) ->
-            Result = get_broadcast(Domain, Id),
-            ?assertMatch({broadcast_not_found, _}, Result, Desc)
-        end, Cases)
+        NonExistentID = 999999,
+        {broadcast_not_found, _} = get_broadcast(domain(), ForeignDomainJobID),
+        {broadcast_not_found, _} = get_broadcast(domain(), NonExistentID)
     end).
 
 get_broadcast_ok_returns_expected_fields(Config) ->
@@ -418,7 +459,7 @@ get_broadcast_ok_returns_expected_fields(Config) ->
         assert_non_neg_integer(RecipientsProcessed),
 
         abort_broadcast(domain(), JobId),
-        wait_until_job_stops(domain(), JobId),
+        wait_until_job_state(domain(), JobId, abort_admin),
 
         AbortedJob = broadcast_job_to_map(get_broadcast(domain(), JobId)),
         #{execution_state := abort_admin,
@@ -428,30 +469,23 @@ get_broadcast_ok_returns_expected_fields(Config) ->
 
 get_broadcasts_empty_ok(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
-        {ok, Jobs} = get_broadcasts(domain(), 10, 0),
-        ?assertEqual([], Jobs)
+        {ok, []} = get_broadcasts(domain(), 10, 0)
     end).
 
 get_broadcasts_pagination_basic(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        %% Create and abort multiple jobs for pagination testing
-        %% (only one job can run per domain at a time, so we need inactive jobs)
-        {ok, _JobId1} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag1">>)),
-        {ok, _JobId2} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag2">>)),
-        {ok, _JobId3} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag3">>)),
 
-        %% Get all with high limit
-        {ok, AllJobs} = get_broadcasts(domain(), 100, 0),
-        ?assertEqual(3, length(AllJobs)),
+        {ok, JobId1} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag1">>)),
+        {ok, JobId2} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag2">>)),
+        {ok, JobId3} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag3">>)),
 
-        %% Get with limit 2
-        {ok, LimitedJobs} = get_broadcasts(domain(), 2, 0),
-        ?assert(length(LimitedJobs) =< 2),
-
-        %% Get with offset
-        {ok, OffsetJobs} = get_broadcasts(domain(), 100, 1),
-        ?assertEqual(2, length(OffsetJobs))
+        {ok, AllBroadcasts} = get_broadcasts(domain(), 100, 0),
+        assert_ids_in_jobs([JobId3, JobId2, JobId1], AllBroadcasts),
+        {ok, MostRecentTwo} = get_broadcasts(domain(), 2, 0),
+        assert_ids_in_jobs([JobId3, JobId2], MostRecentTwo),
+        {ok, AllButFirst} = get_broadcasts(domain(), 100, 1),
+        assert_ids_in_jobs([JobId2, JobId1], AllButFirst)
     end).
 
 %%====================================================================
@@ -460,6 +494,10 @@ get_broadcasts_pagination_basic(Config) ->
 
 assert_non_neg_integer(Value) when is_integer(Value), Value >= 0 ->
     ok.
+
+assert_ids_in_jobs(ExpectedIds, Jobs) ->
+    ActualIds = [maps:get(id, broadcast_job_to_map(Job)) || Job <- Jobs],
+    ?assertEqual(ExpectedIds, ActualIds).
 
 valid_job_spec(Domain, SenderJid) ->
     valid_job_spec_named(Domain, SenderJid, <<"test_broadcast">>).
@@ -486,6 +524,17 @@ slow_job_spec(Domain, SenderJid) ->
         recipient_group => all_users_in_domain
     }.
 
+fast_job_spec(Domain, SenderJid) ->
+    #{
+        name => <<"fast_broadcast">>,
+        domain => Domain,
+        sender => jid:from_binary(SenderJid),
+        subject => <<"Fast Test Subject">>,
+        body => <<"Fast Test Body">>,
+        message_rate => 1000,  %% High rate to finish quickly
+        recipient_group => all_users_in_domain
+    }.
+
 create_job_in_domain(Domain, SenderJid) ->
     JobSpec = valid_job_spec(Domain, SenderJid),
     {ok, JobId} = start_broadcast(JobSpec),
@@ -495,26 +544,33 @@ start_and_abort_job(JobSpec) ->
     Domain = maps:get(domain, JobSpec),
     {ok, JobId} = start_broadcast(JobSpec),
     {ok, _} = abort_broadcast(Domain, JobId),
-    wait_until_job_stops(Domain, JobId),
+    wait_until_job_state(Domain, JobId, abort_admin),
     {ok, JobId}.
 
-wait_until_job_stops(Domain, JobId) ->
+wait_until_job_state(Domain, JobId, ExpectedState) ->
     wait_helper:wait_until(
         fun() ->
             case get_broadcast(Domain, JobId) of
                 {ok, JobRecord} ->
                     case broadcast_job_to_map(JobRecord) of
-                        #{execution_state := running} ->
-                            {error, still_running};
-                        _ ->
-                            finished
+                        #{execution_state := State} when State =:= ExpectedState ->
+                            ok;
+                        #{execution_state := _Other} ->
+                            {error, not_expected_state}
                     end;
                 {broadcast_not_found, _} ->
                     {error, not_found}
             end
         end,
-        finished,
-        #{name => wait_for_abort_state}).
+        ok,
+        #{name => wait_for_job_state}).
+
+wait_for_running_jobs_count(ExpectedCount) ->
+    F = fun(#{count := Count}) -> Count =:= ExpectedCount end,
+    instrument_helper:wait_and_assert_new(mod_broadcast_running_jobs, labels(), F).
+
+labels() ->
+    #{host_type => domain_helper:host_type()}.
 
 %%====================================================================
 %% RPC helpers

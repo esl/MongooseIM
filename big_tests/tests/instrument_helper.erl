@@ -4,7 +4,10 @@
 -module(instrument_helper).
 
 %% API for setup and teardown in test suites
--export([declared_events/1, declared_events/2, start/1, start/2, stop/0]).
+-export([declared_events/1, declared_events/2,
+         start/1, start/2, stop/0,
+         ensure_frequent_probes/1,
+         restore_probe_interval/1]).
 
 %% API for assertions in test cases
 -export([assert/3, assert_one/3, assert_not_emitted/3, assert_not_emitted/2, assert_not_emitted/1,
@@ -64,6 +67,13 @@ stop() ->
     ct:log("Tested instrumentation events:~n~p", [lists:sort(Tested)]),
     verify_unlogged((Untested -- Logged) -- Negative),
     verify_logged_but_untested((Logged -- Tested) -- Negative).
+
+ensure_frequent_probes(Config) ->
+    mongoose_helper:backup_and_set_config_option(
+        Config, [instrumentation, probe_interval], 1).
+
+restore_probe_interval(Config) ->
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]).
 
 %% API for assertions in test cases
 

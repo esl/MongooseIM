@@ -97,8 +97,7 @@ init_per_group(clustered, Config) ->
     case is_sm_distributed() of
         true ->
             instrument_helper:start([{system_dist_data, #{}}]),
-            Config2 = mongoose_helper:backup_and_set_config_option(
-                        Config1, [instrumentation, probe_interval], 1),
+            Config2 = instrument_helper:ensure_frequent_probes(Config1),
             restart(mongoose_system_probes),
             escalus:create_users(Config2, escalus:get_users([alice, clusterguy]));
         {false, Backend} ->
@@ -123,7 +122,7 @@ end_per_group(clustered, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
     Node2 = mim2(),
     remove_node_from_cluster(Node2, Config),
-    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:restore_probe_interval(Config),
     restart(mongoose_system_probes),
     instrument_helper:stop();
 

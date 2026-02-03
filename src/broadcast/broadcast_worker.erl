@@ -132,8 +132,7 @@ loading_batch(Origin, load_batch, Data)
             FinalizeEvent = {finalize, {"persist_state failed: ~p", [Reason]}},
             {next_state, aborted, Data, [{next_event, internal, FinalizeEvent}]}
     end;
-loading_batch({call, From}, stop, Data) ->
-    persist_abort_admin(Data),
+loading_batch({call, From}, stop, _Data) ->
     {stop_and_reply, normal, [{reply, From, ok}]};
 loading_batch(EventType, Event, Data) ->
     handle_common(EventType, Event, loading_batch, Data).
@@ -186,8 +185,7 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
 
     %% Schedule next recipient via state_timeout (allows handling other events)
     {keep_state, NewData, [{state_timeout, DelayMs, send_one}]};
-sending_batch({call, From}, stop, Data) ->
-    persist_abort_admin(Data),
+sending_batch({call, From}, stop, _Data) ->
     {stop_and_reply, normal, [{reply, From, ok}]};
 sending_batch(EventType, Event, Data) ->
     handle_common(EventType, Event, sending_batch, Data).
@@ -354,24 +352,6 @@ abort_job(HostType, JobId, Fmt, Args) ->
                            job_id => JobId, reason => PersistError})
     end,
     Reason.
-
--spec persist_abort_admin(data()) -> ok.
-persist_abort_admin(#data{host_type = HostType, job = Job, state = WorkerState}) ->
-    JobId = Job#broadcast_job.id,
-    mongoose_instrument:execute(mod_broadcast_jobs_aborted_admin,
-                                #{host_type => HostType}, #{count => 1}),
-    ?LOG_INFO(#{what => broadcast_job_aborted_by_admin,
-                job_id => JobId,
-                domain => Job#broadcast_job.domain,
-                processed => WorkerState#broadcast_worker_state.recipients_processed,
-                total_recipients => Job#broadcast_job.recipient_count}),
-    case mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
-        ok -> ok;
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => broadcast_abort_admin_persist_failed,
-                           job_id => JobId, reason => Reason})
-    end,
-    ok.
 
 -spec maybe_init_worker_state(broadcast_worker_state() | undefined) ->
     broadcast_worker_state().
