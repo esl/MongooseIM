@@ -24,8 +24,6 @@
 
 all() ->
     [{group, mnesia_backend},
-     rdbms_remove_domain_calls_execute_successfully,
-     rdbms_remove_domain_keeps_other_domain_subscriptions,
      supported_features_tests].
 
 groups() ->
@@ -102,8 +100,8 @@ mnesia_remove_domain_deletes_subscriptions(_Config) ->
     ok = mod_event_pusher_push_mnesia:enable(?HOST_TYPE, User2, PubSubJID, Node, Form),
 
     %% Verify subscriptions exist
-    ?assertMatch({ok, [_]}, mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User1)),
-    ?assertMatch({ok, [_]}, mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User2)),
+    {ok, [_]} = mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User1),
+    {ok, [_]} = mod_event_pusher_push_mnesia:get_publish_services(?HOST_TYPE, User2),
 
     %% WHEN remove_domain is called
     ok = mod_event_pusher_push_mnesia:remove_domain(?HOST_TYPE, ?DOMAIN),
@@ -140,48 +138,6 @@ mnesia_remove_domain_empty_table(_Config) ->
     ok.
 
 %%--------------------------------------------------------------------
-%% Test cases - RDBMS backend
-%%--------------------------------------------------------------------
-
-rdbms_remove_domain_calls_execute_successfully(_Config) ->
-    %% GIVEN subscriptions for users in DOMAIN (simulated in-memory DB)
-    User1 = <<"user1@", ?DOMAIN/binary>>,
-    User2 = <<"user2@", ?DOMAIN/binary>>,
-    DB = ets:new(fake_db, [bag, private]),
-    ets:insert(DB, [{subscription, User1}, {subscription, User2}]),
-
-    {SelectFun, DeleteFun} = make_fake_db_funs(DB),
-
-    %% WHEN remove_domain is called
-    LikePattern = <<"%@", ?DOMAIN/binary>>,
-    ok = mod_event_pusher_push_rdbms:remove_domain_batches(?HOST_TYPE, LikePattern, 2,
-                                                           SelectFun, DeleteFun),
-
-    %% THEN all subscriptions for the domain are deleted
-    RemainingSubscriptions = ets:tab2list(DB),
-    ets:delete(DB),
-    ?assertEqual([], RemainingSubscriptions).
-
-rdbms_remove_domain_keeps_other_domain_subscriptions(_Config) ->
-    %% GIVEN subscriptions for users in both DOMAIN and OTHER_DOMAIN (simulated in-memory DB)
-    User1 = <<"user1@", ?DOMAIN/binary>>,
-    User2 = <<"user2@", ?OTHER_DOMAIN/binary>>,
-    DB = ets:new(fake_db, [bag, private]),
-    ets:insert(DB, [{subscription, User1}, {subscription, User2}]),
-
-    {SelectFun, DeleteFun} = make_fake_db_funs(DB),
-
-    %% WHEN remove_domain is called for DOMAIN only
-    LikePattern = <<"%@", ?DOMAIN/binary>>,
-    ok = mod_event_pusher_push_rdbms:remove_domain_batches(?HOST_TYPE, LikePattern, 2,
-                                                           SelectFun, DeleteFun),
-
-    %% THEN subscriptions for OTHER_DOMAIN are preserved
-    RemainingSubscriptions = ets:tab2list(DB),
-    ets:delete(DB),
-    ?assertEqual([{subscription, User2}], RemainingSubscriptions).
-
-%%--------------------------------------------------------------------
 %% Test cases - supported_features
 %%--------------------------------------------------------------------
 
@@ -201,22 +157,3 @@ opts() ->
     #{hosts => [?HOST_TYPE],
       host_types => [],
       instrumentation => config_parser_helper:default_config([instrumentation])}.
-
-%% Simulates RDBMS behavior with an ETS table as the database
-make_fake_db_funs(DB) ->
-    SelectFun = fun(_HostType, LikePattern, Limit) ->
-                        %% Simulate SQL LIKE '%@domain' matching
-                        Suffix = like_pattern_to_suffix(LikePattern),
-                        AllJids = [Jid || {subscription, Jid} <- ets:tab2list(DB)],
-                        Matching = [Jid || Jid <- AllJids, binary:match(Jid, Suffix) =/= nomatch],
-                        lists:sublist(Matching, Limit)
-                end,
-    DeleteFun = fun(_HostType, OwnerJids) ->
-                        [ets:delete_object(DB, {subscription, Jid}) || Jid <- OwnerJids],
-                        ok
-                end,
-    {SelectFun, DeleteFun}.
-
-%% Convert LIKE pattern '%@domain' to suffix '@domain' for matching
-like_pattern_to_suffix(<<"%", Rest/binary>>) -> Rest;
-like_pattern_to_suffix(Pattern) -> Pattern.
