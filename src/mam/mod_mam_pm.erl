@@ -489,8 +489,8 @@ handle_package(Dir, ReturnMessID,
             OriginID = mod_mam_utils:get_origin_id(Packet),
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
-                    {MessID, Stable} = case mongoose_acc:get(stable_stanza_id, value, 0, Acc) of
-                                           0 -> {mod_mam_utils:get_or_generate_mam_id(Acc), false};
+                    {MessID, Stable} = case mongoose_acc:get(stable_stanza_id, value, undefined, Acc) of
+                                           undefined -> {mod_mam_utils:get_or_generate_mam_id(Acc), false};
                                            V -> {V, true}
                                        end,
                     IsGroupChat = mod_mam_utils:is_groupchat(MsgType),

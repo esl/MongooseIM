@@ -151,7 +151,7 @@ filter_room_packet(Packet, EventData, #{host_type := HostType}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
                  packet => Packet, event_data => EventData}),
     IsArchivable = is_archivable_message(HostType, incoming, Packet),
-    StableID = maps:get(stable_stanza_id, EventData, 0),
+    StableID = maps:get(stable_stanza_id, EventData, undefined),
     case IsArchivable of
         true ->
             #{from_nick := FromNick, from_jid := FromJID, room_jid := RoomJID,
@@ -184,7 +184,7 @@ archive_room_packet(HostType, Packet, StableID, FromNick, FromJID = #jid{},
     case IsInteresting andalso IsMamMucEnabled of
         true ->
             MessID = case StableID of
-                         0 -> mod_mam_utils:generate_message_id(TS);
+                         undefined -> mod_mam_utils:generate_message_id(TS);
                          I -> I
                      end,
             Packet1 = mod_mam_utils:replace_x_user_element(FromJID, Role, Affiliation, Packet),

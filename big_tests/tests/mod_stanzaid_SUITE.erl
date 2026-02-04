@@ -72,7 +72,7 @@ init_per_group(muc, Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     muc_helper:load_muc(),
-    init_per_group(generic, Config1);
+    Config1;
 init_per_group(muclight, Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
@@ -103,7 +103,7 @@ init_per_testcase(stanza_id_muc_mam, Config) ->
     Config1;
 init_per_testcase(stanza_id_muclight_mam, Config) ->
     Config1 = init_per_testcase(generic, Config),
-    MamOpts = mam_helper:config_opts(#{muc => #{host => {prefix, <<"muclight.">>}},
+    MamOpts = mam_helper:config_opts(#{muc => #{host => distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern())},
                                        async_writer => #{enabled => false},
                                        backend => backend(Config)
                                      }),
@@ -127,7 +127,7 @@ stanza_id_pm(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
-            message(User1, User2, <<"Hi!">>),
+            send_message(User1, User2, <<"Hi!">>),
             M = escalus:wait_for_stanza(User2),
             ?assert(has_stanza_id(M))
         end).
@@ -136,7 +136,7 @@ stanza_id_pm_mam(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            message(Alice, Bob, <<"Hi!">>),
+            send_message(Alice, Bob, <<"Hi!">>),
             Message = escalus:wait_for_stanza(Bob),
             % get our stable stanza id
             OurBinStanzaID = receive_stanza_id(),
@@ -160,7 +160,7 @@ stanza_id_muc(Config) ->
         escalus:send(Alice, muc_helper:stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
         escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Alice, 3),
-%%
+        % publish a message
         Msg = <<"chat message">>,
         Id = <<"MyID">>,
         Stanza = escalus_stanza:set_id(
@@ -168,10 +168,12 @@ stanza_id_muc(Config) ->
                 muc_helper:room_address(
                     ?config(room, Config)), Msg), Id),
         escalus:send(Alice, Stanza),
-        AliceStanza = escalus:wait_for_stanza(Alice),
-        BobStanza = escalus:wait_for_stanza(Bob),
+        % get our stable stanza id
         OurBinStanzaID = receive_stanza_id(),
+        % make sure it arrived with the same id
+        AliceStanza = escalus:wait_for_stanza(Alice),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceStanza)),
+        BobStanza = escalus:wait_for_stanza(Bob),
         ?assertEqual(OurBinStanzaID, get_stanza_id(BobStanza)),
         ok
     end).
@@ -185,17 +187,20 @@ stanza_id_muc_mam(Config) ->
         escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room, escalus_utils:get_username(Alice))),
         escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Alice, 3),
-%%
+        % publish a message
         Msg = <<"chat message">>,
         Id = <<"MyID">>,
         Stanza = escalus_stanza:set_id(
             escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
         escalus:send(Alice, Stanza),
-        AliceStanza = escalus:wait_for_stanza(Alice),
-        BobStanza = escalus:wait_for_stanza(Bob),
+        % get our stable stanza id
         OurBinStanzaID = receive_stanza_id(),
+        % make sure it arrived with the same id
+        AliceStanza = escalus:wait_for_stanza(Alice),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceStanza)),
+        BobStanza = escalus:wait_for_stanza(Bob),
         ?assertEqual(OurBinStanzaID, get_stanza_id(BobStanza)),
+        % ...and that the same id is used by archive
         ArchReq = escalus_stanza:to(mam_helper:stanza_archive_request(mam_helper:mam06_props(), <<"q1">>),
                                     RoomAddr),
         escalus:send(Alice, ArchReq),
@@ -209,13 +214,15 @@ stanza_id_muclight(Config) ->
         RoomName = <<"just-a-testroom">>,
         muc_light_helper:create_room(RoomName, muc_light_helper:muc_host(),
                                      Alice, [Bob], Config, muc_light_helper:ver(1)),
-%%
+        % publish a message
         Stanza = escalus_stanza:groupchat_to(muc_light_helper:room_bin_jid(RoomName), <<"Hello">>),
         escalus:send(Bob, Stanza),
-        AliceStanza = escalus:wait_for_stanza(Alice, 100),
-        BobStanza = escalus:wait_for_stanza(Bob, 100),
+        % get our stable stanza id
         OurBinStanzaID = receive_stanza_id(),
+        % make sure it arrived with the same id
+        AliceStanza = escalus:wait_for_stanza(Alice, 100),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceStanza)),
+        BobStanza = escalus:wait_for_stanza(Bob, 100),
         ?assertEqual(OurBinStanzaID, get_stanza_id(BobStanza)),
         ok
     end).
@@ -226,14 +233,17 @@ stanza_id_muclight_mam(Config) ->
         RoomAddr = muc_light_helper:room_bin_jid(RoomName),
         muc_light_helper:create_room(RoomName, muc_light_helper:muc_host(),
                                      Alice, [Bob], Config, muc_light_helper:ver(1)),
-%%
+        % publish a message
         Stanza = escalus_stanza:groupchat_to(muc_light_helper:room_bin_jid(RoomName), <<"Hello">>),
         escalus:send(Bob, Stanza),
-        AliceStanza = escalus:wait_for_stanza(Alice, 100),
-        BobStanza = escalus:wait_for_stanza(Bob, 100),
+        % get our stable stanza id
         OurBinStanzaID = receive_stanza_id(),
+        % make sure it arrived with the same id
+        AliceStanza = escalus:wait_for_stanza(Alice, 100),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceStanza)),
+        BobStanza = escalus:wait_for_stanza(Bob, 100),
         ?assertEqual(OurBinStanzaID, get_stanza_id(BobStanza)),
+        % ...and that the same id is used by archive
         ArchReq = escalus_stanza:to(mam_helper:stanza_archive_request(mam_helper:mam06_props(), <<"q1">>),
                                     RoomAddr),
         escalus:send(Alice, ArchReq),
@@ -249,7 +259,7 @@ stanza_id_muclight_mam(Config) ->
 %% helpers
 %%
 
-message(From, To, MsgTxt) ->
+send_message(From, To, MsgTxt) ->
     escalus_client:send(From, escalus_stanza:chat_to(To, MsgTxt)).
 
 has_stanza_id(#xmlel{children = Ch}) ->
@@ -295,7 +305,7 @@ stop_handler(Pid, HostType) ->
     ok.
 
 send_stanza_id(Acc, _, #{pid := Pid}) ->
-    Pid ! {stanza_id, mongoose_acc:get(stable_stanza_id, value, 0, Acc)},
+    Pid ! {stanza_id, mongoose_acc:get(stable_stanza_id, value, undefined, Acc)},
     {ok, Acc}.
 
 receive_stanza_id() ->

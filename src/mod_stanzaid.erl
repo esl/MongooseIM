@@ -75,11 +75,11 @@ filter_room_packet(Packet, _, _) ->
     Extra :: gen_hook:extra().
 user_receive_message(Acc, _, _) ->
     El1 = ensure_stanza_id(mongoose_acc:element(Acc),
-                           mongoose_acc:get(stable_stanza_id, value, 0, Acc),
+                           mongoose_acc:get(stable_stanza_id, value, undefined, Acc),
                            mongoose_acc:to_jid(Acc)),
     {ok, mongoose_acc:update_stanza(#{element => El1}, Acc)}.
 
-ensure_stanza_id(Packet, 0, _) ->
+ensure_stanza_id(Packet, undefined, _) ->
     Packet;
 ensure_stanza_id(Packet, StableId, Jid) ->
     case has_stanza_id(Packet) of

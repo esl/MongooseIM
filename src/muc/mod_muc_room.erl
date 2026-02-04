@@ -492,7 +492,7 @@ locked_state(Call, StateData) ->
 normal_state({route, From, <<>>, Acc, #xmlel{name = <<"message">>} = Packet}, StateData) ->
     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
     Type = exml_query:attr(Packet, <<"type">>, <<>>),
-    StableID = mongoose_acc:get(stable_stanza_id, value, 0, Acc),
+    StableID = mongoose_acc:get(stable_stanza_id, value, undefined, Acc),
 
     NewStateData = route_message(#routed_message{
         allowed = can_send_to_conference(From, StateData),
