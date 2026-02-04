@@ -43,7 +43,8 @@
     subject := binary(),
     body := binary(),
     message_rate := pos_integer(),
-    recipient_group := recipient_group()
+    recipient_group := recipient_group(),
+    recipient_count => non_neg_integer()
 }.
 
 -type broadcast_job_map() :: #{

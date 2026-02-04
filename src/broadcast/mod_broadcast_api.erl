@@ -81,7 +81,7 @@ abort_broadcast(Domain, Id) ->
                     case broadcast_manager:stop_job(HostType, Id) of
                         ok ->
                             {ok, Id};
-                        {error, not_found} ->
+                        {error, not_live} ->
                             error_result(broadcast_not_found)
                     end;
                 {ok, #broadcast_job{domain = Domain}} ->

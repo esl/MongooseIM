@@ -16,7 +16,7 @@
          set_job_started/2,
          update_worker_state/3,
          set_job_finished/2,
-         set_job_aborted/3,
+         set_job_aborted_error/3,
          set_job_aborted_admin/2,
          delete_job/2,
          delete_inactive_jobs_by_domain/2]).
@@ -36,18 +36,14 @@ init(HostType, _Opts) ->
     ok.
 
 -spec create_job(mongooseim:host_type(), mod_broadcast_backend:job_spec()) ->
-    {ok, JobId :: broadcast_job_id()} | {error, already_running | term()}.
+    {ok, JobId :: broadcast_job_id()} | {error, already_running}.
 create_job(HostType, JobSpec) ->
     #{name := Name, domain := Domain, sender := Sender,
       subject := Subject, body := Body, message_rate := Rate,
-      recipient_group := RecipientGroup} = JobSpec,
+      recipient_group := RecipientGroup, recipient_count := RecipientCount} = JobSpec,
     OwnerNode = atom_to_binary(node(), utf8),
     SenderBin = jid:to_binary(Sender),
     RecipientGroupBin = encode_recipient_group(RecipientGroup),
-    %% Get recipient count from auth backend
-    %% Small race condition risk: a user may be created between getting the count
-    %% and creating the job (which sets the snapshot timestamp), but this is acceptable
-    RecipientCount = ejabberd_auth:get_vh_registered_users_number(Domain),
     try execute_successfully(HostType, broadcast_create_job,
                              [Name, Domain, SenderBin, Subject, Body, Rate,
                               RecipientGroupBin, OwnerNode, RecipientCount]) of
@@ -59,7 +55,7 @@ create_job(HostType, JobSpec) ->
     end.
 
 -spec get_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    {ok, broadcast_job()} | {error, not_found | term()}.
+    {ok, broadcast_job()} | {error, not_found}.
 get_job(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_get_job, [JobId]) of
         {selected, [Row]} ->
@@ -68,28 +64,24 @@ get_job(HostType, JobId) ->
             {error, not_found}
     end.
 
--spec get_running_jobs(mongooseim:host_type()) ->
-    {ok, [broadcast_job()]} | {error, term()}.
+-spec get_running_jobs(mongooseim:host_type()) -> {ok, [broadcast_job()]}.
 get_running_jobs(HostType) ->
     OwnerNode = atom_to_binary(node(), utf8),
-    case execute_successfully(HostType, broadcast_get_running_jobs, [OwnerNode]) of
-        {selected, Rows} ->
-            Jobs = [row_to_job(HostType, R) || R <- Rows],
-            {ok, Jobs}
-    end.
+    {selected, Rows} = execute_successfully(HostType, broadcast_get_running_jobs, [OwnerNode]),
+    Jobs = [row_to_job(HostType, R) || R <- Rows],
+    {ok, Jobs}.
 
 -spec get_jobs_by_domain(mongooseim:host_type(), jid:lserver(),
                          Limit :: pos_integer(), Offset :: non_neg_integer()) ->
-    {ok, [broadcast_job()]} | {error, term()}.
+    {ok, [broadcast_job()]}.
 get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
-    case execute_successfully(HostType, broadcast_get_jobs_by_domain, [Domain, Limit, Offset]) of
-        {selected, Rows} ->
-            Jobs = [row_to_job(HostType, R) || R <- Rows],
-            {ok, Jobs}
-    end.
+    {selected, Rows} = execute_successfully(HostType, broadcast_get_jobs_by_domain,
+                                            [Domain, Limit, Offset]),
+    Jobs = [row_to_job(HostType, R) || R <- Rows],
+    {ok, Jobs}.
 
 -spec get_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    {ok, broadcast_worker_state()} | {error, not_found | term()}.
+    {ok, broadcast_worker_state()} | {error, not_found}.
 get_worker_state(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_get_worker_state, [JobId]) of
         {selected, [{Cursor, RecipientsProcessed}]} ->
@@ -99,16 +91,14 @@ get_worker_state(HostType, JobId) ->
             {error, not_found}
     end.
 
--spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, not_found}.
+-spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
 set_job_started(HostType, JobId) ->
-    case execute_successfully(HostType, broadcast_set_job_started, [JobId]) of
-        {updated, 1} -> ok;
-        {updated, 0} -> {error, not_found}
-    end.
+    {updated, 1} = execute_successfully(HostType, broadcast_set_job_started, [JobId]),
+    ok.
 
 -spec update_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id(),
                           WorkerState :: broadcast_worker_state()) ->
-    ok | {error, term()}.
+    ok.
 update_worker_state(HostType, JobId, WorkerState) ->
     Cursor = null_if_undefined(WorkerState#broadcast_worker_state.cursor),
     RecipientsProcessed = WorkerState#broadcast_worker_state.recipients_processed,
@@ -116,55 +106,41 @@ update_worker_state(HostType, JobId, WorkerState) ->
                                         [JobId, Cursor, RecipientsProcessed]),
     ok.
 
--spec set_job_finished(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, term()}.
+-spec set_job_finished(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
 set_job_finished(HostType, JobId) ->
-    case execute_successfully(HostType, broadcast_set_job_finished, [JobId]) of
-        {updated, 1} -> ok;
-        {updated, 0} -> {error, not_found}
-    end.
+    {updated, 1} = execute_successfully(HostType, broadcast_set_job_finished, [JobId]),
+    ok.
 
--spec set_job_aborted(mongooseim:host_type(), JobId :: broadcast_job_id(), Reason :: binary()) ->
-    ok | {error, term()}.
-set_job_aborted(HostType, JobId, Reason) ->
-    case execute_successfully(HostType, broadcast_set_job_aborted, [Reason, JobId]) of
-        {updated, 1} -> ok;
-        {updated, 0} -> {error, not_found}
-    end.
+-spec set_job_aborted_error(mongooseim:host_type(), JobId :: broadcast_job_id(), Reason :: binary()) ->
+    ok.
+set_job_aborted_error(HostType, JobId, Reason) ->
+    {updated, 1} = execute_successfully(HostType, broadcast_set_job_aborted_error, [Reason, JobId]),
+    ok.
 
 -spec set_job_aborted_admin(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    ok | {error, term()}.
+    ok.
 set_job_aborted_admin(HostType, JobId) ->
-    case execute_successfully(HostType, broadcast_set_job_aborted_admin, [JobId]) of
-        {updated, 1} -> ok;
-        {updated, 0} -> {error, not_found}
-    end.
+    {updated, 1} = execute_successfully(HostType, broadcast_set_job_aborted_admin, [JobId]),
+    ok.
 
 -spec delete_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    ok | {error, term()}.
+    ok.
 delete_job(HostType, JobId) ->
-    %% First delete worker state (foreign key), then the job itself
-    _ = execute_successfully(HostType, broadcast_delete_worker_state, [JobId]),
-    case execute_successfully(HostType, broadcast_delete_job, [JobId]) of
-        {updated, 1} -> ok;
-        {updated, 0} -> {error, not_found}
-    end.
+    {updated, 1} = execute_successfully(HostType, broadcast_delete_job, [JobId]),
+    ok.
 
 -spec delete_inactive_jobs_by_domain(mongooseim:host_type(), jid:lserver()) ->
-    {ok, [integer()]} | {error, term()}.
+    {ok, [integer()]}.
 delete_inactive_jobs_by_domain(HostType, Domain) ->
-    %% Get IDs of inactive jobs first, then delete them
-    case execute_successfully(HostType, broadcast_get_inactive_job_ids_by_domain, [Domain]) of
-        {selected, Rows} ->
-            JobIds = [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows],
-            %% Delete worker states first (foreign key constraint)
-            lists:foreach(
-              fun(JobId) ->
-                  _ = execute_successfully(HostType, broadcast_delete_worker_state, [JobId])
-              end, JobIds),
-            %% Delete the jobs
-            _ = execute_successfully(HostType, broadcast_delete_inactive_jobs_by_domain, [Domain]),
-            {ok, JobIds}
-    end.
+    %% MySQL doesn't support RETURNING in DELETE, so we must SELECT first
+    {selected, Rows} = execute_successfully(HostType,
+                                            broadcast_get_inactive_job_ids_by_domain,
+                                            [Domain]),
+    JobIds = [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows],
+    {updated, _} = execute_successfully(HostType,
+                                        broadcast_delete_inactive_jobs_by_domain,
+                                        [Domain]),
+    {ok, JobIds}.
 
 %%====================================================================
 %% Internal functions
@@ -220,7 +196,7 @@ prepare_queries(HostType) ->
               "SET execution_state = 'finished', stopped_at = CURRENT_TIMESTAMP "
               "WHERE id = ? AND execution_state = 'running'">>),
 
-    prepare(broadcast_set_job_aborted, broadcast_jobs,
+    prepare(broadcast_set_job_aborted_error, broadcast_jobs,
             [abortion_reason, id],
             <<"UPDATE broadcast_jobs "
               "SET execution_state = 'abort_error', abortion_reason = ?, "
@@ -247,10 +223,6 @@ prepare_queries(HostType) ->
     prepare(broadcast_delete_job, broadcast_jobs,
             [id],
             <<"DELETE FROM broadcast_jobs WHERE id = ?">>),
-
-    prepare(broadcast_delete_worker_state, broadcast_worker_state,
-            [broadcast_id],
-            <<"DELETE FROM broadcast_worker_state WHERE broadcast_id = ?">>),
 
     prepare(broadcast_get_inactive_job_ids_by_domain, broadcast_jobs,
             [server],

@@ -25,7 +25,7 @@
               validation_error/0]).
 
 -type create_job_error() :: already_running | validation_error() | term().
--type stop_job_error() :: not_found.
+-type stop_job_error() :: not_live.
 -type validation_error() :: sender_not_found | {bad_parameter, atom()}.
 
 %% gen_server callbacks
@@ -125,7 +125,7 @@ handle_call({stop_job, JobId}, _From, State) ->
             persist_job_aborted_by_admin(State#state.host_type, JobId),
             {reply, ok, State};
         error ->
-            {reply, {error, not_found}, State}
+            {reply, {error, not_live}, State}
     end;
 handle_call({abort_running_jobs_for_domain, Domain}, _From, State) ->
     do_abort_running_jobs_for_domain(State#state.host_type, Domain),
@@ -161,18 +161,24 @@ code_change(_OldVsn, State, _Extra) ->
 do_create_job(HostType, JobSpec) ->
     case validate_job_spec(HostType, JobSpec) of
         ok ->
+            %% Get recipient count from auth backend
+            %% Small race condition risk: a user may be created between getting the count
+            %% and creating the job (which sets the snapshot timestamp), but this is acceptable
+            Domain = maps:get(domain, JobSpec),
+            RecipientCount = ejabberd_auth:get_vh_registered_users_number(Domain),
+            JobSpecWithCount = JobSpec#{recipient_count => RecipientCount},
             %% Create job in database (unique constraint enforces one running per domain)
-            case mod_broadcast_backend:create_job(HostType, JobSpec) of
+            case mod_broadcast_backend:create_job(HostType, JobSpecWithCount) of
                 {ok, JobId} ->
                     ?LOG_INFO(#{what => broadcast_job_created,
                                         job_id => JobId,
-                                        domain => maps:get(domain, JobSpec),
+                                        domain => maps:get(domain, JobSpecWithCount),
                                         host_type => HostType,
-                                        sender => jid:to_binary(maps:get(sender, JobSpec))}),
+                                        sender => jid:to_binary(maps:get(sender, JobSpecWithCount))}),
                     {ok, JobId};
                 {error, already_running} = Error ->
                     ?LOG_WARNING(#{what => broadcast_job_already_running,
-                                   domain => maps:get(domain, JobSpec),
+                                   domain => maps:get(domain, JobSpecWithCount),
                                    host_type => HostType}),
                     Error;
                 {error, _Reason} = Error ->
@@ -230,7 +236,7 @@ find_worker_pid(SupName, JobId) ->
 
 -spec do_abort_running_jobs_for_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 do_abort_running_jobs_for_domain(HostType, Domain) ->
-    case mod_broadcast_backend:get_running_jobs(HostType) of
+    try mod_broadcast_backend:get_running_jobs(HostType) of
         {ok, Jobs} ->
             DomainJobs = [Job#broadcast_job.id || Job <- Jobs, Job#broadcast_job.domain =:= Domain],
             %% TODO: Take into account that Pid may be 'restarting' or 'undefined'
@@ -246,10 +252,11 @@ do_abort_running_jobs_for_domain(HostType, Domain) ->
                         false ->
                             ok
                     end
-                end, get_supervisor_children(HostType));
-        {error, Reason} ->
+                end, get_supervisor_children(HostType))
+    catch
+        Class:Reason ->
             ?LOG_ERROR(#{what => broadcast_abort_get_jobs_failed,
-                         domain => Domain, reason => Reason})
+                         domain => Domain, class => Class, reason => Reason})
     end,
     ok.
 
@@ -259,16 +266,17 @@ do_abort_running_jobs_for_domain(HostType, Domain) ->
 
 -spec resume_running_jobs(#state{}) -> ok.
 resume_running_jobs(#state{host_type = HostType}) ->
-    case mod_broadcast_backend:get_running_jobs(HostType) of
+    try mod_broadcast_backend:get_running_jobs(HostType) of
         {ok, Jobs} ->
             RunningIds = get_live_job_ids(HostType),
             lists:foreach(fun(Job) ->
                 resume_job_if_needed(Job, RunningIds, HostType)
-            end, Jobs);
-        {error, Reason} ->
+            end, Jobs)
+    catch
+        Class:Reason ->
             ?LOG_ERROR(#{what => broadcast_resume_failed,
                          host_type => HostType,
-                         reason => Reason})
+                         class => Class, reason => Reason})
     end,
     ok.
 
