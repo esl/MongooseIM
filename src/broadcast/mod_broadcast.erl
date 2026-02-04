@@ -84,7 +84,7 @@ stop_supervisor(HostType) ->
 instrumentation(HostType) ->
     [
      %% Running jobs gauge (polled via probe)
-     {mod_broadcast_running_jobs, #{host_type => HostType},
+     {mod_broadcast_live_jobs, #{host_type => HostType},
       #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
      %% Job lifecycle counters
      {mod_broadcast_jobs_started, #{host_type => HostType},
@@ -106,7 +106,7 @@ instrumentation(HostType) ->
 
 -spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
           mongoose_instrument:measurements().
-probe(mod_broadcast_running_jobs, #{host_type := HostType}) ->
+probe(mod_broadcast_live_jobs, #{host_type := HostType}) ->
     SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
     try supervisor:which_children(SupName) of
         Children when is_list(Children) ->

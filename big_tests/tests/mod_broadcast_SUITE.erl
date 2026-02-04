@@ -19,6 +19,7 @@
          start_broadcast_already_running/1,
          start_broadcast_two_domains_both_ok/1,
          resume_jobs_after_restart/1,
+         manager_restart_is_idempotent_to_live_job_workers/1,
          abort_broadcast_running_ok/1,
          abort_broadcast_not_found/1,
          abort_broadcast_not_running_returns_not_running/1,
@@ -76,6 +77,7 @@ lifecycle_tests() ->
      start_broadcast_already_running,
      start_broadcast_two_domains_both_ok,
      resume_jobs_after_restart,
+     manager_restart_is_idempotent_to_live_job_workers,
      abort_broadcast_running_ok,
      abort_broadcast_not_found,
      abort_broadcast_not_running_returns_not_running,
@@ -212,6 +214,29 @@ resume_jobs_after_restart(Config) ->
 
         true = does_worker_for_job_exist(DomainA, JobIdA),
         false = does_worker_for_job_exist(DomainB, JobIdB)
+    end).
+
+manager_restart_is_idempotent_to_live_job_workers(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = domain(),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(HostType, AliceJid),
+        {ok, JobId} = start_broadcast(JobSpec),
+
+        wait_until_worker_started(HostType, JobId),
+        WorkersBefore = get_worker_ids_and_pids(HostType),
+        ?assert(lists:keymember(JobId, 1, WorkersBefore)),
+
+        ManagerPid = get_manager_pid(HostType),
+        MonitorRef = erlang:monitor(process, ManagerPid),
+
+        exit(ManagerPid, kill),
+        ok = wait_for_manager_down(MonitorRef, ManagerPid),
+
+        wait_for_manager_restart(HostType, ManagerPid),
+
+        WorkersAfter = get_worker_ids_and_pids(HostType),
+        ?assertEqual(lists:sort(WorkersBefore), lists:sort(WorkersAfter))
     end).
 
 abort_broadcast_running_ok(Config) ->
@@ -527,12 +552,21 @@ get_broadcasts_pagination_basic(Config) ->
 %% Test helpers
 %%====================================================================
 
+ensure_mod_broadcast_started(HostType) ->
+    dynamic_modules:ensure_modules(HostType, [{mod_broadcast, #{backend => rdbms}}]).
+
+stop_mod_broadcast(HostType) ->
+    {stopped, _} = dynamic_modules:stop(HostType, mod_broadcast).
+
 assert_non_neg_integer(Value) when is_integer(Value), Value >= 0 ->
     ok.
 
 assert_ids_in_jobs(ExpectedIds, Jobs) ->
     ActualIds = [maps:get(id, broadcast_job_to_map(Job)) || Job <- Jobs],
     ?assertEqual(ExpectedIds, ActualIds).
+
+unknown_domain() ->
+    <<"mystery-pizza.invalid">>.
 
 valid_job_spec(Domain, SenderJid) ->
     valid_job_spec_named(Domain, SenderJid, <<"test_broadcast">>).
@@ -602,13 +636,31 @@ wait_until_job_state(Domain, JobId, ExpectedState) ->
 
 wait_for_running_jobs_count(ExpectedCount) ->
     F = fun(#{count := Count}) -> Count =:= ExpectedCount end,
-    instrument_helper:wait_and_assert_new(mod_broadcast_running_jobs, labels(), F).
+    instrument_helper:wait_and_assert_new(mod_broadcast_live_jobs, labels(), F).
+
+wait_until_worker_started(HostType, JobId) ->
+    wait_helper:wait_until(fun() -> does_worker_for_job_exist(HostType, JobId) end, true).
+
+wait_for_manager_down(MonitorRef, ManagerPid) ->
+    receive
+        {'DOWN', MonitorRef, process, ManagerPid, _Reason} ->
+            ok
+    after 5000 ->
+        {error, manager_stop_timeout}
+    end.
+
+wait_for_manager_restart(HostType, OldPid) ->
+    wait_helper:wait_until(
+        fun() -> get_manager_pid(HostType) end,
+        undefined,
+        #{validator => fun(Pid) -> is_pid(Pid) andalso Pid =/= OldPid end,
+          name => wait_for_manager_restart}).
 
 labels() ->
     #{host_type => domain_helper:host_type()}.
 
 %%====================================================================
-%% RPC helpers
+%% RPC proxies
 %%====================================================================
 
 call_api(Function, Args) ->
@@ -640,11 +692,13 @@ broadcast_job_to_map(JobRecord) ->
 call_manager(Function, Args) ->
     rpc(mim(), broadcast_manager, Function, Args).
 
-ensure_mod_broadcast_started(HostType) ->
-    dynamic_modules:ensure_modules(HostType, [{mod_broadcast, #{backend => rdbms}}]).
+get_manager_pid(HostType) ->
+    ProcName = rpc(mim(), gen_mod, get_module_proc, [HostType, broadcast_manager]),
+    rpc(mim(), erlang, whereis, [ProcName]).
 
-stop_mod_broadcast(HostType) ->
-    {stopped, _} = dynamic_modules:stop(HostType, mod_broadcast).
+get_worker_ids_and_pids(HostType) ->
+    Children = call_manager(get_supervisor_children, [HostType]),
+    [{Id, Pid} || {Id, Pid, _Type, _Modules} <- Children, is_integer(Id), is_pid(Pid)].
 
 clean_broadcast_jobs() ->
     ok = call_manager(abort_running_jobs_for_domain, [domain(), domain()]),
@@ -655,6 +709,10 @@ clean_broadcast_jobs() ->
 
 does_worker_for_job_exist(Domain, JobId) ->
     call_manager(does_worker_for_job_exist, [Domain, JobId]).
+
+%%====================================================================
+%% Direct DB operations
+%%====================================================================
 
 update_job_owner_node(Domain, JobId, OwnerNode) ->
     Query = ["UPDATE broadcast_jobs SET owner_node = ",
@@ -676,13 +734,6 @@ delete_rogue_broadcast_job(Domain) ->
 
 sql_query(HostType, Query) ->
     rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
-
-%%====================================================================
-%% Other
-%%====================================================================
-
-unknown_domain() ->
-    <<"mystery-pizza.invalid">>.
 
 %%====================================================================
 %% User management helpers

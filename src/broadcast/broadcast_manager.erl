@@ -1,9 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @doc Broadcast manager process (per host type).
 %%%
-%%% Manages broadcast job lifecycle:
-%%% - Starting new jobs (creates DB entry + spawns worker)
-%%% - Stopping running jobs
+%%% Manages broadcast job lifecycle
 %%%-------------------------------------------------------------------
 
 -module(broadcast_manager).
@@ -18,7 +16,8 @@
 
 %% Test-only API (will become proper user API in future iteration)
 -export([abort_running_jobs_for_domain/2,
-         does_worker_for_job_exist/2]).
+         does_worker_for_job_exist/2,
+         get_supervisor_children/1]).
 
 %% Error types
 -export_type([create_job_error/0,
@@ -80,6 +79,10 @@ abort_running_jobs_for_domain(HostType, Domain) ->
 does_worker_for_job_exist(HostType, JobId) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, {does_worker_for_job_exist, JobId}).
+
+-spec get_supervisor_children(mongooseim:host_type()) -> [supervisor:child_spec()].
+get_supervisor_children(HostType) ->
+    supervisor:which_children(get_sup_name(HostType)).
 
 %%====================================================================
 %% gen_server callbacks
@@ -229,7 +232,6 @@ find_worker_pid(SupName, JobId) ->
 do_abort_running_jobs_for_domain(HostType, Domain) ->
     case mod_broadcast_backend:get_running_jobs(HostType) of
         {ok, Jobs} ->
-            SupName = get_sup_name(HostType),
             DomainJobs = [Job#broadcast_job.id || Job <- Jobs, Job#broadcast_job.domain =:= Domain],
             %% TODO: Take into account that Pid may be 'restarting' or 'undefined'
             lists:foreach(fun({WorkerId, WorkerPid, _, _}) ->
@@ -244,7 +246,7 @@ do_abort_running_jobs_for_domain(HostType, Domain) ->
                         false ->
                             ok
                     end
-                end, supervisor:which_children(SupName));
+                end, get_supervisor_children(HostType));
         {error, Reason} ->
             ?LOG_ERROR(#{what => broadcast_abort_get_jobs_failed,
                          domain => Domain, reason => Reason})
@@ -259,9 +261,7 @@ do_abort_running_jobs_for_domain(HostType, Domain) ->
 resume_running_jobs(#state{host_type = HostType}) ->
     case mod_broadcast_backend:get_running_jobs(HostType) of
         {ok, Jobs} ->
-            SupName = get_sup_name(HostType),
-            RunningIds = get_running_job_ids(SupName),
-
+            RunningIds = get_live_job_ids(HostType),
             lists:foreach(fun(Job) ->
                 resume_job_if_needed(Job, RunningIds, HostType)
             end, Jobs);
@@ -272,20 +272,16 @@ resume_running_jobs(#state{host_type = HostType}) ->
     end,
     ok.
 
--spec get_running_job_ids(atom()) -> sets:set(broadcast_job_id()).
-get_running_job_ids(SupName) ->
-    Children = supervisor:which_children(SupName),
-    lists:foldl(fun({Id, _Pid, _Type, _Modules}, Acc) when is_integer(Id) ->
-        sets:add_element(Id, Acc);
-    (_, Acc) ->
-        Acc
-    end, sets:new(), Children).
+-spec get_live_job_ids(atom()) -> sets:set(broadcast_job_id()).
+get_live_job_ids(HostType) ->
+    Children = get_supervisor_children(HostType),
+    sets:from_list([Id || {Id, _Pid, _Type, _Modules} <- Children]).
 
 -spec resume_job_if_needed(broadcast_job(), sets:set(broadcast_job_id()), mongooseim:host_type()) -> ok.
-resume_job_if_needed(#broadcast_job{id = JobId} = Job, RunningIds, HostType) ->
-    case sets:is_element(JobId, RunningIds) of
+resume_job_if_needed(#broadcast_job{id = JobId} = Job, LiveIds, HostType) ->
+    case sets:is_element(JobId, LiveIds) of
         true ->
-            ?LOG_DEBUG(#{what => broadcast_job_already_running, job_id => JobId});
+            ?LOG_DEBUG(#{what => broadcast_job_already_live, job_id => JobId});
         false ->
             case start_worker(HostType, JobId) of
                 {ok, _WorkerPid} ->
