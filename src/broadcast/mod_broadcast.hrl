@@ -31,7 +31,8 @@
 
 -record(broadcast_worker_state, {
     cursor :: binary() | undefined,
-    recipients_processed :: recipients_processed()
+    recipients_processed :: recipients_processed(),
+    finished :: boolean()
 }).
 
 -type broadcast_worker_state() :: #broadcast_worker_state{}.

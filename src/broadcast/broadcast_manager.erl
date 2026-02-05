@@ -204,13 +204,7 @@ start_worker(HostType, JobId) ->
 persist_job_started(HostType, JobId) ->
     mongoose_instrument:execute(mod_broadcast_jobs_started,
                                 #{host_type => HostType}, #{count => 1}),
-    case mod_broadcast_backend:set_job_started(HostType, JobId) of
-        ok -> ok;
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => broadcast_start_persist_failed,
-                           job_id => JobId, reason => Reason})
-    end,
-    ok.
+    mod_broadcast_backend:set_job_started(HostType, JobId).
 
 -spec persist_job_aborted_by_admin(mongooseim:host_type(), broadcast_job_id()) -> ok.
 persist_job_aborted_by_admin(HostType, JobId) ->
@@ -218,13 +212,7 @@ persist_job_aborted_by_admin(HostType, JobId) ->
                                 #{host_type => HostType}, #{count => 1}),
     ?LOG_INFO(#{what => broadcast_job_aborted_by_admin,
                 job_id => JobId}),
-    case mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
-        ok -> ok;
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => broadcast_abort_admin_persist_failed,
-                           job_id => JobId, reason => Reason})
-    end,
-    ok.
+    mod_broadcast_backend:set_job_aborted_admin(HostType, JobId).
 
 -spec find_worker_pid(atom(), broadcast_job_id()) -> {ok, pid()} | error.
 find_worker_pid(SupName, JobId) ->
@@ -247,7 +235,7 @@ do_abort_running_jobs_for_domain(HostType, Domain) ->
                                         job_id => WorkerId,
                                         domain => Domain}),
                             % TODO: Proper error handling
-                            catch broadcast_worker:stop(WorkerPid),
+                            ok = broadcast_worker:stop(WorkerPid),
                             persist_job_aborted_by_admin(HostType, WorkerId);
                         false ->
                             ok

@@ -151,7 +151,7 @@ db_get_running_jobs_error_in_resume(Config) ->
 
     meck:expect(mod_broadcast_backend, get_running_jobs,
                 fun(_HostType) ->
-                    {error, somebody_set_us_up_the_bomb}
+                    meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
 
     {ok, NewPid} = start_test_manager(),
@@ -203,7 +203,7 @@ db_get_running_jobs_error_in_abort_for_domain(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, get_running_jobs,
                 fun(_HostType) ->
-                    {error, somebody_set_us_up_the_bomb}
+                    meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
 
     ok = gen_server:call(Pid, {abort_running_jobs_for_domain, <<"test.domain">>}),
@@ -246,10 +246,9 @@ supervisor_start_child_error_on_resume(Config) ->
 
 stop_job_when_worker_not_found(Config) ->
     Pid = ?config(manager_pid, Config),
-    meck:expect(supervisor, which_children,
-                fun(_SupName) -> [] end),
+    meck:expect(supervisor, which_children, fun(_SupName) -> [] end),
 
-    {error, not_found} = gen_server:call(Pid, {stop_job, 12345}),
+    {error, not_live} = gen_server:call(Pid, {stop_job, 12345}),
     assert_manager_survived(Pid).
 
 %%====================================================================
@@ -269,6 +268,10 @@ setup_mocks_for_manager() ->
     meck:expect(ejabberd_auth, does_user_exist,
                 fun(_HostType, _Jid, stored) ->
                     true
+                end),
+    meck:expect(ejabberd_auth, get_vh_registered_users_number,
+                fun(_Domain) ->
+                    {ok, 1000}
                 end),
 
     meck:new(supervisor, [no_link, unstick, passthrough]),

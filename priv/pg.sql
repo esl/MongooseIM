@@ -554,5 +554,6 @@ CREATE TABLE broadcast_worker_state (
     broadcast_id INTEGER NOT NULL REFERENCES broadcast_jobs(id) ON DELETE CASCADE,
     cursor_user VARCHAR(250),
     recipients_processed INTEGER NOT NULL DEFAULT 0,
+    finished BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (broadcast_id)
 );

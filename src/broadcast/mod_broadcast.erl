@@ -24,6 +24,7 @@
 
 -include("mongoose_config_spec.hrl").
 -include("mod_broadcast.hrl").
+-include("mongoose.hrl").
 
 -export_type([broadcast_job_id/0, broadcast_job/0, broadcast_worker_state/0, execution_state/0, recipient_group/0]).
 
@@ -110,6 +111,8 @@ probe(mod_broadcast_live_jobs, #{host_type := HostType}) ->
     SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
     try supervisor:which_children(SupName) of
         Children when is_list(Children) ->
+            ?LOG_INFO(#{what => broadcast_live_jobs_probe,
+                                 host_type => HostType, children => Children}),
             #{count => length(Children)}
     catch
         exit:{noproc, _} ->

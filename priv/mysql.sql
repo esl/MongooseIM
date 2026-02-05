@@ -611,6 +611,7 @@ CREATE TABLE broadcast_worker_state (
     broadcast_id INT NOT NULL,
     cursor_user VARCHAR(250),
     recipients_processed INT NOT NULL DEFAULT 0,
+    finished BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (broadcast_id),
     FOREIGN KEY (broadcast_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4

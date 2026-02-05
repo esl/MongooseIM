@@ -95,7 +95,16 @@ init({HostType, JobId}) ->
                         domain => Job#broadcast_job.domain,
                         total_recipients => Job#broadcast_job.recipient_count,
                         processed => WorkerState#broadcast_worker_state.recipients_processed}),
-            {ok, loading_batch, Data, [{next_event, internal, load_batch}]};
+            case WorkerState#broadcast_worker_state.finished of
+                true ->
+                    %% Job was already finished, go directly to finished state
+                    %% This can happen if job execution state was not persisted properly
+                    %% e.g. due to crash after persisting worker state but before updating job state
+                    ?LOG_INFO(#{what => broadcast_worker_already_finished, job_id => JobId}),
+                    {ok, finished, Data, [{next_event, internal, finalize}]};
+                false ->
+                    {ok, loading_batch, Data, [{next_event, internal, load_batch}]}
+            end;
         {error, Reason} ->
             ?LOG_ERROR(#{what => broadcast_worker_load_failed,
                          job_id => JobId, reason => Reason}),
@@ -125,11 +134,11 @@ loading_batch(Origin, load_batch, Data)
                     {next_state, sending_batch, NewData,
                      [{next_event, internal, send_one}]};
                 {error, Reason} ->
-                    FinalizeEvent = {finalize, {"load_batch failed: ~p", [Reason]}},
+                    FinalizeEvent = {finalize, {load_batch_failed, Reason}},
                     {next_state, aborted, Data, [{next_event, internal, FinalizeEvent}]}
             end;
         {error, Reason} ->
-            FinalizeEvent = {finalize, {"persist_state failed: ~p", [Reason]}},
+            FinalizeEvent = {finalize, {persist_state_failed, Reason}},
             {next_state, aborted, Data, [{next_event, internal, FinalizeEvent}]}
     end;
 loading_batch({call, From}, stop, _Data) ->
@@ -141,22 +150,17 @@ loading_batch(EventType, Event, Data) ->
     gen_statem:state_function_result(state()).
 sending_batch(EventType, send_one, #data{current_batch = [], state = WorkerState} = Data)
   when EventType == internal; EventType == state_timeout ->
-    %% Batch complete, check if more batches needed
     NewData = Data#data{batch_t0 = undefined, current_batch = []},
     case WorkerState#broadcast_worker_state.cursor of
         undefined ->
-            %% No more recipients: finalize job
             {next_state, finished, NewData, [{next_event, internal, finalize}]};
         _Cursor ->
-            %% More recipients to process: load next batch
             {next_state, loading_batch, NewData, [{next_event, internal, load_batch}]}
     end;
 sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} = Data)
   when EventType == internal; EventType == state_timeout ->
     #data{host_type = HostType, job = Job, state = WorkerState, batch_t0 = T0} = Data,
-    %% Send message to this recipient (log on failure but continue)
     SendResult = send_message(Job, RecipientJid),
-    %% Instrument recipient processing
     mongoose_instrument:execute(mod_broadcast_recipients_processed,
                                 #{host_type => HostType}, #{count => 1}),
     case SendResult of
@@ -194,16 +198,14 @@ sending_batch(EventType, Event, Data) ->
     gen_statem:state_function_result(state()).
 finished(internal, finalize, Data) ->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
-    %% Persist final worker state (best effort)
-    case persist_worker_state(HostType, Job#broadcast_job.id, WorkerState) of
+    %% Mark worker state as finished and persist (best effort)
+    FinalState = WorkerState#broadcast_worker_state{finished = true},
+    case persist_worker_state(HostType, Job#broadcast_job.id, FinalState) of
         ok -> ok;
         {error, Reason} ->
             ?LOG_WARNING(#{what => broadcast_final_state_persist_failed,
                            job_id => Job#broadcast_job.id, reason => Reason})
     end,
-    persist_completion(HostType, Job),
-    mongoose_instrument:execute(mod_broadcast_jobs_finished,
-                                #{host_type => HostType}, #{count => 1}),
     ?LOG_INFO(#{what => broadcast_worker_finished,
                 job_id => Job#broadcast_job.id,
                 domain => Job#broadcast_job.domain,
@@ -214,16 +216,12 @@ finished(EventType, Event, Data) ->
 
 -spec aborted(gen_statem:event_type(), term(), data()) ->
     gen_statem:state_function_result(state()).
-aborted(internal, {finalize, {Fmt, Args}}, Data) ->
-    #data{host_type = HostType, job = Job} = Data,
-    AbortReason = abort_job(HostType, Job#broadcast_job.id, Fmt, Args),
-    mongoose_instrument:execute(mod_broadcast_jobs_aborted_error,
-                                #{host_type => HostType}, #{count => 1}),
+aborted(internal, {finalize, Error}, #data{job = Job} = Data) ->
     ?LOG_ERROR(#{what => broadcast_worker_aborted,
                  job_id => Job#broadcast_job.id,
                  domain => Job#broadcast_job.domain,
-                 reason => AbortReason}),
-    {stop, {abort, AbortReason}, Data};
+                 reason => Error}),
+    {stop, {error, Error}, Data};
 aborted(EventType, Event, Data) ->
     handle_common(EventType, Event, aborted, Data).
 
@@ -338,24 +336,9 @@ build_message_stanza(Job, RecipientJid, MessageId) ->
 persist_worker_state(HostType, JobId, State) ->
     mod_broadcast_backend:update_worker_state(HostType, JobId, State).
 
--spec persist_completion(mongooseim:host_type(), broadcast_job()) -> ok | {error, term()}.
-persist_completion(HostType, Job) ->
-    mod_broadcast_backend:set_job_finished(HostType, Job#broadcast_job.id).
-
--spec abort_job(mongooseim:host_type(), broadcast_job_id(), string(), [term()]) -> binary().
-abort_job(HostType, JobId, Fmt, Args) ->
-    Reason = iolist_to_binary(io_lib:format(Fmt, Args)),
-    case mod_broadcast_backend:set_job_aborted(HostType, JobId, Reason) of
-        ok -> ok;
-        {error, PersistError} ->
-            ?LOG_WARNING(#{what => broadcast_abort_persist_failed,
-                           job_id => JobId, reason => PersistError})
-    end,
-    Reason.
-
 -spec maybe_init_worker_state(broadcast_worker_state() | undefined) ->
     broadcast_worker_state().
 maybe_init_worker_state(WorkerState) when WorkerState =/= undefined ->
     WorkerState;
 maybe_init_worker_state(undefined) ->
-    #broadcast_worker_state{cursor = undefined, recipients_processed = 0}.
+    #broadcast_worker_state{cursor = undefined, recipients_processed = 0, finished = false}.

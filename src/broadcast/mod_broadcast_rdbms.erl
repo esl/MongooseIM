@@ -67,7 +67,8 @@ get_job(HostType, JobId) ->
 -spec get_running_jobs(mongooseim:host_type()) -> {ok, [broadcast_job()]}.
 get_running_jobs(HostType) ->
     OwnerNode = atom_to_binary(node(), utf8),
-    {selected, Rows} = execute_successfully(HostType, broadcast_get_running_jobs, [OwnerNode]),
+    {selected, Rows} = execute_successfully(HostType, broadcast_get_running_jobs,
+                                            [HostType, HostType, OwnerNode]),
     Jobs = [row_to_job(HostType, R) || R <- Rows],
     {ok, Jobs}.
 
@@ -84,9 +85,10 @@ get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
     {ok, broadcast_worker_state()} | {error, not_found}.
 get_worker_state(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_get_worker_state, [JobId]) of
-        {selected, [{Cursor, RecipientsProcessed}]} ->
+        {selected, [{Cursor, RecipientsProcessed, Finished}]} ->
             {ok, #broadcast_worker_state{cursor = maybe_null(Cursor),
-                                         recipients_processed = RecipientsProcessed}};
+                                         recipients_processed = RecipientsProcessed,
+                                         finished = mongoose_rdbms:to_bool(Finished)}};
         {selected, []} ->
             {error, not_found}
     end.
@@ -102,8 +104,9 @@ set_job_started(HostType, JobId) ->
 update_worker_state(HostType, JobId, WorkerState) ->
     Cursor = null_if_undefined(WorkerState#broadcast_worker_state.cursor),
     RecipientsProcessed = WorkerState#broadcast_worker_state.recipients_processed,
+    Finished = WorkerState#broadcast_worker_state.finished,
     {updated, _} = execute_successfully(HostType, broadcast_upsert_worker_state,
-                                        [JobId, Cursor, RecipientsProcessed]),
+                                        [JobId, Cursor, RecipientsProcessed, Finished]),
     ok.
 
 -spec set_job_finished(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
@@ -167,18 +170,20 @@ prepare_queries(HostType) ->
               "WHERE j.id = ?">>),
 
     prepare(broadcast_get_running_jobs, broadcast_jobs,
-            [owner_node],
+            [host_type, host_type, owner_node],
             <<"SELECT j.id, j.name, j.server, j.from_jid, j.subject, j.message, j.rate, "
               "j.recipient_group, j.owner_node, j.recipient_count, "
               "COALESCE(ws.recipients_processed, 0), "
               "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
               "FROM broadcast_jobs j "
               "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-              "WHERE j.owner_node = ? AND j.execution_state = 'running'">>),
+              "LEFT JOIN domain_settings ds ON j.server = ds.domain "
+              "WHERE (ds.host_type = ? OR (ds.host_type IS NULL AND j.server = ?)) "
+              " AND j.owner_node = ? AND j.execution_state = 'running'">>),
 
     prepare(broadcast_get_worker_state, broadcast_worker_state,
             [broadcast_id],
-            <<"SELECT cursor_user, recipients_processed FROM broadcast_worker_state "
+            <<"SELECT cursor_user, recipients_processed, finished FROM broadcast_worker_state "
               "WHERE broadcast_id = ?">>),
 
     prepare(broadcast_set_job_started, broadcast_jobs,
@@ -187,7 +192,7 @@ prepare_queries(HostType) ->
               " WHERE id = ?">>),
 
     prepare(broadcast_upsert_worker_state, broadcast_worker_state,
-            [broadcast_id, cursor_user, recipients_processed],
+            [broadcast_id, cursor_user, recipients_processed, finished],
             upsert_worker_state_query(HostType)),
 
     prepare(broadcast_set_job_finished, broadcast_jobs,
@@ -238,16 +243,18 @@ prepare_queries(HostType) ->
 upsert_worker_state_query(HostType) ->
     case mongoose_rdbms:db_engine(HostType) of
         pgsql ->
-            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed) "
-              "VALUES (?, ?, ?) "
+            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished) "
+              "VALUES (?, ?, ?, ?) "
               "ON CONFLICT (broadcast_id) DO UPDATE "
               "SET cursor_user = EXCLUDED.cursor_user, "
-              "recipients_processed = EXCLUDED.recipients_processed">>;
+              "recipients_processed = EXCLUDED.recipients_processed, "
+              "finished = EXCLUDED.finished">>;
         mysql ->
-            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed) "
-              "VALUES (?, ?, ?) "
+            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished) "
+              "VALUES (?, ?, ?, ?) "
               "ON DUPLICATE KEY UPDATE cursor_user = VALUES(cursor_user), "
-              "recipients_processed = VALUES(recipients_processed)">>
+              "recipients_processed = VALUES(recipients_processed), "
+              "finished = VALUES(finished)">>
     end.
 
 row_to_job(HostType, {JobId, Name, Server, FromJid, Subject, Message, Rate,
