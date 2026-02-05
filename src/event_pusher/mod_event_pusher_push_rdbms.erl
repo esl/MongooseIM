@@ -115,7 +115,7 @@ prepare_queries() ->
     mongoose_rdbms:prepare(event_pusher_push_delete_domain, event_pusher_push_subscription,
                            [owner_jid],
                            <<"DELETE FROM event_pusher_push_subscription "
-                             "WHERE owner_jid LIKE ?">>),
+                             "WHERE owner_jid LIKE ? ESCAPE '$'">>),
     ok.
 
 -spec execute_insert(mongooseim:host_type(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
@@ -150,6 +150,8 @@ execute_delete(HostType, OwnerJid, Node, PubSubJid) ->
 remove_domain(HostType, Domain) ->
     %% Match all subscriptions owned by users of the given domain
     %% Users are stored as 'user@domain' in owner_jid, so we use LIKE '%@domain'
-    LikePattern = <<"%@", Domain/binary>>,
+    %% Escape special LIKE characters (%, _, $) to prevent matching unintended domains
+    EscapedDomain = mongoose_rdbms:escape_prepared_like(Domain),
+    LikePattern = <<"%@", EscapedDomain/binary>>,
     mongoose_rdbms:execute_successfully(HostType, event_pusher_push_delete_domain, [LikePattern]),
     ok.

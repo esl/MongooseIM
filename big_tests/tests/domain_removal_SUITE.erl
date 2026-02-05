@@ -51,7 +51,8 @@ groups() ->
      {markers_removal, [], [markers_removal]},
      {vcard_removal, [], [vcard_removal]},
      {last_removal, [], [last_removal]},
-     {push_removal, [], [push_removal]},
+     {push_removal, [], [push_removal,
+                         push_removal_keeps_other_domain_subscriptions]},
      {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
 
@@ -477,6 +478,41 @@ push_removal(Config) ->
         {ok, ServicesAfter} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
                                   [host_type(), AliceJid]),
         ?assertMatch([], ServicesAfter)
+    end).
+
+push_removal_keeps_other_domain_subscriptions(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
+        %% Both Alice (domain()) and AliceBis (other domain) enable push notifications
+        PubsubJID = <<"pubsub.localhost">>,
+        Node = <<"test_node">>,
+        EnableStanza = push_helper:enable_stanza(PubsubJID, Node),
+
+        escalus:send(Alice, EnableStanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+        escalus:send(AliceBis, EnableStanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(AliceBis)),
+
+        %% Verify both subscriptions exist
+        AliceJid = jid:from_binary(escalus_client:short_jid(Alice)),
+        AliceBisJid = jid:from_binary(escalus_client:short_jid(AliceBis)),
+
+        {ok, AliceServices} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                  [host_type(), AliceJid]),
+        {ok, AliceBisServices} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                      [host_type(), AliceBisJid]),
+        ?assertMatch([_], AliceServices),
+        ?assertMatch([_], AliceBisServices),
+
+        %% Remove domain() and verify only Alice's subscription is removed
+        run_remove_domain(),
+
+        {ok, AliceServicesAfter} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                       [host_type(), AliceJid]),
+        {ok, AliceBisServicesAfter} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                          [host_type(), AliceBisJid]),
+        ?assertMatch([], AliceServicesAfter),
+        ?assertMatch([_], AliceBisServicesAfter)
     end).
 
 removal_stops_if_handler_fails(Config0) ->
