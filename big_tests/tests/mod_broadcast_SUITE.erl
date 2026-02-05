@@ -726,7 +726,20 @@ clean_broadcast_jobs() ->
     {selected, []} = sql_query(domain(), ["SELECT * FROM broadcast_jobs"]),
     [] = get_worker_ids_and_pids(domain()),
     [] = get_worker_ids_and_pids(secondary_domain()),
+    assert_empty_worker_map(domain()),
+    assert_empty_worker_map(secondary_domain()),
     ok.
+
+assert_empty_worker_map(HostType) ->
+    WorkerMap = call_manager(get_worker_map, [HostType]),
+    case maps:size(WorkerMap) of
+        0 ->
+            ok;
+        _Positive ->
+            WorkerList = [ {JobId, Pid, is_process_alive(Pid)}
+                          || {JobId, Pid} <- maps:to_list(WorkerMap)],
+            ct:fail({manager_has_live_workers, HostType, WorkerList})
+    end.
 
 does_worker_for_job_exist(Domain, JobId) ->
     call_manager(does_worker_for_job_exist, [Domain, JobId]).

@@ -42,7 +42,13 @@
     %% supervisor_error_paths
     supervisor_start_child_error_on_job_creation/1,
     supervisor_start_child_error_on_resume/1,
-    stop_job_when_worker_not_found/1
+    stop_job_when_worker_not_found/1,
+    %% validation_error_paths
+    start_job_fails_when_recipient_count_zero_returns_no_recipients/1,
+    start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients/1,
+    %% worker_down_paths
+    worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map/1,
+    tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path/1
 ]).
 
 %%====================================================================
@@ -52,12 +58,16 @@
 all() ->
     [{group, manager_unexpected_messages},
      {group, db_error_paths},
-     {group, supervisor_error_paths}].
+    {group, supervisor_error_paths},
+    {group, validation_error_paths},
+    {group, worker_down_paths}].
 
 groups() ->
     [{manager_unexpected_messages, [], manager_unexpected_messages_tests()},
      {db_error_paths, [], db_error_path_tests()},
-     {supervisor_error_paths, [], supervisor_error_path_tests()}].
+    {supervisor_error_paths, [], supervisor_error_path_tests()},
+    {validation_error_paths, [], validation_error_path_tests()},
+    {worker_down_paths, [], worker_down_path_tests()}].
 
 manager_unexpected_messages_tests() ->
     [handle_call_unknown_returns_not_implemented_and_alive,
@@ -75,6 +85,14 @@ supervisor_error_path_tests() ->
     [supervisor_start_child_error_on_job_creation,
      supervisor_start_child_error_on_resume,
      stop_job_when_worker_not_found].
+
+validation_error_path_tests() ->
+    [start_job_fails_when_recipient_count_zero_returns_no_recipients,
+     start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients].
+
+worker_down_path_tests() ->
+    [worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map,
+     tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path].
 
 %%====================================================================
 %% Suite setup/teardown
@@ -139,7 +157,7 @@ db_create_job_error_propagates(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, create_job,
                 fun(_HostType, _JobSpec) ->
-                    {error, somebody_set_us_up_the_bomb}
+                    meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
     JobSpec = valid_job_spec(),
     {error, somebody_set_us_up_the_bomb} = gen_server:call(Pid, {start_job, JobSpec}),
@@ -165,7 +183,7 @@ db_set_job_started_error_logged(Config) ->
                 end),
     meck:expect(mod_broadcast_backend, set_job_started,
                 fun(_HostType, _JobId) ->
-                    {error, somebody_set_us_up_the_bomb}
+                    meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
     meck:expect(supervisor, start_child,
                 fun(_SupName, _ChildSpec) ->
@@ -181,9 +199,13 @@ db_set_job_aborted_admin_error_logged(Config) ->
     JobId = 99999,
 
     FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
-    meck:expect(supervisor, which_children,
-                fun(_SupName) ->
-                    [{JobId, FakeWorkerPid, worker, [broadcast_worker]}]
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    {ok, JobId}
+                end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) ->
+                    {ok, FakeWorkerPid}
                 end),
     meck:expect(broadcast_worker, stop,
                 fun(WorkerPid) ->
@@ -192,9 +214,11 @@ db_set_job_aborted_admin_error_logged(Config) ->
                 end),
     meck:expect(mod_broadcast_backend, set_job_aborted_admin,
                 fun(_HostType, _JobId) ->
-                    {error, somebody_set_us_up_the_bomb}
+                    meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
 
+    JobSpec = valid_job_spec(),
+    {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
     ok = gen_server:call(Pid, {stop_job, JobId}),
     assert_manager_survived(Pid),
     true = meck:called(broadcast_worker, stop, [FakeWorkerPid]).
@@ -207,6 +231,38 @@ db_get_running_jobs_error_in_abort_for_domain(Config) ->
                 end),
 
     ok = gen_server:call(Pid, {abort_running_jobs_for_domain, <<"test.domain">>}),
+    assert_manager_survived(Pid).
+
+%% ====================================================================
+%% Validation error path tests
+%% ====================================================================
+
+start_job_fails_when_recipient_count_zero_returns_no_recipients(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(ejabberd_auth, get_vh_registered_users_number,
+                fun(_Domain) -> 0 end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    ct:fail(create_job_should_not_be_called)
+                end),
+
+    JobSpec = valid_job_spec(),
+    {error, no_recipients} = gen_server:call(Pid, {start_job, JobSpec}),
+    assert_manager_survived(Pid).
+
+start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(ejabberd_auth, get_vh_registered_users_number,
+                fun(_Domain) ->
+                    meck:exception(error, auth_backend_boom)
+                end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    ct:fail(create_job_should_not_be_called)
+                end),
+
+    JobSpec = valid_job_spec(),
+    {error, cannot_count_recipients} = gen_server:call(Pid, {start_job, JobSpec}),
     assert_manager_survived(Pid).
 
 %%====================================================================
@@ -251,6 +307,66 @@ stop_job_when_worker_not_found(Config) ->
     {error, not_live} = gen_server:call(Pid, {stop_job, 12345}),
     assert_manager_survived(Pid).
 
+%% ====================================================================
+%% Worker down path tests
+%% ====================================================================
+
+worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) ->
+    Pid = ?config(manager_pid, Config),
+    JobId = 88888,
+
+    FakeWorkerPid = spawn(fun() -> receive go_boom -> error(boom) end end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) -> {ok, JobId} end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_error,
+                fun(_HostType, _JobId, _ReasonBin) -> ok end),
+
+    JobSpec = valid_job_spec(),
+    {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
+    wait_for_worker(Pid, JobId, FakeWorkerPid),
+
+    FakeWorkerPid ! go_boom,
+
+    wait_helper:wait_until(fun() ->
+        WorkerMap = gen_server:call(Pid, get_worker_map),
+        not maps:is_key(JobId, WorkerMap) orelse WorkerMap
+    end, true),
+    true = meck:called(mongoose_instrument, execute,
+                       [mod_broadcast_jobs_aborted_error, #{host_type => host_type()}, #{count => 1}]),
+    true = meck:called(mod_broadcast_backend, set_job_aborted_error,
+                       [host_type(), JobId, '_']),
+    assert_manager_survived(Pid).
+
+tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
+    Pid = ?config(manager_pid, Config),
+    JobId = 77777,
+
+    FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) -> {ok, JobId} end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
+    meck:expect(mod_broadcast_backend, set_job_finished,
+                fun(_HostType, _JobId) ->
+                    ct:fail(set_job_finished_should_not_be_called)
+                end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_error,
+                fun(_HostType, _JobId, _ReasonBin) ->
+                    ct:fail(set_job_aborted_error_should_not_be_called)
+                end),
+
+    JobSpec = valid_job_spec(),
+    {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
+    wait_for_worker(Pid, JobId, FakeWorkerPid),
+
+    UnexpectedPid = spawn_link(fun() -> receive stop -> ok end end),
+    Pid ! {{'DOWN', JobId}, make_ref(), process, UnexpectedPid, boom},
+
+    FakeWorkerPid = maps:get(JobId, gen_server:call(Pid, get_worker_map)),
+    assert_manager_survived(Pid).
+
 %%====================================================================
 %% Helper functions
 %%====================================================================
@@ -271,7 +387,7 @@ setup_mocks_for_manager() ->
                 end),
     meck:expect(ejabberd_auth, get_vh_registered_users_number,
                 fun(_Domain) ->
-                    {ok, 1000}
+                    1000
                 end),
 
     meck:new(supervisor, [no_link, unstick, passthrough]),
@@ -292,8 +408,12 @@ reset_meck_defaults() ->
                 fun(_HostType, _JobSpec) -> {ok, 1} end),
     meck:expect(mod_broadcast_backend, set_job_started,
                 fun(_HostType, _JobId) -> ok end),
+    meck:expect(mod_broadcast_backend, set_job_finished,
+                fun(_HostType, _JobId) -> ok end),
     meck:expect(mod_broadcast_backend, set_job_aborted_admin,
                 fun(_HostType, _JobId) -> ok end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_error,
+                fun(_HostType, _JobId, _ReasonBin) -> ok end),
     meck:expect(supervisor, which_children,
                 fun(_SupName) -> [] end),
     meck:expect(supervisor, start_child,
@@ -348,6 +468,15 @@ sample_broadcast_job() ->
 assert_manager_survived(Pid) ->
     %% If a manager is able to reply to a call, then it is alive
     {error, not_implemented} = gen_server:call(Pid, somebody_set_us_up_the_bomb).
+
+wait_for_worker(Pid, JobId, WorkerPid) ->
+    wait_helper:wait_until(fun() ->
+        WorkerMap = gen_server:call(Pid, get_worker_map),
+        case maps:get(JobId, WorkerMap, undefined) of
+            WorkerPid -> ok;
+            _ -> false
+        end
+    end, ok).
 
 host_type() ->
     <<"test_host_type">>.
