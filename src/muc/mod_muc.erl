@@ -127,6 +127,7 @@
                   from_jid := jid:jid(),
                   room_jid := jid:jid(),
                   affiliation := affiliation(),
+                  stable_stanza_id => pos_integer() | undefined,
                   role := role(),
                   timestamp := integer()
        }.
