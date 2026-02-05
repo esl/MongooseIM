@@ -28,16 +28,14 @@
          delete_inactive_by_domain_deletes_only_inactive/1,
          broadcast_instrumentation_metrics/1]).
 %% validation
--export([start_broadcast_domain_not_found/1,
-         start_broadcast_sender_not_found/1,
+-export([start_broadcast_sender_not_found/1,
          start_broadcast_bad_message_rate/1,
          start_broadcast_bad_name/1,
          start_broadcast_bad_subject/1,
          start_broadcast_bad_body/1,
          start_broadcast_string_limits_ok/1]).
 %% retrieval
--export([get_broadcast_domain_not_found/1,
-         get_broadcast_not_found/1,
+-export([get_broadcast_not_found/1,
          get_broadcast_ok_returns_expected_fields/1,
          get_broadcasts_empty_ok/1,
          get_broadcasts_pagination_basic/1]).
@@ -87,8 +85,7 @@ lifecycle_tests() ->
      broadcast_instrumentation_metrics].
 
 validation_tests() ->
-    [start_broadcast_domain_not_found,
-     start_broadcast_sender_not_found,
+    [start_broadcast_sender_not_found,
      start_broadcast_bad_message_rate,
      start_broadcast_bad_name,
      start_broadcast_bad_subject,
@@ -96,8 +93,7 @@ validation_tests() ->
      start_broadcast_string_limits_ok].
 
 retrieval_tests() ->
-    [get_broadcast_domain_not_found,
-     get_broadcast_not_found,
+    [get_broadcast_not_found,
      get_broadcast_ok_returns_expected_fields,
      get_broadcasts_empty_ok,
      get_broadcasts_pagination_basic].
@@ -381,14 +377,6 @@ broadcast_instrumentation_metrics(Config) ->
 %% Validation tests
 %%====================================================================
 
-start_broadcast_domain_not_found(Config) ->
-    JobName = ?FUNCTION_NAME,
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        AliceJid = escalus_client:short_jid(Alice),
-        JobSpec = slow_job_spec(unknown_domain(), AliceJid, JobName),
-        {domain_not_found, _} = start_broadcast(JobSpec)
-    end).
-
 start_broadcast_sender_not_found(Config) ->
     JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
@@ -482,11 +470,6 @@ start_broadcast_string_limits_ok(Config) ->
 %%====================================================================
 %% Retrieval tests
 %%====================================================================
-
-get_broadcast_domain_not_found(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
-        {domain_not_found, _} = get_broadcast(unknown_domain(), 1)
-    end).
 
 get_broadcast_not_found(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(_Alice, AliceBis) ->
@@ -582,9 +565,6 @@ assert_non_neg_integer(Value) when is_integer(Value), Value >= 0 ->
 assert_ids_in_jobs(ExpectedIds, Jobs) ->
     ActualIds = [maps:get(id, broadcast_job_to_map(Job)) || Job <- Jobs],
     ?assertEqual(ExpectedIds, ActualIds).
-
-unknown_domain() ->
-    <<"mystery-pizza.invalid">>.
 
 valid_job_spec(Domain, SenderJid) ->
     valid_job_spec_named(Domain, SenderJid, <<"test_broadcast">>).

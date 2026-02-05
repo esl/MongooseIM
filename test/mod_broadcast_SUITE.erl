@@ -37,7 +37,14 @@
     probe_live_jobs_noproc_returns_zero/1,
     probe_live_jobs_timeout_returns_zero/1,
     %% abort_broadcast_paths
-    abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found/1
+    abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found/1,
+    %% api_domain_not_found_paths
+    start_broadcast_domain_not_found/1,
+    get_broadcast_domain_not_found/1,
+    get_broadcasts_domain_not_found/1,
+    abort_broadcast_domain_not_found/1,
+    delete_inactive_broadcasts_by_ids_domain_not_found/1,
+    delete_inactive_broadcasts_by_domain_domain_not_found/1
 ]).
 
 %%====================================================================
@@ -48,13 +55,15 @@ all() ->
     [{group, sanity},
      {group, start_error_paths},
      {group, probe_error_paths},
-     {group, abort_broadcast_paths}].
+     {group, abort_broadcast_paths},
+     {group, api_domain_not_found_paths}].
 
 groups() ->
     [{sanity, [], sanity_tests()},
      {start_error_paths, [], start_error_path_tests()},
      {probe_error_paths, [], probe_error_path_tests()},
-     {abort_broadcast_paths, [], abort_broadcast_path_tests()}].
+     {abort_broadcast_paths, [], abort_broadcast_path_tests()},
+     {api_domain_not_found_paths, [], api_domain_not_found_path_tests()}].
 
 sanity_tests() ->
     [supported_features_includes_dynamic_domains,
@@ -70,14 +79,23 @@ probe_error_path_tests() ->
 abort_broadcast_path_tests() ->
     [abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found].
 
+api_domain_not_found_path_tests() ->
+    [start_broadcast_domain_not_found,
+     get_broadcast_domain_not_found,
+     get_broadcasts_domain_not_found,
+     abort_broadcast_domain_not_found,
+     delete_inactive_broadcasts_by_ids_domain_not_found,
+     delete_inactive_broadcasts_by_domain_domain_not_found].
+
 init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
     ok.
 
-init_per_group(_Group, Config) ->
+init_per_group(Group, Config) ->
     setup_mocks(),
+    set_domain_api_expectation(Group),
     Config.
 
 end_per_group(_Group, _Config) ->
@@ -151,6 +169,29 @@ abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found(_Config) ->
     {broadcast_not_found, _} = mod_broadcast_api:abort_broadcast(Domain, JobId).
 
 %%====================================================================
+%% API domain_not_found path tests
+%%====================================================================
+
+start_broadcast_domain_not_found(_Config) ->
+    JobSpec = valid_job_spec(),
+    {domain_not_found, _} = mod_broadcast_api:start_broadcast(JobSpec).
+
+get_broadcast_domain_not_found(_Config) ->
+    {domain_not_found, _} = mod_broadcast_api:get_broadcast(domain(), job_id()).
+
+get_broadcasts_domain_not_found(_Config) ->
+    {domain_not_found, _} = mod_broadcast_api:get_broadcasts(domain(), 10, 0).
+
+abort_broadcast_domain_not_found(_Config) ->
+    {domain_not_found, _} = mod_broadcast_api:abort_broadcast(domain(), job_id()).
+
+delete_inactive_broadcasts_by_ids_domain_not_found(_Config) ->
+    {domain_not_found, _} = mod_broadcast_api:delete_inactive_broadcasts_by_ids(domain(), [job_id()]).
+
+delete_inactive_broadcasts_by_domain_domain_not_found(_Config) ->
+    {domain_not_found, _} = mod_broadcast_api:delete_inactive_broadcasts_by_domain(domain()).
+
+%%====================================================================
 %% Helper functions
 %%====================================================================
 
@@ -164,8 +205,6 @@ setup_mocks() ->
 reset_meck_defaults() ->
     meck:expect(ejabberd_auth, auth_modules_for_host_type,
                 fun(_HostType) -> [ejabberd_auth_rdbms] end),
-    meck:expect(mongoose_domain_api, get_host_type,
-                fun(_Domain) -> {ok, host_type()} end),
     meck:expect(mod_broadcast_backend, get_job,
                 fun(_HostType, _Id) -> {error, not_found} end),
     meck:expect(broadcast_manager, stop_job,
@@ -181,6 +220,13 @@ teardown_mocks() ->
     catch meck:unload(broadcast_manager),
     ok.
 
+set_domain_api_expectation(api_domain_not_found_paths) ->
+    meck:expect(mongoose_domain_api, get_host_type,
+                fun(_Domain) -> {error, not_found} end);
+set_domain_api_expectation(_Other) ->
+    meck:expect(mongoose_domain_api, get_host_type,
+                fun(_Domain) -> {ok, host_type()} end).
+
 host_type() ->
     <<"test_host_type">>.
 
@@ -189,6 +235,15 @@ domain() ->
 
 job_id() ->
     4242.
+
+valid_job_spec() ->
+    #{name => <<"Test Broadcast">>,
+      domain => domain(),
+      sender => jid:make_noprep(<<"admin">>, domain(), <<>>),
+      subject => <<"Test Subject">>,
+      body => <<"Test message body">>,
+      message_rate => 100,
+      recipient_group => all_users_in_domain}.
 
 running_job(HostType, Domain, JobId) ->
     #broadcast_job{id = JobId,
