@@ -1,7 +1,7 @@
 -module(mongoose_prometheus_sliding_window).
 
 %% Manages a sliding window using DDSketch instances for quantile summaries.
-%% Window parameters are configurable via WINDOW_SIZE_MS and WINDOW_STEP_MS constants.
+%% Window parameters are configurable via window_size_ms and window_step_ms constants.
 
 -export([child_spec/0,
          declare/1,
@@ -20,15 +20,24 @@
          terminate/2,
          code_change/3]).
 
--ignore_xref([start_link/0, value/2]).
+-export([window_size_ms/0, window_step_ms/0, window_count/0]). % Exported for mocking in tests
+
+-ignore_xref([start_link/0, value/2, window_size_ms/0, window_step_ms/0, window_count/0]).
 
 -behaviour(gen_server).
 
-%% Configurable window parameters
--define(WINDOW_SIZE_MS, 60000). % Total window size: 60 seconds
--define(WINDOW_STEP_MS, 3000).  % Step size: 3 seconds per sub-window
--define(WINDOW_COUNT, (?WINDOW_SIZE_MS div ?WINDOW_STEP_MS)). % Number of sub-windows
+%% Window parameters
 
+-spec window_size_ms() -> pos_integer().
+window_size_ms() -> 60000. % Total window size: 60 seconds
+
+-spec window_step_ms() -> pos_integer().
+window_step_ms() -> 3000.  % Step size: 3 seconds per sub-window
+
+-spec window_count() -> pos_integer().
+window_count() -> ?MODULE:window_size_ms() div ?MODULE:window_step_ms().
+
+%% DDSketch parameters
 
 -spec default_quantiles() -> [number()].
 default_quantiles() -> [0.5, 0.75, 0.90, 0.95, 0.99, 0.999].
@@ -100,7 +109,7 @@ start_link() ->
 
 init([]) ->
     EtsTable = ets:new(?MODULE, [set, private, {read_concurrency, true}, {write_concurrency, true}]),
-    TimerRef = erlang:start_timer(?WINDOW_STEP_MS, self(), rotate),
+    TimerRef = erlang:start_timer(?MODULE:window_step_ms(), self(), rotate),
     {ok, #state{timer_ref = TimerRef, ets_table = EtsTable}}.
 
 handle_call({declare, Name, MetricSpec}, _From, State) ->
@@ -137,9 +146,10 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({timeout, _TimerRef, rotate}, State) ->
-    %% The rotation is handled in ensure_windows_rotated, so we just reschedule
-    TimerRef = erlang:start_timer(?WINDOW_STEP_MS, self(), rotate),
-    {noreply, State#state{timer_ref = TimerRef}};
+    CurrentTime = erlang:monotonic_time(millisecond),
+    NewState = rotate_all_windows(CurrentTime, State),
+    TimerRef = erlang:start_timer(?MODULE:window_step_ms(), self(), rotate),
+    {noreply, NewState#state{timer_ref = TimerRef}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -171,7 +181,7 @@ do_observe(Name, LabelValues, Value, State) ->
             Key = {Name, LabelValues},
             CurrentTime = erlang:monotonic_time(millisecond),
             {Windows, CurrentIndex} =
-                ensure_windows_rotated(Key, CurrentTime, State),
+                ensure_windows_initialized(Key, CurrentTime, State),
 
             %% Get current window and add observation
             {CurrentWindow, WindowStartTime} = lists:nth(CurrentIndex + 1, Windows),
@@ -190,27 +200,17 @@ do_observe(Name, LabelValues, Value, State) ->
             State#state{metrics = UpdatedMetrics}
     end.
 
--spec ensure_windows_rotated({name(), label_values()}, non_neg_integer(), #state{}) ->
+-spec ensure_windows_initialized({name(), label_values()}, non_neg_integer(), #state{}) ->
     {[{window_data(), non_neg_integer()}], non_neg_integer()}.
-ensure_windows_rotated(Key, CurrentTime, State) ->
+ensure_windows_initialized(Key, CurrentTime, State) ->
+    WindowCount = ?MODULE:window_count(),
     case get_metric_state(Key, State) of
         undefined ->
-            %% Initialize new windows, all starting at current time (they'll be rotated as needed)
-            Windows = [new_window(Key, Index, CurrentTime, State) || Index <- lists:seq(0, ?WINDOW_COUNT - 1)],
+            %% Initialize new windows, all starting at current time
+            Windows = [new_window(Key, Index, CurrentTime, State) || Index <- lists:seq(0, WindowCount - 1)],
             {Windows, 0};
         #{windows := Windows, current_index := CurrentIndex} ->
-            {_CurrentWindow, WindowStartTime} = lists:nth(CurrentIndex + 1, Windows),
-            Elapsed = CurrentTime - WindowStartTime,
-            if
-                Elapsed >= ?WINDOW_STEP_MS ->
-                    NewIndex = (CurrentIndex + 1) rem ?WINDOW_COUNT,
-                    {CurrentWindow, _} = lists:nth(CurrentIndex + 1, Windows),
-                    ResetWindow = reset_window(CurrentWindow),
-                    UpdatedWindows = set_nth(CurrentIndex + 1, {ResetWindow, CurrentTime}, Windows),
-                    {UpdatedWindows, NewIndex};
-                true ->
-                    {Windows, CurrentIndex}
-            end
+            {Windows, CurrentIndex}
     end.
 
 -spec get_value(name(), label_values(), #state{}) ->
@@ -220,22 +220,12 @@ get_value(Name, LabelValues, State) ->
     case get_metric_state(Key, State) of
         undefined ->
             {undefined, State};
-        #{} ->
+        #{windows := Windows} ->
             CurrentTime = erlang:monotonic_time(millisecond),
-            {UpdatedWindows, NewIndex} = ensure_windows_rotated(Key, CurrentTime, State),
-
-            %% Update metric state with rotated windows
-            {ok, MetricState} = maps:find(Name, State#state.metrics),
-            UpdatedMetricState = maps:put(Key,
-                #{windows => UpdatedWindows,
-                  current_index => NewIndex},
-                MetricState),
-            UpdatedMetrics = maps:put(Name, UpdatedMetricState, State#state.metrics),
-            NewState = State#state{metrics = UpdatedMetrics},
 
             %% Filter windows to only include those within the last window size
-            CutoffTime = CurrentTime - ?WINDOW_SIZE_MS,
-            ActiveWindows = [Window || {Window, StartTime} <- UpdatedWindows,
+            CutoffTime = CurrentTime - ?MODULE:window_size_ms(),
+            ActiveWindows = [Window || {Window, StartTime} <- Windows,
                                       StartTime >= CutoffTime],
 
             %% Merge all active windows
@@ -260,7 +250,7 @@ get_value(Name, LabelValues, State) ->
                             {Count, Sum, Quantiles}
                     end
             end,
-            {Result, NewState}
+            {Result, State}
     end.
 
 -spec do_get_label_values(name(), #state{}) -> [label_values()].
@@ -325,6 +315,23 @@ new_window(Key = {Name, _LabelValues}, Index, StartTime, State) ->
                    ref => State#state.ets_table,
                    name => WindowName},
     {WindowData, StartTime}.
+
+-spec rotate_all_windows(non_neg_integer(), #state{}) -> #state{}.
+rotate_all_windows(CurrentTime, State) ->
+    WindowCount = ?MODULE:window_count(),
+    UpdatedMetrics = maps:map(
+        fun(_Name, MetricState) ->
+            maps:map(
+                fun(_Key, #{windows := Windows, current_index := CurrentIndex}) ->
+                    %% Move to next window and reset it
+                    NewIndex = (CurrentIndex + 1) rem WindowCount,
+                    {WindowToReset, _OldTime} = lists:nth(NewIndex + 1, Windows),
+                    ResetWindow = reset_window(WindowToReset),
+                    UpdatedWindows = set_nth(NewIndex + 1, {ResetWindow, CurrentTime}, Windows),
+                    #{windows => UpdatedWindows, current_index => NewIndex}
+                end, MetricState)
+        end, State#state.metrics),
+    State#state{metrics = UpdatedMetrics}.
 
 -spec reset_window(window_data()) -> window_data().
 reset_window(WindowData) ->

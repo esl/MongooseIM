@@ -50,6 +50,7 @@ groups() ->
                                prometheus_histogram_is_created_and_updated,
                                prometheus_histogram_is_calculated_correctly,
                                prometheus_histogram_is_updated_separately_for_different_labels,
+                               prometheus_histogram_sliding_window_expires_data,
                                multiple_prometheus_metrics_are_updated]},
      {exometer, [parallel], [exometer_skips_non_metric_event,
                              exometer_gauge_is_created_and_updated,
@@ -245,6 +246,35 @@ prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     ok = mongoose_instrument:execute(Event, ?LABELS2, #{time => 2}),
     ?assertMatch({1, 1, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
     ?assertMatch({1, 2, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE2])).
+
+prometheus_histogram_sliding_window_expires_data(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, time),
+
+    OriginalWindowStep = mongoose_prometheus_sliding_window:window_step_ms(),
+
+    %% We mock the window parameters to use small values and wait a short time.
+    meck:new(mongoose_prometheus_sliding_window, [passthrough]),
+    meck:expect(mongoose_prometheus_sliding_window, window_size_ms, fun() -> 1000 end),
+    meck:expect(mongoose_prometheus_sliding_window, window_step_ms, fun() -> 100 end),
+
+    %% Wait a bit for the mocked module to be used
+    timer:sleep(OriginalWindowStep),
+
+    try
+        ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
+        ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 10}),
+        ?assertMatch({1, 10, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+        timer:sleep(500),
+        ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 20}),
+        ?assertMatch({2, 30, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+        timer:sleep(700), % Wait enough for the first value to expire
+        ?assertMatch({1, 20, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+        timer:sleep(500), % Wait enough for the second value to expire
+        ?assertEqual(undefined, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE]))
+    after
+        meck:unload(mongoose_prometheus_sliding_window)
+    end.
 
 multiple_prometheus_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
