@@ -34,6 +34,10 @@
 -include("jlib.hrl").
 -include("mod_broadcast.hrl").
 
+-ifdef(TEST).
+-export([make_message_id/2]).
+-endif.
+
 -record(data, {
     host_type :: mongooseim:host_type(),
     %% Note: worker cares only about static data in #broadcast_job{},
@@ -140,11 +144,7 @@ loading_batch(Origin, load_batch, Data)
         {error, Reason} ->
             FinalizeEvent = {finalize, {persist_state_failed, Reason}},
             {next_state, aborted, Data, [{next_event, internal, FinalizeEvent}]}
-    end;
-loading_batch({call, From}, stop, _Data) ->
-    {stop_and_reply, normal, [{reply, From, ok}]};
-loading_batch(EventType, Event, Data) ->
-    handle_common(EventType, Event, loading_batch, Data).
+    end.
 
 -spec sending_batch(gen_statem:event_type(), term(), data()) ->
     gen_statem:state_function_result(state()).
@@ -192,7 +192,9 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
 sending_batch({call, From}, stop, _Data) ->
     {stop_and_reply, normal, [{reply, From, ok}]};
 sending_batch(EventType, Event, Data) ->
-    handle_common(EventType, Event, sending_batch, Data).
+    ?LOG_WARNING(#{what => broadcast_worker_unexpected_event,
+                   event_type => EventType, event => Event}),
+    {keep_state, Data}.
 
 -spec finished(gen_statem:event_type(), term(), data()) ->
     gen_statem:state_function_result(state()).
@@ -210,9 +212,7 @@ finished(internal, finalize, Data) ->
                 job_id => Job#broadcast_job.id,
                 domain => Job#broadcast_job.domain,
                 total_processed => WorkerState#broadcast_worker_state.recipients_processed}),
-    {stop, normal, Data};
-finished(EventType, Event, Data) ->
-    handle_common(EventType, Event, finished, Data).
+    {stop, normal, Data}.
 
 -spec aborted(gen_statem:event_type(), term(), data()) ->
     gen_statem:state_function_result(state()).
@@ -221,15 +221,7 @@ aborted(internal, {finalize, Error}, #data{job = Job} = Data) ->
                  job_id => Job#broadcast_job.id,
                  domain => Job#broadcast_job.domain,
                  reason => Error}),
-    {stop, {error, Error}, Data};
-aborted(EventType, Event, Data) ->
-    handle_common(EventType, Event, aborted, Data).
-
-%% Common handler for unexpected events
-handle_common(EventType, Event, State, Data) ->
-    ?LOG_WARNING(#{what => broadcast_worker_unexpected_event,
-                   event_type => EventType, event => Event, state => State}),
-    {keep_state, Data}.
+    {stop, {error, Error}, Data}.
 
 -spec terminate(term(), state(), data()) -> ok.
 terminate(Reason, State, #data{job = Job}) ->
@@ -250,15 +242,23 @@ code_change(_OldVsn, State, Data, _Extra) ->
 -spec load_job(mongooseim:host_type(), broadcast_job_id()) ->
     {ok, broadcast_job(), broadcast_worker_state() | undefined} | {error, term()}.
 load_job(HostType, JobId) ->
-    case mod_broadcast_backend:get_job(HostType, JobId) of
+    try mod_broadcast_backend:get_job(HostType, JobId) of
         {ok, Job} ->
-            WorkerState = case mod_broadcast_backend:get_worker_state(HostType, JobId) of
-                {ok, WS} -> WS;
-                {error, not_found} -> undefined
-            end,
-            {ok, Job, WorkerState};
-        {error, _} = Error ->
-            Error
+            try mod_broadcast_backend:get_worker_state(HostType, JobId) of
+                {ok, WS} ->
+                    {ok, Job, WS};
+                {error, not_found} ->
+                    {ok, Job, undefined}
+            catch
+                Class:Reason ->
+                    ?LOG_WARNING(#{what => broadcast_worker_state_load_failed,
+                                   job_id => JobId, host_type => HostType,
+                                   class => Class, reason => Reason}),
+                    {error, {Class, Reason}}
+            end
+    catch
+        Class:Reason ->
+            {error, {Class, Reason}}
     end.
 
 -spec load_next_batch(broadcast_job(), broadcast_worker_state()) ->
@@ -297,8 +297,6 @@ send_message(Job, RecipientJid) ->
         ok
     catch
         Class:Reason:_Stacktrace ->
-            ?LOG_WARNING(#{what => broadcast_route_exception,
-                           class => Class, reason => Reason}),
             {error, {Class, Reason}}
     end.
 
@@ -334,7 +332,15 @@ build_message_stanza(Job, RecipientJid, MessageId) ->
 -spec persist_worker_state(mongooseim:host_type(), broadcast_job_id(), broadcast_worker_state()) ->
     ok | {error, term()}.
 persist_worker_state(HostType, JobId, State) ->
-    mod_broadcast_backend:update_worker_state(HostType, JobId, State).
+    try mod_broadcast_backend:update_worker_state(HostType, JobId, State) of
+        ok -> ok
+    catch
+        Class:Reason ->
+            ?LOG_WARNING(#{what => broadcast_worker_state_persist_failed,
+                           job_id => JobId, host_type => HostType,
+                           class => Class, reason => Reason}),
+            {error, {Class, Reason}}
+    end.
 
 -spec maybe_init_worker_state(broadcast_worker_state() | undefined) ->
     broadcast_worker_state().
