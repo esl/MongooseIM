@@ -12,7 +12,8 @@
 %% API
 -export([start_link/1,
          start_job/2,
-         stop_job/2]).
+         stop_job/2,
+         get_live_job_count/1]).
 
 %% Debug API
 -export([abort_running_jobs_for_domain/2,
@@ -72,6 +73,11 @@ start_job(HostType, JobSpec) ->
 stop_job(HostType, JobId) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, {stop_job, JobId}).
+
+-spec get_live_job_count(mongooseim:host_type()) -> non_neg_integer().
+get_live_job_count(HostType) ->
+    ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
+    gen_server:call(ProcName, get_live_job_count).
 
 %% @doc Abort all running broadcast jobs for a specific domain.
 %% This is currently test-only but will become a proper user-facing API
@@ -146,6 +152,9 @@ handle_call({stop_job, JobId}, _From, State) ->
         _ ->
             {reply, {error, not_live}, State}
     end;
+handle_call(get_live_job_count, _From, State) ->
+    Count = maps:size(State#state.worker_map),
+    {reply, Count, State};
 handle_call({abort_running_jobs_for_domain, Domain}, _From, State) ->
     NewState = do_abort_running_jobs_for_domain(State, Domain),
     {reply, ok, NewState};

@@ -108,13 +108,13 @@ instrumentation(HostType) ->
 -spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
           mongoose_instrument:measurements().
 probe(mod_broadcast_live_jobs, #{host_type := HostType}) ->
-    SupName = gen_mod:get_module_proc(HostType, broadcast_jobs_sup),
-    try supervisor:which_children(SupName) of
-        Children when is_list(Children) ->
-            ?LOG_INFO(#{what => broadcast_live_jobs_probe,
-                                 host_type => HostType, children => Children}),
-            #{count => length(Children)}
+    try broadcast_manager:get_live_job_count(HostType) of
+        Count ->
+            ?LOG_DEBUG(#{what => broadcast_live_jobs_probe, host_type => HostType, count => Count}),
+            #{count => Count}
     catch
         exit:{noproc, _} ->
+            #{count => 0};
+        exit:{timeout, _} ->
             #{count => 0}
     end.

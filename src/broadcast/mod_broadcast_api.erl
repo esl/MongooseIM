@@ -62,9 +62,7 @@ start_broadcast(#{domain := Domain} = JobSpec) ->
                 {error, sender_not_found} ->
                     error_result(sender_not_found);
                 {error, {bad_parameter, ParameterName}} ->
-                    error_result({bad_parameter, ParameterName});
-                {error, Reason} ->
-                    error_result({internal_error, Reason})
+                    error_result({bad_parameter, ParameterName})
             end;
         {error, not_found} ->
             error_result(domain_not_found)
@@ -159,17 +157,7 @@ error_result(not_running) ->
     {not_running, <<"The broadcast job is not currently running">>};
 error_result({bad_parameter, ParameterName}) ->
     Message = iolist_to_binary(["Invalid parameter: ", atom_to_binary(ParameterName, utf8)]),
-    {bad_parameter, Message};
-error_result({internal_error, Reason}) ->
-    {internal_error, format_error(Reason)}.
-
--spec format_error(term()) -> binary().
-format_error(Reason) when is_binary(Reason) ->
-    Reason;
-format_error(Reason) when is_atom(Reason) ->
-    atom_to_binary(Reason, utf8);
-format_error(Reason) ->
-    iolist_to_binary(io_lib:format("~p", [Reason])).
+    {bad_parameter, Message}.
 
 %%====================================================================
 %% Broadcast job record to map conversion
