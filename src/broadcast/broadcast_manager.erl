@@ -13,11 +13,11 @@
 -export([start_link/1,
          start_job/2,
          stop_job/3,
-         get_live_job_count/1]).
+         get_live_job_count/1,
+         abort_running_jobs_for_domain/3]).
 
 %% Debug API
--export([abort_running_jobs_for_domain/2,
-         does_worker_for_job_exist/2,
+-export([does_worker_for_job_exist/2,
          get_worker_map/1,
          get_supervisor_children/1]).
 
@@ -80,14 +80,12 @@ get_live_job_count(HostType) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, get_live_job_count).
 
-%% @doc Abort all running broadcast jobs for a specific domain.
-%% This is currently test-only but will become a proper user-facing API
-%% in a future iteration to allow domain administrators to abort all
-%% broadcasts in their domain at once.
--spec abort_running_jobs_for_domain(mongooseim:host_type(), jid:lserver()) -> ok.
-abort_running_jobs_for_domain(HostType, Domain) ->
+-spec abort_running_jobs_for_domain(node(), mongooseim:host_type(), jid:lserver()) -> ok.
+abort_running_jobs_for_domain(Node, HostType, Domain) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
-    gen_server:call(ProcName, {abort_running_jobs_for_domain, Domain}).
+    gen_server:call({ProcName, Node}, {abort_running_jobs_for_domain, Domain}).
+
+%% Debug API
 
 -spec does_worker_for_job_exist(mongooseim:host_type(), broadcast_job_id()) -> boolean().
 does_worker_for_job_exist(HostType, JobId) ->

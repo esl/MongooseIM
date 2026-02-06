@@ -15,9 +15,11 @@
 
 -export([start/2,
          stop/1,
+         hooks/1,
          supported_features/0,
          config_spec/0,
-         instrumentation/1]).
+         instrumentation/1,
+         remove_domain/3]).
 
 %% mongoose_instrument_probe callback
 -export([probe/2]).
@@ -45,6 +47,22 @@ stop(HostType) ->
 -spec supported_features() -> [atom()].
 supported_features() ->
     [dynamic_domains].
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}].
+
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_domain_api:remove_domain_acc(),
+      Params :: #{domain := jid:lserver()},
+      Extra :: gen_hook:extra().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
+    Nodes = mongoose_cluster:all_cluster_nodes(),
+    lists:foreach(fun(Node) ->
+                        broadcast_manager:abort_running_jobs_for_domain(Node, HostType, Domain)
+                  end, Nodes),
+    mod_broadcast_backend:delete_inactive_jobs_by_domain(HostType, Domain),
+    {ok, Acc}.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

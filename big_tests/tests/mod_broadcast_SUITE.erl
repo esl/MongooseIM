@@ -46,6 +46,17 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(domain_helper, [domain/0, secondary_domain/0]).
+-import(broadcast_helper, [slow_job_spec/3,
+                           fast_job_spec/3,
+                           start_broadcast/1,
+                           get_broadcast/2,
+                           get_broadcasts/3,
+                           abort_broadcast/2,
+                           delete_inactive_broadcasts_by_ids/2,
+                           delete_inactive_broadcasts_by_domain/1,
+                           does_worker_for_job_exist/2,
+                           wait_until_worker_started/2,
+                           broadcast_job_to_map/1]).
 
 %%====================================================================
 %% CT callbacks
@@ -107,15 +118,13 @@ init_per_suite(Config) ->
     Config2 = instrument_helper:ensure_frequent_probes(Config1),
     ensure_mod_broadcast_started(domain()),
     ensure_mod_broadcast_started(secondary_domain()),
-    create_many_users(100, domain()),
-    create_many_users(100, secondary_domain()),
-    clean_broadcast_jobs(),
+    broadcast_helper:create_many_users(100),
+    clean_broadcast_jobs_and_verify(),
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    delete_many_users(100, domain()),
-    delete_many_users(100, secondary_domain()),
+    broadcast_helper:delete_many_users(100),
     dynamic_modules:restore_modules(Config),
     instrument_helper:restore_probe_interval(Config),
     escalus:end_per_suite(Config).
@@ -142,14 +151,14 @@ init_per_testcase(TestCase, Config) ->
 
 end_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
     instrument_helper:stop(),
-    clean_broadcast_jobs(),
+    clean_broadcast_jobs_and_verify(),
     escalus:end_per_testcase(TestCase, Config);
 end_per_testcase(resume_jobs_after_restart = TestCase, Config) ->
     delete_rogue_broadcast_job(secondary_domain()),
-    clean_broadcast_jobs(),
+    clean_broadcast_jobs_and_verify(),
     escalus:end_per_testcase(TestCase, Config);
 end_per_testcase(TestCase, Config) ->
-    clean_broadcast_jobs(),
+    clean_broadcast_jobs_and_verify(),
     escalus:end_per_testcase(TestCase, Config).
 
 %%====================================================================
@@ -252,10 +261,11 @@ abort_broadcast_running_ok(Config) ->
     end).
 
 abort_broadcast_not_found(Config) ->
+    JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(_Alice, AliceBis) ->
         AliceBisJid = escalus_client:short_jid(AliceBis),
         %% Create a job in domain B
-        ForeignDomainJobID = create_job_in_domain(secondary_domain(), AliceBisJid),
+        ForeignDomainJobID = create_job_in_domain(secondary_domain(), AliceBisJid, JobName),
         NonExistentID = 999999,
 
         {broadcast_not_found, _} = abort_broadcast(domain(), NonExistentID),
@@ -472,10 +482,11 @@ start_broadcast_string_limits_ok(Config) ->
 %%====================================================================
 
 get_broadcast_not_found(Config) ->
+    JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(_Alice, AliceBis) ->
         %% First create a job in domain B
         AliceBisJid = escalus_client:short_jid(AliceBis),
-        ForeignDomainJobID = create_job_in_domain(secondary_domain(), AliceBisJid),
+        ForeignDomainJobID = create_job_in_domain(secondary_domain(), AliceBisJid, JobName),
 
         NonExistentID = 999999,
         {broadcast_not_found, _} = get_broadcast(domain(), ForeignDomainJobID),
@@ -534,12 +545,13 @@ get_broadcasts_empty_ok(Config) ->
     end).
 
 get_broadcasts_pagination_basic(Config) ->
+    JobName = atom_to_binary(?FUNCTION_NAME, utf8),
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
 
-        {ok, JobId1} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag1">>)),
-        {ok, JobId2} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag2">>)),
-        {ok, JobId3} = start_and_abort_job(valid_job_spec_named(domain(), AliceJid, <<"pag3">>)),
+        {ok, JobId1} = start_and_abort_job(slow_job_spec(domain(), AliceJid, <<JobName/binary, "-pag1">>)),
+        {ok, JobId2} = start_and_abort_job(slow_job_spec(domain(), AliceJid, <<JobName/binary, "-pag2">>)),
+        {ok, JobId3} = start_and_abort_job(slow_job_spec(domain(), AliceJid, <<JobName/binary, "-pag3">>)),
 
         {ok, AllBroadcasts} = get_broadcasts(domain(), 100, 0),
         assert_ids_in_jobs([JobId3, JobId2, JobId1], AllBroadcasts),
@@ -566,44 +578,8 @@ assert_ids_in_jobs(ExpectedIds, Jobs) ->
     ActualIds = [maps:get(id, broadcast_job_to_map(Job)) || Job <- Jobs],
     ?assertEqual(ExpectedIds, ActualIds).
 
-valid_job_spec(Domain, SenderJid) ->
-    valid_job_spec_named(Domain, SenderJid, <<"test_broadcast">>).
-
-valid_job_spec_named(Domain, SenderJid, Name) ->
-    #{
-        name => Name,
-        domain => Domain,
-        sender => jid:from_binary(SenderJid),
-        subject => <<"Test Subject">>,
-        body => <<"Test Body">>,
-        message_rate => 100,
-        recipient_group => all_users_in_domain
-    }.
-
-slow_job_spec(Domain, SenderJid, TestName) ->
-    #{
-        name => atom_to_binary(TestName),
-        domain => Domain,
-        sender => jid:from_binary(SenderJid),
-        subject => <<"Slow Test Subject">>,
-        body => <<"Slow Test Body">>,
-        message_rate => 1,  %% Low rate to make it slow
-        recipient_group => all_users_in_domain
-    }.
-
-fast_job_spec(Domain, SenderJid, TestName) ->
-    #{
-        name => atom_to_binary(TestName),
-        domain => Domain,
-        sender => jid:from_binary(SenderJid),
-        subject => <<"Fast Test Subject">>,
-        body => <<"Fast Test Body">>,
-        message_rate => 1000,  %% High rate to finish quickly
-        recipient_group => all_users_in_domain
-    }.
-
-create_job_in_domain(Domain, SenderJid) ->
-    JobSpec = valid_job_spec(Domain, SenderJid),
+create_job_in_domain(Domain, SenderJid, TestName) ->
+    JobSpec = slow_job_spec(Domain, SenderJid, TestName),
     {ok, JobId} = start_broadcast(JobSpec),
     JobId.
 
@@ -636,9 +612,6 @@ wait_for_live_jobs_count(ExpectedCount) ->
     F = fun(#{count := Count}) -> Count =:= ExpectedCount end,
     instrument_helper:wait_and_assert_new(mod_broadcast_live_jobs, labels(), F).
 
-wait_until_worker_started(HostType, JobId) ->
-    wait_helper:wait_until(fun() -> does_worker_for_job_exist(HostType, JobId) end, true).
-
 wait_for_manager_down(MonitorRef, ManagerPid) ->
     receive
         {'DOWN', MonitorRef, process, ManagerPid, _Reason} ->
@@ -661,32 +634,6 @@ labels() ->
 %% RPC proxies
 %%====================================================================
 
-call_api(Function, Args) ->
-    rpc(mim(), mod_broadcast_api, Function, Args).
-
-start_broadcast(JobSpec) ->
-    call_api(start_broadcast, [JobSpec]).
-
-abort_broadcast(Domain, JobId) ->
-    call_api(abort_broadcast, [Domain, JobId]).
-
-get_broadcast(Domain, JobId) ->
-    call_api(get_broadcast, [Domain, JobId]).
-
-get_broadcasts(Domain, Limit, Offset) ->
-    call_api(get_broadcasts, [Domain, Limit, Offset]).
-
-delete_inactive_broadcasts_by_ids(Domain, JobIds) ->
-    call_api(delete_inactive_broadcasts_by_ids, [Domain, JobIds]).
-
-delete_inactive_broadcasts_by_domain(Domain) ->
-    call_api(delete_inactive_broadcasts_by_domain, [Domain]).
-
-broadcast_job_to_map({ok, JobRecord}) ->
-    broadcast_job_to_map(JobRecord);
-broadcast_job_to_map(JobRecord) ->
-    call_api(broadcast_job_to_map, [JobRecord]).
-
 call_manager(Function, Args) ->
     rpc(mim(), broadcast_manager, Function, Args).
 
@@ -698,11 +645,8 @@ get_worker_ids_and_pids(HostType) ->
     Children = call_manager(get_supervisor_children, [HostType]),
     [{Id, Pid} || {Id, Pid, _Type, _Modules} <- Children, is_integer(Id), is_pid(Pid)].
 
-clean_broadcast_jobs() ->
-    ok = call_manager(abort_running_jobs_for_domain, [domain(), domain()]),
-    ok = call_manager(abort_running_jobs_for_domain, [secondary_domain(), secondary_domain()]),
-    {ok, _} = delete_inactive_broadcasts_by_domain(domain()),
-    {ok, _} = delete_inactive_broadcasts_by_domain(secondary_domain()),
+clean_broadcast_jobs_and_verify() ->
+    broadcast_helper:clean_broadcast_jobs(),
     {selected, []} = sql_query(domain(), ["SELECT * FROM broadcast_jobs"]),
     [] = get_worker_ids_and_pids(domain()),
     [] = get_worker_ids_and_pids(secondary_domain()),
@@ -720,9 +664,6 @@ assert_empty_worker_map(HostType) ->
                           || {JobId, Pid} <- maps:to_list(WorkerMap)],
             ct:fail({manager_has_live_workers, HostType, WorkerList})
     end.
-
-does_worker_for_job_exist(Domain, JobId) ->
-    call_manager(does_worker_for_job_exist, [Domain, JobId]).
 
 %%====================================================================
 %% Direct DB operations
@@ -747,22 +688,3 @@ delete_rogue_broadcast_job(Domain) ->
 
 sql_query(HostType, Query) ->
     rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
-
-%%====================================================================
-%% User management helpers
-%%====================================================================
-
-create_many_users(Count, Domain) ->
-    lists:foreach(fun(N) ->
-        Username = <<"testuser", (integer_to_binary(N))/binary>>,
-        Password = <<"password123">>,
-        JID = jid:make_noprep(Username, Domain, <<>>),
-        rpc(mim(), ejabberd_auth, try_register, [JID, Password])
-    end, lists:seq(1, Count)).
-
-delete_many_users(Count, Domain) ->
-    lists:foreach(fun(N) ->
-        Username = <<"testuser", (integer_to_binary(N))/binary>>,
-        JID = jid:make_noprep(Username, Domain, <<>>),
-        rpc(mim(), ejabberd_auth, remove_user, [JID])
-    end, lists:seq(1, Count)).

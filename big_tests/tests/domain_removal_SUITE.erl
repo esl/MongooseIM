@@ -3,7 +3,11 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
--import(domain_helper, [host_type/0, domain_to_host_type/2, domain/0]).
+-import(domain_helper, [host_type/0,
+                        secondary_host_type/0,
+                        domain_to_host_type/2,
+                        domain/0,
+                        secondary_domain/0]).
 -import(config_parser_helper, [mod_config/2]).
 
 -include("mam_helper.hrl").
@@ -28,6 +32,7 @@ all() ->
      {group, markers_removal},
      {group, vcard_removal},
      {group, last_removal},
+     {group, broadcast_removal},
      {group, removal_failures}
     ].
 
@@ -50,6 +55,7 @@ groups() ->
      {markers_removal, [], [markers_removal]},
      {vcard_removal, [], [vcard_removal]},
      {last_removal, [], [last_removal]},
+     {broadcast_removal, [], [broadcast_removal]},
      {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
 
@@ -78,9 +84,21 @@ init_per_group(auth_removal = Group, Config) ->
         false ->
             {skip, require_internal_or_rdbms}
     end;
+init_per_group(broadcast_removal = Group, Config) ->
+    case mongoose_helper:is_rdbms_enabled(host_type()) andalso is_rdbms_auth_enabled() of
+        true ->
+            HostTypes = domain_helper:host_types(),
+            Config2 = dynamic_modules:save_modules(HostTypes, Config),
+            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
+                HostType <- HostTypes],
+            Config2;
+        false ->
+            {skip, require_rdbms_and_rdbms_auth}
+    end;
 init_per_group(Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
+            broadcast_helper:create_many_users(10),
             HostTypes = domain_helper:host_types(),
             Config2 = dynamic_modules:save_modules(HostTypes, Config),
             [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
@@ -93,6 +111,15 @@ init_per_group(Group, Config) ->
 end_per_group(auth_removal, Config) ->
     case is_internal_or_rdbms() of
         true ->
+            dynamic_modules:restore_modules(Config);
+        false ->
+            ok
+    end;
+end_per_group(broadcast_removal, Config) ->
+    case mongoose_helper:is_rdbms_enabled(host_type()) andalso is_rdbms_auth_enabled() of
+        true ->
+            broadcast_helper:delete_many_users(10),
+            broadcast_helper:clean_broadcast_jobs(),
             dynamic_modules:restore_modules(Config);
         false ->
             ok
@@ -143,12 +170,18 @@ group_to_modules(markers_removal) ->
 group_to_modules(vcard_removal) ->
     [{mod_vcard, mod_config(mod_vcard, #{backend => rdbms})}];
 group_to_modules(last_removal) ->
-    [{mod_last, mod_config(mod_last, #{backend => rdbms})}].
+    [{mod_last, mod_config(mod_last, #{backend => rdbms})}];
+group_to_modules(broadcast_removal) ->
+    [{mod_broadcast, #{backend => rdbms}}].
 
 is_internal_or_rdbms() ->
     AuthMods = mongoose_helper:auth_modules(),
     Pred = fun(E) -> E == ejabberd_auth_internal orelse E == ejabberd_auth_rdbms end,
     lists:any(Pred, AuthMods).
+
+is_rdbms_auth_enabled() ->
+    AuthMods = mongoose_helper:auth_modules(),
+    lists:member(ejabberd_auth_rdbms, AuthMods).
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -453,6 +486,33 @@ last_removal(Config0) ->
             escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
         end,
     escalus:fresh_story_with_config(Config0, [{alice, 1}, {bob, 1}], F).
+
+broadcast_removal(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
+        Domain = domain(),
+        SecondaryDomain = secondary_domain(),
+        AliceJid = escalus_client:short_jid(Alice),
+        AliceBisJid = escalus_client:short_jid(AliceBis),
+        JobSpec = broadcast_helper:slow_job_spec(Domain, AliceJid, JobName),
+        OtherJobSpec = broadcast_helper:slow_job_spec(SecondaryDomain, AliceBisJid, JobName),
+
+        {ok, JobId} = broadcast_helper:start_broadcast(JobSpec),
+        broadcast_helper:wait_until_worker_started(host_type(), JobId),
+        {ok, [_]} = broadcast_helper:get_broadcasts(Domain, 10, 0),
+
+        {ok, OtherJobId} = broadcast_helper:start_broadcast(OtherJobSpec),
+        broadcast_helper:wait_until_worker_started(secondary_host_type(), OtherJobId),
+        {ok, [_]} = broadcast_helper:get_broadcasts(SecondaryDomain, 10, 0),
+
+        run_remove_domain(),
+
+        {ok, []} = broadcast_helper:get_broadcasts(Domain, 10, 0),
+        false = broadcast_helper:does_worker_for_job_exist(host_type(), JobId),
+
+        {ok, [_]} = broadcast_helper:get_broadcasts(SecondaryDomain, 10, 0),
+        true = broadcast_helper:does_worker_for_job_exist(secondary_host_type(), OtherJobId)
+    end).
 
 removal_stops_if_handler_fails(Config0) ->
     mongoose_helper:inject_module(?MODULE),
