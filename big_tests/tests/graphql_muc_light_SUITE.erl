@@ -500,15 +500,15 @@ user_invite_user_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
                                           <<"successfully">>)),
     Rb = escalus:wait_for_stanza(Bob),
-    member_is_affiliated(Rb, Bob),
+    ?assert(member_is_affiliated(Rb, Bob)),
     BobName = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
     AliceName = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
     ExpectedAff = lists:sort([{{AliceName, Domain}, owner},
                               {{BobName, Domain}, member}]),
     ?assertMatch(ExpectedAff, lists:sort(get_room_aff(RoomJID))),
     Ra = escalus:wait_for_stanza(Alice),
-    member_is_affiliated(Ra, Bob),
-    %% XMPP: Alice does NOT recieve an IQ result stanza following
+    ?assert(member_is_affiliated(Ra, Bob)),
+    %% XMPP: Alice does NOT receive an IQ result stanza following
     %% her HTTP request to invite Bob in story point (*).
     escalus_assert:has_no_stanzas(Alice),
     ok.

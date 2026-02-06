@@ -1216,9 +1216,9 @@ user_kick_user_story(Config, Alice, Bob, Kate) ->
     enter_room(RoomJID, Alice, <<"ali">>),
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Kate, <<"kitkat">>),
-    escalus:wait_for_stanzas(Alice, 9, 100),
-    escalus:wait_for_stanzas(Bob, 9, 100),
-    escalus:wait_for_stanzas(Kate, 9, 100),
+    escalus:wait_for_stanzas(Alice, 3, 100),
+    escalus:wait_for_stanzas(Bob, 3, 100),
+    escalus:wait_for_stanzas(Kate, 3, 100),
     Res = user_kick_user(Alice, RoomJID, BobNick, Reason, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
@@ -1231,10 +1231,10 @@ user_kick_user_story(Config, Alice, Bob, Kate) ->
     %% Kate finds out Bob is kicked.
     ?assert(is_unavailable_presence(escalus:wait_for_stanza(Kate))),
     %% **NOTE**: Alice is a moderator so Bob is kicked through
-    %% her. She recieves and IQ result.
+    %% her. She receives and IQ result.
     AliceReceives = escalus:wait_for_stanzas(Alice, 2, 100),
-    [_] = lists:filter(fun is_unavailable_presence/1, AliceReceives),
-    [_] = lists:filter(fun escalus_pred:is_iq_result/1, AliceReceives),
+    escalus:assert_many([fun is_unavailable_presence/1, fun escalus_pred:is_iq_result/1],
+                        AliceReceives),
     ok.
 
 user_try_kick_user_without_moderator_resource(Config) ->
