@@ -57,15 +57,7 @@ get_broadcasts(Domain, Limit, Index) ->
 get_broadcast(Domain, Id) ->
     case mongoose_domain_api:get_host_type(Domain) of
         {ok, HostType} ->
-            case mod_broadcast_backend:get_job(HostType, Id) of
-                {ok, #broadcast_job{domain = Domain} = Job} ->
-                    {ok, Job};
-                {ok, #broadcast_job{}} ->
-                    %% Job exists but belongs to different domain
-                    error_result(broadcast_not_found);
-                {error, not_found} ->
-                    error_result(broadcast_not_found)
-            end;
+            get_broadcast(HostType, Domain, Id);
         {error, not_found} ->
             error_result(domain_not_found)
     end.
@@ -75,16 +67,7 @@ get_broadcast(Domain, Id) ->
 start_broadcast(#{domain := Domain} = JobSpec) ->
     case mongoose_domain_api:get_host_type(Domain) of
         {ok, HostType} ->
-            case broadcast_manager:start_job(HostType, JobSpec) of
-                {ok, JobId} ->
-                    {ok, JobId};
-                {error, running_job_limit_exceeded} ->
-                    error_result(running_job_limit_exceeded);
-                {error, sender_not_found} ->
-                    error_result(sender_not_found);
-                {error, {bad_parameter, ParameterName}} ->
-                    error_result({bad_parameter, ParameterName})
-            end;
+            start_broadcast(HostType, JobSpec);
         {error, not_found} ->
             error_result(domain_not_found)
     end.
@@ -94,25 +77,7 @@ start_broadcast(#{domain := Domain} = JobSpec) ->
 abort_broadcast(Domain, Id) ->
     case mongoose_domain_api:get_host_type(Domain) of
         {ok, HostType} ->
-            %% First verify the job exists and belongs to this domain
-            case mod_broadcast_backend:get_job(HostType, Id) of
-                {ok, #broadcast_job{domain = Domain,
-                                    owner_node = OwnerNode,
-                                    execution_state = running}} ->
-                    case broadcast_manager:stop_job(OwnerNode, HostType, Id) of
-                        ok ->
-                            {ok, Id};
-                        {error, not_live} ->
-                            error_result(broadcast_not_found)
-                    end;
-                {ok, #broadcast_job{domain = Domain}} ->
-                    error_result(not_running);
-                {ok, #broadcast_job{}} ->
-                    %% Job exists but belongs to different domain
-                    error_result(broadcast_not_found);
-                {error, not_found} ->
-                    error_result(broadcast_not_found)
-            end;
+            abort_broadcast(HostType, Domain, Id);
         {error, not_found} ->
             error_result(domain_not_found)
     end.
@@ -122,20 +87,7 @@ abort_broadcast(Domain, Id) ->
 delete_inactive_broadcasts_by_ids(Domain, Ids) ->
     case mongoose_domain_api:get_host_type(Domain) of
         {ok, HostType} ->
-            DeletedIds = lists:filtermap(
-                fun(Id) ->
-                    case try_delete_inactive_job(HostType, Domain, Id) of
-                        ok ->
-                            {true, Id};
-                        {error, Reason} ->
-                            ?LOG_INFO(#{what => cannot_delete_broadcast_job,
-                                        domain => Domain,
-                                        id => Id,
-                                        reason => Reason}),
-                            false
-                    end
-                end, Ids),
-            {ok, DeletedIds};
+            {ok, delete_inactive_broadcasts_by_ids(HostType, Domain, Ids)};
         {error, not_found} ->
             error_result(domain_not_found)
     end.
@@ -151,12 +103,83 @@ delete_inactive_broadcasts_by_domain(Domain) ->
     end.
 
 %%====================================================================
+%% Delegated API functions, after host type check
+%%====================================================================
+
+-spec get_broadcast(mongooseim:host_type(), jid:lserver(), broadcast_job_id()) ->
+    {ok, broadcast_job()} | {broadcast_not_found, binary()}.
+get_broadcast(HostType, Domain, Id) ->
+    case mod_broadcast_backend:get_job(HostType, Id) of
+        {ok, #broadcast_job{domain = Domain} = Job} ->
+            {ok, Job};
+        {ok, #broadcast_job{}} ->
+            %% Job exists but belongs to different domain
+            error_result(broadcast_not_found);
+        {error, not_found} ->
+            error_result(broadcast_not_found)
+    end.
+
+-spec start_broadcast(mongooseim:host_type(), job_spec()) ->
+    {ok, broadcast_job_id()} | {atom(), binary()}.
+start_broadcast(HostType, JobSpec) ->
+    case broadcast_manager:start_job(HostType, JobSpec) of
+        {ok, JobId} ->
+            {ok, JobId};
+        {error, running_job_limit_exceeded} ->
+            error_result(running_job_limit_exceeded);
+        {error, sender_not_found} ->
+            error_result(sender_not_found);
+        {error, {bad_parameter, ParameterName}} ->
+            error_result({bad_parameter, ParameterName})
+    end.
+
+-spec abort_broadcast(mongooseim:host_type(), jid:lserver(), broadcast_job_id()) ->
+    {ok, broadcast_job_id()} | {atom(), binary()}.
+abort_broadcast(HostType, Domain, Id) ->
+    %% First verify the job exists and belongs to this domain
+    case mod_broadcast_backend:get_job(HostType, Id) of
+        {ok, #broadcast_job{domain = Domain,
+                            owner_node = OwnerNode,
+                            execution_state = running}} ->
+            case broadcast_manager:stop_job(OwnerNode, HostType, Id) of
+                ok ->
+                    {ok, Id};
+                {error, not_live} ->
+                    error_result(broadcast_not_found)
+            end;
+        {ok, #broadcast_job{domain = Domain}} ->
+            error_result(not_running);
+        {ok, #broadcast_job{}} ->
+            %% Job exists but belongs to different domain
+            error_result(broadcast_not_found);
+        {error, not_found} ->
+            error_result(broadcast_not_found)
+    end.
+
+-spec delete_inactive_broadcasts_by_ids(mongooseim:host_type(), jid:lserver(), [broadcast_job_id()]) ->
+    [broadcast_job_id()].
+delete_inactive_broadcasts_by_ids(HostType, Domain, Ids) ->
+    lists:filtermap(
+        fun(Id) ->
+            case delete_inactive_job(HostType, Domain, Id) of
+                ok ->
+                    {true, Id};
+                {error, Reason} ->
+                    ?LOG_INFO(#{what => cannot_delete_broadcast_job,
+                                domain => Domain,
+                                id => Id,
+                                reason => Reason}),
+                    false
+            end
+        end, Ids).
+
+%%====================================================================
 %% Internal functions
 %%====================================================================
 
--spec try_delete_inactive_job(mongooseim:host_type(), jid:lserver(), broadcast_job_id()) ->
+-spec delete_inactive_job(mongooseim:host_type(), jid:lserver(), broadcast_job_id()) ->
     ok | {error, term()}.
-try_delete_inactive_job(HostType, Domain, Id) ->
+delete_inactive_job(HostType, Domain, Id) ->
     case mod_broadcast_backend:get_job(HostType, Id) of
         {ok, #broadcast_job{domain = Domain, execution_state = State}}
           when State =/= running ->
