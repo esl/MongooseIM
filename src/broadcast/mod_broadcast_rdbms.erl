@@ -36,7 +36,7 @@ init(HostType, _Opts) ->
     ok.
 
 -spec create_job(mongooseim:host_type(), mod_broadcast_backend:job_spec()) ->
-    {ok, JobId :: broadcast_job_id()} | {error, already_running}.
+    {ok, JobId :: broadcast_job_id()} | {error, running_job_limit_exceeded}.
 create_job(HostType, JobSpec) ->
     #{name := Name, domain := Domain, sender := Sender,
       subject := Subject, body := Body, message_rate := Rate,
@@ -44,14 +44,23 @@ create_job(HostType, JobSpec) ->
     OwnerNode = atom_to_binary(node(), utf8),
     SenderBin = jid:to_binary(Sender),
     RecipientGroupBin = encode_recipient_group(RecipientGroup),
-    try execute_successfully(HostType, broadcast_create_job,
-                             [Name, Domain, SenderBin, Subject, Body, Rate,
-                              RecipientGroupBin, OwnerNode, RecipientCount]) of
-        {updated, 1, [{JobId}]} ->
-            {ok, JobId}
-    catch
-        error:#{reason := {error, duplicate_key}} ->
-            {error, already_running}
+    T = fun() ->
+        %% Limit is hardcoded to 1 for now
+        %% TODO: Make it configurable
+        case execute_successfully(HostType, broadcast_count_running_jobs, [Domain]) of
+            {selected, [{RunningJobsCount}]} when RunningJobsCount >= 1 ->
+                {error, running_job_limit_exceeded};
+            _Else ->
+                execute_successfully(HostType, broadcast_create_job,
+                                    [Name, Domain, HostType, SenderBin, Subject, Body, Rate,
+                                    RecipientGroupBin, OwnerNode, RecipientCount])
+        end
+    end,
+    case mongoose_rdbms:sql_transaction(HostType, T) of
+        {atomic, {updated, 1, [{JobId}]}} ->
+            {ok, JobId};
+        {atomic, {error, running_job_limit_exceeded} = E}->
+            E
     end.
 
 -spec get_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
@@ -59,7 +68,7 @@ create_job(HostType, JobSpec) ->
 get_job(HostType, JobId) ->
     case execute_successfully(HostType, broadcast_get_job, [JobId]) of
         {selected, [Row]} ->
-            {ok, row_to_job(HostType, Row)};
+            {ok, row_to_job(Row)};
         {selected, []} ->
             {error, not_found}
     end.
@@ -67,9 +76,8 @@ get_job(HostType, JobId) ->
 -spec get_running_jobs(mongooseim:host_type()) -> {ok, [broadcast_job()]}.
 get_running_jobs(HostType) ->
     OwnerNode = atom_to_binary(node(), utf8),
-    {selected, Rows} = execute_successfully(HostType, broadcast_get_running_jobs,
-                                            [HostType, HostType, OwnerNode]),
-    Jobs = [row_to_job(HostType, R) || R <- Rows],
+    {selected, Rows} = execute_successfully(HostType, broadcast_get_running_jobs, [OwnerNode, HostType]),
+    Jobs = lists:map(fun row_to_job/1, Rows),
     {ok, Jobs}.
 
 -spec get_jobs_by_domain(mongooseim:host_type(), jid:lserver(),
@@ -78,7 +86,7 @@ get_running_jobs(HostType) ->
 get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
     {selected, Rows} = execute_successfully(HostType, broadcast_get_jobs_by_domain,
                                             [Domain, Limit, Offset]),
-    Jobs = [row_to_job(HostType, R) || R <- Rows],
+    Jobs = lists:map(fun row_to_job/1, Rows),
     {ok, Jobs}.
 
 -spec get_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
@@ -150,18 +158,23 @@ delete_inactive_jobs_by_domain(HostType, Domain) ->
 %%====================================================================
 
 prepare_queries(HostType) ->
+    prepare(broadcast_count_running_jobs, broadcast_jobs,
+            [server],
+            <<"SELECT COUNT(*) FROM broadcast_jobs "
+              "WHERE server = ? AND execution_state = 'running'">>),
+
     prepare(broadcast_create_job, broadcast_jobs,
-            [name, server, from_jid, subject, message, rate,
+            [name, server, host_type, from_jid, subject, body, rate,
              recipient_group, owner_node, recipient_count],
             <<"INSERT INTO broadcast_jobs "
-              "(name, server, from_jid, subject, message, rate, "
+                            "(name, server, host_type, from_jid, subject, body, rate, "
               "recipient_group, owner_node, recipient_count) "
-              "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
               "RETURNING id">>),
 
     prepare(broadcast_get_job, broadcast_jobs,
             [id],
-            <<"SELECT j.id, j.name, j.server, j.from_jid, j.subject, j.message, j.rate, "
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
               "j.recipient_group, j.owner_node, j.recipient_count, "
               "COALESCE(ws.recipients_processed, 0), "
               "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
@@ -170,30 +183,28 @@ prepare_queries(HostType) ->
               "WHERE j.id = ?">>),
 
     prepare(broadcast_get_running_jobs, broadcast_jobs,
-            [host_type, host_type, owner_node],
-            <<"SELECT j.id, j.name, j.server, j.from_jid, j.subject, j.message, j.rate, "
+            [owner_node, host_type],
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
               "j.recipient_group, j.owner_node, j.recipient_count, "
               "COALESCE(ws.recipients_processed, 0), "
               "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
               "FROM broadcast_jobs j "
               "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-              "LEFT JOIN domain_settings ds ON j.server = ds.domain "
-              "WHERE (ds.host_type = ? OR (ds.host_type IS NULL AND j.server = ?)) "
-              " AND j.owner_node = ? AND j.execution_state = 'running'">>),
+              "WHERE j.owner_node = ? AND j.host_type = ? AND j.execution_state = 'running'">>),
 
     prepare(broadcast_get_worker_state, broadcast_worker_state,
             [broadcast_id],
             <<"SELECT cursor_user, recipients_processed, finished FROM broadcast_worker_state "
               "WHERE broadcast_id = ?">>),
 
+    prepare(broadcast_upsert_worker_state, broadcast_worker_state,
+            [broadcast_id, cursor_user, recipients_processed, finished],
+            upsert_worker_state_query(HostType)),
+
     prepare(broadcast_set_job_started, broadcast_jobs,
             [id],
             <<"UPDATE broadcast_jobs SET started_at = CURRENT_TIMESTAMP"
               " WHERE id = ?">>),
-
-    prepare(broadcast_upsert_worker_state, broadcast_worker_state,
-            [broadcast_id, cursor_user, recipients_processed, finished],
-            upsert_worker_state_query(HostType)),
 
     prepare(broadcast_set_job_finished, broadcast_jobs,
             [id],
@@ -216,7 +227,7 @@ prepare_queries(HostType) ->
 
     prepare(broadcast_get_jobs_by_domain, broadcast_jobs,
             [server, limit, offset],
-            <<"SELECT j.id, j.name, j.server, j.from_jid, j.subject, j.message, j.rate, "
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
               "j.recipient_group, j.owner_node, j.recipient_count, "
               "COALESCE(ws.recipients_processed, 0), "
               "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
@@ -257,9 +268,9 @@ upsert_worker_state_query(HostType) ->
               "finished = VALUES(finished)">>
     end.
 
-row_to_job(HostType, {JobId, Name, Server, FromJid, Subject, Message, Rate,
-                      RecipientGroup, OwnerNode, RecipientCount, RecipientsProcessed,
-                      ExecutionState, AbortionReason, CreatedAt, StartedAt, StoppedAt}) ->
+row_to_job({JobId, Name, Server, HostType, FromJid, Subject, Message, Rate,
+            RecipientGroup, OwnerNode, RecipientCount, RecipientsProcessed,
+            ExecutionState, AbortionReason, CreatedAt, StartedAt, StoppedAt}) ->
     #broadcast_job{id = JobId,
                    name = Name,
                    host_type = HostType,

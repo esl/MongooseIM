@@ -31,7 +31,7 @@
 -callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
 -callback create_job(mongooseim:host_type(), job_spec()) ->
-    {ok, JobId :: broadcast_job_id()} | {error, already_running}.
+    {ok, JobId :: broadcast_job_id()} | {error, running_job_limit_exceeded}.
 
 -callback get_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     {ok, broadcast_job()} | {error, not_found}.
@@ -80,7 +80,7 @@ init(HostType, Opts) ->
     mongoose_backend:call(HostType, main_module(), ?FUNCTION_NAME, Args).
 
 -spec create_job(mongooseim:host_type(), job_spec()) ->
-    {ok, JobId :: broadcast_job_id()} | {error, already_running}.
+    {ok, JobId :: broadcast_job_id()} | {error, running_job_limit_exceeded}.
 create_job(HostType, JobSpec) ->
     Args = [HostType, JobSpec],
     mongoose_backend:call(HostType, main_module(), ?FUNCTION_NAME, Args).

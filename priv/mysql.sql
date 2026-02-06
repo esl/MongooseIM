@@ -584,9 +584,10 @@ CREATE TABLE broadcast_jobs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(250) NOT NULL,
     server VARCHAR(250) NOT NULL,
+    host_type VARCHAR(250) NOT NULL,
     from_jid VARCHAR(250) NOT NULL,
     subject VARCHAR(1024) NOT NULL,
-    message TEXT NOT NULL,
+    body TEXT NOT NULL,
     rate INT NOT NULL,
     recipient_group ENUM('all_users_in_domain') NOT NULL,
     owner_node VARCHAR(250) NOT NULL,
@@ -596,16 +597,11 @@ CREATE TABLE broadcast_jobs (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP NULL,
     stopped_at TIMESTAMP NULL,
-    INDEX i_broadcast_jobs_server (server, id)
+    INDEX i_broadcast_jobs_server (server, id),
+    INDEX i_broadcast_jobs_owner_host_state (owner_node, host_type, execution_state),
+    INDEX i_broadcast_jobs_server_state (server, execution_state)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
-
--- Only one running job per domain (partial unique index emulated via generated column)
-ALTER TABLE broadcast_jobs
-    ADD COLUMN running_server VARCHAR(250) GENERATED ALWAYS AS (
-        CASE WHEN execution_state = 'running' THEN server ELSE NULL END
-    ) STORED,
-    ADD UNIQUE INDEX u_broadcast_jobs_one_running_per_server (running_server);
 
 CREATE TABLE broadcast_worker_state (
     broadcast_id INT NOT NULL,

@@ -57,8 +57,8 @@ start_broadcast(#{domain := Domain} = JobSpec) ->
             case broadcast_manager:start_job(HostType, JobSpec) of
                 {ok, JobId} ->
                     {ok, JobId};
-                {error, already_running} ->
-                    error_result(already_running);
+                {error, running_job_limit_exceeded} ->
+                    error_result(running_job_limit_exceeded);
                 {error, sender_not_found} ->
                     error_result(sender_not_found);
                 {error, {bad_parameter, ParameterName}} ->
@@ -151,8 +151,8 @@ error_result(broadcast_not_found) ->
     {broadcast_not_found, <<"Broadcast job not found">>};
 error_result(sender_not_found) ->
     {sender_not_found, <<"Sender account does not exist">>};
-error_result(already_running) ->
-    {already_running, <<"A broadcast job is already running for this domain">>};
+error_result(running_job_limit_exceeded) ->
+    {running_job_limit_exceeded, <<"Cannot start new broadcast job: running job limit exceeded">>};
 error_result(not_running) ->
     {not_running, <<"The broadcast job is not currently running">>};
 error_result({bad_parameter, ParameterName}) ->

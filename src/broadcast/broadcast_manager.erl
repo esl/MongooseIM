@@ -26,7 +26,7 @@
               stop_job_error/0,
               validation_error/0]).
 
--type create_job_error() :: already_running | validation_error() | term().
+-type create_job_error() :: running_job_limit_exceeded | validation_error() | term().
 -type stop_job_error() :: not_live.
 -type validation_error() :: sender_not_found
                          | no_recipients
@@ -195,8 +195,8 @@ do_create_job(HostType, #{domain := Domain, sender := Sender} = JobSpec) ->
                                 host_type => HostType,
                                 sender => jid:to_binary(Sender)}),
             {ok, JobId};
-        {error, already_running} = Error ->
-            ?LOG_WARNING(#{what => broadcast_job_already_running,
+        {error, running_job_limit_exceeded} = Error ->
+            ?LOG_WARNING(#{what => broadcast_job_running_limit_exceeded,
                             domain => Domain,
                             host_type => HostType}),
             Error

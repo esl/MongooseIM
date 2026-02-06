@@ -529,9 +529,10 @@ CREATE TABLE broadcast_jobs (
     id SERIAL PRIMARY KEY,
     name VARCHAR(250) NOT NULL,
     server VARCHAR(250) NOT NULL,
+    host_type VARCHAR(250) NOT NULL,
     from_jid VARCHAR(250) NOT NULL,
     subject VARCHAR(1024) NOT NULL,
-    message TEXT NOT NULL,
+    body TEXT NOT NULL,
     rate INTEGER NOT NULL,
     recipient_group broadcast_recipient_group NOT NULL,
     owner_node VARCHAR(250) NOT NULL,
@@ -543,12 +544,11 @@ CREATE TABLE broadcast_jobs (
     stopped_at TIMESTAMPTZ
 );
 
--- Index for listing jobs by domain
 CREATE INDEX i_broadcast_jobs_server ON broadcast_jobs USING btree (server, id);
-
--- Only one running job per domain
-CREATE UNIQUE INDEX u_broadcast_jobs_one_running_per_server
-    ON broadcast_jobs (server) WHERE execution_state = 'running';
+CREATE INDEX i_broadcast_jobs_owner_host_state
+    ON broadcast_jobs USING btree (owner_node, host_type, execution_state);
+CREATE INDEX i_broadcast_jobs_server_state
+    ON broadcast_jobs USING btree (server, execution_state);
 
 CREATE TABLE broadcast_worker_state (
     broadcast_id INTEGER NOT NULL REFERENCES broadcast_jobs(id) ON DELETE CASCADE,

@@ -16,7 +16,7 @@
 
 %% lifecycle
 -export([start_broadcast_ok_returns_job_id/1,
-         start_broadcast_already_running/1,
+         start_broadcast_running_job_limit_exceeded/1,
          start_broadcast_two_domains_both_ok/1,
          resume_jobs_after_restart/1,
          manager_restart_is_idempotent_to_live_job_workers/1,
@@ -72,7 +72,7 @@ groups() ->
 
 lifecycle_tests() ->
     [start_broadcast_ok_returns_job_id,
-     start_broadcast_already_running,
+    start_broadcast_running_job_limit_exceeded,
      start_broadcast_two_domains_both_ok,
      resume_jobs_after_restart,
      manager_restart_is_idempotent_to_live_job_workers,
@@ -165,13 +165,13 @@ start_broadcast_ok_returns_job_id(Config) ->
         assert_non_neg_integer(JobId)
     end).
 
-start_broadcast_already_running(Config) ->
+start_broadcast_running_job_limit_exceeded(Config) ->
     JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
         JobSpec = slow_job_spec(domain(), AliceJid, JobName),
         {ok, _JobId1} = start_broadcast(JobSpec),
-        {already_running, _} = start_broadcast(JobSpec)
+        {running_job_limit_exceeded, _} = start_broadcast(JobSpec)
     end).
 
 start_broadcast_two_domains_both_ok(Config) ->
