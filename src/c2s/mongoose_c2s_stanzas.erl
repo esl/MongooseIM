@@ -61,19 +61,20 @@ stream_features_before_auth(StateData) ->
 determine_features(_, _, _, #{tls := #{mode := starttls_required}}, false) ->
     [starttls_stanza(required)];
 determine_features(StateData, HostType, LServer, #{tls := #{mode := starttls}}, false) ->
-    InitialFeatures = [starttls_stanza(optional) | maybe_sasl_mechanisms(StateData)],
+    InitialFeatures = [starttls_stanza(optional) | maybe_sasl_features(StateData)],
     StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
     mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures);
 determine_features(StateData, HostType, LServer, _, _) ->
-    InitialFeatures = maybe_sasl_mechanisms(StateData),
+    InitialFeatures = maybe_sasl_features(StateData),
     StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
     mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures).
 
--spec maybe_sasl_mechanisms(mongoose_c2s:data()) -> [exml:element()].
-maybe_sasl_mechanisms(StateData) ->
+-spec maybe_sasl_features(mongoose_c2s:data()) -> [exml:element()].
+maybe_sasl_features(StateData) ->
     case mongoose_c2s:get_auth_mechs_to_announce(StateData) of
         [] -> [];
         Mechanisms ->
+            maybe_sasl_channel_bindings(Mechanisms) ++
             [#xmlel{name = <<"mechanisms">>,
                     attrs = #{<<"xmlns">> => ?NS_SASL},
                     children = [ mechanism(M) || M <- Mechanisms ]}]
@@ -82,6 +83,30 @@ maybe_sasl_mechanisms(StateData) ->
 -spec mechanism(binary()) -> exml:element().
 mechanism(M) ->
     #xmlel{name = <<"mechanism">>, children = [#xmlcdata{content = M}]}.
+
+-spec maybe_sasl_channel_bindings([binary()]) -> [exml:element()].
+maybe_sasl_channel_bindings(Mechanisms) ->
+    case determine_channel_bindings(Mechanisms) of
+        [] -> [];
+        Bindings ->
+            [#xmlel{name = <<"sasl-channel-binding">>,
+                    attrs = #{<<"xmlns">> => ?NS_SASL_CB},
+                    children = [ channel_binding(B) || B <- Bindings ]}]
+    end.
+
+determine_channel_bindings(Mechanisms) ->
+    case lists:any(fun(<<"SCRAM-SHA-1-PLUS">>) -> true;
+                      (<<"SCRAM-SHA-", _:3/binary, "-PLUS">>) -> true;
+                      (_) -> false
+                   end, Mechanisms) of
+        true -> [<<"tls-exporter">>];
+        false -> []
+    end.
+
+-spec channel_binding(binary()) -> exml:element().
+channel_binding(B) ->
+    #xmlel{name = <<"channel-binding">>, attrs = #{<<"type">> => B}}.
+
 
 -spec starttls_stanza(required | optional) -> exml:element().
 starttls_stanza(TLSRequired) when TLSRequired =:= required; TLSRequired =:= optional ->

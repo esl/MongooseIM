@@ -69,7 +69,7 @@ options("miscellaneous") ->
       [config([listen, http],
               #{port => 5280,
                 handlers =>
-                    [config([listen, http, handlers, mod_websockets],
+                    [config([listen, http, handlers, mongoose_websocket_handler],
                             #{host => '_', path => "/ws-xmpp"}
                            )],
                 transport => #{num_acceptors => 10, max_connections => 1024}
@@ -190,9 +190,9 @@ options("mongooseim-pgsql") ->
        config([listen, http],
               #{port => 5280,
                 handlers =>
-                    [config([listen, http, handlers, mod_bosh],
+                    [config([listen, http, handlers, mongoose_bosh_handler],
                             #{host => '_', path => "/http-bind"}),
-                     config([listen, http, handlers, mod_websockets],
+                     config([listen, http, handlers, mongoose_websocket_handler],
                             #{host => '_', path => "/ws-xmpp"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024}
@@ -200,14 +200,14 @@ options("mongooseim-pgsql") ->
        config([listen, http],
               #{port => 5285,
                 handlers =>
-                    [config([listen, http, handlers, mod_bosh],
-                            #{host => '_', path => "/http-bind"}),
-                     config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
-                              ping_rate => 120000, timeout => infinity}),
-                     config([listen, http, handlers, mongoose_admin_api],
+                    [config([listen, http, handlers, mongoose_admin_api],
                             #{host => "localhost", path => "/api",
-                              username => <<"ala">>, password => <<"makotaipsa">>})
+                              username => <<"ala">>, password => <<"makotaipsa">>}),
+                     config([listen, http, handlers, mongoose_bosh_handler],
+                            #{host => '_', path => "/http-bind"}),
+                     config([listen, http, handlers, mongoose_websocket_handler],
+                            #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
+                              ping_rate => 120000, timeout => infinity})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem",
@@ -263,7 +263,8 @@ options("mongooseim-pgsql") ->
      {registration_timeout, infinity},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services,
-      #{service_mongoose_system_metrics =>
+      #{service_bosh => config([services, service_bosh], #{inactivity => 30, server_acks => true}),
+        service_mongoose_system_metrics =>
             #{initial_report => 300000,
               periodic_report => 10800000}}},
      {sm_backend, mnesia},
@@ -601,9 +602,6 @@ all_modules() ->
                                                  welcome_message => {"Subject", "Body"}}),
       mod_mam_rdbms_arch =>
           mod_config(mod_mam_rdbms_arch, #{no_writer => true}),
-      mod_bosh =>
-          #{backend => mnesia, inactivity => 20, max_wait => infinity,
-            server_acks => true, max_pause => 120},
       mod_muc =>
           mod_config(mod_muc,
                      #{access => muc,
@@ -683,7 +681,6 @@ custom_mod_event_pusher_sns() ->
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
       mod_amp => #{}, mod_blocking => default_mod_config(mod_blocking),
-      mod_bosh => default_mod_config(mod_bosh),
       mod_carboncopy => default_mod_config(mod_carboncopy),
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
@@ -862,9 +859,6 @@ default_mod_config(mod_bind2) ->
     #{};
 default_mod_config(mod_blocking) ->
     #{backend => mnesia};
-default_mod_config(mod_bosh) ->
-    #{backend => mnesia, inactivity => 30, max_wait => infinity,
-      server_acks => false, max_pause => 120};
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_caps) ->
@@ -1132,10 +1126,10 @@ default_config([listen, http]) ->
                                 protocol => default_config([listen, http, protocol]),
                                 handlers => [],
                                 connection_type => http};
-default_config([listen, http, handlers, mod_websockets]) ->
+default_config([listen, http, handlers, mongoose_websocket_handler]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
-      module => mod_websockets,
+      module => mongoose_websocket_handler,
       state_timeout => 5000,
       backwards_compatible_session => true};
 default_config([listen, http, handlers, mongoose_admin_api]) ->
@@ -1310,6 +1304,9 @@ default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indicat
 default_config([host_config, outgoing_pools | Path]) ->
     Default = default_config([outgoing_pools | Path]),
     maps:remove(scope, Default);
+default_config([services, service_bosh]) ->
+    #{backend => mnesia, inactivity => 30, max_wait => infinity,
+      server_acks => false, max_pause => 120};
 default_config([services, service_domain_db]) ->
     #{event_cleaning_interval => 1800,
       event_max_age => 7200,
@@ -1338,10 +1335,12 @@ default_config(Path) when is_list(Path) ->
     #{}.
 
 default_xmpp_tls() ->
-    (default_tls())#{mode => starttls}.
+    (default_tls())#{mode => starttls,
+                     keep_secrets => false}.
 
 default_xmpp_tls_tls() ->
-    (default_tls())#{mode => tls}.
+    (default_tls())#{mode => tls,
+                     keep_secrets => false}.
 
 default_tls() ->
     #{verify_mode => peer,

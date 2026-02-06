@@ -8,7 +8,6 @@
 -define(VALID_UUID_BUT_NOT_V4, <<"a55c8fde-2cef-0655-a55c-8fde2cefc655">>).
 -define(NS_SASL_2, <<"urn:xmpp:sasl:2">>).
 
--type step(Config, Client, Data) :: fun((Config, Client, Data) -> {Client, Data}).
 -import(config_parser_helper, [mod_config/2, default_mod_config/1]).
 
 ns() ->
@@ -36,7 +35,8 @@ rdbms_mods() ->
 apply_steps(Steps, Config) ->
     apply_steps(Steps, Config, undefined, #{}).
 
--spec apply_steps([step(Config, Client, Data)], Config, Client, Data) -> Data.
+-spec apply_steps([atom() | {atom(), atom()}],
+                  term(), escalus_connection:client() | undefined, term()) -> term().
 apply_steps([], _Config, Client, LastData) ->
     escalus_connection:stop(Client),
     LastData;
@@ -64,7 +64,7 @@ create_user(Config, Client, Data) ->
     Spec = escalus_fresh:create_fresh_user(Config, alice),
     {Client, Data#{spec => Spec}}.
 
-connect_tls(Config, _, #{spec := Spec} = Data) ->
+connect_tls(_Config, _, #{spec := Spec} = Data) ->
     %% Direct TLS port
     TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
     SSLOpts = proplists:get_value(ssl_opts, Spec, []),
@@ -81,7 +81,7 @@ start_stream_get_features(_Config, Client, Data) ->
 
 %% From escalus_connection:start_stream
 -spec start_stream(escalus_connection:client()) -> binary().
-start_stream(#client{module = Mod, props = Props} = Client) ->
+start_stream(#client{module = Mod, props = Props}) ->
     exml:to_binary(Mod:stream_start_req(Props)).
 
 send_invalid_mech_auth_stanza(_Config, Client, Data) ->

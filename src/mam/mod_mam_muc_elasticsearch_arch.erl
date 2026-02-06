@@ -167,11 +167,26 @@ remove_archive(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
         ok ->
             ok;
         {error, Reason} ->
-            ?LOG_ERROR(#{what => remove_muc_archive_failed,
-                         server => HostType, room_jid => RoomJid, reason => Reason}),
-            ok
+            maybe_retry_remove_archive(5, SearchQuery, HostType, RoomJid, Reason)
     end,
     {ok, Acc}.
+
+maybe_retry_remove_archive(0, _SearchQuery, HostType, RoomJid, Reason) ->
+    ?LOG_ERROR(#{what => remove_muc_archive_failed_max_retries,
+                 server => HostType, room_jid => RoomJid, reason => Reason});
+maybe_retry_remove_archive(RetryTimes, SearchQuery, HostType, RoomJid,
+                           #{<<"version_conflicts">> := N} = Reason) when N > 0 ->
+    ?LOG_WARNING(#{what => remove_muc_archive_retrying, retries_left => RetryTimes,
+                   server => HostType, room_jid => RoomJid, reason => Reason}),
+    case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
+        ok ->
+            ok;
+        {error, NewReason} ->
+            maybe_retry_remove_archive(RetryTimes - 1, SearchQuery, HostType, RoomJid, NewReason)
+    end;
+maybe_retry_remove_archive(_, _SearchQuery, HostType, RoomJid, Reason) ->
+    ?LOG_ERROR(#{what => remove_muc_archive_failed,
+                 server => HostType, room_jid => RoomJid, reason => Reason}).
 
 %%-------------------------------------------------------------------
 %% Helpers

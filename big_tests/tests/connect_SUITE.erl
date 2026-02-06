@@ -16,6 +16,7 @@
 -module(connect_SUITE).
 
 -compile([export_all, nowarn_export_all]).
+-dialyzer({nowarn_function, connect_with_bad_xml/2}).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -51,6 +52,7 @@ all() ->
         {group, incorrect_behaviors},
         {group, proxy_protocol},
         {group, disconnect},
+        {group, keep_secrets},
         %% these groups must be last, as they really... complicate configuration
         {group, just_tls}
     ].
@@ -91,6 +93,7 @@ groups() ->
                                            close_connection_if_protocol_violation_after_authentication,
                                            close_connection_if_protocol_violation_after_binding]},
         {disconnect, [], [disconnect_inactive_tcp_connection_after_timeout]},
+        {keep_secrets, [], [log_tls_secrets]},
         {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
                                       connect_with_proxy_header]}
     ].
@@ -182,11 +185,19 @@ init_per_group(proxy_protocol, Config) ->
 init_per_group(disconnect, Config) ->
     configure_c2s_listener(Config, #{state_timeout => 100}),
     Config;
+init_per_group(keep_secrets, Config) ->
+    TlsOpts = (tls_opts(starttls_required, Config))#{keep_secrets => true},
+    configure_c2s_listener(Config, #{tls => TlsOpts}),
+    SslKeylog = filename:join(path_helper:ct_run_dir(Config), "sslkeylog.txt"),
+    rpc(mim(), os, putenv, ["SSLKEYLOGFILE", SslKeylog]),
+    [{sslkeylog, SslKeylog} | Config];
 init_per_group(verify_peer, Config) ->
     Config;
 init_per_group(_, Config) ->
     Config.
 
+end_per_group(keep_secrets, _Config) ->
+    rpc(mim(), os, unsetenv, ["SSLKEYLOGFILE"]);
 end_per_group(_, _Config) ->
     ok.
 
@@ -419,7 +430,7 @@ should_fail_to_authenticate_without_starttls(Config) ->
     catch
         throw:{auth_failed, User, AuthReply} ->
             ?assertEqual(UserName, User),
-            escalus:assert(is_stream_error, [<<"policy-violation">>,
+            escalus:assert(is_stream_error, [<<"encryption-required">>,
                                              <<"Use of STARTTLS required">>],
                            AuthReply)
     end.
@@ -454,7 +465,7 @@ correct_features_are_advertised_for_optional_starttls(Config) ->
              stream_features,
              {?MODULE, verify_features_with_optional_starttls},
              maybe_use_ssl,
-             {?MODULE, verify_features_without_starttls},
+             {?MODULE, verify_features_with_optional_starttls_post},
              authenticate],
     escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps).
 
@@ -464,7 +475,7 @@ correct_features_are_advertised_for_required_starttls(Config) ->
              stream_features,
              {?MODULE, verify_features_with_required_starttls},
              maybe_use_ssl,
-             {?MODULE, verify_features_without_starttls},
+             {?MODULE, verify_features_with_optional_starttls_post},
              authenticate],
     escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps).
 
@@ -476,6 +487,18 @@ verify_features_without_starttls(Conn, Features) ->
 verify_features_with_optional_starttls(Conn, Features) ->
     ?assertEqual({starttls, true}, get_feature(starttls, Features)),
     ?assertMatch({sasl_mechanisms, [_|_]}, get_feature(sasl_mechanisms, Features)),
+    {Conn, Features}.
+
+verify_features_with_optional_starttls_post(Conn, Features) ->
+    ?assertEqual({starttls, false}, get_feature(starttls, Features)),
+    {sasl_mechanisms, Mechanisms} = get_feature(sasl_mechanisms, Features),
+    case lists:any(fun(M) -> re:run(M, "-PLUS$") /= nomatch end, Mechanisms) of
+        true ->
+            ?assertEqual({sasl_channel_bindings, [<<"tls-exporter">>]},
+                         get_feature(sasl_channel_bindings, Features));
+        false ->
+            ok
+    end,
     {Conn, Features}.
 
 verify_features_with_required_starttls(Conn, Features) ->
@@ -511,6 +534,21 @@ metrics_test(Config) ->
                                                (#{time := Time}) -> Time > 0 end)
      || {Event, Label} <- instrumentation_events(),
         Event =/= c2s_message_processed].
+
+log_tls_secrets(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    Steps = [start_stream,
+             stream_features,
+             maybe_use_ssl,
+             authenticate],
+    escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps),
+    SslKeylog = proplists:get_value(sslkeylog, Config),
+    {ok, Content} = file:read_file(SslKeylog),
+    [?assertNotEqual(nomatch, binary:match(Content, K))
+     || K <- [<<"CLIENT_HANDSHAKE_TRAFFIC_SECRET">>,
+              <<"CLIENT_TRAFFIC_SECRET_0">>,
+              <<"SERVER_HANDSHAKE_TRAFFIC_SECRET">>,
+              <<"SERVER_TRAFFIC_SECRET_0">>]].
 
 tls_authenticate(Config) ->
     %% Given
@@ -578,7 +616,7 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
 
     %% Auth response
     AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
-    escalus:assert(is_stream_error, [<<"policy-violation">>, <<"Use of STARTTLS required">>],
+    escalus:assert(is_stream_error, [<<"encryption-required">>, <<"Use of STARTTLS required">>],
                    AuthResponse).
 
 bind_server_generated_resource(Config) ->
@@ -695,10 +733,7 @@ close_connection_if_service_type_is_hidden(_Config) ->
     % GIVEN the option to hide service name is enabled
     % WHEN we send non-XMPP payload
     % THEN connection is closed without any response from the server
-    FailIfAnyDataReturned = fun(Reply) ->
-                                    ct:fail({unexpected_data, Reply})
-                            end,
-    Connection = escalus_tcp:connect(#{ on_reply => FailIfAnyDataReturned }),
+    Connection = escalus_tcp:connect(#{ on_reply => fun fail_if_ran/1 }),
     Ref = monitor(process, Connection),
     escalus_tcp:send(Connection, <<"malformed">>),
     receive
@@ -707,6 +742,10 @@ close_connection_if_service_type_is_hidden(_Config) ->
         5000 ->
             ct:fail(connection_not_closed)
     end.
+
+-spec fail_if_ran(term()) -> no_return().
+fail_if_ran(Reply) ->
+    ct:fail({unexpected_data, Reply}).
 
 close_connection_if_start_stream_duplicated(Config) ->
     close_connection_if_protocol_violation(Config, [start_stream, stream_features]).
@@ -837,7 +876,7 @@ configure_c2s_listener(Config, ExtraC2SOpts, RemovedC2SKeys) ->
     ct:pal("C2S listener: ~p", [NewC2SListener]),
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
-tls_opts(Mode, Config) ->
+tls_opts(Mode, _Config) ->
     ExtraOpts = #{mode => Mode, verify_mode => none,
                   cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, keyfile => ?KEY_FILE,
                   dhfile => ?DH_FILE},
@@ -889,7 +928,8 @@ pipeline_connect(UserSpec) ->
     Bind = escalus_stanza:bind(<<?MODULE_STRING "_resource">>),
     Session = escalus_stanza:session(),
 
-    escalus_connection:send(Conn, [Stream, Auth, Stream, Bind, Session]),
+    lists:foreach(fun(Stanza) -> escalus_connection:send(Conn, Stanza) end,
+                  [Stream, Auth, Stream, Bind, Session]),
     Conn.
 
 send_proxy_header(Conn, UnusedFeatures) ->

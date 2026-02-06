@@ -72,6 +72,7 @@
                          type,
                          from,
                          packet,
+                         stable_stanza_id,
                          lang
                         }).
 -type routed_message() :: #routed_message{}.
@@ -488,15 +489,17 @@ locked_state(Call, StateData) ->
 
 -spec normal_state({route, From :: jid:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
                    Packet :: exml:element()}, state()) -> fsm_return().
-normal_state({route, From, <<>>, _Acc, #xmlel{name = <<"message">>} = Packet}, StateData) ->
+normal_state({route, From, <<>>, Acc, #xmlel{name = <<"message">>} = Packet}, StateData) ->
     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
     Type = exml_query:attr(Packet, <<"type">>, <<>>),
+    StableID = mongoose_acc:get(stable_stanza_id, value, undefined, Acc),
 
     NewStateData = route_message(#routed_message{
         allowed = can_send_to_conference(From, StateData),
         type = Type,
         from = From,
         packet = Packet,
+        stable_stanza_id = StableID,
         lang = Lang}, StateData),
     next_normal_state(NewStateData);
 normal_state({route, From, <<>>, Acc0, #xmlel{name = <<"iq">>} = Packet}, StateData) ->
@@ -685,7 +688,7 @@ handle_info(process_room_queue, normal_state, StateData) ->
     case queue:out(StateData#state.room_queue) of
     {{value, {message, From}}, RoomQueue} ->
         Activity = get_user_activity(From, StateData),
-        Packet = Activity#activity.message,
+        RMess = Activity#activity.message,
         NewActivity = Activity#activity{message = undefined},
         StateData1 =
         store_user_activity(
@@ -694,7 +697,7 @@ handle_info(process_room_queue, normal_state, StateData) ->
         StateData1#state{
           room_queue = RoomQueue},
         StateData3 = prepare_room_queue(StateData2),
-        process_groupchat_message(From, Packet, StateData3);
+        process_groupchat_message(From, RMess, StateData3);
     {{value, {presence, From}}, RoomQueue} ->
         Activity = get_user_activity(From, StateData),
         {Nick, Packet} = Activity#activity.presence,
@@ -811,12 +814,14 @@ route(Pid, From, ToNick, Acc, Packet) ->
 
 
 -spec process_groupchat_message(jid:simple_jid() | jid:jid(),
-                                exml:element(), state()) -> fsm_return().
-process_groupchat_message(From, #xmlel{name = <<"message">>} = Packet, StateData) ->
+                                routed_message(), state()) -> fsm_return().
+process_groupchat_message(From,
+                          #routed_message{packet = #xmlel{name = <<"message">>} = Packet} = RMess,
+                          StateData) ->
     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
     case can_send_to_conference(From, StateData) of
         true ->
-            process_message_from_allowed_user(From, Packet, StateData);
+            process_message_from_allowed_user(From, RMess, StateData);
         false ->
             send_error_only_occupants(<<"messages">>, Packet, Lang,
                                       StateData#state.jid, From),
@@ -861,7 +866,7 @@ is_room_anonymous(#state{config = #config{anonymous = IsAnon}}) ->
 is_user_moderator(UserJID, StateData) ->
     get_role(UserJID, StateData) =:= moderator.
 
-process_message_from_allowed_user(From, Packet, StateData) ->
+process_message_from_allowed_user(From, #routed_message{packet = Packet} = RMess, StateData) ->
     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
     {FromNick, Role} = get_participant_data(From, StateData),
     CanSendBroadcasts = can_send_broadcasts(Role, StateData),
@@ -871,7 +876,7 @@ process_message_from_allowed_user(From, Packet, StateData) ->
                                                             Packet, StateData),
             case Changed of
                 true ->
-                    broadcast_room_packet(From, FromNick, Role, Packet, NewState);
+                    broadcast_room_packet(From, FromNick, Role, RMess, NewState);
                 false ->
                     change_subject_error(From, FromNick, Packet, Lang, NewState),
                     next_normal_state(NewState)
@@ -888,10 +893,12 @@ can_send_broadcasts(Role, StateData) ->
     or (Role == participant)
     or not (StateData#state.config)#config.moderated.
 
-broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
+broadcast_room_packet(From, FromNick, Role, RMess, StateData) ->
+    #routed_message{packet = Packet, stable_stanza_id = StableID} = RMess,
     TS = erlang:system_time(microsecond),
     Affiliation = get_affiliation(From, StateData),
     EventData = #{from_nick => FromNick, from_jid => From,
+                  stable_stanza_id => StableID,
                   room_jid => StateData#state.jid, role => Role,
                   affiliation => Affiliation, timestamp => TS},
     FilteredPacket = mongoose_hooks:filter_room_packet(
@@ -4172,7 +4179,8 @@ element_size(El) ->
 
 -spec route_message(routed_message(), state()) -> state().
 route_message(#routed_message{allowed = true, type = <<"groupchat">>,
-                              from = From, packet = Packet, lang = Lang}, StateData) ->
+                              from = From, packet = Packet, lang = Lang} = RMess,
+              StateData) ->
     Activity = get_user_activity(From, StateData),
     Now = os:system_time(microsecond),
     MinMessageInterval = trunc(get_opt(StateData, min_message_interval) * 1000000),
@@ -4197,7 +4205,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
                     StateData1 = store_user_activity(From, NewActivity, StateData),
                     StateData2 = StateData1#state{room_shaper = RoomShaper},
                     {next_state, normal_state, StateData3, _} =
-                    process_groupchat_message(From, Packet, StateData2),
+                    process_groupchat_message(From, RMess, StateData2),
                     StateData3;
                 _ ->
                     StateData1 = schedule_queue_processing_when_empty(
@@ -4205,7 +4213,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
                     NewActivity = Activity#activity{
                                     message_time = Now,
                                     message_shaper = MessageShaper,
-                                    message = Packet},
+                                    message = RMess},
                     RoomQueue = queue:in({message, From}, StateData#state.room_queue),
                     StateData2 = store_user_activity(From, NewActivity, StateData1),
                     StateData2#state{room_queue = RoomQueue}
@@ -4215,7 +4223,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
             Interval = lists:max([MessageInterval, MessageShaperInterval]),
             erlang:send_after(Interval, self(), {process_user_message, From}),
             NewActivity = Activity#activity{
-                            message = Packet,
+                            message = RMess,
                             message_shaper = MessageShaper},
             store_user_activity(From, NewActivity, StateData)
     end;

@@ -1,8 +1,8 @@
--module(mod_bosh_mnesia).
+-module(service_bosh_mnesia).
 
--behaviour(mod_bosh_backend).
+-behaviour(service_bosh_backend).
 
-%% mod_bosh_backend callbacks
+%% service_bosh_backend callbacks
 -export([start/0,
          create_session/1,
          delete_session/1,
@@ -10,7 +10,7 @@
          get_sessions/0,
          node_cleanup/1]).
 
--include("mod_bosh.hrl").
+-include("mongoose_bosh.hrl").
 
 -spec start() -> any().
 start() ->
@@ -35,22 +35,22 @@ start() ->
 %% operation returns, all nodes in the cluster will have access to currently
 %% valid data -- that's why a transaction is used instead of a dirty write.
 
--spec create_session(mod_bosh:session()) -> any().
+-spec create_session(service_bosh:session()) -> any().
 create_session(#bosh_session{} = Session) ->
     mnesia:sync_transaction(fun mnesia:write/1, [Session]).
 
 
--spec delete_session(mod_bosh:sid()) -> any().
+-spec delete_session(service_bosh:sid()) -> any().
 delete_session(Sid) ->
     mnesia:transaction(fun mnesia:delete/1, [{bosh_session, Sid}]).
 
 
--spec get_session(mod_bosh:sid()) -> [mod_bosh:session()].
+-spec get_session(service_bosh:sid()) -> [service_bosh:session()].
 get_session(Sid) ->
     mnesia:dirty_read(bosh_session, Sid).
 
 
--spec get_sessions() -> [mod_bosh:session()].
+-spec get_sessions() -> [service_bosh:session()].
 get_sessions() ->
     mnesia:dirty_match_object(mnesia:table_info(bosh_session, wild_pattern)).
 

@@ -668,14 +668,19 @@ tls(client) ->
     #section{items = #{<<"server_name_indication">> => server_name_indication()}};
 tls(xmpp) ->
     #section{items = #{<<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}},
-             defaults = #{<<"mode">> => starttls}
+                                             validate = {enum, [tls, starttls, starttls_required]}},
+                       <<"keep_secrets">> => #option{type = boolean}
+                      },
+             defaults = #{<<"mode">> => starttls,
+                          <<"keep_secrets">> => false}
             };
 %% For XMPP components:
 tls(xmpp_tls) ->
     #section{items = #{<<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}},
-             defaults = #{<<"mode">> => tls}
+                                             validate = {enum, [tls, starttls, starttls_required]}},
+                       <<"keep_secrets">> => #option{type = boolean}},
+             defaults = #{<<"mode">> => tls,
+                          <<"keep_secrets">> => false}
             }.
 
 server_name_indication() ->
@@ -700,8 +705,9 @@ services() ->
       }.
 
 configurable_services() ->
-    [service_mongoose_system_metrics,
+    [service_bosh,
      service_domain_db,
+     service_mongoose_system_metrics,
      service_translations].
 
 %% path: (host_config[].)modules
@@ -719,12 +725,12 @@ configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
      mod_blocking,
-     mod_bosh,
      mod_cache_users,
      mod_caps,
      mod_carboncopy,
      mod_csi,
      mod_disco,
+     mod_domain_isolation,
      mod_event_pusher,
      mod_extdisco,
      mod_fast_auth_token,
@@ -753,8 +759,7 @@ configurable_modules() ->
      mod_stream_management,
      mod_time,
      mod_vcard,
-     mod_version,
-     mod_domain_isolation].
+     mod_version].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

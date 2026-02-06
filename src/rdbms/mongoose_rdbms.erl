@@ -376,7 +376,7 @@ do_transaction_with_delayed_retry(HostType, F, Retries, Delay, Info) ->
             timer:sleep(Delay),
             do_transaction_with_delayed_retry(HostType, F, Retries - 1, Delay, Info);
         _ ->
-            Err = Info#{what => mam_transaction_failed,
+            Err = Info#{what => rdbms_transaction_failed,
                         text => <<"Transaction failed. Do not restart">>,
                         reason => Result},
             ?LOG_ERROR(Err),

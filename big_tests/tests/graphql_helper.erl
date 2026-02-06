@@ -10,14 +10,16 @@
 
 -type status() :: {Code :: binary(), Msg :: binary()}.
 
--spec execute(atom(), binary(), {binary(), binary()} | undefined) ->
-    {status(), Data :: map() | binary()}.
+-spec execute(atom(), binary() | map(), {binary(), binary()} | undefined) ->
+    {status(), Data :: map() | binary()}
+    | {status(), Headers :: proplists:proplist(), Data :: map() | binary()}.
 execute(EpName, Body, Creds) ->
     #{node := Node} = mim(),
     execute(Node, EpName, Body, Creds).
 
--spec execute(node(), atom(), binary(), {binary(), binary()} | undefined) ->
-    {status(), Data :: map() | binary()}.
+-spec execute(node(), atom(), binary() | map(), {binary(), binary()} | undefined) ->
+    {status(), Data :: map() | binary()}
+    | {status(), Headers :: proplists:proplist(), Data :: map() | binary()}.
 execute(Node, EpName, Body, Creds) ->
     Request = build_request(Node, EpName, Body, Creds),
     rest_helper:make_request(Request).
@@ -130,17 +132,17 @@ execute_user_sse(Body, User, Config) ->
     #{node := Node} = mim(),
     execute_sse(Node, Ep, Body, Creds).
 
--spec get_listener_port(binary()) -> integer().
+-spec get_listener_port(binary() | atom()) -> integer().
 get_listener_port(EpName) ->
     #{node := Node} = mim(),
     get_listener_port(Node, EpName).
 
--spec get_listener_port(node(), binary()) -> integer().
+-spec get_listener_port(node(), binary() | atom()) -> integer().
 get_listener_port(Node, EpName) ->
     #{port := Port} = get_listener_config(Node, EpName),
     Port.
 
--spec get_listener_config(node(), binary()) -> map().
+-spec get_listener_config(node(), binary() | atom()) -> map().
 get_listener_config(Node, EpName) ->
     Listeners = rpc(#{node => Node}, mongoose_config, get_opt, [listen]),
     [Config] =
@@ -291,13 +293,13 @@ user_to_lower_jid(Bin) when is_binary(Bin) ->
 
 %% Open the connection without sending any requests yet
 %% This way we can check if there are any TLS errors before trying to send any data
--spec connect_to_tls([ssl:tls_option()], inet:port_number()) -> ssl:socket().
+-spec connect_to_tls([ssl:tls_option()], inet:port_number()) -> ssl:sslsocket().
 connect_to_tls(TLSOpts, Port) ->
     {ok, Socket} = ssl:connect("localhost", Port, TLSOpts),
     Socket.
 
 %% Construct and send an HTTP request over an already opened SSL socket
--spec send_tls_request(ssl:socket(), jiffy:json_value()) -> ok.
+-spec send_tls_request(ssl:sslsocket(), map()) -> ok.
 send_tls_request(Socket, Body) when is_map(Body) ->
     {ok, {_, Port}} = ssl:peername(Socket),
     Host = "localhost:" ++ integer_to_list(Port),
@@ -316,7 +318,7 @@ parse_http_response({ok, Response}) ->
     {{integer_to_binary(Code), list_to_binary(Msg)}, jiffy:decode(Body, [return_maps])}.
 
 %% Receive a TLS error or an HTTP response from the SSL socket
--spec get_tls_data(ssl:socket()) -> tls_data().
+-spec get_tls_data(ssl:sslsocket()) -> tls_data().
 get_tls_data(Socket) ->
     receive
         {ssl, Socket, Data} ->

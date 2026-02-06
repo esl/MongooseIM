@@ -93,9 +93,10 @@ groups() ->
                            listen_http,
                            listen_http_tls,
                            listen_http_transport,
+                           listen_http_protocol,
                            listen_http_handlers_invalid,
                            listen_http_handlers_bosh,
-                           listen_http_handlers_websockets,
+                           listen_http_handlers_websocket,
                            listen_http_handlers_client_api,
                            listen_http_handlers_admin_api,
                            listen_http_handlers_graphql]},
@@ -173,7 +174,6 @@ groups() ->
                             mod_auth_token,
                             mod_fast_auth_token,
                             mod_blocking,
-                            mod_bosh,
                             mod_caps,
                             mod_cache_users,
                             mod_carboncopy,
@@ -234,7 +234,8 @@ groups() ->
                             mod_version,
                             modules_without_config,
                             incorrect_module]},
-     {services, [parallel], [service_domain_db,
+     {services, [parallel], [service_bosh,
+                             service_domain_db,
                              service_mongoose_system_metrics]},
      {instrumentation, [parallel], [instrumentation,
                                     instrumentation_exometer,
@@ -480,7 +481,7 @@ listen_c2s_just_tls(_Config) ->
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
-    test_just_tls_server(P, T),
+    test_just_tls_xmpp(P, T),
     ?cfg(P ++ [mode], tls, T(M#{<<"mode">> => <<"tls">>})),
     ?cfg(P ++ [disconnect_on_failure], false, T(M#{<<"disconnect_on_failure">> => false})),
     ?cfg(P ++ [crl_files], ["priv/cert.pem"], % note: this is not a real CRL file
@@ -507,7 +508,7 @@ listen_s2s_tls(_Config) ->
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
-    test_just_tls_server(P, T).
+    test_just_tls_xmpp(P, T).
 
 listen_component(_Config) ->
     Defs = #{<<"port">> => 8888, <<"password">> => <<"secret">>},
@@ -536,7 +537,7 @@ listen_component_tls(_Config) ->
     P = [listen, 1, tls],
     M = tls_ca_raw(),
     ?cfg(P, maps:merge(config_parser_helper:default_xmpp_tls_tls(), tls_ca()), T(M)),
-    test_just_tls_server(P, T).
+    test_just_tls_xmpp(P, T).
 
 listen_http(_Config) ->
     T = fun(Opts) -> listen_raw(http, maps:merge(#{<<"port">> => 5280}, Opts)) end,
@@ -570,10 +571,10 @@ listen_http_handlers_invalid(_Config) ->
                                    <<"path">> => <<"/cutlery">>}]})).
 
 listen_http_handlers_bosh(_Config) ->
-    test_listen_http_handler(mod_bosh).
+    test_listen_http_handler(mongoose_bosh_handler).
 
-listen_http_handlers_websockets(_Config) ->
-    {P, T} = test_listen_http_handler(mod_websockets),
+listen_http_handlers_websocket(_Config) ->
+    {P, T} = test_listen_http_handler(mongoose_websocket_handler),
     ?cfg(P ++ [timeout], 30000, T(#{<<"timeout">> => 30000})),
     ?cfg(P ++ [ping_rate], 20, T(#{<<"ping_rate">> => 20})),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
@@ -1163,6 +1164,14 @@ test_just_tls_server(P, T) ->
     ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
     ?err(T(M#{<<"dhfile">> => <<"no_such_file.pem">>})).
 
+test_just_tls_xmpp(P, T) ->
+    test_just_tls_common(P, T),
+    M = tls_ca_raw(),
+    ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P ++ [keep_secrets], true, T(M#{<<"keep_secrets">> => true})),
+    ?err(T(M#{<<"dhfile">> => <<"no_such_file.pem">>})),
+    ?err(T(M#{<<"keep_secrets">> => <<"sslkeylog.txt">>})).
+
 test_just_tls_common(P, T) ->
     ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
     M = tls_ca_raw(),
@@ -1520,27 +1529,6 @@ mod_fast_auth_token(_Config) ->
 
 mod_blocking(_Config) ->
     test_privacy_opts(mod_blocking).
-
-mod_bosh(_Config) ->
-    check_module_defaults(mod_bosh),
-    P = [modules, mod_bosh],
-    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
-    ?cfgh(P ++ [backend], mnesia, T(<<"backend">>, <<"mnesia">>)),
-    ?cfgh(P ++ [inactivity], 10, T(<<"inactivity">>, 10)),
-    ?cfgh(P ++ [inactivity], infinity, T(<<"inactivity">>, <<"infinity">>)),
-    ?cfgh(P ++ [max_wait], 10, T(<<"max_wait">>, 10)),
-    ?cfgh(P ++ [max_wait], infinity, T(<<"max_wait">>, <<"infinity">>)),
-    ?cfgh(P ++ [server_acks], true, T(<<"server_acks">>, true)),
-    ?cfgh(P ++ [server_acks], false, T(<<"server_acks">>, false)),
-    ?cfgh(P ++ [max_pause], 10, T(<<"max_pause">>, 10)),
-    ?errh(T(<<"backend">>, <<"nodejs">>)),
-    ?errh(T(<<"inactivity">>, 0)),
-    ?errh(T(<<"inactivity">>, <<"10">>)),
-    ?errh(T(<<"inactivity">>, <<"inactivity">>)),
-    ?errh(T(<<"max_wait">>, <<"10">>)),
-    ?errh(T(<<"max_wait">>, 0)),
-    ?errh(T(<<"server_acks">>, -1)),
-    ?errh(T(<<"maxpause">>, 0)).
 
 mod_caps(_Config) ->
     check_module_defaults(mod_caps),
@@ -2973,6 +2961,30 @@ incorrect_module(_Config) ->
     ?errh(#{<<"modules">> => #{<<"mod_incorrect">> => #{}}}).
 
 %% Services
+
+service_bosh(_Config) ->
+    P = [services, service_bosh],
+    T = fun(Opts) -> #{<<"services">> => #{<<"service_bosh">> => Opts}} end,
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [backend], mnesia, T(#{<<"backend">> => <<"mnesia">>})),
+    ?cfg(P ++ [inactivity], 10, T(#{<<"inactivity">> => 10})),
+    ?cfg(P ++ [inactivity], infinity, T(#{<<"inactivity">> => <<"infinity">>})),
+    ?cfg(P ++ [max_wait], 10, T(#{<<"max_wait">> => 10})),
+    ?cfg(P ++ [max_wait], infinity, T(#{<<"max_wait">> => <<"infinity">>})),
+    ?cfg(P ++ [server_acks], true, T(#{<<"server_acks">> => true})),
+    ?cfg(P ++ [server_acks], false, T(#{<<"server_acks">> => false})),
+    ?cfg(P ++ [max_pause], 10, T(#{<<"max_pause">> => 10})),
+    ?cfg(P ++ [host_types], [<<"h1">>, <<"h2">>], T(#{<<"host_types">> => [<<"h1">>, <<"h2">>]})),
+    ?err(T(#{<<"backend">> => <<"nodejs">>})),
+    ?err(T(#{<<"inactivity">> => 0})),
+    ?err(T(#{<<"inactivity">> => <<"10">>})),
+    ?err(T(#{<<"inactivity">> => <<"inactivity">>})),
+    ?err(T(#{<<"max_wait">> => <<"10">>})),
+    ?err(T(#{<<"max_wait">> => 0})),
+    ?err(T(#{<<"server_acks">> => -1})),
+    ?err(T(#{<<"maxpause">> => 0})),
+    ?err(T(#{<<"host_types">> => <<"host">>})),
+    ?err(T(#{<<"host_types">> => [<<"repeated">>, <<"repeated">>]})).
 
 service_domain_db(_Config) ->
     P = [services, service_domain_db],

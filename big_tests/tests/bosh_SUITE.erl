@@ -25,7 +25,8 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
--import(domain_helper, [host_type/0, domain/0]).
+-import(domain_helper, [host_type/0, anonymous_host_type/0, domain/0]).
+-import(config_parser_helper, [config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -45,12 +46,14 @@ all() ->
      {group, time},
      {group, acks},
      {group, server_acks},
-     {group, interleave_requests_statem}
+     {group, interleave_requests_statem},
+     {group, host_type},
+     {group, anonymous_host_type}
     ].
 
 groups() ->
     [
-     {without_bosh, [], [reject_connection_when_mod_bosh_is_disabled]},
+     {without_bosh, [], [reject_connection_when_bosh_is_disabled]},
      {essential, [sequence], essential_test_cases()},
      {essential_https, [sequence], essential_test_cases()},
      {chat, [shuffle], chat_test_cases()},
@@ -58,7 +61,9 @@ groups() ->
      {time, [parallel], time_test_cases()},
      {acks, [shuffle], acks_test_cases()},
      {server_acks, [], [server_acks]},
-     {interleave_requests_statem, [parallel], [interleave_requests_statem]}
+     {interleave_requests_statem, [parallel], [interleave_requests_statem]},
+     {host_type, [], [create_and_terminate_session]},
+     {anonymous_host_type, [], [cannot_create_session_for_disallowed_host_type]}
     ].
 
 suite() ->
@@ -66,6 +71,7 @@ suite() ->
 
 essential_test_cases() ->
     [create_and_terminate_session,
+     cannot_create_session_for_unknown_domain,
      accept_higher_hold_value,
      do_not_accept_0_hold_value,
      options_request,
@@ -108,31 +114,31 @@ acks_test_cases() ->
 
 init_per_suite(Config) ->
     instrument_helper:start(instrumentation_events()),
-    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    Config1 = dynamic_services:save_services(Config),
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config1]).
 
 end_per_suite(Config) ->
     instrument_helper:stop(),
-    dynamic_modules:restore_modules(Config),
+    dynamic_services:restore_services(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(time, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(time)),
+    dynamic_services:ensure_services(required_services(time)),
     Config;
 init_per_group(GroupName, Config) when GroupName =:= essential;
                                        GroupName =:= without_bosh ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+    dynamic_services:ensure_services(required_services(GroupName)),
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(essential_https)),
+    dynamic_services:ensure_services(required_services(essential_https)),
     [{user, carol_s} | Config];
 init_per_group(chat_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(chat_https)),
+    dynamic_services:ensure_services(required_services(chat_https)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol_s} | Config1];
 init_per_group(GroupName, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+    dynamic_services:ensure_services(required_services(GroupName)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol} | Config1].
 
@@ -153,36 +159,45 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per group
 
-required_modules(without_bosh) ->
-    [{mod_bosh, stopped}];
-required_modules(GroupName) ->
+required_services(without_bosh) ->
+    [{service_bosh, stopped}];
+required_services(GroupName) ->
     Backend = ct_helper:get_internal_database(),
-    ModOpts = config_parser_helper:mod_config(mod_bosh, #{backend => Backend}),
-    [{mod_bosh, maps:merge(ModOpts, required_bosh_opts(GroupName))}].
+    Opts = (required_bosh_opts(GroupName))#{backend => Backend},
+    [{service_bosh, config([services, service_bosh], Opts)}].
 
 required_bosh_opts(time) ->
     #{max_wait => ?MAX_WAIT, inactivity => ?INACTIVITY};
 required_bosh_opts(server_acks) ->
     #{server_acks => true};
+required_bosh_opts(host_type) ->
+    #{host_types => [host_type()]};
+required_bosh_opts(anonymous_host_type) ->
+    #{host_types => [anonymous_host_type()]};
 required_bosh_opts(_Group) ->
     #{}.
 
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+cannot_create_session_for_unknown_domain(Config) ->
+    {Conn, StreamEnd} = create_session(<<"unknown-domain">>, Config),
+    escalus:assert(is_stream_end, StreamEnd),
+    %% Assert that no BOSH session was created.
+    [] = get_bosh_sessions(),
+    wait_helper:wait_until(fun() -> escalus_connection:is_connected(Conn) end, false).
+
+%% Only the anonymous host type is allowed, so the default domain fails
+cannot_create_session_for_disallowed_host_type(Config) ->
+    {Conn, StreamEnd} = create_session(domain(), Config),
+    escalus:assert(is_stream_end, StreamEnd),
+    %% Assert that no BOSH session was created.
+    [] = get_bosh_sessions(),
+    wait_helper:wait_until(fun() -> escalus_connection:is_connected(Conn) end, false).
 
 create_and_terminate_session(Config) ->
-    NamedSpecs = escalus_config:get_config(escalus_users, Config),
-    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
-    Conn = escalus_connection:connect(CarolSpec),
-
-    %% Assert there are no BOSH sessions on the server.
-    [] = get_bosh_sessions(),
-
-    Domain = domain(),
-    Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
-    ok = bosh_send_raw(Conn, Body),
-    escalus_connection:get_stanza(Conn, session_creation_response),
+    {Conn, StreamStart} = create_session(domain(), Config),
+    escalus:assert(is_stream_start, StreamStart),
 
     %% Assert that a BOSH session was created.
     [_] = get_bosh_sessions(),
@@ -194,7 +209,20 @@ create_and_terminate_session(Config) ->
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().
 
-reject_connection_when_mod_bosh_is_disabled(Config) ->
+create_session(Domain, Config) ->
+    NamedSpecs = escalus_config:get_config(escalus_users, Config),
+    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
+    UpdatedSpecs = lists:keystore(server, 1, CarolSpec, {server, Domain}),
+    Conn = escalus_connection:connect(CarolSpec),
+
+    %% Assert there are no BOSH sessions on the server.
+    [] = get_bosh_sessions(),
+    Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
+    ok = bosh_send_raw(Conn, Body),
+    Response = escalus_connection:get_stanza(Conn, session_creation_response),
+    {Conn, Response}.
+
+reject_connection_when_bosh_is_disabled(Config) ->
     {Domain, Path, Client} = get_fusco_connection(Config),
     Rid = rand:uniform(1000000),
     Body = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
@@ -419,22 +447,13 @@ escape_attr_chat(Config) ->
 
 cant_send_invalid_rid(Config) ->
     escalus:story(Config, [{?config(user, Config), 1}], fun(Carol) ->
-        %% ct:pal("This test will leave invalid rid, session not found"
-        %%        " errors in the server log~n"),
-
         %% NOTICE 1
         %% This test will provoke the server to log the following message:
         %%
-        %% mod_bosh_socket:handle_stream_event:401
-        %% invalid rid XXX, expected YYY, difference ?INVALID_RID_OFFSET:
+        %% mongoose_bosh_socket:handle_stream_event:***
+        %% invalid rid XXX, expected YYY, difference ?INVALID_RID_OFFSET
 
         %% NOTICE 2
-        %% Escalus will try to close the session under test when the story
-        %% completes. This will leave the following message in the log:
-        %%
-        %% mod_bosh:forward_body:265 session not found!
-
-        %% NOTICE 3
         %% We enable quickfail mode, because sometimes request with invalid RID
         %% arrives before empty body req. with valid RID, so server returns an error
         %% only for the first req. and escalus_bosh in normal mode would get stuck
@@ -826,14 +845,14 @@ force_cache_trimming(Config) ->
 %%--------------------------------------------------------------------
 
 get_bosh_sessions() ->
-    rpc(mim(), mod_bosh_backend, get_sessions, []).
+    rpc(mim(), service_bosh, get_sessions, []).
 
 get_bosh_session(Sid) ->
     BoshSessions = get_bosh_sessions(),
     lists:keyfind(Sid, 2, BoshSessions).
 
 get_handlers(BoshSessionPid) ->
-    rpc(mim(), mod_bosh_socket, get_handlers, [BoshSessionPid]).
+    rpc(mim(), mongoose_bosh_socket, get_handlers, [BoshSessionPid]).
 
 get_bosh_sid(#client{rcv_pid = Pid}) ->
     escalus_bosh:get_sid(Pid).
@@ -898,10 +917,10 @@ ack_body(Body, Rid) ->
     Body#xmlel{attrs = NewAttrs}.
 
 set_client_acks(SessionPid, Enabled) ->
-    rpc(mim(), mod_bosh_socket, set_client_acks, [SessionPid, Enabled]).
+    rpc(mim(), mongoose_bosh_socket, set_client_acks, [SessionPid, Enabled]).
 
 get_cached_responses(SessionPid) ->
-    rpc(mim(), mod_bosh_socket, get_cached_responses, [SessionPid]).
+    rpc(mim(), mongoose_bosh_socket, get_cached_responses, [SessionPid]).
 
 is_session_alive(Sid) ->
     BoshSessions = get_bosh_sessions(),
@@ -914,7 +933,7 @@ wait_for_session_close(Sid, LeftTime) ->
     wait_helper:wait_until(fun() -> is_session_alive(Sid) end, false,
                            #{
                              time_left => timer:seconds(10),
-                             time_sleep => LeftTime,
+                             sleep_time => LeftTime,
                              name => is_session_alive
                             }).
 
@@ -922,7 +941,7 @@ wait_for_handler(Pid, Count) ->
     wait_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
                            #{
                              time_left => timer:seconds(10),
-                             time_sleep => timer:seconds(1),
+                             sleep_time => timer:seconds(1),
                              name => get_handlers
                             }).
 
@@ -931,14 +950,14 @@ wait_for_handler(Pid, Count, LeftTime) ->
     wait_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
                            #{
                              time_left => LeftTime,
-                             time_sleep => timer:seconds(1),
+                             sleep_time => timer:seconds(1),
                              name => get_handlers
                             }).
 
 wait_until_user_has_no_stanzas(User) ->
     wait_helper:wait_until(fun() ->
                                    escalus_assert:has_no_stanzas(User)
-                           end, ok, #{left_time => 2 * timer:seconds(?INACTIVITY)}).
+                           end, ok, #{time_left => 2 * timer:seconds(?INACTIVITY)}).
 
 wait_for_zero_bosh_sessions() ->
     wait_helper:wait_until(fun() ->
@@ -948,7 +967,7 @@ wait_for_zero_bosh_sessions() ->
                            #{name => get_bosh_sessions}).
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mod_bosh, [])
+    instrument_helper:declared_events(mongoose_bosh_handler, [])
     ++ [{c2s_message_processed, #{host_type => host_type()}},
         {xmpp_element_out, #{host_type => host_type(), connection_type => c2s}},
         {xmpp_element_in, #{host_type => host_type(), connection_type => c2s}}].

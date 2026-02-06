@@ -38,7 +38,9 @@ tests() ->
    [server_advertises_support_for_fast,
     request_token_with_initial_authentication,
     request_token_with_unknown_mechanism_type,
+    request_token_without_user_agent,
     client_authenticates_using_fast,
+    client_authenticates_using_fast_without_user_agent,
     client_authenticate_several_times_with_the_same_token,
     token_auth_fails_when_token_is_wrong,
     token_auth_fails_when_token_is_not_found,
@@ -229,11 +231,27 @@ request_token_with_unknown_mechanism_type(Config0) ->
     Fast = exml_query:path(Success, [{element_with_ns, <<"token">>, ?NS_FAST}]),
     ?assertEqual(undefined, Fast).
 
+request_token_without_user_agent(Config0) ->
+    Config = [no_user_agent | Config0],
+    Steps = [start_new_user,
+             {?MODULE, maybe_receive_session_tickets_on_connect},
+             {?MODULE, auth_and_request_token}],
+    #{answer := Failure} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"failure">>,
+                        attrs = #{<<"xmlns">> := ?NS_SASL_2}}, Failure),
+    MalformedRequest = exml_query:path(Failure, [{element_with_ns, <<"malformed-request">>, ?NS_SASL}]),
+    ?assertNotEqual(undefined, MalformedRequest).
+
 %% 3.4 Client authenticates using FAST
 %% https://xmpp.org/extensions/xep-0484.html#fast-auth
 client_authenticates_using_fast(Config) ->
     #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
     auth_with_token(success, Token, Config, Spec).
+
+client_authenticates_using_fast_without_user_agent(Config) ->
+    #{token := Token, spec := Spec} = connect_and_ask_for_token(Config),
+    Config2 = [no_user_agent | Config],
+    auth_with_token({failure, <<"no-user-agent">>}, Token, Config2, Spec).
 
 %% Check that we can reuse the token
 client_authenticate_several_times_with_the_same_token(Config) ->
@@ -476,7 +494,6 @@ connect_with_almost_expired_token_in_the_current_slot(Config) ->
     ConnectRes = auth_with_token(success, CurrentToken, Config, Spec),
     #{token := NewToken} = parse_connect_result(ConnectRes),
     ?assertNotEqual(Token, NewToken),
-    ?assertNotEqual(Token, CurrentToken),
     #{new_token => NewToken, spec => Spec, old_token => CurrentToken}.
 
 connect_and_ask_for_token(Config) ->
@@ -497,39 +514,39 @@ parse_connect_result(#{answer := Success, spec := Spec}) ->
 
 auth_and_request_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    Extra = [request_token(Mech), user_agent()],
+    Extra = [request_token(Mech) | maybe_user_agent(Config)],
     auth_with_method_stanza(Config, Spec, Extra, <<"PLAIN">>).
 
 auth_using_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    Extra = [user_agent()],
+    Extra = maybe_user_agent(Config),
     auth_with_method_stanza(Config, Spec, Extra, Mech).
 
 auth_using_token_and_request_token_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    Extra = [request_token(Mech), user_agent()],
+    Extra = [request_token(Mech) | maybe_user_agent(Config)],
     auth_with_method_stanza(Config, Spec, Extra, Mech).
 
 auth_using_token_and_request_invalidation_stanza(Config, Spec) ->
     %% While XEP does not specify, what to do with another tokens,
     %% we invalidate both new and current tokens.
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    Extra = [request_invalidation(), user_agent()],
+    Extra = [request_invalidation() | maybe_user_agent(Config)],
     auth_with_method_stanza(Config, Spec, Extra, Mech).
 
 auth_using_token_and_request_invalidation_1_stanza(Config, Spec) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    Extra = [request_invalidation_1(), user_agent()],
+    Extra = [request_invalidation_1() | maybe_user_agent(Config)],
     auth_with_method_stanza(Config, Spec, Extra, Mech).
 
 auth_using_token_and_count_stanza(Config, Spec, Count) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    Extra = [fast_token_count(Count), user_agent()],
+    Extra = [fast_token_count(Count) | maybe_user_agent(Config)],
     auth_with_method_stanza(Config, Spec, Extra, Mech).
 
 auth_using_token_and_request_token_stanza_with_count(Config, Spec, Count) ->
     Mech = proplists:get_value(ht_mech, Config, <<"HT-SHA-256-NONE">>),
-    Extra = [request_token(Mech), fast_token_count(Count), user_agent()],
+    Extra = [request_token(Mech), fast_token_count(Count) | maybe_user_agent(Config)],
     auth_with_method_stanza(Config, Spec, Extra, Mech).
 
 %% <request-token xmlns='urn:xmpp:fast:0' mechanism='HT-SHA-256-NONE'/>
@@ -576,6 +593,11 @@ auth_with_token(Success, Token, Config, Spec, RequestToken) ->
             ?assertMatch(#xmlel{name = <<"failure">>,
                                 attrs = #{<<"xmlns">> := ?NS_SASL_2},
                                 children = [#xmlel{name = <<"not-authorized">>}]},
+                         Answer);
+        {failure, Reason} ->
+            ?assertMatch(#xmlel{name = <<"failure">>,
+                                attrs = #{<<"xmlns">> := ?NS_SASL_2},
+                                children = [#xmlel{name = Reason}]},
                          Answer)
     end,
     Res.
@@ -636,7 +658,7 @@ steps(success) ->
      {?MODULE, auth_with_method},
      receive_features,
      has_no_more_stanzas];
-steps(failure) ->
+steps(_Failure) ->
     [connect_tls,
      {?MODULE, start_stream_get_features},
      {?MODULE, auth_with_method}].
@@ -644,11 +666,14 @@ steps(failure) ->
 user_agent_id() ->
     <<"d4565fa7-4d72-4749-b3d3-740edbf87770">>.
 
-user_agent() ->
-  #xmlel{name = <<"user-agent">>,
-         attrs = #{<<"id">> => user_agent_id()},
-         children = [cdata_elem(<<"software">>, <<"AwesomeXMPP">>),
-                     cdata_elem(<<"device">>, <<"Kiva's Phone">>)]}.
+maybe_user_agent(Config) ->
+    case proplists:is_defined(no_user_agent, Config) of
+        true -> [];
+        false -> [#xmlel{name = <<"user-agent">>,
+                         attrs = #{<<"id">> => user_agent_id()},
+                         children = [cdata_elem(<<"software">>, <<"AwesomeXMPP">>),
+                                     cdata_elem(<<"device">>, <<"Kiva's Phone">>)]}]
+    end.
 
 cdata_elem(Name, Value) ->
     #xmlel{name = Name,

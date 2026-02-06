@@ -100,11 +100,11 @@ Certificate authentication only.
   tls.cacertfile = "ca.pem"
   tls.verify_peer = true
 
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
-  [[listen.http.handlers.mod_websockets]]
+  [[listen.http.handlers.mongoose_websocket_handler]]
     host = "_"
     path = "/ws-xmpp"
 

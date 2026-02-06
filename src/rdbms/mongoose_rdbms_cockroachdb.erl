@@ -12,6 +12,8 @@
 -export([escape_binary/1, unescape_binary/1, escape_string/1, connect/2,
          disconnect/1, query/3, prepare/5, execute/4]).
 
+-include("mongoose.hrl").
+
 %% API
 
 -spec escape_string(iolist()) -> iodata().
@@ -50,4 +52,29 @@ prepare(Connection, Name, Table, Fields, Statement) ->
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
               Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 execute(Connection, StatementRef, Params, Timeout) ->
+    execute_with_retry(Connection, StatementRef, Params, Timeout, 3, 3, #{}).
+
+do_execute(Connection, StatementRef, Params, Timeout) ->
     mongoose_rdbms_pgsql:execute(Connection, StatementRef, Params, Timeout).
+
+execute_with_retry(Connection, StatementRef, Params, Timeout, MaxRetries, Retries, Info) ->
+    case do_execute(Connection, StatementRef, Params, Timeout) of
+        {error, "restart transaction" ++ _ = Reason} when Retries > 0 ->
+            ?LOG_WARNING(Info#{what => cockroachdb_execute_retrying,
+                connection => Connection, statement_ref => StatementRef, statement_params => Params,
+                error => error, reason => Reason, retries_left => Retries}),
+            mongoose_rdbms_pgsql:query(Connection, "rollback;", 0),
+            execute_with_retry(Connection, StatementRef, Params, Timeout, MaxRetries, Retries - 1, Info);
+        {error, "restart transaction" ++ _ = Reason} = Result ->
+            ?LOG_ERROR(Info#{what => cockroachdb_execute_retrying_failed,
+                connection => Connection, statement_ref => StatementRef, statement_params => Params,
+                error => error, reason => Reason, retries_left => Retries}),
+            Result;
+        Other when Retries < MaxRetries ->
+            ?LOG_WARNING(Info#{what => cockroachdb_execute_retrying_ok,
+                connection => Connection, statement_ref => StatementRef, statement_params => Params,
+                retries_left => Retries}),
+            Other;
+        Other ->
+            Other
+    end.

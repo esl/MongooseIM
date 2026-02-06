@@ -623,7 +623,7 @@ stanza_config_set(Room, ConfigChanges) ->
     IQ = escalus_stanza:iq_set(?NS_MUC_OWNER, [form_x_el(ConfigChanges)]),
     escalus_stanza:to(IQ, room_bin_jid(Room)).
 
--spec form_x_el(Fields :: [map()]) -> xmlel().
+-spec form_x_el(Fields :: [muc_light_helper:config_item()]) -> xmlel().
 form_x_el(Fields) ->
     FieldSpecs = [#{var => Var, values => [Value], type => <<"text-single">>}
                   || {Var, Value} <- Fields],
@@ -705,7 +705,7 @@ verify_no_stanzas(Users) ->
               {false, _} = {escalus_client:has_stanzas(User), User}
       end, Users).
 
--spec verify_config(ConfigFields :: [xmlel()], Config :: [muc_light_helper:config_item()]) -> ok.
+-spec verify_config(ConfigFields :: [xmlel()], Config :: [muc_light_helper:config_item()]) -> [].
 verify_config(ConfigFields, Config) ->
     [] = lists:foldl(
            fun(Field, ConfigAcc) ->

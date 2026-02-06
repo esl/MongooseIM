@@ -184,7 +184,7 @@ Currently, the hook is run inside a global transaction (via `global:trans/4`).
 
 The job of this hook is to remove all processes registered in Mnesia.
 MongooseIM uses Mnesia to store processes through which messages are then routed - like user sessions or server-to-server communication channels - or various handlers, e.g. IQ request handlers.
-Those must obviously be removed when a node goes down, and to do this the modules `ejabberd_local`, `ejabberd_router`, `ejabberd_s2s`, `ejabberd_sm` and `mod_bosh` register their handlers with this hook.
+Those must obviously be removed when a node goes down, and to do this the modules `ejabberd_local`, `ejabberd_router`, `ejabberd_s2s`, `ejabberd_sm` and `service_bosh` register their handlers with this hook.
 
 Number of retries for this transaction is set to 1 which means that in some situations the hook may be run on more than one node in the cluster, especially when there is little garbage to clean after the dead node.
 Setting retries to 0 is not good decision as it was observed that in some setups it may abort the transaction on all nodes.

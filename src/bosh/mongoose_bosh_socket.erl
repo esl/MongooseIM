@@ -1,13 +1,16 @@
--module(mod_bosh_socket).
+-module(mongoose_bosh_socket).
+-moduledoc """
+This module allows mongoose_c2s to communicate with a BOSH connection.
+Also, it implements the state machine for handling incoming data.
+""".
 
 -behaviour(gen_fsm_compat).
 -behaviour(mongoose_xmpp_socket).
 
 %% API
--export([start/5,
-         start_link/5,
+-export([start/4,
+         start_link/4,
          start_supervisor/0,
-         is_supervisor_started/0,
          stop_supervisor/0,
          handle_request/2,
          pause/2]).
@@ -43,17 +46,16 @@
          terminate/3,
          code_change/4]).
 
--ignore_xref([{mod_bosh_backend, delete_session, 1},
-              accumulate/2, accumulate/3, closing/2,
+-ignore_xref([accumulate/2, accumulate/3, closing/2,
               closing/3, get_cached_responses/1,
               get_client_acks/1, get_handlers/1, get_peer_certificate/1,
               get_pending/1, normal/2, normal/3,
-              pause/2, set_client_acks/2, start_link/5]).
+              pause/2, set_client_acks/2, start_link/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--include("mod_bosh.hrl").
+-include("mongoose_bosh.hrl").
 -define(ACCUMULATE_PERIOD, 10).
 -define(DEFAULT_HOLD, 1).
 -define(CONCURRENT_REQUESTS, 2).
@@ -69,13 +71,13 @@
                 handlers = []   :: [{rid(), reference(), pid()}],
                 %% Elements buffered for sending to the client.
                 pending = []    :: [jlib:xmlstreamel()],
-                sid             :: mod_bosh:sid(),
+                sid             :: service_bosh:sid(),
                 wait = ?DEFAULT_WAIT :: integer(),
                 hold = ?DEFAULT_HOLD :: integer(),
                 rid             :: rid() | undefined,
                 %% Requests deferred for later processing because
                 %% of having Rid greater than expected.
-                deferred = []   :: [{rid(), {mod_bosh:event_type(), exml:element()}}],
+                deferred = []   :: [{rid(), {event_type(), exml:element()}}],
                 client_acks = ?DEFAULT_CLIENT_ACKS :: boolean(),
                 sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
@@ -92,28 +94,36 @@
                 report = false  :: {rid(), Time :: non_neg_integer()} | 'false'}).
 -opaque state() :: #state{}.
 
+-type event_type() :: streamstart
+                    | restart
+                    | normal
+                    | pause
+                    | streamend.
+
 -type statename() :: 'accumulate' | 'normal' | 'closing'.
 -type fsm_return() :: {'next_state', statename(), state()}.
 
+-type socket() :: #bosh_socket{}.
+
 -export_type([cached_response/0,
               state/0,
+              event_type/0,
               fsm_return/0]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec start(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
-            binary() | undefined, map()) ->
+-spec start(service_bosh:sid(), mongoose_transport:peer(), binary() | undefined, map()) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(HostType, Sid, Peer, PeerCert, Opts) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [HostType, Sid, Peer, PeerCert, Opts]).
+start(Sid, Peer, PeerCert, Opts) ->
+    supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer, PeerCert, Opts]).
 
--spec start_link(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
+-spec start_link(service_bosh:sid(), mongoose_transport:peer(),
                  binary() | undefined, map()) ->
     'ignore' | {'error', _} | {'ok', pid()}.
-start_link(HostType, Sid, Peer, PeerCert, Opts) ->
-    gen_fsm_compat:start_link(?MODULE, [{HostType, Sid, Peer, PeerCert, Opts}], []).
+start_link(Sid, Peer, PeerCert, Opts) ->
+    gen_fsm_compat:start_link(?MODULE, [{Sid, Peer, PeerCert, Opts}], []).
 
 -spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
@@ -132,21 +142,16 @@ start_supervisor() ->
             {error, Reason}
     end.
 
--spec is_supervisor_started() -> boolean().
-is_supervisor_started() ->
-    is_pid(whereis(?BOSH_SOCKET_SUP)).
-
 -spec stop_supervisor() -> ok | {error, any()}.
 stop_supervisor() ->
     ejabberd_sup:stop_child(?BOSH_SOCKET_SUP).
 
 -spec handle_request(Pid :: pid(),
-                    {EventTag :: mod_bosh:event_type(),
+                    {EventTag :: event_type(),
                      Handler :: pid(),
                      Body :: exml:element()}) -> ok.
 handle_request(Pid, Request) ->
     gen_fsm_compat:send_all_state_event(Pid, Request).
-
 
 %% @doc TODO: no handler for this call is present!
 %% No check for violating maxpause is made when calling this!
@@ -161,20 +166,16 @@ pause(Pid, Seconds) ->
 get_handlers(Pid) ->
     gen_fsm_compat:sync_send_all_state_event(Pid, get_handlers).
 
-
 get_pending(Pid) ->
     gen_fsm_compat:sync_send_all_state_event(Pid, get_pending).
-
 
 -spec get_client_acks(pid()) -> boolean().
 get_client_acks(Pid) ->
     gen_fsm_compat:sync_send_all_state_event(Pid, get_client_acks).
 
-
 -spec set_client_acks(pid(), boolean()) -> any().
 set_client_acks(Pid, Enabled) ->
     gen_fsm_compat:sync_send_all_state_event(Pid, {set_client_acks, Enabled}).
-
 
 -spec get_cached_responses(pid()) -> [cached_response()].
 get_cached_responses(Pid) ->
@@ -192,10 +193,10 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
--spec init([{mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(), undefined |
+-spec init([{service_bosh:sid(), mongoose_transport:peer(), undefined |
              binary(), map()}]) ->
     {ok, accumulate, state()}.
-init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
+init([{Sid, Peer, PeerCert, ListenerOpts}]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = ListenerOpts#{access => all,
                             shaper => none,
@@ -205,7 +206,7 @@ init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
                             backwards_compatible_session => true,
                             proto => tcp},
     {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
-    Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
+    Opts = mongoose_config:get_opt([services, service_bosh]),
     State = new_state(Sid, C2SPid, Opts),
     ?LOG_DEBUG(ls(#{what => bosh_socket_init, peer => Peer}, State)),
     {ok, accumulate, State}.
@@ -243,7 +244,6 @@ accumulate(Event, State) ->
     ?LOG_DEBUG(ls(#{what => bosh_socket_unhandled_event, state_name => accumulate,
                     event => Event}, State)),
     {next_state, accumulate, State}.
-
 
 -spec normal(_, state()) -> fsm_return().
 normal(acc_off, #state{} = S) ->
@@ -319,12 +319,10 @@ handle_event({EventTag, Handler, #xmlel{} = Body}, SName, S) ->
         throw:{invalid_pause, TState} ->
             {stop, {shutdown, policy_violation}, TState}
     end;
-
 handle_event(Event, StateName, State) ->
     ?LOG_DEBUG(ls(#{what => bosh_socket_unhandled_all_state,
                    state_name => StateName, event => Event}, State)),
     {next_state, StateName, State}.
-
 
 determine_next_state(_EventTag, closing, NNS) ->
     {stop, normal, NNS};
@@ -426,7 +424,7 @@ handle_info(Info, SName, State) ->
 
 terminate(Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
-    mod_bosh_backend:delete_session(Sid),
+    service_bosh:delete_session(Sid),
     mongoose_c2s:stop(S#state.c2s_pid, normal),
     ?LOG_DEBUG(ls(#{what => bosh_socket_closing_session, reason => Reason,
                     state_name => StateName, handlers => Handlers,
@@ -505,10 +503,9 @@ maybe_diff(Rid, Expected) -> abs(Rid - Expected).
 resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
 
-
--spec process_acked_stream_event({EventTag :: mod_bosh:event_type(),
-                                    Body :: exml:element(),
-                                    Rid :: 'undefined' | rid()},
+-spec process_acked_stream_event({EventTag :: event_type(),
+                                  Body :: exml:element(),
+                                  Rid :: 'undefined' | rid()},
                                 SName :: any(),
                                 S :: state()) -> state().
 process_acked_stream_event({EventTag, Body, Rid}, SName,
@@ -528,7 +525,6 @@ process_acked_stream_event({EventTag, Body, Rid}, SName,
 
 rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
     S#state{rid = Rid}.
-
 
 -spec determine_report_action(BinAck :: 'undefined' | binary(),
                               boolean(),
@@ -551,14 +547,12 @@ determine_report_action(BinAck, _, _, LastProcessed) ->
             {report, Ack}
     end.
 
-
 -spec is_valid_ack(Ack :: rid(), 'undefined' | pos_integer()) -> boolean().
 is_valid_ack(Ack, LastProcessed)
         when Ack < LastProcessed ->
     false;
 is_valid_ack(_, _) ->
     true.
-
 
 -spec maybe_trim_cache(undefined | any(), state()) -> state().
 maybe_trim_cache(undefined, S) ->
@@ -571,7 +565,6 @@ maybe_trim_cache(Ack, S) ->
               end,
     NewSent = lists:dropwhile(UpToAck, S#state.sent),
     S#state{sent = NewSent}.
-
 
 -spec schedule_report(rid(), state()) -> state().
 schedule_report(Ack, #state{sent = Sent} = S) ->
@@ -595,16 +588,13 @@ schedule_report(Ack, #state{sent = Sent} = S) ->
             S
     end.
 
-
 -spec maybe_send_report(state()) -> state().
 maybe_send_report(#state{report = false} = S) ->
     S;
 maybe_send_report(#state{} = S) ->
     send_or_store([], S).
 
-
--spec process_stream_event(mod_bosh:event_type(), exml:element(), _SName,
-                           state()) -> state().
+-spec process_stream_event(event_type(), exml:element(), _SName, state()) -> state().
 process_stream_event(pause, Body, SName, State) ->
     Seconds = binary_to_integer(exml_query:attr(Body, <<"pause">>)),
     NewState = process_pause_event(Seconds, State),
@@ -613,7 +603,6 @@ process_stream_event(EventTag, Body, SName, #state{c2s_pid = C2SPid} = State) ->
     {Els, NewState} = bosh_unwrap(EventTag, Body, State),
     [forward_to_c2s(C2SPid, El) || El <- Els],
     process_deferred_events(SName, NewState).
-
 
 -spec process_pause_event('infinity' | 'undefined' | pos_integer(),
                           state()) -> state().
@@ -629,7 +618,6 @@ process_pause_event(Seconds, State) ->
     end,
     lists:foldl(F, NS, lists:seq(1, length(State#state.handlers))).
 
-
 -spec process_deferred_events(_SName, state()) -> state().
 process_deferred_events(SName, #state{deferred = Deferred} = S) ->
     lists:foldl(fun(Event, State) ->
@@ -639,7 +627,6 @@ process_deferred_events(SName, #state{deferred = Deferred} = S) ->
                 end,
                 S#state{deferred = []},
                 lists:sort(Deferred)).
-
 
 -spec is_expected_rid(rid(), rid() | undefined) -> boolean().
 is_expected_rid(Rid, ExpectedRid) when Rid == ExpectedRid ->
@@ -668,7 +655,6 @@ send_or_store(Data, State) ->
             NewState
     end.
 
-
 %% @doc send_to_handler() assumes that Handlers is not empty!
 %% Be sure that's the case if calling it.
 -spec send_to_handler([any()] | exml:element(), state()) -> state() | no_valid_handler.
@@ -679,7 +665,6 @@ send_to_handler(Data, State) ->
         false ->
             no_valid_handler
     end.
-
 
 %% Return handler and new state if a handler is available
 %% or `false` otherwise.
@@ -697,7 +682,6 @@ pick_handler(#state{handlers = Handlers, rid = Rid} = S) ->
             false
     end.
 
-
 -spec send_to_handler({_, atom() | pid() | port() | {atom(), atom()}},
                       Wrapped :: [any()] | exml:element(),
                       State :: state()) -> state().
@@ -707,7 +691,6 @@ send_to_handler({Rid, Pid}, Data, State) ->
     {Wrapped, NS} = bosh_wrap(Data, Rid, State),
     NS2 = cache_response({Rid, erlang:monotonic_time(millisecond), Wrapped}, NS),
     send_wrapped_to_handler(Pid, Wrapped, NS2).
-
 
 %% @doc This is the most specific variant of send_to_handler()
 %% and the *only one* actually performing a send
@@ -722,7 +705,6 @@ send_wrapped_to_handler(Pid, Wrapped, State) ->
     Pid ! {bosh_reply, Wrapped},
     State.
 
-
 -spec maybe_add_ack(rid(), state(), exml:attrs()) -> exml:attrs().
 maybe_add_ack(HandlerRid, #state{rid = Rid} = S, Attrs) ->
     case Rid > HandlerRid of
@@ -732,7 +714,6 @@ maybe_add_ack(HandlerRid, #state{rid = Rid} = S, Attrs) ->
             Attrs
     end.
 
-
 -spec maybe_add_report(state(), exml:attrs()) -> {exml:attrs(), state()}.
 maybe_add_report(#state{report = false} = S, Attrs) ->
     {Attrs, S};
@@ -741,7 +722,6 @@ maybe_add_report(#state{report = Report} = S, Attrs) ->
     NewAttrs = Attrs#{<<"report">> => integer_to_binary(ReportRid),
                       <<"time">> => integer_to_binary(ElapsedTime)},
     {NewAttrs, S#state{report = false}}.
-
 
 -spec cache_response(cached_response(), state()) -> state().
 cache_response({Rid, _, _} = Response, #state{sent = Sent} = S) ->
@@ -758,7 +738,6 @@ cache_response({Rid, _, _} = Response, #state{sent = Sent} = S) ->
     S#state{sent = cache_up_to(CacheUpTo, NewSent),
             last_processed = last_processed(Rid, S#state.last_processed)}.
 
-
 -spec cache_up_to('infinity' | 2, Responses :: [cached_response()])
             -> [cached_response()].
 cache_up_to(infinity, Responses) ->
@@ -766,13 +745,11 @@ cache_up_to(infinity, Responses) ->
 cache_up_to(N, Responses) ->
     lists:nthtail(max(0, length(Responses) - N), Responses).
 
-
 -spec last_processed(rid(), 'undefined' | pos_integer()) -> rid().
 last_processed(Rid, undefined) ->
     Rid;
 last_processed(Rid1, Rid2) ->
     max(Rid1, Rid2).
-
 
 -spec setup_inactivity_timer(state()) -> state().
 setup_inactivity_timer(#state{inactivity = infinity} = S) ->
@@ -783,7 +760,6 @@ setup_inactivity_timer(S) ->
                              inactivity_timeout),
     S#state{inactivity_tref = TRef}.
 
-
 -spec cancel_inactivity_timer(state()) -> state().
 cancel_inactivity_timer(#state{inactivity_tref = undefined} = S) ->
     S;
@@ -791,18 +767,15 @@ cancel_inactivity_timer(S) ->
     erlang:cancel_timer(S#state.inactivity_tref),
     S#state{inactivity_tref = undefined}.
 
-
 %% @doc Store data for sending later.
 -spec store([jlib:xmlstreamel()], state()) -> state().
 store(Data, #state{pending = Pending} = S) ->
     S#state{pending = Pending ++ Data}.
 
-
 -spec forward_to_c2s(pid() | undefined, jlib:xmlstreamel()) -> ok.
 forward_to_c2s(C2SPid, StreamElement) ->
     C2SPid ! {tcp, undefined, StreamElement},
     ok.
-
 
 -spec maybe_add_handler(_, rid(), state()) -> state().
 maybe_add_handler(Handler, Rid, S) when is_pid(Handler) ->
@@ -810,13 +783,11 @@ maybe_add_handler(Handler, Rid, S) when is_pid(Handler) ->
 maybe_add_handler(_, _, S) ->
     S.
 
-
 -spec add_handler({rid(), pid()}, state()) -> state().
 add_handler({Rid, Pid}, #state{handlers = Handlers} = S) ->
     TRef = erlang:send_after(timer:seconds(S#state.wait), self(),
                              {wait_timeout, {Rid, Pid}}),
     S#state{handlers = [{Rid, TRef, Pid} | Handlers]}.
-
 
 %% @doc Keep in mind the hardcoding for hold == 1.
 -spec return_surplus_handlers('accumulate' | 'normal' | 'closing', state()) -> state().
@@ -840,9 +811,7 @@ return_surplus_handlers(SName, #state{pending = Pending} = S)
     when SName == normal; SName == closing ->
     send_or_store(Pending, S#state{pending = []}).
 
-
--spec bosh_unwrap(EventTag :: mod_bosh:event_type(), exml:element(), state())
-    -> {[jlib:xmlstreamel()], state()}.
+-spec bosh_unwrap(event_type(), exml:element(), state()) -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
   when StreamEvent =:= streamstart ->
     Wait = min(get_attr(<<"wait">>, Body, S#state.wait), S#state.max_wait),
@@ -854,15 +823,12 @@ bosh_unwrap(StreamEvent, Body, #state{} = S)
     S2 = S#state{wait = Wait, hold = Hold, client_acks = ClientAcks,
                  from = From, to = To},
     {[E], S2};
-
 bosh_unwrap(StreamEvent, _Body, #state{} = S)
   when StreamEvent =:= restart ->
     {[stream_start(S#state.from, S#state.to)], S};
-
 bosh_unwrap(streamend, Body, State) ->
     {Els, NewState} = bosh_unwrap(normal, Body, State),
     {Els ++ [#xmlstreamend{name = <<>>}], NewState};
-
 bosh_unwrap(normal, Body, #state{sid = Sid} = State) ->
     Sid = exml_query:attr(Body, <<"sid">>),
     ?NS_HTTPBIND = exml_query:attr(Body, <<"xmlns">>),
@@ -871,7 +837,6 @@ bosh_unwrap(normal, Body, #state{sid = Sid} = State) ->
             %% Ignore whitespace keepalives.
             El /= #xmlcdata{content = <<" ">>}],
      State}.
-
 
 -spec get_client_acks(streamstart, exml:element(), boolean(), state()) -> boolean().
 get_client_acks(streamstart, Element, Default, State) ->
@@ -886,7 +851,6 @@ get_client_acks(streamstart, Element, Default, State) ->
             false
     end.
 
-
 -spec get_attr(Attr :: binary(), exml:element(), integer()) -> any().
 get_attr(Attr, Element, Default) ->
     case exml_query:attr(Element, Attr) of
@@ -895,7 +859,6 @@ get_attr(Attr, Element, Default) ->
         Value ->
             binary_to_integer(Value)
     end.
-
 
 -spec stream_start(binary(), binary()) -> exml_stream:start().
 stream_start(From, To) ->
@@ -906,7 +869,6 @@ stream_start(From, To) ->
                               <<"xml:lang">> => <<"en">>,
                               <<"xmlns">> => ?NS_CLIENT,
                               <<"xmlns:stream">> => ?NS_STREAM}}.
-
 
 -spec bosh_wrap([any()], rid(), state()) -> {exml:element(), state()}.
 bosh_wrap(Elements, Rid, #state{} = S) ->
@@ -936,7 +898,6 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
     {Body#xmlel{attrs = Attrs3,
                 children = maybe_add_default_ns_to_children(Children)}, NNS}.
 
-
 -spec is_stream_event(jlib:xmlstreamel()) -> boolean().
 is_stream_event(#xmlstreamstart{}) ->
     true;
@@ -944,7 +905,6 @@ is_stream_event(#xmlstreamend{}) ->
     true;
 is_stream_event(_) ->
     false.
-
 
 %% @doc Bosh body for a session creation response.
 -spec bosh_stream_start_body(exml_stream:start(), state()) -> exml:element().
@@ -970,13 +930,11 @@ bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
 
     #xmlel{name = <<"body">>,  attrs = Attrs4, children = []}.
 
-
 -spec inactivity('infinity' | 'undefined' | pos_integer(), exml:attrs()) -> exml:attrs().
 inactivity(I, Attrs) when is_integer(I) ->
     Attrs#{<<"inactivity">> => integer_to_binary(I)};
 inactivity(_, Attrs) ->
     Attrs.
-
 
 -spec maxpause('undefined' | pos_integer(), exml:attrs()) -> exml:attrs().
 maxpause(MP, Attrs) when is_integer(MP) ->
@@ -991,7 +949,6 @@ server_ack(true, Rid, Attrs) ->
 server_ack(_, _, Attrs) ->
     Attrs.
 
-
 %% @doc Bosh body for an ordinary stream element(s).
 -spec bosh_body(state()) -> exml:element().
 bosh_body(#state{} = S) ->
@@ -999,7 +956,6 @@ bosh_body(#state{} = S) ->
            attrs = #{<<"sid">> => S#state.sid,
                      <<"xmlns">> => ?NS_HTTPBIND},
            children = []}.
-
 
 -spec bosh_stream_end_body() -> exml:element().
 bosh_stream_end_body() ->
@@ -1021,7 +977,6 @@ maybe_add_stream_prefix(_, Stanzas, Attrs) ->
 is_stream_prefix(#xmlel{name = <<"stream:error">>}) -> true;
 is_stream_prefix(#xmlel{name = <<"stream:features">>}) -> true;
 is_stream_prefix(_) -> false.
-
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -1054,26 +1009,25 @@ ignore_undefined(Map) ->
 
 %% mongoose_xmpp_socket callbacks
 
--spec peername(mod_bosh:socket()) -> mongoose_transport:peer().
+-spec peername(socket()) -> mongoose_transport:peer().
 peername(#bosh_socket{peer = Peer}) ->
     Peer.
 
--spec tcp_to_tls(mod_bosh:socket(), mongoose_listener:options(), mongoose_xmpp_socket:side()) ->
-  {ok, mod_bosh:socket()} | {error, term()}.
+-spec tcp_to_tls(socket(), mongoose_listener:options(), mongoose_xmpp_socket:side()) ->
+  {ok, socket()} | {error, term()}.
 tcp_to_tls(_Socket, _LOpts, server) ->
     {error, tcp_to_tls_not_allowed_on_bosh}.
 
--spec handle_data(mod_bosh:socket(), {tcp | ssl, term(), iodata()}) ->
+-spec handle_data(socket(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
 handle_data(_Socket, {_Kind, _Term, Packet}) ->
     {raw, [Packet]}.
 
--spec activate(mod_bosh:socket()) -> ok.
+-spec activate(socket()) -> ok.
 activate(_Socket) ->
     ok.
 
--spec send_xml(mod_bosh:socket(),
-                      iodata() | exml_stream:element() | [exml_stream:element()]) ->
+-spec send_xml(socket(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
 send_xml(#bosh_socket{pid = Pid}, XMLs) when is_list(XMLs) ->
     [Pid ! {send, XML} || XML <- XMLs],
@@ -1082,12 +1036,12 @@ send_xml(#bosh_socket{pid = Pid}, XML) ->
     Pid ! {send, XML},
     ok.
 
--spec close(mod_bosh:socket()) -> ok.
+-spec close(socket()) -> ok.
 close(#bosh_socket{pid = Pid}) ->
     Pid ! close,
     ok.
 
--spec get_peer_certificate(mod_bosh:socket()) ->
+-spec get_peer_certificate(socket()) ->
     mongoose_transport:peercert_return().
 get_peer_certificate(#bosh_socket{peercert = undefined}) ->
     no_peer_cert;
@@ -1095,19 +1049,19 @@ get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
     Decoded = public_key:pkix_decode_cert(PeerCert, plain),
     {ok, Decoded}.
 
--spec has_peer_cert(mod_bosh:socket(), mongoose_listener:options()) -> boolean().
+-spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
 has_peer_cert(Socket, _) ->
     get_peer_certificate(Socket) /= no_peer_cert.
 
--spec is_channel_binding_supported(mod_bosh:socket()) -> boolean().
+-spec is_channel_binding_supported(socket()) -> boolean().
 is_channel_binding_supported(_Socket) ->
     false.
 
--spec export_key_materials(mod_bosh:socket(), _, _, _, _) -> {error, atom()}.
+-spec export_key_materials(socket(), _, _, _, _) -> {error, atom()}.
 export_key_materials(_Socket, _, _, _, _) ->
     {error, export_key_materials_not_allowed_on_bosh}.
 
--spec is_ssl(mod_bosh:socket()) -> boolean().
+-spec is_ssl(socket()) -> boolean().
 is_ssl(_Socket) ->
     false.
 

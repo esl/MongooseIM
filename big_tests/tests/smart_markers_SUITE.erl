@@ -304,7 +304,7 @@ marker_is_removed_when_user_leaves_room(Config) ->
         wait_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, RoomJid)) > 0 end, true),
         % Remove Bob from the room
-        muc_light_helper:user_leave(RoomId, Bob, [Alice]),
+        muc_light_helper:user_leave(RoomId, Bob, [{Alice, owner}]),
         wait_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, RoomJid)) end, 0)
     end).
@@ -413,7 +413,6 @@ verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
                   Markers = [Marker | _] = exml_query:paths(
                                              Response, [{element_with_ns, <<"query">>, ?NS_ESL_SMART_MARKERS},
                                                         {element, <<"marker">>}]),
-                  ?assertNotEqual(undefined, Marker),
                   ?assertNotEqual(undefined, exml_query:attr(Marker, <<"timestamp">>)),
                   ?assertEqual(<<"displayed">>, exml_query:attr(Marker, <<"type">>)),
                   ?assertEqual(Thread, exml_query:attr(Marker, <<"thread">>)),

@@ -62,9 +62,6 @@ Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html
 ### [mod_bind2](../modules/mod_bind2.md)
 Implements [XEP-0386: Bind 2](http://xmpp.org/extensions/xep-0386.html).
 
-### [mod_bosh](../modules/mod_bosh.md)
-Allows users to connect to MongooseIM using BOSH (Bidirectional-streams Over Synchronous HTTP), the HTTP long-polling technique described in [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html) and [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html).
-
 ### [mod_caps](../modules/mod_caps.md)
 Implements [XEP-0115: Entity Capabilities](https://xmpp.org/extensions/xep-0115.html).
 It queries clients for their supported functionalities and caches them in Mnesia.
@@ -170,6 +167,9 @@ This module, when enabled, will inject roster entries fetched from LDAP.
 
 ### [mod_sic](../modules/mod_sic.md)
 Implements [XEP-0279: Server IP Check](http://xmpp.org/extensions/xep-0279.html) that enables a client to discover its external IP address.
+
+### [mod_stanzaid](../modules/mod_stanzaid.md)
+Implements [XEP-0359: Unique and Stable Stanza ID](http://xmpp.org/extensions/xep-0359.html) that ensures that every message has a unique stanza id which is known to recipient, used by message archive and possibly other components that need it.
 
 ### [mod_stream_management](../modules/mod_stream_management.md)
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html) functionality that defines the active management of an XML stream between two XMPP entities, including features for stanza acknowledgements and stream resumption.

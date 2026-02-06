@@ -3,6 +3,8 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-dialyzer({nowarn_function, [run_prop/2, quickcheck/3, async_writer_store/1]}). % proper has invalid spec
+
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).

@@ -109,10 +109,14 @@ server_start(#sasl_state{myname = Host, host_type = HostType} = State,
     case [M || M <- get_modules(HostType), M:mechanism() =:= Mech,
                                            is_module_supported(HostType, M)] of
         [Module] ->
-            {ok, MechState} = Module:mech_new(Host, State#sasl_state.creds, SocketData),
-            server_step(State#sasl_state{mech_mod = Module,
-                                         mech_state = MechState},
-                        ClientIn);
+            case Module:mech_new(Host, State#sasl_state.creds, SocketData) of
+                {ok, MechState} ->
+                    server_step(State#sasl_state{mech_mod = Module,
+                                                 mech_state = MechState},
+                                ClientIn);
+                Error ->
+                    Error
+            end;
         [] ->
             {error, <<"no-mechanism">>}
     end.

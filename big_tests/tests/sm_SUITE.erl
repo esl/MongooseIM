@@ -907,7 +907,7 @@ ping_timeout(Config) ->
     escalus_client:wait_for_stanza(User),
     % The additional time was 1 second. This sometimes resulted in connection termination,
     % therefore the value was lowered to 0.5 seconds
-    ct:sleep(?PING_REQUEST_TIMEOUT + ?PING_INTERVAL + timer:seconds(0.5)),
+    ct:sleep(?PING_REQUEST_TIMEOUT + ?PING_INTERVAL + 500),
 
     %% attempt to resume the session after the connection drop
     NewUser = sm_helper:kill_and_connect_with_resume_session_without_waiting_for_result(User),
@@ -1358,7 +1358,7 @@ aggressively_pipelined_resume(Config) ->
         Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(Payload)}]),
         Resume = escalus_stanza:resume(SMID, 2),
 
-        escalus_client:send(User, [Stream, Auth, Stream, Resume]),
+        [escalus_client:send(User, S) || S <- [Stream, Auth, Stream, Resume]],
         Messages = [escalus_connection:get_stanza(User, {get_resumed, I}) || I <- lists:seq(1, 6)],
         escalus:assert(is_sm_resumed, [SMID], lists:last(Messages)),
 
@@ -1382,10 +1382,10 @@ aggressively_pipelined_resume_ws(Config) ->
         Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(Payload)}]),
         Resume = escalus_stanza:resume(SMID, 2),
 
-        escalus_client:send(User, [Stream]),
-        escalus_client:send(User, [Auth]),
-        escalus_client:send(User, [Stream]),
-        escalus_client:send(User, [Resume]),
+        escalus_client:send(User, Stream),
+        escalus_client:send(User, Auth),
+        escalus_client:send(User, Stream),
+        escalus_client:send(User, Resume),
         Messages = [escalus_connection:get_stanza(User, {get_resumed, I}) || I <- lists:seq(1, 6)],
         escalus:assert(is_sm_resumed, [SMID], lists:last(Messages)),
 

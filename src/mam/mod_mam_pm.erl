@@ -489,7 +489,10 @@ handle_package(Dir, ReturnMessID,
             OriginID = mod_mam_utils:get_origin_id(Packet),
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
-                    MessID = mod_mam_utils:get_or_generate_mam_id(Acc),
+                    {MessID, Stable} = case mongoose_acc:get(stable_stanza_id, value, undefined, Acc) of
+                                           undefined -> {mod_mam_utils:get_or_generate_mam_id(Acc), false};
+                                           V -> {V, true}
+                                       end,
                     IsGroupChat = mod_mam_utils:is_groupchat(MsgType),
                     Params = #{message_id => MessID,
                                archive_id => ArcID,
@@ -502,7 +505,7 @@ handle_package(Dir, ReturnMessID,
                                is_groupchat => IsGroupChat},
                     Result = archive_message(HostType, Params),
                     ExtMessId = return_external_message_id_if_ok(ReturnMessID, Result, MessID),
-                    {ExtMessId, return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc)};
+                    {ExtMessId, return_acc_with_mam_id_if_configured(ExtMessId, Stable, HostType, Acc)};
                 false ->
                     {undefined, Acc}
             end;
@@ -529,9 +532,11 @@ return_external_message_id_if_ok(true, ok, MessID) ->
 return_external_message_id_if_ok(_, _, _MessID) ->
     undefined.
 
-return_acc_with_mam_id_if_configured(undefined, _, Acc) ->
+return_acc_with_mam_id_if_configured(undefined, _, _, Acc) ->
     Acc;
-return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc) ->
+return_acc_with_mam_id_if_configured(_, true, _, Acc) ->
+    Acc;
+return_acc_with_mam_id_if_configured(ExtMessId, false, HostType, Acc) ->
     case gen_mod:get_module_opt(HostType, ?MODULE, same_mam_id_for_peers) of
         false -> mongoose_acc:set(mam, mam_id, ExtMessId, Acc);
         true -> mongoose_acc:set_permanent(mam, mam_id, ExtMessId, Acc)

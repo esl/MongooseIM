@@ -66,7 +66,7 @@ clustering_two_tests() ->
 clustering_three_tests() ->
     [cluster_of_three,
      leave_the_three,
-     %remove_dead_from_cluster, % TODO: Breaks cover
+     remove_dead_from_cluster,
      remove_alive_from_cluster].
 
 %%--------------------------------------------------------------------
@@ -388,7 +388,7 @@ remove_dead_from_cluster(Config) ->
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     %% when
     distributed_helper:stop_node(Node3Nodename, Config),
-    {_, OpCode1} = mongooseimctl_interactive(Node1, "remove_from_cluster",
+    {_, OpCode1} = mongooseimctl_interactive(Node1Nodename, "remove_from_cluster",
                                              [atom_to_list(Node3Nodename)], "yes\n", Config),
     %% then
     ?eq(0, OpCode1),
