@@ -12,7 +12,7 @@
 %% API
 -export([start_link/1,
          start_job/2,
-         stop_job/2,
+         stop_job/3,
          get_live_job_count/1]).
 
 %% Debug API
@@ -69,10 +69,11 @@ start_job(HostType, JobSpec) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, {start_job, JobSpec}).
 
--spec stop_job(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok | {error, stop_job_error()}.
-stop_job(HostType, JobId) ->
+-spec stop_job(Node :: node(), mongooseim:host_type(), JobId :: broadcast_job_id()) ->
+    ok | {error, stop_job_error()}.
+stop_job(Node, HostType, JobId) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
-    gen_server:call(ProcName, {stop_job, JobId}).
+    gen_server:call({ProcName, Node}, {stop_job, JobId}).
 
 -spec get_live_job_count(mongooseim:host_type()) -> non_neg_integer().
 get_live_job_count(HostType) ->

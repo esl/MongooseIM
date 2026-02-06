@@ -164,7 +164,7 @@ abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found(_Config) ->
     meck:expect(mod_broadcast_backend, get_job,
                 fun(_HostType, _Id) -> {ok, Job} end),
     meck:expect(broadcast_manager, stop_job,
-                fun(_HostType, _Id) -> {error, not_live} end),
+                fun(_Node, _HostType, _Id) -> {error, not_live} end),
 
     {broadcast_not_found, _} = mod_broadcast_api:abort_broadcast(Domain, JobId).
 
@@ -208,7 +208,7 @@ reset_meck_defaults() ->
     meck:expect(mod_broadcast_backend, get_job,
                 fun(_HostType, _Id) -> {error, not_found} end),
     meck:expect(broadcast_manager, stop_job,
-                fun(_HostType, _Id) -> ok end),
+                fun(_Node, _HostType, _Id) -> ok end),
     meck:expect(broadcast_manager, get_live_job_count,
                 fun(_HostType) -> 0 end),
     ok.

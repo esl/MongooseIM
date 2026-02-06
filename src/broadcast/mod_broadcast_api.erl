@@ -75,8 +75,10 @@ abort_broadcast(Domain, Id) ->
         {ok, HostType} ->
             %% First verify the job exists and belongs to this domain
             case mod_broadcast_backend:get_job(HostType, Id) of
-                {ok, #broadcast_job{domain = Domain, execution_state = running}} ->
-                    case broadcast_manager:stop_job(HostType, Id) of
+                {ok, #broadcast_job{domain = Domain,
+                                    owner_node = OwnerNode,
+                                    execution_state = running}} ->
+                    case broadcast_manager:stop_job(OwnerNode, HostType, Id) of
                         ok ->
                             {ok, Id};
                         {error, not_live} ->
