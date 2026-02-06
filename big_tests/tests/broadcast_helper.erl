@@ -33,7 +33,9 @@
 %% API
 %%====================================================================
 
--spec slow_job_spec(Domain :: binary(), SenderJid :: binary(), TestName :: atom() | binary()) -> map().
+-spec slow_job_spec(Domain :: jid:lserver(),
+                    SenderJid :: binary(),
+                    TestName :: atom() | binary()) -> mod_broadcast:job_spec().
 slow_job_spec(Domain, SenderJid, AtomTestName) when is_atom(AtomTestName) ->
     slow_job_spec(Domain, SenderJid, atom_to_binary(AtomTestName, utf8));
 slow_job_spec(Domain, SenderJid, TestName) ->
@@ -47,7 +49,9 @@ slow_job_spec(Domain, SenderJid, TestName) ->
         recipient_group => all_users_in_domain
     }.
 
--spec fast_job_spec(Domain :: binary(), SenderJid :: binary(), TestName :: atom()) -> map().
+-spec fast_job_spec(Domain :: jid:lserver(),
+                    SenderJid :: binary(),
+                    TestName :: atom()) -> mod_broadcast:job_spec().
 fast_job_spec(Domain, SenderJid, TestName) ->
     #{
         name => atom_to_binary(TestName),
@@ -59,44 +63,59 @@ fast_job_spec(Domain, SenderJid, TestName) ->
         recipient_group => all_users_in_domain
     }.
 
--spec start_broadcast(JobSpec :: map()) -> {ok, JobId :: integer()} | {error, term()}.
+-spec start_broadcast(JobSpec :: mod_broadcast:job_spec()) ->
+    {ok, JobId :: mod_broadcast:broadcast_job_id()} | {atom(), binary()}.
 start_broadcast(JobSpec) ->
     call_api(start_broadcast, [JobSpec]).
 
--spec get_broadcast(Domain :: binary(), JobId :: integer()) -> {ok, map()} | {error, term()}.
+-spec get_broadcast(Domain :: jid:lserver(),
+                    JobId :: mod_broadcast:broadcast_job_id()) ->
+    {ok, mod_broadcast_api:broadcast_job()} | {atom(), binary()}.
 get_broadcast(Domain, JobId) ->
     call_api(get_broadcast, [Domain, JobId]).
 
--spec get_broadcasts(Domain :: binary(), Limit :: integer(), Offset :: integer()) ->
-    {ok, [map()]} | {error, term()}.
+-spec get_broadcasts(Domain :: jid:lserver(),
+                     Limit :: pos_integer(),
+                     Offset :: non_neg_integer()) ->
+    {ok, [mod_broadcast_api:broadcast_job()]} | {atom(), binary()}.
 get_broadcasts(Domain, Limit, Offset) ->
     call_api(get_broadcasts, [Domain, Limit, Offset]).
 
--spec broadcast_job_to_map(BroadcastJobRecord :: term()) -> map() | {error, term()}.
+-spec broadcast_job_to_map(
+    BroadcastJobRecord :: mod_broadcast:broadcast_job() |
+                          {ok, mod_broadcast:broadcast_job()}) ->
+    mod_broadcast_api:broadcast_job_map().
 broadcast_job_to_map({ok, JobRecord}) ->
     broadcast_job_to_map(JobRecord);
 broadcast_job_to_map(JobRecord) ->
     call_api(broadcast_job_to_map, [JobRecord]).
 
--spec abort_broadcast(Domain :: binary(), JobId :: integer()) -> ok | {error, term()}.
+-spec abort_broadcast(Domain :: jid:lserver(),
+                      JobId :: mod_broadcast:broadcast_job_id()) ->
+    {ok, mod_broadcast:broadcast_job_id()} | {atom(), binary()}.
 abort_broadcast(Domain, JobId) ->
     call_api(abort_broadcast, [Domain, JobId]).
 
--spec delete_inactive_broadcasts_by_ids(Domain :: binary(), JobIds :: [integer()]) ->
-    {ok, DeletedCount :: integer()} | {error, term()}.
+-spec delete_inactive_broadcasts_by_ids(Domain :: jid:lserver(),
+                                        JobIds :: [mod_broadcast:broadcast_job_id()]) ->
+    {ok, [mod_broadcast:broadcast_job_id()]} | {atom(), binary()}.
 delete_inactive_broadcasts_by_ids(Domain, JobIds) ->
     call_api(delete_inactive_broadcasts_by_ids, [Domain, JobIds]).
 
--spec delete_inactive_broadcasts_by_domain(Domain :: binary()) ->
-    {ok, DeletedCount :: integer()} | {error, term()}.
+-spec delete_inactive_broadcasts_by_domain(Domain :: jid:lserver()) ->
+    {ok, [mod_broadcast:broadcast_job_id()]} | {atom(), binary()}.
 delete_inactive_broadcasts_by_domain(Domain) ->
     call_api(delete_inactive_broadcasts_by_domain, [Domain]).
 
--spec does_worker_for_job_exist(HostType :: binary(), JobId :: integer()) -> boolean().
+-spec does_worker_for_job_exist(HostType :: mongooseim:host_type(),
+                                JobId :: mod_broadcast:broadcast_job_id()) ->
+    boolean().
 does_worker_for_job_exist(HostType, JobId) ->
     rpc(mim(), broadcast_manager, does_worker_for_job_exist, [HostType, JobId]).
 
--spec wait_until_worker_started(HostType :: binary(), JobId :: integer()) -> any().
+-spec wait_until_worker_started(HostType :: mongooseim:host_type(),
+                                JobId :: mod_broadcast:broadcast_job_id()) ->
+    any().
 wait_until_worker_started(HostType, JobId) ->
     wait_helper:wait_until(fun() ->
         does_worker_for_job_exist(HostType, JobId)
@@ -117,6 +136,7 @@ clean_broadcast_jobs() ->
 %% User management helpers
 %%====================================================================
 
+-spec create_many_users(Count :: pos_integer()) -> ok.
 create_many_users(Count) ->
     lists:foreach(fun(N) ->
         Username = <<"testuser", (integer_to_binary(N))/binary>>,
@@ -127,6 +147,7 @@ create_many_users(Count) ->
         rpc(mim(), ejabberd_auth, try_register, [JIDSecondary, Password])
     end, lists:seq(1, Count)).
 
+-spec delete_many_users(Count :: pos_integer()) -> ok.
 delete_many_users(Count) ->
     lists:foreach(fun(N) ->
         Username = <<"testuser", (integer_to_binary(N))/binary>>,
