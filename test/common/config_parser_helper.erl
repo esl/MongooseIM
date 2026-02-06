@@ -213,18 +213,6 @@ options("mongooseim-pgsql") ->
                          password => "",
                          verify_mode => none}
                }),
-       config([listen, http],
-              #{port => 8089,
-                handlers =>
-                    [config([listen, http, handlers, mongoose_client_api],
-                            #{host => '_', path => "/api"})],
-                protocol => #{compress => true},
-                transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem",
-                         keyfile => "priv/dc1.pem",
-                         password => "",
-                         verify_mode => none}
-               }),
        config([listen, s2s],
               #{port => 5269,
                 shaper => fast,
@@ -1121,14 +1109,6 @@ default_config([listen, http, handlers, mongoose_websocket_handler]) ->
       module => mongoose_websocket_handler,
       state_timeout => 5000,
       backwards_compatible_session => true};
-default_config([listen, http, handlers, mongoose_admin_api]) ->
-    #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
-                   inbox, domain, metrics],
-      module => mongoose_admin_api};
-default_config([listen, http, handlers, mongoose_client_api]) ->
-    #{handlers => [sse, messages, contacts, rooms, rooms_config, rooms_users, rooms_messages],
-      docs => true,
-      module => mongoose_client_api};
 default_config([listen, http, handlers, mongoose_graphql_handler]) ->
     #{module => mongoose_graphql_handler,
       schema_endpoint => admin,

@@ -170,9 +170,6 @@ nav:
       - 'mod_time': 'modules/mod_time.md'
       - 'mod_vcard': 'modules/mod_vcard.md'
       - 'mod_version': 'modules/mod_version.md'
-  - 'REST API':
-      - 'Client/frontend': 'rest-api/Client-frontend.md'
-      - 'Administration backend': 'rest-api/Administration-backend.md'
   - 'GraphQL API':
       - 'User': 'graphql-api/User-GraphQL.md'
       - 'Admin': 'graphql-api/Admin-GraphQL.md'

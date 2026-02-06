@@ -29,81 +29,6 @@
 %% Helpers
 %%--------------------------------------------------------------------
 
-assert_inlist(Pattern, L) when is_map(Pattern) ->
-    assert_inmaplist(maps:keys(Pattern), Pattern, L, L);
-assert_inlist(Pattern, L) ->
-    [H|_] = L,
-    Fl = lists:filter(fun(X) -> case X of Pattern -> true; _ -> false end end, L),
-    case Fl of
-        [] ->
-            ct:fail("Fail: ~p not in [~p...]", [Pattern, H]);
-        _ ->
-            Fl
-    end.
-
-assert_notinlist(Pattern, L) when is_map(Pattern) ->
-    assert_notinmaplist(maps:keys(Pattern), Pattern, L, L);
-assert_notinlist(Pattern, L) ->
-    Fl = lists:filter(fun(X) -> case X of Pattern -> true; _ -> false end end, L),
-    case Fl of
-        [] ->
-            ok;
-        _ ->
-            ct:fail("Fail: ~p in ~p", [Pattern, L])
-    end.
-
-assert_inmaplist([], Map, L, [H|_]) ->
-    case L of
-        [] ->
-            ct:fail("Fail: ~p not in [~p...]", [Map, H]);
-        _ ->
-            L
-    end;
-assert_inmaplist([K|Keys], Map, L, Orig) ->
-    V = maps:get(K, Map),
-    Nl = lists:filter(fun(M) -> maps:get(K, M, niema) =:= V end, L),
-    assert_inmaplist(Keys, Map, Nl, Orig).
-
-
-assert_notinmaplist([], Map, L, [H|_]) ->
-    case L of
-        [] ->
-            ok;
-        _ ->
-            ct:fail("Fail: ~p in [~p...]", [Map, H])
-    end;
-assert_notinmaplist([K|Keys], Map, L, Orig) ->
-    V = maps:get(K, Map),
-    Nl = lists:filter(fun(M) -> maps:get(K, M, niema) =:= V end, L),
-    assert_notinmaplist(Keys, Map, Nl, Orig).
-
-
-gett(Role, Path) ->
-    make_request(#{ role => Role, method => <<"GET">>, path => Path }).
-
-post(Role, Path, Body) ->
-    make_request(#{ role => Role, method => <<"POST">>, path => Path, body => Body }).
-
-putt(Role, Path, Body) ->
-    make_request(#{ role => Role, method => <<"PUT">>, path => Path, body => Body }).
-
-delete(Role, Path) ->
-    make_request(#{ role => Role, method => <<"DELETE">>, path => Path }).
-
-gett(Role, Path, Cred) ->
-    make_request(#{ role => Role, method => <<"GET">>, creds => Cred, path => Path}).
-
-post(Role, Path, Body, Cred) ->
-    make_request(#{ role => Role, method => <<"POST">>, creds => Cred, path => Path, body => Body }).
-
-putt(Role, Path, Body, Cred) ->
-    make_request(#{ role => Role, method => <<"PUT">>, creds => Cred, path => Path, body => Body }).
-
-delete(Role, Path, Cred) ->
-    make_request(#{ role => Role, method => <<"DELETE">>, creds => Cred, path => Path }).
-
-delete(Role, Path, Cred, Body) ->
-    make_request(#{ role => Role, method => <<"DELETE">>, creds => Cred, path => Path, body => Body }).
 
 -spec make_request(request_params()) ->
     {{Number :: binary(), Text :: binary()},
@@ -244,12 +169,7 @@ is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, {graphql, Sc
                  (_) ->
                       false
               end, Handlers);
-is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, Role) ->
-    RoleModule = role_to_module(Role),
-    lists:any(fun(#{module := Module}) -> Module =:= RoleModule end, Handlers);
 is_roles_config(_, _) -> false.
-
-role_to_module(client) -> mongoose_client_api.
 
 mapfromlist(L) ->
     Nl = lists:map(fun({K, {V}}) when is_list(V) ->

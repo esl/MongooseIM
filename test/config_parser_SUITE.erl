@@ -97,7 +97,6 @@ groups() ->
                            listen_http_handlers_invalid,
                            listen_http_handlers_bosh,
                            listen_http_handlers_websocket,
-                           listen_http_handlers_client_api,
                            listen_http_handlers_graphql]},
      {auth, [parallel], [auth_methods,
                          auth_password,
@@ -580,14 +579,6 @@ listen_http_handlers_websocket(_Config) ->
     ?err(T(#{<<"timeout">> => -1})),
     ?err(T(#{<<"ping_rate">> => 0})),
     ?err(T(#{<<"max_stanza_size">> => 0})).
-
-listen_http_handlers_client_api(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_client_api),
-    ?cfg(P ++ [handlers], [messages],
-         T(#{<<"handlers">> => [<<"messages">>]})),
-    ?cfg(P ++ [docs], false, T(#{<<"docs">> => false})),
-    ?err(T(#{<<"handlers">> => [<<"invalid">>]})),
-    ?err(T(#{<<"docs">> => <<"maybe">>})).
 
 listen_http_handlers_graphql(_Config) ->
     T = fun graphql_handler_raw/1,

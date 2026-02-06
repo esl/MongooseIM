@@ -98,7 +98,6 @@ When developing new features/modules, please make sure you add basic documentati
     * [Build an iOS messaging app](https://esl.github.io/MongooseDocs/latest/tutorials/iOS_tutorial/)
 * [User Guide](https://esl.github.io/MongooseDocs/latest/user-guide/Features/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
 * [Configuration](https://esl.github.io/MongooseDocs/latest/configuration/configuration-files/). Explore available options including database backend configuration, access control lists, listener and extension modules.
-* [REST API](https://esl.github.io/MongooseDocs/latest/rest-api/Client-frontend/). Explore MongooseIM features using our REST API and [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html).
 * [Operation and maintenance](https://esl.github.io/MongooseDocs/latest/operation-and-maintenance/Cluster-management-considerations/). See what to consider when building, monitoring, testing and distributing MongooseIM clusters.
 * [Server developer's guide](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/). Get all the information you need to expand the MongooseIM platform.
 

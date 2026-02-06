@@ -47,20 +47,6 @@
     ping_rate = 120_000
     max_stanza_size = 100
 
-[[listen.http]]
-  port = 8089
-  transport.num_acceptors = 10
-  transport.max_connections = 1024
-  protocol.compress = true
-  tls.certfile = "priv/cert.pem"
-  tls.keyfile = "priv/dc1.pem"
-  tls.password = ""
-  tls.verify_mode = "none"
-
-  [[listen.http.handlers.mongoose_client_api]]
-    host = "_"
-    path = "/api"
-
 [[listen.c2s]]
   port = 5222
   access = "c2s"
