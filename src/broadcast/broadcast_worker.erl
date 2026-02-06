@@ -44,7 +44,7 @@
     %% so recipients_processed in job record is not updated, only in worker state.
     job :: broadcast_job(),
     state :: broadcast_worker_state(),
-    batch_size :: pos_integer(),
+    batch_recipients_processed :: non_neg_integer(),
     batch_t0 :: integer() | undefined,  % monotonic time when batch started
     current_batch :: [jid:jid()]  % recipients remaining in current batch
 }).
@@ -87,11 +87,10 @@ init({HostType, JobId}) ->
     case load_job(HostType, JobId) of
         {ok, Job, WorkerStateFromDB} ->
             WorkerState = maybe_init_worker_state(WorkerStateFromDB),
-            BatchSize = Job#broadcast_job.message_rate * 10,
             Data = #data{host_type = HostType,
                          job = Job,
                          state = WorkerState,
-                         batch_size = BatchSize,
+                         batch_recipients_processed = 0,
                          batch_t0 = undefined,
                          current_batch = []},
             ?LOG_INFO(#{what => broadcast_worker_started,
@@ -131,9 +130,10 @@ loading_batch(Origin, load_batch, Data)
             case load_next_batch(Job, WorkerState) of
                 {ok, Recipients, NewCursor} ->
                     NewState = WorkerState#broadcast_worker_state{cursor = NewCursor},
-                    T0 = erlang:monotonic_time(millisecond),
+                    BatchT0 = erlang:monotonic_time(millisecond),
                     NewData = Data#data{state = NewState,
-                                        batch_t0 = T0,
+                                        batch_t0 = BatchT0,
+                                        batch_recipients_processed = 0,
                                         current_batch = Recipients},
                     {next_state, sending_batch, NewData,
                      [{next_event, internal, send_one}]};
@@ -159,7 +159,11 @@ sending_batch(EventType, send_one, #data{current_batch = [], state = WorkerState
     end;
 sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} = Data)
   when EventType == internal; EventType == state_timeout ->
-    #data{host_type = HostType, job = Job, state = WorkerState, batch_t0 = T0} = Data,
+    #data{host_type = HostType,
+          job = Job,
+          state = WorkerState,
+          batch_t0 = BatchT0,
+          batch_recipients_processed = BatchRecipientsProcessed} = Data,
     SendResult = send_message(Job, RecipientJid),
     mongoose_instrument:execute(mod_broadcast_recipients_processed,
                                 #{host_type => HostType}, #{count => 1}),
@@ -177,13 +181,15 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
     end,
 
     %% Update progress
-    Processed = WorkerState#broadcast_worker_state.recipients_processed,
-    NewProcessed = Processed + 1,
-    NewState = WorkerState#broadcast_worker_state{recipients_processed = NewProcessed},
-    NewData = Data#data{state = NewState, current_batch = Rest},
+    OldProcessed = WorkerState#broadcast_worker_state.recipients_processed,
+    NewState = WorkerState#broadcast_worker_state{recipients_processed = OldProcessed + 1},
+    NewBatchRecipientsProcessed = BatchRecipientsProcessed + 1,
+    NewData = Data#data{state = NewState,
+                        current_batch = Rest,
+                        batch_recipients_processed = NewBatchRecipientsProcessed},
 
     %% Calculate delay for rate limiting
-    TargetTime = T0 + (NewProcessed * 1000) div Job#broadcast_job.message_rate,
+    TargetTime = BatchT0 + (NewBatchRecipientsProcessed * 1000) div Job#broadcast_job.message_rate,
     CurrentTime = erlang:monotonic_time(millisecond),
     DelayMs = max(0, TargetTime - CurrentTime),
 

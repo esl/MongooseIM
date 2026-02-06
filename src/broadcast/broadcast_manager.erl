@@ -122,6 +122,7 @@ handle_continue({start_worker_for, JobId}, #state{host_type = HostType, worker_m
             ?LOG_ERROR(#{what => broadcast_start_worker_failed,
                          job_id => JobId,
                          reason => Reason}),
+            persist_job_aborted_error(HostType, JobId, Reason),
             {noreply, State}
     end;
 handle_continue(resume_jobs, State) ->
@@ -278,7 +279,7 @@ persist_job_finished(HostType, JobId) ->
                 job_id => JobId}),
     catch mod_broadcast_backend:set_job_finished(HostType, JobId).
 
--spec persist_job_aborted_error(mongooseim:host_type(), broadcast_job_id(), binary()) -> ok.
+-spec persist_job_aborted_error(mongooseim:host_type(), broadcast_job_id(), term()) -> ok.
 persist_job_aborted_error(HostType, JobId, Reason) ->
     mongoose_instrument:execute(mod_broadcast_jobs_aborted_error,
                                 #{host_type => HostType}, #{count => 1}),
