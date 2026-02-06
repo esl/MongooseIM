@@ -51,13 +51,13 @@ create_job(HostType, JobSpec) ->
             {selected, [{RunningJobsCount}]} when RunningJobsCount >= 1 ->
                 {error, running_job_limit_exceeded};
             _Else ->
-                execute_successfully(HostType, broadcast_create_job,
-                                    [Name, Domain, HostType, SenderBin, Subject, Body, Rate,
-                                    RecipientGroupBin, OwnerNode, RecipientCount])
+                create_job_query(HostType, mongoose_rdbms:db_engine(HostType),
+                                 [Name, Domain, HostType, SenderBin, Subject, Body, Rate,
+                                  RecipientGroupBin, OwnerNode, RecipientCount])
         end
     end,
     case mongoose_rdbms:sql_transaction(HostType, T) of
-        {atomic, {updated, 1, [{JobId}]}} ->
+        {atomic, {ok, JobId}} ->
             {ok, JobId};
         {atomic, {error, running_job_limit_exceeded} = E}->
             E
@@ -162,15 +162,7 @@ prepare_queries(HostType) ->
             [server],
             <<"SELECT COUNT(*) FROM broadcast_jobs "
               "WHERE server = ? AND execution_state = 'running'">>),
-
-    prepare(broadcast_create_job, broadcast_jobs,
-            [name, server, host_type, from_jid, subject, body, rate,
-             recipient_group, owner_node, recipient_count],
-            <<"INSERT INTO broadcast_jobs "
-                            "(name, server, host_type, from_jid, subject, body, rate, "
-              "recipient_group, owner_node, recipient_count) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-              "RETURNING id">>),
+    prepare_create_job_queries(HostType),
 
     prepare(broadcast_get_job, broadcast_jobs,
             [id],
@@ -251,9 +243,44 @@ prepare_queries(HostType) ->
               "WHERE server = ? AND execution_state != 'running'">>),
     ok.
 
+prepare_create_job_queries(HostType) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
+            prepare(broadcast_create_job_returning, broadcast_jobs,
+                    [name, server, host_type, from_jid, subject, body, rate,
+                     recipient_group, owner_node, recipient_count],
+                    <<"INSERT INTO broadcast_jobs "
+                      "(name, server, host_type, from_jid, subject, body, rate, "
+                      "recipient_group, owner_node, recipient_count) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                      "RETURNING id">>);
+        mysql ->
+            prepare(broadcast_create_job_mysql, broadcast_jobs,
+                    [name, server, host_type, from_jid, subject, body, rate,
+                     recipient_group, owner_node, recipient_count],
+                    <<"INSERT INTO broadcast_jobs "
+                      "(name, server, host_type, from_jid, subject, body, rate, "
+                      "recipient_group, owner_node, recipient_count) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)">>),
+            prepare(broadcast_get_last_insert_id, broadcast_jobs,
+                    [],
+                    <<"SELECT LAST_INSERT_ID()">>)
+    end.
+
+create_job_query(HostType, Engine, Params) when Engine == pgsql; Engine == cockroachdb ->
+    {updated, 1, [{JobId}]} = execute_successfully(
+                                HostType, broadcast_create_job_returning, Params),
+    {ok, JobId};
+create_job_query(HostType, Engine, Params) when Engine == mysql ->
+    {updated, 1} = execute_successfully(
+                    HostType, broadcast_create_job_mysql, Params),
+    {selected, [{JobId}]} = execute_successfully(
+                                HostType, broadcast_get_last_insert_id, []),
+    {ok, mongoose_rdbms:result_to_integer(JobId)}.
+
 upsert_worker_state_query(HostType) ->
     case mongoose_rdbms:db_engine(HostType) of
-        pgsql ->
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
             <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished) "
               "VALUES (?, ?, ?, ?) "
               "ON CONFLICT (broadcast_id) DO UPDATE "
@@ -280,7 +307,7 @@ row_to_job({JobId, Name, Server, HostType, FromJid, Subject, Message, Rate,
                    body = Message,
                    message_rate = Rate,
                    recipient_group = decode_recipient_group(RecipientGroup),
-                   owner_node = binary_to_atom(OwnerNode, utf8),
+                   owner_node = binary_to_existing_atom(OwnerNode, utf8),
                    recipient_count = RecipientCount,
                    recipients_processed = RecipientsProcessed,
                    execution_state = decode_execution_state(ExecutionState),
