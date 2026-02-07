@@ -1,138 +1,114 @@
-The XMPP standard itself does not provide any means of transmitting audio/video data. However, XMPP can be used as a signaling layer to manage [RTP] sessions for audio and video between clients. The set of XEPs that defines the protocol for this is commonly referred to as the [Jingle protocol].
+# XMPP Audio and Video Tutorial
 
-# Support of the Jingle protocol
+## Overview
+The XMPP standard does not natively support the transmission of audio or video data. Instead, XMPP is commonly used as a signaling layer to establish, manage, and terminate RTP-based audio and video sessions between clients. This functionality is defined by a collection of XMPP Extension Protocols (XEPs) collectively known as the [Jingle protocol].
 
-There is no need for any specific support of the Jingle protocol on the XMPP server side.
+## Jingle Protocol Support
+No special support for Jingle is required on the XMPP server itself. However, deploying a robust Jingle-based audio/video solution often requires additional server-side components, including:
+* [STUN]/[TURN] servers for [NAT traversal].
+* `RTP relays`, which forward incoming [RTP] streams to all participants except the sender. These are useful for small group calls.
+* `Content mixers`, which combine multiple [RTP] input streams into a single output stream. These are essential for large video conferences.
+* XMPP `focus agents`, which coordinate conference calls. Each participant establishes a Jingle session only with the `focus agent` and receives conference updates from it. A `focus agent` may be implemented as:
+  - A custom server module,
+  - An external XMPP component, or
+  - A client-side feature.
 
-Nevertheless, the successful deployment of the Jingle-based solution may require some additional server-side infrastructure:
+Each of these components is discussed in more detail later in this tutorial.
 
-* [STUN]/[TURN] server(s) for [NAT traversal].
+## The Jingle Framework
+The core Jingle specification is [XEP-0166], which defines multimedia sessions and the mechanisms for negotiating, managing, and terminating them. Session negotiation takes place over XMPP, while the actual media exchange usually occurs outside of XMPP.
 
-* `RTP relay` for redirecting incoming [RTP] streams to all participants, excluding the sender. It can be useful for small video group calls.
+During session initialization, peers must agree on:
+* Application format - the type of media being exchanged (e.g., audio or video).
+* Transport method - how the media data is transmitted.
+* Optional security preconditions for the selected transport.
 
-* `Content mixer` for processing multiple input [RTP] streams into a single output stream, required for video conferences with a larger number of participants.
+[XEP-0166] intentionally does not define specific application formats or transport methods; these are specified in separate XEPs.
 
-* XMPP `focus agent` for organising conference calls. All participants establish a Jingle session only with the agent and receive conference information updates from it. It can be either a custom extension module, an external XMPP component, or even a client-side functionality.
+### Jingle Application Formats
+Currently, two major Jingle application formats are defined:
+* [XEP-0167]: Defines Jingle [RTP] sessions for audio and video.
+* [XEP-0234]: Defines Jingle file transfer sessions.
 
-We will take a closer look at every component later in the tutorial.
+This tutorial focuses exclusively on Jingle [RTP] sessions.
 
-# The Jingle Framework
+### Jingle Transport Methods
+Several XEPs describe transport mechanisms, but only two are suitable for real-time audio and video:
+* [XEP-0177]: Jingle Raw UDP Transport
+* [XEP-0176]: Jingle ICE-UDP Transport
 
-The main XEP is [XEP-0166], which introduces the concept of multimedia sessions and the protocol for establishing, managing, and tearing them down. The negotiation of the sessions happens over XMPP, while media transfer typically takes place outside of XMPP. During the initialisation of the session, the peers must come to an agreement on the following aspects:
+Raw UDP does not support [NAT traversal] or connectivity checks. When [NAT traversal] is required (which is almost always the case), clients should use ICE-UDP, as defined in [XEP-0176].
 
-* The application format  - media type, what is to be transferred.
+## Audio and Video Call Scenarios
+Different call scenarios require different types of server-side infrastructure. Below are the most common configurations.
 
-* The transport method - communication channel, how the media is transferred.
+### One-to-One Calls
+This is the simplest scenario and is widely supported by interoperable XMPP clients. In fact, many clients support only one-to-one audio/video calls. Key characteristics include:
+* Minimal server-side infrastructure requirements.
+* Only a [STUN]/[TURN] server is needed to handle [NAT traversal].
+* [STUN] and [TURN] are open standards, and their use is clearly defined by [ICE] and [XEP-0176].
+* [XEP-0215] (External Service Discovery) allows clients to automatically discover and configure [STUN]/[TURN] servers.
 
-* Optionally, the peers can agree on a security precondition for a transport method.
-
-However, neither data transport methods nor application formats are defined in this XEP, leaving that up to separate specifications.
-
-## Jingle application formats
-
-At the moment, there are two major application formats defined:
-
-* The first one is [XEP-0167], which defines a protocol for Jingle [RTP] sessions.
-
-* And [XEP-0234], application format for negotiating Jingle file transfer sessions.
-
-In this tutorial, we will focus solely on Jingle [RTP] sessions.
-
-## Jingle transport method
-
-There are multiple XEPs defining various transfer methods, but only 2 of them are considered suitable for Audio/Video data:
-
-* [XEP-0177]: Jingle Raw UDP Transport Method.
-
-* [XEP-0176]: Jingle ICE-UDP Transport Method.
-
-The Raw UDP transport does not provide end-to-end traversal of NAT(s), or even basic connectivity checks. If [NAT traversal] is needed, Jingle clients should use the Jingle ICE-UDP Transport Method.
-
-# Various video/audio call scenarios
-
-As mentioned above, depending on the call scenario, we require different types of additional server-side infrastructure. Let's take a quick look at the most common scenarios.
-
-## One-to-one call scenario
-
-Probably the easiest scenario to implement, which is supported by many interoperable XMPP clients. Moreover, most interoperable XMPP clients support only this kind of audio/video connection. There are several reasons for this:
-
-* It requires little to no additional server-side infrastructure. In particular, to overcome the [NAT traversal] problem, only a [STUN]/[TURN] server is needed.
-
-* [STUN] and [TURN] are open protocols, and the way to use a [STUN]/[TURN] server is clearly defined by the [ICE] standard and [XEP-0176] (Jingle ICE-UDP Transport Method).
-
-* [XEP-0215] (External Service Discovery) provides an easy way to configure an XMPP client with custom [STUN]/[TURN] servers.
-
-## Small group call scenario (mesh topology)
-
-One method for handling calls in small groups (up to 4 participants, when video is involved) is to set up separate jingle sessions between each participant. [XEP-0272] (Multiparty Jingle, also known as MuJi) describes a protocol for this scenario, but this approach has several obvious drawbacks:
-
-* It requires a large connection bandwidth; every client must send data N times and receive it from N sources (where N is the number of participants).
-
-* The parties must agree on the audio/video format, as we do not want to encode the data multiple times for different participants.
-
-* Video/audio mixing must be done by each participant individually.
+### Small Group Calls (Mesh Topology)
+For small groups (typically up to four participants for video), each participant can establish a separate Jingle session with every other participant. This approach is described in [XEP-0272] (MuJi - Multiparty Jingle). However, it has several drawbacks:
+* High bandwidth usage: each client must send its media stream N times and receive N streams.
+* Strict codec agreement: all participants must use compatible audio/video formats.
+* Client-side mixing: each participant must mix incoming audio and video streams locally.
 
 ![full_mesh][full_mesh]
 
-A [STUN]/[TURN] server can be used to set up individual peer-to-peer sessions (as in a one-to-one scenario).
+[STUN]/[TURN] servers can still be used to establish peer-to-peer connections, similar to one-to-one calls.
 
-[XEP-0272] suggests that optimisation of the upstream bandwidth can be done with the help of `RTP relay`.
+[XEP-0272] also suggests using `RTP relays` to reduce upstream bandwidth usage.
 
 ![relay_example][relay_example]
 
-while the `content mixer` helps to reduce downstream bandwidth and CPU usage:
+To further reduce downstream bandwidth and CPU usage, `content mixers` can be introduced.
 
 ![mixer_example][mixer_example]
 
-In order to ensure clients' interoperability, they must allocate `RTP relays` and `content mixers` individually:
+However, to ensure interoperability, each client must independently allocate its own `RTP relay` and `content mixer`.
 
 ![complex_mesh_example][complex_mesh_example]
 
-This approach is quite inefficient. The same server components are sufficient to optimize the call for each participant, but it requires switching from a mesh to a star topology.
+This results in inefficiencies, as the same optimization components are duplicated for each participant. In practice, this approach often evolves from a mesh topology into a star topology.
 
-## Large conference call (star topology)
-
-This type of connection requires the allocation of a `content mixer` and an `RTP relay` (in reality, it's usually just one software component) for the call. The XMPP entity that does this allocation is called the `focus agent`. All participants establish individual jingle sessions with the `focus agent` in a similar manner to a one-to-one connection.
-
-[XEP-0298] (Delivering Conference Information to Jingle Participants, also known as COIN) and [XEP-0340] (Conferences with Lightweight Bridging, also known as COLIBRI) define certain aspects of the protocol for conference call management. It’s expected that one of the participants would become a `focus agent`.
-
-Theoretically, the `content mixer` and `RTP relay` could also be placed on the participant (`focus agent`) device, but this configuration may exhibit poor performance.
+### Large Conference Calls (Star Topology)
+Large conferences require a centralized architecture. In this model:
+* A `content mixer` and `RTP relay` (often implemented as a single component) are allocated for the conference.
+* A `focus agent` is responsible for allocating and managing these resources.
+* Each participant establishes an individual Jingle session with the `focus agent`, similar to a one-to-one call.
 
 ![conference_example][conference_example]
 
-With the introduction of the `content mixer`, we also gain some additional benefits:
+Conference management is partially defined by:
+* [XEP-0298] (COIN - Conference Information)
+* [XEP-0340] (COLIBRI - Conferences with Lightweight Bridging)
 
-* Fewer restrictions on audio/video format compatibility. E.g., Peer 4 can now provide data in a format that is not supported by Peer 2.
+Typically, one of the participants assumes the role of `focus agent`, although this role can also be handled by a server-side component.
 
-* Support for multiple output formats. For example, we can allow users to choose between high-resolution and low-resolution video depending on their connection bandwidth.
+While it is technically possible to host the `mixer` and `relay` on a participant’s device, this usually leads to poor performance.
 
-* Introduction of a server-side component for call recording.
+Introducing a `content mixer` provides several advantages:
+* Relaxed codec compatibility requirements (e.g., different participants can use different formats).
+* Support for multiple output formats, such as high and low-resolution video streams.
+* The ability to implement server-side call recording.
 
-From another perspective, we lose the ability to have end-to-end encryption.
+However, this architecture also eliminates true end-to-end encryption.
 
-# FAQ
+## Frequently Asked Questions
 
-### The listed XEPs do not provide the required functionality. What can I do?
+### The listed XEPs do not provide all the required functionality. What are my options?
+Standardizing group audio and video calling is challenging. Because there is no common protocol standard for `RTP relays` or `content mixers`, XEPs tend to push vendor-specific logic onto the client side. As a result, interoperable group calling is not widely supported by XMPP clients. If interoperability is not a strict requirement, existing XEPs can serve as useful design references.
 
-As mentioned earlier, it is difficult to create an interoperable standard for group calling functionality. There is no single standard/protocol for the `content mixer` or `RTP relay` components, so XEPs are trying to push custom (vendor-dependent) logic on the client side. In any case, group audio/video calling is not widely supported by interoperable XMPP clients. And if interoperability is not a concern for you, then consider XEP as a point of inspiration.
+### Is there an alternative to using [STUN]/[TURN] servers?
+Yes. [XEP-0278] (Jingle Relay Nodes) provides an alternative, but it has not seen widespread adoption. In practice, [TURN] servers are more flexible and commonly used.
 
-### Is there an alternative to a [STUN]/[TURN] server?
+### Do I still need [STUN]/[TURN] if I use a public `content mixer` or `RTP relay`?
+Yes. Even with public IP addresses, a [STUN]/[TURN] server is recommended as a fallback mechanism, particularly for clients behind strict firewalls.
 
-Yes, there is [XEP-0278] (Jingle relay nodes). However, it hasn’t gained much popularity.
-
-It is also worth noting that [TURN] Server is a more versatile solution.
-
-### In regard to the `focus agent`, what does the XMPP entity mean?
-
-There is no strict requirement for the `focus agent` to be a call participant; it can also be implemented as an extension to an XMPP server or as an external XMPP component. Importantly, it must have a valid JID so that participants can interact with it.
-
-### Do I need a [STUN]/[TURN] server if I use a `content mixer` and/or `RTP relay` with a public IP address?
-
-It is still recommended to have a [STUN]/[TURN] server in your setup. Clients can use it as a fallback connection option, not necessarily for [NAT traversal], but to overcome strict firewall settings.
-
-### Given that [TURN] is a relay server, why is a separate `RTP relay` server needed?
-
-Note that a [TURN] server is not designed for multicasting of the outgoing data stream; if you want to send the same data to N peers, you still have to send it N times from the client to the [TURN] server.
+### Why is an `RTP relay` needed if [TURN] already acts as a relay?
+TURN servers are not designed for efficient multicasting. When sending media to multiple peers via [TURN], the client must still upload the same stream multiple times. `RTP relays` are better suited for distributing a single incoming stream to many recipients.
 
 ### For more information about [STUN]/[TURN] servers, see the [dedicated page][TURN tutorial].
 
