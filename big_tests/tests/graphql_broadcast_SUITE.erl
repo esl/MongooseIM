@@ -10,7 +10,9 @@
          admin_start_broadcast_validation_error/1,
          admin_start_broadcast_coercion_error/1,
          admin_start_broadcast_sender_not_found/1,
-         admin_delete_inactive_broadcasts/1]).
+         admin_abort_broadcast/1,
+         admin_delete_inactive_broadcasts/1,
+         admin_delete_inactive_broadcasts_by_domain/1]).
 
 %% admin_query group
 -export([admin_get_broadcasts_pagination/1,
@@ -62,7 +64,9 @@ admin_mutation_test_cases() ->
      admin_start_broadcast_validation_error,
      admin_start_broadcast_coercion_error,
      admin_start_broadcast_sender_not_found,
-     admin_delete_inactive_broadcasts].
+    admin_abort_broadcast,
+    admin_delete_inactive_broadcasts,
+    admin_delete_inactive_broadcasts_by_domain].
 
 admin_query_test_cases() ->
     [admin_get_broadcasts_pagination,
@@ -144,6 +148,19 @@ admin_start_broadcast_sender_not_found(Config) ->
     Res = execute_command(<<"broadcast">>, <<"startBroadcast">>, Vars, Config),
     <<"sender_not_found">> = get_err_code(Res).
 
+admin_abort_broadcast(Config) ->
+    Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
+    Spec = broadcast_helper:slow_job_spec(domain(), Sender, ?FUNCTION_NAME),
+    {ok, JobId} = broadcast_helper:start_broadcast(Spec),
+
+    Vars = #{domain => domain(), id => JobId},
+    Res = execute_command(<<"broadcast">>, <<"abortBroadcast">>, Vars, Config),
+    [JobId] = get_ok_value([data, broadcast, abortBroadcast, ids], Res),
+
+    GetRes = get_broadcast_op(domain(), JobId, Config),
+    #{<<"id">> := JobId} = Job = get_ok_value([data, broadcast, getBroadcast], GetRes),
+    validate_job_info(Job, Spec, abort_admin).
+
 admin_delete_inactive_broadcasts(Config) ->
     Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
     {ok, JobId} = broadcast_helper:start_broadcast(
@@ -153,6 +170,18 @@ admin_delete_inactive_broadcasts(Config) ->
     Vars = #{domain => domain(), ids => [JobId]},
     Res = execute_command(<<"broadcast">>, <<"deleteInactiveBroadcastsByIds">>, Vars, Config),
     [JobId] = get_ok_value([data, broadcast, deleteInactiveBroadcastsByIds, ids], Res),
+
+    {broadcast_not_found, _} = broadcast_helper:get_broadcast(domain(), JobId).
+
+admin_delete_inactive_broadcasts_by_domain(Config) ->
+    Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
+    {ok, JobId} = broadcast_helper:start_broadcast(
+        broadcast_helper:slow_job_spec(domain(), Sender, ?FUNCTION_NAME)),
+    {ok, _} = broadcast_helper:abort_broadcast(domain(), JobId),
+
+    Vars = #{domain => domain()},
+    Res = execute_command(<<"broadcast">>, <<"deleteInactiveBroadcastsByDomain">>, Vars, Config),
+    [JobId] = get_ok_value([data, broadcast, deleteInactiveBroadcastsByDomain, ids], Res),
 
     {broadcast_not_found, _} = broadcast_helper:get_broadcast(domain(), JobId).
 
