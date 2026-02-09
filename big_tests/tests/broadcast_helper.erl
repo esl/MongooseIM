@@ -18,6 +18,7 @@
          delete_inactive_broadcasts_by_domain/1,
          does_worker_for_job_exist/2,
          wait_until_worker_started/2,
+         wait_until_job_state/3,
          clean_broadcast_jobs/0,
          % User management helpers
          create_many_users/1,
@@ -70,14 +71,14 @@ start_broadcast(JobSpec) ->
 
 -spec get_broadcast(Domain :: jid:lserver(),
                     JobId :: mod_broadcast:broadcast_job_id()) ->
-    {ok, mod_broadcast_api:broadcast_job()} | {atom(), binary()}.
+    {ok, mod_broadcast:broadcast_job()} | {atom(), binary()}.
 get_broadcast(Domain, JobId) ->
     call_api(get_broadcast, [Domain, JobId]).
 
 -spec get_broadcasts(Domain :: jid:lserver(),
                      Limit :: pos_integer(),
                      Offset :: non_neg_integer()) ->
-    {ok, [mod_broadcast_api:broadcast_job()]} | {atom(), binary()}.
+    {ok, [mod_broadcast:broadcast_job()]} | {atom(), binary()}.
 get_broadcasts(Domain, Limit, Offset) ->
     call_api(get_broadcasts, [Domain, Limit, Offset]).
 
@@ -120,6 +121,24 @@ wait_until_worker_started(HostType, JobId) ->
     wait_helper:wait_until(fun() ->
         does_worker_for_job_exist(HostType, JobId)
     end, true).
+
+wait_until_job_state(Domain, JobId, ExpectedState) ->
+    wait_helper:wait_until(
+        fun() ->
+            case get_broadcast(Domain, JobId) of
+                {ok, JobRecord} ->
+                    case broadcast_job_to_map(JobRecord) of
+                        #{execution_state := State} when State =:= ExpectedState ->
+                            ok;
+                        #{execution_state := Other} ->
+                            {error, {not_expected_state, Other}}
+                    end;
+                {broadcast_not_found, _} ->
+                    {error, not_found}
+            end
+        end,
+        ok,
+        #{name => wait_for_job_state}).
 
 -spec clean_broadcast_jobs() -> ok.
 clean_broadcast_jobs() ->

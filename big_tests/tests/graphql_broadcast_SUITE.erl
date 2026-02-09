@@ -16,7 +16,9 @@
 
 %% admin_query group
 -export([admin_get_broadcasts_pagination/1,
-         admin_get_broadcast/1]).
+         admin_get_broadcast/1,
+         admin_get_broadcast_finished/1,
+         admin_get_broadcast_worker_killed/1]).
 
 %% domain_admin group
 -export([domain_admin_start_broadcast_success/1]).
@@ -30,7 +32,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1]).
+-import(distributed_helper, [mim/0, rpc/4, require_rpc_nodes/1]).
 -import(domain_helper, [domain/0, secondary_domain/0]).
 -import(graphql_helper, [execute_command/4,
                          get_ok_value/2,
@@ -39,6 +41,7 @@
                          get_unauthorized/1,
                          get_not_loaded/1,
                          get_coercion_err_msg/1]).
+-import(broadcast_helper, [wait_until_job_state/3]).
 
 %%====================================================================
 %% CT callbacks
@@ -70,7 +73,9 @@ admin_mutation_test_cases() ->
 
 admin_query_test_cases() ->
     [admin_get_broadcasts_pagination,
-     admin_get_broadcast].
+     admin_get_broadcast,
+     admin_get_broadcast_finished,
+     admin_get_broadcast_worker_killed].
 
 domain_admin_test_cases() ->
     [domain_admin_start_broadcast_success].
@@ -216,6 +221,40 @@ admin_get_broadcast(Config) ->
 
     validate_job_info(Job, Spec, running).
 
+admin_get_broadcast_finished(Config) ->
+    Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
+    Spec = broadcast_helper:fast_job_spec(domain(), Sender, ?FUNCTION_NAME),
+    {ok, JobId} = broadcast_helper:start_broadcast(Spec),
+
+    %% Wait for the fast job to complete
+    broadcast_helper:wait_until_job_state(domain(), JobId, finished),
+
+    %% Verify the job is in finished state via GraphQL
+    Res = get_broadcast_op(domain(), JobId, Config),
+    #{<<"id">> := JobId} = Job = get_ok_value([data, broadcast, getBroadcast], Res),
+
+    validate_job_info(Job, Spec, finished).
+
+admin_get_broadcast_worker_killed(Config) ->
+    Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
+    Spec = broadcast_helper:slow_job_spec(domain(), Sender, ?FUNCTION_NAME),
+    {ok, JobId} = broadcast_helper:start_broadcast(Spec),
+
+    %% Wait for the worker process to start, then kill it
+    HostType = domain_helper:host_type(),
+    broadcast_helper:wait_until_worker_started(HostType, JobId),
+    WorkerMap = rpc(mim(), broadcast_manager, get_worker_map, [HostType]),
+    #{JobId := #{pid := WorkerPid}} = WorkerMap,
+    rpc(mim(), erlang, exit, [WorkerPid, kill]),
+
+    %% Wait for the manager to detect the crash and persist abort_error
+    wait_until_job_state(domain(), JobId, abort_error),
+
+    %% Verify the job is in abort_error state via GraphQL
+    Res = get_broadcast_op(domain(), JobId, Config),
+    #{<<"id">> := JobId} = Job = get_ok_value([data, broadcast, getBroadcast], Res),
+    validate_job_info(Job, Spec, abort_error).
+
 %%====================================================================
 %% Domain Admin Tests
 %%====================================================================
@@ -303,10 +342,11 @@ validate_job_info(Job, Spec, ExpectedStateAtom) ->
         abort_error ->
             calendar:rfc3339_to_system_time(maps:get(<<"stopTimestamp">>, Job)),
             calendar:rfc3339_to_system_time(maps:get(<<"startTimestamp">>, Job)),
-            <<_, _/binary>> = maps:get(<<"abortReason">>, Job);
-        _ ->
+            <<_, _/binary>> = maps:get(<<"abortionReason">>, Job);
+        NonErrorStop when NonErrorStop == abort_admin; NonErrorStop == finished ->
             calendar:rfc3339_to_system_time(maps:get(<<"stopTimestamp">>, Job)),
-            calendar:rfc3339_to_system_time(maps:get(<<"startTimestamp">>, Job))
+            calendar:rfc3339_to_system_time(maps:get(<<"startTimestamp">>, Job)),
+            null = maps:get(<<"abortionReason">>, Job)
     end.
 
 recipient_group_to_var(all_users_in_domain) -> <<"ALL_USERS_IN_DOMAIN">>.

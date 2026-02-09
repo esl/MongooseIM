@@ -35,7 +35,7 @@ init(HostType, _Opts) ->
     prepare_queries(HostType),
     ok.
 
--spec create_job(mongooseim:host_type(), mod_broadcast_backend:job_spec()) ->
+-spec create_job(mongooseim:host_type(), job_spec()) ->
     {ok, JobId :: broadcast_job_id()} | {error, running_job_limit_exceeded}.
 create_job(HostType, JobSpec) ->
     #{name := Name, domain := Domain, sender := Sender,

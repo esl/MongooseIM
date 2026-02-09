@@ -101,7 +101,8 @@ get_worker_map(HostType) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, get_worker_map).
 
--spec get_supervisor_children(mongooseim:host_type()) -> [supervisor:child_spec()].
+-spec get_supervisor_children(mongooseim:host_type()) ->
+    [{term(), undefined | pid() | restarting, worker | supervisor, [module()] | dynamic}].
 get_supervisor_children(HostType) ->
     supervisor:which_children(get_sup_name(HostType)).
 
@@ -492,7 +493,8 @@ validate_recipient_count(#{recipient_count := 0}) ->
 validate_recipient_count(_) ->
     {error, cannot_count_recipients}.
 
--spec validate_string_param(atom(), non_neg_integer(), pos_integer(), job_spec()) -> ok | {error, {bad_parameter, atom()}}.
+-spec validate_string_param(atom(), non_neg_integer(), pos_integer(), job_spec()) ->
+    ok | {error, {bad_parameter, atom()}}.
 validate_string_param(Param, Min, Max, JobSpec) ->
     case string:length(maps:get(Param, JobSpec)) of
         Len when Len >= Min, Len =< Max ->

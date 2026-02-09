@@ -134,7 +134,7 @@ init({HostType, JobId}) ->
 %%====================================================================
 
 -spec loading_batch(gen_statem:event_type(), term(), data()) ->
-    gen_statem:state_function_result(state()).
+    gen_statem:state_function_result().
 loading_batch(Origin, load_batch, Data)
   when Origin == internal; Origin == state_timeout->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
@@ -162,7 +162,7 @@ loading_batch(Origin, load_batch, Data)
     end.
 
 -spec sending_batch(gen_statem:event_type(), term(), data()) ->
-    gen_statem:state_function_result(state()).
+    gen_statem:state_function_result().
 sending_batch(EventType, send_one, #data{current_batch = [], state = WorkerState} = Data)
   when EventType == internal; EventType == state_timeout ->
     NewData = Data#data{batch_t0 = undefined, current_batch = []},
@@ -219,7 +219,7 @@ sending_batch(EventType, Event, Data) ->
     {keep_state, Data}.
 
 -spec finished(gen_statem:event_type(), term(), data()) ->
-    gen_statem:state_function_result(state()).
+    gen_statem:state_function_result().
 finished(internal, finalize, Data) ->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
     %% Mark worker state as finished and persist (best effort)
@@ -240,7 +240,7 @@ finished(internal, finalize, Data) ->
     {stop, normal, Data}.
 
 -spec aborted(gen_statem:event_type(), term(), data()) ->
-    gen_statem:state_function_result(state()).
+    gen_statem:state_function_result().
 aborted(internal, {finalize, Error}, #data{job = Job, host_type = HostType} = Data) ->
     ?LOG_ERROR(#{what => broadcast_worker_aborted,
                  job_id => Job#broadcast_job.id,

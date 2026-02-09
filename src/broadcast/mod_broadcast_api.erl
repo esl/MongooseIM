@@ -190,7 +190,7 @@ delete_inactive_job(HostType, Domain, Id) ->
             {error, not_found}
     end.
 
--spec error_result(atom()) -> {atom(), binary()}.
+-spec error_result(atom() | {bad_parameter, atom()}) -> {atom(), binary()}.
 error_result(domain_not_found) ->
     {domain_not_found, <<"Domain not found">>};
 error_result(broadcast_not_found) ->

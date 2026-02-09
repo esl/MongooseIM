@@ -56,6 +56,7 @@
                            delete_inactive_broadcasts_by_domain/1,
                            does_worker_for_job_exist/2,
                            wait_until_worker_started/2,
+                           wait_until_job_state/3,
                            broadcast_job_to_map/1]).
 
 %%====================================================================
@@ -390,7 +391,7 @@ broadcast_instrumentation_metrics(Config) ->
 start_broadcast_sender_not_found(Config) ->
     JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
-        NonExistentJid = jid:make_noprep(<<"nonexistent">>, domain(), <<>>),
+        NonExistentJid = jid:to_binary(jid:make_noprep(<<"nonexistent">>, domain(), <<>>)),
         JobSpec = slow_job_spec(domain(), NonExistentJid, JobName),
         {sender_not_found, _} = start_broadcast(JobSpec)
     end).
@@ -463,17 +464,11 @@ start_broadcast_string_limits_ok(Config) ->
             {body, binary:copy(<<"a">>, 1), binary:copy(<<"a">>, 16000)}
         ],
         lists:foreach(fun({Field, MinVal, MaxVal}) ->
-            %% Test minimum
             JobSpecMin = maps:put(Field, MinVal, slow_job_spec(domain(), AliceJid, JobName)),
-            ResultMin = start_and_abort_job(JobSpecMin),
-            ?assertMatch({ok, _}, ResultMin,
-                         io_lib:format("~p min value should succeed", [Field])),
+            {ok, _} = start_and_abort_job(JobSpecMin),
 
-            %% Test maximum
             JobSpecMax = maps:put(Field, MaxVal, slow_job_spec(domain(), AliceJid, JobName)),
-            ResultMax = start_and_abort_job(JobSpecMax),
-            ?assertMatch({ok, _}, ResultMax,
-                         io_lib:format("~p max value should succeed", [Field]))
+            {ok, _} = start_and_abort_job(JobSpecMax)
         end, BoundaryCases)
     end).
 
@@ -589,24 +584,6 @@ start_and_abort_job(JobSpec) ->
     {ok, _} = abort_broadcast(Domain, JobId),
     wait_until_job_state(Domain, JobId, abort_admin),
     {ok, JobId}.
-
-wait_until_job_state(Domain, JobId, ExpectedState) ->
-    wait_helper:wait_until(
-        fun() ->
-            case get_broadcast(Domain, JobId) of
-                {ok, JobRecord} ->
-                    case broadcast_job_to_map(JobRecord) of
-                        #{execution_state := State} when State =:= ExpectedState ->
-                            ok;
-                        #{execution_state := Other} ->
-                            {error, {not_expected_state, Other}}
-                    end;
-                {broadcast_not_found, _} ->
-                    {error, not_found}
-            end
-        end,
-        ok,
-        #{name => wait_for_job_state}).
 
 wait_for_live_jobs_count(ExpectedCount) ->
     F = fun(#{count := Count}) -> Count =:= ExpectedCount end,
