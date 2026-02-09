@@ -188,7 +188,6 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 There are some modules that don't support dynamic domains for now.
 These must **not** be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
 
-* [mod_event_pusher](../modules/mod_event_pusher.md)
 * [mod_global_distrib](../modules/mod_global_distrib.md)
 * [mod_jingle_sip](../modules/mod_jingle_sip.md)
 * [mod_pubsub](../modules/mod_pubsub.md)

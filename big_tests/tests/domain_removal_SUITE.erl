@@ -33,6 +33,7 @@ all() ->
      {group, vcard_removal},
      {group, last_removal},
      {group, broadcast_removal},
+     {group, push_removal},
      {group, removal_failures}
     ].
 
@@ -56,6 +57,8 @@ groups() ->
      {vcard_removal, [], [vcard_removal]},
      {last_removal, [], [last_removal]},
      {broadcast_removal, [], [broadcast_removal]},
+     {push_removal, [], [push_removal,
+                         push_removal_keeps_other_domain_subscriptions]},
      {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
 
@@ -172,7 +175,10 @@ group_to_modules(vcard_removal) ->
 group_to_modules(last_removal) ->
     [{mod_last, mod_config(mod_last, #{backend => rdbms})}];
 group_to_modules(broadcast_removal) ->
-    [{mod_broadcast, #{backend => rdbms}}].
+    [{mod_broadcast, #{backend => rdbms}}];
+group_to_modules(push_removal) ->
+    PushOpts = #{backend => rdbms},
+    [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}].
 
 is_internal_or_rdbms() ->
     AuthMods = mongoose_helper:auth_modules(),
@@ -512,6 +518,61 @@ broadcast_removal(Config) ->
 
         {ok, [_]} = broadcast_helper:get_broadcasts(SecondaryDomain, 10, 0),
         true = broadcast_helper:does_worker_for_job_exist(secondary_host_type(), OtherJobId)
+    end).
+
+push_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        %% Alice enables push notifications
+        PubsubJID = <<"pubsub.localhost">>,
+        Node = <<"test_node">>,
+        EnableStanza = push_helper:enable_stanza(PubsubJID, Node),
+        escalus:send(Alice, EnableStanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        %% Check that the subscription exists in the database
+        AliceJid = jid:from_binary(escalus_client:short_jid(Alice)),
+        {ok, Services} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                             [host_type(), AliceJid]),
+        ?assertMatch([_], Services),
+        %% Remove domain and check that push subscriptions are removed
+        run_remove_domain(),
+        {ok, ServicesAfter} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                  [host_type(), AliceJid]),
+        ?assertMatch([], ServicesAfter)
+    end).
+
+push_removal_keeps_other_domain_subscriptions(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
+        %% Both Alice (domain()) and AliceBis (other domain) enable push notifications
+        PubsubJID = <<"pubsub.localhost">>,
+        Node = <<"test_node">>,
+        EnableStanza = push_helper:enable_stanza(PubsubJID, Node),
+
+        escalus:send(Alice, EnableStanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+        escalus:send(AliceBis, EnableStanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(AliceBis)),
+
+        %% Verify both subscriptions exist
+        AliceJid = jid:from_binary(escalus_client:short_jid(Alice)),
+        AliceBisJid = jid:from_binary(escalus_client:short_jid(AliceBis)),
+
+        {ok, AliceServices} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                  [host_type(), AliceJid]),
+        {ok, AliceBisServices} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                      [host_type(), AliceBisJid]),
+        ?assertMatch([_], AliceServices),
+        ?assertMatch([_], AliceBisServices),
+
+        %% Remove domain() and verify only Alice's subscription is removed
+        run_remove_domain(),
+
+        {ok, AliceServicesAfter} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                       [host_type(), AliceJid]),
+        {ok, AliceBisServicesAfter} = rpc(mim(), mod_event_pusher_push_backend, get_publish_services,
+                                          [host_type(), AliceBisJid]),
+        ?assertMatch([], AliceServicesAfter),
+        ?assertMatch([_], AliceBisServicesAfter)
     end).
 
 removal_stops_if_handler_fails(Config0) ->

@@ -68,6 +68,7 @@
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", mod_blocking_SUITE}.
+{suites, "tests", mod_event_pusher_http_SUITE}.
 {suites, "tests", mod_http_upload_SUITE}.
 {suites, "tests", mod_ping_SUITE}.
 {suites, "tests", mod_stanzaid_SUITE}.
@@ -91,6 +92,7 @@
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
+{suites, "tests", push_SUITE}.
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", rdbms_SUITE}.
 {suites, "tests", rest_SUITE}.
