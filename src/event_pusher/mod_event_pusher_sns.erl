@@ -31,7 +31,7 @@
 %%%===================================================================
 
 %% MIM module callbacks
--export([start/2, stop/1, hooks/1, config_spec/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% API
 -export([try_publish/5]).
@@ -67,6 +67,10 @@ get_worker_num(Opts) ->
 stop(HostType) ->
     mongoose_wpool:stop(generic, HostType, pusher_sns),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
