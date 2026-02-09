@@ -83,7 +83,7 @@ groups() ->
 
 lifecycle_tests() ->
     [start_broadcast_ok_returns_job_id,
-    start_broadcast_running_job_limit_exceeded,
+     start_broadcast_running_job_limit_exceeded,
      start_broadcast_two_domains_both_ok,
      resume_jobs_after_restart,
      manager_restart_is_idempotent_to_live_job_workers,

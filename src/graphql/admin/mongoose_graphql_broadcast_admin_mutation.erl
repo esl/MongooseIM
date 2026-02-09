@@ -29,14 +29,13 @@ start_broadcast(#{<<"name">> := Name,
                   <<"senderJid">> := SenderJid,
                   <<"messageRate">> := MessageRate,
                   <<"recipientGroup">> := RecipientGroup}) ->
-    RecipientGroupAtom = parse_recipient_group(RecipientGroup),
     JobSpec = #{name => Name,
                 domain => Domain,
                 sender => SenderJid,
                 subject => MessageSubject,
                 body => MessageBody,
                 message_rate => MessageRate,
-                recipient_group => RecipientGroupAtom},
+                recipient_group => RecipientGroup},
     case mod_broadcast_api:start_broadcast(JobSpec) of
         {ok, Id} ->
             {ok, make_mutation_result(<<"Broadcast job started">>, [Id])};
@@ -77,7 +76,4 @@ delete_inactive_broadcasts_by_domain(#{<<"domain">> := Domain}) ->
 
 -spec make_mutation_result(binary(), [integer()]) -> map().
 make_mutation_result(Message, Ids) ->
-    #{<<"message">> => Message, <<"ids">> => Ids}.
-
--spec parse_recipient_group(binary()) -> recipient_group().
-parse_recipient_group(<<"ALL_USERS_IN_DOMAIN">>) -> all_users_in_domain.
+    #{<<"message">> => Message, <<"ids">> => [{ok, Id} || Id <- Ids]}.

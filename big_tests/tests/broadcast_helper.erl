@@ -36,11 +36,11 @@
 -spec slow_job_spec(Domain :: jid:lserver(),
                     SenderJid :: binary(),
                     TestName :: atom() | binary()) -> mod_broadcast:job_spec().
-slow_job_spec(Domain, SenderJid, AtomTestName) when is_atom(AtomTestName) ->
-    slow_job_spec(Domain, SenderJid, atom_to_binary(AtomTestName, utf8));
-slow_job_spec(Domain, SenderJid, TestName) ->
+slow_job_spec(Domain, SenderJid, AtomName) when is_atom(AtomName) ->
+    slow_job_spec(Domain, SenderJid, atom_to_binary(AtomName, utf8));
+slow_job_spec(Domain, SenderJid, Name) ->
     #{
-        name => TestName,
+        name => Name,
         domain => Domain,
         sender => jid:from_binary(SenderJid),
         subject => <<"Slow Test Subject">>,
@@ -51,10 +51,10 @@ slow_job_spec(Domain, SenderJid, TestName) ->
 
 -spec fast_job_spec(Domain :: jid:lserver(),
                     SenderJid :: binary(),
-                    TestName :: atom()) -> mod_broadcast:job_spec().
-fast_job_spec(Domain, SenderJid, TestName) ->
+                    AtomName :: atom()) -> mod_broadcast:job_spec().
+fast_job_spec(Domain, SenderJid, AtomName) ->
     #{
-        name => atom_to_binary(TestName),
+        name => atom_to_binary(AtomName, utf8),
         domain => Domain,
         sender => jid:from_binary(SenderJid),
         subject => <<"Fast Test Subject">>,

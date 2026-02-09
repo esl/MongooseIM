@@ -1,7 +1,6 @@
-%% @doc GraphQL resolver for broadcast admin queries.
-%% @author piotr.nosek@erlang-solutions.com
 -module(mongoose_graphql_broadcast_admin_query).
 -behaviour(mongoose_graphql).
+-author('piotr.nosek@erlang-solutions.com').
 
 -export([execute/4]).
 
@@ -10,7 +9,7 @@
 -include("../mongoose_graphql_types.hrl").
 -include("../../broadcast/mod_broadcast.hrl").
 
--import(mongoose_graphql_helper, [make_error/2]).
+-import(mongoose_graphql_helper, [undefined_to_null/1, make_error/2]).
 
 execute(_Ctx, broadcast, <<"getBroadcasts">>, Args) ->
     get_broadcasts(Args);
@@ -21,7 +20,7 @@ execute(_Ctx, broadcast, <<"getBroadcast">>, Args) ->
 get_broadcasts(#{<<"domain">> := Domain, <<"limit">> := Limit, <<"index">> := Index}) ->
     case mod_broadcast_api:get_broadcasts(Domain, Limit, Index) of
         {ok, Broadcasts} ->
-            {ok, [format_broadcast(B) || B <- Broadcasts]};
+            {ok, [{ok, format_broadcast(B)} || B <- Broadcasts]};
         Error ->
             make_error(Error, #{domain => Domain})
     end.
@@ -69,26 +68,13 @@ format_broadcast(#broadcast_job{
       <<"createTimestamp">> => datetime_to_microseconds(CreateTimestamp),
       <<"startTimestamp">> => datetime_to_microseconds(StartTimestamp),
       <<"stopTimestamp">> => datetime_to_microseconds(StopTimestamp),
-      <<"executionState">> => format_execution_state(ExecutionState),
+      <<"executionState">> => ExecutionState,
       <<"abortionReason">> => undefined_to_null(AbortionReason),
-      <<"recipientGroup">> => format_recipient_group(RecipientGroup),
+      <<"recipientGroup">> => RecipientGroup,
       <<"recipientCount">> => RecipientCount,
       <<"recipientsProcessed">> => RecipientsProcessed}.
-
--spec format_execution_state(execution_state()) -> binary().
-format_execution_state(running) -> <<"RUNNING">>;
-format_execution_state(finished) -> <<"FINISHED">>;
-format_execution_state(abort_error) -> <<"ABORT_ERROR">>;
-format_execution_state(abort_admin) -> <<"ABORT_ADMIN">>.
-
--spec format_recipient_group(recipient_group()) -> binary().
-format_recipient_group(all_users_in_domain) -> <<"ALL_USERS_IN_DOMAIN">>.
 
 -spec datetime_to_microseconds(calendar:datetime() | undefined) -> integer() | null.
 datetime_to_microseconds(undefined) -> null;
 datetime_to_microseconds(DateTime) ->
-    calendar:datetime_to_gregorian_seconds(DateTime) * 1000000.
-
--spec undefined_to_null(binary() | undefined) -> binary() | null.
-undefined_to_null(undefined) -> null;
-undefined_to_null(Value) -> Value.
+    calendar:universal_time_to_system_time(DateTime, [{unit, microsecond}]).

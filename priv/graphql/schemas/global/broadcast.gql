@@ -13,7 +13,7 @@ type Broadcast {
   "Message body to be included in <body> element"
   messageBody: String!
   "Bare JID provided in 'from' attribute of the message"
-  senderJid: BareJID!
+  senderJid: JID!
   "Number of messages routed per second"
   messageRate: PosInt!
   "Erlang node name that owns the broadcast job"

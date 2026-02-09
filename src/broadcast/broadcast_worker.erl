@@ -70,6 +70,16 @@ stop(WorkerPid) ->
             ?LOG_WARNING(#{what => broadcast_worker_killed_timeout,
                            worker_pid => WorkerPid}),
             exit(WorkerPid, kill),
+            ok;
+        exit:{normal, _} ->
+            %% Worker was already stopping, treat as success
+            ok;
+        exit:{{error, _} = Error, _} ->
+            %% Worker was already stopping with error, ignore but log
+            %% TODO: Persist as abort_error execution state
+            ?LOG_WARNING(#{what => broadcast_worker_killed_error,
+                           worker_pid => WorkerPid,
+                           error => Error}),
             ok
     end.
 
