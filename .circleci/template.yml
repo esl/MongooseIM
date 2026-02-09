@@ -465,23 +465,16 @@ jobs:
   docs_build_deploy:
     parallelism: 1
     docker:
-      - image: cimg/python:3.11.0-node
+      - image: cimg/python:3.11.5-node
     steps:
       - restore_workspace
       - add_ssh_keys
       - run:
-          name: Build GraphQL static docs
-          command: |
-            npm install --global cheerio@1.0.0-rc.12 spectaql
-            npx spectaql -t doc/graphql-api -f admin-graphql-doc.html doc/graphql-api/Admin-GraphQL_spectaql.yml
-            npx spectaql -C -J -t doc/graphql-api -f user-graphql-doc.html doc/graphql-api/User-GraphQL_spectaql.yml
+          name: Install tools for building docs
+          command: tools/install-mkdocs.sh
       - run:
           name: Test that docs build
-          command: |
-            pip3 install mkdocs
-            pip3 install mkdocs-material
-            pip3 install mkdocs-include-markdown-plugin
-            mkdocs build --strict
+          command: tools/build-docs.sh
       - when:
           condition:
             or:
