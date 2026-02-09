@@ -598,8 +598,8 @@ wait_until_job_state(Domain, JobId, ExpectedState) ->
                     case broadcast_job_to_map(JobRecord) of
                         #{execution_state := State} when State =:= ExpectedState ->
                             ok;
-                        #{execution_state := _Other} ->
-                            {error, not_expected_state}
+                        #{execution_state := Other} ->
+                            {error, {not_expected_state, Other}}
                     end;
                 {broadcast_not_found, _} ->
                     {error, not_found}

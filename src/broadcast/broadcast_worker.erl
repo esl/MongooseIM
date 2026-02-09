@@ -103,14 +103,19 @@ init({HostType, JobId}) ->
                     %% Job was already finished, go directly to finished state
                     %% This can happen if job execution state was not persisted properly
                     %% e.g. due to crash after persisting worker state but before updating job state
-                    ?LOG_INFO(#{what => broadcast_worker_already_finished, job_id => JobId}),
+                    ?LOG_INFO(#{what => broadcast_worker_already_finished,
+                                job_id => JobId,
+                                domain => Job#broadcast_job.domain,
+                                host_type => HostType}),
                     {ok, finished, Data, [{next_event, internal, finalize}]};
                 false ->
                     {ok, loading_batch, Data, [{next_event, internal, load_batch}]}
             end;
         {error, Reason} ->
             ?LOG_ERROR(#{what => broadcast_worker_load_failed,
-                         job_id => JobId, reason => Reason}),
+                         job_id => JobId,
+                         host_type => HostType,
+                         reason => Reason}),
             {stop, {load_failed, Reason}}
     end.
 
@@ -174,7 +179,8 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
         {error, Reason} ->
             mongoose_instrument:execute(mod_broadcast_recipients_skipped,
                                         #{host_type => HostType}, #{count => 1}),
-            ?LOG_WARNING(#{what => broadcast_send_failed,
+            %% Bump to WARNING when we implement some throttling, as these may happen in bursts
+            ?LOG_DEBUG(#{what => broadcast_send_failed,
                            job_id => Job#broadcast_job.id,
                            recipient => jid:to_binary(RecipientJid),
                            reason => Reason})
@@ -212,29 +218,33 @@ finished(internal, finalize, Data) ->
         ok -> ok;
         {error, Reason} ->
             ?LOG_WARNING(#{what => broadcast_final_state_persist_failed,
-                           job_id => Job#broadcast_job.id, reason => Reason})
+                           job_id => Job#broadcast_job.id,
+                           domain => Job#broadcast_job.domain,
+                           host_type => HostType,
+                           reason => Reason})
     end,
     ?LOG_INFO(#{what => broadcast_worker_finished,
                 job_id => Job#broadcast_job.id,
                 domain => Job#broadcast_job.domain,
-                total_processed => WorkerState#broadcast_worker_state.recipients_processed}),
+                host_type => HostType}),
     {stop, normal, Data}.
 
 -spec aborted(gen_statem:event_type(), term(), data()) ->
     gen_statem:state_function_result(state()).
-aborted(internal, {finalize, Error}, #data{job = Job} = Data) ->
+aborted(internal, {finalize, Error}, #data{job = Job, host_type = HostType} = Data) ->
     ?LOG_ERROR(#{what => broadcast_worker_aborted,
                  job_id => Job#broadcast_job.id,
                  domain => Job#broadcast_job.domain,
+                 host_type => HostType,
                  reason => Error}),
     {stop, {error, Error}, Data}.
 
 -spec terminate(term(), state(), data()) -> ok.
-terminate(Reason, State, #data{job = Job}) ->
+terminate(_Reason, _State, #data{job = Job, host_type = HostType}) ->
     ?LOG_INFO(#{what => broadcast_worker_terminated,
                 job_id => Job#broadcast_job.id,
-                state => State,
-                reason => Reason}),
+                domain => Job#broadcast_job.domain,
+                host_type => HostType}),
     ok.
 
 -spec code_change(term(), state(), data(), term()) -> {ok, state(), data()}.

@@ -45,7 +45,11 @@
 -include("mongoose.hrl").
 -include("mod_broadcast.hrl").
 
--type worker_map() :: #{broadcast_job_id() => pid()}.
+-type worker_info() :: #{pid := pid(), domain := jid:lserver()}.
+-type worker_map() :: #{broadcast_job_id() => worker_info()}.
+%% This is a temporary structure used during resumption to determine
+%% which workers are already running, so we don't start duplicates.
+-type worker_index() :: #{broadcast_job_id() => pid()}.
 
 -record(state, {
     host_type :: mongooseim:host_type(),
@@ -111,18 +115,20 @@ init(HostType) ->
     State = #state{host_type = HostType, worker_map = #{}},
     {ok, State, {continue, resume_jobs}}.
 
-handle_continue({start_worker_for, JobId}, #state{host_type = HostType, worker_map = WorkerMap0} = State) ->
+handle_continue({start_worker_for, JobId, Domain}, #state{host_type = HostType, worker_map = WorkerMap0} = State) ->
     case start_and_monitor_worker(HostType, JobId) of
         {ok, WorkerPid} ->
-            NewState = State#state{worker_map = WorkerMap0#{JobId => WorkerPid}},
-            persist_job_started(HostType, JobId),
-            ?LOG_INFO(#{what => broadcast_job_started, job_id => JobId}),
+            NewState = State#state{worker_map = WorkerMap0#{JobId => #{pid => WorkerPid,
+                                                                     domain => Domain}}},
+            persist_job_started(HostType, Domain, JobId),
             {noreply, NewState};
         {error, Reason} ->
             ?LOG_ERROR(#{what => broadcast_start_worker_failed,
                          job_id => JobId,
+                         host_type => HostType,
+                         domain => Domain,
                          reason => Reason}),
-            persist_job_aborted_error(HostType, JobId, Reason),
+            persist_job_aborted_error(HostType, Domain, JobId, Reason),
             {noreply, State}
     end;
 handle_continue(resume_jobs, State) ->
@@ -139,15 +145,16 @@ handle_call({start_job, #{domain := Domain} = JobSpec}, _From, #state{host_type 
     %% If RecipientCount is an error tuple, it will be handled in validation
     case do_create_job(HostType, validate_job_spec(HostType, JobSpecWithCount)) of
         {ok, JobId} ->
-            {reply, {ok, JobId}, State, {continue, {start_worker_for, JobId}}};
+            {reply, {ok, JobId}, State, {continue, {start_worker_for, JobId, Domain}}};
         {error, _Reason} = Error ->
             {reply, Error, State}
     end;
 
 handle_call({stop_job, JobId}, _From, State) ->
     case maps:get(JobId, State#state.worker_map, undefined) of
-        WorkerPid when is_pid(WorkerPid) ->
-            NewState = stop_worker_by_admin(State#state.host_type, JobId, WorkerPid, State),
+        #{pid := WorkerPid, domain := Domain} when is_pid(WorkerPid) ->
+            stop_worker_by_admin(State#state.host_type, Domain, JobId, WorkerPid),
+            NewState = State#state{worker_map = maps:remove(JobId, State#state.worker_map)},
             {reply, ok, NewState};
         _ ->
             {reply, {error, not_live}, State}
@@ -186,14 +193,13 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec do_create_job(mongooseim:host_type(), job_spec() | {error, validation_error()}) ->
     {ok, JobId :: broadcast_job_id()} | {error, create_job_error()}.
-do_create_job(HostType, #{domain := Domain, sender := Sender} = JobSpec) ->
+do_create_job(HostType, #{domain := Domain} = JobSpec) ->
     try mod_broadcast_backend:create_job(HostType, JobSpec) of
         {ok, JobId} ->
             ?LOG_INFO(#{what => broadcast_job_created,
                                 job_id => JobId,
                                 domain => Domain,
-                                host_type => HostType,
-                                sender => jid:to_binary(Sender)}),
+                                host_type => HostType}),
             {ok, JobId};
         {error, running_job_limit_exceeded} = Error ->
             ?LOG_WARNING(#{what => broadcast_job_running_limit_exceeded,
@@ -204,7 +210,9 @@ do_create_job(HostType, #{domain := Domain, sender := Sender} = JobSpec) ->
         Class:Reason ->
             ?LOG_ERROR(#{what => broadcast_create_job_failed,
                          host_type => HostType,
-                         class => Class, reason => Reason}),
+                         domain => Domain,
+                         class => Class,
+                         reason => Reason}),
             {error, Reason}
     end;
 do_create_job(_HostType, {error, _} = ValidationError) ->
@@ -214,80 +222,122 @@ do_create_job(_HostType, {error, _} = ValidationError) ->
     {noreply, #state{}}.
 handle_worker_down(JobId, Pid, Reason, #state{host_type = HostType, worker_map = WorkerMap} = State) ->
     case maps:get(JobId, WorkerMap, undefined) of
-        Pid ->
+        #{pid := Pid, domain := Domain} ->
             NewWorkerMap = maps:remove(JobId, WorkerMap),
             case Reason of
                 normal ->
-                    persist_job_finished(HostType, JobId);
+                    persist_job_finished(HostType, Domain, JobId);
                 _ ->
                     %% TODO: implement proper retry mechanism
-                    persist_job_aborted_error(HostType, JobId, Reason)
+                    persist_job_aborted_error(HostType, Domain, JobId, Reason)
             end,
             {noreply, State#state{worker_map = NewWorkerMap}};
         _ ->
             ?LOG_WARNING(#{what => broadcast_unknown_worker_down,
-                           job_id => JobId, pid => Pid}),
+                           job_id => JobId,
+                           pid => Pid,
+                           host_type => HostType}),
             {noreply, State}
     end.
 
 -spec do_abort_running_jobs_for_domain(#state{}, jid:lserver()) -> #state{}.
-do_abort_running_jobs_for_domain(#state{host_type = HostType, worker_map = WorkerMap} = State, Domain) ->
-    try mod_broadcast_backend:get_running_jobs(HostType) of
-        {ok, Jobs} ->
-            DomainJobs = [Job#broadcast_job.id || Job <- Jobs, Job#broadcast_job.domain =:= Domain],
-            lists:foldl(fun({WorkerId, WorkerPid}, AccState) ->
-                    case lists:member(WorkerId, DomainJobs) of
-                        true ->
-                            ?LOG_INFO(#{what => aborting_broadcast_job,
-                                        job_id => WorkerId,
-                                        domain => Domain}),
-                            stop_worker_by_admin(HostType, WorkerId, WorkerPid, AccState);
-                        false ->
-                            AccState
-                    end
-                end, State, maps:to_list(WorkerMap))
-    catch
-        Class:Reason ->
-            ?LOG_ERROR(#{what => broadcast_abort_get_jobs_failed,
-                         domain => Domain, class => Class, reason => Reason}),
-            State
-    end.
+do_abort_running_jobs_for_domain(#state{host_type = HostType, worker_map = WorkerMap0} = State, Domain) ->
+    NewWorkerMap = maps:filter(fun(JobId, #{pid := Pid, domain := JobDomain}) when JobDomain =:= Domain ->
+            stop_worker_by_admin(HostType, Domain, JobId, Pid),
+            false;
+        (_JobId, _WorkerInfo) ->
+            true
+        end, WorkerMap0),
+    State#state{worker_map = NewWorkerMap}.
 
 %%====================================================================
 %% Job execution state persistence
 %%====================================================================
 
--spec persist_job_started(mongooseim:host_type(), broadcast_job_id()) -> ok.
-persist_job_started(HostType, JobId) ->
+-spec persist_job_started(mongooseim:host_type(), jid:lserver(), broadcast_job_id()) -> ok.
+persist_job_started(HostType, Domain, JobId) ->
     mongoose_instrument:execute(mod_broadcast_jobs_started,
                                 #{host_type => HostType}, #{count => 1}),
-    catch mod_broadcast_backend:set_job_started(HostType, JobId).
+    ?LOG_INFO(#{what => broadcast_job_started,
+                job_id => JobId,
+                domain => Domain,
+                host_type => HostType}),
+    try mod_broadcast_backend:set_job_started(HostType, JobId) of
+        _ -> ok
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => broadcast_set_job_started_failed,
+                         job_id => JobId,
+                         domain => Domain,
+                         host_type => HostType,
+                         class => Class,
+                         reason => Reason,
+                         stacktrace => Stacktrace})
+    end.
 
--spec persist_job_aborted_by_admin(mongooseim:host_type(), broadcast_job_id()) -> ok.
-persist_job_aborted_by_admin(HostType, JobId) ->
+-spec persist_job_aborted_by_admin(mongooseim:host_type(), jid:lserver(), broadcast_job_id()) -> ok.
+persist_job_aborted_by_admin(HostType, Domain, JobId) ->
     mongoose_instrument:execute(mod_broadcast_jobs_aborted_admin,
                                 #{host_type => HostType}, #{count => 1}),
     ?LOG_INFO(#{what => broadcast_job_aborted_by_admin,
-                job_id => JobId}),
-    catch mod_broadcast_backend:set_job_aborted_admin(HostType, JobId).
+                job_id => JobId,
+                domain => Domain,
+                host_type => HostType}),
+    try mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
+        _ -> ok
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => broadcast_set_job_aborted_admin_failed,
+                         job_id => JobId,
+                         domain => Domain,
+                         host_type => HostType,
+                         class => Class,
+                         reason => Reason,
+                         stacktrace => Stacktrace})
+    end.
 
--spec persist_job_finished(mongooseim:host_type(), broadcast_job_id()) -> ok.
-persist_job_finished(HostType, JobId) ->
+-spec persist_job_finished(mongooseim:host_type(), jid:lserver(), broadcast_job_id()) -> ok.
+persist_job_finished(HostType, Domain, JobId) ->
     mongoose_instrument:execute(mod_broadcast_jobs_finished,
                                 #{host_type => HostType}, #{count => 1}),
     ?LOG_INFO(#{what => broadcast_job_finished,
-                job_id => JobId}),
-    catch mod_broadcast_backend:set_job_finished(HostType, JobId).
+                job_id => JobId,
+                domain => Domain,
+                host_type => HostType}),
+    try mod_broadcast_backend:set_job_finished(HostType, JobId) of
+        _ -> ok
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => broadcast_set_job_finished_failed,
+                         job_id => JobId,
+                         domain => Domain,
+                         host_type => HostType,
+                         class => Class,
+                         reason => Reason,
+                         stacktrace => Stacktrace})
+    end.
 
--spec persist_job_aborted_error(mongooseim:host_type(), broadcast_job_id(), term()) -> ok.
-persist_job_aborted_error(HostType, JobId, Reason) ->
+-spec persist_job_aborted_error(mongooseim:host_type(), jid:lserver(), broadcast_job_id(), term()) -> ok.
+persist_job_aborted_error(HostType, Domain, JobId, Reason) ->
     mongoose_instrument:execute(mod_broadcast_jobs_aborted_error,
                                 #{host_type => HostType}, #{count => 1}),
     ?LOG_ERROR(#{what => broadcast_job_aborted_error,
                  job_id => JobId,
-                 reason => Reason}),
+                 domain => Domain,
+                 host_type => HostType}),
     ReasonBin = iolist_to_binary(io_lib:format("~p", [Reason])),
-    catch mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin).
+    try mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin) of
+        _ -> ok
+    catch
+        Class:BackendReason:Stacktrace ->
+            ?LOG_ERROR(#{what => broadcast_set_job_aborted_error_failed,
+                         job_id => JobId,
+                         domain => Domain,
+                         host_type => HostType,
+                         class => Class,
+                         reason => BackendReason,
+                         stacktrace => Stacktrace})
+    end.
 
 %% ===================================================================
 %% Worker lifecycle management
@@ -315,19 +365,20 @@ start_and_monitor_worker(HostType, JobId) ->
 monitor_worker(JobId, Pid) ->
     erlang:monitor(process, Pid, [{tag, {'DOWN', JobId}}]).
 
--spec stop_worker_by_admin(mongooseim:host_type(), broadcast_job_id(), pid(), #state{}) -> #state{}.
-stop_worker_by_admin(HostType, JobId, WorkerPid, #state{worker_map = WorkerMap0} = State) ->
+-spec stop_worker_by_admin(mongooseim:host_type(), jid:lserver(), broadcast_job_id(), pid()) -> ok.
+stop_worker_by_admin(HostType, Domain, JobId, WorkerPid) ->
     ok = broadcast_worker:stop(WorkerPid),
-    NewState = State#state{worker_map = maps:remove(JobId, WorkerMap0)},
     receive
         {{'DOWN', JobId}, _Ref, process, WorkerPid, _Reason} ->
             ok
     after 6000 ->
             ?LOG_WARNING(#{what => broadcast_worker_stop_timeout,
-                           job_id => JobId, worker_pid => WorkerPid})
+                           job_id => JobId,
+                           host_type => HostType,
+                           pid => WorkerPid})
     end,
-    persist_job_aborted_by_admin(HostType, JobId),
-    NewState.
+    persist_job_aborted_by_admin(HostType, Domain, JobId),
+    ok.
 
 -spec get_sup_name(mongooseim:host_type()) -> atom().
 get_sup_name(HostType) ->
@@ -339,52 +390,46 @@ get_sup_name(HostType) ->
 
 -spec resume_running_jobs(#state{}) -> #state{}.
 resume_running_jobs(#state{host_type = HostType} = State) ->
-    WorkerMap0 = build_worker_map(HostType),
-    maps:foreach(fun monitor_worker/2, WorkerMap0),
-    try mod_broadcast_backend:get_running_jobs(HostType) of
-        {ok, Jobs} ->
-            RunningIds = sets:from_list(maps:keys(WorkerMap0)),
-            WorkerMap = lists:foldl(fun(Job, AccWorkerMap) ->
-                resume_job_if_needed(HostType, Job, RunningIds, AccWorkerMap)
-            end, WorkerMap0, Jobs),
-            State#state{worker_map = WorkerMap}
-    catch
-        Class:Reason ->
-            ?LOG_ERROR(#{what => broadcast_resume_failed,
-                         host_type => HostType,
-                         class => Class, reason => Reason}),
-            State#state{worker_map = WorkerMap0}
-    end.
+    LiveWorkerIndex = index_workers(HostType),
+    maps:foreach(fun monitor_worker/2, LiveWorkerIndex),
+    %% TODO: Catch errors and implement retry mechanism in case of backend failure
+    {ok, Jobs} = mod_broadcast_backend:get_running_jobs(HostType),
+    WorkerMap = lists:foldl(fun(Job, AccWorkerMap) ->
+        resume_job_if_needed(HostType, Job, LiveWorkerIndex, AccWorkerMap)
+    end, #{}, Jobs),
+    State#state{worker_map = WorkerMap}.
 
 -spec resume_job_if_needed(mongooseim:host_type(), broadcast_job(),
-                           sets:set(broadcast_job_id()), worker_map()) ->
+                           worker_index(), worker_map()) ->
     worker_map().
-resume_job_if_needed(HostType, #broadcast_job{id = JobId} = Job, LiveIds, WorkerMap0) ->
-    case sets:is_element(JobId, LiveIds) of
-        true ->
-            ?LOG_DEBUG(#{what => broadcast_job_already_live, job_id => JobId}),
-            WorkerMap0;
-        false ->
+resume_job_if_needed(HostType, #broadcast_job{id = JobId} = Job, LiveWorkerIndex, WorkerMap0) ->
+    case maps:get(JobId, LiveWorkerIndex, undefined) of
+        undefined ->
             case start_and_monitor_worker(HostType, JobId) of
                 {ok, WorkerPid} ->
-                    NewWorkerMap = WorkerMap0#{JobId => WorkerPid},
                     ?LOG_INFO(#{what => broadcast_job_resumed,
                                 job_id => JobId,
                                 domain => Job#broadcast_job.domain,
-                                total_recipients => Job#broadcast_job.recipient_count}),
-                    NewWorkerMap;
+                                host_type => HostType}),
+                    WorkerMap0#{JobId => #{pid => WorkerPid, domain => Job#broadcast_job.domain}};
                 {error, Reason} ->
                     ?LOG_ERROR(#{what => broadcast_resume_worker_failed,
                                  job_id => JobId,
+                                 host_type => HostType,
                                  reason => Reason}),
                     WorkerMap0
-            end
+            end;
+        Pid ->
+            ?LOG_DEBUG(#{what => broadcast_job_already_live, job_id => JobId}),
+            WorkerMap0#{JobId => #{pid => Pid, domain => Job#broadcast_job.domain}}
     end.
 
--spec build_worker_map(mongooseim:host_type()) -> worker_map().
-build_worker_map(HostType) ->
+-spec index_workers(mongooseim:host_type()) -> #{broadcast_job_id() => pid()}.
+index_workers(HostType) ->
     Children = get_supervisor_children(HostType),
-    maps:from_list([{Id, Pid} || {Id, Pid, _Type, _Modules} <- Children, is_pid(Pid)]).
+    maps:from_list([
+        {Id, Pid} || {Id, Pid, _Type, _Modules} <- Children, is_pid(Pid)
+    ]).
 
 %%====================================================================
 %% Validation

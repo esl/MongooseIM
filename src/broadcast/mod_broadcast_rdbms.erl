@@ -158,11 +158,12 @@ delete_inactive_jobs_by_domain(HostType, Domain) ->
 %%====================================================================
 
 prepare_queries(HostType) ->
+    prepare_create_job_queries(HostType),
+
     prepare(broadcast_count_running_jobs, broadcast_jobs,
             [server],
             <<"SELECT COUNT(*) FROM broadcast_jobs "
               "WHERE server = ? AND execution_state = 'running'">>),
-    prepare_create_job_queries(HostType),
 
     prepare(broadcast_get_job, broadcast_jobs,
             [id],

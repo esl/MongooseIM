@@ -173,7 +173,15 @@ db_get_running_jobs_error_in_resume(Config) ->
                 end),
 
     {ok, NewPid} = start_test_manager(),
-    assert_manager_survived(NewPid).
+
+    %% TODO: Update this test when retry is implemented
+    monitor(process, NewPid),
+    receive
+        {'DOWN', _Ref, process, NewPid, _Reason} ->
+            ok
+    after 1000 ->
+            ct:fail(manager_should_have_crashed_due_to_db_error)
+    end.
 
 db_set_job_started_error_logged(Config) ->
     Pid = ?config(manager_pid, Config),
@@ -225,6 +233,9 @@ db_set_job_aborted_admin_error_logged(Config) ->
 
 db_get_running_jobs_error_in_abort_for_domain(Config) ->
     Pid = ?config(manager_pid, Config),
+    %% This ensures that manager finished resume step
+    assert_manager_survived(Pid),
+
     meck:expect(mod_broadcast_backend, get_running_jobs,
                 fun(_HostType) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
@@ -364,7 +375,7 @@ tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
     UnexpectedPid = spawn_link(fun() -> receive stop -> ok end end),
     Pid ! {{'DOWN', JobId}, make_ref(), process, UnexpectedPid, boom},
 
-    FakeWorkerPid = maps:get(JobId, gen_server:call(Pid, get_worker_map)),
+    #{pid := FakeWorkerPid} = maps:get(JobId, gen_server:call(Pid, get_worker_map)),
     assert_manager_survived(Pid).
 
 %%====================================================================
@@ -473,7 +484,7 @@ wait_for_worker(Pid, JobId, WorkerPid) ->
     wait_helper:wait_until(fun() ->
         WorkerMap = gen_server:call(Pid, get_worker_map),
         case maps:get(JobId, WorkerMap, undefined) of
-            WorkerPid -> ok;
+            #{pid := WorkerPid} -> ok;
             _ -> false
         end
     end, ok).
