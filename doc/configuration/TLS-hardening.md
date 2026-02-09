@@ -18,3 +18,11 @@ In order to change the list, please find the following line:
 The remaining valid values are: `'tlsv1.1'`, `tlsv1`, `sslv3`.
 
 See [EEF guidelines for protocol versions and ciphers](https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl#selecting-protocol-versions-and-ciphers) for more information.
+
+## Certificate reloading
+
+When TLS certificate or key files are modified on disk, Erlang/OTP automatically detects the changes and reloads them without requiring a server restart.
+Certificates are [cached](https://github.com/erlang/otp/blob/master/lib/ssl/src/ssl_pem_cache.erl),
+so new connections will use the updated certificates after at most 120 seconds.
+Note that if the private key file is password-protected, the new key file must use the same password as the original.
+In case the password has been changed, the respective change has to be made to configuration and MongooseIM needs to be restarted.
