@@ -12,7 +12,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -include("mongoose_config_spec.hrl").
--include_lib("src/broadcast/mod_broadcast.hrl").
+-include_lib("mod_broadcast.hrl").
 
 %% CT callbacks
 -export([

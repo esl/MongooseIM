@@ -30,9 +30,6 @@
 
 -export_type([broadcast_job_id/0,
               broadcast_job/0,
-              broadcast_worker_state/0,
-              execution_state/0,
-              recipient_group/0,
               job_spec/0]).
 
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.

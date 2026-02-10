@@ -7,7 +7,7 @@
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
--include("../../broadcast/mod_broadcast.hrl").
+-include("mod_broadcast.hrl").
 
 -import(mongoose_graphql_helper, [undefined_to_null/1, make_error/2]).
 
@@ -38,7 +38,7 @@ get_broadcast(#{<<"domain">> := Domain, <<"id">> := Id}) ->
 %% Internal functions
 %%====================================================================
 
--spec format_broadcast(broadcast_job()) -> map().
+-spec format_broadcast(mod_broadcast:broadcast_job()) -> map().
 format_broadcast(#broadcast_job{
     id = Id,
     name = Name,

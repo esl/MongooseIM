@@ -12,7 +12,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("src/broadcast/mod_broadcast.hrl").
+-include_lib("mod_broadcast.hrl").
 
 -include("log_helper.hrl").
 

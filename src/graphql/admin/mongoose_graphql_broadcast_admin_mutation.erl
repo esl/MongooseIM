@@ -8,7 +8,6 @@
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
--include("../../broadcast/mod_broadcast.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2]).
 
