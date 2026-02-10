@@ -16,6 +16,7 @@
 
 %% lifecycle
 -export([start_broadcast_ok_returns_job_id/1,
+         broadcast_job_delivers_message/1,
          start_broadcast_running_job_limit_exceeded/1,
          start_broadcast_two_domains_both_ok/1,
          resume_jobs_after_restart/1,
@@ -84,6 +85,7 @@ groups() ->
 
 lifecycle_tests() ->
     [start_broadcast_ok_returns_job_id,
+     broadcast_job_delivers_message,
      start_broadcast_running_job_limit_exceeded,
      start_broadcast_two_domains_both_ok,
      resume_jobs_after_restart,
@@ -147,6 +149,9 @@ end_per_group(_Group, _Config) ->
 init_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
     instrument_helper:start(instrument_helper:declared_events(mod_broadcast)),
     escalus:init_per_testcase(TestCase, Config);
+init_per_testcase(broadcast_job_delivers_message = TestCase, Config) ->
+    accounts_helper:prepare_user_created_at(),
+    escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(TestCase, Config) ->
     escalus:init_per_testcase(TestCase, Config).
 
@@ -182,6 +187,26 @@ start_broadcast_running_job_limit_exceeded(Config) ->
         JobSpec = slow_job_spec(domain(), AliceJid, JobName),
         {ok, _JobId1} = start_broadcast(JobSpec),
         {running_job_limit_exceeded, _} = start_broadcast(JobSpec)
+    end).
+
+broadcast_job_delivers_message(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % To eliminate race condition that can lead to Bob being milliseconds beyond
+        % the pagination boundary and not receiving the message.
+        accounts_helper:set_user_created_at(escalus_client:username(Bob),
+                                            domain(), {{2000, 1, 1}, {1, 2, 3}}),
+        AliceBareJid = escalus_client:short_jid(Alice),
+        BobBareJid = escalus_client:short_jid(Bob),
+        Body = <<(atom_to_binary(JobName, utf8))/binary, "-body">>,
+        JobSpec = (fast_job_spec(domain(), AliceBareJid, JobName))#{body := Body},
+        {ok, JobId} = start_broadcast(JobSpec),
+
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_chat_message_from_to, [AliceBareJid, BobBareJid, Body], BobMsg),
+
+        wait_until_job_state(domain(), JobId, finished),
+        escalus_assert:has_no_stanzas(Bob)
     end).
 
 start_broadcast_two_domains_both_ok(Config) ->

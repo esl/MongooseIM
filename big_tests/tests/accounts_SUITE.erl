@@ -104,9 +104,9 @@ init_per_group(user_info_snapshot, Config) ->
             escalus:create_users(Config, FutureUsers),
             %% Set their created_at to far future via direct DB update
             FutureTs = {{2099, 12, 31}, {23, 59, 59}},
-            prepare_user_created_at(),
-            set_user_created_at(<<"aaalice">>, domain(), FutureTs),
-            set_user_created_at(<<"bbbob">>, domain(), FutureTs),
+            accounts_helper:prepare_user_created_at(),
+            accounts_helper:set_user_created_at(<<"aaalice">>, domain(), FutureTs),
+            accounts_helper:set_user_created_at(<<"bbbob">>, domain(), FutureTs),
             Config;
         Modules ->
             {skip, {"Snapshot queries not supported by auth modules", Modules}}
@@ -511,17 +511,6 @@ get_users_snapshot(Params) ->
     {ok, HostType} = rpc(mim(), mongoose_domain_api, get_domain_host_type, [domain()]),
     rpc(mim(), mongoose_gen_auth, get_registered_users_snapshot,
         [ejabberd_auth_rdbms, HostType, domain(), Params]).
-
-prepare_user_created_at() ->
-    rpc(mim(), mongoose_rdbms, prepare, [accounts_SUITE_set_created_at,
-                                         users,
-                                         [server, username, created_at],
-                                         <<"UPDATE users SET created_at = ? WHERE username = ? AND server = ?">>]).
-
-set_user_created_at(Username, Server, Timestamp) ->
-    {ok, HostType} = rpc(mim(), mongoose_domain_api, get_domain_host_type, [Server]),
-    {updated, 1} = rpc(mim(), mongoose_rdbms, execute,
-                       [HostType, accounts_SUITE_set_created_at, [Timestamp, Username, Server]]).
 
 future_users_spec() ->
     [{aaalice, [{username, <<"aaalice">>}, {server, domain()}, {password, <<"pass1">>}]},
