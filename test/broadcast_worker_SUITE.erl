@@ -159,19 +159,19 @@ load_job_failure_stops_worker(_Config) ->
                 end),
 
     {error, {load_failed, {error, get_job_failed}}} =
-        start_and_monitor_worker(host_type(), 12345),
+        start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     meck:expect(mod_broadcast_backend, get_job,
                 fun(_HostType, _JobId) ->
-                    {ok, sample_broadcast_job()}
+                    {ok, broadcast_helper:sample_broadcast_job()}
                 end),
     meck:expect(mod_broadcast_backend, get_worker_state,
                 fun(_HostType, _JobId) ->
                     meck:exception(error, get_state_failed)
                 end),
 
-    {error, {load_failed, {error, get_state_failed}}} =
-        start_and_monitor_worker(host_type(), 12345),
+        {error, {load_failed, {error, get_state_failed}}} =
+            start_and_monitor_worker(broadcast_helper:host_type(), 12345),
     ok.
 
 resume_finished_worker_exits_normal(_Config) ->
@@ -184,7 +184,7 @@ resume_finished_worker_exits_normal(_Config) ->
     meck:expect(mod_broadcast_backend, update_worker_state,
                 fun(_HostType, _JobId, _State) -> ok end),
 
-    {ok, {Pid, MonRef}} = start_and_monitor_worker(host_type(), 12345),
+    {ok, {Pid, MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     %% Worker should exit normally without loading any batches
     receive
@@ -207,7 +207,7 @@ persist_before_load_failure_aborts(_Config) ->
                     meck:exception(error, db_write_failed)
                 end),
 
-    {ok, {Pid, MonRef}} = start_and_monitor_worker(host_type(), 12345),
+    {ok, {Pid, MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     receive
         {'DOWN', MonRef, process, Pid, {error, {persist_state_failed, {error, db_write_failed}}}} -> ok
@@ -224,7 +224,7 @@ load_next_batch_failure_aborts(_Config) ->
                     {error, snapshot_unavailable}
                 end),
 
-    {ok, {Pid, MonRef}} = start_and_monitor_worker(host_type(), 12345),
+    {ok, {Pid, MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     receive
         {'DOWN', MonRef, process, Pid, {error, {load_batch_failed, snapshot_unavailable}}} -> ok
@@ -260,7 +260,7 @@ batch_to_batch_transition_completes(_Config) ->
                     end
                 end),
 
-    {ok, {Pid, MonRef}} = start_and_monitor_worker(host_type(), 12345),
+    {ok, {Pid, MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     receive {batch_loaded, 1} -> ok after 1000 -> ct:fail(batch_1_not_loaded) end,
     receive {batch_loaded, 2} -> ok after 1000 -> ct:fail(batch_2_not_loaded) end,
@@ -295,7 +295,7 @@ route_exception_skips_recipient_and_finishes(_Config) ->
                     end
                 end),
 
-    {ok, {Pid, MonRef}} = start_and_monitor_worker(host_type(), 12345),
+    {ok, {Pid, MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     receive
         {'DOWN', MonRef, process, Pid, normal} -> ok
@@ -333,7 +333,7 @@ final_state_persist_failure_exits_normal(_Config) ->
                     {ok, {[<<"user1">>], undefined}}
                 end),
 
-    {ok, {Pid, MonRef}} = start_and_monitor_worker(host_type(), 12345),
+    {ok, {Pid, MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     %% Worker should still exit normally despite final persist failure
     receive
@@ -349,7 +349,7 @@ final_state_persist_failure_exits_normal(_Config) ->
 
 unexpected_event_in_sending_batch_survives(_Config) ->
     %% Use slow message rate to have time to inject events
-    Job = sample_broadcast_job(1),
+    Job = broadcast_helper:sample_broadcast_job(1),
     meck:expect(mod_broadcast_backend, get_job,
                 fun(_HostType, _JobId) -> {ok, Job} end),
     meck:expect(mongoose_gen_auth, get_registered_users_snapshot,
@@ -365,7 +365,7 @@ unexpected_event_in_sending_batch_survives(_Config) ->
                     ok
                 end),
 
-    {ok, {Pid, _MonRef}} = start_and_monitor_worker(host_type(), 12345),
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
 
     receive in_sending_batch -> ok after 1000 -> ct:fail(not_in_sending_batch) end,
 
@@ -424,7 +424,7 @@ setup_mocks_for_worker() ->
 
 reset_meck_defaults() ->
     meck:expect(mod_broadcast_backend, get_job,
-                fun(_HostType, _JobId) -> {ok, sample_broadcast_job()} end),
+                fun(_HostType, _JobId) -> {ok, broadcast_helper:sample_broadcast_job()} end),
     meck:expect(mod_broadcast_backend, get_worker_state,
                 fun(_HostType, _JobId) -> {error, not_found} end),
     meck:expect(mod_broadcast_backend, update_worker_state,
@@ -440,31 +440,6 @@ reset_meck_defaults() ->
 teardown_mocks() ->
     catch meck:unload(),
     ok.
-
-sample_broadcast_job() ->
-    sample_broadcast_job(1000).
-
-sample_broadcast_job(MessageRate) ->
-    #broadcast_job{id = 12345,
-                   name = <<"Test Broadcast">>,
-                   host_type = host_type(),
-                   domain = <<"test.domain">>,
-                   sender = jid:make_noprep(<<"admin">>, <<"test.domain">>, <<>>),
-                   subject = <<"Test Subject">>,
-                   body = <<"Test message body">>,
-                   message_rate = MessageRate,
-                   recipient_group = all_users_in_domain,
-                   owner_node = node(),
-                   recipient_count = 100,
-                   recipients_processed = 0,
-                   execution_state = running,
-                   abortion_reason = undefined,
-                   created_at = {{2026, 2, 5}, {12, 0, 0}},
-                   started_at = {{2026, 2, 5}, {12, 0, 1}},
-                   stopped_at = undefined}.
-
-host_type() ->
-    <<"test_host_type">>.
 
 start_and_monitor_worker(HostType, JobId) ->
     case gen_statem:start_monitor(broadcast_worker, {HostType, JobId}, []) of

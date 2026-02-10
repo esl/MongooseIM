@@ -127,7 +127,7 @@ config_spec_includes_backend_rdbms_default(_Config) ->
 %%====================================================================
 
 start_requires_rdbms_auth_raises_error(_Config) ->
-    HostType = host_type(),
+    HostType = broadcast_helper:host_type(),
     meck:expect(ejabberd_auth, auth_modules_for_host_type,
                 fun(_HostType) -> [] end),
     ?assertException(error,
@@ -142,22 +142,22 @@ start_requires_rdbms_auth_raises_error(_Config) ->
 probe_live_jobs_noproc_returns_zero(_Config) ->
     meck:expect(broadcast_manager, get_live_job_count,
                 fun(_HostType) -> exit({noproc, mock}) end),
-    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => host_type()}).
+    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}).
 
 probe_live_jobs_timeout_returns_zero(_Config) ->
     meck:expect(broadcast_manager, get_live_job_count,
                 fun(_HostType) -> exit({timeout, mock}) end),
-    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => host_type()}).
+    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}).
 
 %%====================================================================
 %% abort_broadcast/2 error path tests
 %%====================================================================
 
 abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found(_Config) ->
-    HostType = host_type(),
-    Domain = domain(),
-    JobId = job_id(),
-    Job = running_job(HostType, Domain, JobId),
+    HostType = broadcast_helper:host_type(),
+    Domain = broadcast_helper:domain(),
+    JobId = broadcast_helper:job_id(),
+    Job = broadcast_helper:sample_broadcast_job(),
 
     meck:expect(mongoose_domain_api, get_host_type,
                 fun(_Domain) -> {ok, HostType} end),
@@ -173,23 +173,28 @@ abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found(_Config) ->
 %%====================================================================
 
 start_broadcast_domain_not_found(_Config) ->
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {domain_not_found, _} = mod_broadcast_api:start_broadcast(JobSpec).
 
 get_broadcast_domain_not_found(_Config) ->
-    {domain_not_found, _} = mod_broadcast_api:get_broadcast(domain(), job_id()).
+    {domain_not_found, _} = mod_broadcast_api:get_broadcast(broadcast_helper:domain(),
+                                                            broadcast_helper:job_id()).
 
 get_broadcasts_domain_not_found(_Config) ->
-    {domain_not_found, _} = mod_broadcast_api:get_broadcasts(domain(), 10, 0).
+    {domain_not_found, _} = mod_broadcast_api:get_broadcasts(broadcast_helper:domain(), 10, 0).
 
 abort_broadcast_domain_not_found(_Config) ->
-    {domain_not_found, _} = mod_broadcast_api:abort_broadcast(domain(), job_id()).
+    {domain_not_found, _} = mod_broadcast_api:abort_broadcast(broadcast_helper:domain(),
+                                                              broadcast_helper:job_id()).
 
 delete_inactive_broadcasts_by_ids_domain_not_found(_Config) ->
-    {domain_not_found, _} = mod_broadcast_api:delete_inactive_broadcasts_by_ids(domain(), [job_id()]).
+    {domain_not_found, _} = mod_broadcast_api:delete_inactive_broadcasts_by_ids(
+                               broadcast_helper:domain(),
+                               [broadcast_helper:job_id()]).
 
 delete_inactive_broadcasts_by_domain_domain_not_found(_Config) ->
-    {domain_not_found, _} = mod_broadcast_api:delete_inactive_broadcasts_by_domain(domain()).
+    {domain_not_found, _} = mod_broadcast_api:delete_inactive_broadcasts_by_domain(
+                               broadcast_helper:domain()).
 
 %%====================================================================
 %% Helper functions
@@ -225,41 +230,4 @@ set_domain_api_expectation(api_domain_not_found_paths) ->
                 fun(_Domain) -> {error, not_found} end);
 set_domain_api_expectation(_Other) ->
     meck:expect(mongoose_domain_api, get_host_type,
-                fun(_Domain) -> {ok, host_type()} end).
-
-host_type() ->
-    <<"test_host_type">>.
-
-domain() ->
-    <<"test.domain">>.
-
-job_id() ->
-    4242.
-
-valid_job_spec() ->
-    #{name => <<"Test Broadcast">>,
-      domain => domain(),
-      sender => jid:make_noprep(<<"admin">>, domain(), <<>>),
-      subject => <<"Test Subject">>,
-      body => <<"Test message body">>,
-      message_rate => 100,
-      recipient_group => all_users_in_domain}.
-
-running_job(HostType, Domain, JobId) ->
-    #broadcast_job{id = JobId,
-                   name = <<"Test">>,
-                   host_type = HostType,
-                   domain = Domain,
-                   sender = jid:make_noprep(<<"admin">>, Domain, <<>>),
-                   subject = <<"Subject">>,
-                   body = <<"Body">>,
-                   message_rate = 100,
-                   recipient_group = all_users_in_domain,
-                   owner_node = node(),
-                   recipient_count = 10,
-                   recipients_processed = 5,
-                   execution_state = running,
-                   abortion_reason = undefined,
-                   created_at = {{2026, 2, 4}, {12, 0, 0}},
-                   started_at = {{2026, 2, 4}, {12, 0, 1}},
-                   stopped_at = undefined}.
+                fun(_Domain) -> {ok, broadcast_helper:host_type()} end).

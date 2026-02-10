@@ -159,7 +159,7 @@ db_create_job_error_propagates(Config) ->
                 fun(_HostType, _JobSpec) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {error, somebody_set_us_up_the_bomb} = gen_server:call(Pid, {start_job, JobSpec}),
     assert_manager_survived(Pid).
 
@@ -198,7 +198,7 @@ db_set_job_started_error_logged(Config) ->
                     {ok, spawn_link(fun() -> receive stop -> ok end end)}
                 end),
 
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {ok, 12345} = gen_server:call(Pid, {start_job, JobSpec}),
     assert_manager_survived(Pid).
 
@@ -225,7 +225,7 @@ db_set_job_aborted_admin_error_logged(Config) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
 
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
     ok = gen_server:call(Pid, {stop_job, JobId}),
     assert_manager_survived(Pid),
@@ -257,7 +257,7 @@ start_job_fails_when_recipient_count_zero_returns_no_recipients(Config) ->
                     ct:fail(create_job_should_not_be_called)
                 end),
 
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {error, no_recipients} = gen_server:call(Pid, {start_job, JobSpec}),
     assert_manager_survived(Pid).
 
@@ -272,7 +272,7 @@ start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Con
                     ct:fail(create_job_should_not_be_called)
                 end),
 
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {error, cannot_count_recipients} = gen_server:call(Pid, {start_job, JobSpec}),
     assert_manager_survived(Pid).
 
@@ -291,7 +291,7 @@ supervisor_start_child_error_on_job_creation(Config) ->
                     {error, somebody_set_us_up_the_bomb}
                 end),
 
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {ok, 12345} = gen_server:call(Pid, {start_job, JobSpec}),
     assert_manager_survived(Pid).
 
@@ -301,7 +301,7 @@ supervisor_start_child_error_on_resume(Config) ->
 
     meck:expect(mod_broadcast_backend, get_running_jobs,
                 fun(_HostType) ->
-                    {ok, [sample_broadcast_job()]}
+                    {ok, [broadcast_helper:sample_broadcast_job()]}
                 end),
     meck:expect(supervisor, start_child,
                 fun(_SupName, _ChildSpec) ->
@@ -334,7 +334,7 @@ worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) 
     meck:expect(mod_broadcast_backend, set_job_aborted_error,
                 fun(_HostType, _JobId, _ReasonBin) -> ok end),
 
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
     wait_for_worker(Pid, JobId, FakeWorkerPid),
 
@@ -345,9 +345,11 @@ worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) 
         not maps:is_key(JobId, WorkerMap) orelse WorkerMap
     end, true),
     true = meck:called(mongoose_instrument, execute,
-                       [mod_broadcast_jobs_aborted_error, #{host_type => host_type()}, #{count => 1}]),
+                       [mod_broadcast_jobs_aborted_error,
+                        #{host_type => broadcast_helper:host_type()},
+                        #{count => 1}]),
     true = meck:called(mod_broadcast_backend, set_job_aborted_error,
-                       [host_type(), JobId, '_']),
+                       [broadcast_helper:host_type(), JobId, '_']),
     assert_manager_survived(Pid).
 
 tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
@@ -368,7 +370,7 @@ tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
                     ct:fail(set_job_aborted_error_should_not_be_called)
                 end),
 
-    JobSpec = valid_job_spec(),
+    JobSpec = broadcast_helper:valid_job_spec(),
     {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
     wait_for_worker(Pid, JobId, FakeWorkerPid),
 
@@ -442,39 +444,11 @@ teardown_mocks() ->
     ok.
 
 start_test_manager() ->
-    gen_server:start(broadcast_manager, host_type(), []).
+    gen_server:start(broadcast_manager, broadcast_helper:host_type(), []).
 
 stop_test_manager(Pid) ->
     catch gen_server:stop(Pid, normal, 1000),
     ok.
-
-valid_job_spec() ->
-    #{name => <<"Test Broadcast">>,
-      domain => <<"test.domain">>,
-      sender => jid:make_noprep(<<"admin">>, <<"test.domain">>, <<>>),
-      subject => <<"Test Subject">>,
-      body => <<"Test message body">>,
-      message_rate => 100,
-      recipient_group => all_users_in_domain}.
-
-sample_broadcast_job() ->
-    #broadcast_job{id = 999,
-                   name = <<"Test">>,
-                   host_type = host_type(),
-                   domain = <<"test.domain">>,
-                   sender = jid:make_noprep(<<"admin">>, <<"test.domain">>, <<>>),
-                   subject = <<"Subject">>,
-                   body = <<"Body">>,
-                   message_rate = 100,
-                   recipient_group = all_users_in_domain,
-                   owner_node = node(),
-                   recipient_count = 10,
-                   recipients_processed = 5,
-                   execution_state = running,
-                   abortion_reason = undefined,
-                   created_at = {{2026, 2, 4}, {12, 0, 0}},
-                   started_at = {{2026, 2, 4}, {12, 0, 1}},
-                   stopped_at = undefined}.
 
 assert_manager_survived(Pid) ->
     %% If a manager is able to reply to a call, then it is alive
@@ -488,6 +462,3 @@ wait_for_worker(Pid, JobId, WorkerPid) ->
             _ -> false
         end
     end, ok).
-
-host_type() ->
-    <<"test_host_type">>.

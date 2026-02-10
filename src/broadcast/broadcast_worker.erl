@@ -239,7 +239,7 @@ finished(internal, finalize, Data) ->
                 host_type => HostType}),
     {stop, normal, Data}.
 
--spec aborted(gen_statem:event_type(), term(), data()) ->
+-spec aborted(gen_statem:event_type(), {finalize, term()}, data()) ->
     gen_statem:state_function_result().
 aborted(internal, {finalize, Error}, #data{job = Job, host_type = HostType} = Data) ->
     ?LOG_ERROR(#{what => broadcast_worker_aborted,
