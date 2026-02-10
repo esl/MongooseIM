@@ -345,25 +345,39 @@ delete_node_from_db(BinNode) ->
     Ret.
 
 start_cets_discovery(Config) ->
+    set_cets_disco_config(mim()),
+    set_cets_disco_config(mim2()),
     start_disco(mim(), cets_disco_spec(<<"testmim1@localhost">>, <<"192.168.115.111">>)),
     start_disco(mim2(), cets_disco_spec(<<"testmim2@localhost">>, <<"192.168.115.112">>)),
     force_nodes_to_see_each_other(mim(), mim2()),
     Config.
 
 start_cets_discovery_with_real_ips(Config) ->
+    set_cets_disco_config(mim()),
+    set_cets_disco_config(mim2()),
     start_disco(mim(), cets_disco_spec(<<"node1@localhost">>, <<"127.0.0.1">>)),
     start_disco(mim2(), cets_disco_spec(<<"node2@localhost">>, <<"127.0.0.1">>)),
     force_nodes_to_see_each_other(mim(), mim2()),
     Config.
 
 start_cets_discovery_with_file_backnend(Config) ->
+    set_cets_disco_config(mim()),
+    set_cets_disco_config(mim2()),
     start_disco(mim(), cets_disco_spec_for_file_backend()),
     start_disco(mim2(), cets_disco_spec_for_file_backend()),
     Config.
 
 stop_cets_discovery() ->
     ok = rpc(mim(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
-    ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]).
+    ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
+    unset_cets_disco_config(mim()),
+    unset_cets_disco_config(mim2()).
+
+set_cets_disco_config(Node) ->
+    rpc(Node, mongoose_config, set_opt, [[internal_databases, cets], #{backend => rdbms, cluster_name => mim}]).
+
+unset_cets_disco_config(Node) ->
+    rpc(Node, mongoose_config, unset_opt, [[internal_databases, cets]]).
 
 stop_and_delete_cets_discovery() ->
     stop_cets_discovery(),
