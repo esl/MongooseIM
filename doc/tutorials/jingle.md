@@ -55,21 +55,110 @@ For small groups (typically up to four participants for video), each participant
 * Strict codec agreement: all participants must use compatible audio/video formats.
 * Client-side mixing: each participant must mix incoming audio and video streams locally.
 
-![full_mesh][full_mesh]
+```puml
+@startuml
+rectangle "full mesh" {
+
+rectangle " <&phone*5>\n Peer 1" as p1
+rectangle " <&phone*5>\n Peer 2" as p2
+rectangle " <&phone*5>\n Peer 3" as p3
+rectangle " <&phone*5>\n Peer 4" as p4
+
+p1 <-down-> p2
+p1 <-down-> p3
+p1 <-down-> p4
+p2 <-right-> p3
+p2 <-down-> p4
+p3 <-down-> p4
+
+}
+@enduml
+```
 
 [STUN]/[TURN] servers can still be used to establish peer-to-peer connections, similar to one-to-one calls.
 
 [XEP-0272] also suggests using `RTP relays` to reduce upstream bandwidth usage.
 
-![relay_example][relay_example]
+```puml
+@startuml
+rectangle "relay example" {
+
+rectangle " <&phone*5>\n Peer 1" as p1
+rectangle " <&phone*5>\n Peer 2" as p2
+rectangle " <&phone*5>\n Peer 3" as p3
+rectangle " <&phone*5>\n Peer 4" as p4
+rectangle "RTP relay" as r1 #lightblue
+
+p1 -down-> p2 #violet
+p1 <-down-> p3
+p1 <-down-> p4
+p2 -right-> r1 #lightblue
+r1 -up-> p1 #lightblue
+r1 -right-> p3 #lightblue
+r1 -down-> p4 #lightblue
+p3 -right-> p2 #violet
+p3 <-down-> p4
+p4 -up-> p2 #violet
+
+}
+@enduml
+```
 
 To further reduce downstream bandwidth and CPU usage, `content mixers` can be introduced.
 
-![mixer_example][mixer_example]
+```puml
+@startuml
+rectangle "mixer example" {
+
+rectangle " <&phone*5>\n Peer 1" as p1
+rectangle " <&phone*5>\n Peer 2" as p2
+rectangle " <&phone*5>\n Peer 3" as p3
+rectangle " <&phone*5>\n Peer 4" as p4
+rectangle "Content mixer" as m1 #lightgreen
+
+p1 -down-> m1 #lightgreen
+p1 <-down-> p3
+p1 <-down-> p4
+m1 -right-> p2 #lightgreen
+p2 -up-> p1 #violet
+p2 -right-> p3 #violet
+p2 -down-> p4 #violet
+p3 -left-> m1 #lightgreen
+p3 <-down-> p4
+p4 -up-> m1  #lightgreen
+
+}
+@enduml
+```
 
 However, to ensure interoperability, each client must independently allocate its own `RTP relay` and `content mixer`.
 
-![complex_mesh_example][complex_mesh_example]
+```puml
+@startuml
+rectangle "complex mesh example" {
+
+rectangle " <&phone*5>\n Peer 1" as p1
+rectangle " <&phone*5>\n Peer 2" as p2
+rectangle " <&phone*5>\n Peer 3" as p3
+rectangle " <&phone*5>\n Peer 4" as p4
+rectangle "Content mixer" as m1 #lightgreen
+rectangle "RTP relay" as r1 #lightblue
+
+p1 -down-> m1 #lightgreen
+p1 <-down-> p3
+p1 <-down-> p4
+m1 -right-> p2 #lightgreen
+p2 -right-> r1 #lightblue
+r1 -up-> p1 #lightblue
+r1 -right-> p3 #lightblue
+r1 -down-> p4 #lightblue
+p3 -left-> m1 #lightgreen
+p3 <-down-> p4
+p4 -up-> m1  #lightgreen
+
+}
+@enduml
+```
 
 This results in inefficiencies, as the same optimization components are duplicated for each participant. In practice, this approach often evolves from a mesh topology into a star topology.
 
@@ -79,7 +168,30 @@ Large conferences require a centralized architecture. In this model:
 * A `focus agent` is responsible for allocating and managing these resources.
 * Each participant establishes an individual Jingle session with the `focus agent`, similar to a one-to-one call.
 
-![conference_example][conference_example]
+```puml
+@startuml
+rectangle "conference example" {
+
+rectangle " <&phone*5>\n Peer 1" as p1
+rectangle " <&phone*5>\n Peer 2" as p2
+rectangle " <&phone*5>\n Peer 3" as p3
+rectangle " <&phone*5>\n Peer 4" as p4
+rectangle "Content mixer" as m1 #lightgreen
+rectangle "RTP relay" as r1 #lightblue
+
+p1 -down-> m1 #lightgreen
+p2 -down-> m1 #lightgreen
+p3 -up-> m1 #lightgreen
+p4 -up-> m1 #lightgreen
+m1 -right-> r1 #lightblue
+r1 -up-> p1 #lightblue
+r1 -up-> p2 #lightblue
+r1 -down-> p3 #lightblue
+r1 -down-> p4 #lightblue
+
+}
+@enduml
+```
 
 Conference management is partially defined by:
 * [XEP-0298] (COIN - Conference Information)
@@ -112,11 +224,6 @@ TURN servers are not designed for efficient multicasting. When sending media to 
 
 ### For more information about [STUN]/[TURN] servers, see the [dedicated page][TURN tutorial].
 
-[complex_mesh_example]: jingle/complex_mesh_example.png
-[conference_example]: jingle/conference_example.png
-[full_mesh]: jingle/full_mesh.png
-[mixer_example]: jingle/mixer_example.png
-[relay_example]: jingle/relay_example.png
 [XEP-0166]: https://xmpp.org/extensions/xep-0166.html
 [XEP-0167]: https://xmpp.org/extensions/xep-0167.html
 [XEP-0234]: https://xmpp.org/extensions/xep-0234.html

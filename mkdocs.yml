@@ -37,6 +37,8 @@ extra:
       link: https://github.com/esl/MongooseIM
 plugins:
   - include-markdown
+  - plantuml:
+      puml_url: https://www.plantuml.com/plantuml/
   - search:
       separator: '[\s\-_,:!=\[\]()"/<>]+|\.(?!\d)|&[lg]t;'
       lang: en

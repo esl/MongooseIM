@@ -9,3 +9,4 @@ npm install --global cheerio@1.0.0-rc.12 spectaql
 pip3 install mkdocs
 pip3 install mkdocs-material
 pip3 install mkdocs-include-markdown-plugin
+pip3 install mkdocs_puml
