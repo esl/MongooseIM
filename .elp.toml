@@ -1,0 +1,14 @@
+[build_info]
+  deps = ["_build/default/lib/*", "big_tests/_build/default/lib/*"]
+
+  # MongooseIM has a special directory structure
+  [[build_info.apps]]
+    name = "mongooseim"
+    dir = "."
+    src_dirs = ["src", "test", "big_tests/src", "big_tests/tests"]
+    include_dirs = ["include"]
+
+# Disable eqwalizer for all modules because MongooseIM would not pass its type checks
+[eqwalizer]
+  enabled_all = false
+  ignore_modules = ["*"]
