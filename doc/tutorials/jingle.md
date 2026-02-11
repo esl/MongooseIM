@@ -208,6 +208,25 @@ Introducing a `content mixer` provides several advantages:
 
 However, this architecture also eliminates true end-to-end encryption.
 
+## Other Useful XEPs for Audio/Video Support
+Besides the mentioned Jingle specifications, the following XEPs are particularly relevant for audio and video implementations:
+| XEP | Name | Description |
+|-----|------|-------------|
+| [XEP-0353] | Jingle Message Initiation | Defines a lightweight, message-based mechanism for initiating Jingle audio/video sessions, including appropriate selection among multiple available responder resources (connected responder devices). |
+| [XEP-0320] | Use of DTLS-SRTP in Jingle Sessions | Describes how to secure Jingle RTP media streams using DTLS-SRTP. |
+| [XEP-0482] | Call Invites | Partially overlaps with [XEP-0353], but provides a more generic call invitation mechanism not limited to Jingle. |
+
+Several additional XEPs define the mapping between [SDP] and Jingle protocols:
+* [XEP-0338] Jingle Grouping Framework
+* [XEP-0339] Source-Specific Media Attributes in Jingle
+* [XEP-0293] Jingle RTP Feedback Negotiation
+* [XEP-0294] Jingle RTP Header Extensions Negotiation
+* [XEP-0507] Jingle Content Category
+
+Finally, the following XEPs provide guidelines for audio and video codec support:
+* [XEP-0299] Codecs for Jingle Video
+* [XEP-0266] Codecs for Jingle Audio
+
 ## Frequently Asked Questions
 
 ### The listed XEPs do not provide all the required functionality. What are my options?
@@ -234,8 +253,19 @@ TURN servers are not designed for efficient multicasting. When sending media to 
 [XEP-0298]: https://xmpp.org/extensions/xep-0298.html
 [XEP-0340]: https://xmpp.org/extensions/xep-0340.html
 [XEP-0278]: https://xmpp.org/extensions/xep-0278.html
+[XEP-0353]: https://xmpp.org/extensions/xep-0353.html
+[XEP-0320]: https://xmpp.org/extensions/xep-0320.html
+[XEP-0482]: https://xmpp.org/extensions/xep-0482.html
+[XEP-0338]: https://xmpp.org/extensions/xep-0338.html
+[XEP-0339]: https://xmpp.org/extensions/xep-0339.html
+[XEP-0293]: https://xmpp.org/extensions/xep-0293.html
+[XEP-0294]: https://xmpp.org/extensions/xep-0294.html
+[XEP-0507]: https://xmpp.org/extensions/xep-0507.html
+[XEP-0299]: https://xmpp.org/extensions/xep-0299.html
+[XEP-0266]: https://xmpp.org/extensions/xep-0266.html
 [Jingle protocol]: https://en.wikipedia.org/wiki/Jingle_(protocol)
 [RTP]: https://en.wikipedia.org/wiki/Real-time_Transport_Protocol
+[SDP]: https://en.wikipedia.org/wiki/Session_Description_Protocol
 [NAT traversal]: https://en.wikipedia.org/wiki/NAT_traversal
 [ICE]: https://en.wikipedia.org/wiki/Interactive_Connectivity_Establishment
 [STUN]: https://en.wikipedia.org/wiki/Session_Traversal_Utilities_for_NAT
