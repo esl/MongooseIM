@@ -53,7 +53,7 @@ default_error() -> 0.01.
 default_bound() -> 1260.
 
 -record(state, {
-    timer_ref :: reference() | undefined,
+    timer_ref :: {ok, timer:tref()} | {error, term()} | undefined,
     ets_table :: ets:tab() | undefined,
     metrics = #{} :: #{name() => #{{name(), label_values()} => metric_state()}},
     metric_specs = #{} :: #{name() => proplists:proplist()}
@@ -109,7 +109,7 @@ start_link() ->
 
 init([]) ->
     EtsTable = ets:new(?MODULE, [set, private, {read_concurrency, true}, {write_concurrency, true}]),
-    TimerRef = erlang:start_timer(?MODULE:window_step_ms(), self(), rotate),
+    TimerRef = timer:send_interval(?MODULE:window_step_ms(), rotate),
     {ok, #state{timer_ref = TimerRef, ets_table = EtsTable}}.
 
 handle_call({declare, Name, MetricSpec}, _From, State) ->
@@ -145,14 +145,16 @@ handle_cast({observe, Name, LabelValues, Value}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({timeout, _TimerRef, rotate}, State) ->
+handle_info(rotate, State) ->
     CurrentTime = erlang:monotonic_time(millisecond),
     NewState = rotate_all_windows(CurrentTime, State),
-    TimerRef = erlang:start_timer(?MODULE:window_step_ms(), self(), rotate),
-    {noreply, NewState#state{timer_ref = TimerRef}};
+    {noreply, NewState};
 handle_info(_Info, State) ->
     {noreply, State}.
 
+terminate(_Reason, #state{timer_ref = {ok, TRef}}) ->
+    timer:cancel(TRef),
+    ok;
 terminate(_Reason, _State) ->
     ok.
 

@@ -251,15 +251,14 @@ prometheus_histogram_sliding_window_expires_data(Config) ->
     Event = ?config(event, Config),
     Metric = prom_name(Event, time),
 
-    OriginalWindowStep = mongoose_prometheus_sliding_window:window_step_ms(),
-
     %% We mock the window parameters to use small values and wait a short time.
     meck:new(mongoose_prometheus_sliding_window, [passthrough]),
     meck:expect(mongoose_prometheus_sliding_window, window_size_ms, fun() -> 1000 end),
     meck:expect(mongoose_prometheus_sliding_window, window_step_ms, fun() -> 100 end),
 
-    %% Wait a bit for the mocked module to be used
-    timer:sleep(OriginalWindowStep),
+    %% Restart the gen_server to make sure that the new window parameters are applied
+    ok = gen_server:stop(mongoose_prometheus_sliding_window),
+    {ok, _} = mongoose_prometheus_sliding_window:start_link(),
 
     try
         ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
