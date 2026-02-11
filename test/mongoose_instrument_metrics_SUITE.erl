@@ -33,6 +33,7 @@
 
 all() ->
     [{group, prometheus},
+     {group, prometheus_sliding_window}, % separate, because it can't be run in parallel
      {group, exometer},
      {group, exometer_global},
      {group, prometheus_and_exometer}
@@ -50,8 +51,8 @@ groups() ->
                                prometheus_histogram_is_created_and_updated,
                                prometheus_histogram_is_calculated_correctly,
                                prometheus_histogram_is_updated_separately_for_different_labels,
-                               prometheus_histogram_sliding_window_expires_data,
                                multiple_prometheus_metrics_are_updated]},
+     {prometheus_sliding_window, [], [prometheus_histogram_sliding_window_expires_data]},
      {exometer, [parallel], [exometer_skips_non_metric_event,
                              exometer_gauge_is_created_and_updated,
                              exometer_gauge_is_updated_separately_for_different_labels,
@@ -87,6 +88,7 @@ init_per_group(Group, Config) ->
     Config1 ++ extra_config(Group).
 
 extra_processes(prometheus) -> [{mongoose_prometheus_sliding_window, start_link, []}];
+extra_processes(prometheus_sliding_window) -> [{mongoose_prometheus_sliding_window, start_link, []}];
 extra_processes(prometheus_and_exometer) -> [{mongoose_prometheus_sliding_window, start_link, []}];
 extra_processes(_) -> [].
 
@@ -103,12 +105,15 @@ end_per_testcase(_Case, _Config) ->
     log_helper:unsubscribe().
 
 apps(prometheus) -> [prometheus, prometheus_httpd, prometheus_cowboy];
+apps(prometheus_sliding_window) -> apps(prometheus);
 apps(exometer) -> [exometer_core];
 apps(exometer_global) -> [exometer_core];
 apps(prometheus_and_exometer) -> apps(prometheus) ++ apps(exometer).
 
 opts(prometheus) ->
     #{prometheus => #{}};
+opts(prometheus_sliding_window) ->
+    opts(prometheus);
 opts(exometer) ->
     #{exometer => #{all_metrics_are_global => false, report => #{}}};
 opts(exometer_global) ->
