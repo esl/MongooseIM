@@ -64,7 +64,7 @@ default_bound() -> 1260.
 -type window_data() :: #{sketch := ddskerl_ets:ddsketch(),
                          ref := ets:tab(),
                          name := term()}.
--type metric_state() :: #{windows => [{window_data(), non_neg_integer()}],
+-type metric_state() :: #{windows => [window_data()],
                           current_index => non_neg_integer()}.
 
 %% Public API
@@ -122,8 +122,8 @@ handle_call({declare, Name, MetricSpec}, _From, State) ->
             {reply, true, State#state{metrics = NewMetrics, metric_specs = NewSpecs}}
     end;
 handle_call({value, Name, LabelValues}, _From, State) ->
-    {Result, NewState} = get_value(Name, LabelValues, State),
-    {reply, Result, NewState};
+    Result = get_value(Name, LabelValues, State),
+    {reply, Result, State};
 handle_call({get_label_values, Name}, _From, State) ->
     Result = do_get_label_values(Name, State),
     {reply, Result, State};
@@ -146,8 +146,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info(rotate, State) ->
-    CurrentTime = erlang:monotonic_time(millisecond),
-    NewState = rotate_all_windows(CurrentTime, State),
+    NewState = rotate_all_windows(State),
     {noreply, NewState};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -181,18 +180,17 @@ do_observe(Name, LabelValues, Value, State) ->
             erlang:error({unknown_metric, Name});
         {ok, MetricState} ->
             Key = {Name, LabelValues},
-            CurrentTime = erlang:monotonic_time(millisecond),
             {Windows, CurrentIndex} =
-                ensure_windows_initialized(Key, CurrentTime, State),
+                ensure_windows_initialized(Key, State),
 
             %% Get current window and add observation
-            {CurrentWindow, WindowStartTime} = lists:nth(CurrentIndex + 1, Windows),
+            CurrentWindow = lists:nth(CurrentIndex + 1, Windows),
             Sketch = maps:get(sketch, CurrentWindow),
             UpdatedSketch = ddskerl_ets:insert(Sketch, Value),
             UpdatedWindow = CurrentWindow#{sketch := UpdatedSketch},
 
             %% Update windows list and metric state
-            UpdatedWindows = set_nth(CurrentIndex + 1, {UpdatedWindow, WindowStartTime}, Windows),
+            UpdatedWindows = set_nth(CurrentIndex + 1, UpdatedWindow, Windows),
             UpdatedMetricState = maps:put(Key,
                 #{windows => UpdatedWindows,
                   current_index => CurrentIndex},
@@ -202,43 +200,31 @@ do_observe(Name, LabelValues, Value, State) ->
             State#state{metrics = UpdatedMetrics}
     end.
 
--spec ensure_windows_initialized({name(), label_values()}, non_neg_integer(), #state{}) ->
-    {[{window_data(), non_neg_integer()}], non_neg_integer()}.
-ensure_windows_initialized(Key, CurrentTime, State) ->
+-spec ensure_windows_initialized({name(), label_values()}, #state{}) -> {[window_data()], non_neg_integer()}.
+ensure_windows_initialized(Key, State) ->
     WindowCount = ?MODULE:window_count(),
     case get_metric_state(Key, State) of
         undefined ->
-            %% Initialize new windows, all starting at current time
-            Windows = [new_window(Key, Index, CurrentTime, State) || Index <- lists:seq(0, WindowCount - 1)],
+            Windows = [new_window(Key, Index, State) || Index <- lists:seq(0, WindowCount - 1)],
             {Windows, 0};
         #{windows := Windows, current_index := CurrentIndex} ->
             {Windows, CurrentIndex}
     end.
 
--spec get_value(name(), label_values(), #state{}) ->
-    {undefined | {non_neg_integer(), number(), [{number(), number()}]}, #state{}}.
+-spec get_value(name(), label_values(), #state{}) -> undefined | {non_neg_integer(), number(), [{number(), number()}]}.
 get_value(Name, LabelValues, State) ->
     Key = {Name, LabelValues},
     case get_metric_state(Key, State) of
         undefined ->
-            {undefined, State};
+            undefined;
         #{windows := Windows} ->
-            CurrentTime = erlang:monotonic_time(millisecond),
-
-            %% Filter windows to only include those within the last window size
-            CutoffTime = CurrentTime - ?MODULE:window_size_ms(),
-            ActiveWindows = [Window || {Window, StartTime} <- Windows,
-                                      StartTime >= CutoffTime],
-
-            %% Merge all active windows
-            WindowTuples = [window_tuple(Window) || Window <- ActiveWindows],
+            WindowTuples = [window_tuple(Window) || Window <- Windows],
             Merged = lists:foldl(fun
                                       (undefined, Acc) -> Acc;
                                       (Val, undefined) -> Val;
                                       (Val, Acc) -> ddskerl_ets:merge_tuples(Acc, Val)
                                   end, undefined, WindowTuples),
-
-            Result = case Merged of
+            case Merged of
                 undefined ->
                     undefined;
                 _ ->
@@ -251,8 +237,7 @@ get_value(Name, LabelValues, State) ->
                             Quantiles = [{Q, ddskerl_ets:quantile_tuple(Merged, Q)} || Q <- default_quantiles()],
                             {Count, Sum, Quantiles}
                     end
-            end,
-            {Result, State}
+            end
     end.
 
 -spec do_get_label_values(name(), #state{}) -> [label_values()].
@@ -304,22 +289,20 @@ metric_options(Name, State) ->
 window_name({Name, LabelValues}, Index) ->
     {Name, LabelValues, Index}.
 
--spec new_window({name(), label_values()}, non_neg_integer(), non_neg_integer(), #state{}) ->
-    {window_data(), non_neg_integer()}.
-new_window(Key = {Name, _LabelValues}, Index, StartTime, State) ->
+-spec new_window({name(), label_values()}, non_neg_integer(), #state{}) -> window_data().
+new_window(Key = {Name, _LabelValues}, Index, State) ->
     {Error, Bound} = metric_options(Name, State),
     WindowName = window_name(Key, Index),
     Sketch = ddskerl_ets:new(#{ets_table => State#state.ets_table,
                                name => WindowName,
                                error => Error,
                                bound => Bound}),
-    WindowData = #{sketch => Sketch,
-                   ref => State#state.ets_table,
-                   name => WindowName},
-    {WindowData, StartTime}.
+    #{sketch => Sketch,
+      ref => State#state.ets_table,
+      name => WindowName}.
 
--spec rotate_all_windows(non_neg_integer(), #state{}) -> #state{}.
-rotate_all_windows(CurrentTime, State) ->
+-spec rotate_all_windows(#state{}) -> #state{}.
+rotate_all_windows(State) ->
     WindowCount = ?MODULE:window_count(),
     UpdatedMetrics = maps:map(
         fun(_Name, MetricState) ->
@@ -327,9 +310,9 @@ rotate_all_windows(CurrentTime, State) ->
                 fun(_Key, #{windows := Windows, current_index := CurrentIndex}) ->
                     %% Move to next window and reset it
                     NewIndex = (CurrentIndex + 1) rem WindowCount,
-                    {WindowToReset, _OldTime} = lists:nth(NewIndex + 1, Windows),
+                    WindowToReset = lists:nth(NewIndex + 1, Windows),
                     ResetWindow = reset_window(WindowToReset),
-                    UpdatedWindows = set_nth(NewIndex + 1, {ResetWindow, CurrentTime}, Windows),
+                    UpdatedWindows = set_nth(NewIndex + 1, ResetWindow, Windows),
                     #{windows => UpdatedWindows, current_index => NewIndex}
                 end, MetricState)
         end, State#state.metrics),
@@ -352,15 +335,13 @@ window_tuple(WindowData) ->
 
 -spec remove_metric_state({name(), label_values()}, #{}) -> #{}.
 remove_metric_state(Key, MetricState) ->
-    UpdatedMetricState =
-        case maps:find(Key, MetricState) of
-            error ->
-                MetricState;
-            {ok, #{windows := Windows}} ->
-                lists:foreach(fun({Window, _}) -> delete_window(Window) end, Windows),
-                maps:remove(Key, MetricState)
-        end,
-    UpdatedMetricState.
+    case maps:find(Key, MetricState) of
+        error ->
+            MetricState;
+        {ok, #{windows := Windows}} ->
+            lists:foreach(fun(Window) -> delete_window(Window) end, Windows),
+            maps:remove(Key, MetricState)
+    end.
 
 -spec delete_window(window_data()) -> ok.
 delete_window(WindowData) ->
