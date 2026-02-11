@@ -55,7 +55,7 @@ test_metrics(Event, Labels) ->
     check_counter(Event, requests, Labels, 1, Scraped), % 'spiral' is a Prometheus counter
     check_gauge(Event, sessions, Labels, 5, Scraped), % 'counter' is a Prometheus gauge
     check_gauge(Event, seconds, Labels, 10, Scraped),
-    check_histogram(Event, time, Labels, #{count => 1, sum => 2}, Scraped).
+    check_histogram(Event, time, Labels, #{count => 1, sum => 2, median => 2}, Scraped).
 
 %% Checks for the parsed metrics
 
@@ -72,14 +72,17 @@ check_gauge(Event, Metric, Labels, ExpValue, Scraped) ->
     ?assertEqual({Labels, ExpValue}, Value).
 
 check_histogram(Event, Metric, Labels, ExpValues, Scraped) ->
-    #{count := ExpCount, sum := ExpSum} = ExpValues,
+    #{count := ExpCount, sum := ExpSum, median := ExpMedian} = ExpValues,
     [Type, Help | _] = get_metric([Event, Metric], Scraped),
     ?assertEqual({<<"TYPE">>, <<"summary">>}, Type),
     ?assertEqual({<<"HELP">>, help(Event, Metric)}, Help),
     [Count] = get_metric([Event, Metric, count], Scraped),
     ?assertEqual({Labels, ExpCount}, Count),
     [Sum] = get_metric([Event, Metric, sum], Scraped),
-    ?assertEqual({Labels, ExpSum}, Sum).
+    ?assertEqual({Labels, ExpSum}, Sum),
+    MedianLabels = Labels#{quantile => <<"0.5">>},
+    [{MedianLabels, Median}] = get_metric([Event, Metric], MedianLabels, Scraped),
+    ?assert(abs(Median - ExpMedian) < 0.01).
 
 help(Event, Metric) ->
     <<"Event: ", (atom_to_binary(Event))/binary, ", Metric: ", (atom_to_binary(Metric))/binary>>.
@@ -88,6 +91,11 @@ get_metric(Parts, Scraped) when is_list(Parts) ->
     get_metric(binary_name(Parts), Scraped);
 get_metric(Name, Scraped) when is_binary(Name) ->
     [{LabelsOrKey, Value} || {N, LabelsOrKey, Value} <- Scraped, N =:= Name].
+
+get_metric(Parts, Labels, Scraped) when is_list(Parts) ->
+    get_metric(binary_name(Parts), Labels, Scraped);
+get_metric(Name, Labels, Scraped) when is_binary(Name) ->
+    [{L, Value} || {N, L, Value} <- Scraped, N =:= Name, is_map(L), maps:merge(L, Labels) =:= L].
 
 binary_name(Atoms) ->
     list_to_binary(string:join([atom_to_list(Atom) || Atom <- Atoms], "_")).
