@@ -135,7 +135,7 @@
          room_packet/5,
          update_inbox_for_muc/2]).
 
--export([caps_recognised/4]).
+-export([caps_recognised/3]).
 
 -export([mod_global_distrib_known_recipient/4,
          mod_global_distrib_unknown_recipient/2]).
@@ -1344,14 +1344,13 @@ update_inbox_for_muc(HostType, Info) ->
 
 %% Caps related hooks
 
--spec caps_recognised(Acc, From, Pid, Features) -> Result when
+-spec caps_recognised(Acc, C2SData, Features) -> Result when
     Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    Pid :: pid(),
-    Features :: unknown | list(),
+    C2SData :: mongoose_c2s:data(),
+    Features :: [mod_caps:feature()],
     Result :: mongoose_acc:t().
-caps_recognised(Acc, From, Pid, Features) ->
-    Params = #{from => From, pid => Pid, features => Features},
+caps_recognised(Acc, C2SData, Features) ->
+    Params = #{c2s_data => C2SData, features => Features},
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(caps_recognised, HostType, Acc, Params).
 

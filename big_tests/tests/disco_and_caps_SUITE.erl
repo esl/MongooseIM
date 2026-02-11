@@ -47,7 +47,7 @@ end_per_suite(C) ->
 init_per_group(Name, C) ->
     C2 = escalus:init_per_suite(dynamic_modules:save_modules(host_type(), C)),
     dynamic_modules:ensure_modules(host_type(), required_modules(Name)),
-    C2.
+    [{caps, is_caps_group(Name)} | C2].
 
 end_per_group(_Name, C) ->
     dynamic_modules:restore_modules(C).
@@ -170,6 +170,10 @@ user_can_query_server_features(Config) ->
         escalus:send(Alice, escalus_stanza:disco_info(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_identity, [<<"server">>, <<"im">>], Stanza),
+        case proplists:get_value(caps, Config) of
+            true -> escalus:assert(has_feature, [?NS_CAPS], Stanza);
+            false -> ok
+        end,
         escalus:assert(has_feature, [<<"iq">>], Stanza),
         escalus:assert(has_feature, [<<"presence">>], Stanza),
         escalus:assert(is_stanza_from, [domain()], Stanza)
@@ -237,3 +241,8 @@ assert_roster_get_event(Client) ->
     ClientJid = jid:from_binary(escalus_client:full_jid(Client)),
     instrument_helper:assert_one(mod_disco_roster_get, #{host_type => host_type()},
                                  fun(#{count := 1, jid := Jid}) -> ClientJid =:= Jid end).
+
+is_caps_group(disco_with_caps) -> true;
+is_caps_group(disco_with_caps_and_extra_features) -> true;
+is_caps_group(disco_with_extra_features) -> false.
+

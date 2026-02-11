@@ -727,7 +727,6 @@ configurable_modules() ->
      mod_blocking,
      mod_blocklist,
      mod_cache_users,
-     mod_caps,
      mod_carboncopy,
      mod_csi,
      mod_disco,

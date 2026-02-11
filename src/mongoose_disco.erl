@@ -37,7 +37,7 @@
 -type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
 
 -type identity_acc() :: acc(identity()).
--type identity() :: #{category := binary(), type := binary(), name => binary()}.
+-type identity() :: #{category := binary(), type := binary(), name => binary(), lang => binary()}.
 
 -type info_acc() :: #{host_type := mongooseim:host_type(),
                       module := module(),
