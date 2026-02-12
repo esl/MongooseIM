@@ -182,7 +182,12 @@ handle_info({{'DOWN', JobId}, _Ref, process, Pid, Reason}, State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, _State) ->
+terminate(normal, _State) ->
+    ok;
+terminate(Reason, State) ->
+    ?LOG_WARNING(#{what => broadcast_manager_terminated_abnormally,
+                   reason => Reason,
+                   state => State}),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
