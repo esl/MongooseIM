@@ -128,6 +128,7 @@ do_check_server_purity(_Suite) ->
             fun check_privacy/0,
             fun check_private/0,
             fun check_vcard/0,
+            fun check_clustering/0,
             fun check_roster/0],
     lists:flatmap(fun(F) -> F() end, Funs).
 
@@ -169,6 +170,13 @@ check_private() ->
 
 check_vcard() ->
     generic_via_mongoose_helper(total_vcard_items).
+
+check_clustering() ->
+    Nodes = rpc(mim(), mongoose_cluster, all_cluster_nodes, []),
+    case lists:member('fed1@localhost', Nodes) of
+        true -> [{rogue_cluster_member, Nodes}];
+        false -> []
+    end.
 
 check_roster() ->
     generic_via_mongoose_helper(total_roster_items).
