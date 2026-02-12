@@ -281,16 +281,14 @@ sh_to_awk_3([], false) ->
 
 -spec sh_special_char(char()) -> boolean().
 sh_special_char($|) -> true;
-sh_special_char($*) -> true;
 sh_special_char($+) -> true;
-sh_special_char($?) -> true;
 sh_special_char($() -> true;
 sh_special_char($)) -> true;
 sh_special_char($\\) -> true;
 sh_special_char($^) -> true;
 sh_special_char($$) -> true;
 sh_special_char($.) -> true;
-sh_special_char($[) -> true;
 sh_special_char($]) -> true;
 sh_special_char($") -> true;
 sh_special_char(_C) -> false.
+%% *, ?, [ are handled separately, so they are not included here.
