@@ -10,11 +10,30 @@
 -define(HOST_TYPE, <<"localhost">>).
 -define(HOST_TYPE2, <<"test type">>).
 
+-define(assertRelEqual(Expect, Actual, Tolerance),
+    (fun() ->
+        __Exp = (Expect),
+        __Act = (Actual),
+        __Tol = (Tolerance),
+        case __Exp == 0 of
+            true -> ?assertEqual(__Exp, __Act);
+            false ->
+                __RelErr = abs(__Exp - __Act) / __Exp,
+                __Check = case __RelErr < __Tol of
+                    true -> ok;
+                    false -> {fail, [{expected, __Exp}, {actual, __Act},
+                                        {rel_error, __RelErr}, {tolerance, __Tol}]}
+                end,
+                ?assertEqual(ok, __Check)
+        end
+    end)()).
+
 -import(mongoose_instrument_exometer, [exometer_metric_name/3]).
 %% Setup and teardown
 
 all() ->
     [{group, prometheus},
+     {group, prometheus_sliding_window}, % separate, because it can't be run in parallel
      {group, exometer},
      {group, exometer_global},
      {group, prometheus_and_exometer}
@@ -30,8 +49,10 @@ groups() ->
                                prometheus_counter_cannot_be_decreased,
                                prometheus_counter_is_updated_separately_for_different_labels,
                                prometheus_histogram_is_created_and_updated,
+                               prometheus_histogram_is_calculated_correctly,
                                prometheus_histogram_is_updated_separately_for_different_labels,
                                multiple_prometheus_metrics_are_updated]},
+     {prometheus_sliding_window, [], [prometheus_histogram_sliding_window_expires_data]},
      {exometer, [parallel], [exometer_skips_non_metric_event,
                              exometer_gauge_is_created_and_updated,
                              exometer_gauge_is_updated_separately_for_different_labels,
@@ -61,9 +82,15 @@ init_per_group(Group, Config) ->
     mongoose_config:set_opts(#{hosts => [?HOST_TYPE],
                                host_types => [?HOST_TYPE2],
                                instrumentation => opts(Group)}),
-    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
+    Config1 = async_helper:start(Config, extra_processes(Group) ++
+                                 [{mongoose_instrument, start_link, []}]),
     mongoose_instrument:persist(),
     Config1 ++ extra_config(Group).
+
+extra_processes(prometheus) -> [{mongoose_prometheus_sliding_window, start_link, []}];
+extra_processes(prometheus_sliding_window) -> [{mongoose_prometheus_sliding_window, start_link, []}];
+extra_processes(prometheus_and_exometer) -> [{mongoose_prometheus_sliding_window, start_link, []}];
+extra_processes(_) -> [].
 
 end_per_group(Group, Config) ->
     async_helper:stop_all(Config),
@@ -78,12 +105,15 @@ end_per_testcase(_Case, _Config) ->
     log_helper:unsubscribe().
 
 apps(prometheus) -> [prometheus, prometheus_httpd, prometheus_cowboy];
+apps(prometheus_sliding_window) -> apps(prometheus);
 apps(exometer) -> [exometer_core];
 apps(exometer_global) -> [exometer_core];
 apps(prometheus_and_exometer) -> apps(prometheus) ++ apps(exometer).
 
 opts(prometheus) ->
     #{prometheus => #{}};
+opts(prometheus_sliding_window) ->
+    opts(prometheus);
 opts(exometer) ->
     #{exometer => #{all_metrics_are_global => false, report => #{}}};
 opts(exometer_global) ->
@@ -184,13 +214,33 @@ prometheus_histogram_is_created_and_updated(Config) ->
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
 
     %% Prometheus histogram shows no value if there is no data
-    ?assertEqual(undefined, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ?assertEqual(undefined, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
-    ?assertMatch({[1, 0|_], 1}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ?assertMatch({1, 1, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
-    ?assertMatch({[2, 0|_], 2}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ?assertMatch({2, 2, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 2}),
-    ?assertMatch({[2, 1|_], 4}, prometheus_histogram:value(Metric, [?HOST_TYPE])).
+    ?assertMatch({3, 4, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])).
+
+prometheus_histogram_is_calculated_correctly(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, time),
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
+
+    %% Prometheus histogram shows no value if there is no data
+    ?assertEqual(undefined, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+    Values = [1, 2, 2, 2, 2, 2, 2, 9, 9, 10],
+    lists:foreach(fun(V) -> ok = mongoose_instrument:execute(Event, ?LABELS, #{time => V}) end, Values),
+    Sum = lists:sum(Values),
+    Length = length(Values),
+    ?assertMatch({Length, Sum, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+    %% Check some quantiles
+    {_, _, Quantiles} = mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE]),
+    Tolerance = 0.01,
+    ?assertRelEqual(2, proplists:get_value(0.5, Quantiles), Tolerance),
+    ?assertRelEqual(9, proplists:get_value(0.9, Quantiles), Tolerance),
+    ?assertRelEqual(10, proplists:get_value(0.95, Quantiles), Tolerance),
+    ?assertRelEqual(10, proplists:get_value(0.99, Quantiles), Tolerance).
 
 prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
@@ -199,8 +249,36 @@ prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{time => histogram}}),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
     ok = mongoose_instrument:execute(Event, ?LABELS2, #{time => 2}),
-    ?assertMatch({[1, 0|_], 1}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
-    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(Metric, [?HOST_TYPE2])).
+    ?assertMatch({1, 1, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+    ?assertMatch({1, 2, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE2])).
+
+prometheus_histogram_sliding_window_expires_data(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, time),
+
+    %% We mock the window parameters to use small values and wait a short time.
+    meck:new(mongoose_prometheus_sliding_window, [passthrough]),
+    meck:expect(mongoose_prometheus_sliding_window, window_size_ms, fun() -> 1000 end),
+    meck:expect(mongoose_prometheus_sliding_window, window_step_ms, fun() -> 100 end),
+
+    %% Restart the gen_server to make sure that the new window parameters are applied
+    ok = gen_server:stop(mongoose_prometheus_sliding_window),
+    {ok, _} = mongoose_prometheus_sliding_window:start_link(),
+
+    try
+        ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
+        ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 10}),
+        ?assertMatch({1, 10, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+        timer:sleep(500),
+        ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 20}),
+        ?assertMatch({2, 30, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+        timer:sleep(700), % Wait enough for the first value to expire
+        ?assertMatch({1, 20, _}, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE])),
+        timer:sleep(500), % Wait enough for the second value to expire
+        ?assertEqual(undefined, mongoose_prometheus_sliding_window:value(Metric, [?HOST_TYPE]))
+    after
+        meck:unload(mongoose_prometheus_sliding_window)
+    end.
 
 multiple_prometheus_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
@@ -211,18 +289,18 @@ multiple_prometheus_metrics_are_updated(Config) ->
     %% Update both metrics
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1, time => 2}),
     ?assertEqual(1, prometheus_counter:value(Counter, [?HOST_TYPE])),
-    HistogramValue = prometheus_histogram:value(Histogram, [?HOST_TYPE]),
-    ?assertMatch({[0, 1|_], 2}, HistogramValue),
+    HistogramValue = mongoose_prometheus_sliding_window:value(Histogram, [?HOST_TYPE]),
+    ?assertMatch({1, 2, _}, HistogramValue),
 
     %% Update only one metric
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
     ?assertEqual(3, prometheus_counter:value(Counter, [?HOST_TYPE])),
-    ?assertEqual(HistogramValue, prometheus_histogram:value(Histogram, [?HOST_TYPE])),
+    ?assertEqual(HistogramValue, mongoose_prometheus_sliding_window:value(Histogram, [?HOST_TYPE])),
 
     %% No update
     ok = mongoose_instrument:execute(Event, ?LABELS, #{something => irrelevant}),
     ?assertEqual(3, prometheus_counter:value(Counter, [?HOST_TYPE])),
-    ?assertEqual(HistogramValue, prometheus_histogram:value(Histogram, [?HOST_TYPE])).
+    ?assertEqual(HistogramValue, mongoose_prometheus_sliding_window:value(Histogram, [?HOST_TYPE])).
 
 exometer_skips_non_metric_event(Config) ->
     Event = ?config(event, Config),
@@ -386,7 +464,7 @@ prometheus_and_exometer_metrics_are_updated(Config) ->
     ?assertEqual({ok, [{count, 1}]}, exometer:get_value([?HOST_TYPE, Event, count], count)),
     ?assertEqual({ok, [{mean, 2}]}, exometer:get_value([?HOST_TYPE, Event, time], mean)),
     ?assertEqual(1, prometheus_counter:value(prom_name(Event, count), [?HOST_TYPE])),
-    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(prom_name(Event, time), [?HOST_TYPE])).
+    ?assertMatch({1, 2, _}, mongoose_prometheus_sliding_window:value(prom_name(Event, time), [?HOST_TYPE])).
 
 %% Helpers
 

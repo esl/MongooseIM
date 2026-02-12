@@ -23,7 +23,8 @@ init_per_suite(Config) ->
     mongoose_config:set_opts(opts()),
     Config1 = async_helper:start(Config, [{mongoose_instrument, start_link, []},
                                           {mim_ct_sup, start_link, [ejabberd_sup]},
-                                          {mongoose_listener_sup, start_link, []}]),
+                                          {mongoose_listener_sup, start_link, []},
+                                          {mongoose_prometheus_sliding_window, start_link, []}]),
     mongoose_listener:start(),
     Config1.
 
@@ -54,7 +55,7 @@ test_metrics(Event, Labels) ->
     check_counter(Event, requests, Labels, 1, Scraped), % 'spiral' is a Prometheus counter
     check_gauge(Event, sessions, Labels, 5, Scraped), % 'counter' is a Prometheus gauge
     check_gauge(Event, seconds, Labels, 10, Scraped),
-    check_histogram(Event, time, Labels, #{count => 1, sum => 2, bucket_num => 32}, Scraped).
+    check_histogram(Event, time, Labels, #{count => 1, sum => 2, median => 2}, Scraped).
 
 %% Checks for the parsed metrics
 
@@ -71,38 +72,17 @@ check_gauge(Event, Metric, Labels, ExpValue, Scraped) ->
     ?assertEqual({Labels, ExpValue}, Value).
 
 check_histogram(Event, Metric, Labels, ExpValues, Scraped) ->
-    #{count := ExpCount, sum := ExpSum, bucket_num := ExpBucketNum} = ExpValues,
-    [Type, Help] = get_metric([Event, Metric], Scraped),
-    ?assertEqual({<<"TYPE">>, <<"histogram">>}, Type),
+    #{count := ExpCount, sum := ExpSum, median := ExpMedian} = ExpValues,
+    [Type, Help | _] = get_metric([Event, Metric], Scraped),
+    ?assertEqual({<<"TYPE">>, <<"summary">>}, Type),
     ?assertEqual({<<"HELP">>, help(Event, Metric)}, Help),
     [Count] = get_metric([Event, Metric, count], Scraped),
     ?assertEqual({Labels, ExpCount}, Count),
     [Sum] = get_metric([Event, Metric, sum], Scraped),
     ?assertEqual({Labels, ExpSum}, Sum),
-    Buckets = get_metric([Event, Metric, bucket], Scraped),
-    ?assertEqual(ExpBucketNum, length(Buckets)),
-    check_buckets(ExpCount, Labels, Buckets).
-
-%% Check that the histogram buckets have growing thresholds and counts,
-%% and that the last bucket has the expected total count (because they are cumulative).
-check_buckets(ExpCount, Labels, Buckets) ->
-    InitState = #{labels => Labels, last_count => 0, last_threshold => 0},
-    #{final_count := LastCount} = lists:foldl(fun check_bucket/2, InitState, Buckets),
-    ?assertEqual(ExpCount, LastCount).
-
-check_bucket({Labels, Count}, State) ->
-    #{labels := BaseLabels, last_count := LastCount, last_threshold := LastThreshold} = State,
-    {ThresholdBin, Labels1} = maps:take(le, Labels),
-    ?assertEqual(Labels1, BaseLabels),
-    ?assert(Count >= LastCount),
-    case ThresholdBin of
-        <<"+Inf">> ->
-            #{final_count => Count};
-        _ ->
-            Threshold = binary_to_integer(ThresholdBin),
-            ?assert(Threshold > LastThreshold),
-            State#{last_count => Count, last_threshold => Threshold}
-    end.
+    MedianLabels = Labels#{quantile => <<"0.5">>},
+    [{MedianLabels, Median}] = get_metric([Event, Metric], MedianLabels, Scraped),
+    ?assert(abs(Median - ExpMedian) < 0.01).
 
 help(Event, Metric) ->
     <<"Event: ", (atom_to_binary(Event))/binary, ", Metric: ", (atom_to_binary(Metric))/binary>>.
@@ -111,6 +91,11 @@ get_metric(Parts, Scraped) when is_list(Parts) ->
     get_metric(binary_name(Parts), Scraped);
 get_metric(Name, Scraped) when is_binary(Name) ->
     [{LabelsOrKey, Value} || {N, LabelsOrKey, Value} <- Scraped, N =:= Name].
+
+get_metric(Parts, Labels, Scraped) when is_list(Parts) ->
+    get_metric(binary_name(Parts), Labels, Scraped);
+get_metric(Name, Labels, Scraped) when is_binary(Name) ->
+    [{L, Value} || {N, L, Value} <- Scraped, N =:= Name, is_map(L), maps:merge(L, Labels) =:= L].
 
 binary_name(Atoms) ->
     list_to_binary(string:join([atom_to_list(Atom) || Atom <- Atoms], "_")).

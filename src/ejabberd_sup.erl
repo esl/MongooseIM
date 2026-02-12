@@ -69,7 +69,8 @@ init(noargs) ->
           [StartIdServer,
            PG,
            Hooks,
-           Instrument,
+           Instrument
+           ] ++ prometheus_sliding_window_spec() ++ [
            Cleaner,
            SMBackendSupervisor,
            OutgoingPoolsSupervisor
@@ -121,6 +122,12 @@ template_supervisor_spec(Name, Module) ->
 
 supervisor_spec(Mod) ->
     {Mod, {Mod, start_link, []}, permanent, infinity, supervisor, [Mod]}.
+
+prometheus_sliding_window_spec() ->
+    case mongoose_config:get_opt([instrumentation, prometheus], undefined) of
+        undefined -> [];
+        #{} -> [mongoose_prometheus_sliding_window:child_spec()]
+    end.
 
 worker_spec(Mod) ->
     worker_spec(Mod, []).
