@@ -103,7 +103,9 @@ init_per_group(user_info_snapshot, Config) ->
             FutureUsers = future_users_spec(),
             escalus:create_users(Config, FutureUsers),
             %% Set their created_at to far future via direct DB update
-            FutureTs = {{2099, 12, 31}, {23, 59, 59}},
+            %% Unless created_at in MySQL is changed to other type,
+            %% we can't go beyond 2038-01-19, so we use 2037-12-31 to be safe
+            FutureTs = {{2037, 12, 31}, {23, 59, 59}},
             accounts_helper:prepare_user_created_at(),
             accounts_helper:set_user_created_at(<<"aaalice">>, domain(), FutureTs),
             accounts_helper:set_user_created_at(<<"bbbob">>, domain(), FutureTs),
