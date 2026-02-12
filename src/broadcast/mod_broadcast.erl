@@ -61,8 +61,24 @@ hooks(HostType) ->
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     Nodes = mongoose_cluster:all_cluster_nodes(),
     lists:foreach(fun(Node) ->
-                        broadcast_manager:abort_running_jobs_for_domain(Node, HostType, Domain)
-                  end, Nodes),
+        try
+            broadcast_manager:abort_running_jobs_for_domain(Node, HostType, Domain)
+        catch
+            exit:{noproc, _} ->
+                %% No broadcast manager on that node, check if modules is loaded there at all
+                case rpc:call(Node, gen_mod, is_loaded, [HostType, ?MODULE]) of
+                    true ->
+                        error(#{what => broadcast_manager_not_running_on_node,
+                                node => Node,
+                                host_type => HostType});
+                    false ->
+                        %% We're most likely in a test case but let's log a warning just in case
+                        ?LOG_WARNING(#{what => mod_broadcast_not_loaded_on_node,
+                                     node => Node,
+                                     host_type => HostType})
+                end
+        end
+    end, Nodes),
     mod_broadcast_backend:delete_inactive_jobs_by_domain(HostType, Domain),
     {ok, Acc}.
 

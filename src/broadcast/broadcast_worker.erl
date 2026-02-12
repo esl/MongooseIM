@@ -80,6 +80,11 @@ stop(WorkerPid) ->
             ?LOG_WARNING(#{what => broadcast_worker_killed_error,
                            worker_pid => WorkerPid,
                            error => Error}),
+            ok;
+        exit:{noproc, _} ->
+            %% Worker already stopped, treat as success but log warning
+            ?LOG_WARNING(#{what => broadcast_worker_killed_noproc,
+                           worker_pid => WorkerPid}),
             ok
     end.
 
