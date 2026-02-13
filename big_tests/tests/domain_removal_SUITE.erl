@@ -29,6 +29,7 @@ all() ->
      {group, vcard_removal},
      {group, last_removal},
      {group, push_removal},
+     {group, blocklist_removal},
      {group, removal_failures}
     ].
 
@@ -53,6 +54,7 @@ groups() ->
      {last_removal, [], [last_removal]},
      {push_removal, [], [push_removal,
                          push_removal_keeps_other_domain_subscriptions]},
+     {blocklist_removal, [], [blocklist_removal]},
      {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
 
@@ -149,7 +151,9 @@ group_to_modules(last_removal) ->
     [{mod_last, mod_config(mod_last, #{backend => rdbms})}];
 group_to_modules(push_removal) ->
     PushOpts = #{backend => rdbms},
-    [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}].
+    [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}];
+group_to_modules(blocklist_removal) ->
+    [{mod_blocklist, #{backend => rdbms}}].
 
 is_internal_or_rdbms() ->
     AuthMods = mongoose_helper:auth_modules(),
@@ -513,6 +517,16 @@ push_removal_keeps_other_domain_subscriptions(Config) ->
                                           [host_type(), AliceBisJid]),
         ?assertMatch([], AliceServicesAfter),
         ?assertMatch([_], AliceBisServicesAfter)
+    end).
+
+blocklist_removal(Config) ->
+    escalus_fresh:story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(),
+        #jid{luser = LUser, lserver = LServer} = Jid = jid:from_binary(escalus_client:full_jid(Alice)),
+        rpc(mim(), mod_blocklist_api, add_user, [Jid, <<"Spam">>]),
+        ?assertEqual({ok, <<"Spam">>}, rpc(mim(), mod_blocklist_rdbms, get_block, [HostType, LUser, LServer])),
+        run_remove_domain(),
+        ?assertEqual(not_found, rpc(mim(), mod_blocklist_rdbms, get_block, [HostType, LUser, LServer]))
     end).
 
 removal_stops_if_handler_fails(Config0) ->
