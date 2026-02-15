@@ -37,7 +37,7 @@ start(Levels) ->
     after 5000 ->
         error(table_creation_timeout)
     end,
-    logger:add_handler(?MODULE, ?MODULE, #{levels => Levels}).
+    logger:add_handler(?MODULE, ?MODULE, #{config => #{levels => Levels}}).
 
 -spec stop() -> ok | {error, term()}.
 stop() ->
@@ -82,7 +82,7 @@ adding_handler(Config) ->
 removing_handler(_Config) ->
     ok.
 
-log(#{level := Level, msg := Msg, meta := LogMeta} = _Event, #{levels := Levels} = _Config) ->
+log(#{level := Level, msg := Msg, meta := LogMeta} = _Event, #{config := #{levels := Levels}}) ->
     case lists:member(Level, Levels) of
         true ->
             %% Extract relevant metadata
@@ -92,7 +92,7 @@ log(#{level := Level, msg := Msg, meta := LogMeta} = _Event, #{levels := Levels}
         false ->
             ok
     end;
-log(#{level := Level, msg := Msg} = _Event, #{levels := Levels} = _Config) ->
+log(#{level := Level, msg := Msg} = _Event, #{config := #{levels := Levels}}) ->
     %% Fallback if no meta present
     case lists:member(Level, Levels) of
         true ->
