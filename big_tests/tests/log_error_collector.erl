@@ -1,5 +1,10 @@
 %% @doc Logger handler injected into MIM nodes to collect error logs into ETS.
 %% This module is injected by log_error_helper and should not be used directly.
+%%
+%% Stores structured log data for precise pattern matching:
+%% - {Timestamp, Level, Msg, Meta}
+%% - Msg is the original logger msg tuple: {report, Map} | {string, S} | {Format, Args}
+%% - Meta contains extracted metadata: #{mfa => {M, F, A}, ...}
 -module(log_error_collector).
 
 -export([start/1, stop/0, get_errors/0, clear/0, timestamp/0]).
@@ -8,6 +13,15 @@
 
 -define(TABLE, log_error_collector_table).
 -define(OWNER, log_error_collector_owner).
+
+%% Stored entry: {Timestamp, Level, Msg, Meta}
+%% - Msg: {report, #{what => atom(), ...}} | {string, binary()} | {Format, Args}
+%% - Meta: #{mfa => {Module, Function, Arity}} | #{}
+-type log_entry() :: {integer(), atom(), msg(), meta()}.
+-type msg() :: {report, map()} | {string, binary() | string()} | {list(), list()} | term().
+-type meta() :: #{mfa => mfa(), atom() => term()}.
+
+-export_type([log_entry/0, msg/0, meta/0]).
 
 %% API
 
@@ -48,7 +62,7 @@ table_owner_loop() ->
             ok
     end.
 
--spec get_errors() -> [{integer(), atom(), binary()}].
+-spec get_errors() -> [log_entry()].
 get_errors() ->
     ets:tab2list(?TABLE).
 
@@ -68,25 +82,27 @@ adding_handler(Config) ->
 removing_handler(_Config) ->
     ok.
 
-log(#{level := Level, msg := Msg} = _Event, #{levels := Levels} = _Config) ->
+log(#{level := Level, msg := Msg, meta := LogMeta} = _Event, #{levels := Levels} = _Config) ->
     case lists:member(Level, Levels) of
         true ->
-            FormattedMsg = format_msg(Msg),
-            ets:insert(?TABLE, {erlang:monotonic_time(), Level, FormattedMsg});
+            %% Extract relevant metadata
+            Meta = extract_meta(LogMeta),
+            %% Store the original msg structure for precise pattern matching
+            ets:insert(?TABLE, {erlang:monotonic_time(), Level, Msg, Meta});
+        false ->
+            ok
+    end;
+log(#{level := Level, msg := Msg} = _Event, #{levels := Levels} = _Config) ->
+    %% Fallback if no meta present
+    case lists:member(Level, Levels) of
+        true ->
+            ets:insert(?TABLE, {erlang:monotonic_time(), Level, Msg, #{}});
         false ->
             ok
     end.
 
 %% Internal functions
 
--spec format_msg(term()) -> binary().
-format_msg({string, String}) when is_list(String) ->
-    unicode:characters_to_binary(String);
-format_msg({string, Binary}) when is_binary(Binary) ->
-    Binary;
-format_msg({report, Report}) when is_map(Report) ->
-    unicode:characters_to_binary(io_lib:format("~0p", [Report]));
-format_msg({Format, Args}) when is_list(Format), is_list(Args) ->
-    unicode:characters_to_binary(io_lib:format(Format, Args));
-format_msg(Other) ->
-    unicode:characters_to_binary(io_lib:format("~0p", [Other])).
+-spec extract_meta(map()) -> meta().
+extract_meta(LogMeta) ->
+    maps:with([mfa, file, line, pid], LogMeta).

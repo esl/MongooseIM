@@ -8,10 +8,15 @@
 %% - Call check/0 in end_per_group/suite (fails if unexpected errors)
 %%
 %% Pattern types for expect/1:
-%% - binary() - Substring match in error message
-%% - {regex, binary()} - Regex match
-%% - {what, atom()} - Match #{what := Atom} in structured logs
-%% - fun((Msg) -> boolean()) - Custom filter
+%% - {what, atom()} - Match #{what := Atom} in report (most common)
+%% - {module, atom()} - Match by source module
+%% - {function, atom()} - Match by source function
+%% - {mfa, {M, F, A}} - Match exact MFA (use '_' as wildcard)
+%% - {reason, term()} - Match #{reason := Term} in report
+%% - {Key, Value} - Match any key in the report map
+%% - binary() - Substring match in formatted message (fallback)
+%% - {regex, binary()} - Regex match in formatted message
+%% - fun((Msg, Meta) -> boolean()) - Custom filter function
 
 -module(log_error_helper).
 
@@ -21,15 +26,27 @@
 %% API for expecting errors
 -export([expect/1, expect/2]).
 
+%% Exported for testing
+-export([matches_pattern/3, format_msg/1]).
+
 -import(distributed_helper, [rpc/4, mim/0]).
 
 -define(STATUS_TABLE, log_error_status_table).
 -define(COLLECTOR, log_error_collector).
 
--type pattern() :: binary()
-                 | {regex, binary()}
-                 | {what, atom()}
-                 | fun((binary()) -> boolean()).
+-type msg() :: log_error_collector:msg().
+-type meta() :: log_error_collector:meta().
+-type log_entry() :: {integer(), atom(), msg(), meta()}.
+
+-type pattern() :: {what, atom()}
+                 | {module, atom()}
+                 | {function, atom()}
+                 | {mfa, {atom() | '_', atom() | '_', non_neg_integer() | '_'}}
+                 | {reason, term()}
+                 | {atom(), term()}  % Generic report key match
+                 | binary()          % Substring match (fallback)
+                 | {regex, binary()} % Regex match (fallback)
+                 | fun((msg(), meta()) -> boolean()).
 -type count() :: any | pos_integer().
 
 %% API
@@ -47,7 +64,7 @@ start(Opts) ->
     rpc(mim(), ?COLLECTOR, start, [Levels]).
 
 %% @doc Stop capturing and return classification result
--spec stop() -> ok | {error, unexpected, [{integer(), atom(), binary()}]}.
+-spec stop() -> ok | {error, unexpected, [log_entry()]}.
 stop() ->
     Errors = rpc(mim(), ?COLLECTOR, get_errors, []),
     rpc(mim(), ?COLLECTOR, stop, []),
@@ -80,8 +97,8 @@ expect(Pattern, Count) ->
 
 %% Internal functions
 
--spec classify_errors([{integer(), atom(), binary()}], [{pattern(), count()}]) ->
-    {Unexpected :: [{integer(), atom(), binary()}],
+-spec classify_errors([log_entry()], [{pattern(), count()}]) ->
+    {Unexpected :: [log_entry()],
      Unmatched :: [{pattern(), count()}]}.
 classify_errors(Errors, Expected) ->
     %% For each error, try to match against expected patterns
@@ -105,40 +122,95 @@ classify_errors(Errors, Expected) ->
 
     {lists:reverse(RemainingErrors), Unmatched}.
 
--spec find_matching_pattern({integer(), atom(), binary()}, [{pattern(), count()}]) ->
+-spec find_matching_pattern(log_entry(), [{pattern(), count()}]) ->
     {ok, pattern()} | none.
-find_matching_pattern({_Timestamp, _Level, Msg}, Expected) ->
-    find_matching_pattern_msg(Msg, Expected).
+find_matching_pattern({_Timestamp, _Level, Msg, Meta}, Expected) ->
+    find_matching_pattern_impl(Msg, Meta, Expected).
 
-find_matching_pattern_msg(_Msg, []) ->
+find_matching_pattern_impl(_Msg, _Meta, []) ->
     none;
-find_matching_pattern_msg(Msg, [{Pattern, _Count} | Rest]) ->
-    case matches_pattern(Msg, Pattern) of
+find_matching_pattern_impl(Msg, Meta, [{Pattern, _Count} | Rest]) ->
+    case matches_pattern(Msg, Meta, Pattern) of
         true -> {ok, Pattern};
-        false -> find_matching_pattern_msg(Msg, Rest)
+        false -> find_matching_pattern_impl(Msg, Meta, Rest)
     end.
 
--spec matches_pattern(binary(), pattern()) -> boolean().
-matches_pattern(Msg, Pattern) when is_binary(Pattern) ->
-    %% Substring match
-    binary:match(Msg, Pattern) =/= nomatch;
-matches_pattern(Msg, {regex, Regex}) ->
-    case re:run(Msg, Regex) of
+%% Pattern matching on structured log data
+-spec matches_pattern(msg(), meta(), pattern()) -> boolean().
+
+%% Match on 'what' key in report - most common pattern
+matches_pattern({report, Report}, _Meta, {what, What}) when is_map(Report) ->
+    maps:get(what, Report, undefined) =:= What;
+
+%% Match on source module from metadata
+matches_pattern(_Msg, #{mfa := {Module, _, _}}, {module, Module}) ->
+    true;
+matches_pattern(_Msg, _Meta, {module, _}) ->
+    false;
+
+%% Match on source function from metadata
+matches_pattern(_Msg, #{mfa := {_, Function, _}}, {function, Function}) ->
+    true;
+matches_pattern(_Msg, _Meta, {function, _}) ->
+    false;
+
+%% Match on full MFA with wildcards
+matches_pattern(_Msg, #{mfa := {M, F, A}}, {mfa, {PM, PF, PA}}) ->
+    (PM =:= '_' orelse PM =:= M) andalso
+    (PF =:= '_' orelse PF =:= F) andalso
+    (PA =:= '_' orelse PA =:= A);
+matches_pattern(_Msg, _Meta, {mfa, _}) ->
+    false;
+
+%% Match on 'reason' key in report
+matches_pattern({report, Report}, _Meta, {reason, Reason}) when is_map(Report) ->
+    maps:get(reason, Report, undefined) =:= Reason;
+
+%% Generic key match in report
+matches_pattern({report, Report}, _Meta, {Key, Value}) when is_atom(Key), is_map(Report) ->
+    maps:get(Key, Report, undefined) =:= Value;
+
+%% Binary substring match - format message first
+matches_pattern(Msg, _Meta, Pattern) when is_binary(Pattern) ->
+    FormattedMsg = format_msg(Msg),
+    binary:match(FormattedMsg, Pattern) =/= nomatch;
+
+%% Regex match - format message first
+matches_pattern(Msg, _Meta, {regex, Regex}) ->
+    FormattedMsg = format_msg(Msg),
+    case re:run(FormattedMsg, Regex) of
         {match, _} -> true;
         nomatch -> false
     end;
-matches_pattern(Msg, {what, What}) when is_atom(What) ->
-    %% Match #{what := Atom} in structured logs
-    WhatBin = atom_to_binary(What),
-    %% Look for patterns like "what => atom" or "what := atom"
-    Pattern = <<"what => ", WhatBin/binary>>,
-    Pattern2 = <<"what := ", WhatBin/binary>>,
-    binary:match(Msg, Pattern) =/= nomatch orelse
-    binary:match(Msg, Pattern2) =/= nomatch;
-matches_pattern(Msg, Fun) when is_function(Fun, 1) ->
+
+%% Custom function - receives both msg and meta
+matches_pattern(Msg, Meta, Fun) when is_function(Fun, 2) ->
+    try Fun(Msg, Meta)
+    catch _:_ -> false
+    end;
+
+%% Legacy: function with single argument (msg only)
+matches_pattern(Msg, _Meta, Fun) when is_function(Fun, 1) ->
     try Fun(Msg)
     catch _:_ -> false
-    end.
+    end;
+
+%% Fallback
+matches_pattern(_Msg, _Meta, _Pattern) ->
+    false.
+
+%% Format msg to binary for string-based matching
+-spec format_msg(msg()) -> binary().
+format_msg({string, String}) when is_list(String) ->
+    unicode:characters_to_binary(String);
+format_msg({string, Binary}) when is_binary(Binary) ->
+    Binary;
+format_msg({report, Report}) when is_map(Report) ->
+    unicode:characters_to_binary(io_lib:format("~0p", [Report]));
+format_msg({Format, Args}) when is_list(Format), is_list(Args) ->
+    unicode:characters_to_binary(io_lib:format(Format, Args));
+format_msg(Other) ->
+    unicode:characters_to_binary(io_lib:format("~0p", [Other])).
 
 -spec increment_pattern_usage(pattern(), #{pattern() => pos_integer()}) ->
     #{pattern() => pos_integer()}.
@@ -164,18 +236,36 @@ report_unmatched([]) ->
 report_unmatched(Unmatched) ->
     ct:log("Warning: Expected error patterns that were not matched:~n~p", [Unmatched]).
 
--spec report_unexpected([{integer(), atom(), binary()}]) ->
-    ok | {error, unexpected, [{integer(), atom(), binary()}]}.
+-spec report_unexpected([log_entry()]) ->
+    ok | {error, unexpected, [log_entry()]}.
 report_unexpected([]) ->
     ok;
 report_unexpected(Errors) ->
     ct:log("Unexpected error logs:~n~s", [format_errors_for_report(Errors)]),
     {error, unexpected, Errors}.
 
--spec format_errors_for_report([{integer(), atom(), binary()}]) -> iolist().
+-spec format_errors_for_report([log_entry()]) -> iolist().
 format_errors_for_report(Errors) ->
-    lists:map(
-        fun({_Timestamp, Level, Msg}) ->
-            io_lib:format("  [~p] ~s~n", [Level, Msg])
-        end,
-        Errors).
+    lists:map(fun format_single_error/1, Errors).
+
+-spec format_single_error(log_entry()) -> iolist().
+format_single_error({_Timestamp, Level, Msg, Meta}) ->
+    MsgFormatted = format_msg(Msg),
+    Location = format_location(Meta),
+    What = extract_what(Msg),
+    case What of
+        undefined ->
+            io_lib:format("  [~p]~s ~s~n", [Level, Location, MsgFormatted]);
+        WhatAtom ->
+            io_lib:format("  [~p]~s what=~p~n    ~s~n", [Level, Location, WhatAtom, MsgFormatted])
+    end.
+
+-spec format_location(meta()) -> iolist().
+format_location(#{mfa := {M, F, A}}) ->
+    io_lib:format(" ~p:~p/~p", [M, F, A]);
+format_location(_) ->
+    "".
+
+-spec extract_what(msg()) -> atom() | undefined.
+extract_what({report, #{what := What}}) -> What;
+extract_what(_) -> undefined.
