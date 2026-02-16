@@ -24,17 +24,25 @@
 
 -define(HOST_TYPE, <<"localhost">>).
 -define(AMQP_MOCK_MODULES, [amqp_connection, amqp_channel]).
--define(MAX_QUEUE_LEN, 1000).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [
-     no_request_in_worker_queue_is_lost_when_amqp_call_fails,
-     worker_creates_fresh_amqp_conection_and_channel_when_amqp_call_fails
-    ].
+    [instrumentation_global_has_correct_specs,
+     instrumentation_host_type_has_correct_specs,
+     {group, host_type_scope},
+     {group, global_scope}].
+
+groups() ->
+    WorkerTests = worker_tests(),
+    [{host_type_scope, [], WorkerTests},
+     {global_scope, [], WorkerTests}].
+
+worker_tests() ->
+    [no_request_in_worker_queue_is_lost_when_amqp_call_fails,
+     worker_creates_fresh_amqp_conection_and_channel_when_amqp_call_fails].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -51,21 +59,54 @@ end_per_suite(Config) ->
     unload_amqp(),
     Config.
 
-init_per_testcase(_Case, Config) ->
-    mongoose_instrument:start_link(),
-    mongoose_instrument:set_up(mongoose_wpool_rabbit:instrumentation(?HOST_TYPE, test_tag)),
-    WorkerOpts = #{host_type => ?HOST_TYPE, pool_tag => test_tag, opts => conn_opts()},
-    {ok, WorkerPid} = gen_server:start(mongoose_rabbit_worker, WorkerOpts, []),
-    Config ++ [{worker_pid, WorkerPid}].
+init_per_group(host_type_scope, Config) ->
+    [{scope, ?HOST_TYPE} | Config];
+init_per_group(global_scope, Config) ->
+    [{scope, global} | Config].
 
+end_per_group(_GroupName, Config) ->
+    Config.
+
+init_per_testcase(Case, Config) when Case =:= instrumentation_global_has_correct_specs;
+                                     Case =:= instrumentation_host_type_has_correct_specs ->
+    Config;
+init_per_testcase(_Case, Config) ->
+    Scope = proplists:get_value(scope, Config),
+    mongoose_instrument:start_link(),
+    mongoose_instrument:set_up(mongoose_wpool_rabbit:instrumentation(Scope, test_tag)),
+    WorkerOpts = #{host_type => Scope, pool_tag => test_tag, opts => conn_opts()},
+    {ok, WorkerPid} = gen_server:start(mongoose_rabbit_worker, WorkerOpts, []),
+    [{worker_pid, WorkerPid} | Config].
+
+end_per_testcase(Case, Config) when Case =:= instrumentation_global_has_correct_specs;
+                                    Case =:= instrumentation_host_type_has_correct_specs ->
+    Config;
 end_per_testcase(_Case, Config) ->
-    mongoose_instrument:tear_down(mongoose_wpool_rabbit:instrumentation(?HOST_TYPE, test_tag)),
+    Scope = proplists:get_value(scope, Config),
+    mongoose_instrument:tear_down(mongoose_wpool_rabbit:instrumentation(Scope, test_tag)),
     exit(proplists:get_value(worker_pid, Config), kill),
     Config.
 
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+
+instrumentation_global_has_correct_specs(_Config) ->
+    Specs = mongoose_rabbit_worker:instrumentation(global, test_tag),
+    EventNames = [Name || {Name, _, _} <- Specs],
+    ?assertEqual([wpool_global_rabbit_connections, wpool_global_rabbit_messages_published],
+                 EventNames),
+    lists:foreach(fun({_Name, Labels, _Cfg}) ->
+                          ?assertEqual(#{pool_tag => test_tag}, Labels)
+                  end, Specs).
+
+instrumentation_host_type_has_correct_specs(_Config) ->
+    Specs = mongoose_rabbit_worker:instrumentation(?HOST_TYPE, test_tag),
+    EventNames = [Name || {Name, _, _} <- Specs],
+    ?assertEqual([wpool_rabbit_connections, wpool_rabbit_messages_published], EventNames),
+    lists:foreach(fun({_Name, Labels, _Cfg}) ->
+                          ?assertEqual(#{pool_tag => test_tag, host_type => ?HOST_TYPE}, Labels)
+                  end, Specs).
 
 no_request_in_worker_queue_is_lost_when_amqp_call_fails(Config) ->
     %% given
