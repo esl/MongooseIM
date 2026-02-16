@@ -3,7 +3,7 @@
 week=$(date "+%V")
 ((num=$week - $week % 2))
 year=$(date "+%Y")
-makefile_sum=$(sha1sum tools/ssl/Makefile | cut -d " " -f1)
+ssl_sum=$(cat tools/ssl/Makefile tools/ssl/*.cnf | sha1sum | awk '{print $1}')
 
 # Change it once incompatible changes are made in tools/ssl/ directory
 CERT_KEY_VERSION=1
@@ -14,4 +14,4 @@ CERT_KEY_VERSION=1
 # Change it to invalidate cache without making code changes
 # There is no way to see the current value in the Circle CI settings though.
 # To get the current value, run a CI job and check the output of the "Prepare cache key" task.
-echo "${year}-week${num}-${makefile_sum}-${CERT_KEY_VERSION}-${CI_CERT_KEY_VERSION}"
+echo "${year}-week${num}-${ssl_sum}-${CERT_KEY_VERSION}-${CI_CERT_KEY_VERSION}"
