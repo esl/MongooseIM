@@ -166,6 +166,14 @@ matches_pattern(_Msg, _Meta, {mfa, _}) ->
 matches_pattern({report, Report}, _Meta, {reason, Reason}) when is_map(Report) ->
     maps:get(reason, Report, undefined) =:= Reason;
 
+%% Regex match - format message first (must be before generic key match)
+matches_pattern(Msg, _Meta, {regex, Regex}) ->
+    FormattedMsg = format_msg(Msg),
+    case re:run(FormattedMsg, Regex) of
+        {match, _} -> true;
+        nomatch -> false
+    end;
+
 %% Generic key match in report
 matches_pattern({report, Report}, _Meta, {Key, Value}) when is_atom(Key), is_map(Report) ->
     maps:get(Key, Report, undefined) =:= Value;
@@ -174,14 +182,6 @@ matches_pattern({report, Report}, _Meta, {Key, Value}) when is_atom(Key), is_map
 matches_pattern(Msg, _Meta, Pattern) when is_binary(Pattern) ->
     FormattedMsg = format_msg(Msg),
     binary:match(FormattedMsg, Pattern) =/= nomatch;
-
-%% Regex match - format message first
-matches_pattern(Msg, _Meta, {regex, Regex}) ->
-    FormattedMsg = format_msg(Msg),
-    case re:run(FormattedMsg, Regex) of
-        {match, _} -> true;
-        nomatch -> false
-    end;
 
 %% Custom function - receives both msg and meta
 matches_pattern(Msg, Meta, Fun) when is_function(Fun, 2) ->
