@@ -1,17 +1,15 @@
 # XMPP Audio and Video Tutorial
 
 ## Overview
-The XMPP standard does not natively support the transmission of audio or video data. Instead, XMPP is commonly used as a signaling layer to establish, manage, and terminate RTP-based audio and video sessions between clients. This functionality is defined by a collection of XMPP Extension Protocols (XEPs) collectively known as the [Jingle protocol].
+The XMPP standard does not natively support the transmission of audio or video data. Instead, XMPP is commonly used as a signaling layer to establish, manage, and terminate [RTP]-based audio and video sessions between clients. This functionality is defined by a collection of XMPP Extension Protocols (XEPs) collectively known as the [Jingle protocol].
 
 ## Jingle Protocol Support
 No special support for Jingle is required on the XMPP server itself. However, deploying a robust Jingle-based audio/video solution often requires additional server-side components, including:
 * [STUN]/[TURN] servers for [NAT traversal].
 * `RTP relays`, which forward incoming [RTP] streams to all participants except the sender. These are useful for small group calls.
 * `Content mixers`, which combine multiple [RTP] input streams into a single output stream. These are essential for large video conferences.
-* XMPP `focus agents`, which coordinate conference calls. Each participant establishes a Jingle session only with the `focus agent` and receives conference updates from it. A `focus agent` may be implemented as:
-  - A custom server module,
-  - An external XMPP component, or
-  - A client-side feature.
+* XMPP `focus agents`, which coordinate conference calls. Each participant establishes a Jingle session only with the `focus agent` and receives conference updates from it.
+* `Gateways` for interaction with other systems (e.g. [SIP]-based infrastructure)
 
 Each of these components is discussed in more detail later in this tutorial.
 
@@ -197,7 +195,9 @@ Conference management is partially defined by:
 * [XEP-0298] (COIN - Conference Information)
 * [XEP-0340] (COLIBRI - Conferences with Lightweight Bridging)
 
-Typically, one of the participants assumes the role of `focus agent`, although this role can also be handled by a server-side component.
+Typically, one of the participants takes on the role of the `focus agent`; however, this role does not need to be held by a call participant. Instead, the `focus agent` may also be implemented as a server-side entity, such as:
+- a custom XMPP server extension module, or
+- an external XMPP component.
 
 While it is technically possible to host the `mixer` and `relay` on a participant’s device, this usually leads to poor performance.
 
@@ -226,6 +226,15 @@ Several additional XEPs define the mapping between [SDP] and Jingle protocols:
 Finally, the following XEPs provide guidelines for audio and video codec support:
 * [XEP-0299] Codecs for Jingle Video
 * [XEP-0266] Codecs for Jingle Audio
+
+## Jingle Gateways
+Because Jingle media is transported outside the XMPP connection and audio/video is carried over [RTP] sessions, it is possible to implement signaling-only gateways to [RTP]/[SDP]-compatible systems such as [SIP]-based communicators and IP telephony infrastructure.
+
+A gateway is typically implemented as a custom XMPP server extension module or as an external XMPP component. From the XMPP client’s perspective, it appears as a regular Jingle endpoint, so no separate XEP is required to define its behavior.
+
+In practice, however, such gateways often rely on additional protocol extensions and implementation-specific customizations.
+
+Please note that SIP compatibility is among the initial objectives of the Jingle protocol. There are some attempts to standardize the mapping of Jingle actions to SIP methods (see [draft-ietf-stox-media]), MongooseIM also provides a custom Jingle-SIP gateway implementation: [mod_jingle_sip]
 
 ## Frequently Asked Questions
 
@@ -266,8 +275,11 @@ TURN servers are not designed for efficient multicasting. When sending media to 
 [Jingle protocol]: https://en.wikipedia.org/wiki/Jingle_(protocol)
 [RTP]: https://en.wikipedia.org/wiki/Real-time_Transport_Protocol
 [SDP]: https://en.wikipedia.org/wiki/Session_Description_Protocol
+[SIP]: https://en.wikipedia.org/wiki/Session_Initiation_Protocol
 [NAT traversal]: https://en.wikipedia.org/wiki/NAT_traversal
 [ICE]: https://en.wikipedia.org/wiki/Interactive_Connectivity_Establishment
 [STUN]: https://en.wikipedia.org/wiki/Session_Traversal_Utilities_for_NAT
 [TURN]: https://en.wikipedia.org/wiki/Traversal_Using_Relays_around_NAT
+[draft-ietf-stox-media]: http://tools.ietf.org/html/draft-ietf-stox-media
 [TURN tutorial]: ICE_tutorial.md
+[mod_jingle_sip]: ../modules/mod_jingle_sip.md
