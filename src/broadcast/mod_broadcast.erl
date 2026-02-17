@@ -71,11 +71,15 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
                         error(#{what => broadcast_manager_not_running_on_node,
                                 node => Node,
                                 host_type => HostType});
-                    false ->
+                    Result ->
                         %% We're most likely in a test case but let's log a warning just in case
+                        %% Option 1: We're calling a node that supports same host types
+                        %%           but doesn't have mod_broadcast loaded (likely mim2 or mim3)
+                        %% Option 2: We're calling a node that doesn't support same host types at all (likely fed1)
                         ?LOG_WARNING(#{what => mod_broadcast_not_loaded_on_node,
                                      node => Node,
-                                     host_type => HostType})
+                                     host_type => HostType,
+                                     is_loaded_result => Result})
                 end
         end
     end, Nodes),
