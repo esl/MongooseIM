@@ -22,7 +22,7 @@ commonName                  = MongooseIM
 subjectKeyIdentifier        = hash
 basicConstraints            = CA:FALSE
 keyUsage                    = digitalSignature, keyEncipherment
-extendedKeyUsage            = serverAuth
+extendedKeyUsage            = serverAuth, clientAuth
 subjectAltName              = @alternate_names
 nsComment                   = "Fake Dev-Only Certificate"
 

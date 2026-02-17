@@ -24,7 +24,11 @@
     {no_ip_in_db, node()}
   | {cannot_connect_to_epmd, node(), inet:ip_address()}
   | {no_record_for_node, node()}
-  | mongoose_node_address_ets_table_not_found.
+  | mongoose_node_address_ets_table_not_found
+  | cets_not_configured
+  | config_not_loaded
+  | failed_to_get_disco_state
+  | no_address_pairs_set.
 
 -ignore_xref([
     start/0,
@@ -71,14 +75,23 @@ address_please(Name, Host, AddressFamily) ->
 %% reachable first) or by connect_all feature in the global module of OTP.
 -spec lookup_ip(binary()) -> {ok, inet:ip_address()} | {error, lookup_error()}.
 lookup_ip(Node) ->
-    try
-        cets_discovery:wait_for_get_nodes(mongoose_cets_discovery, 3000),
-        cets_discovery:system_info(mongoose_cets_discovery)
-    of
-        #{backend_state := BackendState} ->
-            match_node_name(BackendState, Node)
-    catch _:_ ->
-        {error, failed_to_get_disco_state}
+    try mongoose_config:lookup_opt([internal_databases, cets]) of
+        {error, not_found} ->
+            {error, cets_not_configured};
+        _ ->
+            try
+                cets_discovery:wait_for_get_nodes(mongoose_cets_discovery, 3000),
+                cets_discovery:system_info(mongoose_cets_discovery)
+            of
+                #{backend_state := BackendState} ->
+                    match_node_name(BackendState, Node)
+            catch _:_ ->
+                {error, failed_to_get_disco_state}
+            end
+    catch
+        %% Config not yet loaded (happens during node startup before MongooseIM starts)
+        error:badarg ->
+            {error, config_not_loaded}
     end.
 
 match_node_name(#{address_pairs := Pairs}, Node) ->

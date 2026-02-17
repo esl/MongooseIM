@@ -43,18 +43,29 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+init_per_suite(Config) ->
+    case ct_helper:get_internal_database() of
+        cets -> Config;
+        _ -> {skip, "No CETS enabled"}
+    end.
+
+end_per_suite(_Config) ->
+    ok.
+
 init_per_group(rdbms, Config) ->
-    case not ct_helper:is_ct_running()
-         orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
-        false -> {skip, rdbms_or_ct_not_running};
+    case not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
+        false ->
+            {skip, rdbms_or_ct_not_running};
         true ->
+            Config1 = backup_cets_config(Config),
             stop_and_delete_cets_discovery_if_running(),
-            Config
+            Config1
     end;
 init_per_group(_, Config) ->
     Config.
 
 end_per_group(rdbms, Config) ->
+    restore_cets_config(Config),
     restore_default_cets_discovery(),
     Config;
 end_per_group(_, Config) ->
@@ -259,6 +270,19 @@ address_please_returns_ip_127_0_0_1_from_db(_Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+backup_cets_config(Config) ->
+    Key = [internal_databases, cets],
+    Value1 = rpc(mim(), mongoose_config, get_opt, [Key]),
+    Value2 = rpc(mim2(), mongoose_config, get_opt, [Key]),
+    [{cets_mim, Value1}, {cets_mim2, Value2} | Config].
+
+restore_cets_config(Config) ->
+    Key = [internal_databases, cets],
+    Value1 = proplists:get_value(cets_mim, Config),
+    rpc(mim(), mongoose_config, set_opt, [Key, Value1]),
+    Value2 = proplists:get_value(cets_mim2, Config),
+    rpc(mim2(), mongoose_config, set_opt, [Key, Value2]).
+
 init_and_get_nodes(RPCNode, Opts, ExpectedNodes) ->
     StateIn = disco_init(RPCNode, Opts),
     get_nodes(RPCNode, StateIn, ExpectedNodes, false).
@@ -345,25 +369,39 @@ delete_node_from_db(BinNode) ->
     Ret.
 
 start_cets_discovery(Config) ->
+    set_cets_disco_config(mim()),
+    set_cets_disco_config(mim2()),
     start_disco(mim(), cets_disco_spec(<<"testmim1@localhost">>, <<"192.168.115.111">>)),
     start_disco(mim2(), cets_disco_spec(<<"testmim2@localhost">>, <<"192.168.115.112">>)),
     force_nodes_to_see_each_other(mim(), mim2()),
     Config.
 
 start_cets_discovery_with_real_ips(Config) ->
+    set_cets_disco_config(mim()),
+    set_cets_disco_config(mim2()),
     start_disco(mim(), cets_disco_spec(<<"node1@localhost">>, <<"127.0.0.1">>)),
     start_disco(mim2(), cets_disco_spec(<<"node2@localhost">>, <<"127.0.0.1">>)),
     force_nodes_to_see_each_other(mim(), mim2()),
     Config.
 
 start_cets_discovery_with_file_backnend(Config) ->
+    set_cets_disco_config(mim()),
+    set_cets_disco_config(mim2()),
     start_disco(mim(), cets_disco_spec_for_file_backend()),
     start_disco(mim2(), cets_disco_spec_for_file_backend()),
     Config.
 
 stop_cets_discovery() ->
     ok = rpc(mim(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
-    ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]).
+    ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
+    unset_cets_disco_config(mim()),
+    unset_cets_disco_config(mim2()).
+
+set_cets_disco_config(Node) ->
+    rpc(Node, mongoose_config, set_opt, [[internal_databases, cets], #{backend => rdbms, cluster_name => mim}]).
+
+unset_cets_disco_config(Node) ->
+    rpc(Node, mongoose_config, unset_opt, [[internal_databases, cets]]).
 
 stop_and_delete_cets_discovery() ->
     stop_cets_discovery(),
