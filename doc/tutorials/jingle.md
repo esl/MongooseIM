@@ -236,6 +236,73 @@ In practice, however, such gateways often rely on additional protocol extensions
 
 Please note that SIP compatibility is among the initial objectives of the Jingle protocol. There are some attempts to standardize the mapping of Jingle actions to SIP methods (see [draft-ietf-stox-media]), MongooseIM also provides a custom Jingle-SIP gateway implementation: [mod_jingle_sip]
 
+## Sample One-to-One Session
+Below is a sequence diagram of a successful one-to-one Jingle session establishment and termination:
+
+```mermaid
+sequenceDiagram
+    participant Alice
+    participant XMPP as XMPP Server
+    participant Bob
+    participant TURN as STUN/TURN Server
+
+    rect rgba(0, 255, 255, 0.5)
+        note right of Alice: XEP-0215: External Service Discovery (optional)
+        note right of Alice: Usually performed right after connection
+        Alice->>XMPP: External Service Discovery IQ
+        XMPP-->>Alice: STUN/TURN server address and credentials
+        Bob->>XMPP: External Service Discovery IQ
+        XMPP-->>Bob: STUN/TURN server address and credentials
+    end
+
+    rect rgba(0, 255, 255, 0.5)
+        note right of Alice: XEP-0353: Jingle Message Initiation (optional)
+        Alice->>Bob: propose jingle-message
+        Bob-->>Alice: ringing jingle-message
+        Bob-->>Alice: proceed jingle-message
+    end
+
+    rect rgba(255, 255, 0, 0.5)
+        note right of Alice: ICE candidate gathering & Jingle session setup
+        note right of Alice:  XEP-0166: Jingle<br/>XEP-0167: Jingle RTP Sessions<br/>XEP-0176: Jingle ICE-UDP Transport Method
+        Alice->>TURN: STUN binding request
+        TURN-->>Alice: server-reflexive ICE candidate
+        Alice->>TURN: TURN allocate request
+        TURN-->>Alice: relay ICE candidate
+        Alice->>Bob: jingle session-initiate IQ
+        Bob-->>Alice: result IQ
+        Bob->>TURN: STUN binding request
+        TURN-->>Bob: server-reflexive ICE candidate
+        Bob->>TURN: TURN allocate request
+        TURN-->>Bob: relay ICE candidate
+        Bob->>Alice: jingle session-accept IQ
+        Alice-->>Bob: result IQ
+    end
+
+    rect rgba(255, 255, 0, 0.5)
+        note right of Alice: non-XMPP traffic
+        Alice<<->>Bob: ICE connectivity checks
+        Alice<<->>Bob: RTP/SRTP Media Session
+    end
+
+    rect rgba(255, 255, 0, 0.5)
+        note right of Alice: Session termination
+        note right of Alice:  XEP-0166: Jingle
+        Alice->>Bob: jingle session-terminate IQ
+        Bob-->>Alice: result IQ
+    end
+
+    rect rgba(0, 255, 255, 0.5)
+        note right of Alice: XEP-0353: Jingle Message Initiation (optional)
+        Alice->>Bob: finish jingle-message
+        Bob->>Alice: finish jingle-message
+    end
+```
+
+For simplicity, the diagram assumes that participants gather `host`, `server-reflexive` and `relay` [ICE] candidates before the `session-initiate` and `session-accept` exchange and include them directly in the Jingle IQs. In practice, however, the `Trickle ICE` connectivity-check procedure can be used to reduce connection establishment time. In this case, the `<transport/>` element in the `session-initiate` and `session-accept` IQs is left empty, and each [ICE] candidate is sent separately as the payload of a `transport-info` IQs.
+
+Candidates may also be renegotiated via `transport-info` IQs after media flow has begun, enabling adaptation to changing network conditions (for example, switching from a mobile network to Wi-Fi).
+
 ## Frequently Asked Questions
 
 ### The listed XEPs do not provide all the required functionality. What are my options?
