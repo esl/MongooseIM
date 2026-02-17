@@ -5,6 +5,7 @@ The XMPP standard does not natively support the transmission of audio or video d
 
 ## Jingle Protocol Support
 No special support for Jingle is required on the XMPP server itself. However, deploying a robust Jingle-based audio/video solution often requires additional server-side components, including:
+
 * [STUN]/[TURN] servers for [NAT traversal].
 * `RTP relays`, which forward incoming [RTP] streams to all participants except the sender. These are useful for small group calls.
 * `Content mixers`, which combine multiple [RTP] input streams into a single output stream. These are essential for large video conferences.
@@ -17,6 +18,7 @@ Each of these components is discussed in more detail later in this tutorial.
 The core Jingle specification is [XEP-0166], which defines multimedia sessions and the mechanisms for negotiating, managing, and terminating them. Session negotiation takes place over XMPP, while the actual media exchange usually occurs outside of XMPP.
 
 During session initialization, peers must agree on:
+
 * Application format - the type of media being exchanged (e.g., audio or video).
 * Transport method - how the media data is transmitted.
 * Optional security preconditions for the selected transport.
@@ -25,6 +27,7 @@ During session initialization, peers must agree on:
 
 ### Jingle Application Formats
 Currently, two major Jingle application formats are defined:
+
 * [XEP-0167]: Defines Jingle [RTP] sessions for audio and video.
 * [XEP-0234]: Defines Jingle file transfer sessions.
 
@@ -32,6 +35,7 @@ This tutorial focuses exclusively on Jingle [RTP] sessions.
 
 ### Jingle Transport Methods
 Several XEPs describe transport mechanisms, but only two are suitable for real-time audio and video:
+
 * [XEP-0177]: Jingle Raw UDP Transport
 * [XEP-0176]: Jingle ICE-UDP Transport
 
@@ -42,6 +46,7 @@ Different call scenarios require different types of server-side infrastructure. 
 
 ### One-to-One Calls
 This is the simplest scenario and is widely supported by interoperable XMPP clients. In fact, many clients support only one-to-one audio/video calls. Key characteristics include:
+
 * Minimal server-side infrastructure requirements.
 * Only a [STUN]/[TURN] server is needed to handle [NAT traversal].
 * [STUN] and [TURN] are open standards, and their use is clearly defined by [ICE] and [XEP-0176].
@@ -49,6 +54,7 @@ This is the simplest scenario and is widely supported by interoperable XMPP clie
 
 ### Small Group Calls (Mesh Topology)
 For small groups (typically up to four participants for video), each participant can establish a separate Jingle session with every other participant. This approach is described in [XEP-0272] (MuJi - Multiparty Jingle). However, it has several drawbacks:
+
 * High bandwidth usage: each client must send its media stream N times and receive N streams.
 * Strict codec agreement: all participants must use compatible audio/video formats.
 * Client-side mixing: each participant must mix incoming audio and video streams locally.
@@ -162,6 +168,7 @@ This results in inefficiencies, as the same optimization components are duplicat
 
 ### Large Conference Calls (Star Topology)
 Large conferences require a centralized architecture. In this model:
+
 * A `content mixer` and `RTP relay` (often implemented as a single component) are allocated for the conference.
 * A `focus agent` is responsible for allocating and managing these resources.
 * Each participant establishes an individual Jingle session with the `focus agent`, similar to a one-to-one call.
@@ -192,16 +199,19 @@ r1 -down-> p4 #lightblue
 ```
 
 Conference management is partially defined by:
+
 * [XEP-0298] (COIN - Conference Information)
 * [XEP-0340] (COLIBRI - Conferences with Lightweight Bridging)
 
 Typically, one of the participants takes on the role of the `focus agent`; however, this role does not need to be held by a call participant. Instead, the `focus agent` may also be implemented as a server-side entity, such as:
-- a custom XMPP server extension module, or
-- an external XMPP component.
+
+* a custom XMPP server extension module, or
+* an external XMPP component.
 
 While it is technically possible to host the `mixer` and `relay` on a participant’s device, this usually leads to poor performance.
 
 Introducing a `content mixer` provides several advantages:
+
 * Relaxed codec compatibility requirements (e.g., different participants can use different formats).
 * Support for multiple output formats, such as high and low-resolution video streams.
 * The ability to implement server-side call recording.
@@ -210,6 +220,7 @@ However, this architecture also eliminates true end-to-end encryption.
 
 ## Other Useful XEPs for Audio/Video Support
 Besides the mentioned Jingle specifications, the following XEPs are particularly relevant for audio and video implementations:
+
 | XEP | Name | Description |
 |-----|------|-------------|
 | [XEP-0353] | Jingle Message Initiation | Defines a lightweight, message-based mechanism for initiating Jingle audio/video sessions, including appropriate selection among multiple available responder resources (connected responder devices). |
@@ -217,6 +228,7 @@ Besides the mentioned Jingle specifications, the following XEPs are particularly
 | [XEP-0482] | Call Invites | Partially overlaps with [XEP-0353], but provides a more generic call invitation mechanism not limited to Jingle. |
 
 Several additional XEPs define the mapping between [SDP] and Jingle protocols:
+
 * [XEP-0338] Jingle Grouping Framework
 * [XEP-0339] Source-Specific Media Attributes in Jingle
 * [XEP-0293] Jingle RTP Feedback Negotiation
@@ -224,6 +236,7 @@ Several additional XEPs define the mapping between [SDP] and Jingle protocols:
 * [XEP-0507] Jingle Content Category
 
 Finally, the following XEPs provide guidelines for audio and video codec support:
+
 * [XEP-0299] Codecs for Jingle Video
 * [XEP-0266] Codecs for Jingle Audio
 
