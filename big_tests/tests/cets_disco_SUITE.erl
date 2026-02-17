@@ -43,18 +43,29 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+init_per_suite(Config) ->
+    case ct_helper:get_internal_database() of
+        cets -> Config;
+        _ -> {skip, "No CETS enabled"}
+    end.
+
+end_per_suite(_Config) ->
+    ok.
+
 init_per_group(rdbms, Config) ->
-    case not ct_helper:is_ct_running()
-         orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
-        false -> {skip, rdbms_or_ct_not_running};
+    case not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
+        false ->
+            {skip, rdbms_or_ct_not_running};
         true ->
+            Config1 = backup_cets_config(Config),
             stop_and_delete_cets_discovery_if_running(),
-            Config
+            Config1
     end;
 init_per_group(_, Config) ->
     Config.
 
 end_per_group(rdbms, Config) ->
+    restore_cets_config(Config),
     restore_default_cets_discovery(),
     Config;
 end_per_group(_, Config) ->
@@ -258,6 +269,19 @@ address_please_returns_ip_127_0_0_1_from_db(_Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+backup_cets_config(Config) ->
+    Key = [internal_databases, cets],
+    Value1 = rpc(mim(), mongoose_config, get_opt, [Key]),
+    Value2 = rpc(mim2(), mongoose_config, get_opt, [Key]),
+    [{cets_mim, Value1}, {cets_mim2, Value2} | Config].
+
+restore_cets_config(Config) ->
+    Key = [internal_databases, cets],
+    Value1 = proplists:get_value(cets_mim, Config),
+    rpc(mim(), mongoose_config, set_opt, [Key, Value1]),
+    Value2 = proplists:get_value(cets_mim2, Config),
+    rpc(mim2(), mongoose_config, set_opt, [Key, Value2]).
 
 init_and_get_nodes(RPCNode, Opts, ExpectedNodes) ->
     StateIn = disco_init(RPCNode, Opts),
