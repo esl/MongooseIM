@@ -938,14 +938,6 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
         false -> ok
     end,
     gen_hook:delete_handlers(hooks(ServerHost)),
-    case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
-        undefined ->
-            ?LOG_ERROR(#{what => pubsub_process_is_dead,
-                text => <<"process is dead, pubsub was broken">>,
-                process => ?LOOPNAME});
-        Pid ->
-            Pid ! stop
-    end,
     terminate_plugins(Host, ServerHost, Plugins, TreePlugin),
     mod_pubsub_db_backend:stop().
 
