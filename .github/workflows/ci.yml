@@ -3,7 +3,8 @@ name: CI
 on:
   push:
     branches: [ master ]
-  # Allows you to run this workflow manually from the Actions tab
+  pull_request:
+    branches: [ master ]
   workflow_dispatch:
 
 env:
@@ -24,9 +25,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ## the full list of supported (prebuilt) OTP versions for ubuntu-22.04 runners
-        ## can be found here:
-        ##     https://builds.hex.pm/builds/otp/ubuntu-22.04/builds.txt
         otp: [ '27.3.4.2', '28.0.2' ]
     runs-on: ubuntu-22.04
     env:
@@ -58,7 +56,9 @@ jobs:
           parallel: true
       - name: upload common test results on failure
         if: ${{ failure() }}
-        run: tools/gh-upload-to-s3.sh _build/test/logs test_logs
+        run: |
+          tools/gh-upload-to-s3.sh _build/test/logs test_logs
+          exit 1  # Explicitly fail if uploading test results fails
 
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
@@ -92,7 +92,9 @@ jobs:
           test-spec: ${{matrix.test-spec}}
       - name: upload common test results on failure
         if: ${{ failure() }}
-        run: tools/gh-upload-to-s3.sh big_tests/ct_report
+        run: |
+          tools/gh-upload-to-s3.sh big_tests/ct_report
+          exit 1  # Explicitly fail if uploading test results fails
       - name: upload big_tests results to GA4
         if: ${{ !cancelled() && github.ref_name == 'master' }}
         run: tools/gh-report-failing-testcases-to-ga4.sh
@@ -123,7 +125,9 @@ jobs:
           test-spec: ${{matrix.test-spec}}
       - name: upload common test results on failure
         if: ${{ failure() }}
-        run: tools/gh-upload-to-s3.sh big_tests/ct_report
+        run: |
+          tools/gh-upload-to-s3.sh big_tests/ct_report
+          exit 1  # Explicitly fail if uploading test results fails
       - name: upload big_tests results to GA4
         if: ${{ !cancelled() && github.ref_name == 'master' }}
         run: tools/gh-report-failing-testcases-to-ga4.sh
