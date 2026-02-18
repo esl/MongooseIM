@@ -100,7 +100,7 @@ init_per_group(user_info_snapshot, Config) ->
     case mongoose_helper:auth_modules() of
         [Mod | _] when Mod =:= ejabberd_auth_rdbms ->
             %% Create additional users with future timestamps to verify snapshot boundary
-            FutureUsers = future_users_spec(),
+            FutureUsers = future_users_spec(Config),
             escalus:create_users(Config, FutureUsers),
             %% Set their created_at to far future via direct DB update
             %% Unless created_at in MySQL is changed to other type,
@@ -135,7 +135,7 @@ end_per_group(utilities, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(user_info_snapshot, Config) ->
     %% Clean up the future-dated test users
-    escalus:delete_users(Config, future_users_spec()),
+    escalus:delete_users(Config, future_users_spec(Config)),
     Config;
 end_per_group(users_number_estimate, Config) ->
     mongoose_helper:restore_config(Config);
@@ -514,9 +514,19 @@ get_users_snapshot(Params) ->
     rpc(mim(), mongoose_gen_auth, get_registered_users_snapshot,
         [ejabberd_auth_rdbms, HostType, domain(), Params]).
 
-future_users_spec() ->
-    [{aaalice, [{username, <<"aaalice">>}, {server, domain()}, {password, <<"pass1">>}]},
-     {bbbob, [{username, <<"bbbob">>}, {server, domain()}, {password, <<"pass2">>}]}].
+future_users_spec(Config) ->
+    Spec = escalus_users:get_userspec(Config, alice),
+    Addr = proplists:get_value(host, Spec, <<"localhost">>),
+    [{aaalice, [
+        {username, <<"aaalice">>},
+        {server, domain()},
+        {host, Addr},
+        {password, <<"pass1">>}]},
+     {bbbob, [
+        {username, <<"bbbob">>},
+        {server, domain()},
+        {host, Addr},
+        {password, <<"pass2">>}]}].
 
 bumped_universal_time() ->
     %% This works around DB including fractions of seconds in the timestamp.
