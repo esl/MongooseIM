@@ -15,7 +15,6 @@
     runtime_tools,
     asn1,
     eldap,
-    xmerl,
     %% 3rd-party libraries after OTP included apps
     cache_tab,
     cets,
