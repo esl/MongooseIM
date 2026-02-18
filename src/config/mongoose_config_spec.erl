@@ -733,6 +733,7 @@ configurable_modules() ->
      mod_domain_isolation,
      mod_event_pusher,
      mod_extdisco,
+     mod_external_filter,
      mod_fast_auth_token,
      mod_global_distrib,
      mod_http_upload,
