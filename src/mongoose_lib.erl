@@ -9,6 +9,8 @@
 %% Busy Wait
 -export([wait_until/2, wait_until/3]).
 -export([parse_ip_netmask/1]).
+%% Regex
+-export([sh_to_awk/1]).
 
 -export([get_message_type/1, does_local_user_exist/3]).
 
@@ -228,3 +230,65 @@ cancel_and_flush_timer(TimerRef) ->
 is_exported(Module, Function, Arity) ->
     code:ensure_loaded(Module),
     erlang:function_exported(Module, Function, Arity).
+
+%% ------------------------------------------------------------------
+%% sh_to_awk (replacement for xmerl_regexp:sh_to_awk)
+%% ------------------------------------------------------------------
+
+%% @doc Convert a shell-style glob pattern to an AWK-style regular expression.
+%% Copied and adapted from xmerl_regexp:sh_to_awk.
+-spec sh_to_awk(string()) -> string().
+sh_to_awk(Sh) -> % Fix the beginning
+    "^(" ++ sh_to_awk_1(Sh).
+
+sh_to_awk_1([$* | Sh]) -> % This matches any string
+    ".*" ++ sh_to_awk_1(Sh);
+sh_to_awk_1([$? | Sh]) -> % This matches any character
+    [$. | sh_to_awk_1(Sh)];
+sh_to_awk_1([$[, $^, $] | Sh]) -> % This takes careful handling
+    "\\^" ++ sh_to_awk_1(Sh);
+%% Must move '^' to end.
+sh_to_awk_1("[^" ++ Sh) ->
+    [$[ | sh_to_awk_2(Sh, true)];
+sh_to_awk_1("[!" ++ Sh) ->
+    "[^" ++ sh_to_awk_2(Sh, false);
+sh_to_awk_1([$[ | Sh]) ->
+    [$[ | sh_to_awk_2(Sh, false)];
+sh_to_awk_1([C | Sh]) ->
+    %% Unspecialise everything else which is not an escape character.
+    case sh_special_char(C) of
+        true -> [$\\, C | sh_to_awk_1(Sh)];
+        false -> [C | sh_to_awk_1(Sh)]
+    end;
+sh_to_awk_1([]) -> % Fix the end
+    ")$".
+
+sh_to_awk_2([$] | Sh], UpArrow) ->
+    [$] | sh_to_awk_3(Sh, UpArrow)];
+sh_to_awk_2(Sh, UpArrow) ->
+    sh_to_awk_3(Sh, UpArrow).
+
+sh_to_awk_3([$] | Sh], true) ->
+    "^]" ++ sh_to_awk_1(Sh);
+sh_to_awk_3([$] | Sh], false) ->
+    [$] | sh_to_awk_1(Sh)];
+sh_to_awk_3([C | Sh], UpArrow) ->
+    [C | sh_to_awk_3(Sh, UpArrow)];
+sh_to_awk_3([], true) ->
+    [$^ | sh_to_awk_1([])];
+sh_to_awk_3([], false) ->
+    sh_to_awk_1([]).
+
+-spec sh_special_char(char()) -> boolean().
+sh_special_char($|) -> true;
+sh_special_char($+) -> true;
+sh_special_char($() -> true;
+sh_special_char($)) -> true;
+sh_special_char($\\) -> true;
+sh_special_char($^) -> true;
+sh_special_char($$) -> true;
+sh_special_char($.) -> true;
+sh_special_char($]) -> true;
+sh_special_char($") -> true;
+sh_special_char(_C) -> false.
+%% *, ?, [ are handled separately, so they are not included here.

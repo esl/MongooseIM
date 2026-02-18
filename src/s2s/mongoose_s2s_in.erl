@@ -557,7 +557,7 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
                                  orelse (C == $-) orelse (C == $*)
                    end, PLlist) of
         true ->
-            Regexp = xmerl_regexp:sh_to_awk(PLlist),
+            Regexp = mongoose_lib:sh_to_awk(PLlist),
             case re:run(binary_to_list(DL), Regexp, [{capture, none}]) of
                 match ->
                     match_labels(DLabels, PLabels);

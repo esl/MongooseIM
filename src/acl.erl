@@ -154,4 +154,4 @@ is_regexp_match(String, RegExp) ->
 
 -spec is_glob_match(binary(), Glob :: binary()) -> boolean().
 is_glob_match(String, Glob) ->
-    is_regexp_match(String, xmerl_regexp:sh_to_awk(binary_to_list(Glob))).
+    is_regexp_match(String, mongoose_lib:sh_to_awk(binary_to_list(Glob))).
