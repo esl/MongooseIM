@@ -874,6 +874,8 @@ default_mod_config(mod_disco) ->
       users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
+default_mod_config(mod_external_filter) ->
+    #{pool_tag => default};
 default_mod_config(mod_global_distrib) ->
     #{message_ttl => 4,
       hosts_refresh_interval => 3000,
