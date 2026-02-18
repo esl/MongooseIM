@@ -226,7 +226,8 @@ resume_jobs_after_restart(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
         DomainA = domain(),
         DomainB = secondary_domain(),
-        HostType = host_type(mim),
+        HostTypeA = host_type(mim),
+        HostTypeB = secondary_host_type(mim),
         AliceJid = escalus_client:short_jid(Alice),
         AliceBisJid = escalus_client:short_jid(AliceBis),
         JobSpecA = slow_job_spec(DomainA, AliceJid, <<"resume1">>),
@@ -235,17 +236,19 @@ resume_jobs_after_restart(Config) ->
         {ok, JobIdA} = start_broadcast(JobSpecA),
         {ok, JobIdB} = start_broadcast(JobSpecB),
 
-        true = does_worker_for_job_exist(HostType, JobIdA),
-        true = does_worker_for_job_exist(HostType, JobIdB),
+        true = does_worker_for_job_exist(HostTypeA, JobIdA),
+        true = does_worker_for_job_exist(HostTypeB, JobIdB),
 
-        stop_mod_broadcast(HostType),
+        stop_mod_broadcast(HostTypeA),
+        HostTypeA =/= HostTypeB andalso stop_mod_broadcast(HostTypeB),
 
-        update_job_owner_node(HostType, DomainB, JobIdB, bogus_owner_node()),
+        update_job_owner_node(HostTypeB, DomainB, JobIdB, bogus_owner_node()),
 
-        ensure_mod_broadcast_started(HostType),
+        ensure_mod_broadcast_started(HostTypeA),
+        HostTypeA =/= HostTypeB andalso ensure_mod_broadcast_started(HostTypeB),
 
-        true = does_worker_for_job_exist(HostType, JobIdA),
-        false = does_worker_for_job_exist(HostType, JobIdB)
+        true = does_worker_for_job_exist(HostTypeA, JobIdA),
+        false = does_worker_for_job_exist(HostTypeB, JobIdB)
     end).
 
 manager_restart_is_idempotent_to_live_job_workers(Config) ->

@@ -331,7 +331,7 @@ validate_job_info(Job, Spec, ExpectedStateAtom) ->
     assert_non_neg_integer(maps:get(<<"recipientsProcessed">>, Job)),
 
     % Will throw an exception if the timestamp is not a valid RFC3339 string
-    calendar:rfc3339_to_system_time(maps:get(<<"createTimestamp">>, Job)),
+    validate_timestamp(maps:get(<<"createTimestamp">>, Job)),
 
     % stopTimestamp should be null for running jobs, integer otherwise
     % startTimestamp is also safe to check for non-running jobs,
@@ -340,12 +340,12 @@ validate_job_info(Job, Spec, ExpectedStateAtom) ->
         running ->
             null = maps:get(<<"stopTimestamp">>, Job);
         abort_error ->
-            calendar:rfc3339_to_system_time(maps:get(<<"stopTimestamp">>, Job)),
-            calendar:rfc3339_to_system_time(maps:get(<<"startTimestamp">>, Job)),
+            validate_timestamp(maps:get(<<"stopTimestamp">>, Job)),
+            validate_timestamp(maps:get(<<"startTimestamp">>, Job)),
             <<_, _/binary>> = maps:get(<<"abortionReason">>, Job);
         NonErrorStop when NonErrorStop == abort_admin; NonErrorStop == finished ->
-            calendar:rfc3339_to_system_time(maps:get(<<"stopTimestamp">>, Job)),
-            calendar:rfc3339_to_system_time(maps:get(<<"startTimestamp">>, Job)),
+            validate_timestamp(maps:get(<<"stopTimestamp">>, Job)),
+            validate_timestamp(maps:get(<<"startTimestamp">>, Job)),
             null = maps:get(<<"abortionReason">>, Job)
     end.
 
@@ -357,6 +357,9 @@ execution_state_to_var(abort_admin) -> <<"ABORT_ADMIN">>;
 execution_state_to_var(finished) -> <<"FINISHED">>.
 
 assert_non_neg_integer(I) when is_integer(I), I >= 0 -> ok.
+
+validate_timestamp(TimestampBin) ->
+    calendar:rfc3339_to_system_time(binary_to_list(TimestampBin)).
 
 %% Iterates over all broadcast operations to ensure they are protected
 verify_protection_for_all_ops(Domain, AuthMode, Config) ->

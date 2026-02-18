@@ -550,8 +550,10 @@ CREATE TABLE fast_auth_token(
 CREATE TYPE broadcast_state AS ENUM ('running', 'finished', 'abort_error', 'abort_admin');
 CREATE TYPE broadcast_recipient_group AS ENUM ('all_users_in_domain');
 
+CREATE SEQUENCE broadcast_jobs_id_sequence START 1 INCREMENT 1;
+
 CREATE TABLE broadcast_jobs (
-    id SERIAL PRIMARY KEY,
+    id INTEGER NOT NULL DEFAULT nextval('broadcast_jobs_id_sequence') PRIMARY KEY,
     name VARCHAR(250) NOT NULL,
     server VARCHAR(250) NOT NULL,
     host_type VARCHAR(250) NOT NULL,

@@ -65,16 +65,11 @@ format_broadcast(#broadcast_job{
       <<"senderJid">> => SenderJid,
       <<"messageRate">> => MessageRate,
       <<"ownerNode">> => atom_to_binary(OwnerNode, utf8),
-      <<"createTimestamp">> => datetime_to_microseconds(CreateTimestamp),
-      <<"startTimestamp">> => datetime_to_microseconds(StartTimestamp),
-      <<"stopTimestamp">> => datetime_to_microseconds(StopTimestamp),
+      <<"createTimestamp">> => undefined_to_null(CreateTimestamp),
+      <<"startTimestamp">> => undefined_to_null(StartTimestamp),
+      <<"stopTimestamp">> => undefined_to_null(StopTimestamp),
       <<"executionState">> => ExecutionState,
       <<"abortionReason">> => undefined_to_null(AbortionReason),
       <<"recipientGroup">> => RecipientGroup,
       <<"recipientCount">> => RecipientCount,
       <<"recipientsProcessed">> => RecipientsProcessed}.
-
--spec datetime_to_microseconds(calendar:datetime() | undefined) -> integer() | null.
-datetime_to_microseconds(undefined) -> null;
-datetime_to_microseconds(DateTime) ->
-    calendar:universal_time_to_system_time(DateTime, [{unit, microsecond}]).

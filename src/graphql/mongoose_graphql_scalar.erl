@@ -33,7 +33,7 @@ input(Ty, V) ->
     Value :: binary() | pos_integer(),
     Coerced :: any(),
     Reason :: term().
-output(<<"DateTime">>, DT) -> {ok, microseconds_to_binary(DT)};
+output(<<"DateTime">>, DT) -> {ok, encode_datetime(DT)};
 output(<<"XmlElement">>, Elem) -> {ok, exml:to_binary(Elem)};
 output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
 output(<<"UserName">>, User) -> {ok, User};
@@ -160,6 +160,8 @@ validate_non_neg_integer(NonNegInt) when is_integer(NonNegInt), NonNegInt >= 0 -
 validate_non_neg_integer(_Value) ->
     {error, "Value is not a non-negative integer"}.
 
-microseconds_to_binary(Microseconds) ->
+encode_datetime({_, _} = DateTime) ->
+    mongoose_lib:datetime_to_rfc3339(DateTime);
+encode_datetime(Microseconds) ->
     Opts = [{offset, "Z"}, {unit, microsecond}],
     list_to_binary(calendar:system_time_to_rfc3339(Microseconds, Opts)).
