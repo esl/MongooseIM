@@ -26,7 +26,7 @@
         ]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
--import(domain_helper, [domain/0, secondary_domain/0]).
+-import(domain_helper, [domain/0, host_type/1, secondary_domain/0, secondary_host_type/1]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -144,9 +144,9 @@ wait_until_job_state(Domain, JobId, ExpectedState) ->
 clean_broadcast_jobs() ->
     Node = maps:get(node, mim()),
     ok = rpc(mim(), broadcast_manager, abort_running_jobs_for_domain,
-             [Node, domain(), domain()]),
+             [Node, host_type(mim), domain()]),
     ok = rpc(mim(), broadcast_manager, abort_running_jobs_for_domain,
-             [Node, secondary_domain(), secondary_domain()]),
+             [Node, secondary_host_type(mim), secondary_domain()]),
     {ok, _} = delete_inactive_broadcasts_by_domain(domain()),
     {ok, _} = delete_inactive_broadcasts_by_domain(secondary_domain()),
     ok.

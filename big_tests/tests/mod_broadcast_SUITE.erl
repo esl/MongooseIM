@@ -46,7 +46,7 @@
 -include_lib("escalus/include/escalus.hrl").
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(domain_helper, [domain/0, secondary_domain/0]).
+-import(domain_helper, [domain/0, host_type/1, secondary_domain/0, secondary_host_type/1]).
 -import(broadcast_helper, [slow_job_spec/3,
                            fast_job_spec/3,
                            start_broadcast/1,
@@ -69,7 +69,7 @@ suite() ->
 
 all() ->
     case (not ct_helper:is_ct_running())
-         orelse mongoose_helper:is_rdbms_enabled(domain()) of
+         orelse mongoose_helper:is_rdbms_enabled(host_type(mim)) of
         true ->
             [{group, lifecycle},
              {group, validation},
@@ -117,10 +117,9 @@ retrieval_tests() ->
 %%====================================================================
 
 init_per_suite(Config) ->
-    Config1 = dynamic_modules:save_modules([domain(), secondary_domain()], Config),
+    Config1 = dynamic_modules:save_modules(domain_helper:host_types(), Config),
     Config2 = instrument_helper:ensure_frequent_probes(Config1),
-    ensure_mod_broadcast_started(domain()),
-    ensure_mod_broadcast_started(secondary_domain()),
+    lists:foreach(fun ensure_mod_broadcast_started/1, domain_helper:host_types()),
     broadcast_helper:create_many_users(100),
     clean_broadcast_jobs_and_verify(),
     escalus:init_per_suite(Config2).
@@ -160,7 +159,7 @@ end_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
     clean_broadcast_jobs_and_verify(),
     escalus:end_per_testcase(TestCase, Config);
 end_per_testcase(resume_jobs_after_restart = TestCase, Config) ->
-    delete_rogue_broadcast_job(secondary_domain()),
+    delete_rogue_broadcast_job(host_type(mim)),
     clean_broadcast_jobs_and_verify(),
     escalus:end_per_testcase(TestCase, Config);
 end_per_testcase(TestCase, Config) ->
@@ -224,39 +223,38 @@ start_broadcast_two_domains_both_ok(Config) ->
     end).
 
 resume_jobs_after_restart(Config) ->
-    JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
         DomainA = domain(),
         DomainB = secondary_domain(),
+        HostType = host_type(mim),
         AliceJid = escalus_client:short_jid(Alice),
         AliceBisJid = escalus_client:short_jid(AliceBis),
-        JobSpecA = slow_job_spec(DomainA, AliceJid, JobName),
-        JobSpecB = slow_job_spec(DomainB, AliceBisJid, JobName),
+        JobSpecA = slow_job_spec(DomainA, AliceJid, <<"resume1">>),
+        JobSpecB = slow_job_spec(DomainB, AliceBisJid, <<"resume2">>),
 
         {ok, JobIdA} = start_broadcast(JobSpecA),
         {ok, JobIdB} = start_broadcast(JobSpecB),
 
-        true = does_worker_for_job_exist(DomainA, JobIdA),
-        true = does_worker_for_job_exist(DomainB, JobIdB),
+        true = does_worker_for_job_exist(HostType, JobIdA),
+        true = does_worker_for_job_exist(HostType, JobIdB),
 
-        stop_mod_broadcast(DomainA),
-        stop_mod_broadcast(DomainB),
+        stop_mod_broadcast(HostType),
 
-        update_job_owner_node(DomainB, JobIdB, bogus_owner_node()),
+        update_job_owner_node(HostType, DomainB, JobIdB, bogus_owner_node()),
 
-        ensure_mod_broadcast_started(DomainA),
-        ensure_mod_broadcast_started(DomainB),
+        ensure_mod_broadcast_started(HostType),
 
-        true = does_worker_for_job_exist(DomainA, JobIdA),
-        false = does_worker_for_job_exist(DomainB, JobIdB)
+        true = does_worker_for_job_exist(HostType, JobIdA),
+        false = does_worker_for_job_exist(HostType, JobIdB)
     end).
 
 manager_restart_is_idempotent_to_live_job_workers(Config) ->
     JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        HostType = domain(),
+        HostType = host_type(mim),
+        Domain = domain(),
         AliceJid = escalus_client:short_jid(Alice),
-        JobSpec = slow_job_spec(HostType, AliceJid, JobName),
+        JobSpec = slow_job_spec(Domain, AliceJid, JobName),
         {ok, JobId} = start_broadcast(JobSpec),
 
         wait_until_worker_started(HostType, JobId),
@@ -649,11 +647,11 @@ get_worker_ids_and_pids(HostType) ->
 
 clean_broadcast_jobs_and_verify() ->
     broadcast_helper:clean_broadcast_jobs(),
-    {selected, []} = sql_query(domain(), ["SELECT * FROM broadcast_jobs"]),
-    [] = get_worker_ids_and_pids(domain()),
-    [] = get_worker_ids_and_pids(secondary_domain()),
-    assert_empty_worker_map(domain()),
-    assert_empty_worker_map(secondary_domain()),
+    {selected, []} = sql_query(host_type(mim), ["SELECT * FROM broadcast_jobs"]),
+    [] = get_worker_ids_and_pids(host_type(mim)),
+    [] = get_worker_ids_and_pids(secondary_host_type(mim)),
+    assert_empty_worker_map(host_type(mim)),
+    assert_empty_worker_map(secondary_host_type(mim)),
     ok.
 
 assert_empty_worker_map(HostType) ->
@@ -671,21 +669,21 @@ assert_empty_worker_map(HostType) ->
 %% Direct DB operations
 %%====================================================================
 
-update_job_owner_node(Domain, JobId, OwnerNode) ->
+update_job_owner_node(HostType, Domain, JobId, OwnerNode) ->
     Query = ["UPDATE broadcast_jobs SET owner_node = ",
              "'", OwnerNode, "'",
              " WHERE id = ", integer_to_binary(JobId),
              " AND server = ", "'", Domain, "'"],
-    {updated, 1} = sql_query(Domain, Query),
+    {updated, 1} = sql_query(HostType, Query),
     ok.
 
 bogus_owner_node() ->
     <<"silly_goose@nowhere">>.
 
-delete_rogue_broadcast_job(Domain) ->
+delete_rogue_broadcast_job(HostType) ->
     Query = ["DELETE FROM broadcast_jobs",
              " WHERE owner_node = '", bogus_owner_node(), "'"],
-    {updated, 1} = sql_query(Domain, Query),
+    {updated, 1} = sql_query(HostType, Query),
     ok.
 
 sql_query(HostType, Query) ->
