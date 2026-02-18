@@ -27,6 +27,7 @@
 {suites, "tests", graphql_SUITE}.
 {suites, "tests", graphql_sse_SUITE}.
 {suites, "tests", graphql_account_SUITE}.
+{suites, "tests", graphql_broadcast_SUITE}.
 {suites, "tests", graphql_domain_SUITE}.
 {suites, "tests", graphql_inbox_SUITE}.
 {suites, "tests", graphql_last_SUITE}.
@@ -55,6 +56,7 @@
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", mod_blocking_SUITE}.
+{suites, "tests", mod_broadcast_SUITE}.
 {suites, "tests", mod_event_pusher_http_SUITE}.
 {suites, "tests", mod_event_pusher_rabbit_SUITE}.
 {suites, "tests", mod_event_pusher_sns_SUITE}.
