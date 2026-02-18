@@ -1,4 +1,4 @@
-# XMPP Audio and Video Tutorial
+# XMPP Audio and Video Basics
 
 ## Overview
 The XMPP standard does not natively support the transmission of audio or video data. Instead, XMPP is commonly used as a signaling layer to establish, manage, and terminate [RTP]-based audio and video sessions between clients. This functionality is defined by a collection of XMPP Extension Protocols (XEPs) collectively known as the [Jingle protocol].
@@ -62,19 +62,17 @@ For small groups (typically up to four participants for video), each participant
 ```puml
 @startuml
 rectangle "full mesh" {
+  rectangle " <&phone*5>\n Peer 1" as p1
+  rectangle " <&phone*5>\n Peer 2" as p2
+  rectangle " <&phone*5>\n Peer 3" as p3
+  rectangle " <&phone*5>\n Peer 4" as p4
 
-rectangle " <&phone*5>\n Peer 1" as p1
-rectangle " <&phone*5>\n Peer 2" as p2
-rectangle " <&phone*5>\n Peer 3" as p3
-rectangle " <&phone*5>\n Peer 4" as p4
-
-p1 <-down-> p2
-p1 <-down-> p3
-p1 <-down-> p4
-p2 <-right-> p3
-p2 <-down-> p4
-p3 <-down-> p4
-
+  p1 <-down-> p2
+  p1 <-down-> p3
+  p1 <-down-> p4
+  p2 <-right-> p3
+  p2 <-down-> p4
+  p3 <-down-> p4
 }
 @enduml
 ```
@@ -86,24 +84,26 @@ p3 <-down-> p4
 ```puml
 @startuml
 rectangle "relay example" {
+  rectangle " <&phone*5>\n Peer 1" as p1
+  rectangle " " as p2i {
+    rectangle " <&phone*5>\n Peer 2" as p2
+    rectangle "RTP relay" as r1 #lightblue
+  }
+  rectangle " <&phone*5>\n Peer 3" as p3
+  rectangle " <&phone*5>\n Peer 4" as p4
 
-rectangle " <&phone*5>\n Peer 1" as p1
-rectangle " <&phone*5>\n Peer 2" as p2
-rectangle " <&phone*5>\n Peer 3" as p3
-rectangle " <&phone*5>\n Peer 4" as p4
-rectangle "RTP relay" as r1 #lightblue
+  note bottom of p2i: Peer 2 application infrastructure
 
-p1 -down-> p2 #violet
-p1 <-down-> p3
-p1 <-down-> p4
-p2 -right-> r1 #lightblue
-r1 -up-> p1 #lightblue
-r1 -right-> p3 #lightblue
-r1 -down-> p4 #lightblue
-p3 -right-> p2 #violet
-p3 <-down-> p4
-p4 -up-> p2 #violet
-
+  p1 -down-> p2 #violet
+  p1 <-down-> p3
+  p1 <-down-> p4
+  p2 -right-> r1 #lightblue
+  r1 -up-> p1 #lightblue
+  r1 -right-> p3 #lightblue
+  r1 -down-> p4 #lightblue
+  p3 -right-> p2 #violet
+  p3 <-down-> p4
+  p4 -up-> p2 #violet
 }
 @enduml
 ```
@@ -113,24 +113,26 @@ To further reduce downstream bandwidth and CPU usage, `content mixers` can be in
 ```puml
 @startuml
 rectangle "mixer example" {
+  rectangle " <&phone*5>\n Peer 1" as p1
+  rectangle " " as p2i {
+    rectangle " <&phone*5>\n Peer 2" as p2
+    rectangle "Content mixer" as m1 #lightgreen
+  }
+  rectangle " <&phone*5>\n Peer 3" as p3
+  rectangle " <&phone*5>\n Peer 4" as p4
 
-rectangle " <&phone*5>\n Peer 1" as p1
-rectangle " <&phone*5>\n Peer 2" as p2
-rectangle " <&phone*5>\n Peer 3" as p3
-rectangle " <&phone*5>\n Peer 4" as p4
-rectangle "Content mixer" as m1 #lightgreen
+  note bottom of p2i: Peer 2 application infrastructure
 
-p1 -down-> m1 #lightgreen
-p1 <-down-> p3
-p1 <-down-> p4
-m1 -right-> p2 #lightgreen
-p2 -up-> p1 #violet
-p2 -right-> p3 #violet
-p2 -down-> p4 #violet
-p3 -left-> m1 #lightgreen
-p3 <-down-> p4
-p4 -up-> m1  #lightgreen
-
+  p1 -down-> m1 #lightgreen
+  p1 <-down-> p3
+  p1 <-down-> p4
+  m1 -right-> p2 #lightgreen
+  p2 -up-> p1 #violet
+  p2 -right-> p3 #violet
+  p2 -down-> p4 #violet
+  p3 -left-> m1 #lightgreen
+  p3 <-down-> p4
+  p4 -up-> m1  #lightgreen
 }
 @enduml
 ```
@@ -141,25 +143,28 @@ However, to ensure interoperability, each client must independently allocate its
 @startuml
 rectangle "complex mesh example" {
 
-rectangle " <&phone*5>\n Peer 1" as p1
-rectangle " <&phone*5>\n Peer 2" as p2
-rectangle " <&phone*5>\n Peer 3" as p3
-rectangle " <&phone*5>\n Peer 4" as p4
-rectangle "Content mixer" as m1 #lightgreen
-rectangle "RTP relay" as r1 #lightblue
+  rectangle " <&phone*5>\n Peer 1" as p1
+  rectangle " " as p2i {
+    rectangle " <&phone*5>\n Peer 2" as p2
+    rectangle "Content mixer" as m1 #lightgreen
+    rectangle "RTP relay" as r1 #lightblue
+  }
+  rectangle " <&phone*5>\n Peer 3" as p3
+  rectangle " <&phone*5>\n Peer 4" as p4
 
-p1 -down-> m1 #lightgreen
-p1 <-down-> p3
-p1 <-down-> p4
-m1 -right-> p2 #lightgreen
-p2 -right-> r1 #lightblue
-r1 -up-> p1 #lightblue
-r1 -right-> p3 #lightblue
-r1 -down-> p4 #lightblue
-p3 -left-> m1 #lightgreen
-p3 <-down-> p4
-p4 -up-> m1  #lightgreen
+  note bottom of p2i: Peer 2 application infrastructure
 
+  p1 -down-> m1 #lightgreen
+  p1 <-down-> p3
+  p1 <-down-> p4
+  m1 -right-> p2 #lightgreen
+  p2 -right-> r1 #lightblue
+  r1 -up-> p1 #lightblue
+  r1 -right-> p3 #lightblue
+  r1 -down-> p4 #lightblue
+  p3 -left-> m1 #lightgreen
+  p3 <-down-> p4
+  p4 -up-> m1  #lightgreen
 }
 @enduml
 ```
@@ -176,24 +181,26 @@ Large conferences require a centralized architecture. In this model:
 ```puml
 @startuml
 rectangle "conference example" {
+  rectangle " <&phone*5>\n Peer 1" as p1
+  rectangle " <&phone*5>\n Peer 2" as p2
+  rectangle " <&phone*5>\n Peer 3" as p3
+  rectangle " <&phone*5>\n Peer 4" as p4
+  rectangle " " as fai {
+    rectangle "Content mixer" as m1 #lightgreen
+    rectangle "RTP relay" as r1 #lightblue
+  }
 
-rectangle " <&phone*5>\n Peer 1" as p1
-rectangle " <&phone*5>\n Peer 2" as p2
-rectangle " <&phone*5>\n Peer 3" as p3
-rectangle " <&phone*5>\n Peer 4" as p4
-rectangle "Content mixer" as m1 #lightgreen
-rectangle "RTP relay" as r1 #lightblue
+  note bottom of fai: Focus agent application infrastructure
 
-p1 -down-> m1 #lightgreen
-p2 -down-> m1 #lightgreen
-p3 -up-> m1 #lightgreen
-p4 -up-> m1 #lightgreen
-m1 -right-> r1 #lightblue
-r1 -up-> p1 #lightblue
-r1 -up-> p2 #lightblue
-r1 -down-> p3 #lightblue
-r1 -down-> p4 #lightblue
-
+  p1 -down-> m1 #lightgreen
+  p2 -down-> m1 #lightgreen
+  p3 -up-> m1 #lightgreen
+  p4 -up-> m1 #lightgreen
+  m1 -right-> r1 #lightblue
+  r1 -up-> p1 #lightblue
+  r1 -up-> p2 #lightblue
+  r1 -down-> p3 #lightblue
+  r1 -down-> p4 #lightblue
 }
 @enduml
 ```
