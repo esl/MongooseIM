@@ -214,7 +214,8 @@ mock_rdbms_backend() ->
     ok.
 
 mock_keystore() ->
-    gen_hook:add_handler(get_key, host_type(), fun ?MODULE:mod_keystore_get_key/3, #{}, 50).
+    gen_hook:add_handler(get_key, host_type(), fun ?MODULE:mod_keystore_get_key/3, #{}, 50),
+    gen_hook:reload_hooks().
 
 mock_gen_iq_handler() ->
     meck:new(gen_iq_handler, []),

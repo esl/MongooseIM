@@ -1038,12 +1038,13 @@ inbox_does_not_trigger_does_user_exist(Config) ->
         Msg = <<"Mark me!">>,
         RoomName = inbox_helper:create_room(Alice, [Bob, Kate]),
         RoomJid = room_bin_jid(RoomName),
-        HookHandlerExtra = start_hook_listener(),
+        Handler = hook_handler(),
+        hook_helper:add_handler(Handler),
         Stanza = escalus_stanza:groupchat_to(RoomJid, Msg),
         %% Alice sends message to a room
         escalus:send(Alice, Stanza),
         [escalus:wait_for_stanza(User) || User <- [Alice, Bob, Kate]],
-        stop_hook_listener(HookHandlerExtra),
+        hook_helper:delete_handler(Handler),
         verify_hook_listener(RoomName)
       end).
 
@@ -1498,20 +1499,9 @@ if_async_check_bin(Config, Bob, Convs) ->
             check_inbox(Bob, Convs, #{box => bin})
     end.
 
-start_hook_listener() ->
-    TestCasePid = self(),
-    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, domain_helper:host_type()]).
-
-stop_hook_listener(HookExtra) ->
-    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_stop_hook_handler, [HookExtra, domain_helper:host_type()]).
-
-rpc_start_hook_handler(TestCasePid, HostType) ->
-    Extra = #{test_case_pid => TestCasePid},
-    gen_hook:add_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, Extra, 1),
-    Extra.
-
-rpc_stop_hook_handler(HookExtra, HostType) ->
-    gen_hook:delete_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, HookExtra, 1).
+hook_handler() ->
+    Extra = #{test_case_pid => self()},
+    {does_user_exist, domain_helper:host_type(), fun ?MODULE:hook_handler_fn/3, Extra, 1}.
 
 hook_handler_fn(Acc,
                 #{jid := User} = _Params,

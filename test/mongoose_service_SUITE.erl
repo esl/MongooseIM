@@ -15,10 +15,12 @@ all() ->
      replaces_services_with_same_deps].
 
 init_per_suite(C) ->
+    meck:new(gen_hook, [no_link, passthrough]),
+    meck:expect(gen_hook, reload_hooks, fun() -> ok end),
     C.
 
 end_per_suite(_C) ->
-    ok.
+    meck:unload(gen_hook).
 
 init_per_testcase(_TC, C) ->
     [mock_service(Service) || Service <- test_services()],
