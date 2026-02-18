@@ -3,9 +3,16 @@
 %% Tests can declare expected errors using expect/1,2 to avoid false failures.
 %%
 %% Usage:
-%% - Call start/0 in init_per_group/suite
+%% - Call start/0 in init_per_group/suite (idempotent, safe to call multiple times)
 %% - Call expect/1,2 before code that is expected to produce errors
 %% - Call check/0 in end_per_group/suite (fails if unexpected errors)
+%%
+%% Parallel test support:
+%% - start/0 and stop/0 are idempotent and handle concurrent calls safely
+%% - For parallel test groups, call start/0 in init_per_group and check/0 in end_per_group
+%% - All tests in the parallel group share error collection
+%% - Expected patterns from all tests are combined
+%% - Any unexpected error fails the whole group
 %%
 %% Pattern types for expect/1:
 %% - {what, atom()} - Match #{what := Atom} in report (most common)
@@ -51,28 +58,40 @@
 
 %% API
 
-%% @doc Start capturing errors on mim() node
+%% @doc Start capturing errors on mim() node. Idempotent - safe to call if already started.
 -spec start() -> ok | {error, term()}.
 start() ->
     start(#{}).
 
 -spec start(#{levels => [atom()]}) -> ok | {error, term()}.
 start(Opts) ->
-    Levels = maps:get(levels, Opts, [error]),
-    mongoose_helper:inject_module(?COLLECTOR),
-    ets_helper:new(?STATUS_TABLE, [bag]),
-    rpc(mim(), ?COLLECTOR, start, [Levels]).
+    case ets:whereis(?STATUS_TABLE) of
+        undefined ->
+            Levels = maps:get(levels, Opts, [error]),
+            mongoose_helper:inject_module(?COLLECTOR),
+            ets_helper:new(?STATUS_TABLE, [bag]),
+            rpc(mim(), ?COLLECTOR, start, [Levels]);
+        _Tid ->
+            %% Already started
+            ok
+    end.
 
-%% @doc Stop capturing and return classification result
+%% @doc Stop capturing and return classification result. Idempotent - safe to call if already stopped.
 -spec stop() -> ok | {error, unexpected, [log_entry()]}.
 stop() ->
-    Errors = rpc(mim(), ?COLLECTOR, get_errors, []),
-    rpc(mim(), ?COLLECTOR, stop, []),
-    Expected = ets:tab2list(?STATUS_TABLE),
-    ets_helper:delete(?STATUS_TABLE),
-    {Unexpected, Unmatched} = classify_errors(Errors, Expected),
-    report_unmatched(Unmatched),
-    report_unexpected(Unexpected).
+    case ets:whereis(?STATUS_TABLE) of
+        undefined ->
+            %% Already stopped
+            ok;
+        _Tid ->
+            Errors = rpc(mim(), ?COLLECTOR, get_errors, []),
+            rpc(mim(), ?COLLECTOR, stop, []),
+            Expected = ets:tab2list(?STATUS_TABLE),
+            ets_helper:delete(?STATUS_TABLE),
+            {Unexpected, Unmatched} = classify_errors(Errors, Expected),
+            report_unmatched(Unmatched),
+            report_unexpected(Unexpected)
+    end.
 
 %% @doc Stop and fail test if there are unexpected errors
 -spec check() -> ok.

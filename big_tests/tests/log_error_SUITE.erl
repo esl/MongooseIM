@@ -17,7 +17,8 @@ suite() ->
 
 all() ->
     [{group, basic},
-     {group, pattern_matching}].
+     {group, pattern_matching},
+     {group, parallel_tests}].
 
 groups() ->
     [{basic, [], [captures_error_logs,
@@ -29,7 +30,10 @@ groups() ->
                              expect_by_substring,
                              expect_by_regex,
                              expect_by_custom_function,
-                             multiple_expected_patterns]}].
+                             multiple_expected_patterns]},
+     {parallel_tests, [parallel], [parallel_test_1,
+                                   parallel_test_2,
+                                   parallel_test_3]}].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -43,16 +47,34 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
+init_per_group(parallel_tests, Config) ->
+    %% For parallel tests, start once at group level
+    log_error_helper:start(),
+    Config;
 init_per_group(_Group, Config) ->
     Config.
 
+end_per_group(parallel_tests, _Config) ->
+    %% For parallel tests, check once at group level
+    log_error_helper:check(),
+    ok;
 end_per_group(_Group, _Config) ->
     ok.
 
+init_per_testcase(TestCase, Config) when TestCase =:= parallel_test_1;
+                                         TestCase =:= parallel_test_2;
+                                         TestCase =:= parallel_test_3 ->
+    %% Parallel tests use group-level start/stop
+    Config;
 init_per_testcase(_TestCase, Config) ->
     log_error_helper:start(),
     Config.
 
+end_per_testcase(TestCase, _Config) when TestCase =:= parallel_test_1;
+                                         TestCase =:= parallel_test_2;
+                                         TestCase =:= parallel_test_3 ->
+    %% Parallel tests use group-level start/stop
+    ok;
 end_per_testcase(_TestCase, _Config) ->
     %% Clean up - stop without checking to avoid test interference
     catch log_error_helper:stop(),
@@ -189,3 +211,40 @@ multiple_expected_patterns(_Config) ->
 
     Result = log_error_helper:stop(),
     ?assertEqual(ok, Result).
+
+%%--------------------------------------------------------------------
+%% Parallel tests
+%% These tests run in parallel and share error collection.
+%% Each test declares its expected errors, triggers them, and the
+%% group-level check/0 verifies all errors were expected.
+%%--------------------------------------------------------------------
+
+parallel_test_1(_Config) ->
+    %% Declare expected error for this test
+    log_error_helper:expect({what, parallel_error_1}),
+
+    %% Trigger the error
+    rpc(mim(), log_error_test_helper, log_error, [parallel_error_1, "From parallel test 1"]),
+
+    %% No stop() here - done at group level
+    ok.
+
+parallel_test_2(_Config) ->
+    %% Declare expected error for this test
+    log_error_helper:expect({what, parallel_error_2}),
+
+    %% Trigger the error
+    rpc(mim(), log_error_test_helper, log_error, [parallel_error_2, "From parallel test 2"]),
+
+    %% No stop() here - done at group level
+    ok.
+
+parallel_test_3(_Config) ->
+    %% Declare expected error for this test
+    log_error_helper:expect({what, parallel_error_3}),
+
+    %% Trigger the error
+    rpc(mim(), log_error_test_helper, log_error, [parallel_error_3, "From parallel test 3"]),
+
+    %% No stop() here - done at group level
+    ok.

@@ -25,30 +25,49 @@
 
 %% API
 
+%% @doc Start collecting errors. Idempotent - safe to call if already started.
 -spec start([atom()]) -> ok | {error, term()}.
 start(Levels) ->
+    case whereis(?OWNER) of
+        undefined ->
+            do_start(Levels);
+        _Pid ->
+            %% Already started, just return ok
+            ok
+    end.
+
+do_start(Levels) ->
     %% Spawn a dedicated process to own the ETS table
     %% This ensures the table survives across RPC calls
     Owner = spawn(?MODULE, table_owner_loop, []),
-    register(?OWNER, Owner),
-    Owner ! {create_table, self()},
-    receive
-        table_created -> ok
-    after 5000 ->
-        error(table_creation_timeout)
-    end,
-    logger:add_handler(?MODULE, ?MODULE, #{config => #{levels => Levels}}).
+    try register(?OWNER, Owner) of
+        true ->
+            Owner ! {create_table, self()},
+            receive
+                table_created -> ok
+            after 5000 ->
+                error(table_creation_timeout)
+            end,
+            logger:add_handler(?MODULE, ?MODULE, #{config => #{levels => Levels}})
+    catch
+        error:badarg ->
+            %% Race condition: another process registered between whereis and register
+            Owner ! stop,
+            ok
+    end.
 
+%% @doc Stop collecting errors. Idempotent - safe to call if already stopped.
 -spec stop() -> ok | {error, term()}.
 stop() ->
-    Result = logger:remove_handler(?MODULE),
     case whereis(?OWNER) of
-        undefined -> ok;
+        undefined ->
+            %% Already stopped
+            ok;
         Pid ->
+            _ = logger:remove_handler(?MODULE),
             Pid ! stop,
             ok
-    end,
-    Result.
+    end.
 
 %% Table owner process - keeps the ETS table alive
 table_owner_loop() ->
@@ -64,11 +83,17 @@ table_owner_loop() ->
 
 -spec get_errors() -> [log_entry()].
 get_errors() ->
-    ets:tab2list(?TABLE).
+    case ets:whereis(?TABLE) of
+        undefined -> [];
+        _Tid -> ets:tab2list(?TABLE)
+    end.
 
--spec clear() -> true.
+-spec clear() -> true | ok.
 clear() ->
-    ets:delete_all_objects(?TABLE).
+    case ets:whereis(?TABLE) of
+        undefined -> ok;
+        _Tid -> ets:delete_all_objects(?TABLE)
+    end.
 
 -spec timestamp() -> integer().
 timestamp() ->
