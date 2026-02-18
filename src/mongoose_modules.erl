@@ -55,18 +55,35 @@ replace_modules(HostType, ToStop, ToEnsure) ->
     Target = gen_mod_deps:resolve_deps(HostType, WithNew),
 
     %% Stop each affected module if it is not in Target (stop deps first)
-    [ensure_stopped(HostType, Module) || {Module, _} <- lists:reverse(SortedOldWithDeps),
+    [ensure_module_stopped(HostType, Module) || {Module, _} <- lists:reverse(SortedOldWithDeps),
         not maps:is_key(Module, Target)],
 
     %% Ensure each module from Target
-    [ensure_started(HostType, Module, Opts) ||
+    [ensure_module_started(HostType, Module, Opts) ||
         {Module, Opts} <- gen_mod_deps:sort_deps(HostType, Target)],
-    ok.
+    gen_hook:reload_hooks().
 
-%% @doc Make sure the module is stopped.
+%% @doc Make sure the module is stopped. Ignores dependencies.
 -spec ensure_stopped(mongooseim:host_type(), module()) ->
           already_stopped | {stopped, module_opts()}.
 ensure_stopped(HostType, Module) ->
+    Result = ensure_module_stopped(HostType, Module),
+    gen_hook:reload_hooks(),
+    Result.
+
+%% @doc Make sure the module is running with the provided options. Ignores dependencies.
+-spec ensure_started(mongooseim:host_type(), module(), module_opts()) ->
+          already_started | {started, term()} | {restarted, module_opts(), term()}.
+ensure_started(HostType, Module, Opts) ->
+    Result = ensure_module_started(HostType, Module, Opts),
+    gen_hook:reload_hooks(),
+    Result.
+
+%% Helpers
+
+-spec ensure_module_stopped(mongooseim:host_type(), module()) ->
+          already_stopped | {stopped, module_opts()}.
+ensure_module_stopped(HostType, Module) ->
     Modules = get_modules(HostType),
     case maps:find(Module, Modules) of
         error ->
@@ -76,10 +93,9 @@ ensure_stopped(HostType, Module) ->
             {stopped, Opts}
     end.
 
-%% @doc Make sure the module is running with the provided options.
--spec ensure_started(mongooseim:host_type(), module(), module_opts()) ->
+-spec ensure_module_started(mongooseim:host_type(), module(), module_opts()) ->
           already_started | {started, term()} | {restarted, module_opts(), term()}.
-ensure_started(HostType, Module, Opts) ->
+ensure_module_started(HostType, Module, Opts) ->
     Modules = get_modules(HostType),
     case maps:find(Module, Modules) of
         error ->
@@ -92,8 +108,6 @@ ensure_started(HostType, Module, Opts) ->
             {ok, Result} = start_module(HostType, Module, Opts, Modules),
             {restarted, PrevOpts, Result}
     end.
-
-%% Helpers
 
 -spec start_module(mongooseim:host_type(), module(), module_opts(), module_map()) -> {ok, term()}.
 start_module(HostType, Module, Opts, Modules) ->
