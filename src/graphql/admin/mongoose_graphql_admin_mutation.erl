@@ -35,5 +35,7 @@ execute(_Ctx, _Obj, <<"token">>, _Args) ->
     {ok, token};
 execute(_Ctx, _Obj, <<"server">>, _Args) ->
     {ok, server};
+execute(_Ctx, _Obj, <<"broadcast">>, _Args) ->
+    {ok, broadcast};
 execute(_Ctx, _Obj, <<"mnesia">>, _Args) ->
     {ok, mnesia}.

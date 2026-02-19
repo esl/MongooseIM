@@ -49,16 +49,15 @@ init_per_suite(Config) ->
                              {sm_total_sessions, #{}},
                              {sm_unique_sessions, #{}},
                              {sm_node_sessions, #{}}]),
-    Config1 = mongoose_helper:backup_and_set_config_option(Config,
-                                                           [instrumentation, probe_interval], 1),
+    Config1 = instrument_helper:ensure_frequent_probes(Config),
     restart_sm_probes(),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config),
-    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
     instrument_helper:stop(),
+    instrument_helper:restore_probe_interval(Config),
     restart_sm_probes().
 
 init_per_group(_GroupName, Config) ->

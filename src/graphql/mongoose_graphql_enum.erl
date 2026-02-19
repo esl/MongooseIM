@@ -34,6 +34,7 @@ input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner};
 input(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
 input(<<"TelephoneTags">>, Name) -> {ok, Name};
 input(<<"LogLevel">>, Name) -> {ok, binary_to_atom(string:lowercase(Name))};
+input(<<"BroadcastRecipientGroup">>, <<"ALL_USERS_IN_DOMAIN">>) -> {ok, all_users_in_domain};
 input(<<"MetricType">>, Name) -> {ok, Name}.
 
 output(<<"DomainStatus">>, Type) ->
@@ -75,5 +76,10 @@ output(<<"EmailTags">>, Name) -> {ok, Name};
 output(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
 output(<<"LogLevel">>, Name) -> {ok, string:uppercase(atom_to_binary(Name))};
 output(<<"TelephoneTags">>, Name) -> {ok, Name};
+output(<<"BroadcastRecipientGroup">>, all_users_in_domain) -> {ok, <<"ALL_USERS_IN_DOMAIN">>};
+output(<<"BroadcastJobState">>, running) -> {ok, <<"RUNNING">>};
+output(<<"BroadcastJobState">>, finished) -> {ok, <<"FINISHED">>};
+output(<<"BroadcastJobState">>, abort_error) -> {ok, <<"ABORT_ERROR">>};
+output(<<"BroadcastJobState">>, abort_admin) -> {ok, <<"ABORT_ADMIN">>};
 output(<<"MetricType">>, Type) -> {ok, Type};
 output(<<"StatusCode">>, Code) -> {ok, Code}.

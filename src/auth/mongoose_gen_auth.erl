@@ -12,6 +12,7 @@
          try_register/5,
          get_registered_users/4,
          get_registered_users_number/4,
+         get_registered_users_snapshot/4,
          get_password/4,
          get_password_s/4,
          does_user_exist/4,
@@ -25,6 +26,16 @@
 
 -type t() :: module().
 -export_type([t/0]).
+
+-type page_cursor() :: binary().
+-type get_registered_users_snapshot_params() ::
+  #{
+    limit := pos_integer(),
+    cursor => page_cursor(),
+    snapshot_timestamp => calendar:datetime()
+  }.
+
+-export_type([page_cursor/0, get_registered_users_snapshot_params/0]).
 
 %% Mandatory callbacks
 
@@ -64,6 +75,12 @@
                                       Server :: jid:lserver(),
                                       Opts :: map()) ->
     non_neg_integer().
+
+-callback get_registered_users_snapshot(HostType :: mongooseim:host_type(),
+                                        Server :: jid:lserver(),
+                                        Params :: get_registered_users_snapshot_params()) ->
+    {ok, {[jid:luser()], NewCursor :: page_cursor() | undefined}}
+    | {error, invalid_params | term()}.
 
 -callback get_password(HostType :: mongooseim:host_type(),
                        User :: jid:luser(),
@@ -115,6 +132,7 @@
                      try_register/4,
                      get_registered_users/3,
                      get_registered_users_number/3,
+                     get_registered_users_snapshot/3,
                      get_password/3,
                      get_password_s/3,
                      set_password/4,
@@ -197,6 +215,15 @@ get_registered_users_number(Mod, HostType, LServer, Opts) ->
     case is_exported(Mod, get_registered_users_number, 3) of
         true -> Mod:get_registered_users_number(HostType, LServer, Opts);
         false -> 0
+    end.
+
+-spec get_registered_users_snapshot(ejabberd_auth:authmodule(), mongooseim:host_type(),
+                                    jid:lserver(), get_registered_users_snapshot_params()) ->
+          {ok, {[jid:luser()], page_cursor() | undefined}} | {error, invalid_params | term()}.
+get_registered_users_snapshot(Mod, HostType, LServer, Params) ->
+    case is_exported(Mod, get_registered_users_snapshot, 3) of
+        true -> Mod:get_registered_users_snapshot(HostType, LServer, Params);
+        false -> {error, not_allowed}
     end.
 
 -spec get_password(ejabberd_auth:authmodule(), mongooseim:host_type(),

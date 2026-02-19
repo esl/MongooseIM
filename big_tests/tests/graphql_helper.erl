@@ -104,7 +104,7 @@ execute_auth(Body, Config) ->
 
 execute_auth(Node, Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
-    execute(Node, Ep, Body, make_admin_creds(Ep, Config)).
+    execute(Node, Ep, Body, maybe_override_admin_creds(make_admin_creds(Ep, Config), Config)).
 
 execute_auth_sse(Body, Config) ->
     #{node := Node} = mim(),
@@ -112,13 +112,19 @@ execute_auth_sse(Body, Config) ->
 
 execute_auth_sse(Node, Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
-    execute_sse(Node, Ep, Body, make_admin_creds(Ep, Config)).
+    execute_sse(Node, Ep, Body, maybe_override_admin_creds(make_admin_creds(Ep, Config), Config)).
 
 make_admin_creds(admin = Ep, _Config) ->
     #{username := Username, password := Password} = get_listener_opts(Ep),
     {Username, Password};
 make_admin_creds(domain_admin, Config) ->
     ?config(domain_admin, Config).
+
+maybe_override_admin_creds(NormalCreds, Config) ->
+    case ?config(override_admin_creds, Config) of
+        undefined -> NormalCreds;
+        OtherCreds -> OtherCreds
+    end.
 
 execute_user(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),

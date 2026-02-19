@@ -336,7 +336,7 @@ init_per_suite(Config) ->
     instrument_helper:start(instrument_helper:declared_events(mod_muc)),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
-    Config4 = backup_and_set_config_option(Config3, [instrumentation, probe_interval], 1),
+    Config4 = instrument_helper:ensure_frequent_probes(Config3),
     dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
     muc_helper:load_muc(),
     mongoose_helper:ensure_muc_clean(),
@@ -347,7 +347,7 @@ end_per_suite(Config) ->
     mongoose_helper:ensure_muc_clean(),
     muc_helper:unload_muc(),
     dynamic_modules:restore_modules(Config),
-    restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:restore_probe_interval(Config),
     escalus:end_per_suite(Config),
     instrument_helper:stop().
 

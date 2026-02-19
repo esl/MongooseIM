@@ -106,12 +106,12 @@ init_per_suite(Config) ->
         false -> {skip, rdbms_or_ct_not_running};
         true ->
             mongoose_helper:inject_module(?MODULE, reload),
-            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
+            Config1 = instrument_helper:ensure_frequent_probes(Config),
             escalus:init_per_suite(Config1)
     end.
 
 end_per_suite(Config) ->
-    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:restore_probe_interval(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(tagged_rdbms_queries, Config) ->

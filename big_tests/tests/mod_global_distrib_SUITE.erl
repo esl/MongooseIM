@@ -129,7 +129,7 @@ init_per_suite(Config) ->
             end,
             enable_logging(),
             instrument_helper:start(events()),
-            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], ?PROBE_INTERVAL),
+            Config1 = instrument_helper:ensure_frequent_probes(Config),
             escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config1]);
         Result ->
             ct:pal("Redis check result: ~p", [Result]),
@@ -149,7 +149,7 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     rpc(europe_node2, mongoose_cluster, leave, []),
     escalus:end_per_suite(Config),
-    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:restore_probe_interval(Config),
     instrument_helper:stop().
 
 init_per_group(start_checks, Config) ->

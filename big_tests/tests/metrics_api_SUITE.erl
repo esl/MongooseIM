@@ -59,15 +59,14 @@ init_per_suite(Config) ->
     HostType = host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
-    Config2 = mongoose_helper:backup_and_set_config_option(Config1,
-                                                           [instrumentation, probe_interval], 1),
+    Config2 = instrument_helper:ensure_frequent_probes(Config1),
     restart_probes(),
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config),
-    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:restore_probe_interval(Config),
     restart_probes().
 
 init_per_group(GroupName, Config) ->

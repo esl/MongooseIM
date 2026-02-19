@@ -35,6 +35,8 @@ execute(_Ctx, _Obj, <<"server">>, _Args) ->
     {ok, server};
 execute(_Ctx, _Obj, <<"session">>, _Args) ->
     {ok, session};
+execute(_Ctx, _Obj, <<"broadcast">>, _Args) ->
+    {ok, broadcast};
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, #{}};
 execute(_Ctx, _Obj, <<"stat">>, _Args) ->
