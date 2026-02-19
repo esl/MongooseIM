@@ -13,6 +13,8 @@
 %% For now exported only for tests
 -export([broadcast_job_to_map/1]).
 
+-ignore_xref([broadcast_job_to_map/1]).
+
 -include("jlib.hrl").
 -include("mod_broadcast.hrl").
 -include("mongoose.hrl").

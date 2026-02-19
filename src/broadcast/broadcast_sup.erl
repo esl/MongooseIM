@@ -10,6 +10,8 @@
 -export([start_link/1]).
 -export([init/1]).
 
+-ignore_xref([start_link/1]).
+
 -spec start_link(HostType :: mongooseim:host_type()) -> {ok, pid()} | {error, term()}.
 start_link(HostType) ->
     SupName = gen_mod:get_module_proc(HostType, ?MODULE),

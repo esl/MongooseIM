@@ -16,10 +16,15 @@
          get_live_job_count/1,
          abort_running_jobs_for_domain/3]).
 
+-ignore_xref([start_link/1]).
+
 %% Debug API
 -export([does_worker_for_job_exist/2,
          get_worker_map/1,
          get_supervisor_children/1]).
+-ignore_xref([does_worker_for_job_exist/2,
+              get_worker_map/1,
+              get_supervisor_children/1]).
 
 %% Error types
 -export_type([create_job_error/0,

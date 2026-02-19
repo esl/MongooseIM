@@ -18,6 +18,8 @@
 -export([start_link/2,
          stop/1]).
 
+-ignore_xref([start_link/2]).
+
 %% gen_statem callbacks
 -export([callback_mode/0,
          init/1,
@@ -29,6 +31,11 @@
          sending_batch/3,
          finished/3,
          aborted/3]).
+
+-ignore_xref([loading_batch/3,
+              sending_batch/3,
+              finished/3,
+              aborted/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
