@@ -147,7 +147,12 @@ groups() ->
                          pool_ldap,
                          pool_ldap_connection,
                          pool_ldap_connection_tls]},
-     {internal_databases, [parallel], [internal_database_cets]},
+     {internal_databases, [parallel], [internal_database_cets,
+                                        module_backend_requires_internal_db,
+                                        global_backend_requires_internal_db,
+                                        service_backend_requires_internal_db,
+                                        auth_backend_requires_internal_db,
+                                        valid_backend_configuration]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       acl_merge_host_and_global,
@@ -400,14 +405,16 @@ language(_Config) ->
 sm_backend(_Config) ->
     ?cfg(sm_backend, mnesia, #{}), % default
     ?cfg(sm_backend, mnesia, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
-    ?cfg(sm_backend, cets, #{<<"general">> => #{<<"sm_backend">> => <<"cets">>}}),
+    ?cfg(sm_backend, cets, #{<<"general">> => #{<<"sm_backend">> => <<"cets">>},
+                             <<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}}),
     ?cfg(sm_backend, redis, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
     ?err(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}}).
 
 component_backend(_Config) ->
     ?cfg(component_backend, mnesia, #{}), % default
     ?cfg(component_backend, mnesia, #{<<"general">> => #{<<"component_backend">> => <<"mnesia">>}}),
-    ?cfg(component_backend, cets, #{<<"general">> => #{<<"component_backend">> => <<"cets">>}}),
+    ?cfg(component_backend, cets, #{<<"general">> => #{<<"component_backend">> => <<"cets">>},
+                                      <<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}}),
     ?err(#{<<"general">> => #{<<"component_backend">> => <<"amnesia">>}}).
 
 s2s_backend(_Config) ->
@@ -1200,18 +1207,21 @@ tls_ca_raw() ->
 %% tests: internal_databases
 
 internal_database_cets(_Config) ->
-    CetsEnabled = #{<<"internal_databases">> => #{<<"cets">> => #{}}},
-    CetsFile = #{<<"internal_databases">> => #{<<"cets">> =>
+    CetsEnabled = #{<<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}},
+    CetsFile = #{<<"internal_databases">> => #{<<"mnesia">> => #{}, <<"cets">> =>
         #{<<"backend">> => <<"file">>, <<"node_list_file">> => <<"/dev/null">>}}},
     %% No internal_databases section means only mnesia
     ?cfg([internal_databases], #{mnesia => #{}}, #{}), % default
-    %% Empty internal_databases could be configured explicitly
-    ?cfg([internal_databases], #{}, #{<<"internal_databases">> => #{}}),
+    %% Empty internal_databases is invalid because default global backends require mnesia
+    ?err([#{reason := backend_requires_internal_database}],
+         #{<<"internal_databases">> => #{}}),
 
     ?cfg([internal_databases, cets, backend], file,
-         #{<<"internal_databases">> => #{<<"cets">> => #{<<"backend">> => <<"file">>}}}),
+         #{<<"internal_databases">> => #{<<"mnesia">> => #{},
+                                         <<"cets">> => #{<<"backend">> => <<"file">>}}}),
     ?cfg([internal_databases, cets, backend], rdbms,
-         #{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => <<"test">>}}}),
+         #{<<"internal_databases">> => #{<<"mnesia">> => #{},
+                                         <<"cets">> => #{<<"cluster_name">> => <<"test">>}}}),
 
     ?cfg([internal_databases, cets, cluster_name], mongooseim, CetsEnabled),
     ?cfg([internal_databases, cets, node_list_file], "/dev/null", CetsFile),
@@ -1220,6 +1230,39 @@ internal_database_cets(_Config) ->
          #{<<"internal_databases">> => #{<<"mnesia">> => #{}}}),
     ?err(#{<<"internal_databases">> => #{<<"cets">> => #{<<"backend">> => <<"mnesia">>}}}),
     ?err(#{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => 123}}}).
+
+module_backend_requires_internal_db(_Config) ->
+    %% mod_roster defaults to mnesia backend, which requires mnesia in internal_databases
+    Config = #{<<"internal_databases">> => #{<<"cets">> => #{}},
+               <<"general">> => #{<<"sm_backend">> => <<"cets">>,
+                                  <<"component_backend">> => <<"cets">>,
+                                  <<"s2s_backend">> => <<"cets">>},
+               <<"modules">> => #{<<"mod_roster">> => #{}}},
+    ?err([#{reason := backend_requires_internal_database}], Config).
+
+global_backend_requires_internal_db(_Config) ->
+    %% sm_backend set to cets but only mnesia is in internal_databases (default)
+    ?err([#{reason := backend_requires_internal_database}],
+         #{<<"general">> => #{<<"sm_backend">> => <<"cets">>}}).
+
+service_backend_requires_internal_db(_Config) ->
+    %% service_bosh backend set to cets but only mnesia is in internal_databases (default)
+    ?err([#{reason := backend_requires_internal_database}],
+         #{<<"services">> => #{<<"service_bosh">> => #{<<"backend">> => <<"cets">>}}}).
+
+auth_backend_requires_internal_db(_Config) ->
+    %% anonymous auth backend set to cets but only mnesia is in internal_databases (default)
+    ?err([#{reason := backend_requires_internal_database}],
+         #{<<"auth">> => #{<<"anonymous">> => #{<<"backend">> => <<"cets">>}}}).
+
+valid_backend_configuration(_Config) ->
+    %% mod_roster with mnesia backend + default internal_databases (includes mnesia) -> ok
+    ?cfgh([modules, mod_roster, backend], mnesia,
+          #{<<"modules">> => #{<<"mod_roster">> => #{}}}),
+    %% cets backends with cets in internal_databases -> ok
+    ?cfg(sm_backend, cets,
+         #{<<"general">> => #{<<"sm_backend">> => <<"cets">>},
+           <<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}}).
 
 %% tests: shaper, acl, access
 shaper(_Config) ->

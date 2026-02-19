@@ -11,6 +11,7 @@
 %% callbacks for the 'process' step
 -export([process_dynamic_domains/1,
          process_shapers/1,
+         process_backend_databases/1,
          process_host/1,
          process_general/1,
          process_listener/2,
@@ -107,7 +108,8 @@ root() ->
        defaults = #{<<"internal_databases">> => default_internal_databases()},
        required = [<<"general">>],
        process = [fun ?MODULE:process_dynamic_domains/1,
-                  fun ?MODULE:process_shapers/1],
+                  fun ?MODULE:process_shapers/1,
+                  fun ?MODULE:process_backend_databases/1],
        wrap = none,
        format_items = list
       }.
@@ -968,6 +970,84 @@ process_shapers(Items) ->
                              "You need to define them in the 'shaper' section."),
                     undefined_shapers => UndefinedShapers})
     end.
+
+%% Check that all backends requiring an internal database have the corresponding database configured
+process_backend_databases(Items) ->
+    InternalDBs = proplists:get_value(internal_databases, Items, #{}),
+    Backends = collect_backends(Items),
+    Missing = lists:filtermap(
+                fun({Source, Key, Backend, HT}) ->
+                        case backend_to_internal_db(Backend) of
+                            undefined -> false;
+                            DB -> case maps:is_key(DB, InternalDBs) of
+                                      true -> false;
+                                      false -> {true, #{source => Source, option => Key,
+                                                        backend => Backend, host_type => HT,
+                                                        required_db => DB}}
+                                  end
+                        end
+                end, Backends),
+    case Missing of
+        [] ->
+            Items;
+        _ ->
+            error(#{what => backend_requires_internal_database,
+                    text => ("Some backends require internal databases that are not configured. "
+                             "Add the required databases to the 'internal_databases' section."),
+                    missing => Missing})
+    end.
+
+collect_backends(Items) ->
+    collect_module_backends(Items) ++
+    collect_service_backends(Items) ++
+    collect_global_backends(Items) ++
+    collect_auth_backends(Items).
+
+collect_module_backends(Items) ->
+    lists:flatmap(
+      fun({{modules, HT}, ModulesMap}) ->
+              lists:flatmap(
+                fun({Mod, Opts}) ->
+                        [{Mod, backend, V, HT} || V <- [maps:get(backend, Opts, undefined)],
+                                                   V =/= undefined] ++
+                        [{Mod, online_backend, V, HT} || V <- [maps:get(online_backend, Opts, undefined)],
+                                                          V =/= undefined]
+                end, maps:to_list(ModulesMap));
+         (_) -> []
+      end, Items).
+
+collect_service_backends(Items) ->
+    ServicesMap = proplists:get_value(services, Items, #{}),
+    lists:filtermap(
+      fun({Service, Opts}) ->
+              case maps:get(backend, Opts, undefined) of
+                  undefined -> false;
+                  V -> {true, {Service, backend, V, global}}
+              end
+      end, maps:to_list(ServicesMap)).
+
+collect_global_backends(Items) ->
+    lists:filtermap(
+      fun({Key, Value}) when Key =:= sm_backend;
+                              Key =:= component_backend;
+                              Key =:= s2s_backend ->
+              {true, {general, Key, Value, global}};
+         (_) -> false
+      end, Items).
+
+%% Only anonymous auth has a backend option. Skip mnesia because
+%% ejabberd_auth_anonymous_mnesia creates its own RAM-copy tables
+%% and works without [internal_databases.mnesia]
+collect_auth_backends(Items) ->
+    lists:filtermap(
+      fun({{auth, HT}, #{anonymous := #{backend := Backend}}}) when Backend =/= mnesia ->
+              {true, {anonymous, backend, Backend, HT}};
+         (_) -> false
+      end, Items).
+
+backend_to_internal_db(mnesia) -> mnesia;
+backend_to_internal_db(cets) -> cets;
+backend_to_internal_db(_) -> undefined.
 
 unsupported_auth_methods(KVs) ->
     [Method || Method <- extract_auth_methods(KVs),
