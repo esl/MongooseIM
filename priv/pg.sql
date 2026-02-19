@@ -519,3 +519,10 @@ CREATE TABLE fast_auth_token(
      new_mech_id smallint,
      PRIMARY KEY(server, username, user_agent_id)
 );
+
+CREATE TABLE blocklist (
+    luser VARCHAR(250) NOT NULL,
+    lserver VARCHAR(250) NOT NULL,
+    reason TEXT,
+    PRIMARY KEY (luser, lserver)
+);

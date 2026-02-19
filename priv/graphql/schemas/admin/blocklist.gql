@@ -1,0 +1,12 @@
+"""
+Allow admin to manage the blocklist.
+"""
+type BlocklistAdminMutation @protected @use(modules: ["mod_blocklist"]) {
+  "Add a user to the blocklist. If the user is already blocked, update the reason."
+  addUser(user: JID!, reason: NonEmptyString): Boolean
+    @protected(type: DOMAIN, args: ["user"]) @use(args: ["user"])
+
+  "Remove a user from the blocklist"
+  removeUser(user: JID!): Boolean
+    @protected(type: DOMAIN, args: ["user"]) @use(args: ["user"]) 
+}

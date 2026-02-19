@@ -82,6 +82,8 @@ type AdminMutation @protected{
   mnesia: MnesiaAdminMutation
   "Server info and management"
   server: ServerAdminMutation
+  "Blocklist management"
+  blocklist: BlocklistAdminMutation
 }
 
 type AdminSubscription {
