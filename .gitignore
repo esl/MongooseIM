@@ -137,7 +137,11 @@ tools/xep_tool/xeplist.xml
 
 doc/mongooseim.doap
 doc/user-guide/Supported-XEPs.md
-big_tests/.DS_Store
+doc/supported-xeps.json
+doc/graphql-api/*/
+doc/graphql-api/*.html
+
+.DS_Store
 .vscode
 .venv/
 .tool-versions

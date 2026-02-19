@@ -1,4 +1,4 @@
-.PHONY: rel
+.PHONY: rel docs
 
 RUN=./tools/silent_exec.sh "$@.log"
 XEP_TOOL = tools/xep_tool
@@ -77,3 +77,12 @@ install: configure.out rel
 
 elvis:
 	$(REBAR) as lint lint
+
+docs: xeplist
+	##################################################################################################
+	## if build-docs.sh fails, mim_docs container remains running, so we can exec into it and debug ##
+	##################################################################################################
+	docker run --rm -d -v "$(PWD):/mim" -w /mim --name mim_docs cimg/python:3.11.5-node sleep infinity
+	docker exec mim_docs tools/install-mkdocs.sh &>/dev/null
+	docker exec mim_docs tools/build-docs.sh  &>/dev/null
+	docker stop mim_docs
