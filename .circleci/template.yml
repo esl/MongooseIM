@@ -473,7 +473,7 @@ jobs:
           name: Install tools for building docs
           command: tools/install-mkdocs.sh
       - run:
-          name: Test that docs build
+          name: Build the docs
           command: tools/build-docs.sh
       - when:
           condition:
