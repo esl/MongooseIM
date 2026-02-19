@@ -4,7 +4,7 @@
 -export([init/0]).
 
 -behaviour(mongoose_instrument_probe).
--export([probe/2]).
+-export([probe/3]).
 
 %% For tests
 -export([instrumentation/0, wait_for_mnesia/0]).
@@ -71,9 +71,10 @@ instrumentation(mnesia) ->
 instrumentation(cets) ->
     mongoose_instrument_probe_cets:instrumentation().
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
-          mongoose_instrument:measurements().
-probe(mnesia_info, #{}) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(),
+            mongoose_instrument:extra()) ->
+    mongoose_instrument:measurements().
+probe(mnesia_info, #{}, _Extra) ->
     DbNodes = mnesia:system_info(db_nodes),
     RunningDbNodes = mnesia:system_info(running_db_nodes),
     #{db_nodes => length(DbNodes), running_db_nodes => length(RunningDbNodes)}.

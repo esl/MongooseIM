@@ -173,7 +173,7 @@ end_per_testcase(CaseName, Config) ->
 one_to_one_message(Config) ->
     %% Given Alice connected to node one and ClusterGuy connected to node two
     #{send_oct := InitialSendOct, recv_oct := InitialRecvOct}
-        = rpc(mim(), mongoose_system_probes, probe, [system_dist_data, #{}]),
+        = rpc(mim(), mongoose_system_probes, probe, [system_dist_data, #{}, #{}]),
     escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
         %% When Alice sends a message to ClusterGuy
         Msg1 = escalus_stanza:chat_to(ClusterGuy, <<"Hi!">>),
