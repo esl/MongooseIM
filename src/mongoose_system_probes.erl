@@ -6,7 +6,7 @@
 -export([start/0, stop/0]).
 
 %% Behaviour callbacks
--export([probe/2]).
+-export([probe/3]).
 
 %% API for tests
 -export([instrumentation/0]).
@@ -39,19 +39,20 @@ instrumentation() ->
       #{metrics => gauges([connections | inet_stats()]), probe => #{module => ?MODULE}}} |
      mongoose_internal_databases:instrumentation()].
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
-          mongoose_instrument:measurements().
-probe(system_up_time, #{}) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(),
+            mongoose_instrument:extra()) ->
+    mongoose_instrument:measurements().
+probe(system_up_time, #{}, _Extra) ->
     #{seconds => up_time()};
-probe(system_tcp_ports, #{}) ->
+probe(system_tcp_ports, #{}, _Extra) ->
     #{count => count_tcp_ports()};
-probe(system_process_queue_lengths, #{}) ->
+probe(system_process_queue_lengths, #{}, _Extra) ->
     #{total => total_process_queue_length()};
-probe(system_info, #{}) ->
+probe(system_info, #{}, _Extra) ->
     maps:from_list([{Metric, erlang:system_info(Metric)} || Metric <- system_info_metrics()]);
-probe(system_memory, #{}) ->
+probe(system_memory, #{}, _Extra) ->
     maps:from_list(erlang:memory());
-probe(system_dist_data, #{}) ->
+probe(system_dist_data, #{}, _Extra) ->
     dist_data_stats().
 
 -spec up_time() -> non_neg_integer().

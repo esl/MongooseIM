@@ -65,7 +65,7 @@
 -export([process_packet/5]).
 
 %% mongoose_instrument_probe callback
--export([probe/2]).
+-export([probe/3]).
 
 %% Hooks handlers
 -export([is_muc_room_owner/3,
@@ -1309,9 +1309,10 @@ instrumentation(HostType) ->
      {mod_muc_rooms, #{host_type => HostType},
       #{probe => #{module => ?MODULE}, metrics => #{online => gauge, hibernated => gauge}}}].
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
-          mongoose_instrument:measurements().
-probe(mod_muc_rooms, #{host_type := HostType}) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(),
+            mongoose_instrument:extra()) ->
+    mongoose_instrument:measurements().
+probe(mod_muc_rooms, #{host_type := HostType}, _Extra) ->
     count_rooms(HostType).
 
 subdomain_pattern(HostType) ->

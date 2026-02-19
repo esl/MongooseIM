@@ -66,7 +66,7 @@
          sessions_cleanup/1,
          terminate_session/2,
          sm_backend/0,
-         probe/2,
+         probe/3,
          start_probes/0,
          stop_probes/0
         ]).
@@ -1004,11 +1004,12 @@ global_probes() ->
      {sm_node_sessions, #{},
       #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}}].
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(),
+            mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
-probe(sm_total_sessions, #{}) ->
+probe(sm_total_sessions, #{}, _Extra) ->
     #{count => get_total_sessions_number()};
-probe(sm_unique_sessions, #{}) ->
+probe(sm_unique_sessions, #{}, _Extra) ->
     #{count => get_unique_sessions_number()};
-probe(sm_node_sessions, #{}) ->
+probe(sm_node_sessions, #{}, _Extra) ->
     #{count => get_node_sessions_number()}.

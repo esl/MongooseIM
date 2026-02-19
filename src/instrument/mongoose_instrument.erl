@@ -43,7 +43,9 @@
                     loglevel => logger:level(),
                     probe => probe_config()}.
 -type probe_config() :: #{module := module(),
-                          interval => pos_integer()}.
+                          interval => pos_integer(),
+                          extra => extra()}.
+-type extra() :: map().
 -type handler_key() :: atom(). % key in the `instrumentation' section of the config file
 -type handler_fun() :: fun((event_name(), labels(), config(), measurements()) -> any()).
 -type handlers() :: {[handler_fun()], config()}.

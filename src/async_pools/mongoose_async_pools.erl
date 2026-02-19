@@ -3,8 +3,13 @@
 -include("mongoose_logger.hrl").
 
 -behaviour(supervisor).
+-behaviour(mongoose_instrument_probe).
+
 -export([start_link/3, init/1]).
 -ignore_xref([start_link/3]).
+
+% mongoose_instrument_probe
+-export([probe/3]).
 
 % API
 -export([start_pool/3, stop_pool/2]).
@@ -177,4 +182,13 @@ instrumentation(HostType, PoolId) ->
     [{async_pool_flush, #{pool_id => PoolId, host_type => HostType},
       #{metrics => #{timed => spiral, batch => spiral}}},
      {async_pool_request, #{pool_id => PoolId, host_type => HostType},
-      #{metrics => #{count => spiral}}}].
+      #{metrics => #{count => spiral}}},
+     {async_pool_queue_lengths, #{pool_id => PoolId, host_type => HostType},
+      #{probe => #{module => ?MODULE}, metrics => #{total => gauge}}}].
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:lables(),
+            mongoose_instrument:extra()) ->
+    mongoose_instrument:measurements().
+probe(async_pool_queue_lengths, #{pool_id := PoolId, host_type := HostType}, _Extra) ->
+    PoolName = pool_name(HostType, PoolId),
+    mongoose_wpool:workers_queue_len(PoolName).
