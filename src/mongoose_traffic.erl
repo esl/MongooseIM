@@ -6,6 +6,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
+-export([register/0]).
 %% gen_mod API
 -export([start/2, stop/1]).
 -export([supported_features/0]).
@@ -13,8 +14,6 @@
 -export([trace_traffic/3]).
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
-%% cowboy handler for serving main page
--export([init/2]).
 
 -define(SERVER, ?MODULE).
 
@@ -44,6 +43,10 @@ hooks(_HostType) ->
     [{c2s_debug, global, fun ?MODULE:trace_traffic/3, #{}, 50}].
 
 supported_features() -> [dynamic_domains].
+
+register() ->
+    Pid = self(),
+    gen_server:call(?MODULE, {register, Pid}).
 
 trace_traffic(Acc, #{arg := {client_to_server, From, El}}, _) ->
     traffic(client_to_server, From, El),
@@ -78,20 +81,6 @@ handle_cast({message, _, _, _} = Msg, State) ->
 handle_info({'DOWN', _, _, Pid, _}, State) ->
     {noreply, lists:delete(Pid, State)}.
 
-init(Req, State) ->
-    {ok, Cwd} = file:get_cwd(),
-    Base = Cwd ++ "/web/traffic",
-    File = case cowboy_req:path_info(Req) of
-               [] -> "session.html";
-               P -> filename:join(P)
-           end,
-    Path = filename:join(Base, File),
-    Size = filelib:file_size(Path),
-    Req1 = cowboy_req:reply(200,
-                            #{},
-                            {sendfile, 0, Size, Path}, Req),
-    {ok, Req1, State}.
-
 fix_and_format(El) when is_binary(El) ->
     El;
 fix_and_format({xmlstreamend, _}) ->
@@ -103,8 +92,13 @@ fix_and_format({Tag, Name, Attrs}) ->
 fix_and_format({Tag, Name, Attrs, Children}) ->
     exml:to_pretty_iolist({Tag, Name, fix_attrs(Attrs), Children}).
 
-fix_attrs(Attrs) ->
+fix_attrs(Attrs) when is_map(Attrs) ->
+    maps:filter(fun is_defined/2, Attrs);
+fix_attrs(Attrs) when is_list(Attrs) ->
     lists:filter(fun is_defined/1, Attrs).
 
 is_defined({_, undefined}) -> false;
 is_defined({_, _}) -> true.
+
+is_defined(_, undefined) -> false;
+is_defined(_, _) -> true.
