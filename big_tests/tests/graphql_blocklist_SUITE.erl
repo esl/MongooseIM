@@ -8,6 +8,7 @@
                          get_unauthorized/1, user_to_bin/1]).
 
 -include_lib("stdlib/include/assert.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -define(NONEXISTING_DOMAIN, <<"abc@abc">>).
 -define(NONEXISTING_USER, <<"abc@", (domain())/binary>>).
@@ -43,7 +44,8 @@ admin_blocklist_tests() ->
      admin_add_user_nonexisting,
      admin_add_user_without_reason,
      admin_remove_user,
-     admin_remove_user_nonexisting].
+     admin_remove_user_nonexisting,
+     user_removal].
 
 admin_blocklist_not_configured_tests() ->
     [admin_admin_user_not_configured,
@@ -146,21 +148,30 @@ admin_add_user_without_reason_story(Config, Alice) ->
                    escalus:wait_for_stanza(Alice, 1)).
 
 admin_remove_user(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_remove_user_story/2).
-
-admin_remove_user_story(Config, Alice) ->
-    Res1 = admin_remove_user(Alice, Config),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    Alice = escalus_users:get_jid(Config1, alice),
+    Res1 = admin_remove_user(Alice, Config1),
     ?assertEqual(false, get_ok_value([data, blocklist, removeUser], Res1)),
-    admin_add_user(Alice, <<"Spam">>, Config),
-    Res2 = admin_remove_user(Alice, Config),
-    ?assertEqual(true, get_ok_value([data, blocklist, removeUser], Res2)).
+    admin_add_user(Alice, <<"Spam">>, Config1),
+    Res2 = admin_remove_user(Alice, Config1),
+    ?assertEqual(true, get_ok_value([data, blocklist, removeUser], Res2)),
+    Spec = escalus_users:get_userspec(Config1, alice),
+    {ok, _, _} = escalus_connection:start(Spec).
 
 admin_remove_user_nonexisting(Config) ->
     Res1 = admin_remove_user(?NONEXISTING_DOMAIN, Config),
     ?assertEqual(<<"domain_not_found">>, get_err_code(Res1)),
     Res2 = admin_remove_user(?NONEXISTING_USER, Config),
     ?assertEqual(false, get_ok_value([data, blocklist, removeUser], Res2)).
+
+user_removal(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    Alice = escalus_users:get_jid(Config1, alice),
+    admin_add_user(Alice, <<"Spam">>, Config1),
+    Spec = escalus_users:get_userspec(Config1, alice),
+    escalus_users:delete_users(Config1, [{alice, Spec}]),
+    Res = admin_remove_user(Alice, Config1),
+    ?assertEqual(false, get_ok_value([data, blocklist, removeUser], Res)).
 
 admin_admin_user_not_configured(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
