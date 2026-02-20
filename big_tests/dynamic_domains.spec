@@ -23,6 +23,7 @@
 {suites, "tests", disco_and_caps_SUITE}.
 {suites, "tests", domain_isolation_SUITE}.
 {suites, "tests", extdisco_SUITE}.
+{suites, "tests", external_filter_SUITE}.
 
 {suites, "tests", gdpr_SUITE}.
 {skip_groups, "tests", gdpr_SUITE,
