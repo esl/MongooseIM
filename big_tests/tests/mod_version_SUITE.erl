@@ -35,15 +35,18 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(soft_version, Config) ->
+    log_error_helper:start(),
     dynamic_modules:start(domain_helper:host_type(), mod_version, default_mod_config(mod_version)),
     Config;
 init_per_group(soft_version_with_os, Config) ->
+    log_error_helper:start(),
     ModuleConfig = mod_config(mod_version, #{os_info => true}),
     dynamic_modules:start(domain_helper:host_type(), mod_version, ModuleConfig),
     Config.
 
 end_per_group(_Group, Config) ->
     dynamic_modules:stop(domain_helper:host_type(), mod_version),
+    log_error_helper:check(),
     Config.
 
 init_per_testcase(CaseName, Config) ->
