@@ -34,6 +34,7 @@
 
 -export_type([priority/0,
               maybe_priority/0,
+              maybe_presence/0,
               available/0,
               subscriptions/0,
               state/0]).
@@ -51,11 +52,14 @@
          am_i_subscribed_to_presence/3,
          presence_unavailable_stanza/0,
          get_presence/1,
-         get_subscribed/1,
          set_presence/2,
          maybe_get_handler/1,
          get_old_priority/1
         ]).
+
+-export([get_presence_type/1]).
+
+-ignore_xref([am_i_subscribed_to_presence/3]). % exported for tests/debugging
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(_HostType, _Opts) ->
@@ -81,10 +85,6 @@ supported_features() ->
 -spec get_presence(pid()) -> {jid:luser(), jid:lresource(), binary(), binary()}.
 get_presence(Pid) ->
     mongoose_c2s:call(Pid, ?MODULE, get_presence).
-
--spec get_subscribed(pid()) -> [jid:jid()].
-get_subscribed(Pid) ->
-    mongoose_c2s:call(Pid, ?MODULE, get_subscribed).
 
 -spec set_presence(pid(), exml:element()) -> ok.
 set_presence(Pid, Message) ->
@@ -178,19 +178,6 @@ foreign_event(Acc, #{c2s_data := StateData,
     #jid{luser = User, lresource = Resource} = mongoose_c2s:get_jid(StateData),
     Reply = {User, Resource, get_showtag(PresLast), get_statustag(PresLast)},
     Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
-    {stop, Acc1};
-foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := {call, From},
-                     event_tag := ?MODULE,
-                     event_content := get_subscribed}, _Extra) ->
-    Subscribed = case get_mod_state(StateData) of
-                     {error, not_found} ->
-                         [];
-                     Presences ->
-                         PresF = get_by_sub(Presences, from),
-                         maps:keys(PresF)
-                 end,
-    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Subscribed}]),
     {stop, Acc1};
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := cast,

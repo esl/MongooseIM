@@ -45,9 +45,14 @@ end_per_suite(C) ->
     instrument_helper:stop().
 
 init_per_group(Name, C) ->
-    C2 = escalus:init_per_suite(dynamic_modules:save_modules(host_type(), C)),
-    dynamic_modules:ensure_modules(host_type(), required_modules(Name)),
-    C2.
+    Modules = required_modules(Name),
+    WithCaps = proplists:is_defined(mod_caps, Modules),
+    maybe
+        ok ?= check_caps_backend(WithCaps),
+        C2 = escalus:init_per_suite(dynamic_modules:save_modules(host_type(), C)),
+        dynamic_modules:ensure_modules(host_type(), Modules),
+        [{caps, WithCaps} | C2]
+    end.
 
 end_per_group(_Name, C) ->
     dynamic_modules:restore_modules(C).
@@ -170,6 +175,10 @@ user_can_query_server_features(Config) ->
         escalus:send(Alice, escalus_stanza:disco_info(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_identity, [<<"server">>, <<"im">>], Stanza),
+        case proplists:get_value(caps, Config) of
+            true -> escalus:assert(has_feature, [?NS_CAPS], Stanza);
+            false -> ok
+        end,
         escalus:assert(has_feature, [<<"iq">>], Stanza),
         escalus:assert(has_feature, [<<"presence">>], Stanza),
         escalus:assert(is_stanza_from, [domain()], Stanza)
@@ -200,13 +209,21 @@ user_can_query_server_info(Config) ->
 %% Helpers
 
 required_modules(disco_with_caps) ->
-    [{mod_caps, mod_config_with_auto_backend(mod_caps)},
+    [{mod_caps, default_mod_config(mod_caps)},
      {mod_disco, default_mod_config(mod_disco)}];
 required_modules(disco_with_caps_and_extra_features) ->
-    [{mod_caps, mod_config_with_auto_backend(mod_caps)},
+    [{mod_caps, default_mod_config(mod_caps)},
      {mod_disco, mod_config(mod_disco, extra_disco_opts())}];
 required_modules(disco_with_extra_features) ->
     [{mod_disco, mod_config(mod_disco, extra_disco_opts())}].
+
+check_caps_backend(true) ->
+    case ct_helper:get_internal_database() of
+        cets -> ok;
+        mnesia -> {skip, "mod_caps has no mnesia backend"}
+    end;
+check_caps_backend(false) ->
+    ok.
 
 extra_disco_opts() ->
     #{extra_domains => [extra_domain()],

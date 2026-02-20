@@ -287,16 +287,19 @@ init_per_testcase(remove_roster = CN, Config) ->
     roster_started(),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
-    GN = proplists:get_value(group, Config),
-    IsPubSub = lists:member(GN, [retrieve_personal_data_pubsub, remove_personal_data_pubsub]),
-    case IsPubSub of
-        true ->
-            dynamic_modules:ensure_modules(host_type(), pubsub_required_modules());
-        _ ->
-            ok
-    end,
-    escalus:init_per_testcase(CN, Config).
+    maybe
+        ok ?= maybe_set_up_pubsub(proplists:get_value(group, Config)),
+        escalus:init_per_testcase(CN, Config)
+    end.
 
+maybe_set_up_pubsub(GN) when GN =:= retrieve_personal_data_pubsub;
+                             GN =:= remove_personal_data_pubsub ->
+    case ct_helper:get_internal_database() of
+        cets -> dynamic_modules:ensure_modules(host_type(), pubsub_required_modules());
+        mnesia -> {skip, "mod_caps has no mnesia backend"}
+    end;
+maybe_set_up_pubsub(_GN) ->
+    ok.
 
 end_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
                                   CN =:= retrieve_mam_pm_and_muc_light_interfere;
@@ -416,7 +419,7 @@ pubsub_required_modules(Plugins) ->
                                             host => HostPattern,
                                             nodetree => nodetree_tree,
                                             plugins => Plugins}),
-    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
+    [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub, PubsubConfig}].
 
 is_mim2_started() ->
