@@ -43,13 +43,15 @@ wait_for_events(Stream, Count, Timeout, Received) ->
     case gun:await(Pid, StreamRef, Timeout) of
         {sse, #{data := _} = Event} ->
             ct:log("Received SSE event: ~p", [Event]),
-            wait_for_events(Stream, decrease_count(Count), Timeout, [Event | Received]);
+            wait_for_events(Stream, decrement_count(Count), Timeout, [Event | Received]);
+        {sse, fin} ->
+            fin;
         {error, timeout} ->
-            return_or_fail(decrease_count(Count), Received)
+            return_or_fail(decrement_count(Count), Received)
     end.
 
-decrease_count(all) -> all;
-decrease_count(I) -> I - 1.
+decrement_count(all) -> all;
+decrement_count(I)   -> I - 1.
 
 return_or_fail(all, Received) ->
     return_event_list(Received);

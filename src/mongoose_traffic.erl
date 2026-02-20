@@ -6,7 +6,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([register/0]).
+-export([register/1]).
 %% gen_mod API
 -export([start/2, stop/1]).
 -export([supported_features/0]).
@@ -25,8 +25,6 @@ start(HostType, _Opts) ->
             Traffic = {mongoose_traffic,
                          {gen_server, start_link, [?MODULE, [], []]},
                          permanent, 1000, supervisor, [?MODULE]},
-            % there has to be another layer
-            % channel will set up its own traces, someone has to watch and distribute stanzas
             ejabberd_sup:start_child(Traffic);
         _ ->
             ok
@@ -44,9 +42,9 @@ hooks(_HostType) ->
 
 supported_features() -> [dynamic_domains].
 
-register() ->
+register(Limit) ->
     Pid = self(),
-    gen_server:call(?MODULE, {register, Pid}).
+    gen_server:call(?MODULE, {register, {Pid, Limit}}).
 
 trace_traffic(Acc, #{arg := {client_to_server, From, El}}, _) ->
     traffic(client_to_server, From, El),
@@ -64,22 +62,32 @@ traffic(Dir, Jid, El) ->
 
 init([]) ->
     register(?MODULE, self()),
-    {ok, []}.
+    {ok, #{}}.
 
-handle_call({register, Pid}, _From, State) ->
+handle_call({register, {Pid, Limit}}, _From, State) ->
     monitor(process, Pid),
-    {reply, ok, [Pid | State]};
+    {reply, ok, register_pid(Pid, Limit, State)};
 handle_call({unregister, Pid}, _From, State) ->
-    {reply, ok, lists:delete(Pid, State)};
+    {reply, ok, unregister_pid(Pid, State)};
 handle_call(_, _, State) ->
     {reply, ok, State}.
 
 handle_cast({message, _, _, _} = Msg, State) ->
-    lists:map(fun(Pid) -> Pid ! Msg end, State),
-    {noreply, State}.
+    State1 = maps:fold(fun(Pid, Limit, NewState) ->
+                           send_and_count(Msg, Pid, Limit, NewState)
+                       end, #{},
+                       State),
+    {noreply, State1}.
+
+send_and_count(_Msg, Pid, 0, NewState) ->
+    Pid ! limit_exceeded,
+    NewState;
+send_and_count(Msg, Pid, Limit, NewState) ->
+    Pid ! Msg,
+    NewState#{Pid => Limit - 1}.
 
 handle_info({'DOWN', _, _, Pid, _}, State) ->
-    {noreply, lists:delete(Pid, State)}.
+    {noreply, unregister_pid(Pid, State)}.
 
 fix_and_format(El) when is_binary(El) ->
     El;
@@ -91,6 +99,12 @@ fix_and_format({Tag, Name, Attrs}) ->
     exml:to_pretty_iolist({Tag, Name, fix_attrs(Attrs)});
 fix_and_format({Tag, Name, Attrs, Children}) ->
     exml:to_pretty_iolist({Tag, Name, fix_attrs(Attrs), Children}).
+
+register_pid(Pid, Limit, State) ->
+    State#{Pid => Limit}.
+
+unregister_pid(Pid, State) ->
+    maps:remove(Pid, State).
 
 fix_attrs(Attrs) when is_map(Attrs) ->
     maps:filter(fun is_defined/2, Attrs);

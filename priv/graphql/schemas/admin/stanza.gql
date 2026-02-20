@@ -26,5 +26,5 @@ type StanzaAdminSubscription @protected{
     @protected(type: DOMAIN, args: ["caller"])
   "Subscribe for XMPP traffic"
   subscribeForTraffic: TraceMap
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL, args: ["limit"])
 }

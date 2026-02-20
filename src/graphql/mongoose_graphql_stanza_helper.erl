@@ -54,9 +54,12 @@ stanza_result(From, Timestamp, StanzaID, Stanza) ->
 
 trace_result(Timestamp, UserPid, Jid, Dir, Stanza) ->
     Map = #{<<"pid">> => pid_to_binary(UserPid), <<"timestamp">> => Timestamp,
-            <<"jid">> => Jid, <<"dir">> => atom_to_binary(Dir, utf8),
-            <<"stanza">> => Stanza},
-    {ok, Map}.
+            <<"dir">> => atom_to_binary(Dir, utf8), <<"stanza">> => Stanza},
+    Map1 = case Jid of
+               undefined -> Map;
+               J -> Map#{<<"jid">> => J}
+           end,
+    {ok, Map1}.
 
 pid_to_binary(Pid) when is_pid(Pid) ->
     [Spid] = io_lib:format("~p", [Pid]),

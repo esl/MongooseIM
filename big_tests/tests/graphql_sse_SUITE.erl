@@ -23,7 +23,7 @@ all() ->
      {group, timeout}].
 
 groups() ->
-    [{admin, [parallel], admin_tests()},
+    [{admin, [], admin_tests()},
      {user, [parallel], user_tests()},
      {timeout, [parallel], [sse_should_not_get_timeout, sse_works_with_long_messages]}].
 
@@ -69,6 +69,7 @@ end_per_testcase(CaseName, Config) ->
 admin_tests() ->
     [admin_subscribe_to_user_messages,
      admin_subscribe_to_traffic,
+     admin_subscribe_to_traffic_limited,
      admin_missing_query,
      admin_invalid_query_string,
      admin_missing_creds,
@@ -101,7 +102,7 @@ admin_subscribe_to_traffic(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
         From = escalus_client:full_jid(Bob),
         To = escalus_client:short_jid(Alice),
-        {200, Stream} = subscribe_admin(traffic, To, Config),
+        {200, Stream} = subscribe_admin(traffic, 1000, Config),
         escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
         [CtS, StC] = sse_helper:wait_for_events(Stream, 2, 100),
         assert_trace(<<"client_to_server">>, <<"message">>, CtS),
@@ -116,6 +117,18 @@ admin_subscribe_to_traffic(Config) ->
         StreamEnd = sse_helper:wait_for_event(Stream),
         assert_trace(<<"client_to_server">>, <<"</stream:stream>">>, StreamEnd),
         sse_helper:stop_sse(Stream)
+    end).
+
+admin_subscribe_to_traffic_limited(Config) ->
+    % if the limit is reached the stream is closed, no mercy
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = subscribe_admin(traffic, 2, Config),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
+        [_, _] = sse_helper:wait_for_events(Stream, 2, 100),
+        escalus_session:send_presence_unavailable(Bob),
+        fin = sse_helper:wait_for_events(Stream, 1, 100)
     end).
 
 assert_trace(ExpDir, ExpName, Rec) ->
@@ -217,10 +230,10 @@ subscribe_admin(messages, To, Config) ->
                                              <<"subscribeForMessages">>,
                                              #{caller => To},
                                              Config);
-subscribe_admin(traffic, To, Config) ->
+subscribe_admin(traffic, Limit, Config) ->
     graphql_helper:execute_admin_command_sse(<<"stanza">>,
                                              <<"subscribeForTraffic">>,
-                                             #{},
+                                             #{limit => Limit},
                                              Config).
 
 get_graphql_user_listener() ->

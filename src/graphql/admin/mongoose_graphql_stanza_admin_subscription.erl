@@ -29,8 +29,11 @@ subscribe_for_messages(_Ctx, #{<<"caller">> := Jid}) ->
 
 subscribe_for_traffic(#{event := terminate}, _) ->
     {ok, null, [{stream, closed}]};
+subscribe_for_traffic(#{event := limit_exceeded}, _) ->
+    {ok, #{}, [{stream, close}]};
 subscribe_for_traffic(#{event := Event}, _) ->
     mongoose_graphql_stanza_helper:handle_event(Event);
-subscribe_for_traffic(_Ctx, _) ->
-    mongoose_traffic:register(),
+subscribe_for_traffic(Ctx, A) ->
+    #{params := #{<<"limit">> := Limit}} = Ctx,
+    mongoose_traffic:register(Limit),
     {ok, null, [{stream, make_ref()}]}.
