@@ -2,11 +2,12 @@
 This module enables message filtering through an external service.
 It uses a configured HTTP pool to manage outgoing connections.
 
-The external service has to be a GraphQL server with the following schema:
+The external service has to be a GraphQL server with the schema
+described in the next section.
 
-### Root query
+### GraphQL server schema
 ```gql
-type Query {
+type RootMutation {
     verify(
         messageBody: String!
         messageId: String!
@@ -17,16 +18,16 @@ type Query {
 }
 
 type VerificationResult {
-    action: ActionEnum
+    action: Action!
 }
 
-enum ActionEnum {
+enum Action {
     # The message can be routed
     ALLOW
     # The message should not be routed
     BLOCK
 }
-
+```
 
 ## Options
 
@@ -35,7 +36,16 @@ enum ActionEnum {
 * **Default:** no default, this option is mandatory
 * **Example:** `pool_tag = "graphql_filter"`
 
-An http pool tag that is configured in [outgoing connections](../configuration/outgoing-connections.md#) section.
+An http pool tag that is configured in [outgoing connections](../configuration/outgoing-connections.md#) section. E.g.
+```
+[outgoing_pools.http.filter_service]
+  scope = "host_type"
+  workers = 30
+
+  [outgoing_pools.http.filter_service.connection]
+    host = "http://localhost:8080"
+    path_prefix = "/api"
+```
 
 ## Example configuration
 ```toml

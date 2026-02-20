@@ -11,18 +11,20 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, external_filter}].
+    [{group, pm}, {group, muc_light}].
 
 groups() ->
-    [{external_filter, [parallel], external_filter_test_cases()}].
+    [{pm, [parallel], pm_test_cases()}, {muc_light, [parallel], muc_light_test_cases()}].
 
-external_filter_test_cases() ->
+pm_test_cases() ->
     [allow_appropriate_message,
      block_inappropriate_message,
      allow_message_on_request_error,
      allow_non_body_messages,
-     allow_message_on_external_error,
-     allow_appropriate_message_muclight,
+     allow_message_on_external_error].
+
+muc_light_test_cases() ->
+    [allow_appropriate_message_muclight,
      block_inappropriate_message_muclight,
      allow_message_on_request_error_muclight].
 
@@ -37,19 +39,27 @@ init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     dynamic_modules:ensure_modules(HostType, module_config()),
-    start_mock(Config1),
+    start_mock(),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     stop_mock(),
-    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-init_per_group(_GroupName, Config) ->
+init_per_group(muc_light, Config0) ->
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config0),
+    dynamic_modules:ensure_modules(HostType, muc_light_config()),
+    Config1;
+init_per_group(_, Config) ->
     Config.
 
-end_per_group(_GroupName, Config) ->
+end_per_group(muc_light, Config) ->
+    dynamic_modules:restore_modules(Config),
+    Config;
+end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config) ->
@@ -61,8 +71,10 @@ end_per_testcase(CaseName, Config) ->
 module_config() ->
     [{mod_external_filter,
       config_parser_helper:mod_config(mod_external_filter, #{pool_tag => external_filter})},
-     {mod_stanzaid, #{}},
-     {mod_muc_light, config_parser_helper:mod_config_with_auto_backend(mod_muc_light)}].
+     {mod_stanzaid, #{}}].
+
+muc_light_config() ->
+    [{mod_muc_light, config_parser_helper:mod_config_with_auto_backend(mod_muc_light)}].
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -73,9 +85,9 @@ allow_appropriate_message(Config) ->
                         [{alice, 1}, {bob, 1}],
                         fun(Alice, Bob) ->
                            Message = <<"hello">>,
-                           external_filter_mock:subscribe(Message, allow_response()),
+                           subscribe_request(Message, allow_response()),
                            escalus:send(Alice, escalus_stanza:chat_to(Bob, Message)),
-                           external_filter_mock:wait_for_request(Message, 1000),
+                           wait_for_request(Message, 1000),
                            R = escalus_client:wait_for_stanza(Bob),
                            escalus:assert(is_chat_message, [Message], R)
                         end).
@@ -85,9 +97,9 @@ block_inappropriate_message(Config) ->
                         [{alice, 1}, {bob, 1}],
                         fun(Alice, Bob) ->
                            Message = <<"send me money">>,
-                           external_filter_mock:subscribe(Message, block_response()),
+                           subscribe_request(Message, block_response()),
                            escalus:send(Alice, escalus_stanza:chat_to(Bob, Message)),
-                           external_filter_mock:wait_for_request(Message, 1000),
+                           wait_for_request(Message, 1000),
                            ?assertNot(escalus_client:has_stanzas(Bob))
                         end).
 
@@ -96,9 +108,9 @@ allow_message_on_request_error(Config) ->
                         [{alice, 1}, {bob, 1}],
                         fun(Alice, Bob) ->
                            Message = <<"hi there">>,
-                           external_filter_mock:subscribe(Message, error_response()),
+                           subscribe_request(Message, error_response()),
                            escalus:send(Alice, escalus_stanza:chat_to(Bob, Message)),
-                           external_filter_mock:wait_for_request(Message, 1000),
+                           wait_for_request(Message, 1000),
                            R = escalus_client:wait_for_stanza(Bob),
                            escalus:assert(is_chat_message, [Message], R)
                         end).
@@ -120,9 +132,9 @@ allow_message_on_external_error(Config) ->
                         [{alice, 1}, {bob, 1}],
                         fun(Alice, Bob) ->
                            Message = <<"is something wrong?">>,
-                           external_filter_mock:subscribe(Message, server_error()),
+                           subscribe_request(Message, server_error()),
                            escalus:send(Alice, escalus_stanza:chat_to(Bob, Message)),
-                           external_filter_mock:wait_for_request(Message, 1000),
+                           wait_for_request(Message, 1000),
                            R = escalus_client:wait_for_stanza(Bob),
                            escalus:assert(is_chat_message, [Message], R)
                         end).
@@ -141,9 +153,9 @@ allow_appropriate_message_muclight(Config) ->
                            Message = <<"hello people">>,
                            MucHost = muc_light_helper:muc_host(),
                            RoomAddr = <<RoomName/binary, "@", MucHost/binary>>,
-                           external_filter_mock:subscribe(Message, allow_response()),
+                           subscribe_request(Message, allow_response()),
                            escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Message)),
-                           external_filter_mock:wait_for_request(Message, 1000),
+                           wait_for_request(Message, 1000),
                            R = escalus_client:wait_for_stanza(Bob),
                            escalus:assert(is_groupchat_message, [Message], R)
                         end).
@@ -162,9 +174,9 @@ block_inappropriate_message_muclight(Config) ->
                            Message = <<"send me your credentials">>,
                            MucHost = muc_light_helper:muc_host(),
                            RoomAddr = <<RoomName/binary, "@", MucHost/binary>>,
-                           external_filter_mock:subscribe(Message, block_response()),
+                           subscribe_request(Message, block_response()),
                            escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Message)),
-                           external_filter_mock:wait_for_request(Message, 1000),
+                           wait_for_request(Message, 1000),
                            ?assertNot(escalus_client:has_stanzas(Bob))
                         end).
 
@@ -182,9 +194,9 @@ allow_message_on_request_error_muclight(Config) ->
                            Message = <<"hi there people">>,
                            MucHost = muc_light_helper:muc_host(),
                            RoomAddr = <<RoomName/binary, "@", MucHost/binary>>,
-                           external_filter_mock:subscribe(Message, error_response()),
+                           subscribe_request(Message, error_response()),
                            escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Message)),
-                           external_filter_mock:wait_for_request(Message, 1000),
+                           wait_for_request(Message, 1000),
                            R = escalus_client:wait_for_stanza(Bob),
                            escalus:assert(is_groupchat_message, [Message], R)
                         end).
@@ -193,16 +205,15 @@ allow_message_on_request_error_muclight(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-start_mock(Config) ->
-    catch external_filter_mock:stop(),
-    external_filter_mock:start(Config),
-    Port = external_filter_mock:port(),
+start_mock() ->
+    Port = 8081,
+    {ok, MockPid} = http_helper:start(Port, "/api", fun external_filter_mock_handler/1),
+    ets:new(external_filter_mock_subscribers, [public, named_table, {heir, MockPid, take_care}]),
     PoolOpts = #{strategy => available_worker, workers => 20},
     ConnOpts =
-        #{host => "https://localhost:" ++ integer_to_list(Port),
+        #{host => "http://localhost:8081",
           path_prefix => <<"/api">>,
-          request_timeout => 2000,
-          tls => #{verify_mode => none}},
+          request_timeout => 2000},
     Pool =
         config_parser_helper:config([outgoing_pools, http, external_filter],
                                     #{opts => PoolOpts, conn_opts => ConnOpts}),
@@ -210,10 +221,36 @@ start_mock(Config) ->
         distributed_helper:rpc(
             distributed_helper:mim(), mongoose_wpool, start_configured_pools, [[Pool]]).
 
+subscribe_request(Message, Response) ->
+    ets:insert(external_filter_mock_subscribers, {Message, self(), Response}).
+
+wait_for_request(Message, Timeout) ->
+    receive
+        {request, Message, Body, Resp} ->
+            {jiffy:decode(Body, [return_maps]), Resp}
+    after Timeout ->
+        ct:fail("timeout_waiting_for_request")
+    end.
+
+external_filter_mock_handler(Req) ->
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
+    #{<<"variables">> := #{<<"messageBody">> := Message}} = jiffy:decode(Body, [return_maps]),
+    [{Message, Subscriber, Response}] = ets:lookup(external_filter_mock_subscribers, Message),
+    Subscriber ! {request, Message, Body, Response},
+    Req3 =
+        case Response of
+            server_error ->
+                cowboy_req:reply(500, #{}, <<"Internal server error">>, Req2);
+            _ when is_map(Response) ->
+                RespBody = jiffy:encode(Response),
+                cowboy_req:reply(200, #{}, RespBody, Req2)
+        end,
+    Req3.
+
 stop_mock() ->
     distributed_helper:rpc(
         distributed_helper:mim(), mongoose_wpool, stop, [http, global, external_filter]),
-    mongoose_push_mock:stop().
+    http_helper:stop().
 
 allow_response() ->
     #{<<"data">> => #{<<"verify">> => #{<<"action">> => <<"ALLOW">>}}}.
