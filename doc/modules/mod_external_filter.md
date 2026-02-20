@@ -1,33 +1,32 @@
 ## Module Description
-This module allows to do filtering of messages based on external service.
-It uses a configured outgoing http pool to handle the connection.
+This module enables message filtering through an external service.
+It uses a configured HTTP pool to manage outgoing connections.
 
 The external service has to be a GraphQL server with the following schema:
 
 ### Root query
-```
-verify(
-    messageBody: String!
-    messageId: String!
-    rawMessage: String
-    receiver: String!
-    sender: String!
-): VerificationResult
-```
+```gql
+type Query {
+    verify(
+        messageBody: String!
+        messageId: String!
+        rawMessage: String
+        receiver: String!
+        sender: String!
+    ): VerificationResult
+}
 
-### VerificationResult
-```
-VerificationResult {
+type VerificationResult {
     action: ActionEnum
 }
-```
 
-### ActionEnum
+enum ActionEnum {
+    # The message can be routed
+    ALLOW
+    # The message should not be routed
+    BLOCK
+}
 
-| Enum value | Description |
-| ---------- | ----------- |
-| ALLOW | The message can be routed |
-| BLOCK | The message should not be routed |
 
 ## Options
 

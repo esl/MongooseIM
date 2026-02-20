@@ -37,7 +37,7 @@ init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     dynamic_modules:ensure_modules(HostType, module_config()),
-    start_mock(Config0),
+    start_mock(Config1),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
