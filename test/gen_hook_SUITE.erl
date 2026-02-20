@@ -244,6 +244,7 @@ run_fold_executes_handlers_in_the_right_order(_) ->
                     {calculate, ?GLOBAL_TAG, PlusHandlerFn, #{n => 3}, 1},
                     {calculate, ?GLOBAL_TAG, PlusHandlerFn, #{}, 4}],
     ?assertEqual(ok, gen_hook:add_handlers(HookHandlers)),
+    ?assertEqual(ok, gen_hook:reload_hooks()),
     %% run the hook
     N = (((0 + 3) * 2) + 2) * 5, %% 40
     ?assertEqual({ok, N}, gen_hook:run_fold(calculate, ?GLOBAL_TAG, 0, #{n => 2})),
@@ -281,6 +282,7 @@ run_fold_stops_when_handler_returns_stop(_) ->
                     {calculate, ?GLOBAL_TAG, PlusHandlerFn, #{}, 4},
                     {calculate, ?GLOBAL_TAG, StopHandlerFn, #{}, 3}],
     ?assertEqual(ok, gen_hook:add_handlers(HookHandlers)),
+    ?assertEqual(ok, gen_hook:reload_hooks()),
     %% run the hook
     N = ((0 + 3) * 2), %% 6
     ?assertEqual({stop, N}, gen_hook:run_fold(calculate, ?GLOBAL_TAG, 0, #{n => 2})),
@@ -315,6 +317,7 @@ errors_in_handlers_are_reported_but_ignored(_) ->
                     {calculate, ?GLOBAL_TAG, PlusHandlerFn, #{}, 4},
                     {calculate, ?GLOBAL_TAG, ErrorHandlerFn, #{}, 3}],
     ?assertEqual(ok, gen_hook:add_handlers(HookHandlers)),
+    ?assertEqual(ok, gen_hook:reload_hooks()),
     %% run the hook
     N = (((0 + 3) * 2) + 2) * 5, %% 40
     ?assertEqual({ok, N}, gen_hook:run_fold(calculate, ?GLOBAL_TAG, 0, #{n => 2})),
@@ -372,4 +375,5 @@ get_hook_handler(ModName, FunName, Fun) when is_function(Fun, 3) ->
     fun ModName:FunName/3.
 
 get_handlers_for_all_hooks() ->
+    gen_hook:reload_hooks(),
     maps:to_list(persistent_term:get(gen_hook, #{})).

@@ -105,8 +105,8 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(server_ping_pong = CN, Config) ->
-    NConfig = clear_pong_hook(Config),
-    escalus:init_per_testcase(CN, NConfig);
+    clear_pong_hook(Config),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -116,14 +116,11 @@ start_mod_ping(Opts) ->
 
 setup_pong_hook(Config) ->
     Pid = self(),
-    HostType = host_type(),
-    mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [HostType, Pid]),
+    hook_helper:add_handler(hook_handler(Pid)),
     [{pid, Pid} | Config].
 
-setup_pong_hook(HostType, Pid) ->
-    gen_hook:add_handler(user_ping_response, HostType,
-                         fun ?MODULE:pong_hook_handler/3,
-                         #{pid => Pid}, 50).
+hook_handler(Pid) ->
+    {user_ping_response, host_type(), fun ?MODULE:pong_hook_handler/3, #{pid => Pid}, 50}.
 
 pong_hook_handler(Acc,
                   #{jid := JID} = _Params,
@@ -132,15 +129,8 @@ pong_hook_handler(Acc,
     {ok, Acc}.
 
 clear_pong_hook(Config) ->
-    {value, {_, Pid}, NConfig} = lists:keytake(pid, 1, Config),
-    HostType = host_type(),
-    mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [HostType, Pid]),
-    NConfig.
-
-clear_pong_hook(HostType, Pid) ->
-    gen_hook:delete_handler(user_ping_response, HostType,
-                            fun ?MODULE:pong_hook_handler/3,
-                            #{pid => Pid}, 50).
+    Pid = proplists:get_value(pid, Config),
+    hook_helper:delete_handler(hook_handler(Pid)).
 
 %%--------------------------------------------------------------------
 %% Ping tests

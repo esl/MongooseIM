@@ -7,16 +7,6 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
-%% Injected code callbacks
--export([rpc_start_hook_handler/3,
-         rpc_stop_hook_handler/2,
-         hook_handler_fn/3,
-         regression_handler/5]).
-
--export([rpc_start_filter_hook_handler/3,
-         rpc_stop_filter_hook_handler/2,
-         filter_hook_handler_fn/3]).
-
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
@@ -1087,7 +1077,7 @@ unacknowledged_message_hook_filter(Config) ->
     ok = rpc(mim(), sys, terminate, [C2SPid, normal]),
     %% verify that the filtered message is never received
     verify_no_receive_filtertext(NewUser, FilterText, Messages),
-    stop_hook_listener(HookHandlerExtra),
+    stop_filter_hook_listener(HookHandlerExtra),
     escalus_connection:stop(Bob).
 
 verify_no_receive_filtertext(_, _, []) ->
@@ -1704,25 +1694,16 @@ user_with_sm_multiple_resources_session_replacement_notifies_other_resources(Con
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-start_hook_listener(Resource) ->
-    TestCasePid = self(),
-    rpc(mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, Resource, host_type()]).
+start_hook_listener(User) ->
+    HookExtra = #{luser => jid:nodeprep(User), pid => self()},
+    hook_helper:add_handler(hook_handler(HookExtra)),
+    HookExtra.
 
 stop_hook_listener(HookExtra) ->
-    rpc(mim(), ?MODULE, rpc_stop_hook_handler, [HookExtra, host_type()]).
+    hook_helper:delete_handler(hook_handler(HookExtra)).
 
-rpc_start_hook_handler(TestCasePid, User, HostType) ->
-    LUser = jid:nodeprep(User),
-    Extra = #{luser => LUser, pid => TestCasePid},
-    gen_hook:add_handler(unacknowledged_message, HostType,
-                         fun ?MODULE:hook_handler_fn/3,
-                         Extra, 50),
-    Extra.
-
-rpc_stop_hook_handler(HookExtra, HostType) ->
-    gen_hook:delete_handler(unacknowledged_message, HostType,
-                            fun ?MODULE:hook_handler_fn/3,
-                            HookExtra, 50).
+hook_handler(Extra) ->
+    {unacknowledged_message, host_type(), fun ?MODULE:hook_handler_fn/3, Extra, 50}.
 
 hook_handler_fn(Acc,
                 #{jid := Jid} = _Params,
@@ -1747,24 +1728,16 @@ wait_for_unacked_msg_hook(Counter, Res, Timeout) ->
         timeout
     end.
 
-start_filter_hook_listener(FilterText, Resource) ->
-    rpc(mim(), ?MODULE, rpc_start_filter_hook_handler, [FilterText, Resource, host_type()]).
+start_filter_hook_listener(FilterText, User) ->
+    HookExtra = #{luser => jid:nodeprep(User), filter_text => FilterText},
+    hook_helper:add_handler(filter_hook_handler(HookExtra)),
+    HookExtra.
 
 stop_filter_hook_listener(HookExtra) ->
-    rpc(mim(), ?MODULE, rpc_stop_filter_hook_handler, [HookExtra, host_type()]).
+    hook_helper:delete_handler(filter_hook_handler(HookExtra)).
 
-rpc_start_filter_hook_handler(FilterText, User, HostType) ->
-    LUser = jid:nodeprep(User),
-    Extra = #{luser => LUser, filter_text => FilterText},
-    gen_hook:add_handler(filter_unacknowledged_messages, HostType,
-                         fun ?MODULE:filter_hook_handler_fn/3,
-                         Extra, 50),
-    Extra.
-
-rpc_stop_filter_hook_handler(HookExtra, HostType) ->
-    gen_hook:delete_handler(filter_unacknowledged_messages, HostType,
-                            fun ?MODULE:filter_hook_handler_fn/3,
-                            HookExtra, 50).
+filter_hook_handler(Extra) ->
+    {filter_unacknowledged_messages, host_type(), fun ?MODULE:filter_hook_handler_fn/3, Extra, 50}.
 
 filter_hook_handler_fn(Buffer,
                        #{jid := Jid} = _Params,

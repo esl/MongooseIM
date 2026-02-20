@@ -23,6 +23,8 @@
 
 -define(NS_STANZAID, <<"urn:xmpp:sid:0">>).
 
+-import(domain_helper, [host_type/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -55,8 +57,8 @@ suite() ->
 
 init_per_suite(Config0) ->
     mongoose_helper:inject_module(?MODULE),
-    Config1 = dynamic_modules:save_modules(domain_helper:host_type(), Config0),
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_stanzaid, []}]),
+    Config1 = dynamic_modules:save_modules(host_type(), Config0),
+    dynamic_modules:ensure_modules(host_type(), [{mod_stanzaid, []}]),
     case mam_helper:backend() of
         disabled ->
             {skip, "no mam backend"};
@@ -69,17 +71,17 @@ end_per_suite(Config) ->
     ok.
 
 init_per_group(muc, Config0) ->
-    HostType = domain_helper:host_type(),
+    HostType = host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     muc_helper:load_muc(),
     Config1;
 init_per_group(muclight, Config0) ->
-    HostType = domain_helper:host_type(),
+    HostType = host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     dynamic_modules:ensure_modules(HostType, [{mod_muc_light, common_muc_light_opts()}]),
     Config1;
 init_per_group(_GroupName, Config) ->
-    Config1 = dynamic_modules:save_modules(domain_helper:host_type(), Config),
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
     escalus_fresh:create_users(Config1, escalus:get_users([alice, bob])).
 
 end_per_group(muc, Config) ->
@@ -92,14 +94,14 @@ end_per_group(_, Config) ->
 init_per_testcase(stanza_id_pm_mam, Config) ->
     Config1 = init_per_testcase(generic, Config),
     MamOpts = mam_helper:config_opts(#{pm => #{}, backend => backend(Config)}),
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_mam, MamOpts}]),
+    ok = dynamic_modules:ensure_modules(host_type(), [{mod_mam, MamOpts}]),
     Config1;
 init_per_testcase(stanza_id_muc_mam, Config) ->
     Config1 = init_per_testcase(generic, Config),
     MamOpts = mam_helper:config_opts(#{muc => #{host => distributed_helper:subhost_pattern(muc_helper:muc_host_pattern())},
                                        async_writer => #{enabled => false},
                                        backend => backend(Config)}),
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_mam, MamOpts}]),
+    ok = dynamic_modules:ensure_modules(host_type(), [{mod_mam, MamOpts}]),
     Config1;
 init_per_testcase(stanza_id_muclight_mam, Config) ->
     Config1 = init_per_testcase(generic, Config),
@@ -107,16 +109,16 @@ init_per_testcase(stanza_id_muclight_mam, Config) ->
                                        async_writer => #{enabled => false},
                                        backend => backend(Config)
                                      }),
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_mam, MamOpts}]),
+    ok = dynamic_modules:ensure_modules(host_type(), [{mod_mam, MamOpts}]),
     Config1;
 init_per_testcase(CaseName, Config) ->
-    Config1 = dynamic_modules:save_modules(domain_helper:host_type(), Config),
-    inject_handler(),
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    hook_helper:add_handler(hook_handler()),
     escalus:init_per_testcase(CaseName, Config1).
 
 end_per_testcase(CaseName, Config) ->
     dynamic_modules:restore_modules(Config),
-    remove_handler(),
+    hook_helper:delete_handler(hook_handler()),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -284,25 +286,8 @@ get_stanza_id([#xmlel{name = <<"result">>, attrs = #{<<"id">> := Id}} | _]) ->
 get_stanza_id([_ | Tail]) ->
     get_stanza_id(Tail).
 
-inject_handler() ->
-    Tpid = self(),
-    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, start_handler, [Tpid, domain_helper:host_type()]).
-
-remove_handler() ->
-    Tpid = self(),
-    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, stop_handler, [Tpid, domain_helper:host_type()]).
-
-start_handler(Pid, HostType) ->
-    gen_hook:add_handler(user_send_message, HostType,
-                         fun ?MODULE:send_stanza_id/3,
-                         #{pid => Pid}, 50),
-    ok.
-
-stop_handler(Pid, HostType) ->
-    gen_hook:delete_handler(user_send_message, HostType,
-                            fun ?MODULE:send_stanza_id/3,
-                            #{pid => Pid}, 50),
-    ok.
+hook_handler() ->
+    {user_send_message, host_type(), fun ?MODULE:send_stanza_id/3, #{pid => self()}, 50}.
 
 send_stanza_id(Acc, _, #{pid := Pid}) ->
     Pid ! {stanza_id, mongoose_acc:get(stable_stanza_id, value, undefined, Acc)},

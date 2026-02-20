@@ -176,7 +176,6 @@ handle_call({add_handler, Key = {Name, Tag}, #hook_handler{} = HookHandler}, _Fr
                         maps:put(Key, NewLs, State)
                 end
         end,
-    maybe_insert_immediately(NewState),
     {reply, ok, NewState};
 handle_call({delete_handler, Key = {Name, Tag}, #hook_handler{} = HookHandler}, _From, State) ->
     NewState =
@@ -196,7 +195,6 @@ handle_call({delete_handler, Key = {Name, Tag}, #hook_handler{} = HookHandler}, 
                 end,
                 maps:put(Key, NewLs, State)
         end,
-    maybe_insert_immediately(NewState),
     {reply, ok, NewState};
 handle_call(reload_hooks, _From, State) ->
     persistent_term:put(?MODULE, State),
@@ -220,18 +218,6 @@ terminate(_Reason, _State) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
-
-%% @doc This call inserts the new hooks map immediately only if an existing map was already present.
-%% This simplifies tests: at startup we wait until all hooks have been accumulated
-%% before inserting them all at once, while during tests we don't need to remember
-%% to reload on every change
-maybe_insert_immediately(State) ->
-    case persistent_term:get(?MODULE, hooks_not_set) of
-        hooks_not_set ->
-            ok;
-        _ ->
-            persistent_term:put(?MODULE, State)
-    end.
 
 -spec run_hook([#hook_handler{}], hook_acc(), hook_params(), key()) -> hook_fn_ret().
 run_hook([], Acc, _Params, _Key) ->

@@ -34,17 +34,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [
-        {group, message},
-        {group, cache_and_strip}
-    ].
-
-groups() ->
-    G = [
-         {message, [], message_test_cases()},
-         {cache_and_strip, [], cache_test_cases()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    message_test_cases() ++ cache_test_cases().
 
 message_test_cases() ->
     [
@@ -72,44 +62,27 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-init_per_group(message, Config) ->
-    % saves ref, timestamp and some attrs of acc in ets
-    add_handler(user_send_packet, test_save_acc, 5),
-    % checks it is the same acc
-    add_handler(filter_local_packet, test_check_acc, 50),
-    % checks it is the same acc and it has been stripped but keeps persistent props
-    add_handler(user_receive_packet, test_check_final_acc, 50),
-    Config;
-init_per_group(cache_and_strip, Config) ->
-    add_handler(user_send_packet, save_my_jid, 5),
-    add_handler(filter_local_packet, drop_if_jid_not_mine, 1),
-    Config;
-init_per_group(_GroupName, Config) ->
-    Config.
-
-end_per_group(message, _Config) ->
-    remove_handler(user_send_packet, test_save_acc, 5),
-    remove_handler(filter_local_packet, test_check_acc, 50),
-    remove_handler(user_receive_packet, test_check_final_acc, 50),
-    ok;
-end_per_group(cache_and_strip, _Config) ->
-    remove_handler(user_send_packet, save_my_jid, 5),
-    remove_handler(filter_local_packet, drop_if_jid_not_mine, 1),
-    ok;
-end_per_group(_GroupName, _Config) ->
-    ok.
-
-init_per_testcase(message_altered_by_filter_local_packet_hook = CN, Config) ->
-    add_handler(filter_local_packet, alter_message, 60),
-    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CaseName, Config) ->
+    hook_helper:add_handlers(hook_handlers(CaseName)),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(message_altered_by_filter_local_packet_hook = CN, Config) ->
-    remove_handler(filter_local_packet, alter_message, 60),
-    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
+    hook_helper:delete_handlers(hook_handlers(CaseName)),
     escalus:end_per_testcase(CaseName, Config).
+
+hook_handlers(message_altered_by_filter_local_packet_hook) ->
+    [handler(filter_local_packet, alter_message, 60) |
+     hook_handlers(one_message)];
+hook_handlers(one_message) ->
+    [% saves ref, timestamp and some attrs of acc in ets
+     handler(user_send_packet, test_save_acc, 5),
+     % checks it is the same acc
+     handler(filter_local_packet, test_check_acc, 50),
+     % checks it is the same acc and it has been stripped but keeps persistent props
+     handler(user_receive_packet, test_check_final_acc, 50)];
+hook_handlers(filter_local_packet_uses_recipient_values) ->
+    [handler(user_send_packet, save_my_jid, 5),
+     handler(filter_local_packet, drop_if_jid_not_mine, 1)].
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -162,15 +135,8 @@ filter_local_packet_uses_recipient_values(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-
-add_handler(Hook, F, Seq) ->
-    rpc(mim(), gen_hook, add_handler, handler(Hook, F, Seq)).
-
-remove_handler(Hook, F, Seq) ->
-    rpc(mim(), gen_hook, delete_handler, handler(Hook, F, Seq)).
-
 handler(Hook, F, Seq) ->
-    [Hook, domain_helper:host_type(mim), fun acc_test_helper:F/3, #{}, Seq].
+    {Hook, domain_helper:host_type(mim), fun acc_test_helper:F/3, #{}, Seq}.
 
 %% creates a temporary ets table keeping refs and some attrs of accumulators created in c2s
 recreate_table() ->

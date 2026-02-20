@@ -5,54 +5,7 @@
 
 %% API
 
--export([is_rdbms_enabled/1,
-         get_backend_mnesia_rdbms/1,
-         backend_for_module/2,
-         mnesia_or_rdbms_backend/0,
-         get_backend_name/2]).
-
--export([auth_modules/0]).
-
--export([total_offline_messages/0,
-         total_offline_messages/1,
-         total_active_users/0,
-         total_privacy_items/0,
-         total_private_items/0,
-         total_vcard_items/0,
-         total_roster_items/0,
-         generic_count/1]).
-
--export([clear_last_activity/2,
-         clear_caps_cache/2]).
-
--export([kick_everyone/0]).
--export([ensure_muc_clean/0]).
--export([successful_rpc/3, successful_rpc/4, successful_rpc/5]).
--export([logout_user/2, logout_user/3]).
--export([enable_carbons/1, disable_carbons/1]).
--export([wait_for_user/3]).
-
--export([inject_module/1, inject_module/2, inject_module/3]).
--export([make_jid/2]).
--export([make_jid/3]).
--export([make_jid_noprep/3]).
--export([get_session_pid/1]).
--export([get_session_pid/2]).
--export([get_session_info/2]).
--export([wait_for_route_message_count/2]).
--export([wait_for_pid_to_die/1]).
--export([supports_sasl_module/1]).
--export([auth_opts_with_password_format/1]).
--export([get_listeners/2]).
--export([restart_listener/2]).
--export([change_listener_idle_timeout/2]).
--export([should_minio_be_running/1]).
--export([new_mongoose_acc/1]).
--export([print_debug_info_for_module/1]).
--export([backup_and_set_config/2, backup_and_set_config_option/3, change_config_option/3]).
--export([restore_config/1, restore_config_option/2]).
--export([wait_for_n_offline_messages/2]).
--export([wait_for_c2s_state_name/2, get_c2s_state_name/1, get_c2s_state_data/1]).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 

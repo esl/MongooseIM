@@ -77,6 +77,7 @@ init_per_testcase(s2s, Config) ->
     Config;
 init_per_testcase(auth_anonymous, Config) ->
     mongoose_gen_auth:start(ejabberd_auth_anonymous, ?HOST),
+    gen_hook:reload_hooks(),
     Config;
 init_per_testcase(TestCase, Config) ->
     start_component_if_needed(?config(needs_component, Config)),
@@ -84,7 +85,10 @@ init_per_testcase(TestCase, Config) ->
     Config.
 
 end_per_testcase(auth_anonymous, _Config) ->
-    mongoose_gen_auth:stop(ejabberd_auth_anonymous, ?HOST);
+    mongoose_gen_auth:stop(ejabberd_auth_anonymous, ?HOST),
+    gen_hook:reload_hooks();
+end_per_testcase(s2s, _Config) ->
+    gen_hook:reload_hooks();
 end_per_testcase(TestCase, Config) ->
     stop_services_and_modules(TestCase, Config),
     stop_component_if_needed(?config(needs_component, Config)).
@@ -159,6 +163,7 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     gen_hook:add_handler(node_cleanup, global,
                          fun ?MODULE:notify_self_hook/3,
                          #{self => self()}, 50),
+    gen_hook:reload_hooks(),
     FakeNode = fakename@fakehost,
     Cleaner ! {nodedown, FakeNode},
     receive
@@ -175,6 +180,7 @@ cleaner_runs_hook_on_nodedown_for_host_type(_Config) ->
     gen_hook:add_handler(node_cleanup_for_host_type, HostType,
                          fun ?MODULE:notify_self_hook_for_host_type/3,
                          #{self => self()}, 50),
+    gen_hook:reload_hooks(),
     FakeNode = fakename@fakehost,
     Cleaner ! {nodedown, FakeNode},
     receive
@@ -230,13 +236,15 @@ stream_management(_Config) ->
     {error, smid_not_found} = mod_stream_management:get_sid(HostType, SMID).
 
 s2s(_Config) ->
-    ejabberd_s2s:start_link(),
+    {ok, S2SPid} = ejabberd_s2s:start_link(),
+    gen_hook:reload_hooks(),
     FromTo = {?HOST, <<"foreign">>},
     ejabberd_s2s:try_register(FromTo),
     Self = self(),
     [Self] = ejabberd_s2s:get_s2s_out_pids(FromTo),
     mongoose_hooks:node_cleanup(node()),
-    [] = ejabberd_s2s:get_s2s_out_pids(FromTo).
+    [] = ejabberd_s2s:get_s2s_out_pids(FromTo),
+    gen_server:stop(S2SPid).
 
 bosh(_Config) ->
     SID = <<"sid">>,

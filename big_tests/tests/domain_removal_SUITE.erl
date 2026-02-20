@@ -532,7 +532,8 @@ blocklist_removal(Config) ->
 removal_stops_if_handler_fails(Config0) ->
     mongoose_helper:inject_module(?MODULE),
     F = fun(Config, Alice) ->
-        start_domain_removal_hook(),
+        Handler = hook_handler(),
+        hook_helper:add_handler(Handler),
         Room = muc_helper:fresh_room_name(),
         MucHost = muc_light_helper:muc_host(),
         muc_light_helper:create_room(Room, MucHost, alice, [], Config, muc_light_helper:ver(1)),
@@ -542,28 +543,16 @@ removal_stops_if_handler_fails(Config0) ->
         mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
         run_remove_domain(),
         mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
-        stop_domain_removal_hook(),
+        hook_helper:delete_handler(Handler),
         run_remove_domain(),
         mam_helper:wait_for_room_archive_size(MucHost, Room, 0)
         end,
     escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
 
 %% Helpers
-start_domain_removal_hook() ->
-    rpc(mim(), ?MODULE, rpc_start_domain_removal_hook, [host_type()]).
 
-stop_domain_removal_hook() ->
-    rpc(mim(), ?MODULE, rpc_stop_domain_removal_hook, [host_type()]).
-
-rpc_start_domain_removal_hook(HostType) ->
-    gen_hook:add_handler(remove_domain, HostType,
-                         fun ?MODULE:domain_removal_hook_fn/3,
-                         #{}, 30). %% Priority is so that it comes before muclight and mam
-
-rpc_stop_domain_removal_hook(HostType) ->
-    gen_hook:delete_handler(remove_domain, HostType,
-                            fun ?MODULE:domain_removal_hook_fn/3,
-                            #{}, 30).
+hook_handler() ->
+    {remove_domain, host_type(), fun ?MODULE:domain_removal_hook_fn/3, #{}, 30}.
 
 domain_removal_hook_fn(Acc, _Params, _Extra) ->
     F = fun() -> throw(first_time_needs_to_fail) end,

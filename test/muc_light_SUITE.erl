@@ -121,6 +121,7 @@ codec_calls(_Config) ->
                          fun ?MODULE:filter_room_packet_handler/3,
                          #{},
                          50),
+    gen_hook:reload_hooks(),
 
     % count_call/1 should've been called twice - by handler fun (for each affiliated user,
     % we have one) and by a filter_room_packet hook handler.

@@ -1175,15 +1175,15 @@ enable_domain(Node, Domain) ->
 
 start_domain_removal_hook(HostType) ->
     Server = spawn(fun stopper/0),
-    rpc(mim(), gen_hook, add_handler,
-        [ remove_domain, HostType, fun ?MODULE:domain_removal_hook_fn/3,
-          #{server => Server}, 30]), %% Priority is so that it comes before muclight and mam
+    hook_helper:add_handler(hook_handler(HostType, Server)),
     Server.
 
 stop_domain_removal_hook(HostType, Server) ->
-    rpc(mim(), gen_hook, delete_handler,
-        [ remove_domain, HostType, fun ?MODULE:domain_removal_hook_fn/3,
-          #{server => Server}, 30]).
+    hook_helper:delete_handler(hook_handler(HostType, Server)).
+
+hook_handler(HostType, Server) ->
+    %% Priority is so that it comes before muclight and mam
+    {remove_domain, HostType, fun ?MODULE:domain_removal_hook_fn/3, #{server => Server}, 30}.
 
 domain_removal_hook_fn(Acc, _Params, #{server := Server}) ->
     Server ! {wait, self()},
