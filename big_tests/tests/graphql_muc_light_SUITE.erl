@@ -509,7 +509,7 @@ user_invite_user_story(Config, Alice, Bob) ->
     Ra = escalus:wait_for_stanza(Alice),
     ?assert(member_is_affiliated(Ra, Bob)),
     %% XMPP: Alice does NOT receive an IQ result stanza following
-    %% her HTTP request to invite Bob in story point (*).
+    %% her GraphQL mutation to invite Bob in story point (*).
     escalus_assert:has_no_stanzas(Alice),
     ok.
 
