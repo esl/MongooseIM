@@ -540,6 +540,7 @@ all_modules() ->
                           port => 2222, transport => <<"tcp">>, type => stun,
                           username => <<"username">>},
                         #{host => <<"192.168.0.1">>, type => turn}]},
+      mod_external_filter => mod_config(mod_external_filter, #{pool_tag => external_filter_http}),
       mod_csi => mod_config(mod_csi, #{buffer_max => 40}),
       mod_muc_log =>
           mod_config(mod_muc_log,
@@ -580,6 +581,7 @@ all_modules() ->
             max_http_connections => 100,
             pool_name => mongoose_push_http},
       mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
+      mod_stanzaid => default_mod_config(mod_stanzaid),
       mod_inbox => default_mod_config(mod_inbox),
       mod_mam =>
           mod_config(mod_mam,
@@ -875,7 +877,7 @@ default_mod_config(mod_disco) ->
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
 default_mod_config(mod_external_filter) ->
-    #{pool_tag => default};
+    #{};
 default_mod_config(mod_global_distrib) ->
     #{message_ttl => 4,
       hosts_refresh_interval => 3000,
@@ -1021,6 +1023,8 @@ default_mod_config(mod_smart_markers) ->
     #{keep_private => false,
       async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
       backend => rdbms, iqdisc => no_queue};
+default_mod_config(mod_stanzaid) ->
+    #{};
 default_mod_config(mod_stream_management) ->
     #{backend => mnesia,
       buffer => true,

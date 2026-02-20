@@ -62,7 +62,8 @@ supported_features() ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{<<"pool_tag">> => #option{type = atom, validate = pool_name}}}.
+    #section{items = #{<<"pool_tag">> => #option{type = atom, validate = pool_name}},
+             required = all}.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
