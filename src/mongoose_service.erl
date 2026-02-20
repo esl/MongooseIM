@@ -73,11 +73,11 @@ replace_services(ToStop, ToEnsure) ->
     Target = mongoose_service_deps:resolve_deps(WithNew),
 
     %% Stop each affected service if it is not in Target (stop deps first)
-    [ensure_stopped(Service) || {Service, _} <- lists:reverse(SortedOldWithDeps),
+    [ensure_service_stopped(Service) || {Service, _} <- lists:reverse(SortedOldWithDeps),
         not maps:is_key(Service, Target)],
 
     %% Ensure each service from Target
-    [ensure_started(Service, Opts) || {Service, Opts} <- mongoose_service_deps:sort_deps(Target)],
+    [ensure_service_started(Service, Opts) || {Service, Opts} <- mongoose_service_deps:sort_deps(Target)],
     gen_hook:reload_hooks().
 
 %% @doc Make sure the service is stopped. Ignores dependencies.
