@@ -90,7 +90,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### s2s_addr
 
 * **Type:** block
-* **Option:** [`auth.s2s.address`](s2s.md#s2saddress)
+* **Option:** [`s2s.outgoing.address`](s2s.md#s2soutgoingaddress)
 * **Syntax:** TOML key-value pair with the `address` option
 * **Example:**
 
