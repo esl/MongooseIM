@@ -15,7 +15,6 @@ For each HTTP listener, all the [general](../configuration/listen.md#general-lis
     * `mongoose_websocket_handler` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
     * `mongoose_prometheus_handler` - for [Prometheus](https://prometheus.io/) metrics,
     * `mongoose_graphql_handler` - for GraphQL API,
-    * `mongoose_admin_api`, `mongoose_client_api` - for REST API.
 
     These types are described below in more detail.
     The double-bracket syntax is used because there can be multiple handlers of a given type, so for each type there is a TOML array of one or more tables (subsections).
@@ -133,56 +132,6 @@ When this option is added, only listed GraphQL categories will be processed. For
 
 This option specifies the time in milliseconds after which the SSE connection is closed when idle.
 The default value is 1 hour.
-
-## Handler types: REST API - Admin - `mongoose_admin_api`
-
-The recommended configuration is shown in [Example 5](#example-5-admin-rest-api) below.
-For more information about the API, see the [REST interface](../rest-api/Administration-backend.md) documentation.
-The following options are supported for this handler:
-
-### `listen.http.handlers.mongoose_admin_api.username`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `username = "admin"`
-
-When set, enables authentication for the admin API, otherwise it is disabled. Requires setting `password`.
-
-### `listen.http.handlers.mongoose_admin_api.password`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `password = "secret"`
-
-Required to enable authentication for the admin API.
-
-### `listen.http.handlers.mongoose_admin_api.handlers`
-* **Syntax:** array of strings. Allowed values: `"contacts"`, `"users"`, `"sessions"`, `"messages"`, `"stanzas"`, `"muc_light"`, `"muc"`, `"inbox"`, `"domain"`, `"metrics"`.
-* **Default:** all API handler modules enabled
-* **Example:** `handlers = ["domain"]`
-
-The admin API consists of several handler modules, each of them implementing a subset of the functionality.
-By default, all modules are enabled, so you don't need to change this option.
-
-## Handler types: REST API - Client - `mongoose_client_api`
-
-The recommended configuration is shown in [Example 6](#example-6-client-rest-api) below.
-Please refer to [REST interface](../rest-api/Client-frontend.md) documentation for more information.
-The following options are supported for this handler:
-
-### `listen.http.handlers.mongoose_client_api.handlers`
-* **Syntax:** array of strings. Allowed values: `"sse"`, `"messages"`, `"contacts"`, `"rooms"`, `"rooms_config"`, `"rooms_users"`, `"rooms_messages"`.
-* **Default:** all API handler modules enabled
-* **Example:** `handlers = ["messages", "sse"]`
-
-The client API consists of several handler modules, each of them implementing a subset of the functionality.
-By default, all modules are enabled, so you don't need to change this option.
-
-### `listen.http.handlers.mongoose_client_api.docs`
-* **Syntax:** boolean
-* **Default:** `true`
-* **Example:** `docs = "false"`
-
-The Swagger documentation of the client API is hosted at the `/api-docs` path.
-You can disable the hosted documentation by setting this option to `false`.
 
 ## Handler types: Prometheus - `mongoose_prometheus_handler`
 
@@ -307,42 +256,7 @@ GraphQL API for the user.
     schema_endpoint = "user"
 ```
 
-### Example 5. Admin REST API
-
-REST API for administration, the listener is bound to `127.0.0.1` for increased security.
-The number of acceptors and connections is specified (reduced).
-Basic HTTP authentication is used as well.
-
-```toml
-[[listen.http]]
-  ip_address = "127.0.0.1"
-  port = 8088
-  transport.num_acceptors = 5
-  transport.max_connections = 10
-
-  [[listen.http.handlers.mongoose_admin_api]]
-    host = "localhost"
-    path = "/api"
-    username = "admin"
-    password = "secret"
-```
-
-### Example 6. Client REST API
-
-REST API for clients.
-
-```toml
-[[listen.http]]
-  port = 8089
-  transport.max_connections = 1024
-  protocol.compress = true
-
-  [[listen.http.handlers.mongoose_client_api]]
-    host = "_"
-    path = "/api"
-```
-
-### Example 7. Prometheus
+### Example 5. Prometheus
 
 Prometheus metrics endpoint.
 

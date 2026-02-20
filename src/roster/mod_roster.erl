@@ -48,7 +48,6 @@
          instrumentation/1,
          process_iq/5,
          get_roster_entry/4,
-         item_to_map/1,
          set_roster_entry/5,
          remove_from_roster/3,
          item_to_xml/1
@@ -974,16 +973,6 @@ get_roster_old(HostType, DestServer, JID) ->
     mongoose_instrument:execute(mod_roster_get, #{host_type => HostType},
                                 #{count => 1, jid => JID}),
     mongoose_hooks:roster_get(A, JID, false).
-
--spec item_to_map(roster()) -> map().
-item_to_map(#roster{} = Roster) ->
-    ContactJid = jid:make_noprep(jid:to_bare(Roster#roster.jid)),
-    ContactName = Roster#roster.name,
-    Subs = Roster#roster.subscription,
-    Groups = Roster#roster.groups,
-    Ask = Roster#roster.ask,
-    #{jid => ContactJid, name => ContactName, subscription => Subs,
-      groups => Groups, ask => Ask}.
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->

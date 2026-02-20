@@ -6,7 +6,6 @@
          count_sessions/0,
          count_sessions/1,
          list_user_sessions/1,
-         list_resources/1,
          list_user_resources/1,
          num_resources/1,
          get_user_resource/2,
@@ -78,16 +77,6 @@ count_sessions(Host) ->
     case check_domain(Host) of
         ok ->
             {ok, ejabberd_sm:get_vh_session_number(Host)};
-        Error ->
-            Error
-    end.
-
--spec list_resources(jid:server()) -> {ok, [jid:literal_jid()]} | {domain_not_found, binary()}.
-list_resources(Host) ->
-    case check_domain(Host) of
-        ok ->
-            Lst = ejabberd_sm:get_vh_session_list(Host),
-            {ok, [jid:to_binary(USR) || #session{usr = USR} <- Lst]};
         Error ->
             Error
     end.

@@ -133,10 +133,6 @@ groups() ->
      {bin, [],
       [
        timeout_cleaner_flush_all,
-       rest_api_bin_flush_all,
-       rest_api_bin_flush_all_errors,
-       rest_api_bin_flush_user,
-       rest_api_bin_flush_user_errors,
        xmpp_bin_flush,
        bin_is_not_included_by_default
       ]},
@@ -1403,54 +1399,6 @@ bin_is_not_included_by_default(Config) ->
         %% Fetching without explicit box name skips the bin
         check_inbox(Bob, [], #{})
     end).
-
-rest_api_bin_flush_user(Config) ->
-    TS = instrument_helper:timestamp(),
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        create_room_and_make_users_leave(Alice, Bob, Kate),
-        %% It is not in his bin anymore after triggering a bin flush
-        BobName = escalus_utils:get_username(Bob),
-        BobDomain = escalus_utils:get_server(Bob),
-        Path = <<"/inbox", "/", (BobDomain)/binary, "/", (BobName)/binary, "/0/bin">>,
-        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
-        ?assertEqual(1, NumOfRows),
-        check_inbox(Bob, [], #{box => bin})
-    end),
-    assert_async_request_event(TS).
-
-rest_api_bin_flush_user_errors(Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
-    User = escalus_users:get_username(Config1, alice),
-    Domain = escalus_users:get_server(Config1, alice),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
-        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/", User/binary, "/x/bin">>),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid JID">>} =
-        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/@/0/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>} =
-        rest_helper:delete(admin, <<"/inbox/baddomain/", User/binary, "/0/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"User baduser@", _/binary>>} =
-        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/baduser/0/bin">>).
-
-rest_api_bin_flush_all(Config) ->
-    TS = instrument_helper:timestamp(),
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        create_room_and_make_users_leave(Alice, Bob, Kate),
-        %% It is not in any bin anymore after triggering a bin flush
-        HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
-        Path = <<"/inbox/", HostTypePath/binary, "/0/bin">>,
-        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
-        ?assertEqual(2, NumOfRows),
-        check_inbox(Bob, [], #{box => bin}),
-        check_inbox(Kate, [], #{box => bin})
-    end),
-    assert_async_request_event(TS).
-
-rest_api_bin_flush_all_errors(_Config) ->
-    HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
-        rest_helper:delete(admin, <<"/inbox/", HostTypePath/binary, "/x/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"Host type not found">>} =
-        rest_helper:delete(admin, <<"/inbox/bad_host_type/0/bin">>).
 
 timeout_cleaner_flush_all(Config) ->
     TS = instrument_helper:timestamp(),

@@ -10,11 +10,12 @@
          unregister_user/2,
          ban_account/2,
          change_password/2,
-         change_password/3,
          check_account/1,
          check_password/2,
          check_password_hash/3,
          import_users/1]).
+
+-ignore_xref([list_users/1]).
 
 -type register_result() :: {ok | exists | invalid_jid | cannot_register |
                             limit_per_domain_exceeded, iolist()}.
@@ -117,11 +118,6 @@ unregister_user(JID) ->
         {error, _} ->
             {not_allowed, "User does not exist or you are not authorized properly"}
     end.
-
--spec change_password(jid:user(), jid:server(), binary()) -> change_password_result().
-change_password(User, Host, Password) ->
-    JID = jid:make_bare(User, Host),
-    change_password(JID, Password).
 
 -spec change_password(jid:jid(), binary()) -> change_password_result().
 change_password(JID, Password) ->

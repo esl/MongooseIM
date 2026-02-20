@@ -18,7 +18,7 @@
 
 -ignore_xref([start_link/0, sync_local/0, ping/1,
               init/1, handle_call/3, handle_cast/2, handle_info/2,
-              code_change/3, terminate/2]).
+              code_change/3, terminate/2, enabled/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,

@@ -83,10 +83,8 @@
  "at the moment S2S doesn't support dynamic domains "
  "(requires mod_register creating CT users)"}.
 
-{suites, "tests", muc_http_api_SUITE}.
 {suites, "tests", muc_light_SUITE}.
 {suites, "tests", muc_light_legacy_SUITE}.
-{suites, "tests", muc_light_http_api_SUITE}.
 {suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", offline_stub_SUITE}.
@@ -96,7 +94,6 @@
 {suites, "tests", push_SUITE}.
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", rdbms_SUITE}.
-{suites, "tests", rest_SUITE}.
 {suites, "tests", rest_client_SUITE}.
 {suites, "tests", sasl_SUITE}.
 {suites, "tests", sasl_external_SUITE}.

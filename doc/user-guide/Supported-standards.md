@@ -19,10 +19,8 @@
     [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html) and
     [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html)
     * [GraphQL API](../graphql-api/User-GraphQL.md)
-    * [REST API](../rest-api/Client-frontend.md) (deprecated)
 * Server/backend connections:
     * [GraphQL API](../graphql-api/Admin-GraphQL.md)
-    * [REST API](../rest-api/Administration-backend.md) (deprecated)
 * Configurable database backends:
     * Transient:
         * Mnesia

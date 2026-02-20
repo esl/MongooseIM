@@ -179,8 +179,8 @@ end_per_suite(_Config) ->
 init_per_group(user_listener, Config) ->
     Config1 = meck_module_and_service_checking(Config),
     Config2 = meck_domain_api(Config1),
-    meck:new(mongoose_api_common, [no_link]),
-    meck:expect(mongoose_api_common, check_password,
+    meck:new(mongoose_graphql_handler, [no_link, passthrough]),
+    meck:expect(mongoose_graphql_handler, do_check_password,
                 fun
                     (#jid{luser = <<"alice">>}, <<"makota">>) -> {true, {}};
                     (_, _) -> false

@@ -36,6 +36,10 @@
 -export([check_auth_header/2,
          gather/1]).
 
+-ifdef(TEST).
+-export([do_check_password/2]).
+-endif.
+
 -ignore_xref([from_json/2, to_html/2, to_json/2]).
 
 -include("mongoose_config_spec.hrl").
@@ -167,7 +171,7 @@ check_auth(Auth, #{schema_endpoint := user} = State) ->
 
 auth_user({basic, User, Password}, State) ->
     JID = jid:from_binary(User),
-    case mongoose_api_common:check_password(JID, Password) of
+    case check_password(JID, Password) of
         {true, _} -> {ok, State#{authorized => true,
                                  authorized_as => user,
                                  schema_ctx => #{user => JID}}};
@@ -284,3 +288,28 @@ allowed_categories() ->
      <<"session">>, <<"stanza">>, <<"roster">>, <<"vcard">>, <<"private">>, <<"metric">>,
      <<"stat">>, <<"gdpr">>, <<"mnesia">>, <<"server">>, <<"inbox">>, <<"http_upload">>,
      <<"offline">>, <<"token">>, <<"cets">>, <<"blocklist">>].
+
+-spec check_password(jid:jid() | error, binary()) -> {true, mongoose_credentials:t()} | false.
+-ifdef(TEST).
+check_password(JID, Password) ->
+    ?MODULE:do_check_password(JID, Password).
+-else.
+check_password(JID, Password) ->
+    do_check_password(JID, Password).
+-endif.
+
+do_check_password(error, _) ->
+    false;
+do_check_password(JID, Password) ->
+    {LUser, LServer} = jid:to_lus(JID),
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            Creds0 = mongoose_credentials:new(LServer, HostType, #{}),
+            Creds1 = mongoose_credentials:set(Creds0, username, LUser),
+            Creds2 = mongoose_credentials:set(Creds1, password, Password),
+            case ejabberd_auth:authorize(Creds2) of
+                {ok, Creds} -> {true, Creds};
+                _ -> false
+            end;
+        {error, not_found} -> false
+    end.

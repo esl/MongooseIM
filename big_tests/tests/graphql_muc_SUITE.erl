@@ -528,7 +528,12 @@ admin_kick_user_story(Config, Alice, Bob) ->
     escalus:assert(is_presence_with_type, [<<"unavailable">>], KickStanza),
     ?assertEqual(Reason,
                  exml_query:path(KickStanza, [{element, <<"x">>}, {element, <<"item">>},
-                                              {element, <<"reason">>}, cdata])).
+                                              {element, <<"reason">>}, cdata])),
+    %% Kicking a non-existent nick succeeds in the current implementation
+    Res1 = kick_user(RoomJID, <<"there_is_no_such_person">>, Reason, Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res1),
+                                          <<"successfully">>)),
+    ok.
 
 admin_try_kick_user_from_room_without_moderators(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
@@ -1201,24 +1206,36 @@ user_invite_user_story(Config, Alice, Bob) ->
                  exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"jid">>}])).
 
 user_kick_user(Config) ->
-    muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}], fun user_kick_user_story/3).
+    muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}, {kate, 1}], fun user_kick_user_story/4).
 
-user_kick_user_story(Config, Alice, Bob) ->
+user_kick_user_story(Config, Alice, Bob, Kate) ->
     RoomJIDBin = ?config(room_jid, Config),
     RoomJID = jid:from_binary(RoomJIDBin),
     BobNick = <<"Bobek">>,
     Reason = <<"You are too loud">>,
     enter_room(RoomJID, Alice, <<"ali">>),
     enter_room(RoomJID, Bob, BobNick),
+    enter_room(RoomJID, Kate, <<"kitkat">>),
+    escalus:wait_for_stanzas(Alice, 3, 100),
+    escalus:wait_for_stanzas(Bob, 3, 100),
+    escalus:wait_for_stanzas(Kate, 3, 100),
     Res = user_kick_user(Alice, RoomJID, BobNick, Reason, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
-    escalus:wait_for_stanzas(Bob, 2),
+    %% Bob finds out he's been kicked.
     KickStanza = escalus:wait_for_stanza(Bob),
-    escalus:assert(is_presence_with_type, [<<"unavailable">>], KickStanza),
+    ?assert(is_unavailable_presence(KickStanza)),
     ?assertEqual(Reason,
                  exml_query:path(KickStanza, [{element, <<"x">>}, {element, <<"item">>},
-                                              {element, <<"reason">>}, cdata])).
+                                              {element, <<"reason">>}, cdata])),
+    %% Kate finds out Bob is kicked.
+    ?assert(is_unavailable_presence(escalus:wait_for_stanza(Kate))),
+    %% **NOTE**: Alice is a moderator so Bob is kicked through
+    %% her. She receives and IQ result.
+    AliceReceives = escalus:wait_for_stanzas(Alice, 2, 100),
+    escalus:assert_many([fun is_unavailable_presence/1, fun escalus_pred:is_iq_result/1],
+                        AliceReceives),
+    ok.
 
 user_try_kick_user_without_moderator_resource(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
@@ -1255,7 +1272,12 @@ user_send_message_to_room_story(Config, _Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
-                              escalus:wait_for_stanza(Bob)).
+                              escalus:wait_for_stanza(Bob)),
+    % Message to a non-existent room succeeds in the current implementation
+    Res1 = user_send_message_to_room(Bob, ?NONEXISTENT_ROOM, Message, null, Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res1),
+                                          <<"successfully">>)),
+    ok.
 
 user_send_message_to_room_with_specified_res(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 2}],
@@ -2106,3 +2128,6 @@ user_list_room_affiliations(User, Room, Aff, Config) ->
 
 room_to_bin(RoomJIDBin) when is_binary(RoomJIDBin) ->RoomJIDBin;
 room_to_bin(RoomJID) -> jid:to_binary(RoomJID).
+
+is_unavailable_presence(Stanza) ->
+    escalus_pred:is_presence_with_type(<<"unavailable">>, Stanza).

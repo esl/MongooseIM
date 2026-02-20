@@ -10,8 +10,7 @@
 -export([process_graphite_reporter/2]).
 
 %% Used by metrics API
--export([get_metric_values/1, get_metric_value/2, get_aggregated_values/1,
-         get_host_type_metric_names/1, get_global_metric_names/0]).
+-export([get_metric_values/1]).
 
 -ifdef(TEST).
 -export([exometer_metric_name/3]).
@@ -203,41 +202,10 @@ make_host_type_prefix(_HostType, true) ->
 make_host_type_prefix(HostType, false) ->
     binary:replace(HostType, <<" ">>, <<"_">>, [global]).
 
-get_metric_value(global, Name) when is_list(Name) ->
-    get_metric_value([get_host_type_prefix(#{}) | Name]);
-get_metric_value(HostType, Name) when is_list(Name) ->
-    get_metric_value([get_host_type_prefix(#{host_type => HostType}) | Name]);
-get_metric_value(HostType, Name) ->
-    get_metric_value(HostType, [Name]).
-
-get_metric_value(Metric) ->
-    exometer:get_value(Metric).
-
 get_metric_values(Metric) when is_list(Metric) ->
     exometer:get_values(Metric);
 get_metric_values(HostType) ->
     exometer:get_values([HostType]).
-
-get_aggregated_values(Metric) when is_list(Metric) ->
-    exometer:aggregate([{{['_' | Metric], '_', '_'}, [], [true]}], [one, count, value]);
-get_aggregated_values(Metric) when is_atom(Metric) ->
-    get_aggregated_values([Metric]).
-
-get_host_type_metric_names(HostType) ->
-    case all_metrics_are_global() of
-        false ->
-            HostTypeName = get_host_type_prefix(#{host_type => HostType}),
-            get_metric_names(HostTypeName);
-        true ->
-            []
-    end.
-
-get_global_metric_names() ->
-    get_metric_names(global).
-
-get_metric_names(HostTypeName) ->
-    [MetricName || {[_HostTypeName | MetricName], Type, _} <- exometer:find_entries([HostTypeName]),
-        Type =:= gauge orelse Type =:= counter orelse Type =:= spiral].
 
 -spec all_metrics_are_global() -> boolean().
 all_metrics_are_global() ->

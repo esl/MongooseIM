@@ -499,12 +499,19 @@ user_invite_user_story(Config, Alice, Bob) ->
     Res = user_invite_user(Alice, jid:to_binary(RoomJID), BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
                                           <<"successfully">>)),
-    escalus:wait_for_stanza(Bob),
+    Rb = escalus:wait_for_stanza(Bob),
+    ?assert(member_is_affiliated(Rb, Bob)),
     BobName = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
     AliceName = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
     ExpectedAff = lists:sort([{{AliceName, Domain}, owner},
                               {{BobName, Domain}, member}]),
-    ?assertMatch(ExpectedAff, lists:sort(get_room_aff(RoomJID))).
+    ?assertMatch(ExpectedAff, lists:sort(get_room_aff(RoomJID))),
+    Ra = escalus:wait_for_stanza(Alice),
+    ?assert(member_is_affiliated(Ra, Bob)),
+    %% XMPP: Alice does NOT receive an IQ result stanza following
+    %% her GraphQL mutation to invite Bob in story point (*).
+    escalus_assert:has_no_stanzas(Alice),
+    ok.
 
 user_invite_user_errors(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -1892,3 +1899,8 @@ enter_muc_room(RoomJID, User, Nick) ->
         JID),
     escalus:send(User, Pres),
     escalus:wait_for_stanza(User).
+
+member_is_affiliated(Stanza, User) ->
+    MemberJID = escalus_utils:jid_to_lower(escalus_utils:get_short_jid(User)),
+    Data = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}, cdata]),
+    MemberJID == Data.
