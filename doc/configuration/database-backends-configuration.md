@@ -121,7 +121,7 @@ psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
 You should also configure the Postgres database in the `mongooseim.toml` file.
 Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options)
-and [general database options](general.md#database-settings)
+and [general pool options](outgoing-connections.md#general-pool-options)
 for more information.
 
 ### CockroachDB
@@ -150,7 +150,7 @@ psql -h localhost -U user -p 26257 -q -d mongooseim -f cockroachdb.sql
 ```
 You should also configure the CockroachDB database in the `mongooseim.toml` file.
 Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options)
-and [general database options](general.md#database-settings)
+and [general pool options](outgoing-connections.md#general-pool-options)
 for more information.
 
 ## NoSQL
