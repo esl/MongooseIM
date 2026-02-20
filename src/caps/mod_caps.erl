@@ -15,14 +15,18 @@
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 -include_lib("kernel/include/logger.hrl").
 
 -define(SERVER_HASH_ALG, <<"sha-1">>).
 
-%% gen_mod callbacks
--export([start/2, stop/1, supported_features/0, hooks/1]).
+%% API
+-export([get_bare_jid_features/2]).
 
-%% hook handlers
+%% gen_mod callbacks
+-export([start/2, stop/1, config_spec/0, supported_features/0, hooks/1]).
+
+%% Hook handlers
 -export([disco_info/3,
          disco_local_features/3,
          disco_local_identity/3,
@@ -30,30 +34,76 @@
          user_receive_presence/3,
          stream_features/3]).
 
+%% API
+
+-spec get_bare_jid_features(mongooseim:host_type(), jid:jid()) -> [{jid:lresource(), [feature()]}].
+get_bare_jid_features(HostType, Jid) ->
+    mod_caps_backend:get_bare_jid_features(HostType, Jid).
+
+%% gen_mod callbacks
+
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
-    mod_caps_cache:init(HostType),
-    mod_caps_state:init(HostType).
+start(HostType, Opts) ->
+    mod_caps_backend:init(HostType, Opts).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    mod_caps_state:stop(HostType),
-    mod_caps_cache:stop(HostType),
+    mod_caps_backend:stop(HostType),
     delete_server_hash(HostType).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{items = #{<<"backend">> => #option{type = atom,
+                                                validate = {module, mod_caps_backend}}},
+             defaults = #{<<"backend">> => cets}}.
 
 -spec supported_features() -> [gen_mod:module_feature()].
 supported_features() -> [dynamic_domains].
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 1},
-     {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1},
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1},
      {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 1},
+     {disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 1},
      {c2s_stream_features, HostType, fun ?MODULE:stream_features/3, #{}, 75},
      {s2s_stream_features, HostType, fun ?MODULE:stream_features/3, #{}, 75},
      {user_send_presence, HostType, fun ?MODULE:user_send_presence/3, #{}, 75},
      {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 75}
     ].
+
+%% Hook handlers
+
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           gen_hook:hook_params(),
+                           gen_hook:extra()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := Node}, _, #{host_type := HostType}) ->
+    case is_server_node_valid(HostType, Node) of
+        true -> {ok, Acc#{node := <<>>}};
+        false -> {ok, mongoose_disco:add_features([?NS_CAPS], Acc)}
+    end.
+
+-spec disco_local_identity(mongoose_disco:identity_acc(),
+                           gen_hook:hook_params(),
+                           gen_hook:extra()) -> {ok, mongoose_disco:identity_acc()}.
+disco_local_identity(Acc = #{node := Node}, _, #{host_type := HostType}) ->
+    case is_server_node_valid(HostType, Node) of
+        true -> {ok, Acc#{node := <<>>}};
+        false -> {ok, Acc}
+    end.
+
+-spec disco_info(mongoose_disco:info_acc(),
+                 gen_hook:hook_params(),
+                 gen_hook:extra()) -> {ok, mongoose_disco:info_acc()}.
+disco_info(Acc = #{node := Node}, _, #{host_type := HostType}) ->
+    case is_server_node_valid(HostType, Node) of
+        true -> {ok, Acc#{node := <<>>}};
+        false -> {ok, Acc}
+    end.
+
+-spec stream_features(Acc, #{lserver := jid:lserver()}, gen_hook:extra()) -> {ok, Acc} when
+    Acc :: [exml:element()].
+stream_features(Acc, #{lserver := LServer}, #{host_type := HostType}) ->
+    {ok, caps_stream_features(HostType, jid:make(<<>>, LServer, <<>>)) ++ Acc}.
 
 -spec user_send_presence(mongoose_acc:t(), gen_hook:hook_params(), gen_hook:extra()) ->
           {ok, mongoose_acc:t()}.
@@ -68,6 +118,8 @@ user_receive_presence(Acc, #{c2s_data := C2SData}, #{host_type := HostType}) ->
     Result = handle_presence_from_remote_user(Acc, C2SData, HostType),
     ?LOG_DEBUG(#{what => mod_caps_handle_received_presence, acc => Acc, result => Result}),
     {ok, Acc}.
+
+%% Helpers
 
 -spec handle_presence_from_local_user(mongoose_acc:t(), mongoose_c2s:data(),
                                       mongooseim:host_type()) -> handle_presence_result().
@@ -101,20 +153,20 @@ process_caps(Acc, C2SData, HostType, Stanza) ->
         available ->
             case extract_caps(Stanza) of
                 State = #{hash := Hash} ->
-                    case mod_caps_cache:read(HostType, Hash) of
+                    case mod_caps_backend:get_hash_features(HostType, Hash) of
                         {ok, Features} ->
-                            mod_caps_state:set(HostType, jid:to_lower(Jid), Features),
+                            mod_caps_backend:set_jid_features(HostType, Jid, Features),
                             mongoose_hooks:caps_recognised(Acc, C2SData, Features),
                             stored;
                         {error, not_found} ->
-                    send_disco_info_request(Acc, C2SData, State, Jid),
+                            send_disco_info_request(Acc, C2SData, State, Jid),
                             requested
                     end;
                 _ ->
                     skipped
             end;
         unavailable ->
-            mod_caps_state:delete(HostType, jid:to_lower(Jid)),
+            mod_caps_backend:delete_jid_features(HostType, Jid),
             deleted
     end.
 
@@ -144,8 +196,8 @@ handle_response(Acc, C2SData, State, QueryEl) ->
             #{hash := Hash} = State,
             HostType = mongoose_acc:host_type(Acc),
             FromJid = mongoose_acc:from_jid(Acc),
-            mod_caps_cache:write(HostType, Hash, Features),
-            mod_caps_state:set(HostType, jid:to_lower(FromJid), Features),
+            mod_caps_backend:set_hash_features(HostType, Hash, Features),
+            mod_caps_backend:set_jid_features(HostType, FromJid, Features),
             mongoose_hooks:caps_recognised(Acc, C2SData, Features),
             stored;
         false ->
@@ -174,11 +226,6 @@ extract_caps(Element) ->
             undefined
     end.
 
--spec stream_features(Acc, #{lserver := jid:lserver()}, gen_hook:extra()) -> {ok, Acc} when
-    Acc :: [exml:element()].
-stream_features(Acc, #{lserver := LServer}, #{host_type := HostType}) ->
-    {ok, caps_stream_features(HostType, jid:make(<<>>, LServer, <<>>)) ++ Acc}.
-
 -spec caps_stream_features(mongooseim:host_type(), jid:jid()) -> [exml:element()].
 caps_stream_features(HostType, ServerJID) ->
     case make_server_hash(HostType, ServerJID) of
@@ -202,33 +249,6 @@ server_disco_elements(HostType, JID) ->
         IdentityXML = mongoose_disco:get_local_identity(HostType, JID, JID, <<>>, <<>>),
         InfoXML = mongoose_disco:get_info(HostType, mod_disco, <<>>, <<>>),
         {ok, IdentityXML ++ InfoXML ++ FeaturesXML}
-    end.
-
--spec disco_local_features(mongoose_disco:feature_acc(),
-                           gen_hook:hook_params(),
-                           gen_hook:extra()) -> {ok, mongoose_disco:feature_acc()}.
-disco_local_features(Acc = #{node := Node}, _, #{host_type := HostType}) ->
-    case is_server_node_valid(HostType, Node) of
-        true -> {ok, Acc#{node := <<>>}};
-        false -> {ok, mongoose_disco:add_features([?NS_CAPS], Acc)}
-    end.
-
--spec disco_local_identity(mongoose_disco:identity_acc(),
-                           gen_hook:hook_params(),
-                           gen_hook:extra()) -> {ok, mongoose_disco:identity_acc()}.
-disco_local_identity(Acc = #{node := Node}, _, #{host_type := HostType}) ->
-    case is_server_node_valid(HostType, Node) of
-        true -> {ok, Acc#{node := <<>>}};
-        false -> {ok, Acc}
-    end.
-
--spec disco_info(mongoose_disco:info_acc(),
-                 gen_hook:hook_params(),
-                 gen_hook:extra()) -> {ok, mongoose_disco:info_acc()}.
-disco_info(Acc = #{node := Node}, _, #{host_type := HostType}) ->
-    case is_server_node_valid(HostType, Node) of
-        true -> {ok, Acc#{node := <<>>}};
-        false -> {ok, Acc}
     end.
 
 -spec is_server_node_valid(mongooseim:host_type(), binary()) -> boolean().

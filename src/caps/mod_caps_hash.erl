@@ -1,6 +1,9 @@
 -module(mod_caps_hash).
 
 -export([generate/2, encode/1]).
+
+-ignore_xref([encode/1]). % exported for tests
+
 -include("jlib.hrl").
 
 -type alg() :: binary().
@@ -12,33 +15,33 @@ generate(Elements, Alg) ->
 -spec encode([exml:element()]) -> binary().
 encode(Elements) ->
     EncodedItems = lists:sort(lists:map(fun encode_item/1, Elements)),
-    << <<EncodedItem/binary>> || {_Priority, EncodedItem} <- EncodedItems >>.
+    iolist_to_binary([Item || {_Priority, Item} <- EncodedItems]).
 
--spec encode_item(exml:element()) -> {Priority :: pos_integer(), binary()} | skip.
+-spec encode_item(exml:element()) -> {Priority :: pos_integer(), iolist()} | skip.
 encode_item(#xmlel{name = <<"identity">>,
                    attrs = Attrs = #{<<"category">> := Category, <<"type">> := Type}}) ->
     Lang = maps:get(<<"xml:lang">>, Attrs, <<>>),
     Name = maps:get(<<"name">>, Attrs, <<>>),
-    {1, << Category/binary, $/, Type/binary, $/, Lang/binary, $/, Name/binary, $< >>};
+    {1, [Category, $/, Type, $/, Lang, $/, Name, $<]};
 encode_item(#xmlel{name = <<"feature">>, attrs = #{<<"var">> := Var}}) ->
-    {2, << Var/binary, $< >>};
+    {2, [Var, $<]};
 encode_item(Element) ->
     case mongoose_data_forms:is_form(Element) of
         true -> {3, encode_data_form(mongoose_data_forms:parse_form_fields(Element))};
         false -> skip
     end.
 
--spec encode_data_form(mongoose_data_forms:parsed_form()) -> binary().
+-spec encode_data_form(mongoose_data_forms:parsed_form()) -> iolist().
 encode_data_form(#{type := <<"result">>, kvs := KVs, ns := NS}) ->
-    << NS/binary, $<, (encode_form_fields(KVs))/binary >>.
+    [NS, $< | encode_form_fields(KVs)].
 
--spec encode_form_fields(mongoose_data_forms:kv_map()) -> binary().
+-spec encode_form_fields(mongoose_data_forms:kv_map()) -> iolist().
 encode_form_fields(KVs) ->
-    << << (encode_form_field(K, V))/binary, $< >> || K := V <- maps:iterator(KVs, ordered) >>.
+    [encode_form_field(K, V) || K := V <- maps:iterator(KVs, ordered)].
 
--spec encode_form_field(binary(), [binary()]) -> binary().
+-spec encode_form_field(binary(), [binary()]) -> iolist().
 encode_form_field(Key, Values) ->
-    << << Item/binary, $< >> || Item <- [Key | Values] >>.
+    [[Item, $<] || Item <- [Key | Values]].
 
 -spec hash(binary(), alg()) -> binary().
 hash(Data, <<"md5">>) -> erlang:md5(Data);

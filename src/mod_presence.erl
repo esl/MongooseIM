@@ -59,6 +59,8 @@
 
 -export([get_presence_type/1]).
 
+-ignore_xref([am_i_subscribed_to_presence/3]). % exported for tests/debugging
+
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(_HostType, _Opts) ->
     ok.

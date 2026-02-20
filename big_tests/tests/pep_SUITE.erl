@@ -19,7 +19,7 @@
                              require_rpc_nodes/1,
                              subhost_pattern/1,
                              rpc/4]).
--import(config_parser_helper, [mod_config/2]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 -import(domain_helper, [domain/0]).
 
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
@@ -36,7 +36,7 @@ all() ->
 
 groups() ->
     [
-         {pep_tests, [parallel, {repeat_until_any_fail, 20}], %% FIXME remove this repeat
+         {pep_tests, [parallel],
           [
            disco_test,
            disco_sm_test,
@@ -77,7 +77,10 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
+    case ct_helper:get_internal_database() of
+        cets -> escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config));
+        mnesia -> {skip, "mod_caps has no mnesia backend"}
+    end.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -533,14 +536,14 @@ field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
 field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},
                                            host => subhost_pattern("pubsub.@HOST@")})}].
 required_modules(cache_tests) ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),

@@ -81,8 +81,7 @@
          disco_sm_identity/3,
          disco_sm_features/3,
          disco_sm_items/3,
-         handle_pep_authorization_response/3,
-         foreign_event/3]).
+         handle_pep_authorization_response/3]).
 
 %% exported iq handlers
 -export([iq_sm/4]).
@@ -134,7 +133,7 @@
     affiliation_to_string/1,
     create_node/7,
     default_host/0,
-    delete_item/4,
+    delete_item/5,
     delete_node/3,
     get_cached_item/2,
     get_item/3,
@@ -145,7 +144,7 @@
     node_call/4,
     plugin/2,
     plugin/1,
-    publish_item/6,
+    publish_item/7,
     send_items/7,
     serverhost/1,
     start_link/2,
@@ -275,8 +274,11 @@ start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
-deps(_Host, _Opts) ->
-    [{mod_caps, #{cache_size => 1000, cache_life_time => timer:hours(24) div 1000}, optional}].
+deps(_Host, #{plugins := Plugins}) ->
+    case lists:member(?PEPNODE, Plugins) of
+        true -> [{mod_caps, #{}, hard}];
+        false -> []
+    end.
 
 start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
@@ -466,7 +468,6 @@ pep_hooks(ServerHost) ->
      {disco_sm_features, ServerHost, fun ?MODULE:disco_sm_features/3, #{}, 75},
      {disco_sm_items, ServerHost, fun ?MODULE:disco_sm_items/3, #{}, 75},
      {filter_local_packet, ServerHost, fun ?MODULE:handle_pep_authorization_response/3, #{}, 1},
-     {foreign_event, ServerHost, fun ?MODULE:foreign_event/3, #{}, 100},
      {user_send_iq, ServerHost, fun ?MODULE:user_send_iq/3, #{}, 50}
     ].
 
@@ -582,8 +583,9 @@ get_contacts_for_sending_last_item(C2SData, IgnorePepFromOffline) ->
             []
     end.
 
-send_last_items_from_owner(HostType, Host, NodeOwner, #jid{luser = LUser, lserver = LServer}) ->
-    ResourcesWithFeatures = mod_caps_state:get_resources(HostType, {LUser, LServer}),
+send_last_items_from_owner(HostType, Host, NodeOwner, RecipientJid) ->
+    ResourcesWithFeatures = mod_caps:get_bare_jid_features(HostType, RecipientJid),
+    #jid{luser = LUser, lserver = LServer} = RecipientJid,
     [send_last_item_to_jid(NodeOwner, NodeRec, {LUser, LServer, LResource}) ||
         NodeRec = #pubsub_node{nodeid = {_, Node}} <- get_nodes_for_sending_last_item(Host, NodeOwner),
         {LResource, Features} <- ResourcesWithFeatures,
@@ -750,28 +752,6 @@ handle_pep_authorization_response(<<"message">>, _, From, To, Acc, Packet)
         end;
 handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
-
-%% -------
-%% callback for foreign_event calls, to distribute pep messages from the node owner c2s process
-%%
--spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
-      mongoose_c2s_hooks:result().
-foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := {call, From},
-                     event_tag := ?MODULE,
-                     event_content := {get_pep_recipients, Feature}}, _Extra) ->
-    Reply = mongoose_hooks:get_pep_recipients(StateData, Feature),
-    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
-    {stop, Acc1};
-foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := {call, From},
-                     event_tag := ?MODULE,
-                     event_content := {filter_pep_recipient, To, Feature}}, _Extra) ->
-    Reply = mongoose_hooks:filter_pep_recipient(StateData, Feature, To),
-    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
-    {stop, Acc1};
-foreign_event(Acc, _Params, _Extra) ->
-    {ok, Acc}.
 
 %% -------
 %% presence hooks handling functions
@@ -3534,9 +3514,9 @@ broadcast_stanza(Host, _ReplyToJID, Node, Nidx, Type, NodeOptions,
 
 %% TODO check if we can get full JID's here - if so, they need more handling
 -spec full_jids_with_feature(mongooseim:host_type(), jid:jid(), mod_caps:feature()) -> [jid:jid()].
-full_jids_with_feature(HostType, #jid{luser = LUser, lserver = LServer}, Feature) ->
-    [jid:make_noprep(LUser, LServer, LResource) ||
-        {LResource, Features} <- mod_caps_state:get_resources(HostType, {LUser, LServer}),
+full_jids_with_feature(HostType, Jid, Feature) ->
+    [Jid#jid{lresource = LResource}
+     || {LResource, Features} <- mod_caps:get_bare_jid_features(HostType, Jid),
         lists:member(Feature, Features)].
 
 route_broadcasted(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) ->

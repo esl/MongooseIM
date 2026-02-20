@@ -1534,13 +1534,8 @@ mod_caps(_Config) ->
     check_module_defaults(mod_caps),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
     P = [modules, mod_caps],
-    ?cfgh(P ++ [cache_size], 10, T(<<"cache_size">>, 10)),
-    ?cfgh(P ++ [cache_life_time], 10, T(<<"cache_life_time">>, 10)),
-    ?cfgh(P ++ [backend], mnesia, T(<<"backend">>, <<"mnesia">>)),
-    ?errh(T(<<"cache_size">>, 0)),
-    ?errh(T(<<"cache_size">>, <<"infinity">>)),
-    ?errh(T(<<"cache_life_time">>, 0)),
-    ?errh(T(<<"cache_life_time">>, <<"infinity">>)).
+    ?cfgh(P ++ [backend], cets, T(<<"backend">>, <<"cets">>)),
+    ?errh(T(<<"backend">>, <<"mnesia">>)).
 
 mod_cache_users(_Config) ->
     check_module_defaults(mod_cache_users),

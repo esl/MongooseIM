@@ -518,13 +518,6 @@ CREATE TABLE discovery_nodes (
 );
 CREATE UNIQUE INDEX i_discovery_nodes_node_num ON discovery_nodes USING BTREE(cluster_name, node_num);
 
-CREATE TABLE caps (
-    node varchar(250) NOT NULL,
-    sub_node varchar(250) NOT NULL,
-    features text NOT NULL,
-    PRIMARY KEY (node, sub_node)
-);
-
 -- XEP-0484: Fast Authentication Streamlining Tokens
 -- Module: mod_fast_auth_token
 CREATE TABLE fast_auth_token(
