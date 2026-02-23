@@ -29,7 +29,12 @@ groups() ->
                              expect_by_substring,
                              expect_by_regex,
                              expect_by_custom_function,
-                             multiple_expected_patterns]},
+                             multiple_expected_patterns,
+                             expect_with_specific_count,
+                             expect_count_mismatch_fails,
+                             expect_at_least_count,
+                             expect_at_most_count,
+                             expect_no_errors_of_pattern]},
      {parallel_tests, [parallel], [parallel_test_1,
                                    parallel_test_2,
                                    parallel_test_3]}].
@@ -92,8 +97,8 @@ captures_error_logs(_Config) ->
     Result = log_error_helper:stop(),
 
     %% Should have unexpected errors
-    ?assertMatch({error, unexpected, [_|_]}, Result),
-    {error, unexpected, Errors} = Result,
+    ?assertMatch({error, {unexpected_errors, [_|_]}}, Result),
+    {error, {unexpected_errors, Errors}} = Result,
 
     %% Verify the error was captured with correct structure
     ?assertEqual(1, length(Errors)),
@@ -199,6 +204,62 @@ multiple_expected_patterns(_Config) ->
     rpc(mim(), log_error_test_helper, log_error, [second_error, "Second"]),
     rpc(mim(), log_error_test_helper, log_error, [third_error, "Third"]),
 
+    Result = log_error_helper:stop(),
+    ?assertEqual(ok, Result).
+
+%% Test expect with specific count - verifies count matching works
+expect_with_specific_count(_Config) ->
+    %% Expect exactly 2 errors with this pattern
+    log_error_helper:expect({what, counted_error}, 2),
+
+    %% Trigger exactly 2 errors - should pass
+    rpc(mim(), log_error_test_helper, log_error, [counted_error, "First"]),
+    rpc(mim(), log_error_test_helper, log_error, [counted_error, "Second"]),
+
+    Result = log_error_helper:stop(),
+    ?assertEqual(ok, Result).
+
+%% Test that count mismatch causes failure with expected vs actual info
+expect_count_mismatch_fails(_Config) ->
+    %% Expect 3 errors but only trigger 1
+    log_error_helper:expect({what, mismatched_error}, 3),
+    rpc(mim(), log_error_test_helper, log_error, [mismatched_error, "Only one"]),
+
+    %% Should return error with count mismatch info
+    Result = log_error_helper:stop(),
+    ?assertMatch({error, {count_mismatch, [{{what, mismatched_error}, 3, 1}]}}, Result).
+
+%% Test {at_least, N} count constraint
+expect_at_least_count(_Config) ->
+    %% Expect at least 2 errors
+    log_error_helper:expect({what, at_least_error}, {at_least, 2}),
+
+    %% Trigger 3 errors - should pass (3 >= 2)
+    rpc(mim(), log_error_test_helper, log_error, [at_least_error, "First"]),
+    rpc(mim(), log_error_test_helper, log_error, [at_least_error, "Second"]),
+    rpc(mim(), log_error_test_helper, log_error, [at_least_error, "Third"]),
+
+    Result = log_error_helper:stop(),
+    ?assertEqual(ok, Result).
+
+%% Test {at_most, N} count constraint
+expect_at_most_count(_Config) ->
+    %% Expect at most 3 errors
+    log_error_helper:expect({what, at_most_error}, {at_most, 3}),
+
+    %% Trigger 2 errors - should pass (2 <= 3)
+    rpc(mim(), log_error_test_helper, log_error, [at_most_error, "First"]),
+    rpc(mim(), log_error_test_helper, log_error, [at_most_error, "Second"]),
+
+    Result = log_error_helper:stop(),
+    ?assertEqual(ok, Result).
+
+%% Test {at_most, 0} - expect no errors of this pattern
+expect_no_errors_of_pattern(_Config) ->
+    %% Expect zero errors matching this pattern
+    log_error_helper:expect({what, should_not_happen}, {at_most, 0}),
+
+    %% Don't trigger any matching errors - should pass
     Result = log_error_helper:stop(),
     ?assertEqual(ok, Result).
 

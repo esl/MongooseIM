@@ -24,6 +24,12 @@
 %% - binary() - Substring match in formatted message (fallback)
 %% - {regex, binary()} - Regex match in formatted message
 %% - fun((Msg, Meta) -> boolean()) - Custom filter function
+%%
+%% Count types for expect/2:
+%% - any - At least one matching error (default)
+%% - N (integer) - Exactly N matching errors
+%% - {at_least, N} - At least N matching errors
+%% - {at_most, N} - At most N matching errors (0 is valid)
 
 -module(log_error_helper).
 
@@ -54,7 +60,10 @@
                  | binary()          % Substring match (fallback)
                  | {regex, binary()} % Regex match (fallback)
                  | fun((msg(), meta()) -> boolean()).
--type count() :: any | pos_integer().
+-type count() :: any
+              | pos_integer()
+              | {at_least, pos_integer()}
+              | {at_most, non_neg_integer()}.
 
 %% API
 
@@ -77,7 +86,7 @@ start(Opts) ->
     end.
 
 %% @doc Stop capturing and return classification result. Idempotent - safe to call if already stopped.
--spec stop() -> ok | {error, unexpected, [log_entry()]}.
+-spec stop() -> ok | {error, term()}.
 stop() ->
     case ets:whereis(?STATUS_TABLE) of
         undefined ->
@@ -89,18 +98,36 @@ stop() ->
             Expected = ets:tab2list(?STATUS_TABLE),
             ets_helper:delete(?STATUS_TABLE),
             {Unexpected, Unmatched} = classify_errors(Errors, Expected),
-            report_unmatched(Unmatched),
-            report_unexpected(Unexpected)
+            maybe_report_errors(Unexpected, Unmatched)
     end.
 
-%% @doc Stop and fail test if there are unexpected errors
+-spec maybe_report_errors([log_entry()], [mismatch_info()]) -> ok | {error, term()}.
+maybe_report_errors([], []) ->
+    ok;
+maybe_report_errors(Unexpected, []) ->
+    ct:log("Unexpected error logs:~n~s", [format_errors_for_report(Unexpected)]),
+    {error, {unexpected_errors, Unexpected}};
+maybe_report_errors([], Unmatched) ->
+    ct:log("Expected error count mismatch:~n~s", [format_unmatched(Unmatched)]),
+    {error, {count_mismatch, Unmatched}};
+maybe_report_errors(Unexpected, Unmatched) ->
+    ct:log("Unexpected error logs:~n~s", [format_errors_for_report(Unexpected)]),
+    ct:log("Expected error count mismatch:~n~s", [format_unmatched(Unmatched)]),
+    {error, {unexpected_errors, Unexpected, count_mismatch, Unmatched}}.
+
+%% @doc Stop and fail test if there are unexpected errors or count mismatches
 -spec check() -> ok.
 check() ->
     case stop() of
         ok ->
             ok;
-        {error, unexpected, Errors} ->
-            ct:fail("Unexpected error logs:~n~s", [format_errors_for_report(Errors)])
+        {error, {unexpected_errors, Errors}} ->
+            ct:fail("Unexpected error logs:~n~s", [format_errors_for_report(Errors)]);
+        {error, {count_mismatch, Unmatched}} ->
+            ct:fail("Expected error count mismatch:~n~s", [format_unmatched(Unmatched)]);
+        {error, {unexpected_errors, Errors, count_mismatch, Unmatched}} ->
+            ct:fail("Unexpected error logs:~n~s~nExpected error count mismatch:~n~s",
+                    [format_errors_for_report(Errors), format_unmatched(Unmatched)])
     end.
 
 %% @doc Declare an expected error pattern. Any number of matching errors is allowed.
@@ -236,46 +263,41 @@ format_msg(Other) ->
 increment_pattern_usage(Pattern, Used) ->
     maps:update_with(Pattern, fun(N) -> N + 1 end, 1, Used).
 
+-type mismatch_info() :: {pattern(), count(), Actual :: non_neg_integer()}.
+
 -spec find_unmatched_patterns([{pattern(), count()}], #{pattern() => pos_integer()}) ->
-    [{pattern(), count(), Actual :: non_neg_integer()}].
+    [mismatch_info()].
 find_unmatched_patterns(Expected, UsedPatterns) ->
     lists:filtermap(
         fun({Pattern, Count}) ->
             Actual = maps:get(Pattern, UsedPatterns, 0),
-            case Count of
-                any when Actual =:= 0 ->
-                    {true, {Pattern, Count, Actual}};
-                N when is_integer(N), Actual =/= N ->
-                    {true, {Pattern, Count, Actual}};
-                _ ->
-                    false
+            case is_count_satisfied(Count, Actual) of
+                true -> false;
+                false -> {true, {Pattern, Count, Actual}}
             end
         end,
         Expected).
 
--spec report_unmatched([{pattern(), count(), Actual :: non_neg_integer()}]) -> ok.
-report_unmatched([]) ->
-    ok;
-report_unmatched(Unmatched) ->
-    ct:log("Warning: Expected error count mismatch (errors may be missing or duplicated):~n~s",
-           [format_unmatched(Unmatched)]).
+-spec is_count_satisfied(count(), non_neg_integer()) -> boolean().
+is_count_satisfied(any, Actual) -> Actual > 0;
+is_count_satisfied(N, Actual) when is_integer(N) -> Actual =:= N;
+is_count_satisfied({at_least, N}, Actual) -> Actual >= N;
+is_count_satisfied({at_most, N}, Actual) -> Actual =< N.
 
--spec format_unmatched([{pattern(), count(), non_neg_integer()}]) -> iolist().
+-spec format_unmatched([mismatch_info()]) -> iolist().
 format_unmatched(Unmatched) ->
     lists:map(fun format_single_unmatched/1, Unmatched).
 
--spec format_single_unmatched({pattern(), count(), non_neg_integer()}) -> iolist().
+-spec format_single_unmatched(mismatch_info()) -> iolist().
 format_single_unmatched({Pattern, ExpectedCount, ActualCount}) ->
-    io_lib:format("  Pattern: ~p~n    expected count: ~w, actual count: ~w~n",
-                  [Pattern, ExpectedCount, ActualCount]).
+    io_lib:format("  Pattern: ~p~n    expected: ~s, actual: ~w~n",
+                  [Pattern, format_expected_count(ExpectedCount), ActualCount]).
 
--spec report_unexpected([log_entry()]) ->
-    ok | {error, unexpected, [log_entry()]}.
-report_unexpected([]) ->
-    ok;
-report_unexpected(Errors) ->
-    ct:log("Unexpected error logs:~n~s", [format_errors_for_report(Errors)]),
-    {error, unexpected, Errors}.
+-spec format_expected_count(count()) -> string().
+format_expected_count(any) -> "any (at least 1)";
+format_expected_count(N) when is_integer(N) -> integer_to_list(N);
+format_expected_count({at_least, N}) -> "at least " ++ integer_to_list(N);
+format_expected_count({at_most, N}) -> "at most " ++ integer_to_list(N).
 
 -spec format_errors_for_report([log_entry()]) -> iolist().
 format_errors_for_report(Errors) ->
