@@ -27,6 +27,8 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
+-ignore_xref([create_room/3, send_message/4]).
+
 -type room() :: #{jid := jid:jid(),
                   aff_users := aff_users(),
                   options := map()}.

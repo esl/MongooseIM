@@ -8,20 +8,6 @@
                              remove_node_from_cluster/2]).
 -import(graphql_helper, [execute_command/4]).
 
--import(domain_rest_helper,
-        [set_invalid_creds/1,
-         set_no_creds/1,
-         set_valid_creds/1]).
-
--import(domain_rest_helper,
-        [rest_patch_enabled/3,
-         rest_put_domain/3,
-         putt_domain_with_custom_body/2,
-         rest_select_domain/2,
-         rest_delete_domain/3,
-         delete_custom/4,
-         patch_custom/4]).
-
 -import(domain_helper, [domain/0]).
 -import(config_parser_helper, [config/2]).
 
@@ -40,26 +26,10 @@ groups() ->
         {no_db, ParallelConfig, no_db_cases()},
         {db, [], [
             {group, plain_db},
-            {group, plain_db_sequential},
-            {group, rest_with_auth},
-            {group, rest_without_auth}
-        ]},
-        {rest_with_auth, [], [
-            {group, rest_with_auth_parallel},
-            {group, rest_service_disabled},
-            {group, rest_db_fails}
-        ]},
-        {rest_without_auth, [], [
-            {group, rest_without_auth_parallel},
-            {group, rest_service_disabled},
-            {group, rest_db_fails}
+            {group, plain_db_sequential}
         ]},
         {plain_db, ParallelConfig, db_cases()},
-        {plain_db_sequential, [], db_sequential_cases()},
-        {rest_with_auth_parallel, ParallelConfig, rest_cases() ++ rest_auth_cases(true)},
-        {rest_without_auth_parallel, ParallelConfig, rest_cases() ++ rest_auth_cases(false)},
-        {rest_service_disabled, ParallelConfig, rest_service_disabled_cases()},
-        {rest_db_fails, [], rest_db_fails_cases()}
+        {plain_db_sequential, [], db_sequential_cases()}
     ].
 
 no_db_cases() -> [
@@ -115,73 +85,7 @@ db_sequential_cases() -> [
     db_restarts_properly,
     db_keeps_syncing_after_cluster_join,
     db_event_could_appear_with_lower_id,
-    db_can_insert_update_delete_static_domain_password,
-    rest_cannot_enable_deleting
-].
-
-rest_cases() ->[
-    rest_can_insert_domain,
-    rest_can_disable_domain,
-    rest_request_can_delete_domain,
-    rest_can_delete_domain,
-    rest_cannot_delete_domain_without_correct_type,
-    rest_cannot_delete_missing_domain,
-    rest_cannot_enable_missing_domain,
-    rest_cannot_insert_domain_twice_with_another_host_type,
-    rest_cannot_insert_domain_with_unknown_host_type,
-    rest_cannot_delete_domain_with_unknown_host_type,
-    rest_cannot_disable_missing_domain,
-    rest_can_enable_domain,
-    rest_can_select_domain,
-    rest_cannot_select_domain_if_domain_not_found,
-    rest_cannot_select_domain_when_it_is_static,
-    rest_cannot_put_domain_without_host_type,
-    rest_cannot_put_domain_without_body,
-    rest_cannot_put_domain_with_invalid_json,
-    rest_cannot_put_domain_with_invalid_name,
-    rest_cannot_put_domain_when_it_is_static,
-    rest_cannot_delete_domain_without_host_type,
-    rest_cannot_delete_domain_without_body,
-    rest_cannot_delete_domain_with_invalid_json,
-    rest_cannot_delete_domain_when_it_is_static,
-    rest_cannot_patch_domain_without_enabled_field,
-    rest_cannot_patch_domain_without_body,
-    rest_cannot_patch_domain_with_invalid_json,
-    rest_cannot_enable_domain_when_it_is_static,
-    rest_delete_domain_cleans_data_from_mam
-].
-
-rest_auth_cases(false) ->
-    %% auth provided but not configured:
-    [rest_cannot_insert_domain_if_auth_provided_but_not_configured,
-     rest_cannot_delete_domain_if_auth_provided_but_not_configured,
-     rest_cannot_enable_domain_if_auth_provided_but_not_configured,
-     rest_cannot_disable_domain_if_auth_provided_but_not_configured,
-     rest_cannot_select_domain_if_auth_provided_but_not_configured];
-rest_auth_cases(true) ->
-     %% basic auth, but wrong pass:
-    [rest_cannot_insert_domain_with_wrong_pass,
-     rest_cannot_delete_domain_with_wrong_pass,
-     rest_cannot_enable_domain_with_wrong_pass,
-     rest_cannot_disable_domain_with_wrong_pass,
-     rest_cannot_select_domain_with_wrong_pass,
-     %% no basic auth:
-     rest_cannot_insert_domain_without_auth,
-     rest_cannot_delete_domain_without_auth,
-     rest_cannot_enable_domain_without_auth,
-     rest_cannot_disable_domain_without_auth,
-     rest_cannot_select_domain_without_auth].
-
-rest_db_fails_cases() -> [
-    rest_insert_domain_fails_if_db_fails,
-    rest_delete_domain_fails_if_db_fails,
-    rest_enable_domain_fails_if_db_fails
-].
-
-rest_service_disabled_cases() -> [
-    rest_insert_domain_fails_if_service_disabled,
-    rest_delete_domain_fails_if_service_disabled,
-    rest_enable_domain_fails_if_service_disabled
+    db_can_insert_update_delete_static_domain_password
 ].
 
 %%--------------------------------------------------------------------
@@ -223,13 +127,6 @@ init_per_group(db, Config) ->
         true -> [{service, true}|Config];
         false -> {skip, require_rdbms}
     end;
-init_per_group(rest_with_auth, Config) ->
-    rest_helper:change_admin_creds({<<"admin">>, <<"secret">>}),
-    [{auth_creds, valid}|Config];
-init_per_group(rest_service_disabled, Config) ->
-    service_disabled(mim()),
-    % setting this option prevents from enabling service in init_per_testase
-    lists:keystore(service_setup, 1, Config, {service_setup, per_group});
 init_per_group(GroupName, Config) ->
     Config1 = save_service_setup_option(GroupName, Config),
     case ?config(service_setup, Config1) of
@@ -238,18 +135,12 @@ init_per_group(GroupName, Config) ->
     end,
     Config1.
 
-end_per_group(rest_with_auth, _Config) ->
-    rest_helper:change_admin_creds(any);
 end_per_group(_GroupName, Config) ->
     case ?config(service_setup, Config) of
         per_group -> teardown_service();
         per_testcase -> ok
     end.
 
-init_per_testcase(rest_cannot_enable_deleting, Config) ->
-    HostType = dummy_auth_host_type(),
-    Server = start_domain_removal_hook(HostType),
-    init_per_testcase(generic, [{server, Server}, {host_type, HostType} | Config]);
 init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
     maybe_setup_meck(db_crash_on_initial_load_restarts_service),
     restart_domain_core(mim(), [], []),
@@ -267,11 +158,6 @@ service_opts(db_events_table_gets_truncated) ->
 service_opts(_) ->
     #{}.
 
-end_per_testcase(rest_cannot_enable_deleting, Config) ->
-    Server = ?config(server, Config),
-    HostType = ?config(host_type, Config),
-    stop_domain_removal_hook(HostType, Server),
-    exit(Server, normal);
 end_per_testcase(TestcaseName, Config) ->
     end_per_testcase2(TestcaseName, Config),
     case TestcaseName of
@@ -285,20 +171,11 @@ end_per_testcase(TestcaseName, Config) ->
         per_testcase -> teardown_service()
     end.
 
-init_per_testcase2(TestcaseName, Config)
-    when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
-    HostType = dummy_auth_host_type(),
-    Mods = [{mod_mam, mam_helper:config_opts(#{pm => #{}})}],
-    dynamic_modules:ensure_modules(HostType, Mods),
-    escalus:init_per_testcase(TestcaseName, Config);
 init_per_testcase2(db_keeps_syncing_after_cluster_join, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_testcase2(_, Config) ->
     Config.
 
-end_per_testcase2(TestcaseName, Config)
-    when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
-    escalus:end_per_testcase(TestcaseName, Config);
 end_per_testcase2(db_keeps_syncing_after_cluster_join, _Config) ->
     graphql_helper:clean();
 end_per_testcase2(_, Config) ->
@@ -788,287 +665,6 @@ db_can_insert_update_delete_static_domain_password(_) ->
     ok = check_domain_password(mim(), StaticDomain, <<"rocky2">>),
     {ok, _} = delete_domain_password(mim(), StaticDomain),
     {error, not_found} = select_domain_admin(mim(), StaticDomain).
-
-rest_cannot_enable_deleting(Config) ->
-    HostType = ?config(host_type, Config),
-    Domain = random_domain_name(),
-    {ok, _} = insert_domain(mim(), Domain, HostType),
-    {ok, #{status := enabled}} = select_domain(mim(), Domain),
-    {ok, _} = request_delete_domain(mim(), Domain, HostType),
-    {ok, #{status := deleting}} = select_domain(mim(), Domain),
-    {deleted, _} = enable_domain(mim(), Domain),
-    Server = ?config(server, Config),
-    Server ! continue,
-    F = fun () -> select_domain(mim(), Domain) end,
-    wait_helper:wait_until(F, {error, not_found}, #{time_left => timer:seconds(15)}).
-
-% rest cases
-
-rest_can_insert_domain(Config) ->
-    Domain = random_domain_name(),
-    {{<<"204">>, _}, _} =
-        rest_put_domain(Config, Domain, <<"type1">>),
-    {ok, #{host_type := <<"type1">>, status := enabled}} =
-        select_domain(mim(), Domain).
-
-rest_can_disable_domain(Config) ->
-    Domain = random_domain_name(),
-    rest_put_domain(Config, Domain, <<"type1">>),
-    rest_patch_enabled(Config, Domain, false),
-    {ok, #{host_type := <<"type1">>, status := disabled}} =
-        select_domain(mim(), Domain).
-
-rest_request_can_delete_domain(Config) ->
-    Domain = random_domain_name(),
-    %% Put a new domain to delete later
-    rest_put_domain(Config, Domain, <<"type1">>),
-    %% Request delete domain
-    {{<<"202">>, _}, _} = domain_rest_helper:request_delete_domain(Config, Domain, <<"type1">>),
-    %% Wait until it is not found anymore
-    Return = {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>},
-    F1 = fun() -> rest_select_domain(Config, Domain) end,
-    wait_helper:wait_until(F1, Return, #{time_left => timer:seconds(15)}),
-    %% Double-check
-    F2 = fun() -> select_domain(mim(), Domain) end,
-    wait_helper:wait_until(F2, {error, not_found}, #{time_left => timer:seconds(5)}).
-
-rest_can_delete_domain(Config) ->
-    Domain = random_domain_name(),
-    rest_put_domain(Config, Domain, <<"type1">>),
-    {{<<"204">>, _}, _} =
-        rest_delete_domain(Config, Domain, <<"type1">>),
-    {error, not_found} = select_domain(mim(), Domain).
-
-rest_cannot_delete_domain_without_correct_type(Config) ->
-    Domain = random_domain_name(),
-    rest_put_domain(Config, Domain, <<"type1">>),
-    {{<<"403">>, <<"Forbidden">>}, <<"Wrong host type was provided">>} =
-        rest_delete_domain(Config, Domain, <<"type2">>),
-    {ok, _} = select_domain(mim(), Domain).
-
-rest_cannot_delete_missing_domain(Config) ->
-    Domain = random_domain_name(),
-    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        rest_delete_domain(Config, Domain, <<"type1">>),
-    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        domain_rest_helper:request_delete_domain(Config, Domain, <<"type1">>).
-
-rest_cannot_enable_missing_domain(Config) ->
-    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        rest_patch_enabled(Config, <<"example.db">>, true).
-
-rest_cannot_insert_domain_twice_with_another_host_type(Config) ->
-    Domain = random_domain_name(),
-    rest_put_domain(Config, Domain, <<"type1">>),
-    {{<<"409">>, <<"Conflict">>}, <<"Domain already exists">>} =
-        rest_put_domain(Config, Domain, <<"type2">>).
-
-rest_cannot_insert_domain_with_unknown_host_type(Config) ->
-    Domain = random_domain_name(),
-    {{<<"403">>,<<"Forbidden">>}, <<"Unknown host type">>} =
-        rest_put_domain(Config, Domain, <<"type6">>).
-
-rest_cannot_delete_domain_with_unknown_host_type(Config) ->
-    Domain = random_domain_name(),
-    {{<<"403">>,<<"Forbidden">>}, <<"Unknown host type">>} =
-        rest_delete_domain(Config, Domain, <<"type6">>).
-
-rest_cannot_disable_missing_domain(Config) ->
-    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        rest_patch_enabled(Config, <<"example.db">>, false).
-
-rest_can_enable_domain(Config) ->
-    Domain = random_domain_name(),
-    rest_put_domain(Config, Domain, <<"type1">>),
-    rest_patch_enabled(Config, Domain, false),
-    rest_patch_enabled(Config, Domain, true),
-    {ok, #{host_type := <<"type1">>, status := enabled}} =
-        select_domain(mim(), Domain).
-
-rest_can_select_domain(Config) ->
-    Domain = random_domain_name(),
-    rest_put_domain(Config, Domain, <<"type1">>),
-    {HttpStatus, {Info}} = rest_select_domain(Config, Domain),
-    SortedResult = {HttpStatus, {lists:sort(Info)}},
-    {{<<"200">>, <<"OK">>},
-     {[ {<<"host_type">>, <<"type1">>}, {<<"status">>, <<"enabled">>} ]}} =
-        SortedResult.
-
-rest_cannot_select_domain_if_domain_not_found(Config) ->
-    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        rest_select_domain(Config, <<"example.db">>).
-
-rest_cannot_select_domain_when_it_is_static(Config) ->
-    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
-        rest_select_domain(Config, <<"example.cfg">>).
-
-rest_cannot_put_domain_without_host_type(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"'host_type' field is missing">>} =
-        putt_domain_with_custom_body(Config, #{}).
-
-rest_cannot_put_domain_without_body(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid request body">>} =
-        putt_domain_with_custom_body(Config, <<>>).
-
-rest_cannot_put_domain_with_invalid_json(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid request body">>} =
-        putt_domain_with_custom_body(Config, <<"{kek">>).
-
-rest_cannot_put_domain_with_invalid_name(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid domain name">>} =
-        rest_put_domain(Config, <<"%f3">>, <<"type1">>). % nameprep fails for ASCII code 243
-
-rest_cannot_put_domain_when_it_is_static(Config) ->
-    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
-        rest_put_domain(Config, <<"example.cfg">>, <<"type1">>).
-
-rest_cannot_delete_domain_without_host_type(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"'host_type' field is missing">>} =
-        delete_custom(Config, admin, <<"/domains/example.db">>, #{}).
-
-rest_cannot_delete_domain_without_body(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid request body">>} =
-        delete_custom(Config, admin, <<"/domains/example.db">>, <<>>).
-
-rest_cannot_delete_domain_with_invalid_json(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid request body">>} =
-        delete_custom(Config, admin, <<"/domains/example.db">>, <<"{kek">>).
-
-rest_cannot_delete_domain_when_it_is_static(Config) ->
-    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
-        rest_delete_domain(Config, <<"example.cfg">>, <<"type1">>),
-    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
-        domain_rest_helper:request_delete_domain(Config, <<"example.cfg">>, <<"type1">>).
-
-rest_cannot_patch_domain_without_enabled_field(Config) ->
-    {{<<"400">>, <<"Bad Request">>}, <<"'enabled' field is missing">>} =
-        patch_custom(Config, admin, <<"/domains/example.db">>, #{}).
-
-rest_cannot_patch_domain_without_body(Config) ->
-    {{<<"400">>,<<"Bad Request">>}, <<"Invalid request body">>} =
-        patch_custom(Config, admin, <<"/domains/example.db">>, <<>>).
-
-rest_cannot_patch_domain_with_invalid_json(Config) ->
-    {{<<"400">>,<<"Bad Request">>}, <<"Invalid request body">>} =
-        patch_custom(Config, admin, <<"/domains/example.db">>, <<"{kek">>).
-
-rest_cannot_enable_domain_when_it_is_static(Config) ->
-    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
-        rest_patch_enabled(Config, <<"example.cfg">>, true).
-
-rest_delete_domain_cleans_data_from_mam(Config) ->
-    HostType = dummy_auth_host_type(),
-    rest_put_domain(Config, <<"example.com">>, HostType), %% alice3
-    rest_put_domain(Config, <<"example.org">>, HostType), %% bob3
-    sync(),
-    %% Alice and Bob use example.com
-    F = fun(FreshConfig, Alice, Bob) ->
-        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        escalus:wait_for_stanza(Bob),
-        mam_helper:wait_for_archive_size_with_host_type(HostType, Alice, 1),
-        mam_helper:wait_for_archive_size_with_host_type(HostType, Bob, 1),
-        {{<<"204">>, _}, _} =
-            rest_delete_domain(Config, <<"example.com">>, HostType),
-        {{<<"204">>, _}, _} =
-            rest_delete_domain(Config, <<"example.org">>, HostType),
-        sync(),
-        %% At this point MIM cannot resolve a domain to a host type,
-        %% so we have to pass it
-        mam_helper:wait_for_archive_size_with_host_type(HostType, Alice, 0),
-        mam_helper:wait_for_archive_size_with_host_type(HostType, Bob, 0),
-        %% Already cleaned at this point
-        escalus_cleaner:remove_client(FreshConfig, Alice),
-        escalus_cleaner:remove_client(FreshConfig, Bob)
-        end,
-    escalus:fresh_story_with_config(Config, [{alice3, 1}, {bob3, 1}], F).
-
-% rest_auth cases
-%% auth provided, but not configured:
-rest_cannot_insert_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_put_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_delete_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_delete_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_enable_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
-
-rest_cannot_disable_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
-
-rest_cannot_select_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_select_domain(set_valid_creds(Config), <<"example.db">>).
-
-%% with wrong pass:
-rest_cannot_insert_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_put_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_delete_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_delete_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_enable_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, true).
-
-rest_cannot_disable_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, false).
-
-rest_cannot_select_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_select_domain(set_invalid_creds(Config), <<"example.db">>).
-
-%% without auth:
-rest_cannot_insert_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_put_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_delete_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_delete_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_enable_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, true).
-
-rest_cannot_disable_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, false).
-
-rest_cannot_select_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_select_domain(set_no_creds(Config), <<"example.db">>).
-
-% rest_db_fails cases, SQL query is mocked to fail
-rest_insert_domain_fails_if_db_fails(Config) ->
-    assert_rest_db_error(rest_put_domain(Config, <<"example.db">>, <<"type1">>)).
-
-rest_delete_domain_fails_if_db_fails(Config) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    assert_rest_db_error(rest_delete_domain(Config, <<"example.db">>, <<"type1">>)).
-
-rest_enable_domain_fails_if_db_fails(Config) ->
-    assert_rest_db_error(rest_patch_enabled(Config, <<"example.db">>, true)).
-
-% rest_service_disabled cases, service is disabled for the whole group
-rest_insert_domain_fails_if_service_disabled(Config) ->
-    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
-        rest_put_domain(Config, <<"example.db">>, <<"type1">>).
-
-rest_delete_domain_fails_if_service_disabled(Config) ->
-    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
-
-rest_enable_domain_fails_if_service_disabled(Config) ->
-    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
-        rest_patch_enabled(Config, <<"example.db">>, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
