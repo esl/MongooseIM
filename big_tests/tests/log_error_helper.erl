@@ -237,23 +237,37 @@ increment_pattern_usage(Pattern, Used) ->
     maps:update_with(Pattern, fun(N) -> N + 1 end, 1, Used).
 
 -spec find_unmatched_patterns([{pattern(), count()}], #{pattern() => pos_integer()}) ->
-    [{pattern(), count()}].
+    [{pattern(), count(), Actual :: non_neg_integer()}].
 find_unmatched_patterns(Expected, UsedPatterns) ->
-    lists:filter(
+    lists:filtermap(
         fun({Pattern, Count}) ->
             Actual = maps:get(Pattern, UsedPatterns, 0),
             case Count of
-                any -> Actual =:= 0;
-                N when is_integer(N) -> Actual =/= N
+                any when Actual =:= 0 ->
+                    {true, {Pattern, Count, Actual}};
+                N when is_integer(N), Actual =/= N ->
+                    {true, {Pattern, Count, Actual}};
+                _ ->
+                    false
             end
         end,
         Expected).
 
--spec report_unmatched([{pattern(), count()}]) -> ok.
+-spec report_unmatched([{pattern(), count(), Actual :: non_neg_integer()}]) -> ok.
 report_unmatched([]) ->
     ok;
 report_unmatched(Unmatched) ->
-    ct:log("Warning: Expected error patterns that were not matched:~n~p", [Unmatched]).
+    ct:log("Warning: Expected error count mismatch (errors may be missing or duplicated):~n~s",
+           [format_unmatched(Unmatched)]).
+
+-spec format_unmatched([{pattern(), count(), non_neg_integer()}]) -> iolist().
+format_unmatched(Unmatched) ->
+    lists:map(fun format_single_unmatched/1, Unmatched).
+
+-spec format_single_unmatched({pattern(), count(), non_neg_integer()}) -> iolist().
+format_single_unmatched({Pattern, ExpectedCount, ActualCount}) ->
+    io_lib:format("  Pattern: ~p~n    expected count: ~w, actual count: ~w~n",
+                  [Pattern, ExpectedCount, ActualCount]).
 
 -spec report_unexpected([log_entry()]) ->
     ok | {error, unexpected, [log_entry()]}.

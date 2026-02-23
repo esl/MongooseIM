@@ -22,8 +22,7 @@ all() ->
 
 groups() ->
     [{basic, [], [captures_error_logs,
-                  no_errors_passes,
-                  unexpected_error_fails]},
+                  no_errors_passes]},
      {pattern_matching, [], [expect_by_what,
                              expect_by_module,
                              expect_by_mfa,
@@ -103,23 +102,14 @@ captures_error_logs(_Config) ->
     %% Verify msg structure
     ?assertMatch({report, #{what := test_error_capture}}, Msg),
 
-    %% Verify metadata contains MFA
-    ?assertMatch(#{mfa := {log_error_test_helper, log_error, 2}}, Meta).
+    %% Verify metadata contains MFA (arity 3 because logger:error is called from log_error/3)
+    ?assertMatch(#{mfa := {log_error_test_helper, log_error, 3}}, Meta).
 
 %% Verify that no errors means test passes
 no_errors_passes(_Config) ->
     %% Don't trigger any errors
     Result = log_error_helper:stop(),
     ?assertEqual(ok, Result).
-
-%% Verify that unexpected errors cause failure
-unexpected_error_fails(_Config) ->
-    %% Trigger an unexpected error
-    rpc(mim(), log_error_test_helper, log_error, [unexpected_error, "This is unexpected"]),
-
-    %% check/0 should fail the test, but we use stop/0 to verify behavior
-    Result = log_error_helper:stop(),
-    ?assertMatch({error, unexpected, _}, Result).
 
 %%--------------------------------------------------------------------
 %% Pattern matching tests

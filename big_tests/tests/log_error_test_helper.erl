@@ -14,5 +14,5 @@ log_error(What, Reason) ->
 log_error(What, Reason, Extra) ->
     Report = maps:merge(#{what => What, reason => Reason}, Extra),
     %% Include MFA in metadata so pattern matching tests work
-    Meta = #{mfa => {?MODULE, log_error, 2}},
+    Meta = #{mfa => {?MODULE, log_error, 3}},
     logger:error(Report, Meta).
