@@ -708,22 +708,16 @@ valid_ns_if_defined(NS, FormProplist) ->
     NS =:= proplists:get_value(<<"FORM_TYPE">>, FormProplist).
 
 start_hook_listener(Config) ->
-    TestCasePid = self(),
-    PubSubJID = pubsub_jid(Config),
-    HostType = host_type(),
-    rpc(?MODULE, rpc_start_hook_handler, [TestCasePid, PubSubJID, HostType]),
-    [{pid, TestCasePid}, {jid, PubSubJID} | Config].
+    Handler = hook_handler(self(), pubsub_jid(Config), host_type()),
+    hook_helper:add_handler(Handler),
+    [{handler, Handler} | Config].
 
 stop_hook_listener(Config) ->
-    TestCasePid = proplists:get_value(pid, Config),
-    PubSubJID = proplists:get_value(jid, Config),
-    HostType = host_type(),
-    rpc(?MODULE, rpc_stop_hook_handler, [TestCasePid, PubSubJID, HostType]).
+    hook_helper:delete_handler(proplists:get_value(handler, Config)).
 
-rpc_start_hook_handler(TestCasePid, PubSubJID, HostType) ->
-    gen_hook:add_handler(push_notifications, HostType,
-                         fun ?MODULE:hook_handler_fn/3,
-                         #{pid => TestCasePid, jid => PubSubJID, host_type => HostType}, 50).
+hook_handler(TestCasePid, PubSubJID, HostType) ->
+    {push_notifications, HostType, fun ?MODULE:hook_handler_fn/3,
+     #{pid => TestCasePid, jid => PubSubJID, host_type => HostType}, 50}.
 
 hook_handler_fn(Acc,
                 #{notification_forms := [PayloadMap], options := OptionMap} = _Params,
@@ -742,11 +736,6 @@ hook_handler_fn(Acc,
                             stacktrace => S}
     end,
     {ok, Acc}.
-
-rpc_stop_hook_handler(TestCasePid, PubSubJID, HostType) ->
-    gen_hook:delete_handler(push_notifications, HostType,
-                            fun ?MODULE:hook_handler_fn/3,
-                            #{pid => TestCasePid, jid => PubSubJID, host_type => HostType}, 50).
 
 %%--------------------------------------------------------------------
 %% Test helpers

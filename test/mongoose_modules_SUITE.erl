@@ -19,9 +19,12 @@ all() ->
 
 init_per_suite(C) ->
     mongoose_config:set_opts(opts()),
+    meck:new(gen_hook, [no_link, passthrough]),
+    meck:expect(gen_hook, reload_hooks, fun() -> ok end),
     C.
 
 end_per_suite(_C) ->
+    meck:unload(gen_hook),
     mongoose_config:erase_opts().
 
 init_per_testcase(_TC, C) ->
@@ -33,8 +36,8 @@ init_per_testcase(_TC, C) ->
 
 end_per_testcase(_, _C) ->
     mongoose_config:unset_opt({modules, ?HOST}),
-    meck:unload(gen_mod),
-    meck:unload(?MODS).
+    meck:unload(?MODS),
+    meck:unload(gen_mod).
 
 starts_and_stops_modules(_Config) ->
     set_modules(Modules = #{mod_a => #{}, mod_b => [{opt, val}]}),
