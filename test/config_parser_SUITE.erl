@@ -179,6 +179,7 @@ groups() ->
                             mod_carboncopy,
                             mod_csi,
                             mod_disco,
+                            mod_external_filter,
                             mod_inbox,
                             mod_global_distrib,
                             mod_global_distrib_connections,
@@ -1626,6 +1627,15 @@ mod_extdisco(_Config) ->
     ?errh(T(RequiredOpts#{<<"transport">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"username">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"password">> => <<>>})).
+
+mod_external_filter(_Config) ->
+    % This module doesn't have any defaults, hence no check_module_defaults/1 call
+    P = [modules, mod_external_filter],
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_external_filter">> => Opts}} end,
+    ?cfgh(P ++ [pool_tag], external_service_http, T(#{<<"pool_tag">> => <<"external_service_http">>})),
+    ?errh(T(#{<<"pool_tag">> => <<>>})),
+    ?errh(T(#{<<"pool_tag">> => 123})),
+    ?errh(T(#{})).
 
 mod_inbox(_Config) ->
     check_module_defaults(mod_inbox),
@@ -3137,7 +3147,7 @@ check_module_defaults(Mod) ->
         0 ->
             ok;
         _ ->
-            assert_configurable_module(mod_fast_auth_token)
+            assert_configurable_module(Mod)
     end,
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
 

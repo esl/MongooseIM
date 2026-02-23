@@ -93,6 +93,9 @@
     type = "turn"
     host = "192.168.0.1"
 
+[modules.mod_external_filter]
+  pool_tag = "external_filter_http"
+
 [modules.mod_http_upload]
   host = "upload.@HOST@"
   backend = "s3"

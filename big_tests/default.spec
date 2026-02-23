@@ -23,6 +23,7 @@
 {suites, "tests", connect_SUITE}.
 {suites, "tests", disco_and_caps_SUITE}.
 {suites, "tests", extdisco_SUITE}.
+{suites, "tests", external_filter_SUITE}.
 {suites, "tests", gdpr_SUITE}.
 {suites, "tests", graphql_SUITE}.
 {suites, "tests", graphql_sse_SUITE}.
