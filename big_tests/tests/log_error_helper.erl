@@ -64,6 +64,7 @@
               | pos_integer()
               | {at_least, pos_integer()}
               | {at_most, non_neg_integer()}.
+-type mismatch_info() :: {pattern(), count(), Actual :: non_neg_integer()}.
 
 %% API
 
@@ -145,7 +146,7 @@ expect(Pattern, Count) ->
 
 -spec classify_errors([log_entry()], [{pattern(), count()}]) ->
     {Unexpected :: [log_entry()],
-     Unmatched :: [{pattern(), count()}]}.
+     Unmatched :: [mismatch_info()]}.
 classify_errors(Errors, Expected) ->
     %% For each error, try to match against expected patterns
     %% Track which patterns were used and how many times
@@ -262,8 +263,6 @@ format_msg(Other) ->
     #{pattern() => pos_integer()}.
 increment_pattern_usage(Pattern, Used) ->
     maps:update_with(Pattern, fun(N) -> N + 1 end, 1, Used).
-
--type mismatch_info() :: {pattern(), count(), Actual :: non_neg_integer()}.
 
 -spec find_unmatched_patterns([{pattern(), count()}], #{pattern() => pos_integer()}) ->
     [mismatch_info()].
