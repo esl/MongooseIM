@@ -35,7 +35,7 @@ add_contacts(#{user := UserJID}, #{<<"contacts">> := Contacts}) ->
     mongoose_graphql_roster:binary_result().
 subscription(#{user := UserJID}, #{<<"contact">> := ContactJID, <<"action">> := Action}) ->
     Type = mongoose_graphql_roster:translate_sub_action(Action),
-    Res = mod_roster_api:subscription(UserJID, ContactJID, Type),
+    Res = mod_roster_api:subscription(UserJID, ContactJID, Type, user_api),
     format_result(Res, #{contact => jid:to_binary(ContactJID)}).
 
 -spec delete_contact(mongoose_graphql:context(), mongoose_graphql:args()) ->

@@ -39,14 +39,14 @@ add_contacts(#{<<"user">> := UserJID, <<"contacts">> := Contacts}) ->
 -spec subscription(mongoose_graphql:args()) -> mongoose_graphql_roster:binary_result().
 subscription(#{<<"user">> := UserJID, <<"contact">> := ContactJID, <<"action">> := Action}) ->
     Type = mongoose_graphql_roster:translate_sub_action(Action),
-    Res = mod_roster_api:subscription(UserJID, ContactJID, Type),
+    Res = mod_roster_api:subscription(UserJID, ContactJID, Type, admin_api),
     format_result(Res, #{user => jid:to_binary(UserJID),
                          contact => jid:to_binary(ContactJID)}).
 
 -spec set_mutual_subscription(mongoose_graphql:args()) -> mongoose_graphql_roster:binary_result().
 set_mutual_subscription(#{<<"userA">> := UserAJID, <<"userB">> := UserBJID,
                           <<"action">> := Action}) ->
-    Res = mod_roster_api:set_mutual_subscription(UserAJID, UserBJID, Action),
+    Res = mod_roster_api:set_mutual_subscription(UserAJID, UserBJID, Action, admin_api),
     format_result(Res, #{userA => jid:to_binary(UserAJID),
                          userB => jid:to_binary(UserBJID)}).
 
@@ -74,7 +74,7 @@ do_subscribe_to_all(User, Contacts) ->
     UserTuple = contact_input_map_to_tuple(User),
     lists:map(fun(Contact) ->
                       ContactTuple = contact_input_map_to_tuple(Contact),
-                      Res = mod_roster_api:subscribe_both(UserTuple, ContactTuple),
+                      Res = mod_roster_api:subscribe_both(UserTuple, ContactTuple, admin_api),
                       format_result(Res, #{user => jid:to_binary(element(1, UserTuple)),
                                            contact => jid:to_binary(element(1, ContactTuple))})
               end, Contacts).
