@@ -8,11 +8,11 @@ described in the next section.
 ### GraphQL server schema
 ```gql
 type RootMutation {
-    verify(
-        messageBody: String!
-        messageId: String!
+    verifyMessage(
+        body: String!
         rawMessage: String
-        receiver: String!
+        externalId: String!
+        recipient: String!
         sender: String!
     ): VerificationResult
 }

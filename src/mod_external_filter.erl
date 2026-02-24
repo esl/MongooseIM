@@ -24,17 +24,17 @@
 
 -define(QUERY_DOCUMENT,
         <<"mutation verifyMessage(
-               $messageBody: String!,
-               $rawMessage: String!,
-               $receiver: String!,
-               $sender: String!,
-               $messageId: String!) {
-           verify(
-             messageBody: $messageBody
-             rawMessage: $rawMessage
-             receiver: $receiver
+               $body: String!,
+               $rawData: String!,
+               $externalId: String!,
+               $recipient: String!,
+               $sender: String!) {
+           verifyMessage(
+             body: $body
+             rawData: $rawData
+             externalId: $externalId
+             recipient: $recipient
              sender: $sender
-             messageId: $messageId
            ) {
              action
            }
@@ -136,11 +136,11 @@ create_query(#request_params{body = Body,
     Query =
         #{query => ?QUERY_DOCUMENT,
           variables =>
-              #{messageBody => Body,
-                rawMessage => exml:to_binary(Packet),
-                sender => jid:to_binary(From),
-                receiver => jid:to_binary(To),
-                messageId => integer_to_binary(Id)}},
+              #{body => Body,
+                rawData => exml:to_binary(Packet),
+                externalId => integer_to_binary(Id),
+                recipient => jid:to_binary(To),
+                sender => jid:to_binary(From)}},
     jiffy:encode(Query).
 
 -spec make_request(mongooseim:host_type(), binary()) -> allow | block.
@@ -166,9 +166,9 @@ make_request(HostType, Query) ->
             allow
     end.
 
-parse_response(#{<<"data">> := #{<<"verify">> := #{<<"action">> := <<"BLOCK">>}}}) ->
+parse_response(#{<<"data">> := #{<<"verifyMessage">> := #{<<"action">> := <<"BLOCK">>}}}) ->
     block;
-parse_response(#{<<"data">> := #{<<"verify">> := #{<<"action">> := <<"ALLOW">>}}}) ->
+parse_response(#{<<"data">> := #{<<"verifyMessage">> := #{<<"action">> := <<"ALLOW">>}}}) ->
     allow;
 parse_response(#{<<"errors">> := Errors}) ->
     ?LOG_ERROR(#{what => external_filter_bad_request, errors => Errors}),

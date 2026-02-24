@@ -234,7 +234,7 @@ wait_for_request(Message, Timeout) ->
 
 external_filter_mock_handler(Req) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
-    #{<<"variables">> := #{<<"messageBody">> := Message}} = jiffy:decode(Body, [return_maps]),
+    #{<<"variables">> := #{<<"body">> := Message}} = jiffy:decode(Body, [return_maps]),
     [{Message, Subscriber, Response}] = ets:lookup(external_filter_mock_subscribers, Message),
     Subscriber ! {request, Message, Body, Response},
     Req3 =
@@ -253,10 +253,10 @@ stop_mock() ->
     http_helper:stop().
 
 allow_response() ->
-    #{<<"data">> => #{<<"verify">> => #{<<"action">> => <<"ALLOW">>}}}.
+    #{<<"data">> => #{<<"verifyMessage">> => #{<<"action">> => <<"ALLOW">>}}}.
 
 block_response() ->
-    #{<<"data">> => #{<<"verify">> => #{<<"action">> => <<"BLOCK">>}}}.
+    #{<<"data">> => #{<<"verifyMessage">> => #{<<"action">> => <<"BLOCK">>}}}.
 
 error_response() ->
     #{<<"errors">> => [#{<<"message">> => <<"Invalid argument type.">>}]}.
