@@ -80,7 +80,6 @@ nav:
       - 'How to Set up MongoosePush': 'tutorials/push-notifications/MongoosePush-setup.md'
       - 'How to Set up MongooseICE': 'tutorials/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'tutorials/iOS_tutorial.md'
-      - 'How to Set up Jingle/SIP': 'tutorials/Jingle-SIP-setup.md'
       - 'XMPP Audio and Video Basics': 'tutorials/jingle.md'
       - 'How to Set up SASL client certificate authentication': 'tutorials/client-certificate.md'
   - 'Open XMPP Extensions':
