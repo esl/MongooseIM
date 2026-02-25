@@ -372,7 +372,8 @@ element_to_origin_accum(StateData, FromJid, ToJid, El) ->
                location => ?LOCATION,
                element => El,
                from_jid => FromJid,
-               to_jid => ToJid},
+               to_jid => ToJid,
+               origin => xmpp_component},
     Acc = mongoose_acc:new(Params),
     mongoose_acc:set_permanent(component, [{module, ?MODULE}, {origin_jid, 'TODO'}], Acc).
 
