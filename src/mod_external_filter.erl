@@ -81,6 +81,8 @@ user_send_message(Acc, _, _) ->
     case fetch_message(Acc) of
         {ok, Params} ->
             call_filter(Acc, Params);
+        admin_message ->
+            {ok, Acc};
         no_body ->
             {ok, Acc}
     end.
@@ -89,7 +91,9 @@ user_send_message(Acc, _, _) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec fetch_message(mongoose_acc:t()) -> {ok, request_params()} | no_body.
+-spec fetch_message(mongoose_acc:t()) -> {ok, request_params()} | no_body | admin_message.
+fetch_message(#{origin := admin_api}) ->
+    admin_message;
 fetch_message(Acc) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     case exml_query:subelement(Packet, <<"body">>) of

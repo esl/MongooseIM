@@ -1,7 +1,7 @@
 -module(mongoose_stanza_api).
 
 %% API
--export([send_chat_message/4, send_headline_message/5, send_stanza/2, lookup_recent_messages/5]).
+-export([send_chat_message/5, send_headline_message/6, send_stanza/3, lookup_recent_messages/5]).
 
 %% Event API
 -export([open_session/2, close_session/1]).
@@ -19,27 +19,29 @@
 %% API
 
 -spec send_chat_message(User :: jid:jid() | undefined, From :: jid:jid() | undefined,
-                        To :: jid:jid(), Body :: binary()) ->
+                        To :: jid:jid(), Body :: binary(), Origin :: user_api | admin_api) ->
           {unknown_user | invalid_sender, iodata()} | {ok, map()}.
-send_chat_message(User, From, To, Body) ->
-    M = #{user => User, from => From, to => To, body => Body},
+send_chat_message(User, From, To, Body, Origin) ->
+    M = #{user => User, from => From, to => To, body => Body, origin => Origin},
     fold(M, [fun check_sender/1, fun get_host_type/1, fun check_user/1,
              fun prepare_chat_message/1, fun send/1]).
 
 -spec send_headline_message(User :: jid:jid() | undefined, From :: jid:jid() | undefined,
                             To :: jid:jid(), Body :: binary() | undefined,
-                            Subject :: binary() | undefined) ->
+                            Subject :: binary() | undefined, Origin :: user_api | admin_api) ->
           {unknown_user | invalid_sender, iodata()} | {ok, map()}.
-send_headline_message(User, From, To, Body, Subject) ->
-    M = #{user => User, from => From, to => To, body => Body, subject => Subject},
+send_headline_message(User, From, To, Body, Subject, Origin) ->
+    M = #{user => User, from => From, to => To, body => Body, subject => Subject,
+          origin => Origin},
     fold(M, [fun check_sender/1, fun get_host_type/1, fun check_user/1,
              fun prepare_headline_message/1, fun send/1]).
 
--spec send_stanza(User :: jid:jid() | undefined, exml:element()) ->
+-spec send_stanza(User :: jid:jid() | undefined, exml:element(),
+                  Origin :: user_api | admin_api) ->
           {unknown_user | invalid_sender | no_sender |
            invalid_recipient | no_recipient, iodata()} | {ok, map()}.
-send_stanza(User, Stanza) ->
-    M = #{user => User, stanza => Stanza},
+send_stanza(User, Stanza, Origin) ->
+    M = #{user => User, stanza => Stanza, origin => Origin},
     fold(M, [fun extract_from_jid/1, fun extract_to_jid/1, fun check_sender/1,
              fun get_host_type/1, fun check_user/1, fun prepare_stanza/1, fun send/1]).
 
@@ -138,21 +140,20 @@ check_user(#{check_user := true, user := UserJid, host_type := HostType} = M) ->
             {unknown_user, <<"User does not exist">>}
     end.
 
-send(#{host_type := HostType, from := From, to := To, stanza := Stanza}) ->
+send(#{host_type := HostType, from := From, to := To, stanza := Stanza, origin := Origin}) ->
     Acc = mongoose_acc:new(#{from_jid => From,
                              to_jid => To,
                              location => ?LOCATION,
                              host_type => HostType,
                              lserver => From#jid.lserver,
-                             element => Stanza}),
+                             element => Stanza,
+                             origin => Origin}),
     C2SData = mongoose_c2s:create_data(#{host_type => HostType, jid => From}),
     Params = mongoose_c2s:hook_arg(C2SData, session_established, internal, Stanza, undefined),
-    case mongoose_c2s_hooks:user_send_packet(HostType, Acc, Params) of
-        {ok, Acc1} ->
-            {_, Acc2} = handle_message(HostType, Acc1, Params),
-            ejabberd_router:route(From, To, Acc2);
-        {stop, Acc1} ->
-            Acc1
+    maybe
+        {ok, Acc1} ?= mongoose_c2s_hooks:user_send_packet(HostType, Acc, Params),
+        {ok, Acc2} ?= handle_message(HostType, Acc1, Params),
+        ejabberd_router:route(From, To, Acc2)
     end,
     {ok, #{<<"id">> => get_id(Stanza)}}.
 

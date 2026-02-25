@@ -5,9 +5,9 @@
          get_contact/2,
          add_contact/4,
          delete_contact/2,
-         subscription/3,
-         subscribe_both/2,
-         set_mutual_subscription/3]).
+         subscription/4,
+         subscribe_both/3,
+         set_mutual_subscription/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -101,9 +101,9 @@ delete_contact(#jid{lserver = LServer} = CallerJID, ContactJID) ->
             ?UNKNOWN_DOMAIN_RESULT
     end.
 
--spec subscription(jid:jid(), jid:jid(), mod_roster:sub_presence()) ->
+-spec subscription(jid:jid(), jid:jid(), mod_roster:sub_presence(), user_api | admin_api) ->
     {ok | unknown_domain, iolist()}.
-subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type) ->
+subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type, Origin) ->
     StanzaType = atom_to_binary(Type, latin1),
     El = #xmlel{name = <<"presence">>, attrs = #{<<"type">> => StanzaType}},
     case mongoose_domain_api:get_domain_host_type(LServer) of
@@ -113,7 +113,8 @@ subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type) ->
                                        to_jid => ContactJID,
                                        host_type => HostType,
                                        lserver => LServer,
-                                       element => El }),
+                                       element => El,
+                                       origin => Origin }),
             Acc2 = mongoose_hooks:roster_out_subscription(Acc1, CallerJID, ContactJID, Type),
             ejabberd_router:route(CallerJID, jid:to_bare(ContactJID), Acc2),
             {ok, io_lib:format("Subscription stanza with type ~s sent successfully", [StanzaType])};
@@ -121,11 +122,11 @@ subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type) ->
             ?UNKNOWN_DOMAIN_RESULT
     end.
 
--spec set_mutual_subscription(jid:jid(), jid:jid(), sub_mutual_action()) ->
+-spec set_mutual_subscription(jid:jid(), jid:jid(), sub_mutual_action(), admin_api | client_api) ->
           {ok | contact_not_found | internal | unknown_domain | user_not_exist, iolist()}.
-set_mutual_subscription(UserA, UserB, connect) ->
-    subscribe_both({UserA, <<>>, []}, {UserB, <<>>, []});
-set_mutual_subscription(UserA, UserB, disconnect) ->
+set_mutual_subscription(UserA, UserB, connect, Origin) ->
+    subscribe_both({UserA, <<>>, []}, {UserB, <<>>, []}, Origin);
+set_mutual_subscription(UserA, UserB, disconnect, _Origin) ->
     Seq = [fun() -> delete_contact(UserA, UserB) end,
            fun() -> delete_contact(UserB, UserA) end],
     case run_seq(Seq, ok) of
@@ -135,15 +136,16 @@ set_mutual_subscription(UserA, UserB, disconnect) ->
             Error
     end.
 
--spec subscribe_both({jid:jid(), binary(), [binary()]}, {jid:jid(), binary(), [binary()]}) ->
+-spec subscribe_both({jid:jid(), binary(), [binary()]}, {jid:jid(), binary(), [binary()]},
+                     admin_api | client_api) ->
     {ok | internal | unknown_domain | user_not_exist, iolist()}.
-subscribe_both({UserA, NameA, GroupsA}, {UserB, NameB, GroupsB}) ->
+subscribe_both({UserA, NameA, GroupsA}, {UserB, NameB, GroupsB}, Origin) ->
     Seq = [fun() -> add_contact(UserA, UserB, NameB, GroupsB) end,
            fun() -> add_contact(UserB, UserA, NameA, GroupsA) end,
-           fun() -> subscription(UserA, UserB, subscribe) end,
-           fun() -> subscription(UserB, UserA, subscribe) end,
-           fun() -> subscription(UserA, UserB, subscribed) end,
-           fun() -> subscription(UserB, UserA, subscribed) end],
+           fun() -> subscription(UserA, UserB, subscribe, Origin) end,
+           fun() -> subscription(UserB, UserA, subscribe, Origin) end,
+           fun() -> subscription(UserA, UserB, subscribed, Origin) end,
+           fun() -> subscription(UserB, UserA, subscribed, Origin) end],
     case run_seq(Seq, ok) of
         ok ->
             {ok, io_lib:format("Subscription between users ~s and ~s created successfully",

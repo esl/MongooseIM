@@ -11,10 +11,13 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, pm}, {group, muc_light}].
+    [{group, pm}, {group, muc_light}, {group, graphql_user}, {group, graphql_admin}].
 
 groups() ->
-    [{pm, [parallel], pm_test_cases()}, {muc_light, [parallel], muc_light_test_cases()}].
+    [{pm, [parallel], pm_test_cases()},
+     {muc_light, [parallel], muc_light_test_cases()},
+     {graphql_user, [parallel], graphql_user_test_cases()},
+     {graphql_admin, [parallel], graphql_admin_test_cases()}].
 
 pm_test_cases() ->
     [allow_appropriate_message,
@@ -27,6 +30,12 @@ muc_light_test_cases() ->
     [allow_appropriate_message_muclight,
      block_inappropriate_message_muclight,
      allow_message_on_request_error_muclight].
+
+graphql_user_test_cases() ->
+    [filter_messages_sent_via_client_api].
+
+graphql_admin_test_cases() ->
+    [dont_filter_messages_sent_via_admin_api].
 
 suite() ->
     escalus:suite().
@@ -53,11 +62,18 @@ init_per_group(muc_light, Config0) ->
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     dynamic_modules:ensure_modules(HostType, muc_light_config()),
     Config1;
+init_per_group(graphql_user, Config) ->
+    graphql_helper:init_user(Config);
+init_per_group(graphql_admin, Config) ->
+    graphql_helper:init_admin_handler(Config);
 init_per_group(_, Config) ->
     Config.
 
 end_per_group(muc_light, Config) ->
     dynamic_modules:restore_modules(Config),
+    Config;
+end_per_group(GN, Config) when GN =:= graphql_user; GN =:= graphql_admin ->
+    graphql_helper:clean(),
     Config;
 end_per_group(_, Config) ->
     Config.
@@ -201,6 +217,32 @@ allow_message_on_request_error_muclight(Config) ->
                            escalus:assert(is_groupchat_message, [Message], R)
                         end).
 
+filter_messages_sent_via_client_api(Config) ->
+    escalus:fresh_story(Config,
+                        [{alice, 1}, {bob, 1}],
+                        fun(Alice, Bob) ->
+                           Message = <<"give me your password">>,
+                           subscribe_request(Message, block_response()),
+                           From = escalus_client:full_jid(Alice),
+                           To = escalus_client:short_jid(Bob),
+                           user_send_message(Alice, From, To, Message, Config),
+                           wait_for_request(Message, 1000),
+                           ?assertNot(escalus_client:has_stanzas(Bob))
+                        end).
+
+dont_filter_messages_sent_via_admin_api(Config) ->
+    escalus:fresh_story(Config,
+                        [{alice, 1}, {bob, 1}],
+                        fun(Alice, Bob) ->
+                           Message = <<"check this out: virus.com">>,
+                           subscribe_request(Message, block_response()),
+                           From = escalus_client:full_jid(Alice),
+                           To = escalus_client:short_jid(Bob),
+                           admin_send_message(From, To, Message, Config),
+                           assert_no_request(Message),
+                           escalus:assert(is_message, escalus:wait_for_stanza(Bob))
+                        end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -208,7 +250,8 @@ allow_message_on_request_error_muclight(Config) ->
 start_mock() ->
     Port = 8081,
     {ok, MockPid} = http_helper:start(Port, "/api", fun external_filter_mock_handler/1),
-    ets:new(external_filter_mock_subscribers, [public, named_table, {heir, MockPid, take_care}]),
+    ets:new(external_filter_mock_subscribers,
+            [public, named_table, {heir, MockPid, take_care}]),
     PoolOpts = #{strategy => available_worker, workers => 20},
     ConnOpts =
         #{host => "http://localhost:8081",
@@ -223,6 +266,14 @@ start_mock() ->
 
 subscribe_request(Message, Response) ->
     ets:insert(external_filter_mock_subscribers, {Message, self(), Response}).
+
+assert_no_request(Message) ->
+    receive
+        {request, Message, _Body, _Resp} ->
+            ct:fail("request came for message ~p", [Message])
+    after 1000 ->
+        ok
+    end.
 
 wait_for_request(Message, Timeout) ->
     receive
@@ -251,6 +302,20 @@ stop_mock() ->
     distributed_helper:rpc(
         distributed_helper:mim(), mongoose_wpool, stop, [http, global, external_filter]),
     http_helper:stop().
+
+user_send_message(User, From, To, Body, Config) ->
+    Vars =
+        #{from => From,
+          to => To,
+          body => Body},
+    graphql_helper:execute_user_command(<<"stanza">>, <<"sendMessage">>, User, Vars, Config).
+
+admin_send_message(From, To, Body, Config) ->
+    Vars =
+        #{from => From,
+          to => To,
+          body => Body},
+    graphql_helper:execute_command(<<"stanza">>, <<"sendMessage">>, Vars, Config).
 
 allow_response() ->
     #{<<"data">> => #{<<"verifyMessage">> => #{<<"action">> => <<"ALLOW">>}}}.
