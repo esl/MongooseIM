@@ -150,12 +150,10 @@ send(#{host_type := HostType, from := From, to := To, stanza := Stanza, origin :
                              origin => Origin}),
     C2SData = mongoose_c2s:create_data(#{host_type => HostType, jid => From}),
     Params = mongoose_c2s:hook_arg(C2SData, session_established, internal, Stanza, undefined),
-    case mongoose_c2s_hooks:user_send_packet(HostType, Acc, Params) of
-        {ok, Acc1} ->
-            {_, Acc2} = handle_message(HostType, Acc1, Params),
-            ejabberd_router:route(From, To, Acc2);
-        {stop, Acc1} ->
-            Acc1
+    maybe
+        {ok, Acc1} ?= mongoose_c2s_hooks:user_send_packet(HostType, Acc, Params),
+        {ok, Acc2} ?= handle_message(HostType, Acc1, Params),
+        ejabberd_router:route(From, To, Acc2)
     end,
     {ok, #{<<"id">> => get_id(Stanza)}}.
 
