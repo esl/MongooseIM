@@ -1,3 +1,7 @@
+## &#X26A0;&#XFE0F; Deprecation Notice &#X26A0;&#XFE0F;
+
+This module is deprecated and will be removed in the next release.
+
 ## Module Description
 
 This module enables Jingle to SIP and SIP to Jingle translation.
