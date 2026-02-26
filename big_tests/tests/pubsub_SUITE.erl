@@ -1883,8 +1883,8 @@ deleting_parent_path_deletes_children(Config) ->
 
 path_node_and_parent(Client, {NodeAddr, NodeName}) ->
     %% TODO: Add proper JID stringprepping to escalus!!!
-    JID = escalus_ejabberd:rpc(jid, from_binary, [escalus_client:short_jid(Client)]),
-    {LUser, LServer, _} = escalus_ejabberd:rpc(jid, to_lower, [JID]),
+    JID = rpc(mim(), jid, from_binary, [escalus_client:short_jid(Client)]),
+    {LUser, LServer, _} = rpc(mim(), jid, to_lower, [JID]),
     Prefix = <<"/home/", LServer/binary, "/", LUser/binary>>,
     {{NodeAddr, Prefix}, {NodeAddr, <<Prefix/binary, "/", NodeName/binary>>}}.
 

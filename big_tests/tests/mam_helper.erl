@@ -58,9 +58,7 @@ rpc_apply(M, F, Args) ->
     end.
 
 rpc_call(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_rpc:call(Node, M, F, A, 10000, Cookie).
+    rpc(mim(), M, F, A).
 
 mam04_props() ->
     [{mam_ns, mam_ns_binary_v04()}].
