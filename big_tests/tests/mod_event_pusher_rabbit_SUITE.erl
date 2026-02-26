@@ -230,8 +230,7 @@ rabbit_pool_starts_with_default_config_global(_Config) ->
     start_rabbit_wpool(domain(), config([modules, mod_event_pusher, rabbit, Tag], DefaultWpoolConfig)),
     %% THEN
     Pools = rpc(mim(), mongoose_wpool, get_pools, []),
-    ?assertMatch(RabbitWpool,
-                 lists:keyfind(Tag, 3, Pools)),
+    ?assertMatch(RabbitWpool, lists:keyfind(Tag, 3, Pools)),
     %% CLEANUP
     stop_rabbit_wpool(RabbitWpool).
 
@@ -245,8 +244,7 @@ rabbit_pool_starts_with_default_config_host_type(_Config) ->
     start_rabbit_wpool(HostType, config([modules, mod_event_pusher, rabbit, Tag], DefaultWpoolConfig)),
     %% THEN
     Pools = rpc(mim(), mongoose_wpool, get_pools, []),
-    ?assertMatch(RabbitWpool,
-                 lists:keyfind(Tag, 3, Pools)),
+    ?assertMatch(RabbitWpool, lists:keyfind(Tag, 3, Pools)),
     %% CLEANUP
     stop_rabbit_wpool(RabbitWpool).
 
