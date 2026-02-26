@@ -14,7 +14,7 @@
 -include("assert_received_match.hrl").
 
 -import(distributed_helper, [mim/0, rpc/4]).
--import(domain_helper, [domain/0]).
+-import(domain_helper, [domain/0, host_type/0]).
 -import(config_parser_helper, [config/2]).
 
 -compile([export_all, nowarn_export_all]).
@@ -75,7 +75,8 @@ groups() ->
      {single_worker, [], single_worker_tests()}].
 
 pool_startup_tests() ->
-    [rabbit_pool_starts_with_default_config].
+    [rabbit_pool_starts_with_default_config_global,
+     rabbit_pool_starts_with_default_config_host_type].
 
 module_startup_tests() ->
     [exchanges_are_created_on_module_startup].
@@ -196,7 +197,9 @@ end_per_group(_, Config) ->
     dynamic_modules:restore_modules(Config),
     stop_rabbit_wpool(domain()).
 
-init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
+init_per_testcase(rabbit_pool_starts_with_default_config_global, Config) ->
+    Config;
+init_per_testcase(rabbit_pool_starts_with_default_config_host_type, Config) ->
     Config;
 init_per_testcase(CaseName, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
@@ -204,7 +207,9 @@ init_per_testcase(CaseName, Config0) ->
     Config = Config2 ++ connect_to_rabbit(),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(rabbit_pool_starts_with_default_config, _Config) ->
+end_per_testcase(rabbit_pool_starts_with_default_config_global, _Config) ->
+    ok;
+end_per_testcase(rabbit_pool_starts_with_default_config_host_type, _Config) ->
     ok;
 end_per_testcase(CaseName, Config) ->
     maybe_cleanup_muc(CaseName, Config),
@@ -216,18 +221,30 @@ end_per_testcase(CaseName, Config) ->
 %% GROUP initialization_on_startup
 %%--------------------------------------------------------------------
 
-rabbit_pool_starts_with_default_config(_Config) ->
+rabbit_pool_starts_with_default_config_global(_Config) ->
     %% GIVEN
-    Domain = domain(),
     Tag = rabbit_event_pusher_default,
-    DefaultWpoolConfig = #{type => rabbit, scope => host_type, tag => Tag},
-    RabbitWpool = {rabbit, Domain, rabbit_event_pusher_default},
+    DefaultWpoolConfig = #{type => rabbit, scope => global, tag => Tag},
+    RabbitWpool = {rabbit, global, Tag},
     %% WHEN
-    start_rabbit_wpool(Domain, config([modules, mod_event_pusher, rabbit, Tag], DefaultWpoolConfig)),
+    start_rabbit_wpool(domain(), config([modules, mod_event_pusher, rabbit, Tag], DefaultWpoolConfig)),
     %% THEN
     Pools = rpc(mim(), mongoose_wpool, get_pools, []),
-    ?assertMatch(RabbitWpool,
-                 lists:keyfind(rabbit_event_pusher_default, 3, Pools)),
+    ?assertMatch(RabbitWpool, lists:keyfind(Tag, 3, Pools)),
+    %% CLEANUP
+    stop_rabbit_wpool(RabbitWpool).
+
+rabbit_pool_starts_with_default_config_host_type(_Config) ->
+    %% GIVEN
+    HostType = host_type(),
+    Tag = rabbit_event_pusher_default,
+    DefaultWpoolConfig = #{type => rabbit, scope => host_type, tag => Tag},
+    RabbitWpool = {rabbit, HostType, Tag},
+    %% WHEN
+    start_rabbit_wpool(HostType, config([modules, mod_event_pusher, rabbit, Tag], DefaultWpoolConfig)),
+    %% THEN
+    Pools = rpc(mim(), mongoose_wpool, get_pools, []),
+    ?assertMatch(RabbitWpool, lists:keyfind(Tag, 3, Pools)),
     %% CLEANUP
     stop_rabbit_wpool(RabbitWpool).
 
