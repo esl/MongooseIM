@@ -44,9 +44,7 @@
          sasl2_start/3,
          sasl2_success/4]).
 
--export([get_pep_recipients/2,
-         filter_pep_recipient/3,
-         c2s_stream_features/3,
+-export([c2s_stream_features/3,
          check_bl_c2s/1,
          forbidden_session/3,
          session_opening_allowed_for_user/2]).
@@ -135,7 +133,7 @@
          room_packet/5,
          update_inbox_for_muc/2]).
 
--export([caps_recognised/4]).
+-export([caps_recognised/3]).
 
 -export([mod_global_distrib_known_recipient/4,
          mod_global_distrib_unknown_recipient/2]).
@@ -452,25 +450,6 @@ xmpp_send_element(HostType, Acc, El) ->
     run_hook_for_host_type(xmpp_send_element, HostType, Acc, Params).
 
 %% C2S related hooks
-
--spec get_pep_recipients(C2SData, Feature) -> Result when
-    C2SData :: mongoose_c2s:data(),
-    Feature :: binary(),
-    Result :: [jid:simple_jid()].
-get_pep_recipients(C2SData, Feature) ->
-    Params = #{c2s_data => C2SData, feature => Feature},
-    HostType = mongoose_c2s:get_host_type(C2SData),
-    run_hook_for_host_type(get_pep_recipients, HostType, [], Params).
-
--spec filter_pep_recipient(C2SData, Feature, To) -> Result when
-    C2SData :: mongoose_c2s:data(),
-    Feature :: binary(),
-    To :: jid:jid(),
-    Result :: boolean().
-filter_pep_recipient(C2SData, Feature, To) ->
-    Params = #{c2s_data => C2SData, feature => Feature, to => To},
-    HostType = mongoose_c2s:get_host_type(C2SData),
-    run_hook_for_host_type(filter_pep_recipient, HostType, true, Params).
 
 -spec c2s_stream_features(HostType, Params, InitialFeatures) -> Result when
     HostType :: mongooseim:host_type(),
@@ -1344,14 +1323,13 @@ update_inbox_for_muc(HostType, Info) ->
 
 %% Caps related hooks
 
--spec caps_recognised(Acc, From, Pid, Features) -> Result when
+-spec caps_recognised(Acc, C2SData, Features) -> Result when
     Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    Pid :: pid(),
-    Features :: unknown | list(),
+    C2SData :: mongoose_c2s:data(),
+    Features :: [mod_caps:feature()],
     Result :: mongoose_acc:t().
-caps_recognised(Acc, From, Pid, Features) ->
-    Params = #{from => From, pid => Pid, features => Features},
+caps_recognised(Acc, C2SData, Features) ->
+    Params = #{c2s_data => C2SData, features => Features},
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(caps_recognised, HostType, Acc, Params).
 

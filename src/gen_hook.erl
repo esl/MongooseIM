@@ -66,6 +66,7 @@
               hook_fn_ret/0,
               hook_fn_ret/1,
               hook_tuple/0,
+              hook_params/0,
               extra/0]).
 
 -record(hook_handler, {prio :: pos_integer(),
