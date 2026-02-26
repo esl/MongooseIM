@@ -51,7 +51,7 @@ maybe_jid_to_binary(undefined) -> <<" ">>;
 maybe_jid_to_binary(J) -> jid:to_binary(J).
 
 get_attr(#xmlstreamstart{attrs = AttrList}, AttrName) ->
-    proplists:get_value(AttrName, AttrList, <<" ">>);
+    maps:get(AttrName, AttrList, <<" ">>);
 get_attr(#xmlstreamend{}, _) ->
     <<" ">>;
 get_attr(El, AttrName) ->
