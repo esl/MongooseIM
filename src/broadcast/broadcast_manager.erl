@@ -9,6 +9,8 @@
 
 -behaviour(gen_server).
 
+-include_lib("jid/include/jid.hrl").
+
 %% API
 -export([start_link/1,
          start_job/2,
@@ -446,7 +448,7 @@ index_workers(HostType) ->
 validate_job_spec(HostType, JobSpec) ->
     Validations = [
         fun() -> validate_message_rate(JobSpec) end,
-        fun() -> validate_sender_exists(HostType, JobSpec) end,
+        fun() -> validate_sender(HostType, JobSpec) end,
         fun() -> validate_recipient_count(JobSpec) end
     ]
     ++
@@ -455,7 +457,7 @@ validate_job_spec(HostType, JobSpec) ->
         || {Param, Min, Max} <- [
             {name, 1, 250},
             {subject, 0, 1024},
-            {body, 1, 16000} % Arbitraty limit, may become configurable in the future
+            {body, 1, 16000} % Arbitrary limit, may become configurable in the future
         ]
     ],
     case run_validations(Validations) of
@@ -479,15 +481,17 @@ validate_message_rate(#{message_rate := Rate}) when is_integer(Rate), Rate >= 1,
 validate_message_rate(_) ->
     {error, {bad_parameter, message_rate}}.
 
--spec validate_sender_exists(mongooseim:host_type(), job_spec()) ->
+-spec validate_sender(mongooseim:host_type(), job_spec()) ->
     ok | {error, sender_not_found}.
-validate_sender_exists(HostType, #{sender := SenderJid}) ->
+validate_sender(HostType, #{sender := SenderJid = #jid{lserver = Domain}, domain := Domain}) ->
     case ejabberd_auth:does_user_exist(HostType, SenderJid, stored) of
         true ->
             ok;
         false ->
             {error, sender_not_found}
-    end.
+    end;
+validate_sender(_HostType, _JobSpec) ->
+    {error, sender_not_found}.
 
 -spec validate_recipient_count(job_spec()) ->
     ok | {error, no_recipients | cannot_count_recipients}.

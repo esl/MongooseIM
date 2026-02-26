@@ -29,7 +29,8 @@
          delete_inactive_by_domain_deletes_only_inactive/1,
          broadcast_instrumentation_metrics/1]).
 %% validation
--export([start_broadcast_sender_not_found/1,
+-export([start_broadcast_sender_spoofing_attempt_from_secondary_domain/1,
+         start_broadcast_sender_not_found/1,
          start_broadcast_bad_message_rate/1,
          start_broadcast_bad_name/1,
          start_broadcast_bad_subject/1,
@@ -99,7 +100,8 @@ lifecycle_tests() ->
      broadcast_instrumentation_metrics].
 
 validation_tests() ->
-    [start_broadcast_sender_not_found,
+    [start_broadcast_sender_spoofing_attempt_from_secondary_domain,
+     start_broadcast_sender_not_found,
      start_broadcast_bad_message_rate,
      start_broadcast_bad_name,
      start_broadcast_bad_subject,
@@ -413,6 +415,14 @@ broadcast_instrumentation_metrics(Config) ->
 %%====================================================================
 %% Validation tests
 %%====================================================================
+
+start_broadcast_sender_spoofing_attempt_from_secondary_domain(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice_bis, 1}], fun(AliceBis) ->
+        AliceBisJid = escalus_client:short_jid(AliceBis),
+        JobSpec = slow_job_spec(domain(), AliceBisJid, JobName),
+        {sender_not_found, _} = start_broadcast(JobSpec)
+    end).
 
 start_broadcast_sender_not_found(Config) ->
     JobName = ?FUNCTION_NAME,

@@ -38,6 +38,8 @@
     probe_live_jobs_timeout_returns_zero/1,
     %% abort_broadcast_paths
     abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found/1,
+    abort_broadcast_stop_job_nodedown_maps_to_cannot_reach_job_owner_node/1,
+    abort_broadcast_stop_job_noproc_maps_to_cannot_reach_job_owner_node/1,
     %% api_domain_not_found_paths
     start_broadcast_domain_not_found/1,
     get_broadcast_domain_not_found/1,
@@ -77,7 +79,9 @@ probe_error_path_tests() ->
      probe_live_jobs_timeout_returns_zero].
 
 abort_broadcast_path_tests() ->
-    [abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found].
+    [abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found,
+     abort_broadcast_stop_job_nodedown_maps_to_cannot_reach_job_owner_node,
+     abort_broadcast_stop_job_noproc_maps_to_cannot_reach_job_owner_node].
 
 api_domain_not_found_path_tests() ->
     [start_broadcast_domain_not_found,
@@ -167,6 +171,40 @@ abort_broadcast_stop_job_not_live_maps_to_broadcast_not_found(_Config) ->
                 fun(_Node, _HostType, _Id) -> {error, not_live} end),
 
     {broadcast_not_found, _} = mod_broadcast_api:abort_broadcast(Domain, JobId).
+
+abort_broadcast_stop_job_nodedown_maps_to_cannot_reach_job_owner_node(_Config) ->
+    HostType = broadcast_helper:host_type(),
+    Domain = broadcast_helper:domain(),
+    JobId = broadcast_helper:job_id(),
+    FakeNode = 'nonexistent@nonexistent',
+    Job = (broadcast_helper:sample_broadcast_job())#broadcast_job{owner_node = FakeNode},
+
+    meck:expect(mongoose_domain_api, get_host_type,
+                fun(_Domain) -> {ok, HostType} end),
+    meck:expect(mod_broadcast_backend, get_job,
+                fun(_HostType, _Id) -> {ok, Job} end),
+    meck:expect(broadcast_manager, stop_job,
+                fun(Node, HT, Id) -> meck:passthrough([Node, HT, Id]) end),
+
+    {cannot_reach_job_owner_node, _} = mod_broadcast_api:abort_broadcast(Domain, JobId).
+
+abort_broadcast_stop_job_noproc_maps_to_cannot_reach_job_owner_node(_Config) ->
+    HostType = broadcast_helper:host_type(),
+    Domain = broadcast_helper:domain(),
+    JobId = broadcast_helper:job_id(),
+    Job = (broadcast_helper:sample_broadcast_job())#broadcast_job{owner_node = node()},
+
+    meck:expect(mongoose_domain_api, get_host_type,
+                fun(_Domain) -> {ok, HostType} end),
+    meck:expect(mod_broadcast_backend, get_job,
+                fun(_HostType, _Id) -> {ok, Job} end),
+    meck:expect(broadcast_manager, stop_job,
+                fun(Node, HT, Id) -> meck:passthrough([Node, HT, Id]) end),
+
+    %% No broadcast_manager process is running for HostType on this node;
+    %% broadcast_manager:stop_job/3 will call gen_server:call({ProcName, node()}, ...)
+    %% which exits with {noproc, _} because ProcName is not registered.
+    {cannot_reach_job_owner_node, _} = mod_broadcast_api:abort_broadcast(Domain, JobId).
 
 %%====================================================================
 %% API domain_not_found path tests

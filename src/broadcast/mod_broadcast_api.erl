@@ -131,6 +131,8 @@ start_broadcast(HostType, JobSpec) ->
             error_result(running_job_limit_exceeded);
         {error, sender_not_found} ->
             error_result(sender_not_found);
+        {error, no_recipients} ->
+            error_result(no_recipients);
         {error, {bad_parameter, ParameterName}} ->
             error_result({bad_parameter, ParameterName})
     end.
@@ -143,11 +145,18 @@ abort_broadcast(HostType, Domain, Id) ->
         {ok, #broadcast_job{domain = Domain,
                             owner_node = OwnerNode,
                             execution_state = running}} ->
-            case broadcast_manager:stop_job(OwnerNode, HostType, Id) of
+            try broadcast_manager:stop_job(OwnerNode, HostType, Id) of
                 ok ->
                     {ok, Id};
                 {error, not_live} ->
                     error_result(broadcast_not_found)
+            catch
+                exit:{{nodedown, _}, _} ->
+                    error_result(cannot_reach_job_owner_node);
+                exit:{noproc, _} ->
+                    %% Technically the node is reachable but manager is not running
+                    %% Not relevant for the caller, as ultimately the job cannot be aborted anyway
+                    error_result(cannot_reach_job_owner_node)
             end;
         {ok, #broadcast_job{domain = Domain}} ->
             error_result(not_running);
@@ -197,8 +206,12 @@ error_result(domain_not_found) ->
     {domain_not_found, <<"Domain not found">>};
 error_result(broadcast_not_found) ->
     {broadcast_not_found, <<"Broadcast job not found">>};
+error_result(cannot_reach_job_owner_node) ->
+    {cannot_reach_job_owner_node, <<"Cannot reach the node managing the broadcast job">>};
 error_result(sender_not_found) ->
     {sender_not_found, <<"Sender account does not exist">>};
+error_result(no_recipients) ->
+    {no_recipients, <<"Recipient group is empty">>};
 error_result(running_job_limit_exceeded) ->
     {running_job_limit_exceeded, <<"Cannot start new broadcast job: running job limit exceeded">>};
 error_result(not_running) ->
