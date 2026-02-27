@@ -13,6 +13,7 @@
 
 %% API
 -export([start_link/1,
+         stop/1,
          start_job/2,
          stop_job/3,
          get_live_job_count/1,
@@ -71,6 +72,11 @@
 start_link(HostType) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:start_link({local, ProcName}, ?MODULE, HostType, []).
+
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
+    gen_server:stop(ProcName).
 
 % In future iterations there will be a clear distinction between creating a job
 % and actually starting its workers.

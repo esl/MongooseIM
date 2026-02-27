@@ -26,6 +26,9 @@ The module itself is not user-facing: broadcasts are typically created and manag
 
 Backend used to store broadcast jobs and worker progress.
 
+!!! Warning
+    `mod_broadcast` relies on standard RDBMS auth API to retrieve the recipient count. If [user count estimation](../authentication-methods/rdbms.md#authrdbmsusers_number_estimate) is enabled, then the number of recipients per job may be inaccurate. This option is disabled by default.
+
 ## Broadcast job parameters and limits
 
 These are not configuration keys; they are **job parameters** provided when starting a broadcast (for example via GraphQL):
@@ -124,6 +127,8 @@ Each recipient gets an XMPP `<message/>` stanza with:
 
 Delivery to offline users depends on your deployment (for example, whether offline storage is enabled, whether push is configured, etc.).
 
+This extension delivers messages at least once - duplication may occur in case of errors and a restart of the broadcast process (recipients are processed in batches). Client can deduplicate messages based on their IDs, as they are deterministic.
+
 ## Example configuration
 
 ```toml
@@ -140,7 +145,7 @@ If you'd like to learn more about metrics in MongooseIM, please visit the [Mongo
   In a cluster, sum (or otherwise aggregate) the metrics across all MongooseIM nodes to obtain a cluster-wide total.
 
 Prometheus metrics have a `host_type` label associated with these metrics.
-Since Exometer doesn't support labels, the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+Since Exometer doesn't support labels, the host types, or the word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
 
 === "Prometheus"
 

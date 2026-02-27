@@ -32,6 +32,9 @@
 -export([
     %% stop_paths
     stop_force_kills_stuck_worker/1,
+    stop_when_worker_already_stopping_normal_returns_ok/1,
+    stop_when_worker_already_stopping_error_returns_ok/1,
+    stop_when_worker_is_noproc_returns_ok/1,
     %% init_paths
     load_job_failure_stops_worker/1,
     resume_finished_worker_exits_normal/1,
@@ -72,7 +75,10 @@ groups() ->
      {message_id, [], message_id_tests()}].
 
 stop_path_tests() ->
-    [stop_force_kills_stuck_worker].
+    [stop_force_kills_stuck_worker,
+     stop_when_worker_already_stopping_normal_returns_ok,
+     stop_when_worker_already_stopping_error_returns_ok,
+     stop_when_worker_is_noproc_returns_ok].
 
 init_path_tests() ->
     [load_job_failure_stops_worker,
@@ -100,39 +106,39 @@ message_id_tests() ->
 %%====================================================================
 
 init_per_suite(Config) ->
+    setup_mocks_for_worker(),
     Config.
 
 end_per_suite(_Config) ->
+    teardown_mocks(),
     ok.
 
 %%====================================================================
 %% Group setup/teardown
 %%====================================================================
 
+init_per_group(stop_paths, Config) ->
+    log_helper:set_up(),
+    Config;
 init_per_group(_Group, Config) ->
-    setup_mocks_for_worker(),
     Config.
 
+end_per_group(stop_paths, _Config) ->
+    log_helper:tear_down(),
+    ok;
 end_per_group(_Group, _Config) ->
-    teardown_mocks(),
     ok.
 
 %%====================================================================
 %% Test case setup/teardown
 %%====================================================================
 
-init_per_testcase(stop_force_kills_stuck_worker, Config) ->
-    log_helper:set_up(),
-    Config;
 init_per_testcase(message_id_is_deterministic, Config) ->
     Config;
 init_per_testcase(_TestCase, Config) ->
     reset_meck_defaults(),
     Config.
 
-end_per_testcase(stop_force_kills_stuck_worker, _Config) ->
-    log_helper:tear_down(),
-    ok;
 end_per_testcase(_TestCase, _Config) ->
     ok.
 
@@ -146,6 +152,33 @@ stop_force_kills_stuck_worker(_Config) ->
     log_helper:subscribe(),
     ok = broadcast_worker:stop(StuckWorker),
     ?assertLog(warning, #{what := broadcast_worker_killed_timeout, worker_pid := StuckWorker}),
+    ok.
+
+stop_when_worker_already_stopping_normal_returns_ok(_Config) ->
+    WorkerAlreadyStopping = spawn(fun() -> receive _ -> exit(normal) end end),
+    ok = broadcast_worker:stop(WorkerAlreadyStopping),
+    ok.
+
+stop_when_worker_already_stopping_error_returns_ok(_Config) ->
+    WorkerAlreadyFailed = spawn(fun() -> receive _ -> exit({error, already_failed}) end end),
+    log_helper:subscribe(),
+    ok = broadcast_worker:stop(WorkerAlreadyFailed),
+    ?assertLog(warning, #{what := broadcast_worker_killed_error,
+                          worker_pid := WorkerAlreadyFailed,
+                          error := {error, already_failed}}),
+    ok.
+
+stop_when_worker_is_noproc_returns_ok(_Config) ->
+    {DeadPid, MonRef} = spawn_monitor(fun() -> ok end),
+    receive
+        {'DOWN', MonRef, process, DeadPid, normal} -> ok
+    after 1000 ->
+        ct:fail(worker_did_not_exit_normal)
+    end,
+
+    log_helper:subscribe(),
+    ok = broadcast_worker:stop(DeadPid),
+    ?assertLog(warning, #{what := broadcast_worker_killed_noproc, worker_pid := DeadPid}),
     ok.
 
 %%====================================================================
@@ -170,8 +203,8 @@ load_job_failure_stops_worker(_Config) ->
                     meck:exception(error, get_state_failed)
                 end),
 
-        {error, {load_failed, {error, get_state_failed}}} =
-            start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+    {error, {load_failed, {error, get_state_failed}}} =
+        start_and_monitor_worker(broadcast_helper:host_type(), 12345),
     ok.
 
 resume_finished_worker_exits_normal(_Config) ->

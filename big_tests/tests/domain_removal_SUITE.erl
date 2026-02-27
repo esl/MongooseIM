@@ -90,6 +90,7 @@ init_per_group(auth_removal = Group, Config) ->
 init_per_group(broadcast_removal = Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) andalso is_rdbms_auth_enabled() of
         true ->
+            broadcast_helper:create_many_users(10),
             HostTypes = domain_helper:host_types(),
             Config2 = dynamic_modules:save_modules(HostTypes, Config),
             [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
@@ -101,7 +102,6 @@ init_per_group(broadcast_removal = Group, Config) ->
 init_per_group(Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            broadcast_helper:create_many_users(10),
             HostTypes = domain_helper:host_types(),
             Config2 = dynamic_modules:save_modules(HostTypes, Config),
             [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||

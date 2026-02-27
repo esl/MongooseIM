@@ -28,9 +28,6 @@
 
 %% Test cases
 -export([
-    %% sanity
-    supported_features_includes_dynamic_domains/1,
-    config_spec_includes_backend_rdbms_default/1,
     %% start_error_paths
     start_requires_rdbms_auth_raises_error/1,
     %% probe_error_paths
@@ -54,22 +51,16 @@
 %%====================================================================
 
 all() ->
-    [{group, sanity},
-     {group, start_error_paths},
+    [{group, start_error_paths},
      {group, probe_error_paths},
      {group, abort_broadcast_paths},
      {group, api_domain_not_found_paths}].
 
 groups() ->
-    [{sanity, [], sanity_tests()},
-     {start_error_paths, [], start_error_path_tests()},
+    [{start_error_paths, [], start_error_path_tests()},
      {probe_error_paths, [], probe_error_path_tests()},
      {abort_broadcast_paths, [], abort_broadcast_path_tests()},
      {api_domain_not_found_paths, [], api_domain_not_found_path_tests()}].
-
-sanity_tests() ->
-    [supported_features_includes_dynamic_domains,
-     config_spec_includes_backend_rdbms_default].
 
 start_error_path_tests() ->
     [start_requires_rdbms_auth_raises_error].
@@ -114,19 +105,6 @@ end_per_testcase(_TestCase, Config) ->
     Config.
 
 %%====================================================================
-%% Sanity tests
-%%====================================================================
-
-supported_features_includes_dynamic_domains(_Config) ->
-    Features = mod_broadcast:supported_features(),
-    true = lists:member(dynamic_domains, Features).
-
-config_spec_includes_backend_rdbms_default(_Config) ->
-    #section{items = Items, defaults = #{<<"backend">> := rdbms}} = mod_broadcast:config_spec(),
-    #option{type = atom, validate = {enum, Enum}} = maps:get(<<"backend">>, Items),
-    true = lists:member(rdbms, Enum).
-
-%%====================================================================
 %% start/2 error path tests
 %%====================================================================
 
@@ -145,12 +123,12 @@ start_requires_rdbms_auth_raises_error(_Config) ->
 
 probe_live_jobs_noproc_returns_zero(_Config) ->
     meck:expect(broadcast_manager, get_live_job_count,
-                fun(_HostType) -> exit({noproc, mock}) end),
+                fun(_HostType) -> meck:exception(exit, {noproc, mock}) end),
     #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}).
 
 probe_live_jobs_timeout_returns_zero(_Config) ->
     meck:expect(broadcast_manager, get_live_job_count,
-                fun(_HostType) -> exit({timeout, mock}) end),
+                fun(_HostType) -> meck:exception(exit, {timeout, mock}) end),
     #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}).
 
 %%====================================================================

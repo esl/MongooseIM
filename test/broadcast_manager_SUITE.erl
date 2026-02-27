@@ -160,7 +160,7 @@ db_create_job_error_propagates(Config) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
     JobSpec = broadcast_helper:valid_job_spec(),
-    {error, somebody_set_us_up_the_bomb} = gen_server:call(Pid, {start_job, JobSpec}),
+    {error, somebody_set_us_up_the_bomb} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
     assert_manager_survived(Pid).
 
 db_get_running_jobs_error_in_resume(Config) ->
@@ -199,7 +199,7 @@ db_set_job_started_error_logged(Config) ->
                 end),
 
     JobSpec = broadcast_helper:valid_job_spec(),
-    {ok, 12345} = gen_server:call(Pid, {start_job, JobSpec}),
+    {ok, 12345} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
     assert_manager_survived(Pid).
 
 db_set_job_aborted_admin_error_logged(Config) ->
@@ -226,8 +226,8 @@ db_set_job_aborted_admin_error_logged(Config) ->
                 end),
 
     JobSpec = broadcast_helper:valid_job_spec(),
-    {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
-    ok = gen_server:call(Pid, {stop_job, JobId}),
+    {ok, JobId} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    ok = broadcast_manager:stop_job(node(), broadcast_helper:host_type(), JobId),
     assert_manager_survived(Pid),
     true = meck:called(broadcast_worker, stop, [FakeWorkerPid]).
 
@@ -241,7 +241,7 @@ db_get_running_jobs_error_in_abort_for_domain(Config) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
 
-    ok = gen_server:call(Pid, {abort_running_jobs_for_domain, <<"test.domain">>}),
+    ok = broadcast_manager:abort_running_jobs_for_domain(node(), broadcast_helper:host_type(), <<"test.domain">>),
     assert_manager_survived(Pid).
 
 %% ====================================================================
@@ -258,7 +258,7 @@ start_job_fails_when_recipient_count_zero_returns_no_recipients(Config) ->
                 end),
 
     JobSpec = broadcast_helper:valid_job_spec(),
-    {error, no_recipients} = gen_server:call(Pid, {start_job, JobSpec}),
+    {error, no_recipients} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
     assert_manager_survived(Pid).
 
 start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Config) ->
@@ -273,7 +273,7 @@ start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Con
                 end),
 
     JobSpec = broadcast_helper:valid_job_spec(),
-    {error, cannot_count_recipients} = gen_server:call(Pid, {start_job, JobSpec}),
+    {error, cannot_count_recipients} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
     assert_manager_survived(Pid).
 
 %%====================================================================
@@ -292,7 +292,7 @@ supervisor_start_child_error_on_job_creation(Config) ->
                 end),
 
     JobSpec = broadcast_helper:valid_job_spec(),
-    {ok, 12345} = gen_server:call(Pid, {start_job, JobSpec}),
+    {ok, 12345} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
     assert_manager_survived(Pid).
 
 supervisor_start_child_error_on_resume(Config) ->
@@ -315,7 +315,7 @@ stop_job_when_worker_not_found(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(supervisor, which_children, fun(_SupName) -> [] end),
 
-    {error, not_live} = gen_server:call(Pid, {stop_job, 12345}),
+    {error, not_live} = broadcast_manager:stop_job(node(), broadcast_helper:host_type(), 12345),
     assert_manager_survived(Pid).
 
 %% ====================================================================
@@ -335,13 +335,13 @@ worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) 
                 fun(_HostType, _JobId, _ReasonBin) -> ok end),
 
     JobSpec = broadcast_helper:valid_job_spec(),
-    {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
-    wait_for_worker(Pid, JobId, FakeWorkerPid),
+    {ok, JobId} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    wait_for_worker(JobId, FakeWorkerPid),
 
     FakeWorkerPid ! go_boom,
 
     wait_helper:wait_until(fun() ->
-        WorkerMap = gen_server:call(Pid, get_worker_map),
+        WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
         not maps:is_key(JobId, WorkerMap) orelse WorkerMap
     end, true),
     true = meck:called(mongoose_instrument, execute,
@@ -371,13 +371,13 @@ tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
                 end),
 
     JobSpec = broadcast_helper:valid_job_spec(),
-    {ok, JobId} = gen_server:call(Pid, {start_job, JobSpec}),
-    wait_for_worker(Pid, JobId, FakeWorkerPid),
+    {ok, JobId} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    wait_for_worker(JobId, FakeWorkerPid),
 
     UnexpectedPid = spawn_link(fun() -> receive stop -> ok end end),
     Pid ! {{'DOWN', JobId}, make_ref(), process, UnexpectedPid, boom},
 
-    #{pid := FakeWorkerPid} = maps:get(JobId, gen_server:call(Pid, get_worker_map)),
+    #{pid := FakeWorkerPid} = maps:get(JobId, broadcast_manager:get_worker_map(broadcast_helper:host_type())),
     assert_manager_survived(Pid).
 
 %%====================================================================
@@ -444,19 +444,21 @@ teardown_mocks() ->
     ok.
 
 start_test_manager() ->
-    gen_server:start(broadcast_manager, broadcast_helper:host_type(), []).
+   {ok, Pid} = broadcast_manager:start_link(broadcast_helper:host_type()),
+   unlink(Pid),
+   {ok, Pid}.
 
-stop_test_manager(Pid) ->
-    catch gen_server:stop(Pid, normal, 1000),
+stop_test_manager(_Pid) ->
+    catch broadcast_manager:stop(broadcast_helper:host_type()),
     ok.
 
 assert_manager_survived(Pid) ->
     %% If a manager is able to reply to a call, then it is alive
     {error, not_implemented} = gen_server:call(Pid, somebody_set_us_up_the_bomb).
 
-wait_for_worker(Pid, JobId, WorkerPid) ->
+wait_for_worker(JobId, WorkerPid) ->
     wait_helper:wait_until(fun() ->
-        WorkerMap = gen_server:call(Pid, get_worker_map),
+        WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
         case maps:get(JobId, WorkerMap, undefined) of
             #{pid := WorkerPid} -> ok;
             _ -> false

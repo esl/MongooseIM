@@ -11,7 +11,6 @@
 %% CT callbacks
 -export([suite/0, all/0, groups/0,
          init_per_suite/1, end_per_suite/1,
-         init_per_group/2, end_per_group/2,
          init_per_testcase/2, end_per_testcase/2]).
 
 %% lifecycle
@@ -134,16 +133,6 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 %%====================================================================
-%% Group setup/teardown
-%%====================================================================
-
-init_per_group(_Group, Config) ->
-    Config.
-
-end_per_group(_Group, _Config) ->
-    ok.
-
-%%====================================================================
 %% Test case setup/teardown
 %%====================================================================
 
@@ -187,6 +176,7 @@ start_broadcast_running_job_limit_exceeded(Config) ->
         AliceJid = escalus_client:short_jid(Alice),
         JobSpec = slow_job_spec(domain(), AliceJid, JobName),
         {ok, _JobId1} = start_broadcast(JobSpec),
+        %% Currently the limit is hardcoded to 1 job per domain
         {running_job_limit_exceeded, _} = start_broadcast(JobSpec)
     end).
 
@@ -542,20 +532,21 @@ get_broadcast_ok_returns_expected_fields(Config) ->
         Job = broadcast_job_to_map(get_broadcast(domain(), JobId)),
 
         %% Verify expected fields are present and match
-        #{id := JobId,
-          domain := ExpectedDomain,
-          name := ExpectedName,
-          sender := ExpectedSender,
-          subject := ExpectedSubject,
-          body := ExpectedBody,
-          message_rate := ExpectedRate,
-          execution_state := running,
-          owner_node := ExpectedNode,
-          create_timestamp := {{_, _, _}, {_, _, _}},
-          stop_timestamp := undefined,
-          abortion_reason := undefined,
-          recipient_group := ExpectedRecipientGroup,
-          recipient_count := RecipientCount,
+        ?assertMatch(#{id := JobId,
+                       domain := ExpectedDomain,
+                       name := ExpectedName,
+                       sender := ExpectedSender,
+                       subject := ExpectedSubject,
+                       body := ExpectedBody,
+                       message_rate := ExpectedRate,
+                       execution_state := running,
+                       owner_node := ExpectedNode,
+                       create_timestamp := {{_, _, _}, {_, _, _}},
+                       stop_timestamp := undefined,
+                       abortion_reason := undefined,
+                       recipient_group := ExpectedRecipientGroup}, Job),
+
+        #{recipient_count := RecipientCount,
           recipients_processed := RecipientsProcessed} = Job,
 
         assert_non_neg_integer(RecipientCount),
