@@ -172,6 +172,7 @@ groups() ->
                             mod_auth_token,
                             mod_fast_auth_token,
                             mod_blocking,
+                            mod_broadcast,
                             mod_caps,
                             mod_cache_users,
                             mod_carboncopy,
@@ -1513,6 +1514,14 @@ mod_fast_auth_token(_Config) ->
 
 mod_blocking(_Config) ->
     test_privacy_opts(mod_blocking).
+
+mod_broadcast(_Config) ->
+    check_module_defaults(mod_broadcast),
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_broadcast">> => #{K => V}}} end,
+    P = [modules, mod_broadcast],
+    ?cfgh(P ++ [backend], rdbms, T(<<"backend">>, <<"rdbms">>)),
+    ?errh(T(<<"backend">>, <<"mnesia">>)),
+    ?errh(T(<<"backend">>, <<"invalid">>)).
 
 mod_caps(_Config) ->
     check_module_defaults(mod_caps),

@@ -37,6 +37,7 @@
          try_register/4,
          get_registered_users/3,
          get_registered_users_number/3,
+         get_registered_users_snapshot/3,
          get_password/3,
          get_password_s/3,
          does_user_exist/3,
@@ -224,6 +225,34 @@ get_registered_users_number(HostType, LServer, Opts) ->
                      class => error, reason => Reason, stacktrace => StackTrace}),
         0
     end.
+
+-spec get_registered_users_snapshot(mongooseim:host_type(), jid:lserver(),
+                                    mongoose_gen_auth:get_registered_users_snapshot_params()) ->
+          {ok, {[jid:luser()], mongoose_gen_auth:page_cursor() | undefined}}
+          | {error, invalid_params | term()}.
+get_registered_users_snapshot(HostType, LServer, Params) ->
+    try
+        % Query args will include limit increased by 1 to determine if there is a next page
+        {SnapshotTS, QueryName, QueryArgs} = process_list_users_snapshot_params(LServer, Params),
+        #{limit := Limit} = Params,
+        case execute_successfully(HostType, QueryName, QueryArgs) of
+            {selected, RowsPlusOne} when length(RowsPlusOne) == Limit + 1 ->
+                Rows = lists:sublist(RowsPlusOne, Limit),
+                Usernames = [U || {U} <- Rows],
+                LastUsername = lists:last(Usernames),
+                NextCursor = <<SnapshotTS/binary, $$, LastUsername/binary>>,
+                {ok, {Usernames, NextCursor}};
+            {selected, Rows} ->
+                Usernames = [U || {U} <- Rows],
+                {ok, {Usernames, undefined}}
+        end
+    catch error:Reason:StackTrace ->
+        ?LOG_ERROR(#{what => get_registered_users_snapshot_failed,
+                     server => LServer,
+                     class => error, reason => Reason, stacktrace => StackTrace}),
+        {error, Reason}
+    end.
+
 
 -spec get_password(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
           ejabberd_auth:passterm() | false.
@@ -434,6 +463,16 @@ prepare_queries(HostType) ->
             [server, limit],
             <<"SELECT username, password FROM users "
               "WHERE server = ? AND pass_details is NULL", LimitSQL/binary>>),
+    prepare(auth_list_users_snapshot_first_page, users,
+            [server, snapshot_timestamp, limit],
+            <<"SELECT username FROM users "
+              "WHERE server = ? AND created_at <= ? ORDER BY username ",
+              LimitSQL/binary>>),
+    prepare(auth_list_users_snapshot_next_page, users,
+            [server, snapshot_timestamp, last_username, limit],
+            <<"SELECT username FROM users "
+              "WHERE server = ? AND created_at <= ? AND username > ? "
+              "ORDER BY username ", LimitSQL/binary>>),
     prepare(auth_count_users_prefix, users,
             [server, username],
             <<"SELECT COUNT(*) FROM users WHERE server = ? AND username LIKE ? ESCAPE '$'">>),
@@ -559,6 +598,37 @@ execute_count_users(HostType, LServer, #{}) ->
           mongoose_rdbms:query_result().
 execute_count_users_without_scram(HostType, LServer) ->
     execute_successfully(HostType, auth_count_users_without_scram, [LServer]).
+
+-spec process_list_users_snapshot_params(jid:lserver(),
+                                         mongoose_gen_auth:get_registered_users_snapshot_params()) ->
+          {SnapshotTS :: binary(), QueryName :: atom(), QueryArgs :: list()}.
+process_list_users_snapshot_params(LServer, #{limit := Limit, cursor := Cursor}) ->
+    %% Next page: cursor contains "timestamp$lastusername"
+    [SnapshotTsBin, LastUsername] = binary:split(Cursor, <<"$">>),
+    {SnapshotTsBin, auth_list_users_snapshot_next_page,
+     [LServer, deserialize_calendar(SnapshotTsBin), LastUsername, Limit + 1]};
+process_list_users_snapshot_params(LServer, #{limit := Limit, snapshot_timestamp := SnapshotTs}) ->
+    %% First page: no cursor, use snapshot_timestamp
+    SnapshotTsBin = serialize_calendar(SnapshotTs),
+    {SnapshotTsBin, auth_list_users_snapshot_first_page,
+     [LServer, SnapshotTs, Limit + 1]};
+process_list_users_snapshot_params(_, _) ->
+    error(invalid_params).
+
+-spec serialize_calendar(calendar:datetime()) -> binary().
+serialize_calendar({Date, Time}) ->
+    {{Year, Month, Day}, {Hour, Min, Sec}} = {Date, Time},
+    iolist_to_binary(io_lib:format("~p:~p:~p:~p:~p:~p", [Hour, Min, Sec, Year, Month, Day])).
+
+-spec deserialize_calendar(binary()) -> calendar:datetime().
+deserialize_calendar(Bin) ->
+    [HourB, MinB, SecB, YearB, MonthB, DayB] = binary:split(Bin, <<":">>, [global]),
+    {{binary_to_integer(YearB),
+     binary_to_integer(MonthB),
+     binary_to_integer(DayB)},
+    {binary_to_integer(HourB),
+     binary_to_integer(MinB),
+     binary_to_integer(SecB)}}.
 
 -spec prefix_to_like(binary()) -> binary().
 prefix_to_like(Prefix) ->

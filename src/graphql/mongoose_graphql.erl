@@ -204,6 +204,8 @@ admin_mapping_rules() ->
         'VcardAdminQuery' => mongoose_graphql_vcard_admin_query,
         'HttpUploadAdminMutation' => mongoose_graphql_http_upload_admin_mutation,
         'RosterAdminMutation' => mongoose_graphql_roster_admin_mutation,
+        'BroadcastAdminQuery' => mongoose_graphql_broadcast_admin_query,
+        'BroadcastAdminMutation' => mongoose_graphql_broadcast_admin_mutation,
         'Domain' => mongoose_graphql_domain,
         'DomainWithType' => mongoose_graphql_domain,
         'MetricAdminQuery' => mongoose_graphql_metric_admin_query,

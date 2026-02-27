@@ -4,6 +4,8 @@
 
 all() ->
     [pmap_works,
+     formats_datetime_timestamp,
+     pads_datetime_timestamp,
      sh_to_awk_converts_star,
      sh_to_awk_converts_question_mark,
      sh_to_awk_converts_character_class,
@@ -28,6 +30,14 @@ pmap_works(_C) ->
     ?assertMatch([_, {error, timeout}, _],
                  mongoose_lib:pmap(fun(2) -> timer:sleep(50000); (X) -> X end,
                                    [1, 2, 3], 10)).
+
+formats_datetime_timestamp(_Config) ->
+    Timestamp = {{2016, 12, 10}, {21, 13, 20}},
+    ?assertEqual(<<"2016-12-10T21:13:20Z">>, mongoose_lib:datetime_to_rfc3339(Timestamp)).
+
+pads_datetime_timestamp(_Config) ->
+    Timestamp = {{2016, 2, 1}, {1, 3, 0}},
+    ?assertEqual(<<"2016-02-01T01:03:00Z">>, mongoose_lib:datetime_to_rfc3339(Timestamp)).
 
 sh_to_awk_converts_star(_C) ->
     ?assertEqual("^(.*)$", mongoose_lib:sh_to_awk("*")),

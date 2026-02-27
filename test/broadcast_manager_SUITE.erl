@@ -1,0 +1,466 @@
+%%%-------------------------------------------------------------------
+%%% @doc Small test suite for broadcast_manager error/defensive paths.
+%%%
+%%% This suite covers error cases that are difficult to reproduce in normal
+%%% operation, such as unexpected messages in gen_server callbacks and DB
+%%% operation failures. Uses meck to mock mod_broadcast_backend and related
+%%% modules without starting a real database.
+%%%-------------------------------------------------------------------
+-module(broadcast_manager_SUITE).
+-author('piotr.nosek@erlang-solutions.com').
+
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("common_test/include/ct.hrl").
+
+-include_lib("mod_broadcast.hrl").
+
+
+%% CT callbacks
+-export([
+    all/0,
+    groups/0,
+    init_per_suite/1,
+    end_per_suite/1,
+    init_per_group/2,
+    end_per_group/2,
+    init_per_testcase/2,
+    end_per_testcase/2
+]).
+
+%% Test cases
+-export([
+    %% manager_unexpected_messages
+    handle_call_unknown_returns_not_implemented_and_alive/1,
+    handle_cast_unknown_does_not_crash/1,
+    handle_info_unknown_does_not_crash/1,
+    %% db_error_paths
+    db_create_job_error_propagates/1,
+    db_get_running_jobs_error_in_resume/1,
+    db_set_job_started_error_logged/1,
+    db_set_job_aborted_admin_error_logged/1,
+    db_get_running_jobs_error_in_abort_for_domain/1,
+    %% supervisor_error_paths
+    supervisor_start_child_error_on_job_creation/1,
+    supervisor_start_child_error_on_resume/1,
+    stop_job_when_worker_not_found/1,
+    %% validation_error_paths
+    start_job_fails_when_recipient_count_zero_returns_no_recipients/1,
+    start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients/1,
+    %% worker_down_paths
+    worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map/1,
+    tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path/1
+]).
+
+%%====================================================================
+%% CT callbacks
+%%====================================================================
+
+all() ->
+    [{group, manager_unexpected_messages},
+     {group, db_error_paths},
+    {group, supervisor_error_paths},
+    {group, validation_error_paths},
+    {group, worker_down_paths}].
+
+groups() ->
+    [{manager_unexpected_messages, [], manager_unexpected_messages_tests()},
+     {db_error_paths, [], db_error_path_tests()},
+    {supervisor_error_paths, [], supervisor_error_path_tests()},
+    {validation_error_paths, [], validation_error_path_tests()},
+    {worker_down_paths, [], worker_down_path_tests()}].
+
+manager_unexpected_messages_tests() ->
+    [handle_call_unknown_returns_not_implemented_and_alive,
+     handle_cast_unknown_does_not_crash,
+     handle_info_unknown_does_not_crash].
+
+db_error_path_tests() ->
+    [db_create_job_error_propagates,
+     db_get_running_jobs_error_in_resume,
+     db_set_job_started_error_logged,
+     db_set_job_aborted_admin_error_logged,
+     db_get_running_jobs_error_in_abort_for_domain].
+
+supervisor_error_path_tests() ->
+    [supervisor_start_child_error_on_job_creation,
+     supervisor_start_child_error_on_resume,
+     stop_job_when_worker_not_found].
+
+validation_error_path_tests() ->
+    [start_job_fails_when_recipient_count_zero_returns_no_recipients,
+     start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients].
+
+worker_down_path_tests() ->
+    [worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map,
+     tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path].
+
+%%====================================================================
+%% Suite setup/teardown
+%%====================================================================
+
+init_per_suite(Config) ->
+    Config.
+
+end_per_suite(_Config) ->
+    ok.
+
+%%====================================================================
+%% Group setup/teardown
+%%====================================================================
+
+init_per_group(_Group, Config) ->
+    setup_mocks_for_manager(),
+    Config.
+
+end_per_group(_Group, _Config) ->
+    teardown_mocks(),
+    ok.
+
+%%====================================================================
+%% Test case setup/teardown
+%%====================================================================
+
+init_per_testcase(_TestCase, Config) ->
+    {ok, Pid} = start_test_manager(),
+    [{manager_pid, Pid} | Config].
+
+end_per_testcase(_TestCase, Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+    reset_meck_defaults(),
+    Config.
+
+%%====================================================================
+%% Manager unexpected messages tests
+%%====================================================================
+
+handle_call_unknown_returns_not_implemented_and_alive(Config) ->
+    Pid = ?config(manager_pid, Config),
+    {error, not_implemented} = gen_server:call(Pid, somebody_set_us_up_the_bomb),
+    assert_manager_survived(Pid).
+
+handle_cast_unknown_does_not_crash(Config) ->
+    Pid = ?config(manager_pid, Config),
+    ok = gen_server:cast(Pid, somebody_set_us_up_the_bomb),
+    assert_manager_survived(Pid).
+
+handle_info_unknown_does_not_crash(Config) ->
+    Pid = ?config(manager_pid, Config),
+    Pid ! somebody_set_us_up_the_bomb,
+    assert_manager_survived(Pid).
+
+%%====================================================================
+%% DB error path tests
+%%====================================================================
+
+db_create_job_error_propagates(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {error, somebody_set_us_up_the_bomb} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    assert_manager_survived(Pid).
+
+db_get_running_jobs_error_in_resume(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    meck:expect(mod_broadcast_backend, get_running_jobs,
+                fun(_HostType) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+
+    {ok, NewPid} = start_test_manager(),
+
+    %% TODO: Update this test when retry is implemented
+    monitor(process, NewPid),
+    receive
+        {'DOWN', _Ref, process, NewPid, _Reason} ->
+            ok
+    after 1000 ->
+            ct:fail(manager_should_have_crashed_due_to_db_error)
+    end.
+
+db_set_job_started_error_logged(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    {ok, 12345}
+                end),
+    meck:expect(mod_broadcast_backend, set_job_started,
+                fun(_HostType, _JobId) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) ->
+                    {ok, spawn_link(fun() -> receive stop -> ok end end)}
+                end),
+
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {ok, 12345} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    assert_manager_survived(Pid).
+
+db_set_job_aborted_admin_error_logged(Config) ->
+    Pid = ?config(manager_pid, Config),
+    JobId = 99999,
+
+    FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    {ok, JobId}
+                end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) ->
+                    {ok, FakeWorkerPid}
+                end),
+    meck:expect(broadcast_worker, stop,
+                fun(WorkerPid) ->
+                    WorkerPid ! stop,
+                    ok
+                end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_admin,
+                fun(_HostType, _JobId) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {ok, JobId} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    ok = broadcast_manager:stop_job(node(), broadcast_helper:host_type(), JobId),
+    assert_manager_survived(Pid),
+    true = meck:called(broadcast_worker, stop, [FakeWorkerPid]).
+
+db_get_running_jobs_error_in_abort_for_domain(Config) ->
+    Pid = ?config(manager_pid, Config),
+    %% This ensures that manager finished resume step
+    assert_manager_survived(Pid),
+
+    meck:expect(mod_broadcast_backend, get_running_jobs,
+                fun(_HostType) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+
+    ok = broadcast_manager:abort_running_jobs_for_domain(node(), broadcast_helper:host_type(), <<"test.domain">>),
+    assert_manager_survived(Pid).
+
+%% ====================================================================
+%% Validation error path tests
+%% ====================================================================
+
+start_job_fails_when_recipient_count_zero_returns_no_recipients(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(ejabberd_auth, get_vh_registered_users_number,
+                fun(_Domain) -> 0 end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    ct:fail(create_job_should_not_be_called)
+                end),
+
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {error, no_recipients} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    assert_manager_survived(Pid).
+
+start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(ejabberd_auth, get_vh_registered_users_number,
+                fun(_Domain) ->
+                    meck:exception(error, auth_backend_boom)
+                end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    ct:fail(create_job_should_not_be_called)
+                end),
+
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {error, cannot_count_recipients} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    assert_manager_survived(Pid).
+
+%%====================================================================
+%% Supervisor error path tests
+%%====================================================================
+
+supervisor_start_child_error_on_job_creation(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) ->
+                    {ok, 12345}
+                end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) ->
+                    {error, somebody_set_us_up_the_bomb}
+                end),
+
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {ok, 12345} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    assert_manager_survived(Pid).
+
+supervisor_start_child_error_on_resume(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    meck:expect(mod_broadcast_backend, get_running_jobs,
+                fun(_HostType) ->
+                    {ok, [broadcast_helper:sample_broadcast_job()]}
+                end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) ->
+                    {error, somebody_set_us_up_the_bomb}
+                end),
+
+    {ok, NewPid} = start_test_manager(),
+    assert_manager_survived(NewPid).
+
+stop_job_when_worker_not_found(Config) ->
+    Pid = ?config(manager_pid, Config),
+    meck:expect(supervisor, which_children, fun(_SupName) -> [] end),
+
+    {error, not_live} = broadcast_manager:stop_job(node(), broadcast_helper:host_type(), 12345),
+    assert_manager_survived(Pid).
+
+%% ====================================================================
+%% Worker down path tests
+%% ====================================================================
+
+worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) ->
+    Pid = ?config(manager_pid, Config),
+    JobId = 88888,
+
+    FakeWorkerPid = spawn(fun() -> receive go_boom -> error(boom) end end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) -> {ok, JobId} end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_error,
+                fun(_HostType, _JobId, _ReasonBin) -> ok end),
+
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {ok, JobId} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    wait_for_worker(JobId, FakeWorkerPid),
+
+    FakeWorkerPid ! go_boom,
+
+    wait_helper:wait_until(fun() ->
+        WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
+        not maps:is_key(JobId, WorkerMap) orelse WorkerMap
+    end, true),
+    true = meck:called(mongoose_instrument, execute,
+                       [mod_broadcast_jobs_aborted_error,
+                        #{host_type => broadcast_helper:host_type()},
+                        #{count => 1}]),
+    true = meck:called(mod_broadcast_backend, set_job_aborted_error,
+                       [broadcast_helper:host_type(), JobId, '_']),
+    assert_manager_survived(Pid).
+
+tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
+    Pid = ?config(manager_pid, Config),
+    JobId = 77777,
+
+    FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) -> {ok, JobId} end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
+    meck:expect(mod_broadcast_backend, set_job_finished,
+                fun(_HostType, _JobId) ->
+                    ct:fail(set_job_finished_should_not_be_called)
+                end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_error,
+                fun(_HostType, _JobId, _ReasonBin) ->
+                    ct:fail(set_job_aborted_error_should_not_be_called)
+                end),
+
+    JobSpec = broadcast_helper:valid_job_spec(),
+    {ok, JobId} = broadcast_manager:start_job(broadcast_helper:host_type(), JobSpec),
+    wait_for_worker(JobId, FakeWorkerPid),
+
+    UnexpectedPid = spawn_link(fun() -> receive stop -> ok end end),
+    Pid ! {{'DOWN', JobId}, make_ref(), process, UnexpectedPid, boom},
+
+    #{pid := FakeWorkerPid} = maps:get(JobId, broadcast_manager:get_worker_map(broadcast_helper:host_type())),
+    assert_manager_survived(Pid).
+
+%%====================================================================
+%% Helper functions
+%%====================================================================
+
+setup_mocks_for_manager() ->
+    meck:new(gen_mod, [no_link, passthrough]),
+    meck:expect(gen_mod, get_module_proc,
+                fun(_HostType, Module) ->
+                    list_to_atom("test_" ++ atom_to_list(Module))
+                end),
+
+    meck:new(mod_broadcast_backend, [no_link]),
+
+    meck:new(ejabberd_auth, [no_link]),
+    meck:expect(ejabberd_auth, does_user_exist,
+                fun(_HostType, _Jid, stored) ->
+                    true
+                end),
+    meck:expect(ejabberd_auth, get_vh_registered_users_number,
+                fun(_Domain) ->
+                    1000
+                end),
+
+    meck:new(supervisor, [no_link, unstick, passthrough]),
+
+    meck:new(broadcast_worker, [no_link]),
+
+    meck:new(mongoose_instrument, [no_link]),
+    meck:expect(mongoose_instrument, execute,
+                fun(_Event, _Labels, _Measurements) -> ok end),
+
+    % Initial mock for certain functions but they may be overridden in tests
+    reset_meck_defaults().
+
+reset_meck_defaults() ->
+    meck:expect(mod_broadcast_backend, get_running_jobs,
+                fun(_HostType) -> {ok, []} end),
+    meck:expect(mod_broadcast_backend, create_job,
+                fun(_HostType, _JobSpec) -> {ok, 1} end),
+    meck:expect(mod_broadcast_backend, set_job_started,
+                fun(_HostType, _JobId) -> ok end),
+    meck:expect(mod_broadcast_backend, set_job_finished,
+                fun(_HostType, _JobId) -> ok end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_admin,
+                fun(_HostType, _JobId) -> ok end),
+    meck:expect(mod_broadcast_backend, set_job_aborted_error,
+                fun(_HostType, _JobId, _ReasonBin) -> ok end),
+    meck:expect(supervisor, which_children,
+                fun(_SupName) -> [] end),
+    meck:expect(supervisor, start_child,
+                fun(_SupName, _ChildSpec) -> {ok, spawn(fun() -> ok end)} end),
+    meck:expect(broadcast_worker, stop,
+                fun(_Pid) -> ok end).
+
+teardown_mocks() ->
+    catch meck:unload(gen_mod),
+    catch meck:unload(mod_broadcast_backend),
+    catch meck:unload(ejabberd_auth),
+    catch meck:unload(supervisor),
+    catch meck:unload(broadcast_worker),
+    catch meck:unload(mongoose_instrument),
+    ok.
+
+start_test_manager() ->
+   {ok, Pid} = broadcast_manager:start_link(broadcast_helper:host_type()),
+   unlink(Pid),
+   {ok, Pid}.
+
+stop_test_manager(_Pid) ->
+    catch broadcast_manager:stop(broadcast_helper:host_type()),
+    ok.
+
+assert_manager_survived(Pid) ->
+    %% If a manager is able to reply to a call, then it is alive
+    {error, not_implemented} = gen_server:call(Pid, somebody_set_us_up_the_bomb).
+
+wait_for_worker(JobId, WorkerPid) ->
+    wait_helper:wait_until(fun() ->
+        WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
+        case maps:get(JobId, WorkerMap, undefined) of
+            #{pid := WorkerPid} -> ok;
+            _ -> false
+        end
+    end, ok).

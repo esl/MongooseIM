@@ -578,6 +578,41 @@ CREATE TABLE fast_auth_token(
      PRIMARY KEY(server, username, user_agent_id)
 );
 
+-- Message Broadcast
+-- Module: mod_broadcast
+CREATE TABLE broadcast_jobs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(250) NOT NULL,
+    server VARCHAR(250) NOT NULL,
+    host_type VARCHAR(250) NOT NULL,
+    from_jid VARCHAR(250) NOT NULL,
+    subject VARCHAR(1024) NOT NULL,
+    body TEXT NOT NULL,
+    rate INT NOT NULL,
+    recipient_group ENUM('all_users_in_domain') NOT NULL,
+    owner_node VARCHAR(250) NOT NULL,
+    recipient_count INT NOT NULL,
+    execution_state ENUM('running', 'finished', 'abort_error', 'abort_admin') NOT NULL DEFAULT 'running',
+    abortion_reason TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP NULL,
+    stopped_at TIMESTAMP NULL,
+    INDEX i_broadcast_jobs_server (server, id),
+    INDEX i_broadcast_jobs_owner_host_state (owner_node, host_type, execution_state),
+    INDEX i_broadcast_jobs_server_state (server, execution_state)
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE broadcast_worker_state (
+    broadcast_id INT NOT NULL,
+    cursor_user VARCHAR(250),
+    recipients_processed INT NOT NULL DEFAULT 0,
+    finished BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (broadcast_id),
+    FOREIGN KEY (broadcast_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
 CREATE TABLE blocklist (
     luser VARCHAR(250) NOT NULL,
     lserver VARCHAR(250) NOT NULL,

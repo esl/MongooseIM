@@ -128,6 +128,7 @@ nav:
       - 'mod_bind2': 'modules/mod_bind2.md'
       - 'mod_blocking': 'modules/mod_blocking.md'
       - 'mod_blocklist': 'modules/mod_blocklist.md'
+      - 'mod_broadcast': 'modules/mod_broadcast.md'
       - 'mod_caps': 'modules/mod_caps.md'
       - 'mod_cache_users': 'modules/mod_cache_users.md'
       - 'mod_carboncopy': 'modules/mod_carboncopy.md'
