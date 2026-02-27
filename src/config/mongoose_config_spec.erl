@@ -8,10 +8,12 @@
          iqdisc/0,
          tls/1]).
 
+%% post-processing validation called from mongoose_config_parser
+-export([validate_backend_databases/1]).
+
 %% callbacks for the 'process' step
 -export([process_dynamic_domains/1,
          process_shapers/1,
-         process_backend_databases/1,
          process_host/1,
          process_general/1,
          process_listener/2,
@@ -108,8 +110,7 @@ root() ->
        defaults = #{<<"internal_databases">> => default_internal_databases()},
        required = [<<"general">>],
        process = [fun ?MODULE:process_dynamic_domains/1,
-                  fun ?MODULE:process_shapers/1,
-                  fun ?MODULE:process_backend_databases/1],
+                  fun ?MODULE:process_shapers/1],
        wrap = none,
        format_items = list
       }.
@@ -971,8 +972,10 @@ process_shapers(Items) ->
                     undefined_shapers => UndefinedShapers})
     end.
 
-%% Check that all backends requiring an internal database have the corresponding database configured
-process_backend_databases(Items) ->
+%% @doc Check that all backends requiring an internal database have it configured.
+%% Called from mongoose_config_parser after module/service dependency resolution.
+-spec validate_backend_databases([{mongoose_config:key(), mongoose_config:value()}]) -> ok.
+validate_backend_databases(Items) ->
     InternalDBs = proplists:get_value(internal_databases, Items, #{}),
     Backends = collect_backends(Items),
     Missing = lists:filtermap(
@@ -989,12 +992,15 @@ process_backend_databases(Items) ->
                 end, Backends),
     case Missing of
         [] ->
-            Items;
+            ok;
         _ ->
-            error(#{what => backend_requires_internal_database,
-                    text => ("Some backends require internal databases that are not configured. "
-                             "Add the required databases to the 'internal_databases' section."),
-                    missing => Missing})
+            error({config_error,
+                   "Some backends require internal databases that are not configured",
+                   [#{reason => backend_requires_internal_database,
+                      class => error,
+                      what => backend_requires_internal_database,
+                      text => "Add the required databases to the 'internal_databases' section.",
+                      missing => Missing}]})
     end.
 
 collect_backends(Items) ->
