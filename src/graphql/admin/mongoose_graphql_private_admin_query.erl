@@ -11,7 +11,7 @@
 
 execute(_Ctx, _Obj, <<"getPrivate">>, #{<<"user">> := CallerJID,
         <<"element">> := Element, <<"nameSpace">> := SubElement}) ->
-    case mod_private_api:private_get(CallerJID, Element, SubElement) of
+    case mod_private_api:private_get(CallerJID, Element, SubElement, admin_api) of
         {ok, _} = Result -> Result;
         Error ->
             make_error(Error, #{user => jid:to_binary(CallerJID), element => Element,

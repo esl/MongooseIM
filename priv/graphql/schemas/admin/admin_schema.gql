@@ -86,6 +86,8 @@ type AdminMutation @protected{
   server: ServerAdminMutation
   "Message broadcast management"
   broadcast: BroadcastAdminMutation
+  "Blocklist management"
+  blocklist: BlocklistAdminMutation
 }
 
 type AdminSubscription {

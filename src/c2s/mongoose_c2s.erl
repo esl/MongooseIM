@@ -762,7 +762,8 @@ handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LSer
     ?LOG_DEBUG(#{what => packet_before_session_established_sent, packet => El, c2s_pid => self()}),
     ServerJid = jid:make_noprep(<<>>, LServer, <<>>),
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION,
-                  element => El, from_jid => ServerJid, to_jid => ServerJid},
+                  element => El, from_jid => ServerJid, to_jid => ServerJid,
+                  origin => xmpp_c2s},
     Acc0 = mongoose_acc:new(AccParams),
     HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
     {_, Acc1} = mongoose_c2s_hooks:user_send_xmlel(HostType, Acc0, HookParams),
@@ -896,7 +897,8 @@ element_to_origin_accum(StateData = #c2s_data{sid = SID, jid = Jid}, El) ->
                    lserver => StateData#c2s_data.lserver,
                    location => ?LOCATION,
                    element => El,
-                   from_jid => Jid},
+                   from_jid => Jid,
+                   origin => xmpp_c2s},
     Params = case exml_query:attr(El, <<"to">>) of
                  undefined -> BaseParams#{ to_jid => jid:to_bare(Jid) };
                  _ToBin -> BaseParams
@@ -1023,7 +1025,8 @@ send_element_from_server_jid(StateData, El) ->
               location => ?LOCATION,
               from_jid => jid:make_noprep(<<>>, StateData#c2s_data.lserver, <<>>),
               to_jid => StateData#c2s_data.jid,
-              element => El}),
+              element => El,
+              origin => server}),
     do_send_element(StateData, Acc, El).
 
 -spec send_acc_from_server_jid(data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().

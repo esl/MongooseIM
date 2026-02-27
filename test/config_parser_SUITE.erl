@@ -97,8 +97,6 @@ groups() ->
                            listen_http_handlers_invalid,
                            listen_http_handlers_bosh,
                            listen_http_handlers_websocket,
-                           listen_http_handlers_client_api,
-                           listen_http_handlers_admin_api,
                            listen_http_handlers_graphql]},
      {auth, [parallel], [auth_methods,
                          auth_password,
@@ -180,6 +178,7 @@ groups() ->
                             mod_carboncopy,
                             mod_csi,
                             mod_disco,
+                            mod_external_filter,
                             mod_inbox,
                             mod_global_distrib,
                             mod_global_distrib_connections,
@@ -582,21 +581,6 @@ listen_http_handlers_websocket(_Config) ->
     ?err(T(#{<<"timeout">> => -1})),
     ?err(T(#{<<"ping_rate">> => 0})),
     ?err(T(#{<<"max_stanza_size">> => 0})).
-
-listen_http_handlers_client_api(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_client_api),
-    ?cfg(P ++ [handlers], [messages],
-         T(#{<<"handlers">> => [<<"messages">>]})),
-    ?cfg(P ++ [docs], false, T(#{<<"docs">> => false})),
-    ?err(T(#{<<"handlers">> => [<<"invalid">>]})),
-    ?err(T(#{<<"docs">> => <<"maybe">>})).
-
-listen_http_handlers_admin_api(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_admin_api),
-    ?cfg(P ++ [handlers], [muc, inbox],
-         T(#{<<"handlers">> => [<<"muc">>, <<"inbox">>]})),
-    ?err(T(#{<<"handlers">> => [<<"invalid">>]})),
-    test_listen_http_handler_creds(P, T).
 
 listen_http_handlers_graphql(_Config) ->
     T = fun graphql_handler_raw/1,
@@ -1635,6 +1619,15 @@ mod_extdisco(_Config) ->
     ?errh(T(RequiredOpts#{<<"transport">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"username">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"password">> => <<>>})).
+
+mod_external_filter(_Config) ->
+    % This module doesn't have any defaults, hence no check_module_defaults/1 call
+    P = [modules, mod_external_filter],
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_external_filter">> => Opts}} end,
+    ?cfgh(P ++ [pool_tag], external_service_http, T(#{<<"pool_tag">> => <<"external_service_http">>})),
+    ?errh(T(#{<<"pool_tag">> => <<>>})),
+    ?errh(T(#{<<"pool_tag">> => 123})),
+    ?errh(T(#{})).
 
 mod_inbox(_Config) ->
     check_module_defaults(mod_inbox),
@@ -3146,7 +3139,7 @@ check_module_defaults(Mod) ->
         0 ->
             ok;
         _ ->
-            assert_configurable_module(mod_fast_auth_token)
+            assert_configurable_module(Mod)
     end,
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
 

@@ -612,3 +612,10 @@ CREATE TABLE broadcast_worker_state (
     FOREIGN KEY (broadcast_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE blocklist (
+    luser VARCHAR(250) NOT NULL,
+    lserver VARCHAR(250) NOT NULL,
+    reason TEXT,
+    PRIMARY KEY (luser, lserver)
+);

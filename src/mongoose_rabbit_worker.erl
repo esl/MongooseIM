@@ -58,6 +58,12 @@
 %%%===================================================================
 
 -spec instrumentation(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
+instrumentation(global, Tag) ->
+    [{wpool_global_rabbit_connections, #{pool_tag => Tag},
+      #{metrics => #{active => counter, opened => spiral, closed => spiral, failed => spiral}}},
+     {wpool_global_rabbit_messages_published, #{pool_tag => Tag},
+      #{metrics => #{count => spiral, failed => spiral, timeout => spiral, time => histogram,
+                     size => histogram}}}];
 instrumentation(HostType, Tag) ->
     [{wpool_rabbit_connections, #{pool_tag => Tag, host_type => HostType},
       #{metrics => #{active => counter, opened => spiral, closed => spiral, failed => spiral}}},
@@ -114,8 +120,8 @@ terminate(_Reason, #{connection := Connection, channel := Channel,
           {noreply, state()}.
 handle_amqp_publish(Method, Payload, State = #{host_type := HostType, pool_tag := PoolTag}) ->
     PublishArgs = [Method, Payload, State],
-    Res = mongoose_instrument:span(wpool_rabbit_messages_published,
-                                   #{host_type => HostType, pool_tag => PoolTag},
+    Res = mongoose_instrument:span(messages_published_event_name(HostType),
+                                   event_labels(HostType, PoolTag),
                                    fun publish_message_and_wait_for_confirm/3,
                                    PublishArgs,
                                    fun(PublishTime, Result) ->
@@ -206,16 +212,16 @@ start_amqp_connection(State) ->
     case amqp_connection:start(mongoose_amqp:network_params(Opts)) of
         {ok, Connection} ->
             monitor(process, Connection), % resulting ref is ignored as there is only one monitor
-            mongoose_instrument:execute(wpool_rabbit_connections,
-                                        #{host_type => HostType, pool_tag => PoolTag},
+            mongoose_instrument:execute(connections_event_name(HostType),
+                                        event_labels(HostType, PoolTag),
                                         #{active => 1, opened => 1}),
             Channel = open_amqp_channel(Connection, Opts),
             ?LOG_DEBUG(#{what => rabbit_connection_established,
                          host_type => HostType, pool_tag => PoolTag, opts => Opts}),
             {ok, State#{connection => Connection, channel => Channel}};
         {error, Error} ->
-            mongoose_instrument:execute(wpool_rabbit_connections,
-                                        #{host_type => HostType, pool_tag => PoolTag},
+            mongoose_instrument:execute(connections_event_name(HostType),
+                                        event_labels(HostType, PoolTag),
                                         #{failed => 1}),
             {error, Error}
     end.
@@ -230,8 +236,8 @@ open_amqp_channel(Connection, Opts) ->
                               HostType :: mongooseim:host_type_or_global(), PoolTag :: atom()) ->
     ok | no_return().
 close_rabbit_connection(Connection, Channel, HostType, PoolTag) ->
-    mongoose_instrument:execute(wpool_rabbit_connections,
-                                #{host_type => HostType, pool_tag => PoolTag},
+    mongoose_instrument:execute(connections_event_name(HostType),
+                                event_labels(HostType, PoolTag),
                                 #{active => -1, closed => 1}),
     try amqp_channel:close(Channel)
     catch
@@ -246,3 +252,12 @@ maybe_enable_confirms(Channel, #{confirms_enabled := true}) ->
     ok;
 maybe_enable_confirms(_Channel, #{}) ->
     ok.
+
+connections_event_name(global) -> wpool_global_rabbit_connections;
+connections_event_name(_HostType) -> wpool_rabbit_connections.
+
+messages_published_event_name(global) -> wpool_global_rabbit_messages_published;
+messages_published_event_name(_HostType) -> wpool_rabbit_messages_published.
+
+event_labels(global, PoolTag) -> #{pool_tag => PoolTag};
+event_labels(HostType, PoolTag) -> #{host_type => HostType, pool_tag => PoolTag}.

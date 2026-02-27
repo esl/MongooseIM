@@ -17,15 +17,16 @@ execute(Ctx, _Obj, <<"sendStanza">>, Args) ->
     send_stanza(Ctx, Args).
 
 send_message(#{user := User}, #{<<"from">> := From, <<"to">> := To, <<"body">> := Body}) ->
-    Res = mongoose_stanza_api:send_chat_message(User, null_to_undefined(From), To, Body),
+    Res = mongoose_stanza_api:send_chat_message(User, null_to_undefined(From), To, Body, user_api),
     format_result(Res, #{}).
 
 send_message_headline(#{user := User}, #{<<"from">> := From, <<"to">> := To, <<"body">> := Body,
                                          <<"subject">> := Subject}) ->
     Res = mongoose_stanza_api:send_headline_message(
-            User, null_to_undefined(From), To, null_to_undefined(Body), null_to_undefined(Subject)),
+            User, null_to_undefined(From), To, null_to_undefined(Body), null_to_undefined(Subject),
+            user_api),
     format_result(Res, #{}).
 
 send_stanza(#{user := User}, #{<<"stanza">> := Packet}) ->
-    Res = mongoose_stanza_api:send_stanza(User, Packet),
+    Res = mongoose_stanza_api:send_stanza(User, Packet, user_api),
     format_result(Res, #{}).

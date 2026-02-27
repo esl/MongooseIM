@@ -12,7 +12,7 @@ set -e
 
 CONTAINER="$1"
 PORT="$2"
-IP=$($DOCKER inspect -f {{.NetworkSettings.IPAddress}} "$CONTAINER")
+IP=$($DOCKER inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CONTAINER")
 echo "$CONTAINER IP is $IP"
 
 if [ `uname` = "Darwin" ]; then

@@ -584,3 +584,10 @@ CREATE TABLE broadcast_worker_state (
     finished BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (broadcast_id)
 );
+
+CREATE TABLE blocklist (
+    luser VARCHAR(250) NOT NULL,
+    lserver VARCHAR(250) NOT NULL,
+    reason TEXT,
+    PRIMARY KEY (luser, lserver)
+);

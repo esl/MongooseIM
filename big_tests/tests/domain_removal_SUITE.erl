@@ -34,6 +34,7 @@ all() ->
      {group, last_removal},
      {group, broadcast_removal},
      {group, push_removal},
+     {group, blocklist_removal},
      {group, removal_failures}
     ].
 
@@ -59,6 +60,7 @@ groups() ->
      {broadcast_removal, [], [broadcast_removal]},
      {push_removal, [], [push_removal,
                          push_removal_keeps_other_domain_subscriptions]},
+     {blocklist_removal, [], [blocklist_removal]},
      {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
 
@@ -178,7 +180,9 @@ group_to_modules(broadcast_removal) ->
     [{mod_broadcast, #{backend => rdbms}}];
 group_to_modules(push_removal) ->
     PushOpts = #{backend => rdbms},
-    [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}].
+    [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}];
+group_to_modules(blocklist_removal) ->
+    [{mod_blocklist, #{backend => rdbms}}].
 
 is_internal_or_rdbms() ->
     AuthMods = mongoose_helper:auth_modules(),
@@ -575,10 +579,21 @@ push_removal_keeps_other_domain_subscriptions(Config) ->
         ?assertMatch([_], AliceBisServicesAfter)
     end).
 
+blocklist_removal(Config) ->
+    escalus_fresh:story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(),
+        #jid{luser = LUser, lserver = LServer} = Jid = jid:from_binary(escalus_client:full_jid(Alice)),
+        rpc(mim(), mod_blocklist_api, add_user, [Jid, <<"Spam">>]),
+        ?assertEqual({ok, <<"Spam">>}, rpc(mim(), mod_blocklist_rdbms, get_block, [HostType, LUser, LServer])),
+        run_remove_domain(),
+        ?assertEqual(not_found, rpc(mim(), mod_blocklist_rdbms, get_block, [HostType, LUser, LServer]))
+    end).
+
 removal_stops_if_handler_fails(Config0) ->
     mongoose_helper:inject_module(?MODULE),
     F = fun(Config, Alice) ->
-        start_domain_removal_hook(),
+        Handler = hook_handler(),
+        hook_helper:add_handler(Handler),
         Room = muc_helper:fresh_room_name(),
         MucHost = muc_light_helper:muc_host(),
         muc_light_helper:create_room(Room, MucHost, alice, [], Config, muc_light_helper:ver(1)),
@@ -588,28 +603,16 @@ removal_stops_if_handler_fails(Config0) ->
         mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
         run_remove_domain(),
         mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
-        stop_domain_removal_hook(),
+        hook_helper:delete_handler(Handler),
         run_remove_domain(),
         mam_helper:wait_for_room_archive_size(MucHost, Room, 0)
         end,
     escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
 
 %% Helpers
-start_domain_removal_hook() ->
-    rpc(mim(), ?MODULE, rpc_start_domain_removal_hook, [host_type()]).
 
-stop_domain_removal_hook() ->
-    rpc(mim(), ?MODULE, rpc_stop_domain_removal_hook, [host_type()]).
-
-rpc_start_domain_removal_hook(HostType) ->
-    gen_hook:add_handler(remove_domain, HostType,
-                         fun ?MODULE:domain_removal_hook_fn/3,
-                         #{}, 30). %% Priority is so that it comes before muclight and mam
-
-rpc_stop_domain_removal_hook(HostType) ->
-    gen_hook:delete_handler(remove_domain, HostType,
-                            fun ?MODULE:domain_removal_hook_fn/3,
-                            #{}, 30).
+hook_handler() ->
+    {remove_domain, host_type(), fun ?MODULE:domain_removal_hook_fn/3, #{}, 30}.
 
 domain_removal_hook_fn(Acc, _Params, _Extra) ->
     F = fun() -> throw(first_time_needs_to_fail) end,

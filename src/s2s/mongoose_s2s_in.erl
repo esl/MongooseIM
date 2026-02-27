@@ -324,7 +324,8 @@ route_incoming_stanza(Data, El, RemoteJid, LocalJid) ->
                              lserver => LLocalServer,
                              element => El,
                              from_jid => RemoteJid,
-                             to_jid => LocalJid}),
+                             to_jid => LocalJid,
+                             origin => xmpp_s2s}),
     case is_s2s_authenticated_or_connected(Data, FromTo) of
         true ->
             route_stanza(Acc),

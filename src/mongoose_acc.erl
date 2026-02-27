@@ -61,6 +61,7 @@
 %% Note about 'undefined' to_jid and from_jid: these are the special cases when JID may be
 %% truly unknown: before a client is authorized.
 
+-type origin() :: xmpp_c2s | xmpp_s2s | xmpp_component | server | admin_api | client_api.
 -type line_number() :: non_neg_integer().
 -type location() :: #{mfa  := mfa(),
                       line := line_number(),
@@ -88,6 +89,7 @@
         host_type := binary() | undefined,
         non_strippable := [ns_key()],
         statem_acc := mongoose_c2s_acc:t(),
+        origin := origin() | undefined,
         ns_key() => Value :: any()
        }.
 
@@ -106,7 +108,8 @@
         host_type => binary() | undefined, % optional
         from_jid => jid:jid() | undefined, % optional
         to_jid => jid:jid() | undefined, % optional
-        statem_acc => mongoose_c2s_acc:t() % optional
+        statem_acc => mongoose_c2s_acc:t(), % optional
+        origin => origin() | undefinded % optional
        }.
 
 -type strip_params() :: #{
@@ -138,6 +141,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
                  _Element -> stanza_from_params(Params)
              end,
     HostType = get_host_type(Params),
+    Origin = get_origin(Params),
     #{
       mongoose_acc => true,
       ref => make_ref(),
@@ -148,6 +152,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       lserver => LServer,
       host_type => HostType,
       statem_acc => get_mongoose_c2s_acc(Params),
+      origin => Origin,
       %% The non_strippable elements must be unique.
       %% This used to be represented with the sets module, but as the number of elements inserted
       %% was too small, sets were themselves an overhead, and also annoying when printing
@@ -328,6 +333,12 @@ get_host_type(#{host_type := HostType}) ->
 get_host_type(_) ->
     undefined.
 
+-spec get_origin(new_acc_params()) -> origin() | undefined.
+get_origin(#{origin := Origin}) ->
+    Origin;
+get_origin(_) ->
+    undefined.
+
 -spec get_mongoose_c2s_acc(new_acc_params() | strip_params()) -> mongoose_c2s_acc:t() | undefined.
 get_mongoose_c2s_acc(#{statem_acc := C2SAcc}) ->
     C2SAcc;
@@ -368,7 +379,8 @@ default_non_strippable() ->
      lserver,
      host_type,
      statem_acc,
-     non_strippable
+     non_strippable,
+     origin
     ].
 
 -spec append(OldVal :: list(), Val :: list() | any()) -> list().

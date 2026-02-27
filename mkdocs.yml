@@ -37,6 +37,10 @@ extra:
       link: https://github.com/esl/MongooseIM
 plugins:
   - include-markdown
+  - mermaid2:
+      version: 11.1.0
+  - plantuml:
+      puml_url: https://www.plantuml.com/plantuml/
   - search:
       separator: '[\s\-_,:!=\[\]()"/<>]+|\.(?!\d)|&[lg]t;'
       lang: en
@@ -44,7 +48,11 @@ extra_css: [css/custom.css]
 markdown_extensions:
   - pymdownx.highlight:
       linenums: true
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid
   - admonition
   - pymdownx.tabbed:
       alternate_style: true
@@ -72,7 +80,7 @@ nav:
       - 'How to Set up MongoosePush': 'tutorials/push-notifications/MongoosePush-setup.md'
       - 'How to Set up MongooseICE': 'tutorials/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'tutorials/iOS_tutorial.md'
-      - 'How to Set up Jingle/SIP': 'tutorials/Jingle-SIP-setup.md'
+      - 'XMPP Audio and Video Basics': 'tutorials/jingle.md'
       - 'How to Set up SASL client certificate authentication': 'tutorials/client-certificate.md'
   - 'Open XMPP Extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
@@ -119,6 +127,7 @@ nav:
       - 'mod_auth_token': 'modules/mod_auth_token.md'
       - 'mod_bind2': 'modules/mod_bind2.md'
       - 'mod_blocking': 'modules/mod_blocking.md'
+      - 'mod_blocklist': 'modules/mod_blocklist.md'
       - 'mod_broadcast': 'modules/mod_broadcast.md'
       - 'mod_caps': 'modules/mod_caps.md'
       - 'mod_cache_users': 'modules/mod_cache_users.md'
@@ -133,6 +142,7 @@ nav:
           - 'RabbitMQ backend': 'modules/mod_event_pusher_rabbit.md'
           - 'SNS backend': 'modules/mod_event_pusher_sns.md'
       - 'mod_extdisco': 'modules/mod_extdisco.md'
+      - 'mod_external_filter': 'modules/mod_external_filter.md'
       - 'mod_fast_auth_token': 'modules/mod_fast_auth_token.md'
       - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
@@ -156,15 +166,13 @@ nav:
       - 'mod_roster': 'modules/mod_roster.md'
       - 'mod_sasl2': 'modules/mod_sasl2.md'
       - 'mod_shared_roster_ldap': 'modules/mod_shared_roster_ldap.md'
-      - 'mod_smart_markers': 'modules/mod_smart_markers.md'
       - 'mod_sic': 'modules/mod_sic.md'
+      - 'mod_smart_markers': 'modules/mod_smart_markers.md'
+      - 'mod_stanzaid': 'modules/mod_stanzaid.md'
       - 'mod_stream_management': 'modules/mod_stream_management.md'
       - 'mod_time': 'modules/mod_time.md'
       - 'mod_vcard': 'modules/mod_vcard.md'
       - 'mod_version': 'modules/mod_version.md'
-  - 'REST API':
-      - 'Client/frontend': 'rest-api/Client-frontend.md'
-      - 'Administration backend': 'rest-api/Administration-backend.md'
   - 'GraphQL API':
       - 'User': 'graphql-api/User-GraphQL.md'
       - 'Admin': 'graphql-api/Admin-GraphQL.md'

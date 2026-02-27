@@ -73,12 +73,27 @@ replace_services(ToStop, ToEnsure) ->
     Target = mongoose_service_deps:resolve_deps(WithNew),
 
     %% Stop each affected service if it is not in Target (stop deps first)
-    [ensure_stopped(Service) || {Service, _} <- lists:reverse(SortedOldWithDeps),
+    [ensure_service_stopped(Service) || {Service, _} <- lists:reverse(SortedOldWithDeps),
         not maps:is_key(Service, Target)],
 
     %% Ensure each service from Target
-    [ensure_started(Service, Opts) || {Service, Opts} <- mongoose_service_deps:sort_deps(Target)],
-    ok.
+    [ensure_service_started(Service, Opts) || {Service, Opts} <- mongoose_service_deps:sort_deps(Target)],
+    gen_hook:reload_hooks().
+
+%% @doc Make sure the service is stopped. Ignores dependencies.
+-spec ensure_stopped(service()) -> {stopped, options()} | already_stopped.
+ensure_stopped(Service) ->
+    Result = ensure_service_stopped(Service),
+    gen_hook:reload_hooks(),
+    Result.
+
+%% @doc Make sure the service is running with the provided options. Ignores dependencies.
+-spec ensure_started(service(), options()) ->
+          {started, start_result()} | {restarted, options(), start_result()} | already_started.
+ensure_started(Service, Opts) ->
+    Result = ensure_service_started(Service, Opts),
+    gen_hook:reload_hooks(),
+    Result.
 
 -spec config_spec(service()) -> mongoose_config_spec:config_section().
 config_spec(Service) ->
@@ -99,8 +114,8 @@ sorted_services() ->
 set_services(Services) ->
     mongoose_config:set_opt(services, Services).
 
--spec ensure_stopped(service()) -> {stopped, options()} | already_stopped.
-ensure_stopped(Service) ->
+-spec ensure_service_stopped(service()) -> {stopped, options()} | already_stopped.
+ensure_service_stopped(Service) ->
     case loaded_services_with_opts() of
         #{Service := Opts} = Services ->
             stop_service(Service, Services),
@@ -109,9 +124,9 @@ ensure_stopped(Service) ->
             already_stopped
     end.
 
--spec ensure_started(service(), options()) ->
+-spec ensure_service_started(service(), options()) ->
           {started, start_result()} | {restarted, options(), start_result()} | already_started.
-ensure_started(Service, Opts) ->
+ensure_service_started(Service, Opts) ->
     case loaded_services_with_opts() of
         #{Service := Opts} ->
             already_started;

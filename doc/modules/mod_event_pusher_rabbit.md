@@ -208,7 +208,7 @@ and for "received" events:
 
 ## Additional metadata
 
-If you decide to [customize the events](mod_event_pusher.md#event-customization) with additional metadata, the additional key-value pairs will be added directly to the JSON object. You can override existing properties, but it is counter-intuitive and thus not recommended.
+If you decide to [customize the events](mod_event_pusher.md#custom-event-processing) with additional metadata, the additional key-value pairs will be added directly to the JSON object. You can override existing properties, but it is counter-intuitive and thus not recommended.
 
 ## Metrics
 

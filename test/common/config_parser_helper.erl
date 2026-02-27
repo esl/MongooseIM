@@ -200,36 +200,13 @@ options("mongooseim-pgsql") ->
        config([listen, http],
               #{port => 5285,
                 handlers =>
-                    [config([listen, http, handlers, mongoose_admin_api],
-                            #{host => "localhost", path => "/api",
-                              username => <<"ala">>, password => <<"makotaipsa">>}),
+                    [
                      config([listen, http, handlers, mongoose_bosh_handler],
                             #{host => '_', path => "/http-bind"}),
                      config([listen, http, handlers, mongoose_websocket_handler],
                             #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
                               ping_rate => 120000, timeout => infinity})
                     ],
-                transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem",
-                         keyfile => "priv/dc1.pem",
-                         password => "",
-                         verify_mode => none}
-               }),
-       config([listen, http],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 8088,
-                transport => #{num_acceptors => 10, max_connections => 1024},
-                handlers =>
-                    [config([listen, http, handlers, mongoose_admin_api],
-                            #{host => "localhost", path => "/api"})]
-               }),
-       config([listen, http],
-              #{port => 8089,
-                handlers =>
-                    [config([listen, http, handlers, mongoose_client_api],
-                            #{host => '_', path => "/api"})],
-                protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem",
                          keyfile => "priv/dc1.pem",
@@ -540,6 +517,7 @@ all_modules() ->
                           port => 2222, transport => <<"tcp">>, type => stun,
                           username => <<"username">>},
                         #{host => <<"192.168.0.1">>, type => turn}]},
+      mod_external_filter => mod_config(mod_external_filter, #{pool_tag => external_filter_http}),
       mod_csi => mod_config(mod_csi, #{buffer_max => 40}),
       mod_muc_log =>
           mod_config(mod_muc_log,
@@ -580,6 +558,7 @@ all_modules() ->
             max_http_connections => 100,
             pool_name => mongoose_push_http},
       mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
+      mod_stanzaid => default_mod_config(mod_stanzaid),
       mod_inbox => default_mod_config(mod_inbox),
       mod_mam =>
           mod_config(mod_mam,
@@ -876,6 +855,8 @@ default_mod_config(mod_disco) ->
       users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
+default_mod_config(mod_external_filter) ->
+    #{};
 default_mod_config(mod_global_distrib) ->
     #{message_ttl => 4,
       hosts_refresh_interval => 3000,
@@ -1021,6 +1002,8 @@ default_mod_config(mod_smart_markers) ->
     #{keep_private => false,
       async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
       backend => rdbms, iqdisc => no_queue};
+default_mod_config(mod_stanzaid) ->
+    #{};
 default_mod_config(mod_stream_management) ->
     #{backend => mnesia,
       buffer => true,
@@ -1134,14 +1117,6 @@ default_config([listen, http, handlers, mongoose_websocket_handler]) ->
       module => mongoose_websocket_handler,
       state_timeout => 5000,
       backwards_compatible_session => true};
-default_config([listen, http, handlers, mongoose_admin_api]) ->
-    #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
-                   inbox, domain, metrics],
-      module => mongoose_admin_api};
-default_config([listen, http, handlers, mongoose_client_api]) ->
-    #{handlers => [sse, messages, contacts, rooms, rooms_config, rooms_users, rooms_messages],
-      docs => true,
-      module => mongoose_client_api};
 default_config([listen, http, handlers, mongoose_graphql_handler]) ->
     #{module => mongoose_graphql_handler,
       schema_endpoint => admin,

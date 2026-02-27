@@ -49,8 +49,9 @@ end_per_suite(Config) ->
     ok.
 
 init_per_testcase(_, C) ->
-    mongooseim_helper:start_link_loaded_hooks(),
+    {ok, _} = gen_hook:start_link(),
     mongoose_modules:start(),
+    gen_hook:reload_hooks(),
     C.
 
 end_per_testcase(_, _) ->

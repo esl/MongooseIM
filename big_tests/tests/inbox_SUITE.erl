@@ -133,10 +133,6 @@ groups() ->
      {bin, [],
       [
        timeout_cleaner_flush_all,
-       rest_api_bin_flush_all,
-       rest_api_bin_flush_all_errors,
-       rest_api_bin_flush_user,
-       rest_api_bin_flush_user_errors,
        xmpp_bin_flush,
        bin_is_not_included_by_default
       ]},
@@ -1038,12 +1034,13 @@ inbox_does_not_trigger_does_user_exist(Config) ->
         Msg = <<"Mark me!">>,
         RoomName = inbox_helper:create_room(Alice, [Bob, Kate]),
         RoomJid = room_bin_jid(RoomName),
-        HookHandlerExtra = start_hook_listener(),
+        Handler = hook_handler(),
+        hook_helper:add_handler(Handler),
         Stanza = escalus_stanza:groupchat_to(RoomJid, Msg),
         %% Alice sends message to a room
         escalus:send(Alice, Stanza),
         [escalus:wait_for_stanza(User) || User <- [Alice, Bob, Kate]],
-        stop_hook_listener(HookHandlerExtra),
+        hook_helper:delete_handler(Handler),
         verify_hook_listener(RoomName)
       end).
 
@@ -1404,54 +1401,6 @@ bin_is_not_included_by_default(Config) ->
         check_inbox(Bob, [], #{})
     end).
 
-rest_api_bin_flush_user(Config) ->
-    TS = instrument_helper:timestamp(),
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        create_room_and_make_users_leave(Alice, Bob, Kate),
-        %% It is not in his bin anymore after triggering a bin flush
-        BobName = escalus_utils:get_username(Bob),
-        BobDomain = escalus_utils:get_server(Bob),
-        Path = <<"/inbox", "/", (BobDomain)/binary, "/", (BobName)/binary, "/0/bin">>,
-        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
-        ?assertEqual(1, NumOfRows),
-        check_inbox(Bob, [], #{box => bin})
-    end),
-    assert_async_request_event(TS).
-
-rest_api_bin_flush_user_errors(Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
-    User = escalus_users:get_username(Config1, alice),
-    Domain = escalus_users:get_server(Config1, alice),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
-        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/", User/binary, "/x/bin">>),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid JID">>} =
-        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/@/0/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>} =
-        rest_helper:delete(admin, <<"/inbox/baddomain/", User/binary, "/0/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"User baduser@", _/binary>>} =
-        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/baduser/0/bin">>).
-
-rest_api_bin_flush_all(Config) ->
-    TS = instrument_helper:timestamp(),
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        create_room_and_make_users_leave(Alice, Bob, Kate),
-        %% It is not in any bin anymore after triggering a bin flush
-        HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
-        Path = <<"/inbox/", HostTypePath/binary, "/0/bin">>,
-        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
-        ?assertEqual(2, NumOfRows),
-        check_inbox(Bob, [], #{box => bin}),
-        check_inbox(Kate, [], #{box => bin})
-    end),
-    assert_async_request_event(TS).
-
-rest_api_bin_flush_all_errors(_Config) ->
-    HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
-        rest_helper:delete(admin, <<"/inbox/", HostTypePath/binary, "/x/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"Host type not found">>} =
-        rest_helper:delete(admin, <<"/inbox/bad_host_type/0/bin">>).
-
 timeout_cleaner_flush_all(Config) ->
     TS = instrument_helper:timestamp(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -1498,20 +1447,9 @@ if_async_check_bin(Config, Bob, Convs) ->
             check_inbox(Bob, Convs, #{box => bin})
     end.
 
-start_hook_listener() ->
-    TestCasePid = self(),
-    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, domain_helper:host_type()]).
-
-stop_hook_listener(HookExtra) ->
-    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_stop_hook_handler, [HookExtra, domain_helper:host_type()]).
-
-rpc_start_hook_handler(TestCasePid, HostType) ->
-    Extra = #{test_case_pid => TestCasePid},
-    gen_hook:add_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, Extra, 1),
-    Extra.
-
-rpc_stop_hook_handler(HookExtra, HostType) ->
-    gen_hook:delete_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, HookExtra, 1).
+hook_handler() ->
+    Extra = #{test_case_pid => self()},
+    {does_user_exist, domain_helper:host_type(), fun ?MODULE:hook_handler_fn/3, Extra, 1}.
 
 hook_handler_fn(Acc,
                 #{jid := User} = _Params,
