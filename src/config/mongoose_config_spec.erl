@@ -1014,10 +1014,9 @@ collect_module_backends(Items) ->
       fun({{modules, HT}, ModulesMap}) ->
               lists:flatmap(
                 fun({Mod, Opts}) ->
-                        [{Mod, backend, V, HT} || V <- [maps:get(backend, Opts, undefined)],
-                                                   V =/= undefined] ++
-                        [{Mod, online_backend, V, HT} || V <- [maps:get(online_backend, Opts, undefined)],
-                                                          V =/= undefined]
+                        [{Mod, Key, V, HT} || Key <- gen_mod:backend_opts(Mod),
+                                               V <- [maps:get(Key, Opts, undefined)],
+                                               V =/= undefined]
                 end, maps:to_list(ModulesMap));
          (_) -> []
       end, Items).

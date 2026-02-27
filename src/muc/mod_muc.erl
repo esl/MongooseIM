@@ -38,6 +38,7 @@
          start/2,
          stop/1,
          supported_features/0,
+         backend_opts/0,
          config_spec/0,
          instrumentation/1,
          reported_module_options/2,
@@ -195,6 +196,10 @@ start_server(HostType, Opts) ->
 
 assert_server_running(HostType) ->
     true = is_pid(whereis(gen_mod:get_module_proc(HostType, ?PROCNAME))).
+
+-spec backend_opts() -> [gen_mod:opt_key()].
+backend_opts() ->
+    [backend, online_backend].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

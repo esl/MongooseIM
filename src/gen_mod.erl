@@ -33,6 +33,7 @@
          start_module/3,
          stop_module/2,
          does_module_support/2,
+         backend_opts/1,
          config_spec/1,
          % Get/set opts by host or from a list
          get_opt/2,
@@ -90,8 +91,12 @@
 %% function).
 -callback deps(host_type(), module_opts()) -> gen_mod_deps:deps().
 
+%% Returns the list of config option keys that contain backend names.
+%% Used by config validation to check backends against internal_databases.
+-callback backend_opts() -> [opt_key()].
+
 -optional_callbacks([hooks/1, config_spec/0, supported_features/0, instrumentation/1,
-                    reported_module_options/2, deps/2]).
+                    reported_module_options/2, deps/2, backend_opts/0]).
 
 %% @doc This function should be called by mongoose_modules only.
 %% To start a new module at runtime, use mongoose_modules:ensure_module/3 instead.
@@ -224,6 +229,13 @@ get_supported_features(Module) ->
     case erlang:function_exported(Module, supported_features, 0) of
         true -> apply(Module, supported_features, []);
         false -> []
+    end.
+
+-spec backend_opts(module()) -> [opt_key()].
+backend_opts(Module) ->
+    case erlang:function_exported(Module, backend_opts, 0) of
+        true -> Module:backend_opts();
+        false -> [backend]
     end.
 
 -spec config_spec(module()) -> mongoose_config_spec:config_section().
