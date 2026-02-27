@@ -19,7 +19,7 @@
          get_live_job_count/1,
          abort_running_jobs_for_domain/3]).
 
--ignore_xref([start_link/1]).
+-ignore_xref([start_link/1, stop/1]).
 
 %% Debug API
 -export([does_worker_for_job_exist/2,
