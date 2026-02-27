@@ -6,9 +6,8 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
--import(distributed_helper, [subhost_pattern/1]).
+-import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(muc_light_helper, [
                            bin_aff_users/1,
@@ -659,7 +658,7 @@ parse_blocked_item(Item) ->
         [MucHost, User] -> {user, deny, User};
         [Room] -> {room, deny, Room};
         Other ->
-            CfgHost = rpc(gen_mod, get_module_opt, [host_type(), mod_muc_light, host, undefined]),
+            CfgHost = rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_muc_light, host, undefined]),
             ct:fail(#{what => parse_blocked_item_failed,
                       muc_host => MucHost, other => Other,
                       cfg_host => CfgHost})

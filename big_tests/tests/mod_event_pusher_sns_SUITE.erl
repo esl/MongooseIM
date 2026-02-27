@@ -273,9 +273,7 @@ start_publish_listener(Config) ->
 
 -spec rpc(M :: atom(), F :: atom(), A :: [term()]) -> term().
 rpc(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_rpc:call(Node, M, F, A, 10000, Cookie).
+    distributed_helper:rpc(distributed_helper:mim(), M, F, A).
 
 make_topic_arn(TopicVar) ->
     #{region := Region, account_id := AccountId, TopicVar := Topic} = sns_opts(),

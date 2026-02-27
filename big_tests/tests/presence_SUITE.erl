@@ -690,8 +690,7 @@ check_subscription_stanzas(Stanzas, Type) ->
     escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
 
 remove_roster(Config, UserSpec) ->
-    [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||
-                                 Item <- escalus_users:get_usp(Config, UserSpec)],
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     Mods = rpc(mim(), gen_mod, loaded_modules, [host_type()]),
     case lists:member(mod_roster, Mods) of
         true ->

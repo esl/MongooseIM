@@ -728,13 +728,13 @@ sql_query(Config, Query) ->
     slow_rpc(mongoose_rdbms, sql_query, ScopeAndTag ++ [Query]).
 
 sql_prepare(_Config, Name, Table, Fields, Query) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
+    rpc(mim(), mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
 
 sql_prepare_upsert(_Config, Name, Table, Insert, Update, Unique, Incr) ->
-    escalus_ejabberd:rpc(rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
+    rpc(mim(), rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
 
 sql_prepare_upsert_many(_Config, RecordCount, Name, Table, Insert, Update, Unique) ->
-    escalus_ejabberd:rpc(rdbms_queries, prepare_upsert_many, [host_type(), RecordCount, Name, Table, Insert, Update, Unique]).
+    rpc(mim(), rdbms_queries, prepare_upsert_many, [host_type(), RecordCount, Name, Table, Insert, Update, Unique]).
 
 sql_execute(Config, Name, Parameters) ->
     ScopeAndTag = scope_and_tag(Config),
@@ -788,31 +788,31 @@ sql_transaction(Config, F) ->
     slow_rpc(mongoose_rdbms, sql_transaction, ScopeAndTag ++ [F]).
 
 escape_null(_Config) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
+    rpc(mim(), mongoose_rdbms, escape_null, []).
 
 escape_string(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_string, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_string, [Value]).
 
 escape_binary(_Config, Value) ->
     slow_rpc(mongoose_rdbms, escape_binary, [host_type(), Value]).
 
 escape_boolean(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_boolean, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_boolean, [Value]).
 
 escape_like(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_like, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_like, [Value]).
 
 escape_prepared_like(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_prepared_like, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_prepared_like, [Value]).
 
 unescape_binary(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, unescape_binary, [host_type(), Value]).
+    rpc(mim(), mongoose_rdbms, unescape_binary, [host_type(), Value]).
 
 use_escaped(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, use_escaped, [Value]).
+    rpc(mim(), mongoose_rdbms, use_escaped, [Value]).
 
 use_escaped_like(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, use_escaped_like, [Value]).
+    rpc(mim(), mongoose_rdbms, use_escaped_like, [Value]).
 
 escape_string_or_null(Config, null) ->
     escape_null(Config);
@@ -825,7 +825,7 @@ escape_binary_or_null(Config, Value) ->
     escape_binary(Config, Value).
 
 decode_boolean(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, to_bool, [Value]).
+    rpc(mim(), mongoose_rdbms, to_bool, [Value]).
 
 erase_table(Config) ->
     {updated, _} = sql_query(Config, <<"DELETE FROM test_types">>).
@@ -1220,7 +1220,7 @@ drop_common_prefix(Pos, SelValue, Value) ->
       expected_suffix => safe_binary(100, Value)}.
 
 db_engine() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]).
+    rpc(mim(), mongoose_rdbms, db_engine, [host_type()]).
 
 is_pgsql() ->
     db_engine() == pgsql.
@@ -1277,15 +1277,7 @@ escape_column(Name) ->
     end.
 
 slow_rpc(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    Res = escalus_rpc:call(Node, M, F, A, timer:seconds(30), Cookie),
-    case Res of
-        {badrpc, timeout} ->
-            {badrpc, {timeout, M, F}};
-        _ ->
-            Res
-    end.
+    rpc((mim())#{timeout => timer:seconds(30)}, M, F, A).
 
 check_not_received(Msg) ->
     receive
