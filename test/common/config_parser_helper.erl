@@ -410,7 +410,7 @@ all_modules() ->
                                               #{enabled => false}),
                        host => {fqdn, <<"muc.example.com">>},
                        no_stanzaid_element => true}),
-      mod_caps => default_mod_config(mod_caps),
+      mod_caps => mod_config(mod_caps, #{iq_response_timeout => 10000}),
       mod_mam_cache_user => (default_config([modules, mod_mam, cache]))#{muc => true, pm => true},
       mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_ping =>
@@ -841,9 +841,7 @@ default_mod_config(mod_blocking) ->
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_caps) ->
-    #{backend => mnesia,
-      cache_size => 1000,
-      cache_life_time => timer:hours(24) div 1000};
+    #{backend => cets, iq_response_timeout => 5000};
 default_mod_config(mod_csi) ->
     #{buffer_max => 20};
 default_mod_config(mod_carboncopy) ->

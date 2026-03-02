@@ -1561,13 +1561,10 @@ mod_caps(_Config) ->
     check_module_defaults(mod_caps),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
     P = [modules, mod_caps],
-    ?cfgh(P ++ [cache_size], 10, T(<<"cache_size">>, 10)),
-    ?cfgh(P ++ [cache_life_time], 10, T(<<"cache_life_time">>, 10)),
-    ?cfgh(P ++ [backend], mnesia, T(<<"backend">>, <<"mnesia">>)),
-    ?errh(T(<<"cache_size">>, 0)),
-    ?errh(T(<<"cache_size">>, <<"infinity">>)),
-    ?errh(T(<<"cache_life_time">>, 0)),
-    ?errh(T(<<"cache_life_time">>, <<"infinity">>)).
+    ?cfgh(P ++ [backend], cets, T(<<"backend">>, <<"cets">>)),
+    ?cfgh(P ++ [iq_response_timeout], 2000, T(<<"iq_response_timeout">>, 2000)),
+    ?errh(T(<<"backend">>, <<"mnesia">>)),
+    ?errh(T(iq_response_timeout, 0)).
 
 mod_cache_users(_Config) ->
     check_module_defaults(mod_cache_users),

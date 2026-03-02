@@ -19,7 +19,7 @@
                              require_rpc_nodes/1,
                              subhost_pattern/1,
                              rpc/4]).
--import(config_parser_helper, [mod_config/2]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 -import(domain_helper, [domain/0]).
 
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
@@ -43,7 +43,6 @@ groups() ->
            disco_sm_node_test,
            disco_sm_items_test,
            disco_sm_items_node_test,
-           pep_caps_test,
            publish_and_notify_test,
            auto_create_with_publish_options_test,
            publish_options_success_test,
@@ -77,7 +76,10 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
+    maybe
+        ok ?= caps_helper:check_backend(),
+        escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config))
+    end.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -186,24 +188,6 @@ disco_sm_items_test(Config, UseNode) ->
               escalus:assert(is_stanza_from, [AliceJid], Stanza2)
       end).
 
-pep_caps_test(Config) ->
-    escalus:fresh_story(
-      Config,
-      [{bob, 1}],
-      fun(Bob) ->
-              NodeNS = random_node_ns(),
-              Caps = caps(NodeNS),
-
-              %% Send presence with capabilities (chap. 1 ex. 4)
-              send_presence_with_caps(Bob, Caps),
-              receive_presence_with_caps(Bob, Bob, Caps),
-
-              %% Server does not know the version string, so it requests feature list
-              DiscoRequest = escalus:wait_for_stanza(Bob),
-              %% Client responds with a list of supported features (chap. 1 ex. 5)
-              send_caps_disco_result(Bob, DiscoRequest, NodeNS)
-      end).
-
 native_bookmarks_test(Config) ->
     Config1 = set_caps(Config, ?NS_PEP_BOOKMARKS),
     escalus:fresh_story_with_config(Config1, [{bob, 1}], fun native_bookmarks_story/2).
@@ -215,26 +199,28 @@ native_bookmarks_story(Config, Bob) ->
                       {<<"pubsub#max_items">>, <<"max">>},
                       {<<"pubsub#send_last_published_item">>, <<"never">>},
                       {<<"pubsub#access_model">>, <<"whitelist">>}],
-    Options = [{with_payload, {true, bookmark_element()}}],
     Id = <<"myroom@conference.localhost">>,
     BobJid = escalus_utils:get_short_jid(Bob),
+    NotificationOpt = [{expected_notification, BobJid}],
 
-    %% Example 6. Client adds a new bookmark
-    pubsub_tools:publish_with_options(Bob, Id, {pep, NodeNS}, Options, PublishOptions),
+    %% Example 6. Client adds a new bookmark (notification and IQ result could arrive in any order)
+    Options = [{with_payload, {true, bookmark_element()}} | NotificationOpt],
+    {_Resp1, Msg1} = pubsub_tools:publish_with_options(Bob, Id, {pep, NodeNS}, Options, PublishOptions),
 
-    %% Example 12. Client receives a new bookmark notification
-    pubsub_tools:receive_item_notification(Bob, Id, {BobJid, NodeNS}, []),
+    %% Example 12. Client receives a new bookmark notification (stanza already received)
+    pubsub_tools:check_item_notification(Msg1, Id, {BobJid, NodeNS}, []),
 
     %% Example 4. Client retrieves all bookmarks
     pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, [Id]}]),
 
-    %% Example 10. Client removes a bookmark
-    pubsub_tools:retract_item(Bob, {pep, NodeNS}, Id, [{notify, true}]),
+    %% Example 10. Client removes a bookmark (notification and IQ result could arrive in any order)
+    {_Resp2, Msg2} = pubsub_tools:retract_item(Bob, {pep, NodeNS}, Id, [{notify, true} | NotificationOpt]),
 
-    %% Example 14. Client receives a bookmark retraction notification
-    pubsub_tools:receive_retract_notification(Bob, Id, {BobJid, NodeNS}, []),
+    %% Example 14. Client receives a bookmark retraction notification (stanza already received)
+    pubsub_tools:check_retract_notification(Msg2, Id, {BobJid, NodeNS}),
 
-    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, []}]).
+    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, []}]),
+    pubsub_tools:delete_node(Bob, make_pep_node_info(Bob, NodeNS), []).
 
 bookmark_element() ->
     #xmlel{name = <<"conference">>,
@@ -358,28 +344,18 @@ send_caps_after_login_test(Config) ->
 
               escalus_story:make_all_clients_friends([Alice, Bob]),
 
-              Caps = caps(NodeNS),
-              send_presence_with_caps(Bob, Caps),
-              receive_presence_with_caps(Bob, Bob, Caps),
-              receive_presence_with_caps(Alice, Bob, Caps),
-
-              handle_requested_caps(NodeNS, Bob),
+              Features = features(NodeNS),
+              Caps = caps_helper:enable_new_caps(Bob, Features),
+              caps_helper:receive_presence_with_caps(Alice, Bob, Caps),
 
               Node = {escalus_utils:get_short_jid(Alice), NodeNS},
-              Check = fun(Message) ->
-                              pubsub_tools:check_item_notification(Message, <<"item2">>, Node, [])
-                      end,
+              Message = escalus_client:wait_for_stanza(Bob),
+              pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []),
 
-              %% Presence subscription triggers PEP last item sending
-              %% and sometimes this async process takes place after caps
-              %% are updated, leading to duplicated notification
-              Check(escalus_client:wait_for_stanza(Bob)),
-              case escalus_client:peek_stanzas(Bob) of
-                  [Message2] ->
-                      Check(Message2);
-                  [] ->
-                      ok
-              end
+              %% A sanity check to make sure there are no duplicated notifications
+              %% (this was an issue in the past)
+              ct:sleep(100),
+              escalus_assert:has_no_stanzas(Bob)
         end).
 
 delayed_receive(Config) ->
@@ -538,14 +514,14 @@ field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
 field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
-    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
+    [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},
                                            host => subhost_pattern("pubsub.@HOST@")})}].
 required_modules(cache_tests) ->
-    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
+    [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
@@ -553,40 +529,6 @@ required_modules(cache_tests) ->
                                            host => subhost_pattern("pubsub.@HOST@"),
                                            last_item_cache => mongoose_helper:mnesia_or_rdbms_backend()
      })}].
-
-send_initial_presence_with_caps(NodeNS, Client) ->
-    case is_caps_client(Client) of
-        false -> escalus_story:send_initial_presence(Client);
-        true -> send_presence_with_caps(Client, caps(NodeNS))
-    end.
-
-handle_requested_caps(NodeNS, User) ->
-    case is_caps_client(User) of
-        false -> ok;
-        true -> DiscoRequest = escalus:wait_for_stanza(User),
-                send_caps_disco_result(User, DiscoRequest, NodeNS)
-    end.
-
-is_caps_client(Client) ->
-    case escalus_client:username(Client) of
-        <<"alice", _/binary>> -> false;
-        _ -> true
-    end.
-
-send_presence_with_caps(User, Caps) ->
-    Presence = escalus_stanza:presence(<<"available">>, [Caps]),
-    escalus:send(User, Presence).
-
-send_caps_disco_result(User, DiscoRequest, NodeNS) ->
-    QueryEl = escalus_stanza:query_el(?NS_DISCO_INFO, feature_elems(NodeNS)),
-    DiscoResult = escalus_stanza:iq_result(DiscoRequest, [QueryEl]),
-    escalus:send(User, DiscoResult).
-
-receive_presence_with_caps(User1, User2, Caps) ->
-    PresenceNotification = escalus:wait_for_stanza(User1),
-    escalus:assert(is_presence, PresenceNotification),
-    escalus:assert(is_stanza_from, [User2], PresenceNotification),
-    Caps = exml_query:subelement(PresenceNotification, <<"c">>).
 
 make_pep_node_info(Client, NodeName) ->
     {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
@@ -598,7 +540,7 @@ verify_publish_options(FullNodeConfig, Options) ->
                            end, Options).
 
 set_caps(Config) ->
-    set_caps(Config, random_node_ns()).
+    set_caps(Config, random_name()).
 
 set_caps(Config, NS) ->
     [{escalus_overrides, [{start_ready_clients, {?MODULE, start_caps_clients}}]},
@@ -606,42 +548,29 @@ set_caps(Config, NS) ->
 
 %% Implemented only for one resource per client, because it is enough
 start_caps_clients(Config, [{UserSpec, Resource}]) ->
-    NodeNS = ?config(node_ns, Config),
     {ok, Client} = escalus_client:start(Config, UserSpec, Resource),
-    send_initial_presence_with_caps(NodeNS, Client),
-    escalus:assert(is_presence, escalus:wait_for_stanza(Client)),
-    handle_requested_caps(NodeNS, Client),
+    exchange_initial_presence(Config, Client, is_caps_client(Client)),
     [Client].
+
+exchange_initial_presence(Config, Client, true) ->
+    Features = features(proplists:get_value(node_ns, Config)),
+    caps_helper:enable_new_caps(Client, Features);
+exchange_initial_presence(_Config, Client, false) ->
+    escalus_story:send_initial_presence(Client),
+    escalus:assert(is_presence, escalus:wait_for_stanza(Client)).
+
+is_caps_client(Client) ->
+    case escalus_client:username(Client) of
+        <<"alice", _/binary>> -> false;
+        _ -> true
+    end.
 
 %%-----------------------------------------------------------------
 %% XML helpers
 %%-----------------------------------------------------------------
 
-feature_elems(PEPNodeNS) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = #{<<"category">> => <<"client">>,
-                      <<"name">> => <<"Psi">>,
-                      <<"type">> => <<"pc">>}} |
-     [feature_elem(F) || F <- features(PEPNodeNS)]].
-
-feature_elem(F) ->
-    #xmlel{name = <<"feature">>,
-           attrs = #{<<"var">> => F}}.
-
-caps(PEPNodeNS) ->
-    #xmlel{name = <<"c">>,
-           attrs = #{<<"xmlns">> => ?NS_CAPS,
-                     <<"hash">> => <<"sha-1">>,
-                     <<"node">> => random_name(),
-                     <<"ver">> => caps_hash(PEPNodeNS)}}.
-
-features(PEPNodeNS) ->
-    [?NS_DISCO_INFO,
-     ?NS_DISCO_ITEMS,
-     ?NS_GEOLOC,
-     ns_notify(?NS_GEOLOC),
-     PEPNodeNS,
-     ns_notify(PEPNodeNS)].
+features(NodeNS) ->
+    [NodeNS, ns_notify(NodeNS)].
 
 ns_notify(NS) ->
     <<NS/binary, "+notify">>.
@@ -651,9 +580,6 @@ random_node_ns() ->
 
 random_name() ->
     base64:encode(crypto:strong_rand_bytes(16)).
-
-caps_hash(PEPNodeNS) ->
-    rpc(mim(), mod_caps, make_disco_hash, [feature_elems(PEPNodeNS), sha1]).
 
 send_presence(From, Type, To) ->
     ToJid = escalus_client:short_jid(To),

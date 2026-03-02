@@ -1,0 +1,14 @@
+<!-- https://xmpp.org/extensions/xep-0115.html#howitworks  -->
+<iq from='romeo@montague.lit/orchard'
+    id='disco1'
+    to='juliet@capulet.lit/chamber'
+    type='result'>
+  <query xmlns='http://jabber.org/protocol/disco#info'
+         node='http://code.google.com/p/exodus#QgayPKawpkPSDYmwT/WM94uAlu0='>
+    <identity category='client' name='Exodus 0.9.1' type='pc'/>
+    <feature var='http://jabber.org/protocol/caps'/>
+    <feature var='http://jabber.org/protocol/disco#info'/>
+    <feature var='http://jabber.org/protocol/disco#items'/>
+    <feature var='http://jabber.org/protocol/muc'/>
+  </query>
+</iq>

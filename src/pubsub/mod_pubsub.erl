@@ -81,16 +81,15 @@
          disco_sm_identity/3,
          disco_sm_features/3,
          disco_sm_items/3,
-         handle_pep_authorization_response/3,
-         foreign_event/3]).
+         handle_pep_authorization_response/3]).
 
 %% exported iq handlers
 -export([iq_sm/4]).
 
 %% exports for console debug manual use
 -export([create_node/5, create_node/7, delete_node/3,
-         subscribe_node/5, unsubscribe_node/5, publish_item/6,
-         delete_item/4, send_items/7, get_items/2, get_item/3,
+         subscribe_node/5, unsubscribe_node/5, publish_item/7,
+         delete_item/5, send_items/7, get_items/2, get_item/3,
          get_cached_item/2, tree_action/3, node_action/4]).
 
 %% general helpers for plugins
@@ -120,6 +119,8 @@
 %% Private export for wpool worker callbacks
 -export([handle_msg/1]).
 
+-export([user_send_iq/3]).
+
 -define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_db_backend).
 -ignore_xref([
     {?MOD_PUBSUB_DB_BACKEND, transaction, 2},
@@ -132,7 +133,7 @@
     affiliation_to_string/1,
     create_node/7,
     default_host/0,
-    delete_item/4,
+    delete_item/5,
     delete_node/3,
     get_cached_item/2,
     get_item/3,
@@ -143,7 +144,7 @@
     node_call/4,
     plugin/2,
     plugin/1,
-    publish_item/6,
+    publish_item/7,
     send_items/7,
     serverhost/1,
     start_link/2,
@@ -273,8 +274,11 @@ start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
-deps(_Host, _Opts) ->
-    [{mod_caps, #{cache_size => 1000, cache_life_time => timer:hours(24) div 1000}, optional}].
+deps(_Host, #{plugins := Plugins}) ->
+    case lists:member(?PEPNODE, Plugins) of
+        true -> [{mod_caps, #{}, hard}];
+        false -> []
+    end.
 
 start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
@@ -464,7 +468,7 @@ pep_hooks(ServerHost) ->
      {disco_sm_features, ServerHost, fun ?MODULE:disco_sm_features/3, #{}, 75},
      {disco_sm_items, ServerHost, fun ?MODULE:disco_sm_items/3, #{}, 75},
      {filter_local_packet, ServerHost, fun ?MODULE:handle_pep_authorization_response/3, #{}, 1},
-     {foreign_event, ServerHost, fun ?MODULE:foreign_event/3, #{}, 100}
+     {user_send_iq, ServerHost, fun ?MODULE:user_send_iq/3, #{}, 50}
     ].
 
 add_pep_iq_handlers(ServerHost, #{iqdisc := IQDisc}) ->
@@ -475,6 +479,22 @@ add_pep_iq_handlers(ServerHost, #{iqdisc := IQDisc}) ->
 delete_pep_iq_handlers(ServerHost) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER).
+
+-doc "Stores recipients of the user's presence for notification broadcast (see the IQ handlers)".
+user_send_iq(Acc, _Args = #{c2s_data := C2SData}, #{host_type := _HostType} = _Extra) ->
+    case jlib:iq_query_info(mongoose_acc:element(Acc)) of
+        #iq{xmlns = NS} when NS =:= ?NS_PUBSUB;
+                             NS =:= ?NS_PUBSUB_OWNER ->
+            case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
+                {ok, State} ->
+                    SubTo = maps:keys(mod_presence:get(State, s_to)),
+                    {ok, mongoose_acc:set_permanent(?MODULE, presence_recipients, SubTo, Acc)};
+                _ ->
+                    {ok, Acc}
+            end;
+        _ ->
+            {ok, Acc}
+    end.
 
 %% Plugins is a subset of configured plugins which are able to start
 %% TODO Evaluate if we should just use plugins from the config instead
@@ -534,10 +554,10 @@ notify_worker(HostType, HashKey, Request) ->
 
 handle_msg({send_last_pubsub_items, Host, Recipient, Plugins}) ->
     send_last_pubsub_items(Host, Recipient, Plugins);
-handle_msg({send_last_pep_items, Host, IgnorePepFromOffline, RecipientJID, RecipientPid, Features}) ->
-    send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid, Features);
-handle_msg({send_last_items_from_owner, Host, NodeOwner, RecipientInfo}) ->
-    send_last_items_from_owner(Host, NodeOwner, RecipientInfo).
+handle_msg({send_last_pep_items, C2SData, Host, IgnorePepFromOffline, RecipientJID, Features}) ->
+    send_last_pep_items(C2SData, Host, IgnorePepFromOffline, RecipientJID, Features);
+handle_msg({send_last_items_from_owner, Host, NodeOwner, RecipientJID}) ->
+    send_last_items_from_owner(Host, NodeOwner, RecipientJID).
 
 send_last_pubsub_items(Host, Recipient, Plugins) ->
     F = fun(PluginType) -> send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) end,
@@ -552,40 +572,31 @@ send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) ->
       end,
       lists:usort(Subs)).
 
-send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid, Features) ->
+send_last_pep_items(C2SData, Host, IgnorePepFromOffline, RecipientJID, Features) ->
     RecipientLJID = jid:to_lower(RecipientJID),
     [send_last_item_to_jid(NodeOwnerJID, NodeRec, RecipientLJID) ||
-        NodeOwnerJID <- get_contacts_for_sending_last_item(RecipientPid, IgnorePepFromOffline),
+        NodeOwnerJID <- get_contacts_for_sending_last_item(C2SData, IgnorePepFromOffline),
         NodeRec = #pubsub_node{nodeid = {_, Node}} <- get_nodes_for_sending_last_item(Host, NodeOwnerJID),
-        lists:member(<<Node/binary, "+notify">>, Features)],
+        lists:member((<<Node/binary, "+notify">>), Features)],
     ok.
 
-get_contacts_for_sending_last_item(RecipientPid, IgnorePepFromOffline) ->
-    case catch mod_presence:get_subscribed(RecipientPid) of
-        Contacts when is_list(Contacts) ->
+get_contacts_for_sending_last_item(C2SData, IgnorePepFromOffline) ->
+    case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
+        {ok, State} ->
+            Contacts = maps:keys(mod_presence:get(State, s_from)),
             [Contact || Contact = #jid{luser = U, lserver = S} <- Contacts,
                         user_resources(U, S) /= [] orelse not IgnorePepFromOffline];
         _ ->
             []
     end.
 
-send_last_items_from_owner(Host, NodeOwner, _Recipient = {U, S, Resources}) ->
-    [send_last_item_to_jid(NodeOwner, NodeRec, {U, S, R}) ||
+send_last_items_from_owner(Host, NodeOwner, RecipientJid = #jid{luser = LUser, lserver = LServer}) ->
+    ResourcesWithFeatures = resources_with_features(RecipientJid),
+    [send_last_item_to_jid(NodeOwner, NodeRec, {LUser, LServer, LRes}) ||
         NodeRec = #pubsub_node{nodeid = {_, Node}} <- get_nodes_for_sending_last_item(Host, NodeOwner),
-        R <- Resources,
-        not should_drop_pep_message(Node, jid:make(U, S, R))
-    ],
-    ok.
-
-should_drop_pep_message(Node, RecipientJid) ->
-    case ejabberd_sm:get_session_pid(RecipientJid) of
-        none -> true;
-        Pid ->
-            Event = {filter_pep_recipient, RecipientJid, <<Node/binary, "+notify">>},
-            try mongoose_c2s:call(Pid, ?MODULE, Event)
-            catch exit:timeout -> true
-            end
-    end.
+        {LRes, Features} <- ResourcesWithFeatures,
+        lists:member((<<Node/binary, "+notify">>), Features)],
+     ok.
 
 get_nodes_for_sending_last_item(Host, NodeOwnerJID) ->
     lists:filter(fun(#pubsub_node{options = Options}) ->
@@ -749,39 +760,18 @@ handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
 
 %% -------
-%% callback for foreign_event calls, to distribute pep messages from the node owner c2s process
-%%
--spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
-      mongoose_c2s_hooks:result().
-foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := {call, From},
-                     event_tag := ?MODULE,
-                     event_content := {get_pep_recipients, Feature}}, _Extra) ->
-    Reply = mongoose_hooks:get_pep_recipients(StateData, Feature),
-    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
-    {stop, Acc1};
-foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := {call, From},
-                     event_tag := ?MODULE,
-                     event_content := {filter_pep_recipient, To, Feature}}, _Extra) ->
-    Reply = mongoose_hooks:filter_pep_recipient(StateData, Feature, To),
-    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
-    {stop, Acc1};
-foreign_event(Acc, _Params, _Extra) ->
-    {ok, Acc}.
-
-%% -------
 %% presence hooks handling functions
 %%
 
 -spec caps_recognised(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{from := jid:jid(), pid := pid(), features := [binary()]},
+    Params :: #{c2s_data := mongoose_c2s:data(), features := [mod_caps:feature()]},
     Extra :: gen_hook:extra().
-caps_recognised(Acc, #{from := #jid{ luser = U, lserver = S } = JID, pid := Pid, features := Features}, _) ->
+caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
+    #jid{luser = U, lserver = S} = JID = mongoose_acc:from_jid(Acc),
     Host = host(S, S),
     IgnorePepFromOffline = gen_mod:get_module_opt(S, ?MODULE, ignore_pep_from_offline),
-    notify_worker(S, U, {send_last_pep_items, Host, IgnorePepFromOffline, JID, Pid, Features}),
+    notify_worker(S, U, {send_last_pep_items, C2SData, Host, IgnorePepFromOffline, JID, Features}),
     {ok, Acc}.
 
 -spec presence_probe(Acc, Params, Extra) -> {ok, Acc} when
@@ -807,18 +797,10 @@ presence_probe(Acc, _, _) ->
                 from := jid:jid(),
                 type := mod_roster:sub_presence()},
     Extra :: gen_hook:extra().
-out_subscription(Acc,
-                 #{to := #jid{luser = PUser, lserver = PServer, lresource = PResource},
-                   from := #jid{luser = LUser, lserver = LServer} = FromJID,
-                   type := subscribed},
-                 _) ->
-    PResources = case PResource of
-                     <<>> -> user_resources(PUser, PServer);
-                     _ -> [PResource]
-                 end,
+out_subscription(Acc, #{to := ToJID, from := FromJID, type := subscribed}, _) ->
+    #jid{luser = LUser, lserver = LServer} = FromJID,
     Host = host(LServer, LServer),
-    notify_worker(LServer, LUser, {send_last_items_from_owner, Host, FromJID,
-                                   {PUser, PServer, PResources}}),
+    notify_worker(LServer, LUser, {send_last_items_from_owner, Host, FromJID, ToJID}),
     {ok, Acc};
 out_subscription(Acc, _, _) ->
     {ok, Acc}.
@@ -941,14 +923,6 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
         false -> ok
     end,
     gen_hook:delete_handlers(hooks(ServerHost)),
-    case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
-        undefined ->
-            ?LOG_ERROR(#{what => pubsub_process_is_dead,
-                text => <<"process is dead, pubsub was broken">>,
-                process => ?LOOPNAME});
-        Pid ->
-            Pid ! stop
-    end,
     terminate_plugins(Host, ServerHost, Plugins, TreePlugin),
     mod_pubsub_db_backend:stop().
 
@@ -1008,7 +982,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
             ejabberd_router:route(To, From, Acc, Res);
         #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
             Res = case iq_pubsub(Host, ServerHost, From, IQType,
-                                 SubEl, Lang, Access, Plugins)
+                                 SubEl, Lang, Acc, Access, Plugins)
                   of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
@@ -1220,7 +1194,7 @@ iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang
     LOwner = jid:to_lower(jid:to_bare(To)),
     Res = case XMLNS of
               ?NS_PUBSUB ->
-                  iq_pubsub(LOwner, ServerHost, From, Type, SubEl, Lang);
+                  iq_pubsub(LOwner, ServerHost, From, Type, SubEl, Lang, Acc);
               ?NS_PUBSUB_OWNER ->
                   iq_pubsub_owner(LOwner, ServerHost, From, Type, SubEl, Lang)
           end,
@@ -1244,9 +1218,10 @@ iq_get_vcard(Lang) ->
                 From ::jid:jid(),
                 IQType :: get | set,
                 QueryEl :: exml:element(),
-                Lang :: binary()) -> {result, [exml:element()]} | {error, exml:element()}.
-iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
-    iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang, all, plugins(ServerHost)).
+                Lang :: binary(),
+                Acc :: mongoose_acc:t()) -> {result, [exml:element()]} | {error, exml:element()}.
+iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang, Acc) ->
+    iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang, Acc, all, plugins(ServerHost)).
 
 -spec iq_pubsub(Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
@@ -1254,10 +1229,11 @@ iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
                 IQType :: 'get' | 'set',
                 QueryEl :: exml:element(),
                 Lang :: binary(),
+                Acc :: mongoose_acc:t(),
                 Access :: atom(),
                 Plugins :: [binary(), ...]) -> {result, [exml:element()]} | {error, exml:element()}.
 iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
-          Lang, Access, Plugins) ->
+          Lang, Acc, Access, Plugins) ->
     case jlib:remove_cdata(SubEls) of
         [#xmlel{name = Name} = ActionEl | _] ->
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
@@ -1266,7 +1242,8 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
                                 access => Access,
                                 action_el => ActionEl,
                                 query_el => QueryEl,
-                                lang => Lang},
+                                lang => Lang,
+                                acc => Acc},
             mongoose_instrument:span(event_name(IQType, Name), #{host_type => ServerHost}, fun iq_pubsub_action/6,
                                      [IQType, Name, Host, Node, From, ActionExtraArgs],
                                      fun(Time, Result) -> iq_action_result_to_measurements(Time, Result, From) end);
@@ -1400,13 +1377,13 @@ iq_pubsub_set_create(Host, Node, From,
 iq_pubsub_set_publish(_Host, <<>>, _From, _ExtraArgs) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"nodeid-required">>)};
 iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := Access,
-                                          action_el := ActionEl, query_el := QueryEl}) ->
+                                          action_el := ActionEl, query_el := QueryEl, acc := Acc}) ->
     case jlib:remove_cdata(ActionEl#xmlel.children) of
         [#xmlel{name = <<"item">>, children = Payload} = Element] ->
             ItemId = exml_query:attr(Element, <<"id">>, <<>>),
             PublishOptions = exml_query:subelement(QueryEl, <<"publish-options">>),
             publish_item(Host, ServerHost, Node, From, ItemId,
-                         Payload, Access, PublishOptions);
+                         Payload, Acc, Access, PublishOptions);
         [] ->
             {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)};
         _ ->
@@ -1414,7 +1391,8 @@ iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := A
     end.
 
 iq_pubsub_set_retract(Host, Node, From,
-                      #{action_el := #xmlel{children = RetractSubEls} = Element}) ->
+                      #{action_el := #xmlel{children = RetractSubEls} = Element,
+                        acc := Acc}) ->
     ForceNotify = case exml_query:attr(Element, <<"notify">>) of
                       <<"1">> -> true;
                       <<"true">> -> true;
@@ -1423,7 +1401,7 @@ iq_pubsub_set_retract(Host, Node, From,
     case jlib:remove_cdata(RetractSubEls) of
         [#xmlel{name = <<"item">>} = Element1] ->
             ItemId = exml_query:attr(Element1, <<"id">>, <<>>),
-            delete_item(Host, Node, From, ItemId, ForceNotify);
+            delete_item(Host, Node, From, ItemId, ForceNotify, Acc);
         _ ->
             {error,
              extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
@@ -2199,15 +2177,17 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
           Node       :: mod_pubsub:nodeId(),
           Publisher  ::jid:jid(),
           ItemId     :: <<>> | mod_pubsub:itemId(),
-          Payload    :: mod_pubsub:payload())
+          Payload    :: mod_pubsub:payload(),
+          Acc        :: mongoose_acc:t())
         -> {result, [exml:element(), ...]} | {error, exml:element()}.
-publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
-    publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, all).
-publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
-    publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, undefined).
-publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access, PublishOptions) ->
-    publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Access, PublishOptions);
-publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, PublishOptions) ->
+publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Acc) ->
+    publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Acc, all).
+publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Acc, Access) ->
+    publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Acc, Access, undefined).
+
+publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Acc, Access, PublishOptions) ->
+    publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Acc, Access, PublishOptions);
+publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Acc, Access, PublishOptions) ->
     ItemPublisher = config(serverhost(Host), item_publisher),
     Action =
         fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
@@ -2271,7 +2251,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
             case get_option(Options, deliver_notifications) of
                 true ->
                     broadcast_publish_item(Host, Node, Nidx, Type, Options, ItemId,
-                                           Publisher, BrPayload, Removed, ItemPublisher);
+                                           Publisher, BrPayload, Removed, ItemPublisher, Acc);
                 false ->
                     ok
             end,
@@ -2283,14 +2263,14 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed, Acc),
             set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
             {result, Reply};
         {result, {TNode, {Result, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, Removed, Acc),
             set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
             {result, Result};
         {result, {_, default}} ->
@@ -2300,13 +2280,13 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
         {error, ErrorItemNotFound} ->
             Type = select_type(ServerHost, Host, Node),
             autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
-                                                Type, Access, ItemId, Payload, PublishOptions);
+                                                Type, Access, ItemId, Payload, PublishOptions, Acc);
         Error ->
             Error
     end.
 
 autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
-                                    Type, Access, ItemId, Payload, PublishOptions) ->
+                                    Type, Access, ItemId, Payload, PublishOptions, Acc) ->
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
     case lists:member(<<"auto-create">>, plugin_features(Type)) of
         true ->
@@ -2316,7 +2296,7 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
                          attrs = #{<<"xmlns">> := ?NS_PUBSUB},
                          children = [#xmlel{name = <<"create">>,
                                             attrs = #{<<"node">> := NewNode}}]}]} ->
-                    publish_item(Host, ServerHost, NewNode, Publisher, ItemId, Payload);
+                    publish_item(Host, ServerHost, NewNode, Publisher, ItemId, Payload, Acc);
                 _ ->
                     {error, ErrorItemNotFound}
             end;
@@ -2340,20 +2320,22 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
         Host      :: mod_pubsub:host(),
           Node      :: mod_pubsub:nodeId(),
           Publisher ::jid:jid(),
-          ItemId    :: mod_pubsub:itemId())
+          ItemId    :: mod_pubsub:itemId(),
+          Acc       :: mongoose_acc:t())
         -> {result, []} | {error, exml:element()}.
-delete_item(Host, Node, Publisher, ItemId) ->
-    delete_item(Host, Node, Publisher, ItemId, false).
-delete_item(_, <<>>, _, _, _) ->
+delete_item(Host, Node, Publisher, ItemId, Acc) ->
+    delete_item(Host, Node, Publisher, ItemId, false, Acc).
+
+delete_item(_, <<>>, _, _, _, _Acc) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"node-required">>)};
-delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
+delete_item(Host, Node, Publisher, ItemId, ForceNotify, Acc) ->
     Action = fun(PubSubNode) -> delete_item_transaction(Publisher, ItemId, PubSubNode) end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, [ItemId], ForceNotify),
+            broadcast_retract_items(Host, Publisher, Node, Nidx, Type, Options, [ItemId], ForceNotify, Acc),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
@@ -3296,7 +3278,7 @@ event_stanza(Event, EvAttr) ->
 %%%%%% broadcast functions
 
 broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
-                       ItemId, From, Payload, Removed, ItemPublisher) ->
+                       ItemId, From, Payload, Removed, ItemPublisher, Acc) ->
     case get_collection_subscriptions(Host, Node) of
         SubsByDepth when is_list(SubsByDepth) ->
             Content = case get_option(NodeOptions, deliver_payloads) of
@@ -3313,9 +3295,9 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
                                                   children = Content}]}]),
             broadcast_step(Host, fun() ->
                 broadcast_stanza(Host, From, Node, Nidx, Type,
-                                 NodeOptions, SubsByDepth, items, Stanza, true),
+                                 NodeOptions, SubsByDepth, items, Stanza, true, Acc),
                 broadcast_auto_retract_notification(Host, From, Node, Nidx, Type,
-                                                    NodeOptions, SubsByDepth, Removed)
+                                                    NodeOptions, SubsByDepth, Removed, Acc)
                 end),
             {result, true};
         _ ->
@@ -3323,26 +3305,27 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
     end.
 
 broadcast_auto_retract_notification(_Host, _ReplyToJID, _Node, _Nidx, _Type, _NodeOptions,
-                                    _SubsByDepth, []) ->
+                                    _SubsByDepth, [], _Acc) ->
     ok;
 broadcast_auto_retract_notification(Host, ReplyToJID, Node, Nidx, Type, NodeOptions,
-                                    SubsByDepth, Removed) ->
+                                    SubsByDepth, Removed, Acc) ->
     case get_option(NodeOptions, notify_retract) of
         true ->
             RetractEls = [#xmlel{name = <<"retract">>, attrs = item_attr(RId)} || RId <- Removed],
             RetractStanza = event_stanza([#xmlel{name = <<"items">>, attrs = node_attr(Node),
                                                  children = RetractEls}]),
             broadcast_stanza(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, SubsByDepth,
-                             items, RetractStanza, true);
+                             items, RetractStanza, true, Acc);
         _ ->
             ok
     end.
 
-broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds) ->
-    broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds, false).
-broadcast_retract_items(_Host, _ReplyToJID, _Node, _Nidx, _Type, _NodeOptions, [], _ForceNotify) ->
+broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds, Acc) ->
+    broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds, false, Acc).
+
+broadcast_retract_items(_Host, _ReplyToJID, _Node, _Nidx, _Type, _NodeOptions, [], _ForceNotify, _Acc) ->
     {result, false};
-broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotify) ->
+broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotify, Acc) ->
     case (get_option(NodeOptions, notify_retract) or ForceNotify) of
         true ->
             case get_collection_subscriptions(Host, Node) of
@@ -3354,7 +3337,7 @@ broadcast_retract_items(Host, ReplyToJID, Node, Nidx, Type, NodeOptions, ItemIds
                                                    || ItemId <- ItemIds]}]),
                     broadcast_step(Host, fun() ->
                         broadcast_stanza(Host, ReplyToJID, Node, Nidx, Type,
-                                         NodeOptions, SubsByDepth, items, Stanza, true)
+                                         NodeOptions, SubsByDepth, items, Stanza, true, Acc)
                         end),
                     {result, true};
                 _ ->
@@ -3503,7 +3486,7 @@ broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
                   end, SubIDsByJID).
 
 broadcast_stanza({LUser, LServer, LResource}, ReplyToJID, Node, Nidx, Type, NodeOptions,
-                 SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+                 SubsByDepth, NotifyType, BaseStanza, SHIM, Acc) ->
     broadcast_stanza({LUser, LServer, LResource}, Node, Nidx, Type, NodeOptions,
                      SubsByDepth, NotifyType, BaseStanza, SHIM),
     %% Handles implicit presence subscriptions
@@ -3516,21 +3499,44 @@ broadcast_stanza({LUser, LServer, LResource}, ReplyToJID, Node, Nidx, Type, Node
             %% Also, add "replyto" if entity has presence subscription to the account owner
             %% See XEP-0163 1.1 section 4.3.1
             ReplyTo = extended_headers([jid:to_binary(ReplyToJID)]),
-            Feature = <<((Node))/binary, "+notify">>,
-            Recipients = mongoose_c2s:call(C2SPid, ?MODULE, {get_pep_recipients, Feature}),
             Packet = add_extended_headers(Stanza, ReplyTo),
-            From = jid:make_bare(LUser, LServer),
-            lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
-                          lists:usort(Recipients));
+            FromJid = jid:make_bare(LUser, LServer),
+            HostType = mongoose_acc:host_type(Acc),
+            Feature = <<Node/binary, "+notify">>,
+            [route_broadcasted(HostType, FromJid, RecipientJid#jid{lresource = LRes}, Packet) ||
+                RecipientJid <- mongoose_acc:get(?MODULE, presence_recipients, [], Acc),
+                {LRes, Features} <- resources_with_features(RecipientJid),
+                lists:member(Feature, Features)],
+            ok;
         _ ->
             ?LOG_DEBUG(#{what => pubsub_no_session,
                 text => <<"User has no session; cannot deliver stanza to contacts">>,
                 user => LUser, server => LServer, exml_packet => BaseStanza})
     end;
 broadcast_stanza(Host, _ReplyToJID, Node, Nidx, Type, NodeOptions,
-                 SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+                 SubsByDepth, NotifyType, BaseStanza, SHIM, _Acc) ->
     broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth,
                      NotifyType, BaseStanza, SHIM).
+
+resources_with_features(Jid = #jid{lserver = LServer}) ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} -> resources_with_features(HostType, Jid);
+        {error, not_found} -> []
+    end.
+
+resources_with_features(HostType, Jid = #jid{lresource = ~""}) ->
+    mod_caps:get_resources_with_features(HostType, Jid);
+resources_with_features(HostType, Jid = #jid{lresource = LResource}) ->
+    [{LResource, mod_caps:get_features(HostType, Jid)}].
+
+route_broadcasted(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              host_type => HostType,
+                              lserver => LServer,
+                              element => Packet,
+                              from_jid => FromJid,
+                              to_jid => ToJid }),
+    ejabberd_router:route(FromJid, ToJid, Acc).
 
 subscribed_nodes_by_jid(NotifyType, SubsByDepth) ->
     DepthsToDeliver =
@@ -4365,17 +4371,17 @@ on_user_offline(Acc,
                 #{jid := #jid{luser = User, lserver = Server, lresource = Resource}},
                 #{host_type := HostType}) ->
     case user_resources(User, Server) of
-        [] -> purge_offline(HostType, {User, Server, Resource});
+        [] -> purge_offline(HostType, {User, Server, Resource}, Acc);
         _ -> true
     end,
     {ok, Acc}.
 
-purge_offline(HT, {_, LServer, _} = LJID) ->
+purge_offline(HT, {_, LServer, _} = LJID, Acc) ->
     Host = host(HT, LServer),
     Plugins = plugins(LServer),
     Affs = lists:foldl(
-             fun (PluginType, Acc) ->
-                     check_plugin_features_and_acc_affs(Host, PluginType, LJID, Acc)
+             fun (PluginType, FoldAcc) ->
+                     check_plugin_features_and_acc_affs(Host, PluginType, LJID, FoldAcc)
              end, [], Plugins),
     lists:foreach(
       fun ({Node, Affiliation}) ->
@@ -4385,7 +4391,7 @@ purge_offline(HT, {_, LServer, _} = LJID) ->
               ShouldPurge = get_option(Options, purge_offline)
               andalso get_option(Options, persist_items),
               case (IsPublisherOrOwner or OpenNode) and ShouldPurge of
-                  true -> purge_offline(Host, LJID, Node);
+                  true -> purge_offline(Host, LJID, Node, Acc);
                   false -> ok
               end
       end, lists:usort(lists:flatten(Affs))).
@@ -4405,14 +4411,14 @@ check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
             AffsAcc
     end.
 
-purge_offline(Host, {User, Server, _} = LJID, #pubsub_node{ id = Nidx, type = Type } = Node) ->
+purge_offline(Host, {User, Server, _} = LJID, #pubsub_node{ id = Nidx, type = Type } = Node, Acc) ->
     case node_action(Host, Type, get_items, [Nidx, service_jid(Host), #{}]) of
         {result, {[], _}} ->
             ok;
         {result, {Items, _}} ->
             lists:foreach(fun(#pubsub_item{itemid = {ItemId, _}, modification = {_, {U, S, _}}})
                                 when (U == User) and (S == Server) ->
-                                  purge_item_of_offline_user(Host, LJID, Node, ItemId, U, S);
+                                  purge_item_of_offline_user(Host, LJID, Node, ItemId, U, S, Acc);
                              (_) ->
                                   true
                           end, Items);
@@ -4422,12 +4428,12 @@ purge_offline(Host, {User, Server, _} = LJID, #pubsub_node{ id = Nidx, type = Ty
 
 purge_item_of_offline_user(Host, LJID,
                            #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
-                                         options = Options, type = Type }, ItemId, U, S) ->
+                                         options = Options, type = Type }, ItemId, U, S, Acc) ->
     PublishModel = get_option(Options, publish_model),
     ForceNotify = get_option(Options, notify_retract),
     case node_action(Host, Type, delete_item, [Nidx, {U, S, <<>>}, PublishModel, ItemId]) of
         {result, {_, broadcast}} ->
-            broadcast_retract_items(Host, LJID, NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
+            broadcast_retract_items(Host, LJID, NodeId, Nidx, Type, Options, [ItemId], ForceNotify, Acc),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
