@@ -24,4 +24,7 @@ type StanzaAdminSubscription @protected{
   "Subscribe for the given user's incoming messages"
   subscribeForMessages(caller: JID!): StanzaMap
     @protected(type: DOMAIN, args: ["caller"])
+  "Subscribe for XMPP traffic"
+  subscribeForTraffic: TraceMap
+    @protected(type: GLOBAL, args: ["limit"])
 }

@@ -3,6 +3,10 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
+
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [get_bad_request/1, get_unauthorized/1, get_method_not_allowed/1,
                          build_request/4, make_creds/1, execute_auth/2,
@@ -19,7 +23,7 @@ all() ->
      {group, timeout}].
 
 groups() ->
-    [{admin, [parallel], admin_tests()},
+    [{admin, [], admin_tests()},
      {user, [parallel], user_tests()},
      {timeout, [parallel], [sse_should_not_get_timeout, sse_works_with_long_messages]}].
 
@@ -34,7 +38,10 @@ end_per_suite(Config) ->
 init_per_group(user, Config) ->
     graphql_helper:init_user(Config);
 init_per_group(admin, Config) ->
-    graphql_helper:init_admin_handler(Config);
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    dynamic_modules:ensure_modules(HostType, [{mongoose_traffic, []}]),
+    graphql_helper:init_admin_handler(Config1);
 init_per_group(timeout, Config) ->
     % Change the default idle_timeout for the listener to 1s to test if sse will override it
     Listener = get_graphql_user_listener(),
@@ -44,7 +51,8 @@ init_per_group(timeout, Config) ->
 end_per_group(user, _Config) ->
     escalus_fresh:clean(),
     graphql_helper:clean();
-end_per_group(admin, _Config) ->
+end_per_group(admin, Config) ->
+    dynamic_modules:restore_modules(Config),
     graphql_helper:clean();
 end_per_group(timeout, _Config) ->
     Listener = get_graphql_user_listener(),
@@ -59,12 +67,16 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 admin_tests() ->
-    [admin_missing_query,
+    [admin_subscribe_to_user_messages,
+     admin_subscribe_to_traffic,
+     admin_subscribe_to_traffic_limited,
+     admin_missing_query,
      admin_invalid_query_string,
      admin_missing_creds,
      admin_invalid_creds,
      admin_invalid_method,
-     admin_invalid_operation_type].
+     admin_invalid_operation_type
+    ].
 
 user_tests() ->
     [user_missing_query,
@@ -75,6 +87,58 @@ user_tests() ->
      user_invalid_operation_type].
 
 %% Test cases and stories
+
+admin_subscribe_to_user_messages(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = subscribe_admin(messages, To, Config),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
+        sse_helper:wait_for_event(Stream),
+        sse_helper:stop_sse(Stream)
+    end).
+
+admin_subscribe_to_traffic(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = subscribe_admin(traffic, 1000, Config),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
+        [CtS, StC] = sse_helper:wait_for_events(Stream, 2, 100),
+        assert_trace(<<"client_to_server">>, <<"message">>, CtS),
+        assert_trace(<<"server_to_client">>, <<"message">>, StC),
+        escalus_session:send_presence_unavailable(Bob),
+        Unav1 = sse_helper:wait_for_event(Stream),
+        assert_trace(<<"client_to_server">>, <<"presence">>, Unav1),
+        escalus_session:send_presence_unavailable(Bob),
+        Unav2 = sse_helper:wait_for_event(Stream),
+        assert_trace(<<"client_to_server">>, <<"presence">>, Unav2),
+        escalus_client:stop(Config, Bob),
+        StreamEnd = sse_helper:wait_for_event(Stream),
+        assert_trace(<<"client_to_server">>, <<"</stream:stream>">>, StreamEnd),
+        sse_helper:stop_sse(Stream)
+    end).
+
+admin_subscribe_to_traffic_limited(Config) ->
+    % if the limit is reached the stream is closed, no mercy
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = subscribe_admin(traffic, 2, Config),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
+        [_, _] = sse_helper:wait_for_events(Stream, 2, 100),
+        escalus_session:send_presence_unavailable(Bob),
+        fin = sse_helper:wait_for_events(Stream, 1, 100)
+    end).
+
+assert_trace(ExpDir, ExpName, Rec) ->
+    #{<<"data">> := #{<<"stanza">> := #{<<"subscribeForTraffic">> := Data}}} = Rec,
+    #{<<"dir">> := Dir, <<"stanza">> := BStanza} = Data,
+    ?assertEqual(ExpDir, Dir),
+    case exml:parse(BStanza) of
+        {ok, #xmlel{name = N}} -> ?assertEqual(ExpName, N);
+        {error, _} -> ?assertEqual(ExpName, BStanza)
+    end.
 
 admin_missing_query(Config) ->
     get_bad_request(execute_auth_sse(#{}, Config)).
@@ -160,6 +224,17 @@ sse_works_with_long_messages(Config) ->
     end).
 
 %% Helpers
+
+subscribe_admin(messages, To, Config) ->
+    graphql_helper:execute_admin_command_sse(<<"stanza">>,
+                                             <<"subscribeForMessages">>,
+                                             #{caller => To},
+                                             Config);
+subscribe_admin(traffic, Limit, Config) ->
+    graphql_helper:execute_admin_command_sse(<<"stanza">>,
+                                             <<"subscribeForTraffic">>,
+                                             #{limit => Limit},
+                                             Config).
 
 get_graphql_user_listener() ->
     Handler = #{module => mongoose_graphql_handler, schema_endpoint => user},

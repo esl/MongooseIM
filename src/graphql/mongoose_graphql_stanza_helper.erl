@@ -34,6 +34,9 @@ handle_event({route, Acc}) ->
         _ ->
             {ok, null} % Skip other stanza types
     end;
+handle_event({message, Dir, {UserPid, Jid}, Stanza}) ->
+    Timestamp = os:system_time(microsecond),
+    trace_result(Timestamp, UserPid, Jid, Dir, Stanza);
 handle_event(Msg) ->
     ?UNEXPECTED_INFO(Msg),
     {ok, null}.
@@ -48,3 +51,17 @@ stanza_result(From, Timestamp, StanzaID, Stanza) ->
     Map = #{<<"sender">> => From, <<"timestamp">> => Timestamp,
             <<"stanza_id">> => StanzaID, <<"stanza">> => Stanza},
     {ok, Map}.
+
+trace_result(Timestamp, UserPid, Jid, Dir, Stanza) ->
+    Map = #{<<"pid">> => pid_to_binary(UserPid), <<"timestamp">> => Timestamp,
+            <<"dir">> => atom_to_binary(Dir, utf8), <<"stanza">> => Stanza},
+    Map1 = case Jid of
+               undefined -> Map;
+               J -> Map#{<<"jid">> => J}
+           end,
+    {ok, Map1}.
+
+pid_to_binary(Pid) when is_pid(Pid) ->
+    [Spid] = io_lib:format("~p", [Pid]),
+    list_to_binary(Spid).
+

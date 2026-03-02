@@ -55,6 +55,10 @@ execute_user_command_sse(Category, Command, User, Args, Config) ->
     Doc = get_doc(Category, Command),
     execute_user_sse(#{query => Doc, variables => Args}, User, Config).
 
+execute_admin_command_sse(Category, Command, Args, Config) ->
+    Doc = get_doc(Category, Command),
+    execute_admin_sse(#{query => Doc, variables => Args}, Config).
+
 execute_command(Category, Command, Args, Config) ->
     #{node := Node} = mim(),
     Protocol = ?config(protocol, Config),
@@ -129,6 +133,12 @@ execute_user(Body, User, Config) ->
 execute_user_sse(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
     Creds = make_creds(User),
+    #{node := Node} = mim(),
+    execute_sse(Node, Ep, Body, Creds).
+
+execute_admin_sse(Body, Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Creds = make_admin_creds(admin, Config),
     #{node := Node} = mim(),
     execute_sse(Node, Ep, Body, Creds).
 

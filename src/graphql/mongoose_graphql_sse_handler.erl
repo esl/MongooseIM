@@ -75,14 +75,24 @@ handle_notify(Msg, State) ->
 handle_info(Event, State = #{ep := Ep, req := Req = #{ctx := Ctx}, id := Id}) ->
     Ctx1 = Ctx#{event => Event},
     {ok, #{data := Data} = Response} = mongoose_graphql:execute(Ep, Req#{ctx := Ctx1}),
-    case has_non_null_value(Data) of
+    case is_close_stream(Response) of
         false ->
-            {nosend, State};
+            case has_non_null_value(Data) of
+                false ->
+                    {nosend, State};
+                true ->
+                    EventData = mongoose_graphql_response:term_to_json(Response),
+                    SseEvent = #{id => integer_to_binary(Id), data => EventData},
+                    {send, SseEvent, State#{id := Id + 1}}
+            end;
         true ->
-            EventData = mongoose_graphql_response:term_to_json(Response),
-            SseEvent = #{id => integer_to_binary(Id), data => EventData},
-            {send, SseEvent, State#{id := Id + 1}}
+            {stop, State}
     end.
+
+is_close_stream(#{aux := Aux}) ->
+    lists:member({stream, close}, Aux);
+is_close_stream(_) ->
+    false.
 
 %% Check if there is any value that is non-null. Any list is considered non-null.
 has_non_null_value(M) when is_map(M) ->

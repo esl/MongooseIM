@@ -22,10 +22,46 @@ connect_to_sse(Port, Path, Creds, ExtraOpts) ->
     ct:log("SSE response code: ~p, headers: ~p, result: ~p", [Status, RespHeaders, Result]),
     {Status, Result}.
 
-wait_for_event(#{pid := Pid, stream_ref := StreamRef}) ->
-    {sse, #{data := [Response]} = Event} = gun:await(Pid, StreamRef),
+wait_for_event(Stream) ->
+    wait_for_event(Stream, 5000).
+
+wait_for_event(#{pid := Pid, stream_ref := StreamRef}, Timeout) ->
+    {sse, #{data := [Response]} = Event} = gun:await(Pid, StreamRef, Timeout),
     ct:log("Received SSE event: ~p", [Event]),
     jiffy:decode(Response, [return_maps]).
+
+wait_for_events(Stream, Timeout) ->
+    wait_for_events(Stream, all, Timeout, []).
+
+wait_for_events(Stream, Count, Timeout) ->
+    wait_for_events(Stream, Count, Timeout, []).
+
+wait_for_events(_, 0, _, Received) ->
+    return_event_list(Received);
+wait_for_events(Stream, Count, Timeout, Received) ->
+    #{pid := Pid, stream_ref := StreamRef} = Stream,
+    case gun:await(Pid, StreamRef, Timeout) of
+        {sse, #{data := _} = Event} ->
+            ct:log("Received SSE event: ~p", [Event]),
+            wait_for_events(Stream, decrement_count(Count), Timeout, [Event | Received]);
+        {sse, fin} ->
+            fin;
+        {error, timeout} ->
+            return_or_fail(decrement_count(Count), Received)
+    end.
+
+decrement_count(all) -> all;
+decrement_count(I)   -> I - 1.
+
+return_or_fail(all, Received) ->
+    return_event_list(Received);
+return_or_fail(0, Received) ->
+    return_event_list(Received);
+return_or_fail(Remaining, _) ->
+    {error, {still_waiting_for_events, Remaining}}.
+
+return_event_list(Received) ->
+    lists:map(fun(#{data := R}) -> jiffy:decode(R, [return_maps]) end, lists:reverse(Received)).
 
 stop_sse(#{pid := Pid}) ->
     gun:close(Pid).
