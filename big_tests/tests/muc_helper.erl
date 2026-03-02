@@ -353,7 +353,7 @@ assert_event(EventName, F) ->
     instrument_helper:assert_one(EventName, labels(), F).
 
 count_rooms() ->
-    rpc(mim(), mod_muc, probe, [mod_muc_rooms, labels()]).
+    rpc(mim(), mod_muc, probe, [mod_muc_rooms, labels(), #{}]).
 
 labels() ->
     #{host_type => domain_helper:host_type()}.

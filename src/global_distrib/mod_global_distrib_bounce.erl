@@ -34,7 +34,7 @@
 -export([maybe_store_message/3, reroute_messages/3]).
 -export([bounce_queue_size/0]).
 %% mongoose_instrument_probe callback
--export([probe/2]).
+-export([probe/3]).
 
 -ignore_xref([bounce_queue_size/0, start_link/0]).
 
@@ -68,9 +68,10 @@ instrumentation(_HostType) ->
     [{?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, #{}, #{probe => #{module => ?MODULE},
                                                 metrics => #{size => gauge}}}].
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(),
+            mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
-probe(?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, #{}) ->
+probe(?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, #{}, _Extra) ->
     #{size => bounce_queue_size()}.
 
 -spec start_link() -> {ok, pid()} | {error, any()}.

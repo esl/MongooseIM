@@ -691,7 +691,7 @@ pool_probe_metrics_are_updated(Config) ->
                           Scope ->
                               {wpool_rdbms_stats, #{host_type => Scope, pool_tag => Tag}}
                       end,
-    #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
+    #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels, #{}]),
 
     select_one_works_case(Config),
 

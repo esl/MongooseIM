@@ -9,12 +9,17 @@
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
 
+-behaviour(mongoose_instrument_probe).
+
 -record(mongoose_wpool, {
           name :: pool_name(),
           atom_name :: wpool:name(),
           strategy :: wpool:strategy(),
           call_timeout :: pos_integer()
          }).
+
+% mongoose_instrument_probe
+-export([probe/3]).
 
 %% API
 -export([ensure_started/0,
@@ -24,7 +29,8 @@
          call/2, call/3, call/4, call/5,
          send_request/2, send_request/3, send_request/4, send_request/5,
          cast/2, cast/3, cast/4, cast/5,
-         get_pool_settings/3, get_pools/0, stats/3]).
+         get_pool_settings/3, get_pools/0, stats/3,
+         workers_queue_len/1]).
 
 -export([start_sup_pool/3]).
 -export([start_configured_pools/0, start_configured_pools/1,
@@ -416,7 +422,17 @@ instrumentation(PoolType, HostType, Tag) ->
             CallbackModule:instrumentation(HostType, Tag);
         false ->
             []
-    end.
+    end ++ default_instrumentation(PoolType, HostType, Tag).
+
+-spec default_instrumentation(pool_name(), host_type_or_global(), tag()) -> mongoose_instrument:spec().
+default_instrumentation(PoolType, global, Tag) ->
+    [{wpool_global_queue_lengths, #{pool_tag => Tag},
+      #{probe => #{module => ?MODULE, extra => #{pool_type => PoolType}},
+        metrics => #{total => gauge}}}];
+default_instrumentation(PoolType, HostType, Tag) ->
+    [{wpool_queue_lengths, #{host_type => HostType, pool_tag => Tag},
+      #{probe => #{module => ?MODULE, extra => #{pool_type => PoolType}},
+        metrics => #{total => gauge}}}].
 
 -spec best_worker_with_max_queue_len(wpool:name(), pos_integer()) -> atom().
 best_worker_with_max_queue_len(Name, MaxQueueLen) ->
@@ -427,3 +443,25 @@ best_worker_with_max_queue_len(Name, MaxQueueLen) ->
         _ ->
             Worker
     end.
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:lables(), mongoose_instrument:extra()) ->
+    mongoose_instrument:measurements().
+probe(wpool_global_queue_lenghts, #{pool_tag := Tag}, PoolType) ->
+    PoolName = make_pool_name(PoolType, global, Tag),
+    workers_queue_len(PoolName);
+probe(wpool_queue_lenghts, #{host_type := HostType, pool_tag := Tag}, PoolType) ->
+    PoolName = make_pool_name(PoolType, HostType, Tag),
+    workers_queue_len(PoolName).
+
+-spec workers_queue_len(wpool:name()) -> integer().
+workers_queue_len(PoolName) ->
+    Workers = wpool:get_workers(PoolName),
+    lists:sum(lists:map(fun worker_queue_len/1, Workers)).
+
+worker_queue_len(undefined) ->
+    0;
+worker_queue_len(Worker) when is_atom(Worker) ->
+    worker_queue_len(whereis(Worker));
+worker_queue_len(Pid) ->
+    {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
+    Len.
