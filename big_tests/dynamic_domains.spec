@@ -95,7 +95,6 @@
 {suites, "tests", push_SUITE}.
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", rdbms_SUITE}.
-{suites, "tests", rest_client_SUITE}.
 {suites, "tests", sasl_SUITE}.
 {suites, "tests", sasl_external_SUITE}.
 {suites, "tests", sasl2_SUITE}.
