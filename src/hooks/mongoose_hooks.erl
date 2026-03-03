@@ -529,7 +529,8 @@ sasl2_success(HostType, Acc, Params, Creds) ->
 
 -spec c2s_debug(Acc, Arg) -> mongoose_acc:t() when
     Acc :: mongoose_acc:t() | no_acc,
-    Arg :: {out, jid:jid() | undefined, exml:element()}| {in, exml:element()}.
+    Arg :: {client_to_server, jid:jid() | undefined, exml:element()}
+           | {server_to_client, jid:jid(), exml:element()}.
 c2s_debug(Acc, Arg) ->
     run_global_hook(c2s_debug, Acc, #{arg => Arg}).
 

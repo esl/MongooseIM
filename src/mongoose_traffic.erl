@@ -94,7 +94,7 @@ fix_and_format(El) when is_binary(El) ->
 fix_and_format({xmlstreamend, _}) ->
     <<"</stream:stream>">>;
 fix_and_format({Tag, Name}) ->
-    exml:to_pretty_iolist({Tag, Name, []});
+    exml:to_pretty_iolist({Tag, Name, #{}});
 fix_and_format({Tag, Name, Attrs}) ->
     exml:to_pretty_iolist({Tag, Name, fix_attrs(Attrs)});
 fix_and_format({Tag, Name, Attrs, Children}) ->
@@ -107,12 +107,7 @@ unregister_pid(Pid, State) ->
     maps:remove(Pid, State).
 
 fix_attrs(Attrs) when is_map(Attrs) ->
-    maps:filter(fun is_defined/2, Attrs);
-fix_attrs(Attrs) when is_list(Attrs) ->
-    lists:filter(fun is_defined/1, Attrs).
-
-is_defined({_, undefined}) -> false;
-is_defined({_, _}) -> true.
+    maps:filter(fun is_defined/2, Attrs).
 
 is_defined(_, undefined) -> false;
 is_defined(_, _) -> true.
