@@ -17,8 +17,8 @@
   validity_period.refresh = {value = 13, unit = "days"}
 
 [modules.mod_caps]
-  cache_size = 1000
-  cache_life_time = 86
+  backend = "cets"
+  iq_response_timeout = 10000
 
 [modules.mod_carboncopy]
   iqdisc.type = "no_queue"
