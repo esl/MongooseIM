@@ -34,6 +34,7 @@
 
 -export_type([priority/0,
               maybe_priority/0,
+              maybe_presence/0,
               available/0,
               subscriptions/0,
               state/0]).
@@ -53,6 +54,7 @@
          get_presence/1,
          get_subscribed/1,
          set_presence/2,
+         get_presence_type/1,
          maybe_get_handler/1,
          get_old_priority/1
         ]).
