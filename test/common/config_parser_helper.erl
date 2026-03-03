@@ -114,7 +114,7 @@ options("modules") ->
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},
-     {internal_databases, #{mnesia => #{}}},
+     {internal_databases, config([internal_databases], #{cets => #{}, mnesia => #{}})},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
@@ -1101,6 +1101,8 @@ default_config([instrumentation, exometer, report, Name]) ->
     end;
 default_config([instrumentation, _]) ->
     #{};
+default_config([internal_databases, cets]) ->
+    #{backend => rdbms, cluster_name => mongooseim};
 default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),
