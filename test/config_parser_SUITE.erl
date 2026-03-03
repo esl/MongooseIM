@@ -1558,11 +1558,15 @@ mod_blocking(_Config) ->
     test_privacy_opts(mod_blocking).
 
 mod_caps(_Config) ->
-    check_module_defaults(mod_caps),
-    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
+    %% This module needs cets while default general options need mnesia
+    Required = #{<<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}},
+    check_module_defaults(mod_caps, Required),
+    T = fun(K, V) -> Required#{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
     P = [modules, mod_caps],
     ?cfgh(P ++ [backend], cets, T(<<"backend">>, <<"cets">>)),
     ?cfgh(P ++ [iq_response_timeout], 2000, T(<<"iq_response_timeout">>, 2000)),
+    ?errh([#{reason := backend_requires_internal_database}],
+          #{<<"modules">> => #{<<"mod_caps">> => #{}}}),
     ?errh(T(<<"backend">>, <<"mnesia">>)),
     ?errh(T(<<"iq_response_timeout">>, 0)).
 
@@ -3165,6 +3169,9 @@ check_iqdisc(ParentP, ParentT) when is_function(ParentT, 1) ->
     ?errh(T(#{<<"workers">> => 10})).
 
 check_module_defaults(Mod) ->
+    check_module_defaults(Mod, #{}).
+
+check_module_defaults(Mod, Required) ->
     ExpectedCfg = default_mod_config(Mod),
     case maps:size(ExpectedCfg) of
         0 ->
@@ -3172,7 +3179,7 @@ check_module_defaults(Mod) ->
         _ ->
             assert_configurable_module(Mod)
     end,
-    ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
+    ?cfgh([modules, Mod], ExpectedCfg, Required#{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
 
 assert_configurable_module(Module) ->
     case lists:member(Module, mongoose_config_spec:configurable_modules()) of
@@ -3237,7 +3244,13 @@ s2s_outgoing_raw(Opts) ->
 %% helpers for 'host_config' tests
 
 host_config(Config) ->
-    #{<<"host_config">> => [Config#{<<"host_type">> => ?HOST}]}.
+    Globals = global_sections(),
+    GlobalConfig = maps:with(Globals, Config),
+    HostConfig = maps:without(Globals, Config),
+    GlobalConfig#{<<"host_config">> => [HostConfig#{<<"host_type">> => ?HOST}]}.
+
+global_sections() ->
+    [<<"listen">>, <<"internal_databases">>, <<"services">>, <<"shaper">>].
 
 %% helpers for parsing
 
