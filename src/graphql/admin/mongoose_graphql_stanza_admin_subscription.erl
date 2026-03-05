@@ -35,5 +35,5 @@ subscribe_for_traffic(#{event := Event}, _) ->
     mongoose_graphql_stanza_helper:handle_event(Event);
 subscribe_for_traffic(Ctx, _) ->
     #{params := #{<<"limit">> := Limit}} = Ctx,
-    mongoose_traffic:register(Limit),
+    service_traffic:register(Limit),
     {ok, null, [{stream, make_ref()}]}.

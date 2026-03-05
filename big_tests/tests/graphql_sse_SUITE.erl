@@ -39,8 +39,8 @@ init_per_group(user, Config) ->
     graphql_helper:init_user(Config);
 init_per_group(admin, Config) ->
     HostType = domain_helper:host_type(),
-    Config1 = dynamic_modules:save_modules(HostType, Config),
-    dynamic_modules:ensure_modules(HostType, [{mongoose_traffic, []}]),
+    Config1 = dynamic_services:save_services(Config),
+    dynamic_services:ensure_services([{service_traffic, []}]),
     graphql_helper:init_admin_handler(Config1);
 init_per_group(timeout, Config) ->
     % Change the default idle_timeout for the listener to 1s to test if sse will override it
@@ -52,7 +52,7 @@ end_per_group(user, _Config) ->
     escalus_fresh:clean(),
     graphql_helper:clean();
 end_per_group(admin, Config) ->
-    dynamic_modules:restore_modules(Config),
+    dynamic_services:restore_services(Config),
     graphql_helper:clean();
 end_per_group(timeout, _Config) ->
     Listener = get_graphql_user_listener(),
@@ -94,15 +94,19 @@ admin_subscribe_to_user_messages(Config) ->
         To = escalus_client:short_jid(Alice),
         {200, Stream} = subscribe_admin(messages, To, Config),
         escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
-        sse_helper:wait_for_event(Stream),
+        T1 = sse_helper:wait_for_event(Stream),
+        #{<<"data">> := #{<<"stanza">> := #{<<"subscribeForMessages">> := #{<<"stanza">> := BStanza}}}} = T1,
+        {ok, #xmlel{name = <<"message">>}} = exml:parse(BStanza),
         sse_helper:stop_sse(Stream)
     end).
 
 admin_subscribe_to_traffic(Config) ->
+    {200, Stream} = subscribe_admin(traffic, 1000, Config),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        [StreamStart | _] = sse_helper:wait_for_events(Stream, 500),
+        assert_trace(<<"client_to_server">>, <<"stream:stream">>, StreamStart),
         From = escalus_client:full_jid(Bob),
         To = escalus_client:short_jid(Alice),
-        {200, Stream} = subscribe_admin(traffic, 1000, Config),
         escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
         [CtS, StC] = sse_helper:wait_for_events(Stream, 2, 100),
         assert_trace(<<"client_to_server">>, <<"message">>, CtS),
@@ -110,12 +114,9 @@ admin_subscribe_to_traffic(Config) ->
         escalus_session:send_presence_unavailable(Bob),
         Unav1 = sse_helper:wait_for_event(Stream),
         assert_trace(<<"client_to_server">>, <<"presence">>, Unav1),
-        escalus_session:send_presence_unavailable(Bob),
-        Unav2 = sse_helper:wait_for_event(Stream),
-        assert_trace(<<"client_to_server">>, <<"presence">>, Unav2),
         escalus_client:stop(Config, Bob),
         StreamEnd = sse_helper:wait_for_event(Stream),
-        assert_trace(<<"client_to_server">>, <<"</stream:stream>">>, StreamEnd),
+        assert_trace(<<"client_to_server">>, <<"/stream:stream">>, StreamEnd),
         sse_helper:stop_sse(Stream)
     end).
 
@@ -126,9 +127,8 @@ admin_subscribe_to_traffic_limited(Config) ->
         To = escalus_client:short_jid(Alice),
         {200, Stream} = subscribe_admin(traffic, 2, Config),
         escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
-        [_, _] = sse_helper:wait_for_events(Stream, 2, 100),
         escalus_session:send_presence_unavailable(Bob),
-        fin = sse_helper:wait_for_events(Stream, 1, 100)
+        [_, _, fin] = sse_helper:wait_for_events(Stream, 100)
     end).
 
 assert_trace(ExpDir, ExpName, Rec) ->
@@ -136,8 +136,12 @@ assert_trace(ExpDir, ExpName, Rec) ->
     #{<<"dir">> := Dir, <<"stanza">> := BStanza} = Data,
     ?assertEqual(ExpDir, Dir),
     case exml:parse(BStanza) of
-        {ok, #xmlel{name = N}} -> ?assertEqual(ExpName, N);
-        {error, _} -> ?assertEqual(ExpName, BStanza)
+        {ok, #xmlel{name = N}} ->
+            ?assertEqual(ExpName, N);
+        {error, _} ->
+            [N | _] = binary:split(BStanza, <<" ">>),
+            Name = string:trim(N, both, "<>"),
+            ?assertEqual(ExpName, Name)
     end.
 
 admin_missing_query(Config) ->

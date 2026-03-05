@@ -1,28 +1,32 @@
--module(mongoose_traffic).
+-module(service_traffic).
 
--behaviour(gen_mod).
+-behaviour(mongoose_service).
 -behaviour(gen_server).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_config_spec.hrl").
 
 -export([register/1]).
 %% gen_mod API
--export([start/2, stop/1]).
--export([supported_features/0]).
+-export([start/1, stop/0]).
+-export([config_spec/0]).
 %% hook handler
 -export([trace_traffic/3]).
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
--define(SERVER, ?MODULE).
+-export_type([traced_packet/0]).
 
+-type traced_packet() :: {client_to_server, jid:jid() | undefined, exml:element()}
+                         | {server_to_client, jid:jid(), exml:element()}.
 
-start(HostType, _Opts) ->
-    gen_hook:add_handlers(hooks(HostType)),
+-spec start(mongoose_service:options()) -> ok.
+start(_Opts) ->
+    gen_hook:add_handlers(hooks()),
     case whereis(?MODULE) of
         undefined ->
-            Traffic = {mongoose_traffic,
+            Traffic = {service_traffic,
                          {gen_server, start_link, [?MODULE, [], []]},
                          permanent, 1000, supervisor, [?MODULE]},
             ejabberd_sup:start_child(Traffic);
@@ -31,21 +35,26 @@ start(HostType, _Opts) ->
     end,
     ok.
 
-stop(Host) ->
-    gen_hook:delete_handlers(hooks(Host)),
+-spec stop() -> any().
+stop() ->
+    gen_hook:delete_handlers(hooks()),
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
 
-hooks(_HostType) ->
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{}.
+
+hooks() ->
     [{c2s_debug, global, fun ?MODULE:trace_traffic/3, #{}, 50}].
 
-supported_features() -> [dynamic_domains].
-
+-spec register(pos_integer()) -> ok.
 register(Limit) ->
     Pid = self(),
     gen_server:call(?MODULE, {register, {Pid, Limit}}).
 
+-spec trace_traffic(mongoose_acc:t(), #{arg => traced_packet()}, term()) -> {ok, mongoose_acc:t()}.
 trace_traffic(Acc, #{arg := {client_to_server, From, El}}, _) ->
     traffic(client_to_server, From, El),
     {ok, Acc};

@@ -62,6 +62,5 @@ trace_result(Timestamp, UserPid, Jid, Dir, Stanza) ->
     {ok, Map1}.
 
 pid_to_binary(Pid) when is_pid(Pid) ->
-    [Spid] = io_lib:format("~p", [Pid]),
-    list_to_binary(Spid).
+    iolist_to_binary(io_lib:format("~p", [Pid])).
 

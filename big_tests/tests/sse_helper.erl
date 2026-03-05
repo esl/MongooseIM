@@ -45,17 +45,15 @@ wait_for_events(Stream, Count, Timeout, Received) ->
             ct:log("Received SSE event: ~p", [Event]),
             wait_for_events(Stream, decrement_count(Count), Timeout, [Event | Received]);
         {sse, fin} ->
-            fin;
+            return_event_list(Received) ++ [fin];
         {error, timeout} ->
-            return_or_fail(decrement_count(Count), Received)
+            return_or_fail(Count, Received)
     end.
 
 decrement_count(all) -> all;
 decrement_count(I)   -> I - 1.
 
 return_or_fail(all, Received) ->
-    return_event_list(Received);
-return_or_fail(0, Received) ->
     return_event_list(Received);
 return_or_fail(Remaining, _) ->
     {error, {still_waiting_for_events, Remaining}}.

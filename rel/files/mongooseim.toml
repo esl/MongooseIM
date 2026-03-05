@@ -183,7 +183,7 @@
 
 [modules.mod_adhoc]
 
-# [modules.mongoose_traffic]
+# [services.service_traffic]
 
 {{#mod_amp}}
 [modules.mod_amp]
