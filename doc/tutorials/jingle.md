@@ -368,5 +368,5 @@ TURN servers are not designed for efficient multicasting. When sending media to 
 [STUN]: https://en.wikipedia.org/wiki/Session_Traversal_Utilities_for_NAT
 [TURN]: https://en.wikipedia.org/wiki/Traversal_Using_Relays_around_NAT
 [draft-ietf-stox-media]: http://tools.ietf.org/html/draft-ietf-stox-media
-[TURN tutorial]: ICE_tutorial.md
+[TURN tutorial]: coturn_tutorial.md
 [mod_jingle_sip]: ../modules/mod_jingle_sip.md

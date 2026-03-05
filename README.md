@@ -95,7 +95,6 @@ When developing new features/modules, please make sure you add basic documentati
 * [Tutorials](https://esl.github.io/MongooseDocs/latest/tutorials/How-to-build/). Learn how to:
     * [Build MongooseIM from source code](https://esl.github.io/MongooseDocs/latest/tutorials/How-to-build/)
     * [Set up MongoosePush](https://esl.github.io/MongooseDocs/latest/tutorials/push-notifications/Push-notifications/)
-    * [Set up MongooseICE](https://esl.github.io/MongooseDocs/latest/tutorials/ICE_tutorial/)
     * [Build an iOS messaging app](https://esl.github.io/MongooseDocs/latest/tutorials/iOS_tutorial/)
 * [User Guide](https://esl.github.io/MongooseDocs/latest/user-guide/Features/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
 * [Configuration](https://esl.github.io/MongooseDocs/latest/configuration/configuration-files/). Explore available options including database backend configuration, access control lists, listener and extension modules.

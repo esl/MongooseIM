@@ -78,7 +78,7 @@ nav:
       - 'How to Set up Push Notifications': 'tutorials/push-notifications/Push-notifications.md'
       - 'How to Set up Push Notifications on the client side': 'tutorials/push-notifications/Push-notifications-client-side.md'
       - 'How to Set up MongoosePush': 'tutorials/push-notifications/MongoosePush-setup.md'
-      - 'How to Set up MongooseICE': 'tutorials/ICE_tutorial.md'
+      - 'How to Set up Coturn': 'tutorials/coturn_tutorial.md'
       - 'How to Build an iOS messaging app': 'tutorials/iOS_tutorial.md'
       - 'XMPP Audio and Video Basics': 'tutorials/jingle.md'
       - 'How to Set up SASL client certificate authentication': 'tutorials/client-certificate.md'
