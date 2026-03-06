@@ -11,40 +11,29 @@ deregister_cleanup(_) ->
     ok.
 
 collect_mf(_Registry, Callback) ->
-    %% Get all metric names from the sliding window manager
-    MetricNames = mongoose_prometheus_sliding_window:get_all_metric_names(),
-    lists:foreach(fun(Name) ->
-                      collect_metric_family(Name, Callback)
-                  end, MetricNames),
+    Metrics = mongoose_prometheus_sliding_window:get_all_metrics(),
+    lists:foreach(fun(Metric) ->
+                      collect_metric_family(Metric, Callback)
+                  end, Metrics),
     ok.
 
 %% Internal functions
 
-collect_metric_family(Name, Callback) ->
-    Values = mongoose_prometheus_sliding_window:values(Name),
-    case Values of
-        [] ->
-            ok;
-        _ ->
-            SWName = sliding_window_metric_name(Name),
-            MetricSpec = mongoose_prometheus_sliding_window:get_metric_spec(Name),
-            Help = case MetricSpec of
-                       undefined -> "";
-                       Spec -> proplists:get_value(help, Spec, "")
-                   end,
-            LabelKeys = case MetricSpec of
-                            undefined -> [];
-                            Spec2 -> proplists:get_value(labels, Spec2, [])
-                        end,
-            %% Convert to Prometheus format
-            Metrics = [create_summary_metric(LabelKeys, LabelValues, Count, Sum, Quantiles)
-                       || {LabelValues, {Count, Sum, Quantiles}} <- Values],
-            %% Create and send the metric family
-            MF = prometheus_model_helpers:create_mf(SWName, Help, summary, Metrics),
-            Callback(MF)
-    end.
+collect_metric_family({_Name, []}, _Callback) ->
+    ok;
+collect_metric_family({Name, Values}, Callback) ->
+    MetricSpec = mongoose_prometheus_sliding_window:get_metric_spec(Name),
+    Help = get_spec_value(MetricSpec, help, ""),
+    LabelKeys = get_spec_value(MetricSpec, labels, []),
+    %% Convert to Prometheus format
+    Metrics = [create_summary_metric(LabelKeys, LabelValues, Count, Sum, Quantiles)
+               || {LabelValues, {Count, Sum, Quantiles}} <- Values],
+    %% Create and send the metric family
+    MF = prometheus_model_helpers:create_mf(Name, Help, summary, Metrics),
+    Callback(MF).
 
-sliding_window_metric_name(Name) -> Name.
+get_spec_value(undefined, _Key, Default) -> Default;
+get_spec_value(Spec, Key, Default) -> proplists:get_value(Key, Spec, Default).
 
 create_summary_metric(LabelKeys, LabelValues, Count, Sum, Quantiles) ->
     %% Convert label keys and values to label pairs format

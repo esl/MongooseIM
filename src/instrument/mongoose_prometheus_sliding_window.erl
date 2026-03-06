@@ -21,7 +21,7 @@
          value/2,
          values/1,
          remove/2,
-         get_all_metric_names/0,
+         get_all_metrics/0,
          get_metric_spec/1]).
 
 -define(METRICS_TABLE, mongoose_prometheus_sliding_window_metrics).
@@ -73,7 +73,7 @@ default_bound() -> 1260.
 %% gen_server
 
 init(_Args) ->
-    EtsOpts = [named_table, set, public, {read_concurrency, true}, {write_concurrency, true}],
+    EtsOpts = [named_table, set, public, {read_concurrency, true}, {write_concurrency, auto}],
     ets:new(?METRICS_TABLE, [{keypos, #metric.name} | EtsOpts]),
     ets:new(?DDSKERL_TABLE, EtsOpts),
     {ok, TimerRef} = timer:send_interval(window_step_ms(), rotate),
@@ -165,9 +165,12 @@ remove(Name, LabelValues) ->
             ets:insert(?METRICS_TABLE, Metric#metric{states = States1})
     end.
     
--spec get_all_metric_names() -> [name()].
-get_all_metric_names() ->
-    ets:foldl(fun(#metric{name = Name}, Acc) -> [Name | Acc] end,
+%% -spec get_all_metrics() -> [{name(), #{label_values() => metric_state()}}].
+get_all_metrics() ->
+    ets:foldl(fun(#metric{name = Name, states = States}, Acc) ->
+                  Values = [{LabelValues, get_state_value(State)} || LabelValues := State <- States],
+                  [{Name, Values} | Acc]
+              end,
              [],
              ?METRICS_TABLE).
 
