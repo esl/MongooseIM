@@ -90,6 +90,10 @@
     username = "username"
     password = "password"
   [[modules.mod_extdisco.service]]
+    type = "turns"
+    host = "192.168.0.1"
+    secret = "some secret"
+  [[modules.mod_extdisco.service]]
     type = "turn"
     host = "192.168.0.1"
 
