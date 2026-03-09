@@ -414,7 +414,7 @@ component_backend(_Config) ->
     ?cfg(component_backend, mnesia, #{}), % default
     ?cfg(component_backend, mnesia, #{<<"general">> => #{<<"component_backend">> => <<"mnesia">>}}),
     ?cfg(component_backend, cets, #{<<"general">> => #{<<"component_backend">> => <<"cets">>},
-                                      <<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}}),
+                                    <<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}}),
     ?err(#{<<"general">> => #{<<"component_backend">> => <<"amnesia">>}}).
 
 s2s_backend(_Config) ->
