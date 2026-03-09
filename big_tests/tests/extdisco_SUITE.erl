@@ -24,6 +24,7 @@
 -import(domain_helper, [domain/0, host_type/0]).
 
 -define(NS_EXTDISCO, <<"urn:xmpp:extdisco:2">>).
+-define(TTL, 100).
 
 -compile([export_all, nowarn_export_all]).
 
@@ -55,6 +56,7 @@ tests() ->
      external_services_configured_only_matching_by_type_returned,
      external_services_configured_no_matching_services_no_returned,
      external_services_configured_credentials_returned,
+     external_services_generated_credentials_returned,
      external_services_configured_no_matching_credentials_no_returned,
      external_services_configured_no_matching_credentials_type_no_returned,
      external_services_configured_incorrect_request_no_returned].
@@ -67,7 +69,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(NewConfig).
 
 init_per_group(extdisco_configured, Config) ->
-    ExternalServices = [stun_service()],
+    ExternalServices = [stun_service(), turn_service()],
     set_external_services(ExternalServices, Config);
 init_per_group(multiple_extdisco_configured, Config) ->
     ExternalServices = [stun_service(), stun_service(), turn_service()],
@@ -228,6 +230,30 @@ external_services_configured_credentials_returned(Config) ->
     end,
     escalus:fresh_story(Config, [{alice, 1}], Test).
 
+external_services_generated_credentials_returned(Config) ->
+    % Given external service discovery is configured with secrets
+    Test = fun(Alice) ->
+
+        % When requesting for credentials of external service of given type
+        % and specified host
+        Type = <<"turn">>,
+        Host = <<"2.2.2.2">>,
+        Iq = request_external_services_credentials(domain(), Type, Host),
+        escalus_client:send(Alice, Iq),
+
+        % Then the list of external services of the specified type and host
+        % is returned together with STUN/TURN login credentials
+        Result = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, [Iq], Result),
+        ?assertEqual(true, has_subelement_with_ns(Result, <<"credentials">>, ?NS_EXTDISCO)),
+        Services = get_service_element(Result),
+        ?assertNotEqual([], Services),
+        GeneratedElements = [~"expires" | supported_elements()],
+        [services_are_returned(Service, GeneratedElements) || Service <- Services],
+        [verify_expiration_ts_and_credentials(Service, ?TTL, Alice) || Service <- Services]
+    end,
+    escalus:fresh_story(Config, [{alice, 1}], Test).
+
 external_services_configured_no_matching_credentials_no_returned(Config) ->
     % Given external service discovery is configured with credentials
     Test = fun(Alice) ->
@@ -309,8 +335,8 @@ turn_service() ->
       host => <<"2.2.2.2">>,
       port => 3478,
       transport => <<"tcp">>,
-      username => <<"username">>,
-      password => <<"secret">>}.
+      ttl => ?TTL,
+      secret => <<"my super secret">>}.
 
 set_external_services(Services, Config) ->
     Module = [{mod_extdisco, #{iqdisc => no_queue, service => Services}}],
@@ -363,14 +389,17 @@ supported_elements() ->
     required_elements() ++ [<<"port">>, <<"username">>, <<"password">>].
 
 all_services_are_returned(Service) ->
-    [?assertEqual(true, has_subelement(Service, E)) || E <- supported_elements()].
+    services_are_returned(Service, supported_elements()).
 
 required_services_are_returned(Service) ->
-    [?assertEqual(true, has_subelement(Service, E)) || E <- required_elements()].
+    services_are_returned(Service, required_elements()).
 
 all_services_are_returned(Service, Type) ->
     ?assertEqual(true, has_attr_with_value(Service, <<"type">>, Type)),
     all_services_are_returned(Service).
+
+services_are_returned(Service, Subelements) ->
+    [?assertEqual(true, has_subelement(Service, E)) || E <- Subelements].
 
 no_services_are_returned(Service) ->
     [?assertEqual(false, has_subelement(Service, E)) || E <- supported_elements()].
@@ -383,3 +412,13 @@ has_attr_with_value(Stanza, Element, Value) ->
 
 has_subelement_with_ns(Stanza, Element, NS) ->
     [] =/= exml_query:subelements_with_name_and_ns(Stanza, Element, NS).
+
+verify_expiration_ts_and_credentials(Service, Ttl, Alice) ->
+    ExpirationTs = binary_to_list(exml_query:attr(Service, ~"expires")),
+    ExpirationTsUnixTime = calendar:rfc3339_to_system_time(ExpirationTs),
+    AliceJID = escalus_client:short_jid(Alice),
+    ExpectedUsername = <<(integer_to_binary(ExpirationTsUnixTime))/binary, ":", AliceJID/binary>>,
+    ?assertEqual(ExpectedUsername, exml_query:attr(Service, ~"username")),
+    ExpectedExpirationTs = erlang:system_time(second) + Ttl,
+    ?assert((ExpectedExpirationTs >= ExpirationTsUnixTime) andalso
+            (ExpectedExpirationTs - ExpirationTsUnixTime < 2)).
