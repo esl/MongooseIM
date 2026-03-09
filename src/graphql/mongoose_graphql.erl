@@ -203,6 +203,7 @@ admin_mapping_rules() ->
         'VcardAdminMutation' => mongoose_graphql_vcard_admin_mutation,
         'VcardAdminQuery' => mongoose_graphql_vcard_admin_query,
         'HttpUploadAdminMutation' => mongoose_graphql_http_upload_admin_mutation,
+        'ExternalServicesAdminMutation' => mongoose_graphql_external_services_admin_mutation,
         'RosterAdminMutation' => mongoose_graphql_roster_admin_mutation,
         'Domain' => mongoose_graphql_domain,
         'DomainWithType' => mongoose_graphql_domain,

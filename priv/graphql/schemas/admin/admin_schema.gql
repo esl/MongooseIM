@@ -74,6 +74,11 @@ type AdminMutation @protected{
   private: PrivateAdminMutation
   "Generating upload/download URLs for the files"
   httpUpload: HttpUploadAdminMutation
+  """
+  Retrieving information about external services,
+  including the generation of temporary credentials.
+  """
+  externalServices: ExternalServicesAdminMutation
   "Deleting old Offline messages"
   offline: OfflineAdminMutation
   "OAUTH user token management"

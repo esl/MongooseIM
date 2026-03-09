@@ -24,6 +24,8 @@
 
 -export([process_iq/5, validate_service_config/1]).
 
+-export([get_external_services/2, get_external_services/3]).
+
 -define(DEFAULT_TTL, 3600). %% in seconds
 
 -ignore_xref([process_iq/5]).
@@ -92,15 +94,15 @@ process_iq(Acc, From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     User = jid:to_bare_binary(From),
     {ResponseType, Response} = case request_type(SubEl) of
         all_services ->
-            RequestedServices = get_external_services(HostType),
-            {result, create_iq_response(RequestedServices, User)};
+            RequestedServices = get_external_services(HostType, User),
+            {result, create_iq_response(RequestedServices)};
         {credentials, {Type, Host}} ->
-            Services = get_external_services(HostType, Type),
+            Services = get_external_services(HostType, Type, User),
             RequestedServices = lists:filter(fun(#{host := H}) -> H =:= Host end, Services),
-            {result, create_iq_response_credentials(RequestedServices, User)};
+            {result, create_iq_response_credentials(RequestedServices)};
         {selected_services, Type} ->
-            RequestedServices = get_external_services(HostType, Type),
-            {result, create_iq_response_services(RequestedServices, User, Type)};
+            RequestedServices = get_external_services(HostType, Type, User),
+            {result, create_iq_response_services(RequestedServices, Type)};
         _ ->
             {error, [mongoose_xmpp_errors:bad_request()]}
     end,
@@ -128,47 +130,53 @@ request_type(#xmlel{name = <<"credentials">>, children = [Children]}) ->
 request_type(_) ->
     {error, bad_request}.
 
-create_iq_response(Services, User) ->
+create_iq_response(Services) ->
     #xmlel{name = <<"services">>,
            attrs = #{<<"xmlns">> => ?NS_EXTDISCO},
-           children = prepare_services_element(Services, User)}.
+           children = prepare_services_element(Services)}.
 
-create_iq_response_services(Services, User, Type) ->
+create_iq_response_services(Services, Type) ->
     #xmlel{name = <<"services">>,
            attrs = #{<<"xmlns">> => ?NS_EXTDISCO,
                      <<"type">> => atom_to_binary(Type, utf8)},
-           children = prepare_services_element(Services, User)}.
+           children = prepare_services_element(Services)}.
 
-create_iq_response_credentials(Services, User) ->
+create_iq_response_credentials(Services) ->
     #xmlel{name = <<"credentials">>,
            attrs = #{<<"xmlns">> => ?NS_EXTDISCO},
-           children = prepare_services_element(Services, User)}.
+           children = prepare_services_element(Services)}.
 
-get_external_services(HostType) ->
+get_external_services(HostType)->
     gen_mod:get_module_opt(HostType, ?MODULE, service).
 
-get_external_services(HostType, Type) ->
-    [Service || Service = #{type := T} <- get_external_services(HostType), T =:= Type].
+get_external_services(HostType, User) ->
+    [maybe_generate_credentials(Service, User)
+        || Service <- get_external_services(HostType)].
+get_external_services(HostType, Type, User) ->
+    [maybe_generate_credentials(Service, User)
+        || Service = #{type := T} <- get_external_services(HostType), T =:= Type].
 
-prepare_services_element(Services, User) ->
-    [#xmlel{name = <<"service">>, attrs = make_attrs(Service, User)} || Service <- Services].
+prepare_services_element(Services) ->
+    [#xmlel{name = <<"service">>, attrs = make_attrs(Service)} || Service <- Services].
 
-make_attrs(#{secret := Secret, ttl := TTL} = Service, User) ->
+maybe_generate_credentials(#{secret := Secret, ttl := TTL} = Service, User) ->
     ExpirationTime = erlang:system_time(second) + TTL,
     {TempUsername, TempPassword} = generate_credentials(User, Secret, ExpirationTime),
-    NewService = maps:merge(
-        maps:without([secret, ttl], Service),
-        #{expires => ExpirationTime, username => TempUsername, password => TempPassword}),
-    make_attrs(NewService, User);
-make_attrs(Service, _) ->
+    Credentials = #{expires => ExpirationTime,
+                    username => TempUsername,
+                    password => TempPassword},
+    NewService = maps:merge(maps:without([secret, ttl], Service), Credentials),
+    NewService;
+maybe_generate_credentials(Service, _) ->
+    Service.
+
+make_attrs(Service) ->
     #{atom_to_binary(Key) => format_value(Key, Value) || Key := Value <- Service}.
 
 format_value(port, Port) -> integer_to_binary(Port);
 format_value(type, Type) -> atom_to_binary(Type);
 format_value(expires, UnixSeconds) ->
-    {{Y,M,D},{H,Min,S}} = calendar:system_time_to_universal_time(UnixSeconds, second),
-    Chars = io_lib:format("~4..0B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0BZ", [Y,M,D,H,Min,S]),
-    list_to_binary(lists:flatten(Chars));
+    list_to_binary(calendar:system_time_to_rfc3339(UnixSeconds, [{offset, "Z"}]));
 format_value(_, Value) when is_binary(Value) -> Value.
 
 %% see https://datatracker.ietf.org/doc/html/draft-uberti-behave-turn-rest-00#section-2.2
