@@ -68,7 +68,8 @@ count_blocked_users(HostType, Domain) ->
     {selected, [{Count}]} = mongoose_rdbms:execute_successfully(HostType, blocklist_count_users, [Domain]),
     Count.
 
--spec list_blocked_users(mongooseim:host_type(), jid:lserver(), mod_blocklist_backend:list_opts()) -> [{jid:luser(), mod_blocklist:reason()}].
+-spec list_blocked_users(mongooseim:host_type(), jid:lserver(), mod_blocklist_backend:list_opts()) ->
+    [{jid:luser(), mod_blocklist:reason()}].
 list_blocked_users(HostType, Domain, Opts) ->
     {selected, Rows} = select_list_blocked_users(HostType, Domain, Opts),
     [{LUser, decode_reason(Reason)} || {LUser, Reason} <- Rows].

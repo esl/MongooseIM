@@ -33,7 +33,8 @@
 
 -callback count_blocked_users(mongooseim:host_type(), jid:lserver()) -> non_neg_integer().
 
--callback list_blocked_users(mongooseim:host_type(), jid:lserver(), list_opts()) -> [{jid:luser(), mod_blocklist:reason()}].
+-callback list_blocked_users(mongooseim:host_type(), jid:lserver(), list_opts()) ->
+    [{jid:luser(), mod_blocklist:reason()}].
 
 -callback clear_all(mongooseim:host_type()) -> ok.
 
