@@ -3,7 +3,14 @@
 -behaviour(mod_blocklist_backend).
 
 %% mod_blocklist_backend callbacks
--export([init/2, get_block/3, upsert_block/4, remove_block/3, remove_domain/2]).
+-export([init/2,
+         get_block/3,
+         upsert_block/4,
+         remove_block/3,
+         remove_domain/2,
+         count_blocked_users/2,
+         list_blocked_users/3,
+         clear_all/1]).
 
 %% mod_blocklist_backend
 
@@ -15,10 +22,20 @@ init(HostType, _Opts) ->
                           <<"DELETE FROM blocklist WHERE luser = ? AND lserver = ?">>),
     mongoose_rdbms:prepare(blocklist_remove_domain, blocklist, [lserver],
                           <<"DELETE FROM blocklist WHERE lserver = ?">>),
+    mongoose_rdbms:prepare(blocklist_count_users, blocklist, [lserver],
+                          <<"SELECT COUNT(*) FROM blocklist WHERE lserver = ?">>),
+    mongoose_rdbms:prepare(blocklist_list_users, blocklist, [lserver],
+                          <<"SELECT luser, reason FROM blocklist WHERE lserver = ? ORDER BY luser">>),
+    LimitOffset = rdbms_queries:limit_offset(),
+    mongoose_rdbms:prepare(blocklist_list_users_range, blocklist, [lserver, limit, offset],
+                          <<"SELECT luser, reason FROM blocklist WHERE lserver = ? ORDER BY luser ",
+                            LimitOffset/binary>>),
     rdbms_queries:prepare_upsert(HostType, blocklist_upsert, blocklist,
                                  [<<"luser">>, <<"lserver">>, <<"reason">>],
                                  [<<"reason">>],
                                  [<<"luser">>, <<"lserver">>]),
+    mongoose_rdbms:prepare(blocklist_clear_all, blocklist, [],
+                          <<"DELETE FROM blocklist">>),
     ok.
 
 -spec get_block(mongooseim:host_type(), jid:luser(), jid:lserver()) -> {ok, mod_blocklist:reason()} | not_found.
@@ -46,7 +63,30 @@ remove_domain(HostType, Domain) ->
     {updated, _} = mongoose_rdbms:execute_successfully(HostType, blocklist_remove_domain, [Domain]),
     ok.
 
+-spec count_blocked_users(mongooseim:host_type(), jid:lserver()) -> non_neg_integer().
+count_blocked_users(HostType, Domain) ->
+    {selected, [{Count}]} = mongoose_rdbms:execute_successfully(HostType, blocklist_count_users, [Domain]),
+    Count.
+
+-spec list_blocked_users(mongooseim:host_type(), jid:lserver(), mod_blocklist_backend:list_opts()) -> [{jid:luser(), mod_blocklist:reason()}].
+list_blocked_users(HostType, Domain, Opts) ->
+    {selected, Rows} = select_list_blocked_users(HostType, Domain, Opts),
+    [{LUser, decode_reason(Reason)} || {LUser, Reason} <- Rows].
+
+select_list_blocked_users(HostType, Domain, #{limit := Limit, offset := Offset}) ->
+    mongoose_rdbms:execute_successfully(HostType, blocklist_list_users_range, [Domain, Limit, Offset]);
+select_list_blocked_users(HostType, Domain, _Opts) ->
+    mongoose_rdbms:execute_successfully(HostType, blocklist_list_users, [Domain]).
+
+-spec clear_all(mongooseim:host_type()) -> ok.
+clear_all(HostType) ->
+    {updated, _} = mongoose_rdbms:execute_successfully(HostType, blocklist_clear_all, []),
+    ok.
+
 %% Helpers
 
 encode_reason(undefined) -> null;
 encode_reason(Reason) -> Reason.
+
+decode_reason(null) -> undefined;
+decode_reason(Reason) -> Reason.
