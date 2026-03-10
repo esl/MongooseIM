@@ -2,7 +2,6 @@
 
 -behaviour(mongoose_graphql).
 
-%% mongoose_graphql callbacks
 -export([execute/4]).
 
 -include("jlib.hrl").

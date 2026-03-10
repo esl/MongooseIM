@@ -200,15 +200,6 @@ admin_user_count_unknown_domain(Config) ->
     Res = admin_user_count(<<"unknown-domain">>, Config),
     ?assertEqual(<<"domain_not_found">>, get_err_code(Res)).
 
-user_removal(Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
-    AliceJid = escalus_users:get_jid(Config1, alice),
-    admin_add_user(AliceJid, <<"Spam">>, Config1),
-    Spec = escalus_users:get_userspec(Config1, alice),
-    escalus_users:delete_users(Config1, [{alice, Spec}]),
-    Res = admin_remove_user(AliceJid, Config1),
-    ?assertEqual(false, get_ok_value([data, blocklist, removeUser], Res)).
-
 admin_list_blocked_users(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceJid = escalus_users:get_jid(Config1, alice),
@@ -246,6 +237,15 @@ admin_list_blocked_users_pagination(Config) ->
 admin_list_blocked_users_unknown_domain(Config) ->
     Res = admin_list_blocked_users(<<"unknown-domain">>, Config),
     ?assertEqual(<<"domain_not_found">>, get_err_code(Res)).
+
+user_removal(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_users:get_jid(Config1, alice),
+    admin_add_user(AliceJid, <<"Spam">>, Config1),
+    Spec = escalus_users:get_userspec(Config1, alice),
+    escalus_users:delete_users(Config1, [{alice, Spec}]),
+    Res = admin_remove_user(AliceJid, Config1),
+    ?assertEqual(false, get_ok_value([data, blocklist, removeUser], Res)).
 
 admin_admin_user_not_configured(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
