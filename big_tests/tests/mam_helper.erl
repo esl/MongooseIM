@@ -754,21 +754,6 @@ wait_for_archive_size(Server, Username, ExpectedSize) ->
                              name => archive_size
                             }).
 
-wait_for_archive_size_with_host_type(HostType, User, ExpectedSize) ->
-    wait_for_archive_size_with_host_type(
-      HostType,
-      escalus_utils:get_server(User),
-      escalus_utils:jid_to_lower(escalus_utils:get_username(User)),
-      ExpectedSize).
-
-wait_for_archive_size_with_host_type(HostType, Server, Username, ExpectedSize) ->
-    F = fun() -> archive_size_with_host_type(HostType, Server, Username) end,
-    wait_helper:wait_until(F, ExpectedSize,
-                           #{
-                             time_left => timer:seconds(20),
-                             name => archive_size_with_host_type
-                            }).
-
 wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
     try wait_helper:wait_until(fun() -> archive_size(Server, Username) end,
                                ExpectedSize,
