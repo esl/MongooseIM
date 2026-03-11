@@ -47,7 +47,7 @@ config_spec() ->
     #section{}.
 
 hooks() ->
-    [{c2s_debug, global, fun ?MODULE:trace_traffic/3, #{}, 50}].
+    [{c2s_debug_traffic, global, fun ?MODULE:trace_traffic/3, #{}, 50}].
 
 -spec register(pos_integer()) -> ok.
 register(Limit) ->
