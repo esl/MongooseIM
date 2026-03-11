@@ -976,83 +976,49 @@ process_shapers(Items) ->
 %% Called from mongoose_config_parser after module/service dependency resolution.
 -spec validate_backend_databases([{mongoose_config:key(), mongoose_config:value()}]) -> ok.
 validate_backend_databases(Items) ->
-    InternalDBs = proplists:get_value(internal_databases, Items, #{}),
-    Backends = collect_backends(Items),
-    Missing = lists:filtermap(
-                fun({Source, Key, Backend, HT}) ->
-                        case backend_to_internal_db(Backend) of
-                            undefined -> false;
-                            DB -> case maps:is_key(DB, InternalDBs) of
-                                      true -> false;
-                                      false -> {true, #{source => Source, option => Key,
-                                                        backend => Backend, host_type => HT,
-                                                        required_db => DB}}
-                                  end
-                        end
-                end, Backends),
-    case Missing of
+    InternalDBs = maps:keys(proplists:get_value(internal_databases, Items, #{})),
+    Backends = lists:flatmap(fun collect_backends/1, Items),
+    DisabledDBs = [cets, mnesia] -- InternalDBs,
+    case lists:filtermap(fun(Backend) -> filter_backend(Backend, DisabledDBs) end, Backends) of
         [] ->
             ok;
-        _ ->
-            error({config_error,
-                   "Some backends require internal databases that are not configured",
+        MissingInfos ->
+            error({config_error, "Some backends require internal databases that are not configured",
                    [#{reason => backend_requires_internal_database,
                       class => error,
                       what => backend_requires_internal_database,
                       text => "Add the required databases to the 'internal_databases' section.",
-                      missing => Missing}]})
+                      missing => MissingInfos}]})
     end.
 
-collect_backends(Items) ->
-    collect_module_backends(Items) ++
-    collect_service_backends(Items) ++
-    collect_global_backends(Items) ++
-    collect_auth_backends(Items).
-
-collect_module_backends(Items) ->
+collect_backends({{modules, HT}, ModulesMap}) ->
     lists:flatmap(
-      fun({{modules, HT}, ModulesMap}) ->
-              lists:flatmap(
-                fun({Mod, Opts}) ->
-                        [{Mod, Key, V, HT} || Key <- gen_mod:backend_opts(Mod),
-                                               V <- [maps:get(Key, Opts, undefined)],
-                                               V =/= undefined]
-                end, maps:to_list(ModulesMap));
-         (_) -> []
-      end, Items).
-
-collect_service_backends(Items) ->
-    ServicesMap = proplists:get_value(services, Items, #{}),
+      fun({Mod, Opts}) ->
+              BackendOpts = maps:with(gen_mod:backend_opts(Mod), Opts),
+              [{Mod, Key, Val, HT} || Key := Val <- BackendOpts]
+      end, maps:to_list(ModulesMap));
+collect_backends({services, ServicesMap}) ->
     lists:filtermap(
-      fun({Service, Opts}) ->
-              case maps:get(backend, Opts, undefined) of
-                  undefined -> false;
-                  V -> {true, {Service, backend, V, global}}
-              end
-      end, maps:to_list(ServicesMap)).
-
-collect_global_backends(Items) ->
-    lists:filtermap(
-      fun({Key, Value}) when Key =:= sm_backend;
-                              Key =:= component_backend;
-                              Key =:= s2s_backend ->
-              {true, {general, Key, Value, global}};
+      fun({Service, #{backend := Val}}) -> {true, {Service, backend, Val, global}};
          (_) -> false
-      end, Items).
-
-%% Only anonymous auth has a backend option. Skip mnesia because
-%% ejabberd_auth_anonymous_mnesia creates its own RAM-copy tables
-%% and works without [internal_databases.mnesia]
-collect_auth_backends(Items) ->
+      end, maps:to_list(ServicesMap));
+collect_backends({Key, Value}) when Key =:= sm_backend;
+                                    Key =:= component_backend;
+                                    Key =:= s2s_backend ->
+    [{general, Key, Value, global}];
+collect_backends({{auth, HT}, AuthOpts}) ->
     lists:filtermap(
-      fun({{auth, HT}, #{anonymous := #{backend := Backend}}}) when Backend =/= mnesia ->
-              {true, {anonymous, backend, Backend, HT}};
+      fun({Method, #{backend := Val}}) -> {true, {Method, backend, Val, HT}};
          (_) -> false
-      end, Items).
+      end, maps:to_list(maps:with(all_auth_methods(), AuthOpts)));
+collect_backends(_) ->
+    [].
 
-backend_to_internal_db(mnesia) -> mnesia;
-backend_to_internal_db(cets) -> cets;
-backend_to_internal_db(_) -> undefined.
+filter_backend({Source, Key, Backend, HT}, DisabledDBs) ->
+    maybe
+        true ?= lists:member(Backend, DisabledDBs),
+        {true,  #{source => Source, option => Key, backend => Backend, host_type => HT}}
+    end.
 
 unsupported_auth_methods(KVs) ->
     [Method || Method <- extract_auth_methods(KVs),
