@@ -24,15 +24,10 @@
 -spec start(mongoose_service:options()) -> ok.
 start(_Opts) ->
     gen_hook:add_handlers(hooks()),
-    case whereis(?MODULE) of
-        undefined ->
-            Traffic = {service_traffic,
-                         {gen_server, start_link, [?MODULE, [], []]},
-                         permanent, 1000, supervisor, [?MODULE]},
-            ejabberd_sup:start_child(Traffic);
-        _ ->
-            ok
-    end,
+    Traffic = {service_traffic,
+               {gen_server, start_link, [?MODULE, [], []]},
+               permanent, 1000, supervisor, [?MODULE]},
+    {ok, _} = ejabberd_sup:start_child(Traffic),
     ok.
 
 -spec stop() -> any().
@@ -76,8 +71,6 @@ init([]) ->
 handle_call({register, {Pid, Limit}}, _From, State) ->
     monitor(process, Pid),
     {reply, ok, register_pid(Pid, Limit, State)};
-handle_call({unregister, Pid}, _From, State) ->
-    {reply, ok, unregister_pid(Pid, State)};
 handle_call(_, _, State) ->
     {reply, ok, State}.
 
