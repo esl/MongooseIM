@@ -1,6 +1,47 @@
 # [MongooseIM 6.5.0](https://github.com/esl/MongooseIM/releases/tag/6.5.0) - 2025-12-08
 
 ## Highlights
+- MIM can now verify legitimacy of every message by sending a GraphQL query to an external service. This may be used to prevent spam, phishing and other types of abuse.
+- If malicious activity is detected administrators can blacklist perpetrators.
+- The deprecated REST API was finally removed
+- New GraphQL queries provide an insight into host types, modules and services configuration
+
+## Added
+- automatic reconnection of RabbitMQ workers (#4591)
+- GraphQL queries to retrieve
+  - all domains (#4597, $4606)
+  - host types with modules an their configuration (#4618)
+  - global services and internal databases (#4618)
+- hard limit on message queue length in outgoing pools (#4599)
+- pagination support to GraphQL listUsers query (#4607)
+- enabled collection of metrics for Prometheus (#4609) ???
+- notification to client when a conversation in inbox is un-archived (#4610)
+- support for dynamic domains in event pusher (#4629)
+- support for SASL Channel-Binding Type Capability - XEP-0440 (#4631)
+- module for assigning stable and unique ids to stanzas - XEP-0359 (#4633)
+- mod_blocklist: an administration tool for banning users from the server (#4645)
+- Hook handler to check whether a message can be delivered by calling an external service #(4651, #4658)
+
+## Changed
+
+## Fixed
+- Allowing stanzas from the server to bypass privacy lists (#4600)
+- Full-text seach is now 100% compliant with XEP-0431 (#4627)
+- Fix MIM crash when global RabbitMQ pool was configured and Exometer was enabled (#4648)
+
+## Removed
+- support for MS SQL and ODBC (#4603)
+- REST API, now replaced by GraphQL (#4635)
+
+## Other
+- refactor implementation of BOSH and websockets connections (#4623)
+- tutorial explaining basics of using audio/video with help of MongooseIM (#4650)
+- mod_jingle_sip is now marked as deprecated and will be removed in the next release
+
+
+# [MongooseIM 6.5.0](https://github.com/esl/MongooseIM/releases/tag/6.5.0) - 2025-12-08
+
+## Highlights
 - Enhanced and enriched implementation of `mod_event_pusher_rabbit`
 - Enabled TLS support for Redis and RabbitMQ connections
 - Support for XEP-0402 PEP Native Bookmarks
