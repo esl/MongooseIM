@@ -65,8 +65,7 @@ remove_domain(HostType, Domain) ->
 
 -spec count_blocked_users(mongooseim:host_type(), jid:lserver()) -> non_neg_integer().
 count_blocked_users(HostType, Domain) ->
-    {selected, [{Count}]} = mongoose_rdbms:execute_successfully(HostType, blocklist_count_users, [Domain]),
-    Count.
+    mongoose_rdbms:selected_to_integer(mongoose_rdbms:execute_successfully(HostType, blocklist_count_users, [Domain])).
 
 -spec list_blocked_users(mongooseim:host_type(), jid:lserver(), mod_blocklist_backend:list_opts()) ->
     [{jid:luser(), mod_blocklist:reason()}].
@@ -76,6 +75,8 @@ list_blocked_users(HostType, Domain, Opts) ->
 
 select_list_blocked_users(HostType, Domain, #{limit := Limit, offset := Offset}) ->
     mongoose_rdbms:execute_successfully(HostType, blocklist_list_users_range, [Domain, Limit, Offset]);
+select_list_blocked_users(HostType, Domain, #{limit := Limit}) ->
+    mongoose_rdbms:execute_successfully(HostType, blocklist_list_users_range, [Domain, Limit, 0]);
 select_list_blocked_users(HostType, Domain, _Opts) ->
     mongoose_rdbms:execute_successfully(HostType, blocklist_list_users, [Domain]).
 

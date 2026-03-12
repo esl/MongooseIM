@@ -225,7 +225,7 @@ admin_list_blocked_users_pagination(Config) ->
     ResAll = admin_list_blocked_users(domain(), Config1),
     [_, _] = AllUsers = get_ok_value([data, blocklist, listBlockedUsers], ResAll),
     
-    ResP1 = admin_list_blocked_users_paged(domain(), 1, 0, Config1),
+    ResP1 = admin_list_blocked_users_paged(domain(), 1, undefined, Config1),
     UsersP1 = get_ok_value([data, blocklist, listBlockedUsers], ResP1),
     ResP2 = admin_list_blocked_users_paged(domain(), 1, 1, Config1),
     UsersP2 = get_ok_value([data, blocklist, listBlockedUsers], ResP2),
@@ -322,8 +322,12 @@ admin_user_count(Domain, Config) ->
     Vars = #{domain => Domain},
     execute_command(<<"blocklist">>, <<"userCount">>, Vars, Config).
 
-admin_list_blocked_users_paged(Domain, Limit, Index, Config) ->
-    Vars = #{domain => Domain, limit => Limit, index => Index},
+admin_list_blocked_users_paged(Domain, Limit, MaybeIndex, Config) ->
+    Vars0 = #{domain => Domain, limit => Limit},
+    Vars = case MaybeIndex of
+               undefined -> Vars0;
+               Index -> Vars0#{index => Index}
+           end,
     execute_command(<<"blocklist">>, <<"listBlockedUsers">>, Vars, Config).
 
 jid_prep(JID) ->
