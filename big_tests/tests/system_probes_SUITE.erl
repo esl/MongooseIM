@@ -105,7 +105,7 @@ check_mnesia_info(#{db_nodes := DbNodes, running_db_nodes := RunningDbNodes}) ->
     DbNodes >= RunningDbNodes andalso RunningDbNodes >= 1.
 
 system_up_time(_Config) ->
-    #{seconds := UpTime} = rpc(mim(), mongoose_system_probes, probe, [system_up_time, #{}]),
+    #{seconds := UpTime} = rpc(mim(), mongoose_system_probes, probe, [system_up_time, #{}, #{}]),
     ?assert(UpTime > 0),
 
     % Uptime should increase second by second, but probing might cause skipping a value

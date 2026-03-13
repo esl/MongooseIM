@@ -61,16 +61,21 @@ init_per_suite(Config) ->
                   receive stop -> ok end
           end),
     receive ready -> ok end,
-    Config.
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
 end_per_suite(Config) ->
+    async_helper:stop_all(Config),
     meck:unload(wpool),
     whereis(test_helper) ! stop,
     mongoose_config:erase_opts(),
     Config.
 
 opts() ->
-    #{hosts => [<<"a.com">>, <<"b.com">>, <<"c.eu">>], host_types => []}.
+    #{
+        hosts => [<<"a.com">>, <<"b.com">>, <<"c.eu">>],
+        host_types => [],
+        instrumentation => config_parser_helper:default_config([instrumentation])
+    }.
 
 init_per_testcase(_Case, Config) ->
     cleanup_pools(),

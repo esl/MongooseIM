@@ -43,7 +43,9 @@
                     loglevel => logger:level(),
                     probe => probe_config()}.
 -type probe_config() :: #{module := module(),
-                          interval => pos_integer()}.
+                          interval => pos_integer(),
+                          extra => extra()}.
+-type extra() :: map().
 -type handler_key() :: atom(). % key in the `instrumentation' section of the config file
 -type handler_fun() :: fun((event_name(), labels(), config(), measurements()) -> any()).
 -type handlers() :: {[handler_fun()], config()}.
@@ -61,7 +63,8 @@
 -optional_callbacks([config_spec/0, start/1, stop/1]).
 
 -export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
-              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0]).
+              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0,
+              extra/0]).
 
 %% API
 

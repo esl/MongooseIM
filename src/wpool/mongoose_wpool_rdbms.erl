@@ -5,7 +5,7 @@
 -include("mongoose.hrl").
 
 -export([init/0, start/4, stop/2]).
--export([probe/2, instrumentation/2]).
+-export([probe/3, instrumentation/2]).
 
 %% --------------------------------------------------------------
 %% mongoose_wpool callbacks
@@ -51,11 +51,12 @@ instrumentation(HostType, Tag) ->
     [{wpool_rdbms_stats, #{host_type => HostType, pool_tag => Tag},
       #{probe => #{module => ?MODULE}, metrics => gauges([workers | inet_stats()])}}].
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(),
+            mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
-probe(wpool_global_rdbms_stats, #{pool_tag := Tag} = _Labels) ->
+probe(wpool_global_rdbms_stats, #{pool_tag := Tag} = _Labels, _Extra) ->
     get_rdbms_data_stats(global, Tag);
-probe(wpool_rdbms_stats, #{host_type := HostType, pool_tag := Tag} = _Labels) ->
+probe(wpool_rdbms_stats, #{host_type := HostType, pool_tag := Tag} = _Labels, _Extra) ->
     get_rdbms_data_stats(HostType, Tag).
 
 get_rdbms_data_stats(HostType, Tag) ->

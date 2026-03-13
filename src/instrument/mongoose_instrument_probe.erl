@@ -1,22 +1,26 @@
 -module(mongoose_instrument_probe).
 
--export([start_probe_timer/3, call/3]).
+-export([start_probe_timer/3, call/4]).
 
--callback probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-callback probe(mongoose_instrument:event_name(), mongoose_instrument:labels(),
+                mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
 
--ignore_xref([call/3]).
+-optional_callbacks([probe/3]).
+
+-ignore_xref([call/4]).
 
 -spec start_probe_timer(mongoose_instrument:event_name(),
                         mongoose_instrument:labels(),
                         mongoose_instrument:probe_config()) -> timer:tref().
 start_probe_timer(EventName, Labels, #{module := Module} = ProbeConfig) ->
     Interval = timer:seconds(get_probe_interval(ProbeConfig)),
-    {ok, TRef} = timer:apply_repeatedly(Interval, ?MODULE, call, [Module, EventName, Labels]),
+    Extra = maps:get(extra, ProbeConfig, #{}),
+    {ok, TRef} = timer:apply_repeatedly(Interval, ?MODULE, call, [Module, EventName, Labels, Extra]),
     TRef.
 
-call(ProbeMod, EventName, Labels) ->
-    case safely:apply_and_log(ProbeMod, probe, [EventName, Labels],
+call(ProbeMod, EventName, Labels, Extra) ->
+    case safely:apply_and_log(ProbeMod, probe, [EventName, Labels, Extra],
                               #{what => probe_failed, probe_mod => ProbeMod,
                                 event_name => EventName, labels => Labels}) of
         {exception, _} ->
