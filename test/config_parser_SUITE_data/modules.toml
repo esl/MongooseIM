@@ -20,6 +20,7 @@
 [modules.mod_caps]
   backend = "cets"
   iq_response_timeout = 10000
+  versions = ["v2"]
 
 [modules.mod_carboncopy]
   iqdisc.type = "no_queue"
