@@ -1,39 +1,34 @@
 <!--
     https://xmpp.org/extensions/xep-0115.html#ver-gen-complex
-    Additionally, field and value order is randomized to check sorting.
+    Additionally, order of elements is randomized to check sorting.
 -->
-<iq from='benvolio@capulet.lit/230193'
-    id='disco1'
-    to='juliet@capulet.lit/chamber'
-    type='result'>
-  <query xmlns='http://jabber.org/protocol/disco#info'
-         node='http://psi-im.org#q07IKJEyjvHSyhy//CH0CxmKi8w='>
-    <identity xml:lang='en' category='client' name='Psi 0.11' type='pc'/>
-    <identity xml:lang='el' category='client' name='Ψ 0.11' type='pc'/>
-    <feature var='http://jabber.org/protocol/caps'/>
-    <feature var='http://jabber.org/protocol/disco#info'/>
-    <feature var='http://jabber.org/protocol/disco#items'/>
-    <feature var='http://jabber.org/protocol/muc'/>
-    <x xmlns='jabber:x:data' type='result'>
-      <field var='FORM_TYPE' type='hidden'>
-        <value>urn:xmpp:dataforms:softwareinfo</value>
-      </field>
-      <field var='software_version'>
-        <value>0.11</value>
-      </field>
-      <field var='os'>
-        <value>Mac</value>
-      </field>
-      <field var='ip_version' type='text-multi' >
-        <value>ipv6</value>
-        <value>ipv4</value>
-      </field>
-      <field var='os_version'>
-        <value>10.5.1</value>
-      </field>
-      <field var='software'>
-        <value>Psi</value>
-      </field>
-    </x>
-  </query>
-</iq>
+<query xmlns='http://jabber.org/protocol/disco#info'
+       node='http://psi-im.org#q07IKJEyjvHSyhy//CH0CxmKi8w='>
+  <identity xml:lang='en' category='client' name='Psi 0.11' type='pc'/>
+  <feature var='http://jabber.org/protocol/disco#info'/>
+  <feature var='http://jabber.org/protocol/disco#items'/>
+  <x xmlns='jabber:x:data' type='result'>
+    <field var='FORM_TYPE' type='hidden'>
+      <value>urn:xmpp:dataforms:softwareinfo</value>
+    </field>
+    <field var='software_version'>
+      <value>0.11</value>
+    </field>
+    <field var='os'>
+      <value>Mac</value>
+    </field>
+    <field var='ip_version' type='text-multi' >
+      <value>ipv6</value>
+      <value>ipv4</value>
+    </field>
+    <field var='os_version'>
+      <value>10.5.1</value>
+    </field>
+    <field var='software'>
+      <value>Psi</value>
+    </field>
+  </x>
+  <identity xml:lang='el' category='client' name='Ψ 0.11' type='pc'/>
+  <feature var='http://jabber.org/protocol/caps'/>
+  <feature var='http://jabber.org/protocol/muc'/>
+</query>
