@@ -91,4 +91,5 @@ is_instrumented(mam_muc_set_prefs) -> false;
 is_instrumented(mam_muc_remove_archive) -> false;
 is_instrumented(mam_muc_lookup_messages) -> false;
 is_instrumented(mam_muc_archive_message) -> false;
+is_instrumented(c2s_debug_traffic) -> false;
 is_instrumented(_) -> true.
