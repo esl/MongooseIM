@@ -345,14 +345,14 @@ send_caps_after_login_test(Config) ->
               escalus_story:make_all_clients_friends([Alice, Bob]),
 
               Features = features(NodeNS),
-              Caps = caps_helper:enable_new_caps(Bob, Features),
+              Caps = caps_helper:enable_new_caps(Bob, Features, v1),
               caps_helper:receive_presence_with_caps(Alice, Bob, Caps),
 
               Node = {escalus_utils:get_short_jid(Alice), NodeNS},
               pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
 
               %% Unchanged caps shouldn't trigger notifications
-              caps_helper:enable_caps(Bob, Features),
+              caps_helper:enable_caps(Bob, Features, v1),
               ct:sleep(200),
               escalus_assert:has_no_stanzas(Bob)
         end).
@@ -552,7 +552,7 @@ start_caps_clients(Config, [{UserSpec, Resource}]) ->
 
 exchange_initial_presence(Config, Client, true) ->
     Features = features(proplists:get_value(node_ns, Config)),
-    caps_helper:enable_new_caps(Client, Features);
+    caps_helper:enable_new_caps(Client, Features, v1);
 exchange_initial_presence(_Config, Client, false) ->
     escalus_story:send_initial_presence(Client),
     escalus:assert(is_presence, escalus:wait_for_stanza(Client)).

@@ -11,6 +11,7 @@
 -type feature() :: binary().
 -type host_type() :: binary().
 -type caps() :: exml:element().
+-type version() :: v1 | v2.
 
 check_backend() ->
     case ct_helper:get_internal_database() of
@@ -20,17 +21,17 @@ check_backend() ->
 
 %% Stanza flow
 
--spec enable_new_caps(escalus:client(), [feature()]) -> caps().
-enable_new_caps(Client, Features) ->
-    Caps = caps(Features),
+-spec enable_new_caps(escalus:client(), [feature()], version()) -> caps().
+enable_new_caps(Client, Features, Version) ->
+    Caps = caps(Features, Version),
     send_presence_with_caps(Client, Caps),
     handle_requested_caps(Client, Caps, Features),
     receive_presence_with_caps(Client, Client, Caps),
     Caps.
 
--spec enable_caps(escalus:client(), [binary()]) -> caps().
-enable_caps(Client, Features) ->
-    Caps = caps(Features),
+-spec enable_caps(escalus:client(), [binary()], version()) -> caps().
+enable_caps(Client, Features, Version) ->
+    Caps = caps(Features, Version),
     send_presence_with_caps(Client, Caps),
     receive_presence_with_caps(Client, Client, Caps),
     Caps.
@@ -57,7 +58,7 @@ receive_caps_request(Client, Caps) ->
     DiscoRequest = escalus:wait_for_stanza(Client),
     escalus:assert(is_iq_with_ns, [?NS_DISCO_INFO], DiscoRequest),
     #xmlel{children = [#xmlel{attrs = #{~"node" := QueryNode}}]} = DiscoRequest,
-    ?assertEqual(query_node(Caps), QueryNode),
+    ?assertEqual(escalus_stanza:caps_to_node(Caps), QueryNode),
     DiscoRequest.
 
 -spec send_caps_disco_result(escalus:client(), exml:element(), [feature()]) -> ok.
@@ -93,36 +94,23 @@ wait_for_no_caps(HostType, Client) ->
 %% XML elements
 
 feature_elems(Features) ->
-    [#xmlel{name = ~"identity", attrs = #{~"category" => ~"client",
-                                          ~"name" => ~"Psi",
-                                          ~"type" => ~"pc"}} |
-     lists:map(fun feature_elem/1, all_features(Features))].
+    [escalus_stanza:identity(~"client", ~"pc", ~"Psi") |
+     lists:map(fun escalus_stanza:feature/1, all_features(Features))].
 
-feature_elem(Feature) ->
-    #xmlel{name = ~"feature", attrs = #{~"var" => Feature}}.
+-spec caps([feature()], version()) -> caps().
+caps(Features, Version) ->
+    Alg = alg(Version),
+    escalus_stanza:caps(Alg, caps_hash(Features, Version, Alg), Version).
 
-caps(Features) ->
-    Alg = ~"sha-1",
-    caps(Alg, caps_hash(Features, Alg)).
-
-caps(HashAlg, HashValue) ->
-    #xmlel{name = ~"c", attrs = #{~"xmlns" => ?NS_CAPS,
-                                  ~"hash" => HashAlg,
-                                  ~"node" => random_name(),
-                                  ~"ver" => HashValue}}.
-
-query_node(#xmlel{name = ~"c", attrs = #{~"node" := Node, ~"ver" := Ver}}) ->
-    <<Node/binary, $#, Ver/binary>>.
+alg(v1) -> ~"sha-1";
+alg(v2) -> ~"sha-256".
 
 all_features(Features) ->
     [?NS_DISCO_INFO, ?NS_DISCO_ITEMS | Features].
 
-caps_hash(Features, Alg) ->
-    rpc(mim(), mod_caps_hash, generate, [feature_elems(Features), Alg]).
+caps_hash(Features, Version, Alg) ->
+    rpc(mim(), mod_caps_hash, generate, [feature_elems(Features), Version, Alg]).
 
 get_client_features(HostType, Client) ->
     Jid = jid:from_binary(escalus_client:full_jid(Client)),
     rpc(mim(), mod_caps, get_features, [HostType, Jid]).
-
-random_name() ->
-    base64:encode(crypto:strong_rand_bytes(16)).
