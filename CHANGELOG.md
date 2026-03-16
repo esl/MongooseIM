@@ -1,43 +1,65 @@
-# [MongooseIM 6.5.0](https://github.com/esl/MongooseIM/releases/tag/6.5.0) - 2025-12-08
+# [MongooseIM 6.6.0](https://github.com/esl/MongooseIM/releases/tag/6.6.0) - 2026-03-17
 
 ## Highlights
-- MIM can now verify legitimacy of every message by sending a GraphQL query to an external service. This may be used to prevent spam, phishing and other types of abuse.
-- If malicious activity is detected administrators can blacklist perpetrators.
-- The deprecated REST API was finally removed
-- New GraphQL queries provide an insight into host types, modules and services configuration
+- `mod_external_filter` allows MongooseIM to filter messages by sending GraphQL queries to an external service.
+- `mod_blocklist` allows administrators to block and unblock selected users.
+- New GraphQL queries provide insight into host types, modules, and services configuration.
+- Added support for XEP-0359, XEP-0431, and XEP-0440.
+- Refreshed audio-video capabilities.
+- Improved event pushing to external services like RabbitMQ and Redis.
+- Removed the deprecated REST API and support for the MS SQL database.
 
 ## Added
-- automatic reconnection of RabbitMQ workers (#4591)
-- GraphQL queries to retrieve
-  - all domains (#4597, $4606)
-  - host types with modules an their configuration (#4618)
-  - global services and internal databases (#4618)
-- hard limit on message queue length in outgoing pools (#4599)
-- pagination support to GraphQL listUsers query (#4607)
-- enabled collection of metrics for Prometheus (#4609) ???
-- notification to client when a conversation in inbox is un-archived (#4610)
-- support for dynamic domains in event pusher (#4629)
-- support for SASL Channel-Binding Type Capability - XEP-0440 (#4631)
-- module for assigning stable and unique ids to stanzas - XEP-0359 (#4633)
-- mod_blocklist: an administration tool for banning users from the server (#4645)
-- Hook handler to check whether a message can be delivered by calling an external service #(4651, #4658)
+- GraphQL: `allDomains` query, `listUsers` pagination, host types with their configuration, all-stanzas subscription (#4597, #4606, #4607, #4618, #4656)
+- Prometheus support in anonymized Google Analytics (#4609)
+- Event pushing: auto-unarchive broadcast and dynamic domains support in `mod_event_pusher` (#4610, #4629)
+- Official support for full-text search (XEP-0431) (#4627)
+- SASL Channel-Binding Type Capability (XEP-0440) (#4631)
+- Stable stanza IDs (XEP-0359) (#4633)
+- SSLKEYLOGFILE support (#4634)
+- Blocklist administration module and API expansion (#4645, #4669)
+- External filter module for message delivery checks (#4651, #4658, #4661)
+- Additional validation of database configuration (#4659, #4667)
+- TURN REST API auth support (#4671)
 
 ## Changed
+- RabbitMQ worker reconnection/refactor and outgoing pool queue limits (#4591, #4594, #4599)
+- TLS keyfile validation (#4595)
+- Redis connection username support (#4616)
+- Docker image improvements (#4617, #4632)
+- Reworked configuration for BOSH and WebSocket (#4623)
+- Enforced user agent for `mod_fast_auth_token` (#4628)
+- Audio/video capability refresh (#4640, #4650)
+- Deprecated `mod_jingle_sip` (#4660)
 
 ## Fixed
-- Allowing stanzas from the server to bypass privacy lists (#4600)
-- Full-text seach is now 100% compliant with XEP-0431 (#4627)
-- Fix MIM crash when global RabbitMQ pool was configured and Exometer was enabled (#4648)
+- Privacy blocking IQ should not stop stanzas sent by the server (#4600)
+- GraphQL API fixes for `cets` and `roster` (#4614, #4624)
+- Avoided `noproc` error in `mongoose_epmd` (#4637)
+- Fixed mongoose certificates (#4647)
+- Fixed global RabbitMQ pool crash (#4648)
 
 ## Removed
-- support for MS SQL and ODBC (#4603)
-- REST API, now replaced by GraphQL (#4635)
+- MS SQL backend (#4603, #4604)
+- Deprecated REST API (already replaced by GraphQL) (#4635, #4664)
 
 ## Other
-- refactor implementation of BOSH and websockets connections (#4623)
-- tutorial explaining basics of using audio/video with help of MongooseIM (#4650)
-- mod_jingle_sip is now marked as deprecated and will be removed in the next release
+- CI/test reliability and coverage improvements (#4593, #4598, #4601, #4602, #4605, #4612, #4615, #4620, #4621, #4622, #4625, #4630, #4646, #4652, #4654, #4655, #4662, #4663, #4670, #4675)
+- Documentation updates for `mod_muc`, certificate reloading, and general cleanup (#4596, #4619, #4636, #4653)
+- Added `.elp.toml` for easier ELP usage (#4641)
+- Refactor (#4643, #4673)
 
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.6.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2025-12-09..2026-03-17)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2025-12-09&to=2026-03-17&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.6.0+sort%3Aupdated-desc)
+
+## Special thanks to our contributors
+- [@niecore](https://github.com/niecore) for adding `cets` to GraphQL allowed categories (#4614)
 
 # [MongooseIM 6.5.0](https://github.com/esl/MongooseIM/releases/tag/6.5.0) - 2025-12-08
 
