@@ -1,24 +1,25 @@
 -module(mod_caps).
--moduledoc("Handling and caching of entity capabilities according to XEP-0115").
+-moduledoc "Handling and caching of entity capabilities according to XEP-0115 and XEP-0390".
 
 -xep([{xep, 115}, {version, "1.6.0"}]).
+-xep([{xep, 390}, {version, "0.3.2"}]).
 
 -behaviour(gen_mod).
 
 -type hash() :: {hash_alg(), hash_value()}.
 -type hash_alg() :: binary().
 -type hash_value() :: binary().
+-type version() :: v1  % XEP-0115: Entity Capabilities
+                 | v2. % XEP-0390: Entity Capabilities 2.0
 -type feature() :: binary().
--type caps() :: #{hash := hash(), node => binary(), features => [feature()]}.
+-type caps() :: #{version := version(), hash := hash(), node => binary(), features => [feature()]}.
 
--export_type([hash/0, hash_alg/0, hash_value/0, feature/0]).
+-export_type([hash/0, hash_alg/0, hash_value/0, version/0, feature/0]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include_lib("kernel/include/logger.hrl").
-
--define(SERVER_HASH_ALG, ~"sha-1").
 
 %% API
 -export([get_features/2, get_resources_with_features/2]).
@@ -53,16 +54,20 @@ start(HostType, Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     mod_caps_backend:stop(HostType),
-    delete_server_hash(HostType).
+    delete_server_hashes(HostType).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{~"backend" => #option{type = atom,
                                              validate = {module, mod_caps_backend}},
                        ~"iq_response_timeout" => #option{type = integer,
-                                                         validate = positive}},
+                                                         validate = positive},
+                       ~"versions" => #list{items = #option{type = atom,
+                                                            validate = {enum, [v1, v2]}},
+                                            validate = unique_non_empty}},
              defaults = #{~"backend" => cets,
-                          ~"iq_response_timeout" => 5000}}.
+                          ~"iq_response_timeout" => 5000,
+                          ~"versions" => [v1, v2]}}.
 
 -spec supported_features() -> [gen_mod:module_feature()].
 supported_features() -> [dynamic_domains].
@@ -83,10 +88,12 @@ hooks(HostType) ->
                            gen_hook:hook_params(),
                            gen_hook:extra()) -> {ok, mongoose_disco:feature_acc()}.
 disco_local_features(Acc = #{node := Node}, _, #{host_type := HostType}) ->
-    Acc1 = mongoose_disco:add_features([?NS_CAPS], Acc),
     case is_server_node_valid(HostType, Node) of
-        true -> {ok, Acc1#{node := ~""}};
-        false -> {ok, Acc1}
+        true ->
+            Acc1 = mongoose_disco:add_features(lists:map(fun ns/1, versions(HostType)), Acc),
+            {ok, Acc1#{node := ~""}};
+        false ->
+            {ok, Acc}
     end.
 
 -spec disco_local_identity(mongoose_disco:identity_acc(),
@@ -138,7 +145,7 @@ inspect_presence(Acc) ->
          #jid{luser = LUser, lserver = LServer, lresource = ~""},
          Stanza} ->
             case mod_presence:get_presence_type(Acc) of
-                available -> extract_caps(Stanza);
+                available -> extract_caps(versions(mongoose_acc:host_type(Acc)), Stanza);
                 unavailable -> no_caps;
                 _ -> skip
             end;
@@ -209,75 +216,140 @@ handle_response(Acc, C2SData, Caps, QueryEl) ->
     end.
 
 -spec verify_hash(caps(), exml:element()) -> boolean().
-verify_hash(#{hash := {HashAlg, HashValue}}, #xmlel{children = Elements}) ->
-    mod_caps_hash:generate(Elements, HashAlg) =:= HashValue.
+verify_hash(Caps, QueryEl = #xmlel{children = Elements}) ->
+    #{version := Version, hash := {HashAlg, HashValue}} = Caps,
+    try mod_caps_hash:generate(Elements, Version, HashAlg) of
+        HashValue ->
+            true;
+        OtherValue ->
+            ?LOG_INFO(#{what => mod_caps_hash_mismatch,
+                        caps => Caps, query_el => QueryEl, hash_value => OtherValue}),
+            false
+    catch
+        error:Reason ->
+            ?LOG_NOTICE(#{what => mod_caps_could_not_generate_hash,
+                          caps => Caps, query_el => QueryEl, reason => Reason}),
+            false
+    end.
 
 -spec disco_info_request(caps()) -> jlib:iq().
-disco_info_request(#{node := Node, hash := {_HashAlg, HashValue}}) ->
+disco_info_request(Caps) ->
     #iq{type = get,
         xmlns = ?NS_DISCO_INFO,
         sub_el = [#xmlel{name = ~"query",
                          attrs = #{~"xmlns" => ?NS_DISCO_INFO,
-                                   ~"node" => <<Node/binary, "#", HashValue/binary>>}}]}.
+                                   ~"node" => capability_hash_node(Caps)}}]}.
+
+-spec capability_hash_node(caps()) -> binary().
+capability_hash_node(#{version := v1, node := Node, hash := {_HashAlg, HashValue}}) ->
+    <<Node/binary, $#, HashValue/binary>>;
+capability_hash_node(#{version := v2, hash := {HashAlg, HashValue}}) ->
+    <<(?NS_CAPS_2)/binary, $#, HashAlg/binary, $., HashValue/binary>>.
 
 -doc "Extracts caps from the first 'c' element with caps namespace".
--spec extract_caps(exml:element()) -> caps() | no_caps.
-extract_caps(Element) ->
-    maybe
-        #xmlel{attrs = #{~"hash" := HashAlg, ~"ver" := HashValue, ~"node" := Node}} ?=
-            exml_query:subelement_with_name_and_ns(Element, ~"c", ?NS_CAPS),
-        true ?= mod_caps_hash:is_known_hash_alg(HashAlg),
-        #{hash => {HashAlg, HashValue}, node => Node}
-    else
-        _ -> no_caps
-    end.
+-spec extract_caps([version()], exml:element()) -> caps() | no_caps.
+extract_caps([Version | RemVersions], Element) ->
+    All = find_caps(Version, Element),
+    case lists:search(fun(#{hash := {Alg, _}}) -> mod_caps_hash:is_alg_supported(Alg) end, All) of
+        {value, Caps} -> Caps;
+        false -> extract_caps(RemVersions, Element)
+    end;
+extract_caps([], _Element) ->
+    no_caps.
+
+-spec find_caps(version(), exml:element()) -> [caps()].
+find_caps(v1, Element) ->
+    HashElements = exml_query:subelements_with_name_and_ns(Element, ~"c", ?NS_CAPS),
+    [#{version => v1, hash => {HashAlg, HashVal}, node => Node}
+     || #xmlel{attrs = #{~"hash" := HashAlg, ~"ver" := HashVal, ~"node" := Node}} <- HashElements];
+find_caps(v2, Element) ->
+    HashElements = exml_query:paths(Element, [{element_with_ns, ~"c", ?NS_CAPS_2},
+                                              {element_with_ns, ~"hash", ?NS_HASH}]),
+    [#{version => v2, hash => {exml_query:attr(HashEl, ~"algo"), exml_query:cdata(HashEl)}}
+     || HashEl <- HashElements].
 
 -spec caps_stream_features(mongooseim:host_type(), jid:jid()) -> [exml:element()].
 caps_stream_features(HostType, ServerJID) ->
-    HashValue = make_server_hash(HostType, ServerJID),
-    [server_caps_element(HashValue)].
+    [server_caps_element(Vsn, Hash) || Vsn := Hash <- make_server_hashes(HostType, ServerJID)].
 
--spec server_caps_element(hash_value()) -> exml:element().
-server_caps_element(HashValue) ->
+-spec server_caps_element(version(), hash()) -> exml:element().
+server_caps_element(v1, {HashAlg, HashValue}) ->
     #xmlel{name = ~"c",
            attrs = #{~"xmlns" => ?NS_CAPS,
-                     ~"hash" => ?SERVER_HASH_ALG,
+                     ~"hash" => HashAlg,
                      ~"node" => ?MONGOOSE_URI,
                      ~"ver" => HashValue},
-           children = []}.
+           children = []};
+server_caps_element(v2, {HashAlg, HashValue}) ->
+    #xmlel{name = ~"c",
+           attrs = #{~"xmlns" => ?NS_CAPS_2},
+           children = [#xmlel{name = ~"hash",
+                              attrs = #{~"xmlns" => ?NS_HASH, ~"algo" => HashAlg},
+                              children = [#xmlcdata{content = HashValue}]}]}.
 
 -spec is_server_node_valid(mongooseim:host_type(), binary()) -> boolean().
+is_server_node_valid(_HostType, ~"") ->
+    true;
 is_server_node_valid(HostType, Node) ->
-    get_server_hash(HostType) =:= extract_server_hash(Node).
+    maybe
+        {Version, Hash} ?= extract_server_hash(Node),
+        #{Version := Hash} ?= get_server_hashes(HostType),
+        true
+    else
+        _ -> false
+    end.
 
--spec extract_server_hash(binary()) -> hash_value() | no_match.
+-spec extract_server_hash(binary()) -> {version(), hash()} | no_match.
 extract_server_hash(Node) ->
     case binary:split(Node, ~"#", []) of
-        [?MONGOOSE_URI, HashValue] -> HashValue;
-        _ -> no_match
+        [?MONGOOSE_URI, HashValue] ->
+            {v1, {server_hash_alg(v1), HashValue}};
+        [?NS_CAPS_2, EncodedHash] ->
+            case binary:split(EncodedHash, ~".", []) of
+                [HashAlg, HashValue] -> {v2, {HashAlg, HashValue}};
+                _ -> no_match
+            end;
+        _ ->
+            no_match
     end.
 
--spec make_server_hash(mongooseim:host_type(), jid:jid()) -> hash_value().
-make_server_hash(HostType, ServerJID) ->
-    maybe
-        missing ?= get_server_hash(HostType),
-        HashValue = generate_server_hash(HostType, ServerJID),
-        persistent_term:put({?MODULE, {server_hash, HostType}}, HashValue),
-        HashValue
+-spec make_server_hashes(mongooseim:host_type(), jid:jid()) -> #{version() => hash()}.
+make_server_hashes(HostType, ServerJID) ->
+    case get_server_hashes(HostType) of
+        missing ->
+            Hashes = generate_server_hashes(HostType, ServerJID),
+            persistent_term:put({?MODULE, {server_hashes, HostType}}, Hashes),
+            Hashes;
+        Hashes ->
+            Hashes
     end.
 
--spec get_server_hash(mongooseim:host_type()) -> hash_value() | missing.
-get_server_hash(HostType) ->
+-spec get_server_hashes(mongooseim:host_type()) -> #{version() => hash()} | missing.
+get_server_hashes(HostType) ->
     try
-        persistent_term:get({?MODULE, {server_hash, HostType}})
+        persistent_term:get({?MODULE, {server_hashes, HostType}})
     catch
         error:badarg -> missing
     end.
 
--spec generate_server_hash(mongooseim:host_type(), jid:jid()) -> hash_value().
-generate_server_hash(HostType, ServerJID) ->
-    Elements = server_disco_elements(HostType, ServerJID),
-    mod_caps_hash:generate(Elements, ?SERVER_HASH_ALG).
+-spec generate_server_hashes(mongooseim:host_type(), jid:jid()) -> #{version() => hash()}.
+generate_server_hashes(HostType, ServerJID) ->
+    DiscoElements = server_disco_elements(HostType, ServerJID),
+    #{Version => generate_server_hash(DiscoElements, Version) || Version <- versions(HostType)}.
+
+-spec generate_server_hash([exml:element()], version()) -> hash().
+generate_server_hash(DiscoElements, Version) ->
+    Alg = server_hash_alg(Version),
+    {Alg, mod_caps_hash:generate(DiscoElements, Version, Alg)}.
+
+%% For v2, there could be more than one hash alg used, but there are no requirements to do so
+-spec server_hash_alg(version()) -> hash_alg().
+server_hash_alg(v1) -> ~"sha-1"; % XEP-0115 9.1 specifies SHA-1 as mandatory to implement
+server_hash_alg(v2) -> ~"sha-256". % XEP-0390 has no such rule, but uses SHA-256 in examples
+
+-spec ns(version()) -> binary().
+ns(v1) -> ?NS_CAPS;
+ns(v2) -> ?NS_CAPS_2.
 
 -spec server_disco_elements(mongooseim:host_type(), jid:jid()) -> [exml:element()].
 server_disco_elements(HostType, JID) ->
@@ -286,7 +358,11 @@ server_disco_elements(HostType, JID) ->
     InfoXML = mongoose_disco:get_info(HostType, mod_disco, ~"", ~""),
     IdentityXML ++ InfoXML ++ FeaturesXML.
 
--spec delete_server_hash(mongooseim:host_type()) -> ok.
-delete_server_hash(HostType) ->
-    persistent_term:erase({?MODULE, {server_hash, HostType}}),
+-spec delete_server_hashes(mongooseim:host_type()) -> ok.
+delete_server_hashes(HostType) ->
+    persistent_term:erase({?MODULE, {server_hashes, HostType}}),
     ok.
+
+-spec versions(mongooseim:host_type()) -> [version()].
+versions(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, versions).

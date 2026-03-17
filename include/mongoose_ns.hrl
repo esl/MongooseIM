@@ -96,7 +96,9 @@
 -define(NS_FEATURE_COMPRESS,    <<"http://jabber.org/features/compress">>).
 -define(NS_FEATURE_MSGOFFLINE,  <<"msgoffline">>).
 
+-define(NS_HASH,                <<"urn:xmpp:hashes">>).
 -define(NS_CAPS,                <<"http://jabber.org/protocol/caps">>).
+-define(NS_CAPS_2,              <<"urn:xmpp:caps">>).
 -define(NS_SHIM,                <<"http://jabber.org/protocol/shim">>).
 -define(NS_ADDRESS,             <<"http://jabber.org/protocol/address">>).
 

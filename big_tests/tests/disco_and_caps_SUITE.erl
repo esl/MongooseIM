@@ -3,6 +3,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -import(domain_helper, [host_type/0, domain/0]).
 -import(config_parser_helper, [default_mod_config/1, mod_config/2]).
@@ -11,19 +12,25 @@ suite() ->
     distributed_helper:require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, disco_with_caps},
-     {group, disco_with_caps_and_extra_features},
-     {group, disco_with_extra_features},
-     {group, client_caps},
-     {group, client_caps_timeout}].
+    [{group, caps_v1},
+     {group, caps_v2},
+     {group, disco_with_extra_features}].
 
 groups() ->
-    [{disco_with_caps, [parallel], basic_test_cases() ++ server_caps_test_cases()},
+    [{caps_v1, [], caps_test_groups()},
+     {caps_v2, [], caps_test_groups()},
+     {disco_with_caps, [parallel], basic_test_cases() ++ server_caps_test_cases()},
      {disco_with_caps_and_extra_features, [parallel],
       basic_test_cases() ++ server_caps_test_cases() ++ extra_feature_test_cases()},
-     {disco_with_extra_features, [parallel], basic_test_cases() ++ extra_feature_test_cases()},
      {client_caps, [parallel], client_caps_test_cases()},
-     {client_caps_timeout, [parallel], client_caps_timeout_test_cases()}].
+     {client_caps_timeout, [parallel], client_caps_timeout_test_cases()},
+     {disco_with_extra_features, [parallel], basic_test_cases() ++ extra_feature_test_cases()}].
+
+caps_test_groups() ->
+    [{group, disco_with_caps},
+     {group, disco_with_caps_and_extra_features},
+     {group, client_caps},
+     {group, client_caps_timeout}].
 
 basic_test_cases() ->
     [user_cannot_query_stranger_resources,
@@ -36,7 +43,9 @@ basic_test_cases() ->
 
 server_caps_test_cases() ->
     [caps_feature_is_advertised,
-     user_can_query_server_caps_via_disco].
+     user_can_query_server_caps_via_disco,
+     user_cannot_query_server_caps_with_malformed_node,
+     user_cannot_query_server_caps_with_incorrect_hash_value].
 
 extra_feature_test_cases() ->
     [user_can_query_extra_domains,
@@ -47,6 +56,7 @@ client_caps_test_cases() ->
      client_caps_are_not_requested_for_unknown_alg,
      client_caps_are_requested_with_error,
      client_caps_are_requested_with_incorrect_features,
+     client_caps_are_requested_with_invalid_elements,
      client_caps_are_deleted_but_cached_between_sessions,
      client_caps_are_deleted_on_presence_unavailable,
      client_caps_are_deleted_on_presence_without_caps,
@@ -66,16 +76,24 @@ end_per_suite(C) ->
     escalus:end_per_suite(C),
     instrument_helper:stop().
 
-init_per_group(Name, C) ->
-    Modules = required_modules(Name),
-    HasCaps = proplists:is_defined(mod_caps, Modules),
+init_per_group(caps_v1, C) ->
     maybe
-        ok ?= check_caps_backend(HasCaps),
-        C2 = dynamic_modules:save_modules(host_type(), C),
-        dynamic_modules:ensure_modules(host_type(), Modules),
-        [{caps, HasCaps} | C2]
-    end.
+        ok ?= caps_helper:check_backend(),
+        [{caps_version, v1} | C]
+    end;
+init_per_group(caps_v2, C) ->
+    maybe
+        ok ?= caps_helper:check_backend(),
+        [{caps_version, v2} | C]
+    end;
+init_per_group(Name, C) ->
+    C2 = dynamic_modules:save_modules(host_type(), C),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Name)),
+    C2.
 
+end_per_group(Name, _C) when Name =:= caps_v1;
+                             Name =:= caps_v2 ->
+    ok;
 end_per_group(_Name, C) ->
     dynamic_modules:restore_modules(C).
 
@@ -86,20 +104,24 @@ end_per_testcase(Name, C) ->
     escalus:end_per_testcase(Name, C).
 
 caps_feature_is_advertised(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     Spec = escalus_users:get_userspec(Config, alice),
     {ok, Connection, Features} = escalus_connection:start(Spec, [start_stream, stream_features]),
-    true = is_map(proplists:get_value(caps, Features)),
+    CapsEls = proplists:get_value(caps, Features),
+    NS = escalus_stanza:ns_caps(Version),
+    ?assert(lists:any(fun(Caps) -> exml_query:attr(Caps, ~"xmlns") =:= NS end, CapsEls)),
     escalus_connection:stop(Connection).
 
 user_can_query_server_caps_via_disco(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     Spec = escalus_users:get_userspec(NewConfig, alice),
     {ok, Alice, Features} = escalus_connection:start(Spec),
-    #{<<"node">> := Node,
-      <<"ver">> := Ver} = proplists:get_value(caps, Features),
-    NodeVer = <<Node/binary, $#, Ver/binary>>,
+    CapsEls = proplists:get_value(caps, Features),
+    NS = escalus_stanza:ns_caps(Version),
+    [CapsEl] = lists:filter(fun(Caps) -> exml_query:attr(Caps, ~"xmlns") =:= NS end, CapsEls),
     Server = proplists:get_value(server, Spec),
-    Disco = escalus_stanza:disco_info(Server, NodeVer),
+    Disco = escalus_stanza:disco_info(Server, escalus_stanza:caps_to_node(CapsEl)),
     escalus:send(Alice, Disco),
     DiscoResp = escalus:wait_for_stanza(Alice),
     escalus:assert(is_iq_result, [Disco], DiscoResp),
@@ -107,6 +129,42 @@ user_can_query_server_caps_via_disco(Config) ->
                                             {element, <<"identity">>},
                                             {attr, <<"name">>}]),
     <<"MongooseIM">> = Identity,
+    escalus_connection:stop(Alice).
+
+user_cannot_query_server_caps_with_malformed_node(Config) ->
+    Version = proplists:get_value(caps_version, Config),
+    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    Spec = escalus_users:get_userspec(NewConfig, alice),
+    {ok, Alice, _Features} = escalus_connection:start(Spec),
+    Server = proplists:get_value(server, Spec),
+    InvalidNode = case Version of
+                      v1 -> ~"node123";
+                      v2 -> <<(?NS_CAPS_2)/binary, "#sha-256">>
+                  end,
+    DiscoReq = escalus_stanza:disco_info(Server, InvalidNode),
+    escalus:send(Alice, DiscoReq),
+    DiscoResp = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_iq_error, [DiscoReq], DiscoResp),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], DiscoResp),
+    escalus:assert(is_stanza_from, [Server], DiscoResp),
+    escalus_connection:stop(Alice).
+
+user_cannot_query_server_caps_with_incorrect_hash_value(Config) ->
+    Version = proplists:get_value(caps_version, Config),
+    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    Spec = escalus_users:get_userspec(NewConfig, alice),
+    {ok, Alice, Features} = escalus_connection:start(Spec),
+    CapsEls = proplists:get_value(caps, Features),
+    NS = escalus_stanza:ns_caps(Version),
+    [CapsEl] = lists:filter(fun(Caps) -> exml_query:attr(Caps, ~"xmlns") =:= NS end, CapsEls),
+    Server = proplists:get_value(server, Spec),
+    InvalidNode = <<(escalus_stanza:caps_to_node(CapsEl))/binary, $X>>, % add 'X' to the hash
+    DiscoReq = escalus_stanza:disco_info(Server, InvalidNode),
+    escalus:send(Alice, DiscoReq),
+    DiscoResp = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_iq_error, [DiscoReq], DiscoResp),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], DiscoResp),
+    escalus:assert(is_stanza_from, [Server], DiscoResp),
     escalus_connection:stop(Alice).
 
 user_cannot_query_stranger_resources(Config) ->
@@ -197,9 +255,9 @@ user_can_query_server_features(Config) ->
         escalus:send(Alice, escalus_stanza:disco_info(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_identity, [<<"server">>, <<"im">>], Stanza),
-        case proplists:get_value(caps, Config) of
-            true -> escalus:assert(has_feature, [?NS_CAPS], Stanza);
-            false -> ok
+        case proplists:get_value(caps_version, Config) of
+            undefined -> ok;
+            Version -> escalus:assert(has_feature, [escalus_stanza:ns_caps(Version)], Stanza)
         end,
         escalus:assert(has_feature, [<<"iq">>], Stanza),
         escalus:assert(has_feature, [<<"presence">>], Stanza),
@@ -231,25 +289,26 @@ user_can_query_server_info(Config) ->
 %% Client caps tests
 
 client_caps_are_requested_and_cached(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    caps_helper:enable_new_caps(Alice, [Feature]),
+    Feature = escalus_stanza:id(),
+    caps_helper:enable_new_caps(Alice, [Feature], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature]),
 
     %% Bob gets no request because the hash is already known
     {ok, Bob} = escalus_client:start(NewConfig, bob, ~"res1"),
-    caps_helper:enable_caps(Bob, [Feature]),
+    caps_helper:enable_caps(Bob, [Feature], Version),
     caps_helper:assert_caps(HostType, Bob, [Feature]),
     escalus_client:stop(NewConfig, Alice),
     escalus_client:stop(NewConfig, Bob).
 
 client_caps_are_not_requested_for_unknown_alg(Config) ->
-    HostType = host_type(),
+    Version = proplists:get_value(caps_version, Config),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Caps = caps_helper:caps(~"hashalg", ~"hashval"),
+    Caps = escalus_stanza:caps(~"hashalg", ~"hashval", Version),
     escalus:send(Alice, escalus_stanza:presence(~"available", [Caps])),
     caps_helper:receive_presence_with_caps(Alice, Alice, Caps),
 
@@ -259,11 +318,12 @@ client_caps_are_not_requested_for_unknown_alg(Config) ->
     escalus_client:stop(NewConfig, Alice).
 
 client_caps_are_requested_with_error(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    Caps = caps_helper:caps([Feature]),
+    Feature = escalus_stanza:id(),
+    Caps = caps_helper:caps([Feature], Version),
     caps_helper:send_presence_with_caps(Alice, Caps),
     Request = caps_helper:receive_caps_request(Alice, Caps),
     caps_helper:receive_presence_with_caps(Alice, Alice, Caps),
@@ -279,11 +339,12 @@ client_caps_are_requested_with_error(Config) ->
     escalus_client:stop(NewConfig, Alice).
 
 client_caps_are_requested_with_timeout(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    Caps = caps_helper:caps([Feature]),
+    Feature = escalus_stanza:id(),
+    Caps = caps_helper:caps([Feature], Version),
     caps_helper:send_presence_with_caps(Alice, Caps),
     Request = caps_helper:receive_caps_request(Alice, Caps),
     caps_helper:receive_presence_with_caps(Alice, Alice, Caps),
@@ -298,11 +359,12 @@ client_caps_are_requested_with_timeout(Config) ->
     escalus_client:stop(NewConfig, Alice).
 
 client_caps_are_requested_with_incorrect_features(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    Caps = caps_helper:caps([Feature]),
+    Feature = escalus_stanza:id(),
+    Caps = caps_helper:caps([Feature], Version),
     caps_helper:send_presence_with_caps(Alice, Caps),
     Request = caps_helper:receive_caps_request(Alice, Caps),
     caps_helper:receive_presence_with_caps(Alice, Alice, Caps),
@@ -314,23 +376,51 @@ client_caps_are_requested_with_incorrect_features(Config) ->
     caps_helper:assert_no_caps(HostType, Alice),
 
     %% Alice should be able to start the process again
-    caps_helper:enable_new_caps(Alice, [Feature]),
+    caps_helper:enable_new_caps(Alice, [Feature], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature]),
     escalus_client:stop(NewConfig, Alice).
 
-client_caps_are_deleted_but_cached_between_sessions(Config) ->
+client_caps_are_requested_with_invalid_elements(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    caps_helper:enable_new_caps(Alice, [Feature]),
+    Feature = escalus_stanza:id(),
+    Caps = caps_helper:caps([Feature], Version),
+    caps_helper:send_presence_with_caps(Alice, Caps),
+    Request = caps_helper:receive_caps_request(Alice, Caps),
+    caps_helper:receive_presence_with_caps(Alice, Alice, Caps),
+
+    %% Add an invalid element to trigger hash generation error for caps v2
+    InvalidEl = #xmlel{name = ~"bogus"},
+    QueryEl = escalus_stanza:query_el(?NS_DISCO_INFO,
+                                      [InvalidEl | caps_helper:feature_elems([Feature])]),
+    DiscoResult = escalus_stanza:iq_result(Request, [QueryEl]),
+    escalus:send(Alice, DiscoResult),
+
+    case Version of
+        v1 -> % Remaining caps are valid
+            caps_helper:wait_for_caps(HostType, Alice, [Feature]);
+        v2 -> % Caps are invalid, see https://xmpp.org/extensions/xep-0390.html#algorithm-input
+            ct:sleep(100),
+            caps_helper:assert_no_caps(HostType, Alice)
+    end,
+    escalus_client:stop(NewConfig, Alice).
+
+client_caps_are_deleted_but_cached_between_sessions(Config) ->
+    Version = proplists:get_value(caps_version, Config),
+    HostType = host_type(),
+    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
+    Feature = escalus_stanza:id(),
+    caps_helper:enable_new_caps(Alice, [Feature], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature]),
     escalus_client:stop(NewConfig, Alice),
     caps_helper:wait_for_no_caps(HostType, Alice),
 
     %% Client caps were deleted with the session, but the hash is still known
     {ok, Alice1} = escalus_client:start(NewConfig, alice, ~"res1"),
-    caps_helper:enable_caps(Alice1, [Feature]),
+    caps_helper:enable_caps(Alice1, [Feature], Version),
     caps_helper:assert_caps(HostType, Alice1, [Feature]),
 
     %% Make sure caps are not requested again
@@ -339,22 +429,24 @@ client_caps_are_deleted_but_cached_between_sessions(Config) ->
     escalus_client:stop(NewConfig, Alice1).
 
 client_caps_are_deleted_on_presence_unavailable(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    caps_helper:enable_new_caps(Alice, [Feature]),
+    Feature = escalus_stanza:id(),
+    caps_helper:enable_new_caps(Alice, [Feature], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature]),
     escalus:send(Alice, escalus_stanza:presence(~"unavailable")),
     caps_helper:wait_for_no_caps(HostType, Alice),
     escalus_client:stop(NewConfig, Alice).
 
 client_caps_are_deleted_on_presence_without_caps(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    caps_helper:enable_new_caps(Alice, [Feature]),
+    Feature = escalus_stanza:id(),
+    caps_helper:enable_new_caps(Alice, [Feature], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature]),
     escalus:send(Alice, escalus_stanza:presence(~"available")),
     escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
@@ -362,28 +454,30 @@ client_caps_are_deleted_on_presence_without_caps(Config) ->
     escalus_client:stop(NewConfig, Alice).
 
 client_caps_are_updated(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature1 = caps_helper:random_name(),
-    caps_helper:enable_new_caps(Alice, [Feature1]),
+    Feature1 = escalus_stanza:id(),
+    caps_helper:enable_new_caps(Alice, [Feature1], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature1]),
-    Feature2 = caps_helper:random_name(),
-    caps_helper:enable_new_caps(Alice, [Feature2]),
+    Feature2 = escalus_stanza:id(),
+    caps_helper:enable_new_caps(Alice, [Feature2], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature2]),
     escalus_client:stop(NewConfig, Alice),
     caps_helper:wait_for_no_caps(HostType, Alice).
 
 client_caps_can_be_different_per_session(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     {ok, Alice1} = escalus_client:start(NewConfig, alice, ~"res1"),
     {ok, Alice2} = escalus_client:start(NewConfig, alice, ~"res2"),
     HostType = host_type(),
-    Feature1 = caps_helper:random_name(),
-    Caps1 = caps_helper:enable_new_caps(Alice1, [Feature1]),
+    Feature1 = escalus_stanza:id(),
+    Caps1 = caps_helper:enable_new_caps(Alice1, [Feature1], Version),
     caps_helper:wait_for_caps(HostType, Alice1, [Feature1]),
-    Feature2 = caps_helper:random_name(),
-    Caps2 = caps_helper:enable_new_caps(Alice2, [Feature2]),
+    Feature2 = escalus_stanza:id(),
+    Caps2 = caps_helper:enable_new_caps(Alice2, [Feature2], Version),
     caps_helper:wait_for_caps(HostType, Alice2, [Feature2]),
     caps_helper:receive_presence_with_caps(Alice2, Alice1, Caps1),
     caps_helper:receive_presence_with_caps(Alice1, Alice2, Caps2),
@@ -393,11 +487,12 @@ client_caps_can_be_different_per_session(Config) ->
     caps_helper:wait_for_no_caps(HostType, Alice2).
 
 client_caps_are_unchanged_by_directed_presence(Config) ->
+    Version = proplists:get_value(caps_version, Config),
     HostType = host_type(),
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     {ok, Alice} = escalus_client:start(NewConfig, alice, ~"res1"),
-    Feature = caps_helper:random_name(),
-    caps_helper:enable_new_caps(Alice, [Feature]),
+    Feature = escalus_stanza:id(),
+    caps_helper:enable_new_caps(Alice, [Feature], Version),
     caps_helper:wait_for_caps(HostType, Alice, [Feature]),
 
     %% Bob becomes available
@@ -428,11 +523,6 @@ required_modules(client_caps) ->
     [{mod_caps, default_mod_config(mod_caps)}];
 required_modules(client_caps_timeout) ->
     [{mod_caps, mod_config(mod_caps, #{iq_response_timeout => 100})}].
-
-check_caps_backend(true) ->
-    caps_helper:check_backend();
-check_caps_backend(false) ->
-    ok.
 
 extra_disco_opts() ->
     #{extra_domains => [extra_domain()],

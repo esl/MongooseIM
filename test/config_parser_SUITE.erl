@@ -1565,10 +1565,12 @@ mod_caps(_Config) ->
     P = [modules, mod_caps],
     ?cfgh(P ++ [backend], cets, T(<<"backend">>, <<"cets">>)),
     ?cfgh(P ++ [iq_response_timeout], 2000, T(<<"iq_response_timeout">>, 2000)),
+    ?cfgh(P ++ [versions], [v1], T(<<"versions">>, [<<"v1">>])),
     ?errh([#{reason := backend_requires_internal_database}],
           #{<<"modules">> => #{<<"mod_caps">> => #{}}}),
     ?errh(T(<<"backend">>, <<"mnesia">>)),
-    ?errh(T(<<"iq_response_timeout">>, 0)).
+    ?errh(T(<<"iq_response_timeout">>, 0)),
+    ?errh(T(<<"versions">>, [<<"v3">>])).
 
 mod_cache_users(_Config) ->
     check_module_defaults(mod_cache_users),
