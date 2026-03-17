@@ -315,11 +315,13 @@ extract_server_hash(Node) ->
 
 -spec make_server_hashes(mongooseim:host_type(), jid:jid()) -> #{version() => hash()}.
 make_server_hashes(HostType, ServerJID) ->
-    maybe
-        missing ?= get_server_hashes(HostType),
-        Hashes = generate_server_hashes(HostType, ServerJID),
-        persistent_term:put({?MODULE, {server_hashes, HostType}}, Hashes),
-        Hashes
+    case get_server_hashes(HostType) of
+        missing ->
+            Hashes = generate_server_hashes(HostType, ServerJID),
+            persistent_term:put({?MODULE, {server_hashes, HostType}}, Hashes),
+            Hashes;
+        Hashes ->
+            Hashes
     end.
 
 -spec get_server_hashes(mongooseim:host_type()) -> #{version() => hash()} | missing.
@@ -340,7 +342,7 @@ generate_server_hash(DiscoElements, Version) ->
     Alg = server_hash_alg(Version),
     {Alg, mod_caps_hash:generate(DiscoElements, Version, Alg)}.
 
-%% For v2, there could be than one hash alg used, but there are no requirements to do so
+%% For v2, there could be more than one hash alg used, but there are no requirements to do so
 -spec server_hash_alg(version()) -> hash_alg().
 server_hash_alg(v1) -> ~"sha-1"; % XEP-0115 9.1 specifies SHA-1 as mandatory to implement
 server_hash_alg(v2) -> ~"sha-256". % XEP-0390 has no such rule, but uses SHA-256 in examples
