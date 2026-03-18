@@ -1,4 +1,4 @@
-# [MongooseIM 6.6.0](https://github.com/esl/MongooseIM/releases/tag/6.6.0) - 2026-03-17
+# [MongooseIM 6.6.0](https://github.com/esl/MongooseIM/releases/tag/6.6.0) - 2026-03-18
 
 ## Highlights
 - `mod_external_filter` allows MongooseIM to filter messages by sending GraphQL queries to an external service.
@@ -52,9 +52,9 @@
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.6.0)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2025-12-09..2026-03-17)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2025-12-09..2026-03-18)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2025-12-09&to=2026-03-17&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2025-12-09&to=2026-03-18&type=c)
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.6.0+sort%3Aupdated-desc)
 
