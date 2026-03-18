@@ -1,3 +1,66 @@
+# [MongooseIM 6.6.0](https://github.com/esl/MongooseIM/releases/tag/6.6.0) - 2026-03-18
+
+## Highlights
+- `mod_external_filter` allows MongooseIM to filter messages by sending GraphQL queries to an external service.
+- `mod_blocklist` allows administrators to block and unblock selected users.
+- New GraphQL queries provide insight into host types, modules, and services configuration.
+- Added support for XEP-0359, XEP-0431, and XEP-0440.
+- Refreshed audio-video capabilities.
+- Improved event pushing to external services like RabbitMQ and Redis.
+- Removed the deprecated REST API and support for the MS SQL database.
+
+## Added
+- GraphQL: `allDomains` query, `listUsers` pagination, host types with their configuration, all-stanzas subscription (#4597, #4606, #4607, #4618, #4656)
+- Prometheus support in anonymized Google Analytics (#4609)
+- Event pushing: auto-unarchive broadcast and dynamic domains support in `mod_event_pusher` (#4610, #4629)
+- Official support for full-text search (XEP-0431) (#4627)
+- SASL Channel-Binding Type Capability (XEP-0440) (#4631)
+- Stable stanza IDs (XEP-0359) (#4633)
+- SSLKEYLOGFILE support (#4634)
+- Blocklist administration module and API expansion (#4645, #4669)
+- External filter module for message delivery checks (#4651, #4658, #4661)
+- Additional validation of database configuration (#4659, #4667)
+- TURN REST API auth support (#4671)
+
+## Changed
+- RabbitMQ worker reconnection/refactor and outgoing pool queue limits (#4591, #4594, #4599)
+- TLS keyfile validation (#4595)
+- Redis connection username support (#4616)
+- Docker image improvements (#4617, #4632)
+- Reworked configuration for BOSH and WebSocket (#4623)
+- Enforced user agent for `mod_fast_auth_token` (#4628)
+- Audio/video capability refresh (#4640, #4650)
+- Deprecated `mod_jingle_sip` (#4660)
+
+## Fixed
+- Privacy blocking IQ should not stop stanzas sent by the server (#4600)
+- GraphQL API fixes for `cets` and `roster` (#4614, #4624)
+- Avoided `noproc` error in `mongoose_epmd` (#4637)
+- Fixed mongoose certificates (#4647)
+- Fixed global RabbitMQ pool crash (#4648)
+
+## Removed
+- MS SQL backend (#4603, #4604)
+- Deprecated REST API (already replaced by GraphQL) (#4635, #4664)
+
+## Other
+- CI/test reliability and coverage improvements (#4593, #4598, #4601, #4602, #4605, #4612, #4615, #4620, #4621, #4622, #4625, #4630, #4646, #4652, #4654, #4655, #4662, #4663, #4670, #4675)
+- Documentation updates for `mod_muc`, certificate reloading, and general cleanup (#4596, #4619, #4636, #4653)
+- Added `.elp.toml` for easier ELP usage (#4641)
+- Refactor (#4643, #4673)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.6.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2025-12-09..2026-03-18)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2025-12-09&to=2026-03-18&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.6.0+sort%3Aupdated-desc)
+
+## Special thanks to our contributors
+- [@niecore](https://github.com/niecore) for adding `cets` to GraphQL allowed categories (#4614)
+
 # [MongooseIM 6.5.0](https://github.com/esl/MongooseIM/releases/tag/6.5.0) - 2025-12-08
 
 ## Highlights

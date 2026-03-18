@@ -59,8 +59,14 @@ It requires [mod_keystore](../modules/mod_keystore.md) as an actual key database
 ### [mod_blocking](../modules/mod_blocking.md)
 Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html), a simplified interface to privacy lists.
 
+### [mod_blocklist](../modules/mod_blocklist.md)
+Provides administrative blocklist functionality for banning users from the server.
+
 ### [mod_bind2](../modules/mod_bind2.md)
 Implements [XEP-0386: Bind 2](http://xmpp.org/extensions/xep-0386.html).
+
+### [mod_cache_users](../modules/mod_cache_users.md)
+Caches user information to reduce load on backend storage.
 
 ### [mod_caps](../modules/mod_caps.md)
 Implements [XEP-0115: Entity Capabilities](https://xmpp.org/extensions/xep-0115.html).
@@ -75,6 +81,9 @@ Enables the [XEP-0352: Client State Indication](http://xmpp.org/extensions/xep-0
 
 ### [mod_disco](../modules/mod_disco.md)
 Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.html) for discovering information (capabilities, protocols, features) about other XMPP entities.
+
+### [mod_domain_isolation](../modules/mod_domain_isolation.md)
+Restricts inter-domain communication.
 
 ### [mod_event_pusher](../modules/mod_event_pusher.md)
 A framework module to build other notification-based modules on.
@@ -95,6 +104,9 @@ This applies to situations such as sending messages or presences to mobile/SMS/e
 ### [mod_extdisco](../modules/mod_extdisco.md)
 Implements [XEP-0215: External Service Discovery](http://xmpp.org/extensions/xep-0215.html) for discovering information about services external to the XMPP network.
 The main use-case is to help discover STUN/TURN servers to allow for negotiating media exchanges.
+
+### [mod_external_filter](../modules/mod_external_filter.md)
+Allows external services to decide whether a message will be delivered.
 
 ### [mod_fast_auth_token](../modules/mod_fast_auth_token.md)
 A module that implements [XEP-0484: Fast Authentication Streamlining Tokens](https://xmpp.org/extensions/xep-0484.html)..
@@ -139,6 +151,9 @@ Prevents `<service-unavailable/>` error when the message recipient is offline.
 ### [mod_ping](../modules/mod_ping.md)
 Implements [XEP-0199: XMPP Ping](http://xmpp.org/extensions/xep-0199.html), enabling periodic XMPP pings sent to clients and responds to those sent from clients.
 
+### [mod_presence](../modules/mod_presence.md)
+Implements server-side presence handling as specified in [RFC 6121](https://www.rfc-editor.org/rfc/rfc6121).
+
 ### [mod_privacy](../modules/mod_privacy.md)
 This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html), for enabling or disabling communication with other entities on a network.
 
@@ -167,6 +182,9 @@ This module, when enabled, will inject roster entries fetched from LDAP.
 
 ### [mod_sic](../modules/mod_sic.md)
 Implements [XEP-0279: Server IP Check](http://xmpp.org/extensions/xep-0279.html) that enables a client to discover its external IP address.
+
+### [mod_smart_markers](../modules/mod_smart_markers.md)
+Allows the client to query for the most recent [chat markers](https://xmpp.org/extensions/xep-0333.html).
 
 ### [mod_stanzaid](../modules/mod_stanzaid.md)
 Implements [XEP-0359: Unique and Stable Stanza ID](http://xmpp.org/extensions/xep-0359.html) that ensures that every message has a unique stanza id which is known to recipient, used by message archive and possibly other components that need it.
