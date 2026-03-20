@@ -33,12 +33,16 @@
 
 -record(state, {
     report_dir :: undefined | string(),
+    %% Persists across suites for the summary file
+    summary_dir :: undefined | string(),
     %% Stack of {GroupName, IsParallel} tuples, innermost first
     groups = [] :: [{atom(), boolean()}],
     parallel_depth = 0 :: non_neg_integer(),
     mark :: undefined | integer(),
     entries = [] :: [entry()],
-    total = 0 :: non_neg_integer()
+    total = 0 :: non_neg_integer(),
+    %% Accumulated across suites for the final summary
+    suite_results = [] :: [{atom(), non_neg_integer()}]
 }).
 
 -type entry() :: {section(), [log_error_collector:log_entry()]}.
@@ -63,7 +67,12 @@ pre_init_per_suite(_Suite, Config, State) ->
         rpc(mim(), ?COLLECTOR, start, [?INSTANCE, [error]]),
         Mark = rpc(mim(), ?COLLECTOR, timestamp, []),
         ReportDir = init_report_dir(Config),
+        SummaryDir = case State#state.summary_dir of
+            undefined -> ReportDir;
+            Existing -> Existing
+        end,
         {Config, State#state{report_dir = ReportDir, mark = Mark,
+                             summary_dir = SummaryDir,
                              groups = [], parallel_depth = 0,
                              entries = [], total = 0}}
     catch Class:Reason:Stacktrace ->
@@ -127,19 +136,32 @@ post_end_per_suite(Suite, _Config, Return, #state{report_dir = undefined} = Stat
     ct:pal("cth_error_report: no report_dir for ~p, skipping", [Suite]),
     {Return, State};
 post_end_per_suite(Suite, _Config, Return, State) ->
-    try
+    SuiteTotal = try
         State1 = collect_errors({end_per_suite}, State),
         rpc(mim(), ?COLLECTOR, stop, [?INSTANCE]),
-        write_report(Suite, State1)
+        write_report(Suite, State1),
+        State1#state.total
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: failed to write report for ~p: ~p:~p~n~p",
-               [Suite, Class, Reason, Stacktrace])
+               [Suite, Class, Reason, Stacktrace]),
+        State#state.total
     end,
+    Results = [{Suite, SuiteTotal} | State#state.suite_results],
     {Return, State#state{report_dir = undefined, mark = undefined,
-                         entries = [], total = 0}}.
+                         entries = [], total = 0,
+                         suite_results = Results}}.
 
-terminate(_State) ->
-    ok.
+terminate(#state{summary_dir = undefined}) ->
+    ok;
+terminate(#state{suite_results = []}) ->
+    ok;
+terminate(#state{summary_dir = Dir, suite_results = RevResults}) ->
+    try
+        write_summary(Dir, lists:reverse(RevResults))
+    catch Class:Reason:Stacktrace ->
+        ct:pal("cth_error_report: failed to write summary: ~p:~p~n~p",
+               [Class, Reason, Stacktrace])
+    end.
 
 %% Parallel group detection
 
@@ -183,6 +205,64 @@ write_report(Suite, #state{report_dir = ReportDir, entries = RevEntries, total =
     Entries = lists:reverse(RevEntries),
     Content = format_report(Suite, Total, Entries),
     ok = file:write_file(File, Content).
+
+-spec write_summary(string(), [{atom(), non_neg_integer()}]) -> ok.
+write_summary(ReportDir, Results) ->
+    GrandTotal = lists:foldl(fun({_, N}, Acc) -> Acc + N end, 0, Results),
+    Sorted = lists:sort(fun({_, A}, {_, B}) -> A >= B end, Results),
+    write_summary_log(ReportDir, GrandTotal, Sorted),
+    write_summary_html(ReportDir, GrandTotal, Sorted).
+
+write_summary_log(ReportDir, GrandTotal, Sorted) ->
+    File = filename:join(ReportDir, "summary.log"),
+    Header = io_lib:format("Error log summary~nTotal errors: ~p~n~n",
+                           [GrandTotal]),
+    Lines = lists:map(fun format_summary_line/1, Sorted),
+    ok = file:write_file(File, [Header | Lines]).
+
+write_summary_html(ReportDir, GrandTotal, Sorted) ->
+    File = filename:join(ReportDir, "summary.html"),
+    Rows = lists:map(fun format_summary_html_row/1, Sorted),
+    Html = [
+        "<!DOCTYPE html>\n<html>\n<head>\n"
+        "<meta charset=\"utf-8\">\n"
+        "<title>Error Log Summary</title>\n"
+        "<style>\n"
+        "body { font-family: monospace; margin: 2em; }\n"
+        "table { border-collapse: collapse; min-width: 500px; }\n"
+        "th, td { border: 1px solid #ccc; padding: 6px 12px;"
+        " text-align: left; }\n"
+        "th { background: #f0f0f0; }\n"
+        ".zero { color: green; }\n"
+        ".errors { color: red; font-weight: bold; }\n"
+        "a { color: inherit; }\n"
+        "</style>\n"
+        "</head>\n<body>\n",
+        io_lib:format("<h1>Error Log Summary</h1>\n"
+                      "<p>Total errors: ~p</p>\n", [GrandTotal]),
+        "<table>\n<tr><th>Suite</th><th>Errors</th></tr>\n",
+        Rows,
+        "</table>\n</body>\n</html>\n"
+    ],
+    ok = file:write_file(File, Html).
+
+-spec format_summary_line({atom(), non_neg_integer()}) -> iolist().
+format_summary_line({Suite, 0}) ->
+    io_lib:format("  ~s: 0~n", [Suite]);
+format_summary_line({Suite, Count}) ->
+    io_lib:format("  ~s: ~p  <---~n", [Suite, Count]).
+
+-spec format_summary_html_row({atom(), non_neg_integer()}) -> iolist().
+format_summary_html_row({Suite, 0}) ->
+    SuiteStr = atom_to_list(Suite),
+    io_lib:format("<tr><td><a href=\"~s.log\">~s</a></td>"
+                  "<td class=\"zero\">0</td></tr>\n",
+                  [SuiteStr, SuiteStr]);
+format_summary_html_row({Suite, Count}) ->
+    SuiteStr = atom_to_list(Suite),
+    io_lib:format("<tr><td><a href=\"~s.log\">~s</a></td>"
+                  "<td class=\"errors\">~p</td></tr>\n",
+                  [SuiteStr, SuiteStr, Count]).
 
 -spec format_report(atom(), non_neg_integer(), [entry()]) -> iolist().
 format_report(Suite, Total, Entries) ->
