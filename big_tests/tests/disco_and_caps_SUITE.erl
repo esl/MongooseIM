@@ -255,14 +255,17 @@ user_can_query_server_features(Config) ->
         escalus:send(Alice, escalus_stanza:disco_info(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_identity, [<<"server">>, <<"im">>], Stanza),
-        case proplists:get_value(caps_version, Config) of
-            undefined -> ok;
-            Version -> escalus:assert(has_feature, [escalus_stanza:ns_caps(Version)], Stanza)
-        end,
+        [escalus:assert(has_feature, [Feature], Stanza)
+         || Feature <- caps_features(proplists:get_value(caps_version, Config))],
         escalus:assert(has_feature, [<<"iq">>], Stanza),
         escalus:assert(has_feature, [<<"presence">>], Stanza),
         escalus:assert(is_stanza_from, [domain()], Stanza)
     end).
+
+%% For version 2, check one of the expected hashes
+caps_features(undefined) -> [];
+caps_features(v1) -> [escalus_stanza:ns_caps(v1)];
+caps_features(v2) -> [escalus_stanza:ns_caps(v2), ?NS_HASH_2, ?NS_HASH_FUNCTION(~"sha-256")].
 
 %% XEP-0157: Contact Addresses for XMPP Services
 user_can_query_server_info(Config) ->
