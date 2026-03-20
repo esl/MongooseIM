@@ -1,7 +1,7 @@
 -module(mod_blocklist_api).
 
 %% API
--export([add_user/2, remove_user/1]).
+-export([add_user/2, remove_user/1, list_blocked_users/2, count_blocked_users/1]).
 
 -include("jlib.hrl").
 -include("session.hrl").
@@ -27,6 +27,26 @@ remove_user(#jid{luser = LUser, lserver = LServer}) ->
         {ok, mod_blocklist_backend:remove_block(HostType, LUser, LServer)}
     else
         {error, _} -> {domain_not_found, "User's domain does not exist"}
+    end.
+
+-spec list_blocked_users(jid:lserver(), mod_blocklist_backend:list_opts()) ->
+    {ok, [{jid:literal_jid(), mod_blocklist:reason()}]} | {domain_not_found, iolist()}.
+list_blocked_users(Domain, Opts) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            Users = mod_blocklist_backend:list_blocked_users(HostType, Domain, Opts),
+            {ok, [{jid:to_binary({LUser, Domain}), Reason} || {LUser, Reason} <- Users]};
+        {error, _} ->
+            {domain_not_found, "Domain does not exist"}
+    end.
+
+-spec count_blocked_users(jid:lserver()) -> {ok, non_neg_integer()} | {domain_not_found, iolist()}.
+count_blocked_users(Domain) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} ->
+            {ok, mod_blocklist_backend:count_blocked_users(HostType, Domain)};
+        {error, _} ->
+            {domain_not_found, "Domain does not exist"}
     end.
 
 %% Helpers

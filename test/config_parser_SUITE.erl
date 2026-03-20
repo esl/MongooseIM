@@ -414,7 +414,7 @@ component_backend(_Config) ->
     ?cfg(component_backend, mnesia, #{}), % default
     ?cfg(component_backend, mnesia, #{<<"general">> => #{<<"component_backend">> => <<"mnesia">>}}),
     ?cfg(component_backend, cets, #{<<"general">> => #{<<"component_backend">> => <<"cets">>},
-                                      <<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}}),
+                                    <<"internal_databases">> => #{<<"cets">> => #{}, <<"mnesia">> => #{}}}),
     ?err(#{<<"general">> => #{<<"component_backend">> => <<"amnesia">>}}).
 
 s2s_backend(_Config) ->
@@ -1648,6 +1648,8 @@ mod_extdisco(_Config) ->
     ?cfgh(P, [Service#{transport => <<"udp">>}], T(RequiredOpts#{<<"transport">> => <<"udp">>})),
     ?cfgh(P, [Service#{username => <<"user">>}], T(RequiredOpts#{<<"username">> => <<"user">>})),
     ?cfgh(P, [Service#{password => <<"pass">>}], T(RequiredOpts#{<<"password">> => <<"pass">>})),
+    ?cfgh(P, [Service#{secret => <<"sec">>, ttl => 3600}],
+          T(RequiredOpts#{<<"secret">> => <<"sec">>})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     [?errh(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"type">> => <<>>})),
@@ -1655,7 +1657,9 @@ mod_extdisco(_Config) ->
     ?errh(T(RequiredOpts#{<<"port">> => -1})),
     ?errh(T(RequiredOpts#{<<"transport">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"username">> => <<>>})),
-    ?errh(T(RequiredOpts#{<<"password">> => <<>>})).
+    ?errh(T(RequiredOpts#{<<"password">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"secret">> => <<"sec">>, <<"password">> => <<"pass">>})),
+    ?errh(T(RequiredOpts#{<<"secret">> => <<"sec">>, <<"username">> => <<"user">>})).
 
 mod_external_filter(_Config) ->
     % This module doesn't have any defaults, hence no check_module_defaults/1 call

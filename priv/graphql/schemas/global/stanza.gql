@@ -23,3 +23,18 @@ type SendStanzaPayload{
   "Stanza id"
   id: ID
 }
+
+"Trace map data"
+type TraceMap{
+  "Session pid"
+  pid: String
+  "Session owner"
+  jid: JID
+  "Stanza's timestamp"
+  timestamp: DateTime
+  "Direction"
+  dir: String
+  "Stanza's data"
+  stanza: String
+}
+

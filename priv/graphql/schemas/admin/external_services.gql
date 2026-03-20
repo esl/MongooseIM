@@ -1,0 +1,25 @@
+"""
+Allow admins to retrieve external services configured for a domain.
+"""
+type ExternalServicesAdminMutation @use(modules: ["mod_extdisco"]) @protected{
+    "Allow admins to retrieve external services configured for a domain."
+    getServices(domain: DomainName!, type: NonEmptyString): [Service]
+      @use(args: ["domain"]) @protected(type: DOMAIN, args: ["domain"])
+}
+
+type Service {
+  "Fully qualified domain name of the service."
+  host: DomainName!
+  "Service type."
+  type: NonEmptyString!
+  "Port used to access the service."
+  port: NonNegInt
+  "Transport protocol used by the service (tcp or udp)."
+  transport: NonEmptyString
+  "Authentication username."
+  username: NonEmptyString
+  "Authentication password."
+  password: NonEmptyString
+  "Expiration timestamp of the provided credentials (Unix time)."
+  expires: PosInt
+}

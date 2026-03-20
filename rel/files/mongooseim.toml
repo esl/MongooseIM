@@ -183,6 +183,8 @@
 
 [modules.mod_adhoc]
 
+# [services.service_traffic]
+
 {{#mod_amp}}
 [modules.mod_amp]
 {{{mod_amp}}}

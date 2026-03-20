@@ -36,7 +36,6 @@
 %% Client API
 -export([delete_archive/1,
          archive_size/2,
-         archive_size_with_host_type/3,
          archive_id/2]).
 
 %% gen_mod handlers
@@ -64,7 +63,7 @@
 -export([archive_id_int/2]).
 
 -ignore_xref([archive_message_from_ct/1, archive_size/2,
-              archive_size_with_host_type/3, delete_archive/1]).
+              delete_archive/1]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -88,12 +87,6 @@ archive_size(Server, User)
   when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make_bare(User, Server),
     HostType = jid_to_host_type(ArcJID),
-    ArcID = archive_id_int(HostType, ArcJID),
-    archive_size(HostType, ArcID, ArcJID).
-
--spec archive_size_with_host_type(host_type(), jid:server(), jid:user()) -> integer().
-archive_size_with_host_type(HostType, Server, User) ->
-    ArcJID = jid:make_bare(User, Server),
     ArcID = archive_id_int(HostType, ArcJID),
     archive_size(HostType, ArcID, ArcJID).
 

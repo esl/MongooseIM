@@ -58,6 +58,7 @@
 {suites, "tests", graphql_mnesia_SUITE}.
 {suites, "tests", graphql_cets_SUITE}.
 {suites, "tests", graphql_http_upload_SUITE}.
+{suites, "tests", graphql_external_services_SUITE}.
 {suites, "tests", graphql_metric_SUITE}.
 {suites, "tests", graphql_blocklist_SUITE}.
 {suites, "tests", inbox_SUITE}.
@@ -120,7 +121,6 @@
 {suites, "tests", dynamic_domains_SUITE}.
 {suites, "tests", graphql_server_SUITE}.
 {suites, "tests", last_SUITE}.
-{suites, "tests", metrics_api_SUITE}.
 {suites, "tests", persistent_cluster_id_SUITE}.
 {suites, "tests", service_domain_db_SUITE}.
 

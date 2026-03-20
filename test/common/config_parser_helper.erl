@@ -516,6 +516,8 @@ all_modules() ->
                         #{host => <<"stun2">>, password => <<"password">>,
                           port => 2222, transport => <<"tcp">>, type => stun,
                           username => <<"username">>},
+                        #{host => <<"192.168.0.1">>, type => turns,
+                          ttl => 3600, secret => <<"some secret">>},
                         #{host => <<"192.168.0.1">>, type => turn}]},
       mod_external_filter => mod_config(mod_external_filter, #{pool_tag => external_filter_http}),
       mod_csi => mod_config(mod_csi, #{buffer_max => 40}),

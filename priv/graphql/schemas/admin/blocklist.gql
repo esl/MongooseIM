@@ -1,4 +1,32 @@
 """
+Allow admin to query the blocklist.
+"""
+type BlocklistAdminQuery @protected @use(modules: ["mod_blocklist"]) {
+  "Get number of blocked users per domain"
+  userCount(domain: DomainName!): Int
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+  "List blocked users per domain"
+  listBlockedUsers(
+    domain: DomainName!
+    "Maximum number of users to return. If omitted, returns all users (or all remaining users after applying index)."
+    limit: PosInt
+    "Zero-based index of the first user to return. If omitted, defaults to 0."
+    index: NonNegInt
+  ): [BlockedUser!]
+    @protected(type: DOMAIN, args: ["domain"]) @use(args: ["domain"])
+}
+
+"""
+A blocked user entry with the JID and optional reason.
+"""
+type BlockedUser {
+  "The JID of the blocked user"
+  jid: JID!
+  "The reason for the block, if provided"
+  reason: String
+}
+
+"""
 Allow admin to manage the blocklist.
 """
 type BlocklistAdminMutation @protected @use(modules: ["mod_blocklist"]) {
