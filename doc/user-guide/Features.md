@@ -88,6 +88,3 @@ In order to build client applications, the MongooseIM team recommends the follow
 MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush).
 For more details visit the push notification [user guide](../tutorials/push-notifications/Push-notifications.md).
 
-### MongooseICE
-You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE).
-To get started, we recommend going through [this tutorial](../tutorials/ICE_tutorial.md).

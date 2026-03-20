@@ -2,7 +2,7 @@
 Allow admins to retrieve external services configured for a domain.
 """
 type ExternalServicesAdminMutation @use(modules: ["mod_extdisco"]) @protected{
-    "Allow admins to retrieve external services configured for a domain."
+    "Retrieve external services configured for a domain and generate temporary credentials."
     getServices(domain: DomainName!, type: NonEmptyString): [Service]
       @use(args: ["domain"]) @protected(type: DOMAIN, args: ["domain"])
 }
