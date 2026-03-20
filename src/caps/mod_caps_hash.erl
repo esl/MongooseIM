@@ -10,8 +10,9 @@ Encoding and hashing of disco#info response query elements. There are two versio
 """.
 
 -xep([{xep, 300}, {version, "1.0.0"}]).
+-xep([{xep, 414}, {version, "0.4.0"}]).
 
--export([generate/3, encode/2, is_alg_supported/1]).
+-export([generate/3, encode/2, features/0, is_alg_supported/1]).
 
 -ignore_xref([encode/2]). % exported for tests
 
@@ -141,41 +142,50 @@ encode_form_field(v1, Values) ->
 encode_form_field(v2, Values) ->
     [[[Value, 16#1f] || Value <- Values], 16#1e].
 
+%% Hash function advertisement
+
+-doc "Specified in https://xmpp.org/extensions/xep-0300.html#disco".
+-spec features() -> [binary()].
+features() ->
+    [?NS_HASH_2 | [feature(Alg) || Alg <- algs(), is_alg_supported(Alg)]].
+
+-doc "Specified in https://xmpp.org/extensions/xep-0300.html#registrar-features".
+-spec feature(mod_caps:hash_alg()) -> binary().
+feature(~"blake2b-512") -> ?NS_HASH_FUNCTION(~"id-blake2b512");
+feature(Alg) -> ?NS_HASH_FUNCTION(Alg).
+
 %% Hash calculation
 %% According to XEP-0300, a supported hash algorithm MUST be defined in one of the sources:
 %% 1. https://www.iana.org/assignments/hash-function-text-names/hash-function-text-names.xhtml
 %% 2. https://xmpp.org/extensions/xep-0300.html#table-1
+%% Additionally, recommendations from XEP-0414 apply.
 
 -spec is_alg_supported(mod_caps:hash_alg()) -> boolean().
-is_alg_supported(~"md5") ->
-    true;
 is_alg_supported(Alg) ->
     case hash_type(Alg) of
         {ok, Type} -> lists:member(Type, crypto:supports(hashs));
         {error, unknown_alg} -> false
     end.
 
-%% XOF hash sizes are specified in https://datatracker.ietf.org/doc/html/rfc8692#rsa-sigs
 -spec hash(binary(), mod_caps:hash_alg()) -> binary().
-hash(Data, ~"md5") ->
-    erlang:md5(Data);
-hash(Data, ~"shake128") ->
-    crypto:hash_xof(shake128, Data, 256);
-hash(Data, ~"shake256") ->
-    crypto:hash_xof(shake256, Data, 512);
 hash(Data, Alg) ->
     {ok, Type} = hash_type(Alg),
     crypto:hash(Type, Data).
 
+%% Current XEP-0414 recommendation shown in comments on the right
 -spec hash_type(mod_caps:hash_alg()) -> {ok, atom()} | {error, unknown_alg}.
-hash_type(~"sha-1") -> {ok, sha};
+hash_type(~"sha-1") -> {ok, sha}; % SHOULD NOT, but mandatory for XEP-0115
 hash_type(~"sha-224") -> {ok, sha224};
-hash_type(~"sha-256") -> {ok, sha256};
+hash_type(~"sha-256") -> {ok, sha256}; % MUST
 hash_type(~"sha-384") -> {ok, sha384};
-hash_type(~"sha-512") -> {ok, sha512};
-hash_type(~"shake128") -> {ok, shake128};
-hash_type(~"shake256") -> {ok, shake256};
-hash_type(~"sha3-256") -> {ok, sha3_256};
-hash_type(~"sha3-512") -> {ok, sha3_512};
-hash_type(~"blake2b-512") -> {ok, blake2b};
+hash_type(~"sha-512") -> {ok, sha512}; % SHOULD
+hash_type(~"sha3-256") -> {ok, sha3_256}; % MUST
+hash_type(~"sha3-512") -> {ok, sha3_512}; % SHOULD
+hash_type(~"blake2b-512") -> {ok, blake2b}; % MUST
+% 'blake2b-256' is a SHOULD, but it is not supported in 'crypto'.
 hash_type(_) -> {error, unknown_alg}.
+
+-spec algs() -> [mod_caps:hash_alg()].
+algs() ->
+    [~"sha-1", ~"sha-224", ~"sha-256", ~"sha-384", ~"sha-512", ~"sha3-256", ~"sha3-512",
+     ~"blake2b-512"].
