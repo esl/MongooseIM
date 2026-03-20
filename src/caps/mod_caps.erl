@@ -90,7 +90,7 @@ hooks(HostType) ->
 disco_local_features(Acc = #{node := Node}, _, #{host_type := HostType}) ->
     case is_server_node_valid(HostType, Node) of
         true ->
-            Acc1 = mongoose_disco:add_features(lists:map(fun ns/1, versions(HostType)), Acc),
+            Acc1 = mongoose_disco:add_features(lists:flatmap(fun ns/1, versions(HostType)), Acc),
             {ok, Acc1#{node := ~""}};
         false ->
             {ok, Acc}
@@ -264,7 +264,7 @@ find_caps(v1, Element) ->
      || #xmlel{attrs = #{~"hash" := HashAlg, ~"ver" := HashVal, ~"node" := Node}} <- HashElements];
 find_caps(v2, Element) ->
     HashElements = exml_query:paths(Element, [{element_with_ns, ~"c", ?NS_CAPS_2},
-                                              {element_with_ns, ~"hash", ?NS_HASH}]),
+                                              {element_with_ns, ~"hash", ?NS_HASH_2}]),
     [#{version => v2, hash => {exml_query:attr(HashEl, ~"algo"), exml_query:cdata(HashEl)}}
      || HashEl <- HashElements].
 
@@ -284,7 +284,7 @@ server_caps_element(v2, {HashAlg, HashValue}) ->
     #xmlel{name = ~"c",
            attrs = #{~"xmlns" => ?NS_CAPS_2},
            children = [#xmlel{name = ~"hash",
-                              attrs = #{~"xmlns" => ?NS_HASH, ~"algo" => HashAlg},
+                              attrs = #{~"xmlns" => ?NS_HASH_2, ~"algo" => HashAlg},
                               children = [#xmlcdata{content = HashValue}]}]}.
 
 -spec is_server_node_valid(mongooseim:host_type(), binary()) -> boolean().
@@ -347,9 +347,9 @@ generate_server_hash(DiscoElements, Version) ->
 server_hash_alg(v1) -> ~"sha-1"; % XEP-0115 9.1 specifies SHA-1 as mandatory to implement
 server_hash_alg(v2) -> ~"sha-256". % XEP-0390 has no such rule, but uses SHA-256 in examples
 
--spec ns(version()) -> binary().
-ns(v1) -> ?NS_CAPS;
-ns(v2) -> ?NS_CAPS_2.
+-spec ns(version()) -> [binary()].
+ns(v1) -> [?NS_CAPS];
+ns(v2) -> [?NS_CAPS_2 | mod_caps_hash:features()].
 
 -spec server_disco_elements(mongooseim:host_type(), jid:jid()) -> [exml:element()].
 server_disco_elements(HostType, JID) ->

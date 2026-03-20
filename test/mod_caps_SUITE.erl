@@ -54,14 +54,11 @@ groups() ->
      {module, [parallel], module_tests()}].
 
 hash_alg_tests() ->
-    [generate_hash_md5,
-     generate_hash_sha1, % this test checks all files
+    [generate_hash_sha1, % this test checks all files
      generate_hash_sha224,
      generate_hash_sha256,
      generate_hash_sha384,
      generate_hash_sha512,
-     generate_hash_shake128,
-     generate_hash_shake256,
      generate_hash_sha3_256,
      generate_hash_sha3_512,
      generate_hash_blake2b_512].
@@ -80,11 +77,6 @@ module_tests() ->
      get_set_and_delete_hash_features].
 
 %% Test cases
-
-generate_hash_md5(Config) ->
-    Version = proplists:get_value(version, Config),
-    ?assertEqual(true, mod_caps_hash:is_alg_supported(~"md5")),
-    assert_hash(Config, complex2, Version, ~"md5").
 
 -doc "This test checks all file/version combinations".
 generate_hash_sha1(Config) ->
@@ -115,16 +107,6 @@ generate_hash_sha512(Config) ->
     Version = proplists:get_value(version, Config),
     ?assertEqual(true, mod_caps_hash:is_alg_supported(~"sha-512")),
     assert_hash(Config, complex2, Version, ~"sha-512").
-
-generate_hash_shake128(Config) ->
-    Version = proplists:get_value(version, Config),
-    ?assertEqual(true, mod_caps_hash:is_alg_supported(~"shake128")),
-    assert_hash(Config, complex2, Version, ~"shake128").
-
-generate_hash_shake256(Config) ->
-    Version = proplists:get_value(version, Config),
-    ?assertEqual(true, mod_caps_hash:is_alg_supported(~"shake256")),
-    assert_hash(Config, complex2, Version, ~"shake256").
 
 generate_hash_sha3_256(Config) ->
     Version = proplists:get_value(version, Config),
@@ -244,6 +226,9 @@ duplicate_elements(Config) ->
 
 unsupported_algorithm(Config) ->
     Version = proplists:get_value(version, Config),
+    ?assertEqual(false, mod_caps_hash:is_alg_supported(~"md5")),
+    ?assertError({badmatch, {error, unknown_alg}},
+                 generate_hash(Config, simple2, Version, ~"md5")),
     ?assertEqual(false, mod_caps_hash:is_alg_supported(~"sha3-224")),
     ?assertError({badmatch, {error, unknown_alg}},
                  generate_hash(Config, simple2, Version, ~"sha3-224")).
@@ -355,9 +340,6 @@ hash(complex2, v2, ~"sha3-256") -> ~"XpUJzLAc93258sMECZ3FJpebkzuyNXDzRNwQog8eycg
 
 %% Precomputed by: mod_caps_hash:encode(Version, Children) and then
 %%   openssl dgst -<alg> -binary | openssl base64 -A
-%% For SHAKE: openssl dgst -shake128 -xoflen 32 / -shake256 -xoflen 64
-hash(complex2, v1, ~"md5") -> ~"QLPiimcy6MD9yjkTTcD6ng==";
-hash(complex2, v2, ~"md5") -> ~"i4jAgF/hAqE2lqmc0+V43Q==";
 hash(simple2, v1, ~"sha-1") -> ~"GRREviyyjLzK2wK4QLX5NNF9FmQ=";
 hash(complex2, v1, ~"sha-1") -> ~"cePxJUNNZuDoNDbCMqs2VNEcJeY=";
 hash(simple, v2, ~"sha-1") -> ~"utogC9qlkongH5tx05hvJ22ioWQ=";
@@ -376,12 +358,6 @@ hash(complex2, v1, ~"sha-512") ->
     ~"kfYDC9DohECqZqmBvxjKyQndWLvA1HUP0qqA5FzP/z4kYqNaLWER3Ml1eSQY4hHdFpsdmaMAApvQslXlAiqHCg==";
 hash(complex2, v2, ~"sha-512") ->
     ~"wIbFhIiq0e6IDudjhlAhnkQ/lCWpdDl5srNSBeog88oAJ5L6QzujTzNTskPuYmUNEgCaJLq0rvKgbL1ufVfEzw==";
-hash(complex2, v1, ~"shake128") -> ~"uscTWqzYSqOGP5zstCYtS+e0lVtKWpKwZckXYSeT4DY=";
-hash(complex2, v2, ~"shake128") -> ~"S4Qi8OIiphus44kbH6mT+Yl/DGWTT5V6h6Zvuv0WZCU=";
-hash(complex2, v1, ~"shake256") ->
-    ~"MfwgAzTVHT86HVBhhdU/XYvlKp+rRctRT1uxZkXLpCBcrlV72tkH7134/OldWUKk5Dm3InebmivPlMT2tJyQ9A==";
-hash(complex2, v2, ~"shake256") ->
-    ~"rKS2cO8tPD2AfHOA35oBLb5tUV+3kulBjGQbamOUXeEFuLQyrMKGIcW8j46ws3mLAqPG1dDcuO0Nd8Z3tnq6tg==";
 hash(simple2, v1, ~"sha3-256") -> ~"Q9fh1OmwzpEIf+Wg1T59306eTy1m8aAWPfrZRVw+i1A=";
 hash(complex2, v1, ~"sha3-256") -> ~"O3suP+/FfEB+bmsVDRvQAZOoTxmMv4gch+6WieVrtYs=";
 hash(complex2, v1, ~"sha3-512") ->
