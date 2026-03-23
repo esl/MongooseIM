@@ -426,7 +426,7 @@ pubsub_host(Host) ->
 
 %% Module config
 required_modules(APIVersion) ->
-    [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, #{
+    [{mod_pubsub_old, config_parser_helper:mod_config(mod_pubsub_old, #{
         plugins => [<<"dag">>, <<"push">>],
         nodetree => nodetree_dag,
         host => subhost_pattern(?PUBSUB_SUB_DOMAIN ++ ".@HOST@"),

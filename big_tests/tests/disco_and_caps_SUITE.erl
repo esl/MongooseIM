@@ -531,7 +531,7 @@ extra_disco_opts() ->
     #{extra_domains => [extra_domain()],
       server_info => [server_info(abuse, #{}),
                       server_info(admin, #{modules => [mod_disco]}),
-                      server_info(sales, #{modules => [mod_pubsub]})]}.
+                      server_info(sales, #{modules => [mod_pubsub_old]})]}.
 
 get_form_fields(Stanza) ->
      exml_query:paths(Stanza, [{element_with_ns, <<"query">>, ?NS_DISCO_INFO},

@@ -1054,7 +1054,7 @@ required_modules(API, PubSubHost, ExtraPushOpts) ->
 pubsub_modules(virtual) ->
     [];
 pubsub_modules(real) ->
-    [{mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"push">>],
+    [{mod_pubsub_old, mod_config(mod_pubsub_old, #{plugins => [<<"dag">>, <<"push">>],
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            nodetree => nodetree_dag,
                                            host => subhost_pattern("pubsub.@HOST@")})}].
