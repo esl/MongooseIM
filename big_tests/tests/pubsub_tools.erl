@@ -422,17 +422,33 @@ send_request_and_receive_response(User, Request, Id, Options) ->
 send_request_and_receive_response(User, Request, Id, Options, CheckResponseF) ->
     escalus:send(User, Request),
     case {proplists:get_value(receive_response, Options, true),
-          proplists:get_value(expected_error_type, Options, none)} of
-        {false, _} ->
+          proplists:get_value(expected_error_type, Options, none),
+          proplists:get_value(expected_notification, Options, none)} of
+        {false, _, none} ->
             ok;
-        {true, none} ->
+        {false, _, NodeAddr} ->
+            receive_notification(User, NodeAddr, Options);
+        {true, none, none} ->
             receive_and_check_response(User, Id, Options, CheckResponseF);
-        {true, ExpectedErrorType} ->
+        {true, none, NodeAddr} ->
+            receive_response_and_notification(User, Id, Options, CheckResponseF, NodeAddr);
+        {true, ExpectedErrorType, _} ->
             receive_error_response(User, Id, ExpectedErrorType, Options)
     end.
 
+receive_response_and_notification(User, Id, Options, CheckResponseF, NodeAddr) ->
+    Stanzas = escalus:wait_for_stanzas(User, 2),
+    [IQ] = lists:filter(fun escalus_pred:is_iq/1, Stanzas),
+    Response = preprocess_and_check_response(IQ, Options, CheckResponseF),
+    [Msg] = Stanzas -- [IQ],
+    check_notification(Msg, NodeAddr),
+    {Response, Msg}.
+
 receive_and_check_response(User, Id, Options, CheckF) ->
     Response = receive_response(User, Id, Options),
+    preprocess_and_check_response(Response, Options, CheckF).
+
+preprocess_and_check_response(Response, Options, CheckF) ->
     PreppedResponse = preprocess_response(Response, Options),
     case proplists:get_value(expected_result, Options) of
         undefined -> PreppedResponse;
@@ -466,8 +482,7 @@ receive_error_response(User, Id, Type, Options) ->
 
 receive_notification(User, NodeAddr, Options) ->
     Stanza = receive_stanza(User, Options),
-    check_notification(Stanza, NodeAddr),
-    Stanza.
+    check_notification(Stanza, NodeAddr).
 
 check_notification(Stanza, NodeAddr) ->
     true = escalus_pred:is_stanza_from(NodeAddr, Stanza),

@@ -1,0 +1,67 @@
+<!--
+    https://xmpp.org/extensions/xep-0390.html#example-2
+    Additionally, order of elements is randomized to check sorting.
+-->
+<query xmlns="http://jabber.org/protocol/disco#info">
+  <identity category="client" name="Ткаббер" type="pc" xml:lang="ru"/>
+  <feature var="jabber:x:event"/>
+  <feature var="http://jabber.org/protocol/disco#items"/>
+  <feature var="http://jabber.org/protocol/rosterx"/>
+  <feature var="jabber:iq:inband"/>
+  <feature var="http://www.xmpp.org/extensions/xep-0084.html#ns-metadata+notify"/>
+  <feature var="http://jabber.org/protocol/activity+notify"/>
+  <feature var="urn:xmpp:time"/>
+  <feature var="http://jabber.org/protocol/si/profile/file-transfer"/>
+  <feature var="http://jabber.org/protocol/mood"/>
+  <feature var="http://jabber.org/protocol/disco#info"/>
+  <feature var="urn:xmpp:ping"/>
+  <feature var="jabber:iq:roster"/>
+  <feature var="http://jabber.org/protocol/feature-neg"/>
+  <feature var="http://jabber.org/protocol/commands"/>
+  <feature var="jabber:iq:last"/>
+  <feature var="http://jabber.org/protocol/geoloc"/>
+  <feature var="jabber:x:oob"/>
+  <feature var="jabber:iq:oob"/>
+  <feature var="games:board"/>
+  <x xmlns="jabber:x:data" type="result">
+    <field var="os">
+      <value>Windows</value>
+    </field>
+    <field type="hidden" var="FORM_TYPE">
+      <value>urn:xmpp:dataforms:softwareinfo</value>
+    </field>
+    <field var="software">
+      <value>Tkabber</value>
+    </field>
+    <field var="software_version">
+      <value>0.11.1-svn-20111216-mod (Tcl/Tk 8.6b2)</value>
+    </field>
+    <field var="os_version">
+      <value>XP</value>
+    </field>
+  </x>
+  <feature var="http://jabber.org/protocol/bytestreams"/>
+  <feature var="jabber:iq:time"/>
+  <feature var="jabber:iq:privacy"/>
+  <feature var="http://jabber.org/protocol/iqibb"/>
+  <feature var="urn:xmpp:receipts"/>
+  <feature var="jabber:iq:filexfer"/>
+  <feature var="urn:xmpp:avatar:metadata+notify"/>
+  <feature var="http://jabber.org/protocol/activity"/>
+  <feature var="http://jabber.org/protocol/mood+notify"/>
+  <identity category="client" name="Tkabber" type="pc" xml:lang="en"/>
+  <feature var="http://jabber.org/protocol/chatstates"/>
+  <feature var="jabber:iq:browse"/>
+  <feature var="http://jabber.org/protocol/tune"/>
+  <feature var="http://jabber.org/protocol/si"/>
+  <feature var="jabber:iq:dtcp"/>
+  <feature var="http://jabber.org/protocol/evil"/>
+  <feature var="jabber:iq:avatar"/>
+  <feature var="jabber:iq:ibb"/>
+  <feature var="http://jabber.org/protocol/geoloc+notify"/>
+  <feature var="http://www.facebook.com/xmpp/messages"/>
+  <feature var="jabber:iq:version"/>
+  <feature var="jabber:x:data"/>
+  <feature var="http://jabber.org/protocol/ibb"/>
+  <feature var="jabber:iq:jidlink"/>
+</query>
