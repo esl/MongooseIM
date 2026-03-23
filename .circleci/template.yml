@@ -1063,6 +1063,16 @@ workflows:
             - latest_otp_docker
           filters: *all_tags
       - big_tests_in_docker:
+          name: dynamic_domains_pgsql_cets_latest
+          spec: dynamic_domains.spec
+          executor: latest_otp_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          db: "mnesia postgres cets"
+          requires:
+            - latest_otp_docker
+          filters: *all_tags
+      - big_tests_in_docker:
           name: dynamic_domains_pgsql_mnesia_legacy
           spec: dynamic_domains.spec
           executor: legacy_otp_pgsql_redis
@@ -1121,6 +1131,7 @@ workflows:
             - ldap_mnesia_latest
             - elasticsearch_and_cassandra_latest
             - dynamic_domains_pgsql_mnesia_latest
+            - dynamic_domains_pgsql_cets_latest
             - dynamic_domains_mysql_redis_latest
             - dialyzer_latest
             - small_tests_latest_arm64
