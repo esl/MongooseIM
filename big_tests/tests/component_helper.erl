@@ -47,9 +47,7 @@ disconnect_components(Components, Addr) ->
                            #{name => rpc}).
 
 rpc(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_rpc:call(Node, M, F, A, 10000, Cookie).
+    distributed_helper:rpc(distributed_helper:mim(), M, F, A).
 
 cook_connection_step_error(E) ->
     {connection_step_failed, Step, Reason} = E,

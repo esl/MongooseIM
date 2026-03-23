@@ -13,6 +13,8 @@ execute(_Ctx, _Obj, <<"blocklist">>, _Args) ->
     {ok, blocklist};
 execute(_Ctx, _Obj, <<"httpUpload">>, _Args) ->
     {ok, httpUpload};
+execute(_Ctx, _Obj, <<"externalServices">>, _Args) ->
+    {ok, externalServices};
 execute(_Ctx, _Obj, <<"inbox">>, _Args) ->
     {ok, inbox};
 execute(_Ctx, _Obj, <<"last">>, _Args) ->

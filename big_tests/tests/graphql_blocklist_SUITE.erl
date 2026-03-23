@@ -45,17 +45,29 @@ admin_blocklist_tests() ->
      admin_add_user_without_reason,
      admin_remove_user,
      admin_remove_user_nonexisting,
+     admin_user_count,
+     admin_user_count_unknown_domain,
+     admin_list_blocked_users,
+     admin_list_blocked_users_pagination,
+     admin_list_blocked_users_unknown_domain,
      user_removal].
 
 admin_blocklist_not_configured_tests() ->
     [admin_admin_user_not_configured,
-     admin_remove_user_not_configured].
+     admin_remove_user_not_configured,
+     admin_user_count_not_configured,
+     admin_list_blocked_users_not_configured].
 
 domain_admin_blocklist_tests() ->
     [domain_admin_add_user_no_permission,
      domain_admin_remove_user_no_permission,
+     domain_admin_user_count_no_permission,
+     domain_admin_list_blocked_users_no_permission,
      admin_add_user,
-     admin_remove_user].
+     admin_remove_user,
+     admin_user_count,
+     admin_list_blocked_users,
+     admin_list_blocked_users_pagination].
 
 %% Setup & Teardown
 
@@ -82,11 +94,11 @@ init_per_group(domain_admin, Config) ->
 init_per_group(Group, Config) when Group == admin_blocklist;
                                    Group == domain_admin_blocklist ->
     ensure_blocklist_started(),
-    Config;
+    [{blocklist_running, true} | Config];
 init_per_group(Group, Config) when Group == admin_blocklist_not_configured;
                                    Group == domain_admin_blocklist_not_configured ->
     ensure_blocklist_stopped(),
-    Config.
+    [{blocklist_running, false} | Config].
 
 end_per_group(Group, _Config) when Group == admin_http;
                                    Group == admin_cli;
@@ -107,6 +119,10 @@ init_per_testcase(TestCase, Config) ->
     escalus:init_per_testcase(TestCase, Config).
 
 end_per_testcase(TestCase, Config) ->
+    case proplists:get_value(blocklist_running, Config, false) of
+        true -> rpc(mim(), mod_blocklist_backend, clear_all, [host_type()]);
+        false -> ok
+    end,
     escalus:end_per_testcase(TestCase, Config).
 
 %% Admin
@@ -164,13 +180,71 @@ admin_remove_user_nonexisting(Config) ->
     Res2 = admin_remove_user(?NONEXISTING_USER, Config),
     ?assertEqual(false, get_ok_value([data, blocklist, removeUser], Res2)).
 
+admin_user_count(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Alice = escalus_users:get_jid(Config1, alice),
+    Bob = escalus_users:get_jid(Config1, bob),
+
+    Res0 = admin_user_count(domain(), Config1),
+    ?assertEqual(0, get_ok_value([data, blocklist, userCount], Res0)),
+
+    admin_add_user(Alice, <<"Spam">>, Config1),
+    Res1 = admin_user_count(domain(), Config1),
+    ?assertEqual(1, get_ok_value([data, blocklist, userCount], Res1)),
+
+    admin_add_user(Bob, <<"Spam">>, Config1),
+    Res2 = admin_user_count(domain(), Config1),
+    ?assertEqual(2, get_ok_value([data, blocklist, userCount], Res2)).
+
+admin_user_count_unknown_domain(Config) ->
+    Res = admin_user_count(<<"unknown-domain">>, Config),
+    ?assertEqual(<<"domain_not_found">>, get_err_code(Res)).
+
+admin_list_blocked_users(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    AliceJid = escalus_users:get_jid(Config1, alice),
+    BobJid = escalus_users:get_jid(Config1, bob),
+    
+    admin_add_user(AliceJid, <<"Spam">>, Config1),
+    admin_add_user(BobJid, <<"Spam">>, Config1),
+    
+    Res = admin_list_blocked_users(domain(), Config1),
+    Users = get_ok_value([data, blocklist, listBlockedUsers], Res),
+    ExpectedUsers = [#{<<"jid">> => jid_prep(AliceJid), <<"reason">> => <<"Spam">>},
+                     #{<<"jid">> => jid_prep(BobJid), <<"reason">> => <<"Spam">>}],
+    ?assertEqual(lists:sort(ExpectedUsers), Users).
+
+admin_list_blocked_users_pagination(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    AliceJid = escalus_users:get_jid(Config1, alice),
+    BobJid = escalus_users:get_jid(Config1, bob),
+    
+    admin_add_user(AliceJid, <<"Spam">>, Config1),
+    admin_add_user(BobJid, <<"Spam">>, Config1),
+    
+    ResAll = admin_list_blocked_users(domain(), Config1),
+    [_, _] = AllUsers = get_ok_value([data, blocklist, listBlockedUsers], ResAll),
+    
+    ResP1 = admin_list_blocked_users_paged(domain(), 1, undefined, Config1),
+    UsersP1 = get_ok_value([data, blocklist, listBlockedUsers], ResP1),
+    ResP2 = admin_list_blocked_users_paged(domain(), 1, 1, Config1),
+    UsersP2 = get_ok_value([data, blocklist, listBlockedUsers], ResP2),
+    
+    AllJids = [Jid || #{<<"jid">> := Jid} <- AllUsers],
+    PagedJids = [Jid || #{<<"jid">> := Jid} <- UsersP1 ++ UsersP2],
+    ?assertEqual(AllJids, PagedJids).
+
+admin_list_blocked_users_unknown_domain(Config) ->
+    Res = admin_list_blocked_users(<<"unknown-domain">>, Config),
+    ?assertEqual(<<"domain_not_found">>, get_err_code(Res)).
+
 user_removal(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
-    Alice = escalus_users:get_jid(Config1, alice),
-    admin_add_user(Alice, <<"Spam">>, Config1),
+    AliceJid = escalus_users:get_jid(Config1, alice),
+    admin_add_user(AliceJid, <<"Spam">>, Config1),
     Spec = escalus_users:get_userspec(Config1, alice),
     escalus_users:delete_users(Config1, [{alice, Spec}]),
-    Res = admin_remove_user(Alice, Config1),
+    Res = admin_remove_user(AliceJid, Config1),
     ?assertEqual(false, get_ok_value([data, blocklist, removeUser], Res)).
 
 admin_admin_user_not_configured(Config) ->
@@ -187,6 +261,14 @@ admin_remove_user_not_configured(Config) ->
 
 admin_remove_user_not_configured_story(Config, Alice) ->
     Res = admin_remove_user(Alice, Config),
+    get_not_loaded(Res).
+
+admin_user_count_not_configured(Config) ->
+    Res = admin_user_count(domain_helper:domain(), Config),
+    get_not_loaded(Res).
+
+admin_list_blocked_users_not_configured(Config) ->
+    Res = admin_list_blocked_users(domain_helper:domain(), Config),
     get_not_loaded(Res).
 
 %% Domain admin
@@ -207,6 +289,14 @@ domain_admin_remove_user_no_permission_story(Config, Alice) ->
     Res = admin_remove_user(Alice, Config),
     get_unauthorized(Res).
 
+domain_admin_list_blocked_users_no_permission(Config) ->
+    Res = admin_list_blocked_users(?NONEXISTING_DOMAIN, Config),
+    get_unauthorized(Res).
+
+domain_admin_user_count_no_permission(Config) ->
+    Res = admin_user_count(?NONEXISTING_DOMAIN, Config),
+    get_unauthorized(Res).
+
 %% Steps
 
 session_not_allowed(Client, Features) ->
@@ -223,3 +313,22 @@ admin_add_user(User, Reason, Config) ->
 admin_remove_user(User, Config) ->
     Vars = #{user => user_to_bin(User)},
     execute_command(<<"blocklist">>, <<"removeUser">>, Vars, Config).
+
+admin_list_blocked_users(Domain, Config) ->
+    Vars = #{domain => Domain},
+    execute_command(<<"blocklist">>, <<"listBlockedUsers">>, Vars, Config).
+
+admin_user_count(Domain, Config) ->
+    Vars = #{domain => Domain},
+    execute_command(<<"blocklist">>, <<"userCount">>, Vars, Config).
+
+admin_list_blocked_users_paged(Domain, Limit, MaybeIndex, Config) ->
+    Vars0 = #{domain => Domain, limit => Limit},
+    Vars = case MaybeIndex of
+               undefined -> Vars0;
+               Index -> Vars0#{index => Index}
+           end,
+    execute_command(<<"blocklist">>, <<"listBlockedUsers">>, Vars, Config).
+
+jid_prep(JID) ->
+    jid:to_binary(jid:from_binary(JID)).

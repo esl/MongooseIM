@@ -324,7 +324,7 @@ clear_inboxes(UserList) ->
     Usernames = [{escalus_users:get_username(escalus_users:get_users(UserList),U),
                   escalus_users:get_server(escalus_users:get_users(UserList),U)}
                  || U <- UserList],
-    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [HostType, User, Server]) || {User, Server} <- Usernames].
+    [distributed_helper:rpc(distributed_helper:mim(), mod_inbox_utils, clear_inbox, [HostType, User, Server]) || {User, Server} <- Usernames].
 
 reload_inbox_option(Config, KeyValueList) ->
     HostType = domain_helper:host_type(mim),
@@ -777,7 +777,7 @@ to_bare_lower(User) ->
 %% Returns mim1-side time in ISO format
 -spec server_side_time() -> binary().
 server_side_time() ->
-    USec = escalus_ejabberd:rpc(erlang, system_time, [microsecond]),
+    USec = distributed_helper:rpc(distributed_helper:mim(), erlang, system_time, [microsecond]),
     TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
     list_to_binary(TS).
 

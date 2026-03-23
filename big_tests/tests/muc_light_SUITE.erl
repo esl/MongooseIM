@@ -76,9 +76,8 @@
          init_per_group/2, end_per_group/2,
          init_per_testcase/2, end_per_testcase/2]).
 
--import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
--import(distributed_helper, [subhost_pattern/1]).
+-import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(muc_light_helper, [
                            bin_aff_users/1,
@@ -326,7 +325,7 @@ common_muc_light_opts() ->
 
 removing_users_from_server_triggers_room_destruction(Config) ->
     escalus:delete_users(Config, escalus:get_users([carol])),
-    {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}]).
+    {error, not_exists} = rpc(mim(), mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}]).
 
 %% ---------------------- Disco ----------------------
 
@@ -632,7 +631,7 @@ leave_room(Config) ->
               end, {?DEFAULT_AFF_USERS, []}, [Alice, Bob, Kate]),
 
             % Now we verify that room is removed from DB
-            {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}])
+            {error, not_exists} = rpc(mim(), mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}])
         end).
 
 change_other_aff_deny(Config) ->
@@ -851,7 +850,7 @@ adding_wrongly_named_user_triggers_infinite_loop(Config)->
             Resource = <<"res1">>,
             JID = mongoose_helper:make_jid(AUsername, Host, Resource),
             ct:log("JID ~p", [JID]),
-            SessionRecPid = rpc(ejabberd_sm, get_session, [JID]),
+            SessionRecPid = rpc(mim(), ejabberd_sm, get_session, [JID]),
             {session, {_,Pid}, {AUsername, Host, Resource}, _, _, _} = SessionRecPid,
             %% maybe throws exception
             assert_process_memory_not_growing(Pid, 0, 2),
@@ -1168,7 +1167,7 @@ assert_process_memory_not_growing(_, _, Counter) when Counter > 4 ->
 assert_process_memory_not_growing(_, _, Counter) when Counter == 0 ->
     ok;
 assert_process_memory_not_growing(Pid, OldMemory, Counter) ->
-    {memory, Memory} = rpc(erlang, process_info, [Pid, memory]),
+    {memory, Memory} = rpc(mim(), erlang, process_info, [Pid, memory]),
     timer:sleep(1000),
     NewCounter = case Memory =< OldMemory of
                    true ->

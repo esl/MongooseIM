@@ -114,7 +114,7 @@ options("modules") ->
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},
-     {internal_databases, #{mnesia => #{}}},
+     {internal_databases, config([internal_databases], #{cets => #{}, mnesia => #{}})},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
@@ -410,7 +410,7 @@ all_modules() ->
                                               #{enabled => false}),
                        host => {fqdn, <<"muc.example.com">>},
                        no_stanzaid_element => true}),
-      mod_caps => default_mod_config(mod_caps),
+      mod_caps => mod_config(mod_caps, #{iq_response_timeout => 10000, versions => [v2]}),
       mod_mam_cache_user => (default_config([modules, mod_mam, cache]))#{muc => true, pm => true},
       mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_ping =>
@@ -516,6 +516,8 @@ all_modules() ->
                         #{host => <<"stun2">>, password => <<"password">>,
                           port => 2222, transport => <<"tcp">>, type => stun,
                           username => <<"username">>},
+                        #{host => <<"192.168.0.1">>, type => turns,
+                          ttl => 3600, secret => <<"some secret">>},
                         #{host => <<"192.168.0.1">>, type => turn}]},
       mod_external_filter => mod_config(mod_external_filter, #{pool_tag => external_filter_http}),
       mod_csi => mod_config(mod_csi, #{buffer_max => 40}),
@@ -843,9 +845,7 @@ default_mod_config(mod_broadcast) ->
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_caps) ->
-    #{backend => mnesia,
-      cache_size => 1000,
-      cache_life_time => timer:hours(24) div 1000};
+    #{backend => cets, iq_response_timeout => 5000, versions => [v1, v2]};
 default_mod_config(mod_csi) ->
     #{buffer_max => 20};
 default_mod_config(mod_carboncopy) ->
@@ -1105,6 +1105,8 @@ default_config([instrumentation, exometer, report, Name]) ->
     end;
 default_config([instrumentation, _]) ->
     #{};
+default_config([internal_databases, cets]) ->
+    #{backend => rdbms, cluster_name => mongooseim};
 default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),

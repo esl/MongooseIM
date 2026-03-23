@@ -1,0 +1,21 @@
+<!-- https://xmpp.org/extensions/xep-0390.html#algorithm-example-simple -->
+<query xmlns="http://jabber.org/protocol/disco#info">
+  <identity category="client" name="BombusMod" type="mobile"/>
+  <feature var="http://jabber.org/protocol/si"/>
+  <feature var="http://jabber.org/protocol/bytestreams"/>
+  <feature var="http://jabber.org/protocol/chatstates"/>
+  <feature var="http://jabber.org/protocol/disco#info"/>
+  <feature var="http://jabber.org/protocol/disco#items"/>
+  <feature var="urn:xmpp:ping"/>
+  <feature var="jabber:iq:time"/>
+  <feature var="jabber:iq:privacy"/>
+  <feature var="jabber:iq:version"/>
+  <feature var="http://jabber.org/protocol/rosterx"/>
+  <feature var="urn:xmpp:time"/>
+  <feature var="jabber:x:oob"/>
+  <feature var="http://jabber.org/protocol/ibb"/>
+  <feature var="http://jabber.org/protocol/si/profile/file-transfer"/>
+  <feature var="urn:xmpp:receipts"/>
+  <feature var="jabber:iq:roster"/>
+  <feature var="jabber:iq:last"/>
+</query>

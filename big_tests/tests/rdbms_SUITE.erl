@@ -92,7 +92,8 @@ rdbms_queries_cases() ->
      test_upsert_many1_replaces_existing,
      test_upsert_many2_replaces_existing,
 
-     pool_probe_metrics_are_updated].
+     wpool_rdbms_stats_are_updated,
+     wpool_queue_lengths_are_updated].
 
 suite() ->
     escalus:suite().
@@ -144,6 +145,12 @@ init_per_testcase(Case = prepare_without_execute_does_not_cause_inconsistency, C
         false ->
             {skip, "Test for a Postgres-specific issue"}
     end;
+init_per_testcase(Case = wpool_queue_lengths_are_updated, Config) ->
+    Tag = proplists:get_value(tag, Config),
+    Scope = proplists:get_value(scope, Config),
+    PoolName = rpc(mim(), mongoose_wpool, make_pool_name, [rdbms, Scope, Tag]),
+    Workers = rpc(mim(), wpool, get_workers, [PoolName]),
+    escalus:init_per_testcase(Case, [{workers, Workers} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -166,14 +173,19 @@ end_per_testcase(Case = test_wrapped_request, Config) ->
     Tag = ?config(tag, Config),
     ok = rpc(mim(), mongoose_instrument, tear_down, [wrapper_event_spec(Tag)]),
     escalus:end_per_testcase(Case, Config);
+end_per_testcase(Case = wpool_queue_lengths_are_updated, Config) ->
+    Workers = proplists:get_value(workers, Config),
+    [rpc(mim(), sys, resume, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
+    escalus:end_per_testcase(Case, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 declared_events(Config) ->
-    Scope = ?config(scope, Config),
-    Tag = ?config(tag, Config),
-    instrument_helper:declared_events(mongoose_wpool_rdbms, [Scope, Tag]) ++
-    [{test_wrapped_request, #{pool_tag => Tag}}].
+    Scope = proplists:get_value(scope, Config),
+    Tag = proplists:get_value(tag, Config),
+    instrument_helper:declared_events(mongoose_wpool_rdbms, [Scope, Tag])
+        ++ instrument_helper:declared_events(mongoose_wpool, [rdbms, Scope, Tag])
+        ++ [{test_wrapped_request, #{pool_tag => Tag}}].
 
 %%--------------------------------------------------------------------
 %% Data for cases
@@ -683,19 +695,30 @@ test_upsert_many2_replaces_existing(Config) ->
     SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
     ?assertEqual({selected, [{<<"10">>}, {<<"10">>}]}, selected_to_binary(SelectResult)).
 
-pool_probe_metrics_are_updated(Config) ->
-    Tag = ?config(tag, Config),
-    {Event, Labels} = case ?config(scope, Config) of
-                          global ->
-                              {wpool_global_rdbms_stats, #{pool_tag => Tag}};
-                          Scope ->
-                              {wpool_rdbms_stats, #{host_type => Scope, pool_tag => Tag}}
-                      end,
+wpool_rdbms_stats_are_updated(Config) ->
+    Tag = proplists:get_value(tag, Config),
+    {Event, Labels} = scope_event(Config, wpool_global_rdbms_stats, wpool_rdbms_stats,
+                                  #{pool_tag => Tag}),
+
     #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
 
     select_one_works_case(Config),
 
     F = fun(#{recv_oct := NewRecv, send_oct := NewSend}) -> NewRecv > Recv andalso NewSend > Send end,
+    instrument_helper:wait_and_assert_new(Event, Labels, F).
+
+wpool_queue_lengths_are_updated(Config) ->
+    Tag = proplists:get_value(tag, Config),
+    Workers = proplists:get_value(workers, Config),
+    {Event, Labels} = scope_event(Config, wpool_global_queue_lengths, wpool_queue_lengths,
+                                  #{pool_type => rdbms, pool_tag => Tag}),
+
+    #{total := Total} = rpc(mim(), mongoose_wpool, probe, [Event, Labels]),
+
+    [rpc(mim(), sys, suspend, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
+    sql_query_cast(Config, <<"SELECT 1">>),
+
+    F = fun(#{total := NewTotal}) -> NewTotal > Total end,
     instrument_helper:wait_and_assert_new(Event, Labels, F).
 
 %%--------------------------------------------------------------------
@@ -728,13 +751,13 @@ sql_query(Config, Query) ->
     slow_rpc(mongoose_rdbms, sql_query, ScopeAndTag ++ [Query]).
 
 sql_prepare(_Config, Name, Table, Fields, Query) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
+    rpc(mim(), mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
 
 sql_prepare_upsert(_Config, Name, Table, Insert, Update, Unique, Incr) ->
-    escalus_ejabberd:rpc(rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
+    rpc(mim(), rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
 
 sql_prepare_upsert_many(_Config, RecordCount, Name, Table, Insert, Update, Unique) ->
-    escalus_ejabberd:rpc(rdbms_queries, prepare_upsert_many, [host_type(), RecordCount, Name, Table, Insert, Update, Unique]).
+    rpc(mim(), rdbms_queries, prepare_upsert_many, [host_type(), RecordCount, Name, Table, Insert, Update, Unique]).
 
 sql_execute(Config, Name, Parameters) ->
     ScopeAndTag = scope_and_tag(Config),
@@ -788,31 +811,31 @@ sql_transaction(Config, F) ->
     slow_rpc(mongoose_rdbms, sql_transaction, ScopeAndTag ++ [F]).
 
 escape_null(_Config) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
+    rpc(mim(), mongoose_rdbms, escape_null, []).
 
 escape_string(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_string, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_string, [Value]).
 
 escape_binary(_Config, Value) ->
     slow_rpc(mongoose_rdbms, escape_binary, [host_type(), Value]).
 
 escape_boolean(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_boolean, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_boolean, [Value]).
 
 escape_like(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_like, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_like, [Value]).
 
 escape_prepared_like(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_prepared_like, [Value]).
+    rpc(mim(), mongoose_rdbms, escape_prepared_like, [Value]).
 
 unescape_binary(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, unescape_binary, [host_type(), Value]).
+    rpc(mim(), mongoose_rdbms, unescape_binary, [host_type(), Value]).
 
 use_escaped(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, use_escaped, [Value]).
+    rpc(mim(), mongoose_rdbms, use_escaped, [Value]).
 
 use_escaped_like(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, use_escaped_like, [Value]).
+    rpc(mim(), mongoose_rdbms, use_escaped_like, [Value]).
 
 escape_string_or_null(Config, null) ->
     escape_null(Config);
@@ -825,7 +848,7 @@ escape_binary_or_null(Config, Value) ->
     escape_binary(Config, Value).
 
 decode_boolean(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, to_bool, [Value]).
+    rpc(mim(), mongoose_rdbms, to_bool, [Value]).
 
 erase_table(Config) ->
     {updated, _} = sql_query(Config, <<"DELETE FROM test_types">>).
@@ -1220,7 +1243,7 @@ drop_common_prefix(Pos, SelValue, Value) ->
       expected_suffix => safe_binary(100, Value)}.
 
 db_engine() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]).
+    rpc(mim(), mongoose_rdbms, db_engine, [host_type()]).
 
 is_pgsql() ->
     db_engine() == pgsql.
@@ -1277,15 +1300,7 @@ escape_column(Name) ->
     end.
 
 slow_rpc(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    Res = escalus_rpc:call(Node, M, F, A, timer:seconds(30), Cookie),
-    case Res of
-        {badrpc, timeout} ->
-            {badrpc, {timeout, M, F}};
-        _ ->
-            Res
-    end.
+    rpc((mim())#{timeout => timer:seconds(30)}, M, F, A).
 
 check_not_received(Msg) ->
     receive
@@ -1362,3 +1377,9 @@ make_hash_keys(RemainingNum, Pool, Workers, Key, Acc) when RemainingNum > 0 ->
     end;
 make_hash_keys(0, _WorkerNum, _Workers, _Key, Acc) ->
     Acc.
+
+scope_event(Config, GlobalEvent, Event, Labels) ->
+    case proplists:get_value(scope, Config) of
+        global -> {GlobalEvent, Labels};
+        Scope -> {Event, maps:put(host_type, Scope, Labels)}
+    end.

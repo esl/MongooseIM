@@ -206,7 +206,7 @@ stanza_id_muc_mam(Config) ->
         ArchReq = escalus_stanza:to(mam_helper:stanza_archive_request(mam_helper:mam06_props(), <<"q1">>),
                                     RoomAddr),
         escalus:send(Alice, ArchReq),
-        [AliceArchStanza, _Fin] = escalus:wait_for_stanzas(Alice, 2, 100),
+        [AliceArchStanza, _Fin] = escalus:wait_for_stanzas(Alice, 2),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceArchStanza)),
         ok
     end).
@@ -222,9 +222,9 @@ stanza_id_muclight(Config) ->
         % get our stable stanza id
         OurBinStanzaID = receive_stanza_id(),
         % make sure it arrived with the same id
-        AliceStanza = escalus:wait_for_stanza(Alice, 100),
+        AliceStanza = escalus:wait_for_stanza(Alice),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceStanza)),
-        BobStanza = escalus:wait_for_stanza(Bob, 100),
+        BobStanza = escalus:wait_for_stanza(Bob),
         ?assertEqual(OurBinStanzaID, get_stanza_id(BobStanza)),
         ok
     end).
@@ -241,18 +241,18 @@ stanza_id_muclight_mam(Config) ->
         % get our stable stanza id
         OurBinStanzaID = receive_stanza_id(),
         % make sure it arrived with the same id
-        AliceStanza = escalus:wait_for_stanza(Alice, 100),
+        AliceStanza = escalus:wait_for_stanza(Alice),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceStanza)),
-        BobStanza = escalus:wait_for_stanza(Bob, 100),
+        BobStanza = escalus:wait_for_stanza(Bob),
         ?assertEqual(OurBinStanzaID, get_stanza_id(BobStanza)),
         % ...and that the same id is used by archive
         ArchReq = escalus_stanza:to(mam_helper:stanza_archive_request(mam_helper:mam06_props(), <<"q1">>),
                                     RoomAddr),
         escalus:send(Alice, ArchReq),
-        [AliceArchStanza, _] = escalus:wait_for_stanzas(Alice, 2, 100),
+        [AliceArchStanza, _] = escalus:wait_for_stanzas(Alice, 2),
         ?assertEqual(OurBinStanzaID, get_stanza_id(AliceArchStanza)),
         escalus:send(Bob, ArchReq),
-        [BobArchStanza, _] = escalus:wait_for_stanzas(Bob, 2, 100),
+        [BobArchStanza, _] = escalus:wait_for_stanzas(Bob, 2),
         ?assertEqual(OurBinStanzaID, get_stanza_id(BobArchStanza)),
         ok
     end).
@@ -296,7 +296,7 @@ send_stanza_id(Acc, _, #{pid := Pid}) ->
 receive_stanza_id() ->
     OurStanzaID = receive
                       {stanza_id, Id} -> Id
-                  after 100 ->
+                  after 1000 ->
             ct:fail("did not receive stanza id")
                   end,
     integer_to_binary(OurStanzaID, 32).

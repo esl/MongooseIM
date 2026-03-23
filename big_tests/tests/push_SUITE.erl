@@ -10,8 +10,7 @@
         room_bin_jid/1,
         create_room/6
     ]).
--import(escalus_ejabberd, [rpc/3]).
--import(distributed_helper, [subhost_pattern/1]).
+-import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0]).
 -import(config_parser_helper, [mod_config/2, config/2]).
 -import(push_helper, [
@@ -655,14 +654,14 @@ start_route_listener(Config) ->
     State = #{ pid => self(),
                pub_options_ns => push_helper:ns_pubsub_pub_options(),
                push_form_ns => push_helper:push_form_type() },
-    Handler = rpc(mongoose_packet_handler, new, [?MODULE, #{state => State}]),
+    Handler = rpc(mim(), mongoose_packet_handler, new, [?MODULE, #{state => State}]),
     Domain = pubsub_domain(Config),
-    rpc(mongoose_router, register_route, [Domain, Handler]),
+    rpc(mim(), mongoose_router, register_route, [Domain, Handler]),
     Config.
 
 stop_route_listener(Config) ->
     Domain = pubsub_domain(Config),
-    rpc(mongoose_router, unregister_route, [Domain]).
+    rpc(mim(), mongoose_router, unregister_route, [Domain]).
 
 process_packet(Acc, _From, To, El, #{state := State}) ->
     #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,

@@ -20,14 +20,14 @@ Strategy to handle incoming IQ stanzas. For details, please refer to
 Each advertised service is specified as a TOML table containing the following options listed below.
 
 #### `modules.mod_extdisco.service.type`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** none, this option is required
 * **Example:** `type = "stun"`
 
-Service type, common values are `"stun"`, `"turn"`, `"ftp"`.
+Service type, common values are `"stun"`, `"turn"`, `"turns"`, `"ftp"`.
 
 #### `modules.mod_extdisco.service.host`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** none, this option is required
 * **Example:** `host = "192.168.0.2"`
 
@@ -48,18 +48,34 @@ The communications port to be used at the host.
 The underlying transport protocol to be used when communicating with the service.
 
 #### `modules.mod_extdisco.service.username`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** none, this option is optional
 * **Example:** `username = "username"`
 
 A service-generated username for use at the service.
 
+!!! Warning
+    This option cannot be set together with `modules.mod_extdisco.service.secret`.
+
 #### `modules.mod_extdisco.service.password`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** none, this option is optional
 * **Example:** `password = "password"`
 
 A service-generated password for use at the service.
+
+!!! Warning
+    This option cannot be set together with `modules.mod_extdisco.service.secret`.
+
+#### `modules.mod_extdisco.service.secret`
+* **Syntax:** non-empty string
+* **Default:** none, this option is optional
+* **Example:** `secret = "secret"`
+
+A secret for username and password generation according to [TURN REST API](https://datatracker.ietf.org/doc/html/draft-uberti-behave-turn-rest-00#section-2.2) standard.
+
+!!! Warning
+    This option cannot be set together with `modules.mod_extdisco.service.username` or `modules.mod_extdisco.service.password`.
 
 ## Example Configuration
 

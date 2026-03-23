@@ -45,6 +45,8 @@ type AdminQuery{
   server: ServerAdminQuery
   "Message broadcast management"
   broadcast: BroadcastAdminQuery
+  "Blocklist management"
+  blocklist: BlocklistAdminQuery
 }
 
 """
@@ -76,6 +78,8 @@ type AdminMutation @protected{
   private: PrivateAdminMutation
   "Generating upload/download URLs for the files"
   httpUpload: HttpUploadAdminMutation
+  "External service management"
+  externalServices: ExternalServicesAdminMutation
   "Deleting old Offline messages"
   offline: OfflineAdminMutation
   "OAUTH user token management"

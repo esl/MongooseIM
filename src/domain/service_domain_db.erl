@@ -78,13 +78,8 @@ all_members() ->
 
 force_check_for_updates() ->
     %% Send a broadcast message.
-    case all_members() of
-        [_|_] = Pids ->
-            [Pid ! check_for_updates || Pid <- Pids],
-            ok;
-        _ ->
-            ok
-    end.
+    [Pid ! check_for_updates || Pid <- all_members()],
+    ok.
 
 %% Ensure that all pending check_for_updates messages are received by this node,
 %% even if they are sent by other nodes in the cluster.

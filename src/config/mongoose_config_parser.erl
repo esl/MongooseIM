@@ -55,7 +55,8 @@ build_state(Hosts, HostTypes, Opts) ->
                  fun(S) -> set_opts(Opts, S) end,
                  fun unfold_globals/1,
                  fun post_process_services/1,
-                 fun post_process_modules/1]).
+                 fun post_process_modules/1,
+                 fun validate_backend_databases/1]).
 
 -spec new_state() -> state().
 new_state() ->
@@ -155,6 +156,11 @@ post_process_modules_opt({{modules, HostType}, Modules}) ->
     {{modules, HostType}, ModulesWithDeps};
 post_process_modules_opt(Other) ->
     Other.
+
+-spec validate_backend_databases(state()) -> state().
+validate_backend_databases(State = #state{opts = Opts}) ->
+    mongoose_config_spec:validate_backend_databases(Opts),
+    State.
 
 %% local functions
 

@@ -8,6 +8,9 @@
          iqdisc/0,
          tls/1]).
 
+%% post-processing validation called from mongoose_config_parser
+-export([validate_backend_databases/1]).
+
 %% callbacks for the 'process' step
 -export([process_dynamic_domains/1,
          process_shapers/1,
@@ -706,6 +709,7 @@ services() ->
 
 configurable_services() ->
     [service_bosh,
+     service_traffic,
      service_domain_db,
      service_mongoose_system_metrics,
      service_translations].
@@ -968,6 +972,54 @@ process_shapers(Items) ->
                     text => ("The configuration references undefined shapers. "
                              "You need to define them in the 'shaper' section."),
                     undefined_shapers => UndefinedShapers})
+    end.
+
+%% @doc Check that all backends requiring an internal database have it configured.
+%% Called from mongoose_config_parser after module/service dependency resolution.
+-spec validate_backend_databases([{mongoose_config:key(), mongoose_config:value()}]) -> ok.
+validate_backend_databases(Items) ->
+    InternalDBs = maps:keys(proplists:get_value(internal_databases, Items, #{})),
+    Backends = lists:flatmap(fun collect_backends/1, Items),
+    DisabledDBs = [cets, mnesia] -- InternalDBs,
+    case lists:filtermap(fun(Backend) -> filter_backend(Backend, DisabledDBs) end, Backends) of
+        [] ->
+            ok;
+        MissingInfos ->
+            error({config_error, "Some backends require internal databases that are not configured",
+                   [#{reason => backend_requires_internal_database,
+                      class => error,
+                      what => backend_requires_internal_database,
+                      text => "Add the required databases to the 'internal_databases' section.",
+                      missing => MissingInfos}]})
+    end.
+
+collect_backends({{modules, HT}, ModulesMap}) ->
+    lists:flatmap(
+      fun({Mod, Opts}) ->
+              BackendOpts = maps:with(gen_mod:backend_opts(Mod), Opts),
+              [{Mod, Key, Val, HT} || Key := Val <- BackendOpts]
+      end, maps:to_list(ModulesMap));
+collect_backends({services, ServicesMap}) ->
+    lists:filtermap(
+      fun({Service, #{backend := Val}}) -> {true, {Service, backend, Val, global}};
+         (_) -> false
+      end, maps:to_list(ServicesMap));
+collect_backends({Key, Value}) when Key =:= sm_backend;
+                                    Key =:= component_backend;
+                                    Key =:= s2s_backend ->
+    [{general, Key, Value, global}];
+collect_backends({{auth, HT}, AuthOpts}) ->
+    lists:filtermap(
+      fun({Method, #{backend := Val}}) -> {true, {Method, backend, Val, HT}};
+         (_) -> false
+      end, maps:to_list(maps:with(all_auth_methods(), AuthOpts)));
+collect_backends(_) ->
+    [].
+
+filter_backend({Source, Key, Backend, HT}, DisabledDBs) ->
+    maybe
+        true ?= lists:member(Backend, DisabledDBs),
+        {true,  #{source => Source, option => Key, backend => Backend, host_type => HT}}
     end.
 
 unsupported_auth_methods(KVs) ->
