@@ -16,7 +16,9 @@
 
 %% API
 -export([start_link/2,
-         stop/1]).
+         stop/1,
+         pause/1,
+         resume/1]).
 
 -ignore_xref([start_link/2]).
 
@@ -30,12 +32,14 @@
 -export([loading_batch/3,
          sending_batch/3,
          finished/3,
-         aborted/3]).
+         aborted/3,
+         paused/3]).
 
 -ignore_xref([loading_batch/3,
               sending_batch/3,
               finished/3,
-              aborted/3]).
+              aborted/3,
+              paused/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -56,7 +60,7 @@
     current_batch :: [jid:jid()]  % recipients remaining in current batch
 }).
 
--type state() :: loading_batch | sending_batch | finished | aborted.
+-type state() :: loading_batch | sending_batch | finished | aborted | paused.
 -type data() :: #data{}.
 
 %%====================================================================
@@ -94,6 +98,14 @@ stop(WorkerPid) ->
                            worker_pid => WorkerPid}),
             ok
     end.
+
+-spec pause(pid()) -> ok.
+pause(WorkerPid) ->
+    gen_statem:call(WorkerPid, pause, 5000).
+
+-spec resume(pid()) -> ok | {error, not_paused}.
+resume(WorkerPid) ->
+    gen_statem:call(WorkerPid, resume, 5000).
 
 %%====================================================================
 %% gen_statem callbacks
@@ -147,6 +159,10 @@ init({HostType, JobId}) ->
 
 -spec loading_batch(gen_statem:event_type(), term(), data()) ->
     gen_statem:state_function_result().
+loading_batch({call, From}, pause, Data) ->
+    {next_state, paused, Data, [{reply, From, ok}]};
+loading_batch({call, From}, resume, Data) ->
+    {keep_state, Data, [{reply, From, {error, not_paused}}]};
 loading_batch(Origin, load_batch, Data)
   when Origin == internal; Origin == state_timeout->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
@@ -223,9 +239,31 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
 
     %% Schedule next recipient via state_timeout (allows handling other events)
     {keep_state, NewData, [{state_timeout, DelayMs, send_one}]};
+sending_batch({call, From}, pause, Data) ->
+    {next_state, paused, Data, [{reply, From, ok}]};
+sending_batch({call, From}, resume, Data) ->
+    {keep_state, Data, [{reply, From, {error, not_paused}}]};
 sending_batch({call, From}, stop, _Data) ->
     {stop_and_reply, normal, [{reply, From, ok}]};
 sending_batch(EventType, Event, Data) ->
+    ?LOG_WARNING(#{what => broadcast_worker_unexpected_event,
+                   event_type => EventType, event => Event}),
+    {keep_state, Data}.
+
+-spec paused(gen_statem:event_type(), term(), data()) ->
+    gen_statem:state_function_result().
+paused({call, From}, pause, Data) ->
+    %% Already paused - idempotent
+    {keep_state, Data, [{reply, From, ok}]};
+paused({call, From}, resume, Data) ->
+    %% Reset rate-limiting counters so remaining recipients are sent at the
+    %% correct rate starting from the moment of resumption.
+    BatchT0 = erlang:monotonic_time(millisecond),
+    NewData = Data#data{batch_t0 = BatchT0, batch_recipients_processed = 0},
+    {next_state, sending_batch, NewData, [{reply, From, ok}, {next_event, internal, send_one}]};
+paused({call, From}, stop, _Data) ->
+    {stop_and_reply, normal, [{reply, From, ok}]};
+paused(EventType, Event, Data) ->
     ?LOG_WARNING(#{what => broadcast_worker_unexpected_event,
                    event_type => EventType, event => Event}),
     {keep_state, Data}.
