@@ -230,7 +230,7 @@
   timeout_action = "none"
   ping_req_timeout = 32
 
-[modules.mod_pubsub]
+[modules.mod_pubsub_old]
   access_createnode = "pubsub_createnode"
   ignore_pep_from_offline = false
   backend = "rdbms"
@@ -238,7 +238,7 @@
   max_items_node = 1000
   plugins = ["flat", "pep"]
 
-  [[modules.mod_pubsub.pep_mapping]]
+  [[modules.mod_pubsub_old.pep_mapping]]
     namespace = "urn:xmpp:microblog:0"
     node = "mb"
 
