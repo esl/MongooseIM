@@ -175,7 +175,7 @@ end_per_testcase(Case = test_wrapped_request, Config) ->
     escalus:end_per_testcase(Case, Config);
 end_per_testcase(Case = wpool_queue_lengths_are_updated, Config) ->
     Workers = proplists:get_value(workers, Config),
-    [rpc(mim(), erlang, exit, [rpc(mim(), erlang, whereis, [W]), kill]) || W <- Workers],
+    [rpc(mim(), sys, resume, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
     escalus:end_per_testcase(Case, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -715,11 +715,8 @@ wpool_queue_lengths_are_updated(Config) ->
 
     #{total := Total} = rpc(mim(), mongoose_wpool, probe, [Event, Labels]),
 
-    Query = case is_mysql() of
-                true -> <<"SELECT sleep(5)">>;
-                false -> <<"SELECT pg_sleep(5)">>
-            end,
-    [sql_query_cast(Config, Query) || _ <- [ok | Workers]],
+    [rpc(mim(), sys, suspend, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
+    sql_query_cast(Config, <<"SELECT 1">>),
 
     F = fun(#{total := NewTotal}) -> NewTotal > Total end,
     instrument_helper:wait_and_assert_new(Event, Labels, F).

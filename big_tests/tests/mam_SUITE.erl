@@ -545,7 +545,7 @@ init_per_suite(Config) ->
                         || PoolId <- PoolIds],
     instrument_helper:start(
         instrument_helper:declared_events(instrumented_modules())
-          ++ lists:flatten(AsyncPoolsEvents)),
+          ++ lists:append(AsyncPoolsEvents)),
     muc_helper:load_muc(),
     mongoose_helper:inject_module(mim(), ?MODULE, reload),
     mam_helper:prepare_for_suite(
