@@ -193,7 +193,7 @@ collect_errors(Section, #state{mark = Mark} = State) ->
 -spec init_report_dir(list()) -> string().
 init_report_dir(Config) ->
     RunDir = path_helper:ct_run_dir(Config),
-    ReportDir = filename:join(RunDir, "error_reports"),
+    ReportDir = filename:join(RunDir, "logged_errors"),
     ok = filelib:ensure_dir(filename:join(ReportDir, "dummy")),
     ReportDir.
 
