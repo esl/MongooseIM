@@ -14,8 +14,11 @@
 % API
 -export([start_pool/3, stop_pool/2]).
 -export([put_task/3, put_task/4, broadcast/3, broadcast_task/4]).
--ignore_xref([put_task/3, broadcast/3, broadcast_task/4]).
+-ignore_xref([put_task/3, broadcast/3, broadcast_task/4, pool_name/2, instrumentation/2]).
 -export([sync/2]).
+
+%% For testing
+-export([pool_name/2, instrumentation/2]).
 
 -type task() :: term().
 -type pool_id() :: atom(). % The subsystem, like 'pm_mam', or 'inbox'

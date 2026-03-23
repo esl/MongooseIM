@@ -526,7 +526,8 @@ impl_specific() ->
     [check_user_exist,
      pm_failed_to_decode_message_in_database,
      pm_sql_query_failed,
-     async_pools_batch_flush].
+     async_pools_batch_flush,
+     async_pool_queue_lengths_are_updated].
 
 stream_management_cases() ->
     [reconnect_ack,
@@ -538,16 +539,19 @@ suite() ->
 
 init_per_suite(Config) ->
     PoolIds = [pm_mam, muc_mam],
-    AsyncPoolsEvents = [{async_pool_flush, #{host_type => host_type(), pool_id => PoolId}}
+    HostType = host_type(),
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
+    AsyncPoolsEvents = [instrument_helper:declared_events([mongoose_async_pools], [HostType, PoolId])
                         || PoolId <- PoolIds],
     instrument_helper:start(
-        instrument_helper:declared_events(instrumented_modules()) ++ AsyncPoolsEvents),
+        instrument_helper:declared_events(instrumented_modules())
+          ++ lists:flatten(AsyncPoolsEvents)),
     muc_helper:load_muc(),
     mongoose_helper:inject_module(mim(), ?MODULE, reload),
     mam_helper:prepare_for_suite(
       increase_limits(
         delete_users([{escalus_user_db, {module, escalus_ejabberd}}
-                  | escalus:init_per_suite(Config)]))).
+                  | escalus:init_per_suite(Config1)]))).
 
 instrumented_modules() ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
@@ -781,7 +785,7 @@ mam_opts_for_conf(rdbms) ->
       cache_users => false};
 mam_opts_for_conf(rdbms_async_pool) ->
     #{user_prefs_store => rdbms,
-      async_writer => #{flush_interval => 1},
+      async_writer => #{flush_interval => 1, pool_size => 4},
       cache_users => false};
 mam_opts_for_conf(rdbms_mnesia) ->
     #{user_prefs_store => mnesia,
@@ -792,7 +796,7 @@ mam_opts_for_conf(rdbms_cache) ->
       async_writer => #{enabled => false}};
 mam_opts_for_conf(rdbms_async_cache) ->
     #{user_prefs_store => rdbms,
-      async_writer => #{flush_interval => 1}};
+      async_writer => #{flush_interval => 1, pool_size => 4}};
 mam_opts_for_conf(rdbms_mnesia_cache) ->
     #{user_prefs_store => mnesia,
       async_writer => #{enabled => false}}.
@@ -833,14 +837,14 @@ end_state(_, _, Config) ->
 init_per_testcase(CaseName, Config) ->
     case maybe_skip(CaseName, Config) of
         ok ->
-            maybe_setup_meck(CaseName),
-            dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
-            lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config, init_steps());
+            Config1 = maybe_setup(CaseName, Config),
+            dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config1)),
+            lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config1, init_steps());
         {skip, Msg} ->
             {skip, Msg}
     end.
 
-maybe_setup_meck(muc_light_sql_query_failed) ->
+maybe_setup(muc_light_sql_query_failed, Config) ->
     ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect,
              [mongoose_rdbms, execute_successfully,
@@ -848,8 +852,9 @@ maybe_setup_meck(muc_light_sql_query_failed) ->
                       error(#{what => simulated_error});
                   (HostType, Name, Parameters) ->
                       meck:passthrough([HostType, Name, Parameters])
-              end]);
-maybe_setup_meck(pm_sql_query_failed) ->
+              end]),
+    Config;
+maybe_setup(pm_sql_query_failed, Config) ->
     ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect,
              [mongoose_rdbms, execute_successfully,
@@ -857,9 +862,14 @@ maybe_setup_meck(pm_sql_query_failed) ->
                       error(#{what => simulated_error});
                   (HostType, Name, Parameters) ->
                       meck:passthrough([HostType, Name, Parameters])
-              end]);
-maybe_setup_meck(_) ->
-    ok.
+              end]),
+    Config;
+maybe_setup(async_pool_queue_lengths_are_updated, Config) ->
+    PoolName = rpc(mim(), mongoose_async_pools, pool_name, [host_type(), pm_mam]),
+    Workers = rpc(mim(), wpool, get_workers, [PoolName]),
+    [{workers, Workers} | Config];
+maybe_setup(_CaseName, Config) ->
+    Config.
 
 init_steps() ->
     [fun init_users/2, fun init_archive/2, fun start_room/2,
@@ -898,7 +908,8 @@ maybe_skip(C, Config) when C =:= easy_text_search_request;
     skip_if(lists:member(Configuration, [cassandra, cassandra_eterm]),
             "full text search is not implemented for cassandra backend");
 maybe_skip(C, Config) when C =:= muc_light_async_pools_batch_flush;
-                           C =:= async_pools_batch_flush ->
+                           C =:= async_pools_batch_flush;
+                           C =:= async_pool_queue_lengths_are_updated ->
     skip_if(?config(configuration, Config) =/= rdbms_async_pool,
             "only for async pool");
 maybe_skip(C, Config) when C =:= easy_archive_request_old_xmlel_format ->
@@ -986,6 +997,10 @@ end_per_testcase(CaseName, Config) when CaseName =:= pm_sql_query_failed;
                                         CaseName =:= muc_light_sql_query_failed ->
     teardown_meck(),
     escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = async_pool_queue_lengths_are_updated, Config) ->
+    Workers = proplists:get_value(workers, Config),
+    [rpc(mim(), sys, resume, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = muc_validate_mam_id, Config) ->
     unmock_mongoose_mam_id(mim()),
     escalus:end_per_testcase(CaseName, Config);
@@ -1018,7 +1033,8 @@ required_modules(CaseName, Config) when CaseName =:= muc_light_service_discovery
     NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
     [{mod_mam, NewOpts}];
 required_modules(CaseName, Config) when CaseName =:= async_pools_batch_flush;
-                                        CaseName =:= muc_light_async_pools_batch_flush ->
+                                        CaseName =:= muc_light_async_pools_batch_flush;
+                                        CaseName =:= async_pool_queue_lengths_are_updated ->
     Opts = #{async_writer := Async} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{async_writer := Async#{batch_size => 3, flush_interval => 5000}},
     [{mod_mam, NewOpts}];
@@ -2153,6 +2169,20 @@ async_pools_batch_flush(Config) ->
             mam_helper:wait_for_archive_size(Alice, 3)
         end),
     assert_async_batch_flush_event(TS, 2, pm_mam).
+
+async_pool_queue_lengths_are_updated(Config) ->
+    Workers = proplists:get_value(workers, Config),
+    HostType = host_type(),
+    Event = async_pool_queue_lengths,
+    Labels = #{pool_id => pm_mam, host_type => HostType},
+
+    #{total := Total} = rpc(mim(), mongoose_async_pools, probe, [Event, Labels]),
+
+    [rpc(mim(), sys, suspend, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
+    rpc(mim(), mongoose_async_pools, put_task, [HostType, pm_mam, {}]),
+
+    F = fun(#{total := NewTotal}) -> NewTotal > Total end,
+    instrument_helper:wait_and_assert_new(Event, Labels, F).
 
 retrieve_form_fields(ConfigIn) ->
     escalus_fresh:story(ConfigIn, [{alice, 1}], fun(Alice) ->
