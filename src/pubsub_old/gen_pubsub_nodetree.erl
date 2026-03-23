@@ -38,11 +38,11 @@
 -ignore_xref([behaviour_info/1, create_node/7, delete_node/3, get_node/3,
               get_nodes/3, get_parentnodes_tree/4, get_subnodes/4, set_node/2]).
 
--type(host() :: mod_pubsub:host()).
--type(nodeId() :: mod_pubsub:nodeId()).
--type(nodeIdx() :: mod_pubsub:nodeIdx()).
--type(pubsubNode() :: mod_pubsub:pubsubNode()).
--type(nodeOptions() :: mod_pubsub:nodeOptions()).
+-type(host() :: mod_pubsub_old:host()).
+-type(nodeId() :: mod_pubsub_old:nodeId()).
+-type(nodeIdx() :: mod_pubsub_old:nodeIdx()).
+-type(pubsubNode() :: mod_pubsub_old:pubsubNode()).
+-type(nodeOptions() :: mod_pubsub_old:nodeOptions()).
 
 %% ---------------------------------------------------------------
 %% Callbacks
