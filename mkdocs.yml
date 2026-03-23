@@ -159,7 +159,7 @@ nav:
       - 'mod_presence': 'modules/mod_presence.md'
       - 'mod_privacy': 'modules/mod_privacy.md'
       - 'mod_private': 'modules/mod_private.md'
-      - 'mod_pubsub': 'modules/mod_pubsub.md'
+      - 'mod_pubsub_old': 'modules/mod_pubsub_old.md'
       - 'mod_push_service_mongoosepush': 'modules/mod_push_service_mongoosepush.md'
       - 'mod_register': 'modules/mod_register.md'
       - 'mod_roster': 'modules/mod_roster.md'

@@ -90,7 +90,7 @@ These hooks are handled by the following modules:
 * [`mod_event_pusher`](../modules/mod_event_pusher.md) - sends out configured events (e.g. push notifications) for incoming stanzas.
 * [`mod_inbox`](../modules/mod_inbox.md) - stores incoming messages in the recipient's inbox.
 * [`mod_mam`](../modules/mod_mam.md) - stores incoming messages in the recipient's archive, and adds MAM-related elements to the message.
-* [`mod_pubsub`](../modules/mod_pubsub.md) - for each subscription authorization form sent by a node owner, the subscription state is updated, and the stanza is dropped.
+* [`mod_pubsub_old`](../modules/mod_pubsub_old.md) - for each subscription authorization form sent by a node owner, the subscription state is updated, and the stanza is dropped.
 * [`mod_smart_markers`](../modules/mod_smart_markers.md) - filters out chat markers, because they are handled separately by `mod_offline_chatmarkers`.
 
 ## `user_receive_*`
@@ -168,7 +168,7 @@ This hook is used by multiple modules, since removing a user requires many clean
 * [`mod_offline`](../modules/mod_offline.md) deletes the user's offline messages;
 * [`mod_privacy`](../modules/mod_privacy.md) removes the user's privacy lists;
 * [`mod_private`](../modules/mod_private.md) removes the user's private xml data storage;
-* [`mod_pubsub`](../modules/mod_pubsub.md) unsubscribes from publish/subscribe channels;
+* [`mod_pubsub_old`](../modules/mod_pubsub_old.md) unsubscribes from publish/subscribe channels;
 * [`mod_roster`](../modules/mod_roster.md) removes the user's roster from the database;
 * [`mod_smart_markers`](../modules/mod_smart_markers.md) removes chat markers stored for the user;
 * [`mod_vcard`](../modules/mod_vcard.md) removes user's vCard information.

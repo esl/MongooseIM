@@ -76,10 +76,10 @@ PubSub-less variants.
 This is an example of how you can migrate the existing setup to the new model. PubSub service still
 exists, just for the case of a user attempting to create a node. However, its domain is overridden
 for the purpose of sending push notifications. Please note the value of `virtual_pubsub_hosts`
-option. `"pubsub.@HOST@"` is the default domain for `mod_pubsub`.
+option. `"pubsub.@HOST@"` is the default domain for `mod_pubsub_old`.
 
 ```toml
-[modules.mod_pubsub]
+[modules.mod_pubsub_old]
   plugins = ["push"] # mandatory minimal config
 
 [modules.mod_event_pusher.push]
