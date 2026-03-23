@@ -92,7 +92,8 @@ rdbms_queries_cases() ->
      test_upsert_many1_replaces_existing,
      test_upsert_many2_replaces_existing,
 
-     pool_probe_metrics_are_updated].
+     wpool_rdbms_stats_are_updated,
+     wpool_queue_lengths_are_updated].
 
 suite() ->
     escalus:suite().
@@ -144,6 +145,12 @@ init_per_testcase(Case = prepare_without_execute_does_not_cause_inconsistency, C
         false ->
             {skip, "Test for a Postgres-specific issue"}
     end;
+init_per_testcase(Case = wpool_queue_lengths_are_updated, Config) ->
+    Tag = proplists:get_value(tag, Config),
+    Scope = proplists:get_value(scope, Config),
+    PoolName = rpc(mim(), mongoose_wpool, make_pool_name, [rdbms, Scope, Tag]),
+    Workers = rpc(mim(), wpool, get_workers, [PoolName]),
+    escalus:init_per_testcase(Case, [{workers, Workers} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -166,14 +173,19 @@ end_per_testcase(Case = test_wrapped_request, Config) ->
     Tag = ?config(tag, Config),
     ok = rpc(mim(), mongoose_instrument, tear_down, [wrapper_event_spec(Tag)]),
     escalus:end_per_testcase(Case, Config);
+end_per_testcase(Case = wpool_queue_lengths_are_updated, Config) ->
+    Workers = proplists:get_value(workers, Config),
+    [rpc(mim(), sys, resume, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
+    escalus:end_per_testcase(Case, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 declared_events(Config) ->
-    Scope = ?config(scope, Config),
-    Tag = ?config(tag, Config),
-    instrument_helper:declared_events(mongoose_wpool_rdbms, [Scope, Tag]) ++
-    [{test_wrapped_request, #{pool_tag => Tag}}].
+    Scope = proplists:get_value(scope, Config),
+    Tag = proplists:get_value(tag, Config),
+    instrument_helper:declared_events(mongoose_wpool_rdbms, [Scope, Tag])
+        ++ instrument_helper:declared_events(mongoose_wpool, [rdbms, Scope, Tag])
+        ++ [{test_wrapped_request, #{pool_tag => Tag}}].
 
 %%--------------------------------------------------------------------
 %% Data for cases
@@ -683,19 +695,30 @@ test_upsert_many2_replaces_existing(Config) ->
     SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
     ?assertEqual({selected, [{<<"10">>}, {<<"10">>}]}, selected_to_binary(SelectResult)).
 
-pool_probe_metrics_are_updated(Config) ->
-    Tag = ?config(tag, Config),
-    {Event, Labels} = case ?config(scope, Config) of
-                          global ->
-                              {wpool_global_rdbms_stats, #{pool_tag => Tag}};
-                          Scope ->
-                              {wpool_rdbms_stats, #{host_type => Scope, pool_tag => Tag}}
-                      end,
+wpool_rdbms_stats_are_updated(Config) ->
+    Tag = proplists:get_value(tag, Config),
+    {Event, Labels} = scope_event(Config, wpool_global_rdbms_stats, wpool_rdbms_stats,
+                                  #{pool_tag => Tag}),
+
     #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
 
     select_one_works_case(Config),
 
     F = fun(#{recv_oct := NewRecv, send_oct := NewSend}) -> NewRecv > Recv andalso NewSend > Send end,
+    instrument_helper:wait_and_assert_new(Event, Labels, F).
+
+wpool_queue_lengths_are_updated(Config) ->
+    Tag = proplists:get_value(tag, Config),
+    Workers = proplists:get_value(workers, Config),
+    {Event, Labels} = scope_event(Config, wpool_global_queue_lengths, wpool_queue_lengths,
+                                  #{pool_type => rdbms, pool_tag => Tag}),
+
+    #{total := Total} = rpc(mim(), mongoose_wpool, probe, [Event, Labels]),
+
+    [rpc(mim(), sys, suspend, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
+    sql_query_cast(Config, <<"SELECT 1">>),
+
+    F = fun(#{total := NewTotal}) -> NewTotal > Total end,
     instrument_helper:wait_and_assert_new(Event, Labels, F).
 
 %%--------------------------------------------------------------------
@@ -1354,3 +1377,9 @@ make_hash_keys(RemainingNum, Pool, Workers, Key, Acc) when RemainingNum > 0 ->
     end;
 make_hash_keys(0, _WorkerNum, _Workers, _Key, Acc) ->
     Acc.
+
+scope_event(Config, GlobalEvent, Event, Labels) ->
+    case proplists:get_value(scope, Config) of
+        global -> {GlobalEvent, Labels};
+        Scope -> {Event, maps:put(host_type, Scope, Labels)}
+    end.
