@@ -61,6 +61,7 @@ main(RawArgs) ->
         %% Waiting for messages to be flushed
         timer:sleep(50),
         CTRunDirsAfterRun = ct_run_dirs(),
+        inject_error_report_link(CTRunDirsBeforeRun, CTRunDirsAfterRun),
         ExitStatusByGroups = exit_status_by_groups(CTRunDirsBeforeRun, CTRunDirsAfterRun, Results),
         ExitStatusByTestCases = process_results(Results),
         case ExitStatusByGroups of
@@ -659,6 +660,28 @@ handle_file_error(_FileName, Other) ->
 
 ct_run_dirs() ->
     filelib:wildcard("ct_report/ct_run*").
+
+inject_error_report_link(Before, After) ->
+    case After -- Before of
+        [RunDir] ->
+            IndexFile = filename:join(RunDir, "index.html"),
+            case file:read_file(IndexFile) of
+                {ok, Data} ->
+                    Anchor = <<"COMMON TEST FRAMEWORK LOG</a>">>,
+                    Link = <<"COMMON TEST FRAMEWORK LOG</a>\n"
+                             "&nbsp;&nbsp;\n"
+                             "<a href=\"logged_errors/summary.html\">"
+                             "LOGGED ERRORS</a>">>,
+                    case binary:match(Data, Anchor) of
+                        nomatch -> ok;
+                        _ ->
+                            Result = binary:replace(Data, Anchor, Link),
+                            file:write_file(IndexFile, Result)
+                    end;
+                _ -> ok
+            end;
+        _ -> ok
+    end.
 
 exit_status_by_groups(CTRunDirsBeforeRun, CTRunDirsAfterRun, Results) ->
     NewCTRunDirs = CTRunDirsAfterRun -- CTRunDirsBeforeRun,

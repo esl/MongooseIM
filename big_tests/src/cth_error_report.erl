@@ -156,12 +156,7 @@ terminate(#state{summary_dir = undefined}) ->
 terminate(#state{suite_results = []}) ->
     ok;
 terminate(#state{summary_dir = Dir, suite_results = RevResults}) ->
-    try
-        write_summary(Dir, lists:reverse(RevResults))
-    catch Class:Reason:Stacktrace ->
-        ct:pal("cth_error_report: failed to write summary: ~p:~p~n~p",
-               [Class, Reason, Stacktrace])
-    end.
+    write_summary(Dir, lists:sort(RevResults)).
 
 %% Parallel group detection
 
