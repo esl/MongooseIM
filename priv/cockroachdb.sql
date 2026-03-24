@@ -596,7 +596,7 @@ CREATE OR REPLACE FUNCTION broadcast_create_job_op(
     p_name VARCHAR(250), p_server VARCHAR(250), p_host_type VARCHAR(250),
     p_from_jid VARCHAR(250), p_subject VARCHAR(1024), p_body TEXT,
     p_rate INTEGER, p_recipient_group broadcast_recipient_group,
-    p_recipient_count INTEGER, p_owner_node VARCHAR(250), p_expires_at BIGINT
+    p_recipient_count INTEGER, p_owner_node VARCHAR(250), p_lease_time BIGINT
 )
 RETURNS INTEGER
 LANGUAGE plpgsql AS $$
@@ -610,7 +610,7 @@ BEGIN
     RETURNING id INTO v_id;
 
     INSERT INTO broadcast_jobs_ownership (broadcast_id, owner_node, updated_at, expires_at)
-    VALUES (v_id, p_owner_node, now(), to_timestamp(p_expires_at));
+    VALUES (v_id, p_owner_node, now(), now() + (p_lease_time * interval '1 second'));
 
     RETURN v_id;
 END;
@@ -634,14 +634,14 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION broadcast_renew_ownership_op(
-    p_expires_at BIGINT, p_owner_node VARCHAR(250), p_host_type VARCHAR(250)
+    p_lease_time BIGINT, p_owner_node VARCHAR(250), p_host_type VARCHAR(250)
 )
 RETURNS TABLE (broadcast_id INTEGER)
 LANGUAGE plpgsql AS $$
 BEGIN
     RETURN QUERY
     UPDATE broadcast_jobs_ownership o
-    SET expires_at = to_timestamp(p_expires_at), updated_at = now()
+    SET expires_at = now() + (p_lease_time * interval '1 second'), updated_at = now()
     FROM broadcast_jobs j
     WHERE o.broadcast_id = j.id
       AND o.owner_node = p_owner_node
@@ -652,7 +652,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION broadcast_take_expired_jobs_op(
-    p_owner_node VARCHAR(250), p_expires_at BIGINT
+    p_owner_node VARCHAR(250), p_lease_time BIGINT
 )
 RETURNS TABLE (
     id INTEGER, name VARCHAR(250), server VARCHAR(250), host_type VARCHAR(250),
@@ -667,7 +667,9 @@ BEGIN
     RETURN QUERY
     WITH updated AS (
         UPDATE broadcast_jobs_ownership o
-        SET owner_node = p_owner_node, expires_at = to_timestamp(p_expires_at), updated_at = now()
+        SET owner_node = p_owner_node,
+            expires_at = now() + (p_lease_time * interval '1 second'),
+            updated_at = now()
         FROM broadcast_jobs j
         WHERE o.broadcast_id = j.id
           AND o.expires_at < now()

@@ -157,9 +157,9 @@ handle_call({start_job, #{domain := Domain} = JobSpec}, _From, #state{host_type 
     RecipientCount = catch ejabberd_auth:get_vh_registered_users_number(Domain),
     JobSpecWithCount = JobSpec#{recipient_count => RecipientCount},
     %% TODO: Make the ownership expiration duration configurable
-    ExpiresAt = erlang:system_time(second) + 600,
+    LeaseTime = 600,
     %% If RecipientCount is an error tuple, it will be handled in validation
-    case do_create_job(HostType, validate_job_spec(HostType, JobSpecWithCount), ExpiresAt) of
+    case do_create_job(HostType, validate_job_spec(HostType, JobSpecWithCount), LeaseTime) of
         {ok, JobId} ->
             {reply, {ok, JobId}, State, {continue, {start_worker_for, JobId, Domain}}};
         {error, _Reason} = Error ->
@@ -208,10 +208,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 
 -spec do_create_job(mongooseim:host_type(), job_spec() | {error, validation_error()},
-                    ExpiresAt :: non_neg_integer()) ->
+                    LeaseTime :: non_neg_integer()) ->
     {ok, JobId :: broadcast_job_id()} | {error, create_job_error()}.
-do_create_job(HostType, #{domain := Domain} = JobSpec, ExpiresAt) ->
-    try mod_broadcast_backend:create_job(HostType, JobSpec, ExpiresAt) of
+do_create_job(HostType, #{domain := Domain} = JobSpec, LeaseTime) ->
+    try mod_broadcast_backend:create_job(HostType, JobSpec, LeaseTime) of
         {ok, JobId} ->
             ?LOG_INFO(#{what => broadcast_job_created,
                                 job_id => JobId,
@@ -232,7 +232,7 @@ do_create_job(HostType, #{domain := Domain} = JobSpec, ExpiresAt) ->
                          reason => Reason}),
             {error, Reason}
     end;
-do_create_job(_HostType, {error, _} = ValidationError, _ExpiresAt) ->
+do_create_job(_HostType, {error, _} = ValidationError, _LeaseTime) ->
     ValidationError.
 
 -spec handle_worker_down(broadcast_job_id(), pid(), term(), #state{}) ->

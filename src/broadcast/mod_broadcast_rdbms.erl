@@ -47,9 +47,9 @@ init(HostType, _Opts) ->
     prepare_queries(HostType),
     ok.
 
--spec create_job(mongooseim:host_type(), job_spec(), ExpiresAt :: non_neg_integer()) ->
+-spec create_job(mongooseim:host_type(), job_spec(), LeaseTime :: non_neg_integer()) ->
     {ok, JobId :: broadcast_job_id()} | {error, running_job_limit_exceeded}.
-create_job(HostType, JobSpec, ExpiresAt) ->
+create_job(HostType, JobSpec, LeaseTime) ->
     #{name := Name, domain := Domain, sender := Sender,
       subject := Subject, body := Body, message_rate := Rate,
       recipient_group := RecipientGroup, recipient_count := RecipientCount} = JobSpec,
@@ -66,7 +66,7 @@ create_job(HostType, JobSpec, ExpiresAt) ->
                 {selected, [{JobId}]} = execute_successfully(
                     HostType, broadcast_create_job,
                     [Name, Domain, HostType, SenderBin, Subject, Body, Rate,
-                     RecipientGroupBin, RecipientCount, OwnerNode, ExpiresAt]),
+                     RecipientGroupBin, RecipientCount, OwnerNode, LeaseTime]),
                 {ok, mongoose_rdbms:result_to_integer(JobId)}
         end
     end,
@@ -167,25 +167,25 @@ update_worker_state(HostType, JobId, WorkerState) ->
                          [JobId, Cursor, RecipientsProcessed, Finished]),
     ok.
 
--spec renew_ownership(mongooseim:host_type(), ExpiresAt :: non_neg_integer()) ->
+-spec renew_ownership(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
     {ok, [broadcast_job_id()]}.
-renew_ownership(HostType, ExpiresAt) ->
+renew_ownership(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
     T = fun() ->
         {selected, Rows} = execute_successfully(HostType, broadcast_renew_ownership,
-                                                [ExpiresAt, OwnerNode, HostType]),
+                                                [LeaseTime, OwnerNode, HostType]),
         {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
     end,
     {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
     Result.
 
--spec take_expired_jobs(mongooseim:host_type(), NewExpiresAt :: non_neg_integer()) ->
+-spec take_expired_jobs(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
     {ok, [broadcast_job()]}.
-take_expired_jobs(HostType, NewExpiresAt) ->
+take_expired_jobs(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
     T = fun() ->
         {selected, Rows} = execute_successfully(HostType, broadcast_take_expired_jobs,
-                                                [OwnerNode, NewExpiresAt]),
+                                                [OwnerNode, LeaseTime]),
         {ok, lists:map(fun row_to_job/1, Rows)}
     end,
     {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
@@ -203,7 +203,7 @@ remove_ownership(HostType, JobId) ->
 prepare_queries(HostType) ->
     %% Job lifecycle management
     JobRoutineParams = [name, server, host_type, from_jid, subject, body, rate,
-                        recipient_group, recipient_count, owner_node, expires_at],
+                        recipient_group, recipient_count, owner_node, lease_time],
     prepare_stored(HostType, broadcast_create_job, broadcast_jobs, JobRoutineParams,
                    <<"broadcast_create_job_op">>),
     prepare(broadcast_set_job_started, broadcast_jobs,
@@ -233,8 +233,8 @@ prepare_queries(HostType) ->
                    WorkerRoutineParams, <<"broadcast_upsert_worker_state_op">>),
 
     %% Stored routines for ownership transitions.
-    RenewOwnershipParams = [expires_at, owner_node, host_type],
-    TakeExpiredParams = [owner_node, expires_at],
+    RenewOwnershipParams = [lease_time, owner_node, host_type],
+    TakeExpiredParams = [owner_node, lease_time],
     prepare_stored(HostType, broadcast_renew_ownership, broadcast_jobs_ownership,
                    RenewOwnershipParams, <<"broadcast_renew_ownership_op">>),
     prepare_stored(HostType, broadcast_take_expired_jobs, broadcast_jobs_ownership,

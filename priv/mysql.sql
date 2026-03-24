@@ -627,7 +627,7 @@ CREATE PROCEDURE broadcast_create_job_op(
     IN p_name VARCHAR(250), IN p_server VARCHAR(250), IN p_host_type VARCHAR(250),
     IN p_from_jid VARCHAR(250), IN p_subject VARCHAR(1024), IN p_body TEXT,
     IN p_rate INT, IN p_recipient_group ENUM('all_users_in_domain'),
-    IN p_recipient_count INT, IN p_owner_node VARCHAR(250), IN p_expires_at BIGINT
+  IN p_recipient_count INT, IN p_owner_node VARCHAR(250), IN p_lease_time BIGINT
 )
 BEGIN
     INSERT INTO broadcast_jobs
@@ -638,7 +638,8 @@ BEGIN
     SET @new_job_id = LAST_INSERT_ID();
 
     INSERT INTO broadcast_jobs_ownership (broadcast_id, owner_node, updated_at, expires_at)
-    VALUES (@new_job_id, p_owner_node, CURRENT_TIMESTAMP, FROM_UNIXTIME(p_expires_at));
+        VALUES (@new_job_id, p_owner_node, CURRENT_TIMESTAMP,
+          DATE_ADD(CURRENT_TIMESTAMP, INTERVAL p_lease_time SECOND));
 
     SELECT @new_job_id AS id;
 END //
@@ -657,7 +658,7 @@ BEGIN
 END //
 
 CREATE PROCEDURE broadcast_renew_ownership_op(
-    IN p_expires_at BIGINT, IN p_owner_node VARCHAR(250), IN p_host_type VARCHAR(250)
+  IN p_lease_time BIGINT, IN p_owner_node VARCHAR(250), IN p_host_type VARCHAR(250)
 )
 BEGIN
     CREATE TEMPORARY TABLE IF NOT EXISTS _broadcast_renewed_ids (broadcast_id INT);
@@ -674,13 +675,14 @@ BEGIN
 
     UPDATE broadcast_jobs_ownership o
     JOIN _broadcast_renewed_ids t ON o.broadcast_id = t.broadcast_id
-    SET o.expires_at = FROM_UNIXTIME(p_expires_at), o.updated_at = CURRENT_TIMESTAMP;
+    SET o.expires_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL p_lease_time SECOND),
+      o.updated_at = CURRENT_TIMESTAMP;
 
     SELECT t.broadcast_id FROM _broadcast_renewed_ids t;
 END //
 
 CREATE PROCEDURE broadcast_take_expired_jobs_op(
-    IN p_owner_node VARCHAR(250), IN p_expires_at BIGINT
+  IN p_owner_node VARCHAR(250), IN p_lease_time BIGINT
 )
 BEGIN
     CREATE TEMPORARY TABLE IF NOT EXISTS _broadcast_taken_ids (id INT);
@@ -697,7 +699,7 @@ BEGIN
     UPDATE broadcast_jobs_ownership o
     JOIN _broadcast_taken_ids t ON o.broadcast_id = t.id
     SET o.owner_node = p_owner_node,
-        o.expires_at = FROM_UNIXTIME(p_expires_at),
+      o.expires_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL p_lease_time SECOND),
         o.updated_at = CURRENT_TIMESTAMP;
 
     SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate,
