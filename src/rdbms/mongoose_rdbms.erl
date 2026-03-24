@@ -313,39 +313,21 @@ normalize_execute_result({updated, _} = Result) ->
 normalize_execute_result({updated, _RowsAffected, _ResultSet} = Result) ->
     {ok, Result};
 normalize_execute_result(Results) when is_list(Results) ->
-    %% TODO: Copilot claims this may happen when calling a stored procedure in MySQL
-    %% Verify it
     case lists:all(fun is_single_successful_result/1, Results) of
         true ->
-            {ok, execute_result_from_list(Results)};
+            {ok, lists:last(Results)};
         false ->
             {error, Results}
     end;
 normalize_execute_result(Other) ->
     {error, Other}.
 
-execute_result_from_list([]) ->
-    [];
-execute_result_from_list(Results) ->
-    ReversedResults = lists:reverse(Results),
-    case lists:search(fun({selected, _}) -> true;
-                         (_) -> false
-                      end, ReversedResults) of
-        {value, Result} ->
-            Result;
-        false ->
-            hd(ReversedResults)
-    end.
-
 is_single_successful_result({selected, _}) ->
     true;
 is_single_successful_result({updated, _}) ->
     true;
-is_single_successful_result({updated, _RowsAffected, _ResultSet}) ->
-    true;
 is_single_successful_result(_) ->
     false.
-
 
 query_name_to_string(Name) ->
     case ets:lookup(prepared_statements, Name) of
