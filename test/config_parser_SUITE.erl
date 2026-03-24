@@ -1563,6 +1563,10 @@ mod_broadcast(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_broadcast">> => #{K => V}}} end,
     P = [modules, mod_broadcast],
     ?cfgh(P ++ [backend], rdbms, T(<<"backend">>, <<"rdbms">>)),
+    ?cfgh(P ++ [lease_time], 1200, T(<<"lease_time">>, 1200)),
+    ?errh(T(<<"lease_time">>, 0)),
+    ?errh(T(<<"lease_time">>, -1)),
+    ?errh(T(<<"lease_time">>, <<"600">>)),
     ?errh(T(<<"backend">>, <<"mnesia">>)),
     ?errh(T(<<"backend">>, <<"invalid">>)).
 

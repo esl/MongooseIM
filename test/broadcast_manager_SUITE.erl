@@ -156,7 +156,7 @@ handle_info_unknown_does_not_crash(Config) ->
 db_create_job_error_propagates(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
     JobSpec = broadcast_helper:valid_job_spec(),
@@ -186,7 +186,7 @@ db_get_running_jobs_error_in_resume(Config) ->
 db_set_job_started_error_logged(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     {ok, 12345}
                 end),
     meck:expect(mod_broadcast_backend, set_job_started,
@@ -208,7 +208,7 @@ db_set_job_aborted_admin_error_logged(Config) ->
 
     FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     {ok, JobId}
                 end),
     meck:expect(supervisor, start_child,
@@ -253,7 +253,7 @@ start_job_fails_when_recipient_count_zero_returns_no_recipients(Config) ->
     meck:expect(ejabberd_auth, get_vh_registered_users_number,
                 fun(_Domain) -> 0 end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     ct:fail(create_job_should_not_be_called)
                 end),
 
@@ -268,7 +268,7 @@ start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Con
                     meck:exception(error, auth_backend_boom)
                 end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     ct:fail(create_job_should_not_be_called)
                 end),
 
@@ -283,7 +283,7 @@ start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Con
 supervisor_start_child_error_on_job_creation(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     {ok, 12345}
                 end),
     meck:expect(supervisor, start_child,
@@ -328,7 +328,7 @@ worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) 
 
     FakeWorkerPid = spawn(fun() -> receive go_boom -> error(boom) end end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) -> {ok, JobId} end),
+                fun(_HostType, _JobSpec, _LeaseTime) -> {ok, JobId} end),
     meck:expect(supervisor, start_child,
                 fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
     meck:expect(mod_broadcast_backend, set_job_aborted_error,
@@ -358,7 +358,7 @@ tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
 
     FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) -> {ok, JobId} end),
+                fun(_HostType, _JobSpec, _LeaseTime) -> {ok, JobId} end),
     meck:expect(supervisor, start_child,
                 fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
     meck:expect(mod_broadcast_backend, set_job_finished,
@@ -390,6 +390,12 @@ setup_mocks_for_manager() ->
                 fun(_HostType, Module) ->
                     list_to_atom("test_" ++ atom_to_list(Module))
                 end),
+    meck:expect(gen_mod, get_module_opt,
+                fun(_HostType, mod_broadcast, lease_time) ->
+                    600;
+                   (HostType, Module, Key) ->
+                    meck:passthrough([HostType, Module, Key])
+                end),
 
     meck:new(mod_broadcast_backend, [no_link]),
 
@@ -418,7 +424,7 @@ reset_meck_defaults() ->
     meck:expect(mod_broadcast_backend, get_running_jobs,
                 fun(_HostType) -> {ok, []} end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) -> {ok, 1} end),
+                fun(_HostType, _JobSpec, _LeaseTime) -> {ok, 1} end),
     meck:expect(mod_broadcast_backend, set_job_started,
                 fun(_HostType, _JobId) -> ok end),
     meck:expect(mod_broadcast_backend, set_job_finished,

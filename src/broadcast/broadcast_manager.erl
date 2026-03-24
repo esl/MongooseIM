@@ -156,8 +156,7 @@ handle_call({start_job, #{domain := Domain} = JobSpec}, _From, #state{host_type 
     %% It means the total count may be slightly off, but this is acceptable for now
     RecipientCount = catch ejabberd_auth:get_vh_registered_users_number(Domain),
     JobSpecWithCount = JobSpec#{recipient_count => RecipientCount},
-    %% TODO: Make the ownership expiration duration configurable
-    LeaseTime = 600,
+    LeaseTime = gen_mod:get_module_opt(HostType, mod_broadcast, lease_time),
     %% If RecipientCount is an error tuple, it will be handled in validation
     case do_create_job(HostType, validate_job_spec(HostType, JobSpecWithCount), LeaseTime) of
         {ok, JobId} ->

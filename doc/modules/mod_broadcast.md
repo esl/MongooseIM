@@ -26,6 +26,14 @@ The module itself is not user-facing: broadcasts are typically created and manag
 
 Backend used to store broadcast jobs and worker progress.
 
+### `modules.mod_broadcast.lease_time`
+
+* **Syntax:** positive integer (seconds)
+* **Default:** `600`
+* **Example:** `lease_time = 900`
+
+Lease duration in seconds for broadcast job ownership. The owner node periodically renews the lease while the job is running.
+
 !!! Warning
     `mod_broadcast` relies on standard RDBMS auth API to retrieve the recipient count. If [user count estimation](../authentication-methods/rdbms.md#authrdbmsusers_number_estimate) is enabled, then the number of recipients per job may be inaccurate. This option is disabled by default.
 
@@ -134,6 +142,7 @@ This extension delivers messages at least once - duplication may occur in case o
 ```toml
 [modules.mod_broadcast]
   backend = "rdbms"
+  lease_time = 600
 ```
 
 ## Metrics

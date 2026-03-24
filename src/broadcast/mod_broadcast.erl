@@ -90,8 +90,11 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 config_spec() ->
     #section{
         items = #{<<"backend">> => #option{type = atom,
-                                           validate = {enum, [rdbms]}}},
-        defaults = #{<<"backend">> => rdbms}
+                                           validate = {enum, [rdbms]}},
+                  <<"lease_time">> => #option{type = integer,
+                                              validate = positive}},
+        defaults = #{<<"backend">> => rdbms,
+                     <<"lease_time">> => 600}
     }.
 
 ensure_rdbms_auth_enabled(HostType) ->
