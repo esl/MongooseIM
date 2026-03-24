@@ -253,13 +253,14 @@ sending_batch(EventType, Event, Data) ->
 -spec paused(gen_statem:event_type(), term(), data()) ->
     gen_statem:state_function_result().
 paused({call, From}, pause, Data) ->
-    %% Already paused - idempotent
     {keep_state, Data, [{reply, From, ok}]};
 paused({call, From}, resume, Data) ->
     %% Reset rate-limiting counters so remaining recipients are sent at the
     %% correct rate starting from the moment of resumption.
     BatchT0 = erlang:monotonic_time(millisecond),
     NewData = Data#data{batch_t0 = BatchT0, batch_recipients_processed = 0},
+    %% No matter the original state we can continue from sending_batch,
+    %% as in case of finished batch, it will just immediately transition to loading_batch or finished.
     {next_state, sending_batch, NewData, [{reply, From, ok}, {next_event, internal, send_one}]};
 paused({call, From}, stop, _Data) ->
     {stop_and_reply, normal, [{reply, From, ok}]};
