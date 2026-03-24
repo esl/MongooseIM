@@ -156,7 +156,7 @@ handle_call({start_job, #{domain := Domain} = JobSpec}, _From, #state{host_type 
     %% It means the total count may be slightly off, but this is acceptable for now
     RecipientCount = catch ejabberd_auth:get_vh_registered_users_number(Domain),
     JobSpecWithCount = JobSpec#{recipient_count => RecipientCount},
-    LeaseTime = gen_mod:get_module_opt(HostType, mod_broadcast, lease_time),
+    LeaseTime = mod_broadcast:lease_time(HostType),
     %% If RecipientCount is an error tuple, it will be handled in validation
     case do_create_job(HostType, validate_job_spec(HostType, JobSpecWithCount), LeaseTime) of
         {ok, JobId} ->
@@ -409,6 +409,7 @@ resume_running_jobs(#state{host_type = HostType} = State) ->
     LiveWorkerIndex = index_workers(HostType),
     maps:foreach(fun monitor_worker/2, LiveWorkerIndex),
     %% TODO: Catch errors and implement retry mechanism in case of backend failure
+    mod_broadcast_backend:renew_ownership(HostType, mod_broadcast:lease_time(HostType)),
     {ok, Jobs} = mod_broadcast_backend:get_running_jobs(HostType),
     WorkerMap = lists:foldl(fun(Job, AccWorkerMap) ->
         resume_job_if_needed(HostType, Job, LiveWorkerIndex, AccWorkerMap)

@@ -9,20 +9,15 @@
 -behaviour(mongoose_module_metrics).
 -behaviour(mongoose_instrument_probe).
 
-%%====================================================================
-%% gen_mod callbacks
-%%====================================================================
-
 -export([start/2,
          stop/1,
          hooks/1,
          supported_features/0,
          config_spec/0,
-         instrumentation/1,
-         remove_domain/3]).
-
-%% mongoose_instrument_probe callback
+         instrumentation/1]).
 -export([probe/2]).
+-export([remove_domain/3]).
+-export([lease_time/1]).
 
 -include("mongoose_config_spec.hrl").
 -include("mod_broadcast.hrl").
@@ -31,6 +26,10 @@
 -export_type([broadcast_job_id/0,
               broadcast_job/0,
               job_spec/0]).
+
+%%====================================================================
+%% gen_mod callbacks and their helpers
+%%====================================================================
 
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
@@ -41,10 +40,24 @@ start(HostType, Opts) ->
     start_supervisor(HostType),
     ok.
 
+start_supervisor(HostType) ->
+    SupName = gen_mod:get_module_proc(HostType, broadcast_sup),
+    ChildSpec = #{id => SupName,
+                  start => {broadcast_sup, start_link, [HostType]},
+                  restart => permanent,
+                  shutdown => infinity,
+                  type => supervisor,
+                  modules => [broadcast_sup]},
+    ejabberd_sup:start_child(ChildSpec).
+
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     stop_supervisor(HostType),
     ok.
+
+stop_supervisor(HostType) ->
+    SupName = gen_mod:get_module_proc(HostType, broadcast_sup),
+    ejabberd_sup:stop_child(SupName).
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -53,6 +66,63 @@ supported_features() ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}].
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"backend">> => #option{type = atom,
+                                           validate = {enum, [rdbms]}},
+                  <<"lease_time">> => #option{type = integer,
+                                              validate = positive}},
+        defaults = #{<<"backend">> => rdbms,
+                     <<"lease_time">> => 600}
+    }.
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [
+     %% Running jobs gauge (polled via probe)
+     {mod_broadcast_live_jobs, #{host_type => HostType},
+      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
+     %% Job lifecycle counters
+     {mod_broadcast_jobs_started, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     {mod_broadcast_jobs_finished, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     {mod_broadcast_jobs_aborted_admin, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     {mod_broadcast_jobs_aborted_error, #{host_type => HostType},
+      #{metrics => #{count => counter}}},
+     %% Recipient processing spirals
+     {mod_broadcast_recipients_processed, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_recipients_success, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_broadcast_recipients_skipped, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}
+    ].
+
+%%====================================================================
+%% mongoose_instrument_probe callback
+%%====================================================================
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+          mongoose_instrument:measurements().
+probe(mod_broadcast_live_jobs, #{host_type := HostType}) ->
+    try broadcast_manager:get_live_job_count(HostType) of
+        Count ->
+            ?LOG_DEBUG(#{what => broadcast_live_jobs_probe, host_type => HostType, count => Count}),
+            #{count => Count}
+    catch
+        exit:{noproc, _} ->
+            #{count => 0};
+        exit:{timeout, _} ->
+            #{count => 0}
+    end.
+
+%%====================================================================
+%% Domain removal
+%%====================================================================
 
 -spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_domain_api:remove_domain_acc(),
@@ -86,16 +156,17 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_broadcast_backend:delete_inactive_jobs_by_domain(HostType, Domain),
     {ok, Acc}.
 
--spec config_spec() -> mongoose_config_spec:config_section().
-config_spec() ->
-    #section{
-        items = #{<<"backend">> => #option{type = atom,
-                                           validate = {enum, [rdbms]}},
-                  <<"lease_time">> => #option{type = integer,
-                                              validate = positive}},
-        defaults = #{<<"backend">> => rdbms,
-                     <<"lease_time">> => 600}
-    }.
+%%====================================================================
+%% Config access
+%%====================================================================
+
+-spec lease_time(HostType :: mongooseim:host_type()) -> pos_integer().
+lease_time(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_broadcast, lease_time).
+
+%%====================================================================
+%% Other
+%%====================================================================
 
 ensure_rdbms_auth_enabled(HostType) ->
     case lists:member(ejabberd_auth_rdbms, ejabberd_auth:auth_modules_for_host_type(HostType)) of
@@ -104,60 +175,4 @@ ensure_rdbms_auth_enabled(HostType) ->
             error(#{what => mod_broadcast_requires_rdbms_auth,
                     text => <<"mod_broadcast requires ejabberd_auth_rdbms to be enabled">>,
                     host_type => HostType})
-    end.
-
-start_supervisor(HostType) ->
-    SupName = gen_mod:get_module_proc(HostType, broadcast_sup),
-    ChildSpec = #{id => SupName,
-                  start => {broadcast_sup, start_link, [HostType]},
-                  restart => permanent,
-                  shutdown => infinity,
-                  type => supervisor,
-                  modules => [broadcast_sup]},
-    ejabberd_sup:start_child(ChildSpec).
-
-stop_supervisor(HostType) ->
-    SupName = gen_mod:get_module_proc(HostType, broadcast_sup),
-    ejabberd_sup:stop_child(SupName).
-
-%%====================================================================
-%% Instrumentation
-%%====================================================================
-
--spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
-instrumentation(HostType) ->
-    [
-     %% Running jobs gauge (polled via probe)
-     {mod_broadcast_live_jobs, #{host_type => HostType},
-      #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}},
-     %% Job lifecycle counters
-     {mod_broadcast_jobs_started, #{host_type => HostType},
-      #{metrics => #{count => counter}}},
-     {mod_broadcast_jobs_finished, #{host_type => HostType},
-      #{metrics => #{count => counter}}},
-     {mod_broadcast_jobs_aborted_admin, #{host_type => HostType},
-      #{metrics => #{count => counter}}},
-     {mod_broadcast_jobs_aborted_error, #{host_type => HostType},
-      #{metrics => #{count => counter}}},
-     %% Recipient processing spirals
-     {mod_broadcast_recipients_processed, #{host_type => HostType},
-      #{metrics => #{count => spiral}}},
-     {mod_broadcast_recipients_success, #{host_type => HostType},
-      #{metrics => #{count => spiral}}},
-     {mod_broadcast_recipients_skipped, #{host_type => HostType},
-      #{metrics => #{count => spiral}}}
-    ].
-
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
-          mongoose_instrument:measurements().
-probe(mod_broadcast_live_jobs, #{host_type := HostType}) ->
-    try broadcast_manager:get_live_job_count(HostType) of
-        Count ->
-            ?LOG_DEBUG(#{what => broadcast_live_jobs_probe, host_type => HostType, count => Count}),
-            #{count => Count}
-    catch
-        exit:{noproc, _} ->
-            #{count => 0};
-        exit:{timeout, _} ->
-            #{count => 0}
     end.
