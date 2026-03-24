@@ -383,18 +383,23 @@ monitor_worker(JobId, Pid) ->
 
 -spec stop_worker_by_admin(mongooseim:host_type(), jid:lserver(), broadcast_job_id(), pid()) -> ok.
 stop_worker_by_admin(HostType, Domain, JobId, WorkerPid) ->
-    ok = broadcast_worker:stop(WorkerPid),
+    stop_worker(HostType, JobId, WorkerPid),
+    persist_job_aborted_by_admin(HostType, Domain, JobId),
+    ok.
+
+-spec stop_worker(mongooseim:host_type(), broadcast_job_id(), pid()) -> ok.
+stop_worker(HostType, JobId, WorkerPid) ->
+    broadcast_worker:stop(WorkerPid),
     receive
         {{'DOWN', JobId}, _Ref, process, WorkerPid, _Reason} ->
             ok
     after 6000 ->
-            ?LOG_WARNING(#{what => broadcast_worker_stop_timeout,
-                           job_id => JobId,
-                           host_type => HostType,
-                           pid => WorkerPid})
-    end,
-    persist_job_aborted_by_admin(HostType, Domain, JobId),
-    ok.
+        ?LOG_WARNING(#{what => broadcast_worker_stop_timeout,
+                        job_id => JobId,
+                        host_type => HostType,
+                        pid => WorkerPid}),
+        ok
+    end.
 
 -spec get_sup_name(mongooseim:host_type()) -> atom().
 get_sup_name(HostType) ->
@@ -414,6 +419,9 @@ resume_running_jobs(#state{host_type = HostType} = State) ->
     WorkerMap = lists:foldl(fun(Job, AccWorkerMap) ->
         resume_job_if_needed(HostType, Job, LiveWorkerIndex, AccWorkerMap)
     end, #{}, Jobs),
+    NoLongerOwnedJobs = maps:keys(LiveWorkerIndex) -- maps:keys(WorkerMap),
+    stop_workers_for_lost_jobs(HostType, LiveWorkerIndex, NoLongerOwnedJobs),
+
     State#state{worker_map = WorkerMap}.
 
 -spec resume_job_if_needed(mongooseim:host_type(), broadcast_job(),
@@ -447,6 +455,18 @@ index_workers(HostType) ->
     maps:from_list([
         {Id, Pid} || {Id, Pid, _Type, _Modules} <- Children, is_pid(Pid)
     ]).
+
+-spec stop_workers_for_lost_jobs(mongooseim:host_type(), worker_index(), [broadcast_job_id()]) -> ok.
+stop_workers_for_lost_jobs(_HostType, _LiveWorkerIndex, []) ->
+    ok;
+stop_workers_for_lost_jobs(HostType, LiveWorkerIndex, JobIds) ->
+    WorkersToStop = maps:with(JobIds, LiveWorkerIndex),
+    ?LOG_INFO(#{what => broadcast_jobs_no_longer_owned,
+                host_type => HostType,
+                workers_to_stop => WorkersToStop}),
+    maps:foreach(fun(JobId, WorkerPid) ->
+        stop_worker(HostType, JobId, WorkerPid)
+    end, WorkersToStop).
 
 %%====================================================================
 %% Validation
