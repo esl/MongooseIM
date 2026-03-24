@@ -220,28 +220,20 @@ prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
 %% PostgreSQL/CockroachDB are prepared as: SELECT * FROM <function>(?, ...)
 %% MySQL is prepared as: CALL <procedure>(?, ...)
 -spec prepare_stored(mongooseim:host_type(), query_name(), Table :: binary() | atom(),
-                     Fields :: [binary() | atom()], RoutineName :: iodata() | atom()) ->
+                     Fields :: [binary() | atom()], RoutineName :: binary()) ->
     {ok, query_name()} | {error, already_exists}.
 prepare_stored(HostType, Name, Table, Fields, RoutineName) ->
     Engine = db_engine(HostType),
-    RoutineNameBin = routine_name_to_binary(RoutineName),
-    Statement = stored_statement(Engine, RoutineNameBin, length(Fields)),
+    Statement = stored_statement(Engine, RoutineName, length(Fields)),
     prepare(Name, Table, Fields, Statement).
 
-routine_name_to_binary(Name) when is_atom(Name) ->
-    atom_to_binary(Name, utf8);
-routine_name_to_binary(Name) when is_binary(Name) ->
-    Name.
-
 stored_statement(mysql, RoutineName, Arity) ->
-    <<"CALL ", RoutineName/binary, "(", (stored_placeholders(Arity))/binary, ")">>;
+    <<"CALL ", RoutineName/binary, "(", (stored_arg_placeholders(Arity))/binary, ")">>;
 stored_statement(_Engine, RoutineName, Arity) ->
-    <<"SELECT * FROM ", RoutineName/binary, "(", (stored_placeholders(Arity))/binary, ")">>.
+    <<"SELECT * FROM ", RoutineName/binary, "(", (stored_arg_placeholders(Arity))/binary, ")">>.
 
-stored_placeholders(0) ->
-    <<>>;
-stored_placeholders(Arity) ->
-    iolist_to_binary(lists:join(<<", ">>, lists:duplicate(Arity, <<"?">>))).
+stored_arg_placeholders(Arity) ->
+    binary:join(lists:duplicate(Arity, <<"?">>), <<", ">>).
 
 -spec prepared(atom()) -> boolean().
 prepared(Name) ->

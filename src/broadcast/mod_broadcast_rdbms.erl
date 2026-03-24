@@ -7,24 +7,33 @@
 
 -behaviour(mod_broadcast_backend).
 
--export([init/2,
+-export([init/2]).
+
+-export([
          create_job/3,
-         get_job/2,
-         get_jobs_by_domain/4,
-         get_running_jobs/1,
-         get_worker_state/2,
          set_job_started/2,
-         update_worker_state/3,
          set_job_finished/2,
          set_job_aborted_error/3,
          set_job_aborted_admin/2,
          delete_job/2,
-         delete_inactive_jobs_by_domain/2,
+         delete_inactive_jobs_by_domain/2
+        ]).
+-export([
+         get_job/2,
+         get_jobs_by_domain/4,
+         get_running_jobs/1
+        ]).
+-export([
+         get_worker_state/2,
+         update_worker_state/3
+        ]).
+-export([
          renew_ownership/2,
          take_expired_jobs/2,
-         remove_ownership/2]).
+         remove_ownership/2
+        ]).
 
--import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
+-import(mongoose_rdbms, [prepare/4, prepare_stored/5, execute_successfully/3]).
 
 -include("mongoose_logger.hrl").
 -include("mod_broadcast.hrl").
@@ -68,58 +77,9 @@ create_job(HostType, JobSpec, ExpiresAt) ->
             E
     end.
 
--spec get_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    {ok, broadcast_job()} | {error, not_found}.
-get_job(HostType, JobId) ->
-    case execute_successfully(HostType, broadcast_get_job, [JobId]) of
-        {selected, [Row]} ->
-            {ok, row_to_job(Row)};
-        {selected, []} ->
-            {error, not_found}
-    end.
-
--spec get_running_jobs(mongooseim:host_type()) -> {ok, [broadcast_job()]}.
-get_running_jobs(HostType) ->
-    OwnerNode = atom_to_binary(node(), utf8),
-    {selected, Rows} = execute_successfully(HostType, broadcast_get_running_jobs, [OwnerNode, HostType]),
-    Jobs = lists:map(fun row_to_job/1, Rows),
-    {ok, Jobs}.
-
--spec get_jobs_by_domain(mongooseim:host_type(), jid:lserver(),
-                         Limit :: pos_integer(), Offset :: non_neg_integer()) ->
-    {ok, [broadcast_job()]}.
-get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
-    {selected, Rows} = execute_successfully(HostType, broadcast_get_jobs_by_domain,
-                                            [Domain, Limit, Offset]),
-    Jobs = lists:map(fun row_to_job/1, Rows),
-    {ok, Jobs}.
-
--spec get_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    {ok, broadcast_worker_state()} | {error, not_found}.
-get_worker_state(HostType, JobId) ->
-    case execute_successfully(HostType, broadcast_get_worker_state, [JobId]) of
-        {selected, [{Cursor, RecipientsProcessed, Finished}]} ->
-            {ok, #broadcast_worker_state{cursor = maybe_null(Cursor),
-                                         recipients_processed = RecipientsProcessed,
-                                         finished = mongoose_rdbms:to_bool(Finished)}};
-        {selected, []} ->
-            {error, not_found}
-    end.
-
 -spec set_job_started(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
 set_job_started(HostType, JobId) ->
     {updated, 1} = execute_successfully(HostType, broadcast_set_job_started, [JobId]),
-    ok.
-
--spec update_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id(),
-                          WorkerState :: broadcast_worker_state()) ->
-    ok.
-update_worker_state(HostType, JobId, WorkerState) ->
-    Cursor = null_if_undefined(WorkerState#broadcast_worker_state.cursor),
-    RecipientsProcessed = WorkerState#broadcast_worker_state.recipients_processed,
-    Finished = WorkerState#broadcast_worker_state.finished,
-    execute_successfully(HostType, broadcast_upsert_worker_state,
-                         [JobId, Cursor, RecipientsProcessed, Finished]),
     ok.
 
 -spec set_job_finished(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
@@ -158,6 +118,55 @@ delete_inactive_jobs_by_domain(HostType, Domain) ->
                                         [Domain]),
     {ok, JobIds}.
 
+-spec get_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
+    {ok, broadcast_job()} | {error, not_found}.
+get_job(HostType, JobId) ->
+    case execute_successfully(HostType, broadcast_get_job, [JobId]) of
+        {selected, [Row]} ->
+            {ok, row_to_job(Row)};
+        {selected, []} ->
+            {error, not_found}
+    end.
+
+-spec get_jobs_by_domain(mongooseim:host_type(), jid:lserver(),
+                         Limit :: pos_integer(), Offset :: non_neg_integer()) ->
+    {ok, [broadcast_job()]}.
+get_jobs_by_domain(HostType, Domain, Limit, Offset) ->
+    {selected, Rows} = execute_successfully(HostType, broadcast_get_jobs_by_domain,
+                                            [Domain, Limit, Offset]),
+    Jobs = lists:map(fun row_to_job/1, Rows),
+    {ok, Jobs}.
+
+-spec get_running_jobs(mongooseim:host_type()) -> {ok, [broadcast_job()]}.
+get_running_jobs(HostType) ->
+    OwnerNode = atom_to_binary(node(), utf8),
+    {selected, Rows} = execute_successfully(HostType, broadcast_get_running_jobs, [OwnerNode, HostType]),
+    Jobs = lists:map(fun row_to_job/1, Rows),
+    {ok, Jobs}.
+
+-spec get_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
+    {ok, broadcast_worker_state()} | {error, not_found}.
+get_worker_state(HostType, JobId) ->
+    case execute_successfully(HostType, broadcast_get_worker_state, [JobId]) of
+        {selected, [{Cursor, RecipientsProcessed, Finished}]} ->
+            {ok, #broadcast_worker_state{cursor = maybe_null(Cursor),
+                                         recipients_processed = RecipientsProcessed,
+                                         finished = mongoose_rdbms:to_bool(Finished)}};
+        {selected, []} ->
+            {error, not_found}
+    end.
+
+-spec update_worker_state(mongooseim:host_type(), JobId :: broadcast_job_id(),
+                          WorkerState :: broadcast_worker_state()) ->
+    ok.
+update_worker_state(HostType, JobId, WorkerState) ->
+    Cursor = null_if_undefined(WorkerState#broadcast_worker_state.cursor),
+    RecipientsProcessed = WorkerState#broadcast_worker_state.recipients_processed,
+    Finished = WorkerState#broadcast_worker_state.finished,
+    execute_successfully(HostType, broadcast_upsert_worker_state,
+                         [JobId, Cursor, RecipientsProcessed, Finished]),
+    ok.
+
 -spec renew_ownership(mongooseim:host_type(), ExpiresAt :: non_neg_integer()) ->
     {ok, [broadcast_job_id()]}.
 renew_ownership(HostType, ExpiresAt) ->
@@ -192,110 +201,103 @@ remove_ownership(HostType, JobId) ->
 %%====================================================================
 
 prepare_queries(HostType) ->
-    prepare_stored_routines(HostType),
-
-    prepare(broadcast_count_running_jobs, broadcast_jobs,
-            [server],
-            <<"SELECT COUNT(*) FROM broadcast_jobs "
-              "WHERE server = ? AND execution_state = 'running'">>),
-
-    prepare(broadcast_get_job, broadcast_jobs,
-            [id],
-            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-              "j.recipient_group, o.owner_node, j.recipient_count, "
-              "COALESCE(ws.recipients_processed, 0), "
-              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
-              "FROM broadcast_jobs j "
-              "LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
-              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-              "WHERE j.id = ?">>),
-
-    prepare(broadcast_get_running_jobs, broadcast_jobs,
-            [owner_node, host_type],
-            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-              "j.recipient_group, o.owner_node, j.recipient_count, "
-              "COALESCE(ws.recipients_processed, 0), "
-              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
-              "FROM broadcast_jobs j "
-              "JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
-              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-              "WHERE o.owner_node = ? AND j.host_type = ? AND j.execution_state = 'running'">>),
-
-    prepare(broadcast_get_worker_state, broadcast_worker_state,
-            [broadcast_id],
-            <<"SELECT cursor_user, recipients_processed, finished FROM broadcast_worker_state "
-              "WHERE broadcast_id = ?">>),
-
+    %% Job lifecycle management
+    JobRoutineParams = [name, server, host_type, from_jid, subject, body, rate,
+                        recipient_group, recipient_count, owner_node, expires_at],
+    prepare_stored(HostType, broadcast_create_job, broadcast_jobs, JobRoutineParams,
+                   <<"broadcast_create_job_op">>),
     prepare(broadcast_set_job_started, broadcast_jobs,
             [id],
             <<"UPDATE broadcast_jobs SET started_at = CURRENT_TIMESTAMP"
-              " WHERE id = ?">>),
-
+            " WHERE id = ?">>),
     prepare(broadcast_set_job_finished, broadcast_jobs,
             [id],
             <<"UPDATE broadcast_jobs "
-              "SET execution_state = 'finished', stopped_at = CURRENT_TIMESTAMP "
-              "WHERE id = ? AND execution_state = 'running'">>),
-
+            "SET execution_state = 'finished', stopped_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND execution_state = 'running'">>),
     prepare(broadcast_set_job_aborted_error, broadcast_jobs,
             [abortion_reason, id],
             <<"UPDATE broadcast_jobs "
-              "SET execution_state = 'abort_error', abortion_reason = ?, "
-              "stopped_at = CURRENT_TIMESTAMP "
-              "WHERE id = ? AND execution_state = 'running'">>),
-
+            "SET execution_state = 'abort_error', abortion_reason = ?, "
+            "stopped_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND execution_state = 'running'">>),
     prepare(broadcast_set_job_aborted_admin, broadcast_jobs,
             [id],
             <<"UPDATE broadcast_jobs "
-              "SET execution_state = 'abort_admin', stopped_at = CURRENT_TIMESTAMP "
-              "WHERE id = ? AND execution_state = 'running'">>),
+            "SET execution_state = 'abort_admin', stopped_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND execution_state = 'running'">>),
 
-    prepare(broadcast_get_jobs_by_domain, broadcast_jobs,
-            [server, limit, offset],
-            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-              "j.recipient_group, o.owner_node, j.recipient_count, "
-              "COALESCE(ws.recipients_processed, 0), "
-              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
-              "FROM broadcast_jobs j "
-              "LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
-              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-              "WHERE j.server = ? "
-              "ORDER BY j.id DESC LIMIT ? OFFSET ?">>),
+    %% Stored routines for worker progress.
+    WorkerRoutineParams = [broadcast_id, cursor_user, recipients_processed, finished],
+    prepare_stored(HostType, broadcast_upsert_worker_state, broadcast_worker_state,
+                   WorkerRoutineParams, <<"broadcast_upsert_worker_state_op">>),
 
-    prepare(broadcast_delete_job, broadcast_jobs,
-            [id],
-            <<"DELETE FROM broadcast_jobs WHERE id = ?">>),
+    %% Stored routines for ownership transitions.
+    RenewOwnershipParams = [expires_at, owner_node, host_type],
+    TakeExpiredParams = [owner_node, expires_at],
+    prepare_stored(HostType, broadcast_renew_ownership, broadcast_jobs_ownership,
+                   RenewOwnershipParams, <<"broadcast_renew_ownership_op">>),
+    prepare_stored(HostType, broadcast_take_expired_jobs, broadcast_jobs_ownership,
+                   TakeExpiredParams, <<"broadcast_take_expired_jobs_op">>),
 
-    prepare(broadcast_get_inactive_job_ids_by_domain, broadcast_jobs,
-            [server],
-            <<"SELECT id FROM broadcast_jobs "
-              "WHERE server = ? AND execution_state != 'running'">>),
-
-    prepare(broadcast_delete_inactive_jobs_by_domain, broadcast_jobs,
-            [server],
-            <<"DELETE FROM broadcast_jobs "
-              "WHERE server = ? AND execution_state != 'running'">>),
-    ok.
-
-prepare_stored_routines(HostType) ->
+    %% Direct ownership cleanup query.
     prepare(broadcast_remove_ownership, broadcast_jobs_ownership,
             [broadcast_id],
             <<"DELETE FROM broadcast_jobs_ownership WHERE broadcast_id = ?">>),
 
-    SPParams = [name, server, host_type, from_jid, subject, body, rate,
-                recipient_group, recipient_count, owner_node, expires_at],
-    UpsertParams = [broadcast_id, cursor_user, recipients_processed, finished],
-    RenewParams = [expires_at, owner_node, host_type],
-    TakeParams = [owner_node, expires_at],
+    %% Read queries for jobs and state.
+    prepare(broadcast_count_running_jobs, broadcast_jobs,
+            [server],
+            <<"SELECT COUNT(*) FROM broadcast_jobs "
+            "WHERE server = ? AND execution_state = 'running'">>),
+    prepare(broadcast_get_job, broadcast_jobs,
+            [id],
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
+            "j.recipient_group, o.owner_node, j.recipient_count, "
+            "COALESCE(ws.recipients_processed, 0), "
+            "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
+            "FROM broadcast_jobs j "
+            "LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
+            "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
+            "WHERE j.id = ?">>),
+    prepare(broadcast_get_running_jobs, broadcast_jobs,
+            [owner_node, host_type],
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
+            "j.recipient_group, o.owner_node, j.recipient_count, "
+            "COALESCE(ws.recipients_processed, 0), "
+            "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
+            "FROM broadcast_jobs j "
+            "JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
+            "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
+            "WHERE o.owner_node = ? AND j.host_type = ? AND j.execution_state = 'running'">>),
+    prepare(broadcast_get_worker_state, broadcast_worker_state,
+            [broadcast_id],
+            <<"SELECT cursor_user, recipients_processed, finished FROM broadcast_worker_state "
+            "WHERE broadcast_id = ?">>),
+    prepare(broadcast_get_jobs_by_domain, broadcast_jobs,
+            [server, limit, offset],
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
+            "j.recipient_group, o.owner_node, j.recipient_count, "
+            "COALESCE(ws.recipients_processed, 0), "
+            "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
+            "FROM broadcast_jobs j "
+            "LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
+            "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
+            "WHERE j.server = ? "
+            "ORDER BY j.id DESC LIMIT ? OFFSET ?">>),
 
-    mongoose_rdbms:prepare_stored(HostType, broadcast_create_job, broadcast_jobs, SPParams,
-                                  broadcast_create_job_op),
-    mongoose_rdbms:prepare_stored(HostType, broadcast_upsert_worker_state, broadcast_worker_state,
-                                  UpsertParams, broadcast_upsert_worker_state_op),
-    mongoose_rdbms:prepare_stored(HostType, broadcast_renew_ownership, broadcast_jobs_ownership,
-                                  RenewParams, broadcast_renew_ownership_op),
-    mongoose_rdbms:prepare_stored(HostType, broadcast_take_expired_jobs, broadcast_jobs_ownership,
-                                  TakeParams, broadcast_take_expired_jobs_op),
+    %% Admin cleanup queries.
+    prepare(broadcast_delete_job, broadcast_jobs,
+        [id],
+        <<"DELETE FROM broadcast_jobs WHERE id = ?">>),
+    prepare(broadcast_get_inactive_job_ids_by_domain, broadcast_jobs,
+        [server],
+        <<"SELECT id FROM broadcast_jobs "
+          "WHERE server = ? AND execution_state != 'running'">>),
+    prepare(broadcast_delete_inactive_jobs_by_domain, broadcast_jobs,
+        [server],
+        <<"DELETE FROM broadcast_jobs "
+          "WHERE server = ? AND execution_state != 'running'">>),
     ok.
 
 row_to_job({JobId, Name, Server, HostType, FromJid, Subject, Message, Rate,
