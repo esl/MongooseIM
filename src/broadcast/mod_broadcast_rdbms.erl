@@ -54,12 +54,11 @@ create_job(HostType, JobSpec, ExpiresAt) ->
             {selected, [{RunningJobsCount}]} when RunningJobsCount >= 1 ->
                 {error, running_job_limit_exceeded};
             _Else ->
-                {ok, JobId} = create_job_query(HostType, mongoose_rdbms:db_engine(HostType),
-                                 [Name, Domain, HostType, SenderBin, Subject, Body, Rate,
-                                  RecipientGroupBin, RecipientCount]),
-                {updated, 1} = execute_successfully(HostType, broadcast_create_ownership,
-                                                    [JobId, OwnerNode, ExpiresAt]),
-                {ok, JobId}
+                {selected, [{JobId}]} = execute_successfully(
+                    HostType, broadcast_create_job,
+                    [Name, Domain, HostType, SenderBin, Subject, Body, Rate,
+                     RecipientGroupBin, RecipientCount, OwnerNode, ExpiresAt]),
+                {ok, mongoose_rdbms:result_to_integer(JobId)}
         end
     end,
     case mongoose_rdbms:sql_transaction(HostType, T) of
@@ -119,8 +118,8 @@ update_worker_state(HostType, JobId, WorkerState) ->
     Cursor = null_if_undefined(WorkerState#broadcast_worker_state.cursor),
     RecipientsProcessed = WorkerState#broadcast_worker_state.recipients_processed,
     Finished = WorkerState#broadcast_worker_state.finished,
-    {updated, _} = execute_successfully(HostType, broadcast_upsert_worker_state,
-                                        [JobId, Cursor, RecipientsProcessed, Finished]),
+    execute_successfully(HostType, broadcast_upsert_worker_state,
+                         [JobId, Cursor, RecipientsProcessed, Finished]),
     ok.
 
 -spec set_job_finished(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
@@ -163,23 +162,25 @@ delete_inactive_jobs_by_domain(HostType, Domain) ->
     {ok, [broadcast_job_id()]}.
 renew_ownership(HostType, ExpiresAt) ->
     OwnerNode = atom_to_binary(node(), utf8),
-    case mongoose_rdbms:db_engine(HostType) of
-        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
-            renew_ownership_pgsql(HostType, ExpiresAt, OwnerNode);
-        mysql ->
-            renew_ownership_mysql(HostType, ExpiresAt, OwnerNode)
-    end.
+    T = fun() ->
+        {selected, Rows} = execute_successfully(HostType, broadcast_renew_ownership,
+                                                [ExpiresAt, OwnerNode, HostType]),
+        {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
+    end,
+    {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
+    Result.
 
 -spec take_expired_jobs(mongooseim:host_type(), NewExpiresAt :: non_neg_integer()) ->
     {ok, [broadcast_job()]}.
 take_expired_jobs(HostType, NewExpiresAt) ->
     OwnerNode = atom_to_binary(node(), utf8),
-    case mongoose_rdbms:db_engine(HostType) of
-        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
-            take_expired_jobs_pgsql(HostType, NewExpiresAt, OwnerNode);
-        mysql ->
-            take_expired_jobs_mysql(HostType, NewExpiresAt, OwnerNode)
-    end.
+    T = fun() ->
+        {selected, Rows} = execute_successfully(HostType, broadcast_take_expired_jobs,
+                                                [OwnerNode, NewExpiresAt]),
+        {ok, lists:map(fun row_to_job/1, Rows)}
+    end,
+    {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
+    Result.
 
 -spec remove_ownership(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
 remove_ownership(HostType, JobId) ->
@@ -191,8 +192,7 @@ remove_ownership(HostType, JobId) ->
 %%====================================================================
 
 prepare_queries(HostType) ->
-    prepare_create_job_queries(HostType),
-    prepare_ownership_queries(HostType),
+    prepare_stored_routines(HostType),
 
     prepare(broadcast_count_running_jobs, broadcast_jobs,
             [server],
@@ -225,10 +225,6 @@ prepare_queries(HostType) ->
             [broadcast_id],
             <<"SELECT cursor_user, recipients_processed, finished FROM broadcast_worker_state "
               "WHERE broadcast_id = ?">>),
-
-    prepare(broadcast_upsert_worker_state, broadcast_worker_state,
-            [broadcast_id, cursor_user, recipients_processed, finished],
-            upsert_worker_state_query(HostType)),
 
     prepare(broadcast_set_job_started, broadcast_jobs,
             [id],
@@ -281,210 +277,26 @@ prepare_queries(HostType) ->
               "WHERE server = ? AND execution_state != 'running'">>),
     ok.
 
-prepare_create_job_queries(HostType) ->
-    case mongoose_rdbms:db_engine(HostType) of
-        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
-            prepare(broadcast_create_job_returning, broadcast_jobs,
-                    [name, server, host_type, from_jid, subject, body, rate,
-                     recipient_group, recipient_count],
-                    <<"INSERT INTO broadcast_jobs "
-                      "(name, server, host_type, from_jid, subject, body, rate, "
-                      "recipient_group, recipient_count) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                      "RETURNING id">>);
-        mysql ->
-            prepare(broadcast_create_job_mysql, broadcast_jobs,
-                    [name, server, host_type, from_jid, subject, body, rate,
-                     recipient_group, recipient_count],
-                    <<"INSERT INTO broadcast_jobs "
-                      "(name, server, host_type, from_jid, subject, body, rate, "
-                      "recipient_group, recipient_count) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)">>),
-            prepare(broadcast_get_last_insert_id, broadcast_jobs,
-                    [],
-                    <<"SELECT LAST_INSERT_ID()">>)
-    end.
-
-create_job_query(HostType, Engine, Params) when Engine == pgsql; Engine == cockroachdb ->
-    {updated, 1, [{JobId}]} = execute_successfully(
-                                HostType, broadcast_create_job_returning, Params),
-    {ok, JobId};
-create_job_query(HostType, Engine, Params) when Engine == mysql ->
-    {updated, 1} = execute_successfully(
-                    HostType, broadcast_create_job_mysql, Params),
-    {selected, [{JobId}]} = execute_successfully(
-                                HostType, broadcast_get_last_insert_id, []),
-    {ok, mongoose_rdbms:result_to_integer(JobId)}.
-
-upsert_worker_state_query(HostType) ->
-    case mongoose_rdbms:db_engine(HostType) of
-        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
-            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished) "
-              "VALUES (?, ?, ?, ?) "
-              "ON CONFLICT (broadcast_id) DO UPDATE "
-              "SET cursor_user = EXCLUDED.cursor_user, "
-              "recipients_processed = EXCLUDED.recipients_processed, "
-              "finished = EXCLUDED.finished">>;
-        mysql ->
-            <<"INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished) "
-              "VALUES (?, ?, ?, ?) "
-              "ON DUPLICATE KEY UPDATE cursor_user = VALUES(cursor_user), "
-              "recipients_processed = VALUES(recipients_processed), "
-              "finished = VALUES(finished)">>
-    end.
-
-prepare_ownership_queries(HostType) ->
+prepare_stored_routines(HostType) ->
     prepare(broadcast_remove_ownership, broadcast_jobs_ownership,
             [broadcast_id],
             <<"DELETE FROM broadcast_jobs_ownership WHERE broadcast_id = ?">>),
-    case mongoose_rdbms:db_engine(HostType) of
-        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
-            prepare_ownership_queries_pgsql();
-        mysql ->
-            prepare_ownership_queries_mysql()
-    end.
 
-prepare_ownership_queries_pgsql() ->
-    prepare(broadcast_create_ownership, broadcast_jobs_ownership,
-            [broadcast_id, owner_node, expires_at],
-            <<"INSERT INTO broadcast_jobs_ownership "
-              "(broadcast_id, owner_node, updated_at, expires_at) "
-              "VALUES (?, ?, now(), to_timestamp(?))">>),
+    SPParams = [name, server, host_type, from_jid, subject, body, rate,
+                recipient_group, recipient_count, owner_node, expires_at],
+    UpsertParams = [broadcast_id, cursor_user, recipients_processed, finished],
+    RenewParams = [expires_at, owner_node, host_type],
+    TakeParams = [owner_node, expires_at],
 
-    prepare(broadcast_renew_ownership, broadcast_jobs_ownership,
-            [expires_at, owner_node, host_type],
-            <<"UPDATE broadcast_jobs_ownership o "
-              "SET expires_at = to_timestamp(?), updated_at = now() "
-              "FROM broadcast_jobs j "
-              "WHERE o.broadcast_id = j.id "
-              "AND o.owner_node = ? "
-              "AND j.host_type = ? "
-              "AND j.execution_state = 'running' "
-              "RETURNING o.broadcast_id">>),
-
-    prepare(broadcast_take_expired_jobs, broadcast_jobs_ownership,
-            [owner_node, expires_at],
-            <<"UPDATE broadcast_jobs_ownership o "
-              "SET owner_node = ?, expires_at = to_timestamp(?), updated_at = now() "
-              "FROM broadcast_jobs j "
-              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-              "WHERE o.broadcast_id = j.id "
-              "AND o.expires_at < now() "
-              "AND j.execution_state = 'running' "
-              "RETURNING j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-              "j.recipient_group, o.owner_node, j.recipient_count, "
-              "COALESCE(ws.recipients_processed, 0), "
-              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at">>),
+    mongoose_rdbms:prepare_stored(HostType, broadcast_create_job, broadcast_jobs, SPParams,
+                                  broadcast_create_job_op),
+    mongoose_rdbms:prepare_stored(HostType, broadcast_upsert_worker_state, broadcast_worker_state,
+                                  UpsertParams, broadcast_upsert_worker_state_op),
+    mongoose_rdbms:prepare_stored(HostType, broadcast_renew_ownership, broadcast_jobs_ownership,
+                                  RenewParams, broadcast_renew_ownership_op),
+    mongoose_rdbms:prepare_stored(HostType, broadcast_take_expired_jobs, broadcast_jobs_ownership,
+                                  TakeParams, broadcast_take_expired_jobs_op),
     ok.
-
-prepare_ownership_queries_mysql() ->
-    prepare(broadcast_create_ownership, broadcast_jobs_ownership,
-            [broadcast_id, owner_node, expires_at],
-            <<"INSERT INTO broadcast_jobs_ownership "
-              "(broadcast_id, owner_node, updated_at, expires_at) "
-              "VALUES (?, ?, CURRENT_TIMESTAMP, FROM_UNIXTIME(?))">>),
-
-    %% Renew ownership: SELECT FOR UPDATE, then UPDATE
-    prepare(broadcast_renew_ownership_select, broadcast_jobs_ownership,
-            [owner_node, host_type],
-            <<"SELECT o.broadcast_id "
-              "FROM broadcast_jobs_ownership o "
-              "JOIN broadcast_jobs j ON o.broadcast_id = j.id "
-              "WHERE o.owner_node = ? AND j.host_type = ? "
-              "AND j.execution_state = 'running' "
-              "FOR UPDATE">>),
-
-    prepare(broadcast_renew_ownership_update, broadcast_jobs_ownership,
-            [expires_at, owner_node, host_type],
-            <<"UPDATE broadcast_jobs_ownership "
-              "SET expires_at = FROM_UNIXTIME(?), updated_at = CURRENT_TIMESTAMP "
-              "WHERE owner_node = ? "
-              "AND broadcast_id IN ("
-              "SELECT id FROM broadcast_jobs "
-              "WHERE host_type = ? AND execution_state = 'running')">>),
-
-    %% Take expired jobs: SELECT FOR UPDATE, then UPDATE
-    prepare(broadcast_take_expired_select, broadcast_jobs_ownership,
-            [],
-            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-              "j.recipient_group, o.owner_node, j.recipient_count, "
-              "COALESCE(ws.recipients_processed, 0), "
-              "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
-              "FROM broadcast_jobs j "
-              "JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
-              "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-              "WHERE o.expires_at < CURRENT_TIMESTAMP "
-              "AND j.execution_state = 'running' "
-              "FOR UPDATE">>),
-
-    prepare(broadcast_take_expired_update, broadcast_jobs_ownership,
-            [owner_node, expires_at],
-            <<"UPDATE broadcast_jobs_ownership "
-              "SET owner_node = ?, expires_at = FROM_UNIXTIME(?), updated_at = CURRENT_TIMESTAMP "
-              "WHERE expires_at < CURRENT_TIMESTAMP "
-              "AND broadcast_id IN ("
-              "SELECT id FROM broadcast_jobs "
-              "WHERE execution_state = 'running')">>),
-    ok.
-
-%% ===================================================================
-%% Ownership operations - DB specific
-%% ===================================================================
-
-renew_ownership_pgsql(HostType, ExpiresAt, OwnerNode) ->
-    case execute_successfully(HostType, broadcast_renew_ownership,
-                              [ExpiresAt, OwnerNode, HostType]) of
-        {updated, _, Rows} ->
-            {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]};
-        {updated, 0} ->
-            {ok, []}
-    end.
-
-renew_ownership_mysql(HostType, ExpiresAt, OwnerNode) ->
-    T = fun() ->
-        {selected, IdRows} = execute_successfully(
-            HostType, broadcast_renew_ownership_select, [OwnerNode, HostType]),
-        case IdRows of
-            [] ->
-                {ok, []};
-            _ ->
-                {updated, _} = execute_successfully(
-                    HostType, broadcast_renew_ownership_update,
-                    [ExpiresAt, OwnerNode, HostType]),
-                {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- IdRows]}
-        end
-    end,
-    {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
-    Result.
-
-take_expired_jobs_pgsql(HostType, NewExpiresAt, OwnerNode) ->
-    case execute_successfully(HostType, broadcast_take_expired_jobs,
-                              [OwnerNode, NewExpiresAt]) of
-        {updated, _, Rows} ->
-            {ok, lists:map(fun row_to_job/1, Rows)};
-        {updated, 0} ->
-            {ok, []}
-    end.
-
-take_expired_jobs_mysql(HostType, NewExpiresAt, OwnerNode) ->
-    T = fun() ->
-        {selected, Rows} = execute_successfully(
-            HostType, broadcast_take_expired_select, []),
-        case Rows of
-            [] ->
-                {ok, []};
-            _ ->
-                {updated, _} = execute_successfully(
-                    HostType, broadcast_take_expired_update,
-                    [OwnerNode, NewExpiresAt]),
-                %% Rows have old owner_node; replace with our node
-                Jobs = [Job#broadcast_job{owner_node = node()}
-                        || Job <- lists:map(fun row_to_job/1, Rows)],
-                {ok, Jobs}
-        end
-    end,
-    {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
-    Result.
 
 row_to_job({JobId, Name, Server, HostType, FromJid, Subject, Message, Rate,
             RecipientGroup, OwnerNode, RecipientCount, RecipientsProcessed,

@@ -60,6 +60,7 @@
 
 %% External exports
 -export([prepare/4,
+         prepare_stored/5,
          prepared/1,
          execute/3, execute/4,
          execute_cast/3, execute_cast/4,
@@ -215,6 +216,33 @@ prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
         false -> {error, already_exists}
     end.
 
+%% @doc Prepare a stored routine call by routine name instead of raw SQL.
+%% PostgreSQL/CockroachDB are prepared as: SELECT * FROM <function>(?, ...)
+%% MySQL is prepared as: CALL <procedure>(?, ...)
+-spec prepare_stored(mongooseim:host_type(), query_name(), Table :: binary() | atom(),
+                     Fields :: [binary() | atom()], RoutineName :: iodata() | atom()) ->
+    {ok, query_name()} | {error, already_exists}.
+prepare_stored(HostType, Name, Table, Fields, RoutineName) ->
+    Engine = db_engine(HostType),
+    RoutineNameBin = routine_name_to_binary(RoutineName),
+    Statement = stored_statement(Engine, RoutineNameBin, length(Fields)),
+    prepare(Name, Table, Fields, Statement).
+
+routine_name_to_binary(Name) when is_atom(Name) ->
+    atom_to_binary(Name, utf8);
+routine_name_to_binary(Name) when is_binary(Name) ->
+    Name.
+
+stored_statement(mysql, RoutineName, Arity) ->
+    <<"CALL ", RoutineName/binary, "(", (stored_placeholders(Arity))/binary, ")">>;
+stored_statement(_Engine, RoutineName, Arity) ->
+    <<"SELECT * FROM ", RoutineName/binary, "(", (stored_placeholders(Arity))/binary, ")">>.
+
+stored_placeholders(0) ->
+    <<>>;
+stored_placeholders(Arity) ->
+    iolist_to_binary(lists:join(<<", ">>, lists:duplicate(Arity, <<"?">>))).
+
 -spec prepared(atom()) -> boolean().
 prepared(Name) ->
     ets:member(prepared_statements, Name).
@@ -268,14 +296,10 @@ execute_successfully(HostType, Name, Parameters) ->
 -spec execute_successfully(mongooseim:host_type_or_global(), mongoose_wpool:tag(), query_name(), query_params()) ->
     query_result().
 execute_successfully(HostType, PoolTag, Name, Parameters) ->
-    try execute(HostType, PoolTag, Name, Parameters) of
-        {selected, _} = Result ->
+    try normalize_execute_result(execute(HostType, PoolTag, Name, Parameters)) of
+        {ok, Result} ->
             Result;
-        {updated, _} = Result ->
-            Result;
-        {updated, _RowsAffected, _ResultSet} = Result ->
-            Result;
-        Other ->
+        {error, Other} ->
             Log = #{what => sql_execute_failed, host => HostType, statement_name => Name,
                     statement_query => query_name_to_string(Name),
                     statement_params => Parameters, reason => Other},
@@ -289,6 +313,47 @@ execute_successfully(HostType, PoolTag, Name, Parameters) ->
             ?LOG_ERROR(Log),
             erlang:raise(error, Reason, Stacktrace)
     end.
+
+normalize_execute_result({selected, _} = Result) ->
+    {ok, Result};
+normalize_execute_result({updated, _} = Result) ->
+    {ok, Result};
+normalize_execute_result({updated, _RowsAffected, _ResultSet} = Result) ->
+    {ok, Result};
+normalize_execute_result(Results) when is_list(Results) ->
+    %% TODO: Copilot claims this may happen when calling a stored procedure in MySQL
+    %% Verify it
+    case lists:all(fun is_single_successful_result/1, Results) of
+        true ->
+            {ok, execute_result_from_list(Results)};
+        false ->
+            {error, Results}
+    end;
+normalize_execute_result(Other) ->
+    {error, Other}.
+
+execute_result_from_list([]) ->
+    [];
+execute_result_from_list(Results) ->
+    ReversedResults = lists:reverse(Results),
+    case lists:search(fun({selected, _}) -> true;
+                         (_) -> false
+                      end, ReversedResults) of
+        {value, Result} ->
+            Result;
+        false ->
+            hd(ReversedResults)
+    end.
+
+is_single_successful_result({selected, _}) ->
+    true;
+is_single_successful_result({updated, _}) ->
+    true;
+is_single_successful_result({updated, _RowsAffected, _ResultSet}) ->
+    true;
+is_single_successful_result(_) ->
+    false.
+
 
 query_name_to_string(Name) ->
     case ets:lookup(prepared_statements, Name) of

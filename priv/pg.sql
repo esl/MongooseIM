@@ -563,6 +563,101 @@ CREATE TABLE broadcast_worker_state (
     PRIMARY KEY (broadcast_id)
 );
 
+-- Stored functions for mod_broadcast
+
+CREATE OR REPLACE FUNCTION broadcast_create_job_op(
+    p_name VARCHAR(250), p_server VARCHAR(250), p_host_type VARCHAR(250),
+    p_from_jid VARCHAR(250), p_subject VARCHAR(1024), p_body TEXT,
+    p_rate INTEGER, p_recipient_group broadcast_recipient_group,
+    p_recipient_count INTEGER, p_owner_node VARCHAR(250), p_expires_at BIGINT
+)
+RETURNS INTEGER
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_id INTEGER;
+BEGIN
+    INSERT INTO broadcast_jobs
+        (name, server, host_type, from_jid, subject, body, rate, recipient_group, recipient_count)
+    VALUES
+        (p_name, p_server, p_host_type, p_from_jid, p_subject, p_body, p_rate, p_recipient_group, p_recipient_count)
+    RETURNING id INTO v_id;
+
+    INSERT INTO broadcast_jobs_ownership (broadcast_id, owner_node, updated_at, expires_at)
+    VALUES (v_id, p_owner_node, now(), to_timestamp(p_expires_at));
+
+    RETURN v_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION broadcast_upsert_worker_state_op(
+    p_broadcast_id INTEGER, p_cursor_user VARCHAR(250),
+    p_recipients_processed INTEGER, p_finished BOOLEAN
+)
+RETURNS INTEGER
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished)
+    VALUES (p_broadcast_id, p_cursor_user, p_recipients_processed, p_finished)
+    ON CONFLICT (broadcast_id) DO UPDATE
+    SET cursor_user = EXCLUDED.cursor_user,
+        recipients_processed = EXCLUDED.recipients_processed,
+        finished = EXCLUDED.finished;
+    RETURN 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION broadcast_renew_ownership_op(
+    p_expires_at BIGINT, p_owner_node VARCHAR(250), p_host_type VARCHAR(250)
+)
+RETURNS TABLE (broadcast_id INTEGER)
+LANGUAGE plpgsql AS $$
+BEGIN
+    RETURN QUERY
+    UPDATE broadcast_jobs_ownership o
+    SET expires_at = to_timestamp(p_expires_at), updated_at = now()
+    FROM broadcast_jobs j
+    WHERE o.broadcast_id = j.id
+      AND o.owner_node = p_owner_node
+      AND j.host_type = p_host_type
+      AND j.execution_state = 'running'
+    RETURNING o.broadcast_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION broadcast_take_expired_jobs_op(
+    p_owner_node VARCHAR(250), p_expires_at BIGINT
+)
+RETURNS TABLE (
+    id INTEGER, name VARCHAR(250), server VARCHAR(250), host_type VARCHAR(250),
+    from_jid VARCHAR(250), subject VARCHAR(1024), body TEXT, rate INTEGER,
+    recipient_group broadcast_recipient_group, owner_node VARCHAR(250),
+    recipient_count INTEGER, recipients_processed INTEGER,
+    execution_state broadcast_state, abortion_reason TEXT,
+    created_at TIMESTAMPTZ, started_at TIMESTAMPTZ, stopped_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+    RETURN QUERY
+    WITH updated AS (
+        UPDATE broadcast_jobs_ownership o
+        SET owner_node = p_owner_node, expires_at = to_timestamp(p_expires_at), updated_at = now()
+        FROM broadcast_jobs j
+        WHERE o.broadcast_id = j.id
+          AND o.expires_at < now()
+          AND j.execution_state = 'running'
+        RETURNING o.broadcast_id
+    )
+    SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate,
+           j.recipient_group, upd_o.owner_node, j.recipient_count,
+           COALESCE(ws.recipients_processed, 0),
+           j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at
+    FROM updated u
+    JOIN broadcast_jobs j ON u.broadcast_id = j.id
+    JOIN broadcast_jobs_ownership upd_o ON j.id = upd_o.broadcast_id
+    LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id;
+END;
+$$;
+
 CREATE TABLE blocklist (
     luser VARCHAR(250) NOT NULL,
     lserver VARCHAR(250) NOT NULL,

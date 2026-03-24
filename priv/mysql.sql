@@ -617,6 +617,101 @@ CREATE TABLE broadcast_worker_state (
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
+-- Stored procedures for mod_broadcast
+-- MySQL uses procedures because MySQL functions cannot return result sets.
+-- The result contract matches the PostgreSQL/CockroachDB stored functions.
+
+DELIMITER //
+
+CREATE PROCEDURE broadcast_create_job_op(
+    IN p_name VARCHAR(250), IN p_server VARCHAR(250), IN p_host_type VARCHAR(250),
+    IN p_from_jid VARCHAR(250), IN p_subject VARCHAR(1024), IN p_body TEXT,
+    IN p_rate INT, IN p_recipient_group ENUM('all_users_in_domain'),
+    IN p_recipient_count INT, IN p_owner_node VARCHAR(250), IN p_expires_at BIGINT
+)
+BEGIN
+    INSERT INTO broadcast_jobs
+        (name, server, host_type, from_jid, subject, body, rate, recipient_group, recipient_count)
+    VALUES
+        (p_name, p_server, p_host_type, p_from_jid, p_subject, p_body, p_rate, p_recipient_group, p_recipient_count);
+
+    SET @new_job_id = LAST_INSERT_ID();
+
+    INSERT INTO broadcast_jobs_ownership (broadcast_id, owner_node, updated_at, expires_at)
+    VALUES (@new_job_id, p_owner_node, CURRENT_TIMESTAMP, FROM_UNIXTIME(p_expires_at));
+
+    SELECT @new_job_id AS id;
+END //
+
+CREATE PROCEDURE broadcast_upsert_worker_state_op(
+    IN p_broadcast_id INT, IN p_cursor_user VARCHAR(250),
+    IN p_recipients_processed INT, IN p_finished BOOLEAN
+)
+BEGIN
+    INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished)
+    VALUES (p_broadcast_id, p_cursor_user, p_recipients_processed, p_finished)
+    ON DUPLICATE KEY UPDATE
+        cursor_user = VALUES(cursor_user),
+        recipients_processed = VALUES(recipients_processed),
+        finished = VALUES(finished);
+END //
+
+CREATE PROCEDURE broadcast_renew_ownership_op(
+    IN p_expires_at BIGINT, IN p_owner_node VARCHAR(250), IN p_host_type VARCHAR(250)
+)
+BEGIN
+    CREATE TEMPORARY TABLE IF NOT EXISTS _broadcast_renewed_ids (broadcast_id INT);
+    DELETE FROM _broadcast_renewed_ids;
+
+    INSERT INTO _broadcast_renewed_ids
+    SELECT o.broadcast_id
+    FROM broadcast_jobs_ownership o
+    JOIN broadcast_jobs j ON o.broadcast_id = j.id
+    WHERE o.owner_node = p_owner_node
+      AND j.host_type = p_host_type
+      AND j.execution_state = 'running'
+    FOR UPDATE;
+
+    UPDATE broadcast_jobs_ownership o
+    JOIN _broadcast_renewed_ids t ON o.broadcast_id = t.broadcast_id
+    SET o.expires_at = FROM_UNIXTIME(p_expires_at), o.updated_at = CURRENT_TIMESTAMP;
+
+    SELECT t.broadcast_id FROM _broadcast_renewed_ids t;
+END //
+
+CREATE PROCEDURE broadcast_take_expired_jobs_op(
+    IN p_owner_node VARCHAR(250), IN p_expires_at BIGINT
+)
+BEGIN
+    CREATE TEMPORARY TABLE IF NOT EXISTS _broadcast_taken_ids (id INT);
+    DELETE FROM _broadcast_taken_ids;
+
+    INSERT INTO _broadcast_taken_ids
+    SELECT o.broadcast_id
+    FROM broadcast_jobs_ownership o
+    JOIN broadcast_jobs j ON o.broadcast_id = j.id
+    WHERE o.expires_at < CURRENT_TIMESTAMP
+      AND j.execution_state = 'running'
+    FOR UPDATE;
+
+    UPDATE broadcast_jobs_ownership o
+    JOIN _broadcast_taken_ids t ON o.broadcast_id = t.id
+    SET o.owner_node = p_owner_node,
+        o.expires_at = FROM_UNIXTIME(p_expires_at),
+        o.updated_at = CURRENT_TIMESTAMP;
+
+    SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate,
+           j.recipient_group, o.owner_node, j.recipient_count,
+           COALESCE(ws.recipients_processed, 0),
+           j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at
+    FROM _broadcast_taken_ids t
+    JOIN broadcast_jobs j ON t.id = j.id
+    JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id
+    LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id;
+END //
+
+DELIMITER ;
+
 CREATE TABLE blocklist (
     luser VARCHAR(250) NOT NULL,
     lserver VARCHAR(250) NOT NULL,
