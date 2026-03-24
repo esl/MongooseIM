@@ -1007,7 +1007,7 @@ workflows:
           executor: latest_otp_cockroachdb_redis
           context: mongooseim-org
           preset: cockroachdb_cets
-          db: "mnesia cockroachdb cets"
+          db: "cockroachdb cets"
           requires:
             - latest_otp_docker
           filters: *all_tags
@@ -1016,7 +1016,7 @@ workflows:
           executor: latest_otp_pgsql_redis
           context: mongooseim-org
           preset: pgsql_cets
-          db: "mnesia postgres cets"
+          db: "postgres cets"
           requires:
             - latest_otp_docker
           filters: *all_tags
@@ -1068,7 +1068,7 @@ workflows:
           executor: latest_otp_pgsql_redis
           context: mongooseim-org
           preset: pgsql_mnesia
-          db: "mnesia postgres cets"
+          db: "postgres cets"
           requires:
             - latest_otp_docker
           filters: *all_tags
