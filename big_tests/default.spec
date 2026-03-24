@@ -137,5 +137,6 @@
             {ct_mongoose_log_hook, [{host, mim2}, {print_init_and_done_for_testcases, false}]},
             {ct_mongoose_log_hook, [{host, mim3}, {print_init_and_done_for_testcases, false}]},
             ct_progress_hook,
-            ct_markdown_errors_hook
+            ct_markdown_errors_hook,
+            cth_error_report
 ]}.

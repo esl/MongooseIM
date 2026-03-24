@@ -1,18 +1,24 @@
 %% @doc Logger handler injected into MIM nodes to collect error logs into ETS.
 %% This module is injected by log_error_helper and should not be used directly.
 %%
+%% Supports multiple named instances running simultaneously.
+%% The default instance uses the atom `log_error_collector' as the name.
+%% Each instance has its own ETS table, owner process, and logger handler.
+%%
 %% Stores structured log data for precise pattern matching:
 %% - {Timestamp, Level, Msg, Meta}
 %% - Msg is the original logger msg tuple: {report, Map} | {string, S} | {Format, Args}
 %% - Meta contains extracted metadata: #{mfa => {M, F, A}, ...}
 -module(log_error_collector).
 
--export([start/1, stop/0, get_errors/0, clear/0, timestamp/0]).
+-export([start/1, start/2, stop/0, stop/1,
+         get_errors/0, get_errors/1,
+         get_errors_after/1, get_errors_after/2,
+         clear/0, clear/1, timestamp/0]).
 -export([adding_handler/1, removing_handler/1, log/2]).  %% Logger callbacks
 -export([table_owner_loop/0]).  %% Internal - for spawned process
 
--define(TABLE, log_error_collector_table).
--define(OWNER, log_error_collector_owner).
+-define(DEFAULT_NAME, ?MODULE).
 
 %% Stored entry: {Timestamp, Level, Msg, Meta}
 %% - Msg: {report, #{what => atom(), ...}} | {string, binary()} | {Format, Args}
@@ -20,84 +26,140 @@
 -type log_entry() :: {integer(), atom(), msg(), meta()}.
 -type msg() :: {report, map()} | {string, binary() | string()} | {list(), list()} | term().
 -type meta() :: #{mfa => mfa(), atom() => term()}.
+-type instance_name() :: atom().
 
--export_type([log_entry/0, msg/0, meta/0]).
+-export_type([log_entry/0, msg/0, meta/0, instance_name/0]).
 
-%% API
+%% API - default instance
 
-%% @doc Start collecting errors. Idempotent - safe to call if already started.
+%% @doc Start collecting errors with the default instance name.
 -spec start([atom()]) -> ok | {error, term()}.
 start(Levels) ->
-    case whereis(?OWNER) of
+    start(?DEFAULT_NAME, Levels).
+
+%% @doc Stop the default instance.
+-spec stop() -> ok | {error, term()}.
+stop() ->
+    stop(?DEFAULT_NAME).
+
+%% @doc Get errors from the default instance.
+-spec get_errors() -> [log_entry()].
+get_errors() ->
+    get_errors(?DEFAULT_NAME).
+
+%% @doc Clear the default instance.
+-spec clear() -> true | ok.
+clear() ->
+    clear(?DEFAULT_NAME).
+
+%% API - named instances
+
+%% @doc Start collecting errors with a given instance name. Idempotent.
+-spec start(instance_name(), [atom()]) -> ok | {error, term()}.
+start(Name, Levels) ->
+    OwnerName = owner_name(Name),
+    case whereis(OwnerName) of
         undefined ->
-            do_start(Levels);
+            do_start(Name, Levels);
         _Pid ->
-            %% Already started, just return ok
             ok
     end.
 
-do_start(Levels) ->
-    %% Spawn a dedicated process to own the ETS table
-    %% This ensures the table survives across RPC calls
+%% @doc Stop the named instance. Idempotent.
+-spec stop(instance_name()) -> ok | {error, term()}.
+stop(Name) ->
+    OwnerName = owner_name(Name),
+    HandlerId = handler_id(Name),
+    case whereis(OwnerName) of
+        undefined ->
+            ok;
+        Pid ->
+            _ = logger:remove_handler(HandlerId),
+            Pid ! stop,
+            ok
+    end.
+
+%% @doc Get errors from the named instance.
+-spec get_errors(instance_name()) -> [log_entry()].
+get_errors(Name) ->
+    TableName = table_name(Name),
+    case ets:whereis(TableName) of
+        undefined -> [];
+        _Tid -> ets:tab2list(TableName)
+    end.
+
+%% @doc Clear the named instance.
+-spec clear(instance_name()) -> true | ok.
+clear(Name) ->
+    TableName = table_name(Name),
+    case ets:whereis(TableName) of
+        undefined -> ok;
+        _Tid -> ets:delete_all_objects(TableName)
+    end.
+
+%% @doc Get errors with timestamp strictly greater than After (default instance).
+-spec get_errors_after(integer()) -> [log_entry()].
+get_errors_after(After) ->
+    get_errors_after(?DEFAULT_NAME, After).
+
+%% @doc Get errors with timestamp strictly greater than After (named instance).
+-spec get_errors_after(instance_name(), integer()) -> [log_entry()].
+get_errors_after(Name, After) ->
+    TableName = table_name(Name),
+    case ets:whereis(TableName) of
+        undefined ->
+            [];
+        _Tid ->
+            MatchSpec = [{{'$1', '$2', '$3', '$4'},
+                          [{'>', '$1', {const, After}}],
+                          ['$_']}],
+            ets:select(TableName, MatchSpec)
+    end.
+
+-spec timestamp() -> integer().
+timestamp() ->
+    erlang:monotonic_time().
+
+%% Internal - starting
+
+do_start(Name, Levels) ->
+    OwnerName = owner_name(Name),
+    TableName = table_name(Name),
+    HandlerId = handler_id(Name),
     Owner = spawn(?MODULE, table_owner_loop, []),
-    try register(?OWNER, Owner) of
+    try register(OwnerName, Owner) of
         true ->
-            Owner ! {create_table, self()},
+            Owner ! {create_table, TableName, self()},
             receive
                 table_created -> ok
             after 5000 ->
                 error(table_creation_timeout)
             end,
-            logger:add_handler(?MODULE, ?MODULE, #{config => #{levels => Levels}})
+            HandlerConfig = #{config => #{levels => Levels, table => TableName}},
+            logger:add_handler(HandlerId, ?MODULE, HandlerConfig)
     catch
         error:badarg ->
-            %% Race condition: another process registered between whereis and register
             Owner ! stop,
-            ok
-    end.
-
-%% @doc Stop collecting errors. Idempotent - safe to call if already stopped.
--spec stop() -> ok | {error, term()}.
-stop() ->
-    case whereis(?OWNER) of
-        undefined ->
-            %% Already stopped
-            ok;
-        Pid ->
-            _ = logger:remove_handler(?MODULE),
-            Pid ! stop,
             ok
     end.
 
 %% Table owner process - keeps the ETS table alive
 table_owner_loop() ->
     receive
-        {create_table, Caller} ->
-            ets:new(?TABLE, [named_table, public, ordered_set]),
+        {create_table, TableName, Caller} ->
+            ets:new(TableName, [named_table, public, ordered_set]),
             Caller ! table_created,
-            table_owner_loop();
+            table_owner_loop(TableName);
         stop ->
-            ets:delete(?TABLE),
             ok
     end.
 
--spec get_errors() -> [log_entry()].
-get_errors() ->
-    case ets:whereis(?TABLE) of
-        undefined -> [];
-        _Tid -> ets:tab2list(?TABLE)
+table_owner_loop(TableName) ->
+    receive
+        stop ->
+            ets:delete(TableName),
+            ok
     end.
-
--spec clear() -> true | ok.
-clear() ->
-    case ets:whereis(?TABLE) of
-        undefined -> ok;
-        _Tid -> ets:delete_all_objects(?TABLE)
-    end.
-
--spec timestamp() -> integer().
-timestamp() ->
-    erlang:monotonic_time().
 
 %% Logger callbacks
 
@@ -107,24 +169,41 @@ adding_handler(Config) ->
 removing_handler(_Config) ->
     ok.
 
-log(#{level := Level, msg := Msg, meta := LogMeta} = _Event, #{config := #{levels := Levels}}) ->
+log(#{level := Level, msg := Msg, meta := LogMeta},
+    #{config := #{levels := Levels, table := Table}}) ->
     case lists:member(Level, Levels) of
         true ->
-            %% Extract relevant metadata
             Meta = extract_meta(LogMeta),
-            %% Store the original msg structure for precise pattern matching
-            ets:insert(?TABLE, {erlang:monotonic_time(), Level, Msg, Meta});
+            ets:insert(Table, {erlang:monotonic_time(), Level, Msg, Meta});
         false ->
             ok
     end;
-log(#{level := Level, msg := Msg} = _Event, #{config := #{levels := Levels}}) ->
-    %% Fallback if no meta present
+log(#{level := Level, msg := Msg},
+    #{config := #{levels := Levels, table := Table}}) ->
     case lists:member(Level, Levels) of
         true ->
-            ets:insert(?TABLE, {erlang:monotonic_time(), Level, Msg, #{}});
+            ets:insert(Table, {erlang:monotonic_time(), Level, Msg, #{}});
         false ->
             ok
     end.
+
+%% Name derivation
+
+-spec table_name(instance_name()) -> atom().
+table_name(Name) ->
+    to_atom(Name, "_table").
+
+-spec owner_name(instance_name()) -> atom().
+owner_name(Name) ->
+    to_atom(Name, "_owner").
+
+-spec handler_id(instance_name()) -> atom().
+handler_id(Name) ->
+    to_atom(Name, "_handler").
+
+-spec to_atom(atom(), string()) -> atom().
+to_atom(Name, Suffix) ->
+    list_to_atom(atom_to_list(Name) ++ Suffix).
 
 %% Internal functions
 
