@@ -449,20 +449,29 @@ map_workers(HostType) ->
 
 -spec synchronize_jobs(#state{}) -> #state{}.
 synchronize_jobs(#state{host_type = HostType} = State) ->
-    case try_renew_and_fetch(HostType) of
-        {ok, Jobs} ->
-            handle_sync_success(State, Jobs);
+    case try_take_renew_and_fetch(HostType) of
+        {RunningJobs, TakenJobIDs} ->
+            ?LOG_INFO(#{what => broadcast_taken_oven_jobs,
+                        host_type => HostType,
+                        taken_job_ids => TakenJobIDs}),
+            %% We need to stop workers for taken jobs in case we were experiencing problems
+            %% with the database and another node took over our jobs while we were in emergency mode.
+            %% They are paused and their state may be outdated.
+            stop_workers_for_jobs(HostType, State#state.worker_map, TakenJobIDs),
+            handle_sync_success(State#{worker_map => maps:without(TakenJobIDs, State#state.worker_map)}, RunningJobs);
         {error, Reason} ->
             handle_sync_failure(State, Reason)
     end.
 
--spec try_renew_and_fetch(mongooseim:host_type()) ->
-    {ok, [broadcast_job()]} | {error, term()}.
-try_renew_and_fetch(HostType) ->
+-spec try_take_renew_and_fetch(mongooseim:host_type()) ->
+    {[broadcast_job()], [broadcast_job_id()]} | {error, term()}.
+try_take_renew_and_fetch(HostType) ->
     LeaseTime = mod_broadcast:lease_time(HostType),
     try
+        {ok, TakenJobIDs} = mod_broadcast_backend:take_expired_jobs(HostType, LeaseTime),
         mod_broadcast_backend:renew_ownership(HostType, LeaseTime),
-        mod_broadcast_backend:get_running_jobs(HostType)
+        {ok, RunningJobs} = mod_broadcast_backend:get_running_jobs(HostType),
+        {RunningJobs, TakenJobIDs}
     catch
         Class:Reason ->
             ?LOG_ERROR(#{what => broadcast_job_synchronization_failed,
@@ -510,7 +519,10 @@ reconcile_workers(HostType, OwnedJobs, OldWorkerMap) ->
     end, #{}, OwnedJobs),
     %% Stop workers that are locally running but no longer owned
     NoLongerOwnedJobIDs = maps:keys(OldWorkerMap) -- maps:keys(NewWorkerMap),
-    stop_workers_for_lost_jobs(HostType, OldWorkerMap, NoLongerOwnedJobIDs),
+    ?LOG_INFO(#{what => broadcast_jobs_no_longer_owned,
+                host_type => HostType,
+                lost_job_ids => NoLongerOwnedJobIDs}),
+    stop_workers_for_jobs(HostType, OldWorkerMap, NoLongerOwnedJobIDs),
     NewWorkerMap.
 
 -spec resume_job_if_necessary(mongooseim:host_type(), broadcast_job(),
@@ -538,17 +550,11 @@ resume_job_if_necessary(HostType, #broadcast_job{id = JobId} = Job, OldWorkerMap
             WorkerMap0#{JobId => #{pid => Pid, domain => Job#broadcast_job.domain}}
     end.
 
--spec stop_workers_for_lost_jobs(mongooseim:host_type(), worker_map(), [broadcast_job_id()]) -> ok.
-stop_workers_for_lost_jobs(_HostType, _WorkerMap, []) ->
-    ok;
-stop_workers_for_lost_jobs(HostType, WorkerMap, JobIds) ->
-    WorkersToStop = maps:with(JobIds, WorkerMap),
-    ?LOG_INFO(#{what => broadcast_jobs_no_longer_owned,
-                host_type => HostType,
-                workers_to_stop => WorkersToStop}),
+-spec stop_workers_for_jobs(mongooseim:host_type(), worker_map(), [broadcast_job_id()]) -> ok.
+stop_workers_for_jobs(HostType, WorkerMap, JobIds) ->
     maps:foreach(fun(JobId, #{pid := WorkerPid}) ->
         stop_worker(HostType, JobId, WorkerPid)
-    end, WorkersToStop).
+    end, maps:with(JobIds, WorkerMap)).
 
 %%====================================================================
 %% Pause / resume orchestration

@@ -75,7 +75,7 @@
     {ok, [broadcast_job_id()]}.
 
 -callback take_expired_jobs(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
-    {ok, [broadcast_job()]}.
+    {ok, [broadcast_job_id()]}.
 
 -callback remove_ownership(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     ok.
@@ -169,7 +169,7 @@ renew_ownership(HostType, LeaseTime) ->
     mongoose_backend:call(HostType, main_module(), ?FUNCTION_NAME, Args).
 
 -spec take_expired_jobs(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
-    {ok, [broadcast_job()]}.
+    {ok, [broadcast_job_id()]}.
 take_expired_jobs(HostType, LeaseTime) ->
     Args = [HostType, LeaseTime],
     mongoose_backend:call(HostType, main_module(), ?FUNCTION_NAME, Args).

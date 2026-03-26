@@ -689,14 +689,7 @@ BEGIN
       o.expires_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL p_lease_time SECOND),
         o.updated_at = CURRENT_TIMESTAMP;
 
-    SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate,
-           j.recipient_group, o.owner_node, j.recipient_count,
-           COALESCE(ws.recipients_processed, 0),
-           j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at
-    FROM _broadcast_taken_ids t
-    JOIN broadcast_jobs j ON t.id = j.id
-    JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id
-    LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id;
+    SELECT t.id FROM _broadcast_taken_ids t;
 END //
 
 DELIMITER ;

@@ -182,13 +182,13 @@ renew_ownership(HostType, LeaseTime) ->
     Result.
 
 -spec take_expired_jobs(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
-    {ok, [broadcast_job()]}.
+    {ok, [broadcast_job_id()]}.
 take_expired_jobs(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
     T = fun() ->
         {selected, Rows} = execute_successfully(HostType, broadcast_take_expired_jobs,
                                                 [OwnerNode, LeaseTime]),
-        {ok, lists:map(fun row_to_job/1, Rows)}
+        {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
     end,
     {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
     Result.
