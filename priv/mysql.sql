@@ -644,19 +644,6 @@ BEGIN
     SELECT @new_job_id AS id;
 END //
 
-CREATE PROCEDURE broadcast_upsert_worker_state_op(
-    IN p_broadcast_id INT, IN p_cursor_user VARCHAR(250),
-    IN p_recipients_processed INT, IN p_finished BOOLEAN
-)
-BEGIN
-    INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished)
-    VALUES (p_broadcast_id, p_cursor_user, p_recipients_processed, p_finished)
-    ON DUPLICATE KEY UPDATE
-        cursor_user = VALUES(cursor_user),
-        recipients_processed = VALUES(recipients_processed),
-        finished = VALUES(finished);
-END //
-
 CREATE PROCEDURE broadcast_renew_ownership_op(
   IN p_lease_time BIGINT, IN p_owner_node VARCHAR(250), IN p_host_type VARCHAR(250)
 )

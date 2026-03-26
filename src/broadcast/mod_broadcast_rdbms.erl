@@ -163,8 +163,10 @@ update_worker_state(HostType, JobId, WorkerState) ->
     Cursor = null_if_undefined(WorkerState#broadcast_worker_state.cursor),
     RecipientsProcessed = WorkerState#broadcast_worker_state.recipients_processed,
     Finished = WorkerState#broadcast_worker_state.finished,
-    execute_successfully(HostType, broadcast_upsert_worker_state,
-                         [JobId, Cursor, RecipientsProcessed, Finished]),
+    InsertParams = [JobId, Cursor, RecipientsProcessed, Finished],
+    UpdateParams = [Cursor, RecipientsProcessed, Finished],
+    {updated, _} = rdbms_queries:execute_upsert(HostType, broadcast_upsert_worker_state,
+                                                InsertParams, UpdateParams),
     ok.
 
 -spec renew_ownership(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
@@ -227,10 +229,13 @@ prepare_queries(HostType) ->
             "SET execution_state = 'abort_admin', stopped_at = CURRENT_TIMESTAMP "
             "WHERE id = ? AND execution_state = 'running'">>),
 
-    %% Stored routines for worker progress.
-    WorkerRoutineParams = [broadcast_id, cursor_user, recipients_processed, finished],
-    prepare_stored(HostType, broadcast_upsert_worker_state, broadcast_worker_state,
-                   WorkerRoutineParams, <<"broadcast_upsert_worker_state_op">>),
+    %% Worker progress upsert.
+    WorkerStateInsert = [<<"broadcast_id">>, <<"cursor_user">>,
+                      <<"recipients_processed">>, <<"finished">>],
+    WorkerStateUpdate = [<<"cursor_user">>, <<"recipients_processed">>, <<"finished">>],
+    WorkerStateKey = [<<"broadcast_id">>],
+    rdbms_queries:prepare_upsert(HostType, broadcast_upsert_worker_state, broadcast_worker_state,
+                                 WorkerStateInsert, WorkerStateUpdate, WorkerStateKey),
 
     %% Stored routines for ownership transitions.
     RenewOwnershipParams = [lease_time, owner_node, host_type],

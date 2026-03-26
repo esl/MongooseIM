@@ -616,23 +616,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION broadcast_upsert_worker_state_op(
-    p_broadcast_id INTEGER, p_cursor_user VARCHAR(250),
-    p_recipients_processed INTEGER, p_finished BOOLEAN
-)
-RETURNS INTEGER
-LANGUAGE plpgsql AS $$
-BEGIN
-    INSERT INTO broadcast_worker_state (broadcast_id, cursor_user, recipients_processed, finished)
-    VALUES (p_broadcast_id, p_cursor_user, p_recipients_processed, p_finished)
-    ON CONFLICT (broadcast_id) DO UPDATE
-    SET cursor_user = EXCLUDED.cursor_user,
-        recipients_processed = EXCLUDED.recipients_processed,
-        finished = EXCLUDED.finished;
-    RETURN 1;
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION broadcast_renew_ownership_op(
     p_lease_time BIGINT, p_owner_node VARCHAR(250), p_host_type VARCHAR(250)
 )
