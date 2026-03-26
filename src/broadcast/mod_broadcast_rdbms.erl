@@ -174,8 +174,9 @@ update_worker_state(HostType, JobId, WorkerState) ->
 renew_ownership(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
     T = fun() ->
-        {selected, Rows} = execute_successfully(HostType, broadcast_renew_ownership,
-                                                [LeaseTime, OwnerNode, HostType]),
+        {selected, Rows} = rdbms_queries:execute_update_returning(
+                               HostType, broadcast_renew_ownership,
+                               [LeaseTime], [OwnerNode, HostType]),
         {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
     end,
     {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
@@ -186,8 +187,9 @@ renew_ownership(HostType, LeaseTime) ->
 take_expired_jobs(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
     T = fun() ->
-        {selected, Rows} = execute_successfully(HostType, broadcast_take_expired_jobs,
-                                                [OwnerNode, LeaseTime]),
+        {selected, Rows} = rdbms_queries:execute_update_returning(
+                               HostType, broadcast_take_expired_jobs,
+                               [OwnerNode, LeaseTime], []),
         {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
     end,
     {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
@@ -237,13 +239,26 @@ prepare_queries(HostType) ->
     rdbms_queries:prepare_upsert(HostType, broadcast_upsert_worker_state, broadcast_worker_state,
                                  WorkerStateInsert, WorkerStateUpdate, WorkerStateKey),
 
-    %% Stored routines for ownership transitions.
-    RenewOwnershipParams = [lease_time, owner_node, host_type],
-    TakeExpiredParams = [owner_node, lease_time],
-    prepare_stored(HostType, broadcast_renew_ownership, broadcast_jobs_ownership,
-                   RenewOwnershipParams, <<"broadcast_renew_ownership_op">>),
-    prepare_stored(HostType, broadcast_take_expired_jobs, broadcast_jobs_ownership,
-                   TakeExpiredParams, <<"broadcast_take_expired_jobs_ids_op">>),
+    %% Ownership transition queries via update_returning helper.
+    ExpiresExpr = rdbms_queries:add_interval_seconds_expr(HostType),
+    rdbms_queries:prepare_update_returning(HostType,
+        #{name => broadcast_renew_ownership,
+          table => {broadcast_jobs_ownership, <<"o">>},
+          update_fields => [{<<"expires_at">>, ExpiresExpr}, {<<"updated_at">>, <<"NOW()">>}],
+          filter_fields => [<<"owner_node">>, <<"host_type">>],
+          return_fields => [<<"o.broadcast_id">>],
+          joins => [{broadcast_jobs, <<"j">>, <<"j.id = o.broadcast_id">>}],
+          filters => <<"o.owner_node = ? AND j.host_type = ? AND j.execution_state = 'running'">>}),
+    rdbms_queries:prepare_update_returning(HostType,
+        #{name => broadcast_take_expired_jobs,
+          table => {broadcast_jobs_ownership, <<"o">>},
+          update_fields => [<<"owner_node">>,
+                            {<<"expires_at">>, ExpiresExpr},
+                            {<<"updated_at">>, <<"NOW()">>}],
+          filter_fields => [],
+          return_fields => [<<"o.broadcast_id">>],
+          joins => [{broadcast_jobs, <<"j">>, <<"j.id = o.broadcast_id">>}],
+          filters => <<"o.expires_at < NOW() AND j.execution_state = 'running'">>}),
 
     %% Direct ownership cleanup query.
     prepare(broadcast_remove_ownership, broadcast_jobs_ownership,

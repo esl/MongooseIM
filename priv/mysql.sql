@@ -644,54 +644,6 @@ BEGIN
     SELECT @new_job_id AS id;
 END //
 
-CREATE PROCEDURE broadcast_renew_ownership_op(
-  IN p_lease_time BIGINT, IN p_owner_node VARCHAR(250), IN p_host_type VARCHAR(250)
-)
-BEGIN
-    CREATE TEMPORARY TABLE IF NOT EXISTS _broadcast_renewed_ids (broadcast_id INT);
-    DELETE FROM _broadcast_renewed_ids;
-
-    INSERT INTO _broadcast_renewed_ids
-    SELECT o.broadcast_id
-    FROM broadcast_jobs_ownership o
-    JOIN broadcast_jobs j ON o.broadcast_id = j.id
-    WHERE o.owner_node = p_owner_node
-      AND j.host_type = p_host_type
-      AND j.execution_state = 'running'
-    FOR UPDATE;
-
-    UPDATE broadcast_jobs_ownership o
-    JOIN _broadcast_renewed_ids t ON o.broadcast_id = t.broadcast_id
-    SET o.expires_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL p_lease_time SECOND),
-      o.updated_at = CURRENT_TIMESTAMP;
-
-    SELECT t.broadcast_id FROM _broadcast_renewed_ids t;
-END //
-
-CREATE PROCEDURE broadcast_take_expired_jobs_op(
-  IN p_owner_node VARCHAR(250), IN p_lease_time BIGINT
-)
-BEGIN
-    CREATE TEMPORARY TABLE IF NOT EXISTS _broadcast_taken_ids (id INT);
-    DELETE FROM _broadcast_taken_ids;
-
-    INSERT INTO _broadcast_taken_ids
-    SELECT o.broadcast_id
-    FROM broadcast_jobs_ownership o
-    JOIN broadcast_jobs j ON o.broadcast_id = j.id
-    WHERE o.expires_at < CURRENT_TIMESTAMP
-      AND j.execution_state = 'running'
-    FOR UPDATE;
-
-    UPDATE broadcast_jobs_ownership o
-    JOIN _broadcast_taken_ids t ON o.broadcast_id = t.id
-    SET o.owner_node = p_owner_node,
-      o.expires_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL p_lease_time SECOND),
-        o.updated_at = CURRENT_TIMESTAMP;
-
-    SELECT t.id FROM _broadcast_taken_ids t;
-END //
-
 DELIMITER ;
 
 CREATE TABLE blocklist (

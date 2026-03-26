@@ -616,43 +616,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION broadcast_renew_ownership_op(
-    p_lease_time BIGINT, p_owner_node VARCHAR(250), p_host_type VARCHAR(250)
-)
-RETURNS TABLE (broadcast_id INTEGER)
-LANGUAGE plpgsql AS $$
-BEGIN
-    RETURN QUERY
-    UPDATE broadcast_jobs_ownership o
-    SET expires_at = now() + (p_lease_time * interval '1 second'), updated_at = now()
-    FROM broadcast_jobs j
-    WHERE o.broadcast_id = j.id
-      AND o.owner_node = p_owner_node
-      AND j.host_type = p_host_type
-      AND j.execution_state = 'running'
-    RETURNING o.broadcast_id;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION broadcast_take_expired_jobs_op(
-    p_owner_node VARCHAR(250), p_lease_time BIGINT
-)
-RETURNS TABLE (broadcast_id INTEGER)
-LANGUAGE plpgsql AS $$
-BEGIN
-    RETURN QUERY
-    UPDATE broadcast_jobs_ownership o
-    SET owner_node = p_owner_node,
-        expires_at = now() + (p_lease_time * interval '1 second'),
-        updated_at = now()
-    FROM broadcast_jobs j
-    WHERE o.broadcast_id = j.id
-        AND o.expires_at < now()
-        AND j.execution_state = 'running'
-    RETURNING o.broadcast_id;
-END;
-$$;
-
 CREATE TABLE blocklist (
     luser VARCHAR(250) NOT NULL,
     lserver VARCHAR(250) NOT NULL,
