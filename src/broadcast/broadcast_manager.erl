@@ -453,7 +453,7 @@ map_workers(HostType) ->
 -spec synchronize_jobs(#state{}) -> #state{}.
 synchronize_jobs(#state{host_type = HostType} = State) ->
     case try_take_renew_and_fetch(HostType) of
-        {RunningJobs, TakenJobIDs} ->
+        {ok, RunningJobs, TakenJobIDs} ->
             ?LOG_INFO(#{what => broadcast_taken_oven_jobs,
                         host_type => HostType,
                         taken_job_ids => TakenJobIDs}),
@@ -461,27 +461,28 @@ synchronize_jobs(#state{host_type = HostType} = State) ->
             %% with the database and another node took over our jobs while we were in emergency mode.
             %% They are paused and their state may be outdated.
             stop_workers_for_jobs(HostType, State#state.worker_map, TakenJobIDs),
-            handle_sync_success(State#state{worker_map = maps:without(TakenJobIDs, State#state.worker_map)}, RunningJobs);
+            NewWorkerMap = maps:without(TakenJobIDs, State#state.worker_map),
+            handle_sync_success(State#state{worker_map = NewWorkerMap}, RunningJobs);
         {error, Reason} ->
             handle_sync_failure(State, Reason)
     end.
 
 -spec try_take_renew_and_fetch(mongooseim:host_type()) ->
-    {[broadcast_job()], [broadcast_job_id()]} | {error, term()}.
+    {ok, [broadcast_job()], [broadcast_job_id()]} | {error, term()}.
 try_take_renew_and_fetch(HostType) ->
     LeaseTime = mod_broadcast:lease_time(HostType),
     try
         {ok, TakenJobIDs} = mod_broadcast_backend:take_expired_jobs(HostType, LeaseTime),
         mod_broadcast_backend:renew_ownership(HostType, LeaseTime),
         {ok, RunningJobs} = mod_broadcast_backend:get_running_jobs(HostType),
-        {RunningJobs, TakenJobIDs}
+        {ok, RunningJobs, TakenJobIDs}
     catch
         Class:Reason ->
             ?LOG_ERROR(#{what => broadcast_job_synchronization_failed,
                          host_type => HostType,
                          class => Class,
                          reason => Reason}),
-            {error, Reason}
+        {error, Reason}
     end.
 
 -spec handle_sync_success(#state{}, [broadcast_job()]) -> #state{}.

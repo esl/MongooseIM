@@ -477,7 +477,7 @@ prepare_update_returning_mysql(HostType, Spec) ->
          " FOR UPDATE"]),
     ?LOG_DEBUG(#{what => rdbms_update_returning_mysql_lock, name => LockName, query => LockSQL}),
     mongoose_rdbms:prepare(LockName, Table, FilterFields, LockSQL),
-    
+
     %% 2. UPDATE ... JOIN ... SET ... WHERE filters (bulk update the same rows)
     UpdateName = mysql_derived_name(Name, "_update"),
     SetClause = ur_set_clause(Alias, UpdatesT),
@@ -489,7 +489,7 @@ prepare_update_returning_mysql(HostType, Spec) ->
     ?LOG_DEBUG(#{what => rdbms_update_returning_mysql_update, name => UpdateName, query => UpdateSQL}),
     UpdateParamFields = lists:filtermap(fun ur_get_update_param_field/1, UpdatesT),
     mongoose_rdbms:prepare(UpdateName, Table, UpdateParamFields ++ FilterFields, UpdateSQL),
-    
+
     {ok, Name}.
 
 mysql_ur_join_clause([]) ->
@@ -625,7 +625,7 @@ prepare_insert_returning_id_mysql(Name, Table, InsertFields) ->
     ?LOG_DEBUG(#{what => rdbms_insert_returning_id_mysql_insert,
                  name => InsertName, query => InsertSQL}),
     mongoose_rdbms:prepare(InsertName, Table, InsertFields, InsertSQL),
-    
+
     %% 2. SELECT by LAST_INSERT_ID()
     SelectName = mysql_derived_name(Name, "_last_id"),
     SelectSQL = iolist_to_binary(

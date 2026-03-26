@@ -256,7 +256,7 @@ paused(EventType, Event, Data) ->
                    event_type => EventType, event => Event}),
     {keep_state, Data}.
 
--spec finished(gen_statem:event_type(), {finalize, term()}, data()) ->
+-spec finished(gen_statem:event_type(), finalize, data()) ->
     gen_statem:state_function_result().
 finished(internal, finalize, Data) ->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
