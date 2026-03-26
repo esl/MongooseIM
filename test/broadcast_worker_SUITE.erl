@@ -150,19 +150,19 @@ stop_force_kills_stuck_worker(_Config) ->
     StuckWorker = spawn(fun() -> receive _ -> exit(timeout) end end),
 
     log_helper:subscribe(),
-    ok = broadcast_worker:stop(StuckWorker),
+    noproc = broadcast_worker:stop(StuckWorker),
     ?assertLog(warning, #{what := broadcast_worker_killed_timeout, worker_pid := StuckWorker}),
     ok.
 
 stop_when_worker_already_stopping_normal_returns_ok(_Config) ->
     WorkerAlreadyStopping = spawn(fun() -> receive _ -> exit(normal) end end),
-    ok = broadcast_worker:stop(WorkerAlreadyStopping),
+    noproc = broadcast_worker:stop(WorkerAlreadyStopping),
     ok.
 
 stop_when_worker_already_stopping_error_returns_ok(_Config) ->
     WorkerAlreadyFailed = spawn(fun() -> receive _ -> exit({error, already_failed}) end end),
     log_helper:subscribe(),
-    ok = broadcast_worker:stop(WorkerAlreadyFailed),
+    noproc = broadcast_worker:stop(WorkerAlreadyFailed),
     ?assertLog(warning, #{what := broadcast_worker_killed_error,
                           worker_pid := WorkerAlreadyFailed,
                           error := {error, already_failed}}),
@@ -177,7 +177,7 @@ stop_when_worker_is_noproc_returns_ok(_Config) ->
     end,
 
     log_helper:subscribe(),
-    ok = broadcast_worker:stop(DeadPid),
+    noproc = broadcast_worker:stop(DeadPid),
     ?assertLog(warning, #{what := broadcast_worker_killed_noproc, worker_pid := DeadPid}),
     ok.
 

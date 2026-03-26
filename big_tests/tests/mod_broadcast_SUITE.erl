@@ -234,7 +234,7 @@ resume_jobs_after_restart(Config) ->
         stop_mod_broadcast(HostTypeA),
         HostTypeA =/= HostTypeB andalso stop_mod_broadcast(HostTypeB),
 
-        update_job_owner_node(HostTypeB, DomainB, JobIdB, bogus_owner_node()),
+        update_job_owner_node(HostTypeB, JobIdB, bogus_owner_node()),
 
         ensure_mod_broadcast_started(HostTypeA),
         HostTypeA =/= HostTypeB andalso ensure_mod_broadcast_started(HostTypeB),
@@ -588,7 +588,8 @@ get_broadcasts_pagination_basic(Config) ->
 %%====================================================================
 
 ensure_mod_broadcast_started(HostType) ->
-    dynamic_modules:ensure_modules(HostType, [{mod_broadcast, #{backend => rdbms}}]).
+    Opts = #{backend => rdbms, lease_time => 600},
+    dynamic_modules:ensure_modules(HostType, [{mod_broadcast, Opts}]).
 
 stop_mod_broadcast(HostType) ->
     {stopped, _} = dynamic_modules:stop(HostType, mod_broadcast).
@@ -673,11 +674,10 @@ assert_empty_worker_map(HostType) ->
 %% Direct DB operations
 %%====================================================================
 
-update_job_owner_node(HostType, Domain, JobId, OwnerNode) ->
-    Query = ["UPDATE broadcast_jobs SET owner_node = ",
+update_job_owner_node(HostType, JobId, OwnerNode) ->
+    Query = ["UPDATE broadcast_jobs_ownership SET owner_node = ",
              "'", OwnerNode, "'",
-             " WHERE id = ", integer_to_binary(JobId),
-             " AND server = ", "'", Domain, "'"],
+             " WHERE broadcast_id = ", integer_to_binary(JobId)],
     {updated, 1} = sql_query(HostType, Query),
     ok.
 
@@ -686,7 +686,8 @@ bogus_owner_node() ->
 
 delete_rogue_broadcast_job(HostType) ->
     Query = ["DELETE FROM broadcast_jobs",
-             " WHERE owner_node = '", bogus_owner_node(), "'"],
+             " WHERE id IN (SELECT broadcast_id FROM broadcast_jobs_ownership",
+             " WHERE owner_node = '", bogus_owner_node(), "')"],
     {updated, 1} = sql_query(HostType, Query),
     ok.
 

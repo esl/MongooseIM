@@ -291,7 +291,7 @@ domain_admin_protection_checks(Config) ->
 
 ensure_mod_broadcast_started(Domain) ->
     dynamic_modules:ensure_modules(domain_helper:domain_to_host_type(mim(), Domain),
-                                   [{mod_broadcast, #{backend => rdbms}}]).
+                                   [{mod_broadcast, #{backend => rdbms, lease_time => 600}}]).
 
 stop_mod_broadcast(HostType) ->
     dynamic_modules:ensure_modules(HostType, [{mod_broadcast, stopped}]).

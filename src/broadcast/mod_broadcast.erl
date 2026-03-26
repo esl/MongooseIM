@@ -38,7 +38,7 @@ start(HostType, Opts) ->
     %% This will be refined/relaxed in future iterations, when more backends are supported
     %% or when more recipient sources are added.
     ensure_rdbms_auth_enabled(HostType),
-    ensure_minimum_lease_time(HostType),
+    ensure_minimum_lease_time(HostType, Opts),
     mod_broadcast_backend:init(HostType, Opts),
     start_supervisor(HostType),
     ok.
@@ -180,8 +180,7 @@ ensure_rdbms_auth_enabled(HostType) ->
                     host_type => HostType})
     end.
 
-ensure_minimum_lease_time(HostType) ->
-    LeaseTime = lease_time(HostType),
+ensure_minimum_lease_time(HostType, #{lease_time := LeaseTime}) ->
     case LeaseTime >= ?MIN_LEASE_TIME_SEC of
         true ->
             ok;

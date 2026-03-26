@@ -36,6 +36,8 @@
     %% db_error_paths
     db_create_job_error_propagates/1,
     db_get_running_jobs_error_in_resume/1,
+    db_renew_ownership_error_in_resume/1,
+    db_take_expired_jobs_error_in_resume/1,
     db_set_job_started_error_logged/1,
     db_set_job_aborted_admin_error_logged/1,
     db_get_running_jobs_error_in_abort_for_domain/1,
@@ -77,6 +79,8 @@ manager_unexpected_messages_tests() ->
 db_error_path_tests() ->
     [db_create_job_error_propagates,
      db_get_running_jobs_error_in_resume,
+     db_renew_ownership_error_in_resume,
+     db_take_expired_jobs_error_in_resume,
      db_set_job_started_error_logged,
      db_set_job_aborted_admin_error_logged,
      db_get_running_jobs_error_in_abort_for_domain].
@@ -173,15 +177,37 @@ db_get_running_jobs_error_in_resume(Config) ->
                 end),
 
     {ok, NewPid} = start_test_manager(),
+    
+    wait_for_emergency_mode(broadcast_helper:host_type()),
+    assert_manager_survived(NewPid).
 
-    %% TODO: Update this test when retry is implemented
-    monitor(process, NewPid),
-    receive
-        {'DOWN', _Ref, process, NewPid, _Reason} ->
-            ok
-    after 1000 ->
-            ct:fail(manager_should_have_crashed_due_to_db_error)
-    end.
+db_renew_ownership_error_in_resume(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    meck:expect(mod_broadcast_backend, renew_ownership,
+                fun(_HostType, _LeaseTime) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+
+    {ok, NewPid} = start_test_manager(),
+    
+    wait_for_emergency_mode(broadcast_helper:host_type()),
+    assert_manager_survived(NewPid).
+
+db_take_expired_jobs_error_in_resume(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    meck:expect(mod_broadcast_backend, take_expired_jobs,
+                fun(_HostType, _LeaseTime) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+
+    {ok, NewPid} = start_test_manager(),
+    
+    wait_for_emergency_mode(broadcast_helper:host_type()),
+    assert_manager_survived(NewPid).
 
 db_set_job_started_error_logged(Config) ->
     Pid = ?config(manager_pid, Config),
@@ -423,6 +449,10 @@ setup_mocks_for_manager() ->
 reset_meck_defaults() ->
     meck:expect(mod_broadcast_backend, get_running_jobs,
                 fun(_HostType) -> {ok, []} end),
+    meck:expect(mod_broadcast_backend, take_expired_jobs,
+                fun(_HostType, _LeaseTime) -> {ok, []} end),
+    meck:expect(mod_broadcast_backend, renew_ownership,
+                fun(_HostType, _LeaseTime) -> {ok, []} end),
     meck:expect(mod_broadcast_backend, create_job,
                 fun(_HostType, _JobSpec, _LeaseTime) -> {ok, 1} end),
     meck:expect(mod_broadcast_backend, set_job_started,
@@ -461,6 +491,11 @@ stop_test_manager(_Pid) ->
 assert_manager_survived(Pid) ->
     %% If a manager is able to reply to a call, then it is alive
     {error, not_implemented} = gen_server:call(Pid, somebody_set_us_up_the_bomb).
+
+wait_for_emergency_mode(HostType) ->
+    wait_helper:wait_until(fun() ->
+        broadcast_manager:get_sync_mode(HostType)
+    end, emergency).
 
 wait_for_worker(JobId, WorkerPid) ->
     wait_helper:wait_until(fun() ->

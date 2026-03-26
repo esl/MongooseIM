@@ -24,10 +24,12 @@
 %% Debug API
 -export([does_worker_for_job_exist/2,
          get_worker_map/1,
-         get_supervisor_children/1]).
+         get_supervisor_children/1,
+         get_sync_mode/1]).
 -ignore_xref([does_worker_for_job_exist/2,
               get_worker_map/1,
-              get_supervisor_children/1]).
+              get_supervisor_children/1,
+              get_sync_mode/1]).
 
 %% Error types
 -export_type([create_job_error/0,
@@ -125,6 +127,11 @@ get_worker_map(HostType) ->
 get_supervisor_children(HostType) ->
     supervisor:which_children(get_sup_name(HostType)).
 
+-spec get_sync_mode(mongooseim:host_type()) -> sync_mode().
+get_sync_mode(HostType) ->
+    ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
+    gen_server:call(ProcName, get_sync_mode).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -200,6 +207,8 @@ handle_call(get_worker_map, _From, State) ->
 handle_call({does_worker_for_job_exist, JobId}, _From, State) ->
     Reply = maps:is_key(JobId, State#state.worker_map),
     {reply, Reply, State};
+handle_call(get_sync_mode, _From, State) ->
+    {reply, (State#state.job_sync)#job_sync.mode, State};
 handle_call(_Request, _From, State) ->
     {reply, {error, not_implemented}, State}.
 
