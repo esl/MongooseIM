@@ -23,6 +23,8 @@
 -include("mod_broadcast.hrl").
 -include("mongoose.hrl").
 
+-define(MIN_LEASE_TIME_SEC, 10).
+
 -export_type([broadcast_job_id/0,
               broadcast_job/0,
               job_spec/0]).
@@ -36,6 +38,7 @@ start(HostType, Opts) ->
     %% This will be refined/relaxed in future iterations, when more backends are supported
     %% or when more recipient sources are added.
     ensure_rdbms_auth_enabled(HostType),
+    ensure_minimum_lease_time(HostType),
     mod_broadcast_backend:init(HostType, Opts),
     start_supervisor(HostType),
     ok.
@@ -175,4 +178,17 @@ ensure_rdbms_auth_enabled(HostType) ->
             error(#{what => mod_broadcast_requires_rdbms_auth,
                     text => <<"mod_broadcast requires ejabberd_auth_rdbms to be enabled">>,
                     host_type => HostType})
+    end.
+
+ensure_minimum_lease_time(HostType) ->
+    LeaseTime = lease_time(HostType),
+    case LeaseTime >= ?MIN_LEASE_TIME_SEC of
+        true ->
+            ok;
+        false ->
+            error(#{what => mod_broadcast_invalid_lease_time,
+                    text => <<"mod_broadcast lease_time must be at least 10 seconds">>,
+                    host_type => HostType,
+                    lease_time => LeaseTime,
+                    min_lease_time => ?MIN_LEASE_TIME_SEC})
     end.

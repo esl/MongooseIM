@@ -28,11 +28,13 @@ Backend used to store broadcast jobs and worker progress.
 
 ### `modules.mod_broadcast.lease_time`
 
-* **Syntax:** positive integer (seconds)
+* **Syntax:** integer (seconds), minimum `10`
 * **Default:** `600`
 * **Example:** `lease_time = 900`
 
 Lease duration in seconds for broadcast job ownership. The owner node periodically renews the lease while the job is running.
+
+Values below `10` seconds are rejected and `mod_broadcast` will not start, to avoid too frequent sync cycles.
 
 !!! Warning
     `mod_broadcast` relies on standard RDBMS auth API to retrieve the recipient count. If [user count estimation](../authentication-methods/rdbms.md#authrdbmsusers_number_estimate) is enabled, then the number of recipients per job may be inaccurate. This option is disabled by default.
