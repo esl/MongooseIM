@@ -72,6 +72,7 @@
 -export([is_muc_room_owner/3,
          can_access_room/3,
          remove_domain/3,
+         remove_user/3,
          acc_room_affiliations/3,
          can_access_identity/3,
          disco_local_items/3,
@@ -1210,6 +1211,25 @@ can_access_room(_, #{room := Room, user := User}, _) ->
     mod_muc_backend:remove_domain(HostType, MUCHost, Domain),
     {ok, Acc}.
 
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = UserU, lserver = UserS}},
+            #{host_type := HostType}) ->
+    MUCHost = server_host_to_muc_host(HostType, UserS),
+    Res = mod_muc_backend:get_user_rooms(HostType, MUCHost, UserU, UserS),
+    {ok, Rooms} = Res,
+    Failures = lists:filtermap(fun(R) -> remove_user_from_online(R, UserU, UserS) end, Rooms),
+    logger:warning("asdf Failures: ~p~n", [Failures]),
+    {ok, Acc}.
+
+remove_user_from_online(#muc_room{name_host = {Name, Host}} = Room, UserU, UserS) ->
+    case mod_muc_room:remove_user(#jid{luser = Name, lserver = Host}, UserU, UserS) of
+        ok -> false;
+        E -> {true, Room}
+    end.
+
 -spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{room := jid:jid()},
@@ -1298,6 +1318,7 @@ hooks(HostType) ->
     [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
      {can_access_room, HostType, fun ?MODULE:can_access_room/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {acc_room_affiliations, HostType, fun ?MODULE:acc_room_affiliations/3, #{}, 50},
      {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250},

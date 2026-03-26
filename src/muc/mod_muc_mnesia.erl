@@ -32,6 +32,7 @@
          restore_room/3,
          forget_room/3,
          get_rooms/2,
+         get_user_rooms/4,
          can_use_nick/4,
          get_nick/3,
          set_nick/4,
@@ -40,6 +41,8 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc.hrl").
+
+-type muc_host() :: jid:server().
 
 -record(muc_registered, {
             us_host    :: {US :: jid:simple_bare_jid(), MucHost :: jid:lserver()} | '$1',
@@ -118,6 +121,16 @@ get_rooms(HostType, MucHost) ->
                      class => Class, reason => Reason, stacktrace => Stacktrace}),
         {error, {Class, Reason}}
     end.
+
+-spec get_user_rooms(mongooseim:host_type(), muc_host(), jid:luser(), jid:lserver()) -> {ok, [#muc_room{}]}.
+get_user_rooms(HostType, MucHost, UserU, UserS) ->
+    {ok, Rooms} = get_rooms(HostType, MucHost),
+    {ok, lists:filter(fun(Room) -> has_user(UserU, UserS, Room) end, Rooms)}.
+
+has_user(UserU, UserS, #muc_room{opts = Opts}) ->
+    Affs = proplists:get_value(affiliations, Opts, []),
+    Matcher = fun({{U, S, _}, _}) -> {U, S} == {UserU, UserS} end,
+    lists:any(Matcher, Affs).
 
 -spec can_use_nick(mongooseim:host_type(), jid:server(),
                    jid:jid(), mod_muc:nick()) -> boolean().

@@ -7,6 +7,7 @@
          restore_room/3,
          forget_room/3,
          get_rooms/2,
+         get_user_rooms/4,
          can_use_nick/4,
          get_nick/3,
          set_nick/4,
@@ -57,6 +58,11 @@ prepare_queries(HostType) ->
             <<"DELETE FROM muc_rooms WHERE muc_host = ?">>),
     prepare(muc_select_rooms, muc_rooms, [muc_host],
             <<"SELECT id, room_name, options FROM muc_rooms WHERE muc_host = ?">>),
+    prepare(muc_select_user_rooms, muc_rooms,
+            [muc_host, luser, lserver],
+            <<"SELECT room_name "
+              "FROM muc_rooms WHERE muc_host = ? AND id IN "
+              "(SELECT room_id FROM muc_room_aff WHERE luser = ? and lserver = ?)" >>),
     %% Queries to muc_room_aff table
     prepare(muc_insert_aff, muc_room_aff,
             [room_id, luser, lserver, resource, aff],
@@ -159,6 +165,12 @@ forget_room(HostType, MucHost, RoomName) ->
 get_rooms(HostType, MucHost) ->
     {selected, RoomRows} = execute_select_rooms(HostType, MucHost),
     RoomRecs = [handle_room_row(HostType, MucHost, Row) || Row <- RoomRows],
+    {ok, RoomRecs}.
+
+-spec get_user_rooms(mongooseim:host_type(), muc_host(), jid:luser(), jid:lserver()) -> {ok, [#muc_room{}]}.
+get_user_rooms(HostType, MucHost, UserU, UserS) ->
+    {selected, RoomRows} = execute_select_user_rooms(HostType, MucHost, UserU, UserS),
+    RoomRecs = [#muc_room{name_host = {RoomName, MucHost}} || {RoomName} <- RoomRows],
     {ok, RoomRecs}.
 
 handle_room_row(HostType, MucHost, {ExtRoomID, RoomName, ExtOpts}) ->
@@ -284,6 +296,10 @@ execute_delete_room(HostType, MucHost, RoomName) ->
 -spec execute_select_rooms(mongooseim:host_type(), muc_host()) -> term().
 execute_select_rooms(HostType, MucHost) ->
     execute_successfully(HostType, muc_select_rooms, [MucHost]).
+
+-spec execute_select_user_rooms(mongooseim:host_type(), muc_host(), jid:luser(), jid:lserver()) -> term().
+execute_select_user_rooms(HostType, MucHost, UserU, UserS) ->
+    execute_successfully(HostType, muc_select_user_rooms, [MucHost, UserU, UserS]).
 
 -spec execute_select_nick_user(mongooseim:host_type(), muc_host(), jid:luser(), mod_muc:nick()) -> term().
 execute_select_nick_user(HostType, MucHost, UserS, Nick) ->

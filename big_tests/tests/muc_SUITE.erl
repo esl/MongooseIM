@@ -22,6 +22,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 -include("assert_received_match.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,
@@ -173,6 +174,7 @@ groups() ->
                               admin_membership,
                               admin_membership_with_reason,
                               admin_member_list,
+                              admin_remove_user,
                               admin_member_list_allowed,
                               admin_moderator,
                               admin_moderator_with_reason,
@@ -1471,6 +1473,47 @@ admin_member_list(ConfigIn) ->
         Error = escalus:wait_for_stanza(Kate),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
   end).
+
+%% removing user from the system removes them from a room
+%% TODO: what if the room is offline?
+%% TODO: remove_domain
+admin_remove_user(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Make Bob a member
+        Items = [{escalus_utils:get_short_jid(Bob), <<"member">>}],
+        escalus:send(Alice, stanza_set_affiliations(?config(room, Config), Items)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+        %% Request member list
+        escalus:send(Alice, stanza_affiliation_list_request(
+            ?config(room, Config), <<"member">>)),
+        List = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, List),
+        %% Bob should be on the list
+        true = is_iq_with_affiliation(List, <<"member">>),
+        true = is_iq_with_short_jid(List, Bob),
+
+        %% Remove Bob's account
+        BJ = escalus_client:full_jid(Bob),
+        B = jid:from_binary(BJ),
+        true = rpc(mim(), ejabberd_auth, does_user_exist, [B]),
+        ok = rpc(mim(), ejabberd_auth, remove_user, [B]),
+        false = rpc(mim(), ejabberd_auth, does_user_exist, [B]),
+
+        %% Request again
+        escalus:send(Alice, stanza_affiliation_list_request(
+            ?config(room, Config), <<"member">>)),
+        List2 = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, List2),
+        %% List should be empty
+        true = is_item_list_empty(List2),
+        ok
+    end).
 
 check_memberlist(LoginData, yes, Config) ->
     escalus:send(LoginData, stanza_affiliation_list_request(

@@ -4,6 +4,7 @@
          restore_room/3,
          forget_room/3,
          get_rooms/2,
+         get_user_rooms/4,
          can_use_nick/4,
          get_nick/3,
          set_nick/4,
@@ -42,6 +43,9 @@
 -callback get_rooms(mongooseim:host_type(), muc_host()) ->
     {ok, [#muc_room{}]} | {error, term()}.
 
+-callback get_user_rooms(mongooseim:host_type(), muc_host(), jid:luser(), jid:lserver()) ->
+    {ok, [#muc_room{}]} | {error, term()}.
+
 -callback can_use_nick(mongooseim:host_type(), muc_host(),
                        client_jid(), mod_muc:nick()) -> boolean().
 
@@ -65,7 +69,7 @@
 %% Called when MUC service starts or restarts for each domain
 -spec init(mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
-    TrackedFuns = [store_room, restore_room, forget_room, get_rooms,
+    TrackedFuns = [store_room, restore_room, forget_room, get_rooms, get_user_rooms,
                      can_use_nick, get_nick, set_nick, unset_nick],
     mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
@@ -93,6 +97,12 @@ forget_room(HostType, MucHost, Room) ->
     {ok, [#muc_room{}]} | {error, term()}.
 get_rooms(HostType, MucHost) ->
     Args = [HostType, MucHost],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec get_user_rooms(mongooseim:host_type(), muc_host(), jid:luser(), jid:lserver()) ->
+    {ok, [#muc_room{}]} | {error, term()}.
+get_user_rooms(HostType, MucHost, LUser, LServer) ->
+    Args = [HostType, MucHost, LUser, LServer],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec can_use_nick(mongooseim:host_type(), muc_host(), client_jid(), mod_muc:nick()) ->
