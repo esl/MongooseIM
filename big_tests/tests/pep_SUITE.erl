@@ -5,7 +5,7 @@
 %%% @end
 %%%===================================================================
 
--module(pep_old_SUITE).
+-module(pep_SUITE).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -30,43 +30,43 @@
 
 all() ->
     [
-     {group, pep_tests},
-     {group, cache_tests}
+     {group, pep},
+     {group, pep_old},
+     {group, cache_old}
     ].
 
 groups() ->
     [
-         {pep_tests, [parallel],
-          [
-           disco_test,
-           disco_sm_test,
-           disco_sm_node_test,
-           disco_sm_items_test,
-           disco_sm_items_node_test,
-           publish_and_notify_test,
-           auto_create_with_publish_options_test,
-           publish_options_success_test,
-           publish_options_fail_unknown_option_story,
-           publish_options_fail_wrong_value_story,
-           publish_options_fail_wrong_form,
-           send_caps_after_login_test,
-           delayed_receive,
-           delayed_receive_with_sm,
-           h_ok_after_notify_test,
-           authorize_access_model,
-           unsubscribe_after_presence_unsubscription,
-           native_bookmarks_test
-          ]
-         },
-         {cache_tests, [parallel],
-          [
-           send_caps_after_login_test,
-           delayed_receive,
-           delayed_receive_with_sm,
-           unsubscribe_after_presence_unsubscription
-          ]
-         }
+     {pep, [parallel], [publish_and_notify_test]},
+     {pep_old, [parallel], pep_tests()},
+     {cache_old, [parallel], cache_tests()}
     ].
+
+pep_tests() ->
+    [disco_test,
+     disco_sm_test,
+     disco_sm_node_test,
+     disco_sm_items_test,
+     disco_sm_items_node_test,
+     publish_and_notify_test,
+     auto_create_with_publish_options_test,
+     publish_options_success_test,
+     publish_options_fail_unknown_option_story,
+     publish_options_fail_wrong_value_story,
+     publish_options_fail_wrong_form,
+     send_caps_after_login_test,
+     delayed_receive,
+     delayed_receive_with_sm,
+     h_ok_after_notify_test,
+     authorize_access_model,
+     unsubscribe_after_presence_unsubscription,
+     native_bookmarks_test].
+
+cache_tests() ->
+    [send_caps_after_login_test,
+     delayed_receive,
+     delayed_receive_with_sm,
+     unsubscribe_after_presence_unsubscription].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -86,15 +86,11 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(cache_tests, Config) ->
+init_per_group(GroupName, Config) ->
     Config0 = dynamic_modules:save_modules(domain(), Config),
-    NewConfig = required_modules(cache_tests),
+    NewConfig = required_modules(GroupName),
     dynamic_modules:ensure_modules(domain(), NewConfig),
-    Config0;
-
-init_per_group(_GroupName, Config) ->
-    dynamic_modules:ensure_modules(domain(), required_modules()),
-    Config.
+    Config0.
 
 end_per_group(_GroupName, Config) ->
     dynamic_modules:restore_modules(Config).
@@ -511,14 +507,17 @@ form(FormFields, FormType) ->
 field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
 field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
-required_modules() ->
+required_modules(pep) ->
+    [{mod_caps, default_mod_config(mod_caps)},
+     {mod_pubsub, #{}}];
+required_modules(pep_old) ->
     [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub_old, mod_config(mod_pubsub_old, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},
-                                           host => subhost_pattern("pubsub.@HOST@")})}].
-required_modules(cache_tests) ->
+                                           host => subhost_pattern("pubsub.@HOST@")})}];
+required_modules(cache_old) ->
     [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub_old, mod_config(mod_pubsub_old, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
