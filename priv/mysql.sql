@@ -617,35 +617,6 @@ CREATE TABLE broadcast_worker_state (
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
--- Stored procedures for mod_broadcast
--- MySQL uses procedures because MySQL functions cannot return result sets.
--- The result contract matches the PostgreSQL/CockroachDB stored functions.
-
-DELIMITER //
-
-CREATE PROCEDURE broadcast_create_job_op(
-    IN p_name VARCHAR(250), IN p_server VARCHAR(250), IN p_host_type VARCHAR(250),
-    IN p_from_jid VARCHAR(250), IN p_subject VARCHAR(1024), IN p_body TEXT,
-    IN p_rate INT, IN p_recipient_group ENUM('all_users_in_domain'),
-  IN p_recipient_count INT, IN p_owner_node VARCHAR(250), IN p_lease_time BIGINT
-)
-BEGIN
-    INSERT INTO broadcast_jobs
-        (name, server, host_type, from_jid, subject, body, rate, recipient_group, recipient_count)
-    VALUES
-        (p_name, p_server, p_host_type, p_from_jid, p_subject, p_body, p_rate, p_recipient_group, p_recipient_count);
-
-    SET @new_job_id = LAST_INSERT_ID();
-
-    INSERT INTO broadcast_jobs_ownership (broadcast_id, owner_node, updated_at, expires_at)
-        VALUES (@new_job_id, p_owner_node, CURRENT_TIMESTAMP,
-          DATE_ADD(CURRENT_TIMESTAMP, INTERVAL p_lease_time SECOND));
-
-    SELECT @new_job_id AS id;
-END //
-
-DELIMITER ;
-
 CREATE TABLE blocklist (
     luser VARCHAR(250) NOT NULL,
     lserver VARCHAR(250) NOT NULL,

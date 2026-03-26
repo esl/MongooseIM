@@ -590,32 +590,6 @@ CREATE TABLE broadcast_worker_state (
     PRIMARY KEY (broadcast_id)
 );
 
--- Stored functions for mod_broadcast
-
-CREATE OR REPLACE FUNCTION broadcast_create_job_op(
-    p_name VARCHAR(250), p_server VARCHAR(250), p_host_type VARCHAR(250),
-    p_from_jid VARCHAR(250), p_subject VARCHAR(1024), p_body TEXT,
-    p_rate INTEGER, p_recipient_group broadcast_recipient_group,
-    p_recipient_count INTEGER, p_owner_node VARCHAR(250), p_lease_time BIGINT
-)
-RETURNS INTEGER
-LANGUAGE plpgsql AS $$
-DECLARE
-    v_id INTEGER;
-BEGIN
-    INSERT INTO broadcast_jobs
-        (name, server, host_type, from_jid, subject, body, rate, recipient_group, recipient_count)
-    VALUES
-        (p_name, p_server, p_host_type, p_from_jid, p_subject, p_body, p_rate, p_recipient_group, p_recipient_count)
-    RETURNING id INTO v_id;
-
-    INSERT INTO broadcast_jobs_ownership (broadcast_id, owner_node, updated_at, expires_at)
-    VALUES (v_id, p_owner_node, now(), now() + (p_lease_time * interval '1 second'));
-
-    RETURN v_id;
-END;
-$$;
-
 CREATE TABLE blocklist (
     luser VARCHAR(250) NOT NULL,
     lserver VARCHAR(250) NOT NULL,

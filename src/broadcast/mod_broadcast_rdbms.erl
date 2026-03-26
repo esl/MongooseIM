@@ -33,7 +33,7 @@
          remove_ownership/2
         ]).
 
--import(mongoose_rdbms, [prepare/4, prepare_stored/5, execute_successfully/3]).
+-import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
 -include("mongoose_logger.hrl").
 -include("mod_broadcast.hrl").
@@ -63,11 +63,14 @@ create_job(HostType, JobSpec, LeaseTime) ->
             {selected, [{RunningJobsCount}]} when RunningJobsCount >= 1 ->
                 {error, running_job_limit_exceeded};
             _Else ->
-                {selected, [{JobId}]} = execute_successfully(
-                    HostType, broadcast_create_job,
+                {ok, JobId} = rdbms_queries:execute_insert_returning_id(
+                    HostType, broadcast_insert_job,
                     [Name, Domain, HostType, SenderBin, Subject, Body, Rate,
-                     RecipientGroupBin, RecipientCount, OwnerNode, LeaseTime]),
-                {ok, mongoose_rdbms:result_to_integer(JobId)}
+                     RecipientGroupBin, RecipientCount]),
+                {updated, 1} = execute_successfully(
+                    HostType, broadcast_insert_job_ownership,
+                    [JobId, OwnerNode, LeaseTime]),
+                {ok, JobId}
         end
     end,
     case mongoose_rdbms:sql_transaction(HostType, T) of
@@ -174,7 +177,7 @@ update_worker_state(HostType, JobId, WorkerState) ->
 renew_ownership(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
     T = fun() ->
-        {selected, Rows} = rdbms_queries:execute_update_returning(
+        {updated, _, Rows} = rdbms_queries:execute_update_returning(
                                HostType, broadcast_renew_ownership,
                                [LeaseTime], [OwnerNode, HostType]),
         {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
@@ -187,7 +190,7 @@ renew_ownership(HostType, LeaseTime) ->
 take_expired_jobs(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
     T = fun() ->
-        {selected, Rows} = rdbms_queries:execute_update_returning(
+        {updated, _, Rows} = rdbms_queries:execute_update_returning(
                                HostType, broadcast_take_expired_jobs,
                                [OwnerNode, LeaseTime], []),
         {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
@@ -205,11 +208,20 @@ remove_ownership(HostType, JobId) ->
 %%====================================================================
 
 prepare_queries(HostType) ->
+    ExpiresExpr = rdbms_queries:add_interval_seconds_expr(HostType),
+
     %% Job lifecycle management
-    JobRoutineParams = [name, server, host_type, from_jid, subject, body, rate,
-                        recipient_group, recipient_count, owner_node, lease_time],
-    prepare_stored(HostType, broadcast_create_job, broadcast_jobs, JobRoutineParams,
-                   <<"broadcast_create_job_op">>),
+    JobInsertFields = [<<"name">>, <<"server">>, <<"host_type">>, <<"from_jid">>,
+                       <<"subject">>, <<"body">>, <<"rate">>,
+                       <<"recipient_group">>, <<"recipient_count">>],
+    rdbms_queries:prepare_insert_returning_id(
+        HostType, broadcast_insert_job, broadcast_jobs, JobInsertFields),
+
+    prepare(broadcast_insert_job_ownership, broadcast_jobs_ownership,
+            [broadcast_id, owner_node, lease_time],
+            <<"INSERT INTO broadcast_jobs_ownership"
+              " (broadcast_id, owner_node, updated_at, expires_at)"
+              " VALUES (?, ?, NOW(), ", ExpiresExpr/binary, ")">>),
     prepare(broadcast_set_job_started, broadcast_jobs,
             [id],
             <<"UPDATE broadcast_jobs SET started_at = CURRENT_TIMESTAMP"
@@ -240,7 +252,6 @@ prepare_queries(HostType) ->
                                  WorkerStateInsert, WorkerStateUpdate, WorkerStateKey),
 
     %% Ownership transition queries via update_returning helper.
-    ExpiresExpr = rdbms_queries:add_interval_seconds_expr(HostType),
     rdbms_queries:prepare_update_returning(HostType,
         #{name => broadcast_renew_ownership,
           table => {broadcast_jobs_ownership, <<"o">>},
