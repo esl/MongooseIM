@@ -321,8 +321,9 @@ persist_job_aborted_by_admin(HostType, Domain, JobId) ->
                 job_id => JobId,
                 domain => Domain,
                 host_type => HostType}),
-    try mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
-        _ -> ok
+    try
+        mod_broadcast_backend:set_job_aborted_admin(HostType, JobId),
+        mod_broadcast_backend:remove_ownership(HostType, JobId)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_aborted_admin_failed,
@@ -342,8 +343,9 @@ persist_job_finished(HostType, Domain, JobId) ->
                 job_id => JobId,
                 domain => Domain,
                 host_type => HostType}),
-    try mod_broadcast_backend:set_job_finished(HostType, JobId) of
-        _ -> ok
+    try
+        mod_broadcast_backend:set_job_finished(HostType, JobId),
+        mod_broadcast_backend:remove_ownership(HostType, JobId)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_finished_failed,
@@ -364,8 +366,9 @@ persist_job_aborted_error(HostType, Domain, JobId, Reason) ->
                  domain => Domain,
                  host_type => HostType}),
     ReasonBin = iolist_to_binary(io_lib:format("~p", [Reason])),
-    try mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin) of
-        _ -> ok
+    try
+        mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin),
+        mod_broadcast_backend:remove_ownership(HostType, JobId)
     catch
         Class:BackendReason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_aborted_error_failed,
@@ -458,7 +461,7 @@ synchronize_jobs(#state{host_type = HostType} = State) ->
             %% with the database and another node took over our jobs while we were in emergency mode.
             %% They are paused and their state may be outdated.
             stop_workers_for_jobs(HostType, State#state.worker_map, TakenJobIDs),
-            handle_sync_success(State#{worker_map => maps:without(TakenJobIDs, State#state.worker_map)}, RunningJobs);
+            handle_sync_success(State#state{worker_map = maps:without(TakenJobIDs, State#state.worker_map)}, RunningJobs);
         {error, Reason} ->
             handle_sync_failure(State, Reason)
     end.

@@ -80,7 +80,7 @@ stop(WorkerPid) ->
 pause(WorkerPid) ->
     safe_call(WorkerPid, pause).
 
--spec resume(pid()) -> ok | {error, not_paused} | noproc.
+-spec resume(pid()) -> ok | noproc.
 resume(WorkerPid) ->
     safe_call(WorkerPid, resume).
 
@@ -143,7 +143,7 @@ init({HostType, JobId}) ->
 loading_batch({call, From}, pause, Data) ->
     {next_state, paused, Data, [{reply, From, ok}]};
 loading_batch({call, From}, resume, Data) ->
-    {keep_state, Data, [{reply, From, {error, not_paused}}]};
+    {keep_state, Data, [{reply, From, ok}]};
 loading_batch({call, From}, get_domain, #data{job = Job} = Data) ->
     {keep_state, Data, [{reply, From, {ok, Job#broadcast_job.domain}}]};
 loading_batch(Origin, load_batch, Data)
@@ -225,7 +225,7 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
 sending_batch({call, From}, pause, Data) ->
     {next_state, paused, Data, [{reply, From, ok}]};
 sending_batch({call, From}, resume, Data) ->
-    {keep_state, Data, [{reply, From, {error, not_paused}}]};
+    {keep_state, Data, [{reply, From, ok}]};
 sending_batch({call, From}, get_domain, #data{job = Job} = Data) ->
     {keep_state, Data, [{reply, From, {ok, Job#broadcast_job.domain}}]};
 sending_batch({call, From}, stop, _Data) ->

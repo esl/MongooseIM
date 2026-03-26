@@ -27,7 +27,7 @@
     body := binary(),
     sender := jid:jid(),
     message_rate := pos_integer(),
-    owner_node := node(),
+    owner_node := node() | undefined,
     create_timestamp := calendar:datetime(),
     start_timestamp := calendar:datetime() | undefined,
     stop_timestamp := calendar:datetime() | undefined,

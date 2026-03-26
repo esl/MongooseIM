@@ -243,7 +243,7 @@ prepare_queries(HostType) ->
     prepare_stored(HostType, broadcast_renew_ownership, broadcast_jobs_ownership,
                    RenewOwnershipParams, <<"broadcast_renew_ownership_op">>),
     prepare_stored(HostType, broadcast_take_expired_jobs, broadcast_jobs_ownership,
-                   TakeExpiredParams, <<"broadcast_take_expired_jobs_op">>),
+                   TakeExpiredParams, <<"broadcast_take_expired_jobs_ids_op">>),
 
     %% Direct ownership cleanup query.
     prepare(broadcast_remove_ownership, broadcast_jobs_ownership,
