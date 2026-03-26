@@ -218,9 +218,9 @@ groups() ->
                             mod_ping,
                             mod_privacy,
                             mod_private,
-                            mod_pubsub,
-                            mod_pubsub_pep_mapping,
-                            mod_pubsub_default_node_config,
+                            mod_pubsub_old,
+                            mod_pubsub_old_pep_mapping,
+                            mod_pubsub_old_default_node_config,
                             mod_push_service_mongoosepush,
                             mod_register,
                             mod_roster,
@@ -2544,11 +2544,11 @@ mod_private(_Config) ->
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
     ?errh(T(#{<<"backend">> => <<"mysql">>})).
 
-mod_pubsub(_Config) ->
-    check_iqdisc(mod_pubsub),
-    check_module_defaults(mod_pubsub),
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
-    P = [modules, mod_pubsub],
+mod_pubsub_old(_Config) ->
+    check_iqdisc(mod_pubsub_old),
+    check_module_defaults(mod_pubsub_old),
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub_old">> => Opts}} end,
+    P = [modules, mod_pubsub_old],
     ?cfgh(P ++ [host], {prefix, <<"pubsub.">>},
           T(#{<<"host">> => <<"pubsub.@HOST@">>})),
     ?cfgh(P ++ [host], {fqdn, <<"pubsub.test">>},
@@ -2592,10 +2592,10 @@ mod_pubsub(_Config) ->
     ?errh(T(#{<<"item_publisher">> => 1})),
     ?errh(T(#{<<"sync_broadcast">> => []})).
 
-mod_pubsub_pep_mapping(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> =>
-                                              #{<<"pep_mapping">> => Opts}}} end,
-    P = [modules, mod_pubsub, pep_mapping],
+mod_pubsub_old_pep_mapping(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub_old">> =>
+                                             #{<<"pep_mapping">> => Opts}}} end,
+    P = [modules, mod_pubsub_old, pep_mapping],
     RequiredOpts = #{<<"namespace">> => <<"urn:xmpp:microblog:0">>,
                      <<"node">> => <<"mb">>},
     ?cfgh(P ++ [<<"urn:xmpp:microblog:0">>], <<"mb">>,
@@ -2603,10 +2603,10 @@ mod_pubsub_pep_mapping(_Config) ->
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     [?errh(T([RequiredOpts#{Key => <<>>}])) || Key <- maps:keys(RequiredOpts)].
 
-mod_pubsub_default_node_config(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> =>
-                                              #{<<"default_node_config">> => Opts}}} end,
-    P = [modules, mod_pubsub, default_node_config],
+mod_pubsub_old_default_node_config(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub_old">> =>
+                                             #{<<"default_node_config">> => Opts}}} end,
+    P = [modules, mod_pubsub_old, default_node_config],
     ?cfgh(P, [{access_model, open}],
           T(#{<<"access_model">> => <<"open">>})),
     ?cfgh(P, [{deliver_notifications, true}],

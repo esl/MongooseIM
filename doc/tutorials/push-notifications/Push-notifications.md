@@ -48,7 +48,7 @@ A direct connection to a push service (e.g. MongoosePush) must be configured on 
 node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
 
 ```toml
-[modules.mod_pubsub]
+[modules.mod_pubsub_old]
   plugins = ["push"] # mandatory minimal config
 
 [modules.mod_event_pusher.push]
@@ -123,12 +123,12 @@ The first component that we need to configure in MongooseIM is the [mod_event_pu
 
 A connector to [MongoosePush][] application. You can read more about it [here][WithMongoosePush].
 
-### [mod_pubsub][]'s `push` node
+### [mod_pubsub_old][]'s `push` node
 
 According to the [XEP-0357: Push Notifications][XEP-0357], all
 notifications generated via the module we have just enabled (i.e. [mod_event_pusher_push][]) have to
 be send to a push enabled publish-subscribe node. In order to allow clients to allocate such a
-node, we need to enable it in our [mod_pubsub][] on the MongooseIM server that will communicate with
+node, we need to enable it in our [mod_pubsub_old][] on the MongooseIM server that will communicate with
 the _XMPP Push Service_.
 
 [pubsub-less]: #mongooseim-as-a-pubsub-less-xmpp-server
@@ -138,7 +138,7 @@ the _XMPP Push Service_.
 [mod_event_pusher_push_plugin]: ../../modules/mod_event_pusher_push.md#plugin-module
 [mod_event_pusher_push_migration]: ../../modules/mod_event_pusher_push.md#migration-from-xep-0357-to-virtual-hosts
 [mod_event_pusher_push_virtual_hosts]: ../../modules/mod_event_pusher_push.md#virtual-pubsub-hosts
-[mod_pubsub]: ../../modules/mod_pubsub.md
+[mod_pubsub_old]: ../../modules/mod_pubsub_old.md
 [mod_push_service_mongoosepush]: ../../modules/mod_push_service_mongoosepush.md
 [MongoosePush]: https://github.com/esl/MongoosePush
 [WithMongoosePush]: MongoosePush-setup.md

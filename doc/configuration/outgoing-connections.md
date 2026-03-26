@@ -25,7 +25,7 @@ This allows you to create multiple dedicated pools of the same type.
 * `host_type` - the pool will be started for each static XMPP host or host type served by MongooseIM.
 
     !!! Note
-        A pool with scope `global` and tag `default` is used by services that are not configured by host_type, like `service_domain_db` or `service_mongoose_system_metrics`, or by modules that don't support dynamic domains, like `mod_pubsub`.
+        A pool with scope `global` and tag `default` is used by services that are not configured by host_type, like `service_domain_db` or `service_mongoose_system_metrics`, or by modules that don't support dynamic domains, like `mod_pubsub_old`.
         If a global default pool is not configured, these services will fail.
 
     !!! Note

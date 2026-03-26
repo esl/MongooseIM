@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : pubsub_form_utils.erl
 %%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : mod_pubsub form processing utilities
+%%% Purpose : mod_pubsub_old form processing utilities
 %%% Created : 28 Nov 2018 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 
 %%% Portions created by ProcessOne and Brian Cully <bjc@kublai.com>
@@ -41,14 +41,14 @@
 
 %% Missing options won't have any <value/> elements
 %% TODO: Right now
--spec make_sub_xform(Options :: mod_pubsub:subOptions()) -> {ok, exml:element()}.
+-spec make_sub_xform(Options :: mod_pubsub_old:subOptions()) -> {ok, exml:element()}.
 make_sub_xform(Options) ->
     XFields = [make_field(OptDefinition, Options) || OptDefinition <- sub_form_options()],
     {ok, make_sub_xform_xml(XFields)}.
 
 %% The list of options returned by this function may be a subset of the options schema.
 %% TODO: It is the behaviour of original code. Maybe it should be changed? To discuss.
--spec parse_sub_xform(exml:element() | undefined) -> {ok, mod_pubsub:subOptions()} | parse_error().
+-spec parse_sub_xform(exml:element() | undefined) -> {ok, mod_pubsub_old:subOptions()} | parse_error().
 parse_sub_xform(undefined) ->
     {ok, []};
 parse_sub_xform(XForm) ->
@@ -68,7 +68,7 @@ make_sub_xform_xml(XFields) ->
     mongoose_data_forms:form(#{ns => ?NS_PUBSUB_SUB_OPTIONS, fields => XFields}).
 
 -spec make_field(OptDefinition :: option_definition(),
-                 Options :: mod_pubsub:subOptions()) -> mongoose_data_forms:field().
+                 Options :: mod_pubsub_old:subOptions()) -> mongoose_data_forms:field().
 make_field({VarName, Key, #{ label := Label, form_type := FormType } = VarProps}, Options) ->
     #{var => VarName,
       type => FormType,
@@ -160,9 +160,9 @@ sub_form_options() ->
     ].
 
 -spec convert_fields_from_binaries([{VarNameBin :: binary(), Values :: [binary()]}],
-                                   Acc :: mod_pubsub:subOptions(),
+                                   Acc :: mod_pubsub_old:subOptions(),
                                    Schema :: [option_definition()]) ->
-    {ok, mod_pubsub:subOptions()} | convert_from_binary_error().
+    {ok, mod_pubsub_old:subOptions()} | convert_from_binary_error().
 convert_fields_from_binaries([], Result, _Schema) ->
     {ok, Result};
 convert_fields_from_binaries([{VarBin, Values} | RData], Acc, Schema) ->

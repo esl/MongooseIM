@@ -20,7 +20,7 @@
 -behaviour(gen_pubsub_node).
 -author('bjc@kublai.com').
 
--include("pubsub.hrl").
+-include("mod_pubsub_old.hrl").
 -include("jlib.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,

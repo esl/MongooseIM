@@ -30,7 +30,7 @@
 -module(pubsub_index).
 -author('christophe.romain@process-one.net').
 
--include("pubsub.hrl").
+-include("mod_pubsub_old.hrl").
 
 -export([init/0, new/1]).
 

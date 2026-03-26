@@ -75,11 +75,11 @@
 {suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", offline_stub_SUITE}.
-{suites, "tests", pep_SUITE}.
+{suites, "tests", pep_old_SUITE}.
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
-{suites, "tests", pubsub_SUITE}.
+{suites, "tests", pubsub_old_SUITE}.
 {suites, "tests", pubsub_s2s_SUITE}.
 {suites, "tests", push_SUITE}.
 {suites, "tests", push_http_SUITE}.

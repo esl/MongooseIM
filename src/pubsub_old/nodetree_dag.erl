@@ -25,7 +25,7 @@
 
 -include_lib("stdlib/include/qlc.hrl").
 
--include("pubsub.hrl").
+-include("mod_pubsub_old.hrl").
 -include("jlib.hrl").
 
 -export([init/2, terminate/2, set_node/1,
@@ -34,7 +34,7 @@
          get_subnodes/3, create_node/6,
          delete_node/2]).
 
--ignore_xref([{mod_pubsub_db_backend, get_parentnodes_tree, 2}]).
+-ignore_xref([{mod_pubsub_old_db_backend, get_parentnodes_tree, 2}]).
 
 -define(DEFAULT_NODETYPE, leaf).
 -define(DEFAULT_PARENTS, []).
@@ -49,13 +49,13 @@ terminate(Host, ServerHost) ->
 set_node(#pubsub_node{nodeid = {Key, _}, owners = Owners, options = Options} = Node) ->
     Parents = find_opt(collection, ?DEFAULT_PARENTS, Options),
     case validate_parentage(Key, Owners, Parents) of
-        true -> mod_pubsub_db_backend:set_node(Node#pubsub_node{parents = Parents});
+        true -> mod_pubsub_old_db_backend:set_node(Node#pubsub_node{parents = Parents});
         Other -> Other
     end.
 
 create_node(Key, Node, Type, Owner, Options, Parents) ->
     OwnerJID = jid:to_lower(jid:to_bare(Owner)),
-    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
+    case mod_pubsub_old_db_backend:find_node_by_name(Key, Node) of
         false ->
             N = #pubsub_node{nodeid = {Key, Node},
                     type = Type, parents = Parents, owners = [OwnerJID],
@@ -66,24 +66,24 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
     end.
 
 delete_node(Key, Node) ->
-    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
+    case mod_pubsub_old_db_backend:find_node_by_name(Key, Node) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         Record ->
             lists:foreach(fun (#pubsub_node{options = Opts} = Child) ->
                         NewOpts = remove_config_parent(Node, Opts),
                         Parents = find_opt(collection, ?DEFAULT_PARENTS, NewOpts),
-                        {ok, _} = mod_pubsub_db_backend:set_node(
+                        {ok, _} = mod_pubsub_old_db_backend:set_node(
                                     Child#pubsub_node{parents = Parents,
                                                       options = NewOpts})
                 end,
                 get_subnodes(Key, Node)),
-            mod_pubsub_db_backend:delete_node(Record),
+            mod_pubsub_old_db_backend:delete_node(Record),
             [Record]
     end.
 
 get_node(Key, Node) ->
-    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
+    case mod_pubsub_old_db_backend:find_node_by_name(Key, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         Record -> Record
     end.
@@ -95,18 +95,18 @@ get_nodes(Key, From) ->
     nodetree_tree:get_nodes(Key, From).
 
 get_parentnodes_tree(Key, Node, _From) ->
-    mod_pubsub_db_backend:get_parentnodes_tree(Key, Node).
+    mod_pubsub_old_db_backend:get_parentnodes_tree(Key, Node).
 
 get_subnodes(Host, Node, _From) ->
     get_subnodes(Host, Node).
 
 get_subnodes(Host, <<>>) ->
-    mod_pubsub_db_backend:get_subnodes(Host, <<>>);
+    mod_pubsub_old_db_backend:get_subnodes(Host, <<>>);
 
 get_subnodes(Host, Node) ->
-    case mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+    case mod_pubsub_old_db_backend:find_node_by_name(Host, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
-        _ -> mod_pubsub_db_backend:get_subnodes(Host, Node)
+        _ -> mod_pubsub_old_db_backend:get_subnodes(Host, Node)
     end.
 
 %%====================================================================
@@ -133,9 +133,9 @@ remove_config_parent(Node, [H | T], Acc) ->
     remove_config_parent(Node, T, [H | Acc]).
 
 -spec validate_parentage(
-        Key            :: mod_pubsub:hostPubsub(),
+        Key            :: mod_pubsub_old:hostPubsub(),
         Owners         :: [jid:ljid(), ...],
-        ParentNodes    :: [mod_pubsub:nodeId()])
+        ParentNodes    :: [mod_pubsub_old:nodeId()])
     -> true | {error, exml:element()}.
 validate_parentage(_Key, _Owners, []) ->
     true;
@@ -144,7 +144,7 @@ validate_parentage(Key, Owners, [[] | T]) ->
 validate_parentage(Key, Owners, [<<>> | T]) ->
     validate_parentage(Key, Owners, T);
 validate_parentage(Key, Owners, [ParentID | T]) ->
-    case mod_pubsub_db_backend:find_node_by_name(Key, ParentID) of
+    case mod_pubsub_old_db_backend:find_node_by_name(Key, ParentID) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{owners = POwners, options = POptions} ->

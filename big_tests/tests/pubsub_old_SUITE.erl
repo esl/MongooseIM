@@ -4,7 +4,7 @@
 %%% @end
 %%%===================================================================
 
--module(pubsub_SUITE).
+-module(pubsub_old_SUITE).
 
 -compile([export_all, nowarn_export_all]).
 
@@ -180,7 +180,7 @@ last_item_cache_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrument_helper:declared_events(mod_pubsub)),
+    instrument_helper:start(instrument_helper:declared_events(mod_pubsub_old)),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
@@ -357,8 +357,8 @@ subscribe_unsubscribe_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_events(mod_pubsub_set_subscribe, Bob, 2),
-              assert_events(mod_pubsub_set_unsubscribe, Bob, 2)
+              assert_events(mod_pubsub_old_set_subscribe, Bob, 2),
+              assert_events(mod_pubsub_old_set_unsubscribe, Bob, 2)
       end).
 
 subscribe_options_test(Config) ->
@@ -385,7 +385,7 @@ subscribe_options_test(Config) ->
               pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName},
                                                     [{expected_result, BobOpts}]),
 
-              assert_event(mod_pubsub_get_options, Bob)
+              assert_event(mod_pubsub_old_get_options, Bob)
       end).
 
 subscribe_options_deliver_option_test(Config) ->
@@ -436,7 +436,7 @@ subscribe_options_separate_request_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_options, Alice)
+              assert_event(mod_pubsub_old_set_options, Alice)
       end).
 
 publish_test(Config) ->
@@ -453,7 +453,7 @@ publish_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_publish, Alice)
+              assert_event(mod_pubsub_old_set_publish, Alice)
       end).
 
 publish_with_max_items_test(Config) ->
@@ -470,7 +470,7 @@ publish_with_max_items_test(Config) ->
 
               pubsub_tools:subscribe(Bob, Node, []),
 
-              %% mod_pubsub:broadcast_step/1 ensures that a publish notification for a new item
+              %% mod_pubsub_old:broadcast_step/1 ensures that a publish notification for a new item
               %% would always arrive before a retraction notification for an old item
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
               pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
@@ -553,7 +553,7 @@ request_all_items_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_get_items, Bob)
+              assert_event(mod_pubsub_old_get_items, Bob)
       end).
 
 request_particular_item_test(Config) ->
@@ -647,7 +647,7 @@ purge_all_items_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_purge, Alice)
+              assert_event(mod_pubsub_old_set_purge, Alice)
       end).
 
 publish_only_retract_items_scope_test(Config) ->
@@ -675,7 +675,7 @@ publish_only_retract_items_scope_test(Config) ->
 
                 pubsub_tools:delete_node(Alice, Node, []),
 
-                assert_event(mod_pubsub_set_retract, Bob)
+                assert_event(mod_pubsub_old_set_retract, Bob)
       end).
 
 
@@ -712,7 +712,7 @@ retrieve_default_configuration_test(Config) ->
               pubsub_tools:get_default_configuration(Alice, NodeAddr,
                                                      [{expected_result, default_config()}]),
 
-              assert_wait_for_event(mod_pubsub_get_default, Alice)
+              assert_wait_for_event(mod_pubsub_old_get_default, Alice)
       end).
 
 retrieve_configuration_test(Config) ->
@@ -728,7 +728,7 @@ retrieve_configuration_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_get_configure, Alice)
+              assert_event(mod_pubsub_old_get_configure, Alice)
       end).
 
 set_configuration_test(Config) ->
@@ -746,7 +746,7 @@ set_configuration_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_configure, Alice)
+              assert_event(mod_pubsub_old_set_configure, Alice)
       end).
 
 set_configuration_errors_test(Config) ->
@@ -777,7 +777,7 @@ set_configuration_errors_test(Config) ->
                                               {expected_error_type, <<"modify">>}]),
               pubsub_tools:set_configuration(Alice, Node, BadOpts,
                                              [{expected_error_type, <<"modify">>}]),
-              assert_no_event(mod_pubsub_set_configure, Alice),
+              assert_no_event(mod_pubsub_old_set_configure, Alice),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -962,7 +962,7 @@ get_affiliations_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_get_affiliations, Alice)
+              assert_event(mod_pubsub_old_get_affiliations, Alice)
       end).
 
 add_publisher_and_member_test(Config) ->
@@ -988,9 +988,9 @@ add_publisher_and_member_test(Config) ->
               pubsub_tools:receive_item_notification(Kate, <<"item1">>, Node, []),
 
               pubsub_tools:delete_node(Alice, Node, []),
-              assert_event(mod_pubsub_set_create, Alice),
-              assert_event(mod_pubsub_set_affiliations, Alice),
-              assert_wait_for_event(mod_pubsub_set_delete, Alice)
+              assert_event(mod_pubsub_old_set_create, Alice),
+              assert_event(mod_pubsub_old_set_affiliations, Alice),
+              assert_wait_for_event(mod_pubsub_old_set_delete, Alice)
       end).
 
 swap_owners_test(Config) ->
@@ -1065,7 +1065,7 @@ retrieve_user_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, []),
               pubsub_tools:delete_node(Alice, Node2, []),
 
-              assert_events(mod_pubsub_get_subscriptions, Bob, 3)
+              assert_events(mod_pubsub_old_get_subscriptions, Bob, 3)
       end).
 
 retrieve_node_subscriptions_test(Config) ->
@@ -1132,12 +1132,12 @@ modify_node_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, []),
 
               BobJid = escalus_utils:get_jid(Bob),
-              instrument_helper:assert(mod_pubsub_set_subscriptions, #{host_type => domain()},
+              instrument_helper:assert(mod_pubsub_old_set_subscriptions, #{host_type => domain()},
                                        fun(#{errors := 1, jid := From}) ->
                                            BobJid =:= jid:to_binary(From)
                                        end),
-              assert_events(mod_pubsub_set_subscriptions, Alice, 2),
-              assert_no_event(mod_pubsub_set_subscriptions, Bob)
+              assert_events(mod_pubsub_old_set_subscriptions, Alice, 2),
+              assert_no_event(mod_pubsub_old_set_subscriptions, Bob)
       end).
 
 process_subscription_requests_test(Config) ->
@@ -1686,11 +1686,11 @@ debug_get_items_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
 
-              Items = rpc(mim(), mod_pubsub, get_items, [NodeAddr, NodeName]),
+              Items = rpc(mim(), mod_pubsub_old, get_items, [NodeAddr, NodeName]),
               % We won't bother with importing records etc...
               2 = length(Items),
 
-              {error, _} = rpc(mim(), mod_pubsub, get_items, [NodeAddr, <<"no_such_node_here">>]),
+              {error, _} = rpc(mim(), mod_pubsub_old, get_items, [NodeAddr, <<"no_such_node_here">>]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1705,11 +1705,11 @@ debug_get_item_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
 
-              Item = rpc(mim(), mod_pubsub, get_item, [NodeAddr, NodeName, <<"item2">>]),
+              Item = rpc(mim(), mod_pubsub_old, get_item, [NodeAddr, NodeName, <<"item2">>]),
               % We won't bother with importing records etc...
               {<<"item2">>, _} = element(2, Item),
 
-              {error, _} = rpc(mim(), mod_pubsub, get_item, [NodeAddr, NodeName, <<"itemX">>]),
+              {error, _} = rpc(mim(), mod_pubsub_old, get_item, [NodeAddr, NodeName, <<"itemX">>]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1892,7 +1892,7 @@ required_modules(ExtraOpts) ->
     Opts = maps:merge(#{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                         host => subhost_pattern("pubsub.@HOST@")},
                       ExtraOpts),
-    [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, Opts)}].
+    [{mod_pubsub_old, config_parser_helper:mod_config(mod_pubsub_old, Opts)}].
 
 verify_config_fields(NodeConfig) ->
     ValidFields = [

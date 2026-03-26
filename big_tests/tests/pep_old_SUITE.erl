@@ -5,7 +5,7 @@
 %%% @end
 %%%===================================================================
 
--module(pep_SUITE).
+-module(pep_old_SUITE).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -437,7 +437,7 @@ authorize_access_model(Config) ->
               %% FIXME: Only one item should be here but node_pep is based on node_flat, which
               %% is node_dag's ancestor, so this entry gets duplicated because every plugin
               %% is queried for subscriptions. Nasty fix involves deduplicating entries
-              %% in mod_pubsub:get_subscriptions. The proper fix means not hacking node plugins
+              %% in mod_pubsub_old:get_subscriptions. The proper fix means not hacking node plugins
               %% into serving PEP but it's definitely a major change...
               Subs = [{NodeNS, <<"pending">>}, {NodeNS, <<"pending">>}],
               pubsub_tools:get_user_subscriptions(Bob, NodeAddr, [{expected_result, Subs}]),
@@ -513,14 +513,14 @@ field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
     [{mod_caps, default_mod_config(mod_caps)},
-     {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
+     {mod_pubsub_old, mod_config(mod_pubsub_old, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},
                                            host => subhost_pattern("pubsub.@HOST@")})}].
 required_modules(cache_tests) ->
     [{mod_caps, default_mod_config(mod_caps)},
-     {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
+     {mod_pubsub_old, mod_config(mod_pubsub_old, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},

@@ -128,4 +128,4 @@ required_modules(ExtraOpts) ->
     Opts = maps:merge(#{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                         host => subhost_pattern("pubsub.@HOST@")},
                       ExtraOpts),
-    [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, Opts)}].
+    [{mod_pubsub_old, config_parser_helper:mod_config(mod_pubsub_old, Opts)}].
