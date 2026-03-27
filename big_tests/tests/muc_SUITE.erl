@@ -34,7 +34,9 @@
          generate_rpc_jid/1,
          destroy_room/1,
          destroy_room/2,
+         get_member_list/2,
          stanza_muc_enter_room/2,
+         stanza_affiliation_list_request/2,
          stanza_to_room/2,
          stanza_to_room/3,
          room_address/1,
@@ -1537,12 +1539,6 @@ stop_room(Room) ->
                                    [domain_helper:host_type(), muc_host(), Room])
                            end, {error, not_found}),
     ok.
-
-get_member_list(Alice, Room) ->
-    escalus:send(Alice, stanza_affiliation_list_request(Room, <<"member">>)),
-    List = escalus:wait_for_stanza(Alice),
-    escalus:assert(is_iq_result, List),
-    List.
 
 remove_user(Bob) ->
     BJ = escalus_client:full_jid(Bob),
@@ -5140,11 +5136,6 @@ stanza_role_list_request(Room, Role) ->
 stanza_form_request(Room) ->
     Payload = [],
     stanza_to_room(escalus_stanza:iq_get(?NS_MUC_OWNER, Payload), Room).
-
-stanza_affiliation_list_request(Room, Affiliation) ->
-    Payload = [ #xmlel{name = <<"item">>,
-                       attrs = #{<<"affiliation">> => Affiliation}} ],
-    stanza_to_room(escalus_stanza:iq_get(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_ban_list_request(Room) ->
     stanza_affiliation_list_request(Room, <<"outcast">>).

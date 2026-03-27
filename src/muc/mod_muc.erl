@@ -1208,7 +1208,15 @@ can_access_room(_, #{room := Room, user := User}, _) ->
     Extra :: gen_hook:extra().
  remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     MUCHost = server_host_to_muc_host(HostType, Domain),
+    {ok, Rooms} = mod_muc_backend:get_rooms(HostType, MUCHost),
     mod_muc_backend:remove_domain(HostType, MUCHost, Domain),
+    Pids = lists:filtermap(fun(#muc_room{name_host = {N, _}}) ->
+                               case find_room_pid(HostType, MUCHost, N) of
+                                   {ok, Pid} -> {true, Pid};
+                                   _ -> false
+                               end
+                           end, Rooms),
+    lists:foreach(fun mod_muc_room:stop/1, Pids),
     {ok, Acc}.
 
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
