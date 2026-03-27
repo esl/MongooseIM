@@ -177,7 +177,7 @@ group_to_modules(vcard_removal) ->
 group_to_modules(last_removal) ->
     [{mod_last, mod_config(mod_last, #{backend => rdbms})}];
 group_to_modules(broadcast_removal) ->
-    [{mod_broadcast, #{backend => rdbms}}];
+    [{mod_broadcast, #{backend => rdbms, lease_time => 600}}];
 group_to_modules(push_removal) ->
     PushOpts = #{backend => rdbms},
     [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}];

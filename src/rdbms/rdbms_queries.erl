@@ -358,8 +358,8 @@ add_interval_seconds_expr(HostType) ->
 -type update_returning_spec() ::
     #{%% Query name (also base for MySQL derived statements).
       name          := mongoose_rdbms:query_name(),
-      %% {TargetTable, TargetAlias}, e.g. {broadcast_jobs_ownership, <<"o">>}.
-      table         := {atom(), binary()},
+            %% Target table name, e.g. broadcast_jobs_ownership.
+            table         := atom(),
       %% binary() -> "column = ?" (consumes one update param).
       %% {Column, Expr} -> "column = Expr" (consumes one update param iff Expr has '?').
       update_fields := [binary() | {binary(), binary()}],
@@ -412,15 +412,16 @@ execute_update_returning(HostType, PoolTag, Name, UpdateParams, FilterParams) ->
 %% --- PG/CockroachDB: single UPDATE ... FROM ... WHERE ... RETURNING ---
 
 prepare_update_returning_pgsql(HostType, Spec) ->
-    #{name := Name, table := {Table, Alias},
+    #{name := Name, table := Table,
       update_fields := Updates, filter_fields := FilterFields,
       return_fields := ReturnFields, joins := Joins, filters := Filters} = Spec,
+    TableBin = atom_to_binary(Table, utf8),
     UpdatesT = format_fields_for_db(HostType, Updates),
-    SetClause = ur_set_clause(Alias, UpdatesT),
+    SetClause = ur_set_clause(UpdatesT),
     FromClause = pgsql_ur_from_clause(Joins),
     WhereClause = pgsql_ur_where_clause(Joins, Filters),
     ReturnClause = join(ReturnFields, <<", ">>),
-    SQL = ["UPDATE ", atom_to_binary(Table, utf8), " ", Alias,
+    SQL = ["UPDATE ", TableBin,
            " SET ", SetClause,
            FromClause,
            " WHERE ", WhereClause,
@@ -460,9 +461,10 @@ mysql_derived_name(BaseName, Suffix) ->
     list_to_atom(atom_to_list(BaseName) ++ Suffix).
 
 prepare_update_returning_mysql(HostType, Spec) ->
-    #{name := Name, table := {Table, Alias},
+    #{name := Name, table := Table,
       update_fields := Updates, filter_fields := FilterFields,
       return_fields := ReturnFields, joins := Joins, filters := Filters} = Spec,
+    TableBin = atom_to_binary(Table, utf8),
     UpdatesT = format_fields_for_db(HostType, Updates),
     JoinClause = mysql_ur_join_clause(Joins),
 
@@ -471,7 +473,7 @@ prepare_update_returning_mysql(HostType, Spec) ->
     ReturnSelect = join(ReturnFields, <<", ">>),
     LockSQL = iolist_to_binary(
         ["SELECT ", ReturnSelect,
-         " FROM ", atom_to_binary(Table, utf8), " ", Alias,
+         " FROM ", TableBin,
          JoinClause,
          " WHERE ", Filters,
          " FOR UPDATE"]),
@@ -480,9 +482,9 @@ prepare_update_returning_mysql(HostType, Spec) ->
 
     %% 2. UPDATE ... JOIN ... SET ... WHERE filters (bulk update the same rows)
     UpdateName = mysql_derived_name(Name, "_update"),
-    SetClause = ur_set_clause(Alias, UpdatesT),
+    SetClause = ur_set_clause(UpdatesT),
     UpdateSQL = iolist_to_binary(
-        ["UPDATE ", atom_to_binary(Table, utf8), " ", Alias,
+        ["UPDATE ", TableBin,
          JoinClause,
          " SET ", SetClause,
          " WHERE ", Filters]),
@@ -498,14 +500,14 @@ mysql_ur_join_clause(Joins) ->
     [[" JOIN ", atom_to_binary(JT, utf8), " ", JA, " ON ", On]
      || {JT, JA, On} <- Joins].
 
-ur_set_clause(Alias, Updates) ->
-    Exprs = [ur_set_field(Alias, U) || U <- Updates],
+ur_set_clause(Updates) ->
+    Exprs = [ur_set_field(U) || U <- Updates],
     join(Exprs, <<", ">>).
 
-ur_set_field(Alias, {Col, Expr}) when is_binary(Col), is_binary(Expr) ->
-    [Alias, ".", Col, " = ", Expr];
-ur_set_field(Alias, Col) when is_binary(Col) ->
-    [Alias, ".", Col, " = ?"].
+ur_set_field({Col, Expr}) when is_binary(Col), is_binary(Expr) ->
+    [Col, " = ", Expr];
+ur_set_field(Col) when is_binary(Col) ->
+    [Col, " = ?"].
 
 execute_update_returning_mysql(HostType, PoolTag, Name, UpdateParams, FilterParams) ->
     LockName = mysql_derived_name(Name, "_lock"),
