@@ -12,11 +12,13 @@
          get_nick/3,
          set_nick/4,
          unset_nick/3,
-         remove_domain/3
+         remove_domain/3,
+         remove_user/5
         ]).
 
 -ignore_xref([can_use_nick/4, forget_room/3, get_nick/3, get_rooms/2, remove_domain/3, init/2,
-              restore_room/3, set_nick/4, store_room/4, unset_nick/3]).
+              restore_room/3, set_nick/4, store_room/4, unset_nick/3, get_user_rooms/4,
+              remove_user/5]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
@@ -82,6 +84,9 @@ prepare_queries(HostType) ->
     prepare(muc_room_aff_remove_user_domain, muc_room_aff,
             [lserver],
             <<"DELETE FROM muc_room_aff WHERE lserver = ?">>),
+    prepare(muc_delete_user_aff, muc_room_aff,
+            [room_id, luser, lserver],
+            <<"DELETE FROM muc_room_aff WHERE room_id = ? AND luser = ? AND lserver = ?">>),
     %% Queries to muc_registered table
     prepare(muc_select_nick_user, muc_registered,
             [muc_host, lserver, nick],
@@ -123,6 +128,22 @@ remove_domain(HostType, MucHost, Domain) ->
         mongoose_rdbms:execute_successfully(
             HostType, muc_rooms_remove_domain, [MucHost]),
         ok
+        end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
+
+-spec remove_user(mongooseim:host_type(), mod_muc:room(), muc_host(), jid:luser(), jid:lserver()) -> ok.
+remove_user(HostType, RoomName, MucHost, UserU, UserS) ->
+    F = fun() ->
+            mongoose_rdbms:execute_successfully(HostType, muc_delete_nick, [MucHost, UserS, UserU]),
+            case execute_select_room(HostType, MucHost, RoomName) of
+                {selected, [{ExtRoomID, _}]} ->
+                    mongoose_rdbms:execute_successfully(HostType, muc_delete_user_aff, [ExtRoomID, UserU, UserS]),
+                    ok;
+                {selected, []} ->
+                    ok % we don't care
+            end,
+            ok
         end,
     {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
     ok.

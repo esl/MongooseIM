@@ -9,6 +9,7 @@
          get_nick/3,
          set_nick/4,
          unset_nick/3,
+         remove_user/5,
          remove_domain/3
     ]).
 
@@ -63,6 +64,8 @@
     ok | {error, term()}.
 
 -callback remove_domain(mongooseim:host_type(), muc_host(), jid:lserver()) -> ok.
+
+-callback remove_user(mongooseim:host_type(), mod_muc:room(), muc_host(), jid:luser(), jid:lserver()) -> ok.
 
 -optional_callbacks([remove_domain/3]).
 
@@ -142,3 +145,8 @@ remove_domain(HostType, MUCHost, Domain) ->
         false ->
             ok
     end.
+
+-spec remove_user(mongooseim:host_type(), mod_muc:room(), muc_host(), jid:luser(), jid:lserver()) -> ok.
+remove_user(HostType, RoomName, MUCHost, UserU, UserS) ->
+    Args = [HostType, RoomName, MUCHost, UserU, UserS],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

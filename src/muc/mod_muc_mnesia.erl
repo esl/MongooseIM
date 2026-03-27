@@ -31,6 +31,7 @@
          store_room/4,
          restore_room/3,
          forget_room/3,
+         remove_user/5,
          get_rooms/2,
          get_user_rooms/4,
          can_use_nick/4,
@@ -107,6 +108,19 @@ forget_room(HostType, MucHost, RoomName) ->
                          sub_host => MucHost, host_type => HostType,
                          room => RoomName, reason => Result}),
             {error, Result}
+    end.
+
+-spec remove_user(mongooseim:host_type(), mod_muc:room(), muc_host(), jid:luser(), jid:lserver()) -> ok.
+remove_user(HostType, RoomName, MucHost, UserU, UserS) ->
+    case restore_room(HostType, MucHost, RoomName) of
+        {ok, Opts} ->
+            Affs = proplists:get_value(affiliations, Opts, []),
+            Matcher = fun({{U, S, _}, _}) -> {U, S} /= {UserU, UserS} end,
+            Affs1 = lists:filter(Matcher, Affs),
+            Opts1 = [{affiliations, Affs1} | proplists:delete(affiliations, Opts)],
+            store_room(HostType, MucHost, RoomName, Opts1);
+        {error, room_not_found} ->
+            ok
     end.
 
 get_rooms(HostType, MucHost) ->

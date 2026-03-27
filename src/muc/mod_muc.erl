@@ -1222,13 +1222,17 @@ remove_user(Acc, #{jid := #jid{luser = UserU, lserver = UserS}},
     {ok, Rooms} = Res,
     Failures = lists:filtermap(fun(R) -> remove_user_from_online(R, UserU, UserS) end, Rooms),
     logger:warning("asdf Failures: ~p~n", [Failures]),
+    lists:foreach(fun(R) -> remove_user_from_offline(HostType, R, UserU, UserS) end, Failures),
     {ok, Acc}.
 
 remove_user_from_online(#muc_room{name_host = {Name, Host}} = Room, UserU, UserS) ->
     case mod_muc_room:remove_user(#jid{luser = Name, lserver = Host}, UserU, UserS) of
         ok -> false;
-        E -> {true, Room}
+        _ -> {true, Room}
     end.
+
+remove_user_from_offline(HostType, #muc_room{name_host = {Name, Host}}, UserU, UserS) ->
+    mod_muc_backend:remove_user(HostType, Name, Host, UserU, UserS).
 
 -spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
