@@ -209,4 +209,5 @@ to_atom(Name, Suffix) ->
 
 -spec extract_meta(map()) -> meta().
 extract_meta(LogMeta) ->
-    maps:with([mfa, file, line, pid], LogMeta).
+    Meta = maps:with([mfa, file, line, pid, time], LogMeta),
+    Meta#{node => node()}.
