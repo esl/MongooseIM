@@ -73,7 +73,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
                      = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
-              msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
+              msg_to_aff_user_online(RoomJID, U, S, Attrs, Children, HandleFun)
       end, AffUsers),
     mongoose_acc:update_stanza(#{from_jid => RoomJID,
                                  to_jid => RoomBareJid,
@@ -531,3 +531,14 @@ room_event(Acc, RoomJID) ->
       affiliation => owner,
       role => moderator,
       timestamp => TS}.
+
+-spec msg_to_aff_user_online(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
+                             Attrs :: exml:attrs(), Children :: [exml:child()],
+                             HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
+msg_to_aff_user_online(RoomJID, U, S, Attrs, Children, HandleFun) ->
+    case ejabberd_sm_backend:get_sessions(U, S) of
+        [_ | _] ->
+            msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun);
+        _ ->
+            ok
+    end.
