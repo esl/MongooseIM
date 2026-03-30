@@ -360,26 +360,29 @@ analyze_coverage(_, _) ->
 
 prepare(Props) ->
     Nodes = get_mongoose_nodes(Props),
-    maybe_compile_cover(Nodes),
-    block_nodes(Props).
+    maybe_compile_cover(Nodes).
 
 maybe_compile_cover([]) ->
     io:format("cover: skip cover compilation~n", []),
     ok;
-maybe_compile_cover([CoverNode|_] = Nodes) ->
+maybe_compile_cover([Node | _] = Nodes) ->
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
-    import_code_paths(hd(Nodes)),
+    import_code_paths(Node),
 
-    cover_start(CoverNode, Nodes),
-    Dir = call(hd(Nodes), code, lib_dir, [mongooseim, ebin]),
+    AllNodes = [node() | Nodes],
+
+    Results = erpc:multicall(AllNodes, cover, start, []),
+    assert_results(Results),
+    
+    Dir = call(Node, code, lib_dir, [mongooseim, ebin]),
 
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
-                            Results = cover_compile_dir(CoverNode, Dir),
-                            Ok = [X || X = {ok, _} <- Results],
-                            NotOk = Results -- Ok,
-                            #{ok => length(Ok), failed => NotOk}
-                        end),
+        CompileResults = erpc:multicall(AllNodes, cover, compile_beam_directory, [Dir]),
+        Modules = lists:usort([{T, X} || {T, List} <- CompileResults, X <- List]),
+        {Ok, Failed} = lists:partition(fun({ok, {T, _}}) -> T == ok end, Modules),
+        #{ok => length(Ok), failed => Failed}
+    end),
     github_actions_fold("cover compiled output", fun() ->
             io:format("cover: compiled ~p~n", [Compiled])
         end),
@@ -387,28 +390,29 @@ maybe_compile_cover([CoverNode|_] = Nodes) ->
     ok.
 
 analyze(Props, CoverOpts) ->
-    unblock_nodes(Props),
     io:format("Coverage analyzing~n"),
     Nodes = get_mongoose_nodes(Props),
     analyze(Props, CoverOpts, Nodes).
 
 analyze(_Props, _CoverOpts, []) ->
     ok;
-analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
-    %% Import small tests cover
+analyze(_Props, CoverOpts, Nodes) ->
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
-    report_time("Import cover data into run_common_test node", fun() ->
-            [cover_import(CoverNode, File) || File <- Files]
-        end),
+    report_time("Import cover data from small tests", fun() ->
+        [cover:import(File) || File <- Files]
+    end),
+    report_time("Import cover data from MongooseIM nodes", fun() ->
+        import(Nodes)
+    end),
     report_time("Export merged cover data", fun() ->
-                        cover_export(CoverNode, "/tmp/mongoose_combined.coverdata")
-		end),
+        cover:export("/tmp/mongoose_combined.coverdata")
+	end),
     case {os:getenv("GITHUB_RUN_ID"), os:getenv("CIRCLECI")} of
         {false, false} ->
-            Mods = modules_to_analyze(CoverNode, CoverOpts),
+            Mods = modules_to_analyze(CoverOpts),
             Txt = "Export HTML report for " ++ integer_to_list(length(Mods)) ++ " modules",
-            report_time(Txt, fun() -> make_html(CoverNode, Mods) end);
+            report_time(Txt, fun() -> make_html(Mods) end);
         _ ->
             ok
     end,
@@ -418,11 +422,32 @@ analyze(_Props, CoverOpts, [CoverNode|_] = Nodes) ->
             ok;
         _ ->
             report_time("Stopping cover on MongooseIM nodes", fun() ->
-                        cover_stop(CoverNode, Nodes)
-                    end)
+                Res = erpc:multicall(Nodes, cover, stop, []),
+                assert_results(Res)
+            end)
     end.
 
-make_html(CoverNode, Modules) ->
+import(Nodes) ->
+    ReqIds = lists:foldl(
+        fun(Node, Acc) ->
+            Path = lists:concat(["/tmp/", Node, ".coverdata"]),
+            erpc:send_request(Node, cover, export, [Path], Path, Acc)
+        end,
+        erpc:reqids_new(),
+        Nodes
+    ),
+    import_wait(ReqIds).
+
+import_wait(ReqIds) ->
+    case erpc:wait_response(ReqIds, 30_000, true) of
+        {{response, ok}, Path, NewReqIds} ->
+            ok = cover:import(Path),
+            import_wait(NewReqIds);
+        no_request ->
+            ok
+    end.
+
+make_html(Modules) ->
     {ok, Root} = file:get_cwd(),
     SortScript = Root ++ "/priv/sorttable.js",
     os:cmd("cp " ++ SortScript ++ " " ++ ?CT_REPORT),
@@ -441,10 +466,10 @@ make_html(CoverNode, Modules) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
                   %% We assume that import_code_paths/1 was called earlier
-                  case cover_analyse(CoverNode, Module) of
+                  case cover:analyse(Module, module) of
                       {ok, {Module, {C, NC}}} ->
                           FilePathC = filename:join([Root, CoverageDir, FileName]),
-                          case cover_analyse_to_html_file(CoverNode, Module, FilePathC) of
+                          case catch cover:analyse_to_file(Module, FilePathC, [html]) of
                               {ok, _} ->
                                   file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                                   {CAcc + C, NCAcc + NC, Skipped, Failed, OK + 1};
@@ -528,9 +553,9 @@ module_list(undefined) ->
 module_list(ModuleList) ->
     [ list_to_atom(L) || L <- string:tokens(ModuleList, ", ") ].
 
-modules_to_analyze(CoverNode, true) ->
-    lists:usort(cover_all_modules(CoverNode));
-modules_to_analyze(_CoverNode, ModuleList) when is_list(ModuleList) ->
+modules_to_analyze(true) ->
+    lists:usort(assert_list(cover:imported_modules()) ++ assert_list(cover:modules()));
+modules_to_analyze(ModuleList) when is_list(ModuleList) ->
     ModuleList.
 
 add({X1, X2, X3, X4},
@@ -605,9 +630,6 @@ host_name({HostName,_}) -> HostName.
 host_param(Name, {_, Params}) ->
     {Name, Param} = lists:keyfind(Name, 1, Params),
     Param.
-
-host_param(Name, {_, Params}, Default) ->
-    proplists:get_value(Name, Params, Default).
 
 report_time(Description, Fun) ->
 	report_progress("~nExecuting ~ts~n", [Description]),
@@ -699,6 +721,7 @@ anaylyze_groups_runs(LatestCTRun) ->
             proplists:get_value(total_failed, Terms, undefined);
       {error, Error} ->
             error_logger:error_msg("Error reading all_groups.summary: ~p~n", [Error]),
+
             undefined
     end.
 
@@ -764,88 +787,10 @@ assert_preset_present(Preset, PresetConfs) ->
 
 assert_list(X) when is_list(X) -> X.
 
-%% We use mim1 as a main node.
-%% Only the main node supports meck
-%% (other nodes should not use meck for the cover compiled modules).
-cover_start(CoverNode, Nodes) ->
-    {ok, _} = cover_call(CoverNode, start, [Nodes]),
-    CoverNode = cover_call(CoverNode, get_main_node, []),
-    ok.
-
-cover_stop(CoverNode, Nodes) ->
-    cover_call(CoverNode, stop, [Nodes]).
-
-cover_all_modules(CoverNode) ->
-    List1 = assert_list(cover_call(CoverNode, imported_modules, [])),
-    List2 = assert_list(cover_call(CoverNode, modules, [])),
-    List1 ++ List2.
-
-cover_analyse_to_html_file(CoverNode, Module, FilePathC) ->
-    catch cover_call(CoverNode, analyse_to_file, [Module, FilePathC, [html]]).
-
-cover_analyse(CoverNode, Module) ->
-    cover_call(CoverNode, analyse, [Module, module]).
-
-cover_export(CoverNode, ToFile) ->
-    cover_call(CoverNode, export, [ToFile]).
-
-cover_import(CoverNode, FromFile) ->
-    cover_call(CoverNode, import, [FromFile]).
-
-cover_compile_dir(CoverNode, Dir) ->
-    cover_call(CoverNode, compile_beam_directory, [Dir]).
-
-cover_call(CoverNode, Fun, Args) ->
-    rpc:call(CoverNode, cover, Fun, Args).
-
-block_nodes(Props) ->
-   [block_node(Node, BlockNode, Props) || {Node, BlockNode} <- block_nodes_specs(Props)],
-   ok.
-
-unblock_nodes(Props) ->
-   [unblock_node(Node, BlockNode, Props) || {Node, BlockNode} <- block_nodes_specs(Props)],
-   ok.
-
-%% Reads `blocks_hosts' parameter for the host from `test.config'.
-%% Returns a list of blocks to do like `[{mim, fed}]'.
-block_nodes_specs(Props) ->
-    EnabledHosts = [ H || H <- get_all_hosts(Props), is_test_host_enabled(host_name(H)) ],
-    [{host_name(H), BlockName}
-     || H <- EnabledHosts, BlockName <- host_param(blocks_hosts, H, []),
-        is_test_host_enabled(BlockName)].
-
-host_name_to_node(Name, Props) ->
-    Hosts = get_all_hosts(Props),
-    Host = proplists:get_value(Name, Hosts, []),
-    case proplists:get_value(node, Host) of
-        undefined ->
-            error({host_name_to_node_failed, Name, Props});
-        Node ->
-            Node
-    end.
-
-%% Do not allow node Name to talk to node BlockName
-block_node(Name, BlockName, Props) ->
-    Node = host_name_to_node(Name, Props),
-    BlockNode = host_name_to_node(BlockName, Props),
-    rpc_call(Node, erlang, set_cookie, [BlockNode, make_bad_cookie(Name, BlockNode)]),
-    rpc_call(Node, erlang, disconnect_node, [BlockNode]),
-    Cond = fun() -> lists:member(BlockNode, rpc_call(Node, erlang, nodes, [])) end,
-    wait_helper:wait_until(Cond, false).
-
-unblock_node(Name, BlockName, Props) ->
-    Node = host_name_to_node(Name, Props),
-    BlockNode = host_name_to_node(BlockName, Props),
-    DefCookie = rpc_call(Node, erlang, get_cookie, []),
-    rpc_call(Node, erlang, set_cookie, [BlockNode, DefCookie]).
-
-make_bad_cookie(Name, BlockName) ->
-    list_to_atom(atom_to_list(Name) ++ "_blocks_" ++ atom_to_list(BlockName)).
-
-rpc_call(Node, M, F, Args) ->
-    case rpc:call(Node, M, F, Args) of
-        {badrpc, Reason} ->
-            error({rpc_call_failed, Reason, Node, {M, F, Args}});
-        Res ->
-            Res
-    end.
+assert_results(List) ->
+    lists:foreach(
+        fun({ok, ok}) -> ok;
+           ({ok, {ok, _}}) -> ok;
+           ({ok, {error, {already_started, _}}}) -> ok
+        end,
+        List).
