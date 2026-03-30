@@ -35,7 +35,7 @@
 -export([terminate/1]).
 
 %% API for tests
--export([expect/1]).
+-export([expect/1, max_unexpected_errors_logged/1]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
@@ -81,7 +81,15 @@
 %% Uses the same pattern types as log_error_helper:expect/1.
 -spec expect(pattern()) -> true.
 expect(Pattern) ->
-    ets:insert(?PATTERNS_TABLE, {Pattern}).
+    ets:insert(?PATTERNS_TABLE, {expect, Pattern}).
+
+%% @doc Set the maximum allowed unexpected errors for the current suite.
+%% If the count exceeds this limit, end_per_suite will return
+%% {error, too_many_unexpected_errors}.
+%% Call from init_per_suite or init_per_group.
+-spec max_unexpected_errors_logged(non_neg_integer()) -> true.
+max_unexpected_errors_logged(N) when is_integer(N), N >= 0 ->
+    ets:insert(?PATTERNS_TABLE, {max_unexpected_errors_logged, N}).
 
 %% CT hook callbacks
 
@@ -169,16 +177,21 @@ post_end_per_suite(Suite, _Config, Return, #state{report_dir = undefined} = Stat
     {Return, State};
 post_end_per_suite(Suite, _Config, Return, State) ->
     SuiteResult = try
+        MaxUnexp = get_max_unexpected_errors_logged(),
         State1 = collect_errors({end_per_suite}, State),
         rpc(mim(), ?COLLECTOR, stop, [?INSTANCE]),
         delete_patterns_table(),
         write_report(Suite, State1),
-        {Suite, State1#state.all_total, State1#state.unexpected_total}
+        Unexp = State1#state.unexpected_total,
+        check_unexpected_limit(Suite, Unexp, MaxUnexp,
+                               State1#state.report_dir),
+        {Suite, State1#state.all_total, Unexp}
     catch Class:Reason:Stacktrace ->
-        ct:pal("cth_error_report: failed to write report for ~p: ~p:~p~n~p",
+        ct:pal("cth_error_report: failed for ~p: ~p:~p~n~p",
                [Suite, Class, Reason, Stacktrace]),
         delete_patterns_table(),
-        {Suite, State#state.all_total, State#state.unexpected_total}
+        {Suite, State#state.all_total,
+         State#state.unexpected_total}
     end,
     Results = [SuiteResult | State#state.suite_results],
     {Return, State#state{report_dir = undefined, mark = undefined,
@@ -193,6 +206,19 @@ terminate(#state{suite_results = []}) ->
 terminate(#state{summary_dir = Dir, suite_results = RevResults}) ->
     write_summary(Dir, lists:sort(RevResults)).
 
+%% Unexpected errors limit check
+
+check_unexpected_limit(_Suite, _Unexp, undefined, _Dir) ->
+    ok;
+check_unexpected_limit(_Suite, Unexp, Max, _Dir) when Unexp =< Max ->
+    ok;
+check_unexpected_limit(Suite, Unexp, Max, ReportDir) ->
+    Msg = io_lib:format("~p: ~p unexpected ~s logged,"
+                        " max allowed: ~p~n",
+                        [Suite, Unexp, plural(Unexp, "error"), Max]),
+    MarkerFile = filename:join(ReportDir, "limit_exceeded"),
+    file:write_file(MarkerFile, Msg, [append]).
+
 %% Parallel group detection
 
 -spec is_parallel_group(list()) -> boolean().
@@ -205,8 +231,7 @@ is_parallel_group(Config) ->
 init_patterns_table() ->
     case ets:whereis(?PATTERNS_TABLE) of
         undefined ->
-            ets:new(?PATTERNS_TABLE,
-                    [named_table, public, bag]);
+            ets_helper:new(?PATTERNS_TABLE, [bag]);
         _Tid ->
             ets:delete_all_objects(?PATTERNS_TABLE)
     end.
@@ -214,13 +239,24 @@ init_patterns_table() ->
 delete_patterns_table() ->
     case ets:whereis(?PATTERNS_TABLE) of
         undefined -> ok;
-        _Tid -> ets:delete(?PATTERNS_TABLE)
+        _Tid -> ets_helper:delete(?PATTERNS_TABLE)
     end.
 
 get_patterns() ->
     case ets:whereis(?PATTERNS_TABLE) of
         undefined -> [];
-        _Tid -> [P || {P} <- ets:tab2list(?PATTERNS_TABLE)]
+        _Tid -> [P || {expect, P} <- ets:tab2list(?PATTERNS_TABLE)]
+    end.
+
+get_max_unexpected_errors_logged() ->
+    case ets:whereis(?PATTERNS_TABLE) of
+        undefined ->
+            undefined;
+        _Tid ->
+            case ets:match(?PATTERNS_TABLE, {max_unexpected_errors_logged, '$1'}) of
+                [[N] | _] -> N;
+                [] -> undefined
+            end
     end.
 
 %% Error collection
@@ -433,13 +469,15 @@ format_section_header({testcase, _Groups, TC}) ->
 format_section_errors_log([], []) ->
     "(no errors)\n";
 format_section_errors_log([], Expected) ->
-    io_lib:format("(~p expected error(s))~n", [length(Expected)]);
+    N = length(Expected),
+    io_lib:format("(~p expected ~s)~n", [N, plural(N, "error")]);
 format_section_errors_log(Unexpected, Expected) ->
     ULines = lists:map(fun format_entry_unexpected_log/1, Unexpected),
     ELines = lists:map(fun format_entry_expected_log/1, Expected),
+    Total = length(Unexpected) + length(Expected),
     Summary = io_lib:format(
-        "~p error(s): ~p unexpected, ~p expected~n",
-        [length(Unexpected) + length(Expected),
+        "~p ~s: ~p unexpected, ~p expected~n",
+        [Total, plural(Total, "error"),
          length(Unexpected), length(Expected)]),
     [Summary, ULines, ELines].
 
@@ -587,6 +625,9 @@ pretty_print_map(Map) ->
     Pairs = maps:to_list(Map),
     Lines = [io_lib:format("  ~0p => ~0p", [K, V]) || {K, V} <- Pairs],
     ["#{\n", lists:join(",\n", Lines), "\n}"].
+
+plural(1, Word) -> Word;
+plural(_, Word) -> Word ++ "s".
 
 html_escape(Bin) when is_binary(Bin) ->
     html_escape(binary_to_list(Bin));
