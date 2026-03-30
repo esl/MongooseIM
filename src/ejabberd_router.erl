@@ -30,6 +30,7 @@
 %% API
 -export([route/3,
          route/4,
+         route/5,
          route_error/4,
          route_error_reply/4]).
 
@@ -72,13 +73,11 @@ start_link() ->
     To     :: jid:jid(),
     Packet :: mongoose_acc:t() | exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-    % ?LOG_ERROR("Deprecated - it should be Acc: ~p", [Packet]),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => From#jid.lserver,
                               element => Packet,
                               from_jid => From,
                               to_jid => To }),
-    % (called by broadcasting)
     route(From, To, Acc);
 route(From, To, Acc) ->
     ?LOG_DEBUG(#{what => route, acc => Acc}),
@@ -93,10 +92,7 @@ route(From, To, Acc) ->
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
             Acc :: mongoose_acc:t(),
-            El :: exml:element() | {error, term()}) -> mongoose_acc:t().
-route(_From, _To, Acc, {error, Reason} = Err) ->
-    ?LOG_INFO(#{what => cannot_route_stanza, acc => Acc, reason => Reason}),
-    mongoose_acc:append(router, result, Err, Acc);
+            El :: exml:element()) -> mongoose_acc:t().
 route(From, To, Acc, El) ->
     Acc1 = mongoose_acc:update_stanza(#{ from_jid => From,
                                          to_jid => To,

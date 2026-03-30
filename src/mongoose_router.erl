@@ -3,6 +3,7 @@
 -define(TABLE, ?MODULE).
 
 -export([start/0, stop/0, routing_modules_list/0, default_routing_modules/0]).
+-export([route/1]).
 
 -export([get_all_domains/0, lookup_route/1, is_registered_route/1,
          register_route/2, unregister_route/1]).
@@ -11,6 +12,20 @@
 
 %% Instrumentation
 -export([drop_stanza/1]).
+
+-spec route(Acc :: mongoose_acc:t()) -> mongoose_acc:t().
+route(Acc) ->
+    ?LOG_DEBUG(#{what => route, acc => Acc}),
+    RoutingModules = routing_modules_list(),
+    NewAcc = ejabberd_router:route(mongoose_acc:from_jid(Acc),
+                                   mongoose_acc:to_jid(Acc),
+                                   Acc,
+                                   mongoose_acc:element(Acc),
+                                   RoutingModules),
+    ?LOG_DEBUG(#{what => routing_result,
+                 routing_result => mongoose_acc:get(router, result, {drop, undefined}, NewAcc),
+                 routing_modules => RoutingModules, acc => Acc}),
+    NewAcc.
 
 -spec get_all_domains() -> [jid:lserver()].
 get_all_domains() ->
