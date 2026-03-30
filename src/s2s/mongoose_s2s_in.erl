@@ -113,7 +113,7 @@ handle_event(internal, #xmlel{} = El, stream_established, Data) ->
 handle_event(info, {Tag, _, _} = SocketData, _, Data) when Tag =:= tcp; Tag =:= ssl ->
     handle_socket_data(Data, SocketData);
 handle_event(info, {Tag, _}, State, _) when Tag =:= tcp_closed; Tag =:= ssl_closed ->
-    ?LOG_WARNING(#{what => s2s_connection_closed, tag => Tag, state => State}),
+    ?LOG_DEBUG(#{what => s2s_connection_closed, tag => Tag, state => State}),
     {stop, {shutdown, Tag}};
 handle_event(info, {Tag, _, Reason}, State, _) when Tag =:= tcp_error; Tag =:= ssl_error ->
     ?LOG_WARNING(#{what => s2s_connection_error, tag => Tag, reason => Reason, state => State}),
