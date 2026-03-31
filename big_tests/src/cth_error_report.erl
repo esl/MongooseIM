@@ -35,7 +35,7 @@
 -export([terminate/1]).
 
 %% API for tests
--export([expect/1, max_unexpected_errors_logged/1]).
+-export([expect/1, expect/2, max_unexpected_errors_logged/1]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
@@ -56,6 +56,8 @@
     unexpected_total = 0 :: non_neg_integer(),
     %% Count of all errors (unexpected + expected) in current suite
     all_total = 0 :: non_neg_integer(),
+    %% Number of errors already matched per counted pattern
+    consumed = #{} :: #{pattern() => non_neg_integer()},
     %% Accumulated across suites for the final summary
     %% {Suite, AllErrors, UnexpectedErrors}
     suite_results = [] :: [suite_result()]
@@ -76,12 +78,20 @@
 
 %% API
 
-%% @doc Declare an expected error pattern for the current suite.
-%% Matching errors will be filtered from the report.
+%% @doc Declare an expected error pattern with unlimited matches.
+%% All matching errors will be classified as expected.
 %% Uses the same pattern types as log_error_helper:expect/1.
 -spec expect(pattern()) -> true.
 expect(Pattern) ->
     ets:insert(?PATTERNS_TABLE, {expect, Pattern}).
+
+%% @doc Declare an expected error pattern with a specific count.
+%% Multiple calls with the same pattern accumulate:
+%% expect(P, 3) + expect(P, 5) expects 8 matches total.
+%% An unlimited expect/1 for the same pattern overrides counts.
+-spec expect(pattern(), pos_integer()) -> true.
+expect(Pattern, N) when is_integer(N), N > 0 ->
+    ets:insert(?PATTERNS_TABLE, {expect_count, Pattern, N}).
 
 %% @doc Set the maximum allowed unexpected errors for the current suite.
 %% If the count exceeds this limit, end_per_suite will return
@@ -114,7 +124,8 @@ pre_init_per_suite(_Suite, Config, State) ->
                              summary_dir = SummaryDir,
                              groups = [], parallel_depth = 0,
                              entries = [],
-                             unexpected_total = 0, all_total = 0}}
+                             unexpected_total = 0, all_total = 0,
+                             consumed = #{}}}
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: failed to start: ~p:~p~n~p",
                [Class, Reason, Stacktrace]),
@@ -197,6 +208,7 @@ post_end_per_suite(Suite, _Config, Return, State) ->
     {Return, State#state{report_dir = undefined, mark = undefined,
                          entries = [],
                          unexpected_total = 0, all_total = 0,
+                         consumed = #{},
                          suite_results = Results}}.
 
 terminate(#state{summary_dir = undefined}) ->
@@ -242,11 +254,28 @@ delete_patterns_table() ->
         _Tid -> ets_helper:delete(?PATTERNS_TABLE)
     end.
 
-get_patterns() ->
+%% Build a map of Pattern => unlimited | Count from the ETS table.
+%% {expect, P} entries mean unlimited.
+%% {expect_count, P, N} entries accumulate counts.
+%% An unlimited entry overrides any counts for the same pattern.
+get_pattern_allowances() ->
     case ets:whereis(?PATTERNS_TABLE) of
-        undefined -> [];
-        _Tid -> [P || {expect, P} <- ets:tab2list(?PATTERNS_TABLE)]
+        undefined ->
+            #{};
+        _Tid ->
+            lists:foldl(fun build_allowance/2, #{},
+                        ets:tab2list(?PATTERNS_TABLE))
     end.
+
+build_allowance({expect, P}, Acc) ->
+    Acc#{P => unlimited};
+build_allowance({expect_count, P, N}, Acc) ->
+    case maps:get(P, Acc, 0) of
+        unlimited -> Acc;
+        Existing -> Acc#{P => Existing + N}
+    end;
+build_allowance(_, Acc) ->
+    Acc.
 
 get_max_unexpected_errors_logged() ->
     case ets:whereis(?PATTERNS_TABLE) of
@@ -266,32 +295,90 @@ collect_errors(Section, #state{mark = Mark} = State) ->
     try
         Errors = rpc(mim(), ?COLLECTOR, get_errors_after, [?INSTANCE, Mark]),
         NewMark = rpc(mim(), ?COLLECTOR, timestamp, []),
-        {Unexpected, Expected} = classify_errors(Errors, get_patterns()),
+        %% Compute effective allowances: ETS totals minus consumed
+        Allowances = effective_allowances(get_pattern_allowances(),
+                                          State#state.consumed),
+        {Unexpected, Expected, NewConsumed} =
+            classify_errors(Errors, Allowances,
+                            State#state.consumed),
         Entry = {Section, Unexpected, Expected},
         State#state{mark = NewMark,
                     entries = [Entry | State#state.entries],
                     unexpected_total = State#state.unexpected_total
                         + length(Unexpected),
                     all_total = State#state.all_total
-                        + length(Unexpected) + length(Expected)}
+                        + length(Unexpected) + length(Expected),
+                    consumed = NewConsumed}
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: collect_errors failed: ~p:~p~n~p",
                [Class, Reason, Stacktrace]),
         State
     end.
 
--spec classify_errors([log_entry()], [pattern()]) ->
-    {Unexpected :: [log_entry()], Expected :: [log_entry()]}.
-classify_errors(Errors, []) ->
-    {Errors, []};
-classify_errors(Errors, Patterns) ->
-    lists:partition(
-        fun({_Ts, _Level, Msg, Meta}) ->
-            not lists:any(
-                fun(P) -> log_error_helper:matches_pattern(Msg, Meta, P) end,
-                Patterns)
+%% Compute effective allowances: declared totals minus consumed.
+effective_allowances(Declared, Consumed) ->
+    maps:map(
+        fun(_P, unlimited) ->
+                unlimited;
+           (P, Total) ->
+                Used = maps:get(P, Consumed, 0),
+                max(0, Total - Used)
         end,
-        Errors).
+        Declared).
+
+-spec classify_errors([log_entry()], map(), map()) ->
+    {Unexpected :: [log_entry()], Expected :: [log_entry()], map()}.
+classify_errors(Errors, Allowances, Consumed)
+  when map_size(Allowances) =:= 0 ->
+    {Errors, [], Consumed};
+classify_errors(Errors, Allowances, Consumed) ->
+    {Unexpected, Expected, _, NewConsumed} = lists:foldl(
+        fun(Entry, {UnexpAcc, ExpAcc, AllowAcc, ConsAcc}) ->
+            {_Ts, _Level, Msg, Meta} = Entry,
+            case find_matching_pattern(Msg, Meta, AllowAcc) of
+                {ok, P} ->
+                    NewAllow = decrement_allowance(P, AllowAcc),
+                    NewCons = increment_consumed(P, ConsAcc),
+                    {UnexpAcc, [Entry | ExpAcc], NewAllow, NewCons};
+                none ->
+                    {[Entry | UnexpAcc], ExpAcc, AllowAcc, ConsAcc}
+            end
+        end,
+        {[], [], Allowances, Consumed},
+        Errors),
+    {lists:reverse(Unexpected), lists:reverse(Expected),
+     NewConsumed}.
+
+find_matching_pattern(Msg, Meta, Allowances) ->
+    find_matching_pattern_impl(Msg, Meta,
+                               maps:keys(Allowances),
+                               Allowances).
+
+find_matching_pattern_impl(_Msg, _Meta, [], _Allowances) ->
+    none;
+find_matching_pattern_impl(Msg, Meta, [P | Rest], Allowances) ->
+    case log_error_helper:matches_pattern(Msg, Meta, P) of
+        true ->
+            case maps:get(P, Allowances) of
+                unlimited -> {ok, P};
+                N when N > 0 -> {ok, P};
+                0 ->
+                    find_matching_pattern_impl(
+                        Msg, Meta, Rest, Allowances)
+            end;
+        false ->
+            find_matching_pattern_impl(
+                Msg, Meta, Rest, Allowances)
+    end.
+
+decrement_allowance(P, Allowances) ->
+    case maps:get(P, Allowances) of
+        unlimited -> Allowances;
+        N when N > 0 -> Allowances#{P := N - 1}
+    end.
+
+increment_consumed(P, Consumed) ->
+    maps:update_with(P, fun(N) -> N + 1 end, 1, Consumed).
 
 %% Report directory
 
