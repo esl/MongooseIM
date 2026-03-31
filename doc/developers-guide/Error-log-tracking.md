@@ -32,14 +32,15 @@ A link to `summary.html` appears as a "LOGGED ERRORS" button on the CT
 
 ## Declaring expected errors
 
-Tests can declare that certain errors are expected using `cth_error_report:expect/1`.
-Expected errors appear in green in the HTML report and are not prefixed with
-`*** UNEXPECTED ***` in the log report. They do not count toward the
-unexpected error total in the summary.
+Tests can declare that certain errors are expected using
+`cth_error_report:expect/1,2`. Expected errors appear in green in the HTML
+report and are not prefixed with `*** UNEXPECTED ***` in the log report.
+They do not count toward the unexpected error total in the summary.
 
 ### Pattern types
 
-The `expect/1` function accepts the same pattern types as `log_error_helper:expect/1`:
+The `expect/1,2` functions accept the same pattern types as
+`log_error_helper:expect/1`:
 
 | Pattern | Matches |
 |---------|---------|
@@ -53,17 +54,64 @@ The `expect/1` function accepts the same pattern types as `log_error_helper:expe
 | `{regex, <<"pattern">>}` | Regex match on the formatted message |
 | `fun((Msg, Meta) -> boolean())` | Custom filter function |
 
-### Where to call expect/1
+### Unlimited vs counted expectations
 
-Call `cth_error_report:expect/1` from `init_per_suite`, `init_per_group`,
+`expect/1` declares a pattern with unlimited matches -- all matching errors
+are classified as expected, regardless of how many occur:
+
+```erlang
+cth_error_report:expect({what, push_send_failed}).
+```
+
+`expect/2` declares a pattern with a specific expected count. Only that many
+matches are classified as expected; additional matches become unexpected:
+
+```erlang
+%% Expect exactly 3 occurrences of this error
+cth_error_report:expect({what, push_send_failed}, 3).
+```
+
+### Accumulating counts
+
+Multiple `expect/2` calls for the same pattern accumulate their counts.
+This is useful when different groups or testcases each contribute a known
+number of expected errors:
+
+```erlang
+init_per_group(group_a, Config) ->
+    %% This group triggers 3 push errors
+    cth_error_report:expect({what, push_send_failed}, 3),
+    Config;
+init_per_group(group_b, Config) ->
+    %% This group triggers 2 more
+    cth_error_report:expect({what, push_send_failed}, 2),
+    Config.
+%% Total: 5 errors expected for this pattern across the suite
+```
+
+An unlimited `expect/1` call for the same pattern overrides any counted
+declarations -- all matches become expected:
+
+```erlang
+%% These 3 are expected
+cth_error_report:expect({what, some_error}, 3),
+%% Now all matches are expected, the count of 3 is ignored
+cth_error_report:expect({what, some_error}).
+```
+
+### Where to call expect/1,2
+
+Call `cth_error_report:expect/1,2` from `init_per_suite`, `init_per_group`,
 or `init_per_testcase`. Patterns accumulate for the duration of the suite --
-once declared, they apply to all subsequent error classification in that suite.
+once declared, they apply to all subsequent error classification in that
+suite. Counted allowances are consumed as errors are matched, tracking
+across all testcases within the suite.
 
 ### Examples
 
 ```erlang
 init_per_suite(Config) ->
-    %% This module always logs an error on startup, it's expected
+    %% This module always logs errors on startup, expect all of them
     cth_error_report:expect({what, push_send_failed}),
 
     %% Expect any error from a specific module
@@ -75,8 +123,9 @@ init_per_suite(Config) ->
     %% Expect errors matching a regex
     cth_error_report:expect({regex, <<"timeout after [0-9]+ ms">>}),
 
-    %% Expect errors from a specific function (any arity)
-    cth_error_report:expect({mfa, {mod_mam_rdbms_arch, retract_message, '_'}}),
+    %% Expect exactly 2 errors from a specific function
+    cth_error_report:expect(
+        {mfa, {mod_mam_rdbms_arch, retract_message, '_'}}, 2),
 
     Config.
 ```
@@ -85,13 +134,13 @@ Patterns can also be declared per-group or per-testcase:
 
 ```erlang
 init_per_group(reconnect_tests, Config) ->
-    cth_error_report:expect({what, session_replaced}),
+    cth_error_report:expect({what, session_replaced}, 5),
     Config;
 init_per_group(_, Config) ->
     Config.
 
 init_per_testcase(test_connection_timeout, Config) ->
-    cth_error_report:expect(<<"connection closed">>),
+    cth_error_report:expect(<<"connection closed">>, 1),
     Config;
 init_per_testcase(_, Config) ->
     Config.
