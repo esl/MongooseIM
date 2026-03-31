@@ -372,6 +372,14 @@ commands:
           command: |
               tools/circle-publish-github-comment.sh
 
+  presets_to_dbs:
+    steps:
+      - run:
+          name: Presets to databases
+          command: |
+            dbs="$(./tools/test_runner/presets_to_dbs.sh "$PRESET")"
+            echo "export DBS=\"$dbs\"" >> "$BASH_ENV"
+
   maybe_prepare_minio:
     steps:
       - run:
@@ -382,7 +390,8 @@ commands:
             - MINIO_SECRET_KEY: "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"
             - MINIO_BUCKET: "mybucket"
           command: |
-            if [[ "$DB" == *minio* ]]; then
+            printenv
+            if [[ "$DBS" == *minio* ]]; then
                 curl -sSL https://dl.minio.io/client/mc/release/linux-amd64/archive/mc.__MINIO_MC_VERSION__ -o ./mc
                 chmod +x ./mc
                 ./mc config host add ${MINIO_HOSTNAME} http://127.0.0.1:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
@@ -395,7 +404,7 @@ commands:
       - run:
           name: Change port in test.config
           command: |
-            if [[ "$DB" == *ldap* ]]; then
+            if [[ "$DBS" == *ldap* ]]; then
               sed -i "s/connection.port = 3636/connection.port = 636/g" big_tests/test.config
             fi
 
@@ -404,7 +413,7 @@ commands:
       - run:
           name: Maybe create ElasticSearch schema
           command: |
-            if [[ "$DB" == *elasticsearch* ]]; then
+            if [[ "$DBS" == *elasticsearch* ]]; then
               tools/setup-elasticsearch.sh
             fi
 
@@ -579,10 +588,6 @@ jobs:
                cockroachdb_cets]
         description: Preset to run
         default: internal_mnesia
-      db:
-        type: string
-        description: Database to use
-        default: mnesia
       tls_dist:
         type: boolean
         description: Erlang distribution with TLS enabled
@@ -594,7 +599,6 @@ jobs:
     environment:
       TESTSPEC: <<parameters.spec>>
       PRESET: <<parameters.preset>>
-      DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
       STORE_RESULTS: <<parameters.store_results>>
       SKIP_AUTO_COMPILE: true
@@ -604,6 +608,7 @@ jobs:
       - run:
           name: Wait for databases
           command: ./tools/circle-wait-for-db.sh
+      - presets_to_dbs
       - maybe_prepare_minio
       - maybe_prepare_ldap
       - maybe_setup_elasticsearch
@@ -997,7 +1002,6 @@ workflows:
           executor: latest_otp_redis_minio_rmq
           context: mongooseim-org
           preset: internal_mnesia
-          db: "mnesia minio"
           tls_dist: true
           requires:
             - latest_otp_docker
@@ -1007,7 +1011,6 @@ workflows:
           executor: latest_otp_cockroachdb_redis
           context: mongooseim-org
           preset: cockroachdb_cets
-          db: "cockroachdb cets"
           requires:
             - latest_otp_docker
           filters: *all_tags
@@ -1016,7 +1019,6 @@ workflows:
           executor: latest_otp_pgsql_redis
           context: mongooseim-org
           preset: pgsql_cets
-          db: "postgres cets"
           requires:
             - latest_otp_docker
           filters: *all_tags
@@ -1068,7 +1070,6 @@ workflows:
           executor: latest_otp_pgsql_redis
           context: mongooseim-org
           preset: pgsql_mnesia
-          db: "postgres cets"
           requires:
             - latest_otp_docker
           filters: *all_tags
@@ -1086,7 +1087,6 @@ workflows:
           executor: legacy_otp_ldap_redis
           context: mongooseim-org
           preset: ldap_mnesia
-          db: "ldap redis"
           requires:
             - legacy_otp_docker
           filters: *all_tags
@@ -1095,7 +1095,6 @@ workflows:
           executor: latest_otp_ldap_redis
           context: mongooseim-org
           preset: ldap_mnesia
-          db: "ldap redis"
           requires:
             - latest_otp_docker
           filters: *all_tags
@@ -1105,7 +1104,6 @@ workflows:
           executor: latest_otp_elasticsearch_cassandra
           context: mongooseim-org
           preset: elasticsearch_and_cassandra_mnesia
-          db: "elasticsearch cassandra"
           requires:
             - latest_otp_docker
           filters: *all_tags
