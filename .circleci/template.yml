@@ -173,10 +173,7 @@ containers:
     entrypoint: *ENTRYPOINT
 
 executors:
-  legacy_otp:
-    docker:
-      - image: *LEGACY_OTP
-    resource_class: medium+
+  # latest
   latest_otp:
     docker:
       - image: *LATEST_OTP
@@ -185,10 +182,6 @@ executors:
     docker:
       - image: *LATEST_OTP
     resource_class: large
-  legacy_otp_redis:
-    docker:
-      - image: *LEGACY_OTP
-      - *redis_container
   latest_otp_redis:
     docker:
       - image: *LATEST_OTP
@@ -199,17 +192,6 @@ executors:
       - *redis_container
       - *minio_container
       - *rabbit_container
-  latest_otp_mysql_redis:
-    docker:
-      - image: *LATEST_OTP
-      - *redis_container
-      - *mysql_container
-      - *rabbit_container
-  legacy_otp_pgsql_redis:
-    docker:
-      - image: *LEGACY_OTP
-      - *redis_container
-      - *pgsql_container
   latest_otp_pgsql_redis:
     docker:
       - image: *LATEST_OTP
@@ -220,23 +202,24 @@ executors:
       - image: *LATEST_OTP
       - *redis_container
       - *cockroachdb_container
-  legacy_otp_ldap_redis:
+  latest_otp_mysql_redis:
     docker:
-      - image: *LEGACY_OTP
+      - image: *LATEST_OTP
       - *redis_container
-      - *ldap_container
+      - *mysql_container
   latest_otp_ldap_redis:
     docker:
       - image: *LATEST_OTP
       - *redis_container
       - *ldap_container
-  latest_otp_elasticsearch_cassandra:
+  latest_otp_elasticsearch_cassandra_redis:
     docker:
       - image: *LATEST_OTP
       - *redis_container
       - *elasticsearch_container
       - *cassandra_container
       - *cassandra_proxy_container
+  # latest (arm)
   latest_otp_arm64:
     docker:
       - image: *LATEST_OTP
@@ -246,6 +229,20 @@ executors:
       - image: *LATEST_OTP
       - *redis_container
     resource_class: arm.medium
+  # legacy
+  legacy_otp:
+    docker:
+      - image: *LEGACY_OTP
+    resource_class: medium+
+  legacy_otp_redis:
+    docker:
+      - image: *LEGACY_OTP
+      - *redis_container
+  legacy_otp_pgsql_redis:
+    docker:
+      - image: *LEGACY_OTP
+      - *redis_container
+      - *pgsql_container
 commands:
   fetch_build_packages:
     steps:
@@ -583,9 +580,8 @@ jobs:
         default: default.spec
       preset:
         type: enum
-        enum: [internal_mnesia, mysql_redis, ldap_mnesia,
-               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, pgsql_cets,
-               cockroachdb_cets]
+        enum: [cockroachdb_cets, mysql_cets, pgsql_cets, ldap_mnesia, elasticsearch_and_cassandra_mnesia,
+               internal_mnesia, pgsql_mnesia, pgsql_redis]
         description: Preset to run
         default: internal_mnesia
       tls_dist:
