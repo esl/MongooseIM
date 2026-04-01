@@ -1,6 +1,6 @@
 -module(dynamic_domains_SUITE).
 
--include_lib("exml/include/exml.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %% API
 -compile([export_all, nowarn_export_all]).
@@ -22,12 +22,14 @@ all() ->
      disconnected_on_domain_disabling,
      auth_domain_removal_is_triggered_on_hook,
      no_route,
-     {group, with_mod_dynamic_domains_test}].
+     {group, with_mod_dynamic_domains_test},
+     {group, with_push_notifications}].
 
 groups() ->
     [{with_mod_dynamic_domains_test, [], [packet_handling_for_subdomain,
                                           iq_handling_for_subdomain,
-                                          iq_handling_for_domain]}].
+                                          iq_handling_for_domain]},
+    {with_push_notifications, [], [push_notification_for_dynamic_domain]}].
 
 init_per_suite(Config0) ->
     Config = cluster_nodes(?CLUSTER_NODES, Config0),
@@ -43,6 +45,7 @@ end_per_suite(Config0) ->
 
 init_per_group(with_mod_dynamic_domains_test, Config) ->
     MockedModules = [mod_dynamic_domains_test, mongoose_router],
+    rpc(mim(), meck, unload, []),
     [ok = rpc(mim(), meck, new, [Module, [passthrough, no_link]])
      || Module <- MockedModules],
     dynamic_modules:start(?HOST_TYPE, mod_dynamic_domains_test,
@@ -50,12 +53,40 @@ init_per_group(with_mod_dynamic_domains_test, Config) ->
                             host2 => subhost_pattern("subdomain2.@HOST@"),
                             namespace => <<"dummy.namespace">>}),
     [{reset_meck, MockedModules} | Config];
+init_per_group(with_push_notifications, Config) ->
+    stop_mongoose_push_mock(),
+    mongoose_push_mock:start(Config),
+    Port = mongoose_push_mock:port(),
+    PoolOpts = #{strategy => available_worker, workers => 20},
+    ConnOpts = #{host => "https://localhost:" ++ integer_to_list(Port),
+                 request_timeout => 2000,
+                 tls => #{verify_mode => none}},
+    Pool = config_parser_helper:config([outgoing_pools, http, mongoose_push_http],
+                                       #{opts => PoolOpts, conn_opts => ConnOpts}),
+    [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool]]),
+    PushOpts = config_parser_helper:config([modules, mod_event_pusher, push],
+                                           #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                             virtual_pubsub_hosts => [subhost_pattern("virtual.@HOST@")]}),
+    _ = dynamic_modules:restart(?HOST_TYPE, mod_push_service_mongoosepush,
+                                config_parser_helper:mod_config(mod_push_service_mongoosepush,
+                                                                #{pool_name => mongoose_push_http,
+                                                                  pi_version => <<"v3">>})),
+    _ = dynamic_modules:restart(?HOST_TYPE, mod_event_pusher_push, PushOpts),
+    _ = dynamic_modules:restart(?HOST_TYPE, mod_event_pusher, #{push => PushOpts}),
+    Config;
 init_per_group(_, Config) ->
     Config.
 
 end_per_group(with_mod_dynamic_domains_test, Config) ->
     dynamic_modules:stop(?HOST_TYPE, mod_dynamic_domains_test),
     rpc(mim(), meck, unload, []),
+    Config;
+end_per_group(with_push_notifications, Config) ->
+    dynamic_modules:stop(?HOST_TYPE, mod_event_pusher),
+    dynamic_modules:stop(?HOST_TYPE, mod_event_pusher_push),
+    dynamic_modules:stop(?HOST_TYPE, mod_push_service_mongoosepush),
+    rpc(mim(), mongoose_wpool, stop, [http, global, mongoose_push_http]),
+    mongoose_push_mock:stop(),
     Config;
 end_per_group(_, Config) ->
     Config.
@@ -226,6 +257,20 @@ iq_handling_for_subdomain(Config) ->
         end,
     escalus:story(Config, [{alice3, 1}], StoryFn).
 
+push_notification_for_dynamic_domain(_Config) ->
+    DeviceToken = gen_token(),
+    mongoose_push_mock:subscribe(DeviceToken, {200, <<"OK">>}),
+
+    Notification = #{<<"message-count">> => <<"1">>,
+                     <<"last-message-sender">> => <<"alice@example.com">>,
+                     <<"last-message-body">> => <<"OH, HAI!">>},
+    Options = #{<<"service">> => <<"fcm">>, <<"device_id">> => DeviceToken},
+    ok = rpc(mim(), mongoose_hooks, push_notifications, [?HOST_TYPE, ok, [Notification], Options]),
+
+    {ReceivedNotification, {200, <<"OK">>}} =
+        mongoose_push_mock:wait_for_push_request(DeviceToken, 10000),
+    ?assertMatch(#{<<"service">> := <<"fcm">>}, ReceivedNotification).
+
 %% helper functions
 insert_domains(Nodes, Domains) ->
     [domain_helper:insert_domain(Node, Domain, ?HOST_TYPE) || Node <- Nodes, Domain <- Domains].
@@ -242,3 +287,13 @@ uncluster_nodes([], Config) -> Config;
 uncluster_nodes([Node | T], Config) ->
     NewConfig = distributed_helper:remove_node_from_cluster(Node, Config),
     cluster_nodes(T, NewConfig).
+
+gen_token() ->
+    integer_to_binary(binary:decode_unsigned(crypto:strong_rand_bytes(16)), 24).
+
+stop_mongoose_push_mock() ->
+    try mongoose_push_mock:stop() of
+        _ -> ok
+    catch
+        _:_ -> ok
+    end.
