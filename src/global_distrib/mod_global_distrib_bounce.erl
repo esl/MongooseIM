@@ -180,7 +180,7 @@ bounce_queue_size() ->
                              any().
 reroute_message(TargetHost, {From, To, Acc0, Packet}) ->
     Acc = mod_global_distrib:put_metadata(Acc0, target_host_override, TargetHost),
-    ejabberd_router:route(From, To, Acc, Packet).
+    mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc)).
 
 add_index(ResendAt, {From, To, _Acc, _Packet} = FPacket) ->
     Key = get_index_key(From, To),

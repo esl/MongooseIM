@@ -267,10 +267,11 @@ attempt_cancelation(HostType, #jid{} = ClientJID, #jid{lserver = ServerDomain}, 
             %% registration, there is no way to deal
             %% with failure.
             ResIQ = IQ#iq{type = result, sub_el = []},
-            ejabberd_router:route(
-              jid:make_noprep(<<>>, <<>>, <<>>),
-              ClientJID,
-              jlib:iq_to_xml(ResIQ)),
+            mongoose_router:route(
+                mongoose_acc:new(jid:make_noprep(<<>>, <<>>, <<>>),
+                                 ClientJID,
+                                 jlib:iq_to_xml(ResIQ),
+                                 ?LOCATION)),
             ejabberd_auth:remove_user(ClientJID),
             ignore;
         false ->
@@ -392,14 +393,17 @@ send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
         {error, not_found} ->
             ok;
         {ok, {Subj, Body}} ->
-            ejabberd_router:route(
-              jid:make_noprep(<<>>, Server, <<>>),
-              JID,
-              #xmlel{name = <<"message">>, attrs = #{<<"type">> => <<"normal">>},
-                     children = [#xmlel{name = <<"subject">>,
-                                        children = [#xmlcdata{content = Subj}]},
-                                 #xmlel{name = <<"body">>,
-                                        children = [#xmlcdata{content = Body}]}]})
+            mongoose_router:route(
+                mongoose_acc:new(
+                    jid:make_noprep(<<>>, Server, <<>>),
+                    JID,
+                    #xmlel{name = <<"message">>,
+                           attrs = #{<<"type">> => <<"normal">>},
+                           children = [#xmlel{name = <<"subject">>,
+                                              children = [#xmlcdata{content = Subj}]},
+                                       #xmlel{name = <<"body">>,
+                                              children = [#xmlcdata{content = Body}]}]},
+                    ?LOCATION))
     end.
 
 send_registration_notifications(HostType, #jid{lserver = Domain} = UJID, Source) ->
@@ -425,7 +429,7 @@ send_registration_notification(JIDBin, Domain, Body) ->
                              attrs = #{<<"type">> => <<"chat">>},
                              children = [#xmlel{name = <<"body">>,
                                                 children = [#xmlcdata{content = Body}]}]},
-            ejabberd_router:route(jid:make_noprep(<<>>, Domain, <<>>), JID, Message)
+            mongoose_router:route(mongoose_acc:new(jid:make_noprep(<<>>, Domain, <<>>), JID, Message, ?LOCATION))
     end.
 
 check_timeout(Source) ->

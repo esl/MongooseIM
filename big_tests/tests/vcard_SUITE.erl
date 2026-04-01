@@ -32,6 +32,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 %% Element CData
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
@@ -1128,7 +1129,8 @@ get_jid_record(JID) ->
     jid:make_bare(User, Server).
 
 vcard_rpc(JID, Stanza) ->
-    Res = rpc(mim(), ejabberd_router, route, [JID, JID, Stanza]),
+    Acc = rpc(mim(), mongoose_acc, new, [JID, JID, Stanza, ?LOCATION]),
+    Res = rpc(mim(), mongoose_router, route, [Acc]),
     case Res of
         #{stanza := #{type := <<"set">>}} ->
             ok;

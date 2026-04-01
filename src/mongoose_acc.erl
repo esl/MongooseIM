@@ -33,7 +33,7 @@
          stanza_ref/1
         ]).
 % Stanza update
--export([update_stanza/2, update/4]).
+-export([update_stanza/2, update/3, update/4]).
 % C2S accumulator
 -export([get_statem_acc/1, set_statem_acc/2]).
 % Access to namespaced fields
@@ -243,20 +243,12 @@ update(to_jid, Jid, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
 update(_, _, _) ->
     {error, badarg}.
 
--spec update([{element | from_jid | to_jid, exml:element() | jid:jid()}], t()) -> t().
-update(_, {error, _} = E) ->
-    E;
-update([], Acc) ->
-    Acc;
-update([{P, V} | Tail], Acc) ->
-    update(Tail, update(P, V, Acc)).
-
 -spec update(jid:jid(), jid:jid(), exml:element(), t()) -> t().
 update(From, To, Element, Acc) ->
-    update([{from_jid, From},
-            {to_jid, To},
-            {element, Element}],
-        Acc).
+    update_stanza(#{from_jid => From,
+                    to_jid => To,
+                    element => Element},
+                  Acc).
 
 -spec get_statem_acc(Acc :: t()) -> mongoose_c2s_acc:t().
 get_statem_acc(#{ mongoose_acc := true, statem_acc := StatemAcc }) ->

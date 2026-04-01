@@ -206,7 +206,8 @@ do_invite_to_room(#{user := SenderJID, room := RoomJID, recipient := RecipientJI
     R = jid:to_bare(RoomJID),
     RecipientBin = jid:to_binary(jid:to_bare(RecipientJID)),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS, [affiliate(RecipientBin, <<"member">>)]),
-    ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R), <<"set">>, [Changes])),
+    mongoose_router:route(
+      mongoose_acc:new(S, R, iq(jid:to_binary(S), jid:to_binary(R), <<"set">>, [Changes]), ?LOCATION)),
     {ok, "User invited successfully"}.
 
 do_change_room_config(#{user := UserJID, room := RoomJID, config := Config,
@@ -258,8 +259,9 @@ do_change_affiliation(#{user := SenderJID, room := RoomJID, recipient := Recipie
     S = jid:to_bare(SenderJID),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
                     [affiliate(jid:to_binary(RecipientBare), op_to_aff(Op))]),
-    ejabberd_router:route(S, RoomJID, iq(jid:to_binary(S), jid:to_binary(RoomJID),
-                                         <<"set">>, [Changes])),
+    mongoose_router:route(
+      mongoose_acc:new(S, RoomJID, iq(jid:to_binary(S), jid:to_binary(RoomJID),
+                                         <<"set">>, [Changes]), ?LOCATION)),
     {ok, "Affiliation change request sent successfully"}.
 
 do_send_message(#{user := SenderJID, room := RoomJID, children := Children, attrs := ExtraAttrs}) ->
@@ -268,7 +270,7 @@ do_send_message(#{user := SenderJID, room := RoomJID, children := Children, attr
     Stanza = #xmlel{name = <<"message">>,
                     attrs = ExtraAttrs#{<<"type">> => <<"groupchat">>},
                     children = Children},
-    ejabberd_router:route(SenderBare, RoomBare, Stanza),
+    mongoose_router:route(mongoose_acc:new(SenderBare, RoomBare, Stanza, ?LOCATION)),
     {ok, "Message sent successfully"}.
 
 do_delete_room(#{room := RoomJID}) ->
@@ -351,7 +353,7 @@ do_set_blocking_list(#{user := UserJID, user_host_type := HostType, items := Ite
     MUCServer = mod_muc_light_utils:server_host_to_muc_host(HostType, UserJID#jid.lserver),
     Q = query(?NS_MUC_LIGHT_BLOCKING, [blocking_item(I) || I <- Items]),
     Iq = iq(jid:to_binary(UserJID), MUCServer, <<"set">>, [Q]),
-    ejabberd_router:route(UserJID, jid:from_binary(MUCServer), Iq),
+    mongoose_router:route(mongoose_acc:new(UserJID, jid:from_binary(MUCServer), Iq, ?LOCATION)),
     {ok, "User blocking list updated successfully"}.
 
 %% Internal: helpers

@@ -30,8 +30,7 @@ init_per_suite(Config) ->
     mongoose_config:set_opts(opts()),
     async_helper:start(Config, [{mongoose_instrument, start_link, []},
                                 {mongooseim_helper, start_link_loaded_hooks, []},
-                                {mongoose_router, start, []},
-                                {ejabberd_router, start_link, []}]).
+                                {mongoose_router, start, []}]).
 
 end_per_suite(Config) ->
     meck:unload(),
@@ -82,7 +81,7 @@ do_not_reroute_errors(_) ->
     meck:expect(xmpp_router_a, filter,
                 fun(From0, To0, Acc0, Packet0) -> {From0, To0, Acc0, Packet0} end),
     meck:expect(xmpp_router_a, route, fun resend_as_error/4),
-    ejabberd_router:route(From, To, Acc, Stanza),
+    mongoose_router:route(mongoose_acc:update(From, To, Stanza, Acc)),
     meck:validate(xmpp_router_a),
     meck:unload(xmpp_router_a).
 
@@ -153,7 +152,7 @@ route(I) ->
                               element => I,
                               from_jid => FromJID,
                               to_jid => ToJID }),
-    ejabberd_router:route(FromJID, ToJID, Acc, I).
+    mongoose_router:route(mongoose_acc:update(FromJID, ToJID, I, Acc)).
 
 verify(L) ->
     receive
@@ -170,7 +169,7 @@ verify(L) ->
 
 resend_as_error(From0, To0, Acc0, Packet0) ->
     {Acc1, Packet1} = jlib:make_error_reply(Acc0, Packet0, #xmlel{}),
-    Acc2 = ejabberd_router:route(To0, From0, Acc1, Packet1),
+    Acc2 = mongoose_router:route(mongoose_acc:update(To0, From0, Packet1, Acc1)),
     {done, Acc2}.
 
 opts() ->

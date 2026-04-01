@@ -534,7 +534,7 @@ push_item_final(JID, From, Item, RosterVersion) ->
                 [#xmlel{name = <<"query">>,
                         attrs = ExtraAttrs#{<<"xmlns">> => ?NS_ROSTER},
                         children = [item_to_xml(Item)]}]},
-    ejabberd_router:route(From, JID, jlib:iq_to_xml(ResIQ)).
+    mongoose_router:route(mongoose_acc:new(From, JID, jlib:iq_to_xml(ResIQ), ?LOCATION)).
 
 -spec get_subscription_lists(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -625,7 +625,7 @@ process_subscription(HostType, Direction, JID, ContactJID, Type, Reason) ->
                     PresenceStanza = #xmlel{name = <<"presence">>,
                                             attrs = #{<<"type">> => autoreply_to_type(AutoReply)},
                                             children = []},
-                    ejabberd_router:route(JID, ContactJID, PresenceStanza)
+                    mongoose_router:route(mongoose_acc:new(JID, ContactJID, PresenceStanza, ?LOCATION))
             end,
             case Push of
                 {push, #roster{subscription = none, ask = in}} ->
@@ -851,9 +851,12 @@ send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item)
     end.
 
 send_presence_type(From, To, Type) ->
-    ejabberd_router:route(From, To,
-                          #xmlel{name = <<"presence">>,
-                                 attrs = #{<<"type">> => Type}, children = []}).
+    mongoose_router:route(
+      mongoose_acc:new(From,
+                       To,
+                       #xmlel{name = <<"presence">>,
+                              attrs = #{<<"type">> => Type},
+                              children = []}, ?LOCATION)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

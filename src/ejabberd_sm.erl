@@ -147,7 +147,7 @@ start_link() ->
 
 
 %% You MUST NOT call this function from the big tests.
-%% In 99% you should call ejabberd_router:route/3 instead.
+%% In 99% you should call mongoose_router:route/1 instead.
 %% This function would fail for the first routed IQ.
 -spec route(From, To, Packet) -> Acc when
       From :: jid:jid(),
@@ -445,7 +445,7 @@ bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
                                 #{count => 1, from_jid => From, to_jid => To, element => Packet}),
     E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
-    Acc2 = ejabberd_router:route(To, From, Acc1, Err),
+    Acc2 = mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
     {stop, Acc2}.
 
 -spec disconnect_removed_user(Acc, Args, Extra) -> {ok, Acc} when
@@ -729,7 +729,7 @@ do_route_offline(<<"iq">>, <<"result">>, _From, _To, Acc, _Packet) ->
 do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
     E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Route offline">>),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
-    ejabberd_router:route(To, From, Acc1, Err);
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route_offline(_, _, _, _, Acc, _) ->
     ?LOG_DEBUG(#{what => sm_packet_dropped, acc => Acc}),
     Acc.
@@ -810,7 +810,7 @@ route_message_by_type(_, From, To, Acc, Packet) ->
         _ ->
             E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"User not found">>),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
-            ejabberd_router:route(To, From, Acc1, Err)
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -968,11 +968,11 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
             Msg = <<"Unknown xmlns=", XMLNS/binary, " for host=", Host/binary>>,
             E = mongoose_xmpp_errors:service_unavailable(<<"en">>, Msg),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
-            ejabberd_router:route(To, From, Acc1, Err)
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end;
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
-    ejabberd_router:route(To, From, Acc1, Err).
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)).
 
 -spec user_resources(UserStr :: string(), ServerStr :: string()) -> [binary()].
 user_resources(UserStr, ServerStr) ->
