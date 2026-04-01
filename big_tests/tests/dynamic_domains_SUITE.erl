@@ -59,20 +59,14 @@ init_per_group(with_push_notifications, Config) ->
     Port = mongoose_push_mock:port(),
     PoolOpts = #{strategy => available_worker, workers => 20},
     ConnOpts = #{host => "https://localhost:" ++ integer_to_list(Port),
-                 request_timeout => 2000,
-                 tls => #{verify_mode => none}},
+                 request_timeout => 2000, tls => #{verify_mode => none}},
     Pool = config_parser_helper:config([outgoing_pools, http, mongoose_push_http],
                                        #{opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool]]),
-    PushOpts = config_parser_helper:config([modules, mod_event_pusher, push],
-                                           #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
-                                             virtual_pubsub_hosts => [subhost_pattern("virtual.@HOST@")]}),
-    _ = dynamic_modules:restart(?HOST_TYPE, mod_push_service_mongoosepush,
-                                config_parser_helper:mod_config(mod_push_service_mongoosepush,
-                                                                #{pool_name => mongoose_push_http,
-                                                                  pi_version => <<"v3">>})),
-    _ = dynamic_modules:restart(?HOST_TYPE, mod_event_pusher_push, PushOpts),
-    _ = dynamic_modules:restart(?HOST_TYPE, mod_event_pusher, #{push => PushOpts}),
+    dynamic_modules:restart(?HOST_TYPE, mod_push_service_mongoosepush,
+                            config_parser_helper:mod_config(mod_push_service_mongoosepush,
+                                                            #{pool_name => mongoose_push_http,
+                                                              api_version => <<"v3">>})),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -82,8 +76,6 @@ end_per_group(with_mod_dynamic_domains_test, Config) ->
     rpc(mim(), meck, unload, []),
     Config;
 end_per_group(with_push_notifications, Config) ->
-    dynamic_modules:stop(?HOST_TYPE, mod_event_pusher),
-    dynamic_modules:stop(?HOST_TYPE, mod_event_pusher_push),
     dynamic_modules:stop(?HOST_TYPE, mod_push_service_mongoosepush),
     rpc(mim(), mongoose_wpool, stop, [http, global, mongoose_push_http]),
     mongoose_push_mock:stop(),
