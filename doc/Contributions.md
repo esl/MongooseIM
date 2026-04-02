@@ -73,10 +73,6 @@ XML parsing library in Erlang
 
 [Apache license 2.0](https://github.com/esl/exml/blob/master/LICENSE)
 
-### MongooseICE: ICE (STUN/TURN) server
-
-See [MongooseICE](https://github.com/esl/MongooseICE) on GitHub for more details.
-
 ### MongoosePush: Push notifications server (APNS/FCM)
 
 See [MongoosePush](https://github.com/esl/MongoosePush) on GitHub for more details.

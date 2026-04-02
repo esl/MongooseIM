@@ -39,7 +39,6 @@ We offer a set of additional server-side components:
 * Test suite is written with the help of these useful tools:
     * [escalus](https://github.com/esl/escalus): an XMPP client for Erlang
     * [amoc](https://github.com/esl/amoc): a load testing tool
-* [MongooseICE](https://github.com/esl/MongooseICE): is a STUN and TURN server written for traversing NATs and relaying streams
 * [MongoosePush](https://github.com/esl/MongoosePush): is a flexible push notification server with APNS and FCM support
 
 ### Client-side components
