@@ -235,7 +235,11 @@ update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
              exml:element() | jid:jid(),
              Acc :: t()) -> t() | {error, malformed_acc}.
 update(element, El, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
-    Acc#{stanza := Stanza#{element := El}};
+    Acc#{stanza := Stanza#{element := El,
+                           name => El#xmlel.name,
+                           type => exml_query:attr(El, <<"type">>),
+                           ref => make_ref()}
+    };
 update(from_jid, Jid, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
     Acc#{stanza := Stanza#{from_jid := Jid}};
 update(to_jid, Jid, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
