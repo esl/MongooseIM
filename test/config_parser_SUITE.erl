@@ -218,6 +218,7 @@ groups() ->
                             mod_ping,
                             mod_privacy,
                             mod_private,
+                            mod_pubsub,
                             mod_pubsub_old,
                             mod_pubsub_old_pep_mapping,
                             mod_pubsub_old_default_node_config,
@@ -2549,6 +2550,14 @@ mod_private(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
     P = [modules, mod_private],
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?errh(T(#{<<"backend">> => <<"mysql">>})).
+
+mod_pubsub(_Config) ->
+    check_module_defaults(mod_pubsub),
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
+    P = [modules, mod_pubsub],
+    ?cfgh(P ++ [backend], rdbms,
+          T(#{<<"backend">> => <<"rdbms">>})),
     ?errh(T(#{<<"backend">> => <<"mysql">>})).
 
 mod_pubsub_old(_Config) ->
