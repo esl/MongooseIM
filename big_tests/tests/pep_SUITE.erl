@@ -37,12 +37,16 @@ all() ->
 
 groups() ->
     [
-     {pep, [parallel], [publish_and_notify_test]},
-     {pep_old, [parallel], pep_tests()},
+     {pep, [parallel], pep_tests()},
+     {pep_old, [parallel], pep_old_tests()},
      {cache_old, [parallel], cache_tests()}
     ].
 
 pep_tests() ->
+    [publish_and_notify_test,
+     delayed_receive].
+
+pep_old_tests() ->
     [disco_test,
      disco_sm_test,
      disco_sm_node_test,
@@ -82,7 +86,6 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
@@ -93,6 +96,7 @@ init_per_group(GroupName, Config) ->
     Config0.
 
 end_per_group(_GroupName, Config) ->
+    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config).
 
 init_per_testcase(TestName, Config) ->
@@ -361,7 +365,8 @@ delayed_receive(Config) ->
 
 delayed_receive_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
-    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
+    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []), % previous item - not delivered
+    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []), % expected last item
     [Message] = make_friends(Bob, Alice),
     Node = {escalus_utils:get_short_jid(Alice), NodeNS},
     pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []),
@@ -509,7 +514,7 @@ field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules(pep) ->
     [{mod_caps, default_mod_config(mod_caps)},
-     {mod_pubsub, #{}}];
+     {mod_pubsub, default_mod_config(mod_pubsub)}];
 required_modules(pep_old) ->
     [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub_old, mod_config(mod_pubsub_old, #{plugins => [<<"dag">>, <<"pep">>],
