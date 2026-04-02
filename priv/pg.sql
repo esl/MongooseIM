@@ -339,21 +339,24 @@ CREATE INDEX i_inbox_timestamp ON inbox USING BTREE(lserver, luser, timestamp);
 CREATE INDEX i_inbox_us_box ON inbox USING BTREE(lserver, luser, box);
 CREATE INDEX i_inbox_box ON inbox (box) WHERE (box = 'bin');
 
-/* Stub, to be uncommented and extended when needed
-  CREATE TABLE pubsub_node (
+CREATE TABLE pubsub_node (
     service_jid VARCHAR(250) NOT NULL,
-    node VARCHAR(250) NOT NULL,
-    PRIMARY KEY (service_jid, node)
-);*/
+    node_id VARCHAR(250) NOT NULL,
+    PRIMARY KEY (service_jid, node_id)
+);
 
 CREATE TABLE pubsub_item (
     service_jid VARCHAR(250) NOT NULL,
-    node VARCHAR(250) NOT NULL,
-    id VARCHAR(250) NOT NULL,
+    node_id VARCHAR(250) NOT NULL,
+    item_id VARCHAR(250) NOT NULL,
     publisher_jid VARCHAR(250) NOT NULL,
     payload TEXT NOT NULL,
-    PRIMARY KEY (service_jid, node, id)
+    created_at BIGINT NOT NULL,
+    PRIMARY KEY (service_jid, node_id, item_id),
+    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
 );
+
+CREATE INDEX i_pubsub_item_created_at ON pubsub_item USING btree (service_jid, node_id, created_at);
 
 CREATE TABLE pubsub_nodes (
     nidx               BIGSERIAL PRIMARY KEY,
