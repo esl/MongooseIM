@@ -2,7 +2,8 @@
 
 OUT_FILE="$1"
 
-set -e
+set -euo pipefail
+
 source tools/common-vars.sh
 source tools/db-versions.sh
 
@@ -44,44 +45,60 @@ CERTS_CACHE_KEY=$(cat certs_cache_key)
 # Matches plugins list in the rebar.config
 REBAR_PLUGINS_HASH=$(cat rebar.config | sed -n '/^{plugins/,/]}./p' | sha1sum | awk '{print $1}')
 
-sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
-    -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
-    -e "s/__MYSQL_SETUP__/${MYSQL_SETUP}/" \
-    -e "s/__MYSQL_VERSION__/${MYSQL_VERSION}/" \
-    -e "s/__PGSQL_CNF__/${PGSQL_CNF}/" \
-    -e "s/__PGSQL_SQL__/${PGSQL_SQL}/" \
-    -e "s/__PGSQL_HBA__/${PGSQL_HBA}/" \
-    -e "s/__PGSQL_SETUP__/${PGSQL_SETUP}/" \
-    -e "s/__PGSQL_VERSION__/${PGSQL_VERSION}/g" \
-    -e "s/__COCKROACHDB_USER_SQL__/${COCKROACH_USER_SQL}/" \
-    -e "s/__COCKROACHDB_SQL__/${COCKROACH_SQL}/" \
-    -e "s/__COCKROACHDB_SETUP__/${COCKROACH_SETUP}/" \
-    -e "s/__COCKROACHDB_VERSION__/${COCKROACHDB_VERSION}/" \
-    -e "s/__REDIS_VERSION__/${REDIS_VERSION}/" \
-    -e "s/__LDAP_SCHEMA__/${LDAP_SCHEMA}/" \
-    -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
-    -e "s/__LDAP_VERSION__/${LDAP_VERSION}/" \
-    -e "s/__REDIS_ACL__/${REDIS_ACL}/" \
-    -e "s/__CASSA_PROXY_CNF__/${CASSA_PROXY_CNF}/" \
-    -e "s/__CASSA_ENTRY__/${CASSA_ENTRY}/" \
-    -e "s/__CASSA_MIM_SQL__/${CASSA_MIM_CQL_ENTRY}/" \
-    -e "s/__CASSA_TEST_SQL__/${CASSA_TEST_CQL_ENTRY}/" \
-    -e "s/__CASSA_VERSION__/${CASSANDRA_VERSION}/" \
-    -e "s/__ELASTICSEARCH_VERSION__/${ELASTICSEARCH_VERSION}/" \
-    -e "s/__RMQ_VERSION__/${RMQ_VERSION}/" \
-    -e "s/__RMQ_TLS_CONFIG__/${RMQ_TLS_CONFIG}/" \
-    -e "s/__MINIO_VERSION__/${MINIO_VERSION}/" \
-    -e "s/__MINIO_MC_VERSION__/${MINIO_MC_VERSION}/" \
-    -e "s/__MIM_CERT__/${MIM_CERT}/" \
-    -e "s/__MIM_KEY__/${MIM_KEY}/" \
-    -e "s/__MIM_PRIV_KEY__/${MIM_PRIV_KEY}/" \
-    -e "s/__MIM_DHSERVER__/${MIM_DHSERVER}/" \
-    -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
-    -e "s/__DB_CACERT__/${CACERT}/" \
-    -e "s/__DB_CAKEY__/${CAKEY}/" \
-    -e "s/__PYTHON2_BASE32_DEC__/${PYTHON2_BASE32_DEC}/" \
-    -e "s/__PYTHON3_BASE32_DEC__/${PYTHON3_BASE32_DEC}/" \
-    -e "s/__CERTS_CACHE_KEY__/${CERTS_CACHE_KEY}/" \
-    -e "s/__REBAR_PLUGINS_HASH__/${REBAR_PLUGINS_HASH}/" \
-    .circleci/template.yml \
-    > "$OUT_FILE"
+BIG_TESTS="$(./tools/circle-generate-presets .circleci/presets.config | "$SED" 's/^/      /')"
+BIG_TESTS_LIST="$(awk '$1 == "name:" {print "-", $2}' <<< "$BIG_TESTS" | "$SED" 's/^/            /')"
+
+env \
+  __MYSQL_CNF__="$MYSQL_CNF" \
+  __MYSQL_SQL__="$MYSQL_SQL" \
+  __MYSQL_SETUP__="$MYSQL_SETUP" \
+  __MYSQL_VERSION__="$MYSQL_VERSION" \
+  __PGSQL_CNF__="$PGSQL_CNF" \
+  __PGSQL_SQL__="$PGSQL_SQL" \
+  __PGSQL_HBA__="$PGSQL_HBA" \
+  __PGSQL_SETUP__="$PGSQL_SETUP" \
+  __PGSQL_VERSION__="$PGSQL_VERSION" \
+  __COCKROACHDB_USER_SQL__="$COCKROACH_USER_SQL" \
+  __COCKROACHDB_SQL__="$COCKROACH_SQL" \
+  __COCKROACHDB_SETUP__="$COCKROACH_SETUP" \
+  __COCKROACHDB_VERSION__="$COCKROACHDB_VERSION" \
+  __REDIS_VERSION__="$REDIS_VERSION" \
+  __LDAP_SCHEMA__="$LDAP_SCHEMA" \
+  __LDAP_SETUP__="$LDAP_SETUP" \
+  __LDAP_VERSION__="$LDAP_VERSION" \
+  __REDIS_ACL__="$REDIS_ACL" \
+  __CASSA_PROXY_CNF__="$CASSA_PROXY_CNF" \
+  __CASSA_ENTRY__="$CASSA_ENTRY" \
+  __CASSA_MIM_SQL__="$CASSA_MIM_CQL_ENTRY" \
+  __CASSA_TEST_SQL__="$CASSA_TEST_CQL_ENTRY" \
+  __CASSA_VERSION__="$CASSANDRA_VERSION" \
+  __ELASTICSEARCH_VERSION__="$ELASTICSEARCH_VERSION" \
+  __RMQ_VERSION__="$RMQ_VERSION" \
+  __RMQ_TLS_CONFIG__="$RMQ_TLS_CONFIG" \
+  __MINIO_VERSION__="$MINIO_VERSION" \
+  __MINIO_MC_VERSION__="$MINIO_MC_VERSION" \
+  __MIM_CERT__="$MIM_CERT" \
+  __MIM_KEY__="$MIM_KEY" \
+  __MIM_PRIV_KEY__="$MIM_PRIV_KEY" \
+  __MIM_DHSERVER__="$MIM_DHSERVER" \
+  __INJECT_FILES__="$INJECT_FILES" \
+  __DB_CACERT__="$CACERT" \
+  __DB_CAKEY__="$CAKEY" \
+  __PYTHON2_BASE32_DEC__="$PYTHON2_BASE32_DEC" \
+  __PYTHON3_BASE32_DEC__="$PYTHON3_BASE32_DEC" \
+  __CERTS_CACHE_KEY__="$CERTS_CACHE_KEY" \
+  __REBAR_PLUGINS_HASH__="$REBAR_PLUGINS_HASH" \
+  __BIG_TESTS__=$'\n'"$BIG_TESTS" \
+  __BIG_TESTS_LIST__=$'\n'"$BIG_TESTS_LIST" \
+  awk '
+    BEGIN {
+      for (k in ENVIRON) {
+        if (k ~ /^__/) { repl[k] = ENVIRON[k] }
+      }
+    }
+    {
+      for (k in repl) { gsub(k, repl[k]) }
+      print
+    }
+  ' .circleci/template.yml \
+  > "$OUT_FILE"

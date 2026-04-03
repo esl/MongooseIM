@@ -173,10 +173,7 @@ containers:
     entrypoint: *ENTRYPOINT
 
 executors:
-  legacy_otp:
-    docker:
-      - image: *LEGACY_OTP
-    resource_class: medium+
+  # latest
   latest_otp:
     docker:
       - image: *LATEST_OTP
@@ -185,10 +182,6 @@ executors:
     docker:
       - image: *LATEST_OTP
     resource_class: large
-  legacy_otp_redis:
-    docker:
-      - image: *LEGACY_OTP
-      - *redis_container
   latest_otp_redis:
     docker:
       - image: *LATEST_OTP
@@ -199,17 +192,6 @@ executors:
       - *redis_container
       - *minio_container
       - *rabbit_container
-  latest_otp_mysql_redis:
-    docker:
-      - image: *LATEST_OTP
-      - *redis_container
-      - *mysql_container
-      - *rabbit_container
-  legacy_otp_pgsql_redis:
-    docker:
-      - image: *LEGACY_OTP
-      - *redis_container
-      - *pgsql_container
   latest_otp_pgsql_redis:
     docker:
       - image: *LATEST_OTP
@@ -220,23 +202,24 @@ executors:
       - image: *LATEST_OTP
       - *redis_container
       - *cockroachdb_container
-  legacy_otp_ldap_redis:
+  latest_otp_mysql_redis:
     docker:
-      - image: *LEGACY_OTP
+      - image: *LATEST_OTP
       - *redis_container
-      - *ldap_container
+      - *mysql_container
   latest_otp_ldap_redis:
     docker:
       - image: *LATEST_OTP
       - *redis_container
       - *ldap_container
-  latest_otp_elasticsearch_cassandra:
+  latest_otp_elasticsearch_cassandra_redis:
     docker:
       - image: *LATEST_OTP
       - *redis_container
       - *elasticsearch_container
       - *cassandra_container
       - *cassandra_proxy_container
+  # latest (arm)
   latest_otp_arm64:
     docker:
       - image: *LATEST_OTP
@@ -246,6 +229,20 @@ executors:
       - image: *LATEST_OTP
       - *redis_container
     resource_class: arm.medium
+  # legacy
+  legacy_otp:
+    docker:
+      - image: *LEGACY_OTP
+    resource_class: medium+
+  legacy_otp_redis:
+    docker:
+      - image: *LEGACY_OTP
+      - *redis_container
+  legacy_otp_pgsql_redis:
+    docker:
+      - image: *LEGACY_OTP
+      - *redis_container
+      - *pgsql_container
 commands:
   fetch_build_packages:
     steps:
@@ -372,6 +369,14 @@ commands:
           command: |
               tools/circle-publish-github-comment.sh
 
+  presets_to_dbs:
+    steps:
+      - run:
+          name: Presets to databases
+          command: |
+            dbs="$(./tools/test_runner/presets_to_dbs.sh "$PRESET")"
+            echo "export DBS=\"$dbs\"" >> "$BASH_ENV"
+
   maybe_prepare_minio:
     steps:
       - run:
@@ -382,7 +387,8 @@ commands:
             - MINIO_SECRET_KEY: "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"
             - MINIO_BUCKET: "mybucket"
           command: |
-            if [[ "$DB" == *minio* ]]; then
+            printenv
+            if [[ "$DBS" == *minio* ]]; then
                 curl -sSL https://dl.minio.io/client/mc/release/linux-amd64/archive/mc.__MINIO_MC_VERSION__ -o ./mc
                 chmod +x ./mc
                 ./mc config host add ${MINIO_HOSTNAME} http://127.0.0.1:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
@@ -395,7 +401,7 @@ commands:
       - run:
           name: Change port in test.config
           command: |
-            if [[ "$DB" == *ldap* ]]; then
+            if [[ "$DBS" == *ldap* ]]; then
               sed -i "s/connection.port = 3636/connection.port = 636/g" big_tests/test.config
             fi
 
@@ -404,7 +410,7 @@ commands:
       - run:
           name: Maybe create ElasticSearch schema
           command: |
-            if [[ "$DB" == *elasticsearch* ]]; then
+            if [[ "$DBS" == *elasticsearch* ]]; then
               tools/setup-elasticsearch.sh
             fi
 
@@ -574,15 +580,10 @@ jobs:
         default: default.spec
       preset:
         type: enum
-        enum: [internal_mnesia, mysql_redis, ldap_mnesia,
-               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, pgsql_cets,
-               cockroachdb_cets]
+        enum: [cockroachdb_cets, mysql_cets, pgsql_cets, ldap_mnesia, elasticsearch_and_cassandra_mnesia,
+               internal_mnesia, pgsql_mnesia, pgsql_redis]
         description: Preset to run
         default: internal_mnesia
-      db:
-        type: string
-        description: Database to use
-        default: mnesia
       tls_dist:
         type: boolean
         description: Erlang distribution with TLS enabled
@@ -594,7 +595,6 @@ jobs:
     environment:
       TESTSPEC: <<parameters.spec>>
       PRESET: <<parameters.preset>>
-      DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
       STORE_RESULTS: <<parameters.store_results>>
       SKIP_AUTO_COMPILE: true
@@ -604,6 +604,7 @@ jobs:
       - run:
           name: Wait for databases
           command: ./tools/circle-wait-for-db.sh
+      - presets_to_dbs
       - maybe_prepare_minio
       - maybe_prepare_ldap
       - maybe_setup_elasticsearch
@@ -992,123 +993,7 @@ workflows:
             - latest_otp_docker_arm64
           filters: *all_tags
       # ============= BIG TESTS =============
-      - big_tests_in_docker:
-          name: internal_mnesia_latest
-          executor: latest_otp_redis_minio_rmq
-          context: mongooseim-org
-          preset: internal_mnesia
-          db: "mnesia minio"
-          tls_dist: true
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: cockroachdb_cets_latest
-          executor: latest_otp_cockroachdb_redis
-          context: mongooseim-org
-          preset: cockroachdb_cets
-          db: "cockroachdb cets"
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: pgsql_cets_latest
-          executor: latest_otp_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_cets
-          db: "postgres cets"
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: mysql_redis_latest
-          executor: latest_otp_mysql_redis
-          context: mongooseim-org
-          preset: mysql_redis
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: dynamic_domains_mysql_redis_latest
-          spec: dynamic_domains.spec
-          executor: latest_otp_mysql_redis
-          context: mongooseim-org
-          preset: mysql_redis
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: pgsql_mnesia_legacy
-          executor: legacy_otp_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_mnesia
-          requires:
-            - legacy_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: pgsql_mnesia_latest
-          executor: latest_otp_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_mnesia
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: dynamic_domains_pgsql_mnesia_latest
-          spec: dynamic_domains.spec
-          executor: latest_otp_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_mnesia
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: dynamic_domains_pgsql_cets_latest
-          spec: dynamic_domains.spec
-          executor: latest_otp_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_mnesia
-          db: "postgres cets"
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: dynamic_domains_pgsql_mnesia_legacy
-          spec: dynamic_domains.spec
-          executor: legacy_otp_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_mnesia
-          requires:
-            - legacy_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: ldap_mnesia_legacy
-          executor: legacy_otp_ldap_redis
-          context: mongooseim-org
-          preset: ldap_mnesia
-          db: "ldap redis"
-          requires:
-            - legacy_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: ldap_mnesia_latest
-          executor: latest_otp_ldap_redis
-          context: mongooseim-org
-          preset: ldap_mnesia
-          db: "ldap redis"
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: elasticsearch_and_cassandra_latest
-          spec: mam.spec
-          executor: latest_otp_elasticsearch_cassandra
-          context: mongooseim-org
-          preset: elasticsearch_and_cassandra_mnesia
-          db: "elasticsearch cassandra"
-          requires:
-            - latest_otp_docker
-          filters: *all_tags
+#__BIG_TESTS__
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - docker_image:
           name: docker_build_and_ship
@@ -1117,24 +1002,13 @@ workflows:
           requires:
 
             - small_tests_legacy
-            - ldap_mnesia_legacy
-            - pgsql_mnesia_legacy
-            - dynamic_domains_pgsql_mnesia_legacy
             - dialyzer_legacy
 
             - small_tests_latest
-            - internal_mnesia_latest
-            - pgsql_cets_latest
-            - cockroachdb_cets_latest
-            - pgsql_mnesia_latest
-            - mysql_redis_latest
-            - ldap_mnesia_latest
-            - elasticsearch_and_cassandra_latest
-            - dynamic_domains_pgsql_mnesia_latest
-            - dynamic_domains_pgsql_cets_latest
-            - dynamic_domains_mysql_redis_latest
             - dialyzer_latest
             - small_tests_latest_arm64
+
+#__BIG_TESTS_LIST__
 
             - xref
             - elvis
