@@ -38,30 +38,31 @@ all() ->
 groups() ->
     [
      {pep, [parallel], pep_tests()},
-     {pep_old, [parallel], pep_old_tests()},
+     {pep_old, [parallel], pep_tests() ++ pep_old_tests()},
      {cache_old, [parallel], cache_tests()}
     ].
 
+%% Tests for old and new PEP
 pep_tests() ->
     [publish_and_notify_test,
-     delayed_receive].
+     send_caps_after_login_test,
+     delayed_receive,
+     delayed_receive_with_sm,
+     h_ok_after_notify_test
+    ].
 
+%% Tests for old PEP only
 pep_old_tests() ->
     [disco_test,
      disco_sm_test,
      disco_sm_node_test,
      disco_sm_items_test,
      disco_sm_items_node_test,
-     publish_and_notify_test,
      auto_create_with_publish_options_test,
      publish_options_success_test,
      publish_options_fail_unknown_option_story,
      publish_options_fail_wrong_value_story,
      publish_options_fail_wrong_form,
-     send_caps_after_login_test,
-     delayed_receive,
-     delayed_receive_with_sm,
-     h_ok_after_notify_test,
      authorize_access_model,
      unsubscribe_after_presence_unsubscription,
      native_bookmarks_test].

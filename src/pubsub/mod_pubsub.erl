@@ -4,6 +4,7 @@
 -export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 -export([user_send_iq/3,
+         caps_recognised/3,
          roster_out_subscription/3,
          remove_user/3]).
 
@@ -31,12 +32,7 @@
 
 -export_type([item/0, node_key/0, node_id/0, item_id/0, item_payload/0]).
 
--spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
-hooks(HostType) ->
-    [{user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 50},
-     {roster_out_subscription, HostType, fun ?MODULE:roster_out_subscription/3, #{}, 50},
-     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-     {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50}].
+%% gen_mod callbacks
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
@@ -58,6 +54,16 @@ config_spec() ->
         defaults = #{<<"backend">> => rdbms}
     }.
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 50},
+     {caps_recognised, HostType, fun ?MODULE:caps_recognised/3, #{}, 50},
+     {roster_out_subscription, HostType, fun ?MODULE:roster_out_subscription/3, #{}, 50},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50}].
+
+%% Hook handlers
+
 -spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
           mongoose_c2s_hooks:result().
 user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
@@ -74,17 +80,47 @@ user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
         _ -> {ok, Acc}
     end.
 
+-spec caps_recognised(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
+      Acc :: mongoose_acc:t().
+caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
+    SubscriberJid = mongoose_acc:from_jid(Acc),
+    [send_last_items(host_type(OwnerJid), jid:to_bare(OwnerJid), SubscriberJid, Features)
+     || OwnerJid <- subscriptions(s_to, C2SData)],
+    {ok, Acc}.
+
+-spec roster_out_subscription(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
+      Acc :: mongoose_acc:t().
+roster_out_subscription(Acc, #{to := SubscriberJid, from := OwnerJid, type := subscribed}, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    RecipientJids = [jid:to_bare(SubscriberJid)],
+    lists:foreach(fun(Item) ->
+                          filter_and_broadcast(HostType, OwnerJid, RecipientJids, Item)
+                  end, mod_pubsub_backend:get_last_items(HostType, OwnerJid)),
+    {ok, Acc};
+roster_out_subscription(Acc, _, _) ->
+    {ok, Acc}.
+
+-spec remove_user(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
+      Acc :: mongoose_acc:t().
+remove_user(Acc, #{jid := ServiceJid}, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mod_pubsub_backend:delete_nodes(HostType, ServiceJid),
+    {ok, Acc}.
+
+%% Internal functions
+
 -spec perform_action(iq_request(), iq_action()) -> {result | error, [exml:child()]}.
 perform_action(#{iq := IQ}, #{action := error, reason := {bad_request, _Reason}}) ->
     {error, [mongoose_xmpp_errors:bad_request(), IQ#iq.sub_el]};
-perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
+perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid,
+                 c2s_data := C2SData},
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
     NodeKey = {ServiceJid, NodeId},
     Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
     HostType = mongoose_acc:host_type(Acc),
     mod_pubsub_backend:set_node(HostType, NodeKey),
     mod_pubsub_backend:set_item(HostType, Item),
-    broadcast_item(Request, Item),
+    filter_and_broadcast(HostType, jid:to_bare(PublisherJid), subscriptions(s_from, C2SData), Item),
     ReplyPubsubEl = #xmlel{name = ~"pubsub",
                            attrs = #{~"xmlns" => ?NS_PUBSUB},
                            children = [#xmlel{name = ~"item", attrs = #{~"id" => ItemId}}]},
@@ -109,65 +145,47 @@ pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := N
 pubsub_action(_, _) ->
     no_action.
 
--spec roster_out_subscription(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
-      Acc :: mongoose_acc:t().
-roster_out_subscription(Acc, #{to := SubscriberJid, from := ApproverJid, type := subscribed}, _) ->
-    HostType = mongoose_acc:host_type(Acc),
-    LastItems = mod_pubsub_backend:get_last_items(HostType, ApproverJid),
-    [send_notification(Acc, ApproverJid, SubscriberJid, Item) || Item <- LastItems],
-    {ok, Acc};
-roster_out_subscription(Acc, _, _) ->
-    {ok, Acc}.
+-spec send_last_items(mongooseim:host_type(), jid:jid(), jid:jid(), [mod_caps:feature()]) -> ok.
+send_last_items(HostType, OwnerJid = #jid{lresource = ~""},
+                SubscriberJid = #jid{lresource = <<_, _/binary>>}, Features) ->
+    [route_notification(HostType, OwnerJid, SubscriberJid, notification_message(Item))
+     || Item <- mod_pubsub_backend:get_last_items(HostType, OwnerJid),
+        lists:member(notify_feature(Item), Features)],
+    ok.
 
--spec remove_user(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
-      Acc :: mongoose_acc:t().
-remove_user(Acc, #{jid := ServiceJid}, _) ->
-    HostType = mongoose_acc:host_type(Acc),
-    mod_pubsub_backend:delete_nodes(HostType, ServiceJid),
-    {ok, Acc}.
-
-send_notification(Acc, FromJid, RecipientJid, Item) ->
+-spec filter_and_broadcast(mongooseim:host_type(), jid:jid(), [jid:jid()], item()) -> ok.
+filter_and_broadcast(HostType, OwnerJid = #jid{lresource = ~""}, RecipientJids, Item) ->
     Feature = notify_feature(Item),
     ToFullJids = [RecipientJid#jid{lresource = LRes}
-                  || LRes <- resources_to_notify(RecipientJid, Feature)],
-    broadcast_item(mongoose_acc:host_type(Acc), FromJid, ToFullJids, Item).
-
--spec broadcast_item(iq_request(), item()) -> ok.
-broadcast_item(#{acc := Acc, c2s_data := C2SData, from_jid := FromJid}, Item) ->
-    Feature = notify_feature(Item),
-    ToFullJids = [RecipientJid#jid{lresource = LRes}
-                  || RecipientJid <- presence_subscribers(C2SData),
-                     LRes <- resources_to_notify(RecipientJid, Feature)],
-    broadcast_item(mongoose_acc:host_type(Acc), FromJid, ToFullJids, Item).
+                  || RecipientJid <- RecipientJids,
+                     {LRes, Features} <- resources_with_features(RecipientJid),
+                     lists:member(Feature, Features)],
+    broadcast_item(HostType, OwnerJid, ToFullJids, Item).
 
 -spec broadcast_item(mongooseim:host_type(), jid:jid(), [jid:jid()], item()) -> ok.
-broadcast_item(_HostType, _FromBareJid, [], _Item) ->
+broadcast_item(_HostType, _FromJid, [], _Item) ->
     ok;
 broadcast_item(HostType, FromJid, ToFullJids, Item) ->
-    FromJidBare = jid:to_bare(FromJid),
     Notification = notification_message(Item),
     lists:foreach(fun(ToJid) ->
-                          route_notification(HostType, FromJidBare, ToJid, Notification)
+                          route_notification(HostType, FromJid, ToJid, Notification)
                   end, ToFullJids).
 
-resources_to_notify(RecipientJid, Feature) ->
-    [LRes || {LRes, Features} <- resources_with_features(RecipientJid),
-             lists:member(Feature, Features)].
-
+-spec notify_feature(item()) -> mod_caps:feature().
 notify_feature(#item{node_key = {_, NodeId}}) ->
     <<NodeId/binary, "+notify">>.
 
--spec presence_subscribers(mongoose_c2s:data()) -> [jid:jid()].
-presence_subscribers(C2SData) ->
+-spec subscriptions(s_from | s_to, mongoose_c2s:data()) -> [jid:jid()].
+subscriptions(Type, C2SData) ->
     case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
         {ok, State} ->
-            maps:keys(mod_presence:get(State, s_from));
+            maps:keys(mod_presence:get(State, Type));
         _ ->
             []
     end.
 
--spec resources_with_features(jid:jid()) -> [{jid:lresource(), [binary()]}].
-resources_with_features(Jid = #jid{lserver = LServer}) ->
+-spec resources_with_features(jid:jid()) -> [{jid:lresource(), [mod_caps:feature()]}].
+resources_with_features(Jid = #jid{lserver = LServer, lresource = ~""}) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} -> resources_with_features(HostType, Jid);
         {error, not_found} -> []
@@ -200,3 +218,8 @@ notification_message(#item{node_key = {_, NodeId}, id = ItemId, payload = Payloa
                                                  children = [#xmlel{name = ~"item",
                                                                     attrs = #{~"id" => ItemId},
                                                                     children = Payload}]}]}]}.
+
+-spec host_type(jid:jid()) -> mongooseim:host_type().
+host_type(#jid{lserver = LServer}) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
+    HostType.
