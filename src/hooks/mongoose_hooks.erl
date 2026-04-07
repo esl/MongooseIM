@@ -258,9 +258,10 @@ filter_packet(Acc) ->
     Acc :: mongoose_acc:t(),
     User :: jid:jid(),
     Result :: mongoose_acc:t().
-inbox_unread_count(LServer, Acc, User) ->
+inbox_unread_count(_LServer, Acc, User) ->
     Params = #{user => User},
-    run_hook_for_host_type(inbox_unread_count, LServer, Acc, Params).
+    HostType = mongoose_acc:host_type(Acc),
+    run_hook_for_host_type(inbox_unread_count, HostType, Acc, Params).
 
 -spec extend_inbox_result(mongoose_acc:t(), [mod_inbox:inbox_res()], jlib:iq()) ->
     [mod_inbox:inbox_res()].
