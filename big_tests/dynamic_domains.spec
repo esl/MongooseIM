@@ -94,6 +94,7 @@
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
 {suites, "tests", push_SUITE}.
+{suites, "tests", push_integration_SUITE}.
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", rdbms_SUITE}.
 {suites, "tests", sasl_SUITE}.
