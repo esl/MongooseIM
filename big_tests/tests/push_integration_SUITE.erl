@@ -830,9 +830,9 @@ maybe_check_if_push_node_was_disabled(<<"v2">>, _, _) ->
     ok;
 maybe_check_if_push_node_was_disabled(<<"v3">>, User, PushNode) ->
     JID = rpc(?RPC_SPEC, jid, binary_to_bare, [escalus_utils:get_jid(User)]),
-    Host = escalus_utils:get_server(User),
+    HostType = host_type(),
     Fun = fun() ->
-                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [Host, JID]),
+                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [HostType, JID]),
                   lists:keymember(PushNode, 2, Services)
           end,
     wait_helper:wait_until(Fun, false),
