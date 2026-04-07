@@ -94,7 +94,12 @@
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
 {suites, "tests", push_SUITE}.
+
 {suites, "tests", push_integration_SUITE}.
+{skip_groups, "tests", push_integration_SUITE,
+ [pubsub_ful],
+ "at the moment mod_pubsub doesn't support dynamic domains"}.
+
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", rdbms_SUITE}.
 {suites, "tests", sasl_SUITE}.
