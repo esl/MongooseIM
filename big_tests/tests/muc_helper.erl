@@ -349,6 +349,9 @@ wait_for_room_count(ExpectedCounts) ->
 assert_room_event(EventName, RoomJid) ->
     assert_event(EventName, fun(#{count := 1, jid := Jid}) -> Jid =:= RoomJid end).
 
+assert_room_events(EventName, RoomJid, Count) ->
+    assert_event(EventName, fun(#{count := C, jid := Jid}) -> C =:= Count andalso Jid =:= RoomJid end).
+
 assert_event(EventName, F) ->
     instrument_helper:assert_one(EventName, labels(), F).
 
