@@ -93,7 +93,7 @@ should_publish(Acc, #jid{} = To) ->
 
 -spec get_unread_count(mongoose_acc:t(), jid:jid()) -> pos_integer().
 get_unread_count(Acc, To) ->
-    NewAcc = mongoose_hooks:inbox_unread_count(To#jid.lserver, Acc, To),
+    NewAcc = mongoose_hooks:inbox_unread_count(Acc, To),
     mongoose_acc:get(inbox, unread_count, 1, NewAcc).
 
 -spec sender_id(jid:jid(), exml:element()) -> binary().
