@@ -138,16 +138,8 @@ init({HostType, JobId}) ->
 %% State functions
 %%====================================================================
 
--spec loading_batch(gen_statem:event_type(), term(), data()) ->
-    gen_statem:state_function_result().
-loading_batch({call, From}, pause, Data) ->
-    {next_state, paused, Data, [{reply, From, ok}]};
-loading_batch({call, From}, resume, Data) ->
-    {keep_state, Data, [{reply, From, ok}]};
-loading_batch({call, From}, get_domain, #data{job = Job} = Data) ->
-    {keep_state, Data, [{reply, From, {ok, Job#broadcast_job.domain}}]};
-loading_batch(Origin, load_batch, Data)
-  when Origin == internal; Origin == state_timeout->
+-spec loading_batch(internal, load_batch, data()) -> gen_statem:state_function_result().
+loading_batch(internal, load_batch, Data) ->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
     %% Persist current state before attempting to load next batch
     %% (ensures we can retry same batch if loading/sending fails)
@@ -176,7 +168,7 @@ loading_batch(Origin, load_batch, Data)
     gen_statem:state_function_result().
 sending_batch(EventType, send_one, #data{current_batch = [], state = WorkerState} = Data)
   when EventType == internal; EventType == state_timeout ->
-    NewData = Data#data{batch_t0 = undefined, current_batch = []},
+    NewData = Data#data{batch_t0 = undefined},
     case WorkerState#broadcast_worker_state.cursor of
         undefined ->
             {next_state, finished, NewData, [{next_event, internal, finalize}]};
