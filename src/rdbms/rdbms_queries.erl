@@ -339,7 +339,7 @@ limit_offset() ->
 add_interval_seconds_expr(HostType) ->
     case mongoose_rdbms:db_engine(HostType) of
         mysql -> <<"DATE_ADD(NOW(), INTERVAL ? SECOND)">>;
-        _ -> <<"now() + (? * interval '1 second')">>
+        _ -> <<"now() + ((?::bigint) * interval '1 second')">>
     end.
 
 %% -----------------
