@@ -1479,8 +1479,6 @@ admin_member_list(ConfigIn) ->
   end).
 
 %% removing user from the system removes them from a room
-%% TODO: what if the room is offline?
-%% TODO: remove_domain
 admin_remove_user(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}],
     story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->

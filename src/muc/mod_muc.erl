@@ -1229,7 +1229,6 @@ remove_user(Acc, #{jid := #jid{luser = UserU, lserver = UserS}},
     Res = mod_muc_backend:get_user_rooms(HostType, MUCHost, UserU, UserS),
     {ok, Rooms} = Res,
     Failures = lists:filtermap(fun(R) -> remove_user_from_online(R, UserU, UserS) end, Rooms),
-    logger:warning("asdf Failures: ~p~n", [Failures]),
     lists:foreach(fun(R) -> remove_user_from_offline(HostType, R, UserU, UserS) end, Failures),
     {ok, Acc}.
 
