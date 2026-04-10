@@ -23,7 +23,7 @@
          become_available/2
         ]).
 -import(distributed_helper, [rpc/4, subhost_pattern/1]).
--import(domain_helper, [domain/0]).
+-import(domain_helper, [domain/0, host_type/0]).
 -import(config_parser_helper, [mod_config/2, config/2]).
 
 %%--------------------------------------------------------------------
@@ -137,7 +137,7 @@ init_per_suite(Config) ->
                  tls => #{verify_mode => none}},
     Pool = config([outgoing_pools, http, mongoose_push_http], #{opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools, [[Pool]]),
-    ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
+    ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite(ConfigWithModules).
 
 end_per_suite(Config) ->
@@ -155,7 +155,7 @@ init_per_group(disco, Config) ->
 init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
                                G =:= groupchat_notifications_with_inbox;
                                G =:= integration_with_sm_and_offline_storage ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
             init_modules(G, Config);
         _ ->
@@ -830,9 +830,9 @@ maybe_check_if_push_node_was_disabled(<<"v2">>, _, _) ->
     ok;
 maybe_check_if_push_node_was_disabled(<<"v3">>, User, PushNode) ->
     JID = rpc(?RPC_SPEC, jid, binary_to_bare, [escalus_utils:get_jid(User)]),
-    Host = escalus_utils:get_server(User),
+    HostType = host_type(),
     Fun = fun() ->
-                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [Host, JID]),
+                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [HostType, JID]),
                   lists:keymember(PushNode, 2, Services)
           end,
     wait_helper:wait_until(Fun, false),
@@ -1005,8 +1005,8 @@ init_modules(G, Config) ->
     MongoosePushAPI = mongoose_push_api_for_group(G),
     PubSubHost = ?config(pubsub_host, Config),
     Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost),
-    C = dynamic_modules:save_modules(domain(), Config),
-    Fun = fun() -> catch dynamic_modules:ensure_modules(domain(), Modules) end,
+    C = dynamic_modules:save_modules(host_type(), Config),
+    Fun = fun() -> catch dynamic_modules:ensure_modules(host_type(), Modules) end,
     wait_helper:wait_until(Fun, ok),
     [{api_v, MongoosePushAPI}, {required_modules, Modules} | C].
 

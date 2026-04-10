@@ -1,0 +1,43 @@
+#!/usr/bin/env escript
+
+main([Path]) ->
+    {ok, Presets} = file:consult(Path),
+    Presets1 = parse_presets(Presets),
+    print_presets(Presets1);
+main(_Args) ->
+    halt(1).
+
+parse_presets(Presets) ->
+    maps:from_list([maps:take(name, maps:from_list(P)) || P <- Presets]).
+
+print_presets(Presets) ->
+    maps:foreach(
+        fun(Name, Opts) ->
+            FullOpts =
+                case maps:take(include, Opts) of
+                    error -> Opts;
+                    {Include, Opts1} -> maps:merge(maps:get(Include, Presets), Opts1)
+                end,
+            print_preset(Name, FullOpts)
+        end,
+        Presets
+    ).
+
+print_preset(Name, #{executor := Executor, preset := Preset, requires := Requires} = Opts) ->
+    MaybeSpec =
+        case maps:get(spec, Opts, undefined) of
+            undefined -> "";
+            Spec -> [io_lib:nl(), "    spec: ", Spec]
+        end,
+    io:format(
+        """
+        - big_tests_in_docker:
+            name: ~s
+            executor: ~s
+            preset: ~s
+            requires: ~p~s
+            context: mongooseim-org
+            filters: *all_tags~n
+        """,
+        [Name, Executor, Preset, Requires, MaybeSpec]
+    ).

@@ -10,8 +10,8 @@ described in the next section.
 type RootMutation {
     verifyMessage(
         body: String!
-        rawMessage: String
-        externalId: String!
+        rawData: String
+        externalId: ID!
         recipient: String!
         sender: String!
     ): VerificationResult
