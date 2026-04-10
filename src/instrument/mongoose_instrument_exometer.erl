@@ -175,6 +175,8 @@ exometer_labels(#{function := Function} = Labels) when map_size(Labels) =:= 1 ->
     [Function];
 exometer_labels(#{pool_tag := PoolTag} = Labels) when map_size(Labels) =:= 1 ->
     [PoolTag];
+exometer_labels(#{pool_tag := PoolTag, pool_type := PoolType} = Labels) when map_size(Labels) =:= 2 ->
+    [PoolTag, PoolType];
 exometer_labels(#{pool_id := PoolId} = Labels) when map_size(Labels) =:= 1 ->
     [PoolId];
 exometer_labels(#{connection_type := ConnectionType} = Labels) when map_size(Labels) =:= 1 ->

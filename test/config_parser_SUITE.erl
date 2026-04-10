@@ -314,12 +314,19 @@ supported_features(_Config) ->
     Gen = #{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type2">>]}},
     Auth = #{<<"auth">> => #{<<"internal">> => #{}}},
     Mod = #{<<"modules">> => #{<<"mod_amp">> => #{}}},
+    PushService = #{<<"modules">> => #{<<"mod_push_service_mongoosepush">> => #{}}},
     ?cfg([{auth, <<"type1">>}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
     ?cfg([{modules, <<"type1">>}, mod_amp], #{}, maps:merge(Gen, Mod)),
     ?cfg([{modules, <<"type1">>}, mod_amp], #{},
-          Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
+        Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}),
+    ?cfg([{modules, <<"type1">>}, mod_push_service_mongoosepush],
+        config_parser_helper:default_mod_config(mod_push_service_mongoosepush),
+        maps:merge(Gen, PushService)),
+    ?cfg([{modules, <<"type1">>}, mod_push_service_mongoosepush],
+        config_parser_helper:default_mod_config(mod_push_service_mongoosepush),
+        Gen#{<<"host_config">> => [PushService#{<<"host_type">> => <<"type1">>}]}).
 
 unsupported_features(_Config) ->
     % ejabberd_auth_http and mod_test are mocked and they don't support dynamic domains

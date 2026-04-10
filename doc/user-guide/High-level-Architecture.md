@@ -74,10 +74,6 @@ An HTTP notification enables forwarding of the events to any other external HTTP
 
 [WombatOAM](https://www.erlang-solutions.com/capabilities/wombatoam/) enables the monitoring and management of MongooseIM clusters, as well as RabbitMQ and any other Erlang and Elixir based system.
 
-### MongooseICE (STUN/TURN)
-
-Available on: [MongooseICE](https://github.com/esl/MongooseICE/)
-
 ### MongoosePush (APNS, GCM)
 
 Available on: [MongoosePush](https://github.com/esl/MongoosePush)

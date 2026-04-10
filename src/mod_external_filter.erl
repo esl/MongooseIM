@@ -26,7 +26,7 @@
         <<"mutation verifyMessage(
                $body: String!,
                $rawData: String!,
-               $externalId: String!,
+               $externalId: ID!,
                $recipient: String!,
                $sender: String!) {
            verifyMessage(

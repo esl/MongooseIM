@@ -1,7 +1,5 @@
 -module(dynamic_domains_SUITE).
 
--include_lib("exml/include/exml.hrl").
-
 %% API
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, mim2/0, rpc/4,
