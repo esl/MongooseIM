@@ -173,17 +173,12 @@ update_worker_state(HostType, JobId, WorkerState) ->
     ok.
 
 -spec renew_ownership(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
-    {ok, [broadcast_job_id()]}.
+    ok.
 renew_ownership(HostType, LeaseTime) ->
     OwnerNode = atom_to_binary(node(), utf8),
-    T = fun() ->
-        {updated, _, Rows} = rdbms_queries:execute_update_returning(
-                               HostType, broadcast_renew_ownership,
-                               [LeaseTime], [OwnerNode, HostType]),
-        {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
-    end,
-    {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
-    Result.
+    {updated, _} = execute_successfully(HostType, broadcast_renew_ownership,
+                                        [LeaseTime, OwnerNode, HostType]),
+    ok.
 
 -spec take_expired_jobs(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
     {ok, [broadcast_job_id()]}.
@@ -251,17 +246,15 @@ prepare_queries(HostType) ->
     rdbms_queries:prepare_upsert(HostType, broadcast_upsert_worker_state, broadcast_worker_state,
                                  WorkerStateInsert, WorkerStateUpdate, WorkerStateKey),
 
-    %% Ownership transition queries via update_returning helper.
-    rdbms_queries:prepare_update_returning(HostType,
-        #{name => broadcast_renew_ownership,
-          table => broadcast_jobs_ownership,
-          update_fields => [{<<"expires_at">>, ExpiresExpr}, {<<"updated_at">>, <<"NOW()">>}],
-          filter_fields => [<<"owner_node">>, <<"host_type">>],
-          return_fields => [<<"broadcast_jobs_ownership.broadcast_id">>],
-          joins => [{broadcast_jobs, <<"j">>,
-                     <<"j.id = broadcast_jobs_ownership.broadcast_id">>}],
-          filters => <<"broadcast_jobs_ownership.owner_node = ? "
-                       "AND j.host_type = ? AND j.execution_state = 'running'">>}),
+    %% Ownership transition queries.
+    prepare(broadcast_renew_ownership, broadcast_jobs_ownership,
+            [lease_time, owner_node, host_type],
+                    <<"UPDATE broadcast_jobs_ownership "
+                        "SET expires_at = ", ExpiresExpr/binary, ", updated_at = NOW() "
+                        "WHERE owner_node = ? "
+                        "AND broadcast_id IN ("
+                        "SELECT id FROM broadcast_jobs "
+                        "WHERE host_type = ? AND execution_state = 'running')">>),
     rdbms_queries:prepare_update_returning(HostType,
         #{name => broadcast_take_expired_jobs,
           table => broadcast_jobs_ownership,
