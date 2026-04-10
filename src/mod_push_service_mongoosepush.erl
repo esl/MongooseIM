@@ -22,7 +22,7 @@
 %%--------------------------------------------------------------------
 
 %% gen_mod handlers
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 %% Hooks and IQ handlers
 -export([push_notifications/3]).
@@ -38,27 +38,31 @@
 %%--------------------------------------------------------------------
 
 -spec start(Host :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> any().
-start(Host, Opts) ->
-    ?LOG_INFO(#{what => push_service_starting, server => Host}),
-    start_pool(Host, Opts),
+start(HostType, Opts) ->
+    ?LOG_INFO(#{what => push_service_starting, host_type => HostType}),
+    start_pool(HostType, Opts),
     %% Hooks
-    gen_hook:add_handlers(hooks(Host)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec start_pool(mongooseim:host_type(), gen_mod:module_opts()) -> term().
-start_pool(Host, Opts) ->
-    {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service, pool_opts(Opts)).
+start_pool(HostType, Opts) ->
+    {ok, _} = mongoose_wpool:start(generic, HostType, mongoosepush_service, pool_opts(Opts)).
 
 -spec pool_opts(gen_mod:module_opts()) -> mongoose_wpool:pool_opts().
 pool_opts(#{max_http_connections := MaxHTTPConnections}) ->
     [{strategy, available_worker},
      {workers, MaxHTTPConnections}].
 
--spec stop(Host :: jid:server()) -> ok.
-stop(Host) ->
-    gen_hook:delete_handlers(hooks(Host)),
-    mongoose_wpool:stop(generic, Host, mongoosepush_service),
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    gen_hook:delete_handlers(hooks(HostType)),
+    mongoose_wpool:stop(generic, HostType, mongoosepush_service),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -90,18 +94,19 @@ hooks(HostType) ->
     Extra :: gen_hook:extra().
 push_notifications(AccIn,
                    #{notification_forms := Notifications, options := Options = #{<<"device_id">> := DeviceId}},
-                   #{host_type := Host}) ->
+                   #{host_type := HostType}) ->
     ?LOG_DEBUG(#{what => push_notifications, notifications => Notifications,
                  opts => Options, acc => AccIn}),
 
-    ProtocolVersion = gen_mod:get_module_opt(Host, ?MODULE, api_version),
+    ProtocolVersion = gen_mod:get_module_opt(HostType, ?MODULE, api_version),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     Fun = fun(Notification) ->
             ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
             {ok, JSON} =
                 make_notification(Notification, Options),
             Payload = jiffy:encode(JSON),
-            call(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
+            call(HostType, ?MODULE, http_notification,
+                 [HostType, post, Path, ReqHeaders, Payload])
         end,
     {ok, send_push_notifications(Notifications, Fun, ok)}.
 
@@ -127,12 +132,12 @@ send_push_notifications([Notification | Notifications], Fun, Result) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec http_notification(Host :: jid:server(), post,
+-spec http_notification(mongooseim:host_type(), post,
                         binary(), proplists:proplist(), binary()) ->
     ok | {error, Reason :: term()}.
-http_notification(Host, post, URL, ReqHeaders, Payload) ->
-    PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name),
-    case mongoose_http_client:post(Host, PoolName, URL, ReqHeaders, Payload) of
+http_notification(HostType, post, URL, ReqHeaders, Payload) ->
+    PoolName = gen_mod:get_module_opt(HostType, ?MODULE, pool_name),
+    case mongoose_http_client:post(HostType, PoolName, URL, ReqHeaders, Payload) of
         {ok, {BinStatusCode, Body}} ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
@@ -195,9 +200,9 @@ make_notification(Notification, Options) ->
                   end,
     {ok, maps:merge(NotificationParams, DataOrAlert)}.
 
--spec call(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
-call(Host, M, F, A) ->
-    mongoose_wpool:call(generic, Host, mongoosepush_service, {M, F, A}).
+-spec call(mongooseim:host_type(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+call(HostType, M, F, A) ->
+    mongoose_wpool:call(generic, HostType, mongoosepush_service, {M, F, A}).
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(Host) ->

@@ -16,7 +16,7 @@
          failed_to_store_message/1,
          filter_local_packet/1,
          filter_packet/1,
-         inbox_unread_count/3,
+         inbox_unread_count/2,
          extend_inbox_result/3,
          get_key/2,
          packet_to_component/3,
@@ -253,14 +253,14 @@ filter_packet(Acc) ->
 
 %%% @doc The `inbox_unread_count' hook is called to get the number
 %%% of unread messages in the inbox for a user.
--spec inbox_unread_count(LServer, Acc, User) -> Result when
-    LServer :: jid:lserver(),
+-spec inbox_unread_count(Acc, User) -> Result when
     Acc :: mongoose_acc:t(),
     User :: jid:jid(),
     Result :: mongoose_acc:t().
-inbox_unread_count(LServer, Acc, User) ->
+inbox_unread_count(Acc, User) ->
     Params = #{user => User},
-    run_hook_for_host_type(inbox_unread_count, LServer, Acc, Params).
+    HostType = mongoose_acc:host_type(Acc),
+    run_hook_for_host_type(inbox_unread_count, HostType, Acc, Params).
 
 -spec extend_inbox_result(mongoose_acc:t(), [mod_inbox:inbox_res()], jlib:iq()) ->
     [mod_inbox:inbox_res()].
