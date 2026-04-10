@@ -41,6 +41,7 @@
          get_room_config/1,
          change_room_config/2,
          delete_room/2,
+         remove_user/3,
          is_room_owner/2,
          can_access_room/2,
          can_access_identity/2]).
@@ -260,6 +261,15 @@ delete_room(RoomJID, ReasonIn) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
             gen_fsm_compat:send_all_state_event(Pid, {destroy, ReasonIn});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec remove_user(jid:jid(), jid:luser(), jid:lserver()) -> ok | {error, not_found}.
+remove_user(RoomJID, UserU, UserS) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:send_all_state_event(Pid, {remove_user, UserU, UserS});
         {error, Reason} ->
             {error, Reason}
     end.
@@ -625,6 +635,11 @@ handle_event({destroy, Reason}, _StateName, StateData) ->
     {stop, shutdown, StateData};
 handle_event(destroy, StateName, StateData) ->
     handle_event({destroy, none}, StateName, StateData);
+
+handle_event({remove_user, UserU, UserS}, StateName, StateData) ->
+    S1 = remove_user_from_room(#jid{luser = UserU, lserver = UserS},
+                               <<"user remove">>, StateData),
+    {next_state, StateName, S1};
 
 handle_event({set_affiliations, Affiliations},
              #state{hibernate_timeout = Timeout} = StateName, StateData) ->
@@ -2793,16 +2808,7 @@ process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
     safe_send_kickban_presence(JID, Reason, <<"307">>, SD),
     set_role(JID, none, SD);
 process_admin_item_set_unsafe({JID, affiliation, none, Reason}, _UJID, SD) ->
-    case  (SD#state.config)#config.members_only of
-        true ->
-            safe_send_kickban_presence(JID, Reason, <<"321">>, none, SD),
-            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
-            set_role(JID, none, SD1);
-        _ ->
-            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
-            send_update_presence(JID, Reason, SD1),
-            SD1
-    end;
+    remove_user_from_room(JID, Reason, SD);
 process_admin_item_set_unsafe({JID, affiliation, outcast, Reason}, _UJID, SD) ->
     safe_send_kickban_presence(JID, Reason, <<"301">>, outcast, SD),
     set_affiliation_and_reason(JID, outcast, Reason, set_role(JID, none, SD));
@@ -2829,6 +2835,18 @@ process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD) ->
     SD1 = set_affiliation(JID, A, SD),
     send_update_presence(JID, Reason, SD1),
     SD1.
+
+remove_user_from_room(JID, Reason, SD) ->
+    case (SD#state.config)#config.members_only of
+        true ->
+            safe_send_kickban_presence(JID, Reason, <<"321">>, none, SD),
+            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            set_role(JID, none, SD1);
+        _ ->
+            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            send_update_presence(JID, Reason, SD1),
+            SD1
+    end.
 
 -type res_row() :: {jid:simple_jid() | jid:jid(),
                     'affiliation' | 'role', any(), any()}.
