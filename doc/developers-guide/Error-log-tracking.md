@@ -39,8 +39,7 @@ They do not count toward the unexpected error total in the summary.
 
 ### Pattern types
 
-The `expect/1,2` functions accept the same pattern types as
-`log_error_helper:expect/1`:
+The `expect/1,2` functions accept the following pattern types:
 
 | Pattern | Matches |
 |---------|---------|
