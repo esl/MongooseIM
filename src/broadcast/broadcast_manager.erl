@@ -24,11 +24,9 @@
 %% Debug API
 -export([does_worker_for_job_exist/2,
          get_worker_map/1,
-         get_supervisor_children/1,
          get_sync_mode/1]).
 -ignore_xref([does_worker_for_job_exist/2,
               get_worker_map/1,
-              get_supervisor_children/1,
               get_sync_mode/1]).
 
 %% Error types
@@ -122,11 +120,6 @@ get_worker_map(HostType) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, get_worker_map).
 
--spec get_supervisor_children(mongooseim:host_type()) ->
-    [{term(), undefined | pid() | restarting, worker | supervisor, [module()] | dynamic}].
-get_supervisor_children(HostType) ->
-    supervisor:which_children(get_sup_name(HostType)).
-
 -spec get_sync_mode(mongooseim:host_type()) -> sync_mode().
 get_sync_mode(HostType) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
@@ -164,6 +157,9 @@ handle_continue({start_worker_for, JobId, Domain}, #state{host_type = HostType, 
     end;
 handle_continue(initial_sync, #state{host_type = HostType} = State) ->
     WorkerMap = map_workers(HostType),
+    % It looks like a race condition, because we monitor workers after trying to contact the already running ones
+    % but even if they terminate before we monitor them, they will still save "finished" flag in the DB
+    % and their restart by the manager will lead straight to them terminating again, this time properly monitored.
     maps:foreach(fun monitor_worker/2, WorkerMap),
     NewState = synchronize_jobs(State#state{worker_map = WorkerMap}),
     {noreply, NewState}.
@@ -396,14 +392,7 @@ persist_job_aborted_error(HostType, Domain, JobId, Reason) ->
 -spec start_and_monitor_worker(mongooseim:host_type(), broadcast_job_id()) ->
     {ok, pid()} | {error, term()}.
 start_and_monitor_worker(HostType, JobId) ->
-    SupName = get_sup_name(HostType),
-    ChildSpec = #{id => JobId,
-                  start => {broadcast_worker, start_link, [HostType, JobId]},
-                  restart => temporary,
-                  shutdown => 5000,
-                  type => worker,
-                  modules => [broadcast_worker]},
-    case supervisor:start_child(SupName, ChildSpec) of
+    case broadcast_jobs_sup:start_worker(HostType, JobId) of
         {ok, WorkerPid} ->
             monitor_worker(JobId, WorkerPid),
             {ok, WorkerPid};
@@ -437,17 +426,13 @@ stop_worker(HostType, JobId, WorkerPid) ->
         ok
     end.
 
--spec get_sup_name(mongooseim:host_type()) -> atom().
-get_sup_name(HostType) ->
-    gen_mod:get_module_proc(HostType, broadcast_jobs_sup).
-
 %%====================================================================
 %% Job synchronization
 %%====================================================================
 
 -spec map_workers(mongooseim:host_type()) -> worker_map().
 map_workers(HostType) ->
-    Children = get_supervisor_children(HostType),
+    Children = broadcast_jobs_sup:get_children(HostType),
     lists:foldl(fun({Id, Pid, _Type, _Modules}, Acc) when is_pid(Pid) ->
             case broadcast_worker:get_domain(Pid) of
                 {ok, Domain} ->
@@ -463,9 +448,9 @@ map_workers(HostType) ->
 synchronize_jobs(#state{host_type = HostType} = State) ->
     case try_take_renew_and_fetch(HostType) of
         {ok, RunningJobs, TakenJobIDs} ->
-            ?LOG_INFO(#{what => broadcast_taken_oven_jobs,
-                        host_type => HostType,
-                        taken_job_ids => TakenJobIDs}),
+            ?LOG_DEBUG(#{what => broadcast_taken_oven_jobs,
+                         host_type => HostType,
+                         taken_job_ids => TakenJobIDs}),
             %% We need to stop workers for taken jobs in case we were experiencing problems
             %% with the database and another node took over our jobs while we were in emergency mode.
             %% They are paused and their state may be outdated.

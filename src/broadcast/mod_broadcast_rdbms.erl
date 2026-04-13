@@ -187,7 +187,7 @@ take_expired_jobs(HostType, LeaseTime) ->
     T = fun() ->
         {updated, _, Rows} = rdbms_queries:execute_update_returning(
                                HostType, broadcast_take_expired_jobs,
-                               [OwnerNode, LeaseTime], []),
+                               [OwnerNode, LeaseTime], [HostType]),
         {ok, [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows]}
     end,
     {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
@@ -261,12 +261,13 @@ prepare_queries(HostType) ->
           update_fields => [<<"owner_node">>,
                             {<<"expires_at">>, ExpiresExpr},
                             {<<"updated_at">>, <<"NOW()">>}],
-          filter_fields => [],
+                    filter_fields => [<<"host_type">>],
           return_fields => [<<"broadcast_jobs_ownership.broadcast_id">>],
           joins => [{broadcast_jobs, <<"j">>,
                      <<"j.id = broadcast_jobs_ownership.broadcast_id">>}],
           filters => <<"broadcast_jobs_ownership.expires_at < NOW() "
-                       "AND j.execution_state = 'running'">>}),
+                                             "AND j.execution_state = 'running' "
+                                             "AND j.host_type = ?">>}),
 
     %% Direct ownership cleanup query.
     prepare(broadcast_remove_ownership, broadcast_jobs_ownership,
