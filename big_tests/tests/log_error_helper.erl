@@ -39,8 +39,9 @@
 %% API for expecting errors
 -export([expect/1, expect/2]).
 
-%% Exported for testing
+%% Exported for testing and reuse by cth_error_report
 -export([matches_pattern/3, format_msg/1]).
+-export_type([pattern/0]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
