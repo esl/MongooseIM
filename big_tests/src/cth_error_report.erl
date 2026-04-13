@@ -296,18 +296,13 @@ collect_errors(Section, #state{mark = Mark} = State) ->
         Errors = rpc(mim(), ?COLLECTOR, get_errors_after, [?INSTANCE, Mark]),
         NewMark = rpc(mim(), ?COLLECTOR, timestamp, []),
         %% Compute effective allowances: ETS totals minus consumed
-        Allowances = effective_allowances(get_pattern_allowances(),
-                                          State#state.consumed),
-        {Unexpected, Expected, NewConsumed} =
-            classify_errors(Errors, Allowances,
-                            State#state.consumed),
+        Allowances = effective_allowances(get_pattern_allowances(), State#state.consumed),
+        {Unexpected, Expected, NewConsumed} = classify_errors(Errors, Allowances, State#state.consumed),
         Entry = {Section, Unexpected, Expected},
         State#state{mark = NewMark,
                     entries = [Entry | State#state.entries],
-                    unexpected_total = State#state.unexpected_total
-                        + length(Unexpected),
-                    all_total = State#state.all_total
-                        + length(Unexpected) + length(Expected),
+                    unexpected_total = State#state.unexpected_total + length(Unexpected),
+                    all_total = State#state.all_total + length(Unexpected) + length(Expected),
                     consumed = NewConsumed}
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: collect_errors failed: ~p:~p~n~p",
@@ -360,21 +355,23 @@ find_matching_pattern_impl(Msg, Meta, [P | Rest], Allowances) ->
     case log_error_helper:matches_pattern(Msg, Meta, P) of
         true ->
             case maps:get(P, Allowances) of
-                unlimited -> {ok, P};
-                N when N > 0 -> {ok, P};
+                unlimited ->
+                    {ok, P};
+                N when N > 0 ->
+                    {ok, P};
                 0 ->
-                    find_matching_pattern_impl(
-                        Msg, Meta, Rest, Allowances)
+                    find_matching_pattern_impl(Msg, Meta, Rest, Allowances)
             end;
         false ->
-            find_matching_pattern_impl(
-                Msg, Meta, Rest, Allowances)
+            find_matching_pattern_impl(Msg, Meta, Rest, Allowances)
     end.
 
 decrement_allowance(P, Allowances) ->
     case maps:get(P, Allowances) of
-        unlimited -> Allowances;
-        N when N > 0 -> Allowances#{P := N - 1}
+        unlimited ->
+            Allowances;
+        N when N > 0 ->
+            Allowances#{P := N - 1}
     end.
 
 increment_consumed(P, Consumed) ->
@@ -415,7 +412,7 @@ write_summary(ReportDir, Results) ->
 
 write_summary_log(ReportDir, Sorted) ->
     File = filename:join(ReportDir, "summary.log"),
-    Header = "Errors Logged During Tests Summary\n\n",
+    Header = "Errors Logged During Tests\n\n",
     Lines = lists:map(fun format_summary_line/1, Sorted),
     ok = file:write_file(File, [Header | Lines]).
 
@@ -425,7 +422,7 @@ write_summary_html(ReportDir, Sorted) ->
     Html = [
         "<!DOCTYPE html>\n<html>\n<head>\n"
         "<meta charset=\"utf-8\">\n"
-        "<title>Errors Logged During Tests Summary</title>\n"
+        "<title>Errors Logged During Tests</title>\n"
         "<style>\n"
         "body { font-family: monospace; margin: 2em; }\n"
         "table { border-collapse: collapse; }\n"
@@ -438,7 +435,7 @@ write_summary_html(ReportDir, Sorted) ->
         "a { color: inherit; }\n"
         "</style>\n"
         "</head>\n<body>\n",
-        "<h1>Errors Logged During Tests Summary</h1>\n",
+        "<h1>Errors Logged During Tests</h1>\n",
         "<table>\n<tr><th>Suite</th>"
         "<th>All errors</th>"
         "<th>Unexpected errors</th></tr>\n",

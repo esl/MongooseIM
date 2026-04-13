@@ -674,8 +674,7 @@ ct_run_dirs() ->
 check_error_limit_exceeded(Before, After) ->
     case After -- Before of
         [RunDir] ->
-            Marker = filename:join([RunDir, "logged_errors",
-                                    "limit_exceeded"]),
+            Marker = filename:join([RunDir, "logged_errors", "limit_exceeded"]),
             case file:read_file(Marker) of
                 {ok, Content} ->
                     {true, Content};
