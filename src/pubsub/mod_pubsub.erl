@@ -14,10 +14,12 @@
 -include("mod_pubsub.hrl").
 
 -type item() :: #item{}.
+-type pubsub_node() :: #pubsub_node{}.
 -type node_key() :: {jid:jid(), node_id()}.
 -type node_id() :: binary().
 -type item_id() :: binary().
 -type item_payload() :: [exml:child()].
+-type access_model() :: open | presence | authorize.
 
 -type iq_request() :: #{acc := mongoose_acc:t(),
                         iq := jlib:iq(),
@@ -30,7 +32,8 @@
                    | #{action := publish,
                        node_id => node_id(), item_id => item_id(), payload => item_payload()}.
 
--export_type([item/0, node_key/0, node_id/0, item_id/0, item_payload/0]).
+-export_type([item/0, pubsub_node/0, node_key/0, node_id/0, item_id/0, item_payload/0,
+              access_model/0]).
 
 %% gen_mod callbacks
 
@@ -116,9 +119,10 @@ perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid
                  c2s_data := C2SData},
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
     NodeKey = {ServiceJid, NodeId},
+    Node = #pubsub_node{node_key = NodeKey, access_model = presence},
     Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
     HostType = mongoose_acc:host_type(Acc),
-    mod_pubsub_backend:set_node(HostType, NodeKey),
+    mod_pubsub_backend:set_node(HostType, Node),
     mod_pubsub_backend:set_item(HostType, Item),
     filter_and_broadcast(HostType, jid:to_bare(PublisherJid), subscriptions(s_from, C2SData), Item),
     ReplyPubsubEl = #xmlel{name = ~"pubsub",

@@ -7,7 +7,7 @@
 
 -callback start(mongooseim:host_type()) -> ok.
 -callback stop(mongooseim:host_type()) -> ok.
--callback set_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
+-callback set_node(mongooseim:host_type(), mod_pubsub:pubsub_node()) -> ok.
 -callback get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
 -callback delete_nodes(mongooseim:host_type(), jid:jid()) -> ok.
 -callback set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
@@ -29,9 +29,9 @@ stop(HostType) ->
 
 %% API: nodes
 
--spec set_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
-set_node(HostType, NodeKey) ->
-    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey]).
+-spec set_node(mongooseim:host_type(), mod_pubsub:pubsub_node()) -> ok.
+set_node(HostType, Node) ->
+    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, Node]).
 
 -spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
 get_nodes(HostType, ServiceJid) ->

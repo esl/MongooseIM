@@ -339,9 +339,12 @@ CREATE INDEX i_inbox_timestamp ON inbox USING BTREE(lserver, luser, timestamp);
 CREATE INDEX i_inbox_us_box ON inbox USING BTREE(lserver, luser, box);
 CREATE INDEX i_inbox_box ON inbox (box) WHERE (box = 'bin');
 
+CREATE TYPE pubsub_node_access_model AS ENUM('open', 'presence', 'authorize');
+
 CREATE TABLE pubsub_node (
     service_jid VARCHAR(250) NOT NULL,
     node_id VARCHAR(250) NOT NULL,
+    access_model pubsub_node_access_model NOT NULL,
     PRIMARY KEY (service_jid, node_id)
 );
 

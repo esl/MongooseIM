@@ -11,11 +11,11 @@
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
-    NodeFields = [~"service_jid", ~"node_id"],
+    NodeFields = [~"service_jid", ~"node_id", ~"access_model"],
     KeyFields = [~"service_jid", ~"node_id", ~"item_id"],
     UpdateFields = [~"publisher_jid", ~"payload", ~"created_at"],
     rdbms_queries:prepare_upsert(HostType, pubsub_node_upsert, pubsub_node,
-                                 NodeFields, [], NodeFields),
+                                 NodeFields, [~"access_model"], [~"service_jid", ~"node_id"]),
     mongoose_rdbms:prepare(pubsub_delete_nodes, pubsub_node,
                            [service_jid], sql(delete_nodes)),
     mongoose_rdbms:prepare(pubsub_get_nodes, pubsub_node,
@@ -32,10 +32,11 @@ start(HostType) ->
 stop(_HostType) ->
     ok.
 
--spec set_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
-set_node(HostType, {ServiceJid, NodeId}) ->
-    Values = [jid:to_binary(ServiceJid), NodeId],
-    {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_node_upsert, Values, []),
+-spec set_node(mongooseim:host_type(), mod_pubsub:pubsub_node()) -> ok.
+set_node(HostType, #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel}) ->
+    Values = [jid:to_binary(ServiceJid), NodeId, atom_to_binary(AccessModel)],
+    {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_node_upsert, Values,
+                                                [atom_to_binary(AccessModel)]),
     ok.
 
 -spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
