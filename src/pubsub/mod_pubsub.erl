@@ -29,6 +29,8 @@
 
 -type iq_action() :: #{action := error,
                        reason := {atom(), binary()}}
+                   | #{action := create,
+                       node_id := node_id()}
                    | #{action := publish,
                        node_id => node_id(), item_id => item_id(), payload => item_payload()}.
 
@@ -115,6 +117,11 @@ remove_user(Acc, #{jid := ServiceJid}, _) ->
 -spec perform_action(iq_request(), iq_action()) -> {result | error, [exml:child()]}.
 perform_action(#{iq := IQ}, #{action := error, reason := {bad_request, _Reason}}) ->
     {error, [mongoose_xmpp_errors:bad_request(), IQ#iq.sub_el]};
+perform_action(#{acc := Acc, service_jid := ServiceJid}, #{action := create, node_id := NodeId}) ->
+    HostType = mongoose_acc:host_type(Acc),
+    Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = presence},
+    mod_pubsub_backend:set_node(HostType, Node),
+    {result, []};
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid,
                  c2s_data := C2SData},
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
@@ -137,6 +144,9 @@ reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {
     ok.
 
 -spec pubsub_action(binary(), [exml:element()]) -> iq_action() | no_action.
+%% TODO: support XEP-0060 instant nodes, i.e. <create/> without a node attribute.
+pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"create", attrs = #{~"node" := NodeId}}]) ->
+    #{action => create, node_id => NodeId};
 pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}}]) ->
     case exml_query:subelements(El, ~"item") of
         [#xmlel{attrs = #{~"id" := ItemId}, children = Payload}] ->
