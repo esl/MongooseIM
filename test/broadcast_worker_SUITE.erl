@@ -44,6 +44,9 @@
     %% sending_paths
     batch_to_batch_transition_completes/1,
     route_exception_skips_recipient_and_finishes/1,
+    %% pause_resume_paths
+    pause_call_while_already_paused_returns_ok_and_keeps_state/1,
+    resume_call_while_already_running_returns_ok_and_keeps_state/1,
     %% finalization_paths
     final_state_persist_failure_exits_normal/1,
     %% unexpected_events
@@ -61,6 +64,7 @@ all() ->
      {group, init_paths},
      {group, batch_loading_paths},
      {group, sending_paths},
+     {group, pause_resume_paths},
      {group, finalization_paths},
      {group, unexpected_events},
      {group, message_id}].
@@ -70,6 +74,7 @@ groups() ->
      {init_paths, [], init_path_tests()},
      {batch_loading_paths, [], batch_loading_path_tests()},
      {sending_paths, [], sending_path_tests()},
+     {pause_resume_paths, [], pause_resume_path_tests()},
      {finalization_paths, [], finalization_path_tests()},
      {unexpected_events, [], unexpected_event_tests()},
      {message_id, [], message_id_tests()}].
@@ -91,6 +96,10 @@ batch_loading_path_tests() ->
 sending_path_tests() ->
     [batch_to_batch_transition_completes,
      route_exception_skips_recipient_and_finishes].
+
+pause_resume_path_tests() ->
+    [pause_call_while_already_paused_returns_ok_and_keeps_state,
+     resume_call_while_already_running_returns_ok_and_keeps_state].
 
 finalization_path_tests() ->
     [final_state_persist_failure_exits_normal].
@@ -342,6 +351,43 @@ route_exception_skips_recipient_and_finishes(_Config) ->
     ok.
 
 %%====================================================================
+%% Pause / resume path tests
+%%====================================================================
+
+pause_call_while_already_paused_returns_ok_and_keeps_state(_Config) ->
+    Job = broadcast_helper:sample_broadcast_job(1),
+
+    setup_pause_resume_case_mocks(Job),
+
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+
+    wait_for_worker_state(Pid, sending_batch),
+
+    ok = broadcast_worker:pause(Pid),
+    wait_for_worker_state(Pid, paused),
+
+    ok = broadcast_worker:pause(Pid),
+    wait_for_worker_state(Pid, paused),
+
+    exit(Pid, kill),
+    ok.
+
+resume_call_while_already_running_returns_ok_and_keeps_state(_Config) ->
+    Job = broadcast_helper:sample_broadcast_job(1),
+
+    setup_pause_resume_case_mocks(Job),
+
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+
+    wait_for_worker_state(Pid, sending_batch),
+
+    ok = broadcast_worker:resume(Pid),
+    wait_for_worker_state(Pid, sending_batch),
+
+    exit(Pid, kill),
+    ok.
+
+%%====================================================================
 %% Finalization path tests
 %%====================================================================
 
@@ -480,4 +526,26 @@ start_and_monitor_worker(HostType, JobId) ->
             {ok, {Pid, MonRef}};
         Error ->
             Error
+    end.
+
+setup_pause_resume_case_mocks(Job) ->
+    meck:expect(mod_broadcast_backend, get_job,
+                fun(_HostType, _JobId) -> {ok, Job} end),
+    meck:expect(mongoose_gen_auth, get_registered_users_snapshot, 4,
+                {ok, {[<<"user1">>, <<"user2">>, <<"user3">>, <<"user4">>, <<"user5">>], undefined}}),
+    meck:expect(ejabberd_router, route, 4, ok).
+
+wait_for_worker_state(Pid, ExpectedState) ->
+    wait_helper:wait_until(fun() ->
+        get_worker_state(Pid)
+    end, ExpectedState).
+
+get_worker_state(Pid) ->
+    case catch sys:get_state(Pid) of
+        {State, _Data} when is_atom(State) ->
+            State;
+        {'EXIT', _Reason} ->
+            down;
+        _Other ->
+            undefined
     end.

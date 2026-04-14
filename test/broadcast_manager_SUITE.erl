@@ -199,8 +199,8 @@ db_get_running_jobs_error_in_resume(Config) ->
                 end),
 
     {ok, NewPid} = start_test_manager(),
-    
-    wait_for_emergency_mode(broadcast_helper:host_type()),
+
+    wait_for_sync_mode(broadcast_helper:host_type(), emergency),
     assert_manager_survived(NewPid).
 
 db_renew_ownership_error_in_resume(Config) ->
@@ -213,8 +213,8 @@ db_renew_ownership_error_in_resume(Config) ->
                 end),
 
     {ok, NewPid} = start_test_manager(),
-    
-    wait_for_emergency_mode(broadcast_helper:host_type()),
+
+    wait_for_sync_mode(broadcast_helper:host_type(), emergency),
     assert_manager_survived(NewPid).
 
 db_take_expired_jobs_error_in_resume(Config) ->
@@ -227,8 +227,8 @@ db_take_expired_jobs_error_in_resume(Config) ->
                 end),
 
     {ok, NewPid} = start_test_manager(),
-    
-    wait_for_emergency_mode(broadcast_helper:host_type()),
+
+    wait_for_sync_mode(broadcast_helper:host_type(), emergency),
     assert_manager_survived(NewPid).
 
 db_set_job_started_error_logged(Config) ->
@@ -608,10 +608,10 @@ assert_manager_survived(Pid) ->
     %% If a manager is able to reply to a call, then it is alive
     {error, not_implemented} = gen_server:call(Pid, somebody_set_us_up_the_bomb).
 
-wait_for_emergency_mode(HostType) ->
+wait_for_sync_mode(HostType, ExpectedMode) ->
     wait_helper:wait_until(fun() ->
         broadcast_manager:get_sync_mode(HostType)
-    end, emergency).
+    end, ExpectedMode).
 
 wait_for_worker(JobId, WorkerPid) ->
     wait_helper:wait_until(fun() ->

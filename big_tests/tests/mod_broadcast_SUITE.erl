@@ -31,6 +31,8 @@
 %% ownership
 -export([lease_expires_and_job_is_taken_over/1,
          ownership_lease_is_renewed_while_job_is_running/1,
+         manager_emergency_mode_pauses_workers_and_recovers/1,
+         manager_repeated_emergency_failure_keeps_workers_paused/1,
          finished_job_removes_ownership_row/1,
          aborted_job_removes_ownership_row/1,
          take_expired_jobs_ignores_non_running_jobs/1,
@@ -111,6 +113,8 @@ lifecycle_tests() ->
 ownership_tests() ->
     [lease_expires_and_job_is_taken_over,
      ownership_lease_is_renewed_while_job_is_running,
+     manager_emergency_mode_pauses_workers_and_recovers,
+     manager_repeated_emergency_failure_keeps_workers_paused,
      finished_job_removes_ownership_row,
      aborted_job_removes_ownership_row,
      take_expired_jobs_ignores_non_running_jobs,
@@ -152,14 +156,17 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(ownership, Config) ->
-    setup_short_lease_time_mock(),
+    ok = rpc(mim(), meck, new, [mod_broadcast, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect, [mod_broadcast, lease_time, 1, 1]),
+    ok = rpc(mim(), meck, new, [mod_broadcast_backend, [no_link, passthrough]]),
     lists:foreach(fun restart_manager/1, domain_helper:host_types()),
     Config;
 init_per_group(_Group, Config) ->
     Config.
 
 end_per_group(ownership, Config) ->
-    teardown_short_lease_time_mock(),
+    rpc(mim(), meck, unload, [mod_broadcast]),
+    rpc(mim(), meck, unload, [mod_broadcast_backend]),
     lists:foreach(fun restart_manager/1, domain_helper:host_types()),
     Config;
 end_per_group(_Group, Config) ->
@@ -466,8 +473,8 @@ lease_expires_and_job_is_taken_over(Config) ->
 
         % If a manager sees that it took over a job that is already running locally,
         % it will restart the worker so it can retrieve fresh state from the DB.
-        {ok, NewWorkerPid} = get_worker_pid(HostType, JobId),
-        ?assertNotEqual(OriginalWorkerPid, NewWorkerPid),
+        wait_for_process_down(OriginalWorkerPid),
+        wait_until_worker_started(HostType, JobId),
         assert_job_owner_node(HostType, JobId, CurrentOwnerNode)
     end).
 
@@ -484,6 +491,52 @@ ownership_lease_is_renewed_while_job_is_running(Config) ->
         {ok, #{expires_at := ExpiresAtBefore}} = get_ownership_data(HostType, JobId),
 
         wait_until_lease_renewed(HostType, JobId, ExpiresAtBefore)
+    end).
+
+manager_emergency_mode_pauses_workers_and_recovers(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(domain(), AliceJid, JobName),
+
+        wait_for_manager_sync_mode(HostType, normal),
+        {ok, JobId} = start_broadcast(JobSpec),
+        wait_until_worker_started(HostType, JobId),
+        {ok, WorkerPid} = get_worker_pid(HostType, JobId),
+
+        with_renew_ownership_failing_requests(once, fun() ->
+            wait_for_manager_sync_mode(HostType, emergency),
+            wait_until_worker_state(WorkerPid, paused),
+
+            wait_for_manager_sync_mode(HostType, normal),
+            wait_until_worker_state(WorkerPid, sending_batch)
+        end)
+    end).
+
+manager_repeated_emergency_failure_keeps_workers_paused(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(domain(), AliceJid, JobName),
+
+        wait_for_manager_sync_mode(HostType, normal),
+        {ok, JobId} = start_broadcast(JobSpec),
+        wait_until_worker_started(HostType, JobId),
+        {ok, WorkerPid} = get_worker_pid(HostType, JobId),
+
+        with_renew_ownership_failing_requests(infinity, fun() ->
+            wait_for_manager_sync_mode(HostType, emergency),
+            wait_until_worker_state(WorkerPid, paused),
+
+            wait_for_manager_synchronization_tick(HostType),
+            
+            wait_for_manager_sync_mode(HostType, emergency),
+            wait_until_worker_state(WorkerPid, paused)
+        end),
+
+        wait_for_manager_sync_mode(HostType, normal)
     end).
 
 finished_job_removes_ownership_row(Config) ->
@@ -746,15 +799,6 @@ ensure_mod_broadcast_started(HostType) ->
     Opts = #{backend => rdbms, lease_time => 600},
     dynamic_modules:ensure_modules(HostType, [{mod_broadcast, Opts}]).
 
-setup_short_lease_time_mock() ->
-    ok = rpc(mim(), meck, new, [mod_broadcast, [no_link, passthrough]]),
-    ok = rpc(mim(), meck, expect, [mod_broadcast, lease_time, 1, 1]),
-    ok.
-
-teardown_short_lease_time_mock() ->
-    rpc(mim(), meck, unload, [mod_broadcast]),
-    ok.
-
 stop_mod_broadcast(HostType) ->
     {stopped, _} = dynamic_modules:stop(HostType, mod_broadcast).
 
@@ -783,10 +827,9 @@ wait_for_live_jobs_count(ExpectedCount) ->
 
 wait_for_manager_synchronization_tick(ExpectedHostType) ->
     TestPid = self(),
-    ok = rpc(mim(), meck, new, [mod_broadcast_backend, [no_link, passthrough]]),
-    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, get_running_jobs,
-                                    fun(HostType) ->
-                                        Result = meck:passthrough([HostType]),
+    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, take_expired_jobs,
+                                    fun(HostType, LeaseTime) ->
+                                        Result = meck:passthrough([HostType, LeaseTime]),
                                         TestPid ! {manager_sync_tick, HostType},
                                         Result
                                     end]),
@@ -798,24 +841,25 @@ wait_for_manager_synchronization_tick(ExpectedHostType) ->
             ct:fail({manager_sync_tick_timeout, ExpectedHostType})
         end
     after
-        rpc(mim(), meck, unload, [mod_broadcast_backend])
+        ok = rpc(mim(), meck, expect,
+                 [mod_broadcast_backend, take_expired_jobs, 2, meck:passthrough()])
     end.
 
 restart_manager(HostType) ->
     ManagerPid = get_manager_pid(HostType),
     ?assert(is_pid(ManagerPid)),
-    MonitorRef = erlang:monitor(process, ManagerPid),
 
     exit(ManagerPid, kill),
-    ok = wait_for_manager_down(MonitorRef, ManagerPid),
+    ok = wait_for_process_down(ManagerPid),
     wait_for_manager_restart(HostType, ManagerPid).
 
-wait_for_manager_down(MonitorRef, ManagerPid) ->
+wait_for_process_down(Pid) ->
+    MonitorRef = erlang:monitor(process, Pid),
     receive
-        {'DOWN', MonitorRef, process, ManagerPid, _Reason} ->
+        {'DOWN', MonitorRef, process, Pid, _Reason} ->
             ok
     after 5000 ->
-        {error, manager_stop_timeout}
+        {error, process_stop_timeout}
     end.
 
 wait_for_manager_restart(HostType, OldPid) ->
@@ -897,6 +941,34 @@ wait_until_ownership_row_absent(HostType, JobId) ->
             {ok, _Row} -> ownership_still_present
         end
     end, ok).
+
+wait_for_manager_sync_mode(HostType, ExpectedMode) ->
+    wait_helper:wait_until(fun() ->
+        call_manager(get_sync_mode, [HostType])
+    end, ExpectedMode).
+
+wait_until_worker_state(WorkerPid, ExpectedState) ->
+    wait_helper:wait_until(fun() ->
+        case rpc(mim(), sys, get_state, [WorkerPid]) of
+            {State, _Data} when is_atom(State) ->
+                State;
+            Other ->
+                {unexpected_state, Other}
+        end
+    end, ExpectedState).
+
+with_renew_ownership_failing_requests(FailCount, Fun) ->
+    RenewReturn = case FailCount of
+                      once -> meck:seq([meck:raise(error, fake_error), meck:passthrough()]);
+                      infinity -> meck:raise(error, fake_error)
+                  end,
+    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, renew_ownership, 2, RenewReturn]),
+    try
+        Fun()
+    after
+        ok = rpc(mim(), meck, expect,
+                 [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()])
+    end.
 
 sql_query(HostType, Query) ->
     rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
