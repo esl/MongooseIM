@@ -109,12 +109,12 @@ lifecycle_tests() ->
      broadcast_instrumentation_metrics].
 
 ownership_tests() ->
-        [lease_expires_and_job_is_taken_over,
-         ownership_lease_is_renewed_while_job_is_running,
-         finished_job_removes_ownership_row,
-         aborted_job_removes_ownership_row,
-         take_expired_jobs_ignores_non_running_jobs,
-         take_expired_jobs_is_scoped_by_host_type].
+    [lease_expires_and_job_is_taken_over,
+     ownership_lease_is_renewed_while_job_is_running,
+     finished_job_removes_ownership_row,
+     aborted_job_removes_ownership_row,
+     take_expired_jobs_ignores_non_running_jobs,
+     take_expired_jobs_is_scoped_by_host_type].
 
 validation_tests() ->
     [start_broadcast_sender_spoofing_attempt_from_secondary_domain,

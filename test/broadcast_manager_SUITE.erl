@@ -29,10 +29,12 @@
 
 %% Test cases
 -export([
-    %% manager_unexpected_messages
+    %% code_coverage
     handle_call_unknown_returns_not_implemented_and_alive/1,
     handle_cast_unknown_does_not_crash/1,
     handle_info_unknown_does_not_crash/1,
+    stale_sync_timeout_from_old_timer_is_ignored/1,
+    code_change_returns_same_state/1,
     %% db_error_paths
     db_create_job_error_propagates/1,
     db_get_running_jobs_error_in_resume/1,
@@ -52,7 +54,8 @@
     worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map/1,
     tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path/1,
     %% job sync
-    sync_success_with_taken_jobs_stops_taken_workers/1
+    sync_success_with_taken_jobs_stops_taken_workers/1,
+    sync_map_workers_mixed_children_filters_invalid_entries/1
 ]).
 
 %%====================================================================
@@ -60,7 +63,7 @@
 %%====================================================================
 
 all() ->
-    [{group, manager_unexpected_messages},
+    [{group, code_coverage},
      {group, db_error_paths},
      {group, supervisor_error_paths},
      {group, validation_error_paths},
@@ -68,17 +71,19 @@ all() ->
      {group, job_sync}].
 
 groups() ->
-    [{manager_unexpected_messages, [], manager_unexpected_messages_tests()},
+    [{code_coverage, [], code_coverage_tests()},
      {db_error_paths, [], db_error_path_tests()},
      {supervisor_error_paths, [], supervisor_error_path_tests()},
      {validation_error_paths, [], validation_error_path_tests()},
      {worker_down_paths, [], worker_down_path_tests()},
      {job_sync, [], job_sync_tests()}].
 
-manager_unexpected_messages_tests() ->
+code_coverage_tests() ->
     [handle_call_unknown_returns_not_implemented_and_alive,
      handle_cast_unknown_does_not_crash,
-     handle_info_unknown_does_not_crash].
+     handle_info_unknown_does_not_crash,
+     stale_sync_timeout_from_old_timer_is_ignored,
+     code_change_returns_same_state].
 
 db_error_path_tests() ->
     [db_create_job_error_propagates,
@@ -103,7 +108,8 @@ worker_down_path_tests() ->
      tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path].
 
 job_sync_tests() ->
-    [sync_success_with_taken_jobs_stops_taken_workers].
+    [sync_success_with_taken_jobs_stops_taken_workers,
+     sync_map_workers_mixed_children_filters_invalid_entries].
 
 %%====================================================================
 %% Suite setup/teardown
@@ -159,6 +165,15 @@ handle_info_unknown_does_not_crash(Config) ->
     Pid = ?config(manager_pid, Config),
     Pid ! somebody_set_us_up_the_bomb,
     assert_manager_survived(Pid).
+
+stale_sync_timeout_from_old_timer_is_ignored(Config) ->
+    Pid = ?config(manager_pid, Config),
+    Pid ! {timeout, make_ref(), sync_jobs},
+    assert_manager_survived(Pid).
+
+code_change_returns_same_state(_Config) ->
+    State = #{marker => code_change_coverage},
+    {ok, State} = broadcast_manager:code_change(old_vsn, State, extra).
 
 %%====================================================================
 %% DB error path tests
@@ -463,6 +478,47 @@ sync_success_with_taken_jobs_stops_taken_workers(Config) ->
     end, [KeptJobId]),
     true = meck:called(broadcast_worker, stop, [TakenPid]),
     assert_manager_survived(NewPid).
+
+sync_map_workers_mixed_children_filters_invalid_entries(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    LiveJobId = 65431,
+    DeadJobId = 65432,
+    UndefinedChildId = 65433,
+    RestartingChildId = 65434,
+    Domain = broadcast_helper:domain(),
+    LivePid = spawn(fun() -> receive stop -> ok end end),
+    DeadPid = spawn(fun() -> ok end),
+
+    meck:expect(broadcast_jobs_sup, get_children,
+                fun(_HostType) ->
+                    [{LiveJobId, LivePid, worker, [broadcast_worker]},
+                     {DeadJobId, DeadPid, worker, [broadcast_worker]},
+                     {UndefinedChildId, undefined, worker, [broadcast_worker]},
+                     {RestartingChildId, restarting, worker, [broadcast_worker]}]
+                end),
+    meck:expect(broadcast_worker, get_domain,
+                fun(Pid0) when Pid0 =:= LivePid -> {ok, Domain};
+                   (_OtherPid) -> noproc
+                end),
+    meck:expect(mod_broadcast_backend, get_running_jobs,
+                fun(_HostType) ->
+                    {ok, [(broadcast_helper:sample_broadcast_job())#broadcast_job{id = LiveJobId,
+                                                                                   domain = Domain}]}
+                end),
+
+    {ok, _NewPid} = start_test_manager(),
+    wait_helper:wait_until(fun() ->
+        WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
+        maps:keys(WorkerMap)
+    end, [LiveJobId]),
+
+    WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
+    #{LiveJobId := #{pid := LivePid, domain := Domain}} = WorkerMap,
+
+    exit(LivePid, kill),
+    ok.
 
 %%====================================================================
 %% Helper functions

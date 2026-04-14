@@ -10,6 +10,7 @@
          admin_start_broadcast_validation_error/1,
          admin_start_broadcast_coercion_error/1,
          admin_start_broadcast_sender_not_found/1,
+         admin_start_broadcast_manager_temporarily_unavailable/1,
          admin_abort_broadcast/1,
          admin_delete_inactive_broadcasts/1,
          admin_delete_inactive_broadcasts_by_domain/1]).
@@ -67,9 +68,10 @@ admin_mutation_test_cases() ->
      admin_start_broadcast_validation_error,
      admin_start_broadcast_coercion_error,
      admin_start_broadcast_sender_not_found,
-    admin_abort_broadcast,
-    admin_delete_inactive_broadcasts,
-    admin_delete_inactive_broadcasts_by_domain].
+     admin_start_broadcast_manager_temporarily_unavailable,
+     admin_abort_broadcast,
+     admin_delete_inactive_broadcasts,
+     admin_delete_inactive_broadcasts_by_domain].
 
 admin_query_test_cases() ->
     [admin_get_broadcasts_pagination,
@@ -152,6 +154,28 @@ admin_start_broadcast_sender_not_found(Config) ->
     Vars = job_spec_to_vars(JobWithUnknownSender),
     Res = execute_command(<<"broadcast">>, <<"startBroadcast">>, Vars, Config),
     <<"sender_not_found">> = get_err_code(Res).
+
+admin_start_broadcast_manager_temporarily_unavailable(Config) ->
+    HostType = domain_helper:host_type(),
+    Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
+
+    ok = rpc(mim(), meck, new, [mod_broadcast_backend, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, get_running_jobs,
+                                   fun(_AnyHostType) ->
+                                           meck:exception(error, forced_sync_failure)
+                                   end]),
+    try
+        stop_mod_broadcast(HostType),
+        ensure_mod_broadcast_started(domain()),
+
+        Res = start_broadcast_op(domain(), Sender, ?FUNCTION_NAME, Config),
+        <<"temporarily_unavailable">> = get_err_code(Res),
+        <<_, _/binary>> = get_err_msg(Res)
+    after
+        rpc(mim(), meck, unload, [mod_broadcast_backend]),
+        stop_mod_broadcast(HostType),
+        ensure_mod_broadcast_started(domain())
+    end.
 
 admin_abort_broadcast(Config) ->
     Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
