@@ -5,8 +5,7 @@
 %%% directory (ct_report/ct_run.*). Each suite gets its own file named
 %%% `SuiteName.log'. Errors are broken down by group and testcase.
 %%%
-%%% Uses a named instance of log_error_collector (`cth_error_report')
-%%% to avoid conflicts with log_error_helper's default instance.
+%%% Uses a named instance of log_error_collector (`cth_error_report').
 %%%
 %%% Tests can declare expected error patterns using expect/1.
 %%% In the .log report, unexpected errors are prefixed with
@@ -65,11 +64,22 @@
 
 -type suite_result() :: {atom(), non_neg_integer(), non_neg_integer()}.
 
+-type msg() :: log_error_collector:msg().
+-type meta() :: log_error_collector:meta().
 -type log_entry() :: log_error_collector:log_entry().
 -type entry() :: {section(), Unexpected :: [log_entry()],
                   Expected :: [log_entry()]}.
 -type group_info() :: {atom(), boolean()}.
--type pattern() :: log_error_helper:pattern().
+-type pattern() :: {what, atom()}
+                 | {module, atom()}
+                 | {function, atom()}
+                 | {mfa, {atom() | '_', atom() | '_',
+                          non_neg_integer() | '_'}}
+                 | {reason, term()}
+                 | {atom(), term()}
+                 | binary()
+                 | {regex, binary()}
+                 | fun((msg(), meta()) -> boolean()).
 -type section() :: {init_per_suite}
                  | {end_per_suite}
                  | {init_per_group, [group_info()]}
@@ -80,7 +90,6 @@
 
 %% @doc Declare an expected error pattern with unlimited matches.
 %% All matching errors will be classified as expected.
-%% Uses the same pattern types as log_error_helper:expect/1.
 -spec expect(pattern()) -> true.
 expect(Pattern) ->
     ets:insert(?PATTERNS_TABLE, {expect, Pattern}).
@@ -352,7 +361,7 @@ find_matching_pattern(Msg, Meta, Allowances) ->
 find_matching_pattern_impl(_Msg, _Meta, [], _Allowances) ->
     none;
 find_matching_pattern_impl(Msg, Meta, [P | Rest], Allowances) ->
-    case log_error_helper:matches_pattern(Msg, Meta, P) of
+    case matches_pattern(Msg, Meta, P) of
         true ->
             case maps:get(P, Allowances) of
                 unlimited ->
@@ -712,6 +721,65 @@ pretty_print_map(Map) ->
 
 plural(1, Word) -> Word;
 plural(_, Word) -> Word ++ "s".
+
+%% Pattern matching on structured log data
+
+-spec matches_pattern(msg(), meta(), pattern()) -> boolean().
+matches_pattern({report, Report}, _Meta, {what, What}) when is_map(Report) ->
+    maps:get(what, Report, undefined) =:= What;
+matches_pattern(_Msg, #{mfa := {Module, _, _}}, {module, Module}) ->
+    true;
+matches_pattern(_Msg, _Meta, {module, _}) ->
+    false;
+matches_pattern(_Msg, #{mfa := {_, Function, _}}, {function, Function}) ->
+    true;
+matches_pattern(_Msg, _Meta, {function, _}) ->
+    false;
+matches_pattern(_Msg, #{mfa := {M, F, A}}, {mfa, {PM, PF, PA}}) ->
+    (PM =:= '_' orelse PM =:= M) andalso
+    (PF =:= '_' orelse PF =:= F) andalso
+    (PA =:= '_' orelse PA =:= A);
+matches_pattern(_Msg, _Meta, {mfa, _}) ->
+    false;
+matches_pattern({report, Report}, _Meta, {reason, Reason}) when is_map(Report) ->
+    maps:get(reason, Report, undefined) =:= Reason;
+matches_pattern(Msg, _Meta, {regex, Regex}) ->
+    Formatted = format_msg_flat(Msg),
+    case re:run(Formatted, Regex) of
+        {match, _} ->
+            true;
+        nomatch ->
+            false
+    end;
+matches_pattern({report, Report}, _Meta, {Key, Value}) when is_atom(Key), is_map(Report) ->
+    maps:get(Key, Report, undefined) =:= Value;
+matches_pattern(Msg, _Meta, Pattern) when is_binary(Pattern) ->
+    Formatted = format_msg_flat(Msg),
+    binary:match(Formatted, Pattern) =/= nomatch;
+matches_pattern(Msg, Meta, Fun) when is_function(Fun, 2) ->
+    try Fun(Msg, Meta)
+    catch _:_ ->
+        false
+    end;
+matches_pattern(Msg, _Meta, Fun) when is_function(Fun, 1) ->
+    try Fun(Msg)
+    catch _:_ ->
+        false
+    end;
+matches_pattern(_Msg, _Meta, _Pattern) ->
+    false.
+
+%% Flat format for pattern matching (substring/regex)
+format_msg_flat({string, String}) when is_list(String) ->
+    unicode:characters_to_binary(String);
+format_msg_flat({string, Binary}) when is_binary(Binary) ->
+    Binary;
+format_msg_flat({report, Report}) when is_map(Report) ->
+    unicode:characters_to_binary(io_lib:format("~0p", [Report]));
+format_msg_flat({Format, Args}) when is_list(Format), is_list(Args) ->
+    unicode:characters_to_binary(io_lib:format(Format, Args));
+format_msg_flat(Other) ->
+    unicode:characters_to_binary(io_lib:format("~0p", [Other])).
 
 html_escape(Bin) when is_binary(Bin) ->
     html_escape(binary_to_list(Bin));
