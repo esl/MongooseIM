@@ -36,6 +36,9 @@
                    | #{action := create,
                        node_id := node_id(),
                        config := node_config()}
+                   | #{action := subscribe,
+                       node_id := node_id(),
+                       subscriber_jid := jid:jid()}
                     | #{action := publish,
                        node_id => node_id(), item_id => item_id(), payload => item_payload()}.
 
@@ -103,8 +106,9 @@ caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
 roster_out_subscription(Acc, #{to := SubscriberJid, from := OwnerJid, type := subscribed}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     RecipientJids = [jid:to_bare(SubscriberJid)],
-    lists:foreach(fun(Item) ->
-                          filter_and_broadcast(HostType, OwnerJid, RecipientJids, Item)
+    lists:foreach(fun(Item = #item{node_key = NodeKey}) ->
+                          FilteredJids = filter_recipients(RecipientJids, NodeKey),
+                          broadcast_item(HostType, OwnerJid, FilteredJids, Item)
                   end, mod_pubsub_backend:get_last_items(HostType, OwnerJid)),
     {ok, Acc};
 roster_out_subscription(Acc, _, _) ->
@@ -130,26 +134,57 @@ perform_action(#{acc := Acc, service_jid := ServiceJid},
     Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
     mod_pubsub_backend:set_node(HostType, Node),
     {result, []};
-perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid,
-                 c2s_data := C2SData},
+perform_action(#{acc := Acc, service_jid := ServiceJid},
+               #{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
+    HostType = mongoose_acc:host_type(Acc),
+    NodeKey = {ServiceJid, NodeId},
+    SubscriptionId = make_subid(),
+    Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid, id = SubscriptionId},
+    mod_pubsub_backend:set_subscription(HostType, Subscription),
+    ReplyPubsubEl = #xmlel{name = ~"pubsub",
+                           attrs = #{~"xmlns" => ?NS_PUBSUB},
+                           children = [#xmlel{name = ~"subscription",
+                                              attrs = #{~"jid" => jid:to_binary(SubscriberJid),
+                                                        ~"node" => NodeId,
+                                                        ~"subid" => SubscriptionId,
+                                                        ~"subscription" => ~"subscribed"}}]},
+    {result, [ReplyPubsubEl]};
+perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
     HostType = mongoose_acc:host_type(Acc),
     NodeKey = {ServiceJid, NodeId},
     Node = get_or_create_node(HostType, NodeKey),
     Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
     mod_pubsub_backend:set_item(HostType, Item),
-    filter_and_broadcast(HostType, jid:to_bare(PublisherJid), subscribers(HostType, Node, C2SData), Item),
+    broadcast_item(HostType, jid:to_bare(PublisherJid), recipient_jids(Node, Request), Item),
     ReplyPubsubEl = #xmlel{name = ~"pubsub",
                            attrs = #{~"xmlns" => ?NS_PUBSUB},
                            children = [#xmlel{name = ~"item", attrs = #{~"id" => ItemId}}]},
     {result, [ReplyPubsubEl]}.
 
--spec subscribers(pubsub_node(), mongoose_c2s:data()) -> [jid:jid()].
-subscribers(_HostType, #pubsub_node{access_model = presence}, C2SData) ->
-    subscriptions(s_from, C2SData);
-subscribers(HostType, #pubsub_node{node_key = NodeKey, access_model = open}, _C2SData) ->
-    Subscriptions = mod_pubsub_backend:get_subscriptions(HostType, NodeKey),
-    lists:uniq([Jid || #subscription{jid = Jid} <- Subscriptions]).
+-spec recipient_jids(pubsub_node(), iq_request()) -> [jid:jid()].
+recipient_jids(Node, #{acc := Acc, c2s_data := C2SData}) ->
+    Subs = lists:usort(implicit_subscribers(Node, C2SData) ++ explicit_subscribers(Node, Acc)),
+    lists:foldl(fun drop_bare_jid_shadowed_by_full_jid/2, [], Subs).
+
+-spec drop_bare_jid_shadowed_by_full_jid(jid:jid(), [jid:jid()]) -> [jid:jid()].
+drop_bare_jid_shadowed_by_full_jid(#jid{luser = U, lserver = S} = FullJid,
+                                   [#jid{luser = U, lserver = S, lresource = ~""} | Results]) ->
+    [FullJid | Results];
+drop_bare_jid_shadowed_by_full_jid(Jid, Results) ->
+    [Jid | Results].
+
+-spec implicit_subscribers(pubsub_node(), mongoose_c2s:data()) -> [jid:jid()].
+implicit_subscribers(#pubsub_node{node_key = NodeKey}, C2SData) ->
+    filter_recipients(subscriptions(s_from, C2SData), NodeKey).
+
+%% XEP-0163 4.1 limits notifications for explicit subscriptions to the 'open' model
+-spec explicit_subscribers(pubsub_node(), mongoose_acc:t()) -> [jid:jid()].
+explicit_subscribers(#pubsub_node{access_model = open, node_key = NodeKey}, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    [Jid || #subscription{jid = Jid} <- mod_pubsub_backend:get_subscriptions(HostType, NodeKey)];
+explicit_subscribers(_Node, _Acc) ->
+    [].
 
 -spec get_or_create_node(mongooseim:host_type(), node_key()) -> pubsub_node().
 get_or_create_node(HostType, NodeKey) ->
@@ -181,6 +216,9 @@ pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"create", attrs = #{~"node" := NodeId}
         {error, Reason} ->
             #{action => error, reason => Reason}
     end;
+pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"subscribe",
+                                  attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
+    #{action => subscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
 pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}}]) ->
     case exml_query:subelements(El, ~"item") of
         [#xmlel{attrs = #{~"id" := ItemId}, children = Payload}] ->
@@ -231,22 +269,25 @@ parse_access_model([~"presence"]) -> presence;
 parse_access_model([~"authorize"]) -> authorize;
 parse_access_model(_) -> throw(~"invalid-access-model").
 
+-spec make_subid() -> subscription_id().
+make_subid() ->
+    mongoose_bin:gen_from_timestamp().
+
 -spec send_last_items(mongooseim:host_type(), jid:jid(), jid:jid(), [mod_caps:feature()]) -> ok.
 send_last_items(HostType, OwnerJid = #jid{lresource = ~""},
                 SubscriberJid = #jid{lresource = <<_, _/binary>>}, Features) ->
     [route_notification(HostType, OwnerJid, SubscriberJid, notification_message(Item))
      || Item <- mod_pubsub_backend:get_last_items(HostType, OwnerJid),
-        lists:member(notify_feature(Item), Features)],
+        lists:member(notify_feature(Item#item.node_key), Features)],
     ok.
 
--spec filter_and_broadcast(mongooseim:host_type(), jid:jid(), [jid:jid()], item()) -> ok.
-filter_and_broadcast(HostType, OwnerJid = #jid{lresource = ~""}, RecipientJids, Item) ->
-    Feature = notify_feature(Item),
-    ToFullJids = [RecipientJid#jid{lresource = LRes}
-                  || RecipientJid <- RecipientJids,
-                     {LRes, Features} <- resources_with_features(RecipientJid),
-                     lists:member(Feature, Features)],
-    broadcast_item(HostType, OwnerJid, ToFullJids, Item).
+-spec filter_recipients([jid:jid()], node_key()) -> [jid:jid()].
+filter_recipients(RecipientJids, NodeKey) ->
+    Feature = notify_feature(NodeKey),
+    [RecipientJid#jid{lresource = LRes}
+     || RecipientJid <- RecipientJids,
+        {LRes, Features} <- resources_with_features(RecipientJid),
+        lists:member(Feature, Features)].
 
 -spec broadcast_item(mongooseim:host_type(), jid:jid(), [jid:jid()], item()) -> ok.
 broadcast_item(_HostType, _FromJid, [], _Item) ->
@@ -257,8 +298,8 @@ broadcast_item(HostType, FromJid, ToFullJids, Item) ->
                           route_notification(HostType, FromJid, ToJid, Notification)
                   end, ToFullJids).
 
--spec notify_feature(item()) -> mod_caps:feature().
-notify_feature(#item{node_key = {_, NodeId}}) ->
+-spec notify_feature(node_key()) -> mod_caps:feature().
+notify_feature({_, NodeId}) ->
     <<NodeId/binary, "+notify">>.
 
 -spec subscriptions(s_from | s_to, mongoose_c2s:data()) -> [jid:jid()].
@@ -271,7 +312,7 @@ subscriptions(Type, C2SData) ->
     end.
 
 -spec resources_with_features(jid:jid()) -> [{jid:lresource(), [mod_caps:feature()]}].
-resources_with_features(Jid = #jid{lserver = LServer, lresource = ~""}) ->
+resources_with_features(Jid = #jid{lserver = LServer}) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} -> resources_with_features(HostType, Jid);
         {error, not_found} -> []

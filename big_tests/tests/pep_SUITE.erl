@@ -44,8 +44,10 @@ groups() ->
 
 %% Tests for old and new PEP
 pep_tests() ->
-    [publish_and_notify_test,
-     create_and_publish_and_notify_test,
+    [publish_and_notify,
+     create_and_publish_and_notify,
+     create_open_and_publish_and_notify,
+     create_open_and_publish_no_sub,
      send_caps_after_login_test,
      delayed_receive,
      delayed_receive_with_sm,
@@ -228,14 +230,24 @@ bookmark_element() ->
     #xmlel{name = <<"conference">>,
            attrs = #{<<"xmlns">> => ?NS_PEP_BOOKMARKS}}.
 
-publish_and_notify_test(Config) ->
+publish_and_notify(Config) ->
     Config1 = set_caps(Config),
     escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}], fun publish_and_notify_story/3).
 
-create_and_publish_and_notify_test(Config) ->
+create_and_publish_and_notify(Config) ->
     Config1 = set_caps(Config),
     escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
                                     fun create_and_publish_and_notify_story/3).
+
+create_open_and_publish_and_notify(Config) ->
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun create_open_and_publish_and_notify_story/3).
+
+create_open_and_publish_no_sub(Config) ->
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
+                                    fun create_open_and_publish_no_sub_story/3).
 
 publish_and_notify_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -249,6 +261,29 @@ create_and_publish_and_notify_story(Config, Alice, Bob) ->
     PepNode = make_pep_node_info(Alice, NodeNS),
     pubsub_tools:create_node(Alice, PepNode, []),
     publish_and_notify_story(Config, Alice, Bob).
+
+create_open_and_publish_and_notify_story(Config, Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:create_node(Alice, PepNode,
+                             [{modify_request, fun add_open_access_model_to_create_node_request/1}]),
+    pubsub_tools:subscribe(Bob, PepNode, []),
+    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+    pubsub_tools:receive_item_notification(
+      Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+    ok.
+
+create_open_and_publish_no_sub_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:create_node(Alice, PepNode,
+                             [{modify_request, fun add_open_access_model_to_create_node_request/1}]),
+
+    %% In the 'open' model, presence subscriptions are ignored
+    make_friends(Bob, Alice, 0),
+    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+    ct:sleep(200),
+    escalus_assert:has_no_stanzas(Bob).
 
 auto_create_with_publish_options_test(Config) ->
     % Given pubsub is configured with pep plugin
@@ -499,6 +534,13 @@ unsubscribe_after_presence_unsubscription(Config) ->
 
 add_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
     Fields = [#{values => [<<"friends">>, <<"enemies">>], var => <<"pubsub#roster_groups_allowed">>}],
+    Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
+    ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
+    PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
+    Request#xmlel{children = [PubsubEl2]}.
+
+add_open_access_model_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
+    Fields = [#{var => <<"pubsub#access_model">>, values => [<<"open">>]}],
     Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
     ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
     PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
