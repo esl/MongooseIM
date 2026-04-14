@@ -6,20 +6,31 @@
 -include_lib("exml/include/exml.hrl").
 -include("mod_pubsub.hrl").
 
--export([start/1, stop/1, set_node/2, get_nodes/2, delete_nodes/2,
+-export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_nodes/2,
+         set_subscription/2, get_subscriptions/2, get_subscriptions/3,
          set_item/2, get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
     NodeFields = [~"service_jid", ~"node_id", ~"access_model"],
+    SubscriptionFields = [~"service_jid", ~"node_id", ~"subscriber_jid", ~"subscription_id"],
     KeyFields = [~"service_jid", ~"node_id", ~"item_id"],
     UpdateFields = [~"publisher_jid", ~"payload", ~"created_at"],
     rdbms_queries:prepare_upsert(HostType, pubsub_node_upsert, pubsub_node,
                                  NodeFields, [~"access_model"], [~"service_jid", ~"node_id"]),
+    mongoose_rdbms:prepare(pubsub_get_node, pubsub_node,
+                           [service_jid, node_id], sql(get_node)),
     mongoose_rdbms:prepare(pubsub_delete_nodes, pubsub_node,
                            [service_jid], sql(delete_nodes)),
     mongoose_rdbms:prepare(pubsub_get_nodes, pubsub_node,
                            [service_jid], sql(get_nodes)),
+    rdbms_queries:prepare_upsert(HostType, pubsub_subscription_upsert, pubsub_subscription,
+                                 SubscriptionFields, [], SubscriptionFields),
+    mongoose_rdbms:prepare(pubsub_get_subscriptions, pubsub_subscription,
+                           [service_jid, node_id], sql(get_subscriptions)),
+    mongoose_rdbms:prepare(pubsub_get_subscriptions_for_jid, pubsub_subscription,
+                           [service_jid, node_id, subscriber_jid],
+                           sql(get_subscriptions_for_jid)),
     rdbms_queries:prepare_upsert(HostType, pubsub_item_upsert, pubsub_item,
                                  KeyFields ++ UpdateFields, UpdateFields, KeyFields),
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_item,
@@ -39,6 +50,18 @@ set_node(HostType, #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = 
                                                 [atom_to_binary(AccessModel)]),
     ok.
 
+-spec get_node(mongooseim:host_type(), mod_pubsub:node_key()) ->
+    mod_pubsub:pubsub_node() | undefined.
+get_node(HostType, {ServiceJid, NodeId} = NodeKey) ->
+    case mongoose_rdbms:execute_successfully(HostType, pubsub_get_node,
+                                             [jid:to_binary(ServiceJid), NodeId]) of
+        {selected, []} ->
+            undefined;
+        {selected, [{AccessModelBin}]} ->
+            #pubsub_node{node_key = NodeKey,
+                         access_model = binary_to_existing_atom(AccessModelBin)}
+    end.
+
 -spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
 get_nodes(HostType, ServiceJid) ->
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_nodes,
@@ -50,6 +73,32 @@ delete_nodes(HostType, ServiceJid) ->
     {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_nodes,
                                                        [jid:to_binary(ServiceJid)]),
     ok.
+
+-spec set_subscription(mongooseim:host_type(), mod_pubsub:subscription()) -> ok.
+set_subscription(HostType, #subscription{node_key = {ServiceJid, NodeId},
+                                         jid = SubscriberJid,
+                                         id = SubscriptionId}) ->
+    Values = [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid), SubscriptionId],
+    {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_subscription_upsert,
+                                                Values, []),
+    ok.
+
+-spec get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key()) ->
+    [mod_pubsub:subscription()].
+get_subscriptions(HostType, {ServiceJid, NodeId} = NodeKey) ->
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_subscriptions,
+                                                           [jid:to_binary(ServiceJid), NodeId]),
+    [row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId)
+     || {SubscriberJidBin, SubscriptionId} <- Rows].
+
+-spec get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
+    [mod_pubsub:subscription()].
+get_subscriptions(HostType, {ServiceJid, NodeId} = NodeKey, SubscriberJid) ->
+    Args = [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid)],
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_subscriptions_for_jid,
+                                                           Args),
+    [row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId)
+     || {SubscriberJidBin, SubscriptionId} <- Rows].
 
 -spec set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
 set_item(HostType, #item{node_key = {ServiceJid, NodeId},
@@ -104,6 +153,13 @@ row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin) ->
           publisher_jid = jid:from_binary(PublisherJidBin),
           payload = Payload}.
 
+-spec row_to_subscription(mod_pubsub:node_key(), binary(), mod_pubsub:subscription_id()) ->
+    mod_pubsub:subscription().
+row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId) ->
+    #subscription{node_key = NodeKey,
+                  jid = jid:from_binary(SubscriberJidBin),
+                  id = SubscriptionId}.
+
 %% SQL queries
 
 sql(get_last_item) ->
@@ -117,6 +173,24 @@ sql(get_nodes) ->
      SELECT node_id
      FROM pubsub_node
      WHERE service_jid = ?
+     """;
+sql(get_subscriptions) ->
+    ~"""
+     SELECT subscriber_jid, subscription_id
+     FROM pubsub_subscription
+     WHERE service_jid = ? AND node_id = ?
+     """;
+sql(get_subscriptions_for_jid) ->
+    ~"""
+     SELECT subscriber_jid, subscription_id
+     FROM pubsub_subscription
+     WHERE service_jid = ? AND node_id = ? AND subscriber_jid = ?
+     """;
+sql(get_node) ->
+    ~"""
+     SELECT access_model
+     FROM pubsub_node
+     WHERE service_jid = ? AND node_id = ?
      """;
 sql(delete_nodes) ->
     ~"""

@@ -15,11 +15,15 @@
 
 -type item() :: #item{}.
 -type pubsub_node() :: #pubsub_node{}.
+-type subscription() :: #subscription{}.
 -type node_key() :: {jid:jid(), node_id()}.
 -type node_id() :: binary().
 -type item_id() :: binary().
+-type subscription_id() :: binary().
 -type item_payload() :: [exml:child()].
 -type access_model() :: open | presence | authorize.
+-type node_config() :: #{access_model => access_model()}.
+-type error_reason() :: bad_request | {bad_request, binary()}.
 
 -type iq_request() :: #{acc := mongoose_acc:t(),
                         iq := jlib:iq(),
@@ -28,14 +32,15 @@
                         c2s_data := mongoose_c2s:data()}.
 
 -type iq_action() :: #{action := error,
-                       reason := {atom(), binary()}}
+                       reason := error_reason()}
                    | #{action := create,
-                       node_id := node_id()}
-                   | #{action := publish,
+                       node_id := node_id(),
+                       config := node_config()}
+                    | #{action := publish,
                        node_id => node_id(), item_id => item_id(), payload => item_payload()}.
 
--export_type([item/0, pubsub_node/0, node_key/0, node_id/0, item_id/0, item_payload/0,
-              access_model/0]).
+-export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
+              item_id/0, subscription_id/0, item_payload/0, access_model/0, node_config/0]).
 
 %% gen_mod callbacks
 
@@ -54,9 +59,9 @@ supported_features() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-        items = #{<<"backend">> => #option{type = atom,
-                                           validate = {module, mod_pubsub_backend}}},
-        defaults = #{<<"backend">> => rdbms}
+        items = #{~"backend" => #option{type = atom,
+                                        validate = {module, mod_pubsub_backend}}},
+        defaults = #{~"backend" => rdbms}
     }.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
@@ -115,27 +120,47 @@ remove_user(Acc, #{jid := ServiceJid}, _) ->
 %% Internal functions
 
 -spec perform_action(iq_request(), iq_action()) -> {result | error, [exml:child()]}.
-perform_action(#{iq := IQ}, #{action := error, reason := {bad_request, _Reason}}) ->
-    {error, [mongoose_xmpp_errors:bad_request(), IQ#iq.sub_el]};
-perform_action(#{acc := Acc, service_jid := ServiceJid}, #{action := create, node_id := NodeId}) ->
+perform_action(#{}, #{action := error, reason := {bad_request, Reason}}) ->
+    {error, [mongoose_xmpp_errors:bad_request(), pubsub_error_el(Reason)]};
+perform_action(#{}, #{action := error, reason := bad_request}) ->
+    {error, [mongoose_xmpp_errors:bad_request()]};
+perform_action(#{acc := Acc, service_jid := ServiceJid},
+               #{action := create, node_id := NodeId, config := #{access_model := AccessModel}}) ->
     HostType = mongoose_acc:host_type(Acc),
-    Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = presence},
+    Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
     mod_pubsub_backend:set_node(HostType, Node),
     {result, []};
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid,
                  c2s_data := C2SData},
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
-    NodeKey = {ServiceJid, NodeId},
-    Node = #pubsub_node{node_key = NodeKey, access_model = presence},
-    Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
     HostType = mongoose_acc:host_type(Acc),
-    mod_pubsub_backend:set_node(HostType, Node),
+    NodeKey = {ServiceJid, NodeId},
+    Node = get_or_create_node(HostType, NodeKey),
+    Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
     mod_pubsub_backend:set_item(HostType, Item),
-    filter_and_broadcast(HostType, jid:to_bare(PublisherJid), subscriptions(s_from, C2SData), Item),
+    filter_and_broadcast(HostType, jid:to_bare(PublisherJid), subscribers(HostType, Node, C2SData), Item),
     ReplyPubsubEl = #xmlel{name = ~"pubsub",
                            attrs = #{~"xmlns" => ?NS_PUBSUB},
                            children = [#xmlel{name = ~"item", attrs = #{~"id" => ItemId}}]},
     {result, [ReplyPubsubEl]}.
+
+-spec subscribers(pubsub_node(), mongoose_c2s:data()) -> [jid:jid()].
+subscribers(_HostType, #pubsub_node{access_model = presence}, C2SData) ->
+    subscriptions(s_from, C2SData);
+subscribers(HostType, #pubsub_node{node_key = NodeKey, access_model = open}, _C2SData) ->
+    Subscriptions = mod_pubsub_backend:get_subscriptions(HostType, NodeKey),
+    lists:uniq([Jid || #subscription{jid = Jid} <- Subscriptions]).
+
+-spec get_or_create_node(mongooseim:host_type(), node_key()) -> pubsub_node().
+get_or_create_node(HostType, NodeKey) ->
+    case mod_pubsub_backend:get_node(HostType, NodeKey) of
+        undefined ->
+            Node = #pubsub_node{node_key = NodeKey, access_model = presence},
+            mod_pubsub_backend:set_node(HostType, Node),
+            Node;
+        Node ->
+            Node
+    end.
 
 -spec reply(iq_request(), {result | error, [exml:child()]}) -> ok.
 reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {IQType, Els}) ->
@@ -143,10 +168,19 @@ reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {
     ejabberd_router:route(ServiceJid, FromJid, Acc, Reply),
     ok.
 
+-spec pubsub_error_el(binary()) -> exml:element().
+pubsub_error_el(Reason) ->
+    #xmlel{name = Reason, attrs = #{~"xmlns" => ?NS_PUBSUB_ERRORS}}.
+
 -spec pubsub_action(binary(), [exml:element()]) -> iq_action() | no_action.
 %% TODO: support XEP-0060 instant nodes, i.e. <create/> without a node attribute.
-pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"create", attrs = #{~"node" := NodeId}}]) ->
-    #{action => create, node_id => NodeId};
+pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"create", attrs = #{~"node" := NodeId}} | Rest]) ->
+    case parse_create_config(Rest) of
+        {ok, Config} ->
+            #{action => create, node_id => NodeId, config => Config};
+        {error, Reason} ->
+            #{action => error, reason => Reason}
+    end;
 pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}}]) ->
     case exml_query:subelements(El, ~"item") of
         [#xmlel{attrs = #{~"id" := ItemId}, children = Payload}] ->
@@ -158,6 +192,44 @@ pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := N
     end;
 pubsub_action(_, _) ->
     no_action.
+
+-spec parse_create_config([exml:element()]) -> {ok, node_config()} | {error, error_reason()}.
+parse_create_config([ConfigureEl = #xmlel{name = ~"configure"}]) ->
+    case mongoose_data_forms:find_and_parse_form(ConfigureEl) of
+        #{type := ~"submit", kvs := KVs} ->
+            parse_node_config(KVs);
+        #{type := ~"cancel"} ->
+            {ok, #{access_model => presence}};
+        {error, _} ->
+            {error, {bad_request, ~"invalid-form"}};
+        _ ->
+            {error, {bad_request, ~"invalid-form-type"}}
+    end;
+parse_create_config([]) ->
+    {ok, #{access_model => presence}};
+parse_create_config(_) ->
+    {error, bad_request}.
+
+-spec parse_node_config(mongoose_data_forms:kv_map()) -> {ok, node_config()} | {error, binary()}.
+parse_node_config(KVs) ->
+    try
+        {ok, maps:from_list([parse_node_config_field(Key, Values) || Key := Values <- KVs])}
+    catch
+        throw:Reason ->
+            {error, Reason}
+    end.
+
+-spec parse_node_config_field(binary(), [binary()]) -> {access_model, access_model()}.
+parse_node_config_field(~"pubsub#access_model", Values) ->
+    {access_model, parse_access_model(Values)};
+parse_node_config_field(_, _) ->
+    throw(~"invalid-node-config").
+
+-spec parse_access_model([binary()]) -> access_model().
+parse_access_model([~"open"]) -> open;
+parse_access_model([~"presence"]) -> presence;
+parse_access_model([~"authorize"]) -> authorize;
+parse_access_model(_) -> throw(~"invalid-access-model").
 
 -spec send_last_items(mongooseim:host_type(), jid:jid(), jid:jid(), [mod_caps:feature()]) -> ok.
 send_last_items(HostType, OwnerJid = #jid{lresource = ~""},
@@ -205,7 +277,8 @@ resources_with_features(Jid = #jid{lserver = LServer, lresource = ~""}) ->
         {error, not_found} -> []
     end.
 
--spec resources_with_features(mongooseim:host_type(), jid:jid()) -> [{jid:lresource(), [binary()]}].
+-spec resources_with_features(mongooseim:host_type(), jid:jid()) ->
+    [{jid:lresource(), [mod_caps:feature()]}].
 resources_with_features(HostType, Jid = #jid{lresource = ~""}) ->
     mod_caps:get_resources_with_features(HostType, Jid);
 resources_with_features(HostType, Jid = #jid{lresource = LResource}) ->
