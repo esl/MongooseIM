@@ -2,7 +2,7 @@ version: 2.1
 
 references:
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
-  - &LATEST_OTP erlangsolutions/erlang:cimg-28.0.2
+  - &LATEST_OTP erlangsolutions/erlang:cimg-28.4.2
 
 # this allows you to use CircleCI's dynamic configuration feature
 setup: true

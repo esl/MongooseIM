@@ -105,6 +105,7 @@
 {suites, "tests", cets_disco_SUITE}.
 {suites, "tests", start_node_id_SUITE}.
 {suites, "tests", tr_util_SUITE}.
+{suites, "tests", cth_error_report_SUITE}.
 
 %% the below suites restart MIM nodes, so they were moved to the end
 %% to minimise impact on other tests

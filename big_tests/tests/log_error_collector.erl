@@ -1,5 +1,5 @@
 %% @doc Logger handler injected into MIM nodes to collect error logs into ETS.
-%% This module is injected by log_error_helper and should not be used directly.
+%% This module is injected into MIM nodes by cth_error_report.
 %%
 %% Supports multiple named instances running simultaneously.
 %% The default instance uses the atom `log_error_collector' as the name.
@@ -209,4 +209,5 @@ to_atom(Name, Suffix) ->
 
 -spec extract_meta(map()) -> meta().
 extract_meta(LogMeta) ->
-    maps:with([mfa, file, line, pid], LogMeta).
+    Meta = maps:with([mfa, file, line, pid, time], LogMeta),
+    Meta#{node => node()}.

@@ -72,6 +72,7 @@
 -export([is_muc_room_owner/3,
          can_access_room/3,
          remove_domain/3,
+         remove_user/3,
          acc_room_affiliations/3,
          can_access_identity/3,
          disco_local_items/3,
@@ -1207,8 +1208,38 @@ can_access_room(_, #{room := Room, user := User}, _) ->
     Extra :: gen_hook:extra().
  remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     MUCHost = server_host_to_muc_host(HostType, Domain),
+    {ok, Rooms} = mod_muc_backend:get_rooms(HostType, MUCHost),
     mod_muc_backend:remove_domain(HostType, MUCHost, Domain),
+    Pids = lists:filtermap(fun(#muc_room{name_host = {N, _}}) ->
+                               case find_room_pid(HostType, MUCHost, N) of
+                                   {ok, Pid} -> {true, Pid};
+                                   _ -> false
+                               end
+                           end, Rooms),
+    lists:foreach(fun mod_muc_room:stop/1, Pids),
     {ok, Acc}.
+
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = UserU, lserver = UserS}},
+            #{host_type := HostType}) ->
+    MUCHost = server_host_to_muc_host(HostType, UserS),
+    Res = mod_muc_backend:get_user_rooms(HostType, MUCHost, UserU, UserS),
+    {ok, Rooms} = Res,
+    Failures = lists:filtermap(fun(R) -> remove_user_from_online(R, UserU, UserS) end, Rooms),
+    lists:foreach(fun(R) -> remove_user_from_offline(HostType, R, UserU, UserS) end, Failures),
+    {ok, Acc}.
+
+remove_user_from_online(#muc_room{name_host = {Name, Host}} = Room, UserU, UserS) ->
+    case mod_muc_room:remove_user(#jid{luser = Name, lserver = Host}, UserU, UserS) of
+        ok -> false;
+        _ -> {true, Room}
+    end.
+
+remove_user_from_offline(HostType, #muc_room{name_host = {Name, Host}}, UserU, UserS) ->
+    mod_muc_backend:remove_user(HostType, Name, Host, UserU, UserS).
 
 -spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -1298,6 +1329,7 @@ hooks(HostType) ->
     [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
      {can_access_room, HostType, fun ?MODULE:can_access_room/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {acc_room_affiliations, HostType, fun ?MODULE:acc_room_affiliations/3, #{}, 50},
      {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250},
