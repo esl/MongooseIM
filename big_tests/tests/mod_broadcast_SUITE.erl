@@ -505,13 +505,21 @@ manager_emergency_mode_pauses_workers_and_recovers(Config) ->
         wait_until_worker_started(HostType, JobId),
         {ok, WorkerPid} = get_worker_pid(HostType, JobId),
 
-        with_renew_ownership_failing_requests(once, fun() ->
+        ok = rpc(mim(), meck, expect,
+                 [mod_broadcast_backend, renew_ownership, 2,
+                  meck:raise(error, fake_error)]),
+        try
             wait_for_manager_sync_mode(HostType, emergency),
             wait_until_worker_state(WorkerPid, paused),
 
+            ok = rpc(mim(), meck, expect,
+                     [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()]),
             wait_for_manager_sync_mode(HostType, normal),
             wait_until_worker_state(WorkerPid, sending_batch)
-        end)
+        after
+            ok = rpc(mim(), meck, expect,
+                     [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()])
+        end
     end).
 
 manager_repeated_emergency_failure_keeps_workers_paused(Config) ->
@@ -526,15 +534,21 @@ manager_repeated_emergency_failure_keeps_workers_paused(Config) ->
         wait_until_worker_started(HostType, JobId),
         {ok, WorkerPid} = get_worker_pid(HostType, JobId),
 
-        with_renew_ownership_failing_requests(infinity, fun() ->
+        ok = rpc(mim(), meck, expect,
+                 [mod_broadcast_backend, renew_ownership, 2,
+                  meck:raise(error, fake_error)]),
+        try
             wait_for_manager_sync_mode(HostType, emergency),
             wait_until_worker_state(WorkerPid, paused),
 
             wait_for_manager_synchronization_tick(HostType),
-            
+
             wait_for_manager_sync_mode(HostType, emergency),
             wait_until_worker_state(WorkerPid, paused)
-        end),
+        after
+            ok = rpc(mim(), meck, expect,
+                     [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()])
+        end,
 
         wait_for_manager_sync_mode(HostType, normal)
     end).
@@ -956,19 +970,6 @@ wait_until_worker_state(WorkerPid, ExpectedState) ->
                 {unexpected_state, Other}
         end
     end, ExpectedState).
-
-with_renew_ownership_failing_requests(FailCount, Fun) ->
-    RenewReturn = case FailCount of
-                      once -> meck:seq([meck:raise(error, fake_error), meck:passthrough()]);
-                      infinity -> meck:raise(error, fake_error)
-                  end,
-    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, renew_ownership, 2, RenewReturn]),
-    try
-        Fun()
-    after
-        ok = rpc(mim(), meck, expect,
-                 [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()])
-    end.
 
 sql_query(HostType, Query) ->
     rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
