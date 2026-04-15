@@ -46,7 +46,9 @@ groups() ->
 pep_tests() ->
     [publish_and_notify,
      create_and_publish_and_notify,
-     create_open_and_publish_and_notify,
+     create_open_and_publish_explicit_sub,
+     create_open_and_publish_implicit_sub,
+     create_open_and_publish_both_subs,
      create_open_and_publish_no_sub,
      send_caps_after_login_test,
      delayed_receive,
@@ -239,15 +241,24 @@ create_and_publish_and_notify(Config) ->
     escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
                                     fun create_and_publish_and_notify_story/3).
 
-create_open_and_publish_and_notify(Config) ->
-    Config1 = set_caps(Config),
+create_open_and_publish_explicit_sub(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
-                                    fun create_open_and_publish_and_notify_story/3).
+                                    fun create_open_and_publish_explicit_sub_story/3).
+
+create_open_and_publish_implicit_sub(Config) ->
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
+                                    fun create_open_and_publish_implicit_sub_story/3).
+
+create_open_and_publish_both_subs(Config) ->
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
+                                    fun create_open_and_publish_both_subs_story/3).
 
 create_open_and_publish_no_sub(Config) ->
     Config1 = set_caps(Config),
-    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
-                                    fun create_open_and_publish_no_sub_story/3).
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}, {mike, 1}],
+                                    fun create_open_and_publish_no_sub_story/4).
 
 publish_and_notify_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -262,7 +273,7 @@ create_and_publish_and_notify_story(Config, Alice, Bob) ->
     pubsub_tools:create_node(Alice, PepNode, []),
     publish_and_notify_story(Config, Alice, Bob).
 
-create_open_and_publish_and_notify_story(Config, Alice, Bob) ->
+create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     NodeNS = random_node_ns(),
     PepNode = make_pep_node_info(Alice, NodeNS),
     pubsub_tools:create_node(Alice, PepNode,
@@ -273,17 +284,39 @@ create_open_and_publish_and_notify_story(Config, Alice, Bob) ->
       Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
     ok.
 
-create_open_and_publish_no_sub_story(Config, Alice, Bob) ->
+create_open_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
     PepNode = make_pep_node_info(Alice, NodeNS),
     pubsub_tools:create_node(Alice, PepNode,
                              [{modify_request, fun add_open_access_model_to_create_node_request/1}]),
-
-    %% In the 'open' model, presence subscriptions are ignored
     make_friends(Bob, Alice, 0),
     pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
-    ct:sleep(200),
-    escalus_assert:has_no_stanzas(Bob).
+    pubsub_tools:receive_item_notification(
+      Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []).
+
+create_open_and_publish_both_subs_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:create_node(Alice, PepNode,
+                             [{modify_request, fun add_open_access_model_to_create_node_request/1}]),
+    make_friends(Bob, Alice, 0),
+    pubsub_tools:subscribe(Bob, PepNode, []),
+    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+    pubsub_tools:receive_item_notification(
+      Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500).
+
+create_open_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:create_node(Alice, PepNode,
+                             [{modify_request, fun add_open_access_model_to_create_node_request/1}]),
+    make_friends(Mike, Alice, 0),
+    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+    pubsub_tools:receive_item_notification(
+      Alice, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500), % caps but no presence subscription
+    [] = escalus:wait_for_stanzas(Mike, 1, 500). % presence subscription but no caps
 
 auto_create_with_publish_options_test(Config) ->
     % Given pubsub is configured with pep plugin
@@ -619,6 +652,7 @@ exchange_initial_presence(_Config, Client, false) ->
 is_caps_client(Client) ->
     case escalus_client:username(Client) of
         <<"alice", _/binary>> -> false;
+        <<"mike", _/binary>> -> false;
         _ -> true
     end.
 
