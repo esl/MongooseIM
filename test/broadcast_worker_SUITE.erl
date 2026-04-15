@@ -620,19 +620,3 @@ get_worker_state(Pid) ->
         _Other ->
             undefined
     end.
-
-receive_route_event(Ref, Timeout) ->
-    receive
-        {Ref, routed, _Recipient, _Ts} = Event ->
-            Event
-    after Timeout ->
-        ct:fail({route_event_timeout, Timeout})
-    end.
-
-assert_no_route_event(Ref, Timeout) ->
-    receive
-        {Ref, routed, Recipient, Ts} ->
-            ct:fail({unexpected_route_event, Recipient, Ts, Timeout})
-    after Timeout ->
-        ok
-    end.
