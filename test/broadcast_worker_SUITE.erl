@@ -44,10 +44,17 @@
     %% sending_paths
     batch_to_batch_transition_completes/1,
     route_exception_skips_recipient_and_finishes/1,
+    %% pause_resume_paths
+    pause_call_while_already_paused_returns_ok_and_keeps_state/1,
+    resume_call_while_already_running_returns_ok_and_keeps_state/1,
+    get_domain_while_paused_returns_domain/1,
     %% finalization_paths
     final_state_persist_failure_exits_normal/1,
     %% unexpected_events
     unexpected_event_in_sending_batch_survives/1,
+    unexpected_event_in_paused_survives/1,
+    %% callback_paths
+    direct_code_change_returns_same_state_and_data/1,
     %% message_id
     message_id_is_deterministic/1
 ]).
@@ -61,8 +68,10 @@ all() ->
      {group, init_paths},
      {group, batch_loading_paths},
      {group, sending_paths},
+     {group, pause_resume_paths},
      {group, finalization_paths},
      {group, unexpected_events},
+     {group, callback_paths},
      {group, message_id}].
 
 groups() ->
@@ -70,8 +79,10 @@ groups() ->
      {init_paths, [], init_path_tests()},
      {batch_loading_paths, [], batch_loading_path_tests()},
      {sending_paths, [], sending_path_tests()},
+     {pause_resume_paths, [], pause_resume_path_tests()},
      {finalization_paths, [], finalization_path_tests()},
      {unexpected_events, [], unexpected_event_tests()},
+     {callback_paths, [], callback_path_tests()},
      {message_id, [], message_id_tests()}].
 
 stop_path_tests() ->
@@ -92,11 +103,20 @@ sending_path_tests() ->
     [batch_to_batch_transition_completes,
      route_exception_skips_recipient_and_finishes].
 
+pause_resume_path_tests() ->
+    [pause_call_while_already_paused_returns_ok_and_keeps_state,
+     resume_call_while_already_running_returns_ok_and_keeps_state,
+     get_domain_while_paused_returns_domain].
+
 finalization_path_tests() ->
     [final_state_persist_failure_exits_normal].
 
 unexpected_event_tests() ->
-    [unexpected_event_in_sending_batch_survives].
+    [unexpected_event_in_sending_batch_survives,
+     unexpected_event_in_paused_survives].
+
+callback_path_tests() ->
+    [direct_code_change_returns_same_state_and_data].
 
 message_id_tests() ->
     [message_id_is_deterministic].
@@ -150,19 +170,19 @@ stop_force_kills_stuck_worker(_Config) ->
     StuckWorker = spawn(fun() -> receive _ -> exit(timeout) end end),
 
     log_helper:subscribe(),
-    ok = broadcast_worker:stop(StuckWorker),
+    noproc = broadcast_worker:stop(StuckWorker),
     ?assertLog(warning, #{what := broadcast_worker_killed_timeout, worker_pid := StuckWorker}),
     ok.
 
 stop_when_worker_already_stopping_normal_returns_ok(_Config) ->
     WorkerAlreadyStopping = spawn(fun() -> receive _ -> exit(normal) end end),
-    ok = broadcast_worker:stop(WorkerAlreadyStopping),
+    noproc = broadcast_worker:stop(WorkerAlreadyStopping),
     ok.
 
 stop_when_worker_already_stopping_error_returns_ok(_Config) ->
     WorkerAlreadyFailed = spawn(fun() -> receive _ -> exit({error, already_failed}) end end),
     log_helper:subscribe(),
-    ok = broadcast_worker:stop(WorkerAlreadyFailed),
+    noproc = broadcast_worker:stop(WorkerAlreadyFailed),
     ?assertLog(warning, #{what := broadcast_worker_killed_error,
                           worker_pid := WorkerAlreadyFailed,
                           error := {error, already_failed}}),
@@ -177,7 +197,7 @@ stop_when_worker_is_noproc_returns_ok(_Config) ->
     end,
 
     log_helper:subscribe(),
-    ok = broadcast_worker:stop(DeadPid),
+    noproc = broadcast_worker:stop(DeadPid),
     ?assertLog(warning, #{what := broadcast_worker_killed_noproc, worker_pid := DeadPid}),
     ok.
 
@@ -342,6 +362,61 @@ route_exception_skips_recipient_and_finishes(_Config) ->
     ok.
 
 %%====================================================================
+%% Pause / resume path tests
+%%====================================================================
+
+pause_call_while_already_paused_returns_ok_and_keeps_state(_Config) ->
+    Job = broadcast_helper:sample_broadcast_job(1),
+
+    setup_pause_resume_case_mocks(Job),
+
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+
+    wait_for_worker_state(Pid, sending_batch),
+
+    ok = broadcast_worker:pause(Pid),
+    wait_for_worker_state(Pid, paused),
+
+    ok = broadcast_worker:pause(Pid),
+    wait_for_worker_state(Pid, paused),
+
+    exit(Pid, kill),
+    ok.
+
+resume_call_while_already_running_returns_ok_and_keeps_state(_Config) ->
+    Job = broadcast_helper:sample_broadcast_job(1),
+
+    setup_pause_resume_case_mocks(Job),
+
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+
+    wait_for_worker_state(Pid, sending_batch),
+
+    ok = broadcast_worker:resume(Pid),
+    wait_for_worker_state(Pid, sending_batch),
+
+    exit(Pid, kill),
+    ok.
+
+get_domain_while_paused_returns_domain(_Config) ->
+    Job = broadcast_helper:sample_broadcast_job(1),
+
+    setup_pause_resume_case_mocks(Job),
+
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+
+    wait_for_worker_state(Pid, sending_batch),
+
+    ok = broadcast_worker:pause(Pid),
+    wait_for_worker_state(Pid, paused),
+
+    {ok, Domain} = broadcast_worker:get_domain(Pid),
+    ?assertEqual(Domain, Job#broadcast_job.domain),
+
+    exit(Pid, kill),
+    ok.
+
+%%====================================================================
 %% Finalization path tests
 %%====================================================================
 
@@ -406,6 +481,48 @@ unexpected_event_in_sending_batch_survives(_Config) ->
     Pid ! unexpected_info,
 
     ok = broadcast_worker:stop(Pid).
+
+unexpected_event_in_paused_survives(_Config) ->
+    Job = broadcast_helper:sample_broadcast_job(1),
+
+    setup_pause_resume_case_mocks(Job),
+
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+
+    wait_for_worker_state(Pid, sending_batch),
+
+    ok = broadcast_worker:pause(Pid),
+    wait_for_worker_state(Pid, paused),
+
+    gen_statem:cast(Pid, unexpected_cast),
+    Pid ! unexpected_info,
+
+    wait_for_worker_state(Pid, paused),
+
+    ok = broadcast_worker:resume(Pid),
+    wait_for_worker_state(Pid, sending_batch),
+
+    exit(Pid, kill),
+    ok.
+
+%%====================================================================
+%% Callback path tests
+%%====================================================================
+
+direct_code_change_returns_same_state_and_data(_Config) ->
+    Job = broadcast_helper:sample_broadcast_job(1),
+
+    setup_pause_resume_case_mocks(Job),
+
+    {ok, {Pid, _MonRef}} = start_and_monitor_worker(broadcast_helper:host_type(), 12345),
+
+    wait_for_worker_state(Pid, sending_batch),
+
+    {State, Data} = sys:get_state(Pid),
+    {ok, State, Data} = broadcast_worker:code_change(old_vsn, State, Data, extra),
+
+    exit(Pid, kill),
+    ok.
 
 %%====================================================================
 %% Message ID tests
@@ -480,4 +597,26 @@ start_and_monitor_worker(HostType, JobId) ->
             {ok, {Pid, MonRef}};
         Error ->
             Error
+    end.
+
+setup_pause_resume_case_mocks(Job) ->
+    meck:expect(mod_broadcast_backend, get_job,
+                fun(_HostType, _JobId) -> {ok, Job} end),
+    meck:expect(mongoose_gen_auth, get_registered_users_snapshot, 4,
+                {ok, {[<<"user1">>, <<"user2">>, <<"user3">>, <<"user4">>, <<"user5">>], undefined}}),
+    meck:expect(ejabberd_router, route, 4, ok).
+
+wait_for_worker_state(Pid, ExpectedState) ->
+    wait_helper:wait_until(fun() ->
+        get_worker_state(Pid)
+    end, ExpectedState).
+
+get_worker_state(Pid) ->
+    case catch sys:get_state(Pid) of
+        {State, _Data} when is_atom(State) ->
+            State;
+        {'EXIT', _Reason} ->
+            down;
+        _Other ->
+            undefined
     end.

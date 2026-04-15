@@ -27,7 +27,7 @@
     body := binary(),
     sender := jid:jid(),
     message_rate := pos_integer(),
-    owner_node := node(),
+    owner_node := node() | undefined,
     create_timestamp := calendar:datetime(),
     start_timestamp := calendar:datetime() | undefined,
     stop_timestamp := calendar:datetime() | undefined,
@@ -127,6 +127,8 @@ start_broadcast(HostType, JobSpec) ->
     case broadcast_manager:start_job(HostType, JobSpec) of
         {ok, JobId} ->
             {ok, JobId};
+        {error, temporarily_unavailable} ->
+            error_result(temporarily_unavailable);
         {error, running_job_limit_exceeded} ->
             error_result(running_job_limit_exceeded);
         {error, sender_not_found} ->
@@ -212,6 +214,8 @@ error_result(sender_not_found) ->
     {sender_not_found, <<"Sender account does not exist">>};
 error_result(no_recipients) ->
     {no_recipients, <<"Recipient group is empty">>};
+error_result(temporarily_unavailable) ->
+    {temporarily_unavailable, <<"Broadcast manager is temporarily unavailable">>};
 error_result(running_job_limit_exceeded) ->
     {running_job_limit_exceeded, <<"Cannot start new broadcast job: running job limit exceeded">>};
 error_result(not_running) ->

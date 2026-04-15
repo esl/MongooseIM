@@ -583,7 +583,6 @@ CREATE TABLE broadcast_jobs (
     body TEXT NOT NULL,
     rate INT NOT NULL,
     recipient_group ENUM('all_users_in_domain') NOT NULL,
-    owner_node VARCHAR(250) NOT NULL,
     recipient_count INT NOT NULL,
     execution_state ENUM('running', 'finished', 'abort_error', 'abort_admin') NOT NULL DEFAULT 'running',
     abortion_reason TEXT,
@@ -591,8 +590,20 @@ CREATE TABLE broadcast_jobs (
     started_at TIMESTAMP NULL,
     stopped_at TIMESTAMP NULL,
     INDEX i_broadcast_jobs_server (server, id),
-    INDEX i_broadcast_jobs_owner_host_state (owner_node, host_type, execution_state),
+    INDEX i_broadcast_jobs_host_state (host_type, execution_state),
     INDEX i_broadcast_jobs_server_state (server, execution_state)
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE broadcast_jobs_ownership (
+    broadcast_id INT NOT NULL,
+    owner_node VARCHAR(250) NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (broadcast_id),
+    INDEX i_broadcast_jobs_ownership_owner_node (owner_node),
+    INDEX i_broadcast_jobs_ownership_expires_at (expires_at),
+    FOREIGN KEY (broadcast_id) REFERENCES broadcast_jobs(id) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 

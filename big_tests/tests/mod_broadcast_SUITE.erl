@@ -10,6 +10,7 @@
 
 %% CT callbacks
 -export([suite/0, all/0, groups/0,
+         init_per_group/2, end_per_group/2,
          init_per_suite/1, end_per_suite/1,
          init_per_testcase/2, end_per_testcase/2]).
 
@@ -27,6 +28,15 @@
          delete_inactive_by_domain_empty_ok/1,
          delete_inactive_by_domain_deletes_only_inactive/1,
          broadcast_instrumentation_metrics/1]).
+%% ownership
+-export([lease_expires_and_job_is_taken_over/1,
+         ownership_lease_is_renewed_while_job_is_running/1,
+         manager_emergency_mode_pauses_workers_and_recovers/1,
+         manager_repeated_emergency_failure_keeps_workers_paused/1,
+         finished_job_removes_ownership_row/1,
+         aborted_job_removes_ownership_row/1,
+         take_expired_jobs_ignores_non_running_jobs/1,
+         take_expired_jobs_is_scoped_by_host_type/1]).
 %% validation
 -export([start_broadcast_sender_spoofing_attempt_from_secondary_domain/1,
          start_broadcast_sender_not_found/1,
@@ -72,6 +82,7 @@ all() ->
          orelse mongoose_helper:is_rdbms_enabled(host_type(mim)) of
         true ->
             [{group, lifecycle},
+             {group, ownership},
              {group, validation},
              {group, retrieval}];
         false ->
@@ -80,6 +91,7 @@ all() ->
 
 groups() ->
     [{lifecycle, [sequence], lifecycle_tests()},
+     {ownership, [sequence], ownership_tests()},
      {validation, [], validation_tests()},
      {retrieval, [], retrieval_tests()}].
 
@@ -97,6 +109,16 @@ lifecycle_tests() ->
      delete_inactive_by_domain_empty_ok,
      delete_inactive_by_domain_deletes_only_inactive,
      broadcast_instrumentation_metrics].
+
+ownership_tests() ->
+    [lease_expires_and_job_is_taken_over,
+     ownership_lease_is_renewed_while_job_is_running,
+     manager_emergency_mode_pauses_workers_and_recovers,
+     manager_repeated_emergency_failure_keeps_workers_paused,
+     finished_job_removes_ownership_row,
+     aborted_job_removes_ownership_row,
+     take_expired_jobs_ignores_non_running_jobs,
+     take_expired_jobs_is_scoped_by_host_type].
 
 validation_tests() ->
     [start_broadcast_sender_spoofing_attempt_from_secondary_domain,
@@ -123,6 +145,7 @@ init_per_suite(Config) ->
     lists:foreach(fun ensure_mod_broadcast_started/1, domain_helper:host_types()),
     broadcast_helper:create_many_users(100),
     clean_broadcast_jobs_and_verify(),
+    mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
@@ -132,6 +155,23 @@ end_per_suite(Config) ->
     instrument_helper:restore_probe_interval(Config),
     escalus:end_per_suite(Config).
 
+init_per_group(ownership, Config) ->
+    ok = rpc(mim(), meck, new, [mod_broadcast, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect, [mod_broadcast, lease_time, 1, 1]),
+    ok = rpc(mim(), meck, new, [mod_broadcast_backend, [no_link, passthrough]]),
+    lists:foreach(fun restart_manager/1, domain_helper:host_types()),
+    Config;
+init_per_group(_Group, Config) ->
+    Config.
+
+end_per_group(ownership, Config) ->
+    rpc(mim(), meck, unload, [mod_broadcast]),
+    rpc(mim(), meck, unload, [mod_broadcast_backend]),
+    lists:foreach(fun restart_manager/1, domain_helper:host_types()),
+    Config;
+end_per_group(_Group, Config) ->
+    Config.
+
 %%====================================================================
 %% Test case setup/teardown
 %%====================================================================
@@ -139,6 +179,14 @@ end_per_suite(Config) ->
 init_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
     instrument_helper:start(instrument_helper:declared_events(mod_broadcast)),
     escalus:init_per_testcase(TestCase, Config);
+init_per_testcase(take_expired_jobs_is_scoped_by_host_type = TestCase, Config) ->
+    %% This is the case for dynamic domains test flavor
+    case host_type(mim) =:= secondary_host_type(mim) of
+        true ->
+            {skip, host_types_are_identical};
+        false ->
+            escalus:init_per_testcase(TestCase, Config)
+    end;
 init_per_testcase(broadcast_job_delivers_message = TestCase, Config) ->
     accounts_helper:prepare_user_created_at(),
     escalus:init_per_testcase(TestCase, Config);
@@ -147,6 +195,10 @@ init_per_testcase(TestCase, Config) ->
 
 end_per_testcase(broadcast_instrumentation_metrics = TestCase, Config) ->
     instrument_helper:stop(),
+    clean_broadcast_jobs_and_verify(),
+    escalus:end_per_testcase(TestCase, Config);
+end_per_testcase(take_expired_jobs_is_scoped_by_host_type = TestCase, Config) ->
+    ensure_mod_broadcast_started(secondary_host_type(mim)),
     clean_broadcast_jobs_and_verify(),
     escalus:end_per_testcase(TestCase, Config);
 end_per_testcase(resume_jobs_after_restart = TestCase, Config) ->
@@ -234,7 +286,7 @@ resume_jobs_after_restart(Config) ->
         stop_mod_broadcast(HostTypeA),
         HostTypeA =/= HostTypeB andalso stop_mod_broadcast(HostTypeB),
 
-        update_job_owner_node(HostTypeB, DomainB, JobIdB, bogus_owner_node()),
+        update_job_owner_node(HostTypeB, JobIdB, bogus_owner_node()),
 
         ensure_mod_broadcast_started(HostTypeA),
         HostTypeA =/= HostTypeB andalso ensure_mod_broadcast_started(HostTypeB),
@@ -256,13 +308,7 @@ manager_restart_is_idempotent_to_live_job_workers(Config) ->
         WorkersBefore = get_worker_ids_and_pids(HostType),
         ?assert(lists:keymember(JobId, 1, WorkersBefore)),
 
-        ManagerPid = get_manager_pid(HostType),
-        MonitorRef = erlang:monitor(process, ManagerPid),
-
-        exit(ManagerPid, kill),
-        ok = wait_for_manager_down(MonitorRef, ManagerPid),
-
-        wait_for_manager_restart(HostType, ManagerPid),
+        restart_manager(HostType),
 
         WorkersAfter = get_worker_ids_and_pids(HostType),
         ?assertEqual(lists:sort(WorkersBefore), lists:sort(WorkersAfter))
@@ -346,7 +392,7 @@ broadcast_instrumentation_metrics(Config) ->
     JobName = ?FUNCTION_NAME,
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJid = escalus_client:short_jid(Alice),
-        Labels = labels(),
+        Labels = instrumentation_labels(),
 
         wait_for_live_jobs_count(0),
 
@@ -400,6 +446,182 @@ broadcast_instrumentation_metrics(Config) ->
         instrument_helper:assert(mod_broadcast_jobs_aborted_error, Labels,
                                  fun(#{count := 1}) -> true end,
                                  #{expected_count => 0, min_timestamp => TS1})
+    end).
+
+%%====================================================================
+%% Ownership tests
+%%====================================================================
+
+lease_expires_and_job_is_taken_over(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(domain(), AliceJid, JobName),
+
+        {ok, JobId} = start_broadcast(JobSpec),
+        wait_until_worker_started(HostType, JobId),
+
+        CurrentOwnerNode = atom_to_binary(maps:get(node, distributed_helper:mim()), utf8),
+        {ok, OriginalWorkerPid} = get_worker_pid(HostType, JobId),
+
+        %% Simulate lease loss by another owner and force immediate expiry.
+        update_job_owner_node(HostType, JobId, bogus_owner_node()),
+        expire_job_lease_now(HostType, JobId),
+
+        wait_for_manager_synchronization_tick(HostType),
+
+        % If a manager sees that it took over a job that is already running locally,
+        % it will restart the worker so it can retrieve fresh state from the DB.
+        wait_for_process_down(OriginalWorkerPid),
+        wait_until_worker_started(HostType, JobId),
+        assert_job_owner_node(HostType, JobId, CurrentOwnerNode)
+    end).
+
+ownership_lease_is_renewed_while_job_is_running(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(domain(), AliceJid, JobName),
+
+        {ok, JobId} = start_broadcast(JobSpec),
+        wait_until_worker_started(HostType, JobId),
+
+        {ok, #{expires_at := ExpiresAtBefore}} = get_ownership_data(HostType, JobId),
+
+        wait_until_lease_renewed(HostType, JobId, ExpiresAtBefore)
+    end).
+
+manager_emergency_mode_pauses_workers_and_recovers(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(domain(), AliceJid, JobName),
+
+        wait_for_manager_sync_mode(HostType, normal),
+        {ok, JobId} = start_broadcast(JobSpec),
+        wait_until_worker_started(HostType, JobId),
+        {ok, WorkerPid} = get_worker_pid(HostType, JobId),
+
+        ok = rpc(mim(), meck, expect,
+                 [mod_broadcast_backend, renew_ownership, 2,
+                  meck:raise(error, fake_error)]),
+        try
+            wait_for_manager_sync_mode(HostType, emergency),
+            wait_until_worker_state(WorkerPid, paused),
+
+            ok = rpc(mim(), meck, expect,
+                     [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()]),
+            wait_for_manager_sync_mode(HostType, normal),
+            wait_until_worker_state(WorkerPid, sending_batch)
+        after
+            ok = rpc(mim(), meck, expect,
+                     [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()])
+        end
+    end).
+
+manager_repeated_emergency_failure_keeps_workers_paused(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(domain(), AliceJid, JobName),
+
+        wait_for_manager_sync_mode(HostType, normal),
+        {ok, JobId} = start_broadcast(JobSpec),
+        wait_until_worker_started(HostType, JobId),
+        {ok, WorkerPid} = get_worker_pid(HostType, JobId),
+
+        ok = rpc(mim(), meck, expect,
+                 [mod_broadcast_backend, renew_ownership, 2,
+                  meck:raise(error, fake_error)]),
+        try
+            wait_for_manager_sync_mode(HostType, emergency),
+            wait_until_worker_state(WorkerPid, paused),
+
+            wait_for_manager_synchronization_tick(HostType),
+
+            wait_for_manager_sync_mode(HostType, emergency),
+            wait_until_worker_state(WorkerPid, paused)
+        after
+            ok = rpc(mim(), meck, expect,
+                     [mod_broadcast_backend, renew_ownership, 2, meck:passthrough()])
+        end,
+
+        wait_for_manager_sync_mode(HostType, normal)
+    end).
+
+finished_job_removes_ownership_row(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = fast_job_spec(domain(), AliceJid, JobName),
+
+        {ok, JobId} = start_broadcast(JobSpec),
+
+        wait_until_job_state(domain(), JobId, finished),
+        wait_until_ownership_row_absent(HostType, JobId)
+    end).
+
+aborted_job_removes_ownership_row(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobSpec = slow_job_spec(domain(), AliceJid, JobName),
+
+        {ok, JobId} = start_broadcast(JobSpec),
+        wait_until_worker_started(HostType, JobId),
+
+        {ok, JobId} = abort_broadcast(domain(), JobId),
+        wait_until_job_state(domain(), JobId, abort_admin),
+        wait_until_ownership_row_absent(HostType, JobId)
+    end).
+
+take_expired_jobs_ignores_non_running_jobs(Config) ->
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        HostType = host_type(mim),
+        AliceJid = escalus_client:short_jid(Alice),
+        JobNameBin = atom_to_binary(JobName, utf8),
+
+        FinishedSpec = (fast_job_spec(domain(), AliceJid, JobName))#{name => <<JobNameBin/binary, "-finished">>},
+        {ok, FinishedJobId} = start_broadcast(FinishedSpec),
+        wait_until_job_state(domain(), FinishedJobId, finished),
+        wait_until_ownership_row_absent(HostType, FinishedJobId),
+
+        {ok, AbortedJobId} = start_broadcast(slow_job_spec(domain(), AliceJid, <<JobNameBin/binary, "-aborted">>)),
+        {ok, AbortedJobId} = abort_broadcast(domain(), AbortedJobId),
+        wait_until_job_state(domain(), AbortedJobId, abort_admin),
+        wait_until_ownership_row_absent(HostType, AbortedJobId),
+
+        %% Recreate expired ownership rows for non-running jobs; sync should ignore them.
+        insert_expired_ownership_row(HostType, FinishedJobId, bogus_owner_node()),
+        insert_expired_ownership_row(HostType, AbortedJobId, bogus_owner_node()),
+
+        wait_for_manager_synchronization_tick(HostType),
+        
+        assert_job_owner_node(HostType, FinishedJobId, bogus_owner_node()),
+        assert_job_owner_node(HostType, AbortedJobId, bogus_owner_node())
+    end).
+
+take_expired_jobs_is_scoped_by_host_type(Config) ->
+    HostTypeA = host_type(mim),
+    HostTypeB = secondary_host_type(mim),
+    JobName = ?FUNCTION_NAME,
+    escalus:fresh_story(Config, [{alice_bis, 1}], fun(AliceBis) ->
+        AliceBisJid = escalus_client:short_jid(AliceBis),
+        JobSpecB = slow_job_spec(secondary_domain(), AliceBisJid, JobName),
+
+        {ok, JobIdB} = start_broadcast(JobSpecB),
+        wait_until_worker_started(HostTypeB, JobIdB),
+
+        stop_mod_broadcast(HostTypeB),
+        expire_job_lease_now(HostTypeB, JobIdB),
+        {ok, []} = rpc(mim(), mod_broadcast_rdbms, take_expired_jobs, [HostTypeA, 1])
     end).
 
 %%====================================================================
@@ -588,7 +810,8 @@ get_broadcasts_pagination_basic(Config) ->
 %%====================================================================
 
 ensure_mod_broadcast_started(HostType) ->
-    dynamic_modules:ensure_modules(HostType, [{mod_broadcast, #{backend => rdbms}}]).
+    Opts = #{backend => rdbms, lease_time => 600},
+    dynamic_modules:ensure_modules(HostType, [{mod_broadcast, Opts}]).
 
 stop_mod_broadcast(HostType) ->
     {stopped, _} = dynamic_modules:stop(HostType, mod_broadcast).
@@ -614,14 +837,43 @@ start_and_abort_job(JobSpec) ->
 
 wait_for_live_jobs_count(ExpectedCount) ->
     F = fun(#{count := Count}) -> Count =:= ExpectedCount end,
-    instrument_helper:wait_and_assert_new(mod_broadcast_live_jobs, labels(), F).
+    instrument_helper:wait_and_assert_new(mod_broadcast_live_jobs, instrumentation_labels(), F).
 
-wait_for_manager_down(MonitorRef, ManagerPid) ->
+wait_for_manager_synchronization_tick(ExpectedHostType) ->
+    TestPid = self(),
+    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, take_expired_jobs,
+                                    fun(HostType, LeaseTime) ->
+                                        Result = meck:passthrough([HostType, LeaseTime]),
+                                        TestPid ! {manager_sync_tick, HostType},
+                                        Result
+                                    end]),
+    try
+        receive
+            {manager_sync_tick, ExpectedHostType} ->
+                ok
+        after 5000 ->
+            ct:fail({manager_sync_tick_timeout, ExpectedHostType})
+        end
+    after
+        ok = rpc(mim(), meck, expect,
+                 [mod_broadcast_backend, take_expired_jobs, 2, meck:passthrough()])
+    end.
+
+restart_manager(HostType) ->
+    ManagerPid = get_manager_pid(HostType),
+    ?assert(is_pid(ManagerPid)),
+
+    exit(ManagerPid, kill),
+    ok = wait_for_process_down(ManagerPid),
+    wait_for_manager_restart(HostType, ManagerPid).
+
+wait_for_process_down(Pid) ->
+    MonitorRef = erlang:monitor(process, Pid),
     receive
-        {'DOWN', MonitorRef, process, ManagerPid, _Reason} ->
+        {'DOWN', MonitorRef, process, Pid, _Reason} ->
             ok
     after 5000 ->
-        {error, manager_stop_timeout}
+        {error, process_stop_timeout}
     end.
 
 wait_for_manager_restart(HostType, OldPid) ->
@@ -631,7 +883,7 @@ wait_for_manager_restart(HostType, OldPid) ->
         #{validator => fun(Pid) -> is_pid(Pid) andalso Pid =/= OldPid end,
           name => wait_for_manager_restart}).
 
-labels() ->
+instrumentation_labels() ->
     #{host_type => domain_helper:host_type()}.
 
 %%====================================================================
@@ -646,8 +898,14 @@ get_manager_pid(HostType) ->
     rpc(mim(), erlang, whereis, [ProcName]).
 
 get_worker_ids_and_pids(HostType) ->
-    Children = call_manager(get_supervisor_children, [HostType]),
+    Children = rpc(mim(), broadcast_jobs_sup, get_children, [HostType]),
     [{Id, Pid} || {Id, Pid, _Type, _Modules} <- Children, is_integer(Id), is_pid(Pid)].
+
+get_worker_pid(HostType, JobId) ->
+    case lists:keyfind(JobId, 1, get_worker_ids_and_pids(HostType)) of
+        {JobId, Pid} -> {ok, Pid};
+        false -> {error, not_found}
+    end.
 
 clean_broadcast_jobs_and_verify() ->
     broadcast_helper:clean_broadcast_jobs(),
@@ -669,26 +927,95 @@ assert_empty_worker_map(HostType) ->
             ct:fail({manager_has_live_workers, HostType, WorkerList})
     end.
 
+bogus_owner_node() ->
+    <<"silly_goose@nowhere">>.
+
+assert_job_owner_node(HostType, JobId, ExpectedOwnerNode) ->
+    {ok, #{owner_node := OwnerNode}} = get_ownership_data(HostType, JobId),
+    ?assertEqual(ExpectedOwnerNode, OwnerNode).
+
+wait_until_lease_renewed(HostType, JobId, ExpiresAtBefore) ->
+    wait_helper:wait_until(fun() ->
+        case get_ownership_data(HostType, JobId) of
+            {ok, #{expires_at := ExpiresAtAfter}} when ExpiresAtAfter =/= ExpiresAtBefore ->
+                ok;
+            {ok, _} ->
+                waiting_for_lease_renewal;
+            {error, not_found} ->
+                ownership_missing
+        end
+    end, ok, #{name => wait_until_lease_renewed,
+               sleep_time => 200,
+               time_left => timer:seconds(3)}).
+
+wait_until_ownership_row_absent(HostType, JobId) ->
+    wait_helper:wait_until(fun() ->
+        case get_ownership_data(HostType, JobId) of
+            {error, not_found} -> ok;
+            {ok, _Row} -> ownership_still_present
+        end
+    end, ok).
+
+wait_for_manager_sync_mode(HostType, ExpectedMode) ->
+    wait_helper:wait_until(fun() ->
+        call_manager(get_sync_mode, [HostType])
+    end, ExpectedMode).
+
+wait_until_worker_state(WorkerPid, ExpectedState) ->
+    wait_helper:wait_until(fun() ->
+        case rpc(mim(), sys, get_state, [WorkerPid]) of
+            {State, _Data} when is_atom(State) ->
+                State;
+            Other ->
+                {unexpected_state, Other}
+        end
+    end, ExpectedState).
+
+sql_query(HostType, Query) ->
+    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
+
 %%====================================================================
 %% Direct DB operations
 %%====================================================================
 
-update_job_owner_node(HostType, Domain, JobId, OwnerNode) ->
-    Query = ["UPDATE broadcast_jobs SET owner_node = ",
+update_job_owner_node(HostType, JobId, OwnerNode) ->
+    Query = ["UPDATE broadcast_jobs_ownership SET owner_node = ",
              "'", OwnerNode, "'",
-             " WHERE id = ", integer_to_binary(JobId),
-             " AND server = ", "'", Domain, "'"],
+             " WHERE broadcast_id = ", integer_to_binary(JobId)],
     {updated, 1} = sql_query(HostType, Query),
     ok.
 
-bogus_owner_node() ->
-    <<"silly_goose@nowhere">>.
+get_ownership_data(HostType, JobId) ->
+    Query = ["SELECT owner_node, expires_at, updated_at",
+             " FROM broadcast_jobs_ownership",
+             " WHERE broadcast_id = ", integer_to_binary(JobId)],
+    case sql_query(HostType, Query) of
+        {selected, [{OwnerNode, ExpiresAt, UpdatedAt}]} ->
+            {ok, #{owner_node => OwnerNode,
+                   expires_at => ExpiresAt,
+                   updated_at => UpdatedAt}};
+        {selected, []} ->
+            {error, not_found}
+    end.
+
+expire_job_lease_now(HostType, JobId) ->
+    Query = ["UPDATE broadcast_jobs_ownership",
+             " SET expires_at = '2000-01-01 00:00:00'",
+             " WHERE broadcast_id = ", integer_to_binary(JobId)],
+    {updated, 1} = sql_query(HostType, Query),
+    ok.
+
+insert_expired_ownership_row(HostType, JobId, OwnerNode) ->
+    Query = ["INSERT INTO broadcast_jobs_ownership",
+             " (broadcast_id, owner_node, updated_at, expires_at)",
+             " VALUES (", integer_to_binary(JobId), ", '", OwnerNode,
+             "', NOW(), '2000-01-01 00:00:00')"],
+    {updated, 1} = sql_query(HostType, Query),
+    ok.
 
 delete_rogue_broadcast_job(HostType) ->
     Query = ["DELETE FROM broadcast_jobs",
-             " WHERE owner_node = '", bogus_owner_node(), "'"],
+             " WHERE id IN (SELECT broadcast_id FROM broadcast_jobs_ownership",
+             " WHERE owner_node = '", bogus_owner_node(), "')"],
     {updated, 1} = sql_query(HostType, Query),
     ok.
-
-sql_query(HostType, Query) ->
-    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).

@@ -841,7 +841,7 @@ default_mod_config(mod_bind2) ->
 default_mod_config(mod_blocking) ->
     #{backend => mnesia};
 default_mod_config(mod_broadcast) ->
-    #{backend => rdbms};
+    #{backend => rdbms, lease_time => 600};
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_caps) ->

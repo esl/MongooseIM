@@ -29,13 +29,17 @@
 
 %% Test cases
 -export([
-    %% manager_unexpected_messages
+    %% code_coverage
     handle_call_unknown_returns_not_implemented_and_alive/1,
     handle_cast_unknown_does_not_crash/1,
     handle_info_unknown_does_not_crash/1,
+    stale_sync_timeout_from_old_timer_is_ignored/1,
+    code_change_returns_same_state/1,
     %% db_error_paths
     db_create_job_error_propagates/1,
     db_get_running_jobs_error_in_resume/1,
+    db_renew_ownership_error_in_resume/1,
+    db_take_expired_jobs_error_in_resume/1,
     db_set_job_started_error_logged/1,
     db_set_job_aborted_admin_error_logged/1,
     db_get_running_jobs_error_in_abort_for_domain/1,
@@ -48,7 +52,10 @@
     start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients/1,
     %% worker_down_paths
     worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map/1,
-    tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path/1
+    tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path/1,
+    %% job sync
+    sync_success_with_taken_jobs_stops_taken_workers/1,
+    sync_map_workers_mixed_children_filters_invalid_entries/1
 ]).
 
 %%====================================================================
@@ -56,27 +63,33 @@
 %%====================================================================
 
 all() ->
-    [{group, manager_unexpected_messages},
+    [{group, code_coverage},
      {group, db_error_paths},
-    {group, supervisor_error_paths},
-    {group, validation_error_paths},
-    {group, worker_down_paths}].
+     {group, supervisor_error_paths},
+     {group, validation_error_paths},
+     {group, worker_down_paths},
+     {group, job_sync}].
 
 groups() ->
-    [{manager_unexpected_messages, [], manager_unexpected_messages_tests()},
+    [{code_coverage, [], code_coverage_tests()},
      {db_error_paths, [], db_error_path_tests()},
-    {supervisor_error_paths, [], supervisor_error_path_tests()},
-    {validation_error_paths, [], validation_error_path_tests()},
-    {worker_down_paths, [], worker_down_path_tests()}].
+     {supervisor_error_paths, [], supervisor_error_path_tests()},
+     {validation_error_paths, [], validation_error_path_tests()},
+     {worker_down_paths, [], worker_down_path_tests()},
+     {job_sync, [], job_sync_tests()}].
 
-manager_unexpected_messages_tests() ->
+code_coverage_tests() ->
     [handle_call_unknown_returns_not_implemented_and_alive,
      handle_cast_unknown_does_not_crash,
-     handle_info_unknown_does_not_crash].
+     handle_info_unknown_does_not_crash,
+     stale_sync_timeout_from_old_timer_is_ignored,
+     code_change_returns_same_state].
 
 db_error_path_tests() ->
     [db_create_job_error_propagates,
      db_get_running_jobs_error_in_resume,
+     db_renew_ownership_error_in_resume,
+     db_take_expired_jobs_error_in_resume,
      db_set_job_started_error_logged,
      db_set_job_aborted_admin_error_logged,
      db_get_running_jobs_error_in_abort_for_domain].
@@ -93,6 +106,10 @@ validation_error_path_tests() ->
 worker_down_path_tests() ->
     [worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map,
      tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path].
+
+job_sync_tests() ->
+    [sync_success_with_taken_jobs_stops_taken_workers,
+     sync_map_workers_mixed_children_filters_invalid_entries].
 
 %%====================================================================
 %% Suite setup/teardown
@@ -149,6 +166,15 @@ handle_info_unknown_does_not_crash(Config) ->
     Pid ! somebody_set_us_up_the_bomb,
     assert_manager_survived(Pid).
 
+stale_sync_timeout_from_old_timer_is_ignored(Config) ->
+    Pid = ?config(manager_pid, Config),
+    Pid ! {timeout, make_ref(), sync_jobs},
+    assert_manager_survived(Pid).
+
+code_change_returns_same_state(_Config) ->
+    State = #{marker => code_change_coverage},
+    {ok, State} = broadcast_manager:code_change(old_vsn, State, extra).
+
 %%====================================================================
 %% DB error path tests
 %%====================================================================
@@ -156,7 +182,7 @@ handle_info_unknown_does_not_crash(Config) ->
 db_create_job_error_propagates(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
     JobSpec = broadcast_helper:valid_job_spec(),
@@ -174,27 +200,49 @@ db_get_running_jobs_error_in_resume(Config) ->
 
     {ok, NewPid} = start_test_manager(),
 
-    %% TODO: Update this test when retry is implemented
-    monitor(process, NewPid),
-    receive
-        {'DOWN', _Ref, process, NewPid, _Reason} ->
-            ok
-    after 1000 ->
-            ct:fail(manager_should_have_crashed_due_to_db_error)
-    end.
+    wait_for_sync_mode(broadcast_helper:host_type(), emergency),
+    assert_manager_survived(NewPid).
+
+db_renew_ownership_error_in_resume(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    meck:expect(mod_broadcast_backend, renew_ownership,
+                fun(_HostType, _LeaseTime) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+
+    {ok, NewPid} = start_test_manager(),
+
+    wait_for_sync_mode(broadcast_helper:host_type(), emergency),
+    assert_manager_survived(NewPid).
+
+db_take_expired_jobs_error_in_resume(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    meck:expect(mod_broadcast_backend, take_expired_jobs,
+                fun(_HostType, _LeaseTime) ->
+                    meck:exception(error, somebody_set_us_up_the_bomb)
+                end),
+
+    {ok, NewPid} = start_test_manager(),
+
+    wait_for_sync_mode(broadcast_helper:host_type(), emergency),
+    assert_manager_survived(NewPid).
 
 db_set_job_started_error_logged(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     {ok, 12345}
                 end),
     meck:expect(mod_broadcast_backend, set_job_started,
                 fun(_HostType, _JobId) ->
                     meck:exception(error, somebody_set_us_up_the_bomb)
                 end),
-    meck:expect(supervisor, start_child,
-                fun(_SupName, _ChildSpec) ->
+    meck:expect(broadcast_jobs_sup, start_worker,
+                fun(_HostType, _JobId) ->
                     {ok, spawn_link(fun() -> receive stop -> ok end end)}
                 end),
 
@@ -208,11 +256,11 @@ db_set_job_aborted_admin_error_logged(Config) ->
 
     FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     {ok, JobId}
                 end),
-    meck:expect(supervisor, start_child,
-                fun(_SupName, _ChildSpec) ->
+    meck:expect(broadcast_jobs_sup, start_worker,
+                fun(_HostType, _JobId) ->
                     {ok, FakeWorkerPid}
                 end),
     meck:expect(broadcast_worker, stop,
@@ -253,7 +301,7 @@ start_job_fails_when_recipient_count_zero_returns_no_recipients(Config) ->
     meck:expect(ejabberd_auth, get_vh_registered_users_number,
                 fun(_Domain) -> 0 end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     ct:fail(create_job_should_not_be_called)
                 end),
 
@@ -268,7 +316,7 @@ start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Con
                     meck:exception(error, auth_backend_boom)
                 end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     ct:fail(create_job_should_not_be_called)
                 end),
 
@@ -283,11 +331,11 @@ start_job_fails_when_recipient_count_crashes_returns_cannot_count_recipients(Con
 supervisor_start_child_error_on_job_creation(Config) ->
     Pid = ?config(manager_pid, Config),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) ->
+                fun(_HostType, _JobSpec, _LeaseTime) ->
                     {ok, 12345}
                 end),
-    meck:expect(supervisor, start_child,
-                fun(_SupName, _ChildSpec) ->
+    meck:expect(broadcast_jobs_sup, start_worker,
+                fun(_HostType, _JobId) ->
                     {error, somebody_set_us_up_the_bomb}
                 end),
 
@@ -303,8 +351,8 @@ supervisor_start_child_error_on_resume(Config) ->
                 fun(_HostType) ->
                     {ok, [broadcast_helper:sample_broadcast_job()]}
                 end),
-    meck:expect(supervisor, start_child,
-                fun(_SupName, _ChildSpec) ->
+    meck:expect(broadcast_jobs_sup, start_worker,
+                fun(_HostType, _JobId) ->
                     {error, somebody_set_us_up_the_bomb}
                 end),
 
@@ -313,7 +361,7 @@ supervisor_start_child_error_on_resume(Config) ->
 
 stop_job_when_worker_not_found(Config) ->
     Pid = ?config(manager_pid, Config),
-    meck:expect(supervisor, which_children, fun(_SupName) -> [] end),
+    meck:expect(broadcast_jobs_sup, get_children, fun(_HostType) -> [] end),
 
     {error, not_live} = broadcast_manager:stop_job(node(), broadcast_helper:host_type(), 12345),
     assert_manager_survived(Pid).
@@ -328,9 +376,9 @@ worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) 
 
     FakeWorkerPid = spawn(fun() -> receive go_boom -> error(boom) end end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) -> {ok, JobId} end),
-    meck:expect(supervisor, start_child,
-                fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
+                fun(_HostType, _JobSpec, _LeaseTime) -> {ok, JobId} end),
+    meck:expect(broadcast_jobs_sup, start_worker,
+                fun(_HostType, _JobId) -> {ok, FakeWorkerPid} end),
     meck:expect(mod_broadcast_backend, set_job_aborted_error,
                 fun(_HostType, _JobId, _ReasonBin) -> ok end),
 
@@ -350,6 +398,8 @@ worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) 
                         #{count => 1}]),
     true = meck:called(mod_broadcast_backend, set_job_aborted_error,
                        [broadcast_helper:host_type(), JobId, '_']),
+    true = meck:called(mod_broadcast_backend, remove_ownership,
+                       [broadcast_helper:host_type(), JobId]),
     assert_manager_survived(Pid).
 
 tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
@@ -358,9 +408,9 @@ tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
 
     FakeWorkerPid = spawn_link(fun() -> receive stop -> ok end end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) -> {ok, JobId} end),
-    meck:expect(supervisor, start_child,
-                fun(_SupName, _ChildSpec) -> {ok, FakeWorkerPid} end),
+                fun(_HostType, _JobSpec, _LeaseTime) -> {ok, JobId} end),
+    meck:expect(broadcast_jobs_sup, start_worker,
+                fun(_HostType, _JobId) -> {ok, FakeWorkerPid} end),
     meck:expect(mod_broadcast_backend, set_job_finished,
                 fun(_HostType, _JobId) ->
                     ct:fail(set_job_finished_should_not_be_called)
@@ -381,6 +431,96 @@ tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
     assert_manager_survived(Pid).
 
 %%====================================================================
+%% Job synchronization test
+%%====================================================================
+
+sync_success_with_taken_jobs_stops_taken_workers(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    TakenJobId = 54321,
+    KeptJobId = 54322,
+    Domain = broadcast_helper:domain(),
+    TakenPid = spawn_link(fun() -> receive stop -> ok end end),
+    KeptPid = spawn_link(fun() -> receive forever -> ok end end),
+
+    meck:expect(broadcast_jobs_sup, get_children,
+                fun(_HostType) ->
+                    [{TakenJobId, TakenPid, worker, [broadcast_worker]},
+                     {KeptJobId, KeptPid, worker, [broadcast_worker]}]
+                end),
+    meck:expect(broadcast_worker, get_domain,
+                fun(Pid0) when Pid0 =:= TakenPid -> {ok, Domain};
+                   (Pid0) when Pid0 =:= KeptPid -> {ok, Domain};
+                   (_OtherPid) -> noproc
+                end),
+    meck:expect(broadcast_worker, stop,
+                fun(Pid0) when Pid0 =:= TakenPid ->
+                    Pid0 ! stop,
+                    ok;
+                   (_OtherPid) ->
+                    ok
+                end),
+    meck:expect(mod_broadcast_backend, take_expired_jobs,
+                fun(_HostType, _LeaseTime) -> {ok, [TakenJobId]} end),
+    meck:expect(mod_broadcast_backend, renew_ownership,
+                fun(_HostType, _LeaseTime) -> ok end),
+    meck:expect(mod_broadcast_backend, get_running_jobs,
+                fun(_HostType) ->
+                    {ok, [(broadcast_helper:sample_broadcast_job())#broadcast_job{id = KeptJobId}]}
+                end),
+
+    {ok, NewPid} = start_test_manager(),
+
+    wait_helper:wait_until(fun() ->
+        WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
+        maps:keys(WorkerMap)
+    end, [KeptJobId]),
+    true = meck:called(broadcast_worker, stop, [TakenPid]),
+    assert_manager_survived(NewPid).
+
+sync_map_workers_mixed_children_filters_invalid_entries(Config) ->
+    Pid = ?config(manager_pid, Config),
+    stop_test_manager(Pid),
+
+    LiveJobId = 65431,
+    DeadJobId = 65432,
+    UndefinedChildId = 65433,
+    RestartingChildId = 65434,
+    Domain = broadcast_helper:domain(),
+    LivePid = spawn(fun() -> receive stop -> ok end end),
+    DeadPid = spawn(fun() -> ok end),
+
+    meck:expect(broadcast_jobs_sup, get_children,
+                fun(_HostType) ->
+                    [{LiveJobId, LivePid, worker, [broadcast_worker]},
+                     {DeadJobId, DeadPid, worker, [broadcast_worker]},
+                     {UndefinedChildId, undefined, worker, [broadcast_worker]},
+                     {RestartingChildId, restarting, worker, [broadcast_worker]}]
+                end),
+    meck:expect(broadcast_worker, get_domain,
+                fun(Pid0) when Pid0 =:= LivePid -> {ok, Domain};
+                   (_OtherPid) -> noproc
+                end),
+    meck:expect(mod_broadcast_backend, get_running_jobs,
+                fun(_HostType) ->
+                    {ok, [(broadcast_helper:sample_broadcast_job())#broadcast_job{id = LiveJobId,
+                                                                                   domain = Domain}]}
+                end),
+
+    {ok, _NewPid} = start_test_manager(),
+    wait_helper:wait_until(fun() ->
+        WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
+        maps:keys(WorkerMap)
+    end, [LiveJobId]),
+
+    WorkerMap = broadcast_manager:get_worker_map(broadcast_helper:host_type()),
+    #{LiveJobId := #{pid := LivePid, domain := Domain}} = WorkerMap,
+
+    exit(LivePid, kill),
+    ok.
+
+%%====================================================================
 %% Helper functions
 %%====================================================================
 
@@ -389,6 +529,12 @@ setup_mocks_for_manager() ->
     meck:expect(gen_mod, get_module_proc,
                 fun(_HostType, Module) ->
                     list_to_atom("test_" ++ atom_to_list(Module))
+                end),
+    meck:expect(gen_mod, get_module_opt,
+                fun(_HostType, mod_broadcast, lease_time) ->
+                    600;
+                   (HostType, Module, Key) ->
+                    meck:passthrough([HostType, Module, Key])
                 end),
 
     meck:new(mod_broadcast_backend, [no_link]),
@@ -403,7 +549,7 @@ setup_mocks_for_manager() ->
                     1000
                 end),
 
-    meck:new(supervisor, [no_link, unstick, passthrough]),
+    meck:new(broadcast_jobs_sup, [no_link, passthrough]),
 
     meck:new(broadcast_worker, [no_link]),
 
@@ -417,8 +563,12 @@ setup_mocks_for_manager() ->
 reset_meck_defaults() ->
     meck:expect(mod_broadcast_backend, get_running_jobs,
                 fun(_HostType) -> {ok, []} end),
+    meck:expect(mod_broadcast_backend, take_expired_jobs,
+                fun(_HostType, _LeaseTime) -> {ok, []} end),
+    meck:expect(mod_broadcast_backend, renew_ownership,
+                fun(_HostType, _LeaseTime) -> {ok, []} end),
     meck:expect(mod_broadcast_backend, create_job,
-                fun(_HostType, _JobSpec) -> {ok, 1} end),
+                fun(_HostType, _JobSpec, _LeaseTime) -> {ok, 1} end),
     meck:expect(mod_broadcast_backend, set_job_started,
                 fun(_HostType, _JobId) -> ok end),
     meck:expect(mod_broadcast_backend, set_job_finished,
@@ -427,10 +577,12 @@ reset_meck_defaults() ->
                 fun(_HostType, _JobId) -> ok end),
     meck:expect(mod_broadcast_backend, set_job_aborted_error,
                 fun(_HostType, _JobId, _ReasonBin) -> ok end),
-    meck:expect(supervisor, which_children,
-                fun(_SupName) -> [] end),
-    meck:expect(supervisor, start_child,
-                fun(_SupName, _ChildSpec) -> {ok, spawn(fun() -> ok end)} end),
+    meck:expect(mod_broadcast_backend, remove_ownership,
+                fun(_HostType, _JobId) -> ok end),
+    meck:expect(broadcast_jobs_sup, get_children,
+                fun(_HostType) -> [] end),
+    meck:expect(broadcast_jobs_sup, start_worker,
+                fun(_HostType, _JobId) -> {ok, spawn(fun() -> ok end)} end),
     meck:expect(broadcast_worker, stop,
                 fun(_Pid) -> ok end).
 
@@ -438,7 +590,7 @@ teardown_mocks() ->
     catch meck:unload(gen_mod),
     catch meck:unload(mod_broadcast_backend),
     catch meck:unload(ejabberd_auth),
-    catch meck:unload(supervisor),
+    catch meck:unload(broadcast_jobs_sup),
     catch meck:unload(broadcast_worker),
     catch meck:unload(mongoose_instrument),
     ok.
@@ -455,6 +607,11 @@ stop_test_manager(_Pid) ->
 assert_manager_survived(Pid) ->
     %% If a manager is able to reply to a call, then it is alive
     {error, not_implemented} = gen_server:call(Pid, somebody_set_us_up_the_bomb).
+
+wait_for_sync_mode(HostType, ExpectedMode) ->
+    wait_helper:wait_until(fun() ->
+        broadcast_manager:get_sync_mode(HostType)
+    end, ExpectedMode).
 
 wait_for_worker(JobId, WorkerPid) ->
     wait_helper:wait_until(fun() ->

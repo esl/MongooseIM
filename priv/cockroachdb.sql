@@ -555,7 +555,6 @@ CREATE TABLE broadcast_jobs (
     body TEXT NOT NULL,
     rate INTEGER NOT NULL,
     recipient_group broadcast_recipient_group NOT NULL,
-    owner_node VARCHAR(250) NOT NULL,
     recipient_count INTEGER NOT NULL,
     execution_state broadcast_state NOT NULL DEFAULT 'running',
     abortion_reason TEXT,
@@ -565,10 +564,23 @@ CREATE TABLE broadcast_jobs (
 );
 
 CREATE INDEX i_broadcast_jobs_server ON broadcast_jobs USING btree (server, id);
-CREATE INDEX i_broadcast_jobs_owner_host_state
-    ON broadcast_jobs USING btree (owner_node, host_type, execution_state);
+CREATE INDEX i_broadcast_jobs_host_state
+    ON broadcast_jobs USING btree (host_type, execution_state);
 CREATE INDEX i_broadcast_jobs_server_state
     ON broadcast_jobs USING btree (server, execution_state);
+
+CREATE TABLE broadcast_jobs_ownership (
+    broadcast_id INTEGER NOT NULL REFERENCES broadcast_jobs(id) ON DELETE CASCADE,
+    owner_node VARCHAR(250) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (broadcast_id)
+);
+
+CREATE INDEX i_broadcast_jobs_ownership_owner_node
+    ON broadcast_jobs_ownership USING btree (owner_node);
+CREATE INDEX i_broadcast_jobs_ownership_expires_at
+    ON broadcast_jobs_ownership USING btree (expires_at);
 
 CREATE TABLE broadcast_worker_state (
     broadcast_id INTEGER NOT NULL REFERENCES broadcast_jobs(id) ON DELETE CASCADE,

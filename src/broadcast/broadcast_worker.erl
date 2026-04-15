@@ -16,7 +16,10 @@
 
 %% API
 -export([start_link/2,
-         stop/1]).
+         stop/1,
+         pause/1,
+         resume/1,
+         get_domain/1]).
 
 -ignore_xref([start_link/2]).
 
@@ -30,12 +33,14 @@
 -export([loading_batch/3,
          sending_batch/3,
          finished/3,
-         aborted/3]).
+         aborted/3,
+         paused/3]).
 
 -ignore_xref([loading_batch/3,
               sending_batch/3,
               finished/3,
-              aborted/3]).
+              aborted/3,
+              paused/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -56,7 +61,7 @@
     current_batch :: [jid:jid()]  % recipients remaining in current batch
 }).
 
--type state() :: loading_batch | sending_batch | finished | aborted.
+-type state() :: loading_batch | sending_batch | finished | aborted | paused.
 -type data() :: #data{}.
 
 %%====================================================================
@@ -67,33 +72,21 @@
 start_link(HostType, JobId) ->
     gen_statem:start_link(?MODULE, {HostType, JobId}, []).
 
--spec stop(pid()) -> ok.
+-spec stop(pid()) -> ok | noproc.
 stop(WorkerPid) ->
-    try gen_statem:call(WorkerPid, stop, 5000) of
-        ok -> ok
-    catch
-        exit:{timeout, _} ->
-            %% Worker didn't respond in time, forcibly kill it
-            ?LOG_WARNING(#{what => broadcast_worker_killed_timeout,
-                           worker_pid => WorkerPid}),
-            exit(WorkerPid, kill),
-            ok;
-        exit:{normal, _} ->
-            %% Worker was already stopping, treat as success
-            ok;
-        exit:{{error, _} = Error, _} ->
-            %% Worker was already stopping with error, ignore but log
-            %% TODO: Persist as abort_error execution state
-            ?LOG_WARNING(#{what => broadcast_worker_killed_error,
-                           worker_pid => WorkerPid,
-                           error => Error}),
-            ok;
-        exit:{noproc, _} ->
-            %% Worker already stopped, treat as success but log warning
-            ?LOG_WARNING(#{what => broadcast_worker_killed_noproc,
-                           worker_pid => WorkerPid}),
-            ok
-    end.
+    safe_call(WorkerPid, stop).
+
+-spec pause(pid()) -> ok | noproc.
+pause(WorkerPid) ->
+    safe_call(WorkerPid, pause).
+
+-spec resume(pid()) -> ok | noproc.
+resume(WorkerPid) ->
+    safe_call(WorkerPid, resume).
+
+-spec get_domain(pid()) -> {ok, jid:lserver()} | noproc.
+get_domain(WorkerPid) ->
+    safe_call(WorkerPid, get_domain).
 
 %%====================================================================
 %% gen_statem callbacks
@@ -145,10 +138,8 @@ init({HostType, JobId}) ->
 %% State functions
 %%====================================================================
 
--spec loading_batch(gen_statem:event_type(), term(), data()) ->
-    gen_statem:state_function_result().
-loading_batch(Origin, load_batch, Data)
-  when Origin == internal; Origin == state_timeout->
+-spec loading_batch(internal, load_batch, data()) -> gen_statem:state_function_result().
+loading_batch(internal, load_batch, Data) ->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
     %% Persist current state before attempting to load next batch
     %% (ensures we can retry same batch if loading/sending fails)
@@ -177,7 +168,7 @@ loading_batch(Origin, load_batch, Data)
     gen_statem:state_function_result().
 sending_batch(EventType, send_one, #data{current_batch = [], state = WorkerState} = Data)
   when EventType == internal; EventType == state_timeout ->
-    NewData = Data#data{batch_t0 = undefined, current_batch = []},
+    NewData = Data#data{batch_t0 = undefined},
     case WorkerState#broadcast_worker_state.cursor of
         undefined ->
             {next_state, finished, NewData, [{next_event, internal, finalize}]};
@@ -223,6 +214,12 @@ sending_batch(EventType, send_one, #data{current_batch = [RecipientJid | Rest]} 
 
     %% Schedule next recipient via state_timeout (allows handling other events)
     {keep_state, NewData, [{state_timeout, DelayMs, send_one}]};
+sending_batch({call, From}, pause, Data) ->
+    {next_state, paused, Data, [{reply, From, ok}]};
+sending_batch({call, From}, resume, Data) ->
+    {keep_state, Data, [{reply, From, ok}]};
+sending_batch({call, From}, get_domain, #data{job = Job} = Data) ->
+    {keep_state, Data, [{reply, From, {ok, Job#broadcast_job.domain}}]};
 sending_batch({call, From}, stop, _Data) ->
     {stop_and_reply, normal, [{reply, From, ok}]};
 sending_batch(EventType, Event, Data) ->
@@ -230,7 +227,28 @@ sending_batch(EventType, Event, Data) ->
                    event_type => EventType, event => Event}),
     {keep_state, Data}.
 
--spec finished(gen_statem:event_type(), term(), data()) ->
+-spec paused(gen_statem:event_type(), term(), data()) ->
+    gen_statem:state_function_result().
+paused({call, From}, pause, Data) ->
+    {keep_state, Data, [{reply, From, ok}]};
+paused({call, From}, resume, Data) ->
+    %% Reset rate-limiting counters so remaining recipients are sent at the
+    %% correct rate starting from the moment of resumption.
+    BatchT0 = erlang:monotonic_time(millisecond),
+    NewData = Data#data{batch_t0 = BatchT0, batch_recipients_processed = 0},
+    %% No matter the original state we can continue from sending_batch,
+    %% as in case of finished batch, it will just immediately transition to loading_batch or finished.
+    {next_state, sending_batch, NewData, [{reply, From, ok}, {next_event, internal, send_one}]};
+paused({call, From}, get_domain, #data{job = Job} = Data) ->
+    {keep_state, Data, [{reply, From, {ok, Job#broadcast_job.domain}}]};
+paused({call, From}, stop, _Data) ->
+    {stop_and_reply, normal, [{reply, From, ok}]};
+paused(EventType, Event, Data) ->
+    ?LOG_WARNING(#{what => broadcast_worker_unexpected_event,
+                   event_type => EventType, event => Event}),
+    {keep_state, Data}.
+
+-spec finished(gen_statem:event_type(), finalize, data()) ->
     gen_statem:state_function_result().
 finished(internal, finalize, Data) ->
     #data{host_type = HostType, job = Job, state = WorkerState} = Data,
@@ -276,6 +294,33 @@ code_change(_OldVsn, State, Data, _Extra) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+safe_call(WorkerPid, Msg) ->
+    try gen_statem:call(WorkerPid, Msg, 5000) of
+        Result -> Result
+    catch
+        exit:{timeout, _} ->
+            %% Worker didn't respond in time, forcibly kill it
+            ?LOG_WARNING(#{what => broadcast_worker_killed_timeout,
+                           worker_pid => WorkerPid}),
+            exit(WorkerPid, kill),
+            noproc;
+        exit:{normal, _} ->
+            %% Worker was already stopping
+            noproc;
+        exit:{{error, _} = Error, _} ->
+            %% Worker was already stopping with error, log it
+            %% TODO: Persist as abort_error execution state
+            ?LOG_WARNING(#{what => broadcast_worker_killed_error,
+                           worker_pid => WorkerPid,
+                           error => Error}),
+            noproc;
+        exit:{noproc, _} ->
+            %% Worker already stopped, log warning
+            ?LOG_WARNING(#{what => broadcast_worker_killed_noproc,
+                           worker_pid => WorkerPid}),
+            noproc
+    end.
 
 -spec load_job(mongooseim:host_type(), broadcast_job_id()) ->
     {ok, broadcast_job(), broadcast_worker_state() | undefined} | {error, term()}.

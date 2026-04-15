@@ -24,17 +24,18 @@
 %% Debug API
 -export([does_worker_for_job_exist/2,
          get_worker_map/1,
-         get_supervisor_children/1]).
+         get_sync_mode/1]).
 -ignore_xref([does_worker_for_job_exist/2,
               get_worker_map/1,
-              get_supervisor_children/1]).
+              get_sync_mode/1]).
 
 %% Error types
 -export_type([create_job_error/0,
               stop_job_error/0,
               validation_error/0]).
 
--type create_job_error() :: running_job_limit_exceeded | validation_error() | term().
+-type create_job_error() :: running_job_limit_exceeded | validation_error() |
+                            temporarily_unavailable | term().
 -type stop_job_error() :: not_live.
 -type validation_error() :: sender_not_found
                          | no_recipients
@@ -55,13 +56,18 @@
 
 -type worker_info() :: #{pid := pid(), domain := jid:lserver()}.
 -type worker_map() :: #{broadcast_job_id() => worker_info()}.
-%% This is a temporary structure used during resumption to determine
-%% which workers are already running, so we don't start duplicates.
--type worker_index() :: #{broadcast_job_id() => pid()}.
+
+-type sync_mode() :: normal | emergency.
+
+-record(job_sync, {
+    mode = normal :: sync_mode(),
+    tref :: reference() | undefined
+}).
 
 -record(state, {
     host_type :: mongooseim:host_type(),
-    worker_map :: worker_map()
+    worker_map :: worker_map(),
+    job_sync :: #job_sync{}
 }).
 
 %%====================================================================
@@ -114,20 +120,24 @@ get_worker_map(HostType) ->
     ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(ProcName, get_worker_map).
 
--spec get_supervisor_children(mongooseim:host_type()) ->
-    [{term(), undefined | pid() | restarting, worker | supervisor, [module()] | dynamic}].
-get_supervisor_children(HostType) ->
-    supervisor:which_children(get_sup_name(HostType)).
+-spec get_sync_mode(mongooseim:host_type()) -> sync_mode().
+get_sync_mode(HostType) ->
+    ProcName = gen_mod:get_module_proc(HostType, ?MODULE),
+    gen_server:call(ProcName, get_sync_mode).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
--spec init(mongooseim:host_type()) -> {ok, #state{}, {continue, resume_jobs}}.
+-spec init(mongooseim:host_type()) -> {ok, #state{}, {continue, initial_sync}}.
 init(HostType) ->
     process_flag(trap_exit, true),
-    State = #state{host_type = HostType, worker_map = #{}},
-    {ok, State, {continue, resume_jobs}}.
+    JobSync = #job_sync{mode = normal,
+                        tref = undefined},
+    State = #state{host_type = HostType,
+                   worker_map = #{},
+                   job_sync = JobSync},
+    {ok, State, {continue, initial_sync}}.
 
 handle_continue({start_worker_for, JobId, Domain}, #state{host_type = HostType, worker_map = WorkerMap0} = State) ->
     case start_and_monitor_worker(HostType, JobId) of
@@ -145,10 +155,18 @@ handle_continue({start_worker_for, JobId, Domain}, #state{host_type = HostType, 
             persist_job_aborted_error(HostType, Domain, JobId, Reason),
             {noreply, State}
     end;
-handle_continue(resume_jobs, State) ->
-    NewState = resume_running_jobs(State),
+handle_continue(initial_sync, #state{host_type = HostType} = State) ->
+    WorkerMap = map_workers(HostType),
+    % It looks like a race condition, because we monitor workers after trying to contact the already running ones
+    % but even if they terminate before we monitor them, they will still save "finished" flag in the DB
+    % and their restart by the manager will lead straight to them terminating again, this time properly monitored.
+    maps:foreach(fun monitor_worker/2, WorkerMap),
+    NewState = synchronize_jobs(State#state{worker_map = WorkerMap}),
     {noreply, NewState}.
 
+handle_call({start_job, _JobSpec}, _From,
+            #state{job_sync = #job_sync{mode = emergency}} = State) ->
+    {reply, {error, temporarily_unavailable}, State};
 handle_call({start_job, #{domain := Domain} = JobSpec}, _From, #state{host_type = HostType} = State) ->
     %% Get recipient count from auth backend
     %% Small race condition risk: a user may be created between getting the count
@@ -156,8 +174,9 @@ handle_call({start_job, #{domain := Domain} = JobSpec}, _From, #state{host_type 
     %% It means the total count may be slightly off, but this is acceptable for now
     RecipientCount = catch ejabberd_auth:get_vh_registered_users_number(Domain),
     JobSpecWithCount = JobSpec#{recipient_count => RecipientCount},
+    LeaseTime = mod_broadcast:lease_time(HostType),
     %% If RecipientCount is an error tuple, it will be handled in validation
-    case do_create_job(HostType, validate_job_spec(HostType, JobSpecWithCount)) of
+    case do_create_job(HostType, validate_job_spec(HostType, JobSpecWithCount), LeaseTime) of
         {ok, JobId} ->
             {reply, {ok, JobId}, State, {continue, {start_worker_for, JobId, Domain}}};
         {error, _Reason} = Error ->
@@ -184,6 +203,8 @@ handle_call(get_worker_map, _From, State) ->
 handle_call({does_worker_for_job_exist, JobId}, _From, State) ->
     Reply = maps:is_key(JobId, State#state.worker_map),
     {reply, Reply, State};
+handle_call(get_sync_mode, _From, State) ->
+    {reply, (State#state.job_sync)#job_sync.mode, State};
 handle_call(_Request, _From, State) ->
     {reply, {error, not_implemented}, State}.
 
@@ -192,6 +213,12 @@ handle_cast(_Msg, State) ->
 
 handle_info({{'DOWN', JobId}, _Ref, process, Pid, Reason}, State) ->
     handle_worker_down(JobId, Pid, Reason, State);
+handle_info({timeout, TRef, sync_jobs},
+            #state{job_sync = #job_sync{tref = TRef}} = State) ->
+    NewState = synchronize_jobs(State),
+    {noreply, NewState};
+handle_info({timeout, _OldTRef, sync_jobs}, State) ->
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -205,10 +232,11 @@ code_change(_OldVsn, State, _Extra) ->
 %% Handler implementations
 %%====================================================================
 
--spec do_create_job(mongooseim:host_type(), job_spec() | {error, validation_error()}) ->
+-spec do_create_job(mongooseim:host_type(), job_spec() | {error, validation_error()},
+                    LeaseTime :: non_neg_integer()) ->
     {ok, JobId :: broadcast_job_id()} | {error, create_job_error()}.
-do_create_job(HostType, #{domain := Domain} = JobSpec) ->
-    try mod_broadcast_backend:create_job(HostType, JobSpec) of
+do_create_job(HostType, #{domain := Domain} = JobSpec, LeaseTime) ->
+    try mod_broadcast_backend:create_job(HostType, JobSpec, LeaseTime) of
         {ok, JobId} ->
             ?LOG_INFO(#{what => broadcast_job_created,
                                 job_id => JobId,
@@ -229,7 +257,7 @@ do_create_job(HostType, #{domain := Domain} = JobSpec) ->
                          reason => Reason}),
             {error, Reason}
     end;
-do_create_job(_HostType, {error, _} = ValidationError) ->
+do_create_job(_HostType, {error, _} = ValidationError, _LeaseTime) ->
     ValidationError.
 
 -spec handle_worker_down(broadcast_job_id(), pid(), term(), #state{}) ->
@@ -297,8 +325,9 @@ persist_job_aborted_by_admin(HostType, Domain, JobId) ->
                 job_id => JobId,
                 domain => Domain,
                 host_type => HostType}),
-    try mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
-        _ -> ok
+    try
+        mod_broadcast_backend:set_job_aborted_admin(HostType, JobId),
+        mod_broadcast_backend:remove_ownership(HostType, JobId)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_aborted_admin_failed,
@@ -318,8 +347,9 @@ persist_job_finished(HostType, Domain, JobId) ->
                 job_id => JobId,
                 domain => Domain,
                 host_type => HostType}),
-    try mod_broadcast_backend:set_job_finished(HostType, JobId) of
-        _ -> ok
+    try
+        mod_broadcast_backend:set_job_finished(HostType, JobId),
+        mod_broadcast_backend:remove_ownership(HostType, JobId)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_finished_failed,
@@ -340,8 +370,9 @@ persist_job_aborted_error(HostType, Domain, JobId, Reason) ->
                  domain => Domain,
                  host_type => HostType}),
     ReasonBin = iolist_to_binary(io_lib:format("~p", [Reason])),
-    try mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin) of
-        _ -> ok
+    try
+        mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin),
+        mod_broadcast_backend:remove_ownership(HostType, JobId)
     catch
         Class:BackendReason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_aborted_error_failed,
@@ -360,14 +391,7 @@ persist_job_aborted_error(HostType, Domain, JobId, Reason) ->
 -spec start_and_monitor_worker(mongooseim:host_type(), broadcast_job_id()) ->
     {ok, pid()} | {error, term()}.
 start_and_monitor_worker(HostType, JobId) ->
-    SupName = get_sup_name(HostType),
-    ChildSpec = #{id => JobId,
-                  start => {broadcast_worker, start_link, [HostType, JobId]},
-                  restart => temporary,
-                  shutdown => 5000,
-                  type => worker,
-                  modules => [broadcast_worker]},
-    case supervisor:start_child(SupName, ChildSpec) of
+    case broadcast_jobs_sup:start_worker(HostType, JobId) of
         {ok, WorkerPid} ->
             monitor_worker(JobId, WorkerPid),
             {ok, WorkerPid};
@@ -375,49 +399,134 @@ start_and_monitor_worker(HostType, JobId) ->
             {error, Reason}
     end.
 
--spec monitor_worker(broadcast_job_id(), pid()) -> reference().
+-spec monitor_worker(broadcast_job_id(), pid() | worker_info()) -> reference().
+monitor_worker(JobId, #{pid := Pid}) ->
+    monitor_worker(JobId, Pid);
 monitor_worker(JobId, Pid) ->
     erlang:monitor(process, Pid, [{tag, {'DOWN', JobId}}]).
 
 -spec stop_worker_by_admin(mongooseim:host_type(), jid:lserver(), broadcast_job_id(), pid()) -> ok.
 stop_worker_by_admin(HostType, Domain, JobId, WorkerPid) ->
-    ok = broadcast_worker:stop(WorkerPid),
+    stop_worker(HostType, JobId, WorkerPid),
+    persist_job_aborted_by_admin(HostType, Domain, JobId),
+    ok.
+
+-spec stop_worker(mongooseim:host_type(), broadcast_job_id(), pid()) -> ok.
+stop_worker(HostType, JobId, WorkerPid) ->
+    broadcast_worker:stop(WorkerPid),
     receive
         {{'DOWN', JobId}, _Ref, process, WorkerPid, _Reason} ->
             ok
     after 6000 ->
-            ?LOG_WARNING(#{what => broadcast_worker_stop_timeout,
-                           job_id => JobId,
-                           host_type => HostType,
-                           pid => WorkerPid})
+        ?LOG_WARNING(#{what => broadcast_worker_stop_timeout,
+                       job_id => JobId,
+                       host_type => HostType,
+                       pid => WorkerPid}),
+        ok
+    end.
+
+%%====================================================================
+%% Job synchronization
+%%====================================================================
+
+-spec map_workers(mongooseim:host_type()) -> worker_map().
+map_workers(HostType) ->
+    Children = broadcast_jobs_sup:get_children(HostType),
+    lists:foldl(fun({Id, Pid, _Type, _Modules}, Acc) when is_pid(Pid) ->
+            case broadcast_worker:get_domain(Pid) of
+                {ok, Domain} ->
+                    Acc#{Id => #{pid => Pid, domain => Domain}};
+                noproc ->
+                    Acc
+            end;
+        (_Other, Acc) ->
+            Acc
+    end, #{}, Children).
+
+-spec synchronize_jobs(#state{}) -> #state{}.
+synchronize_jobs(#state{host_type = HostType} = State) ->
+    case try_take_renew_and_fetch(HostType) of
+        {ok, RunningJobs, TakenJobIDs} ->
+            ?LOG_DEBUG(#{what => broadcast_taken_oven_jobs,
+                         host_type => HostType,
+                         taken_job_ids => TakenJobIDs}),
+            %% We need to stop workers for taken jobs in case we were experiencing problems
+            %% with the database and another node took over our jobs while we were in emergency mode.
+            %% They are paused and their state may be outdated.
+            stop_workers_for_jobs(HostType, State#state.worker_map, TakenJobIDs),
+            NewWorkerMap = maps:without(TakenJobIDs, State#state.worker_map),
+            handle_sync_success(State#state{worker_map = NewWorkerMap}, RunningJobs);
+        {error, Reason} ->
+            handle_sync_failure(State, Reason)
+    end.
+
+-spec try_take_renew_and_fetch(mongooseim:host_type()) ->
+    {ok, [broadcast_job()], [broadcast_job_id()]} | {error, term()}.
+try_take_renew_and_fetch(HostType) ->
+    LeaseTime = mod_broadcast:lease_time(HostType),
+    try
+        {ok, TakenJobIDs} = mod_broadcast_backend:take_expired_jobs(HostType, LeaseTime),
+        mod_broadcast_backend:renew_ownership(HostType, LeaseTime),
+        {ok, RunningJobs} = mod_broadcast_backend:get_running_jobs(HostType),
+        {ok, RunningJobs, TakenJobIDs}
+    catch
+        Class:Reason ->
+            ?LOG_ERROR(#{what => broadcast_job_synchronization_failed,
+                         host_type => HostType,
+                         class => Class,
+                         reason => Reason}),
+            {error, Reason}
+    end.
+
+-spec handle_sync_success(#state{}, [broadcast_job()]) -> #state{}.
+handle_sync_success(#state{host_type = HostType,
+                           worker_map = WorkerMap0,
+                           job_sync = JobSync0} = State, Jobs) ->
+    PreviousMode = JobSync0#job_sync.mode,
+    WorkerMap = reconcile_workers(HostType, Jobs, WorkerMap0),
+    ?LOG_DEBUG(#{what => broadcast_job_synchronization_succeeded,
+                 host_type => HostType,
+                 owned_jobs => maps:size(WorkerMap)}),
+    JobSync1 = JobSync0#job_sync{mode = normal},
+    State1 = State#state{worker_map = WorkerMap, job_sync = JobSync1},
+    NewWorkerMap = case PreviousMode of
+        emergency ->
+            ?LOG_INFO(#{what => broadcast_emergency_recovery_succeeded,
+                        host_type => HostType}),
+            resume_owned_workers(WorkerMap);
+        normal ->
+            WorkerMap
     end,
-    persist_job_aborted_by_admin(HostType, Domain, JobId),
-    ok.
+    schedule_sync(State1#state{worker_map = NewWorkerMap}).
 
--spec get_sup_name(mongooseim:host_type()) -> atom().
-get_sup_name(HostType) ->
-    gen_mod:get_module_proc(HostType, broadcast_jobs_sup).
+-spec handle_sync_failure(#state{}, term()) -> #state{}.
+handle_sync_failure(#state{host_type = HostType, job_sync = #job_sync{mode = emergency}} = State, _Reason) ->
+    ?LOG_WARNING(#{what => broadcast_emergency_sync_failed, host_type => HostType}),
+    schedule_sync(State);
+handle_sync_failure(#state{host_type = HostType, job_sync = JobSync0} = State, _Reason) ->
+    ?LOG_WARNING(#{what => broadcast_entering_emergency_mode,
+                   host_type => HostType}),
+    NewWorkerMap = pause_all_workers(State#state.worker_map),
+    schedule_sync(State#state{job_sync = JobSync0#job_sync{mode = emergency}, worker_map = NewWorkerMap}).
 
-%%====================================================================
-%% Resumption on init
-%%====================================================================
+-spec reconcile_workers(mongooseim:host_type(), [broadcast_job()], worker_map()) -> worker_map().
+reconcile_workers(HostType, OwnedJobs, OldWorkerMap) ->
+    NewWorkerMap = lists:foldl(fun(Job, AccWorkerMap) ->
+        resume_job_if_necessary(HostType, Job, OldWorkerMap, AccWorkerMap)
+    end, #{}, OwnedJobs),
+    %% Stop workers that are locally running but no longer owned
+    NoLongerOwnedJobIDs = maps:keys(OldWorkerMap) -- maps:keys(NewWorkerMap),
+    ?LOG_INFO(#{what => broadcast_jobs_no_longer_owned,
+                host_type => HostType,
+                lost_job_ids => NoLongerOwnedJobIDs}),
+    stop_workers_for_jobs(HostType, OldWorkerMap, NoLongerOwnedJobIDs),
+    NewWorkerMap.
 
--spec resume_running_jobs(#state{}) -> #state{}.
-resume_running_jobs(#state{host_type = HostType} = State) ->
-    LiveWorkerIndex = index_workers(HostType),
-    maps:foreach(fun monitor_worker/2, LiveWorkerIndex),
-    %% TODO: Catch errors and implement retry mechanism in case of backend failure
-    {ok, Jobs} = mod_broadcast_backend:get_running_jobs(HostType),
-    WorkerMap = lists:foldl(fun(Job, AccWorkerMap) ->
-        resume_job_if_needed(HostType, Job, LiveWorkerIndex, AccWorkerMap)
-    end, #{}, Jobs),
-    State#state{worker_map = WorkerMap}.
-
--spec resume_job_if_needed(mongooseim:host_type(), broadcast_job(),
-                           worker_index(), worker_map()) ->
+-spec resume_job_if_necessary(mongooseim:host_type(), broadcast_job(),
+                               worker_map(), worker_map()) ->
     worker_map().
-resume_job_if_needed(HostType, #broadcast_job{id = JobId} = Job, LiveWorkerIndex, WorkerMap0) ->
-    case maps:get(JobId, LiveWorkerIndex, undefined) of
+resume_job_if_necessary(HostType, #broadcast_job{id = JobId} = Job, OldWorkerMap, WorkerMap0) ->
+    case maps:get(JobId, OldWorkerMap, undefined) of
         undefined ->
             case start_and_monitor_worker(HostType, JobId) of
                 {ok, WorkerPid} ->
@@ -433,17 +542,60 @@ resume_job_if_needed(HostType, #broadcast_job{id = JobId} = Job, LiveWorkerIndex
                                  reason => Reason}),
                     WorkerMap0
             end;
-        Pid ->
+        #{pid := Pid} ->
             ?LOG_DEBUG(#{what => broadcast_job_already_live, job_id => JobId}),
             WorkerMap0#{JobId => #{pid => Pid, domain => Job#broadcast_job.domain}}
     end.
 
--spec index_workers(mongooseim:host_type()) -> #{broadcast_job_id() => pid()}.
-index_workers(HostType) ->
-    Children = get_supervisor_children(HostType),
-    maps:from_list([
-        {Id, Pid} || {Id, Pid, _Type, _Modules} <- Children, is_pid(Pid)
-    ]).
+-spec stop_workers_for_jobs(mongooseim:host_type(), worker_map(), [broadcast_job_id()]) -> ok.
+stop_workers_for_jobs(HostType, WorkerMap, JobIds) ->
+    maps:foreach(fun(JobId, #{pid := WorkerPid}) ->
+        stop_worker(HostType, JobId, WorkerPid)
+    end, maps:with(JobIds, WorkerMap)).
+
+%%====================================================================
+%% Pause / resume orchestration
+%%====================================================================
+
+-spec pause_all_workers(worker_map()) -> worker_map().
+pause_all_workers(WorkerMap) ->
+    maps:filter(fun(_JobId, #{pid := Pid}) ->
+        broadcast_worker:pause(Pid) == ok
+    end, WorkerMap).
+
+-spec resume_owned_workers(worker_map()) -> worker_map().
+resume_owned_workers(WorkerMap) ->
+    maps:filter(fun(_JobId, #{pid := Pid}) ->
+        broadcast_worker:resume(Pid) == ok
+    end, WorkerMap).
+
+%%====================================================================
+%% Timer scheduling
+%%====================================================================
+
+-spec schedule_sync(#state{}) -> #state{}.
+schedule_sync(#state{host_type = HostType, job_sync = JobSync0} = State) ->
+    #job_sync{mode = Mode, tref = OldTRef} = JobSync0,
+    cancel_timer(OldTRef),
+    Interval = compute_sync_interval(HostType, Mode),
+    NewTRef = erlang:start_timer(Interval, self(), sync_jobs),
+    JobSync1 = JobSync0#job_sync{tref = NewTRef},
+    State#state{job_sync = JobSync1}.
+
+-spec cancel_timer(reference() | undefined) -> ok.
+cancel_timer(undefined) ->
+    ok;
+cancel_timer(TRef) ->
+    erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
+    ok.
+
+-spec compute_sync_interval(mongooseim:host_type(), sync_mode()) -> pos_integer().
+compute_sync_interval(HostType, normal) ->
+    LeaseTimeSec = mod_broadcast:lease_time(HostType),
+    trunc(LeaseTimeSec * 1000 * 2 / 3);
+compute_sync_interval(HostType, emergency) ->
+    LeaseTimeSec = mod_broadcast:lease_time(HostType),
+    min(30000, trunc(LeaseTimeSec * 1000 / 10)).
 
 %%====================================================================
 %% Validation
