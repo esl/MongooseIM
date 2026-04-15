@@ -160,10 +160,8 @@ admin_start_broadcast_manager_temporarily_unavailable(Config) ->
     Sender = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice)),
 
     ok = rpc(mim(), meck, new, [mod_broadcast_backend, [no_link, passthrough]]),
-    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, get_running_jobs,
-                                   fun(_AnyHostType) ->
-                                           meck:exception(error, forced_sync_failure)
-                                   end]),
+    ok = rpc(mim(), meck, expect, [mod_broadcast_backend, get_running_jobs, 1,
+                                   meck:raise(error, forced_sync_failure)]),
     try
         stop_mod_broadcast(HostType),
         ensure_mod_broadcast_started(domain()),
