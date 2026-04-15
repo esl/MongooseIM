@@ -220,23 +220,23 @@ prepare_queries(HostType) ->
     prepare(broadcast_set_job_started, broadcast_jobs,
             [id],
             <<"UPDATE broadcast_jobs SET started_at = CURRENT_TIMESTAMP"
-            " WHERE id = ?">>),
+              " WHERE id = ?">>),
     prepare(broadcast_set_job_finished, broadcast_jobs,
             [id],
-            <<"UPDATE broadcast_jobs "
-            "SET execution_state = 'finished', stopped_at = CURRENT_TIMESTAMP "
-            "WHERE id = ? AND execution_state = 'running'">>),
+            <<"UPDATE broadcast_jobs"
+              " SET execution_state = 'finished', stopped_at = CURRENT_TIMESTAMP"
+              " WHERE id = ? AND execution_state = 'running'">>),
     prepare(broadcast_set_job_aborted_error, broadcast_jobs,
             [abortion_reason, id],
-            <<"UPDATE broadcast_jobs "
-            "SET execution_state = 'abort_error', abortion_reason = ?, "
-            "stopped_at = CURRENT_TIMESTAMP "
-            "WHERE id = ? AND execution_state = 'running'">>),
+            <<"UPDATE broadcast_jobs"
+              " SET execution_state = 'abort_error', abortion_reason = ?,"
+              " stopped_at = CURRENT_TIMESTAMP"
+              " WHERE id = ? AND execution_state = 'running'">>),
     prepare(broadcast_set_job_aborted_admin, broadcast_jobs,
             [id],
-            <<"UPDATE broadcast_jobs "
-            "SET execution_state = 'abort_admin', stopped_at = CURRENT_TIMESTAMP "
-            "WHERE id = ? AND execution_state = 'running'">>),
+            <<"UPDATE broadcast_jobs"
+              " SET execution_state = 'abort_admin', stopped_at = CURRENT_TIMESTAMP"
+              " WHERE id = ? AND execution_state = 'running'">>),
 
     %% Worker progress upsert.
     WorkerStateInsert = [<<"broadcast_id">>, <<"cursor_user">>,
@@ -249,25 +249,25 @@ prepare_queries(HostType) ->
     %% Ownership transition queries.
     prepare(broadcast_renew_ownership, broadcast_jobs_ownership,
             [lease_time, owner_node, host_type],
-                    <<"UPDATE broadcast_jobs_ownership "
-                        "SET expires_at = ", ExpiresExpr/binary, ", updated_at = NOW() "
-                        "WHERE owner_node = ? "
-                        "AND broadcast_id IN ("
-                        "SELECT id FROM broadcast_jobs "
-                        "WHERE host_type = ? AND execution_state = 'running')">>),
+            <<"UPDATE broadcast_jobs_ownership"
+              " SET expires_at = ", ExpiresExpr/binary, ", updated_at = NOW()"
+              " WHERE owner_node = ?"
+              " AND broadcast_id IN ("
+              "SELECT id FROM broadcast_jobs"
+              " WHERE host_type = ? AND execution_state = 'running')">>),
     rdbms_queries:prepare_update_returning(HostType,
         #{name => broadcast_take_expired_jobs,
           table => broadcast_jobs_ownership,
           update_fields => [<<"owner_node">>,
                             {<<"expires_at">>, ExpiresExpr},
                             {<<"updated_at">>, <<"NOW()">>}],
-                    filter_fields => [<<"host_type">>],
+          filter_fields => [<<"host_type">>],
           return_fields => [<<"broadcast_jobs_ownership.broadcast_id">>],
           joins => [{broadcast_jobs, <<"j">>,
                      <<"j.id = broadcast_jobs_ownership.broadcast_id">>}],
-          filters => <<"broadcast_jobs_ownership.expires_at < NOW() "
-                                             "AND j.execution_state = 'running' "
-                                             "AND j.host_type = ?">>}),
+          filters => <<"broadcast_jobs_ownership.expires_at < NOW()"
+                       " AND j.execution_state = 'running'"
+                       " AND j.host_type = ?">>}),
 
     %% Direct ownership cleanup query.
     prepare(broadcast_remove_ownership, broadcast_jobs_ownership,
@@ -277,43 +277,43 @@ prepare_queries(HostType) ->
     %% Read queries for jobs and state.
     prepare(broadcast_count_running_jobs, broadcast_jobs,
             [server],
-            <<"SELECT COUNT(*) FROM broadcast_jobs "
-            "WHERE server = ? AND execution_state = 'running'">>),
+            <<"SELECT COUNT(*) FROM broadcast_jobs"
+              " WHERE server = ? AND execution_state = 'running'">>),
     prepare(broadcast_get_job, broadcast_jobs,
             [id],
-            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-            "j.recipient_group, o.owner_node, j.recipient_count, "
-            "COALESCE(ws.recipients_processed, 0), "
-            "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
-            "FROM broadcast_jobs j "
-            "LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
-            "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-            "WHERE j.id = ?">>),
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate,"
+              " j.recipient_group, o.owner_node, j.recipient_count,"
+              " COALESCE(ws.recipients_processed, 0),"
+              " j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at"
+              " FROM broadcast_jobs j"
+              " LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id"
+              " LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id"
+              " WHERE j.id = ?">>),
     prepare(broadcast_get_running_jobs, broadcast_jobs,
             [owner_node, host_type],
-            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-            "j.recipient_group, o.owner_node, j.recipient_count, "
-            "COALESCE(ws.recipients_processed, 0), "
-            "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
-            "FROM broadcast_jobs j "
-            "JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
-            "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-            "WHERE o.owner_node = ? AND j.host_type = ? AND j.execution_state = 'running'">>),
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate,"
+              " j.recipient_group, o.owner_node, j.recipient_count,"
+              " COALESCE(ws.recipients_processed, 0),"
+              " j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at"
+              " FROM broadcast_jobs j"
+              " JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id"
+              " LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id"
+              " WHERE o.owner_node = ? AND j.host_type = ? AND j.execution_state = 'running'">>),
     prepare(broadcast_get_worker_state, broadcast_worker_state,
             [broadcast_id],
-            <<"SELECT cursor_user, recipients_processed, finished FROM broadcast_worker_state "
-            "WHERE broadcast_id = ?">>),
+            <<"SELECT cursor_user, recipients_processed, finished FROM broadcast_worker_state"
+              " WHERE broadcast_id = ?">>),
     prepare(broadcast_get_jobs_by_domain, broadcast_jobs,
             [server, limit, offset],
-            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate, "
-            "j.recipient_group, o.owner_node, j.recipient_count, "
-            "COALESCE(ws.recipients_processed, 0), "
-            "j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at "
-            "FROM broadcast_jobs j "
-            "LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id "
-            "LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id "
-            "WHERE j.server = ? "
-            "ORDER BY j.id DESC LIMIT ? OFFSET ?">>),
+            <<"SELECT j.id, j.name, j.server, j.host_type, j.from_jid, j.subject, j.body, j.rate,"
+              " j.recipient_group, o.owner_node, j.recipient_count,"
+              " COALESCE(ws.recipients_processed, 0),"
+              " j.execution_state, j.abortion_reason, j.created_at, j.started_at, j.stopped_at"
+              " FROM broadcast_jobs j"
+              " LEFT JOIN broadcast_jobs_ownership o ON j.id = o.broadcast_id"
+              " LEFT JOIN broadcast_worker_state ws ON j.id = ws.broadcast_id"
+              " WHERE j.server = ?"
+              " ORDER BY j.id DESC LIMIT ? OFFSET ?">>),
 
     %% Admin cleanup queries.
     prepare(broadcast_delete_job, broadcast_jobs,
@@ -321,12 +321,12 @@ prepare_queries(HostType) ->
         <<"DELETE FROM broadcast_jobs WHERE id = ?">>),
     prepare(broadcast_get_inactive_job_ids_by_domain, broadcast_jobs,
         [server],
-        <<"SELECT id FROM broadcast_jobs "
-          "WHERE server = ? AND execution_state != 'running'">>),
+        <<"SELECT id FROM broadcast_jobs"
+          " WHERE server = ? AND execution_state != 'running'">>),
     prepare(broadcast_delete_inactive_jobs_by_domain, broadcast_jobs,
         [server],
-        <<"DELETE FROM broadcast_jobs "
-          "WHERE server = ? AND execution_state != 'running'">>),
+        <<"DELETE FROM broadcast_jobs"
+          " WHERE server = ? AND execution_state != 'running'">>),
     ok.
 
 row_to_job({JobId, Name, Server, HostType, FromJid, Subject, Message, Rate,

@@ -218,7 +218,6 @@ handle_info({timeout, TRef, sync_jobs},
     NewState = synchronize_jobs(State),
     {noreply, NewState};
 handle_info({timeout, _OldTRef, sync_jobs}, State) ->
-    %% Stale timer from a previous scheduling cycle, ignore
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -420,9 +419,9 @@ stop_worker(HostType, JobId, WorkerPid) ->
             ok
     after 6000 ->
         ?LOG_WARNING(#{what => broadcast_worker_stop_timeout,
-                        job_id => JobId,
-                        host_type => HostType,
-                        pid => WorkerPid}),
+                       job_id => JobId,
+                       host_type => HostType,
+                       pid => WorkerPid}),
         ok
     end.
 
@@ -476,7 +475,7 @@ try_take_renew_and_fetch(HostType) ->
                          host_type => HostType,
                          class => Class,
                          reason => Reason}),
-        {error, Reason}
+            {error, Reason}
     end.
 
 -spec handle_sync_success(#state{}, [broadcast_job()]) -> #state{}.
@@ -506,7 +505,7 @@ handle_sync_failure(#state{host_type = HostType, job_sync = #job_sync{mode = eme
     schedule_sync(State);
 handle_sync_failure(#state{host_type = HostType, job_sync = JobSync0} = State, _Reason) ->
     ?LOG_WARNING(#{what => broadcast_entering_emergency_mode,
-                    host_type => HostType}),
+                   host_type => HostType}),
     NewWorkerMap = pause_all_workers(State#state.worker_map),
     schedule_sync(State#state{job_sync = JobSync0#job_sync{mode = emergency}, worker_map = NewWorkerMap}).
 

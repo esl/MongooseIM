@@ -358,14 +358,14 @@ add_interval_seconds_expr(HostType) ->
 -type update_returning_spec() ::
     #{%% Query name (also base for MySQL derived statements).
       name          := mongoose_rdbms:query_name(),
-            %% Target table name, e.g. broadcast_jobs_ownership.
-            table         := atom(),
+      %% Target table name.
+      table         := atom(),
       %% binary() -> "column = ?" (consumes one update param).
       %% {Column, Expr} -> "column = Expr" (consumes one update param iff Expr has '?').
       update_fields := [binary() | {binary(), binary()}],
       %% Placeholder-backed fields used in `filters`.
       filter_fields := [binary()],
-      %% Qualified columns to return, e.g. <<"o.broadcast_id">>.
+      %% Qualified columns to return, e.g. <<"table_name_or_alias.column">>.
       return_fields := [binary()],
       %% {JoinTable, JoinAlias, JoinOnExpr}.
       joins         := [{atom(), binary(), binary()}],
@@ -520,7 +520,7 @@ execute_update_returning_mysql(HostType, PoolTag, Name, UpdateParams, FilterPara
         _ ->
             %% Step 2: bulk update the same rows (same filter, same params)
             mongoose_rdbms:execute_successfully(HostType, PoolTag, UpdateName,
-                                   UpdateParams ++ FilterParams),
+                                                UpdateParams ++ FilterParams),
             {updated, length(LockedRows), LockedRows}
     end.
 
