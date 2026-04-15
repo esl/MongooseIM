@@ -30,6 +30,7 @@
 -export([
     %% start_error_paths
     start_requires_rdbms_auth_raises_error/1,
+    start_requires_minimum_lease_time_raises_error/1,
     %% probe_error_paths
     probe_live_jobs_noproc_returns_zero/1,
     probe_live_jobs_timeout_returns_zero/1,
@@ -63,7 +64,8 @@ groups() ->
      {api_domain_not_found_paths, [], api_domain_not_found_path_tests()}].
 
 start_error_path_tests() ->
-    [start_requires_rdbms_auth_raises_error].
+    [start_requires_rdbms_auth_raises_error,
+     start_requires_minimum_lease_time_raises_error].
 
 probe_error_path_tests() ->
     [probe_live_jobs_noproc_returns_zero,
@@ -116,6 +118,17 @@ start_requires_rdbms_auth_raises_error(_Config) ->
                      #{what := mod_broadcast_requires_rdbms_auth,
                        host_type := HostType},
                      mod_broadcast:start(HostType, #{})).
+
+start_requires_minimum_lease_time_raises_error(_Config) ->
+        HostType = broadcast_helper:host_type(),
+        InvalidOpts = #{backend => rdbms, lease_time => 5},
+
+        ?assertException(error,
+                         #{what := mod_broadcast_invalid_lease_time,
+                           host_type := HostType,
+                           lease_time := 5,
+                           min_lease_time := 10},
+                         mod_broadcast:start(HostType, InvalidOpts)).
 
 %%====================================================================
 %% probe/2 error path tests
