@@ -62,12 +62,13 @@ main(RawArgs) ->
         timer:sleep(50),
         CTRunDirsAfterRun = ct_run_dirs(),
         inject_error_report_link(CTRunDirsBeforeRun, CTRunDirsAfterRun),
+        ErrorLimitExceeded = check_error_limit_exceeded(CTRunDirsBeforeRun, CTRunDirsAfterRun),
         ExitStatusByGroups = exit_status_by_groups(CTRunDirsBeforeRun, CTRunDirsAfterRun, Results),
         ExitStatusByTestCases = process_results(Results),
-        case ExitStatusByGroups of
+        ExitStatus = case ExitStatusByGroups of
             undefined ->
                 io:format("Exiting by test cases summary: ~p~n", [ExitStatusByTestCases]),
-                init:stop(ExitStatusByTestCases);
+                ExitStatusByTestCases;
             _ when is_integer(ExitStatusByGroups) ->
                 %% FIXME: This is incorrect assumption, it ignores results of all individual
                 %% tests cases and groups w/o 'repeat_until_all_ok' flag. So we can return
@@ -76,8 +77,17 @@ main(RawArgs) ->
                 %% may result in squashing ct output, since execution of run_common_test.erl
                 %% is wrapped using silent_exec.sh tool.
                 io:format("Exiting by groups summary: ~p~n",  [ExitStatusByGroups]),
-                init:stop(ExitStatusByGroups)
-        end
+                ExitStatusByGroups
+        end,
+        FinalStatus = case {ExitStatus, ErrorLimitExceeded} of
+            {0, {true, Details}} ->
+                io:format("~n**** Failing due to unexpected error"
+                          " log limit exceeded:~n~s", [Details]),
+                1;
+            _ ->
+                ExitStatus
+        end,
+        init:stop(FinalStatus)
     catch Type:Reason:StackTrace ->
         io:format("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
                                [Type, Reason, StackTrace]),
@@ -682,6 +692,20 @@ handle_file_error(_FileName, Other) ->
 
 ct_run_dirs() ->
     filelib:wildcard("ct_report/ct_run*").
+
+check_error_limit_exceeded(Before, After) ->
+    case After -- Before of
+        [RunDir] ->
+            Marker = filename:join([RunDir, "logged_errors", "limit_exceeded"]),
+            case file:read_file(Marker) of
+                {ok, Content} ->
+                    {true, Content};
+                _ ->
+                    false
+            end;
+        _ ->
+            false
+    end.
 
 inject_error_report_link(Before, After) ->
     case After -- Before of

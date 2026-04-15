@@ -55,14 +55,10 @@ The `mongooseimctl` command is available in `/usr/lib/mongooseim/bin/mongooseimc
 
 ## Helm
 
-You can easily install MongooseIM to a Kubernetes cluster with the help of our [Helm chart](https://artifacthub.io/packages/helm/mongoose/mongooseim), defined in the [source code repository](https://github.com/esl/MongooseHelm).
-After you have a Kubernetes cluster set up, simply run:
+You can easily install MongooseIM to a Kubernetes cluster with the help of our [Helm chart](https://trymongoose.im/downloads#helm).
 
-```bash
-helm repo add mongoose https://esl.github.io/MongooseHelm/
-```
+Once you’ve set up your Kubernetes cluster and added the MongooseIM repository (as described in the link above), simply run:
 
-to add our chart repository, and then:
 
 ```bash
 helm install my-mongooseim mongoose/mongooseim
