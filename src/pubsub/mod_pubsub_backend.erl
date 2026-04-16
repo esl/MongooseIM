@@ -3,7 +3,7 @@
 -include("mod_pubsub.hrl").
 
 -export([start/2, stop/1, set_node/2, get_node/2, get_nodes/2, delete_nodes/2,
-         set_subscription/2, get_subscriptions/2, get_subscriptions/3,
+         set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
          set_item/2, get_last_item/2, get_last_items/2]).
 
 -callback start(mongooseim:host_type()) -> ok.
@@ -14,6 +14,7 @@
 -callback get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
 -callback delete_nodes(mongooseim:host_type(), jid:jid()) -> ok.
 -callback set_subscription(mongooseim:host_type(), mod_pubsub:subscription()) -> ok.
+-callback delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok.
 -callback get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key()) ->
     [mod_pubsub:subscription()].
 -callback get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
@@ -65,6 +66,10 @@ set_subscription(HostType, Subscription) ->
 get_subscriptions(HostType, NodeKey) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey]).
 
+-spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok.
+delete_subscription(HostType, NodeKey, SubscriberJid) ->
+    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, SubscriberJid]).
+
 -spec get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
     [mod_pubsub:subscription()].
 get_subscriptions(HostType, NodeKey, SubscriberJid) ->
@@ -85,4 +90,4 @@ get_last_items(HostType, ServiceJid) ->
 %% Helpers
 
 tracked_funs() ->
-    [set_node, delete_nodes, set_subscription, set_item].
+    [set_node, delete_nodes, set_subscription, delete_subscription, set_item].

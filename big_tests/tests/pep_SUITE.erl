@@ -307,6 +307,8 @@ create_presence_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     NodeNS = random_node_ns(),
     PepNode = make_pep_node_info(Alice, NodeNS),
     pubsub_tools:create_node(Alice, PepNode, []),
+
+    %% XEP-0060 6.1.3.2 Presence Subscription Required
     pubsub_tools:subscribe(Bob, PepNode, [{expected_error_type, ~"auth"}]).
 
 create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
@@ -322,8 +324,14 @@ create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
 subscribe_to_nonexistent_node_story(Alice) ->
     NodeNS = random_node_ns(),
     PepNode = make_pep_node_info(Alice, NodeNS),
+
+    %% XEP-0060 6.1.3.4 Node Does Not Exist
     Result = pubsub_tools:subscribe(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
-    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result).
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result),
+
+    %% XEP-0060 6.2.3.4 Node Does Not Exist
+    Result2 = pubsub_tools:unsubscribe(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result2).
 
 create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     NodeNS = random_node_ns(),
@@ -334,7 +342,11 @@ create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
     pubsub_tools:receive_item_notification(
       Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
-    ok.
+
+    %% XEP-0060 6.2.2 Success Case
+    pubsub_tools:unsubscribe(Bob, PepNode, []),
+    pubsub_tools:publish(Alice, ~"item2", {pep, NodeNS}, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500).
 
 create_open_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -344,7 +356,11 @@ create_open_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     make_friends(Bob, Alice, 0),
     pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
     pubsub_tools:receive_item_notification(
-      Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []).
+      Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+
+    %% XEP-0060 6.2.3.2 No Such Subscriber
+    Result = pubsub_tools:unsubscribe(Bob, PepNode, [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"unexpected-request"], Result).
 
 create_open_and_publish_both_subs_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),

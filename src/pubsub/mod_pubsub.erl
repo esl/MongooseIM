@@ -23,7 +23,10 @@
 -type item_payload() :: [exml:child()].
 -type access_model() :: open | presence | authorize.
 -type node_config() :: #{access_model => access_model()}.
--type error_reason() :: bad_request | {bad_request, binary()}.
+-type error_reason() :: bad_request | not_authorized | unexpected_request | item_not_found
+                      | {bad_request, binary()}
+                      | {not_authorized, binary()}
+                      | {unexpected_request, binary()}.
 
 -type iq_request() :: #{acc := mongoose_acc:t(),
                         iq := jlib:iq(),
@@ -39,8 +42,13 @@
                    | #{action := subscribe,
                        node_id := node_id(),
                        subscriber_jid := jid:jid()}
-                    | #{action := publish,
-                       node_id => node_id(), item_id => item_id(), payload => item_payload()}.
+                   | #{action := unsubscribe,
+                       node_id := node_id(),
+                       subscriber_jid := jid:jid()}
+                   | #{action := publish,
+                       node_id => node_id(),
+                       item_id => item_id(),
+                       payload => item_payload()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
               item_id/0, subscription_id/0, item_payload/0, access_model/0, node_config/0]).
@@ -155,6 +163,11 @@ perform_action(#{service_jid := ServiceJid} = Request,
                                                         ~"subid" => SubscriptionId,
                                                         ~"subscription" => ~"subscribed"}}]},
     {result, [ReplyPubsubEl]};
+perform_action(#{service_jid := ServiceJid} = Request,
+               #{action := unsubscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
+    NodeKey = {ServiceJid, NodeId},
+    unsubscribe(Request, SubscriberJid, NodeKey),
+    {result, []};
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -171,6 +184,7 @@ perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid
 -spec error_el(atom()) -> exml:element().
 error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
 error_el(not_authorized) -> mongoose_xmpp_errors:not_authorized();
+error_el(unexpected_request) -> mongoose_xmpp_errors:unexpected_request_cancel();
 error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
 
 -spec subscribe(iq_request(), jid:jid(), node_key()) -> subscription().
@@ -182,6 +196,16 @@ subscribe(#{acc := Acc, c2s_data := C2SData}, SubscriberJid, NodeKey) ->
     Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid, id = SubscriptionId},
     mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription),
     Subscription.
+
+-spec unsubscribe(iq_request(), jid:jid(), node_key()) -> ok.
+unsubscribe(#{acc := Acc}, SubscriberJid, NodeKey) ->
+    HostType = mongoose_acc:host_type(Acc),
+    _Node = get_node(HostType, NodeKey),
+    case mod_pubsub_backend:get_subscriptions(HostType, NodeKey, SubscriberJid) of
+        [] -> throw({unexpected_request, ~"not-subscribed"});
+        _ -> ok
+    end,
+    mod_pubsub_backend:delete_subscription(HostType, NodeKey, SubscriberJid).
 
 -spec get_node(mongooseim:host_type(), node_key()) -> pubsub_node().
 get_node(HostType, NodeKey) ->
@@ -257,6 +281,9 @@ pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"create", attrs = #{~"node" := NodeId}
 pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"subscribe",
                                   attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
     #{action => subscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
+pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"unsubscribe",
+                                  attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
+    #{action => unsubscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
 pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}}]) ->
     case exml_query:subelements(El, ~"item") of
         [#xmlel{attrs = #{~"id" := ItemId}, children = Payload}] ->

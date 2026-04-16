@@ -7,7 +7,7 @@
 -include("mod_pubsub.hrl").
 
 -export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_nodes/2,
-         set_subscription/2, get_subscriptions/2, get_subscriptions/3,
+         set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
          set_item/2, get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
@@ -26,6 +26,9 @@ start(HostType) ->
                            [service_jid], sql(get_nodes)),
     rdbms_queries:prepare_upsert(HostType, pubsub_subscription_upsert, pubsub_subscription,
                                  SubscriptionFields, [], SubscriptionFields),
+    mongoose_rdbms:prepare(pubsub_delete_subscription, pubsub_subscription,
+                           [service_jid, node_id, subscriber_jid],
+                           sql(delete_subscription)),
     mongoose_rdbms:prepare(pubsub_get_subscriptions, pubsub_subscription,
                            [service_jid, node_id], sql(get_subscriptions)),
     mongoose_rdbms:prepare(pubsub_get_subscriptions_for_jid, pubsub_subscription,
@@ -99,6 +102,12 @@ get_subscriptions(HostType, {ServiceJid, NodeId} = NodeKey, SubscriberJid) ->
                                                            Args),
     [row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId)
      || {SubscriberJidBin, SubscriptionId} <- Rows].
+
+-spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok.
+delete_subscription(HostType, {ServiceJid, NodeId}, SubscriberJid) ->
+    Args = [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid)],
+    {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_subscription, Args),
+    ok.
 
 -spec set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
 set_item(HostType, #item{node_key = {ServiceJid, NodeId},
@@ -184,6 +193,11 @@ sql(get_subscriptions_for_jid) ->
     ~"""
      SELECT subscriber_jid, subscription_id
      FROM pubsub_subscription
+     WHERE service_jid = ? AND node_id = ? AND subscriber_jid = ?
+     """;
+sql(delete_subscription) ->
+    ~"""
+     DELETE FROM pubsub_subscription
      WHERE service_jid = ? AND node_id = ? AND subscriber_jid = ?
      """;
 sql(get_node) ->
