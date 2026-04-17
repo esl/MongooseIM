@@ -1,10 +1,6 @@
 .PHONY: all test console compile
 all: test
 
-ifndef MAKE_VERSION
-$(error This target requires GNU Make. On BSD, run it with gmake.)
-endif
-
 # user overridable
 TESTSPEC ?= default.spec
 PRESET   ?= all

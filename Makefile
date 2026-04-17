@@ -1,14 +1,12 @@
 .PHONY: rel docs
 
+# GNU Make is required. Use gmake on BSD systems.
+
 RUN=./tools/silent_exec.sh "$@.log"
 XEP_TOOL = tools/xep_tool
 EBIN = ebin
 DEVNODES = mim1 mim2 mim3 fed1 reg1
 REBAR=./rebar3
-
-ifndef MAKE_VERSION
-$(error GNU Make is required. Use gmake on BSD systems.)
-endif
 
 # Top-level targets aka user interface
 
