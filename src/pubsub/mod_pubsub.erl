@@ -23,7 +23,7 @@
 -type item_payload() :: [exml:child()].
 -type access_model() :: open | presence | authorize.
 -type node_config() :: #{access_model => access_model()}.
--type error_reason() :: bad_request | not_authorized | unexpected_request | item_not_found
+-type error_reason() :: bad_request | forbidden | not_authorized | unexpected_request | item_not_found
                       | {bad_request, binary()}
                       | {not_authorized, binary()}
                       | {unexpected_request, binary()}.
@@ -39,6 +39,8 @@
                    | #{action := create,
                        node_id := node_id(),
                        config := node_config()}
+                   | #{action := delete,
+                       node_id := node_id()}
                    | #{action := subscribe,
                        node_id := node_id(),
                        subscriber_jid := jid:jid()}
@@ -152,6 +154,12 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
     Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
     mod_pubsub_backend:set_node(HostType, Node),
     {result, []};
+perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
+               #{action := delete, node_id := NodeId}) ->
+    assert_owner(Request),
+    HostType = mongoose_acc:host_type(Acc),
+    delete_node(HostType, {ServiceJid, NodeId}),
+    {result, []};
 perform_action(#{service_jid := ServiceJid} = Request,
                #{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
     NodeKey = {ServiceJid, NodeId},
@@ -216,6 +224,11 @@ get_node(HostType, NodeKey) ->
         undefined -> throw(item_not_found);
         Node -> Node
     end.
+
+-spec delete_node(mongooseim:host_type(), node_key()) -> ok.
+delete_node(HostType, NodeKey) ->
+    _Node = get_node(HostType, NodeKey),
+    mod_pubsub_backend:delete_node(HostType, NodeKey).
 
 -spec assert_subscribe_permission(pubsub_node(), mongoose_c2s:data()) -> ok.
 assert_subscribe_permission(#pubsub_node{access_model = open}, _) ->
@@ -303,6 +316,8 @@ pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := N
         [_] ->
             #{action => error, reason => {bad_request, ~"invalid-payload"}}
     end;
+pubsub_action(?NS_PUBSUB_OWNER, [#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
+    #{action => delete, node_id => NodeId};
 pubsub_action(_, _) ->
     no_action.
 

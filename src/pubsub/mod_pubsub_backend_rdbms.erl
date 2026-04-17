@@ -6,7 +6,7 @@
 -include_lib("exml/include/exml.hrl").
 -include("mod_pubsub.hrl").
 
--export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_nodes/2,
+-export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
          set_item/2, get_last_item/2, get_last_items/2]).
 
@@ -20,6 +20,8 @@ start(HostType) ->
                                  NodeFields, [~"access_model"], [~"service_jid", ~"node_id"]),
     mongoose_rdbms:prepare(pubsub_get_node, pubsub_node,
                            [service_jid, node_id], sql(get_node)),
+    mongoose_rdbms:prepare(pubsub_delete_node, pubsub_node,
+                           [service_jid, node_id], sql(delete_node)),
     mongoose_rdbms:prepare(pubsub_delete_nodes, pubsub_node,
                            [service_jid], sql(delete_nodes)),
     mongoose_rdbms:prepare(pubsub_get_nodes, pubsub_node,
@@ -75,6 +77,12 @@ get_nodes(HostType, ServiceJid) ->
 delete_nodes(HostType, ServiceJid) ->
     {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_nodes,
                                                        [jid:to_binary(ServiceJid)]),
+    ok.
+
+-spec delete_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
+delete_node(HostType, {ServiceJid, NodeId}) ->
+    Args = [jid:to_binary(ServiceJid), NodeId],
+    {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_node, Args),
     ok.
 
 -spec set_subscription(mongooseim:host_type(), mod_pubsub:subscription()) -> ok.
@@ -204,6 +212,11 @@ sql(get_node) ->
     ~"""
      SELECT access_model
      FROM pubsub_node
+     WHERE service_jid = ? AND node_id = ?
+     """;
+sql(delete_node) ->
+    ~"""
+     DELETE FROM pubsub_node
      WHERE service_jid = ? AND node_id = ?
      """;
 sql(delete_nodes) ->

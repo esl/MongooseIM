@@ -364,7 +364,8 @@ CREATE TABLE pubsub_subscription (
     node_id VARCHAR(250) NOT NULL,
     subscriber_jid VARCHAR(250) NOT NULL,
     subscription_id VARCHAR(250) NOT NULL,
-    PRIMARY KEY (service_jid, node_id, subscriber_jid, subscription_id)
+    PRIMARY KEY (service_jid, node_id, subscriber_jid, subscription_id),
+    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
 );
 
 CREATE INDEX i_pubsub_item_created_at ON pubsub_item USING btree (service_jid, node_id, created_at);

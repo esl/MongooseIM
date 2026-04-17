@@ -49,6 +49,9 @@ pep_tests() ->
      create_presence_and_publish_implicit_sub,
      create_presence_and_publish_explicit_sub,
      create_presence_and_publish_no_sub,
+     create_and_delete_node,
+     delete_nonexistent_node,
+     delete_other_user_node,
      subscribe_to_nonexistent_node,
      publish_to_other_user_node_fails,
      create_node_at_other_user_jid_fails,
@@ -262,6 +265,18 @@ create_presence_and_publish_no_sub(Config) ->
     escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}, {mike, 1}],
                                     fun create_presence_and_publish_no_sub_story/4).
 
+create_and_delete_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun create_and_delete_node_story/1).
+
+delete_nonexistent_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun delete_nonexistent_node_story/1).
+
+delete_other_user_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun delete_other_user_node_story/2).
+
 subscribe_to_nonexistent_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun subscribe_to_nonexistent_node_story/1).
@@ -330,6 +345,33 @@ create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     [] = escalus:wait_for_stanzas(Alice, 1, 500), % account owner without caps
     [] = escalus:wait_for_stanzas(Bob, 1, 500), % caps but no presence subscription
     [] = escalus:wait_for_stanzas(Mike, 1, 500). % presence subscription but no caps
+
+create_and_delete_node_story(Alice) ->
+    PepNode = make_pep_node_info(Alice, random_node_ns()),
+    pubsub_tools:create_node(Alice, PepNode, []),
+
+    %% XEP-0060 8.2 Delete a Node
+    pubsub_tools:delete_node(Alice, PepNode, []).
+
+delete_nonexistent_node_story(Alice) ->
+    PepNode = make_pep_node_info(Alice, random_node_ns()),
+
+    %% XEP-0060 8.2.4 Node Does Not Exist
+    Result = pubsub_tools:delete_node(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result).
+
+delete_other_user_node_story(Alice, Bob) ->
+    PepNode = make_pep_node_info(Alice, random_node_ns()),
+    pubsub_tools:create_node(Alice, PepNode, []),
+
+    %% XEP-0060 8.4.3.1 Insufficient Privileges (existing node)
+    Result = pubsub_tools:delete_node(Bob, PepNode, [{expected_error_type, ~"auth"}]),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Result),
+
+    %% XEP-0060 8.4.3.1 Insufficient Privileges (non-existent node)
+    Result2 = pubsub_tools:delete_node(Bob, make_pep_node_info(Alice, random_node_ns()),
+                                       [{expected_error_type, ~"auth"}]),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Result2).
 
 subscribe_to_nonexistent_node_story(Alice) ->
     NodeNS = random_node_ns(),
