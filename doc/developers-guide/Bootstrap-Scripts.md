@@ -51,20 +51,3 @@ Environment variables should have a `MIM_` prefix. The variable names are case-i
 
 A demo template is located in `rel/files/templates/demo.config`.
 It is copied into the `/templates` directory inside your release directory.
-
-## Testing templating scripts
-
-Templating script source code: `rel/files/scripts/bootstrap20-template.escript`.
-
-Testing script code:
-
-```bash
-tools/pkg/scripts/smoke_test.sh
-tools/pkg/scripts/smoke_templates.escript
-```
-
-Testing command:
-
-```bash
-PRESET=pkg pkg_PLATFORM=ubuntu_xenial ESL_ERLANG_PKG_VER=23.3.1-2 ./tools/test.sh
-```
