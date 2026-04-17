@@ -55,7 +55,8 @@
          set_presence/2,
          get_presence_type/1,
          maybe_get_handler/1,
-         get_old_priority/1
+         get_old_priority/1,
+         is_subscribed/3
         ]).
 
 -ignore_xref([am_i_subscribed_to_presence/3]). % unused but still exported for tests/debugging
@@ -729,9 +730,12 @@ is_available(#presences_state{available = Available}, Jid) ->
     sets:is_element(Jid, Available).
 
 -spec is_subscribed(state(), jid:jid(), subscription()) -> boolean().
-is_subscribed(#presences_state{subscriptions = Subs}, Jid, DesiredSub) ->
-    Sub = maps:get(Jid, Subs, '$imposible_status'),
-    both =:= Sub orelse DesiredSub =:= Sub.
+is_subscribed(#presences_state{subscriptions = Subscriptions}, Jid, DesiredSub) ->
+    case Subscriptions of
+        #{Jid := DesiredSub} -> true;
+        #{Jid := both} -> true;
+        _ -> false
+    end.
 
 -spec get_by_sub(state(), subscription()) -> subscriptions().
 get_by_sub(#presences_state{subscriptions = Subs}, DesiredStatus) ->

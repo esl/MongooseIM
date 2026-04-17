@@ -47,6 +47,8 @@
                    | #{action := unsubscribe,
                        node_id := node_id(),
                        subscriber_jid := jid:jid()}
+                   | #{action := get_items,
+                       node_id := node_id()}
                    | #{action := publish,
                        node_id => node_id(),
                        item_id => item_id(),
@@ -177,6 +179,19 @@ perform_action(#{service_jid := ServiceJid} = Request,
     NodeKey = {ServiceJid, NodeId},
     unsubscribe(Request, SubscriberJid, NodeKey),
     {result, []};
+perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
+               #{action := get_items, node_id := NodeId}) ->
+    HostType = mongoose_acc:host_type(Acc),
+    NodeKey = {ServiceJid, NodeId},
+    Node = get_node(HostType, NodeKey),
+    assert_retrieve_permission(Node, Request),
+    Items = mod_pubsub_backend:get_items(HostType, NodeKey),
+    ReplyPubsubEl = #xmlel{name = ~"pubsub",
+                           attrs = #{~"xmlns" => ?NS_PUBSUB},
+                           children = [#xmlel{name = ~"items",
+                                              attrs = #{~"node" => NodeId},
+                                              children = [item_el(Item) || Item <- Items]}]},
+    {result, [ReplyPubsubEl]};
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
     assert_owner(Request),
@@ -199,10 +214,10 @@ error_el(unexpected_request) -> mongoose_xmpp_errors:unexpected_request_cancel()
 error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
 
 -spec subscribe(iq_request(), jid:jid(), node_key()) -> subscription().
-subscribe(#{acc := Acc, c2s_data := C2SData}, SubscriberJid, NodeKey) ->
+subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
     HostType = mongoose_acc:host_type(Acc),
     Node = get_node(HostType, NodeKey),
-    assert_subscribe_permission(Node, C2SData),
+    assert_subscribe_permission(Node, Request),
     SubscriptionId = make_subid(),
     Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid, id = SubscriptionId},
     mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription),
@@ -230,22 +245,39 @@ delete_node(HostType, NodeKey) ->
     _Node = get_node(HostType, NodeKey),
     mod_pubsub_backend:delete_node(HostType, NodeKey).
 
--spec assert_subscribe_permission(pubsub_node(), mongoose_c2s:data()) -> ok.
+-spec assert_retrieve_permission(pubsub_node(), iq_request()) -> ok.
+assert_retrieve_permission(Node, Request) ->
+    case is_owner(Request) of
+        true -> ok;
+        false -> assert_subscribe_permission(Node, Request)
+    end.
+
+-spec assert_subscribe_permission(pubsub_node(), iq_request()) -> ok.
 assert_subscribe_permission(#pubsub_node{access_model = open}, _) ->
     ok;
-assert_subscribe_permission(#pubsub_node{access_model = presence, node_key = {OwnerJid, _}},
-                           C2SData) ->
+assert_subscribe_permission(#pubsub_node{access_model = presence,
+                                         node_key = {OwnerJid, _}}, Request) ->
+    assert_subscribed_to(OwnerJid, Request).
+
+-spec assert_owner(iq_request()) -> ok.
+assert_owner(Request) ->
+    case is_owner(Request) of
+        true -> ok;
+        false -> throw(forbidden)
+    end.
+
+assert_subscribed_to(OwnerJid, #{c2s_data := C2SData}) ->
     case is_subscribed_to(OwnerJid, C2SData) of
         true -> ok;
         false -> throw({not_authorized, ~"presence-subscription-required"})
     end.
 
--spec assert_owner(iq_request()) -> ok.
-assert_owner(#{from_jid := #jid{luser = LUser, lserver = LServer},
-               service_jid := #jid{luser = LUser, lserver = LServer}}) ->
-    ok;
-assert_owner(#{}) ->
-    throw(forbidden).
+-spec is_owner(iq_request()) -> boolean().
+is_owner(#{from_jid := #jid{luser = LUser, lserver = LServer},
+           service_jid := #jid{luser = LUser, lserver = LServer}}) ->
+    true;
+is_owner(#{}) ->
+    false.
 
 -spec recipient_jids(pubsub_node(), iq_request()) -> [jid:jid()].
 recipient_jids(Node, #{acc := Acc, c2s_data := C2SData}) ->
@@ -307,6 +339,8 @@ pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"subscribe",
 pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"unsubscribe",
                                   attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
     #{action => unsubscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
+pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"items", attrs = #{~"node" := NodeId}}]) ->
+    #{action => get_items, node_id => NodeId};
 pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}}]) ->
     case exml_query:subelements(El, ~"item") of
         [#xmlel{attrs = #{~"id" := ItemId}, children = Payload}] ->
@@ -404,8 +438,8 @@ subscriptions(Type, C2SData) ->
 -spec is_subscribed_to(jid:jid(), mongoose_c2s:data()) -> boolean().
 is_subscribed_to(OwnerJid = #jid{lresource = ~""}, C2SData) ->
     case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
-        {ok, #{OwnerJid := Sub}} ->
-            Sub =:= to orelse Sub =:= both;
+        {ok, State} ->
+            mod_presence:is_subscribed(State, OwnerJid, to);
         _ ->
             false
     end.
@@ -433,6 +467,10 @@ route_notification(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) -
                              from_jid => FromJid,
                              to_jid => ToJid}),
     ejabberd_router:route(FromJid, ToJid, Acc).
+
+-spec item_el(item()) -> exml:element().
+item_el(#item{id = ItemId, payload = Payload}) ->
+    #xmlel{name = ~"item", attrs = #{~"id" => ItemId}, children = Payload}.
 
 -spec notification_message(item()) -> exml:element().
 notification_message(#item{node_key = {_, NodeId}, id = ItemId, payload = Payload}) ->

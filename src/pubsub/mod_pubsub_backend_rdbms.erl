@@ -8,7 +8,7 @@
 
 -export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
-         set_item/2, get_last_item/2, get_last_items/2]).
+         set_item/2, get_items/2, get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
@@ -38,6 +38,8 @@ start(HostType) ->
                            sql(get_subscriptions_for_jid)),
     rdbms_queries:prepare_upsert(HostType, pubsub_item_upsert, pubsub_item,
                                  KeyFields ++ UpdateFields, UpdateFields, KeyFields),
+    mongoose_rdbms:prepare(pubsub_get_items, pubsub_item,
+                           [service_jid, node_id], sql(get_items)),
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_item,
                            [service_jid, node_id], sql(get_last_item)),
     mongoose_rdbms:prepare(pubsub_get_last_items, pubsub_item,
@@ -132,6 +134,13 @@ set_item(HostType, #item{node_key = {ServiceJid, NodeId},
                                                 InsertValues, UpdateValues),
     ok.
 
+-spec get_items(mongooseim:host_type(), mod_pubsub:node_key()) -> [mod_pubsub:item()].
+get_items(HostType, {ServiceJid, NodeId} = NodeKey) ->
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_items,
+                                                           [jid:to_binary(ServiceJid), NodeId]),
+    [row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin)
+     || {ItemId, PublisherJidBin, PayloadBin} <- Rows].
+
 -spec get_last_item(mongooseim:host_type(), mod_pubsub:node_key()) ->
     mod_pubsub:item() | undefined.
 get_last_item(HostType, {ServiceJid, NodeId} = NodeKey) ->
@@ -179,6 +188,13 @@ row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId) ->
 
 %% SQL queries
 
+sql(get_items) ->
+    ~"""
+     SELECT item_id, publisher_jid, payload
+     FROM pubsub_item
+     WHERE service_jid = ? AND node_id = ?
+     ORDER BY created_at
+     """;
 sql(get_last_item) ->
     ~"""
      SELECT item_id, publisher_jid, payload
