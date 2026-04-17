@@ -6,6 +6,10 @@ EBIN = ebin
 DEVNODES = mim1 mim2 mim3 fed1 reg1
 REBAR=./rebar3
 
+ifndef MAKE_VERSION
+$(error GNU Make is required. Use gmake on BSD systems.)
+endif
+
 # Top-level targets aka user interface
 
 all: rel
@@ -56,7 +60,7 @@ $(DEVNODES): certs configure.out rel/vars-toml.config
 maybe_clean_certs:
 	if [ "$$SKIP_CERT_BUILD" != 1 ]; then \
 		if ! openssl x509 -checkend 36000 -noout -in tools/ssl/ca/cacert.pem ; then \
-			cd tools/ssl && make clean_certs; \
+			$(MAKE) -C tools/ssl clean_certs; \
 		fi \
 	fi
 
@@ -64,7 +68,7 @@ certs: maybe_clean_certs
 	if [ "$$SKIP_CERT_BUILD" = 1 ]; then \
 		echo "Skip cert build"; \
 	else \
-		cd tools/ssl && make; \
+		$(MAKE) -C tools/ssl; \
 	fi
 
 xeplist:

@@ -1,3 +1,7 @@
+ifndef MAKE_VERSION
+$(error This target requires GNU Make. On BSD, run it with gmake.)
+endif
+
 all: mongooseim/cert.pem mongooseim/key.pem \
   mongooseim/server.pem mongooseim/dh_server.pem \
   mongooseim/pubkey.pem mongooseim/privkey.pem \
