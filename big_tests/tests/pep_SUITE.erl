@@ -50,6 +50,8 @@ pep_tests() ->
      create_presence_and_publish_explicit_sub,
      create_presence_and_publish_no_sub,
      subscribe_to_nonexistent_node,
+     publish_to_other_user_node_fails,
+     create_node_at_other_user_jid_fails,
      create_open_and_publish_explicit_sub,
      create_open_and_publish_implicit_sub,
      create_open_and_publish_both_subs,
@@ -264,6 +266,14 @@ subscribe_to_nonexistent_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun subscribe_to_nonexistent_node_story/1).
 
+publish_to_other_user_node_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun publish_to_other_user_node_fails_story/2).
+
+create_node_at_other_user_jid_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun create_node_at_other_user_jid_fails_story/2).
+
 create_open_and_publish_explicit_sub(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun create_open_and_publish_explicit_sub_story/3).
@@ -332,6 +342,26 @@ subscribe_to_nonexistent_node_story(Alice) ->
     %% XEP-0060 6.2.3.4 Node Does Not Exist
     Result2 = pubsub_tools:unsubscribe(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result2).
+
+publish_to_other_user_node_fails_story(Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:create_node(Alice, PepNode, []),
+
+    %% XEP-0060 7.1.3.1 Insufficient Privileges
+    Result = pubsub_tools:publish(Bob, ~"item1", PepNode, [{expected_error_type, ~"auth"}]),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Result).
+
+create_node_at_other_user_jid_fails_story(Alice, Bob) ->
+    %% XEP-0060 8.1 Create a Node, Example 128
+    Result = pubsub_tools:create_node(Bob, make_pep_node_info(Alice, random_node_ns()),
+                                      [{expected_error_type, ~"auth"}]),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Result),
+
+    %% XEP-0060 7.1.3.1 Insufficient Privileges (auto-create attempt)
+    Result2 = pubsub_tools:publish(Bob, ~"item2", make_pep_node_info(Alice, random_node_ns()),
+                                   [{expected_error_type, ~"auth"}]),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Result2).
 
 create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     NodeNS = random_node_ns(),

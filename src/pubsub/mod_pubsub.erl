@@ -145,8 +145,9 @@ perform_action(#{}, #{action := error, reason := {GenericReason, PubSubReason}})
     {error, [error_el(GenericReason), pubsub_error_el(PubSubReason)]};
 perform_action(#{}, #{action := error, reason := Reason}) ->
     {error, [error_el(Reason)]};
-perform_action(#{acc := Acc, service_jid := ServiceJid},
+perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
                #{action := create, node_id := NodeId, config := #{access_model := AccessModel}}) ->
+    assert_owner(Request),
     HostType = mongoose_acc:host_type(Acc),
     Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
     mod_pubsub_backend:set_node(HostType, Node),
@@ -170,6 +171,7 @@ perform_action(#{service_jid := ServiceJid} = Request,
     {result, []};
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
                #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
+    assert_owner(Request),
     HostType = mongoose_acc:host_type(Acc),
     NodeKey = {ServiceJid, NodeId},
     Node = get_or_create_node(HostType, NodeKey),
@@ -183,6 +185,7 @@ perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid
 
 -spec error_el(atom()) -> exml:element().
 error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
+error_el(forbidden) -> mongoose_xmpp_errors:forbidden();
 error_el(not_authorized) -> mongoose_xmpp_errors:not_authorized();
 error_el(unexpected_request) -> mongoose_xmpp_errors:unexpected_request_cancel();
 error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
@@ -191,7 +194,7 @@ error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
 subscribe(#{acc := Acc, c2s_data := C2SData}, SubscriberJid, NodeKey) ->
     HostType = mongoose_acc:host_type(Acc),
     Node = get_node(HostType, NodeKey),
-    check_subscribe_permission(Node, C2SData),
+    assert_subscribe_permission(Node, C2SData),
     SubscriptionId = make_subid(),
     Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid, id = SubscriptionId},
     mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription),
@@ -214,15 +217,22 @@ get_node(HostType, NodeKey) ->
         Node -> Node
     end.
 
--spec check_subscribe_permission(pubsub_node(), mongoose_c2s:data()) -> ok.
-check_subscribe_permission(#pubsub_node{access_model = open}, _) ->
+-spec assert_subscribe_permission(pubsub_node(), mongoose_c2s:data()) -> ok.
+assert_subscribe_permission(#pubsub_node{access_model = open}, _) ->
     ok;
-check_subscribe_permission(#pubsub_node{access_model = presence, node_key = {OwnerJid, _}},
+assert_subscribe_permission(#pubsub_node{access_model = presence, node_key = {OwnerJid, _}},
                            C2SData) ->
     case is_subscribed_to(OwnerJid, C2SData) of
         true -> ok;
         false -> throw({not_authorized, ~"presence-subscription-required"})
     end.
+
+-spec assert_owner(iq_request()) -> ok.
+assert_owner(#{from_jid := #jid{luser = LUser, lserver = LServer},
+               service_jid := #jid{luser = LUser, lserver = LServer}}) ->
+    ok;
+assert_owner(#{}) ->
+    throw(forbidden).
 
 -spec recipient_jids(pubsub_node(), iq_request()) -> [jid:jid()].
 recipient_jids(Node, #{acc := Acc, c2s_data := C2SData}) ->
