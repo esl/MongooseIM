@@ -8,7 +8,7 @@
 
 -export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
-         set_item/2, get_items/2, get_last_item/2, get_last_items/2]).
+         set_item/2, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
@@ -38,6 +38,8 @@ start(HostType) ->
                            sql(get_subscriptions_for_jid)),
     rdbms_queries:prepare_upsert(HostType, pubsub_item_upsert, pubsub_item,
                                  KeyFields ++ UpdateFields, UpdateFields, KeyFields),
+    mongoose_rdbms:prepare(pubsub_get_item, pubsub_item,
+                           [service_jid, node_id, item_id], sql(get_item)),
     mongoose_rdbms:prepare(pubsub_get_items, pubsub_item,
                            [service_jid, node_id], sql(get_items)),
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_item,
@@ -134,6 +136,17 @@ set_item(HostType, #item{node_key = {ServiceJid, NodeId},
                                                 InsertValues, UpdateValues),
     ok.
 
+-spec get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
+    mod_pubsub:item() | undefined.
+get_item(HostType, {ServiceJid, NodeId} = NodeKey, ItemId) ->
+    case mongoose_rdbms:execute_successfully(HostType, pubsub_get_item,
+                                             [jid:to_binary(ServiceJid), NodeId, ItemId]) of
+        {selected, []} ->
+            undefined;
+        {selected, [{PublisherJidBin, PayloadBin}]} ->
+            row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin)
+    end.
+
 -spec get_items(mongooseim:host_type(), mod_pubsub:node_key()) -> [mod_pubsub:item()].
 get_items(HostType, {ServiceJid, NodeId} = NodeKey) ->
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_items,
@@ -188,6 +201,12 @@ row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId) ->
 
 %% SQL queries
 
+sql(get_item) ->
+    ~"""
+     SELECT publisher_jid, payload
+     FROM pubsub_item
+     WHERE service_jid = ? AND node_id = ? AND item_id = ?
+     """;
 sql(get_items) ->
     ~"""
      SELECT item_id, publisher_jid, payload

@@ -4,7 +4,7 @@
 
 -export([start/2, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
-         set_item/2, get_items/2, get_last_item/2, get_last_items/2]).
+         set_item/2, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
 
 -callback start(mongooseim:host_type()) -> ok.
 -callback stop(mongooseim:host_type()) -> ok.
@@ -21,6 +21,8 @@
 -callback get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
     [mod_pubsub:subscription()].
 -callback set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
+-callback get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
+    mod_pubsub:item() | undefined.
 -callback get_items(mongooseim:host_type(), mod_pubsub:node_key()) ->
     [mod_pubsub:item()].
 -callback get_last_item(mongooseim:host_type(), mod_pubsub:node_key()) ->
@@ -84,6 +86,11 @@ get_subscriptions(HostType, NodeKey, SubscriberJid) ->
 
 set_item(HostType, Item) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, Item]).
+
+-spec get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
+    mod_pubsub:item() | undefined.
+get_item(HostType, NodeKey, ItemId) ->
+    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, ItemId]).
 
 -spec get_items(mongooseim:host_type(), mod_pubsub:node_key()) -> [mod_pubsub:item()].
 get_items(HostType, NodeKey) ->

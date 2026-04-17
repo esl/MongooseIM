@@ -323,7 +323,8 @@ auto_create_and_publish_self_notify_story(Config, Bob) ->
     {_Resp, Msg} = pubsub_tools:publish(Bob, ~"item1", {pep, NodeNS},
                                         [{expected_notification, BobJid}]),
     pubsub_tools:check_item_notification(Msg, ~"item1", {BobJid, NodeNS}, []),
-    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, [~"item1"]}]).
+    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Bob, {pep, NodeNS}, ~"item1", [{expected_result, [~"item1"]}]).
 
 create_presence_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -333,7 +334,8 @@ create_presence_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
     pubsub_tools:receive_item_notification(
       Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
-    pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
+    pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
 
 create_presence_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     NodeNS = random_node_ns(),
@@ -353,18 +355,25 @@ create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     [] = escalus:wait_for_stanzas(Bob, 1, 500), % caps but no presence subscription
     [] = escalus:wait_for_stanzas(Mike, 1, 500), % presence subscription but no caps
     pubsub_tools:get_all_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
     pubsub_tools:get_all_items(Bob, PepNode, [{expected_error_type, ~"auth"}]),
-    pubsub_tools:get_all_items(Mike, PepNode, [{expected_error_type, ~"auth"}]).
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_error_type, ~"auth"}]),
+    pubsub_tools:get_all_items(Mike, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Mike, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
 
 create_and_delete_node_story(Alice) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),
     pubsub_tools:create_node(Alice, PepNode, []),
     pubsub_tools:get_all_items(Alice, PepNode, [{expected_result, []}]),
+    Result0 = pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result0),
 
     %% XEP-0060 8.2 Delete a Node
     pubsub_tools:delete_node(Alice, PepNode, []),
     Result = pubsub_tools:get_all_items(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
-    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result).
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result),
+    Result2 = pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result2).
 
 delete_nonexistent_node_story(Alice) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),
@@ -428,6 +437,7 @@ create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     pubsub_tools:receive_item_notification(
       Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
     pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
 
     %% XEP-0060 6.2.2 Success Case
     pubsub_tools:unsubscribe(Bob, PepNode, []),
@@ -444,6 +454,7 @@ create_open_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     pubsub_tools:receive_item_notification(
       Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
     pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
 
     %% XEP-0060 6.2.3.2 No Such Subscriber
     Result = pubsub_tools:unsubscribe(Bob, PepNode, [{expected_error_type, ~"cancel"}]),
@@ -460,6 +471,7 @@ create_open_and_publish_both_subs_story(Config, Alice, Bob) ->
     pubsub_tools:receive_item_notification(
       Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
     pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
     [] = escalus:wait_for_stanzas(Bob, 1, 500).
 
 create_open_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
@@ -473,8 +485,11 @@ create_open_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     [] = escalus:wait_for_stanzas(Bob, 1, 500), % caps but no presence subscription
     [] = escalus:wait_for_stanzas(Mike, 1, 500), % presence subscription but no caps
     pubsub_tools:get_all_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
     pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
-    pubsub_tools:get_all_items(Mike, PepNode, [{expected_result, [~"item1"]}]).
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_all_items(Mike, PepNode, [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_item(Mike, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
 
 auto_create_with_publish_options_test(Config) ->
     % Given pubsub is configured with pep plugin

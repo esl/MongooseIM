@@ -23,10 +23,10 @@
 -type item_payload() :: [exml:child()].
 -type access_model() :: open | presence | authorize.
 -type node_config() :: #{access_model => access_model()}.
--type error_reason() :: bad_request | forbidden | not_authorized | unexpected_request | item_not_found
-                      | {bad_request, binary()}
-                      | {not_authorized, binary()}
-                      | {unexpected_request, binary()}.
+-type error_reason() :: generic_error_reason() | {generic_error_reason(), binary()}.
+-type generic_error_reason() ::
+        bad_request | forbidden | not_authorized | unexpected_request | item_not_found.
+
 
 -type iq_request() :: #{acc := mongoose_acc:t(),
                         iq := jlib:iq(),
@@ -34,25 +34,22 @@
                         service_jid := jid:jid(),
                         c2s_data := mongoose_c2s:data()}.
 
--type iq_action() :: #{action := error,
-                       reason := error_reason()}
-                   | #{action := create,
-                       node_id := node_id(),
-                       config := node_config()}
-                   | #{action := delete,
-                       node_id := node_id()}
-                   | #{action := subscribe,
-                       node_id := node_id(),
-                       subscriber_jid := jid:jid()}
-                   | #{action := unsubscribe,
-                       node_id := node_id(),
-                       subscriber_jid := jid:jid()}
-                   | #{action := get_items,
-                       node_id := node_id()}
-                   | #{action := publish,
-                       node_id => node_id(),
-                       item_id => item_id(),
-                       payload => item_payload()}.
+-type iq_action() ::
+        #{action := error, reason := error_reason()}
+      | #{action := create, node_id := node_id(), config := node_config(),
+          result => ok}
+      | #{action := delete, node_id := node_id(),
+          result => ok}
+      | #{action := subscribe, node_id := node_id(), subscriber_jid := jid:jid(),
+          result => subscription_id()}
+      | #{action := unsubscribe, node_id := node_id(), subscriber_jid := jid:jid(),
+          result => ok}
+      | #{action := get_items, node_id := node_id(),
+          result => [item()]}
+      | #{action := get_item, node_id := node_id(), item_id := item_id(),
+          result => [item()]}
+      | #{action := publish, node_id := node_id(), item_id := item_id(), payload := item_payload(),
+          result => item_id()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
               item_id/0, subscription_id/0, item_payload/0, access_model/0, node_config/0]).
@@ -99,7 +96,7 @@ user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
         #{} ?= Action = pubsub_action(NS, jlib:remove_cdata(Children)),
         Request = #{acc => Acc, iq => IQ, from_jid => From, service_jid => To, c2s_data => C2SData},
         ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
-        reply(Request, try_action(Request, Action)),
+        reply(Request, make_reply(try_action(Request, Action))),
         {stop, Acc}
     else
         _ -> {ok, Acc}
@@ -135,65 +132,59 @@ remove_user(Acc, #{jid := ServiceJid}, _) ->
 
 %% Internal functions
 
--spec try_action(iq_request(), iq_action()) -> {result | error, [exml:child()]}.
+-spec try_action(iq_request(), iq_action()) -> iq_action().
 try_action(Request, Action) ->
     try
         perform_action(Request, Action)
     catch
         throw:Reason ->
-            perform_action(Request, #{action => error, reason => Reason})
+            #{action => error, reason => Reason}
     end.
 
--spec perform_action(iq_request(), iq_action()) -> {result | error, [exml:child()]}.
-perform_action(#{}, #{action := error, reason := {GenericReason, PubSubReason}}) ->
-    {error, [error_el(GenericReason), pubsub_error_el(PubSubReason)]};
-perform_action(#{}, #{action := error, reason := Reason}) ->
-    {error, [error_el(Reason)]};
+-spec perform_action(iq_request(), iq_action()) -> iq_action().
+perform_action(#{}, Action = #{action := error}) ->
+    Action;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
                #{action := create, node_id := NodeId, config := #{access_model := AccessModel}}) ->
     assert_owner(Request),
     HostType = mongoose_acc:host_type(Acc),
     Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
     mod_pubsub_backend:set_node(HostType, Node),
-    {result, []};
+    #{action => create, result => ok};
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
-               #{action := delete, node_id := NodeId}) ->
+               Action = #{action := delete, node_id := NodeId}) ->
     assert_owner(Request),
     HostType = mongoose_acc:host_type(Acc),
     delete_node(HostType, {ServiceJid, NodeId}),
-    {result, []};
+    Action#{result => ok};
 perform_action(#{service_jid := ServiceJid} = Request,
-               #{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
+               Action = #{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
     NodeKey = {ServiceJid, NodeId},
     #subscription{id = SubscriptionId} = subscribe(Request, SubscriberJid, NodeKey),
-    ReplyPubsubEl = #xmlel{name = ~"pubsub",
-                           attrs = #{~"xmlns" => ?NS_PUBSUB},
-                           children = [#xmlel{name = ~"subscription",
-                                              attrs = #{~"jid" => jid:to_binary(SubscriberJid),
-                                                        ~"node" => NodeId,
-                                                        ~"subid" => SubscriptionId,
-                                                        ~"subscription" => ~"subscribed"}}]},
-    {result, [ReplyPubsubEl]};
+    Action#{result => SubscriptionId};
 perform_action(#{service_jid := ServiceJid} = Request,
-               #{action := unsubscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
+               Action = #{action := unsubscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
     NodeKey = {ServiceJid, NodeId},
     unsubscribe(Request, SubscriberJid, NodeKey),
-    {result, []};
+    Action#{result => ok};
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
-               #{action := get_items, node_id := NodeId}) ->
+               Action = #{action := get_items, node_id := NodeId}) ->
     HostType = mongoose_acc:host_type(Acc),
     NodeKey = {ServiceJid, NodeId},
     Node = get_node(HostType, NodeKey),
     assert_retrieve_permission(Node, Request),
     Items = mod_pubsub_backend:get_items(HostType, NodeKey),
-    ReplyPubsubEl = #xmlel{name = ~"pubsub",
-                           attrs = #{~"xmlns" => ?NS_PUBSUB},
-                           children = [#xmlel{name = ~"items",
-                                              attrs = #{~"node" => NodeId},
-                                              children = [item_el(Item) || Item <- Items]}]},
-    {result, [ReplyPubsubEl]};
+    Action#{result => Items};
+perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
+               Action = #{action := get_item, node_id := NodeId, item_id := ItemId}) ->
+    HostType = mongoose_acc:host_type(Acc),
+    NodeKey = {ServiceJid, NodeId},
+    Node = get_node(HostType, NodeKey),
+    assert_retrieve_permission(Node, Request),
+    Item = get_item(HostType, NodeKey, ItemId),
+    Action#{result => [Item]};
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
-               #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
+               Action = #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
     assert_owner(Request),
     HostType = mongoose_acc:host_type(Acc),
     NodeKey = {ServiceJid, NodeId},
@@ -201,10 +192,25 @@ perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid
     Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
     mod_pubsub_backend:set_item(HostType, Item),
     broadcast_item(HostType, jid:to_bare(PublisherJid), recipient_jids(Node, Request), Item),
-    ReplyPubsubEl = #xmlel{name = ~"pubsub",
-                           attrs = #{~"xmlns" => ?NS_PUBSUB},
-                           children = [#xmlel{name = ~"item", attrs = #{~"id" => ItemId}}]},
-    {result, [ReplyPubsubEl]}.
+    Action#{result => ItemId}.
+
+-spec make_reply(iq_action()) -> {result | error, [exml:child()]}.
+make_reply(#{action := error, reason := {GenericReason, PubSubReason}}) ->
+    {error, [error_el(GenericReason), mod_pubsub_xml:pubsub_error_el(PubSubReason)]};
+make_reply(#{action := error, reason := Reason}) ->
+    {error, [error_el(Reason)]};
+make_reply(#{action := _, result := ok}) ->
+    {result, []};
+make_reply(#{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid,
+             result := SubscriptionId}) ->
+    {result, [mod_pubsub_xml:pubsub_el(
+                [mod_pubsub_xml:subscription_el(SubscriberJid, NodeId, SubscriptionId, ~"subscribed")])]};
+make_reply(#{action := Get, node_id := NodeId, result := Items}) when Get =:= get_item;
+                                                                      Get =:= get_items ->
+    {result, [mod_pubsub_xml:pubsub_el(
+                [mod_pubsub_xml:items_el(NodeId, [mod_pubsub_xml:item_el(Item) || Item <- Items])])]};
+make_reply(#{action := publish, result := ItemId}) ->
+    {result, [mod_pubsub_xml:pubsub_el([mod_pubsub_xml:published_item_el(ItemId)])]}.
 
 -spec error_el(atom()) -> exml:element().
 error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
@@ -238,6 +244,13 @@ get_node(HostType, NodeKey) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
         undefined -> throw(item_not_found);
         Node -> Node
+    end.
+
+-spec get_item(mongooseim:host_type(), node_key(), item_id()) -> item().
+get_item(HostType, NodeKey, ItemId) ->
+    case mod_pubsub_backend:get_item(HostType, NodeKey, ItemId) of
+        undefined -> throw(item_not_found);
+        Item -> Item
     end.
 
 -spec delete_node(mongooseim:host_type(), node_key()) -> ok.
@@ -320,10 +333,6 @@ reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {
     ejabberd_router:route(ServiceJid, FromJid, Acc, Reply),
     ok.
 
--spec pubsub_error_el(binary()) -> exml:element().
-pubsub_error_el(Reason) ->
-    #xmlel{name = Reason, attrs = #{~"xmlns" => ?NS_PUBSUB_ERRORS}}.
-
 -spec pubsub_action(binary(), [exml:element()]) -> iq_action() | no_action.
 %% TODO: support XEP-0060 instant nodes, i.e. <create/> without a node attribute.
 pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"create", attrs = #{~"node" := NodeId}} | Rest]) ->
@@ -339,6 +348,9 @@ pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"subscribe",
 pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"unsubscribe",
                                   attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
     #{action => unsubscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
+pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"items", attrs = #{~"node" := NodeId},
+                                  children = [#xmlel{name = ~"item", attrs = #{~"id" := ItemId}}]}]) ->
+    #{action => get_item, node_id => NodeId, item_id => ItemId};
 pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"items", attrs = #{~"node" := NodeId}}]) ->
     #{action => get_items, node_id => NodeId};
 pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}}]) ->
@@ -400,7 +412,7 @@ make_subid() ->
 -spec send_last_items(mongooseim:host_type(), jid:jid(), jid:jid(), [mod_caps:feature()]) -> ok.
 send_last_items(HostType, OwnerJid = #jid{lresource = ~""},
                 SubscriberJid = #jid{lresource = <<_, _/binary>>}, Features) ->
-    [route_notification(HostType, OwnerJid, SubscriberJid, notification_message(Item))
+    [route_notification(HostType, OwnerJid, SubscriberJid, mod_pubsub_xml:notification_message_el(Item))
      || Item <- mod_pubsub_backend:get_last_items(HostType, OwnerJid),
         lists:member(notify_feature(Item#item.node_key), Features)],
     ok.
@@ -417,7 +429,7 @@ filter_recipients(RecipientJids, NodeKey) ->
 broadcast_item(_HostType, _FromJid, [], _Item) ->
     ok;
 broadcast_item(HostType, FromJid, ToFullJids, Item) ->
-    Notification = notification_message(Item),
+    Notification = mod_pubsub_xml:notification_message_el(Item),
     lists:foreach(fun(ToJid) ->
                           route_notification(HostType, FromJid, ToJid, Notification)
                   end, ToFullJids).
@@ -467,22 +479,6 @@ route_notification(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) -
                              from_jid => FromJid,
                              to_jid => ToJid}),
     ejabberd_router:route(FromJid, ToJid, Acc).
-
--spec item_el(item()) -> exml:element().
-item_el(#item{id = ItemId, payload = Payload}) ->
-    #xmlel{name = ~"item", attrs = #{~"id" => ItemId}, children = Payload}.
-
--spec notification_message(item()) -> exml:element().
-notification_message(#item{node_key = {_, NodeId}, id = ItemId, payload = Payload}) ->
-    #xmlel{name = ~"message",
-           attrs = #{~"type" => ~"headline"},
-           children = [#xmlel{name = ~"event",
-                              attrs = #{~"xmlns" => ?NS_PUBSUB_EVENT},
-                              children = [#xmlel{name = ~"items",
-                                                 attrs = #{~"node" => NodeId},
-                                                 children = [#xmlel{name = ~"item",
-                                                                    attrs = #{~"id" => ItemId},
-                                                                    children = Payload}]}]}]}.
 
 -spec host_type(jid:jid()) -> mongooseim:host_type().
 host_type(#jid{lserver = LServer}) ->
