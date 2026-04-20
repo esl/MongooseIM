@@ -393,16 +393,17 @@ send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
         {error, not_found} ->
             ok;
         {ok, {Subj, Body}} ->
+            Msg = #xmlel{name = <<"message">>,
+                         attrs = #{<<"type">> => <<"normal">>},
+                         children = [#xmlel{name = <<"subject">>,
+                                            children = [#xmlcdata{content = Subj}]},
+                                     #xmlel{name = <<"body">>,
+                                            children = [#xmlcdata{content = Body}]}]},
             mongoose_router:route(
                 mongoose_acc:new(
                     jid:make_noprep(<<>>, Server, <<>>),
                     JID,
-                    #xmlel{name = <<"message">>,
-                           attrs = #{<<"type">> => <<"normal">>},
-                           children = [#xmlel{name = <<"subject">>,
-                                              children = [#xmlcdata{content = Subj}]},
-                                       #xmlel{name = <<"body">>,
-                                              children = [#xmlcdata{content = Body}]}]},
+                    Msg,
                     ?LOCATION))
     end.
 

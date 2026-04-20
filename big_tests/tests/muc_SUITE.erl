@@ -135,7 +135,7 @@ groups() ->
                                     can_found_in_db_when_stopped
                                    ]},
          {hibernation_failures, [], [hibernated_room_is_stopped_and_restored_by_presence_user_not_allowed,
-                                    hibernated_room_is_stopped_and_restoration_by_presence_fails
+                                     hibernated_room_is_stopped_and_restoration_by_presence_fails
          ]},
          {disco, [parallel], [
                               disco_service,
@@ -2626,8 +2626,7 @@ member_must_not_send_service_messages(ConfigIn) ->
         escalus:wait_for_stanzas(Bob, 2),
         Msg = <<"chat message">>,
         Id = <<"MyID">>,
-        Stanza = escalus_stanza:set_id(
-            escalus_stanza:groupchat_to(muc_host(), Msg), Id),
+        Stanza = escalus_stanza:set_id(escalus_stanza:groupchat_to(muc_host(), Msg), Id),
         escalus:send(Bob, Stanza),
         Res = escalus:wait_for_stanza(Bob),
         ?assertEqual(<<"error">>, exml_query:attr(Res, <<"type">>)),
@@ -4472,7 +4471,6 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
         escalus:wait_for_stanza(Bob),
         leave_room(RoomName, Bob),
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
-        ct:sleep(timer:seconds(1)),
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
@@ -4507,7 +4505,6 @@ hibernated_room_is_stopped_and_restored_by_presence_user_not_allowed(Config) ->
         escalus:wait_for_stanza(Bob),
         leave_room(RoomName, Bob),
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
-        ct:sleep(timer:seconds(1)),
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
         escalus:assert(is_presence_with_type, [<<"error">>], Presence),
@@ -4532,7 +4529,6 @@ hibernated_room_is_stopped_and_restoration_by_presence_fails(Config) ->
                                        fun(_, _, _) ->
                                            {error, fails}
                                        end]),
-        ct:sleep(timer:seconds(1)),
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
         escalus:assert(is_presence_with_type, [<<"error">>], Presence),
@@ -5544,9 +5540,10 @@ stop_room(Room) ->
     {ok, Pid} = rpc(mim(), mod_muc_online_backend, find_room_pid,
                     [domain_helper:host_type(), muc_host(), Room]),
     Pid ! stop_persistent_room_process,
-    wait_helper:wait_until(fun() ->
-        rpc(mim(), mod_muc_online_backend, find_room_pid,
-            [domain_helper:host_type(), muc_host(), Room])
-                           end, {error, not_found}),
+    WaitFun = fun() ->
+                  rpc(mim(), mod_muc_online_backend, find_room_pid,
+                      [domain_helper:host_type(), muc_host(), Room])
+              end,
+    wait_helper:wait_until(WaitFun, {error, not_found}),
     ok.
 

@@ -1174,9 +1174,9 @@ handle_new_user(From, Nick = <<>>, _Packet, StateData, Packet) ->
                 mongoose_xmpp_errors:jid_malformed(Lang, ErrText)),
     mongoose_router:route(
         mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
-                            From,
-                            Error,
-                            ?LOCATION)),
+                         From,
+                         Error,
+                         ?LOCATION)),
     StateData;
 handle_new_user(From, Nick, Packet, StateData, Packet) ->
     case exml_query:path(Packet, [{element, <<"x">>}]) of
@@ -1184,9 +1184,9 @@ handle_new_user(From, Nick, Packet, StateData, Packet) ->
             Response = kick_stanza_for_old_protocol(Packet),
             mongoose_router:route(
                 mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
-                                    From,
-                                    Response,
-                                    ?LOCATION)),
+                                 From,
+                                 Response,
+                                 ?LOCATION)),
             StateData;
         _ ->
             add_new_user(From, Nick, Packet, StateData)
@@ -4272,7 +4272,7 @@ route_message(#routed_message{allowed = true, type = <<"chat">>, from = From, pa
     ErrText = <<"It is not allowed to send private messages to the conference">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
-    mongoose_router:route(mongoose_acc:new( StateData#state.jid, From, Err, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
     StateData;
 route_message(#routed_message{allowed = true, type = Type, from = From,
                               packet = #xmlel{name = <<"message">>,

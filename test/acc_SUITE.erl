@@ -118,7 +118,7 @@ update(_C) ->
     F1 = jid:from_binary(<<"b@localhost">>),
     T1 = jid:from_binary(<<"c@localhost">>),
     M1 = #xmlel{name = <<"presence">>,
-        attrs = #{<<"type">> => <<"get">>}},
+                attrs = #{<<"type">> => <<"get">>}},
     Acc1 = mongoose_acc:update(F1, T1, M1, Acc),
     ?assertEqual(<<"presence">>, mongoose_acc:stanza_name(Acc1)),
     ?assertEqual(<<"get">>, mongoose_acc:stanza_type(Acc1)),

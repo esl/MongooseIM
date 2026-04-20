@@ -851,12 +851,10 @@ send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item)
     end.
 
 send_presence_type(From, To, Type) ->
-    mongoose_router:route(
-      mongoose_acc:new(From,
-                       To,
-                       #xmlel{name = <<"presence">>,
-                              attrs = #{<<"type">> => Type},
-                              children = []}, ?LOCATION)).
+    Pres = #xmlel{name = <<"presence">>,
+                  attrs = #{<<"type">> => Type},
+                  children = []},
+    mongoose_router:route( mongoose_acc:new(From, To, Pres, ?LOCATION)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

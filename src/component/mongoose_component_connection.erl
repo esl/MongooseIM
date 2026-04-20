@@ -362,8 +362,7 @@ handle_route(StateData = #component_data{}, _, Acc) ->
             send_xml(StateData, Packet2);
         deny ->
             {Acc1, Error} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
-            mongoose_router:route(
-                mongoose_acc:update(To, From, Error, Acc1))
+            mongoose_router:route(mongoose_acc:update(To, From, Error, Acc1))
     end,
     keep_state_and_data.
 
