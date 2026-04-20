@@ -754,7 +754,7 @@ workflows:
       - packages:
           name: packages
           context: mongooseim-org
-          # filters: *all_tags_and_master
+          filters: *all_tags_and_master
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:
           name: latest_otp_docker
