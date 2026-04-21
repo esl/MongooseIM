@@ -55,6 +55,9 @@ pep_tests() ->
      subscribe_to_nonexistent_node,
      publish_to_other_user_node_fails,
      create_node_at_other_user_jid_fails,
+     auto_create_open_and_publish_explicit_sub,
+     publish_options_fail_invalid_config,
+     create_node_fail_invalid_config,
      create_open_and_publish_explicit_sub,
      create_open_and_publish_implicit_sub,
      create_open_and_publish_both_subs,
@@ -289,6 +292,18 @@ create_node_at_other_user_jid_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
                         fun create_node_at_other_user_jid_fails_story/2).
 
+auto_create_open_and_publish_explicit_sub(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun auto_create_open_and_publish_explicit_sub_story/3).
+
+publish_options_fail_invalid_config(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun publish_options_fail_invalid_config_story/1).
+
+create_node_fail_invalid_config(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun create_node_fail_invalid_config_story/1).
+
 create_open_and_publish_explicit_sub(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun create_open_and_publish_explicit_sub_story/3).
@@ -426,6 +441,40 @@ create_node_at_other_user_jid_fails_story(Alice, Bob) ->
     Result2 = pubsub_tools:publish(Bob, ~"item2", make_pep_node_info(Alice, random_node_ns()),
                                    [{expected_error_type, ~"auth"}]),
     escalus:assert(is_error, [~"auth", ~"forbidden"], Result2).
+
+auto_create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    PublishOptions = [{~"pubsub#access_model", ~"open"}],
+    pubsub_tools:publish_with_options(Alice, ~"item0", {pep, NodeNS}, [], PublishOptions),
+    pubsub_tools:subscribe(Bob, PepNode, []),
+    pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
+    pubsub_tools:receive_item_notification(
+      Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+    pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item0", ~"item1"]}]),
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
+
+publish_options_fail_invalid_config_story(Alice) ->
+    Result = publish_with_publish_options(Alice, {pep, random_node_ns()}, ~"item1",
+                                          [{~"pubsub#definitely_invalid_option", ~"1"}]),
+    escalus:assert(is_error, [~"cancel", ~"conflict"], Result),
+    #xmlel{} = exml_query:subelement(Result, ~"precondition-not-met"),
+
+    Result2 = publish_with_publish_options(Alice, {pep, random_node_ns()}, ~"item1",
+                                           [{~"pubsub#access_model", ~"not-a-real-model"}]),
+    escalus:assert(is_error, [~"cancel", ~"conflict"], Result2),
+    #xmlel{} = exml_query:subelement(Result2, ~"precondition-not-met").
+
+create_node_fail_invalid_config_story(Alice) ->
+    Result = create_node_with_config(Alice, [{~"pubsub#definitely_invalid_option", ~"1"}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result),
+
+    Result2 = create_node_with_config(Alice, [{~"pubsub#access_model", ~"not-a-real-model"}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result2),
+
+    Result3 = create_node_with_config(Alice, [{~"pubsub#access_model", ~"authorize"}]),
+    escalus:assert(is_error, [~"modify", ~"not-acceptable"], Result3),
+    #xmlel{} = exml_query:subelement(Result3, ~"unsupported-access-model").
 
 create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     NodeNS = random_node_ns(),
@@ -765,6 +814,10 @@ publish_with_publish_options(Client, Node, Content, Options, FormType) ->
     NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
     escalus:send(Client, Publish#xmlel{children = [NewPubsubEl]}),
     escalus:wait_for_stanza(Client).
+
+create_node_with_config(Client, Config) ->
+    PepNode = make_pep_node_info(Client, random_node_ns()),
+    pubsub_tools:create_node(Client, PepNode, [{config, Config}, {expected_error_type, ~"modify"}]).
 
 form(FormFields, FormType) ->
     FieldSpecs = lists:map(fun field_spec/1, FormFields),

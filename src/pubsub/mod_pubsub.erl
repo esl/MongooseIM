@@ -21,11 +21,16 @@
 -type item_id() :: binary().
 -type subscription_id() :: binary().
 -type item_payload() :: [exml:child()].
--type access_model() :: open | presence | authorize.
+-type access_model() :: open | presence.
 -type node_config() :: #{access_model => access_model()}.
 -type error_reason() :: generic_error_reason() | {generic_error_reason(), binary()}.
 -type generic_error_reason() ::
-        bad_request | forbidden | not_authorized | unexpected_request | item_not_found.
+        bad_request | conflict | forbidden | not_acceptable | not_authorized |
+        unexpected_request | item_not_found.
+-type error_result() :: {error, error_reason()}.
+-type result(T) :: {ok, T} | error_result().
+-type ok_result() :: ok | error_result().
+-type node_config_field() :: {access_model, access_model()}.
 
 
 -type iq_request() :: #{acc := mongoose_acc:t(),
@@ -49,6 +54,7 @@
       | #{action := get_item, node_id := node_id(), item_id := item_id(),
           result => [item()]}
       | #{action := publish, node_id := node_id(), item_id := item_id(), payload := item_payload(),
+          config => node_config(),
           result => item_id()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
@@ -134,65 +140,79 @@ remove_user(Acc, #{jid := ServiceJid}, _) ->
 
 -spec try_action(iq_request(), iq_action()) -> iq_action().
 try_action(Request, Action) ->
-    try
-        perform_action(Request, Action)
-    catch
-        throw:Reason ->
-            #{action => error, reason => Reason}
+    maybe
+        {error, Reason} ?= perform_action(Request, Action),
+        #{action => error, reason => Reason}
     end.
 
--spec perform_action(iq_request(), iq_action()) -> iq_action().
+-spec perform_action(iq_request(), iq_action()) -> iq_action() | error_result().
 perform_action(#{}, Action = #{action := error}) ->
     Action;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
-               #{action := create, node_id := NodeId, config := #{access_model := AccessModel}}) ->
-    assert_owner(Request),
-    HostType = mongoose_acc:host_type(Acc),
-    Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
-    mod_pubsub_backend:set_node(HostType, Node),
-    #{action => create, result => ok};
+               Action = #{action := create, node_id := NodeId, config := #{access_model := AccessModel}}) ->
+    maybe
+        ok ?= assert_owner(Request),
+        HostType = mongoose_acc:host_type(Acc),
+        Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
+        mod_pubsub_backend:set_node(HostType, Node),
+        Action#{result => ok}
+    end;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
                Action = #{action := delete, node_id := NodeId}) ->
-    assert_owner(Request),
-    HostType = mongoose_acc:host_type(Acc),
-    delete_node(HostType, {ServiceJid, NodeId}),
-    Action#{result => ok};
+    maybe
+        ok ?= assert_owner(Request),
+        HostType = mongoose_acc:host_type(Acc),
+        NodeKey = {ServiceJid, NodeId},
+        {ok, _} ?= get_node(HostType, NodeKey),
+        mod_pubsub_backend:delete_node(HostType, NodeKey),
+        Action#{result => ok}
+    end;
 perform_action(#{service_jid := ServiceJid} = Request,
                Action = #{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
-    NodeKey = {ServiceJid, NodeId},
-    #subscription{id = SubscriptionId} = subscribe(Request, SubscriberJid, NodeKey),
-    Action#{result => SubscriptionId};
+    maybe
+        NodeKey = {ServiceJid, NodeId},
+        {ok, #subscription{id = SubscriptionId}} ?= subscribe(Request, SubscriberJid, NodeKey),
+        Action#{result => SubscriptionId}
+    end;
 perform_action(#{service_jid := ServiceJid} = Request,
                Action = #{action := unsubscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
-    NodeKey = {ServiceJid, NodeId},
-    unsubscribe(Request, SubscriberJid, NodeKey),
-    Action#{result => ok};
+    maybe
+        NodeKey = {ServiceJid, NodeId},
+        ok ?= unsubscribe(Request, SubscriberJid, NodeKey),
+        Action#{result => ok}
+    end;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
                Action = #{action := get_items, node_id := NodeId}) ->
-    HostType = mongoose_acc:host_type(Acc),
-    NodeKey = {ServiceJid, NodeId},
-    Node = get_node(HostType, NodeKey),
-    assert_retrieve_permission(Node, Request),
-    Items = mod_pubsub_backend:get_items(HostType, NodeKey),
-    Action#{result => Items};
+    maybe
+        HostType = mongoose_acc:host_type(Acc),
+        NodeKey = {ServiceJid, NodeId},
+        {ok, Node} ?= get_node(HostType, NodeKey),
+        ok ?= assert_retrieve_permission(Node, Request),
+        Items = mod_pubsub_backend:get_items(HostType, NodeKey),
+        Action#{result => Items}
+    end;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
                Action = #{action := get_item, node_id := NodeId, item_id := ItemId}) ->
-    HostType = mongoose_acc:host_type(Acc),
-    NodeKey = {ServiceJid, NodeId},
-    Node = get_node(HostType, NodeKey),
-    assert_retrieve_permission(Node, Request),
-    Item = get_item(HostType, NodeKey, ItemId),
-    Action#{result => [Item]};
+    maybe
+        HostType = mongoose_acc:host_type(Acc),
+        NodeKey = {ServiceJid, NodeId},
+        {ok, Node} ?= get_node(HostType, NodeKey),
+        ok ?= assert_retrieve_permission(Node, Request),
+        {ok, Item} ?= get_item(HostType, NodeKey, ItemId),
+        Action#{result => [Item]}
+    end;
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
                Action = #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
-    assert_owner(Request),
-    HostType = mongoose_acc:host_type(Acc),
-    NodeKey = {ServiceJid, NodeId},
-    Node = get_or_create_node(HostType, NodeKey),
-    Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
-    mod_pubsub_backend:set_item(HostType, Item),
-    broadcast_item(HostType, jid:to_bare(PublisherJid), recipient_jids(Node, Request), Item),
-    Action#{result => ItemId}.
+    maybe
+        ok ?= assert_owner(Request),
+        HostType = mongoose_acc:host_type(Acc),
+        NodeKey = {ServiceJid, NodeId},
+        Node = get_or_create_node(HostType, NodeKey, maps:get(config, Action, #{})),
+        Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
+        mod_pubsub_backend:set_item(HostType, Item),
+        broadcast_item(HostType, jid:to_bare(PublisherJid), recipient_jids(Node, Request), Item),
+        Action#{result => ItemId}
+    end.
 
 -spec make_reply(iq_action()) -> {result | error, [exml:child()]}.
 make_reply(#{action := error, reason := {GenericReason, PubSubReason}}) ->
@@ -212,77 +232,84 @@ make_reply(#{action := Get, node_id := NodeId, result := Items}) when Get =:= ge
 make_reply(#{action := publish, result := ItemId}) ->
     {result, [mod_pubsub_xml:pubsub_el([mod_pubsub_xml:published_item_el(ItemId)])]}.
 
--spec error_el(atom()) -> exml:element().
+-spec error_el(generic_error_reason()) -> exml:element().
 error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
+error_el(conflict) -> mongoose_xmpp_errors:conflict();
 error_el(forbidden) -> mongoose_xmpp_errors:forbidden();
+error_el(not_acceptable) -> mongoose_xmpp_errors:not_acceptable();
 error_el(not_authorized) -> mongoose_xmpp_errors:not_authorized();
 error_el(unexpected_request) -> mongoose_xmpp_errors:unexpected_request_cancel();
 error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
 
--spec subscribe(iq_request(), jid:jid(), node_key()) -> subscription().
+-spec subscribe(iq_request(), jid:jid(), node_key()) -> result(subscription()).
 subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
     HostType = mongoose_acc:host_type(Acc),
-    Node = get_node(HostType, NodeKey),
-    assert_subscribe_permission(Node, Request),
-    SubscriptionId = make_subid(),
-    Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid, id = SubscriptionId},
-    mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription),
-    Subscription.
+    maybe
+        {ok, Node = #pubsub_node{}} ?= get_node(HostType, NodeKey),
+        ok ?= assert_subscribe_permission(Node, Request),
+        SubscriptionId = make_subid(),
+        Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid, id = SubscriptionId},
+        mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription),
+        {ok, Subscription}
+    end.
 
--spec unsubscribe(iq_request(), jid:jid(), node_key()) -> ok.
+-spec unsubscribe(iq_request(), jid:jid(), node_key()) -> ok_result().
 unsubscribe(#{acc := Acc}, SubscriberJid, NodeKey) ->
     HostType = mongoose_acc:host_type(Acc),
-    _Node = get_node(HostType, NodeKey),
-    case mod_pubsub_backend:get_subscriptions(HostType, NodeKey, SubscriberJid) of
-        [] -> throw({unexpected_request, ~"not-subscribed"});
-        _ -> ok
-    end,
-    mod_pubsub_backend:delete_subscription(HostType, NodeKey, SubscriberJid).
+    maybe
+        {ok, #pubsub_node{}} ?= get_node(HostType, NodeKey),
+        delete_subscriptions(HostType, NodeKey, SubscriberJid)
+    end.
 
--spec get_node(mongooseim:host_type(), node_key()) -> pubsub_node().
+-spec get_node(mongooseim:host_type(), node_key()) -> result(pubsub_node()).
 get_node(HostType, NodeKey) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
-        undefined -> throw(item_not_found);
-        Node -> Node
+        undefined -> {error, item_not_found};
+        Node -> {ok, Node}
     end.
 
--spec get_item(mongooseim:host_type(), node_key(), item_id()) -> item().
+-spec get_item(mongooseim:host_type(), node_key(), item_id()) -> result(item()).
 get_item(HostType, NodeKey, ItemId) ->
     case mod_pubsub_backend:get_item(HostType, NodeKey, ItemId) of
-        undefined -> throw(item_not_found);
-        Item -> Item
+        undefined -> {error, item_not_found};
+        Item -> {ok, Item}
     end.
 
--spec delete_node(mongooseim:host_type(), node_key()) -> ok.
-delete_node(HostType, NodeKey) ->
-    _Node = get_node(HostType, NodeKey),
-    mod_pubsub_backend:delete_node(HostType, NodeKey).
-
--spec assert_retrieve_permission(pubsub_node(), iq_request()) -> ok.
+-spec assert_retrieve_permission(pubsub_node(), iq_request()) -> ok_result().
 assert_retrieve_permission(Node, Request) ->
     case is_owner(Request) of
         true -> ok;
         false -> assert_subscribe_permission(Node, Request)
     end.
 
--spec assert_subscribe_permission(pubsub_node(), iq_request()) -> ok.
+-spec assert_subscribe_permission(pubsub_node(), iq_request()) -> ok_result().
 assert_subscribe_permission(#pubsub_node{access_model = open}, _) ->
     ok;
 assert_subscribe_permission(#pubsub_node{access_model = presence,
                                          node_key = {OwnerJid, _}}, Request) ->
     assert_subscribed_to(OwnerJid, Request).
 
--spec assert_owner(iq_request()) -> ok.
+-spec assert_owner(iq_request()) -> ok_result().
 assert_owner(Request) ->
     case is_owner(Request) of
         true -> ok;
-        false -> throw(forbidden)
+        false -> {error, forbidden}
     end.
 
+-spec assert_subscribed_to(jid:jid(), iq_request()) -> ok_result().
 assert_subscribed_to(OwnerJid, #{c2s_data := C2SData}) ->
     case is_subscribed_to(OwnerJid, C2SData) of
         true -> ok;
-        false -> throw({not_authorized, ~"presence-subscription-required"})
+        false -> {error, {not_authorized, ~"presence-subscription-required"}}
+    end.
+
+-spec delete_subscriptions(mongooseim:host_type(), node_key(), jid:jid()) -> ok_result().
+delete_subscriptions(HostType, NodeKey, SubscriberJid) ->
+    case mod_pubsub_backend:get_subscriptions(HostType, NodeKey, SubscriberJid) of
+        [] ->
+            {error, {unexpected_request, ~"not-subscribed"}};
+        _ ->
+            mod_pubsub_backend:delete_subscription(HostType, NodeKey, SubscriberJid)
     end.
 
 -spec is_owner(iq_request()) -> boolean().
@@ -316,11 +343,12 @@ explicit_subscribers(#pubsub_node{access_model = open, node_key = NodeKey}, Acc)
 explicit_subscribers(_Node, _Acc) ->
     [].
 
--spec get_or_create_node(mongooseim:host_type(), node_key()) -> pubsub_node().
-get_or_create_node(HostType, NodeKey) ->
+-spec get_or_create_node(mongooseim:host_type(), node_key(), node_config()) -> pubsub_node().
+get_or_create_node(HostType, NodeKey, Config) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
         undefined ->
-            Node = #pubsub_node{node_key = NodeKey, access_model = presence},
+            AccessModel = maps:get(access_model, Config, presence),
+            Node = #pubsub_node{node_key = NodeKey, access_model = AccessModel},
             mod_pubsub_backend:set_node(HostType, Node),
             Node;
         Node ->
@@ -353,57 +381,94 @@ pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"items", attrs = #{~"node" := NodeId},
     #{action => get_item, node_id => NodeId, item_id => ItemId};
 pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"items", attrs = #{~"node" := NodeId}}]) ->
     #{action => get_items, node_id => NodeId};
-pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}}]) ->
-    case exml_query:subelements(El, ~"item") of
-        [#xmlel{attrs = #{~"id" := ItemId}, children = Payload}] ->
-            #{action => publish, node_id => NodeId, item_id => ItemId, payload => Payload};
-        [] ->
-            #{action => error, reason => {bad_request, ~"item-required"}};
-        [_] ->
-            #{action => error, reason => {bad_request, ~"invalid-payload"}}
+pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}} | Rest]) ->
+    maybe
+        {ok, Config} ?= parse_publish_options(Rest),
+        {ok, ItemOpts} ?= parse_item(El#xmlel.children),
+        ItemOpts#{action => publish, node_id => NodeId, config => Config}
+    else
+        {error, Reason} ->
+            #{action => error, reason => Reason}
     end;
 pubsub_action(?NS_PUBSUB_OWNER, [#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
     #{action => delete, node_id => NodeId};
 pubsub_action(_, _) ->
     no_action.
 
--spec parse_create_config([exml:element()]) -> {ok, node_config()} | {error, error_reason()}.
+-spec parse_create_config([exml:element()]) -> result(node_config()).
 parse_create_config([ConfigureEl = #xmlel{name = ~"configure"}]) ->
-    case mongoose_data_forms:find_and_parse_form(ConfigureEl) of
-        #{type := ~"submit", kvs := KVs} ->
-            parse_node_config(KVs);
-        #{type := ~"cancel"} ->
-            {ok, #{access_model => presence}};
-        {error, _} ->
-            {error, {bad_request, ~"invalid-form"}};
-        _ ->
-            {error, {bad_request, ~"invalid-form-type"}}
-    end;
+    parse_form_config(ConfigureEl, ?NS_PUBSUB_NODE_CONFIG, #{access_model => presence}, true);
 parse_create_config([]) ->
     {ok, #{access_model => presence}};
 parse_create_config(_) ->
     {error, bad_request}.
 
--spec parse_node_config(mongoose_data_forms:kv_map()) -> {ok, node_config()} | {error, binary()}.
-parse_node_config(KVs) ->
-    try
-        {ok, maps:from_list([parse_node_config_field(Key, Values) || Key := Values <- KVs])}
-    catch
-        throw:Reason ->
-            {error, Reason}
+-spec parse_publish_options([exml:element()]) -> result(node_config()).
+parse_publish_options([PublishOptionsEl = #xmlel{name = ~"publish-options"}]) ->
+    case mongoose_data_forms:find_and_parse_form(PublishOptionsEl) of
+        #{type := ~"submit", kvs := KVs, ns := ?NS_PUBSUB_PUB_OPTIONS} ->
+            case parse_node_config(KVs) of
+                {ok, Config} -> {ok, Config};
+                {error, _} -> {error, {conflict, ~"precondition-not-met"}}
+            end;
+        _ ->
+            {error, bad_request}
+    end;
+parse_publish_options([]) ->
+    {ok, #{}};
+parse_publish_options(_) ->
+    {error, bad_request}.
+
+-spec parse_item([exml:element()]) -> result(#{item_id := item_id(), payload := item_payload()}).
+parse_item([#xmlel{attrs = #{~"id" := ItemId}, children = Payload}]) ->
+    {ok, #{item_id => ItemId, payload => Payload}};
+parse_item([]) ->
+    {error, {bad_request, ~"item-required"}};
+parse_item(_) ->
+    {error, {bad_request, ~"invalid-payload"}}.
+
+-spec parse_form_config(exml:element(), binary(), node_config(), boolean()) ->
+    result(node_config()).
+parse_form_config(FormEl, NS, DefaultConfig, AllowCancel) ->
+    case mongoose_data_forms:find_and_parse_form(FormEl) of
+        #{type := ~"submit", kvs := KVs, ns := NS} ->
+            parse_node_config(KVs);
+        #{type := ~"cancel"} when AllowCancel ->
+            {ok, DefaultConfig};
+        _ ->
+            {error, bad_request}
     end.
 
--spec parse_node_config_field(binary(), [binary()]) -> {access_model, access_model()}.
-parse_node_config_field(~"pubsub#access_model", Values) ->
-    {access_model, parse_access_model(Values)};
-parse_node_config_field(_, _) ->
-    throw(~"invalid-node-config").
+-spec parse_node_config(mongoose_data_forms:kv_map()) -> result(node_config()).
+parse_node_config(KVs) ->
+    parse_node_config_fields(maps:to_list(KVs), []).
 
--spec parse_access_model([binary()]) -> access_model().
-parse_access_model([~"open"]) -> open;
-parse_access_model([~"presence"]) -> presence;
-parse_access_model([~"authorize"]) -> authorize;
-parse_access_model(_) -> throw(~"invalid-access-model").
+-spec parse_node_config_fields([{binary(), [binary()]}], [node_config_field()]) ->
+          result(node_config()).
+parse_node_config_fields([{Key, Values} | Rest], ParsedKVs) ->
+    case parse_node_config_field(Key, Values) of
+        {ok, ParsedKV} ->
+            parse_node_config_fields(Rest, [ParsedKV | ParsedKVs]);
+        {error, _} = Error ->
+            Error
+    end;
+parse_node_config_fields([], ParsedKVs) ->
+    {ok, maps:from_list(ParsedKVs)}.
+
+-spec parse_node_config_field(binary(), [binary()]) -> result(node_config_field()).
+parse_node_config_field(~"pubsub#access_model", Values) ->
+    maybe
+        {ok, AccessModel} ?= parse_access_model(Values),
+        {ok, {access_model, AccessModel}}
+    end;
+parse_node_config_field(_, _) ->
+    {error, bad_request}.
+
+-spec parse_access_model([binary()]) -> result(access_model()).
+parse_access_model([~"open"]) -> {ok, open};
+parse_access_model([~"presence"]) -> {ok, presence};
+parse_access_model([~"authorize"]) -> {error, {not_acceptable, ~"unsupported-access-model"}};
+parse_access_model(_) -> {error, bad_request}.
 
 -spec make_subid() -> subscription_id().
 make_subid() ->
