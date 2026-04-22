@@ -170,7 +170,8 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
       Result = translate_to_sip(JingleAction, Jingle, Acc),
       route_result(Result, From, To, IQ)
     catch Class:Error:StackTrace ->
-            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:internal_server_error()),
+            {Acc1, ErrReply} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:internal_server_error()),
+            mongoose_router:route(mongoose_acc:update(To, From, ErrReply, Acc1)),
             ?LOG_ERROR(#{what => sip_translate_failed, acc => Acc,
                          class => Class, reason => Error, stacktrace => StackTrace})
     end,
@@ -198,12 +199,12 @@ route_result(Other, From, To, IQ) ->
 route_error_reply(From, To, IQ, Error) ->
     IQResult = IQ#iq{type = error, sub_el = [Error]},
     Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
-    ejabberd_router:route(To, From, Packet).
+    mongoose_router:route(mongoose_acc:new(To, From, Packet, ?LOCATION)).
 
 route_ok_result(From, To, IQ) ->
     IQResult = IQ#iq{type = result, sub_el = []},
     Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
-    ejabberd_router:route(To, From, Packet).
+    mongoose_router:route(mongoose_acc:new(To, From, Packet, ?LOCATION)).
 
 resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
     From = mongoose_acc:from_jid(Acc),
@@ -213,7 +214,8 @@ resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
         {ok, Session} ->
             maybe_resend_session_initiate(From, To, IQ, Acc, Session);
         _ ->
-            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:item_not_found())
+            {Acc1, Error} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:item_not_found()),
+            mongoose_router:route(mongoose_acc:update(To, From, Error, Acc1))
     end.
 
 %% Error: The pattern {'async', Handle} can never match the type {'error','service_not_found'}
@@ -363,7 +365,7 @@ terminate_session_on_other_devices(SID, Acc) ->
       fun({_, R}) when R /= Res ->
               ToJID = jid:replace_resource(From, R),
               IQEl = jingle_sip_helper:jingle_iq(jid:to_binary(ToJID), FromBin, JingleEl),
-              ejabberd_router:route(From, ToJID, Acc, IQEl);
+              mongoose_router:route(mongoose_acc:update(From, ToJID, IQEl, Acc));
          (_) ->
               skip
       end, PResources).
@@ -573,17 +575,18 @@ maybe_resend_session_initiate(From, To, IQ, Acc,
         undefined ->
             Error = mongoose_xmpp_errors:item_not_found(<<"en">>,
                                                         <<"no session-initiate for this SID">>),
-            ejabberd_router:route_error_reply(To, From, Acc, Error);
+            {Acc1, ErrReply} = jlib:make_error_reply(Acc, Error),
+            mongoose_router:route(mongoose_acc:update(To, From, ErrReply, Acc1));
         Stanza ->
             IQResult = IQ#iq{type = result, sub_el = []},
             Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
-            ejabberd_router:route(To, From, Acc, Packet),
+            mongoose_router:route(mongoose_acc:update(To, From, Packet, Acc)),
             OriginFromBin = jid:to_binary(OriginFrom),
             IQSet = jingle_sip_helper:jingle_iq(jid:to_binary(From), OriginFromBin,
                                                 Stanza),
             {U, S} = OriginFrom,
             OriginJID = jid:make_noprep(U, S, <<>>),
-            ejabberd_router:route(OriginJID, From, Acc, IQSet)
+            mongoose_router:route(mongoose_acc:update(OriginJID, From, IQSet, Acc))
     end.
 
 nksip_request_reply(Reply, {Node, ReqID}) ->

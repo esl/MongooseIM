@@ -17,7 +17,7 @@
 
 %% API
 % Constructor
--export([new/1]).
+-export([new/1, new/4]).
 % Access to built-in fields
 -export([
          ref/1,
@@ -33,7 +33,7 @@
          stanza_ref/1
         ]).
 % Stanza update
--export([update_stanza/2]).
+-export([update_stanza/2, update/3, update/4]).
 % C2S accumulator
 -export([get_statem_acc/1, set_statem_acc/2]).
 % Access to namespaced fields
@@ -107,7 +107,7 @@
         element => exml:element() | undefined,
         host_type => binary() | undefined, % optional
         from_jid => jid:jid() | undefined, % optional
-        to_jid => jid:jid() | undefined, % optional
+        to_jid => jid:jid() | mod_muc:nick() | undefined, % optional
         statem_acc => mongoose_c2s_acc:t(), % optional
         origin => origin() | undefinded % optional
        }.
@@ -158,6 +158,14 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       %% was too small, sets were themselves an overhead, and also annoying when printing
       non_strippable => []
      }.
+
+-spec new(jid:jid(), jid:jid() | mod_muc:nick(), exml:element(), location()) -> t().
+new(From, To, Packet, Location) ->
+    new(#{ location => Location,
+           lserver => From#jid.lserver,
+           element => Packet,
+           from_jid => From,
+           to_jid => To }).
 
 -spec ref(Acc :: t()) -> reference().
 ref(#{ mongoose_acc := true, ref := Ref }) ->
@@ -222,6 +230,29 @@ stanza_ref(#{ mongoose_acc := true }) ->
 -spec update_stanza(NewStanzaParams :: stanza_params(), Acc :: t()) -> t().
 update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
     Acc#{ stanza := stanza_from_params(NewStanzaParams) }.
+
+-spec update(element | from_jid | to_jid,
+             exml:element() | jid:jid(),
+             Acc :: t()) -> t() | {error, malformed_acc}.
+update(element, El, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
+    Acc#{stanza := Stanza#{element := El,
+                           name => El#xmlel.name,
+                           type => exml_query:attr(El, <<"type">>),
+                           ref => make_ref()}
+    };
+update(from_jid, Jid, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
+    Acc#{stanza := Stanza#{from_jid := Jid}};
+update(to_jid, Jid, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
+    Acc#{stanza := Stanza#{to_jid := Jid}};
+update(_, _, _) ->
+    {error, badarg}.
+
+-spec update(jid:jid(), jid:jid(), exml:element(), t()) -> t().
+update(From, To, Element, Acc) ->
+    update_stanza(#{from_jid => From,
+                    to_jid => To,
+                    element => Element},
+                  Acc).
 
 -spec get_statem_acc(Acc :: t()) -> mongoose_c2s_acc:t().
 get_statem_acc(#{ mongoose_acc := true, statem_acc := StatemAcc }) ->

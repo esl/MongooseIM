@@ -870,7 +870,7 @@ maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms],
     maybe_forget_rooms(Acc, RAffectedRooms, Version).
 
 make_handler_fun(Acc) ->
-    fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.
+    fun(From, To, Packet) -> mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc)) end.
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->

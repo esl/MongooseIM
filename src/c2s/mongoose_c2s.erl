@@ -807,8 +807,7 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, _) -
 
 -spec maybe_route(gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
 maybe_route({ok, Acc}) ->
-    {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
-    ejabberd_router:route(FromJid, ToJid, Acc, El),
+    mongoose_router:route(Acc),
     Acc;
 maybe_route({stop, Acc}) ->
     Acc.
@@ -943,9 +942,8 @@ bounce_messages(StateData) ->
 
 -spec reroute_one(data(), mongoose_acc:t()) -> mongoose_acc:t().
 reroute_one(#c2s_data{sid = Sid}, Acc) ->
-    {From, To, _El} = mongoose_acc:packet(Acc),
     Acc2 = patch_acc_for_reroute(Acc, Sid),
-    ejabberd_router:route(From, To, Acc2).
+    mongoose_router:route(Acc2).
 
 -spec reroute_buffer(data(), [mongoose_acc:t()]) -> term().
 reroute_buffer(StateData = #c2s_data{host_type = HostType, jid = Jid}, Buffer) ->

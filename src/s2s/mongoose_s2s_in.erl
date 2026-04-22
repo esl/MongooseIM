@@ -337,10 +337,8 @@ route_incoming_stanza(Data, El, RemoteJid, LocalJid) ->
 
 -spec route_stanza(mongoose_acc:t()) -> any().
 route_stanza(Acc) ->
-    From = mongoose_acc:from_jid(Acc),
-    To = mongoose_acc:to_jid(Acc),
     Acc1 = mongoose_hooks:s2s_receive_packet(Acc),
-    ejabberd_router:route(From, To, Acc1).
+    mongoose_router:route(Acc1).
 
 -spec is_s2s_authenticated_or_connected(data(), ejabberd_s2s:fromto()) -> boolean().
 is_s2s_authenticated_or_connected(Data, FromTo) ->
