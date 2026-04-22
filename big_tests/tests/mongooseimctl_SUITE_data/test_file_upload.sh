@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 content_type="$1"
 

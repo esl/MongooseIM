@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Preparing SSL certificates
 cp ${SQL_TEMP_DIR}/fake_cert.pem ${PGDATA}/.
