@@ -43,6 +43,8 @@
         #{action := error, reason := error_reason()}
       | #{action := create, node_id := node_id(), config := node_config(),
           result => ok}
+      | #{action := configure, node_id := node_id(), config := node_config(),
+          result => ok}
       | #{action := delete, node_id := node_id(),
           result => ok}
       | #{action := subscribe, node_id := node_id(), subscriber_jid := jid:jid(),
@@ -155,6 +157,16 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
         HostType = mongoose_acc:host_type(Acc),
         Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
         mod_pubsub_backend:set_node(HostType, Node),
+        Action#{result => ok}
+    end;
+perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
+               Action = #{action := configure, node_id := NodeId, config := Config}) ->
+    maybe
+        ok ?= assert_owner(Request),
+        HostType = mongoose_acc:host_type(Acc),
+        NodeKey = {ServiceJid, NodeId},
+        {ok, Node} ?= get_node(HostType, NodeKey),
+        mod_pubsub_backend:set_node(HostType, apply_node_config(Node, Config)),
         Action#{result => ok}
     end;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
@@ -392,6 +404,14 @@ pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := N
     end;
 pubsub_action(?NS_PUBSUB_OWNER, [#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
     #{action => delete, node_id => NodeId};
+pubsub_action(?NS_PUBSUB_OWNER, [ConfigureEl = #xmlel{name = ~"configure",
+                                                       attrs = #{~"node" := NodeId}}]) ->
+    case parse_configure_config(ConfigureEl) of
+        {ok, Config} ->
+            #{action => configure, node_id => NodeId, config => Config};
+        {error, Reason} ->
+            #{action => error, reason => Reason}
+    end;
 pubsub_action(_, _) ->
     no_action.
 
@@ -402,6 +422,10 @@ parse_create_config([]) ->
     {ok, #{access_model => presence}};
 parse_create_config(_) ->
     {error, bad_request}.
+
+-spec parse_configure_config(exml:element()) -> result(node_config()).
+parse_configure_config(ConfigureEl) ->
+    parse_form_config(ConfigureEl, ?NS_PUBSUB_NODE_CONFIG, #{}, false).
 
 -spec parse_publish_options([exml:element()]) -> result(node_config()).
 parse_publish_options([PublishOptionsEl = #xmlel{name = ~"publish-options"}]) ->
@@ -469,6 +493,10 @@ parse_access_model([~"open"]) -> {ok, open};
 parse_access_model([~"presence"]) -> {ok, presence};
 parse_access_model([~"authorize"]) -> {error, {not_acceptable, ~"unsupported-access-model"}};
 parse_access_model(_) -> {error, bad_request}.
+
+-spec apply_node_config(pubsub_node(), node_config()) -> pubsub_node().
+apply_node_config(Node, Config) ->
+    Node#pubsub_node{access_model = maps:get(access_model, Config, Node#pubsub_node.access_model)}.
 
 -spec make_subid() -> subscription_id().
 make_subid() ->
