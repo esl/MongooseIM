@@ -5,7 +5,6 @@ references:
   # Available cimg-erlang images: https://hub.docker.com/r/erlangsolutions/erlang/tags?name=cimg
   # You could need to trigger a pipeline to create a Docker image:
   # https://github.com/esl/cimg-erlang#trigger-build-using-trigger-pipeline-on-circleci
-  - &LATEST_OTP_VERSION 28.4.2
   - &LATEST_OTP erlangsolutions/erlang:cimg-28.4.2
   - &LEGACY_OTP erlangsolutions/erlang:cimg-27.3.4.10
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
@@ -711,41 +710,21 @@ jobs:
           command: |
             ./tools/test.sh -p edoc_only -s false
 
-  package:
-    parallelism: 1
-    executor: << parameters.executor >>
-    parameters:
-      executor:
-        type: executor
-      platform:
-        type: enum
-        enum: [debian-bookworm, debian-bullseye, debian-trixie, ubuntu-plucky, ubuntu-noble, ubuntu-jammy, ubuntu-focal, rockylinux-9, rockylinux-8, almalinux-9, almalinux-8]
-        description: Platform type
-      otp_version:
-        type: string
-        description: Version of Erlang/OTP to use
-        default: *LATEST_OTP_VERSION
-    environment:
-      pkg_PLATFORM: <<parameters.platform>>
-      pkg_OTP_VERSION: <<parameters.otp_version>>
-      PRESET: pkg
+  packages:
+    docker:
+      - image: cimg/base:stable
     steps:
       - checkout
-      - setup_remote_docker
       - run:
-          name: Build package
+          name: Trigger packages
           command: |
-            ./tools/test.sh -p pkg -s false
+            pipeline_id="$(./tools/circleci-pipeline.sh "${CIRCLE_TAG:-$CIRCLE_BRANCH}")"
+
+            echo "export PIPELINE_ID=$pipeline_id" >> "$BASH_ENV"
       - run:
-          name: Verify package architecture
+          name: Wait for pipeline
           command: |
-            ./tools/circle-install-packages.sh rpm
-            ./tools/pkg/verify_arch.sh
-      - run:
-          name: Publish package
-          command: |
-            if [ -n "${CIRCLE_TAG}" ]; then tools/circle-install-packages.sh gh; fi
-            ./tools/pkg/publish.sh
+            ./tools/circleci-wait-pipeline.sh "$PIPELINE_ID"
 
 filters:
   - &all_tags
@@ -772,136 +751,8 @@ workflows:
             tags:
               only: /^\d+\.\d+\.\d+/
       # ============= PACKAGES =============
-      - package:
-          name: debian-bookworm
-          executor: latest_otp
-          platform: debian-bookworm
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: debian-bookworm-arm64
-          executor: latest_otp_arm64
-          platform: debian-bookworm
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: debian-bullseye
-          executor: latest_otp
-          platform: debian-bullseye
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: debian-bullseye-arm64
-          executor: latest_otp_arm64
-          platform: debian-bullseye
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: debian-trixie
-          executor: latest_otp
-          platform: debian-trixie
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: debian-trixie-arm64
-          executor: latest_otp_arm64
-          platform: debian-trixie
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-plucky
-          executor: latest_otp
-          platform: ubuntu-plucky
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-plucky-arm64
-          executor: latest_otp_arm64
-          platform: ubuntu-plucky
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-noble
-          executor: latest_otp
-          platform: ubuntu-noble
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-noble-arm64
-          executor: latest_otp_arm64
-          platform: ubuntu-noble
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-jammy
-          executor: latest_otp
-          platform: ubuntu-jammy
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-jammy-arm64
-          executor: latest_otp_arm64
-          platform: ubuntu-jammy
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-focal
-          executor: latest_otp
-          platform: ubuntu-focal
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: ubuntu-focal-arm64
-          executor: latest_otp_arm64
-          platform: ubuntu-focal
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: rockylinux-9
-          executor: latest_otp
-          platform: rockylinux-9
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: rockylinux-9-arm64
-          executor: latest_otp_arm64
-          platform: rockylinux-9
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: rockylinux-8
-          executor: latest_otp
-          platform: rockylinux-8
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: rockylinux-8-arm64
-          executor: latest_otp_arm64
-          platform: rockylinux-8
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: almalinux-9
-          executor: latest_otp
-          platform: almalinux-9
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: almalinux-9-arm64
-          executor: latest_otp_arm64
-          platform: almalinux-9
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: almalinux-8
-          executor: latest_otp
-          platform: almalinux-8
-          context: mongooseim-org
-          filters: *all_tags_and_master
-      - package:
-          name: almalinux-8-arm64
-          executor: latest_otp_arm64
-          platform: almalinux-8
+      - packages:
+          name: packages
           context: mongooseim-org
           filters: *all_tags_and_master
       # ======== BASE DOCKER BUILDS ========

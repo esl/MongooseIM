@@ -15,6 +15,3 @@ _build/*
 # no vim temp files
 **/.*.sw*
 .git
-
-tools/pkg/Dockerfile_rpm
-tools/pkg/packages/

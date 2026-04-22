@@ -10,7 +10,7 @@ Alternatively, check out our tutorial on [How to build MongooseIM from source co
 
 ## Packages
 
-Go to the [latest release](https://github.com/esl/MongooseIM/releases/latest) page and select the package compatible with your system version.
+Go to the [Downloads](https://trymongoose.im/downloads#packages) page and select the package compatible with your system version.
 The following sections describe the installation process for different operating systems.
 
 
