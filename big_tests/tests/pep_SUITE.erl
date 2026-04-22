@@ -50,6 +50,7 @@ pep_tests() ->
      create_presence_and_publish_explicit_sub,
      create_presence_and_publish_no_sub,
      create_and_delete_node,
+     create_and_configure_node,
      delete_nonexistent_node,
      delete_other_user_node,
      subscribe_to_nonexistent_node,
@@ -272,6 +273,10 @@ create_and_delete_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun create_and_delete_node_story/1).
 
+create_and_configure_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun create_and_configure_node_story/1).
+
 delete_nonexistent_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun delete_nonexistent_node_story/1).
@@ -389,6 +394,17 @@ create_and_delete_node_story(Alice) ->
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result),
     Result2 = pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_error_type, ~"cancel"}]),
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result2).
+
+create_and_configure_node_story(Alice) ->
+    PepNode = make_pep_node_info(Alice, random_node_ns()),
+    pubsub_tools:create_node(Alice, PepNode, []),
+    pubsub_tools:get_configuration(Alice, PepNode, [{expected_result,
+                                                     [{~"pubsub#access_model", ~"presence"}]}]),
+
+    %% XEP-0060 8.2.5.1 Success
+    pubsub_tools:set_configuration(Alice, PepNode, [{~"pubsub#access_model", ~"open"}], []),
+    pubsub_tools:get_configuration(Alice, PepNode, [{expected_result,
+                                                     [{~"pubsub#access_model", ~"open"}]}]).
 
 delete_nonexistent_node_story(Alice) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),

@@ -30,7 +30,6 @@
 -type error_result() :: {error, error_reason()}.
 -type result(T) :: {ok, T} | error_result().
 -type ok_result() :: ok | error_result().
--type node_config_field() :: {access_model, access_model()}.
 
 
 -type iq_request() :: #{acc := mongoose_acc:t(),
@@ -43,6 +42,8 @@
         #{action := error, reason := error_reason()}
       | #{action := create, node_id := node_id(), config := node_config(),
           result => ok}
+      | #{action := get_configuration, node_id := node_id(),
+          result => pubsub_node()}
       | #{action := configure, node_id := node_id(), config := node_config(),
           result => ok}
       | #{action := delete, node_id := node_id(),
@@ -99,9 +100,8 @@ hooks(HostType) ->
 user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
     {From, To, Stanza} = mongoose_acc:packet(Acc),
     maybe
-        IQ = #iq{sub_el = SubEl, xmlns = NS} ?= jlib:iq_query_info(Stanza),
-        #xmlel{name = ~"pubsub", children = Children} ?= SubEl,
-        #{} ?= Action = pubsub_action(NS, jlib:remove_cdata(Children)),
+        IQ = #iq{} ?= jlib:iq_query_info(Stanza),
+        #{} ?= Action = mod_pubsub_xml:iq_action(IQ),
         Request = #{acc => Acc, iq => IQ, from_jid => From, service_jid => To, c2s_data => C2SData},
         ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
         reply(Request, make_reply(try_action(Request, Action))),
@@ -158,6 +158,15 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
         Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
         mod_pubsub_backend:set_node(HostType, Node),
         Action#{result => ok}
+    end;
+perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
+               Action = #{action := get_configuration, node_id := NodeId}) ->
+    maybe
+        ok ?= assert_owner(Request),
+        HostType = mongoose_acc:host_type(Acc),
+        NodeKey = {ServiceJid, NodeId},
+        {ok, Node} ?= get_node(HostType, NodeKey),
+        Action#{result => Node}
     end;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
                Action = #{action := configure, node_id := NodeId, config := Config}) ->
@@ -233,6 +242,8 @@ make_reply(#{action := error, reason := Reason}) ->
     {error, [error_el(Reason)]};
 make_reply(#{action := _, result := ok}) ->
     {result, []};
+make_reply(#{action := get_configuration, result := Node}) ->
+    {result, [mod_pubsub_xml:pubsub_owner_el([mod_pubsub_xml:configure_el(Node)])]};
 make_reply(#{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid,
              result := SubscriptionId}) ->
     {result, [mod_pubsub_xml:pubsub_el(
@@ -372,127 +383,6 @@ reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {
     Reply = jlib:iq_to_xml(IQ#iq{type = IQType, sub_el = Els}),
     ejabberd_router:route(ServiceJid, FromJid, Acc, Reply),
     ok.
-
--spec pubsub_action(binary(), [exml:element()]) -> iq_action() | no_action.
-%% TODO: support XEP-0060 instant nodes, i.e. <create/> without a node attribute.
-pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"create", attrs = #{~"node" := NodeId}} | Rest]) ->
-    case parse_create_config(Rest) of
-        {ok, Config} ->
-            #{action => create, node_id => NodeId, config => Config};
-        {error, Reason} ->
-            #{action => error, reason => Reason}
-    end;
-pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"subscribe",
-                                  attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
-    #{action => subscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
-pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"unsubscribe",
-                                  attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
-    #{action => unsubscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
-pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"items", attrs = #{~"node" := NodeId},
-                                  children = [#xmlel{name = ~"item", attrs = #{~"id" := ItemId}}]}]) ->
-    #{action => get_item, node_id => NodeId, item_id => ItemId};
-pubsub_action(?NS_PUBSUB, [#xmlel{name = ~"items", attrs = #{~"node" := NodeId}}]) ->
-    #{action => get_items, node_id => NodeId};
-pubsub_action(?NS_PUBSUB, [El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}} | Rest]) ->
-    maybe
-        {ok, Config} ?= parse_publish_options(Rest),
-        {ok, ItemOpts} ?= parse_item(El#xmlel.children),
-        ItemOpts#{action => publish, node_id => NodeId, config => Config}
-    else
-        {error, Reason} ->
-            #{action => error, reason => Reason}
-    end;
-pubsub_action(?NS_PUBSUB_OWNER, [#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
-    #{action => delete, node_id => NodeId};
-pubsub_action(?NS_PUBSUB_OWNER, [ConfigureEl = #xmlel{name = ~"configure",
-                                                       attrs = #{~"node" := NodeId}}]) ->
-    case parse_configure_config(ConfigureEl) of
-        {ok, Config} ->
-            #{action => configure, node_id => NodeId, config => Config};
-        {error, Reason} ->
-            #{action => error, reason => Reason}
-    end;
-pubsub_action(_, _) ->
-    no_action.
-
--spec parse_create_config([exml:element()]) -> result(node_config()).
-parse_create_config([ConfigureEl = #xmlel{name = ~"configure"}]) ->
-    parse_form_config(ConfigureEl, ?NS_PUBSUB_NODE_CONFIG, #{access_model => presence}, true);
-parse_create_config([]) ->
-    {ok, #{access_model => presence}};
-parse_create_config(_) ->
-    {error, bad_request}.
-
--spec parse_configure_config(exml:element()) -> result(node_config()).
-parse_configure_config(ConfigureEl) ->
-    parse_form_config(ConfigureEl, ?NS_PUBSUB_NODE_CONFIG, #{}, false).
-
--spec parse_publish_options([exml:element()]) -> result(node_config()).
-parse_publish_options([PublishOptionsEl = #xmlel{name = ~"publish-options"}]) ->
-    case mongoose_data_forms:find_and_parse_form(PublishOptionsEl) of
-        #{type := ~"submit", kvs := KVs, ns := ?NS_PUBSUB_PUB_OPTIONS} ->
-            case parse_node_config(KVs) of
-                {ok, Config} -> {ok, Config};
-                {error, _} -> {error, {conflict, ~"precondition-not-met"}}
-            end;
-        _ ->
-            {error, bad_request}
-    end;
-parse_publish_options([]) ->
-    {ok, #{}};
-parse_publish_options(_) ->
-    {error, bad_request}.
-
--spec parse_item([exml:element()]) -> result(#{item_id := item_id(), payload := item_payload()}).
-parse_item([#xmlel{attrs = #{~"id" := ItemId}, children = Payload}]) ->
-    {ok, #{item_id => ItemId, payload => Payload}};
-parse_item([]) ->
-    {error, {bad_request, ~"item-required"}};
-parse_item(_) ->
-    {error, {bad_request, ~"invalid-payload"}}.
-
--spec parse_form_config(exml:element(), binary(), node_config(), boolean()) ->
-    result(node_config()).
-parse_form_config(FormEl, NS, DefaultConfig, AllowCancel) ->
-    case mongoose_data_forms:find_and_parse_form(FormEl) of
-        #{type := ~"submit", kvs := KVs, ns := NS} ->
-            parse_node_config(KVs);
-        #{type := ~"cancel"} when AllowCancel ->
-            {ok, DefaultConfig};
-        _ ->
-            {error, bad_request}
-    end.
-
--spec parse_node_config(mongoose_data_forms:kv_map()) -> result(node_config()).
-parse_node_config(KVs) ->
-    parse_node_config_fields(maps:to_list(KVs), []).
-
--spec parse_node_config_fields([{binary(), [binary()]}], [node_config_field()]) ->
-          result(node_config()).
-parse_node_config_fields([{Key, Values} | Rest], ParsedKVs) ->
-    case parse_node_config_field(Key, Values) of
-        {ok, ParsedKV} ->
-            parse_node_config_fields(Rest, [ParsedKV | ParsedKVs]);
-        {error, _} = Error ->
-            Error
-    end;
-parse_node_config_fields([], ParsedKVs) ->
-    {ok, maps:from_list(ParsedKVs)}.
-
--spec parse_node_config_field(binary(), [binary()]) -> result(node_config_field()).
-parse_node_config_field(~"pubsub#access_model", Values) ->
-    maybe
-        {ok, AccessModel} ?= parse_access_model(Values),
-        {ok, {access_model, AccessModel}}
-    end;
-parse_node_config_field(_, _) ->
-    {error, bad_request}.
-
--spec parse_access_model([binary()]) -> result(access_model()).
-parse_access_model([~"open"]) -> {ok, open};
-parse_access_model([~"presence"]) -> {ok, presence};
-parse_access_model([~"authorize"]) -> {error, {not_acceptable, ~"unsupported-access-model"}};
-parse_access_model(_) -> {error, bad_request}.
 
 -spec apply_node_config(pubsub_node(), node_config()) -> pubsub_node().
 apply_node_config(Node, Config) ->
