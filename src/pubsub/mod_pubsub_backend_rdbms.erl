@@ -175,12 +175,11 @@ get_last_items(HostType, ServiceJid) ->
 
 -spec encode_payload(mod_pubsub:item_payload()) -> binary().
 encode_payload(Payload) ->
-    exml:to_binary(#xmlel{name = ~"item", children = Payload}).
+    exml:to_binary(Payload).
 
 -spec decode_payload(mongooseim:host_type(), binary()) -> mod_pubsub:item_payload().
 decode_payload(HostType, PayloadBin) ->
-    {ok, #xmlel{children = Payload}} =
-        exml:parse(mongoose_rdbms:unescape_binary(HostType, PayloadBin)),
+    {ok, Payload} = exml:parse(mongoose_rdbms:unescape_binary(HostType, PayloadBin)),
     Payload.
 
 -spec row_to_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id(),

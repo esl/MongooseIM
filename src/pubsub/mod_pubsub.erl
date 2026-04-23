@@ -20,7 +20,7 @@
 -type node_id() :: binary().
 -type item_id() :: binary().
 -type subscription_id() :: binary().
--type item_payload() :: [exml:child()].
+-type item_payload() :: exml:element().
 -type access_model() :: open | presence.
 -type node_config() :: #{access_model => access_model()}.
 -type error_reason() :: generic_error_reason() | {generic_error_reason(), binary()}.
@@ -155,7 +155,9 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
     maybe
         ok ?= assert_owner(Request),
         HostType = mongoose_acc:host_type(Acc),
-        Node = #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel},
+        NodeKey = {ServiceJid, NodeId},
+        ok ?= assert_node_does_not_exist(HostType, NodeKey),
+        Node = #pubsub_node{node_key = NodeKey, access_model = AccessModel},
         mod_pubsub_backend:set_node(HostType, Node),
         Action#{result => ok}
     end;
@@ -219,8 +221,8 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
         NodeKey = {ServiceJid, NodeId},
         {ok, Node} ?= get_node(HostType, NodeKey),
         ok ?= assert_retrieve_permission(Node, Request),
-        {ok, Item} ?= get_item(HostType, NodeKey, ItemId),
-        Action#{result => [Item]}
+        Items = get_item(HostType, NodeKey, ItemId),
+        Action#{result => Items}
     end;
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
                Action = #{action := publish, node_id := NodeId, item_id := ItemId, payload := Payload}) ->
@@ -268,6 +270,7 @@ error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
 subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
     HostType = mongoose_acc:host_type(Acc),
     maybe
+        ok ?= assert_subscriber_jid(Request, SubscriberJid),
         {ok, Node = #pubsub_node{}} ?= get_node(HostType, NodeKey),
         ok ?= assert_subscribe_permission(Node, Request),
         SubscriptionId = make_subid(),
@@ -277,11 +280,19 @@ subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
     end.
 
 -spec unsubscribe(iq_request(), jid:jid(), node_key()) -> ok_result().
-unsubscribe(#{acc := Acc}, SubscriberJid, NodeKey) ->
+unsubscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
     HostType = mongoose_acc:host_type(Acc),
     maybe
         {ok, #pubsub_node{}} ?= get_node(HostType, NodeKey),
+        ok ?= assert_can_unsubscribe(Request, SubscriberJid),
         delete_subscriptions(HostType, NodeKey, SubscriberJid)
+    end.
+
+-spec assert_node_does_not_exist(mongooseim:host_type(), node_key()) -> ok_result().
+assert_node_does_not_exist(HostType, NodeKey) ->
+    case mod_pubsub_backend:get_node(HostType, NodeKey) of
+        undefined -> ok;
+        _ -> {error, conflict}
     end.
 
 -spec get_node(mongooseim:host_type(), node_key()) -> result(pubsub_node()).
@@ -291,11 +302,11 @@ get_node(HostType, NodeKey) ->
         Node -> {ok, Node}
     end.
 
--spec get_item(mongooseim:host_type(), node_key(), item_id()) -> result(item()).
+-spec get_item(mongooseim:host_type(), node_key(), item_id()) -> [item()].
 get_item(HostType, NodeKey, ItemId) ->
     case mod_pubsub_backend:get_item(HostType, NodeKey, ItemId) of
-        undefined -> {error, item_not_found};
-        Item -> {ok, Item}
+        undefined -> [];
+        Item -> [Item]
     end.
 
 -spec assert_retrieve_permission(pubsub_node(), iq_request()) -> ok_result().
@@ -311,6 +322,20 @@ assert_subscribe_permission(#pubsub_node{access_model = open}, _) ->
 assert_subscribe_permission(#pubsub_node{access_model = presence,
                                          node_key = {OwnerJid, _}}, Request) ->
     assert_subscribed_to(OwnerJid, Request).
+
+-spec assert_subscriber_jid(iq_request(), jid:jid()) -> ok_result().
+assert_subscriber_jid(#{from_jid := FromJid}, SubscriberJid) ->
+    case jid:are_bare_equal(FromJid, SubscriberJid) of
+        true -> ok;
+        false -> {error, {bad_request, ~"invalid-jid"}}
+    end.
+
+-spec assert_can_unsubscribe(iq_request(), jid:jid()) -> ok_result().
+assert_can_unsubscribe(#{from_jid := FromJid}, SubscriberJid) ->
+    case jid:are_bare_equal(FromJid, SubscriberJid) of
+        true -> ok;
+        false -> {error, forbidden}
+    end.
 
 -spec assert_owner(iq_request()) -> ok_result().
 assert_owner(Request) ->
@@ -336,11 +361,8 @@ delete_subscriptions(HostType, NodeKey, SubscriberJid) ->
     end.
 
 -spec is_owner(iq_request()) -> boolean().
-is_owner(#{from_jid := #jid{luser = LUser, lserver = LServer},
-           service_jid := #jid{luser = LUser, lserver = LServer}}) ->
-    true;
-is_owner(#{}) ->
-    false.
+is_owner(#{from_jid := FromJid, service_jid := ServiceJid}) ->
+    jid:are_bare_equal(FromJid, ServiceJid).
 
 -spec recipient_jids(pubsub_node(), iq_request()) -> [jid:jid()].
 recipient_jids(Node, #{acc := Acc, c2s_data := C2SData}) ->

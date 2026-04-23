@@ -137,13 +137,28 @@ parse_publish_options([]) ->
 parse_publish_options(_) ->
     {error, bad_request}.
 
--spec parse_item([exml:element()]) ->
+-spec parse_item([exml:child()]) ->
     result(#{item_id := mod_pubsub:item_id(), payload := mod_pubsub:item_payload()}).
-parse_item([#xmlel{attrs = #{~"id" := ItemId}, children = Payload}]) ->
-    {ok, #{item_id => ItemId, payload => Payload}};
+parse_item([Item = #xmlel{name = ~"item", children = Children}]) ->
+    maybe
+        {ok, PayloadEl} ?= parse_payload(Children),
+        {ok, #{item_id => get_or_generate_item_id(Item), payload => PayloadEl}}
+    end;
 parse_item([]) ->
     {error, {bad_request, ~"item-required"}};
 parse_item(_) ->
+    {error, bad_request}.
+
+get_or_generate_item_id(#xmlel{attrs = #{~"id" := ItemId}}) ->
+    ItemId;
+get_or_generate_item_id(_) ->
+    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
+
+parse_payload([#xmlel{} = PayloadEl]) ->
+    {ok, PayloadEl};
+parse_payload([]) ->
+    {error, {bad_request, ~"payload-required"}};
+parse_payload(_) ->
     {error, {bad_request, ~"invalid-payload"}}.
 
 -spec parse_form_config(exml:element(), binary(), mod_pubsub:node_config(), boolean()) ->
@@ -165,11 +180,9 @@ parse_node_config(KVs) ->
 -spec parse_node_config_fields([{binary(), [binary()]}], [node_config_field()]) ->
           result(mod_pubsub:node_config()).
 parse_node_config_fields([{Key, Values} | Rest], ParsedKVs) ->
-    case parse_node_config_field(Key, Values) of
-        {ok, ParsedKV} ->
-            parse_node_config_fields(Rest, [ParsedKV | ParsedKVs]);
-        {error, _} = Error ->
-            Error
+    maybe
+        {ok, ParsedKV} ?= parse_node_config_field(Key, Values),
+        parse_node_config_fields(Rest, [ParsedKV | ParsedKVs])
     end;
 parse_node_config_fields([], ParsedKVs) ->
     {ok, maps:from_list(ParsedKVs)}.
@@ -232,7 +245,7 @@ items_el(NodeId, Children) ->
 
 -spec item_el(mod_pubsub:item()) -> exml:element().
 item_el(#item{id = ItemId, payload = Payload}) ->
-    #xmlel{name = ~"item", attrs = #{~"id" => ItemId}, children = Payload}.
+    #xmlel{name = ~"item", attrs = #{~"id" => ItemId}, children = [Payload]}.
 
 -spec published_item_el(mod_pubsub:item_id()) -> exml:element().
 published_item_el(ItemId) ->
@@ -246,4 +259,4 @@ notification_message_el(#item{node_key = {_, NodeId}, id = ItemId, payload = Pay
                               attrs = #{~"xmlns" => ?NS_PUBSUB_EVENT},
                               children = [items_el(NodeId, [#xmlel{name = ~"item",
                                                                     attrs = #{~"id" => ItemId},
-                                                                    children = Payload}])]}]}.
+                                                                    children = [Payload]}])]}]}.

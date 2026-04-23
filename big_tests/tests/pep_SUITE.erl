@@ -51,10 +51,14 @@ pep_tests() ->
      create_presence_and_publish_no_sub,
      create_and_delete_node,
      create_and_configure_node,
-     delete_nonexistent_node,
-     delete_other_user_node,
+     request_without_nodeid_fails,
+     request_with_unknown_action_fails,
+     manage_nonexistent_node,
+     manage_other_user_node,
      subscribe_to_nonexistent_node,
+     subscribe_with_invalid_jid_fails,
      publish_to_other_user_node_fails,
+     publish_with_invalid_items_fails,
      create_node_at_other_user_jid_fails,
      auto_create_open_and_publish_explicit_sub,
      publish_options_fail_invalid_config,
@@ -277,21 +281,37 @@ create_and_configure_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun create_and_configure_node_story/1).
 
-delete_nonexistent_node(Config) ->
+request_without_nodeid_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
-                        fun delete_nonexistent_node_story/1).
+                        fun request_without_nodeid_fails_story/1).
 
-delete_other_user_node(Config) ->
+request_with_unknown_action_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun request_with_unknown_action_fails_story/1).
+
+manage_nonexistent_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun manage_nonexistent_node_story/1).
+
+manage_other_user_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
-                        fun delete_other_user_node_story/2).
+                        fun manage_other_user_node_story/2).
 
 subscribe_to_nonexistent_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun subscribe_to_nonexistent_node_story/1).
 
+subscribe_with_invalid_jid_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun subscribe_with_invalid_jid_fails_story/2).
+
 publish_to_other_user_node_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
                         fun publish_to_other_user_node_fails_story/2).
+
+publish_with_invalid_items_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun publish_with_invalid_items_fails_story/1).
 
 create_node_at_other_user_jid_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
@@ -363,7 +383,8 @@ create_presence_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     pubsub_tools:create_node(Alice, PepNode, []),
 
     %% XEP-0060 6.1.3.2 Presence Subscription Required
-    pubsub_tools:subscribe(Bob, PepNode, [{expected_error_type, ~"auth"}]).
+    Result = pubsub_tools:subscribe(Bob, PepNode, [{expected_error_type, ~"auth"}]),
+    #xmlel{} = exml_query:subelement(Result, ~"presence-subscription-required").
 
 create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     NodeNS = ?config(node_ns, Config),
@@ -384,9 +405,13 @@ create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
 create_and_delete_node_story(Alice) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),
     pubsub_tools:create_node(Alice, PepNode, []),
+
+    %% XEP-0060 8.1.3.2 Node Already Exists
+    DuplicateCreateResult = pubsub_tools:create_node(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"conflict"], DuplicateCreateResult),
+
     pubsub_tools:get_all_items(Alice, PepNode, [{expected_result, []}]),
-    Result0 = pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_error_type, ~"cancel"}]),
-    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result0),
+    pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_result, []}]),
 
     %% XEP-0060 8.2 Delete a Node
     pubsub_tools:delete_node(Alice, PepNode, []),
@@ -401,21 +426,105 @@ create_and_configure_node_story(Alice) ->
     pubsub_tools:get_configuration(Alice, PepNode, [{expected_result,
                                                      [{~"pubsub#access_model", ~"presence"}]}]),
 
+    %% Malformed configuration form
+    MalformedSetConfigResult = pubsub_tools:set_configuration(
+                                 Alice, PepNode, [{~"pubsub#access_model", ~"open"}],
+                                 [{expected_error_type, ~"modify"},
+                                  {modify_request, fun form_helper:remove_form_types/1}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], MalformedSetConfigResult),
+
     %% XEP-0060 8.2.5.1 Success
     pubsub_tools:set_configuration(Alice, PepNode, [{~"pubsub#access_model", ~"open"}], []),
     pubsub_tools:get_configuration(Alice, PepNode, [{expected_result,
                                                      [{~"pubsub#access_model", ~"open"}]}]).
 
-delete_nonexistent_node_story(Alice) ->
+request_without_nodeid_fails_story(Alice) ->
+    NodeName = random_node_ns(),
+    PepNode = make_pep_node_info(Alice, NodeName),
+
+    %% XEP-0060 8.1.2.3 NodeID Required
+    CreateWithoutNodeIdResult = pubsub_tools:create_node(
+                                  Alice, PepNode,
+                                  [{expected_error_type, ~"modify"},
+                                   {modify_request, fun remove_node_attr/1}]),
+    escalus:assert(is_error, [~"modify", ~"not-acceptable"], CreateWithoutNodeIdResult),
+    #xmlel{} = exml_query:subelement(CreateWithoutNodeIdResult, ~"nodeid-required"),
+
+    %% XEP-0060 8.5.3.2 NodeID Required
+    GetConfigWithoutNodeId = remove_node_attr(
+        escalus_pubsub_stanza:get_configuration(Alice, <<"get-config-without-nodeid">>, PepNode)),
+    escalus:send(Alice, GetConfigWithoutNodeId),
+    GetConfigResult = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], GetConfigResult),
+    #xmlel{} = exml_query:subelement(GetConfigResult, ~"nodeid-required"),
+
+    %% XEP-0060 8.5.3.2 NodeID Required
+    SetConfigResult = pubsub_tools:set_configuration(
+                        Alice, PepNode, [{~"pubsub#access_model", ~"open"}],
+                        [{expected_error_type, ~"modify"},
+                         {modify_request, fun remove_node_attr/1}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], SetConfigResult),
+    #xmlel{} = exml_query:subelement(SetConfigResult, ~"nodeid-required").
+
+request_with_unknown_action_fails_story(Alice) ->
+    UnknownAction = #xmlel{name = ~"unknown-action"},
+
+    PubsubSetId = ~"pubsub-set-unknown-action",
+    PubsubSetRequest = escalus_pubsub_stanza:pubsub_iq(
+                         ~"set", Alice, PubsubSetId, pep, [UnknownAction]),
+    PubsubSetResult = pubsub_tools:send_request_and_receive_response(
+                        Alice, PubsubSetRequest, PubsubSetId, [{expected_error_type, ~"modify"}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], PubsubSetResult),
+
+    PubsubGetId = ~"pubsub-get-unknown-action",
+    PubsubGetRequest = escalus_pubsub_stanza:pubsub_iq(
+                         ~"get", Alice, PubsubGetId, pep, [UnknownAction]),
+    PubsubGetResult = pubsub_tools:send_request_and_receive_response(
+                        Alice, PubsubGetRequest, PubsubGetId, [{expected_error_type, ~"modify"}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], PubsubGetResult),
+
+    OwnerSetId = ~"owner-set-unknown-action",
+    OwnerSetRequest = escalus_pubsub_stanza:pubsub_owner_iq(
+                        ~"set", Alice, OwnerSetId, pep, [UnknownAction]),
+    OwnerSetResult = pubsub_tools:send_request_and_receive_response(
+                       Alice, OwnerSetRequest, OwnerSetId, [{expected_error_type, ~"modify"}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], OwnerSetResult),
+
+    OwnerGetId = ~"owner-get-unknown-action",
+    OwnerGetRequest = escalus_pubsub_stanza:pubsub_owner_iq(
+                        ~"get", Alice, OwnerGetId, pep, [UnknownAction]),
+    OwnerGetResult = pubsub_tools:send_request_and_receive_response(
+                       Alice, OwnerGetRequest, OwnerGetId, [{expected_error_type, ~"modify"}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], OwnerGetResult).
+
+manage_nonexistent_node_story(Alice) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),
+
+    %% XEP-0060 8.2.3.5 Node Does Not Exist
+    Result0 = pubsub_tools:get_configuration(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result0),
+
+    %% XEP-0060 8.2.3.5 Node Does Not Exist: same missing-node condition applies to 'set'
+    Result00 = pubsub_tools:set_configuration(
+                 Alice, PepNode, [{~"pubsub#access_model", ~"open"}], [{expected_error_type, ~"cancel"}]),
+    escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result00),
 
     %% XEP-0060 8.2.4 Node Does Not Exist
     Result = pubsub_tools:delete_node(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result).
 
-delete_other_user_node_story(Alice, Bob) ->
+manage_other_user_node_story(Alice, Bob) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),
     pubsub_tools:create_node(Alice, PepNode, []),
+
+    %% XEP-0060 8.5.3.1 Insufficient Privileges
+    Result0 = pubsub_tools:get_configuration(Bob, PepNode, [{expected_error_type, ~"auth"}]),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Result0),
+
+    %% XEP-0060 8.5.6.1 Insufficient Privileges
+    Result00 = pubsub_tools:set_configuration(
+                 Bob, PepNode, [{~"pubsub#access_model", ~"open"}], [{expected_error_type, ~"auth"}]),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Result00),
 
     %% XEP-0060 8.4.3.1 Insufficient Privileges (existing node)
     Result = pubsub_tools:delete_node(Bob, PepNode, [{expected_error_type, ~"auth"}]),
@@ -438,6 +547,22 @@ subscribe_to_nonexistent_node_story(Alice) ->
     Result2 = pubsub_tools:unsubscribe(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result2).
 
+subscribe_with_invalid_jid_fails_story(Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:create_node(Alice, PepNode,
+                             [{modify_request, fun add_open_access_model_to_create_node_request/1}]),
+
+    %% XEP-0060 6.1.3.3 Invalid JID
+    InvalidJid = escalus_utils:get_short_jid(Alice),
+    Id = <<"invalid-jid-subscribe">>,
+    Request0 = escalus_pubsub_stanza:subscribe(Bob, Id, PepNode, []),
+    Request = set_subscribe_jid(Request0, InvalidJid),
+    escalus:send(Bob, Request),
+    Result = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result),
+    #xmlel{} = exml_query:subelement(Result, ~"invalid-jid").
+
 publish_to_other_user_node_fails_story(Alice, Bob) ->
     NodeNS = random_node_ns(),
     PepNode = make_pep_node_info(Alice, NodeNS),
@@ -446,6 +571,49 @@ publish_to_other_user_node_fails_story(Alice, Bob) ->
     %% XEP-0060 7.1.3.1 Insufficient Privileges
     Result = pubsub_tools:publish(Bob, ~"item1", PepNode, [{expected_error_type, ~"auth"}]),
     escalus:assert(is_error, [~"auth", ~"forbidden"], Result).
+
+publish_with_invalid_items_fails_story(Alice) ->
+    Node = {pep, random_node_ns()},
+
+    %% XEP-0060 7.1.3.4 Item Required
+    Result = pubsub_tools:publish(Alice, ~"item1", Node,
+                                  [{with_payload, false}, {expected_error_type, ~"modify"}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result),
+    #xmlel{} = exml_query:subelement(Result, ~"item-required"),
+
+    %% XEP-0060 7.1.3.6 Payload Required
+    Id2 = pubsub_tools:id(Alice, Node, <<"publish-item-without-payload">>),
+    Request2 = set_publish_item_children(
+                 pubsub_tools:publish_request(Id2, Alice, ~"item2", Node, []), []),
+    escalus:send(Alice, Request2),
+    Result2 = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result2),
+    #xmlel{} = exml_query:subelement(Result2, ~"payload-required"),
+
+    %% XEP-0060 7.1.3.6 Invalid Payload
+    Id3 = pubsub_tools:id(Alice, Node, <<"publish-item-with-invalid-payload">>),
+    Request3 = set_publish_item_children(
+                 pubsub_tools:publish_request(Id3, Alice, ~"item3", Node, []),
+                 [pubsub_tools:item_content(), pubsub_tools:item_content()]),
+    escalus:send(Alice, Request3),
+    Result3 = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result3),
+    #xmlel{} = exml_query:subelement(Result3, ~"invalid-payload"),
+
+    %% XEP-0060 7.1.3.5 Too Many Items
+    Id4 = pubsub_tools:id(Alice, Node, <<"publish-with-two-items">>),
+    Request4 = duplicate_publish_item(pubsub_tools:publish_request(Id4, Alice, ~"item4", Node, [])),
+    escalus:send(Alice, Request4),
+    Result4 = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result4),
+
+    %% Malformed publish request: direct child is not <item/>.
+    Id5 = pubsub_tools:id(Alice, Node, <<"publish-with-invalid-child">>),
+    Request5 = set_publish_children(pubsub_tools:publish_request(Id5, Alice, ~"item5", Node, []),
+                                    [pubsub_tools:item_content()]),
+    escalus:send(Alice, Request5),
+    Result5 = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result5).
 
 create_node_at_other_user_jid_fails_story(Alice, Bob) ->
     %% XEP-0060 8.1 Create a Node, Example 128
@@ -471,15 +639,22 @@ auto_create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
 
 publish_options_fail_invalid_config_story(Alice) ->
+    %% XEP-0060 7.1.5 Publishing Options: unmet publish-options precondition
     Result = publish_with_publish_options(Alice, {pep, random_node_ns()}, ~"item1",
                                           [{~"pubsub#definitely_invalid_option", ~"1"}]),
     escalus:assert(is_error, [~"cancel", ~"conflict"], Result),
     #xmlel{} = exml_query:subelement(Result, ~"precondition-not-met"),
 
+    %% XEP-0060 7.1.5 Publishing Options: unmet publish-options precondition
     Result2 = publish_with_publish_options(Alice, {pep, random_node_ns()}, ~"item1",
                                            [{~"pubsub#access_model", ~"not-a-real-model"}]),
     escalus:assert(is_error, [~"cancel", ~"conflict"], Result2),
-    #xmlel{} = exml_query:subelement(Result2, ~"precondition-not-met").
+    #xmlel{} = exml_query:subelement(Result2, ~"precondition-not-met"),
+
+    %% Malformed publish-options form
+    Result3 = publish_with_publish_options(Alice, {pep, random_node_ns()}, ~"item1",
+                                           [{~"pubsub#access_model", ~"open"}], ~"WRONG_NS"),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], Result3).
 
 create_node_fail_invalid_config_story(Alice) ->
     Result = create_node_with_config(Alice, [{~"pubsub#definitely_invalid_option", ~"1"}]),
@@ -487,6 +662,15 @@ create_node_fail_invalid_config_story(Alice) ->
 
     Result2 = create_node_with_config(Alice, [{~"pubsub#access_model", ~"not-a-real-model"}]),
     escalus:assert(is_error, [~"modify", ~"bad-request"], Result2),
+
+    %% Malformed create configuration form
+    PepNode = make_pep_node_info(Alice, random_node_ns()),
+    ResultMalformed = pubsub_tools:create_node(
+                        Alice, PepNode,
+                        [{config, [{~"pubsub#access_model", ~"open"}]},
+                         {expected_error_type, ~"modify"},
+                         {modify_request, fun form_helper:remove_form_types/1}]),
+    escalus:assert(is_error, [~"modify", ~"bad-request"], ResultMalformed),
 
     Result3 = create_node_with_config(Alice, [{~"pubsub#access_model", ~"authorize"}]),
     escalus:assert(is_error, [~"modify", ~"not-acceptable"], Result3),
@@ -503,6 +687,16 @@ create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
       Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
     pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
     pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
+
+    %% XEP-0060 6.2.3.1 Insufficient Privileges
+    InvalidJid = escalus_utils:get_short_jid(Alice),
+    InvalidUnsubId = <<"invalid-jid-unsubscribe">>,
+    InvalidUnsubRequest0 = escalus_pubsub_stanza:unsubscribe(
+                             escalus_utils:get_short_jid(Bob), InvalidUnsubId, PepNode),
+    InvalidUnsubRequest = set_subscribe_jid(InvalidUnsubRequest0, InvalidJid),
+    escalus:send(Bob, InvalidUnsubRequest),
+    InvalidUnsubResult = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], InvalidUnsubResult),
 
     %% XEP-0060 6.2.2 Success Case
     pubsub_tools:unsubscribe(Bob, PepNode, []),
@@ -523,7 +717,8 @@ create_open_and_publish_implicit_sub_story(Config, Alice, Bob) ->
 
     %% XEP-0060 6.2.3.2 No Such Subscriber
     Result = pubsub_tools:unsubscribe(Bob, PepNode, [{expected_error_type, ~"cancel"}]),
-    escalus:assert(is_error, [~"cancel", ~"unexpected-request"], Result).
+    escalus:assert(is_error, [~"cancel", ~"unexpected-request"], Result),
+    #xmlel{} = exml_query:subelement(Result, ~"not-subscribed").
 
 create_open_and_publish_both_subs_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -815,6 +1010,41 @@ add_open_access_model_to_create_node_request(#xmlel{children = [PubsubEl]} = Req
     Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
     ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
     PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
+    Request#xmlel{children = [PubsubEl2]}.
+
+set_subscribe_jid(#xmlel{children = [PubsubEl = #xmlel{children = [SubscribeEl | Els]}]} = Request,
+                  Jid) ->
+    Attrs = SubscribeEl#xmlel.attrs,
+    SubscribeEl2 = SubscribeEl#xmlel{attrs = Attrs#{<<"jid">> => Jid}},
+    PubsubEl2 = PubsubEl#xmlel{children = [SubscribeEl2 | Els]},
+    Request#xmlel{children = [PubsubEl2]}.
+
+remove_node_attr(
+    #xmlel{children = [PubsubEl = #xmlel{children = [ActionEl | Els]}]} = Request) ->
+    Attrs = ActionEl#xmlel.attrs,
+    ActionEl2 = ActionEl#xmlel{attrs = maps:remove(<<"node">>, Attrs)},
+    PubsubEl2 = PubsubEl#xmlel{children = [ActionEl2 | Els]},
+    Request#xmlel{children = [PubsubEl2]}.
+
+set_publish_item_children(
+    #xmlel{children = [PubsubEl = #xmlel{children = [PublishEl = #xmlel{children = [ItemEl]}]}]} = Request,
+    Children) ->
+    ItemEl2 = ItemEl#xmlel{children = Children},
+    PublishEl2 = PublishEl#xmlel{children = [ItemEl2]},
+    PubsubEl2 = PubsubEl#xmlel{children = [PublishEl2]},
+    Request#xmlel{children = [PubsubEl2]}.
+
+set_publish_children(
+    #xmlel{children = [PubsubEl = #xmlel{children = [PublishEl = #xmlel{}]}]} = Request,
+    Children) ->
+    PublishEl2 = PublishEl#xmlel{children = Children},
+    PubsubEl2 = PubsubEl#xmlel{children = [PublishEl2]},
+    Request#xmlel{children = [PubsubEl2]}.
+
+duplicate_publish_item(
+    #xmlel{children = [PubsubEl = #xmlel{children = [PublishEl = #xmlel{children = [ItemEl]}]}]} = Request) ->
+    PublishEl2 = PublishEl#xmlel{children = [ItemEl, ItemEl]},
+    PubsubEl2 = PubsubEl#xmlel{children = [PublishEl2]},
     Request#xmlel{children = [PubsubEl2]}.
 
 publish_with_publish_options(Client, Node, Content, Options) ->
