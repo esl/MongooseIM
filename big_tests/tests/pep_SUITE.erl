@@ -274,8 +274,8 @@ create_presence_and_publish_no_sub(Config) ->
                                     fun create_presence_and_publish_no_sub_story/4).
 
 create_and_delete_node(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}],
-                        fun create_and_delete_node_story/1).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun create_and_delete_node_story/2).
 
 create_and_configure_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
@@ -402,9 +402,10 @@ create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     pubsub_tools:get_all_items(Mike, PepNode, [{expected_result, [~"item1"]}]),
     pubsub_tools:get_item(Mike, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
 
-create_and_delete_node_story(Alice) ->
+create_and_delete_node_story(Alice, Bob) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),
-    pubsub_tools:create_node(Alice, PepNode, []),
+    pubsub_tools:create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    pubsub_tools:subscribe(Bob, PepNode, []),
 
     %% XEP-0060 8.1.3.2 Node Already Exists
     DuplicateCreateResult = pubsub_tools:create_node(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
@@ -415,6 +416,7 @@ create_and_delete_node_story(Alice) ->
 
     %% XEP-0060 8.2 Delete a Node
     pubsub_tools:delete_node(Alice, PepNode, []),
+    pubsub_tools:receive_node_deletion_notification(Bob, PepNode, []),
     Result = pubsub_tools:get_all_items(Alice, PepNode, [{expected_error_type, ~"cancel"}]),
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result),
     Result2 = pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_error_type, ~"cancel"}]),

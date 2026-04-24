@@ -185,8 +185,10 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
         ok ?= assert_owner(Request),
         HostType = mongoose_acc:host_type(Acc),
         NodeKey = {ServiceJid, NodeId},
-        {ok, _} ?= get_node(HostType, NodeKey),
+        {ok, Node} ?= get_node(HostType, NodeKey),
+        Recipients = recipient_jids(Node, Request),
         mod_pubsub_backend:delete_node(HostType, NodeKey),
+        broadcast_node_deletion(HostType, ServiceJid, Recipients, NodeId),
         Action#{result => ok}
     end;
 perform_action(#{service_jid := ServiceJid} = Request,
@@ -423,11 +425,22 @@ filter_recipients(RecipientJids, NodeKey) ->
 -spec broadcast_item(mongooseim:host_type(), jid:jid(), [jid:jid()], item()) -> ok.
 broadcast_item(_HostType, _FromJid, [], _Item) ->
     ok;
-broadcast_item(HostType, FromJid, ToFullJids, Item) ->
+broadcast_item(HostType, FromJid, ToJids, Item) ->
     Notification = mod_pubsub_xml:notification_message_el(Item),
+    broadcast_notification(HostType, FromJid, ToJids, Notification).
+
+-spec broadcast_node_deletion(mongooseim:host_type(), jid:jid(), [jid:jid()], node_id()) -> ok.
+broadcast_node_deletion(_HostType, _FromJid, [], _Item) ->
+    ok;
+broadcast_node_deletion(HostType, FromJid, ToJids, NodeId) ->
+    Notification = mod_pubsub_xml:deletion_notification_message_el(NodeId),
+    broadcast_notification(HostType, FromJid, ToJids, Notification).
+
+-spec broadcast_notification(mongooseim:host_type(), jid:jid(), [jid:jid()], exml:element()) -> ok.
+broadcast_notification(HostType, FromJid, ToJids, Notification) ->
     lists:foreach(fun(ToJid) ->
                           route_notification(HostType, FromJid, ToJid, Notification)
-                  end, ToFullJids).
+                  end, ToJids).
 
 -spec notify_feature(node_key()) -> mod_caps:feature().
 notify_feature({_, NodeId}) ->

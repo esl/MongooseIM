@@ -13,6 +13,7 @@
          items_el/2,
          item_el/1,
          published_item_el/1,
+         deletion_notification_message_el/1,
          notification_message_el/1]).
 
 -include_lib("exml/include/exml.hrl").
@@ -249,12 +250,18 @@ item_el(#item{id = ItemId, payload = Payload}) ->
 published_item_el(ItemId) ->
     #xmlel{name = ~"item", attrs = #{~"id" => ItemId}}.
 
+-spec deletion_notification_message_el(mod_pubsub:node_id()) -> exml:element().
+deletion_notification_message_el(NodeId) ->
+    event_message_el(#xmlel{name = ~"delete", attrs = #{~"node" => NodeId}}).
+
 -spec notification_message_el(mod_pubsub:item()) -> exml:element().
-notification_message_el(#item{node_key = {_, NodeId}, id = ItemId, payload = Payload}) ->
+notification_message_el(#item{node_key = {_, NodeId}} = Item) ->
+    event_message_el(items_el(NodeId, [item_el(Item)])).
+
+-spec event_message_el(exml:element()) -> exml:element().
+event_message_el(Event) ->
     #xmlel{name = ~"message",
            attrs = #{~"type" => ~"headline"},
            children = [#xmlel{name = ~"event",
                               attrs = #{~"xmlns" => ?NS_PUBSUB_EVENT},
-                              children = [items_el(NodeId, [#xmlel{name = ~"item",
-                                                                    attrs = #{~"id" => ItemId},
-                                                                    children = [Payload]}])]}]}.
+                              children = [Event]}]}.

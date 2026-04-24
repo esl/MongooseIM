@@ -291,6 +291,10 @@ receive_node_creation_notification(User, {NodeAddr, NodeName}, Options) ->
     Stanza = receive_notification(User, NodeAddr, Options),
     check_node_creation_notification(Stanza, NodeName).
 
+receive_node_deletion_notification(User, {NodeAddr, NodeName}, Options) ->
+    Stanza = receive_notification(User, NodeAddr, Options),
+    check_node_deletion_notification(Stanza, NodeName).
+
 receive_subscribe_response(User, Node, Options) ->
     Id = id(User, Node, <<"subscribe">>),
     Stanza = receive_response(User, Id, Options),
@@ -312,6 +316,11 @@ check_subscription_response(Response, User, {_, NodeName}, Options) ->
                                               {element, <<"subscription">>}]),
     check_subscription(Subscription, Jid, NodeName, Options),
     Response.
+
+check_node_deletion_notification(Stanza, NodeName) ->
+    Delete = exml_query:path(Stanza, [{element, <<"event">>}, {element, <<"delete">>}]),
+    NodeName = exml_query:attr(Delete, <<"node">>),
+    Stanza.
 
 check_user_subscriptions_response(User, Response, ExpectedSubscriptions) ->
     SubscriptionElems = exml_query:paths(Response, [{element, <<"pubsub">>},
