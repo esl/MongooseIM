@@ -5609,15 +5609,3 @@ fresh_nick_name(Prefix) ->
 
 fresh_nick_name() ->
     fresh_room_name(binary:encode_hex(crypto:strong_rand_bytes(5), lowercase)).
-
-stop_room(Room) ->
-    {ok, Pid} = rpc(mim(), mod_muc_online_backend, find_room_pid,
-                    [domain_helper:host_type(), muc_host(), Room]),
-    Pid ! stop_persistent_room_process,
-    WaitFun = fun() ->
-                  rpc(mim(), mod_muc_online_backend, find_room_pid,
-                      [domain_helper:host_type(), muc_host(), Room])
-              end,
-    wait_helper:wait_until(WaitFun, {error, not_found}),
-    ok.
-
