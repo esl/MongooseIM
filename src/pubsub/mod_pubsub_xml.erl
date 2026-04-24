@@ -9,7 +9,7 @@
          pubsub_el/1,
          pubsub_owner_el/1,
          configure_el/1,
-         subscription_el/4,
+         subscription_el/3,
          items_el/2,
          item_el/1,
          published_item_el/1,
@@ -230,13 +230,11 @@ configure_fields(#pubsub_node{access_model = AccessModel}) ->
        values => [atom_to_binary(AccessModel)],
        options => [~"open", ~"presence"]}].
 
--spec subscription_el(jid:jid(), mod_pubsub:node_id(), mod_pubsub:subscription_id(), binary()) ->
-    exml:element().
-subscription_el(SubscriberJid, NodeId, SubscriptionId, Subscription) ->
+-spec subscription_el(jid:jid(), mod_pubsub:node_id(), binary()) -> exml:element().
+subscription_el(SubscriberJid, NodeId, Subscription) ->
     #xmlel{name = ~"subscription",
            attrs = #{~"jid" => jid:to_binary(SubscriberJid),
                      ~"node" => NodeId,
-                     ~"subid" => SubscriptionId,
                      ~"subscription" => Subscription}}.
 
 -spec items_el(mod_pubsub:node_id(), [exml:child()]) -> exml:element().

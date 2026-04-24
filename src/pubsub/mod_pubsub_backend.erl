@@ -3,7 +3,7 @@
 -include("mod_pubsub.hrl").
 
 -export([start/2, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
-         set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
+         set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscription/3,
          set_item/2, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
 
 -callback start(mongooseim:host_type()) -> ok.
@@ -15,11 +15,12 @@
 -callback delete_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
 -callback delete_nodes(mongooseim:host_type(), jid:jid()) -> ok.
 -callback set_subscription(mongooseim:host_type(), mod_pubsub:subscription()) -> ok.
--callback delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok.
+-callback delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
+    ok | not_found.
 -callback get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key()) ->
     [mod_pubsub:subscription()].
--callback get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
-    [mod_pubsub:subscription()].
+-callback get_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
+    mod_pubsub:subscription() | undefined.
 -callback set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
 -callback get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
     mod_pubsub:item() | undefined.
@@ -75,13 +76,13 @@ set_subscription(HostType, Subscription) ->
 get_subscriptions(HostType, NodeKey) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey]).
 
--spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok.
+-spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok | not_found.
 delete_subscription(HostType, NodeKey, SubscriberJid) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, SubscriberJid]).
 
--spec get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
-    [mod_pubsub:subscription()].
-get_subscriptions(HostType, NodeKey, SubscriberJid) ->
+-spec get_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
+    mod_pubsub:subscription() | undefined.
+get_subscription(HostType, NodeKey, SubscriberJid) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, SubscriberJid]).
 
 set_item(HostType, Item) ->

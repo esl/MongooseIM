@@ -7,13 +7,13 @@
 -include("mod_pubsub.hrl").
 
 -export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
-         set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscriptions/3,
+         set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscription/3,
          set_item/2, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
     NodeFields = [~"service_jid", ~"node_id", ~"access_model"],
-    SubscriptionFields = [~"service_jid", ~"node_id", ~"subscriber_jid", ~"subscription_id"],
+    SubscriptionFields = [~"service_jid", ~"node_id", ~"subscriber_jid"],
     KeyFields = [~"service_jid", ~"node_id", ~"item_id"],
     UpdateFields = [~"publisher_jid", ~"payload", ~"created_at"],
     rdbms_queries:prepare_upsert(HostType, pubsub_node_upsert, pubsub_node,
@@ -91,9 +91,8 @@ delete_node(HostType, {ServiceJid, NodeId}) ->
 
 -spec set_subscription(mongooseim:host_type(), mod_pubsub:subscription()) -> ok.
 set_subscription(HostType, #subscription{node_key = {ServiceJid, NodeId},
-                                         jid = SubscriberJid,
-                                         id = SubscriptionId}) ->
-    Values = [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid), SubscriptionId],
+                                         jid = SubscriberJid}) ->
+    Values = [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid)],
     {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_subscription_upsert,
                                                 Values, []),
     ok.
@@ -103,23 +102,26 @@ set_subscription(HostType, #subscription{node_key = {ServiceJid, NodeId},
 get_subscriptions(HostType, {ServiceJid, NodeId} = NodeKey) ->
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_subscriptions,
                                                            [jid:to_binary(ServiceJid), NodeId]),
-    [row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId)
-     || {SubscriberJidBin, SubscriptionId} <- Rows].
+    [row_to_subscription(NodeKey, SubscriberJidBin) || {SubscriberJidBin} <- Rows].
 
--spec get_subscriptions(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
-    [mod_pubsub:subscription()].
-get_subscriptions(HostType, {ServiceJid, NodeId} = NodeKey, SubscriberJid) ->
+-spec get_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
+    mod_pubsub:subscription() | undefined.
+get_subscription(HostType, {ServiceJid, NodeId} = NodeKey, SubscriberJid) ->
     Args = [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid)],
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_subscriptions_for_jid,
                                                            Args),
-    [row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId)
-     || {SubscriberJidBin, SubscriptionId} <- Rows].
+    case Rows of
+        [{SubscriberJidBin}] -> row_to_subscription(NodeKey, SubscriberJidBin);
+        [] -> undefined
+    end.
 
--spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok.
+-spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok | not_found.
 delete_subscription(HostType, {ServiceJid, NodeId}, SubscriberJid) ->
     Args = [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid)],
-    {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_subscription, Args),
-    ok.
+    case mongoose_rdbms:execute_successfully(HostType, pubsub_delete_subscription, Args) of
+        {updated, 1} -> ok;
+        {updated, 0} -> not_found
+    end.
 
 -spec set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
 set_item(HostType, #item{node_key = {ServiceJid, NodeId},
@@ -191,12 +193,9 @@ row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin) ->
           publisher_jid = jid:from_binary(PublisherJidBin),
           payload = Payload}.
 
--spec row_to_subscription(mod_pubsub:node_key(), binary(), mod_pubsub:subscription_id()) ->
-    mod_pubsub:subscription().
-row_to_subscription(NodeKey, SubscriberJidBin, SubscriptionId) ->
-    #subscription{node_key = NodeKey,
-                  jid = jid:from_binary(SubscriberJidBin),
-                  id = SubscriptionId}.
+-spec row_to_subscription(mod_pubsub:node_key(), binary()) -> mod_pubsub:subscription().
+row_to_subscription(NodeKey, SubscriberJidBin) ->
+    #subscription{node_key = NodeKey, jid = jid:from_binary(SubscriberJidBin)}.
 
 %% SQL queries
 
@@ -227,13 +226,13 @@ sql(get_nodes) ->
      """;
 sql(get_subscriptions) ->
     ~"""
-     SELECT subscriber_jid, subscription_id
+     SELECT subscriber_jid
      FROM pubsub_subscription
      WHERE service_jid = ? AND node_id = ?
      """;
 sql(get_subscriptions_for_jid) ->
     ~"""
-     SELECT subscriber_jid, subscription_id
+     SELECT subscriber_jid
      FROM pubsub_subscription
      WHERE service_jid = ? AND node_id = ? AND subscriber_jid = ?
      """;

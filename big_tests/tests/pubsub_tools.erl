@@ -539,7 +539,11 @@ check_subscription(Subscr, Jid, NodeName, Options) ->
     NodeName = exml_query:attr(Subscr, <<"node">>),
     case proplists:get_value(subscription, Options) of
         undefined ->
-            true = exml_query:attr(Subscr, <<"subid">>) =/= undefined,
+            SubId = exml_query:attr(Subscr, <<"subid">>),
+            case proplists:get_value(subid, Options) of
+                true -> ?assertNotEqual(undefined, SubId);
+                Other -> ?assertEqual(Other, SubId) % undefined or expected binary value
+            end,
             <<"subscribed">> = exml_query:attr(Subscr, <<"subscription">>);
         <<"pending">> ->
             <<"pending">> = exml_query:attr(Subscr, <<"subscription">>)

@@ -19,7 +19,6 @@
 -type node_key() :: {jid:jid(), node_id()}.
 -type node_id() :: binary().
 -type item_id() :: binary().
--type subscription_id() :: binary().
 -type item_payload() :: exml:element().
 -type access_model() :: open | presence.
 -type node_config() :: #{access_model => access_model()}.
@@ -49,7 +48,7 @@
       | #{action := delete, node_id := node_id(),
           result => ok}
       | #{action := subscribe, node_id := node_id(), subscriber_jid := jid:jid(),
-          result => subscription_id()}
+          result => ok}
       | #{action := unsubscribe, node_id := node_id(), subscriber_jid := jid:jid(),
           result => ok}
       | #{action := get_items, node_id := node_id(),
@@ -61,7 +60,7 @@
           result => item_id()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
-              item_id/0, subscription_id/0, item_payload/0, access_model/0, node_config/0]).
+              item_id/0, item_payload/0, access_model/0, node_config/0]).
 
 %% gen_mod callbacks
 
@@ -194,8 +193,8 @@ perform_action(#{service_jid := ServiceJid} = Request,
                Action = #{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
     maybe
         NodeKey = {ServiceJid, NodeId},
-        {ok, #subscription{id = SubscriptionId}} ?= subscribe(Request, SubscriberJid, NodeKey),
-        Action#{result => SubscriptionId}
+        ok ?= subscribe(Request, SubscriberJid, NodeKey),
+        Action#{result => ok}
     end;
 perform_action(#{service_jid := ServiceJid} = Request,
                Action = #{action := unsubscribe, node_id := NodeId, subscriber_jid := SubscriberJid}) ->
@@ -242,14 +241,13 @@ make_reply(#{action := error, reason := {GenericReason, PubSubReason}}) ->
     {error, [error_el(GenericReason), mod_pubsub_xml:pubsub_error_el(PubSubReason)]};
 make_reply(#{action := error, reason := Reason}) ->
     {error, [error_el(Reason)]};
+make_reply(#{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid, result := ok}) ->
+    {result, [mod_pubsub_xml:pubsub_el(
+                [mod_pubsub_xml:subscription_el(SubscriberJid, NodeId, ~"subscribed")])]};
 make_reply(#{action := _, result := ok}) ->
     {result, []};
 make_reply(#{action := get_configuration, result := Node}) ->
     {result, [mod_pubsub_xml:pubsub_owner_el([mod_pubsub_xml:configure_el(Node)])]};
-make_reply(#{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid,
-             result := SubscriptionId}) ->
-    {result, [mod_pubsub_xml:pubsub_el(
-                [mod_pubsub_xml:subscription_el(SubscriberJid, NodeId, SubscriptionId, ~"subscribed")])]};
 make_reply(#{action := Get, node_id := NodeId, result := Items}) when Get =:= get_item;
                                                                       Get =:= get_items ->
     {result, [mod_pubsub_xml:pubsub_el(
@@ -266,17 +264,15 @@ error_el(not_authorized) -> mongoose_xmpp_errors:not_authorized();
 error_el(unexpected_request) -> mongoose_xmpp_errors:unexpected_request_cancel();
 error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
 
--spec subscribe(iq_request(), jid:jid(), node_key()) -> result(subscription()).
+-spec subscribe(iq_request(), jid:jid(), node_key()) -> ok_result().
 subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
     HostType = mongoose_acc:host_type(Acc),
     maybe
         ok ?= assert_subscriber_jid(Request, SubscriberJid),
         {ok, Node = #pubsub_node{}} ?= get_node(HostType, NodeKey),
         ok ?= assert_subscribe_permission(Node, Request),
-        SubscriptionId = make_subid(),
-        Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid, id = SubscriptionId},
-        mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription),
-        {ok, Subscription}
+        Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid},
+        mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription)
     end.
 
 -spec unsubscribe(iq_request(), jid:jid(), node_key()) -> ok_result().
@@ -285,7 +281,7 @@ unsubscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
     maybe
         {ok, #pubsub_node{}} ?= get_node(HostType, NodeKey),
         ok ?= assert_can_unsubscribe(Request, SubscriberJid),
-        delete_subscriptions(HostType, NodeKey, SubscriberJid)
+        delete_subscription(HostType, NodeKey, SubscriberJid)
     end.
 
 -spec assert_node_does_not_exist(mongooseim:host_type(), node_key()) -> ok_result().
@@ -351,13 +347,11 @@ assert_subscribed_to(OwnerJid, #{c2s_data := C2SData}) ->
         false -> {error, {not_authorized, ~"presence-subscription-required"}}
     end.
 
--spec delete_subscriptions(mongooseim:host_type(), node_key(), jid:jid()) -> ok_result().
-delete_subscriptions(HostType, NodeKey, SubscriberJid) ->
-    case mod_pubsub_backend:get_subscriptions(HostType, NodeKey, SubscriberJid) of
-        [] ->
-            {error, {unexpected_request, ~"not-subscribed"}};
-        _ ->
-            mod_pubsub_backend:delete_subscription(HostType, NodeKey, SubscriberJid)
+-spec delete_subscription(mongooseim:host_type(), node_key(), jid:jid()) -> ok_result().
+delete_subscription(HostType, NodeKey, SubscriberJid) ->
+    case mod_pubsub_backend:delete_subscription(HostType, NodeKey, SubscriberJid) of
+        ok -> ok;
+        not_found -> {error, {unexpected_request, ~"not-subscribed"}}
     end.
 
 -spec is_owner(iq_request()) -> boolean().
@@ -409,10 +403,6 @@ reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {
 -spec apply_node_config(pubsub_node(), node_config()) -> pubsub_node().
 apply_node_config(Node, Config) ->
     Node#pubsub_node{access_model = maps:get(access_model, Config, Node#pubsub_node.access_model)}.
-
--spec make_subid() -> subscription_id().
-make_subid() ->
-    mongoose_bin:gen_from_timestamp().
 
 -spec send_last_items(mongooseim:host_type(), jid:jid(), jid:jid(), [mod_caps:feature()]) -> ok.
 send_last_items(HostType, OwnerJid = #jid{lresource = ~""},

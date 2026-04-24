@@ -363,8 +363,7 @@ CREATE TABLE pubsub_subscription (
     service_jid VARCHAR(250) NOT NULL,
     node_id VARCHAR(250) NOT NULL,
     subscriber_jid VARCHAR(250) NOT NULL,
-    subscription_id VARCHAR(250) NOT NULL,
-    PRIMARY KEY (service_jid, node_id, subscriber_jid, subscription_id),
+    PRIMARY KEY (service_jid, node_id, subscriber_jid),
     FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
 );
 
