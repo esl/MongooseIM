@@ -19,6 +19,7 @@
 -type node_key() :: {jid:jid(), node_id()}.
 -type node_id() :: binary().
 -type item_id() :: binary().
+-type item_ids() :: [item_id()].
 -type item_payload() :: exml:element().
 -type access_model() :: open | presence.
 -type node_config() :: #{access_model => access_model()}.
@@ -52,8 +53,7 @@
       | #{action := unsubscribe, node_id := node_id(), subscriber_jid := jid:jid(),
           result => ok}
       | #{action := get_items, node_id := node_id(),
-          result => [item()]}
-      | #{action := get_item, node_id := node_id(), item_id := item_id(),
+          item_ids => item_ids(),
           result => [item()]}
       | #{action := publish, node_id := node_id(), item_id := item_id(), payload := item_payload(),
           config => node_config(),
@@ -212,17 +212,7 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
         NodeKey = {ServiceJid, NodeId},
         {ok, Node} ?= get_node(HostType, NodeKey),
         ok ?= assert_retrieve_permission(Node, Request),
-        Items = mod_pubsub_backend:get_items(HostType, NodeKey),
-        Action#{result => Items}
-    end;
-perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
-               Action = #{action := get_item, node_id := NodeId, item_id := ItemId}) ->
-    maybe
-        HostType = mongoose_acc:host_type(Acc),
-        NodeKey = {ServiceJid, NodeId},
-        {ok, Node} ?= get_node(HostType, NodeKey),
-        ok ?= assert_retrieve_permission(Node, Request),
-        Items = get_item(HostType, NodeKey, ItemId),
+        Items = get_items(HostType, NodeKey, Action),
         Action#{result => Items}
     end;
 perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
@@ -278,6 +268,12 @@ get_item(HostType, NodeKey, ItemId) ->
         undefined -> [];
         Item -> [Item]
     end.
+
+-spec get_items(mongooseim:host_type(), node_key(), iq_action()) -> [item()].
+get_items(HostType, NodeKey, #{item_ids := ItemIds}) ->
+    lists:flatmap(fun(ItemId) -> get_item(HostType, NodeKey, ItemId) end, ItemIds);
+get_items(HostType, NodeKey, #{}) ->
+    mod_pubsub_backend:get_items(HostType, NodeKey).
 
 -spec assert_retrieve_permission(pubsub_node(), iq_request()) -> ok_result().
 assert_retrieve_permission(Node, Request) ->

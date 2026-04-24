@@ -29,6 +29,7 @@
 -type result(T) :: {ok, T} | {error, error_reason()}.
 -type iq_action() :: map().
 -type node_config_field() :: {access_model, mod_pubsub:access_model()}.
+-type item_ids() :: [mod_pubsub:item_id()].
 
 %% XML Parsing
 
@@ -95,11 +96,15 @@ iq_pubsub_owner_set(_) ->
     #{action => error, reason => bad_request}.
 
 -spec iq_pubsub_get([exml:element()]) -> iq_action().
-iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId},
-                      children = [#xmlel{name = ~"item", attrs = #{~"id" := ItemId}}]}]) ->
-    #{action => get_item, node_id => NodeId, item_id => ItemId};
-iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}}]) ->
+iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = []}]) ->
     #{action => get_items, node_id => NodeId};
+iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = Children}]) ->
+    case parse_requested_item_ids(Children) of
+        {ok, ItemIds} ->
+            #{action => get_items, node_id => NodeId, item_ids => ItemIds};
+        {error, Reason} ->
+            #{action => error, reason => Reason}
+    end;
 iq_pubsub_get(_) ->
     #{action => error, reason => bad_request}.
 
@@ -163,6 +168,18 @@ parse_payload([]) ->
 parse_payload(_) ->
     {error, {bad_request, ~"invalid-payload"}}.
 
+-spec parse_requested_item_ids([exml:element()]) -> result(item_ids()).
+parse_requested_item_ids(Children) ->
+    parse_requested_item_ids(Children, []).
+
+-spec parse_requested_item_ids([exml:element()], item_ids()) -> result(item_ids()).
+parse_requested_item_ids([#xmlel{name = ~"item", attrs = #{~"id" := ItemId}} | Rest], Acc) ->
+    parse_requested_item_ids(Rest, [ItemId | Acc]);
+parse_requested_item_ids([], Acc) ->
+    {ok, lists:reverse(Acc)};
+parse_requested_item_ids(_, _) ->
+    {error, bad_request}.
+
 -spec parse_form_config(exml:element(), binary(), mod_pubsub:node_config(), boolean()) ->
     result(mod_pubsub:node_config()).
 parse_form_config(FormEl, NS, DefaultConfig, AllowCancel) ->
@@ -217,8 +234,7 @@ make_reply(#{action := _, result := ok}) ->
     {result, []};
 make_reply(#{action := get_configuration, result := Node}) ->
     {result, [pubsub_owner_el([configure_el(Node)])]};
-make_reply(#{action := Get, node_id := NodeId, result := Items}) when Get =:= get_item;
-                                                                      Get =:= get_items ->
+make_reply(#{action := get_items, node_id := NodeId, result := Items}) ->
     {result, [pubsub_el([items_el(NodeId, [item_el(Item) || Item <- Items])])]};
 make_reply(#{action := publish, result := ItemId}) ->
     {result, [pubsub_el([published_item_el(ItemId)])]}.

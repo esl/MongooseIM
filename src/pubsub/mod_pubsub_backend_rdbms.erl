@@ -15,7 +15,7 @@ start(HostType) ->
     NodeFields = [~"service_jid", ~"node_id", ~"access_model"],
     SubscriptionFields = [~"service_jid", ~"node_id", ~"subscriber_jid"],
     KeyFields = [~"service_jid", ~"node_id", ~"item_id"],
-    UpdateFields = [~"publisher_jid", ~"payload", ~"created_at"],
+    UpdateFields = [~"publisher_jid", ~"payload", ~"published_at"],
     rdbms_queries:prepare_upsert(HostType, pubsub_node_upsert, pubsub_node,
                                  NodeFields, [~"access_model"], [~"service_jid", ~"node_id"]),
     mongoose_rdbms:prepare(pubsub_get_node, pubsub_node,
@@ -129,11 +129,11 @@ set_item(HostType, #item{node_key = {ServiceJid, NodeId},
                          id = ItemId,
                          publisher_jid = PublisherJid,
                          payload = Payload}) ->
-    CreatedAt = os:system_time(microsecond),
+    PublishedAt = os:system_time(microsecond),
     PublisherJidBin = jid:to_binary(PublisherJid),
     PayloadBin = encode_payload(Payload),
     KeyValues = [jid:to_binary(ServiceJid), NodeId, ItemId],
-    UpdateValues = [PublisherJidBin, PayloadBin, CreatedAt],
+    UpdateValues = [PublisherJidBin, PayloadBin, PublishedAt],
     InsertValues = KeyValues ++ UpdateValues,
     {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_item_upsert,
                                                 InsertValues, UpdateValues),
@@ -211,13 +211,13 @@ sql(get_items) ->
      SELECT item_id, publisher_jid, payload
      FROM pubsub_item
      WHERE service_jid = ? AND node_id = ?
-     ORDER BY created_at
+     ORDER BY published_at
      """;
 sql(get_last_item) ->
     ~"""
      SELECT item_id, publisher_jid, payload
      FROM pubsub_item WHERE service_jid = ? AND node_id = ?
-     ORDER BY created_at DESC LIMIT 1
+     ORDER BY published_at DESC LIMIT 1
      """;
 sql(get_nodes) ->
     ~"""
@@ -266,7 +266,7 @@ sql(get_last_items) ->
          SELECT item_id, publisher_jid, payload
          FROM pubsub_item
          WHERE service_jid = n.service_jid AND node_id = n.node_id
-         ORDER BY created_at DESC
+         ORDER BY published_at DESC
          LIMIT 1
      ) AS i
      WHERE n.service_jid = ?

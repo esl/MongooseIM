@@ -354,7 +354,7 @@ CREATE TABLE pubsub_item (
     item_id VARCHAR(250) NOT NULL,
     publisher_jid VARCHAR(250) NOT NULL,
     payload TEXT NOT NULL,
-    created_at BIGINT NOT NULL,
+    published_at BIGINT NOT NULL,
     PRIMARY KEY (service_jid, node_id, item_id),
     FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
 );
@@ -367,7 +367,7 @@ CREATE TABLE pubsub_subscription (
     FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
 );
 
-CREATE INDEX i_pubsub_item_created_at ON pubsub_item USING btree (service_jid, node_id, created_at);
+CREATE INDEX i_pubsub_item_published_at ON pubsub_item USING btree (service_jid, node_id, published_at);
 
 CREATE TABLE pubsub_nodes (
     nidx               BIGSERIAL PRIMARY KEY,

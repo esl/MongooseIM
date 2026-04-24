@@ -633,12 +633,15 @@ auto_create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     PepNode = make_pep_node_info(Alice, NodeNS),
     PublishOptions = [{~"pubsub#access_model", ~"open"}],
     pubsub_tools:publish_with_options(Alice, ~"item0", {pep, NodeNS}, [], PublishOptions),
-    pubsub_tools:subscribe(Bob, PepNode, []),
     pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
+    pubsub_tools:subscribe(Bob, PepNode, []),
+    pubsub_tools:publish(Alice, ~"item2", {pep, NodeNS}, []),
     pubsub_tools:receive_item_notification(
-      Bob, ~"item1", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
-    pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item0", ~"item1"]}]),
-    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
+      Bob, ~"item2", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+    pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]),
+    pubsub_tools:get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
+    pubsub_tools:get_items(Bob, PepNode, [~"item1", ~"item404", ~"item0"],
+                           [{expected_result, [~"item1", ~"item0"]}]).
 
 publish_options_fail_invalid_config_story(Alice) ->
     %% XEP-0060 7.1.5 Publishing Options: unmet publish-options precondition

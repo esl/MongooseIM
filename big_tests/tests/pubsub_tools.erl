@@ -161,6 +161,21 @@ get_all_items(User, {_, NodeName} = Node, Options) ->
               check_items(Items, ExpectedResult, NodeName)
       end).
 
+get_items(User, {NodeAddr, NodeName} = Node, ItemIds, Options) ->
+    Id = id(User, Node, <<"items">>),
+    ItemsEl = #xmlel{name = ~"items",
+                     attrs = #{~"node" => NodeName},
+                     children = [#xmlel{name = ~"item", attrs = #{~"id" => ItemId}}
+                                 || ItemId <- ItemIds]},
+    Request = escalus_pubsub_stanza:pubsub_iq(~"get", User, Id, NodeAddr, [ItemsEl]),
+    send_request_and_receive_response(
+      User, Request, Id, Options,
+      fun(Response, ExpectedResult) ->
+              Items = exml_query:path(Response, [{element, <<"pubsub">>},
+                                                 {element, <<"items">>}]),
+              check_items(Items, ExpectedResult, NodeName)
+      end).
+
 get_item(User, {_, NodeName} = Node, ItemId, Options) ->
     Id = id(User, Node, <<"items">>),
     Request = escalus_pubsub_stanza:get_item(User, Id, ItemId, Node),
@@ -561,6 +576,7 @@ check_subscription(Subscr, Jid, NodeName, Options) ->
 check_items(ReceivedItemsElem, ExpectedItemIds, NodeName) ->
     NodeName = exml_query:attr(ReceivedItemsElem, <<"node">>),
     ReceivedItems = exml_query:subelements(ReceivedItemsElem, <<"item">>),
+    ?assertEqual(length(ExpectedItemIds), length(ReceivedItems)),
     [check_item(ExpectedItemId, ReceivedItem) ||
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
