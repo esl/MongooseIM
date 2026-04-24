@@ -4,12 +4,15 @@
 -export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 -export([user_send_iq/3,
+         disco_sm_identity/3,
+         disco_sm_features/3,
          caps_recognised/3,
          roster_out_subscription/3,
          remove_user/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_ns.hrl").
 -include("mongoose_config_spec.hrl").
 -include("mod_pubsub.hrl").
 
@@ -87,6 +90,8 @@ config_spec() ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 50},
+     {disco_sm_identity, HostType, fun ?MODULE:disco_sm_identity/3, #{}, 75},
+     {disco_sm_features, HostType, fun ?MODULE:disco_sm_features/3, #{}, 75},
      {caps_recognised, HostType, fun ?MODULE:caps_recognised/3, #{}, 50},
      {roster_out_subscription, HostType, fun ?MODULE:roster_out_subscription/3, #{}, 50},
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
@@ -115,6 +120,26 @@ caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
     SubscriberJid = mongoose_acc:from_jid(Acc),
     [send_last_items(host_type(OwnerJid), jid:to_bare(OwnerJid), SubscriberJid, Features)
      || OwnerJid <- subscriptions(s_to, C2SData)],
+    {ok, Acc}.
+
+-spec disco_sm_identity(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
+      Acc :: mongoose_disco:identity_acc().
+disco_sm_identity(Acc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+    case ejabberd_auth:does_user_exist(ToJid) of
+        true -> {ok, mongoose_disco:add_identities([pep_identity()], Acc)};
+        false -> {ok, Acc}
+    end;
+disco_sm_identity(Acc, _, _) ->
+    {ok, Acc}.
+
+-spec disco_sm_features(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
+      Acc :: mongoose_disco:feature_acc().
+disco_sm_features(Acc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+    case ejabberd_auth:does_user_exist(ToJid) of
+        true -> {ok, mongoose_disco:add_features(pep_disco_features(), Acc)};
+        false -> {ok, Acc}
+    end;
+disco_sm_features(Acc, _, _) ->
     {ok, Acc}.
 
 -spec roster_out_subscription(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
@@ -469,3 +494,32 @@ route_notification(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) -
 host_type(#jid{lserver = LServer}) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     HostType.
+
+-spec pep_identity() -> mongoose_disco:identity().
+pep_identity() ->
+    #{category => ~"pubsub", type => ~"pep"}.
+
+-spec pep_disco_features() -> [mongoose_disco:feature()].
+pep_disco_features() ->
+    [?NS_PUBSUB | [pubsub_feature(Feature) || Feature <- pep_features()]].
+
+-spec pep_features() -> [binary()].
+pep_features() ->
+    [~"access-open",
+     ~"access-presence",
+     ~"auto-create",
+     ~"config-node",
+     ~"create-and-configure",
+     ~"create-nodes",
+     ~"delete-nodes",
+     ~"filtered-notifications",
+     ~"item-ids",
+     ~"persistent-items",
+     ~"publish",
+     ~"publish-options",
+     ~"retrieve-items",
+     ~"subscribe"].
+
+-spec pubsub_feature(binary()) -> mongoose_disco:feature().
+pubsub_feature(Feature) ->
+    <<(?NS_PUBSUB)/binary, "#", Feature/binary>>.

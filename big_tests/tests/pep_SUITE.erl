@@ -44,7 +44,8 @@ groups() ->
 
 %% Tests for old and new PEP
 pep_tests() ->
-    [auto_create_and_publish_implicit_sub,
+    [disco_info_sm_bare_jid,
+     auto_create_and_publish_implicit_sub,
      auto_create_and_publish_self_notify,
      create_presence_and_publish_implicit_sub,
      create_presence_and_publish_explicit_sub,
@@ -135,6 +136,22 @@ end_per_testcase(TestName, Config) ->
 
 %% Group: pep_tests (sequence)
 
+disco_info_sm_bare_jid(Config) ->
+    escalus:fresh_story(
+        Config,
+        [{alice, 1}],
+        fun(Alice) ->
+            AliceJid = escalus_client:short_jid(Alice),
+            escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            ?assertNot(escalus_pred:has_identity(~"pubsub", ~"service", Stanza)),
+            escalus:assert(has_identity, [~"pubsub", ~"pep"], Stanza),
+            lists:foreach(fun(Feature) ->
+                                  escalus:assert(has_feature, [Feature], Stanza)
+                          end, pep_disco_features()),
+            escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
+
 disco_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -210,6 +227,23 @@ disco_sm_items_test(Config, UseNode) ->
               ?assertEqual(jid:str_tolower(AliceJid), exml_query:attr(Item, <<"jid">>)),
               escalus:assert(is_stanza_from, [AliceJid], Stanza2)
       end).
+
+pep_disco_features() ->
+    [?NS_PUBSUB,
+     <<?NS_PUBSUB/binary, "#access-open">>,
+     <<?NS_PUBSUB/binary, "#access-presence">>,
+     <<?NS_PUBSUB/binary, "#auto-create">>,
+     <<?NS_PUBSUB/binary, "#config-node">>,
+     <<?NS_PUBSUB/binary, "#create-and-configure">>,
+     <<?NS_PUBSUB/binary, "#create-nodes">>,
+     <<?NS_PUBSUB/binary, "#delete-nodes">>,
+     <<?NS_PUBSUB/binary, "#filtered-notifications">>,
+     <<?NS_PUBSUB/binary, "#item-ids">>,
+     <<?NS_PUBSUB/binary, "#persistent-items">>,
+     <<?NS_PUBSUB/binary, "#publish">>,
+     <<?NS_PUBSUB/binary, "#publish-options">>,
+     <<?NS_PUBSUB/binary, "#retrieve-items">>,
+     <<?NS_PUBSUB/binary, "#subscribe">>].
 
 native_bookmarks_test(Config) ->
     Config1 = set_caps(Config, ?NS_PEP_BOOKMARKS),
