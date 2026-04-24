@@ -199,7 +199,6 @@ groups() ->
                             mod_extdisco,
                             mod_http_upload,
                             mod_http_upload_s3,
-                            mod_jingle_sip,
                             mod_keystore,
                             mod_keystore_keys,
                             mod_last,
@@ -2050,33 +2049,6 @@ http_upload_s3_expected_cfg() ->
       bucket_url => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
       region => <<"antarctica-1">>,
       secret_access_key => <<"ILOVEU">>}.
-
-mod_jingle_sip(_Config) ->
-    check_module_defaults(mod_jingle_sip),
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
-    P = [modules, mod_jingle_sip],
-    ?cfgh(P ++ [backend], mnesia, T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(P ++ [proxy_host], "proxxxy.com",
-          T(#{<<"proxy_host">> => <<"proxxxy.com">>})),
-    ?cfgh(P ++ [proxy_port], 5601,
-          T(#{<<"proxy_port">> => 5601})),
-    ?cfgh(P ++ [listen_port], 5602,
-          T(#{<<"listen_port">> => 5602})),
-    ?cfgh(P ++ [local_host], "localhost",
-          T(#{<<"local_host">> => <<"localhost">>})),
-    ?cfgh(P ++ [sdp_origin], "127.0.0.1",
-          T(#{<<"sdp_origin">> => <<"127.0.0.1">>})),
-    ?cfgh(P ++ [transport], "tcp",
-          T(#{<<"transport">> => <<"tcp">>})),
-    ?cfgh(P ++ [username_to_phone], [{<<"2000006168">>, <<"+919177074440">>}],
-          T(#{<<"username_to_phone">> => [#{<<"username">> => <<"2000006168">>,
-                                            <<"phone">> => <<"+919177074440">>}]})),
-    ?errh(T(#{<<"backend">> => <<"amnesia">>})),
-    ?errh(T(#{<<"proxy_host">> => 1})),
-    ?errh(T(#{<<"proxy_port">> => 1000000})),
-    ?errh(T(#{<<"listen_port">> => -1})),
-    ?errh(T(#{<<"local_host">> => <<>>})),
-    ?errh(T(#{<<"sdp_origin">> => <<"abc">>})).
 
 mod_keystore(_Config) ->
     check_module_defaults(mod_keystore),

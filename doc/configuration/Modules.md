@@ -120,9 +120,6 @@ Implements custom inbox XEP
 ### [mod_global_distrib](../modules/mod_global_distrib.md)
 Enables sharing a single XMPP domain between distinct datacenters (**experimental**).
 
-### [mod_jingle_sip](../modules/mod_jingle_sip.md)
-Enables Jingle to SIP and SIP to Jingle translator.
-
 ### [mod_keystore](../modules/mod_keystore.md)
 Serves as a storage for crypto keys for `mod_auth_token`.
 
@@ -207,7 +204,6 @@ There are some modules that don't support dynamic domains for now.
 These must **not** be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
 
 * [mod_global_distrib](../modules/mod_global_distrib.md)
-* [mod_jingle_sip](../modules/mod_jingle_sip.md)
 * [mod_pubsub](../modules/mod_pubsub.md)
 * [mod_shared_roster_ldap](../modules/mod_shared_roster_ldap.md)
 

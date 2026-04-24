@@ -254,7 +254,7 @@ A gateway is typically implemented as a custom XMPP server extension module or a
 
 In practice, however, such gateways often rely on additional protocol extensions and implementation-specific customizations.
 
-Please note that SIP compatibility is among the initial objectives of the Jingle protocol. There are some attempts to standardize the mapping of Jingle actions to SIP methods (see [draft-ietf-stox-media]), MongooseIM also provides a custom Jingle-SIP gateway implementation: [mod_jingle_sip]
+Please note that SIP compatibility is among the initial objectives of the Jingle protocol. There are some attempts to standardize the mapping of Jingle actions to SIP methods (see [draft-ietf-stox-media]).
 
 ## Sample One-to-One Session
 Below is a sequence diagram of a successful one-to-one Jingle session establishment and termination:
@@ -369,4 +369,3 @@ TURN servers are not designed for efficient multicasting. When sending media to 
 [TURN]: https://en.wikipedia.org/wiki/Traversal_Using_Relays_around_NAT
 [draft-ietf-stox-media]: http://tools.ietf.org/html/draft-ietf-stox-media
 [TURN tutorial]: coturn_tutorial.md
-[mod_jingle_sip]: ../modules/mod_jingle_sip.md
