@@ -653,6 +653,15 @@ publish_options_fail_invalid_config_story(Alice) ->
     escalus:assert(is_error, [~"cancel", ~"conflict"], Result2),
     #xmlel{} = exml_query:subelement(Result2, ~"precondition-not-met"),
 
+    %% XEP-0060 7.1.5 Publishing Options: unmet publish-options precondition
+    NodeNS = random_node_ns(),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:create_node(Alice, PepNode, []),
+    ResultExisting = publish_with_publish_options(Alice, {pep, NodeNS}, ~"item1",
+                                                  [{~"pubsub#access_model", ~"open"}]),
+    escalus:assert(is_error, [~"cancel", ~"conflict"], ResultExisting),
+    #xmlel{} = exml_query:subelement(ResultExisting, ~"precondition-not-met"),
+
     %% Malformed publish-options form
     Result3 = publish_with_publish_options(Alice, {pep, random_node_ns()}, ~"item1",
                                            [{~"pubsub#access_model", ~"open"}], ~"WRONG_NS"),

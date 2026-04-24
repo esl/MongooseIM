@@ -103,7 +103,7 @@ user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
         #{} ?= Action = mod_pubsub_xml:iq_action(IQ),
         Request = #{acc => Acc, iq => IQ, from_jid => From, service_jid => To, c2s_data => C2SData},
         ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
-        reply(Request, make_reply(try_action(Request, Action))),
+        reply(Request, mod_pubsub_xml:make_reply(try_action(Request, Action))),
         {stop, Acc}
     else
         _ -> {ok, Acc}
@@ -150,13 +150,13 @@ try_action(Request, Action) ->
 perform_action(#{}, Action = #{action := error}) ->
     Action;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
-               Action = #{action := create, node_id := NodeId, config := #{access_model := AccessModel}}) ->
+               Action = #{action := create, node_id := NodeId, config := Config}) ->
     maybe
         ok ?= assert_owner(Request),
         HostType = mongoose_acc:host_type(Acc),
         NodeKey = {ServiceJid, NodeId},
         ok ?= assert_node_does_not_exist(HostType, NodeKey),
-        Node = #pubsub_node{node_key = NodeKey, access_model = AccessModel},
+        Node = #pubsub_node{node_key = NodeKey, config = Config},
         mod_pubsub_backend:set_node(HostType, Node),
         Action#{result => ok}
     end;
@@ -231,40 +231,12 @@ perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid
         ok ?= assert_owner(Request),
         HostType = mongoose_acc:host_type(Acc),
         NodeKey = {ServiceJid, NodeId},
-        Node = get_or_create_node(HostType, NodeKey, maps:get(config, Action, #{})),
+        {ok, Node} ?= get_or_create_node(HostType, NodeKey, maps:get(config, Action, #{})),
         Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
         mod_pubsub_backend:set_item(HostType, Item),
         broadcast_item(HostType, jid:to_bare(PublisherJid), recipient_jids(Node, Request), Item),
         Action#{result => ItemId}
     end.
-
--spec make_reply(iq_action()) -> {result | error, [exml:child()]}.
-make_reply(#{action := error, reason := {GenericReason, PubSubReason}}) ->
-    {error, [error_el(GenericReason), mod_pubsub_xml:pubsub_error_el(PubSubReason)]};
-make_reply(#{action := error, reason := Reason}) ->
-    {error, [error_el(Reason)]};
-make_reply(#{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid, result := ok}) ->
-    {result, [mod_pubsub_xml:pubsub_el(
-                [mod_pubsub_xml:subscription_el(SubscriberJid, NodeId, ~"subscribed")])]};
-make_reply(#{action := _, result := ok}) ->
-    {result, []};
-make_reply(#{action := get_configuration, result := Node}) ->
-    {result, [mod_pubsub_xml:pubsub_owner_el([mod_pubsub_xml:configure_el(Node)])]};
-make_reply(#{action := Get, node_id := NodeId, result := Items}) when Get =:= get_item;
-                                                                      Get =:= get_items ->
-    {result, [mod_pubsub_xml:pubsub_el(
-                [mod_pubsub_xml:items_el(NodeId, [mod_pubsub_xml:item_el(Item) || Item <- Items])])]};
-make_reply(#{action := publish, result := ItemId}) ->
-    {result, [mod_pubsub_xml:pubsub_el([mod_pubsub_xml:published_item_el(ItemId)])]}.
-
--spec error_el(generic_error_reason()) -> exml:element().
-error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
-error_el(conflict) -> mongoose_xmpp_errors:conflict();
-error_el(forbidden) -> mongoose_xmpp_errors:forbidden();
-error_el(not_acceptable) -> mongoose_xmpp_errors:not_acceptable();
-error_el(not_authorized) -> mongoose_xmpp_errors:not_authorized();
-error_el(unexpected_request) -> mongoose_xmpp_errors:unexpected_request_cancel();
-error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
 
 -spec subscribe(iq_request(), jid:jid(), node_key()) -> ok_result().
 subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
@@ -315,11 +287,11 @@ assert_retrieve_permission(Node, Request) ->
     end.
 
 -spec assert_subscribe_permission(pubsub_node(), iq_request()) -> ok_result().
-assert_subscribe_permission(#pubsub_node{access_model = open}, _) ->
-    ok;
-assert_subscribe_permission(#pubsub_node{access_model = presence,
-                                         node_key = {OwnerJid, _}}, Request) ->
-    assert_subscribed_to(OwnerJid, Request).
+assert_subscribe_permission(#pubsub_node{node_key = {OwnerJid, _}, config = Config}, Request) ->
+    case maps:get(access_model, Config) of
+        open -> ok;
+        presence -> assert_subscribed_to(OwnerJid, Request)
+    end.
 
 -spec assert_subscriber_jid(iq_request(), jid:jid()) -> ok_result().
 assert_subscriber_jid(#{from_jid := FromJid}, SubscriberJid) ->
@@ -378,23 +350,32 @@ implicit_subscribers(#pubsub_node{node_key = NodeKey = {OwnerJid, _}}, C2SData) 
 
 %% XEP-0163 4.1 limits notifications for explicit subscriptions to the 'open' model
 -spec explicit_subscribers(pubsub_node(), mongoose_acc:t()) -> [jid:jid()].
-explicit_subscribers(#pubsub_node{access_model = open, node_key = NodeKey}, Acc) ->
-    HostType = mongoose_acc:host_type(Acc),
-    [Jid || #subscription{jid = Jid} <- mod_pubsub_backend:get_subscriptions(HostType, NodeKey)];
-explicit_subscribers(_Node, _Acc) ->
-    [].
+explicit_subscribers(#pubsub_node{node_key = NodeKey, config = Config}, Acc) ->
+    case maps:get(access_model, Config) of
+        open ->
+            HostType = mongoose_acc:host_type(Acc),
+            [Jid || #subscription{jid = Jid} <- mod_pubsub_backend:get_subscriptions(HostType, NodeKey)];
+        presence ->
+            []
+    end.
 
--spec get_or_create_node(mongooseim:host_type(), node_key(), node_config()) -> pubsub_node().
+-spec get_or_create_node(mongooseim:host_type(), node_key(), node_config()) -> result(pubsub_node()).
 get_or_create_node(HostType, NodeKey, Config) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
         undefined ->
-            AccessModel = maps:get(access_model, Config, presence),
-            Node = #pubsub_node{node_key = NodeKey, access_model = AccessModel},
-            mod_pubsub_backend:set_node(HostType, Node),
-            Node;
-        Node ->
-            Node
+            Node = #pubsub_node{node_key = NodeKey, config = default_node_config()},
+            mod_pubsub_backend:set_node(HostType, apply_node_config(Node, Config)),
+            {ok, Node};
+        Node = #pubsub_node{config = ExistingConfig} ->
+            case maps:with(maps:keys(Config), ExistingConfig) of
+                Config -> {ok, Node};
+                _ -> {error, {conflict, ~"precondition-not-met"}}
+            end
     end.
+
+-spec default_node_config() -> node_config().
+default_node_config() ->
+    #{access_model => presence}.
 
 -spec reply(iq_request(), {result | error, [exml:child()]}) -> ok.
 reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {IQType, Els}) ->
@@ -404,7 +385,7 @@ reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {
 
 -spec apply_node_config(pubsub_node(), node_config()) -> pubsub_node().
 apply_node_config(Node, Config) ->
-    Node#pubsub_node{access_model = maps:get(access_model, Config, Node#pubsub_node.access_model)}.
+    Node#pubsub_node{config = maps:merge(Node#pubsub_node.config, Config)}.
 
 -spec send_last_items(mongooseim:host_type(), jid:jid(), jid:jid(), [mod_caps:feature()]) -> ok.
 send_last_items(HostType, OwnerJid = #jid{lresource = ~""},

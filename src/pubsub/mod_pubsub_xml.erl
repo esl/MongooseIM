@@ -5,7 +5,8 @@
 -export([iq_action/1]).
 
 %% XML Construction
--export([pubsub_error_el/1,
+-export([make_reply/1,
+         pubsub_error_el/1,
          pubsub_el/1,
          pubsub_owner_el/1,
          configure_el/1,
@@ -205,6 +206,32 @@ parse_access_model(_) -> {error, bad_request}.
 
 %% XML Construction
 
+-spec make_reply(iq_action()) -> {result | error, [exml:child()]}.
+make_reply(#{action := error, reason := {GenericReason, PubSubReason}}) ->
+    {error, [error_el(GenericReason), pubsub_error_el(PubSubReason)]};
+make_reply(#{action := error, reason := Reason}) ->
+    {error, [error_el(Reason)]};
+make_reply(#{action := subscribe, node_id := NodeId, subscriber_jid := SubscriberJid, result := ok}) ->
+    {result, [pubsub_el([subscription_el(SubscriberJid, NodeId, ~"subscribed")])]};
+make_reply(#{action := _, result := ok}) ->
+    {result, []};
+make_reply(#{action := get_configuration, result := Node}) ->
+    {result, [pubsub_owner_el([configure_el(Node)])]};
+make_reply(#{action := Get, node_id := NodeId, result := Items}) when Get =:= get_item;
+                                                                      Get =:= get_items ->
+    {result, [pubsub_el([items_el(NodeId, [item_el(Item) || Item <- Items])])]};
+make_reply(#{action := publish, result := ItemId}) ->
+    {result, [pubsub_el([published_item_el(ItemId)])]}.
+
+-spec error_el(generic_error_reason()) -> exml:element().
+error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
+error_el(conflict) -> mongoose_xmpp_errors:conflict();
+error_el(forbidden) -> mongoose_xmpp_errors:forbidden();
+error_el(not_acceptable) -> mongoose_xmpp_errors:not_acceptable();
+error_el(not_authorized) -> mongoose_xmpp_errors:not_authorized();
+error_el(unexpected_request) -> mongoose_xmpp_errors:unexpected_request_cancel();
+error_el(item_not_found) -> mongoose_xmpp_errors:item_not_found().
+
 -spec pubsub_error_el(binary()) -> exml:element().
 pubsub_error_el(Reason) ->
     #xmlel{name = Reason, attrs = #{~"xmlns" => ?NS_PUBSUB_ERRORS}}.
@@ -225,7 +252,7 @@ configure_el(Node = #pubsub_node{node_key = {_, NodeId}}) ->
     #xmlel{name = ~"configure", attrs = #{~"node" => NodeId}, children = [Form]}.
 
 -spec configure_fields(mod_pubsub:pubsub_node()) -> [mongoose_data_forms:field()].
-configure_fields(#pubsub_node{access_model = AccessModel}) ->
+configure_fields(#pubsub_node{config = #{access_model := AccessModel}}) ->
     [#{var => ~"pubsub#access_model",
        type => ~"list-single",
        values => [atom_to_binary(AccessModel)],
@@ -259,9 +286,9 @@ notification_message_el(#item{node_key = {_, NodeId}} = Item) ->
     event_message_el(items_el(NodeId, [item_el(Item)])).
 
 -spec event_message_el(exml:element()) -> exml:element().
-event_message_el(Event) ->
+event_message_el(EventEl) ->
     #xmlel{name = ~"message",
            attrs = #{~"type" => ~"headline"},
            children = [#xmlel{name = ~"event",
                               attrs = #{~"xmlns" => ?NS_PUBSUB_EVENT},
-                              children = [Event]}]}.
+                              children = [EventEl]}]}.

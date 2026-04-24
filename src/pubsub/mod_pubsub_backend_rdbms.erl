@@ -53,7 +53,8 @@ stop(_HostType) ->
     ok.
 
 -spec set_node(mongooseim:host_type(), mod_pubsub:pubsub_node()) -> ok.
-set_node(HostType, #pubsub_node{node_key = {ServiceJid, NodeId}, access_model = AccessModel}) ->
+set_node(HostType, #pubsub_node{node_key = {ServiceJid, NodeId},
+                                config = #{access_model := AccessModel}}) ->
     Values = [jid:to_binary(ServiceJid), NodeId, atom_to_binary(AccessModel)],
     {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_node_upsert, Values,
                                                 [atom_to_binary(AccessModel)]),
@@ -68,7 +69,7 @@ get_node(HostType, {ServiceJid, NodeId} = NodeKey) ->
             undefined;
         {selected, [{AccessModelBin}]} ->
             #pubsub_node{node_key = NodeKey,
-                         access_model = binary_to_existing_atom(AccessModelBin)}
+                         config = #{access_model => binary_to_existing_atom(AccessModelBin)}}
     end.
 
 -spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
