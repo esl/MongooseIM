@@ -39,8 +39,7 @@
 -type iq_request() :: #{acc := mongoose_acc:t(),
                         iq := jlib:iq(),
                         from_jid := jid:jid(),
-                        service_jid := jid:jid(),
-                        c2s_data := mongoose_c2s:data()}.
+                        service_jid := jid:jid()}.
 
 -type iq_action() ::
         #{action := error, reason := error_reason()}
@@ -110,19 +109,13 @@ user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
         true ?= is_user_jid(To), % Only PEP is handled now
         IQ = #iq{} ?= jlib:iq_query_info(Stanza),
         #{} ?= Action = mod_pubsub_xml:iq_action(IQ),
-        PreparedAcc = prepare_acc(Action, C2SData, Acc),
-        Request = #{acc => PreparedAcc, iq => IQ, from_jid => From, service_jid => To, c2s_data => C2SData},
+        Acc1 = mod_presence:put_state_in_acc(C2SData, Acc),
+        Request = #{acc => Acc1, iq => IQ, from_jid => From, service_jid => To},
         ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
         handle_action(Action, Request)
     else
         _ -> {ok, Acc}
     end.
-
--spec prepare_acc(iq_action(), mongoose_c2s:data(), mongoose_acc:t()) -> mongoose_acc:t().
-prepare_acc(#{action := defer}, C2SData, Acc) ->
-    mod_presence:put_state_in_acc(C2SData, Acc);
-prepare_acc(#{}, _C2SData, Acc) ->
-    Acc.
 
 -spec handle_action(iq_action(), iq_request()) -> mongoose_c2s_hooks:result().
 handle_action(#{action := defer}, #{acc := Acc}) ->
@@ -139,8 +132,9 @@ is_user_jid(#jid{}) -> true.
       Acc :: mongoose_acc:t().
 caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
     SubscriberJid = mongoose_acc:from_jid(Acc),
+    Acc1 = mod_presence:put_state_in_acc(C2SData, Acc),
     [send_last_items(host_type(OwnerJid), jid:to_bare(OwnerJid), SubscriberJid, Features)
-     || OwnerJid <- subscriptions(s_to, C2SData)],
+     || OwnerJid <- subscriptions(s_to, Acc1)],
     {ok, Acc}.
 
 -spec disco_sm_identity(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
@@ -368,8 +362,8 @@ assert_owner(Request) ->
     end.
 
 -spec assert_subscribed_to(jid:jid(), iq_request()) -> ok_result().
-assert_subscribed_to(OwnerJid, #{c2s_data := C2SData}) ->
-    case is_subscribed_to(OwnerJid, C2SData) of
+assert_subscribed_to(OwnerJid, #{acc := Acc}) ->
+    case is_subscribed_to_presence(OwnerJid, Acc) of
         true -> ok;
         false -> {error, {not_authorized, ~"presence-subscription-required"}}
     end.
@@ -386,8 +380,8 @@ is_owner(#{from_jid := FromJid, service_jid := ServiceJid}) ->
     jid:are_bare_equal(FromJid, ServiceJid).
 
 -spec recipient_jids(pubsub_node(), iq_request()) -> [jid:jid()].
-recipient_jids(Node, #{acc := Acc, c2s_data := C2SData}) ->
-    Subs = lists:usort(implicit_subscribers(Node, C2SData) ++ explicit_subscribers(Node, Acc)),
+recipient_jids(Node, #{acc := Acc}) ->
+    Subs = lists:usort(implicit_subscribers(Node, Acc) ++ explicit_subscribers(Node, Acc)),
     lists:foldl(fun drop_bare_jid_shadowed_by_full_jid/2, [], Subs).
 
 -spec drop_bare_jid_shadowed_by_full_jid(jid:jid(), [jid:jid()]) -> [jid:jid()].
@@ -397,9 +391,9 @@ drop_bare_jid_shadowed_by_full_jid(#jid{luser = U, lserver = S} = FullJid,
 drop_bare_jid_shadowed_by_full_jid(Jid, Results) ->
     [Jid | Results].
 
--spec implicit_subscribers(pubsub_node(), mongoose_c2s:data()) -> [jid:jid()].
-implicit_subscribers(#pubsub_node{node_key = NodeKey = {OwnerJid, _}}, C2SData) ->
-    filter_recipients([OwnerJid | subscriptions(s_from, C2SData)], NodeKey).
+-spec implicit_subscribers(pubsub_node(), mongoose_acc:t()) -> [jid:jid()].
+implicit_subscribers(#pubsub_node{node_key = NodeKey = {OwnerJid, _}}, Acc) ->
+    filter_recipients([OwnerJid | subscriptions(s_from, Acc)], NodeKey).
 
 %% XEP-0163 4.1 limits notifications for explicit subscriptions to the 'open' model
 -spec explicit_subscribers(pubsub_node(), mongoose_acc:t()) -> [jid:jid()].
@@ -480,22 +474,11 @@ broadcast_notification(HostType, FromJid, ToJids, Notification) ->
 notify_feature({_, NodeId}) ->
     <<NodeId/binary, "+notify">>.
 
--spec subscriptions(s_from | s_to, mongoose_c2s:data()) -> [jid:jid()].
-subscriptions(Type, C2SData) ->
-    case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
-        {ok, State} ->
-            maps:keys(mod_presence:get(State, Type));
-        _ ->
-            []
-    end.
-
--spec is_subscribed_to(jid:jid(), mongoose_c2s:data()) -> boolean().
-is_subscribed_to(OwnerJid = #jid{lresource = ~""}, C2SData) ->
-    case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
-        {ok, State} ->
-            mod_presence:is_subscribed(State, OwnerJid, to);
-        _ ->
-            false
+-spec subscriptions(s_from | s_to, mongoose_acc:t()) -> [jid:jid()].
+subscriptions(Type, Acc) ->
+    case mod_presence:get_state_from_acc(Acc) of
+        undefined -> [];
+        State -> maps:keys(mod_presence:get(State, Type))
     end.
 
 -spec resources_with_features(jid:jid()) -> [{jid:lresource(), [mod_caps:feature()]}].
@@ -536,19 +519,17 @@ disco_items(HostType, ServiceJid, FromJid, Acc) ->
 
 -spec can_discover_node(pubsub_node(), jid:jid(), mongoose_disco:item_acc()) -> boolean().
 can_discover_node(#pubsub_node{node_key = {OwnerJid, _},
-                               config = #{access_model := AccessModel}}, FromJid, Acc) ->
+                               config = #{access_model := AccessModel}}, FromJid, #{acc := Acc}) ->
     jid:are_bare_equal(OwnerJid, FromJid)
         orelse AccessModel =:= open
-        orelse has_presence_subscription(OwnerJid, Acc).
+        orelse is_subscribed_to_presence(OwnerJid, Acc).
 
--spec has_presence_subscription(jid:jid(), mongoose_disco:item_acc()) -> boolean().
-has_presence_subscription(OwnerJid, #{acc := Acc}) ->
-    case mongoose_acc:get(mod_presence, presences_state, undefined, Acc) of
+-spec is_subscribed_to_presence(jid:jid(), mongoose_acc:t()) -> boolean().
+is_subscribed_to_presence(OwnerJid = #jid{lresource = ~""}, Acc) ->
+    case mod_presence:get_state_from_acc(Acc) of
         undefined -> false;
-        PresencesState -> mod_presence:is_subscribed(PresencesState, jid:to_bare(OwnerJid), to)
-    end;
-has_presence_subscription(_, _) ->
-    false.
+        PresencesState -> mod_presence:is_subscribed(PresencesState, OwnerJid, to)
+    end.
 
 -spec pep_identity() -> mongoose_disco:identity().
 pep_identity() ->

@@ -57,7 +57,8 @@
          maybe_get_handler/1,
          get_old_priority/1,
          is_subscribed/3,
-         put_state_in_acc/2
+         put_state_in_acc/2,
+         get_state_from_acc/1
         ]).
 
 -ignore_xref([am_i_subscribed_to_presence/3]). % unused but still exported for tests/debugging
@@ -752,12 +753,16 @@ get(#presences_state{pres_pri = Value}, priority) -> Value;
 get(#presences_state{pres_last = Value}, last) -> Value;
 get(#presences_state{pres_timestamp = Value}, timestamp) -> Value.
 
--doc "Store presences state in Acc for later use by modules (e.g. mod_pubsub)".
+-doc "Store presences state in Acc for later use by other modules (e.g. mod_pubsub)".
 -spec put_state_in_acc(mongoose_c2s:data(), mongoose_acc:t()) -> mongoose_acc:t().
 put_state_in_acc(C2SData, Acc) ->
     case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
         {ok, State} ->
-            mongoose_acc:set_permanent(?MODULE, presences_state, State, Acc);
+            mongoose_acc:set_permanent(?MODULE, state, State, Acc);
         _ ->
             Acc
     end.
+
+-spec get_state_from_acc(mongoose_acc:t()) -> state() | undefined.
+get_state_from_acc(Acc) ->
+    mongoose_acc:get(?MODULE, state, undefined, Acc).
