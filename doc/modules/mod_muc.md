@@ -6,6 +6,9 @@ This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the
 Note that only `mod_muc` needs to be enabled in the configuration file.
 Also `mod_muc_log` is a logging submodule.
 
+!!! Warning
+    `mod_muc_log` is deprecated and will be removed in the next release.
+
 ## Options
 
 ### `modules.mod_muc.host`
@@ -360,6 +363,9 @@ Available room configuration options to be overridden in the initial state:
 
     Enables logging of room events (messages, presences) to a file on the disk.
     Uses `mod_muc_log`.
+
+    !!! Warning
+        `mod_muc_log` is deprecated and will be removed in the next release.
 
 * `modules.mod_muc.default_room.maygetmemberlist` 
     * **Syntax:** array of non-empty strings
