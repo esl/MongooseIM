@@ -4,6 +4,7 @@
 -export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 -export([user_send_iq/3,
+         iq_sm/5,
          disco_sm_identity/3,
          disco_sm_features/3,
          disco_sm_items/3,
@@ -43,7 +44,6 @@
 
 -type iq_action() ::
         #{action := error, reason := error_reason()}
-      | #{action := defer}
       | #{action := create, node_id := node_id(), config := node_config(),
           result => ok}
       | #{action := get_configuration, node_id := node_id(),
@@ -69,11 +69,13 @@
 %% gen_mod callbacks
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, Opts) ->
-    mod_pubsub_backend:start(HostType, Opts).
+start(HostType, #{iqdisc := IQDisc} = Opts) ->
+    mod_pubsub_backend:start(HostType, Opts),
+    add_iq_handlers(HostType, IQDisc).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
+    delete_iq_handlers(HostType),
     mod_pubsub_backend:stop(HostType).
 
 -spec supported_features() -> [gen_mod:module_feature()].
@@ -84,8 +86,10 @@ supported_features() ->
 config_spec() ->
     #section{
         items = #{~"backend" => #option{type = atom,
-                                        validate = {module, mod_pubsub_backend}}},
-        defaults = #{~"backend" => rdbms}
+                                        validate = {module, mod_pubsub_backend}},
+                  ~"iqdisc" => mongoose_config_spec:iqdisc()},
+        defaults = #{~"backend" => rdbms,
+                     ~"iqdisc" => no_queue}
     }.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
@@ -101,28 +105,47 @@ hooks(HostType) ->
 
 %% Hook handlers
 
+-spec add_iq_handlers(mongooseim:host_type(), gen_iq_handler:execution_type()) -> ok.
+add_iq_handlers(HostType, IQDisc) ->
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PUBSUB, ejabberd_sm,
+                                             fun ?MODULE:iq_sm/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PUBSUB_OWNER, ejabberd_sm,
+                                             fun ?MODULE:iq_sm/5, #{}, IQDisc),
+    ok.
+
+-spec delete_iq_handlers(mongooseim:host_type()) -> ok.
+delete_iq_handlers(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PUBSUB, ejabberd_sm),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PUBSUB_OWNER, ejabberd_sm),
+    ok.
+
 -spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
           mongoose_c2s_hooks:result().
 user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
-    {From, To, Stanza} = mongoose_acc:packet(Acc),
+    {_From, To, Stanza} = mongoose_acc:packet(Acc),
     maybe
         true ?= is_user_jid(To), % Only PEP is handled now
         IQ = #iq{} ?= jlib:iq_query_info(Stanza),
-        #{} ?= Action = mod_pubsub_xml:iq_action(IQ),
+        true ?= mod_pubsub_xml:is_iq_relevant(IQ),
         Acc1 = mod_presence:put_state_in_acc(C2SData, Acc),
-        Request = #{acc => Acc1, iq => IQ, from_jid => From, service_jid => To},
-        ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
-        handle_action(Action, Request)
+        {ok, Acc1}
     else
         _ -> {ok, Acc}
     end.
 
--spec handle_action(iq_action(), iq_request()) -> mongoose_c2s_hooks:result().
-handle_action(#{action := defer}, #{acc := Acc}) ->
-    {ok, Acc};
-handle_action(Action, Request = #{acc := Acc}) ->
-    reply(Request, mod_pubsub_xml:make_reply(try_action(Request, Action))),
-    {stop, Acc}.
+-spec iq_sm(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
+    {mongoose_acc:t(), jlib:iq()}.
+iq_sm(Acc, From, To, IQ, _Extra) ->
+    Action = handle_iq(Acc, From, To, IQ),
+    Reply = mod_pubsub_xml:make_reply(Action),
+    make_iq_response(Acc, IQ, Reply).
+
+-spec handle_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq()) -> iq_action().
+handle_iq(Acc, From, To, IQ) ->
+    Action = mod_pubsub_xml:iq_action(IQ),
+    Request = #{acc => Acc, iq => IQ, from_jid => From, service_jid => To},
+    ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
+    handle_action_result(perform_action(Request, Action)).
 
 -spec is_user_jid(jid:jid()) -> boolean().
 is_user_jid(#jid{luser = ~""}) -> false;
@@ -190,12 +213,11 @@ remove_user(Acc, #{jid := ServiceJid}, _) ->
 
 %% Internal functions
 
--spec try_action(iq_request(), iq_action()) -> iq_action().
-try_action(Request, Action) ->
-    maybe
-        {error, Reason} ?= perform_action(Request, Action),
-        #{action => error, reason => Reason}
-    end.
+-spec handle_action_result(iq_action() | error_result()) -> iq_action().
+handle_action_result({error, Reason}) ->
+    #{action => error, reason => Reason};
+handle_action_result(Action) ->
+    Action.
 
 -spec perform_action(iq_request(), iq_action()) -> iq_action() | error_result().
 perform_action(#{}, Action = #{action := error}) ->
@@ -424,11 +446,10 @@ get_or_create_node(HostType, NodeKey, Config) ->
 default_node_config() ->
     #{access_model => presence}.
 
--spec reply(iq_request(), {result | error, [exml:child()]}) -> ok.
-reply(#{acc := Acc, iq := IQ, from_jid := FromJid, service_jid := ServiceJid}, {IQType, Els}) ->
-    Reply = jlib:iq_to_xml(IQ#iq{type = IQType, sub_el = Els}),
-    ejabberd_router:route(ServiceJid, FromJid, Acc, Reply),
-    ok.
+-spec make_iq_response(mongoose_acc:t(), jlib:iq(), {result | error, [exml:child()]}) ->
+    {mongoose_acc:t(), jlib:iq()}.
+make_iq_response(Acc, IQ, {IQType, Els}) ->
+    {Acc, IQ#iq{type = IQType, sub_el = Els}}.
 
 -spec apply_node_config(pubsub_node(), node_config()) -> pubsub_node().
 apply_node_config(Node, Config) ->

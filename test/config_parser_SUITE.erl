@@ -2553,6 +2553,7 @@ mod_private(_Config) ->
     ?errh(T(#{<<"backend">> => <<"mysql">>})).
 
 mod_pubsub(_Config) ->
+    check_iqdisc(mod_pubsub),
     check_module_defaults(mod_pubsub),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
     P = [modules, mod_pubsub],

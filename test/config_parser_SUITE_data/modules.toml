@@ -244,6 +244,7 @@
 
 [modules.mod_pubsub]
   backend = "rdbms"
+  iqdisc.type = "no_queue"
 
 [modules.mod_push_service_mongoosepush]
   pool_name = "mongoose_push_http"

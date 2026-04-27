@@ -2,7 +2,8 @@
 -moduledoc("XML element parsing and construction for mod_pubsub").
 
 %% XML Parsing
--export([iq_action/1]).
+-export([iq_action/1,
+         is_iq_relevant/1]).
 
 %% XML Construction
 -export([make_reply/1,
@@ -33,15 +34,19 @@
 
 %% XML Parsing
 
--spec iq_action(jlib:iq()) -> iq_action() | no_action.
-iq_action(#iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = #xmlel{name = ~"query"}}) ->
-    #{action => defer};
+-spec is_iq_relevant(jlib:iq()) -> boolean().
+is_iq_relevant(#iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = #xmlel{name = ~"query"}}) ->
+    true;
+is_iq_relevant(#iq{xmlns = NS}) ->
+    NS =:= ?NS_PUBSUB orelse NS =:= ?NS_PUBSUB_OWNER.
+
+-spec iq_action(jlib:iq()) -> iq_action().
 iq_action(#iq{type = IQType, xmlns = NS, sub_el = #xmlel{name = ~"pubsub", children = Children}}) ->
     iq_action(IQType, NS, jlib:remove_cdata(Children));
 iq_action(_) ->
-    no_action.
+    #{action => error, reason => bad_request}.
 
--spec iq_action(get | set, binary(), [exml:element()]) -> iq_action() | no_action.
+-spec iq_action(get | set, binary(), [exml:element()]) -> iq_action().
 iq_action(set, ?NS_PUBSUB, Children) ->
     iq_pubsub_set(Children);
 iq_action(get, ?NS_PUBSUB, Children) ->
@@ -51,7 +56,7 @@ iq_action(set, ?NS_PUBSUB_OWNER, Children) ->
 iq_action(get, ?NS_PUBSUB_OWNER, Children) ->
     iq_pubsub_owner_get(Children);
 iq_action(_, _, _) ->
-    no_action.
+    #{action => error, reason => bad_request}.
 
 -spec iq_pubsub_set([exml:element()]) -> iq_action().
 iq_pubsub_set([#xmlel{name = ~"create", attrs = #{~"node" := NodeId}} | Rest]) ->
