@@ -72,11 +72,13 @@ get_node(HostType, {ServiceJid, NodeId} = NodeKey) ->
                          config = #{access_model => binary_to_existing_atom(AccessModelBin)}}
     end.
 
--spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
+-spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:pubsub_node()].
 get_nodes(HostType, ServiceJid) ->
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_nodes,
                                                            [jid:to_binary(ServiceJid)]),
-    [{ServiceJid, NodeId} || {NodeId} <- Rows].
+    [#pubsub_node{node_key = {ServiceJid, NodeId},
+                  config = #{access_model => binary_to_existing_atom(AccessModelBin)}}
+     || {NodeId, AccessModelBin} <- Rows].
 
 -spec delete_nodes(mongooseim:host_type(), jid:jid()) -> ok.
 delete_nodes(HostType, ServiceJid) ->
@@ -221,7 +223,7 @@ sql(get_last_item) ->
      """;
 sql(get_nodes) ->
     ~"""
-     SELECT node_id
+     SELECT node_id, access_model
      FROM pubsub_node
      WHERE service_jid = ?
      """;

@@ -6,6 +6,7 @@
 -export([user_send_iq/3,
          disco_sm_identity/3,
          disco_sm_features/3,
+         disco_sm_items/3,
          caps_recognised/3,
          roster_out_subscription/3,
          remove_user/3]).
@@ -43,6 +44,7 @@
 
 -type iq_action() ::
         #{action := error, reason := error_reason()}
+      | #{action := defer}
       | #{action := create, node_id := node_id(), config := node_config(),
           result => ok}
       | #{action := get_configuration, node_id := node_id(),
@@ -92,6 +94,7 @@ hooks(HostType) ->
     [{user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 50},
      {disco_sm_identity, HostType, fun ?MODULE:disco_sm_identity/3, #{}, 75},
      {disco_sm_features, HostType, fun ?MODULE:disco_sm_features/3, #{}, 75},
+     {disco_sm_items, HostType, fun ?MODULE:disco_sm_items/3, #{}, 75},
      {caps_recognised, HostType, fun ?MODULE:caps_recognised/3, #{}, 50},
      {roster_out_subscription, HostType, fun ?MODULE:roster_out_subscription/3, #{}, 50},
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
@@ -104,15 +107,33 @@ hooks(HostType) ->
 user_send_iq(Acc, _Args = #{c2s_data := C2SData}, _Extra) ->
     {From, To, Stanza} = mongoose_acc:packet(Acc),
     maybe
+        true ?= is_user_jid(To), % Only PEP is handled now
         IQ = #iq{} ?= jlib:iq_query_info(Stanza),
         #{} ?= Action = mod_pubsub_xml:iq_action(IQ),
-        Request = #{acc => Acc, iq => IQ, from_jid => From, service_jid => To, c2s_data => C2SData},
+        PreparedAcc = prepare_acc(Action, C2SData, Acc),
+        Request = #{acc => PreparedAcc, iq => IQ, from_jid => From, service_jid => To, c2s_data => C2SData},
         ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
-        reply(Request, mod_pubsub_xml:make_reply(try_action(Request, Action))),
-        {stop, Acc}
+        handle_action(Action, Request)
     else
         _ -> {ok, Acc}
     end.
+
+-spec prepare_acc(iq_action(), mongoose_c2s:data(), mongoose_acc:t()) -> mongoose_acc:t().
+prepare_acc(#{action := defer}, C2SData, Acc) ->
+    mod_presence:put_state_in_acc(C2SData, Acc);
+prepare_acc(#{}, _C2SData, Acc) ->
+    Acc.
+
+-spec handle_action(iq_action(), iq_request()) -> mongoose_c2s_hooks:result().
+handle_action(#{action := defer}, #{acc := Acc}) ->
+    {ok, Acc};
+handle_action(Action, Request = #{acc := Acc}) ->
+    reply(Request, mod_pubsub_xml:make_reply(try_action(Request, Action))),
+    {stop, Acc}.
+
+-spec is_user_jid(jid:jid()) -> boolean().
+is_user_jid(#jid{luser = ~""}) -> false;
+is_user_jid(#jid{}) -> true.
 
 -spec caps_recognised(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
       Acc :: mongoose_acc:t().
@@ -140,6 +161,17 @@ disco_sm_features(Acc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""},
         false -> {ok, Acc}
     end;
 disco_sm_features(Acc, _, _) ->
+    {ok, Acc}.
+
+-spec disco_sm_items(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
+      Acc :: mongoose_disco:item_acc().
+disco_sm_items(Acc = #{host_type := HostType, from_jid := FromJid,
+                       to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+    case ejabberd_auth:does_user_exist(ToJid) of
+        true -> {ok, mongoose_disco:add_items(disco_items(HostType, ToJid, FromJid, Acc), Acc)};
+        false -> {ok, Acc}
+    end;
+disco_sm_items(Acc, _, _) ->
     {ok, Acc}.
 
 -spec roster_out_subscription(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
@@ -494,6 +526,29 @@ route_notification(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) -
 host_type(#jid{lserver = LServer}) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     HostType.
+
+-spec disco_items(mongooseim:host_type(), jid:jid(), jid:jid(), mongoose_disco:item_acc()) ->
+    [mongoose_disco:item()].
+disco_items(HostType, ServiceJid, FromJid, Acc) ->
+    [#{jid => jid:to_binary(ServiceJid), node => NodeId}
+     || Node = #pubsub_node{node_key = {_, NodeId}} <- mod_pubsub_backend:get_nodes(HostType, ServiceJid),
+        can_discover_node(Node, FromJid, Acc)].
+
+-spec can_discover_node(pubsub_node(), jid:jid(), mongoose_disco:item_acc()) -> boolean().
+can_discover_node(#pubsub_node{node_key = {OwnerJid, _},
+                               config = #{access_model := AccessModel}}, FromJid, Acc) ->
+    jid:are_bare_equal(OwnerJid, FromJid)
+        orelse AccessModel =:= open
+        orelse has_presence_subscription(OwnerJid, Acc).
+
+-spec has_presence_subscription(jid:jid(), mongoose_disco:item_acc()) -> boolean().
+has_presence_subscription(OwnerJid, #{acc := Acc}) ->
+    case mongoose_acc:get(mod_presence, presences_state, undefined, Acc) of
+        undefined -> false;
+        PresencesState -> mod_presence:is_subscribed(PresencesState, jid:to_bare(OwnerJid), to)
+    end;
+has_presence_subscription(_, _) ->
+    false.
 
 -spec pep_identity() -> mongoose_disco:identity().
 pep_identity() ->

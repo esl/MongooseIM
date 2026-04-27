@@ -11,7 +11,7 @@
 -callback set_node(mongooseim:host_type(), mod_pubsub:pubsub_node()) -> ok.
 -callback get_node(mongooseim:host_type(), mod_pubsub:node_key()) ->
     mod_pubsub:pubsub_node() | undefined.
--callback get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
+-callback get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:pubsub_node()].
 -callback delete_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
 -callback delete_nodes(mongooseim:host_type(), jid:jid()) -> ok.
 -callback set_subscription(mongooseim:host_type(), mod_pubsub:subscription()) -> ok.
@@ -53,7 +53,7 @@ set_node(HostType, Node) ->
 get_node(HostType, NodeKey) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey]).
 
--spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:node_key()].
+-spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:pubsub_node()].
 get_nodes(HostType, ServiceJid) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, ServiceJid]).
 

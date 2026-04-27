@@ -173,8 +173,8 @@ user_cannot_query_stranger_resources(Config) ->
         Request = escalus_stanza:disco_items(BobJid),
         escalus:send(Alice, Request),
         Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_error, [Request], Stanza),
-        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza),
+        Query = exml_query:subelement(Stanza, <<"query">>),
+        ?assertEqual([], exml_query:subelements(Query, <<"item">>)),
         escalus:assert(is_stanza_from, [BobJid], Stanza),
         assert_roster_get_event(Alice)
     end).

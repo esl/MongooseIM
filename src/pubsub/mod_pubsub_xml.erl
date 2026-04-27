@@ -34,6 +34,8 @@
 %% XML Parsing
 
 -spec iq_action(jlib:iq()) -> iq_action() | no_action.
+iq_action(#iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = #xmlel{name = ~"query"}}) ->
+    #{action => defer};
 iq_action(#iq{type = IQType, xmlns = NS, sub_el = #xmlel{name = ~"pubsub", children = Children}}) ->
     iq_action(IQType, NS, jlib:remove_cdata(Children));
 iq_action(_) ->

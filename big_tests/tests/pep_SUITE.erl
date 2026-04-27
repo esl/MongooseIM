@@ -45,6 +45,8 @@ groups() ->
 %% Tests for old and new PEP
 pep_tests() ->
     [disco_info_sm_bare_jid,
+     disco_items_sm,
+     disco_items_sm_open,
      auto_create_and_publish_implicit_sub,
      auto_create_and_publish_self_notify,
      create_presence_and_publish_implicit_sub,
@@ -150,6 +152,35 @@ disco_info_sm_bare_jid(Config) ->
                                   escalus:assert(has_feature, [Feature], Stanza)
                           end, pep_disco_features()),
             escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
+
+disco_items_sm(Config) ->
+    NodeNS = random_node_ns(),
+    escalus:fresh_story(
+        Config,
+        [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            AliceJid = escalus_client:short_jid(Alice),
+            pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
+            make_friends(Bob, Alice, 0),
+            assert_disco_items_node(Alice, AliceJid, NodeNS),
+            assert_disco_items_node(Bob, AliceJid, NodeNS),
+            assert_no_disco_items_node(Kate, AliceJid, NodeNS)
+        end).
+
+disco_items_sm_open(Config) ->
+    NodeNS = random_node_ns(),
+    escalus:fresh_story(
+        Config,
+        [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            AliceJid = escalus_client:short_jid(Alice),
+            PepNode = make_pep_node_info(Alice, NodeNS),
+            pubsub_tools:create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+            pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
+            assert_disco_items_node(Alice, AliceJid, NodeNS),
+            assert_disco_items_node(Bob, AliceJid, NodeNS),
+            assert_disco_items_node(Kate, AliceJid, NodeNS)
         end).
 
 disco_test(Config) ->
@@ -1191,6 +1222,21 @@ random_node_ns() ->
 
 random_name() ->
     base64:encode(crypto:strong_rand_bytes(16)).
+
+assert_disco_items_node(Client, OwnerJid, NodeNS) ->
+    Query = disco_items_query(Client, OwnerJid),
+    Item = exml_query:subelement_with_attr(Query, ~"node", NodeNS),
+    ?assertEqual(jid:str_tolower(OwnerJid), exml_query:attr(Item, ~"jid")).
+
+assert_no_disco_items_node(Client, OwnerJid, NodeNS) ->
+    Query = disco_items_query(Client, OwnerJid),
+    ?assertEqual(undefined, exml_query:subelement_with_attr(Query, ~"node", NodeNS)).
+
+disco_items_query(Client, OwnerJid) ->
+    escalus:send(Client, escalus_stanza:disco_items(OwnerJid)),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza),
+    exml_query:subelement(Stanza, ~"query").
 
 send_presence(From, Type, To) ->
     ToJid = escalus_client:short_jid(To),

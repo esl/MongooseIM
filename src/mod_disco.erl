@@ -160,19 +160,18 @@ process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl
 process_sm_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
-    case is_presence_subscribed(From, To) of
-        true ->
-            HostType = mongoose_acc:host_type(Acc),
-            Node = exml_query:attr(SubEl, <<"node">>, <<>>),
-            case mongoose_disco:get_sm_items(HostType, From, To, Node, Lang) of
-                empty ->
-                    Error = sm_error(From, To),
-                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
-                {result, ItemsXML} ->
-                    {Acc, make_iq_result(IQ, ?NS_DISCO_ITEMS, Node, ItemsXML)}
-            end;
-        false ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
+    IsPresenceSubscribed = is_presence_subscribed(From, To),
+    HostType = mongoose_acc:host_type(Acc),
+    Node = exml_query:attr(SubEl, ~"node", ~""),
+    Acc1 = mongoose_acc:set(?MODULE, presence_subscribed, IsPresenceSubscribed, Acc),
+    case mongoose_disco:get_sm_items(HostType, From, To, Node, Lang, Acc1) of
+        empty when Node =:= ~"" ->
+            {Acc, make_iq_result(IQ, ?NS_DISCO_ITEMS, Node, [])};
+        empty ->
+            Error = sm_error(From, To),
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+        {result, ItemsXML} ->
+            {Acc, make_iq_result(IQ, ?NS_DISCO_ITEMS, Node, ItemsXML)}
     end.
 
 -spec process_sm_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
@@ -239,6 +238,11 @@ disco_local_items(Acc, _, _) ->
     Acc :: mongoose_disco:item_acc(),
     Params :: map(),
     Extra :: map().
+disco_sm_items(Acc = #{to_jid := To, node := <<>>, acc := SourceAcc}, _, _) ->
+    case mongoose_acc:get(?MODULE, presence_subscribed, false, SourceAcc) of
+        true -> {ok, mongoose_disco:add_items(get_user_resources(To), Acc)};
+        false -> {ok, Acc}
+    end;
 disco_sm_items(Acc = #{to_jid := To, node := <<>>}, _, _) ->
     Items = get_user_resources(To),
     {ok, mongoose_disco:add_items(Items, Acc)};

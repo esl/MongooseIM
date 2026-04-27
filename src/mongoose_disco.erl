@@ -9,6 +9,7 @@
          get_sm_identity/5,
          get_local_items/5,
          get_sm_items/5,
+         get_sm_items/6,
          get_local_features/5,
          get_sm_features/5,
          get_muc_features/6,
@@ -34,7 +35,7 @@
 -type feature() :: binary().
 
 -type item_acc() :: acc(item()).
--type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
+-type item() :: #{jid := jid:literal_jid(), name => binary(), node => binary()}.
 
 -type identity_acc() :: acc(identity()).
 -type identity() :: #{category := binary(), type := binary(), name => binary()}.
@@ -52,6 +53,7 @@
                      to_jid := jid:jid(),
                      node := binary(),
                      lang := ejabberd:lang(),
+                     acc => mongoose_acc:t(),
                      result := empty | [Elem]}.
 
 -export_type([item_acc/0, feature_acc/0, identity_acc/0,
@@ -89,6 +91,16 @@ get_local_items(HostType, From, To, Node, Lang) ->
           {result, [exml:element()]} | empty.
 get_sm_items(HostType, From, To, Node, Lang) ->
     Acc = new_acc(HostType, From, To, Node, Lang),
+    case mongoose_hooks:disco_sm_items(Acc) of
+        #{result := empty} -> empty;
+        #{result := Items} -> {result, items_to_xml(Items)}
+    end.
+
+-spec get_sm_items(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                   mongoose_acc:t()) ->
+          {result, [exml:element()]} | empty.
+get_sm_items(HostType, From, To, Node, Lang, SourceAcc) ->
+    Acc = (new_acc(HostType, From, To, Node, Lang))#{acc => SourceAcc},
     case mongoose_hooks:disco_sm_items(Acc) of
         #{result := empty} -> empty;
         #{result := Items} -> {result, items_to_xml(Items)}
