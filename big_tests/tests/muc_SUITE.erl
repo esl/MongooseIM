@@ -22,6 +22,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 -include("assert_received_match.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,
@@ -33,7 +34,9 @@
          generate_rpc_jid/1,
          destroy_room/1,
          destroy_room/2,
+         get_member_list/2,
          stanza_muc_enter_room/2,
+         stanza_affiliation_list_request/2,
          stanza_to_room/2,
          stanza_to_room/3,
          room_address/1,
@@ -47,6 +50,7 @@
          change_nick_form_iq/1,
          set_nick/2,
          assert_room_event/2,
+         assert_room_events/3,
          wait_for_room_count/1,
          count_rooms/0
          ]).
@@ -95,6 +99,7 @@
 %%--------------------------------------------------------------------
 
 all() -> [
+          acl_deny,
           {group, disco},
           {group, disco_with_mam},
           {group, disco_rsm},
@@ -131,6 +136,9 @@ groups() ->
                                     deep_hibernation_metrics_are_updated,
                                     can_found_in_db_when_stopped
                                    ]},
+         {hibernation_failures, [], [hibernated_room_is_stopped_and_restored_by_presence_user_not_allowed,
+                                     hibernated_room_is_stopped_and_restoration_by_presence_fails
+         ]},
          {disco, [parallel], [
                               disco_service,
                               disco_features,
@@ -152,6 +160,7 @@ groups() ->
                                   moderator_kick_with_reason,
                                   moderator_kick_unauthorized,
                                   moderator_voice,
+                                  visitor_is_not_allowed_to_send,
                                   moderator_voice_with_reason,
                                   moderator_voice_unauthorized,
                                   moderator_voice_list,
@@ -173,6 +182,8 @@ groups() ->
                               admin_membership,
                               admin_membership_with_reason,
                               admin_member_list,
+                              admin_remove_user,
+                              admin_remove_user_from_offline_room,
                               admin_member_list_allowed,
                               admin_moderator,
                               admin_moderator_with_reason,
@@ -221,6 +232,7 @@ groups() ->
                                  subject,
                                  no_subject,
                                  send_to_all,
+                                 member_must_not_send_service_messages,
                                  send_and_receive_private_message_client_with_x_elem,
                                  send_and_receive_private_message_client_without_x_elem,
                                  send_private_groupchat,
@@ -404,6 +416,10 @@ init_per_group(hibernation, Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     setup_mam(mam_helper:backend()),
     Config1;
+init_per_group(hibernation_failures, Config) ->
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    setup_mam(mam_helper:backend()),
+    Config1;
 init_per_group(register_over_s2s, Config) ->
     Config1 = s2s_helper:init_s2s(Config),
     Config2 = s2s_helper:configure_s2s(both_plain, Config1),
@@ -465,6 +481,8 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, muc_http_auth_test]),
     dynamic_modules:restore_modules(Config);
 end_per_group(hibernation, Config) ->
+    dynamic_modules:restore_modules(Config);
+end_per_group(hibernation_failures, Config) ->
     dynamic_modules:restore_modules(Config);
 end_per_group(register_over_s2s, Config) ->
     s2s_helper:end_s2s(Config),
@@ -598,6 +616,15 @@ end_per_testcase(CaseName = room_creation_not_allowed, Config) ->
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = create_instant_persistent_room, Config) ->
     dynamic_modules:restore_modules(Config),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = acl_deny, Config) ->
+    unload_meck(),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = hibernated_room_is_stopped_and_restored_by_presence_user_not_allowed, Config) ->
+    unload_meck(),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = hibernated_room_is_stopped_and_restoration_by_presence_fails, Config) ->
+    unload_meck(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -804,6 +831,31 @@ moderator_voice(ConfigIn) ->
 
         %% Bob should receive his new presence
         escalus:assert(Pred2, escalus:wait_for_stanza(Bob))
+    end).
+
+visitor_is_not_allowed_to_send(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, moderator_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+        %% Alice makes Bob a visitor
+        escalus:send(Alice, stanza_set_roles(?config(room,Config),
+                                             [{<<"bob">>,<<"visitor">>}])),
+        Msg = <<"chat message">>,
+        Id = <<"MyID">>,
+        Stanza = escalus_stanza:set_id(
+            escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg), Id),
+        escalus:send(Bob, Stanza),
+        Res = escalus:wait_for_stanza(Bob),
+        ?assertEqual(<<"error">>, exml_query:attr(Res, <<"type">>)),
+        ?assertEqual(<<"403">>, exml_query:path(Res, [{element, <<"error">>}, {attr, <<"code">>}])),
+        ok
     end).
 
 moderator_voice_with_reason(ConfigIn) ->
@@ -1249,6 +1301,7 @@ admin_get_form(ConfigIn) ->
         escalus:send(Alice, F),
         Form = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, Form),
+        RoomJID = rpc(mim(), jid, make, [?config(room, Config), muc_host(), <<>>]),
         ok
     end),
     ok.
@@ -1471,6 +1524,80 @@ admin_member_list(ConfigIn) ->
         Error = escalus:wait_for_stanza(Kate),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
   end).
+
+%% removing user from the system removes them from a room
+admin_remove_user(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        Room = ?config(room, Config),
+        %% Bob joins room
+        add_user_to_room(Bob, Room, Alice),
+        %% Request member list
+        List = get_member_list(Alice, Room),
+        %% Bob should be on the list
+        true = is_iq_with_affiliation(List, <<"member">>),
+        true = is_iq_with_short_jid(List, Bob),
+        %% Remove Bob's account
+        remove_user(Bob),
+        %% Request again
+        List2 = get_member_list(Alice, Room),
+        escalus:assert(is_iq_result, List2),
+        %% List should be empty
+        true = is_item_list_empty(List2),
+        ok
+    end).
+
+admin_remove_user_from_offline_room(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        Room = ?config(room, Config),
+        %% Bob joins room
+        add_user_to_room(Bob, Room, Alice),
+        %% Request member list
+        List = get_member_list(Alice, Room),
+        %% Bob should be on the list
+        true = is_iq_with_affiliation(List, <<"member">>),
+        true = is_iq_with_short_jid(List, Bob),
+        %% make Bob offline so that we can hibernate the room
+        escalus_client:stop(Config, Bob),
+        %% stop room process
+        stop_room(Room),
+        %% Remove Bob's account
+        remove_user(Bob),
+        %% Request again
+        List2 = get_member_list(Alice, Room),
+        escalus:assert(is_iq_result, List2),
+        %% List should be empty
+        true = is_item_list_empty(List2),
+        RoomJID = rpc(mim(), jid, make, [Room, muc_host(), <<>>]),
+        assert_room_event(mod_muc_deep_hibernations, RoomJID),
+        assert_room_event(mod_muc_process_recreations, RoomJID),
+        ok
+    end).
+
+stop_room(Room) ->
+    {ok, Pid} = rpc(mim(), mod_muc_online_backend, find_room_pid,
+            [domain_helper:host_type(), muc_host(), Room]),
+    Pid ! stop_persistent_room_process,
+    wait_helper:wait_until(fun() ->
+                               rpc(mim(), mod_muc_online_backend, find_room_pid,
+                                   [domain_helper:host_type(), muc_host(), Room])
+                           end, {error, not_found}),
+    ok.
+
+remove_user(Bob) ->
+    BJ = escalus_client:full_jid(Bob),
+    B = jid:from_binary(BJ),
+    true = rpc(mim(), ejabberd_auth, does_user_exist, [B]),
+    ok = rpc(mim(), ejabberd_auth, remove_user, [B]),
+    false = rpc(mim(), ejabberd_auth, does_user_exist, [B]).
+
+add_user_to_room(Bob, Room, Alice) ->
+    escalus:send(Bob, stanza_muc_enter_room(Room, <<"bob">>)),
+    escalus:wait_for_stanzas(Bob, 2),
+    Items = [{escalus_utils:get_short_jid(Bob), <<"member">>}],
+    escalus:send(Alice, stanza_set_affiliations(Room, Items)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)).
 
 check_memberlist(LoginData, yes, Config) ->
     escalus:send(LoginData, stanza_affiliation_list_request(
@@ -2550,6 +2677,41 @@ send_to_all(ConfigIn) ->
         escalus_assert:has_no_stanzas(Kate)
     end).
 
+acl_deny(ConfigIn) ->
+    ok = rpc(mim(), meck, expect, [acl, match_rule,
+                                   fun(_, _, muc, #jid{luser = K}) ->
+                                       case K of
+                                           <<"kate", _/binary>> -> deny;
+                                           _ -> allow
+                                       end;
+                                      (_, _, _, _) ->
+                                          allow
+                                   end]),
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob, Kate) ->
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 2),
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Kate))),
+        Res = escalus_client:wait_for_stanza(Kate),
+        escalus:assert(is_presence_with_type, [<<"error">>], Res),
+        ?assertEqual(<<"403">>, exml_query:path(Res, [{element, <<"error">>}, {attr, <<"code">>}])),
+        ok
+    end).
+
+member_must_not_send_service_messages(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob) ->
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 2),
+        Msg = <<"chat message">>,
+        Id = <<"MyID">>,
+        Stanza = escalus_stanza:set_id(escalus_stanza:groupchat_to(muc_host(), Msg), Id),
+        escalus:send(Bob, Stanza),
+        Res = escalus:wait_for_stanza(Bob),
+        ?assertEqual(<<"error">>, exml_query:attr(Res, <<"type">>)),
+        ?assertEqual(<<"403">>, exml_query:path(Res, [{element, <<"error">>}, {attr, <<"code">>}])),
+        ok
+    end).
 
 %Examples 46, 47
 send_and_receive_private_message_client_with_x_elem(ConfigIn) ->
@@ -4388,7 +4550,6 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
         escalus:wait_for_stanza(Bob),
         leave_room(RoomName, Bob),
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
-        ct:sleep(timer:seconds(1)),
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
@@ -4400,6 +4561,59 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
         ok
     end),
 
+    destroy_room(muc_host(), RoomName),
+    forget_room(host_type(), muc_host(), RoomName).
+
+hibernated_room_is_stopped_and_restored_by_presence_user_not_allowed(Config) ->
+    RoomName = fresh_room_name(),
+    ok = rpc(mim(), meck, expect, [acl, match_rule,
+                                   fun(_, _, muc_create, #jid{luser = K}) ->
+                                       case K of
+                                           <<"bob", _/binary>> -> deny;
+                                           _ -> allow
+                                       end;
+                                      (_, _, _, _) ->
+                                          allow
+                                   end]),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Opts = [{persistentroom, true},
+                {subject, <<"Restorable">>}],
+        Result = given_fresh_room_with_participants_is_hibernated(Alice, RoomName, Opts, Bob),
+        {ok, _RoomJID, Pid} = Result,
+        leave_room(RoomName, Alice),
+        escalus:wait_for_stanza(Bob),
+        leave_room(RoomName, Bob),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+        escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
+        Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
+        escalus:assert(is_presence_with_type, [<<"error">>], Presence),
+        ?assertEqual(<<"405">>, exml_query:path(Presence, [{element, <<"error">>}, {attr, <<"code">>}])),
+        ok
+    end),
+    destroy_room(muc_host(), RoomName),
+    forget_room(host_type(), muc_host(), RoomName).
+
+hibernated_room_is_stopped_and_restoration_by_presence_fails(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Opts = [{persistentroom, true},
+                {subject, <<"Restorable">>}],
+        Result = given_fresh_room_with_participants_is_hibernated(Alice, RoomName, Opts, Bob),
+        {ok, _RoomJID, Pid} = Result,
+        leave_room(RoomName, Alice),
+        escalus:wait_for_stanza(Bob),
+        leave_room(RoomName, Bob),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+        ok = rpc(mim(), meck, expect, [mod_muc_backend, restore_room,
+                                       fun(_, _, _) ->
+                                           {error, fails}
+                                       end]),
+        escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
+        Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
+        escalus:assert(is_presence_with_type, [<<"error">>], Presence),
+        ?assertEqual(<<"503">>, exml_query:path(Presence, [{element, <<"error">>}, {attr, <<"code">>}])),
+        ok
+    end),
     destroy_room(muc_host(), RoomName),
     forget_room(host_type(), muc_host(), RoomName).
 
@@ -5054,11 +5268,6 @@ stanza_role_list_request(Room, Role) ->
 stanza_form_request(Room) ->
     Payload = [],
     stanza_to_room(escalus_stanza:iq_get(?NS_MUC_OWNER, Payload), Room).
-
-stanza_affiliation_list_request(Room, Affiliation) ->
-    Payload = [ #xmlel{name = <<"item">>,
-                       attrs = #{<<"affiliation">> => Affiliation}} ],
-    stanza_to_room(escalus_stanza:iq_get(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_ban_list_request(Room) ->
     stanza_affiliation_list_request(Room, <<"outcast">>).

@@ -68,6 +68,7 @@ init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     set_opts(Config),
     mim_ct_rest:start(?BASIC_AUTH, Config),
+    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
     % Separate process needs to do this, because this one will terminate
     % so will supervisor and children and ETS tables
     mim_ct_rest:do(
@@ -81,7 +82,7 @@ init_per_suite(Config) ->
               mongoose_wpool_http:init(),
               ejabberd_auth_http:start(?HOST_TYPE)
       end),
-    Config.
+    Config1.
 
 pool_opts() ->
    #{scope => host_type,
@@ -91,8 +92,8 @@ pool_opts() ->
 end_per_suite(Config) ->
     ejabberd_auth_http:stop(?HOST_TYPE),
     ok = mim_ct_rest:stop(),
-    unset_opts(),
-    Config.
+    async_helper:stop_all(Config),
+    unset_opts().
 
 init_per_group(cert_auth, Config) ->
     Root = small_path_helper:repo_dir(Config),
@@ -244,10 +245,13 @@ set_opts(Config) ->
                          _ -> scram
                      end,
     HttpOpts = #{basic_auth => ?BASIC_AUTH},
-    mongoose_config:set_opts(#{{auth, ?HOST_TYPE} => #{methods => [http],
-                                                       password => #{format => PasswordFormat,
-                                                                     scram_iterations => 10},
-                                                       http => HttpOpts}}).
+    mongoose_config:set_opts(#{
+        {auth, ?HOST_TYPE} => #{methods => [http],
+                                password => #{format => PasswordFormat,
+                                              scram_iterations => 10},
+                                http => HttpOpts},
+        instrumentation => config_parser_helper:default_config([instrumentation])
+    }).
 
 unset_opts() ->
     mongoose_config:erase_opts().

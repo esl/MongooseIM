@@ -10,7 +10,7 @@ Alternatively, check out our tutorial on [How to build MongooseIM from source co
 
 ## Packages
 
-Go to the [latest release](https://github.com/esl/MongooseIM/releases/latest) page and select the package compatible with your system version.
+Go to the [Downloads](https://trymongoose.im/downloads#packages) page and select the package compatible with your system version.
 The following sections describe the installation process for different operating systems.
 
 
@@ -55,14 +55,10 @@ The `mongooseimctl` command is available in `/usr/lib/mongooseim/bin/mongooseimc
 
 ## Helm
 
-You can easily install MongooseIM to a Kubernetes cluster with the help of our [Helm chart](https://artifacthub.io/packages/helm/mongoose/mongooseim), defined in the [source code repository](https://github.com/esl/MongooseHelm).
-After you have a Kubernetes cluster set up, simply run:
+You can easily install MongooseIM to a Kubernetes cluster with the help of our [Helm chart](https://trymongoose.im/downloads#helm).
 
-```bash
-helm repo add mongoose https://esl.github.io/MongooseHelm/
-```
+Once you’ve set up your Kubernetes cluster and added the MongooseIM repository (as described in the link above), simply run:
 
-to add our chart repository, and then:
 
 ```bash
 helm install my-mongooseim mongoose/mongooseim

@@ -32,6 +32,8 @@ all() ->
 init_per_suite(Config) ->
     http_helper:start(8081, '_', fun process_request/1),
     Pid = self(),
+    mongoose_config:set_opts(opts()),
+    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
     spawn(fun() ->
                   register(test_helper, self()),
                   mim_ct_sup:start_link(ejabberd_sup),
@@ -40,7 +42,7 @@ init_per_suite(Config) ->
                   receive stop -> ok end
           end),
     receive ready -> ok end,
-    Config.
+    Config1.
 
 process_request(Req) ->
     QS = cowboy_req:parse_qs(Req),
@@ -50,10 +52,15 @@ process_request(Req) ->
     end,
     cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, <<"OK">>, Req).
 
-end_per_suite(_Config) ->
+opts() ->
+    #{instrumentation => config_parser_helper:default_config([instrumentation])}.
+
+end_per_suite(Config) ->
     http_helper:stop(),
     exit(whereis(ejabberd_sup), shutdown),
-    whereis(test_helper) ! stop.
+    whereis(test_helper) ! stop,
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts().
 
 init_per_testcase(TC, Config) ->
     Pool = config([outgoing_pools, http, pool()], pool_opts(TC)),

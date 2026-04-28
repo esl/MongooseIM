@@ -2,6 +2,7 @@ version: 2.1
 
 references:
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
+  - &LATEST_OTP erlangsolutions/erlang:cimg-28.4.2
 
 # this allows you to use CircleCI's dynamic configuration feature
 setup: true
@@ -14,10 +15,15 @@ filters: &all_tags
 orbs:
   continuation: circleci/continuation@0.2.0
 
+executors:
+  erlang:
+    docker:
+      - image: *LATEST_OTP
+
 # our defined job, and its steps
 jobs:
   setup:
-    executor: continuation/default
+    executor: erlang
     steps:
       - checkout # checkout code
       - maybe_build_certs

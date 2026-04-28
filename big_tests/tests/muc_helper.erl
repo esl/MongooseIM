@@ -164,6 +164,10 @@ create_instant_room(Room, From, Nick, Opts) ->
     ok = rpc(mim(), mod_muc, create_instant_room,
         [ServerHost, muc_host(), Room1, From, Nick, Opts]).
 
+get_member_list(Caller, Room) ->
+    escalus:send(Caller, stanza_affiliation_list_request(Room, <<"member">>)),
+    escalus:wait_for_stanza(Caller).
+
 assert_valid_server(ServerHost) ->
     HostType = domain_helper:host_type(),
     case rpc(mim(), mongoose_domain_api, get_domain_host_type, [ServerHost]) of
@@ -214,6 +218,11 @@ stanza_default_muc_room(Room, Nick) ->
     Query = escalus_stanza:query_el(?NS_MUC_OWNER, [Form]),
     IQSet = escalus_stanza:iq(<<"set">>, [Query]),
     stanza_to_room(IQSet, Room, Nick).
+
+stanza_affiliation_list_request(Room, Affiliation) ->
+    Payload = [ #xmlel{name = <<"item">>,
+                       attrs = #{<<"affiliation">> => Affiliation}} ],
+    stanza_to_room(escalus_stanza:iq_get(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_to_room(Stanza, Room) ->
     escalus_stanza:to(Stanza, room_address(Room)).
@@ -348,6 +357,9 @@ wait_for_room_count(ExpectedCounts) ->
 
 assert_room_event(EventName, RoomJid) ->
     assert_event(EventName, fun(#{count := 1, jid := Jid}) -> Jid =:= RoomJid end).
+
+assert_room_events(EventName, RoomJid, Count) ->
+    assert_event(EventName, fun(#{count := C, jid := Jid}) -> C =:= Count andalso Jid =:= RoomJid end).
 
 assert_event(EventName, F) ->
     instrument_helper:assert_one(EventName, labels(), F).

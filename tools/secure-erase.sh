@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Securely erases file contents under a path given by argument.
 
 set -eu

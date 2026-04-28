@@ -476,7 +476,7 @@ do_route(_HostType, _LServer, From,
          #jid{luser = LUser, lresource = LResource} = To, Acc, _IQ)
   when (LUser /= <<>>) or (LResource /= <<>>) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
-    ejabberd_router:route(To, From, Acc1, Err);
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route(HostType, LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_SEARCH, lang = Lang, sub_el = SubEl} = IQ) ->
     route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ);
@@ -485,11 +485,11 @@ do_route(HostType, LServer, From, To, Acc,
     Instr = search_instructions(Lang),
     Form = search_form(To, mod_vcard_backend:search_fields(HostType, LServer), Lang),
     ResIQ = make_search_form_result_iq(IQ, [Instr, Form]),
-    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
+    mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(ResIQ), Acc));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_DISCO_INFO}) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
-    ejabberd_router:route(To, From, Acc1, Err);
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route(HostType, _LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_DISCO_INFO, lang = Lang} = IQ) ->
     IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
@@ -499,18 +499,18 @@ do_route(HostType, _LServer, From, To, Acc,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = #{<<"xmlns">> => ?NS_DISCO_INFO},
                                    children = IdentityXML ++ FeatureXML ++ InfoXML}]},
-    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
+    mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(ResIQ), Acc));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_DISCO_ITEMS}) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
-    ejabberd_router:route(To, From, Acc1, Err);
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ) ->
     ResIQ =
         IQ#iq{type = result,
               sub_el = [#xmlel{name = <<"query">>,
                                attrs = #{<<"xmlns">> => ?NS_DISCO_ITEMS}}]},
-    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
+    mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(ResIQ), Acc));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_VCARD} = IQ) ->
     ResIQ =
@@ -518,10 +518,10 @@ do_route(_HostType, _LServer, From, To, Acc,
               sub_el = [#xmlel{name = <<"vCard">>,
                                attrs = #{<<"xmlns">> => ?NS_VCARD},
                                children = iq_get_vcard()}]},
-    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
+    mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(ResIQ), Acc));
 do_route(_HostType, _LServer, From, To, Acc, _IQ) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
-    ejabberd_router:route(To, From, Acc1, Err).
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)).
 
 make_search_form_result_iq(IQ, Elements) ->
     IQ#iq{type = result,
@@ -547,16 +547,16 @@ route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ) ->
     case XDataEl of
         undefined ->
             {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
-            ejabberd_router:route(To, From, Acc1, Err);
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
         _ ->
             case mongoose_data_forms:parse_form_fields(XDataEl) of
                 #{type := <<"submit">>, kvs := KVs} ->
                     {SearchResult, RSMOutEls} = search_result(HostType, LServer, Lang, To, KVs, RSMIn),
                     ResIQ = make_search_result_iq(IQ, SearchResult, RSMOutEls),
-                    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
+                    mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(ResIQ), Acc));
                 _ ->
                     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
-                    ejabberd_router:route(To, From, Acc1, Err)
+                    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
             end
     end.
 

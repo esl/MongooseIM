@@ -108,7 +108,7 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
 encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, Acc) ->
     ErrorElem = make_error_elem(ErrMsg),
     ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = ExtraChildren }, ErrorElem),
-    ejabberd_router:route(OrigTo, OrigFrom, Acc, ErrorPacket).
+    mongoose_router:route(mongoose_acc:update(OrigTo, OrigFrom, ErrorPacket, Acc)).
 
 -spec make_error_elem(tuple()) -> exml:element().
 make_error_elem({error, not_allowed}) ->

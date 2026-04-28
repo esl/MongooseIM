@@ -61,16 +61,21 @@ init_per_suite(Config) ->
                   receive stop -> ok end
           end),
     receive ready -> ok end,
-    Config.
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
 end_per_suite(Config) ->
+    async_helper:stop_all(Config),
     meck:unload(wpool),
     whereis(test_helper) ! stop,
     mongoose_config:erase_opts(),
     Config.
 
 opts() ->
-    #{hosts => [<<"a.com">>, <<"b.com">>, <<"c.eu">>], host_types => []}.
+    #{
+        hosts => [<<"a.com">>, <<"b.com">>, <<"c.eu">>],
+        host_types => [],
+        instrumentation => config_parser_helper:default_config([instrumentation])
+    }.
 
 init_per_testcase(_Case, Config) ->
     cleanup_pools(),
@@ -269,15 +274,18 @@ max_worker_queue_len_with_one_worker(_C) ->
     Pools = [config([outgoing_pools, generic, default],
                     #{opts => #{workers => 1, max_worker_queue_len => 1}})],
     StartRes = mongoose_wpool:start_configured_pools(Pools),
-    [W] = get_workers(generic, global, default),
+    PoolName = pool_name(generic, global, default),
+    [W] = get_workers(PoolName),
     ?assertMatch([{ok, _}], StartRes),
     ?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})),
     ?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})),
     get_waiting_msg(W), % W: waiting, queue len: 1
+    ?assertEqual(1, mongoose_wpool:workers_queue_len(PoolName)),
     ?assertExit(no_available_workers,
                 mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 1}]})),
     continue(W),
     get_waiting_msg(W), % W: waiting, queue len: 0
+    ?assertEqual(0, mongoose_wpool:workers_queue_len(PoolName)),
     ?assertEqual(ok,
                  mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 2}]})),
     continue(W), % W: free
@@ -288,20 +296,24 @@ max_worker_queue_len_with_two_workers(_C) ->
                     #{opts => #{workers => 2, max_worker_queue_len => 1}})],
     StartRes = mongoose_wpool:start_configured_pools(Pools),
     ?assertMatch([{ok, _}], StartRes),
-    Workers = get_workers(generic, global, default),
+    PoolName = pool_name(generic, global, default),
+    Workers = get_workers(PoolName),
 
     ?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})),
     W1 = get_waiting_msg(), % W1: waiting, queue len: 1
     ?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})),
     ?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})),
     W2 = get_waiting_msg(), % W1: waiting, queue len: 1;  W2: waiting, queue len: 0
+    ?assertEqual(1, mongoose_wpool:workers_queue_len(PoolName)),
     ?assertEqual(Workers -- [W1], [W2]),
     ?assertEqual(ok, mongoose_wpool:cast(generic, global, default, {?MODULE, wait, [self()]})),
-    %% W1 & W2: waiting, queue len: 1
+    %% W1 & W2: waiting, total queue len: 2
+    ?assertEqual(2, mongoose_wpool:workers_queue_len(PoolName)),
     ?assertExit(no_available_workers,
                 mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 1}]})),
     continue(W1),
     get_waiting_msg(W1), % W1: waiting, queue len: 0
+    ?assertEqual(1, mongoose_wpool:workers_queue_len(PoolName)),
     ?assertEqual(ok,
                  mongoose_wpool:cast(generic, global, default, {erlang, send, [self(), {msg, 2}]})),
     continue(W1), % W1: free
@@ -397,6 +409,9 @@ get_msg() ->
             ct:fail("Timeout: 'msg' not received from worker")
     end.
 
-get_workers(Type, Scope, Tag) ->
-    WorkerNames = wpool:get_workers(mongoose_wpool:make_pool_name(Type, Scope, Tag)),
+pool_name(Type, Scope, Tag) ->
+    mongoose_wpool:make_pool_name(Type, Scope, Tag).
+
+get_workers(PoolName) ->
+    WorkerNames = wpool:get_workers(PoolName),
     lists:map(fun whereis/1, WorkerNames).

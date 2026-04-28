@@ -212,7 +212,7 @@ take_action_for_matched_rule(_Packet, _From, #amp_rule{action = drop}, Acc) ->
 -spec reply_to_sender(amp_rule(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
     Response = amp:make_response(MatchedRule, OriginalSender, OriginalPacket),
-    ejabberd_router:route(ServerJid, OriginalSender, Response).
+    mongoose_router:route(mongoose_acc:new(ServerJid, OriginalSender, Response, ?LOCATION)).
 
 -spec send_error_and_drop(exml:element(), jid:jid(), amp_error(), amp_rule(), mongoose_acc:t()) -> drop.
 send_error_and_drop(Packet, From, AmpError, MatchedRule, Acc) ->
@@ -227,7 +227,7 @@ send_errors_and_drop(Packet, From, [], Acc) ->
 send_errors_and_drop(Packet, From, ErrorRules, Acc) ->
     {Errors, Rules} = lists:unzip(ErrorRules),
     ErrorResponse = amp:make_error_response(Errors, Rules, From, Packet),
-    ejabberd_router:route(server_jid(From), From, ErrorResponse),
+    mongoose_router:route(mongoose_acc:new(server_jid(From), From, ErrorResponse, ?LOCATION)),
     update_metric_and_drop(Acc).
 
 -spec update_metric_and_drop(mongoose_acc:t()) -> drop.

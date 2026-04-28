@@ -22,6 +22,7 @@
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -type blocking_type() :: block | unblock.
 -type listitem() :: #listitem{}.
@@ -102,7 +103,7 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
     T = mongoose_c2s:get_jid(StateData),
     F = jid:to_bare(T),
     PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
-    ejabberd_router:route(F, T, PrivPushEl),
+    mongoose_router:route(mongoose_acc:new(F, T, PrivPushEl, ?LOCATION)),
     ok.
 
 -spec blocking_presence_to_contacts(blocking_type(), [binary()], mongoose_c2s:data()) -> ok.
@@ -119,7 +120,7 @@ blocking_presence_to_contacts(Action, [Jid | JIDs], StateData) ->
     case mod_presence:is_subscribed_to_my_presence(T, jid:to_bare(T), Presences) of
         true ->
             F = jid:to_bare(mongoose_c2s:get_jid(StateData)),
-            ejabberd_router:route(F, T, Pres);
+            mongoose_router:route(mongoose_acc:new(F, T, Pres, ?LOCATION));
         false ->
             ok
     end,

@@ -16,7 +16,7 @@
          failed_to_store_message/1,
          filter_local_packet/1,
          filter_packet/1,
-         inbox_unread_count/3,
+         inbox_unread_count/2,
          extend_inbox_result/3,
          get_key/2,
          packet_to_component/3,
@@ -253,14 +253,14 @@ filter_packet(Acc) ->
 
 %%% @doc The `inbox_unread_count' hook is called to get the number
 %%% of unread messages in the inbox for a user.
--spec inbox_unread_count(LServer, Acc, User) -> Result when
-    LServer :: jid:lserver(),
+-spec inbox_unread_count(Acc, User) -> Result when
     Acc :: mongoose_acc:t(),
     User :: jid:jid(),
     Result :: mongoose_acc:t().
-inbox_unread_count(LServer, Acc, User) ->
+inbox_unread_count(Acc, User) ->
     Params = #{user => User},
-    run_hook_for_host_type(inbox_unread_count, LServer, Acc, Params).
+    HostType = mongoose_acc:host_type(Acc),
+    run_hook_for_host_type(inbox_unread_count, HostType, Acc, Params).
 
 -spec extend_inbox_result(mongoose_acc:t(), [mod_inbox:inbox_res()], jlib:iq()) ->
     [mod_inbox:inbox_res()].
@@ -310,7 +310,7 @@ push_notifications(HostType, Acc, NotificationForms, Options) ->
     run_hook_for_host_type(push_notifications, HostType, Acc, Params).
 
 %%% @doc The `register_subhost' hook is called when a component
-%%% is registered for ejabberd_router or a subdomain is added to mongoose_subdomain_core.
+%%% is registered for mongoose_router or a subdomain is added to mongoose_subdomain_core.
 -spec register_subhost(LDomain, IsHidden) -> Result when
     LDomain :: binary(),
     IsHidden :: boolean(),
@@ -399,7 +399,7 @@ filter_unacknowledged_messages(HostType, Jid, Buffer) ->
     run_hook_for_host_type(filter_unacknowledged_messages, HostType, Buffer, #{jid => Jid}).
 
 %%% @doc The `unregister_subhost' hook is called when a component
-%%% is unregistered from ejabberd_router or a subdomain is removed from mongoose_subdomain_core.
+%%% is unregistered from mongoose_router or a subdomain is removed from mongoose_subdomain_core.
 -spec unregister_subhost(LDomain) -> Result when
     LDomain :: binary(),
     Result :: any().

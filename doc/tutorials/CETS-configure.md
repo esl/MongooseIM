@@ -36,7 +36,7 @@ If you want to use CETS instead of Mnesia, ensure that these options are set:
 Ensure that `outgoing_pools` are configured with RDBMS, so CETS could get a list of MongooseIM nodes, which use the same
 relational database and cluster them together.
 
-A preferred way to install MongooseIM is [Helm Charts](https://github.com/esl/MongooseHelm/) on Kubernetes, so it allows
+A preferred way to install MongooseIM is [Helm Charts](https://trymongoose.im/downloads#helm) on Kubernetes, so it allows
 to set `volatileDatabase` to `cets` and the values would be applied using Helm's templates
 
 

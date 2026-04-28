@@ -5,6 +5,7 @@
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain_to_host_type/2, domain/0]).
 -import(config_parser_helper, [mod_config/2]).
+-import(muc_helper, [get_member_list/2]).
 
 -include("mam_helper.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -272,7 +273,11 @@ muc_removal(Config0) ->
         run_remove_domain(),
         ?assertMatch([], get_muc_rooms(MucHost)),
         ?assertMatch([], get_muc_room_aff(Domain)),
-        ?assertMatch({error, not_registered}, get_muc_registered(MucHost, AliceJid))
+        ?assertMatch({error, not_registered}, get_muc_registered(MucHost, AliceJid)),
+        % make sure the room is not running (it used to)
+        ListResponse = get_member_list(Alice, ?config(room, Config)),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], ListResponse),
+        ok
     end).
 
 muc_light_removal(Config0) ->

@@ -346,7 +346,7 @@ maybe_route_to_all_sessions(From, To, Acc, Packet) ->
     PResources = ejabberd_sm:get_user_present_resources(To),
     lists:foreach(
       fun({_, R}) ->
-              ejabberd_router:route(From, jid:replace_resource(To, R), Acc, Packet)
+              mongoose_router:route(mongoose_acc:update(From, jid:replace_resource(To, R), Packet, Acc))
       end, PResources).
 
 

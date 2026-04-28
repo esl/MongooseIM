@@ -41,6 +41,7 @@
          get_room_config/1,
          change_room_config/2,
          delete_room/2,
+         remove_user/3,
          is_room_owner/2,
          can_access_room/2,
          can_access_identity/2]).
@@ -264,6 +265,15 @@ delete_room(RoomJID, ReasonIn) ->
             {error, Reason}
     end.
 
+-spec remove_user(jid:jid(), jid:luser(), jid:lserver()) -> ok | {error, not_found}.
+remove_user(RoomJID, UserU, UserS) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:send_all_state_event(Pid, {remove_user, UserU, UserS});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
 %% @doc Return true if UserJID can read room messages
 -spec can_access_room(RoomJID :: jid:jid(), UserJID :: jid:jid()) ->
             {ok, boolean()} | {error, not_found}.
@@ -373,16 +383,18 @@ locked_error({route, From, ToNick, Acc, Packet}, NextState, StateData) ->
     ErrText = <<"This room is locked">>,
     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
-    ejabberd_router:route(jid:replace_resource(StateData#state.jid,
-                                               ToNick),
-                          From, Acc1, Err),
+    mongoose_router:route(
+        mongoose_acc:update(jid:replace_resource(StateData#state.jid, ToNick),
+                            From,
+                            Err,
+                            Acc1)),
     {next_state, NextState, StateData}.
 
 %% @doc  Receive the room-creating Stanza. Will crash if any other stanza is
 %% received in this state.
 -spec initial_state({'route', From :: jid:jid(), To :: mod_muc:nick(),
                     Acc :: mongoose_acc:t(), Presence :: exml:element()}, state()) -> fsm_return().
-initial_state({route, From, ToNick, _Acc, % TOODOO
+initial_state({route, From, ToNick, _Acc,
               #xmlel{name = <<"presence">>} = Presence}, StateData) ->
     %% this should never happen so crash if it does
     <<>> = exml_query:attr(Presence, <<"type">>, <<>>),
@@ -457,7 +469,7 @@ locked_state({route, From, _ToNick, Acc,
             {result, InnerRes, StateData2} -> {MkQueryResult(InnerRes), StateData2, NextState1};
             {error, Error} -> {IQ#iq{type = error, sub_el = [Query, Error]}, StateData, NextState1}
         end,
-    ejabberd_router:route(StateData3#state.jid, From, Acc, jlib:iq_to_xml(IQRes)),
+    mongoose_router:route(mongoose_acc:update(StateData3#state.jid, From, jlib:iq_to_xml(IQRes), Acc)),
     case NextState2 of
         stop ->
             {stop, normal, StateData3};
@@ -626,6 +638,11 @@ handle_event({destroy, Reason}, _StateName, StateData) ->
 handle_event(destroy, StateName, StateData) ->
     handle_event({destroy, none}, StateName, StateData);
 
+handle_event({remove_user, UserU, UserS}, StateName, StateData) ->
+    S1 = remove_user_from_room(#jid{luser = UserU, lserver = UserS},
+                               <<"user remove">>, StateData),
+    {next_state, StateName, S1};
+
 handle_event({set_affiliations, Affiliations},
              #state{hibernate_timeout = Timeout} = StateName, StateData) ->
     {next_state, StateName, StateData#state{affiliations = Affiliations}, Timeout};
@@ -737,7 +754,7 @@ stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} =
             ItemAttrs = #{<<"affiliation">> => <<"owner">>, <<"role">> => <<"none">>},
             Packet = unavailable_presence(ItemAttrs, <<"Room hibernation">>),
             FromRoom = jid:replace_resource(RoomJID, Nick),
-            ejabberd_router:route(FromRoom, LastUser, Packet),
+            mongoose_router:route(mongoose_acc:new(FromRoom, LastUser, Packet, ?LOCATION)),
             tab_remove_online_user(LJID, State),
             do_stop_persistent_room(RoomName, State);
         _ ->
@@ -769,10 +786,12 @@ terminate(Reason, _StateName, StateData) ->
               Nick = Info#user.nick,
               case Reason of
                   shutdown ->
-                      ejabberd_router:route(
-                        jid:replace_resource(StateData#state.jid, Nick),
-                        Info#user.jid,
-                        Packet);
+                      mongoose_router:route(
+                          mongoose_acc:new(
+                              jid:replace_resource(StateData#state.jid, Nick),
+                              Info#user.jid,
+                              Packet,
+                              ?LOCATION));
                   _ -> ok
               end,
               tab_remove_online_user(LJID, StateData)
@@ -884,7 +903,7 @@ process_message_from_allowed_user(From, #routed_message{packet = Packet} = RMess
         false ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
-            ejabberd_router:route(StateData#state.jid, From, Err),
+            mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
             next_normal_state(StateData)
     end.
 
@@ -914,10 +933,12 @@ broadcast_room_packet(From, FromNick, Role, RMess, StateData) ->
                  affiliations_map => StateData#state.affiliations},
     run_update_inbox_for_muc_hook(StateData#state.host_type, HookInfo),
     maps_foreach(fun(_LJID, Info) ->
-                          ejabberd_router:route(RouteFrom,
-                                                Info#user.jid,
-                                                FilteredPacket)
-                  end, StateData#state.users),
+                     mongoose_router:route(
+                         mongoose_acc:new(RouteFrom,
+                                             Info#user.jid,
+                                             FilteredPacket,
+                                             ?LOCATION))
+                              end, StateData#state.users),
     NewStateData2 = add_message_to_history(FromNick,
                                            From,
                                            FilteredPacket,
@@ -937,10 +958,11 @@ change_subject_error(From, FromNick, Packet, Lang, StateData) ->
               _ -> mongoose_xmpp_errors:forbidden(Lang, <<"Only moderators are allowed"
                                            " to change the subject in this room">>)
           end,
-    ejabberd_router:route(jid:replace_resource(StateData#state.jid,
-                                               FromNick),
-                          From,
-                          jlib:make_error_reply(Packet, Err)).
+    mongoose_router:route(
+        mongoose_acc:new(jid:replace_resource(StateData#state.jid, FromNick),
+                         From,
+                         jlib:make_error_reply(Packet, Err),
+                         ?LOCATION)).
 
 change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
     case check_subject(Packet) of
@@ -1165,14 +1187,21 @@ handle_new_user(From, Nick = <<>>, _Packet, StateData, Packet) ->
     Error =jlib:make_error_reply(
                 #xmlel{name = <<"presence">>},
                 mongoose_xmpp_errors:jid_malformed(Lang, ErrText)),
-    %ejabberd_route(From, To, Packet),
-    ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Error),
+    mongoose_router:route(
+        mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
+                         From,
+                         Error,
+                         ?LOCATION)),
     StateData;
 handle_new_user(From, Nick, Packet, StateData, Packet) ->
     case exml_query:path(Packet, [{element, <<"x">>}]) of
         undefined ->
             Response = kick_stanza_for_old_protocol(Packet),
-            ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Response),
+            mongoose_router:route(
+                mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
+                                 From,
+                                 Response,
+                                 ?LOCATION)),
             StateData;
         _ ->
             add_new_user(From, Nick, Packet, StateData)
@@ -2316,8 +2345,11 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
                [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                           children = ItemEls} | Status2]}]),
-    ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
-                          ReceiverInfo#user.jid, Packet).
+    mongoose_router:route(
+        mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
+                         ReceiverInfo#user.jid,
+                         Packet,
+                         ?LOCATION)).
 
 -spec send_existing_presences(jid:jid(), state()) -> 'ok'.
 send_existing_presences(ToJID, StateData) ->
@@ -2358,7 +2390,11 @@ send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
                        attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                        children = [#xmlel{name = <<"item">>,
                                           attrs = ItemAttrs}]}]),
-    ejabberd_router:route(jid:replace_resource(StateData#state.jid, FromNick), RealToJID, Packet).
+    mongoose_router:route(
+        mongoose_acc:new(jid:replace_resource(StateData#state.jid, FromNick),
+                         RealToJID,
+                         Packet,
+                         ?LOCATION)).
 
 -spec send_config_update(atom(), state()) -> 'ok'.
 send_config_update(Type, StateData) ->
@@ -2383,7 +2419,7 @@ send_invitation(From, To, Reason, StateData=#state{host=Host,
         true -> Config#config.password
     end,
     Packet = jlib:make_invitation(jid:to_bare(From), Password, Reason),
-    ejabberd_router:route(RoomJID, To, Packet).
+    mongoose_router:route(mongoose_acc:new(RoomJID, To, Packet, ?LOCATION)).
 
 
 -spec change_nick(jid:jid(), binary(), state()) -> state().
@@ -2436,12 +2472,18 @@ send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
                             end,
     Unavailable = nick_unavailable_presence(MaybePublicJID, Nick, Affiliation,
                                             Role, MaybeSelfPresenceCode),
-    ejabberd_router:route(jid:replace_resource(S#state.jid, OldNick),
-                          Info#user.jid, Unavailable),
+    mongoose_router:route(
+        mongoose_acc:new(jid:replace_resource(S#state.jid, OldNick),
+                         Info#user.jid,
+                         Unavailable,
+                         ?LOCATION)),
     Available = nick_available_presence(Presence, MaybePublicJID, Affiliation,
                                         Role, MaybeSelfPresenceCode),
-    ejabberd_router:route(jid:replace_resource(S#state.jid, Nick),
-                          Info#user.jid, Available).
+    mongoose_router:route(
+        mongoose_acc:new(jid:replace_resource(S#state.jid, Nick),
+                         Info#user.jid,
+                         Available,
+                         ?LOCATION)).
 
 -spec is_nick_change_public(user(), config()) -> boolean().
 is_nick_change_public(UserInfo, RoomConfig) ->
@@ -2578,10 +2620,11 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
 send_history(JID, Shift, StateData) ->
     lists:foldl(
       fun({Nick, Packet, HaveSubject, _TimeStamp, _Size}, B) ->
-          ejabberd_router:route(
-        jid:replace_resource(StateData#state.jid, Nick),
-        JID,
-        Packet),
+          mongoose_router:route(
+              mongoose_acc:new(
+                  jid:replace_resource(StateData#state.jid, Nick),
+                  JID,
+                  Packet, ?LOCATION)),
           B or HaveSubject
       end, false, lists:nthtail(Shift, lqueue_to_list(StateData#state.history))).
 
@@ -2592,10 +2635,7 @@ send_subject(JID, _Lang, StateData = #state{subject = <<>>, subject_author = <<>
                     attrs = #{<<"type">> => <<"groupchat">>},
                     children = [#xmlel{name = <<"subject">>},
                                 #xmlel{name = <<"body">>}]},
-    ejabberd_router:route(
-        StateData#state.jid,
-        JID,
-        Packet);
+    mongoose_router:route(mongoose_acc:new(StateData#state.jid, JID, Packet, ?LOCATION));
 send_subject(JID, _Lang, StateData) ->
     Subject = StateData#state.subject,
     TimeStamp = StateData#state.subject_timestamp,
@@ -2608,7 +2648,7 @@ send_subject(JID, _Lang, StateData) ->
                                        attrs = #{<<"xmlns">> => ?NS_DELAY,
                                                  <<"from">> => jid:to_binary(RoomJID),
                                                  <<"stamp">> => TimeStamp}}]},
-    ejabberd_router:route(RoomJID, JID, Packet).
+    mongoose_router:route(mongoose_acc:new(RoomJID, JID, Packet, ?LOCATION)).
 
 
 -spec check_subject(exml:element()) -> undefined | binary().
@@ -2793,16 +2833,7 @@ process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
     safe_send_kickban_presence(JID, Reason, <<"307">>, SD),
     set_role(JID, none, SD);
 process_admin_item_set_unsafe({JID, affiliation, none, Reason}, _UJID, SD) ->
-    case  (SD#state.config)#config.members_only of
-        true ->
-            safe_send_kickban_presence(JID, Reason, <<"321">>, none, SD),
-            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
-            set_role(JID, none, SD1);
-        _ ->
-            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
-            send_update_presence(JID, Reason, SD1),
-            SD1
-    end;
+    remove_user_from_room(JID, Reason, SD);
 process_admin_item_set_unsafe({JID, affiliation, outcast, Reason}, _UJID, SD) ->
     safe_send_kickban_presence(JID, Reason, <<"301">>, outcast, SD),
     set_affiliation_and_reason(JID, outcast, Reason, set_role(JID, none, SD));
@@ -2829,6 +2860,18 @@ process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD) ->
     SD1 = set_affiliation(JID, A, SD),
     send_update_presence(JID, Reason, SD1),
     SD1.
+
+remove_user_from_room(JID, Reason, SD) ->
+    case (SD#state.config)#config.members_only of
+        true ->
+            safe_send_kickban_presence(JID, Reason, <<"321">>, none, SD),
+            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            set_role(JID, none, SD1);
+        _ ->
+            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            send_update_presence(JID, Reason, SD1),
+            SD1
+    end.
 
 -type res_row() :: {jid:simple_jid() | jid:jid(),
                     'affiliation' | 'role', any(), any()}.
@@ -3113,11 +3156,13 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
                                                                 children = ItemEls},
                                                          #xmlel{name = <<"status">>,
                                                                 attrs = #{<<"code">> => Code}}]}]},
-          ejabberd_router:route(
-        jid:replace_resource(StateData#state.jid, Nick),
-        Info#user.jid,
-        Packet)
-      end,
+        mongoose_router:route(
+            mongoose_acc:new(
+                jid:replace_resource(StateData#state.jid, Nick),
+                Info#user.jid,
+                Packet,
+                ?LOCATION))
+        end,
     foreach_user(F, StateData).
 
 
@@ -3706,14 +3751,16 @@ remove_each_occupant_from_room(DestroyEl, StateData) ->
 -spec send_to_occupants(exml:element(), state()) -> any().
 send_to_occupants(Packet, StateData=#state{jid=RoomJID}) ->
     F = fun(User=#user{jid=UserJID}) ->
-        ejabberd_router:route(occupant_jid(User, RoomJID), UserJID, Packet)
+        mongoose_router:route(
+            mongoose_acc:new(occupant_jid(User, RoomJID), UserJID, Packet, ?LOCATION))
         end,
     foreach_user(F, StateData).
 
 -spec send_to_all_users(exml:element(), state()) -> any().
 send_to_all_users(Packet, StateData=#state{jid=RoomJID}) ->
     F = fun(#user{jid = UserJID}) ->
-          ejabberd_router:route(RoomJID, UserJID, Packet)
+          mongoose_router:route(
+              mongoose_acc:new(RoomJID, UserJID, Packet, ?LOCATION))
       end,
     foreach_user(F, StateData).
 
@@ -3933,7 +3980,8 @@ unsafe_check_invitation(FromJID, Els, Lang,
                       {JID, Reason, Msg} = create_invite(FromJID, InviteEl, Lang, StateData),
                       mongoose_hooks:invitation_sent(Host, ServerHost, RoomJID,
                                                      FromJID, JID, Reason),
-                      ejabberd_router:route(StateData#state.jid, JID, Msg)
+                      mongoose_router:route(
+                          mongoose_acc:new(StateData#state.jid, JID, Msg, ?LOCATION))
               end, InviteEls),
             {ok, JIDs}
     end.
@@ -4100,7 +4148,7 @@ send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
     DEl2 = #xmlel{name = <<"decline">>, attrs = DAttrs3, children = DEls},
     XEl2 = jlib:replace_subelement(XEl, DEl2),
     Packet2 = jlib:replace_subelement(Packet, XEl2),
-    ejabberd_router:route(RoomJID, ToJID, Packet2).
+    mongoose_router:route(mongoose_acc:new(RoomJID, ToJID, Packet2, ?LOCATION)).
 
 -spec send_error_only_occupants(binary(), exml:element(),
                                 binary() | nonempty_string(),
@@ -4110,7 +4158,7 @@ send_error_only_occupants(What, Packet, Lang, RoomJID, From)
     ErrText = <<"Only occupants are allowed to send ",
                 What/bytes, " to the conference">>,
     Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
-    ejabberd_router:route(RoomJID, From, Err).
+    mongoose_router:route(mongoose_acc:new(RoomJID, From, Err, ?LOCATION)).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4192,7 +4240,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
         {true, _, _} ->
             ErrText = <<"Traffic rate limit is exceeded">>,
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
-            ejabberd_router:route(StateData#state.jid, From, Err),
+            mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
             StateData;
         {false, true, 0} ->
             {RoomShaper, RoomShaperInterval} = mongoose_shaper:update(StateData#state.room_shaper, Size),
@@ -4242,9 +4290,7 @@ route_message(#routed_message{allowed = true, type = <<"chat">>, from = From, pa
     ErrText = <<"It is not allowed to send private messages to the conference">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
-    ejabberd_router:route(
-        StateData#state.jid,
-        From, Err),
+    mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
     StateData;
 route_message(#routed_message{allowed = true, type = Type, from = From,
                               packet = #xmlel{name = <<"message">>,
@@ -4263,8 +4309,8 @@ route_message(#routed_message{allowed = true, from = From, packet = Packet,
                               lang = Lang}, StateData) ->
     ErrText = <<"Improper message type">>,
     Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
-    ejabberd_router:route(StateData#state.jid,
-                          From, Err),
+    mongoose_router:route(
+        mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
     StateData;
 route_message(#routed_message{type = <<"error">>}, StateData) ->
     StateData;
@@ -4287,8 +4333,9 @@ schedule_queue_processing_when_empty(_RoomQueueEmpty, _RoomShaper,
 -spec route_error(mod_muc:nick(), jid:jid(), exml:element(), state()) -> state().
 route_error(Nick, From, Error, StateData) ->
     %% TODO: s/Nick/<<>>/
-    ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
-                          From, Error),
+    mongoose_router:route(
+        mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
+                          From, Error, ?LOCATION)),
     StateData.
 
 
@@ -4296,15 +4343,19 @@ route_error(Nick, From, Error, StateData) ->
         | {'role', binary(), binary()}, jid:jid(), exml:element(),
         ejabberd:lang(), state()) -> state().
 route_voice_approval({error, ErrType}, From, Packet, _Lang, StateData) ->
-    ejabberd_router:route(StateData#state.jid, From,
-                          jlib:make_error_reply(Packet, ErrType)),
+    mongoose_router:route(
+        mongoose_acc:new(StateData#state.jid, From,
+                          jlib:make_error_reply(Packet, ErrType), ?LOCATION)),
     StateData;
 route_voice_approval({form, RoleName}, From, _Packet, _Lang, StateData) ->
     {Nick, _} = get_participant_data(From, StateData),
     ApprovalForm = make_voice_approval_form(From, Nick, RoleName),
     F = fun({_, Info}) ->
-                ejabberd_router:route(StateData#state.jid, Info#user.jid,
-                                      ApprovalForm)
+                mongoose_router:route(
+                    mongoose_acc:new(StateData#state.jid,
+                                        Info#user.jid,
+                                        ApprovalForm,
+                                        ?LOCATION))
         end,
     lists:foreach(F, search_role(moderator, StateData)),
     StateData;
@@ -4315,13 +4366,19 @@ route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
     case process_admin_items_set(From, Items, Lang, StateData) of
         {result, _Res, SD1} -> SD1;
         {error, Error} ->
-            ejabberd_router:route(StateData#state.jid, From,
-                                  jlib:make_error_reply(Packet, Error)),
+            mongoose_router:route(
+                mongoose_acc:new(StateData#state.jid,
+                                    From,
+                                    jlib:make_error_reply(Packet, Error),
+                                    ?LOCATION)),
             StateData
     end;
 route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
-    ejabberd_router:route(StateData#state.jid, From,
-                          jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request())),
+    mongoose_router:route(
+        mongoose_acc:new(StateData#state.jid,
+                            From,
+                            jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
+                            ?LOCATION)),
     StateData.
 
 
@@ -4334,7 +4391,7 @@ route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
       Lang :: ejabberd:lang().
 route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     Err = jlib:make_error_reply(Packet, Error),
-    ejabberd_router:route(StateData#state.jid, From, Err),
+    mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
     StateData;
 route_invitation({ok, IJIDs}, _From, _Packet, _Lang,
                  #state{ config = #config{ members_only = true } } = StateData0) ->
@@ -4389,14 +4446,16 @@ route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
             E = mongoose_xmpp_errors:feature_not_implemented(
                   <<"en">>, <<"From mod_muc_room">>),
             {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, E),
-            ejabberd_router:route(RoomJID, From, Acc2, Err);
+            mongoose_router:route(
+                mongoose_acc:update(RoomJID, From, Err, Acc2));
         _ -> ok
     end,
     {ok, StateData};
 route_iq(Acc, #routed_iq{packet = Packet, from = From}, StateData) ->
     {Acc1, Err} = jlib:make_error_reply(
         Acc, Packet, mongoose_xmpp_errors:feature_not_implemented()),
-    ejabberd_router:route(StateData#state.jid, From, Acc1, Err),
+    mongoose_router:route(
+        mongoose_acc:update(StateData#state.jid, From, Err, Acc1)),
     {ok, StateData}.
 
 
@@ -4422,8 +4481,8 @@ do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
              {ok, StateData}
             }
     end,
-    ejabberd_router:route(StateData#state.jid, From, Acc,
-        jlib:iq_to_xml(IQRes)),
+    mongoose_router:route(
+        mongoose_acc:update(StateData#state.jid, From, jlib:iq_to_xml(IQRes), Acc)),
     RoutingResult.
 
 
@@ -4458,8 +4517,12 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     Packet1 = maybe_add_x_element(Packet),
     {ok, #user{nick = FromNick}} = maps:find(jid:to_lower(From),
         StateData#state.users),
-    ejabberd_router:route(
-        jid:replace_resource(StateData#state.jid, FromNick), ToJID, Packet1),
+    mongoose_router:route(
+        mongoose_acc:new(
+            jid:replace_resource(StateData#state.jid, FromNick),
+            ToJID,
+            Packet1,
+            ?LOCATION)),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery,
                                         allow_pm = true,
@@ -4494,9 +4557,10 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, NewId, FromFul
     {ok, #user{nick = FromNick}} = maps:find(jid:to_lower(FromFull),
         StateData#state.users),
     {ToJID2, Packet2} = handle_iq_vcard(FromFull, ToJID, StanzaId, NewId, Packet),
-    ejabberd_router:route(
-        jid:replace_resource(StateData#state.jid, FromNick),
-        ToJID2, Packet2);
+    mongoose_router:route(
+        mongoose_acc:new(
+            jid:replace_resource(StateData#state.jid, FromNick),
+            ToJID2, Packet2, ?LOCATION));
 route_nick_iq(#routed_nick_iq{online = {false, _, _}, iq = reply}, _StateData) ->
     ok;
 route_nick_iq(#routed_nick_iq{online = {false, _, _}, from = From, nick = ToNick,

@@ -72,6 +72,7 @@
 -export([is_muc_room_owner/3,
          can_access_room/3,
          remove_domain/3,
+         remove_user/3,
          acc_room_affiliations/3,
          can_access_identity/3,
          disco_local_items/3,
@@ -427,7 +428,7 @@ process_iq_disco_items(MucHost, From, To, #iq{lang = Lang} = IQ) ->
                 sub_el = [#xmlel{name = <<"query">>,
                                  attrs = #{<<"xmlns">> => ?NS_DISCO_ITEMS},
                                  children = iq_disco_items(MucHost, From, Lang, Rsm)}]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(Res)).
+    mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION)).
 
 -spec can_use_nick(host_type(), jid:server(), jid:jid(), nick()) -> boolean().
 can_use_nick(_HostType, _Host, _JID, <<>>) ->
@@ -634,8 +635,8 @@ process_packet(Acc, From, To, El, #{state := State}) ->
         _ ->
             Lang = exml_query:attr(El, <<"xml:lang">>, <<>>),
             ErrText = <<"Access denied by service policy">>,
-            ejabberd_router:route_error_reply(To, From, Acc,
-                                              mongoose_xmpp_errors:forbidden(Lang, ErrText))
+            {Acc1, Error} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
+            mongoose_router:route(mongoose_acc:update(To, From, Error, Acc1))
     end.
 
 
@@ -701,7 +702,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
                     ErrText = <<"Service is temporary unavailable">>,
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
-                    ejabberd_router:route(To, From, Acc1, Err),
+                    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
                     {route_error, ErrText}
             end;
         {error, Reason} ->
@@ -710,7 +711,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
             ErrText = <<"Room creation is denied by service policy: ", Policy/binary>>,
             {Acc1, Err} = jlib:make_error_reply(
                     Acc, Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
-            ejabberd_router:route(To, From, Acc1, Err),
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
             {route_error, ErrText}
     end.
 
@@ -724,7 +725,7 @@ get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Pac
             ErrText = <<"Conference room does not exist">>,
             {Acc1, Err} = jlib:make_error_reply(
                     Acc, Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
-            ejabberd_router:route(To, From, Acc1, Err),
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
             {route_error, ErrText};
         {error, Reason} ->
             ?LOG_WARNING(#{what => muc_send_service_unavailable,
@@ -734,7 +735,7 @@ get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Pac
             ErrText = <<"Service is temporary unavailable">>,
             {Acc1, Err} = jlib:make_error_reply(
                     Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
-            ejabberd_router:route(To, From, Acc1, Err),
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
             {route_error, ErrText};
         {ok, Opts} ->
             ?LOG_DEBUG(#{what => muc_restore_room, room => Room, room_opts => Opts}),
@@ -760,7 +761,7 @@ route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
             Acc;
         _ ->
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:item_not_found()),
-            ejabberd_router:route(To, From, Acc1, Err)
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end.
 
 -spec route_by_type(binary(), from_to_packet(), state()) -> ok | pid().
@@ -777,7 +778,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
                                          children = IdentityXML ++ FeatureXML ++ InfoXML}]},
-            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
+            mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
         #iq{type = get, xmlns = ?NS_REGISTER = XMLNS, lang = Lang} = IQ ->
@@ -786,7 +787,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
                                          children = Result}]},
-            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
+            mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = set,
             xmlns = ?NS_REGISTER = XMLNS,
             lang = Lang,
@@ -797,28 +798,28 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                                 sub_el = [#xmlel{name = <<"query">>,
                                                  attrs = #{<<"xmlns">> => XMLNS},
                                                  children = IQRes}]},
-                    ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
+                    mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
                 {error, Error} ->
                     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, Error),
-                    ejabberd_router:route(To, From, Acc1, Err)
+                    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
             end;
         #iq{type = get, xmlns = ?NS_VCARD = XMLNS, lang = Lang} = IQ ->
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"vCard">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
                                          children = iq_get_vcard(Lang)}]},
-            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
+            mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_MUC_UNIQUE} = IQ ->
            Res = IQ#iq{type = result,
                        sub_el = [#xmlel{name = <<"unique">>,
                                         attrs = #{<<"xmlns">> => ?NS_MUC_UNIQUE},
                                         children = [iq_get_unique(From)]}]},
-           ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
+           mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{} ->
             ?LOG_INFO(#{what => muc_ignore_unknown_iq, acc => Acc}),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet,
                 mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_muc">>)),
-            ejabberd_router:route(To, From, Acc1, Err);
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
         Other ->
             ?LOG_INFO(#{what => muc_failed_to_parse_iq, acc => Acc, reason => Other}),
             ok
@@ -841,7 +842,7 @@ route_by_type(<<"message">>, {From, To, Acc, Packet},
                     ErrTxt = <<"Only service administrators are allowed to send service messages">>,
                     Err = mongoose_xmpp_errors:forbidden(Lang, ErrTxt),
                     {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Packet, Err),
-                    ejabberd_router:route(To, From, Acc1, ErrorReply)
+                    mongoose_router:route(mongoose_acc:update(To, From, ErrorReply, Acc1))
             end
     end;
 route_by_type(<<"presence">>, _Routed, _State) ->
@@ -1207,8 +1208,38 @@ can_access_room(_, #{room := Room, user := User}, _) ->
     Extra :: gen_hook:extra().
  remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     MUCHost = server_host_to_muc_host(HostType, Domain),
+    {ok, Rooms} = mod_muc_backend:get_rooms(HostType, MUCHost),
     mod_muc_backend:remove_domain(HostType, MUCHost, Domain),
+    Pids = lists:filtermap(fun(#muc_room{name_host = {N, _}}) ->
+                               case find_room_pid(HostType, MUCHost, N) of
+                                   {ok, Pid} -> {true, Pid};
+                                   _ -> false
+                               end
+                           end, Rooms),
+    lists:foreach(fun mod_muc_room:stop/1, Pids),
     {ok, Acc}.
+
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = UserU, lserver = UserS}},
+            #{host_type := HostType}) ->
+    MUCHost = server_host_to_muc_host(HostType, UserS),
+    Res = mod_muc_backend:get_user_rooms(HostType, MUCHost, UserU, UserS),
+    {ok, Rooms} = Res,
+    Failures = lists:filtermap(fun(R) -> remove_user_from_online(R, UserU, UserS) end, Rooms),
+    lists:foreach(fun(R) -> remove_user_from_offline(HostType, R, UserU, UserS) end, Failures),
+    {ok, Acc}.
+
+remove_user_from_online(#muc_room{name_host = {Name, Host}} = Room, UserU, UserS) ->
+    case mod_muc_room:remove_user(#jid{luser = Name, lserver = Host}, UserU, UserS) of
+        ok -> false;
+        _ -> {true, Room}
+    end.
+
+remove_user_from_offline(HostType, #muc_room{name_host = {Name, Host}}, UserU, UserS) ->
+    mod_muc_backend:remove_user(HostType, Name, Host, UserU, UserS).
 
 -spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -1298,6 +1329,7 @@ hooks(HostType) ->
     [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
      {can_access_room, HostType, fun ?MODULE:can_access_room/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {acc_room_affiliations, HostType, fun ?MODULE:acc_room_affiliations/3, #{}, 50},
      {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250},

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 certs_dir="certs"
 lifetime="--lifetime=10h"

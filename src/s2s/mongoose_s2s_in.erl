@@ -113,7 +113,7 @@ handle_event(internal, #xmlel{} = El, stream_established, Data) ->
 handle_event(info, {Tag, _, _} = SocketData, _, Data) when Tag =:= tcp; Tag =:= ssl ->
     handle_socket_data(Data, SocketData);
 handle_event(info, {Tag, _}, State, _) when Tag =:= tcp_closed; Tag =:= ssl_closed ->
-    ?LOG_WARNING(#{what => s2s_connection_closed, tag => Tag, state => State}),
+    ?LOG_DEBUG(#{what => s2s_connection_closed, tag => Tag, state => State}),
     {stop, {shutdown, Tag}};
 handle_event(info, {Tag, _, Reason}, State, _) when Tag =:= tcp_error; Tag =:= ssl_error ->
     ?LOG_WARNING(#{what => s2s_connection_error, tag => Tag, reason => Reason, state => State}),
@@ -337,10 +337,8 @@ route_incoming_stanza(Data, El, RemoteJid, LocalJid) ->
 
 -spec route_stanza(mongoose_acc:t()) -> any().
 route_stanza(Acc) ->
-    From = mongoose_acc:from_jid(Acc),
-    To = mongoose_acc:to_jid(Acc),
     Acc1 = mongoose_hooks:s2s_receive_packet(Acc),
-    ejabberd_router:route(From, To, Acc1).
+    mongoose_router:route(Acc1).
 
 -spec is_s2s_authenticated_or_connected(data(), ejabberd_s2s:fromto()) -> boolean().
 is_s2s_authenticated_or_connected(Data, FromTo) ->

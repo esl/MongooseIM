@@ -707,7 +707,7 @@ maybe_add_timestamp(Packet, _StanzaName, _StanzaType, _TS, _FromServer) ->
 %% Both origin_sid and origin_jid props should be defined.
 %% But we don't force developers to set both of them, so we should correctly
 %% process stanzas, that have only one properly set.
-%% "Incoming" means that stanza is coming from ejabberd_router.
+%% "Incoming" means that stanza is coming from mongoose_router.
 -spec is_conflict_incoming_acc(mongoose_acc:t(), mongoose_c2s:data()) -> boolean().
 is_conflict_incoming_acc(Acc, StateData) ->
     OriginJid = mongoose_acc:get(c2s, origin_jid, undefined, Acc),

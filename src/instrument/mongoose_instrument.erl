@@ -27,6 +27,7 @@
                     function => atom(),
                     cache_name => atom(),
                     pool_id => atom(),
+                    pool_type => mongoose_wpool:pool_type(),
                     pool_tag => mongoose_wpool:tag()}. % to be extended
 -type label_key() :: host_type | function | cache_name | pool_id | pool_tag. % to be extended
 -type label_value() :: mongooseim:host_type() | atom() | mongoose_wpool:tag(). % to be extended

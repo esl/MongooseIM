@@ -967,7 +967,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Acc, Res);
+            mongoose_router:route(mongoose_acc:update(To, From, Res, Acc));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = exml_query:attr(SubEl, <<"node">>, <<>>),
@@ -981,7 +981,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Acc, Res);
+            mongoose_router:route(mongoose_acc:update(To, From, Res, Acc));
         #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
             Res = case iq_pubsub(Host, ServerHost, From, IQType,
                                  SubEl, Lang, Acc, Access, Plugins)
@@ -991,7 +991,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Acc, Res);
+            mongoose_router:route(mongoose_acc:update(To, From, Res, Acc));
         #iq{type = IQType, xmlns = ?NS_PUBSUB_OWNER, lang = Lang, sub_el = SubEl} = IQ ->
             Res = case iq_pubsub_owner(Host, ServerHost, From,
                                        IQType, SubEl, Lang)
@@ -1003,14 +1003,14 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Acc, Res);
+            mongoose_router:route(mongoose_acc:update(To, From, Res, Acc));
         #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, lang = Lang, sub_el = _SubEl} = IQ ->
             Res = IQ#iq{type = result,
                         sub_el =
                         [#xmlel{name = <<"vCard">>,
                                 attrs = #{<<"xmlns">> => XMLNS},
                                 children = iq_get_vcard(Lang)}]},
-            ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(Res));
+            mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(Res), Acc));
         #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
             Res = case iq_command(Host, ServerHost, From, IQ, Access, Plugins) of
                       {error, Error} ->
@@ -1018,10 +1018,10 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes})
                   end,
-            ejabberd_router:route(To, From, Acc, Res);
+            mongoose_router:route(mongoose_acc:update(To, From, Res, Acc));
         #iq{} ->
             Err = make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
-            ejabberd_router:route(To, From, Acc, Err);
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc));
         _ ->
             Acc
     end;
@@ -1037,7 +1037,7 @@ do_route(Acc, _ServerHost, _Access, _Plugins, Host, From,
                     Acc;
                 invalid ->
                     Err = make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
-                    ejabberd_router:route(To, From, Acc, Err);
+                    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc));
                 XFields ->
                     handle_authorization_response(Acc, Host, From, To, Packet, XFields)
             end
@@ -1053,7 +1053,7 @@ do_route(Acc, _ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
             Acc;
         _ ->
             Err = make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
-            ejabberd_router:route(To, From, Acc, Err)
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc))
     end.
 
 command_disco_info(_Host, ?NS_COMMANDS, _From) ->
@@ -1663,7 +1663,7 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
                     attrs = #{<<"id">> => mongoose_bin:gen_from_crypto()},
                     children = [Form]},
     lists:foreach(fun(Owner) ->
-                          ejabberd_router:route(service_jid(Host), jid:make(Owner), Stanza)
+                          mongoose_router:route(mongoose_acc:new(service_jid(Host), jid:make(Owner), Stanza, ?LOCATION))
                   end, Owners).
 
 find_authorization_response(El) ->
@@ -1685,7 +1685,7 @@ send_authorization_approval(Host, JID, SNode, Subscription) ->
     Attrs2 = Attrs1#{<<"subscription">> => subscription_to_string(Subscription)},
     Stanza = event_stanza(<<"subscription">>,
                           Attrs2#{<<"jid">> => jid:to_binary(JID)}),
-    ejabberd_router:route(service_jid(Host), JID, Stanza).
+    mongoose_router:route(mongoose_acc:new(service_jid(Host), JID, Stanza, ?LOCATION)).
 
 handle_authorization_response(Acc, Host, From, To, Packet, XFields) ->
     case XFields of
@@ -1702,17 +1702,17 @@ handle_authorization_response(Acc, Host, From, To, Packet, XFields) ->
             case dirty(Host, Node, Action, ?FUNCTION_NAME) of
                 {error, Error} ->
                     Err = make_error_reply(Packet, Error),
-                    ejabberd_router:route(To, From, Acc, Err);
+                    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc));
                 {result, {_, _NewSubscription}} ->
                     %% XXX: notify about subscription state change, section 12.11
                     Acc;
                 _ ->
                     Err = make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
-                    ejabberd_router:route(To, From, Acc, Err)
+                    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc))
             end;
         _ ->
             Err = make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
-            ejabberd_router:route(To, From, Acc, Err)
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc))
     end.
 
 string_allow_to_boolean(<<"1">>) -> true;
@@ -2578,11 +2578,11 @@ dispatch_items({_, FromS, _} = From, To, Options, Stanza) ->
     AccParams = #{host_type => HostType, lserver => FromS, location => ?LOCATION,
                   element => Message, from_jid => FromJid, to_jid => ToJid},
     Acc = mongoose_acc:new(AccParams),
-    ejabberd_router:route(FromJid, ToJid, Acc);
+    mongoose_router:route(Acc);
 dispatch_items(From, To, Options, Stanza) ->
     NotificationType = get_option(Options, notification_type, headline),
     Message = add_message_type(Stanza, NotificationType),
-    ejabberd_router:route(service_jid(From), jid:make(To), Message).
+    mongoose_router:route(mongoose_acc:new(service_jid(From), jid:make(To), Message, ?LOCATION)).
 
 %% @doc <p>Return the list of affiliations as an XMPP response.</p>
 -spec get_affiliations(
@@ -3077,7 +3077,7 @@ notify_subscription_change(Host, Node, JID, Sub) ->
                       attrs = #{<<"xmlns">> => ?NS_PUBSUB},
                       children = [SubscriptionEl]},
     Stanza = #xmlel{name = <<"message">>, children = [PubSubEl]},
-    ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
+    mongoose_router:route(mongoose_acc:new(service_jid(Host), jid:make(JID), Stanza, ?LOCATION)).
 
 -spec get_presence_and_roster_permissions(Host :: mod_pubsub_old:host(),
                                           From :: jid:jid() | jid:ljid(),
@@ -3482,8 +3482,8 @@ broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
                                                                 Node, SubNodeName),
 
                           lists:foreach(fun(To) ->
-                                                ejabberd_router:route(From, jid:make(To),
-                                                                      StanzaToSend)
+                                                mongoose_router:route(
+                                                  mongoose_acc:new(From, jid:make(To), StanzaToSend, ?LOCATION))
                                         end, LJIDs)
                   end, SubIDsByJID).
 
@@ -3538,7 +3538,7 @@ route_broadcasted(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) ->
                              element => Packet,
                              from_jid => FromJid,
                              to_jid => ToJid}),
-    ejabberd_router:route(FromJid, ToJid, Acc).
+    mongoose_router:route(Acc).
 
 subscribed_nodes_by_jid(NotifyType, SubsByDepth) ->
     DepthsToDeliver =

@@ -39,7 +39,6 @@ We offer a set of additional server-side components:
 * Test suite is written with the help of these useful tools:
     * [escalus](https://github.com/esl/escalus): an XMPP client for Erlang
     * [amoc](https://github.com/esl/amoc): a load testing tool
-* [MongooseICE](https://github.com/esl/MongooseICE): is a STUN and TURN server written for traversing NATs and relaying streams
 * [MongoosePush](https://github.com/esl/MongoosePush): is a flexible push notification server with APNS and FCM support
 
 ### Client-side components
@@ -60,7 +59,7 @@ For a quick start just download:
 
 * The [pre-built packages](https://github.com/esl/MongooseIM/releases/latest) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
 * The [Docker image](https://hub.docker.com/r/erlangsolutions/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
-* The [Helm chart](https://artifacthub.io/packages/helm/mongoose/mongooseim) ([source code repository](https://github.com/esl/MongooseHelm))
+* The [Helm chart](https://trymongoose.im/downloads#helm)
 
 See the [installation guide](getting-started/Installation.md) for more details.
 

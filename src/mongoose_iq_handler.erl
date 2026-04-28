@@ -120,7 +120,7 @@ execute_handler(#iq_handler{handler_fn = IQHandlerFn, extra = Extra},
 
 -spec reply(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) -> mongoose_acc:t().
 reply(From, To, Acc, IQReply) ->
-    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(IQReply)).
+    mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(IQReply), Acc)).
 
 %%--------------------------------------------------------------------
 %% Internal functions
