@@ -540,13 +540,8 @@ resources_with_features(HostType, Jid = #jid{lresource = LResource}) ->
 
 -spec route_notification(mongooseim:host_type(), jid:jid(), jid:jid(), exml:element()) -> any().
 route_notification(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) ->
-    Acc = mongoose_acc:new(#{location => ?LOCATION,
-                             host_type => HostType,
-                             lserver => LServer,
-                             element => Packet,
-                             from_jid => FromJid,
-                             to_jid => ToJid}),
-    ejabberd_router:route(FromJid, ToJid, Acc).
+    Acc = mongoose_acc:new(FromJid, ToJid, Packet, ?LOCATION),
+    mongoose_router:route(Acc).
 
 -spec host_type(jid:jid()) -> mongooseim:host_type().
 host_type(#jid{lserver = LServer}) ->
