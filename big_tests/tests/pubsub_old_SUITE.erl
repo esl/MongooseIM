@@ -345,14 +345,14 @@ subscribe_unsubscribe_test(Config) ->
 
               %% Request:  6.1.1 Ex.32 entity subscribes to a node
               %% Response: 6.1.2 Ex.33 success (with subscription ID)
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Request:  6.2.1 Ex.51 unsubscribe from a node
               %% Response: 6.2.2 Ex.52 success
               pubsub_tools:unsubscribe(Bob, Node, []),
 
               %% Check subscriptions without resources
-              pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {jid_type, bare}]),
               pubsub_tools:unsubscribe(Bob, Node, [{jid_type, bare}]),
 
               pubsub_tools:delete_node(Alice, Node, []),
@@ -376,8 +376,8 @@ subscribe_options_test(Config) ->
 
               GeraltOpts = [{<<"pubsub#deliver">>, <<"true">>}],
               BobOpts = [{<<"pubsub#deliver">>, <<"false">>}],
-              pubsub_tools:subscribe(Geralt, Node, [{config, GeraltOpts}]),
-              pubsub_tools:subscribe(Bob, Node, [{config, BobOpts}]),
+              pubsub_tools:subscribe(Geralt, Node, [{subid, true}, {config, GeraltOpts}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {config, BobOpts}]),
 
               %% 6.3.2 Example 59. Subscriber requests subscription options form
               pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName},
@@ -396,8 +396,10 @@ subscribe_options_deliver_option_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Geralt, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
-              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
+              pubsub_tools:subscribe(Geralt, Node,
+                                     [{subid, true}, {config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Bob, Node,
+                                     [{subid, true}, {config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
@@ -419,8 +421,9 @@ subscribe_options_separate_request_test(Config) ->
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
-              pubsub_tools:subscribe(Alice, Node, []),
+              pubsub_tools:subscribe(Bob, Node,
+                                     [{subid, true}, {config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Alice, Node, [{subid, true}]),
 
               %% 6.3.5 Example 68. Subscriber submits completed options form
               [ pubsub_tools:upsert_subscription_options(
@@ -468,7 +471,7 @@ publish_with_max_items_test(Config) ->
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% mod_pubsub_old:broadcast_step/1 ensures that a publish notification for a new item
               %% would always arrive before a retraction notification for an old item
@@ -517,8 +520,8 @@ notify_test(Config) ->
               NodeConfig = [{<<"pubsub#presence_based_delivery">>, <<"1">>}],
 
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob1, Node, []),
-              pubsub_tools:subscribe(Geralt1, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob1, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt1, Node, [{subid, true}, {jid_type, bare}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% 7.1.2.1 Ex.101 notification with payload
@@ -593,7 +596,7 @@ retract_test(Config) ->
               %% Notification: 7.2.2.1 Ex.117 Subscribers are notified of deletion
               pubsub_tools:set_configuration(Alice, Node,
                                              [{<<"pubsub#notify_retract">>, <<"1">>}], []),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:retract_item(Alice, Node, <<"item2">>, []),
               pubsub_tools:receive_retract_notification(Bob, <<"item2">>, Node, []),
               pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
@@ -691,7 +694,7 @@ max_subscriptions_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Alice, Node, []),
+              pubsub_tools:subscribe(Alice, Node, [{subid, true}]),
               IQError = pubsub_tools:subscribe(Bob, Node, [{expected_error_type, <<"cancel">>}]),
               is_not_allowed_and_closed(IQError),
 
@@ -790,7 +793,7 @@ notify_config_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(
                 Alice, Node, [{config, [{<<"pubsub#notify_config">>, <<"1">>}]}]),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               ConfigChange = [{<<"pubsub#title">>, <<"newtitle">>}],
               pubsub_tools:set_configuration(Alice, Node, ConfigChange, []),
@@ -808,7 +811,7 @@ disable_notifications_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% Notifications disabled
@@ -827,7 +830,7 @@ disable_payload_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% Payloads disabled
@@ -847,7 +850,7 @@ disable_persist_items_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% Notifications should work
@@ -869,7 +872,7 @@ notify_only_available_users_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {jid_type, bare}]),
 
               push_helper:become_unavailable(Bob),
 
@@ -888,7 +891,7 @@ notify_unavailable_user_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {jid_type, bare}]),
 
               push_helper:become_unavailable(Bob),
 
@@ -919,9 +922,9 @@ send_last_published_item_test(Config) ->
               %% Note: when Bob subscribes, the last item (item2) is sent to him
               %%       6.1.7 Ex.50 service sends last published item
               %%       This is sent BEFORE the response iq stanza
-              pubsub_tools:subscribe(Bob, Node, [{receive_response, false}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {receive_response, false}]),
               pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
-              pubsub_tools:receive_subscribe_response(Bob, Node, []),
+              pubsub_tools:receive_subscribe_response(Bob, Node, [{subid, true}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -937,8 +940,8 @@ send_last_published_item_no_items_test(Config) ->
 
               %% Note: when Bob subscribes, no last item is sent (there are none)
               %% Receive subscription response to clear the mailbox before checking
-              pubsub_tools:subscribe(Bob, Node, [{receive_response, false}]),
-              pubsub_tools:receive_subscribe_response(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {receive_response, false}]),
+              pubsub_tools:receive_subscribe_response(Bob, Node, [{subid, true}]),
               escalus_assert:has_no_stanzas(Bob),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -983,7 +986,7 @@ add_publisher_and_member_test(Config) ->
               pubsub_tools:set_affiliations(Alice, Node, AffChange, []),
 
               pubsub_tools:publish(Kate, <<"nope">>, Node, [{expected_error_type, <<"auth">>}]),
-              pubsub_tools:subscribe(Kate, Node, []),
+              pubsub_tools:subscribe(Kate, Node, [{subid, true}]),
               pubsub_tools:publish(Bob, <<"item1">>, Node, []),
               pubsub_tools:receive_item_notification(Kate, <<"item1">>, Node, []),
 
@@ -1045,7 +1048,7 @@ retrieve_user_subscriptions_test(Config) ->
 
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Ex. 21 Service returns subscriptions
               Sub = [{NodeName, <<"subscribed">>}],
@@ -1053,7 +1056,7 @@ retrieve_user_subscriptions_test(Config) ->
 
               {_, NodeName2} = Node2 = pubsub_node(),
               pubsub_tools:create_node(Alice, Node2, []),
-              pubsub_tools:subscribe(Bob, Node2, []),
+              pubsub_tools:subscribe(Bob, Node2, [{subid, true}]),
 
               %% Ex. 21 Service returns subscriptions
               Subs = [{NodeName, <<"subscribed">>}, {NodeName2, <<"subscribed">>}],
@@ -1083,8 +1086,8 @@ retrieve_node_subscriptions_test(Config) ->
               %% Response: 8.8.1.3 Ex.185 Entity is not an owner
               pubsub_tools:get_node_subscriptions(Bob, Node, [{expected_error_type, <<"auth">>}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Geralt, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, Node, [{subid, true}, {jid_type, bare}]),
 
               NodeSubs = [{Bob, full, <<"subscribed">>}, {Geralt, bare, <<"subscribed">>}],
               pubsub_tools:get_node_subscriptions(Alice, Node, [{expected_result, NodeSubs}]),
@@ -1245,7 +1248,7 @@ subscribe_unsubscribe_collection_test(Config) ->
 
               %% Request:  6.1.1 Ex.10 subscribe (no configuration)
               %% Response: 6.1.2 Ex.12 success
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Same as XEP-0060
               pubsub_tools:unsubscribe(Bob, Node, []),
@@ -1288,7 +1291,7 @@ notify_collection_test(Config) ->
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
               Leaf2 = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf2, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Publish to leaf nodes, Bob should get notifications
               %% 5.3.1.1 Ex.5 Subscriber receives a publish notification from a collection
@@ -1312,7 +1315,7 @@ notify_collection_leaf_and_item_test(Config) ->
               pubsub_tools:create_node(Alice, Node, [{config, CollectionConfig}]),
 
               %% Subscribe before creating the leaf node
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
@@ -1341,8 +1344,8 @@ notify_collection_bare_jid_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob1, Node, []),
-              pubsub_tools:subscribe(Geralt1, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob1, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt1, Node, [{subid, true}, {jid_type, bare}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Bob subscribed with resource
@@ -1371,8 +1374,8 @@ notify_collection_and_leaf_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Geralt, Leaf, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, Leaf, [{subid, true}]),
 
               %% Publish to leaf nodes, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1397,8 +1400,8 @@ notify_collection_and_leaf_same_user_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Bob, Leaf, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Bob, Leaf, [{subid, true}]),
 
               %% Bob should get only one notification
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1424,8 +1427,8 @@ notify_collections_with_same_leaf_test(Config) ->
                              [CollectionName1, CollectionName2]}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
-              pubsub_tools:subscribe(Bob, Collection1, []),
-              pubsub_tools:subscribe(Geralt, Collection2, []),
+              pubsub_tools:subscribe(Bob, Collection1, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, Collection2, [{subid, true}]),
 
               %% Publish to leaf node, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1458,8 +1461,8 @@ notify_nested_collections_test(Config) ->
               LeafConfig = [{<<"pubsub#collection">>, MiddleCollectionName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
-              pubsub_tools:subscribe(Bob, MiddleCollection, []),
-              pubsub_tools:subscribe(Geralt, TopCollection, []),
+              pubsub_tools:subscribe(Bob, MiddleCollection, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, TopCollection, [{subid, true}]),
 
               %% Publish to leaf node, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1487,8 +1490,8 @@ retrieve_subscriptions_collection_test(Config) ->
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
               Leaf2 = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf2, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Bob, Leaf, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Bob, Leaf, [{subid, true}]),
 
               % Only the nodes for which subscriptions were made should be returned
               Subs = [{LeafName, <<"subscribed">>}, {NodeName, <<"subscribed">>}],
@@ -1610,7 +1613,7 @@ disable_notifications_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications disabled
@@ -1634,7 +1637,7 @@ disable_payload_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Payloads disabled
@@ -1659,7 +1662,7 @@ disable_persist_items_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications should work
@@ -1728,7 +1731,7 @@ disable_payload_and_persist_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Response  7.1.3 Ex.112 attempt to publish payload to transient notification node
               %%                   Expected error of type 'modify'
@@ -1761,7 +1764,7 @@ disable_delivery_test(Config) ->
               %% Request: 6.3.7 Ex.71 Subscribe and configure
               %%                Ex.72 Success
               SubscrConfig = [{<<"pubsub#deliver">>, <<"false">>}],
-              pubsub_tools:subscribe(Bob, Node, [{config, SubscrConfig}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {config, SubscrConfig}]),
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
@@ -1799,7 +1802,7 @@ receive_item_notification_with_publisher_option_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
 
