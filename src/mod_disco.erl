@@ -193,9 +193,6 @@ process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} =
             {Acc, make_iq_result(IQ, ?NS_DISCO_INFO, Node, IdentityXML ++ FeaturesXML)}
     end.
 
-sm_error(true) -> mongoose_xmpp_errors:item_not_found();
-sm_error(false) -> mongoose_xmpp_errors:service_unavailable().
-
 %% Hook handlers
 
 -spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
@@ -213,8 +210,8 @@ disco_local_identity(Acc, _, _) ->
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
     Extra :: map().
-disco_sm_identity(Acc = #{to_jid := JID}, _, _) ->
-    NewAcc = case ejabberd_auth:does_user_exist(JID) of
+disco_sm_identity(Acc = #{to_jid := JID, presence_subscribed := PresenceSubscribed}, _, _) ->
+    NewAcc = case PresenceSubscribed andalso ejabberd_auth:does_user_exist(JID) of
         true -> mongoose_disco:add_identities([#{category => <<"account">>,
                                                  type => <<"registered">>}], Acc);
         false -> Acc
@@ -239,14 +236,8 @@ disco_local_items(Acc, _, _) ->
     Acc :: mongoose_disco:item_acc(),
     Params :: map(),
     Extra :: map().
-disco_sm_items(Acc = #{to_jid := To, node := <<>>, presence_subscribed := PresenceSubscribed}, _, _) ->
-    case PresenceSubscribed of
-        true -> {ok, mongoose_disco:add_items(get_user_resources(To), Acc)};
-        false -> {ok, Acc}
-    end;
-disco_sm_items(Acc = #{to_jid := To, node := <<>>}, _, _) ->
-    Items = get_user_resources(To),
-    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_sm_items(Acc = #{to_jid := To, node := <<>>, presence_subscribed := true}, _, _) ->
+    {ok, mongoose_disco:add_items(get_user_resources(To), Acc)};
 disco_sm_items(Acc, _, _) ->
     {ok, Acc}.
 
@@ -318,6 +309,9 @@ is_presence_subscribed(#jid{lserver = LFromServer} = FromJID,
                       LToUser == TUser andalso LToServer == TServer andalso S /= none
               end,
               Roster).
+
+sm_error(true) -> mongoose_xmpp_errors:item_not_found();
+sm_error(false) -> mongoose_xmpp_errors:service_unavailable().
 
 -spec get_user_resources(jid:jid()) -> [mongoose_disco:item()].
 get_user_resources(JID = #jid{luser = LUser}) ->
