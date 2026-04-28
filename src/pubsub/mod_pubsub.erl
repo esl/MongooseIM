@@ -160,36 +160,58 @@ caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
      || OwnerJid <- subscriptions(s_to, Acc1)],
     {ok, Acc}.
 
--spec disco_sm_identity(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
-      Acc :: mongoose_disco:identity_acc().
-disco_sm_identity(Acc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+-spec disco_sm_identity(DiscoAcc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, DiscoAcc} when
+      DiscoAcc :: mongoose_disco:identity_acc().
+disco_sm_identity(DiscoAcc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
     case ejabberd_auth:does_user_exist(ToJid) of
-        true -> {ok, mongoose_disco:add_identities([pep_identity()], Acc)};
-        false -> {ok, Acc}
+        true -> {ok, mongoose_disco:add_identities([pep_identity()], DiscoAcc)};
+        false -> {ok, DiscoAcc}
     end;
-disco_sm_identity(Acc, _, _) ->
-    {ok, Acc}.
+disco_sm_identity(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
+                               to_jid := ToJid = #jid{lresource = ~""}, node := NodeId,
+                               presence_subscribed := PresenceSubscribed},
+                  _, _) ->
+    maybe
+        Node = #pubsub_node{} ?= mod_pubsub_backend:get_node(HostType, {ToJid, NodeId}),
+        true ?= can_discover_node(Node, FromJid, PresenceSubscribed),
+        {ok, mongoose_disco:add_identities([pep_node_identity()], DiscoAcc)}
+    else
+        _ -> {ok, DiscoAcc}
+    end;
+disco_sm_identity(DiscoAcc, _, _) ->
+    {ok, DiscoAcc}.
 
--spec disco_sm_features(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
-      Acc :: mongoose_disco:feature_acc().
-disco_sm_features(Acc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+-spec disco_sm_features(DiscoAcc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, DiscoAcc} when
+      DiscoAcc :: mongoose_disco:feature_acc().
+disco_sm_features(DiscoAcc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
     case ejabberd_auth:does_user_exist(ToJid) of
-        true -> {ok, mongoose_disco:add_features(pep_disco_features(), Acc)};
-        false -> {ok, Acc}
+        true -> {ok, mongoose_disco:add_features(pep_disco_features(), DiscoAcc)};
+        false -> {ok, DiscoAcc}
     end;
-disco_sm_features(Acc, _, _) ->
-    {ok, Acc}.
+disco_sm_features(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
+                               to_jid := ToJid = #jid{lresource = ~""}, node := NodeId,
+                               presence_subscribed := PresenceSubscribed},
+                  _, _) ->
+    maybe
+        Node = #pubsub_node{} ?= mod_pubsub_backend:get_node(HostType, {ToJid, NodeId}),
+        true ?= can_discover_node(Node, FromJid, PresenceSubscribed),
+        {ok, mongoose_disco:add_features(pep_node_disco_features(), DiscoAcc)}
+    else
+        _ -> {ok, DiscoAcc}
+    end;
+disco_sm_features(DiscoAcc, _, _) ->
+    {ok, DiscoAcc}.
 
--spec disco_sm_items(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
-      Acc :: mongoose_disco:item_acc().
-disco_sm_items(Acc = #{host_type := HostType, from_jid := FromJid,
-                       to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+-spec disco_sm_items(DiscoAcc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, DiscoAcc} when
+      DiscoAcc :: mongoose_disco:item_acc().
+disco_sm_items(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
+                            to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
     case ejabberd_auth:does_user_exist(ToJid) of
-        true -> {ok, mongoose_disco:add_items(disco_items(HostType, ToJid, FromJid, Acc), Acc)};
-        false -> {ok, Acc}
+        true -> {ok, mongoose_disco:add_items(disco_items(HostType, ToJid, FromJid, DiscoAcc), DiscoAcc)};
+        false -> {ok, DiscoAcc}
     end;
-disco_sm_items(Acc, _, _) ->
-    {ok, Acc}.
+disco_sm_items(DiscoAcc, _, _) ->
+    {ok, DiscoAcc}.
 
 -spec roster_out_subscription(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
       Acc :: mongoose_acc:t().
@@ -533,17 +555,15 @@ host_type(#jid{lserver = LServer}) ->
 
 -spec disco_items(mongooseim:host_type(), jid:jid(), jid:jid(), mongoose_disco:item_acc()) ->
     [mongoose_disco:item()].
-disco_items(HostType, ServiceJid, FromJid, Acc) ->
+disco_items(HostType, ServiceJid, FromJid, DiscoAcc) ->
     [#{jid => jid:to_binary(ServiceJid), node => NodeId}
      || Node = #pubsub_node{node_key = {_, NodeId}} <- mod_pubsub_backend:get_nodes(HostType, ServiceJid),
-        can_discover_node(Node, FromJid, Acc)].
+        can_discover_node(Node, FromJid, maps:get(presence_subscribed, DiscoAcc, false))].
 
--spec can_discover_node(pubsub_node(), jid:jid(), mongoose_disco:item_acc()) -> boolean().
+-spec can_discover_node(pubsub_node(), jid:jid(), boolean()) -> boolean().
 can_discover_node(#pubsub_node{node_key = {OwnerJid, _},
-                               config = #{access_model := AccessModel}}, FromJid, #{acc := Acc}) ->
-    jid:are_bare_equal(OwnerJid, FromJid)
-        orelse AccessModel =:= open
-        orelse is_subscribed_to_presence(OwnerJid, Acc).
+                               config = #{access_model := AccessModel}}, FromJid, PresenceSubscribed) ->
+    jid:are_bare_equal(OwnerJid, FromJid) orelse AccessModel =:= open orelse PresenceSubscribed.
 
 -spec is_subscribed_to_presence(jid:jid(), mongoose_acc:t()) -> boolean().
 is_subscribed_to_presence(OwnerJid = #jid{lresource = ~""}, Acc) ->
@@ -556,9 +576,17 @@ is_subscribed_to_presence(OwnerJid = #jid{lresource = ~""}, Acc) ->
 pep_identity() ->
     #{category => ~"pubsub", type => ~"pep"}.
 
+-spec pep_node_identity() -> mongoose_disco:identity().
+pep_node_identity() ->
+    #{category => ~"pubsub", type => ~"leaf"}.
+
 -spec pep_disco_features() -> [mongoose_disco:feature()].
 pep_disco_features() ->
     [?NS_PUBSUB | [pubsub_feature(Feature) || Feature <- pep_features()]].
+
+-spec pep_node_disco_features() -> [mongoose_disco:feature()].
+pep_node_disco_features() ->
+    [?NS_PUBSUB].
 
 -spec pep_features() -> [binary()].
 pep_features() ->

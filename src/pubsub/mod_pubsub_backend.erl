@@ -31,6 +31,9 @@
 -callback get_last_items(mongooseim:host_type(), jid:jid()) ->
     [mod_pubsub:item()].
 
+%% Currently unused, but implemented for the sake of completeness, and for debugging/inspection
+-ignore_xref([get_last_item/2, get_subscription/3]).
+
 %% API: start/stop
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.

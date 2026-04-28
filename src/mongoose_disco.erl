@@ -6,12 +6,11 @@
 
 %% Hooks wrappers
 -export([get_local_identity/5,
-         get_sm_identity/5,
+         get_sm_identity/6,
          get_local_items/5,
-         get_sm_items/5,
          get_sm_items/6,
          get_local_features/5,
-         get_sm_features/5,
+         get_sm_features/6,
          get_muc_features/6,
          get_info/4]).
 
@@ -53,7 +52,7 @@
                      to_jid := jid:jid(),
                      node := binary(),
                      lang := ejabberd:lang(),
-                     acc => mongoose_acc:t(),
+                     presence_subscribed => boolean(),
                      result := empty | [Elem]}.
 
 -export_type([item_acc/0, feature_acc/0, identity_acc/0,
@@ -70,10 +69,10 @@ get_local_identity(HostType, From, To, Node, Lang) ->
     Identities = extract_result(FinalAcc),
     identities_to_xml(Identities).
 
--spec get_sm_identity(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          [exml:element()].
-get_sm_identity(HostType, From, To, Node, Lang) ->
-    InitialAcc = new_acc(HostType, From, To, Node, Lang),
+-spec get_sm_identity(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                      boolean()) -> [exml:element()].
+get_sm_identity(HostType, From, To, Node, Lang, PresenceSubscribed) ->
+    InitialAcc = new_sm_acc(HostType, From, To, Node, Lang, PresenceSubscribed),
     IdentityAcc = mongoose_hooks:disco_sm_identity(InitialAcc),
     Identities = extract_result(IdentityAcc),
     identities_to_xml(Identities).
@@ -87,20 +86,11 @@ get_local_items(HostType, From, To, Node, Lang) ->
         #{result := Items} -> {result, items_to_xml(Items)}
     end.
 
--spec get_sm_items(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          {result, [exml:element()]} | empty.
-get_sm_items(HostType, From, To, Node, Lang) ->
-    Acc = new_acc(HostType, From, To, Node, Lang),
-    case mongoose_hooks:disco_sm_items(Acc) of
-        #{result := empty} -> empty;
-        #{result := Items} -> {result, items_to_xml(Items)}
-    end.
-
 -spec get_sm_items(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
-                   mongoose_acc:t()) ->
+                   boolean()) ->
           {result, [exml:element()]} | empty.
-get_sm_items(HostType, From, To, Node, Lang, SourceAcc) ->
-    Acc = (new_acc(HostType, From, To, Node, Lang))#{acc => SourceAcc},
+get_sm_items(HostType, From, To, Node, Lang, PresenceSubscribed) ->
+    Acc = new_sm_acc(HostType, From, To, Node, Lang, PresenceSubscribed),
     case mongoose_hooks:disco_sm_items(Acc) of
         #{result := empty} -> empty;
         #{result := Items} -> {result, items_to_xml(Items)}
@@ -115,10 +105,10 @@ get_local_features(HostType, From, To, Node, Lang) ->
         #{result := Features} -> {result, features_to_xml(Features)}
     end.
 
--spec get_sm_features(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          {result, [exml:element()]} | empty.
-get_sm_features(HostType, From, To, Node, Lang) ->
-    Acc = new_acc(HostType, From, To, Node, Lang),
+-spec get_sm_features(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                      boolean()) -> {result, [exml:element()]} | empty.
+get_sm_features(HostType, From, To, Node, Lang, PresenceSubscribed) ->
+    Acc = new_sm_acc(HostType, From, To, Node, Lang, PresenceSubscribed),
     case mongoose_hooks:disco_sm_features(Acc) of
         #{result := empty} -> empty;
         #{result := Features} -> {result, features_to_xml(Features)}
@@ -191,6 +181,11 @@ new_acc(HostType, From, To, Node, Lang) ->
       node => Node,
       lang => Lang,
       result => empty}.
+
+-spec new_sm_acc(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                 boolean()) -> acc(any()).
+new_sm_acc(HostType, From, To, Node, Lang, PresenceSubscribed) ->
+    (new_acc(HostType, From, To, Node, Lang))#{presence_subscribed => PresenceSubscribed}.
 
 -spec new_info_acc(mongooseim:host_type(), module(), binary(), ejabberd:lang()) -> info_acc().
 new_info_acc(HostType, Module, Node, Lang) ->

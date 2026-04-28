@@ -7,14 +7,6 @@
 
 %% XML Construction
 -export([make_reply/1,
-         pubsub_error_el/1,
-         pubsub_el/1,
-         pubsub_owner_el/1,
-         configure_el/1,
-         subscription_el/3,
-         items_el/2,
-         item_el/1,
-         published_item_el/1,
          deletion_notification_message_el/1,
          notification_message_el/1]).
 
@@ -35,8 +27,6 @@
 %% XML Parsing
 
 -spec is_iq_relevant(jlib:iq()) -> boolean().
-is_iq_relevant(#iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = #xmlel{name = ~"query"}}) ->
-    true;
 is_iq_relevant(#iq{xmlns = NS}) ->
     NS =:= ?NS_PUBSUB orelse NS =:= ?NS_PUBSUB_OWNER.
 

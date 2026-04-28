@@ -163,12 +163,11 @@ process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} 
     IsPresenceSubscribed = is_presence_subscribed(From, To),
     HostType = mongoose_acc:host_type(Acc),
     Node = exml_query:attr(SubEl, ~"node", ~""),
-    Acc1 = mongoose_acc:set(?MODULE, presence_subscribed, IsPresenceSubscribed, Acc),
-    case mongoose_disco:get_sm_items(HostType, From, To, Node, Lang, Acc1) of
+    case mongoose_disco:get_sm_items(HostType, From, To, Node, Lang, IsPresenceSubscribed) of
         empty when Node =:= ~"" ->
             {Acc, make_iq_result(IQ, ?NS_DISCO_ITEMS, Node, [])};
         empty ->
-            Error = sm_error(From, To),
+            Error = sm_error(IsPresenceSubscribed),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
         {result, ItemsXML} ->
             {Acc, make_iq_result(IQ, ?NS_DISCO_ITEMS, Node, ItemsXML)}
@@ -179,21 +178,23 @@ process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} 
 process_sm_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
-    case is_presence_subscribed(From, To) of
-        true ->
-            HostType = mongoose_acc:host_type(Acc),
-            Node = exml_query:attr(SubEl, <<"node">>, <<>>),
-            case mongoose_disco:get_sm_features(HostType, From, To, Node, Lang) of
-                empty ->
-                    Error = sm_error(From, To),
-                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
-                {result, FeaturesXML} ->
-                    IdentityXML = mongoose_disco:get_sm_identity(HostType, From, To, Node, Lang),
-                    {Acc, make_iq_result(IQ, ?NS_DISCO_INFO, Node, IdentityXML ++ FeaturesXML)}
-            end;
-        false ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
+    IsPresenceSubscribed = is_presence_subscribed(From, To),
+    HostType = mongoose_acc:host_type(Acc),
+    Node = exml_query:attr(SubEl, ~"node", ~""),
+    case mongoose_disco:get_sm_features(HostType, From, To, Node, Lang, IsPresenceSubscribed) of
+        empty when Node =:= ~"" ->
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}};
+        empty ->
+            Error = sm_error(IsPresenceSubscribed),
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+        {result, FeaturesXML} ->
+            IdentityXML = mongoose_disco:get_sm_identity(HostType, From, To, Node, Lang,
+                                                         IsPresenceSubscribed),
+            {Acc, make_iq_result(IQ, ?NS_DISCO_INFO, Node, IdentityXML ++ FeaturesXML)}
     end.
+
+sm_error(true) -> mongoose_xmpp_errors:item_not_found();
+sm_error(false) -> mongoose_xmpp_errors:service_unavailable().
 
 %% Hook handlers
 
@@ -238,8 +239,8 @@ disco_local_items(Acc, _, _) ->
     Acc :: mongoose_disco:item_acc(),
     Params :: map(),
     Extra :: map().
-disco_sm_items(Acc = #{to_jid := To, node := <<>>, acc := SourceAcc}, _, _) ->
-    case mongoose_acc:get(?MODULE, presence_subscribed, false, SourceAcc) of
+disco_sm_items(Acc = #{to_jid := To, node := <<>>, presence_subscribed := PresenceSubscribed}, _, _) ->
+    case PresenceSubscribed of
         true -> {ok, mongoose_disco:add_items(get_user_resources(To), Acc)};
         false -> {ok, Acc}
     end;
@@ -299,7 +300,10 @@ get_external_components(ReturnHidden) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
-is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
+is_presence_subscribed(#jid{luser = LUser, lserver = LServer},
+                       #jid{luser = LUser, lserver = LServer}) ->
+    true;
+is_presence_subscribed(#jid{lserver = LFromServer} = FromJID,
                        #jid{luser = LToUser, lserver = LToServer} = _To) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LFromServer),
     A = mongoose_acc:new(#{ location => ?LOCATION,
@@ -313,14 +317,7 @@ is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
                       {TUser, TServer} = jid:to_lus(JID),
                       LToUser == TUser andalso LToServer == TServer andalso S /= none
               end,
-              Roster)
-    orelse LFromUser == LToUser andalso LFromServer == LToServer.
-
-sm_error(#jid{luser = LUser, lserver = LServer},
-         #jid{luser = LUser, lserver = LServer}) ->
-    mongoose_xmpp_errors:item_not_found();
-sm_error(_From, _To) ->
-    mongoose_xmpp_errors:not_allowed().
+              Roster).
 
 -spec get_user_resources(jid:jid()) -> [mongoose_disco:item()].
 get_user_resources(JID = #jid{luser = LUser}) ->

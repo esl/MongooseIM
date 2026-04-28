@@ -166,6 +166,8 @@ disco_local_items(Acc, _, _) ->
       Acc :: mongoose_disco:item_acc(),
       Params :: map(),
       Extra :: #{host_type := mongooseim:host_type()}.
+disco_sm_items(Acc = #{presence_subscribed := false, node := <<>>}, _, _) ->
+    {ok, Acc};
 disco_sm_items(Acc = #{to_jid := To, node := <<>>, lang := Lang}, _, #{host_type := HostType}) ->
     Items = case are_commands_visible(HostType) of
                 false ->
