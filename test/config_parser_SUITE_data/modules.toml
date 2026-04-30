@@ -192,13 +192,6 @@
     resource = "resource2"
     affiliation = "owner"
 
-[modules.mod_muc_log]
-  outdir = "www/muc"
-  access_log = "muc"
-  css_file = "path/to/css/file"
-  top_link.target = "/"
-  top_link.text = "Home"
-
 [modules.mod_muc_light]
   host = "muclight.example.com"
   equal_occupants = true

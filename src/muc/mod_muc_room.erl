@@ -2326,15 +2326,9 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
              end,
     Status2 = case NJID == ReceiverInfo#user.jid of
                   true ->
-                      Status0 = case (StateData#state.config)#config.logging of
-                                    true ->
-                                        [status_code(170) | Status];
-                                    false ->
-                                        Status
-                                end,
                       Status1 = case (StateData#state.config)#config.anonymous of
-                                    false -> [status_code(100) | Status0];
-                                    true -> Status0
+                                    false -> [status_code(100) | Status];
+                                    true -> Status
                                 end,
                       [status_code(110) | Status1];
                   false ->
@@ -2399,10 +2393,8 @@ send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
 -spec send_config_update(atom(), state()) -> 'ok'.
 send_config_update(Type, StateData) ->
     Status = case Type of
-            logging_enabled     -> <<"170">>;
-            logging_disabled    -> <<"171">>;
-            nonanonymous        -> <<"172">>;
-            semianonymous       -> <<"173">>
+            nonanonymous  -> <<"172">>;
+            semianonymous -> <<"173">>
         end,
     Message = jlib:make_config_change_message(Status),
     send_to_all_users(Message, StateData).
@@ -3241,25 +3233,12 @@ process_authorized_submit_owner(_From, [], StateData) ->
     {result, [], StateData};
 process_authorized_submit_owner(From, XData, StateData) ->
     %attempt to configure
-    case is_allowed_log_change(XData, StateData, From)
-         andalso is_allowed_persistent_change(XData, StateData, From)
+    case is_allowed_persistent_change(XData, StateData, From)
          andalso is_allowed_room_name_desc_limits(XData, StateData)
          andalso is_password_settings_correct(XData, StateData) of
         true -> set_config(XData, StateData);
         false -> {error, mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"not allowed to configure">>)}
     end.
-
--spec is_allowed_log_change([{binary(), [binary()]}], state(), jid:jid()) -> boolean().
-is_allowed_log_change(XData, StateData, From) ->
-    case lists:keymember(<<"muc#roomconfig_enablelogging">>, 1, XData) of
-    false ->
-        true;
-    true ->
-        (allow == mod_muc_log:check_access_log(
-                    StateData#state.host_type,
-                    StateData#state.server_host, From))
-    end.
-
 
 -spec is_allowed_persistent_change([{binary(), [binary()]}], state(), jid:jid()) -> boolean().
 is_allowed_persistent_change(XData, StateData, From) ->
@@ -3405,16 +3384,7 @@ get_config(Lang, StateData, From) ->
      boolxfield(<<"Allow visitors to change nickname">>,
              <<"muc#roomconfig_allowvisitornickchange">>,
               Config#config.allow_visitor_nickchange, Lang)
-    ] ++
-     case mod_muc_log:check_access_log(StateData#state.host_type,
-                                       StateData#state.server_host, From) of
-         allow ->
-             [boolxfield(
-                <<"Enable logging">>,
-                <<"muc#roomconfig_enablelogging">>,
-                Config#config.logging, Lang)];
-         _ -> []
-     end,
+    ],
     InstructionsTxt = service_translations:do(
                         Lang, <<"You need an x:data capable client to configure room">>),
     {result, [#xmlel{name = <<"instructions">>, children = [#xmlcdata{content = InstructionsTxt}]},
@@ -3466,12 +3436,9 @@ set_config(XData, StateData) ->
         #config{} = Config ->
             Res = change_config(Config, StateData),
             {result, _, NSD} = Res,
-            PrevLogging = (StateData#state.config)#config.logging,
-            NewLogging = Config#config.logging,
             PrevAnon = (StateData#state.config)#config.anonymous,
             NewAnon = Config#config.anonymous,
-            Type = notify_config_change_and_get_type(PrevLogging, NewLogging,
-                                                     PrevAnon, NewAnon, StateData),
+            Type = notify_config_change_and_get_type(PrevAnon, NewAnon, StateData),
                     Users = [{U#user.jid, U#user.nick, U#user.role} ||
                                 {_, U} <- maps:to_list(StateData#state.users)],
             add_to_log(Type, Users, NSD),
@@ -3480,24 +3447,16 @@ set_config(XData, StateData) ->
             Err
     end.
 
--spec notify_config_change_and_get_type(PrevLogging :: boolean(), NewLogging :: boolean(),
-                                        PrevAnon :: boolean(), NewAnon :: boolean(),
+-spec notify_config_change_and_get_type(PrevAnon :: boolean(), NewAnon :: boolean(),
                                         StateData :: state()) ->
-    roomconfig_change_disabledlogging | roomconfig_change_enabledlogging
-    | roomconfig_change_nonanonymous | roomconfig_change_anonymous | roomconfig_change.
-notify_config_change_and_get_type(true, false, _, _, StateData) ->
-    send_config_update(logging_disabled, StateData),
-    roomconfig_change_disabledlogging;
-notify_config_change_and_get_type(false, true, _, _, StateData) ->
-    send_config_update(logging_enabled, StateData),
-    roomconfig_change_enabledlogging;
-notify_config_change_and_get_type(_, _, true, false, StateData) ->
+    roomconfig_change_nonanonymous | roomconfig_change_anonymous | roomconfig_change.
+notify_config_change_and_get_type(true, false, StateData) ->
     send_config_update(nonanonymous, StateData),
     roomconfig_change_nonanonymous;
-notify_config_change_and_get_type(_, _, false, true, StateData) ->
+notify_config_change_and_get_type(false, true, StateData) ->
     send_config_update(semianonymous, StateData),
     roomconfig_change_anonymous;
-notify_config_change_and_get_type(_, _, _, _, _StateData) ->
+notify_config_change_and_get_type(_, _, _StateData) ->
     roomconfig_change.
 
 -define(SET_BOOL_XOPT(Opt, Val),
@@ -3583,8 +3542,6 @@ set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
         _ ->
             ?SET_XOPT(maygetmemberlist, [binary_to_role(V) || V <- Val])
     end;
-set_xoption([{<<"muc#roomconfig_enablelogging">>, [Val]} | Opts], Config) ->
-    ?SET_BOOL_XOPT(logging, Val);
 set_xoption([_ | _Opts], _Config) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
@@ -3666,8 +3623,6 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
             SD#state{config = C#config{password = Val}};
         anonymous ->
             SD#state{config = C#config{anonymous = Val}};
-        logging ->
-            SD#state{config = C#config{logging = Val}};
         max_users ->
             MaxUsers = min(Val, get_service_max_users(SD)),
             SD#state{config = C#config{max_users = MaxUsers}};
@@ -3711,7 +3666,6 @@ make_opts(StateData) ->
      ?MAKE_CONFIG_OPT(password_protected),
      ?MAKE_CONFIG_OPT(password),
      ?MAKE_CONFIG_OPT(anonymous),
-     ?MAKE_CONFIG_OPT(logging),
      ?MAKE_CONFIG_OPT(max_users),
      ?MAKE_CONFIG_OPT(maygetmemberlist),
      {affiliations, maps:to_list(StateData#state.affiliations)},
@@ -4165,21 +4119,9 @@ send_error_only_occupants(What, Packet, Lang, RoomJID, From)
 % Logging
 
 -spec add_to_log(atom(), any(), state()) -> 'ok'.
-add_to_log(Type, Data, StateData)
-  when Type == roomconfig_change_disabledlogging ->
-    %% When logging is disabled, the config change message must be logged:
-    mod_muc_log:add_to_log(
-      StateData#state.server_host, roomconfig_change, Data,
-      jid:to_binary(StateData#state.jid), make_opts(StateData));
-add_to_log(Type, Data, StateData) ->
-    case (StateData#state.config)#config.logging of
-    true ->
-        mod_muc_log:add_to_log(
-          StateData#state.server_host, Type, Data,
-          jid:to_binary(StateData#state.jid), make_opts(StateData));
-    false ->
-        ok
-    end.
+add_to_log(_Type, _Data, _StateData) ->
+    % todo: remove
+    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Users number checking
@@ -4618,8 +4560,8 @@ stringxfield(Label, Var, Val, Lang) ->
 privatexfield(Label, Var, Val, Lang) ->
     xfield(<<"text-private">>, Label, Var, Val, Lang).
 
-notify_users_modified(#state{host_type = HostType, jid = JID, users = Users} = State) ->
-    mod_muc_log:set_room_occupants(HostType, self(), JID, maps:values(Users)),
+notify_users_modified(State) ->
+    % todo: remove
     State.
 
 ls(LogMap, State) ->

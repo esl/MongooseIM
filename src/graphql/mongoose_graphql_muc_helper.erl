@@ -80,8 +80,7 @@ muc_room_config_to_map(Conf) ->
       <<"password">> => Conf#config.password,
       <<"anonymous">> => Conf#config.anonymous,
       <<"mayGetMemberList">> => format_maygetmemberlist(Conf#config.maygetmemberlist),
-      <<"maxUsers">> => Conf#config.max_users,
-      <<"logging">> => Conf#config.logging}.
+      <<"maxUsers">> => Conf#config.max_users}.
 
 -spec make_muc_room_config(map(), mod_muc_room:config()) -> mod_muc_room:config().
 make_muc_room_config(Map, Conf) ->
@@ -110,8 +109,7 @@ make_muc_room_config(Map, Conf) ->
       password = maybe_value(<<"password">>, Conf#config.password, Map),
       anonymous = maybe_value(<<"anonymous">>, Conf#config.anonymous, Map),
       maygetmemberlist = maybe_value(<<"mayGetMemberList">>, Conf#config.maygetmemberlist, Map),
-      max_users = maybe_value(<<"maxUsers">>, Conf#config.max_users, Map),
-      logging = maybe_value(<<"logging">>, Conf#config.logging, Map)
+      max_users = maybe_value(<<"maxUsers">>, Conf#config.max_users, Map)
      }.
 
 maybe_value(Key, Default, Map) ->

@@ -1965,8 +1965,7 @@ assert_default_room_config(Response) ->
                    <<"password">> := <<>>,
                    <<"anonymous">> := true,
                    <<"mayGetMemberList">> := [],
-                   <<"maxUsers">> := 200,
-                   <<"logging">> := false}, get_ok_value(?GET_ROOM_CONFIG_PATH, Response)).
+                   <<"maxUsers">> := 200}, get_ok_value(?GET_ROOM_CONFIG_PATH, Response)).
 
 atom_to_enum_item(null) -> null;
 atom_to_enum_item(Atom) -> string:uppercase(atom_to_binary(Atom)).

@@ -521,12 +521,6 @@ all_modules() ->
                         #{host => <<"192.168.0.1">>, type => turn}]},
       mod_external_filter => mod_config(mod_external_filter, #{pool_tag => external_filter_http}),
       mod_csi => mod_config(mod_csi, #{buffer_max => 40}),
-      mod_muc_log =>
-          mod_config(mod_muc_log,
-                     #{access_log => muc,
-                       css_file => <<"path/to/css/file">>,
-                       outdir => "www/muc",
-                       top_link => {"/", "Home"}}),
       mod_http_upload =>
           mod_config(
             mod_http_upload,
@@ -946,16 +940,6 @@ default_mod_config(mod_muc_light) ->
       allow_multiple_owners => false,
       config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
                         {<<"subject">>, <<>>, subject, binary}]};
-default_mod_config(mod_muc_log) ->
-    #{outdir => "www/muc",
-      access_log => muc_admin,
-      dirtype => subdirs,
-      dirname => room_jid,
-      file_format => html,
-      css_file => false,
-      timezone => local,
-      top_link => {"/", "Home"},
-      spam_prevention => true};
 default_mod_config(mod_ping) ->
     #{send_pings => false,
       ping_interval => 60 * 1000,
