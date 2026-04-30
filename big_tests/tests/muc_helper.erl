@@ -65,21 +65,16 @@ load_muc(HostType, ExtraOpts) ->
                     hibernated_room_timeout => 2000,
                     access => muc, access_create => muc_create},
     CustomOpts = maps:merge(DefaultOpts, ExtraOpts),
-    CustomLogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
 
     MUCOpts = make_opts(CustomOpts),
-    MUCLogOpts = config_parser_helper:config([modules, mod_muc_log], CustomLogOpts),
-    dynamic_modules:ensure_modules(HostType, [{mod_muc, MUCOpts},
-                                              {mod_muc_log, MUCLogOpts}]).
+    dynamic_modules:ensure_modules(HostType, [{mod_muc, MUCOpts}]).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),
-    dynamic_modules:stop(HostType, mod_muc),
-    dynamic_modules:stop(HostType, mod_muc_log).
+    dynamic_modules:stop(HostType, mod_muc).
 
 unload_muc(HostType) ->
-    dynamic_modules:stop(HostType, mod_muc),
-    dynamic_modules:stop(HostType, mod_muc_log).
+    dynamic_modules:stop(HostType, mod_muc).
 
 muc_host() ->
     ct:get_config({hosts, mim, muc_service}).
