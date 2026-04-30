@@ -209,8 +209,6 @@ groups() ->
                             mod_muc,
                             mod_muc_default_room,
                             mod_muc_default_room_affiliations,
-                            mod_muc_log,
-                            mod_muc_log_top_link,
                             mod_muc_light,
                             mod_muc_light_config_schema,
                             mod_offline,
@@ -2324,7 +2322,6 @@ mod_muc_default_room(_Config) ->
     ?cfgh(P ++ [password], <<"secret">>, T(<<"password">>, <<"secret">>)),
     ?cfgh(P ++ [anonymous], true, T(<<"anonymous">>, true)),
     ?cfgh(P ++ [max_users],  100, T(<<"max_users">>, 100)),
-    ?cfgh(P ++ [logging], false, T(<<"logging">>, false)),
     ?cfgh(P ++ [maygetmemberlist], [moderator],
           T(<<"maygetmemberlist">>, [<<"moderator">>])),
     ?cfgh(P ++ [subject], <<"Lambda days">>, T(<<"subject">>, <<"Lambda days">>)),
@@ -2348,7 +2345,6 @@ mod_muc_default_room(_Config) ->
     ?errh(T(<<"password">>, false)),
     ?errh(T(<<"anonymous">>, <<"maybe">>)),
     ?errh(T(<<"max_users">>, 0)),
-    ?errh(T(<<"logging">>, [true, false])),
     ?errh(T(<<"maygetmemberlist">>, <<"moderator">>)),
     ?errh(T(<<"maygetmemberlist">>, [<<>>])),
     ?errh(T(<<"subject">>, [<<"subjective">>])),
@@ -2372,42 +2368,6 @@ mod_muc_default_room_affiliations(_Config) ->
     ?errh(T([RequiredOpts#{<<"server">> := <<"domain? not really!">>}])),
     ?errh(T([RequiredOpts#{<<"resource">> := false}])),
     ?errh(T([RequiredOpts#{<<"affiliation">> := <<>>}])).
-
-mod_muc_log(_Config) ->
-    check_module_defaults(mod_muc_log),
-    P = [modules, mod_muc_log],
-    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_muc_log">> => #{K => V}}} end,
-    ?cfgh(P ++ [outdir], "www/muc", T(<<"outdir">>, <<"www/muc">>)),
-    ?cfgh(P ++ [access_log], muc_admin, T(<<"access_log">>, <<"muc_admin">>)),
-    ?cfgh(P ++ [dirtype], subdirs, T(<<"dirtype">>, <<"subdirs">>)),
-    ?cfgh(P ++ [dirname], room_name, T(<<"dirname">>, <<"room_name">>)),
-    ?cfgh(P ++ [file_format], html, T(<<"file_format">>, <<"html">>)),
-    ?cfgh(P ++ [css_file], <<"path/to/css_file">>,
-          T(<<"css_file">>, <<"path/to/css_file">>)),
-    ?cfgh(P ++ [timezone], local, T(<<"timezone">>, <<"local">>)),
-    ?cfgh(P ++ [spam_prevention], false, T(<<"spam_prevention">>, false)),
-    ?errh(T(<<"outdir">>, <<"does/not/exist">>)),
-    ?errh(T(<<"access_log">>, 1)),
-    ?errh(T(<<"dirtype">>, <<"imaginary">>)),
-    ?errh(T(<<"dirname">>, <<"dyrektory">>)),
-    ?errh(T(<<"file_format">>, <<"none">>)),
-    ?errh(T(<<"css_file">>, <<>>)),
-    ?errh(T(<<"timezone">>, <<"yes">>)),
-    ?errh(T(<<"spam_prevention">>, <<"spam and eggs and spam">>)).
-
-mod_muc_log_top_link(_Config) ->
-    P = [modules, mod_muc_log, top_link],
-    T = fun(V) ->
-                M = #{<<"mod_muc_log">> => #{<<"top_link">> => V}},
-                #{<<"modules">> => M}
-        end,
-    RequiredOpts = #{<<"target">> => <<"https://esl.github.io/MongooseDocs/">>,
-                     <<"text">> => <<"Docs">>},
-    ExpectedCfg = {"https://esl.github.io/MongooseDocs/", "Docs"},
-    ?cfgh(P, ExpectedCfg, T(RequiredOpts)),
-    [?errh(T(maps:remove(K, RequiredOpts))) || K <- maps:keys(RequiredOpts)],
-    ?errh(T(RequiredOpts#{<<"target">> => true})),
-    ?errh(T(RequiredOpts#{<<"text">> => <<"">>})).
 
 mod_muc_light(_Config) ->
     check_module_defaults(mod_muc_light),
