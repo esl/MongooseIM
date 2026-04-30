@@ -1018,7 +1018,6 @@ default_room_opts() ->
       password => <<>>,
       anonymous => true,
       max_users => 200,
-      logging => false,
       maygetmemberlist => [],
       affiliations => [],
       subject => <<>>,
