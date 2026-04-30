@@ -151,7 +151,6 @@ nav:
       - 'mod_last': 'modules/mod_last.md'
       - 'mod_mam': 'modules/mod_mam.md'
       - 'mod_muc': 'modules/mod_muc.md'
-      - 'mod_muc_log': 'modules/mod_muc_log.md'
       - 'mod_muc_light': 'modules/mod_muc_light.md'
       - 'mod_offline': 'modules/mod_offline.md'
       - 'mod_offline_stub': 'modules/mod_offline_stub.md'
