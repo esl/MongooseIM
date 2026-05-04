@@ -233,8 +233,8 @@ make_reply(#{action := get_configuration, result := Node}) ->
     {result, [pubsub_owner_el([configure_el(Node)])]};
 make_reply(#{action := get_items, node_id := NodeId, result := Items}) ->
     {result, [pubsub_el([items_el(NodeId, [item_el(Item) || Item <- Items])])]};
-make_reply(#{action := publish, result := ItemId}) ->
-    {result, [pubsub_el([published_item_el(ItemId)])]}.
+make_reply(#{action := publish, node_id := NodeId, result := ItemId}) ->
+    {result, [pubsub_el([publish_el(NodeId, [published_item_el(ItemId)])])]}.
 
 -spec error_el(generic_error_reason()) -> exml:element().
 error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
@@ -281,6 +281,10 @@ subscription_el(SubscriberJid, NodeId, Subscription) ->
 -spec items_el(mod_pubsub:node_id(), [exml:child()]) -> exml:element().
 items_el(NodeId, Children) ->
     #xmlel{name = ~"items", attrs = #{~"node" => NodeId}, children = Children}.
+
+-spec publish_el(mod_pubsub:node_id(), [exml:child()]) -> exml:element().
+publish_el(NodeId, Children) ->
+    #xmlel{name = ~"publish", attrs = #{~"node" => NodeId}, children = Children}.
 
 -spec item_el(mod_pubsub:item()) -> exml:element().
 item_el(#item{id = ItemId, payload = Payload}) ->

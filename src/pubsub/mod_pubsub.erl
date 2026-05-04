@@ -251,8 +251,8 @@ perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
         HostType = mongoose_acc:host_type(Acc),
         NodeKey = {ServiceJid, NodeId},
         ok ?= assert_node_does_not_exist(HostType, NodeKey),
-        Node = #pubsub_node{node_key = NodeKey, config = Config},
-        mod_pubsub_backend:set_node(HostType, Node),
+        Node = #pubsub_node{node_key = NodeKey},
+        mod_pubsub_backend:set_node(HostType, apply_node_config(Node, Config)),
         Action#{result => ok}
     end;
 perform_action(#{acc := Acc, service_jid := ServiceJid} = Request,
@@ -465,7 +465,7 @@ explicit_subscribers(#pubsub_node{node_key = NodeKey, config = Config}, Acc) ->
 get_or_create_node(HostType, NodeKey, Config) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
         undefined ->
-            Node = #pubsub_node{node_key = NodeKey, config = default_node_config()},
+            Node = #pubsub_node{node_key = NodeKey},
             mod_pubsub_backend:set_node(HostType, apply_node_config(Node, Config)),
             {ok, Node};
         Node = #pubsub_node{config = ExistingConfig} ->
@@ -474,10 +474,6 @@ get_or_create_node(HostType, NodeKey, Config) ->
                 _ -> {error, {conflict, ~"precondition-not-met"}}
             end
     end.
-
--spec default_node_config() -> node_config().
-default_node_config() ->
-    #{access_model => presence}.
 
 -spec make_iq_response(mongoose_acc:t(), jlib:iq(), {result | error, [exml:child()]}) ->
     {mongoose_acc:t(), jlib:iq()}.

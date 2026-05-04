@@ -46,6 +46,7 @@ pep_tests() ->
      create_presence_and_publish_explicit_sub,
      create_presence_and_publish_no_sub,
      create_and_delete_node,
+     create_node_with_empty_config,
      create_and_configure_node,
      request_without_nodeid_fails,
      request_with_unknown_action_fails,
@@ -214,6 +215,10 @@ create_and_delete_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
                         fun create_and_delete_node_story/2).
 
+create_node_with_empty_config(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun create_node_with_empty_config_story/1).
+
 create_and_configure_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun create_and_configure_node_story/1).
@@ -297,8 +302,9 @@ auto_create_and_publish_implicit_sub_story(Config, Alice, Bob) ->
 auto_create_and_publish_self_notify_story(Config, Bob) ->
     NodeNS = ?config(node_ns, Config),
     BobJid = escalus_utils:get_short_jid(Bob),
-    {_Resp, Msg} = pubsub_tools:publish(Bob, ~"item1", {pep, NodeNS},
-                                        [{expected_notification, BobJid}]),
+    {Resp, Msg} = pubsub_tools:publish(Bob, ~"item1", {pep, NodeNS},
+                                       [{expected_notification, BobJid}]),
+    assert_publish_result(Resp, NodeNS, ~"item1"),
     pubsub_tools:check_item_notification(Msg, ~"item1", {BobJid, NodeNS}, []),
     pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, [~"item1"]}]),
     pubsub_tools:get_item(Bob, {pep, NodeNS}, ~"item1", [{expected_result, [~"item1"]}]).
@@ -358,6 +364,13 @@ create_and_delete_node_story(Alice, Bob) ->
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result),
     Result2 = pubsub_tools:get_item(Alice, PepNode, ~"item1", [{expected_error_type, ~"cancel"}]),
     escalus:assert(is_error, [~"cancel", ~"item-not-found"], Result2).
+
+create_node_with_empty_config_story(Alice) ->
+    PepNode = make_pep_node_info(Alice, random_node_ns()),
+    pubsub_tools:create_node(Alice, PepNode,
+                             [{modify_request, fun add_empty_config_to_create_node_request/1}]),
+    pubsub_tools:get_configuration(Alice, PepNode, [{expected_result,
+                                                     [{~"pubsub#access_model", ~"presence"}]}]).
 
 create_and_configure_node_story(Alice) ->
     PepNode = make_pep_node_info(Alice, random_node_ns()),
@@ -807,6 +820,12 @@ add_open_access_model_to_create_node_request(#xmlel{children = [PubsubEl]} = Req
     PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
     Request#xmlel{children = [PubsubEl2]}.
 
+add_empty_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
+    Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => []}),
+    ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
+    PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
+    Request#xmlel{children = [PubsubEl2]}.
+
 set_subscribe_jid(#xmlel{children = [PubsubEl = #xmlel{children = [SubscribeEl | Els]}]} = Request,
                   Jid) ->
     Attrs = SubscribeEl#xmlel.attrs,
@@ -941,6 +960,13 @@ assert_no_disco_info_node(Client, OwnerJid, NodeNS) ->
     Stanza = escalus:wait_for_stanza(Client),
     escalus:assert(is_stanza_from, [OwnerJid], Stanza),
     escalus:assert(is_error, [~"cancel", ~"service-unavailable"], Stanza).
+
+assert_publish_result(Stanza, NodeNS, ItemId) ->
+    Pubsub = exml_query:subelement(Stanza, ~"pubsub"),
+    Publish = exml_query:subelement(Pubsub, ~"publish"),
+    ?assertEqual(NodeNS, exml_query:attr(Publish, ~"node")),
+    Item = exml_query:subelement(Publish, ~"item"),
+    ?assertEqual(ItemId, exml_query:attr(Item, ~"id")).
 
 disco_items_query(Client, OwnerJid) ->
     escalus:send(Client, escalus_stanza:disco_items(OwnerJid)),
