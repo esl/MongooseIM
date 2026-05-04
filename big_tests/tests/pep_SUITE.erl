@@ -17,7 +17,7 @@
 
 -import(distributed_helper, [require_rpc_nodes/1]).
 -import(config_parser_helper, [default_mod_config/1]).
--import(domain_helper, [domain/0]).
+-import(domain_helper, [host_type/0]).
 
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
 
@@ -79,7 +79,7 @@ suite() ->
 init_per_suite(Config) ->
     maybe
         ok ?= caps_helper:check_backend(),
-        escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config))
+        escalus:init_per_suite(dynamic_modules:save_modules(host_type(), Config))
     end.
 
 end_per_suite(Config) ->
@@ -87,9 +87,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config) ->
-    Config0 = dynamic_modules:save_modules(domain(), Config),
+    Config0 = dynamic_modules:save_modules(host_type(), Config),
     NewConfig = required_modules(GroupName),
-    dynamic_modules:ensure_modules(domain(), NewConfig),
+    dynamic_modules:ensure_modules(host_type(), NewConfig),
     Config0.
 
 end_per_group(_GroupName, Config) ->
