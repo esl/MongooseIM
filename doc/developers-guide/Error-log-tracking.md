@@ -172,6 +172,35 @@ my_SUITE: 8 unexpected errors logged, max allowed: 5
 
 Suites without `max_unexpected_errors_logged` are not checked.
 
+## Multi-node collection
+
+The hook collects errors from all reachable MongooseIM nodes
+(`mim`, `mim2`, `mim3`, `fed`, `reg`) using a push-mode design:
+
+- A single **sink** (`cth_error_report_sink`, a gen_server) runs on
+  the test runner. It owns one ETS table that holds every error
+  entry from every node, keyed by a global monotonic sequence.
+- A **logger handler** (`log_error_collector`) is injected on each
+  reachable MIM node. For every error-level event it sends a
+  `{log_entry, Node, Level, Msg, Meta}` Erlang message to the sink
+  using `[noconnect, nosuspend]` (a slow or disconnected runner
+  cannot back-pressure logging).
+- The sink calls `net_kernel:monitor_nodes(true)` and re-injects the
+  handler automatically when a watched node comes back up
+  (`nodeup`). Accumulated entries on the sink are unaffected by node
+  restarts -- only the brief window between a node's death and the
+  re-injection of the handler loses error entries.
+
+Each error entry includes the originating node (in the `meta` map),
+so reports show which node logged each error. Expected error
+patterns apply to all nodes -- a single `expect` declaration matches
+errors regardless of which node produced them.
+
+**Limitation:** errors logged during the brief boot window between a
+MIM node's restart and re-injection of the logger handler may be
+lost. This window is on the order of seconds, not the rest of the
+suite.
+
 ## Parallel groups
 
 For parallel test groups, per-testcase error tracking is not possible because
