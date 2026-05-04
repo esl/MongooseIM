@@ -1697,7 +1697,7 @@ add_online_user(JID, Nick, Role, StateData) ->
         _ ->
             ok
     end,
-    notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
+    StateData#state{users = Users, sessions = Sessions}.
 
 -spec run_join_room_hook(jid:jid(), state()) -> ok.
 run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
@@ -1721,7 +1721,7 @@ remove_online_user(JID, StateData) ->
     end,
     Users = maps:remove(LJID, StateData#state.users),
 
-    notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
+    StateData#state{users = Users, sessions = Sessions}.
 
 -spec run_leave_room_hook(jid:jid(), state()) -> ok.
 run_leave_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
@@ -1763,7 +1763,7 @@ add_user_presence(JID, Presence, StateData) ->
       fun(#user{} = User) ->
               User#user{last_presence = FPresence}
       end, StateData#state.users),
-    notify_users_modified(StateData#state{users = Users}).
+    StateData#state{users = Users}.
 
 
 -spec add_user_presence_un(jid:simple_jid() | jid:jid(), exml:element(),
@@ -1777,7 +1777,7 @@ add_user_presence_un(JID, Presence, StateData) ->
       fun(#user{} = User) ->
               User#user{last_presence = FPresence, role = none}
       end, StateData#state.users),
-    notify_users_modified(StateData#state{users = Users}).
+    StateData#state{users = Users}.
 
 
 -spec is_nick_exists(mod_muc:nick(), state()) -> boolean().
@@ -2200,7 +2200,7 @@ foreach_user(F, #state{users=Users}) ->
 erase_matched_users(JID, StateData=#state{users=Users, sessions=Sessions}) ->
     LJID = jid:to_lower(JID),
     {NewUsers, NewSessions} = erase_matched_users_map(LJID, Users, Sessions),
-    notify_users_modified(StateData#state{users=NewUsers, sessions=NewSessions}).
+    StateData#state{users=NewUsers, sessions=NewSessions}.
 
 
 -spec erase_matched_users_map(error | jid:simple_jid(),
@@ -2222,7 +2222,7 @@ erase_matched_users_map(LJID, Users, Sessions) ->
 update_matched_users(F, JID, StateData=#state{users=Users}) ->
     LJID = jid:to_lower(JID),
     NewUsers = update_matched_users_map(F, LJID, Users),
-    notify_users_modified(StateData#state{users=NewUsers}).
+    StateData#state{users=NewUsers}.
 
 
 -spec update_matched_users_map(fun((user()) -> user()),
@@ -2412,7 +2412,7 @@ change_nick(JID, Nick, StateData) ->
       end, StateData#state.users),
     {ok, JIDs} = maps:find(OldNick, StateData#state.sessions),
     Sessions = maps:remove(OldNick, maps:put(Nick, JIDs, StateData#state.sessions)),
-    NewStateData = notify_users_modified(StateData#state{users = Users, sessions = Sessions}),
+    NewStateData = StateData#state{users = Users, sessions = Sessions},
     send_nick_changing(JID, OldNick, NewStateData),
     NewStateData.
 
@@ -4524,10 +4524,6 @@ stringxfield(Label, Var, Val, Lang) ->
 
 privatexfield(Label, Var, Val, Lang) ->
     xfield(<<"text-private">>, Label, Var, Val, Lang).
-
-notify_users_modified(State) ->
-    % todo: remove
-    State.
 
 ls(LogMap, State) ->
     maps:merge(LogMap, #{room => State#state.room,
