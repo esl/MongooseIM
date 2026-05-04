@@ -5,7 +5,8 @@
 %%% directory (ct_report/ct_run.*). Each suite gets its own file named
 %%% `SuiteName.log'. Errors are broken down by group and testcase.
 %%%
-%%% Uses a named instance of log_error_collector (`cth_error_report').
+%%% Uses cth_error_report_sink (a runner-side gen_server) to collect log
+%%% entries pushed from MIM nodes by the log_error_collector handler.
 %%%
 %%% Tests can declare expected error patterns using expect/1.
 %%% In the .log report, unexpected errors are prefixed with
@@ -36,20 +37,19 @@
 %% API for tests
 -export([expect/1, expect/2, max_unexpected_errors_logged/1]).
 
--import(distributed_helper, [rpc/4, mim/0]).
-
--define(COLLECTOR, log_error_collector).
--define(INSTANCE, cth_error_report).
 -define(PATTERNS_TABLE, cth_error_report_patterns).
+-define(NODE_KEYS, [mim, mim2, mim3, fed, reg]).
 
 -record(state, {
     report_dir :: undefined | string(),
     %% Persists across suites for the summary file
     summary_dir :: undefined | string(),
+    %% Sink sequence captured at the most recent section boundary.
+    %% `undefined' means collection failed to start for this suite.
+    mark :: undefined | non_neg_integer(),
     %% Stack of {GroupName, IsParallel} tuples, innermost first
     groups = [] :: [{atom(), boolean()}],
     parallel_depth = 0 :: non_neg_integer(),
-    mark :: undefined | integer(),
     entries = [] :: [entry()],
     %% Count of unexpected errors in current suite
     unexpected_total = 0 :: non_neg_integer(),
@@ -58,15 +58,18 @@
     %% Number of errors already matched per counted pattern
     consumed = #{} :: #{pattern() => non_neg_integer()},
     %% Accumulated across suites for the final summary
-    %% {Suite, AllErrors, UnexpectedErrors}
     suite_results = [] :: [suite_result()]
 }).
 
 -type suite_result() :: {atom(), non_neg_integer(), non_neg_integer()}.
 
--type msg() :: log_error_collector:msg().
--type meta() :: log_error_collector:meta().
--type log_entry() :: log_error_collector:log_entry().
+-type msg() :: {report, map()} | {string, binary() | string()}
+             | {list(), list()} | term().
+-type meta() :: #{atom() => term()}.
+%% Sink-side entry shape. Note: no per-entry timestamp field
+%% (formatting falls back to meta.time, which logger always provides).
+-type log_entry() :: {Node :: node(), Level :: atom(),
+                      Msg :: msg(), Meta :: meta()}.
 -type entry() :: {section(), Unexpected :: [log_entry()],
                   Expected :: [log_entry()]}.
 -type group_info() :: {atom(), boolean()}.
@@ -116,13 +119,15 @@ id(_Opts) ->
     "cth_error_report".
 
 init(_Id, _Opts) ->
+    {ok, _Pid} = cth_error_report_sink:start_link(),
     {ok, #state{}}.
 
 pre_init_per_suite(_Suite, Config, State) ->
     try
-        mongoose_helper:inject_module(?COLLECTOR),
-        rpc(mim(), ?COLLECTOR, start, [?INSTANCE, [error]]),
-        Mark = rpc(mim(), ?COLLECTOR, timestamp, []),
+        Specs = node_specs(),
+        ok = cth_error_report_sink:clear(),
+        ok = cth_error_report_sink:watch_nodes(Specs, [error]),
+        Mark = cth_error_report_sink:mark(),
         ReportDir = init_report_dir(Config),
         SummaryDir = case State#state.summary_dir of
             undefined -> ReportDir;
@@ -138,7 +143,7 @@ pre_init_per_suite(_Suite, Config, State) ->
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: failed to start: ~p:~p~n~p",
                [Class, Reason, Stacktrace]),
-        {Config, State#state{report_dir = undefined}}
+        {Config, State#state{report_dir = undefined, mark = undefined}}
     end.
 
 post_init_per_suite(_Suite, _Config, Return, #state{mark = undefined} = State) ->
@@ -199,7 +204,7 @@ post_end_per_suite(Suite, _Config, Return, State) ->
     SuiteResult = try
         MaxUnexp = get_max_unexpected_errors_logged(),
         State1 = collect_errors({end_per_suite}, State),
-        rpc(mim(), ?COLLECTOR, stop, [?INSTANCE]),
+        ok = cth_error_report_sink:unwatch(),
         delete_patterns_table(),
         write_report(Suite, State1),
         Unexp = State1#state.unexpected_total,
@@ -209,6 +214,7 @@ post_end_per_suite(Suite, _Config, Return, State) ->
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: failed for ~p: ~p:~p~n~p",
                [Suite, Class, Reason, Stacktrace]),
+        _ = catch cth_error_report_sink:unwatch(),
         delete_patterns_table(),
         {Suite, State#state.all_total,
          State#state.unexpected_total}
@@ -220,12 +226,14 @@ post_end_per_suite(Suite, _Config, Return, State) ->
                          consumed = #{},
                          suite_results = Results}}.
 
-terminate(#state{summary_dir = undefined}) ->
-    ok;
-terminate(#state{suite_results = []}) ->
-    ok;
 terminate(#state{summary_dir = Dir, suite_results = RevResults}) ->
-    write_summary(Dir, lists:sort(RevResults)).
+    case {Dir, RevResults} of
+        {undefined, _} -> ok;
+        {_, []} -> ok;
+        {_, _} -> write_summary(Dir, lists:sort(RevResults))
+    end,
+    _ = catch cth_error_report_sink:stop(),
+    ok.
 
 %% Unexpected errors limit check
 
@@ -239,6 +247,19 @@ check_unexpected_limit(Suite, Unexp, Max, ReportDir) ->
                         [Suite, Unexp, plural(Unexp, "error"), Max]),
     MarkerFile = filename:join(ReportDir, "limit_exceeded"),
     file:write_file(MarkerFile, Msg, [append]).
+
+%% Node spec resolution
+
+-spec node_specs() ->
+    [{atom(), distributed_helper:rpc_spec()}].
+node_specs() ->
+    lists:filtermap(
+        fun(Key) ->
+            try {true, {Key, distributed_helper:rpc_spec(Key)}}
+            catch _:_ -> false
+            end
+        end,
+        ?NODE_KEYS).
 
 %% Parallel group detection
 
@@ -302,9 +323,7 @@ get_max_unexpected_errors_logged() ->
 -spec collect_errors(section(), #state{}) -> #state{}.
 collect_errors(Section, #state{mark = Mark} = State) ->
     try
-        Errors = rpc(mim(), ?COLLECTOR, get_errors_after, [?INSTANCE, Mark]),
-        NewMark = rpc(mim(), ?COLLECTOR, timestamp, []),
-        %% Compute effective allowances: ETS totals minus consumed
+        {Errors, NewMark} = cth_error_report_sink:get_after(Mark),
         Allowances = effective_allowances(get_pattern_allowances(), State#state.consumed),
         {Unexpected, Expected, NewConsumed} = classify_errors(Errors, Allowances, State#state.consumed),
         Entry = {Section, Unexpected, Expected},
@@ -338,7 +357,7 @@ classify_errors(Errors, Allowances, Consumed)
 classify_errors(Errors, Allowances, Consumed) ->
     {Unexpected, Expected, _, NewConsumed} = lists:foldl(
         fun(Entry, {UnexpAcc, ExpAcc, AllowAcc, ConsAcc}) ->
-            {_Ts, _Level, Msg, Meta} = Entry,
+            {_Node, _Level, Msg, Meta} = Entry,
             case find_matching_pattern(Msg, Meta, AllowAcc) of
                 {ok, P} ->
                     NewAllow = decrement_allowance(P, AllowAcc),
@@ -580,7 +599,7 @@ format_entry_unexpected_log(Entry) ->
 format_entry_expected_log(Entry) ->
     format_entry_log(Entry).
 
-format_entry_log({_Timestamp, Level, Msg, Meta}) ->
+format_entry_log({_Node, Level, Msg, Meta}) ->
     Time = format_time(Meta),
     Node = format_node(Meta),
     MsgFormatted = format_msg(Msg),
@@ -638,7 +657,7 @@ format_section_errors_html(Unexpected, Expected) ->
     ELines = [format_entry_html(E, "expected") || E <- Expected],
     [ULines, ELines].
 
-format_entry_html({_Timestamp, Level, Msg, Meta}, Class) ->
+format_entry_html({_Node, Level, Msg, Meta}, Class) ->
     Time = format_time(Meta),
     Node = format_node(Meta),
     MsgFmt = html_escape(format_msg(Msg)),
