@@ -1,0 +1,172 @@
+%%% @doc Test-runner-side sink for error log entries pushed from MIM nodes.
+%%%
+%%% Owns one ETS table keyed by a global monotonic sequence.
+%%% Receives `{log_entry, Node, Level, Msg, Meta}' messages from
+%%% `log_error_collector' handlers running on MIM nodes.
+%%%
+%%% Survives across all suites in a CT run; cleared at each
+%%% `pre_init_per_suite' via `clear/0'.
+-module(cth_error_report_sink).
+-behaviour(gen_server).
+
+-export([start_link/0, stop/0,
+         mark/0, get_after/1, clear/0,
+         watch_nodes/2, unwatch/0]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2,
+         handle_info/2, terminate/2]).
+
+-define(NAME, ?MODULE).
+
+-type spec() :: distributed_helper:rpc_spec().
+-type level() :: atom().
+-type entry() :: {Node :: node(), Level :: level(),
+                  Msg :: term(), Meta :: map()}.
+
+-record(state, {
+    seq = 0 :: non_neg_integer(),
+    table :: ets:tid() | atom(),
+    %% Nodes we want a handler on. Keyed by node() atom for fast
+    %% lookup on nodeup events.
+    watched = #{} :: #{node() => spec()},
+    levels = [error] :: [level()]
+}).
+
+%% API
+
+-spec start_link() -> {ok, pid()} | {error, term()}.
+start_link() ->
+    gen_server:start_link({local, ?NAME}, ?MODULE, [], []).
+
+-spec stop() -> ok.
+stop() ->
+    gen_server:stop(?NAME).
+
+%% Returns the current sequence number; entries inserted after this
+%% call will have a strictly greater sequence.
+-spec mark() -> non_neg_integer().
+mark() ->
+    gen_server:call(?NAME, mark).
+
+%% Returns {EntriesNewerThanMark, NewMark}. Entries are returned in
+%% sequence order (oldest first).
+-spec get_after(non_neg_integer()) -> {[entry()], non_neg_integer()}.
+get_after(Mark) ->
+    gen_server:call(?NAME, {get_after, Mark}).
+
+%% Drops all stored entries and resets sequence to 0.
+-spec clear() -> ok.
+clear() ->
+    gen_server:call(?NAME, clear).
+
+%% Declare which nodes the sink should watch. The sink will inject
+%% the log_error_collector handler on each one that's currently up,
+%% and re-inject on nodeup for nodes that come back later.
+-spec watch_nodes([{atom(), spec()}], [level()]) -> ok.
+watch_nodes(Specs, Levels) ->
+    gen_server:call(?NAME, {watch_nodes, Specs, Levels}).
+
+%% Stop watching all nodes; best-effort handler removal on nodes
+%% that are still up.
+-spec unwatch() -> ok.
+unwatch() ->
+    gen_server:call(?NAME, unwatch).
+
+%% gen_server
+
+init([]) ->
+    Tab = ets:new(?MODULE, [ordered_set, private]),
+    ok = net_kernel:monitor_nodes(true),
+    {ok, #state{table = Tab}}.
+
+handle_call(mark, _From, #state{seq = Seq} = State) ->
+    {reply, Seq, State};
+handle_call({get_after, Mark}, _From, #state{table = T, seq = Seq} = State) ->
+    Entries = ets:select(T, [{ {'$1', '$2'}, [{'>', '$1', {const, Mark}}], ['$2'] }]),
+    {reply, {Entries, Seq}, State};
+handle_call(clear, _From, #state{table = T} = State) ->
+    %% NOTE: in-flight {log_entry, ...} messages already in the
+    %% mailbox at this point are still drained after the clear and
+    %% will land under sequence numbers >0. Per-suite boundaries are
+    %% quiet (no triggered work between the previous post_end_per_suite
+    %% and this call), so the practical risk of an entry being
+    %% mis-attributed to the next suite is negligible. If that ever
+    %% becomes a problem, switch to a generation counter checked in
+    %% the {log_entry, ...} handler.
+    ets:delete_all_objects(T),
+    {reply, ok, State#state{seq = 0}};
+handle_call({watch_nodes, Specs, Levels}, _From, State) ->
+    Watched = lists:foldl(
+        fun({_Key, #{node := Node} = Spec}, Acc) ->
+                Acc#{Node => Spec}
+        end,
+        #{}, Specs),
+    [spawn(fun() -> inject_async(Spec, Levels) end)
+     || {_Key, Spec} <- Specs],
+    {reply, ok, State#state{watched = Watched, levels = Levels}};
+handle_call(unwatch, _From, #state{watched = Watched} = State) ->
+    maps:foreach(
+        fun(_Node, Spec) ->
+                spawn(fun() -> remove_async(Spec) end)
+        end,
+        Watched),
+    {reply, ok, State#state{watched = #{}}};
+handle_call(_, _From, State) ->
+    {reply, {error, unknown_call}, State}.
+
+handle_cast(_, State) ->
+    {noreply, State}.
+
+handle_info({log_entry, Node, Level, Msg, Meta},
+            #state{table = T, seq = Seq} = State) ->
+    NewSeq = Seq + 1,
+    Entry = {Node, Level, Msg, Meta},
+    ets:insert(T, {NewSeq, Entry}),
+    {noreply, State#state{seq = NewSeq}};
+handle_info({nodeup, Node}, #state{watched = Watched,
+                                   levels = Levels} = State) ->
+    case maps:find(Node, Watched) of
+        {ok, Spec} ->
+            spawn(fun() -> inject_async(Spec, Levels) end);
+        error ->
+            ok
+    end,
+    {noreply, State};
+handle_info({nodedown, _Node}, State) ->
+    {noreply, State};
+handle_info(_, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+%% Internal: injection / removal performed in a transient process
+%% so the gen_server stays responsive.
+
+-spec inject_async(spec(), [level()]) -> ok.
+inject_async(#{node := Node} = Spec, Levels) ->
+    try
+        Cookie = ct:get_config(ejabberd_cookie),
+        erlang:set_cookie(Node, Cookie),
+        case net_kernel:connect_node(Node) of
+            true ->
+                mongoose_helper:inject_module(Spec, log_error_collector, no_reload),
+                SinkRef = {?NAME, node()},
+                _ = distributed_helper:rpc(Spec, log_error_collector, start, [Levels, SinkRef]),
+                ok;
+            _ ->
+                ok
+        end
+    catch Class:Reason:Stack ->
+        ct:pal("cth_error_report_sink: failed to inject handler on ~p: ~p:~p~n~p",
+               [Node, Class, Reason, Stack]),
+        ok
+    end.
+
+-spec remove_async(spec()) -> ok.
+remove_async(Spec) ->
+    try distributed_helper:rpc(Spec, log_error_collector, stop, [])
+    catch _:_ -> ok
+    end,
+    ok.
