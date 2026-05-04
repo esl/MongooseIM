@@ -331,7 +331,18 @@ subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
         {ok, Node = #pubsub_node{}} ?= get_node(HostType, NodeKey),
         ok ?= assert_subscribe_permission(Node, Request),
         Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid},
-        mod_pubsub_backend:set_subscription(mongoose_acc:host_type(Acc), Subscription)
+        mod_pubsub_backend:set_subscription(HostType, Subscription),
+        route_last_item_if_exists(HostType, NodeKey, SubscriberJid)
+    end.
+
+-spec route_last_item_if_exists(mongooseim:host_type(), node_key(), jid:jid()) -> ok.
+route_last_item_if_exists(HostType, NodeKey = {ServiceJid, _}, SubscriberJid) ->
+    case mod_pubsub_backend:get_last_item(HostType, NodeKey) of
+        undefined ->
+            ok;
+        Item ->
+            Notification = mod_pubsub_xml:notification_message_el(Item),
+            route_notification(HostType, ServiceJid, SubscriberJid, Notification)
     end.
 
 -spec unsubscribe(iq_request(), jid:jid(), node_key()) -> ok_result().
@@ -538,10 +549,11 @@ resources_with_features(HostType, Jid = #jid{lresource = ~""}) ->
 resources_with_features(HostType, Jid = #jid{lresource = LResource}) ->
     [{LResource, mod_caps:get_features(HostType, Jid)}].
 
--spec route_notification(mongooseim:host_type(), jid:jid(), jid:jid(), exml:element()) -> any().
-route_notification(HostType, FromJid = #jid{lserver = LServer}, ToJid, Packet) ->
+-spec route_notification(mongooseim:host_type(), jid:jid(), jid:jid(), exml:element()) -> ok.
+route_notification(_HostType, FromJid, ToJid, Packet) ->
     Acc = mongoose_acc:new(FromJid, ToJid, Packet, ?LOCATION),
-    mongoose_router:route(Acc).
+    mongoose_router:route(Acc),
+    ok.
 
 -spec host_type(jid:jid()) -> mongooseim:host_type().
 host_type(#jid{lserver = LServer}) ->

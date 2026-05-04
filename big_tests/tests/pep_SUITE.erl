@@ -64,8 +64,8 @@ pep_tests() ->
      create_open_and_publish_both_subs,
      create_open_and_publish_no_sub,
      send_caps_after_login_test,
-     delayed_receive,
-     delayed_receive_with_sm,
+     send_last_item_on_implicit_sub,
+     send_last_item_on_implicit_sub_with_sm,
      h_ok_after_notify_test
     ].
 
@@ -571,7 +571,11 @@ auto_create_open_and_publish_explicit_sub_story(_Config, Alice, Bob) ->
     PublishOptions = [{~"pubsub#access_model", ~"open"}],
     pubsub_tools:publish_with_options(Alice, ~"item0", {pep, NodeNS}, [], PublishOptions),
     pubsub_tools:publish(Alice, ~"item1", {pep, NodeNS}, []),
-    pubsub_tools:subscribe(Bob, PepNode, []),
+    {_Resp, LastItemMsg} = pubsub_tools:subscribe(
+                             Bob, PepNode,
+                             [{expected_notification, escalus_utils:get_short_jid(Alice)}]),
+    pubsub_tools:check_item_notification(LastItemMsg, ~"item1",
+                                         {escalus_utils:get_short_jid(Alice), NodeNS}, []),
     pubsub_tools:publish(Alice, ~"item2", {pep, NodeNS}, []),
     pubsub_tools:receive_item_notification(
       Bob, ~"item2", {escalus_utils:get_short_jid(Alice), NodeNS}, []),
@@ -725,13 +729,14 @@ send_caps_after_login_test(Config) ->
               escalus_assert:has_no_stanzas(Bob)
         end).
 
-delayed_receive(Config) ->
+send_last_item_on_implicit_sub(Config) ->
     %% if alice publishes an item and then bob subscribes successfully to her presence
     %% then bob will receive the item right after final subscription stanzas
     Config1 = set_caps(Config),
-    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}], fun delayed_receive_story/3).
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
+                                    fun send_last_item_on_implicit_sub_story/3).
 
-delayed_receive_story(Config, Alice, Bob) ->
+send_last_item_on_implicit_sub_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
     pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []), % previous item - not delivered
     pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []), % expected last item
@@ -743,13 +748,13 @@ delayed_receive_story(Config, Alice, Bob) ->
     pubsub_tools:publish(Alice, <<"item3">>, {pep, NodeNS}, []),
     pubsub_tools:receive_item_notification(Bob, <<"item3">>, Node, []).
 
-delayed_receive_with_sm(Config) ->
-    %% Same as delayed_receive but with stream management turned on
+send_last_item_on_implicit_sub_with_sm(Config) ->
+    %% Same as send_last_item_on_implicit_sub but with stream management turned on
     Config1 = set_caps(Config),
     escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
-                                    fun delayed_receive_with_sm_story/3).
+                                    fun send_last_item_on_implicit_sub_with_sm_story/3).
 
-delayed_receive_with_sm_story(Config, Alice, Bob) ->
+send_last_item_on_implicit_sub_with_sm_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
     enable_sm(Alice),
     enable_sm(Bob),
