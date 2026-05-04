@@ -8,7 +8,7 @@
 %% XML Construction
 -export([make_reply/1,
          deletion_notification_message_el/1,
-         notification_message_el/1]).
+         notification_message_el/2]).
 
 -include_lib("exml/include/exml.hrl").
 -include("jlib.hrl").
@@ -298,14 +298,30 @@ published_item_el(ItemId) ->
 deletion_notification_message_el(NodeId) ->
     event_message_el(#xmlel{name = ~"delete", attrs = #{~"node" => NodeId}}).
 
--spec notification_message_el(mod_pubsub:item()) -> exml:element().
-notification_message_el(#item{node_key = {_, NodeId}} = Item) ->
-    event_message_el(items_el(NodeId, [item_el(Item)])).
+-spec notification_message_el(mod_pubsub:item(), boolean()) -> exml:element().
+notification_message_el(#item{node_key = {_, NodeId}} = Item, Delayed) ->
+    DelayEls = delay_elements(Item, Delayed),
+    event_message_el(items_el(NodeId, [item_el(Item)]), DelayEls).
 
 -spec event_message_el(exml:element()) -> exml:element().
 event_message_el(EventEl) ->
+    event_message_el(EventEl, []).
+
+-spec event_message_el(exml:element(), [exml:element()]) -> exml:element().
+event_message_el(EventEl, ExtraElements) ->
     #xmlel{name = ~"message",
            attrs = #{~"type" => ~"headline"},
            children = [#xmlel{name = ~"event",
                               attrs = #{~"xmlns" => ?NS_PUBSUB_EVENT},
-                              children = [EventEl]}]}.
+                              children = [EventEl]} | ExtraElements]}.
+
+-spec delay_elements(mod_pubsub:item(), boolean()) -> [exml:element()].
+delay_elements(#item{node_key = {ServiceJid, _}, published_at = PublishedAt}, true) ->
+    [delay_el(ServiceJid, PublishedAt)];
+delay_elements(_Item, false) ->
+    [].
+
+-spec delay_el(jid:jid(), integer()) -> exml:element().
+delay_el(ServiceJid, PublishedAt) ->
+    Timestamp = calendar:system_time_to_rfc3339(PublishedAt, [{offset, "Z"}, {unit, microsecond}]),
+    jlib:timestamp_to_xml(Timestamp, ServiceJid, undefined).

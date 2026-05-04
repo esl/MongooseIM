@@ -148,16 +148,16 @@ get_item(HostType, {ServiceJid, NodeId} = NodeKey, ItemId) ->
                                              [jid:to_binary(ServiceJid), NodeId, ItemId]) of
         {selected, []} ->
             undefined;
-        {selected, [{PublisherJidBin, PayloadBin}]} ->
-            row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin)
+        {selected, [{PublisherJidBin, PayloadBin, PublishedAt}]} ->
+            row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin, PublishedAt)
     end.
 
 -spec get_items(mongooseim:host_type(), mod_pubsub:node_key()) -> [mod_pubsub:item()].
 get_items(HostType, {ServiceJid, NodeId} = NodeKey) ->
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_items,
                                                            [jid:to_binary(ServiceJid), NodeId]),
-    [row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin)
-     || {ItemId, PublisherJidBin, PayloadBin} <- Rows].
+    [row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin, PublishedAt)
+     || {ItemId, PublisherJidBin, PayloadBin, PublishedAt} <- Rows].
 
 -spec get_last_item(mongooseim:host_type(), mod_pubsub:node_key()) ->
     mod_pubsub:item() | undefined.
@@ -166,8 +166,8 @@ get_last_item(HostType, {ServiceJid, NodeId} = NodeKey) ->
                                              [jid:to_binary(ServiceJid), NodeId]) of
         {selected, []} ->
             undefined;
-        {selected, [{ItemId, PublisherJidBin, PayloadBin}]} ->
-            row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin)
+        {selected, [{ItemId, PublisherJidBin, PayloadBin, PublishedAt}]} ->
+            row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin, PublishedAt)
     end.
 
 -spec get_last_items(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:item()].
@@ -175,8 +175,8 @@ get_last_items(HostType, ServiceJid) ->
     ServiceJidBin = jid:to_binary(ServiceJid),
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_last_items,
                                                            [ServiceJidBin]),
-    [row_to_item(HostType, {ServiceJid, NodeId}, ItemId, PublisherJidBin, PayloadBin)
-     || {NodeId, ItemId, PublisherJidBin, PayloadBin} <- Rows].
+    [row_to_item(HostType, {ServiceJid, NodeId}, ItemId, PublisherJidBin, PayloadBin, PublishedAt)
+     || {NodeId, ItemId, PublisherJidBin, PayloadBin, PublishedAt} <- Rows].
 
 -spec encode_payload(mod_pubsub:item_payload()) -> binary().
 encode_payload(Payload) ->
@@ -188,13 +188,14 @@ decode_payload(HostType, PayloadBin) ->
     Payload.
 
 -spec row_to_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id(),
-                  binary(), binary()) -> mod_pubsub:item().
-row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin) ->
+                  binary(), binary(), integer()) -> mod_pubsub:item().
+row_to_item(HostType, NodeKey, ItemId, PublisherJidBin, PayloadBin, PublishedAt) ->
     Payload = decode_payload(HostType, PayloadBin),
     #item{node_key = NodeKey,
           id = ItemId,
           publisher_jid = jid:from_binary(PublisherJidBin),
-          payload = Payload}.
+          payload = Payload,
+          published_at = PublishedAt}.
 
 -spec row_to_subscription(mod_pubsub:node_key(), binary()) -> mod_pubsub:subscription().
 row_to_subscription(NodeKey, SubscriberJidBin) ->
@@ -204,20 +205,20 @@ row_to_subscription(NodeKey, SubscriberJidBin) ->
 
 sql(get_item) ->
     ~"""
-     SELECT publisher_jid, payload
+     SELECT publisher_jid, payload, published_at
      FROM pubsub_item
      WHERE service_jid = ? AND node_id = ? AND item_id = ?
      """;
 sql(get_items) ->
     ~"""
-     SELECT item_id, publisher_jid, payload
+     SELECT item_id, publisher_jid, payload, published_at
      FROM pubsub_item
      WHERE service_jid = ? AND node_id = ?
      ORDER BY published_at
      """;
 sql(get_last_item) ->
     ~"""
-     SELECT item_id, publisher_jid, payload
+     SELECT item_id, publisher_jid, payload, published_at
      FROM pubsub_item WHERE service_jid = ? AND node_id = ?
      ORDER BY published_at DESC LIMIT 1
      """;
@@ -262,10 +263,10 @@ sql(delete_nodes) ->
      """;
 sql(get_last_items) ->
     ~"""
-     SELECT n.node_id, i.item_id, i.publisher_jid, i.payload
+     SELECT n.node_id, i.item_id, i.publisher_jid, i.payload, i.published_at
      FROM pubsub_node AS n
      CROSS JOIN LATERAL (
-         SELECT item_id, publisher_jid, payload
+         SELECT item_id, publisher_jid, payload, published_at
          FROM pubsub_item
          WHERE service_jid = n.service_jid AND node_id = n.node_id
          ORDER BY published_at DESC

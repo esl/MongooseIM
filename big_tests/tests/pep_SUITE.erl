@@ -14,7 +14,6 @@
 -import(domain_helper, [host_type/0]).
 
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
-
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -800,6 +799,7 @@ send_last_item_on_implicit_sub_story(Config, Alice, Bob) ->
     [Message] = make_friends(Bob, Alice),
     Node = {escalus_utils:get_short_jid(Alice), NodeNS},
     pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []),
+    assert_delayed_notification(Message),
 
     %% Bob can receive further notifications
     pubsub_tools:publish(Alice, <<"item3">>, {pep, NodeNS}, []),
@@ -1011,6 +1011,11 @@ assert_publish_result(Stanza, NodeNS, ItemId) ->
     ?assertEqual(NodeNS, exml_query:attr(Publish, ~"node")),
     Item = exml_query:subelement(Publish, ~"item"),
     ?assertEqual(ItemId, exml_query:attr(Item, ~"id")).
+
+assert_delayed_notification(Stanza) ->
+    DelayEl = exml_query:subelement(Stanza, ~"delay"),
+    escalus:assert(has_ns, [?NS_DELAY], DelayEl),
+    ?assertMatch(Stamp when is_binary(Stamp), exml_query:attr(DelayEl, ~"stamp")).
 
 disco_items_query(Client, OwnerJid) ->
     escalus:send(Client, escalus_stanza:disco_items(OwnerJid)),

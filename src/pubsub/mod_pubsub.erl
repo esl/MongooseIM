@@ -220,7 +220,7 @@ roster_out_subscription(Acc, #{to := SubscriberJid, from := OwnerJid, type := su
     RecipientJids = [jid:to_bare(SubscriberJid)],
     lists:foreach(fun(Item = #item{node_key = NodeKey}) ->
                           FilteredJids = filter_recipients(RecipientJids, NodeKey),
-                          broadcast_item(HostType, OwnerJid, FilteredJids, Item)
+                          broadcast_item(HostType, OwnerJid, FilteredJids, Item, true)
                   end, mod_pubsub_backend:get_last_items(HostType, OwnerJid)),
     {ok, Acc};
 roster_out_subscription(Acc, _, _) ->
@@ -319,7 +319,7 @@ perform_action(#{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid
         {ok, Node} ?= get_or_create_node(HostType, NodeKey, maps:get(config, Action, #{})),
         Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid, payload = Payload},
         mod_pubsub_backend:set_item(HostType, Item),
-        broadcast_item(HostType, jid:to_bare(PublisherJid), recipient_jids(Node, Request), Item),
+        broadcast_item(HostType, jid:to_bare(PublisherJid), recipient_jids(Node, Request), Item, false),
         Action#{result => ItemId}
     end.
 
@@ -346,7 +346,7 @@ route_last_item_if_exists(HostType, NodeKey = {ServiceJid, _}, SubscriberJid) ->
         undefined ->
             ok;
         Item ->
-            Notification = mod_pubsub_xml:notification_message_el(Item),
+            Notification = mod_pubsub_xml:notification_message_el(Item, true),
             route_notification(HostType, ServiceJid, SubscriberJid, Notification)
     end.
 
@@ -492,7 +492,7 @@ apply_node_config(Node, Config) ->
 -spec send_last_items(mongooseim:host_type(), jid:jid(), jid:jid(), [mod_caps:feature()]) -> ok.
 send_last_items(HostType, OwnerJid = #jid{lresource = ~""},
                 SubscriberJid = #jid{lresource = <<_, _/binary>>}, Features) ->
-    [route_notification(HostType, OwnerJid, SubscriberJid, mod_pubsub_xml:notification_message_el(Item))
+    [route_notification(HostType, OwnerJid, SubscriberJid, mod_pubsub_xml:notification_message_el(Item, true))
      || Item <- mod_pubsub_backend:get_last_items(HostType, OwnerJid),
         lists:member(notify_feature(Item#item.node_key), Features)],
     ok.
@@ -505,11 +505,11 @@ filter_recipients(RecipientJids, NodeKey) ->
         {LRes, Features} <- resources_with_features(RecipientJid),
         lists:member(Feature, Features)].
 
--spec broadcast_item(mongooseim:host_type(), jid:jid(), [jid:jid()], item()) -> ok.
-broadcast_item(_HostType, _FromJid, [], _Item) ->
+-spec broadcast_item(mongooseim:host_type(), jid:jid(), [jid:jid()], item(), boolean()) -> ok.
+broadcast_item(_HostType, _FromJid, [], _Item, _Delayed) ->
     ok;
-broadcast_item(HostType, FromJid, ToJids, Item) ->
-    Notification = mod_pubsub_xml:notification_message_el(Item),
+broadcast_item(HostType, FromJid, ToJids, Item, Delayed) ->
+    Notification = mod_pubsub_xml:notification_message_el(Item, Delayed),
     broadcast_notification(HostType, FromJid, ToJids, Notification).
 
 -spec broadcast_node_deletion(mongooseim:host_type(), jid:jid(), [jid:jid()], node_id()) -> ok.
