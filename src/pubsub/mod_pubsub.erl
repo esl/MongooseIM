@@ -1,7 +1,10 @@
 -module(mod_pubsub).
 -behaviour(gen_mod).
 
--export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
+-xep([{xep, 60}, {version, "1.25.0"}, {status, partial}]).
+-xep([{xep, 163}, {version, "1.2.2"}, {status, partial}]).
+
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, deps/2]).
 
 -export([user_send_iq/3,
          iq_sm/5,
@@ -81,6 +84,10 @@ stop(HostType) ->
 -spec supported_features() -> [gen_mod:module_feature()].
 supported_features() ->
     [dynamic_domains].
+
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
+deps(_HostType, _Opts) ->
+    [{mod_caps, #{}, hard}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
