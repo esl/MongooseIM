@@ -330,7 +330,6 @@ init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
     State2 = set_affiliation(Creator, owner, State1),
     ?LOG_INFO(ls(#{what => muc_room_started,
                    creator_jid => jid:to_binary(Creator)}, State)),
-    add_to_log(room_existence, created, State2),
     State3 = case proplists:get_value(subject, DefRoomOpts, none) of
         none ->
             State2;
@@ -340,7 +339,6 @@ init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
     case proplists:get_value(instant, DefRoomOpts, false) of
         true ->
             %% Instant room -- groupchat 1.0 request
-            add_to_log(room_existence, started, State3),
             save_persistent_room_state(State3),
             {ok, normal_state, State3, State3#state.hibernate_timeout};
         false ->
@@ -368,7 +366,6 @@ init_restored(#{init_type := start_restored,
                                   http_auth_pool = HttpAuthPool,
                                   hibernate_timeout = read_hibernate_timeout(HostType)
                                  }),
-    add_to_log(room_existence, started, State),
     mongoose_instrument:execute(mod_muc_process_recreations, #{host_type => HostType},
                                 #{count => 1, jid => RoomJid}),
     {ok, normal_state, State, State#state.hibernate_timeout}.
@@ -403,7 +400,6 @@ initial_state({route, From, ToNick, _Acc,
     case lists:member(?NS_MUC, XNamespaces) of
         true ->
             %% FIXME
-            add_to_log(room_existence, started, StateData),
             process_presence(From, ToNick, Presence, StateData, locked_state);
             %% The fragment of normal_state with Activity that used to do this - how does that work?
             %% Seems to work without it
@@ -633,7 +629,6 @@ handle_event({destroy, Reason}, _StateName, StateData) ->
                             end}, StateData),
     ?LOG_INFO(ls(#{what => muc_room_destroyed, text => <<"Destroyed MUC room">>,
                    reason => Reason}, StateData)),
-    add_to_log(room_existence, destroyed, StateData),
     {stop, shutdown, StateData};
 handle_event(destroy, StateName, StateData) ->
     handle_event({destroy, none}, StateName, StateData);
@@ -796,7 +791,6 @@ terminate(Reason, _StateName, StateData) ->
               end,
               tab_remove_online_user(LJID, StateData)
       end, StateData#state.users),
-    add_to_log(room_existence, stopped, StateData),
     mod_muc:room_destroyed(StateData#state.host_type,
                            StateData#state.host,
                            StateData#state.room, self()),
@@ -1049,7 +1043,6 @@ destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}, NextState)
             ?LOG_INFO(ls(#{what => muc_empty_room_destroyed,
                            text => <<"Destroyed MUC room because it's temporary and empty">>},
                          StateData)),
-            add_to_log(room_existence, destroyed, StateData),
             {stop, normal, StateData};
         _ ->
             case NextState of
@@ -1121,8 +1114,7 @@ process_presence_unavailable(From, Packet, StateData) ->
             NewPacket = check_and_strip_visitor_status(From, Packet, StateData),
             NewState = add_user_presence_un(From, NewPacket, StateData),
             send_new_presence_un(From, NewState),
-            Reason = exml_query:path(NewPacket, [{element, <<"status">>}, cdata], <<>>),
-            remove_online_user(From, NewState, Reason);
+            remove_online_user(From, NewState);
         _ ->
             StateData
     end.
@@ -1700,7 +1692,6 @@ add_online_user(JID, Nick, Role, StateData) ->
     Users = maps:put(LJID, Info, StateData#state.users),
     case is_first_session(Nick, StateData) of
         true ->
-            add_to_log(join, Nick, StateData),
             tab_add_online_user(JID, StateData),
             run_join_room_hook(JID, StateData);
         _ ->
@@ -1715,17 +1706,11 @@ run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_ho
 
 -spec remove_online_user(jid:jid(), state()) -> state().
 remove_online_user(JID, StateData) ->
-    remove_online_user(JID, StateData, <<>>).
-
--spec remove_online_user(jid:jid(), state(), Reason :: binary()) -> state().
-remove_online_user(JID, StateData, Reason) ->
-
     LJID = jid:to_lower(JID),
     {ok, #user{nick = Nick}} =
         maps:find(LJID, StateData#state.users),
     Sessions = case is_last_session(Nick, StateData) of
         true ->
-            add_to_log(leave, {Nick, Reason}, StateData),
             tab_remove_online_user(JID, StateData),
             run_leave_room_hook(JID, StateData),
             maps:remove(Nick, StateData#state.sessions);
@@ -2429,7 +2414,6 @@ change_nick(JID, Nick, StateData) ->
     Sessions = maps:remove(OldNick, maps:put(Nick, JIDs, StateData#state.sessions)),
     NewStateData = notify_users_modified(StateData#state{users = Users, sessions = Sessions}),
     send_nick_changing(JID, OldNick, NewStateData),
-    add_to_log(nickchange, {OldNick, Nick}, StateData),
     NewStateData.
 
 
@@ -2602,7 +2586,6 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     Size = element_size(SPacket),
     Q1 = lqueue_in({FromNick, TSPacket, HaveSubject, SystemTime, Size},
            StateData#state.history),
-    add_to_log(text, {FromNick, Packet}, StateData),
     mongoose_hooks:room_packet(StateData#state.host,
                                FromNick, FromJID, StateData#state.jid, Packet),
     StateData#state{history = Q1}.
@@ -3109,8 +3092,7 @@ safe_send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData) ->
                             Reason :: binary(), Code :: binary(),
                             mod_muc:affiliation(), state()) -> any().
 send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData) ->
-    foreach_matched_user(fun(#user{nick = Nick, jid = J}) ->
-      add_to_log(kickban, {Nick, Reason, Code}, StateData),
+    foreach_matched_user(fun(#user{jid = J}) ->
       tab_remove_online_user(J, StateData),
       send_kickban_presence1(J, Reason, Code, NewAffiliation, StateData)
     end, JID, StateData).
@@ -3184,7 +3166,6 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
             ?LOG_INFO(ls(#{what => muc_room_destroy,
                            text => <<"Destroyed MUC room by the owner">>,
                            from_jid => jid:to_binary(From)}, StateData)),
-            add_to_log(room_existence, destroyed, StateData),
             destroy_room(SubEl1, StateData);
         [XEl] ->
             case {mongoose_data_forms:parse_form(XEl), StateName} of
@@ -3193,7 +3174,6 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
                                    text => <<"Received cancel before the room was configured "
                                              "- destroy room">>,
                                    from_jid => jid:to_binary(From)}, StateData)),
-                    add_to_log(room_existence, destroyed, StateData),
                     destroy_room(XEl, StateData);
                 {#{type := <<"cancel">>}, normal_state} ->
                     %% received cancel when room was configured - continue without changes
@@ -3435,29 +3415,23 @@ set_config(XData, StateData) ->
     case set_xoption(XData, StateData#state.config) of
         #config{} = Config ->
             Res = change_config(Config, StateData),
-            {result, _, NSD} = Res,
             PrevAnon = (StateData#state.config)#config.anonymous,
             NewAnon = Config#config.anonymous,
-            Type = notify_config_change_and_get_type(PrevAnon, NewAnon, StateData),
-                    Users = [{U#user.jid, U#user.nick, U#user.role} ||
-                                {_, U} <- maps:to_list(StateData#state.users)],
-            add_to_log(Type, Users, NSD),
+            notify_config_change(PrevAnon, NewAnon, StateData),
             Res;
                 Err ->
             Err
     end.
 
--spec notify_config_change_and_get_type(PrevAnon :: boolean(), NewAnon :: boolean(),
-                                        StateData :: state()) ->
-    roomconfig_change_nonanonymous | roomconfig_change_anonymous | roomconfig_change.
-notify_config_change_and_get_type(true, false, StateData) ->
+-spec notify_config_change(PrevAnon :: boolean(), NewAnon :: boolean(), StateData :: state()) -> ok.
+notify_config_change(true, false, StateData) ->
     send_config_update(nonanonymous, StateData),
-    roomconfig_change_nonanonymous;
-notify_config_change_and_get_type(false, true, StateData) ->
+    ok;
+notify_config_change(false, true, StateData) ->
     send_config_update(semianonymous, StateData),
-    roomconfig_change_anonymous;
-notify_config_change_and_get_type(_, _, _StateData) ->
-    roomconfig_change.
+    ok;
+notify_config_change(_, _, _StateData) ->
+    ok.
 
 -define(SET_BOOL_XOPT(Opt, Val),
     case Val of
@@ -4113,15 +4087,6 @@ send_error_only_occupants(What, Packet, Lang, RoomJID, From)
                 What/bytes, " to the conference">>,
     Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     mongoose_router:route(mongoose_acc:new(RoomJID, From, Err, ?LOCATION)).
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Logging
-
--spec add_to_log(atom(), any(), state()) -> 'ok'.
-add_to_log(_Type, _Data, _StateData) ->
-    % todo: remove
-    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Users number checking
