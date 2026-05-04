@@ -71,7 +71,7 @@ Caches user information to reduce load on backend storage.
 ### [mod_caps](../modules/mod_caps.md)
 Implements [XEP-0115: Entity Capabilities](https://xmpp.org/extensions/xep-0115.html).
 It queries clients for their supported functionalities and caches them in Mnesia.
-This module tightly cooperates with [mod_pubsub_old](../modules/mod_pubsub_old.md) in order to deliver [PEP](https://xmpp.org/extensions/xep-0163.html) events to user's subscribers.
+It stores capabilities used for [PEP](https://xmpp.org/extensions/xep-0163.html) notification filtering.
 
 ### [mod_carboncopy](../modules/mod_carboncopy.md)
 Implements [XEP-0280: Message Carbons](http://xmpp.org/extensions/xep-0280.html) in order to keep all IM clients for a user engaged in a real-time conversation by carbon-copying all inbound and outbound messages to all interested resources (Full JIDs).
@@ -159,6 +159,9 @@ This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-
 
 ### [mod_private](../modules/mod_private.md)
 Implements [XEP-0049: Private XML Storage](http://xmpp.org/extensions/xep-0049.html) to store and query private user data in XML format.
+
+### [mod_pubsub](../modules/mod_pubsub.md)
+Provides a focused [XEP-0163: Personal Eventing Protocol](https://xmpp.org/extensions/xep-0163.html) implementation for same-server users.
 
 ### [mod_pubsub_old](../modules/mod_pubsub_old.md)
 This extension implements [XEP-0060: Publish-Subscribe](http://www.xmpp.org/extensions/xep-0060.html). It is a pluggable implementation using behaviours provided by `node_*.erl` and `nodetree_*.erl` modules.
