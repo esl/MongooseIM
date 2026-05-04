@@ -12,7 +12,8 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(distributed_helper, [rpc/4, mim/0, require_rpc_nodes/1]).
+-import(distributed_helper, [rpc/4, mim/0, mim2/0,
+                             require_rpc_nodes/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -25,7 +26,8 @@ all() ->
     [{group, unlimited_patterns},
      {group, counted_patterns},
      {group, mixed_patterns},
-     {group, report_verification}].
+     {group, report_verification},
+     {group, multi_node}].
 
 groups() ->
     [{unlimited_patterns, [],
@@ -51,7 +53,12 @@ groups() ->
        no_patterns_all_unexpected]},
      {report_verification, [],
       [verify_report_files_created,
-       verify_unexpected_prefix_in_log]}].
+       verify_unexpected_prefix_in_log]},
+     {multi_node, [],
+      [errors_from_mim2_collected,
+       errors_from_multiple_nodes,
+       expect_pattern_covers_all_nodes,
+       errors_survive_handler_restart_on_mim2]}].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -64,6 +71,19 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
+init_per_group(multi_node, Config) ->
+    try
+        #{node := Node2} = mim2(),
+        case net_kernel:connect_node(Node2) of
+            true ->
+                mongoose_helper:inject_module(mim2(), log_error_test_helper, no_reload),
+                Config;
+            _ ->
+                {skip, mim2_not_available}
+        end
+    catch _:_ ->
+        {skip, mim2_not_available}
+    end;
 init_per_group(_Group, Config) ->
     Config.
 
@@ -215,12 +235,60 @@ verify_unexpected_prefix_in_log(_Config) ->
     trigger_error(prefix_test_err, "check prefix in log").
 
 %%--------------------------------------------------------------------
+%% Multi-node tests
+%%--------------------------------------------------------------------
+
+errors_from_mim2_collected(_Config) ->
+    %% Trigger an error on mim2 -- it should appear in the report
+    %% as unexpected since we don't declare it expected
+    trigger_error_on(mim2(), err_on_mim2, "from mim2").
+
+errors_from_multiple_nodes(_Config) ->
+    %% Errors from both nodes should be collected
+    trigger_error(err_multi_mim1, "from mim1"),
+    trigger_error_on(mim2(), err_multi_mim2, "from mim2").
+
+expect_pattern_covers_all_nodes(_Config) ->
+    %% An expect declaration should match errors from any node
+    cth_error_report:expect({what, err_expected_any_node}),
+    trigger_error(err_expected_any_node, "from mim1"),
+    trigger_error_on(mim2(), err_expected_any_node, "from mim2").
+
+errors_survive_handler_restart_on_mim2(_Config) ->
+    %% Trigger an error on mim2 BEFORE simulated restart.
+    cth_error_report:expect({what, before_restart}),
+    cth_error_report:expect({what, after_restart}),
+    trigger_error_on(mim2(), before_restart, "pre"),
+
+    %% Simulate a node restart by removing and re-adding the
+    %% logger handler. Entries already in the runner-side sink
+    %% must remain after this round-trip.
+    rpc(mim2(), log_error_collector, stop, []),
+
+    %% While the handler is down, errors logged on mim2 are
+    %% expected to be lost. Trigger and forget.
+    trigger_error_on(mim2(), during_restart, "drop"),
+
+    %% Re-inject. We cheat slightly: instead of waiting for the
+    %% sink's nodeup-driven re-injection, call start/2 directly
+    %% with the same SinkRef the sink would have used.
+    rpc(mim2(), log_error_collector, start, [[error], {cth_error_report_sink, node()}]),
+
+    %% Trigger another error after restart. Both `before_restart'
+    %% and `after_restart' should appear in the report; the
+    %% `during_restart' one is expected to be missing.
+    trigger_error_on(mim2(), after_restart, "post").
+
+%%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
 trigger_error(What, Reason) ->
     rpc(mim(), log_error_test_helper, log_error,
         [What, Reason]).
+
+trigger_error_on(Node, What, Reason) ->
+    rpc(Node, log_error_test_helper, log_error, [What, Reason]).
 
 trigger_error_extra(What, Reason, Extra) ->
     rpc(mim(), log_error_test_helper, log_error,
