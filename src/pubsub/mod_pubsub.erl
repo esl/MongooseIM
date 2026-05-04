@@ -330,9 +330,14 @@ subscribe(#{acc := Acc} = Request, SubscriberJid, NodeKey) ->
         ok ?= assert_subscriber_jid(Request, SubscriberJid),
         {ok, Node = #pubsub_node{}} ?= get_node(HostType, NodeKey),
         ok ?= assert_subscribe_permission(Node, Request),
-        Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid},
-        mod_pubsub_backend:set_subscription(HostType, Subscription),
-        route_last_item_if_exists(HostType, NodeKey, SubscriberJid)
+        case mod_pubsub_backend:get_subscription(HostType, NodeKey, SubscriberJid) of
+            undefined ->
+                Subscription = #subscription{node_key = NodeKey, jid = SubscriberJid},
+                mod_pubsub_backend:set_subscription(HostType, Subscription),
+                route_last_item_if_exists(HostType, NodeKey, SubscriberJid);
+            _Subscription ->
+                ok % already subscribed
+        end
     end.
 
 -spec route_last_item_if_exists(mongooseim:host_type(), node_key(), jid:jid()) -> ok.
@@ -602,6 +607,7 @@ pep_features() ->
      ~"delete-nodes",
      ~"filtered-notifications",
      ~"item-ids",
+     ~"last-published",
      ~"persistent-items",
      ~"publish",
      ~"publish-options",
