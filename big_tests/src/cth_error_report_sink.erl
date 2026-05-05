@@ -20,9 +20,16 @@
 -define(NAME, ?MODULE).
 
 -type spec() :: distributed_helper:rpc_spec().
--type level() :: atom().
--type entry() :: {Node :: node(), Level :: level(),
-                  Msg :: term(), Meta :: map()}.
+-type level() :: log_error_collector:level().
+%% Storage shape: a single log event captured from a MIM node.
+%% Same arity as the wire format `{log_entry, Node, Level, Msg, Meta}'
+%% but without the leading tag.
+-type log_entry() :: {Node :: node(),
+                      Level :: log_error_collector:level(),
+                      Msg :: log_error_collector:msg(),
+                      Meta :: log_error_collector:meta()}.
+
+-export_type([log_entry/0]).
 
 -record(state, {
     seq = 0 :: non_neg_integer(),
@@ -51,7 +58,7 @@ mark() ->
 
 %% Returns {EntriesNewerThanMark, NewMark}. Entries are returned in
 %% sequence order (oldest first).
--spec get_after(non_neg_integer()) -> {[entry()], non_neg_integer()}.
+-spec get_after(non_neg_integer()) -> {[log_entry()], non_neg_integer()}.
 get_after(Mark) ->
     gen_server:call(?NAME, {get_after, Mark}).
 

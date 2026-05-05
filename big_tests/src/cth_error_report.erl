@@ -50,7 +50,7 @@
     %% Stack of {GroupName, IsParallel} tuples, innermost first
     groups = [] :: [{atom(), boolean()}],
     parallel_depth = 0 :: non_neg_integer(),
-    entries = [] :: [entry()],
+    entries = [] :: [report_entry()],
     %% Count of unexpected errors in current suite
     unexpected_total = 0 :: non_neg_integer(),
     %% Count of all errors (unexpected + expected) in current suite
@@ -63,15 +63,11 @@
 
 -type suite_result() :: {atom(), non_neg_integer(), non_neg_integer()}.
 
--type msg() :: {report, map()} | {string, binary() | string()}
-             | {list(), list()} | term().
--type meta() :: #{atom() => term()}.
-%% Sink-side entry shape. Note: no per-entry timestamp field
-%% (formatting falls back to meta.time, which logger always provides).
--type log_entry() :: {Node :: node(), Level :: atom(),
-                      Msg :: msg(), Meta :: meta()}.
--type entry() :: {section(), Unexpected :: [log_entry()],
-                  Expected :: [log_entry()]}.
+-type msg() :: log_error_collector:msg().
+-type meta() :: log_error_collector:meta().
+-type log_entry() :: cth_error_report_sink:log_entry().
+-type report_entry() :: {section(), Unexpected :: [log_entry()],
+                         Expected :: [log_entry()]}.
 -type group_info() :: {atom(), boolean()}.
 -type pattern() :: {what, atom()}
                  | {module, atom()}
