@@ -201,13 +201,16 @@ create_room_raw(#{room := InRoomJID, user := CreatorJID, options := Options}) ->
             ?VALIDATION_ERROR_RESULT(Key, Reason)
     end.
 
-do_invite_to_room(#{user := SenderJID, room := RoomJID, recipient := RecipientJID}) ->
+do_invite_to_room(#{user := SenderJID, room := RoomJID,
+                    recipient := RecipientJID, muc_host_type := HostType}) ->
     S = jid:to_bare(SenderJID),
     R = jid:to_bare(RoomJID),
     RecipientBin = jid:to_binary(jid:to_bare(RecipientJID)),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS, [affiliate(RecipientBin, <<"member">>)]),
     mongoose_router:route(
-      mongoose_acc:new(S, R, iq(jid:to_binary(S), jid:to_binary(R), <<"set">>, [Changes]), ?LOCATION)),
+        mongoose_acc:new(HostType, S, R,
+                         iq(jid:to_binary(S), jid:to_binary(R), <<"set">>, [Changes]),
+                         ?LOCATION)),
     {ok, "User invited successfully"}.
 
 do_change_room_config(#{user := UserJID, room := RoomJID, config := Config,
@@ -254,23 +257,26 @@ get_user_aff(M = #{muc_host_type := HostType, user := UserJID, room := RoomJID})
             ?ROOM_NOT_FOUND_RESULT
     end.
 
-do_change_affiliation(#{user := SenderJID, room := RoomJID, recipient := RecipientJID, op := Op}) ->
+do_change_affiliation(#{user := SenderJID, room := RoomJID,
+                        recipient := RecipientJID, op := Op, muc_host_type := HostType}) ->
     RecipientBare = jid:to_bare(RecipientJID),
     S = jid:to_bare(SenderJID),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
                     [affiliate(jid:to_binary(RecipientBare), op_to_aff(Op))]),
     mongoose_router:route(
-      mongoose_acc:new(S, RoomJID, iq(jid:to_binary(S), jid:to_binary(RoomJID),
-                                         <<"set">>, [Changes]), ?LOCATION)),
+      mongoose_acc:new(HostType, S, RoomJID,
+                       iq(jid:to_binary(S), jid:to_binary(RoomJID), <<"set">>, [Changes]),
+                       ?LOCATION)),
     {ok, "Affiliation change request sent successfully"}.
 
-do_send_message(#{user := SenderJID, room := RoomJID, children := Children, attrs := ExtraAttrs}) ->
+do_send_message(#{user := SenderJID, room := RoomJID,
+                  children := Children, attrs := ExtraAttrs, muc_host_type := HostType}) ->
     SenderBare = jid:to_bare(SenderJID),
     RoomBare = jid:to_bare(RoomJID),
     Stanza = #xmlel{name = <<"message">>,
                     attrs = ExtraAttrs#{<<"type">> => <<"groupchat">>},
                     children = Children},
-    mongoose_router:route(mongoose_acc:new(SenderBare, RoomBare, Stanza, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, SenderBare, RoomBare, Stanza, ?LOCATION)),
     {ok, "Message sent successfully"}.
 
 do_delete_room(#{room := RoomJID}) ->
@@ -353,7 +359,8 @@ do_set_blocking_list(#{user := UserJID, user_host_type := HostType, items := Ite
     MUCServer = mod_muc_light_utils:server_host_to_muc_host(HostType, UserJID#jid.lserver),
     Q = query(?NS_MUC_LIGHT_BLOCKING, [blocking_item(I) || I <- Items]),
     Iq = iq(jid:to_binary(UserJID), MUCServer, <<"set">>, [Q]),
-    mongoose_router:route(mongoose_acc:new(UserJID, jid:from_binary(MUCServer), Iq, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, UserJID,
+                                           jid:from_binary(MUCServer), Iq, ?LOCATION)),
     {ok, "User blocking list updated successfully"}.
 
 %% Internal: helpers

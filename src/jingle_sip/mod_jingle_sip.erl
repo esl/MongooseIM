@@ -168,7 +168,7 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
     #iq{sub_el = Jingle} = IQ,
     try
       Result = translate_to_sip(JingleAction, Jingle, Acc),
-      route_result(Result, From, To, IQ)
+      route_result(Result, From, To, IQ, Acc)
     catch Class:Error:StackTrace ->
             {Acc1, ErrReply} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:internal_server_error()),
             mongoose_router:route(mongoose_acc:update(To, From, ErrReply, Acc1)),
@@ -182,29 +182,31 @@ maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
                    jingle_action => JingleAction, acc => Acc}),
     {ok, Acc}.
 
-route_result(ok, From, To, IQ)  ->
-    route_ok_result(From, To, IQ);
-route_result({ok, _}, From, To, IQ) ->
-    route_ok_result(From, To, IQ);
-route_result({ok, _, _}, From, To, IQ) ->
-    route_ok_result(From, To, IQ);
-route_result({error, item_not_found}, From, To, IQ) ->
+route_result(ok, From, To, IQ, Acc)  ->
+    route_ok_result(From, To, IQ, Acc);
+route_result({ok, _}, From, To, IQ, Acc) ->
+    route_ok_result(From, To, IQ, Acc);
+route_result({ok, _, _}, From, To, IQ, Acc) ->
+    route_ok_result(From, To, IQ, Acc);
+route_result({error, item_not_found}, From, To, IQ, Acc) ->
     Error = mongoose_xmpp_errors:item_not_found(),
-    route_error_reply(From, To, IQ, Error);
-route_result(Other, From, To, IQ) ->
+    route_error_reply(From, To, IQ, Error, Acc);
+route_result(Other, From, To, IQ, Acc) ->
     ?LOG_WARNING(#{what => sip_unknown_result, reason => Other, iq => IQ}),
     Error = mongoose_xmpp_errors:internal_server_error(),
-    route_error_reply(From, To, IQ, Error).
+    route_error_reply(From, To, IQ, Error, Acc).
 
-route_error_reply(From, To, IQ, Error) ->
+route_error_reply(From, To, IQ, Error, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
     IQResult = IQ#iq{type = error, sub_el = [Error]},
     Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
-    mongoose_router:route(mongoose_acc:new(To, From, Packet, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, To, From, Packet, ?LOCATION)).
 
-route_ok_result(From, To, IQ) ->
+route_ok_result(From, To, IQ, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
     IQResult = IQ#iq{type = result, sub_el = []},
     Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
-    mongoose_router:route(mongoose_acc:new(To, From, Packet, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, To, From, Packet, ?LOCATION)).
 
 resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
     From = mongoose_acc:from_jid(Acc),

@@ -201,18 +201,19 @@ return_result(pass, _Event, Rules) ->
 
 -spec take_action_for_matched_rule(exml:element(), jid:jid(), amp_rule(), mongoose_acc:t()) ->
           pass | drop.
-take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule, _Acc) ->
-    reply_to_sender(Rule, server_jid(From), From, Packet),
+take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule, Acc) ->
+    reply_to_sender(Rule, server_jid(From), From, Packet, Acc),
     pass;
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule, Acc) ->
     send_error_and_drop(Packet, From, 'undefined-condition', Rule, Acc);
 take_action_for_matched_rule(_Packet, _From, #amp_rule{action = drop}, Acc) ->
     update_metric_and_drop(Acc).
 
--spec reply_to_sender(amp_rule(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
-reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
+-spec reply_to_sender(amp_rule(), jid:jid(), jid:jid(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
+reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
     Response = amp:make_response(MatchedRule, OriginalSender, OriginalPacket),
-    mongoose_router:route(mongoose_acc:new(ServerJid, OriginalSender, Response, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, ServerJid, OriginalSender, Response, ?LOCATION)).
 
 -spec send_error_and_drop(exml:element(), jid:jid(), amp_error(), amp_rule(), mongoose_acc:t()) -> drop.
 send_error_and_drop(Packet, From, AmpError, MatchedRule, Acc) ->
@@ -225,9 +226,10 @@ send_errors_and_drop(Packet, From, [], Acc) ->
                  exml_packet => Packet, from => From}),
     update_metric_and_drop(Acc);
 send_errors_and_drop(Packet, From, ErrorRules, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
     {Errors, Rules} = lists:unzip(ErrorRules),
     ErrorResponse = amp:make_error_response(Errors, Rules, From, Packet),
-    mongoose_router:route(mongoose_acc:new(server_jid(From), From, ErrorResponse, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, server_jid(From), From, ErrorResponse, ?LOCATION)),
     update_metric_and_drop(Acc).
 
 -spec update_metric_and_drop(mongoose_acc:t()) -> drop.

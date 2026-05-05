@@ -126,16 +126,22 @@ verify_user(JID) ->
 %% Send presence to create a room.
 -spec create_room(jid:jid(), jid:jid()) -> ok | {could_not_create_room, iolist()}.
 create_room(OwnerJID, UserRoomJID) ->
+    HostType = room_host_type(UserRoomJID),
     CreationStanza = presence(OwnerJID, UserRoomJID, undefined),
-    ResponseAcc = mongoose_router:route(mongoose_acc:new(OwnerJID, UserRoomJID, CreationStanza, ?LOCATION)),
+    ResponseAcc = mongoose_router:route(mongoose_acc:new(HostType, OwnerJID,
+                                                         UserRoomJID, CreationStanza,
+                                                         ?LOCATION)),
     ResponseEl = mongoose_acc:element(ResponseAcc),
     verify_routing_result(ResponseEl).
 
 %% Send IQ set to unlock the room.
 -spec unlock_room(jid:jid(), jid:jid()) -> ok | {could_not_create_room, iolist()}.
 unlock_room(OwnerJID, BareRoomJID) ->
+    HostType = room_host_type(BareRoomJID),
     UnlockStanza = declination(OwnerJID, BareRoomJID),
-    ResponseAcc = mongoose_router:route(mongoose_acc:new(OwnerJID, BareRoomJID, UnlockStanza, ?LOCATION)),
+    ResponseAcc = mongoose_router:route(mongoose_acc:new(HostType, OwnerJID,
+                                                         BareRoomJID, UnlockStanza,
+                                                         ?LOCATION)),
     ResponseEl = #xmlel{} = mongoose_acc:element(ResponseAcc),
     verify_routing_result(ResponseEl).
 
@@ -178,6 +184,7 @@ modify_room_config(RoomJID, Fun) ->
 invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) ->
     case verify_room(RoomJID, SenderJID) of
         ok ->
+            HostType = room_host_type(RoomJID),
             Attrs = case get_room_config(RoomJID) of
                         {ok, #config{password_protected = true, password = Pass}} ->
                             #{<<"password">> => Pass};
@@ -191,7 +198,9 @@ invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) ->
                                       <<"reason">> => Reason}
             },
             Invite = message(SenderJID, RecipientJID, <<>>, [X]),
-            mongoose_router:route(mongoose_acc:new(SenderJID, RecipientJID, Invite, ?LOCATION)),
+            mongoose_router:route(mongoose_acc:new(HostType, SenderJID,
+                                                   RecipientJID, Invite,
+                                                   ?LOCATION)),
             {ok, "Invitation sent successfully"};
         Error ->
             Error
@@ -199,20 +208,24 @@ invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) ->
 
 -spec send_message_to_room(jid:jid(), jid:jid(), binary()) -> {ok, iolist()}.
 send_message_to_room(RoomJID, SenderJID, Message) ->
+    HostType = room_host_type(RoomJID),
     Body = #xmlel{name = <<"body">>,
                   children = [#xmlcdata{content = Message}]},
     Stanza = message(SenderJID, RoomJID, <<"groupchat">>, [Body]),
-    mongoose_router:route(mongoose_acc:new(SenderJID, RoomJID, Stanza, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, SenderJID, RoomJID,
+                                           Stanza, ?LOCATION)),
     {ok, "Message sent successfully"}.
 
 -spec send_private_message(jid:jid(), jid:jid(), binary(), binary()) -> {ok, iolist()}.
 send_private_message(RoomJID, SenderJID, ToNick, Message) ->
+    HostType = room_host_type(RoomJID),
     RoomJIDRes = jid:replace_resource(RoomJID, ToNick),
     Body = #xmlel{name = <<"body">>,
                   children = [#xmlcdata{content = Message}]},
     X = #xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC}},
     Stanza = message(SenderJID, RoomJID, <<"chat">>, [Body, X]),
-    mongoose_router:route(mongoose_acc:new(SenderJID, RoomJIDRes, Stanza, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, SenderJID, RoomJIDRes,
+                                           Stanza, ?LOCATION)),
     {ok, "Message sent successfully"}.
 
 -spec kick_user_from_room(jid:jid(), binary(), binary()) ->
@@ -400,20 +413,25 @@ set_role(RoomJID, UserJID, Nick, Role) ->
 
 -spec enter_room(jid:jid(), jid:jid(), binary() | undefined) -> {ok, iolist()}.
 enter_room(RoomJID, UserJID, Password) ->
+    HostType = room_host_type(RoomJID),
     Presence = presence(UserJID, RoomJID, Password),
-    mongoose_router:route(mongoose_acc:new(UserJID, RoomJID, Presence, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, UserJID, RoomJID,
+                                           Presence, ?LOCATION)),
     {ok, "Entering room message sent successfully"}.
 
 -spec exit_room(jid:jid(), jid:jid()) -> {ok, iolist()}.
 exit_room(RoomJID, UserJID) ->
+    HostType = room_host_type(RoomJID),
     Presence = exit_room_presence(UserJID, RoomJID),
-    mongoose_router:route(mongoose_acc:new(UserJID, RoomJID, Presence, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, UserJID, RoomJID,
+                                           Presence, ?LOCATION)),
     {ok, "Exiting room message sent successfully"}.
 
 %% Internal
 
 -spec kick_user_from_room_raw(jid:jid(), jid:jid(), binary(), binary()) -> {ok, iolist()}.
 kick_user_from_room_raw(RoomJID, ModJID, Nick, ReasonIn) ->
+    HostType = room_host_type(RoomJID),
     Reason = #xmlel{name = <<"reason">>,
                     children = [#xmlcdata{content = ReasonIn}]
                    },
@@ -423,7 +441,8 @@ kick_user_from_room_raw(RoomJID, ModJID, Nick, ReasonIn) ->
                   children = [ Reason ]
                  },
     IQ = iq(<<"set">>, ModJID, RoomJID, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
-    mongoose_router:route(mongoose_acc:new(ModJID, RoomJID, IQ, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, ModJID, RoomJID,
+                                           IQ, ?LOCATION)),
     {ok, "Kick message sent successfully"}.
 
 -spec try_add_role_resource(jid:jid(), jid:jid(), mod_muc:role()) ->
@@ -606,3 +625,8 @@ format_affs(AffsMap) ->
                   ({K, {V, <<>>}}) -> {K, V};
                   ({K, V}) -> {K, V}
               end, maps:to_list(AffsMap)).
+
+-spec room_host_type(jid:jid()) -> mongooseim:host_type().
+room_host_type(#jid{lserver = MUCServer}) ->
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MUCServer),
+    HostType.
