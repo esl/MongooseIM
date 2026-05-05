@@ -23,15 +23,15 @@ fi
 
 echo "Tag: ${DOCKERHUB_TAG}"
 
-export IMAGE_TAG=${DOCKERHUB_ORG}/${DOCKERHUB_REPO}:${DOCKERHUB_TAG}
+export IMAGE_TAG=${DOCKERHUB_ORG}/${DOCKERHUB_REPO_PRIV}:${DOCKERHUB_TAG}
 
 if [ -d mongooseim-docker ]; then
     # We already have mongooseim-docker, just fetch the required version
     cd mongooseim-docker
     git fetch
-    git checkout "$MIM_DOCKER_VERSION"
 else
     git clone https://github.com/esl/mongooseim-docker.git
     cd mongooseim-docker
-    git checkout "$MIM_DOCKER_VERSION"
 fi
+
+git checkout "$MIM_DOCKER_VERSION"
