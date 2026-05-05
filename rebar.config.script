@@ -20,10 +20,6 @@ BaseApps = [kernel, stdlib, sasl,
             {prometheus, none},
             {prometheus_httpd, none},
             {prometheus_cowboy, none},
-            {nksip, none},
-            {nkservice, none},
-            {nkpacket, none},
-            {nklib, none},
             {bbmustache, none}
            ],
 

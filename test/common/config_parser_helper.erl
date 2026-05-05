@@ -501,12 +501,6 @@ all_modules() ->
                        user_cache_validity => 1,
                        userdesc => <<"cn">>}),
       mod_mam_mnesia_prefs => #{muc => true},
-      mod_jingle_sip =>
-          mod_config(mod_jingle_sip, #{listen_port => 9998,
-                                       local_host => "localhost",
-                                       proxy_host => "proxy.com",
-                                       proxy_port => 9999,
-                                       sdp_origin => "127.0.0.1"}),
       mod_mam_rdbms_prefs => #{pm => true},
       mod_extdisco =>
           #{iqdisc => one_queue,
@@ -883,9 +877,6 @@ default_mod_config(mod_inbox) ->
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue,
       max_result_limit => infinity};
-default_mod_config(mod_jingle_sip) ->
-    #{proxy_host => "localhost", proxy_port => 5060, listen_port => 5600, local_host => "localhost",
-      sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => [], backend => mnesia};
 default_mod_config(mod_keystore) ->
     #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->
