@@ -340,6 +340,8 @@ commands:
           name: Smoke testing
           command: |
             source tools/circleci-prepare-mongooseim-docker.sh
+            docker login -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
+
             ./smoke_test.sh
   upload_results_to_aws:
     steps:
