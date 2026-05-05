@@ -106,22 +106,17 @@ handle_call(clear, _From, #state{table = T} = State) ->
 handle_call({watch_nodes, Specs, Levels}, _From, State) ->
     Watched = lists:foldl(
         fun({_Key, #{node := Node} = Spec}, Acc) ->
+                do_inject(Spec, Levels),
                 Acc#{Node => Spec}
         end,
         #{}, Specs),
-    [spawn(fun() -> inject_async(Spec, Levels) end)
-     || {_Key, Spec} <- Specs],
     {reply, ok, State#state{watched = Watched, levels = Levels}};
 handle_call({inject, #{node := Node} = Spec}, _From,
             #state{watched = Watched, levels = Levels} = State) ->
-    spawn(fun() -> inject_async(Spec, Levels) end),
+    do_inject(Spec, Levels),
     {reply, ok, State#state{watched = Watched#{Node => Spec}}};
 handle_call(unwatch, _From, #state{watched = Watched} = State) ->
-    maps:foreach(
-        fun(_Node, Spec) ->
-                spawn(fun() -> remove_async(Spec) end)
-        end,
-        Watched),
+    maps:foreach(fun(_Node, Spec) -> do_remove(Spec) end, Watched),
     {reply, ok, State#state{watched = #{}}};
 handle_call(_, _From, State) ->
     {reply, {error, unknown_call}, State}.
@@ -141,11 +136,14 @@ handle_info(_, State) ->
 terminate(_Reason, _State) ->
     ok.
 
-%% Internal: injection / removal performed in a transient process
-%% so the gen_server stays responsive.
+%% Internal: injection / removal happen synchronously inside the
+%% gen_server call so the caller is guaranteed the handler is
+%% attached (or failure logged) before inject/1 or watch_nodes/2
+%% returns. Test setup is sequential -- there is no concurrency to
+%% serve here, and correctness beats parallelism.
 
--spec inject_async(spec(), [level()]) -> ok.
-inject_async(#{node := Node} = Spec, Levels) ->
+-spec do_inject(spec(), [level()]) -> ok.
+do_inject(#{node := Node} = Spec, Levels) ->
     try
         mongoose_helper:inject_module(Spec, log_error_collector, no_reload),
         SinkRef = {?NAME, node()},
@@ -157,8 +155,8 @@ inject_async(#{node := Node} = Spec, Levels) ->
         ok
     end.
 
--spec remove_async(spec()) -> ok.
-remove_async(Spec) ->
+-spec do_remove(spec()) -> ok.
+do_remove(Spec) ->
     try distributed_helper:rpc(Spec, log_error_collector, stop, [])
     catch _:_ -> ok
     end,
