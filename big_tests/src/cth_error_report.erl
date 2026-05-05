@@ -1,24 +1,28 @@
-%%% @doc CT hook that collects error logs from MongooseIM nodes during test
-%%% execution and writes a report file per test suite.
-%%%
-%%% Reports are written to a `logged_errors/' subfolder in the CT log
-%%% directory (ct_report/ct_run.*). Each suite gets its own file named
-%%% `SuiteName.log'. Errors are broken down by group and testcase.
-%%%
-%%% Uses cth_error_report_sink (a runner-side gen_server) to collect log
-%%% entries pushed from MIM nodes by the log_error_collector handler.
-%%%
-%%% Tests can declare expected error patterns using expect/1.
-%%% In the .log report, unexpected errors are prefixed with
-%%% *** UNEXPECTED ***. In the .html report, unexpected errors
-%%% are red and expected errors are green.
-%%%
-%%% Usage in *.spec:
-%%%   {ct_hooks, [cth_error_report]}.
-%%%
-%%% Usage in tests:
-%%%   cth_error_report:expect({what, some_expected_error}).
 -module(cth_error_report).
+-moduledoc """
+CT hook that collects error logs from MongooseIM nodes during test
+execution and writes a report file per test suite.
+
+Reports are written to a `logged_errors/` subfolder in the CT log
+directory (`ct_report/ct_run.*`). Each suite gets its own file named
+`SuiteName.log`. Errors are broken down by group and testcase.
+
+Uses `cth_error_report_sink` (a runner-side gen_server) to collect
+log entries pushed from MIM nodes by the `log_error_collector` handler.
+
+Tests can declare expected error patterns using `expect/1`. In the
+`.log` report, unexpected errors are prefixed with `*** UNEXPECTED ***`.
+In the `.html` report, unexpected errors are red and expected errors
+are green.
+
+Usage in `*.spec`:
+
+    {ct_hooks, [cth_error_report]}.
+
+Usage in tests:
+
+    cth_error_report:expect({what, some_expected_error}).
+""".
 
 %% CT hook callbacks
 -export([id/1, init/2]).
@@ -87,24 +91,30 @@
 
 %% API
 
-%% @doc Declare an expected error pattern with unlimited matches.
-%% All matching errors will be classified as expected.
+-doc """
+Declares an expected error pattern with unlimited matches. All
+matching errors are classified as expected.
+""".
 -spec expect(pattern()) -> true.
 expect(Pattern) ->
     ets:insert(?PATTERNS_TABLE, {expect, Pattern}).
 
-%% @doc Declare an expected error pattern with a specific count.
-%% Multiple calls with the same pattern accumulate:
-%% expect(P, 3) + expect(P, 5) expects 8 matches total.
-%% An unlimited expect/1 for the same pattern overrides counts.
+-doc """
+Declares an expected error pattern with a specific count. Multiple
+calls with the same pattern accumulate: `expect(P, 3) + expect(P, 5)`
+expects 8 matches total. An unlimited `expect/1` for the same pattern
+overrides counts.
+""".
 -spec expect(pattern(), pos_integer()) -> true.
 expect(Pattern, N) when is_integer(N), N > 0 ->
     ets:insert(?PATTERNS_TABLE, {expect_count, Pattern, N}).
 
-%% @doc Set the maximum allowed unexpected errors for the current suite.
-%% If the count exceeds this limit, end_per_suite will return
-%% {error, too_many_unexpected_errors}.
-%% Call from init_per_suite or init_per_group.
+-doc """
+Sets the maximum allowed unexpected errors for the current suite. If
+the count exceeds this limit, `end_per_suite` returns
+`{error, too_many_unexpected_errors}`. Should be called from
+`init_per_suite` or `init_per_group`.
+""".
 -spec max_unexpected_errors_logged(non_neg_integer()) -> true.
 max_unexpected_errors_logged(N) when is_integer(N), N >= 0 ->
     ets:insert(?PATTERNS_TABLE, {max_unexpected_errors_logged, N}).

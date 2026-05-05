@@ -1,12 +1,13 @@
-%% @doc Logger handler injected into MIM nodes that pushes error log
-%% events to the test-runner-side `cth_error_report_sink'.
-%%
-%% Stateless on the MIM node: no ETS, no owner process. Each error
-%% event becomes a message
-%%   {log_entry, node(), Level, Msg, Meta}
-%% sent to the sink with [noconnect, nosuspend], so a slow or
-%% disconnected runner cannot back-pressure logging.
 -module(log_error_collector).
+-moduledoc """
+Logger handler injected into MIM nodes that pushes error log events
+to the test-runner-side `cth_error_report_sink`.
+
+Stateless on the MIM node: no ETS, no owner process. Each error event
+becomes a message `{log_entry, node(), Level, Msg, Meta}` sent to the
+sink with `[noconnect, nosuspend]`, so a slow or disconnected runner
+cannot back-pressure logging.
+""".
 
 -export([start/2, stop/0]).
 %% Logger callbacks
@@ -24,8 +25,11 @@
 
 %% API
 
-%% @doc Add the logger handler that forwards `Levels'-level events
-%% to `SinkRef' (a `{RegisteredName, Node}' tuple). Idempotent.
+-doc """
+Adds the logger handler that forwards events of the given levels to
+the sink. The sink reference is a `{RegisteredName, Node}` tuple.
+Idempotent.
+""".
 -spec start([level()], sink_ref()) -> ok | {error, term()}.
 start(Levels, SinkRef) ->
     case logger:get_handler_config(?HANDLER_ID) of
@@ -35,7 +39,7 @@ start(Levels, SinkRef) ->
                                #{config => #{levels => Levels, sink => SinkRef}})
     end.
 
-%% @doc Remove the logger handler. Idempotent.
+-doc "Removes the logger handler. Idempotent.".
 -spec stop() -> ok.
 stop() ->
     _ = logger:remove_handler(?HANDLER_ID),

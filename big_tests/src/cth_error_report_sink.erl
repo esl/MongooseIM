@@ -1,12 +1,14 @@
-%%% @doc Test-runner-side sink for error log entries pushed from MIM nodes.
-%%%
-%%% Owns one ETS table keyed by a global monotonic sequence.
-%%% Receives `{log_entry, Node, Level, Msg, Meta}' messages from
-%%% `log_error_collector' handlers running on MIM nodes.
-%%%
-%%% Survives across all suites in a CT run; cleared at each
-%%% `pre_init_per_suite' via `clear/0'.
 -module(cth_error_report_sink).
+-moduledoc """
+Test-runner-side sink for error log entries pushed from MIM nodes.
+
+Owns one ETS table keyed by a global monotonic sequence. Receives
+`{log_entry, Node, Level, Msg, Meta}` messages from `log_error_collector`
+handlers running on MIM nodes.
+
+Survives across all suites in a CT run; cleared at each
+`pre_init_per_suite` via `clear/0`.
+""".
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0,
@@ -50,40 +52,50 @@ start_link() ->
 stop() ->
     gen_server:stop(?NAME).
 
-%% Returns the current sequence number; entries inserted after this
-%% call will have a strictly greater sequence.
+-doc """
+Returns the current sequence number. Entries inserted after this call
+have a strictly greater sequence.
+""".
 -spec mark() -> non_neg_integer().
 mark() ->
     gen_server:call(?NAME, mark).
 
-%% Returns {EntriesNewerThanMark, NewMark}. Entries are returned in
-%% sequence order (oldest first).
+-doc """
+Returns `{Entries, NewMark}` for entries with sequence strictly greater
+than `Mark`. Entries are returned in sequence order (oldest first).
+""".
 -spec get_after(non_neg_integer()) -> {[log_entry()], non_neg_integer()}.
 get_after(Mark) ->
     gen_server:call(?NAME, {get_after, Mark}).
 
-%% Drops all stored entries and resets sequence to 0.
+-doc "Drops all stored entries and resets the sequence to 0.".
 -spec clear() -> ok.
 clear() ->
     gen_server:call(?NAME, clear).
 
-%% Declare which nodes the sink should watch and inject the
-%% log_error_collector handler on each of them. Re-injection after
-%% a node restart is the responsibility of the restart caller --
-%% see inject/1 below; distributed_helper:start_node/2 calls it.
+-doc """
+Declares which nodes the sink should watch and injects the
+`log_error_collector` handler on each of them. Re-injection after
+a node restart is the responsibility of the restart caller — see
+`inject/1`; `distributed_helper:start_node/2` calls it.
+""".
 -spec watch_nodes([{atom(), spec()}], [level()]) -> ok.
 watch_nodes(Specs, Levels) ->
     gen_server:call(?NAME, {watch_nodes, Specs, Levels}).
 
-%% (Re-)inject the log_error_collector handler on the given node.
-%% Called by node-restart helpers (e.g. distributed_helper:start_node/2)
-%% after a node has come back up so error collection resumes.
+-doc """
+(Re-)injects the `log_error_collector` handler on the given node.
+Called by node-restart helpers (e.g. `distributed_helper:start_node/2`)
+after a node has come back up so error collection resumes.
+""".
 -spec inject(spec()) -> ok.
 inject(Spec) ->
     gen_server:call(?NAME, {inject, Spec}).
 
-%% Stop watching all nodes; best-effort handler removal on nodes
-%% that are still up.
+-doc """
+Stops watching all nodes; performs best-effort handler removal on
+nodes that are still up.
+""".
 -spec unwatch() -> ok.
 unwatch() ->
     gen_server:call(?NAME, unwatch).
