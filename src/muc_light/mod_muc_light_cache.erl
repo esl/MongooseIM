@@ -120,7 +120,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     Params :: map(),
     Extra :: gen_hook:extra().
 room_new_affiliations(Acc, #{room := RoomJid, new_affs := NewAffs, version := NewVersion}, _Extra) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     % make sure other nodes forget about stale values
     mongoose_user_cache:delete_user(HostType, ?MODULE, RoomJid),
     mongoose_user_cache:merge_entry(HostType, ?MODULE, RoomJid, #{affs => {ok, NewAffs, NewVersion}}),

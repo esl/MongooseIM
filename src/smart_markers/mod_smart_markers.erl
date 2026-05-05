@@ -263,7 +263,7 @@ forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) 
       Params :: #{room := jid:jid()},
       Extra :: gen_hook:extra().
 room_new_affiliations(Acc, #{room := RoomJID}, _) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     Packet = mongoose_acc:element(Acc),
     maybe_remove_to_for_users(Packet, RoomJID, HostType),
     {ok, Acc}.

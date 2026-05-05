@@ -434,6 +434,58 @@ host_type_from_subdomain_parent(#component_data{lserver = Prefix, is_subdomain =
 host_type_from_subdomain_parent(_, _) ->
     {error, not_found}.
 
+%% Resolve the host_type for a stanza originated by an external component.
+%% Component's #component_data.lserver does not directly map to a host type:
+%%  * for is_subdomain = true, lserver is just the configured prefix (e.g. <<"muc">>),
+%%    not a fully qualified subdomain;
+%%  * for is_subdomain = false, lserver is the component's own hostname which is
+%%    typically not a registered XMPP domain.
+%% Try, in order: (1) parent of FromJID for prefix subdomains,
+%% (2) FromJID's domain when check_from is disabled, (3) ToJID's domain,
+%% (4) fall back to a configured static domain or any configured host type.
+-spec component_host_type(data(), jid:jid(), jid:jid()) -> mongooseim:host_type().
+component_host_type(StateData, FromJid, ToJid) ->
+    Steps = [fun() -> host_type_from_subdomain_parent(StateData, FromJid) end,
+             fun() -> host_type_from_jid_when_unchecked(StateData, FromJid) end,
+             fun() -> mongoose_domain_api:get_host_type(ToJid#jid.lserver) end],
+    case first_ok(Steps) of
+        {ok, HostType} ->
+            HostType;
+        error ->
+            %% Last-resort host type for stanzas from components routed over S2S (or any
+            %% other case where neither From nor To resolves to a known host type).
+            hd(?ALL_HOST_TYPES)
+    end.
+
+-spec first_ok([fun(() -> {ok, term()} | {error, term()})]) -> {ok, term()} | error.
+first_ok([]) -> error;
+first_ok([F | Rest]) ->
+    case F() of
+        {ok, _} = Ok -> Ok;
+        _ -> first_ok(Rest)
+    end.
+
+-spec host_type_from_subdomain_parent(data(), jid:jid()) ->
+    {ok, mongooseim:host_type()} | {error, not_found}.
+host_type_from_subdomain_parent(#component_data{lserver = Prefix, is_subdomain = true},
+                                #jid{lserver = FromLServer}) ->
+    FullPrefix = <<Prefix/binary, ".">>,
+    case string:prefix(FromLServer, FullPrefix) of
+        nomatch -> {error, not_found};
+        <<>> -> {error, not_found};
+        Parent -> mongoose_domain_api:get_host_type(Parent)
+    end;
+host_type_from_subdomain_parent(_, _) ->
+    {error, not_found}.
+
+-spec host_type_from_jid_when_unchecked(data(), jid:jid()) ->
+    {ok, mongooseim:host_type()} | {error, not_found}.
+host_type_from_jid_when_unchecked(#component_data{listener_opts = #{check_from := false}},
+                                  #jid{lserver = FromLServer}) ->
+    mongoose_domain_api:get_host_type(FromLServer);
+host_type_from_jid_when_unchecked(_, _) ->
+    {error, not_found}.
+
 -spec stream_start_error(data(), exml:element()) -> fsm_res().
 stream_start_error(StateData, Error) ->
     ?LOG_DEBUG(#{what => stream_start_error, xml_error => Error, component_state => StateData}),

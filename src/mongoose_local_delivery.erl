@@ -26,6 +26,7 @@ do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, Handler) ->
             %% This can happen e.g. for external components
             %% No handlers can be registered for filter_local_packet in this case
             Acc = mongoose_acc:strip(#{lserver => LDstDomain,
+                                       host_type => mongoose_acc:host_type(OrigAcc),
                                        from_jid => OrigFrom,
                                        to_jid => OrigTo,
                                        element => OrigPacket}, OrigAcc),

@@ -268,7 +268,8 @@ attempt_cancelation(HostType, #jid{} = ClientJID, #jid{lserver = ServerDomain}, 
             %% with failure.
             ResIQ = IQ#iq{type = result, sub_el = []},
             mongoose_router:route(
-                mongoose_acc:new(jid:make_noprep(<<>>, <<>>, <<>>),
+                mongoose_acc:new(HostType,
+                                 jid:make_noprep(<<>>, <<>>, <<>>),
                                  ClientJID,
                                  jlib:iq_to_xml(ResIQ),
                                  ?LOCATION)),
@@ -401,6 +402,7 @@ send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
                                             children = [#xmlcdata{content = Body}]}]},
             mongoose_router:route(
                 mongoose_acc:new(
+                    HostType,
                     jid:make_noprep(<<>>, Server, <<>>),
                     JID,
                     Msg,
@@ -417,12 +419,12 @@ send_registration_notifications(HostType, #jid{lserver = Domain} = UJID, Source)
                        "on node ~w using ~p.",
                        [get_time_string(), jid:to_binary(UJID),
                         ip_to_string(Source), node(), ?MODULE])),
-            lists:foreach(fun(S) -> send_registration_notification(S, Domain, Body) end, JIDs);
+            lists:foreach(fun(S) -> send_registration_notification(S, HostType, Domain, Body) end, JIDs);
         _ ->
             ok
     end.
 
-send_registration_notification(JIDBin, Domain, Body) ->
+send_registration_notification(JIDBin, HostType, Domain, Body) ->
     case jid:from_binary(JIDBin) of
         error -> ok;
         JID ->
@@ -430,7 +432,9 @@ send_registration_notification(JIDBin, Domain, Body) ->
                              attrs = #{<<"type">> => <<"chat">>},
                              children = [#xmlel{name = <<"body">>,
                                                 children = [#xmlcdata{content = Body}]}]},
-            mongoose_router:route(mongoose_acc:new(jid:make_noprep(<<>>, Domain, <<>>), JID, Message, ?LOCATION))
+            mongoose_router:route(mongoose_acc:new(HostType,
+                                                   jid:make_noprep(<<>>, Domain, <<>>),
+                                                   JID, Message, ?LOCATION))
     end.
 
 check_timeout(Source) ->

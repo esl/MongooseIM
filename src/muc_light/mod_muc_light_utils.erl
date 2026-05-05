@@ -29,7 +29,6 @@
 -export([light_aff_to_muc_role/1]).
 -export([room_limit_reached/2]).
 -export([filter_out_prevented/4]).
--export([acc_to_host_type/1]).
 -export([room_jid_to_host_type/1]).
 -export([room_jid_to_server_host/1]).
 -export([muc_host_to_host_type/1]).
@@ -279,16 +278,6 @@ apply_aff_users_change([{User, _} | RAU], NAU, [{User, NewAff} | RAUC], CD) ->
 apply_aff_users_change([OldUser | RAU], NAU, AUC, CD) ->
     %% keep user affiliation unchanged
     apply_aff_users_change(RAU, [OldUser | NAU], AUC, CD).
-
--spec acc_to_host_type(mongoose_acc:t()) -> mongooseim:host_type().
-acc_to_host_type(Acc) ->
-    case mongoose_acc:host_type(Acc) of
-        undefined ->
-            MucHost = mongoose_acc:lserver(Acc),
-            muc_host_to_host_type(MucHost);
-        HostType ->
-            HostType
-    end.
 
 -spec room_jid_to_host_type(jid:jid()) -> mongooseim:host_type().
 room_jid_to_host_type(#jid{lserver = MucHost}) ->

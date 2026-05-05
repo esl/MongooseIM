@@ -418,15 +418,15 @@ forget_room(HostType, MucHost, Name) ->
     Result.
 
 %% For rooms
--spec process_iq_disco_items(MucHost :: jid:server(), From :: jid:jid(),
-        To :: jid:jid(), jlib:iq()) -> mongoose_acc:t().
-process_iq_disco_items(MucHost, From, To, #iq{lang = Lang} = IQ) ->
+-spec process_iq_disco_items(HostType :: host_type(), MucHost :: jid:server(), From :: jid:jid(),
+                             To :: jid:jid(), jlib:iq()) -> mongoose_acc:t().
+process_iq_disco_items(HostType, MucHost, From, To, #iq{lang = Lang} = IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"query">>,
                                  attrs = #{<<"xmlns">> => ?NS_DISCO_ITEMS},
                                  children = iq_disco_items(MucHost, From, Lang, Rsm)}]},
-    mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, To, From, jlib:iq_to_xml(Res), ?LOCATION)).
 
 -spec can_use_nick(host_type(), jid:server(), jid:jid(), nick()) -> boolean().
 can_use_nick(_HostType, _Host, _JID, <<>>) ->
@@ -776,16 +776,16 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
                                          children = IdentityXML ++ FeatureXML ++ InfoXML}]},
-            mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
+            mongoose_router:route(mongoose_acc:new(HostType, To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
-            proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
+            proc_lib:spawn(fun() -> process_iq_disco_items(HostType, MucHost, From, To, IQ) end);
         #iq{type = get, xmlns = ?NS_REGISTER = XMLNS, lang = Lang} = IQ ->
             Result = iq_get_register_info(HostType, MucHost, From, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
                                          children = Result}]},
-            mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
+            mongoose_router:route(mongoose_acc:new(HostType, To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = set,
             xmlns = ?NS_REGISTER = XMLNS,
             lang = Lang,
@@ -796,7 +796,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                                 sub_el = [#xmlel{name = <<"query">>,
                                                  attrs = #{<<"xmlns">> => XMLNS},
                                                  children = IQRes}]},
-                    mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
+                    mongoose_router:route(mongoose_acc:new(HostType, To, From, jlib:iq_to_xml(Res), ?LOCATION));
                 {error, Error} ->
                     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, Error),
                     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
@@ -806,13 +806,13 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                         sub_el = [#xmlel{name = <<"vCard">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
                                          children = iq_get_vcard(Lang)}]},
-            mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
+            mongoose_router:route(mongoose_acc:new(HostType, To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_MUC_UNIQUE} = IQ ->
            Res = IQ#iq{type = result,
                        sub_el = [#xmlel{name = <<"unique">>,
                                         attrs = #{<<"xmlns">> => ?NS_MUC_UNIQUE},
                                         children = [iq_get_unique(From)]}]},
-           mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
+           mongoose_router:route(mongoose_acc:new(HostType, To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{} ->
             ?LOG_INFO(#{what => muc_ignore_unknown_iq, acc => Acc}),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet,

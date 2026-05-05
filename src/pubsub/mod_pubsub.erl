@@ -1640,6 +1640,7 @@ get_node_subscriptions_transaction(Owner, #pubsub_node{id = Nidx, type = Type}) 
 
 send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
                            Subscriber) ->
+    HostType = host_to_host_type(Host),
     Lang = <<"en">>,
     Title = service_translations:do(Lang, <<"PubSub subscriber request">>),
     Instructions = service_translations:do(Lang, <<"Choose whether to approve this entity's "
@@ -1663,7 +1664,9 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
                     attrs = #{<<"id">> => mongoose_bin:gen_from_crypto()},
                     children = [Form]},
     lists:foreach(fun(Owner) ->
-                          mongoose_router:route(mongoose_acc:new(service_jid(Host), jid:make(Owner), Stanza, ?LOCATION))
+                    mongoose_router:route(mongoose_acc:new(HostType, service_jid(Host),
+                                        jid:make(Owner), Stanza,
+                                        ?LOCATION))
                   end, Owners).
 
 find_authorization_response(El) ->
@@ -1681,11 +1684,12 @@ find_authorization_response(El) ->
 
 %% @doc Send a message to JID with the supplied Subscription
 send_authorization_approval(Host, JID, SNode, Subscription) ->
+    HostType = host_to_host_type(Host),
     Attrs1 = node_attr(SNode),
     Attrs2 = Attrs1#{<<"subscription">> => subscription_to_string(Subscription)},
     Stanza = event_stanza(<<"subscription">>,
                           Attrs2#{<<"jid">> => jid:to_binary(JID)}),
-    mongoose_router:route(mongoose_acc:new(service_jid(Host), JID, Stanza, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, service_jid(Host), JID, Stanza, ?LOCATION)).
 
 handle_authorization_response(Acc, Host, From, To, Packet, XFields) ->
     case XFields of
@@ -2580,9 +2584,11 @@ dispatch_items({_, FromS, _} = From, To, Options, Stanza) ->
     Acc = mongoose_acc:new(AccParams),
     mongoose_router:route(Acc);
 dispatch_items(From, To, Options, Stanza) ->
+    HostType = host_to_host_type(From),
     NotificationType = get_option(Options, notification_type, headline),
     Message = add_message_type(Stanza, NotificationType),
-    mongoose_router:route(mongoose_acc:new(service_jid(From), jid:make(To), Message, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, service_jid(From), jid:make(To),
+                                           Message, ?LOCATION)).
 
 %% @doc <p>Return the list of affiliations as an XMPP response.</p>
 -spec get_affiliations(
@@ -3069,6 +3075,7 @@ set_subscription_transaction(Host, Node, Nidx, Type, {JID, Sub, SubId}, Acc) ->
     end.
 
 notify_subscription_change(Host, Node, JID, Sub) ->
+    HostType = host_to_host_type(Host),
     Attrs = node_attr(Node),
     SubscriptionEl = #xmlel{name = <<"subscription">>,
                             attrs = Attrs#{<<"jid">> => jid:to_binary(JID),
@@ -3077,7 +3084,8 @@ notify_subscription_change(Host, Node, JID, Sub) ->
                       attrs = #{<<"xmlns">> => ?NS_PUBSUB},
                       children = [SubscriptionEl]},
     Stanza = #xmlel{name = <<"message">>, children = [PubSubEl]},
-    mongoose_router:route(mongoose_acc:new(service_jid(Host), jid:make(JID), Stanza, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, service_jid(Host), jid:make(JID),
+                                           Stanza, ?LOCATION)).
 
 -spec get_presence_and_roster_permissions(Host :: mod_pubsub:host(),
                                           From :: jid:jid() | jid:ljid(),
@@ -3463,6 +3471,7 @@ broadcast_step(Host, F) ->
 
 broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
                  SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+    HostType = host_to_host_type(Host),
     NotificationType = get_option(NodeOptions, notification_type, headline),
     %% Option below is not standard, but useful
     BroadcastAll = get_option(NodeOptions, broadcast_all_resources),
@@ -3483,7 +3492,8 @@ broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
 
                           lists:foreach(fun(To) ->
                                                 mongoose_router:route(
-                                                  mongoose_acc:new(From, jid:make(To), StanzaToSend, ?LOCATION))
+                                                    mongoose_acc:new(HostType, From, jid:make(To),
+                                                                     StanzaToSend, ?LOCATION))
                                         end, LJIDs)
                   end, SubIDsByJID).
 
