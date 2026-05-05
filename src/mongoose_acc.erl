@@ -17,7 +17,7 @@
 
 %% API
 % Constructor
--export([new/1, new/4]).
+-export([new/1, new/5]).
 % Access to built-in fields
 -export([
          ref/1,
@@ -86,7 +86,7 @@
         origin_location := location(),
         stanza := stanza_metadata() | undefined,
         lserver := jid:lserver(),
-        host_type := binary() | undefined,
+        host_type := mongooseim:host_type(),
         non_strippable := [ns_key()],
         statem_acc := mongoose_c2s_acc:t(),
         origin := origin() | undefined,
@@ -105,7 +105,7 @@
         location := location(),
         lserver => jid:lserver(),
         element => exml:element() | undefined,
-        host_type => binary() | undefined, % optional
+        host_type := mongooseim:host_type(),
         from_jid => jid:jid() | undefined, % optional
         to_jid => jid:jid() | mod_muc:nick() | undefined, % optional
         statem_acc => mongoose_c2s_acc:t(), % optional
@@ -115,7 +115,7 @@
 -type strip_params() :: #{
         lserver := jid:lserver(),
         element := exml:element(),
-        host_type => binary() | undefined, % optional
+        host_type := mongooseim:host_type(),
         from_jid => jid:jid() | undefined, % optional
         to_jid => jid:jid() | undefined % optional
        }.
@@ -159,10 +159,16 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       non_strippable => []
      }.
 
--spec new(jid:jid(), jid:jid() | mod_muc:nick(), exml:element(), location()) -> t().
-new(From, To, Packet, Location) ->
+-spec new(mongooseim:host_type(),
+          jid:jid(),
+          jid:jid() | mod_muc:nick(),
+          exml:element(),
+          location()) ->
+    t().
+new(HostType, From, To, Packet, Location) ->
     new(#{ location => Location,
            lserver => From#jid.lserver,
+           host_type => HostType,
            element => Packet,
            from_jid => From,
            to_jid => To }).
@@ -179,7 +185,7 @@ timestamp(#{ mongoose_acc := true, timestamp := TS }) ->
 lserver(#{ mongoose_acc := true, lserver := LServer }) ->
     LServer.
 
--spec host_type(Acc :: t()) -> binary() | undefined.
+-spec host_type(Acc :: t()) -> mongooseim:host_type().
 host_type(#{ mongoose_acc := true, host_type := HostType }) ->
     HostType.
 
@@ -233,7 +239,7 @@ update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
 
 -spec update(element | from_jid | to_jid,
              exml:element() | jid:jid(),
-             Acc :: t()) -> t() | {error, malformed_acc}.
+             Acc :: t()) -> t() | {error, badarg}.
 update(element, El, #{ mongoose_acc := true, stanza := Stanza } = Acc) ->
     Acc#{stanza := Stanza#{element := El,
                            name => El#xmlel.name,
@@ -358,11 +364,9 @@ strip(#{ lserver := NewLServer } = Params, Acc) ->
 %% --------------------------------------------------------
 %% Internal functions
 %% --------------------------------------------------------
--spec get_host_type(new_acc_params() | strip_params()) -> binary() | undefined.
+-spec get_host_type(new_acc_params() | strip_params()) -> mongooseim:host_type().
 get_host_type(#{host_type := HostType}) ->
-    HostType;
-get_host_type(_) ->
-    undefined.
+    HostType.
 
 -spec get_origin(new_acc_params()) -> origin() | undefined.
 get_origin(#{origin := Origin}) ->
