@@ -123,12 +123,8 @@ handle_call(clear, _From, #state{table = T} = State) ->
     ets:delete_all_objects(T),
     {reply, ok, State#state{seq = 0}};
 handle_call({watch_nodes, Specs, Levels}, _From, State) ->
-    Watched = lists:foldl(
-        fun({_Key, #{node := Node} = Spec}, Acc) ->
-                do_inject(Spec, Levels),
-                Acc#{Node => Spec}
-        end,
-        #{}, Specs),
+    lists:foreach(fun({_Key, Spec}) -> do_inject(Spec, Levels) end, Specs),
+    Watched = #{Node => Spec || {_Key, #{node := Node} = Spec} <- Specs},
     {reply, ok, State#state{watched = Watched, levels = Levels}};
 handle_call({inject, #{node := Node} = Spec}, _From,
             #state{watched = Watched, levels = Levels} = State) ->
