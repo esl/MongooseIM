@@ -136,10 +136,6 @@ Implements [XEP-0313: Message Archive Management](http://xmpp.org/extensions/xep
 Implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html), for a featureful multi-user text chat (group chat), whereby multiple XMPP users can exchange messages in the context of a chat room.
 It is tightly coupled with user presence in chat rooms.
 
-### [mod_muc_log](../modules/mod_muc_log.md)
-Implements a logging subsystem for [mod_muc](../modules/mod_muc.md).
-Deprecated: this module will be removed in the next release.
-
 ### [mod_muc_light](../modules/mod_muc_light.md)
 Implements [XEP Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html).
 

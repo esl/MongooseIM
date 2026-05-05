@@ -216,7 +216,6 @@ groups() ->
                                  multi_sessions_exit_session,
                                  multi_sessions_exit,
                                  deny_entry_with_multiple_sessions_disallowed,
-                                 enter_room_with_logging,
                                  deny_entry_user_limit_reached,
                                  send_history,
                                  history_since,
@@ -271,7 +270,6 @@ groups() ->
                               config_cancel,
                               configure,
                               configure_errors,
-                              configure_logging,
                               %% fails, see testcase
                               configure_anonymous,
                               cancel_iq_sent_to_locked_room_destroys_it,
@@ -2396,18 +2394,6 @@ deny_entry_user_limit_reached(ConfigIn) ->
 % See the xep: http://xmpp.org/extensions/xep-0045.html/#enter-nonexistent
 %
 
-%Example 34
-enter_room_with_logging(ConfigIn) ->
-    RoomOpts = [{logging, true}],
-    UserSpecs = [{alice, 1}, {bob, 1}],
-    story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, _Alice, Bob) ->
-        %Bob enters the room
-        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
-        Presence = escalus:wait_for_stanza(Bob),
-        is_self_presence(Bob, ?config(room, Config), Presence),
-        has_status_codes(Presence, [<<"170">>])
-    end).
-
 %Example 35
 send_history(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -3601,74 +3587,6 @@ configure_errors(ConfigIn) ->
               escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                              escalus:send_and_wait(Alice, form_helper:remove_forms(Req)))
       end).
-
-%%  Example 171
-%%  This test needs enabled mod_muc_log module and {access_log, muc_create} in options
-%%  This test fails, ejabberd doesn't seem to send status code when room privacy changes
-configure_logging(ConfigIn) ->
-    RoomOpts = [{persistent, true}, {anonymous, true}],
-    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
-    story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, Alice, Bob, Kate) ->
-        %% Bob joins room
-        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
-        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Kate))),
-        escalus:wait_for_stanzas(Bob, 3),
-        escalus:wait_for_stanzas(Kate, 3),
-
-        %% Alice requests configuration form
-        escalus:send(Alice, stanza_to_room(
-            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
-
-        %% Alice receives form
-        Res = escalus:wait_for_stanza(Alice),
-        true = is_form(Res),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
-
-        %% Configure room with logging enabled
-        Fields = [#{var => <<"muc#roomconfig_enablelogging">>, values => [<<"1">>],
-                    type => <<"boolean">>}],
-        Form = stanza_configuration_form(?config(room, Config), Fields),
-        Result = escalus:send_iq_and_wait_for_result(Alice, Form),
-        escalus:assert(is_stanza_from,
-            [room_address(?config(room, Config))], Result),
-
-        Res2 = escalus:wait_for_stanza(Bob),
-        true = is_message_with_status_code(Res2, <<"170">>),
-        true = is_groupchat_message(Res2),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res2),
-
-        escalus:wait_for_stanza(Kate),
-
-        %% Alice requests configuration form again
-        escalus:send(Alice, stanza_to_room(
-            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
-
-        %% Alice receives form
-        Res3 = escalus:wait_for_stanza(Alice),
-        true = is_form(Res3),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3),
-
-        %% Simple message exchange
-        Msg = <<"chat message">>,
-        escalus:send(Bob, escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
-        assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
-        assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Kate)),
-
-        %% Disable logging
-        Fields2 = [#{var => <<"muc#roomconfig_enablelogging">>, values => [<<"0">>], type => <<"boolean">>}],
-        Form2 = stanza_configuration_form(?config(room, Config), Fields2),
-        Result2 = escalus:send_iq_and_wait_for_result(Alice, Form2),
-        escalus:assert(is_stanza_from,
-            [room_address(?config(room, Config))], Result2),
-
-        Res4 = escalus:wait_for_stanza(Bob),
-        true = is_message_with_status_code(Res4, <<"171">>),
-        true = is_groupchat_message(Res4),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res4),
-
-        escalus:wait_for_stanza(Kate)
-    end).
-
 
 %%  Example 171
 %%  This test fails, ejabberd apparently doesn't send room status update after privacy-related update
