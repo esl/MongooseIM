@@ -185,21 +185,23 @@ The hook collects errors from all reachable MongooseIM nodes
   `{log_entry, Node, Level, Msg, Meta}` Erlang message to the sink
   using `[noconnect, nosuspend]` (a slow or disconnected runner
   cannot back-pressure logging).
-- The sink calls `net_kernel:monitor_nodes(true)` and re-injects the
-  handler automatically when a watched node comes back up
-  (`nodeup`). Accumulated entries on the sink are unaffected by node
-  restarts -- only the brief window between a node's death and the
-  re-injection of the handler loses error entries.
+- After a MIM node restart, the restart caller is responsible for
+  re-injecting the handler. `distributed_helper:start_node/2` does
+  this automatically by calling `cth_error_report_sink:inject/1`.
+  Accumulated entries on the runner-side sink are unaffected by
+  node restarts -- only entries logged in the brief window between
+  the node coming up and `inject/1` returning are missed.
 
 Each error entry includes the originating node (in the `meta` map),
 so reports show which node logged each error. Expected error
 patterns apply to all nodes -- a single `expect` declaration matches
 errors regardless of which node produced them.
 
-**Limitation:** errors logged during the brief boot window between a
-MIM node's restart and re-injection of the logger handler may be
-lost. This window is on the order of seconds, not the rest of the
-suite.
+**Limitation:** if a MIM node is restarted by a path that does not go
+through `distributed_helper:start_node/2` (e.g. an external script,
+or a future custom helper), error collection on that node will not
+resume until something calls `cth_error_report_sink:inject/1`
+explicitly. Plan-fully restarted nodes are fine.
 
 ## Parallel groups
 

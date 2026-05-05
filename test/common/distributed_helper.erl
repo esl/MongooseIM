@@ -194,7 +194,15 @@ get_or_fail(Key) ->
 
 start_node(Node, Config) ->
     {_, 0} = mongooseimctl_helper:mongooseimctl(Node, "start", [], Config),
-    timer:sleep(3000).
+    timer:sleep(3000),
+    %% Re-attach the error log collector if the sink is running
+    %% (big_tests context). In other contexts the sink is absent and
+    %% this is a no-op.
+    case erlang:whereis(cth_error_report_sink) of
+        undefined -> ok;
+        _ -> cth_error_report_sink:inject(Node)
+    end,
+    ok.
 
 stop_node(Node, Config) ->
     {_, 0} = mongooseim_script(Node, "stop", [], Config).

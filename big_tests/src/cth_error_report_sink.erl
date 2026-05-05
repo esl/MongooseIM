@@ -11,7 +11,7 @@
 
 -export([start_link/0, stop/0,
          mark/0, get_after/1, clear/0,
-         watch_nodes/2, unwatch/0]).
+         watch_nodes/2, inject/1, unwatch/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2,
@@ -27,8 +27,8 @@
 -record(state, {
     seq = 0 :: non_neg_integer(),
     table :: ets:tid() | atom(),
-    %% Nodes we want a handler on. Keyed by node() atom for fast
-    %% lookup on nodeup events.
+    %% Nodes where a handler has been (re-)injected. Used by
+    %% unwatch/0 for best-effort handler removal at suite end.
     watched = #{} :: #{node() => spec()},
     levels = [error] :: [level()]
 }).
@@ -60,12 +60,20 @@ get_after(Mark) ->
 clear() ->
     gen_server:call(?NAME, clear).
 
-%% Declare which nodes the sink should watch. The sink will inject
-%% the log_error_collector handler on each one that's currently up,
-%% and re-inject on nodeup for nodes that come back later.
+%% Declare which nodes the sink should watch and inject the
+%% log_error_collector handler on each of them. Re-injection after
+%% a node restart is the responsibility of the restart caller --
+%% see inject/1 below; distributed_helper:start_node/2 calls it.
 -spec watch_nodes([{atom(), spec()}], [level()]) -> ok.
 watch_nodes(Specs, Levels) ->
     gen_server:call(?NAME, {watch_nodes, Specs, Levels}).
+
+%% (Re-)inject the log_error_collector handler on the given node.
+%% Called by node-restart helpers (e.g. distributed_helper:start_node/2)
+%% after a node has come back up so error collection resumes.
+-spec inject(spec()) -> ok.
+inject(Spec) ->
+    gen_server:call(?NAME, {inject, Spec}).
 
 %% Stop watching all nodes; best-effort handler removal on nodes
 %% that are still up.
@@ -77,7 +85,6 @@ unwatch() ->
 
 init([]) ->
     Tab = ets:new(?MODULE, [ordered_set, private]),
-    ok = net_kernel:monitor_nodes(true),
     {ok, #state{table = Tab}}.
 
 handle_call(mark, _From, #state{seq = Seq} = State) ->
@@ -105,6 +112,10 @@ handle_call({watch_nodes, Specs, Levels}, _From, State) ->
     [spawn(fun() -> inject_async(Spec, Levels) end)
      || {_Key, Spec} <- Specs],
     {reply, ok, State#state{watched = Watched, levels = Levels}};
+handle_call({inject, #{node := Node} = Spec}, _From,
+            #state{watched = Watched, levels = Levels} = State) ->
+    spawn(fun() -> inject_async(Spec, Levels) end),
+    {reply, ok, State#state{watched = Watched#{Node => Spec}}};
 handle_call(unwatch, _From, #state{watched = Watched} = State) ->
     maps:foreach(
         fun(_Node, Spec) ->
@@ -124,17 +135,6 @@ handle_info({log_entry, Node, Level, Msg, Meta},
     Entry = {Node, Level, Msg, Meta},
     ets:insert(T, {NewSeq, Entry}),
     {noreply, State#state{seq = NewSeq}};
-handle_info({nodeup, Node}, #state{watched = Watched,
-                                   levels = Levels} = State) ->
-    case maps:find(Node, Watched) of
-        {ok, Spec} ->
-            spawn(fun() -> inject_async(Spec, Levels) end);
-        error ->
-            ok
-    end,
-    {noreply, State};
-handle_info({nodedown, _Node}, State) ->
-    {noreply, State};
 handle_info(_, State) ->
     {noreply, State}.
 
@@ -147,17 +147,10 @@ terminate(_Reason, _State) ->
 -spec inject_async(spec(), [level()]) -> ok.
 inject_async(#{node := Node} = Spec, Levels) ->
     try
-        Cookie = ct:get_config(ejabberd_cookie),
-        erlang:set_cookie(Node, Cookie),
-        case net_kernel:connect_node(Node) of
-            true ->
-                mongoose_helper:inject_module(Spec, log_error_collector, no_reload),
-                SinkRef = {?NAME, node()},
-                _ = distributed_helper:rpc(Spec, log_error_collector, start, [Levels, SinkRef]),
-                ok;
-            _ ->
-                ok
-        end
+        mongoose_helper:inject_module(Spec, log_error_collector, no_reload),
+        SinkRef = {?NAME, node()},
+        _ = distributed_helper:rpc(Spec, log_error_collector, start, [Levels, SinkRef]),
+        ok
     catch Class:Reason:Stack ->
         ct:pal("cth_error_report_sink: failed to inject handler on ~p: ~p:~p~n~p",
                [Node, Class, Reason, Stack]),

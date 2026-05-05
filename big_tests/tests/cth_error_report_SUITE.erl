@@ -269,10 +269,10 @@ errors_survive_handler_restart_on_mim2(_Config) ->
     %% expected to be lost. Trigger and forget.
     trigger_error_on(mim2(), during_restart, "drop"),
 
-    %% Re-inject. We cheat slightly: instead of waiting for the
-    %% sink's nodeup-driven re-injection, call start/2 directly
-    %% with the same SinkRef the sink would have used.
-    rpc(mim2(), log_error_collector, start, [[error], {cth_error_report_sink, node()}]),
+    %% Re-inject via the sink's public API -- this is the contract
+    %% that distributed_helper:start_node/2 uses after restarting
+    %% a real node.
+    cth_error_report_sink:inject(mim2()),
 
     %% Trigger another error after restart. Both `before_restart'
     %% and `after_restart' should appear in the report; the
