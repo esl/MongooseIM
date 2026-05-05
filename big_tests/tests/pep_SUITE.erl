@@ -931,7 +931,8 @@ field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
 field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules(pep) ->
-    [{mod_pubsub, default_mod_config(mod_pubsub)}].
+    [{mod_caps, default_mod_config(mod_caps)},
+     {mod_pubsub, default_mod_config(mod_pubsub)}].
 
 make_pep_node_info(Client, NodeName) ->
     {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.

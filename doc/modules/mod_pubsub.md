@@ -4,7 +4,7 @@ This module provides a lightweight, performance-focused implementation of [XEP-0
 It handles same-server PEP requests addressed to users' bare JIDs and does not expose a generic PubSub service on a `pubsub.@HOST@` domain.
 
 `mod_pubsub` stores nodes, subscriptions, and items in RDBMS tables.
-It has a hard dependency on [mod_caps](mod_caps.md), which stores entity capabilities used for PEP notification filtering.
+[mod_caps](mod_caps.md) should also be enabled for filtered PEP notifications.
 
 !!! Note
     The goal is to gradually extend this lightweight implementation while phasing out [mod_pubsub_old](mod_pubsub_old.md).
@@ -16,11 +16,11 @@ It has a hard dependency on [mod_caps](mod_caps.md), which stores entity capabil
 * Explicit node [creation](https://xmpp.org/extensions/xep-0060.html#owner-create) and [deletion](https://xmpp.org/extensions/xep-0060.html#owner-delete).
 * [Node configuration](https://xmpp.org/extensions/xep-0060.html#owner-configure) and [publish options](https://xmpp.org/extensions/xep-0060.html#publisher-publish-options) with the [`pubsub#access_model`](https://xmpp.org/extensions/xep-0060.html#accessmodels) option.
 * The `open` and `presence` access models.
-* [Publishing](https://xmpp.org/extensions/xep-0060.html#publisher-publish) one item at a time.
+* [Publishing](https://xmpp.org/extensions/xep-0060.html#publisher-publish) an item.
 * Retrieving [all items](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestall) or [selected items by ID](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestone).
 * Explicit [subscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-subscribe) and [unsubscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-unsubscribe).
 * [Implicit PEP subscriptions](https://xmpp.org/extensions/xep-0163.html#notify-autosubscribe) based on presence subscription and entity capabilities.
-* [Filtered item notifications](https://xmpp.org/extensions/xep-0163.html#notify-filterednotifications) and [node deletion notifications](https://xmpp.org/extensions/xep-0060.html#owner-delete-success).
+* [Filtered item notifications](https://xmpp.org/extensions/xep-0163.html#notify-filterednotifications) with [mod_caps](mod_caps.md), and [node deletion notifications](https://xmpp.org/extensions/xep-0060.html#owner-delete-success).
 * [Last published item delivery](https://xmpp.org/extensions/xep-0163.html#notify-last), with [`urn:xmpp:delay`](https://xmpp.org/extensions/xep-0203.html) metadata.
 * Service discovery for [PEP support](https://xmpp.org/extensions/xep-0163.html#support-owner) on users' bare JIDs, [node-qualified disco info](https://xmpp.org/extensions/xep-0060.html#entity-info), and [disco items](https://xmpp.org/extensions/xep-0060.html#entity-nodes) listing discoverable PEP nodes.
 
@@ -55,13 +55,14 @@ For details, please refer to [IQ processing policies](../configuration/Modules.m
 
 ## Example Configuration
 
-It is recommended to start with the default options:
+It is recommended to start with the default options and enable [mod_caps](mod_caps.md) for filtered notifications:
 
 ```toml
+[modules.mod_caps]
+
 [modules.mod_pubsub]
 ```
 
-Note that `mod_caps` is not configured, because it will be started automatically.
 The example below shows a different configuration where IQ requests are handled by a pool of 50 workers:
 
 ```toml

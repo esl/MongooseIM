@@ -4,7 +4,7 @@
 -xep([{xep, 60}, {version, "1.25.0"}, {status, partial}]).
 -xep([{xep, 163}, {version, "1.2.2"}, {status, partial}]).
 
--export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, deps/2]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 -export([user_send_iq/3,
          iq_sm/5,
@@ -84,10 +84,6 @@ stop(HostType) ->
 -spec supported_features() -> [gen_mod:module_feature()].
 supported_features() ->
     [dynamic_domains].
-
--spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
-deps(_HostType, _Opts) ->
-    [{mod_caps, #{}, hard}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -545,9 +541,12 @@ subscriptions(Type, Acc) ->
 
 -spec resources_with_features(jid:jid()) -> [{jid:lresource(), [mod_caps:feature()]}].
 resources_with_features(Jid = #jid{lserver = LServer}) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} -> resources_with_features(HostType, Jid);
-        {error, not_found} -> []
+    maybe
+        {ok, HostType} ?= mongoose_domain_api:get_domain_host_type(LServer),
+        true ?= gen_mod:is_loaded(HostType, mod_caps),
+        resources_with_features(HostType, Jid)
+    else
+        _ -> []
     end.
 
 -spec resources_with_features(mongooseim:host_type(), jid:jid()) ->
