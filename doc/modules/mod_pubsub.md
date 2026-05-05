@@ -12,28 +12,28 @@ It has a hard dependency on [mod_caps](mod_caps.md), which stores entity capabil
 
 ## Supported functionality
 
-* Automatic creation of PEP nodes on publish.
-* Explicit node creation and deletion.
-* Node configuration and publish options with the `pubsub#access_model` option.
+* [Automatic creation](https://xmpp.org/extensions/xep-0060.html#publisher-publish-autocreate) of PEP nodes on publish.
+* Explicit node [creation](https://xmpp.org/extensions/xep-0060.html#owner-create) and [deletion](https://xmpp.org/extensions/xep-0060.html#owner-delete).
+* [Node configuration](https://xmpp.org/extensions/xep-0060.html#owner-configure) and [publish options](https://xmpp.org/extensions/xep-0060.html#publisher-publish-options) with the [`pubsub#access_model`](https://xmpp.org/extensions/xep-0060.html#accessmodels) option.
 * The `open` and `presence` access models.
-* Publishing one item at a time.
-* Retrieving all items or selected items by ID.
-* Explicit subscribe and unsubscribe.
-* Implicit PEP subscriptions based on presence subscription and entity capabilities.
-* Filtered item notifications and node deletion notifications.
-* Last published item delivery, with `urn:xmpp:delay` metadata.
-* Service discovery for PEP support on users' bare JIDs, node-qualified disco info, and disco items listing discoverable PEP nodes.
+* [Publishing](https://xmpp.org/extensions/xep-0060.html#publisher-publish) one item at a time.
+* Retrieving [all items](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestall) or [selected items by ID](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestone).
+* Explicit [subscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-subscribe) and [unsubscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-unsubscribe).
+* [Implicit PEP subscriptions](https://xmpp.org/extensions/xep-0163.html#notify-autosubscribe) based on presence subscription and entity capabilities.
+* [Filtered item notifications](https://xmpp.org/extensions/xep-0163.html#notify-filterednotifications) and [node deletion notifications](https://xmpp.org/extensions/xep-0060.html#owner-delete-success).
+* [Last published item delivery](https://xmpp.org/extensions/xep-0163.html#notify-last), with [`urn:xmpp:delay`](https://xmpp.org/extensions/xep-0203.html) metadata.
+* Service discovery for [PEP support](https://xmpp.org/extensions/xep-0163.html#support-owner) on users' bare JIDs, [node-qualified disco info](https://xmpp.org/extensions/xep-0060.html#entity-info), and [disco items](https://xmpp.org/extensions/xep-0060.html#entity-nodes) listing discoverable PEP nodes.
 
-## Known omissions and deviations
+## Known omissions and limitations
 
 `mod_pubsub` is intended to grow over time, but it does not implement the full XEP-0060 feature set yet.
-Current intentional omissions and deviations are:
+Current intentional omissions and limitations are:
 
-* Only the `open` and `presence` access models are supported.
-* The only supported node and publish option is `pubsub#access_model`.
-* Subscription options, multiple subscriptions for the same JID and node, and collection nodes are not implemented.
-* Affiliations, default node configuration requests, purge, retract, and subscription management by node owners are not implemented.
-* Result Set Management is not implemented for item retrieval.
+* Access models other than `open` and `presence` are not supported.
+* Node and publish options other than `pubsub#access_model` are not supported.
+* [Subscription options](https://xmpp.org/extensions/xep-0060.html#subscriber-configure), [multiple subscriptions](https://xmpp.org/extensions/xep-0060.html#subscriber-subscribe-multi) for the same JID and node, and [collection nodes](https://xmpp.org/extensions/xep-0248.html) are not implemented.
+* [Affiliations](https://xmpp.org/extensions/xep-0060.html#owner-affiliations), [default node configuration requests](https://xmpp.org/extensions/xep-0060.html#owner-default), [purge](https://xmpp.org/extensions/xep-0060.html#owner-purge), [retract](https://xmpp.org/extensions/xep-0060.html#publisher-delete), and [subscription management by node owners](https://xmpp.org/extensions/xep-0060.html#owner-subscriptions) are not implemented.
+* [Result Set Management](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-returnsome) is not implemented for item retrieval.
 
 ## Options
 
