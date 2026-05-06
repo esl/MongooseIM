@@ -442,6 +442,16 @@ commands:
           name: Prepare for cache
           command: bash -c 'echo $OTP_VERSION-$ARCH > otp_version'
 
+  setup_git_ssh:
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - 5d:df:77:bb:43:9d:f2:ce:08:a5:88:06:70:c1:1d:3d # mongooseim-docker
+      - run:
+          name: Export GIT_SSH_COMMAND
+          command: |
+            echo "export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa_5ddf77bb439df2ce08a5880670c11d3d'" > "$BASH_ENV"
+
 jobs:
   # #########################
   # jobs in docker containers
@@ -454,11 +464,14 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
+      - setup_git_ssh
       - restore_prod_build: {arch: amd64}
       - restore_prod_build: {arch: arm64}
       - run:
           name: Execute Docker image build and upload
-          command: tools/circle-build-and-push-docker.sh
+          command: |
+            printenv
+            tools/circle-build-and-push-docker.sh
 
   docker_smoke_test:
     executor: << parameters.executor >>
@@ -467,6 +480,7 @@ jobs:
         type: executor
     steps:
       - setup_remote_docker
+      - setup_git_ssh
       - run_docker_smoke_test
 
   docs_build_deploy:
