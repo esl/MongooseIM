@@ -165,13 +165,13 @@ caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
 
 -spec disco_sm_identity(DiscoAcc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, DiscoAcc} when
       DiscoAcc :: mongoose_disco:identity_acc().
-disco_sm_identity(DiscoAcc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+disco_sm_identity(DiscoAcc = #{to_jid := ToJid, node := ~""}, _, _) ->
     case ejabberd_auth:does_user_exist(ToJid) of
         true -> {ok, mongoose_disco:add_identities([pep_identity()], DiscoAcc)};
         false -> {ok, DiscoAcc}
     end;
 disco_sm_identity(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
-                               to_jid := ToJid = #jid{lresource = ~""}, node := NodeId,
+                               to_jid := ToJid, node := NodeId,
                                presence_subscribed := PresenceSubscribed},
                   _, _) ->
     maybe
@@ -180,19 +180,17 @@ disco_sm_identity(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
         {ok, mongoose_disco:add_identities([pep_node_identity()], DiscoAcc)}
     else
         _ -> {ok, DiscoAcc}
-    end;
-disco_sm_identity(DiscoAcc, _, _) ->
-    {ok, DiscoAcc}.
+    end.
 
 -spec disco_sm_features(DiscoAcc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, DiscoAcc} when
       DiscoAcc :: mongoose_disco:feature_acc().
-disco_sm_features(DiscoAcc = #{to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+disco_sm_features(DiscoAcc = #{to_jid := ToJid, node := ~""}, _, _) ->
     case ejabberd_auth:does_user_exist(ToJid) of
         true -> {ok, mongoose_disco:add_features(pep_disco_features(), DiscoAcc)};
         false -> {ok, DiscoAcc}
     end;
 disco_sm_features(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
-                               to_jid := ToJid = #jid{lresource = ~""}, node := NodeId,
+                               to_jid := ToJid, node := NodeId,
                                presence_subscribed := PresenceSubscribed},
                   _, _) ->
     maybe
@@ -201,14 +199,12 @@ disco_sm_features(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
         {ok, mongoose_disco:add_features(pep_node_disco_features(), DiscoAcc)}
     else
         _ -> {ok, DiscoAcc}
-    end;
-disco_sm_features(DiscoAcc, _, _) ->
-    {ok, DiscoAcc}.
+    end.
 
 -spec disco_sm_items(DiscoAcc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, DiscoAcc} when
       DiscoAcc :: mongoose_disco:item_acc().
 disco_sm_items(DiscoAcc = #{host_type := HostType, from_jid := FromJid,
-                            to_jid := ToJid = #jid{lresource = ~""}, node := ~""}, _, _) ->
+                            to_jid := ToJid, node := ~""}, _, _) ->
     case ejabberd_auth:does_user_exist(ToJid) of
         true -> {ok, mongoose_disco:add_items(disco_items(HostType, ToJid, FromJid, DiscoAcc), DiscoAcc)};
         false -> {ok, DiscoAcc}

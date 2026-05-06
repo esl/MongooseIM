@@ -496,13 +496,22 @@ check_response(Stanza, Id) ->
     Id = exml_query:attr(Stanza, <<"id">>),
     Stanza.
 
-receive_error_response(User, Id, Type, Options) ->
+receive_error_response(User, Id, ExpectedError, Options) ->
     ErrorStanza = receive_stanza(User, Options),
     true = escalus_pred:is_iq_error(ErrorStanza),
     Id = exml_query:attr(ErrorStanza, <<"id">>),
     ErrorElem = exml_query:subelement(ErrorStanza, <<"error">>),
-    Type = exml_query:attr(ErrorElem, <<"type">>),
+    check_expected_error(ExpectedError, ErrorElem, ErrorStanza),
     ErrorStanza.
+
+check_expected_error({Type, Condition, PubSubCondition}, ErrorElem, ErrorStanza) ->
+    check_expected_error({Type, Condition}, ErrorElem, ErrorStanza),
+    #xmlel{} = exml_query:subelement(ErrorStanza, PubSubCondition);
+check_expected_error({Type, Condition}, ErrorElem, ErrorStanza) ->
+    Type = exml_query:attr(ErrorElem, <<"type">>),
+    escalus:assert(is_error, [Type, Condition], ErrorStanza);
+check_expected_error(Type, ErrorElem, _ErrorStanza) ->
+    Type = exml_query:attr(ErrorElem, <<"type">>).
 
 receive_notification(User, NodeAddr, Options) ->
     Stanza = receive_stanza(User, Options),
