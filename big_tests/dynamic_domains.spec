@@ -90,12 +90,7 @@
 {suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", offline_stub_SUITE}.
-
 {suites, "tests", pep_SUITE}.
-{skip_groups, "tests", muc_SUITE,
- [pep_old, cache_old],
- "mod_pubsub_old doesn't support dynamic domains"}.
-
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
