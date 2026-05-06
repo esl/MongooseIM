@@ -30,7 +30,7 @@ if [ -d mongooseim-docker ]; then
     cd mongooseim-docker
     git fetch
 else
-    git clone https://github.com/esl/mongooseim-docker.git
+    git clone git@github.com:esl/mongooseim-docker.git
     cd mongooseim-docker
 fi
 
