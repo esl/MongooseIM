@@ -109,18 +109,15 @@ disco_info_sm_bare_jid(Config) ->
         [{alice, 1}],
         fun(Alice) ->
             AliceJid = escalus_client:short_jid(Alice),
-            escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
-            Stanza = escalus:wait_for_stanza(Alice),
-            ?assertNot(escalus_pred:has_identity(~"pubsub", ~"service", Stanza)),
-            escalus:assert(has_identity, [~"pubsub", ~"pep"], Stanza),
-            lists:foreach(fun(Feature) ->
-                                  escalus:assert(has_feature, [Feature], Stanza)
-                          end, pep_disco_features()),
-            escalus:assert(is_stanza_from, [AliceJid], Stanza)
+            NonexistentJid = nonexistent_bare_jid(),
+            assert_disco_info(Alice, AliceJid),
+            assert_no_disco_info(Alice, NonexistentJid),
+            assert_no_disco_items(Alice, NonexistentJid)
         end).
 
 disco_info_sm_node(Config) ->
     NodeNS = random_node_ns(),
+    UnknownNodeNS = random_node_ns(),
     escalus:fresh_story(
         Config,
         [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -130,7 +127,8 @@ disco_info_sm_node(Config) ->
             make_friends(Bob, Alice, 0),
             assert_disco_info_node(Alice, AliceJid, NodeNS),
             assert_disco_info_node(Bob, AliceJid, NodeNS),
-            assert_no_disco_info_node(Kate, AliceJid, NodeNS)
+            assert_no_disco_info_node(Alice, AliceJid, UnknownNodeNS, ~"item-not-found"),
+            assert_no_disco_info_node(Kate, AliceJid, NodeNS, ~"service-unavailable")
         end).
 
 disco_items_sm(Config) ->
@@ -980,6 +978,31 @@ random_node_ns() ->
 random_name() ->
     base64:encode(crypto:strong_rand_bytes(16)).
 
+nonexistent_bare_jid() ->
+    <<"unknown@", (domain_helper:domain())/binary>>.
+
+assert_no_disco_info(Client, OwnerJid) ->
+    Request = escalus_stanza:disco_info(OwnerJid),
+    escalus:send(Client, Request),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_iq_error, [Request], Stanza),
+    escalus:assert(is_error, [~"cancel", ~"service-unavailable"], Stanza),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza).
+
+assert_disco_info(Client, OwnerJid) ->
+    escalus:send(Client, escalus_stanza:disco_info(OwnerJid)),
+    Stanza = escalus:wait_for_stanza(Client),
+    ?assertNot(escalus_pred:has_identity(~"pubsub", ~"service", Stanza)),
+    escalus:assert(has_identity, [~"pubsub", ~"pep"], Stanza),
+    lists:foreach(fun(Feature) ->
+                          escalus:assert(has_feature, [Feature], Stanza)
+                  end, pep_disco_features()),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza).
+
+assert_no_disco_items(Client, OwnerJid) ->
+    Query = disco_items_query(Client, OwnerJid),
+    ?assertEqual([], exml_query:subelements(Query, ~"item")).
+
 assert_disco_items_node(Client, OwnerJid, NodeNS) ->
     Query = disco_items_query(Client, OwnerJid),
     Item = exml_query:subelement_with_attr(Query, ~"node", NodeNS),
@@ -999,11 +1022,11 @@ assert_disco_info_node(Client, OwnerJid, NodeNS) ->
     escalus:assert(has_identity, [~"pubsub", ~"leaf"], Stanza),
     escalus:assert(has_feature, [?NS_PUBSUB], Stanza).
 
-assert_no_disco_info_node(Client, OwnerJid, NodeNS) ->
+assert_no_disco_info_node(Client, OwnerJid, NodeNS, ErrorCondition) ->
     escalus:send(Client, escalus_stanza:disco_info(OwnerJid, NodeNS)),
     Stanza = escalus:wait_for_stanza(Client),
     escalus:assert(is_stanza_from, [OwnerJid], Stanza),
-    escalus:assert(is_error, [~"cancel", ~"service-unavailable"], Stanza).
+    escalus:assert(is_error, [~"cancel", ErrorCondition], Stanza).
 
 assert_publish_result(Stanza, NodeNS, ItemId) ->
     Pubsub = exml_query:subelement(Stanza, ~"pubsub"),
