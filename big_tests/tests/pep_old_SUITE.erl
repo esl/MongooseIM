@@ -461,7 +461,7 @@ unsubscribe_after_presence_unsubscription(Config) ->
               NodeNS = random_node_ns(),
               PepNode = make_pep_node_info(Alice, NodeNS),
               pubsub_tools:create_node(Alice, PepNode, []),
-              pubsub_tools:subscribe(Bob, PepNode, []),
+              pubsub_tools:subscribe(Bob, PepNode, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"fish">>, {pep, NodeNS}, []),
               pubsub_tools:receive_item_notification(
                 Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),

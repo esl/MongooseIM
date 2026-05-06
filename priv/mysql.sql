@@ -397,6 +397,37 @@ CREATE INDEX i_inbox USING BTREE ON inbox(lserver, luser, timestamp);
 CREATE INDEX i_inbox_us_box USING BTREE ON inbox(lserver, luser, box);
 CREATE INDEX i_inbox_box USING BTREE ON inbox(box);
 
+CREATE TABLE pubsub_node (
+    service_jid VARCHAR(250) NOT NULL,
+    node_id VARCHAR(250) NOT NULL,
+    access_model ENUM('open', 'presence', 'authorize') NOT NULL,
+    PRIMARY KEY (service_jid, node_id)
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE pubsub_item (
+    service_jid VARCHAR(250) NOT NULL,
+    node_id VARCHAR(250) NOT NULL,
+    item_id VARCHAR(250) NOT NULL,
+    publisher_jid VARCHAR(250) NOT NULL,
+    payload TEXT NOT NULL,
+    published_at BIGINT NOT NULL,
+    PRIMARY KEY (service_jid, node_id, item_id),
+    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE pubsub_subscription (
+    service_jid VARCHAR(250) NOT NULL,
+    node_id VARCHAR(250) NOT NULL,
+    subscriber_jid VARCHAR(250) NOT NULL,
+    PRIMARY KEY (service_jid, node_id, subscriber_jid),
+    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+CREATE INDEX i_pubsub_item_published_at USING BTREE ON pubsub_item(service_jid, node_id, published_at);
+
 CREATE TABLE pubsub_nodes (
     nidx BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     p_key VARCHAR(250)     NOT NULL,

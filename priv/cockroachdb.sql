@@ -356,6 +356,35 @@ CREATE INDEX i_inbox_timestamp ON inbox USING BTREE(lserver, luser, timestamp);
 CREATE INDEX i_inbox_us_box ON inbox USING BTREE(lserver, luser, box);
 CREATE INDEX i_inbox_box ON inbox (box) WHERE (box = 'bin');
 
+CREATE TYPE pubsub_node_access_model AS ENUM('open', 'presence', 'authorize');
+
+CREATE TABLE pubsub_node (
+    service_jid VARCHAR(250) NOT NULL,
+    node_id VARCHAR(250) NOT NULL,
+    access_model pubsub_node_access_model NOT NULL,
+    PRIMARY KEY (service_jid, node_id)
+);
+
+CREATE TABLE pubsub_item (
+    service_jid VARCHAR(250) NOT NULL,
+    node_id VARCHAR(250) NOT NULL,
+    item_id VARCHAR(250) NOT NULL,
+    publisher_jid VARCHAR(250) NOT NULL,
+    payload TEXT NOT NULL,
+    published_at BIGINT NOT NULL,
+    PRIMARY KEY (service_jid, node_id, item_id),
+    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
+);
+
+CREATE TABLE pubsub_subscription (
+    service_jid VARCHAR(250) NOT NULL,
+    node_id VARCHAR(250) NOT NULL,
+    subscriber_jid VARCHAR(250) NOT NULL,
+    PRIMARY KEY (service_jid, node_id, subscriber_jid),
+    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
+);
+
+CREATE INDEX i_pubsub_item_published_at ON pubsub_item USING btree (service_jid, node_id, published_at);
 
 CREATE SEQUENCE pubsub_nodes_nidx;
 

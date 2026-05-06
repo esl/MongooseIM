@@ -168,6 +168,7 @@ This hook is used by multiple modules, since removing a user requires many clean
 * [`mod_offline`](../modules/mod_offline.md) deletes the user's offline messages;
 * [`mod_privacy`](../modules/mod_privacy.md) removes the user's privacy lists;
 * [`mod_private`](../modules/mod_private.md) removes the user's private xml data storage;
+* [`mod_pubsub`](../modules/mod_pubsub.md) removes the user's PEP data;
 * [`mod_pubsub_old`](../modules/mod_pubsub_old.md) unsubscribes from publish/subscribe channels;
 * [`mod_roster`](../modules/mod_roster.md) removes the user's roster from the database;
 * [`mod_smart_markers`](../modules/mod_smart_markers.md) removes chat markers stored for the user;

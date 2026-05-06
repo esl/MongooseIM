@@ -20,12 +20,12 @@ start(Host) ->
                     <<"created_lserver">>, <<"created_at">>, <<"payload">>],
     UpdateFields = [<<"itemid">>, <<"created_luser">>, <<"created_lserver">>,
                     <<"created_at">>, <<"payload">>],
-    mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_last_item, [nidx],
+    mongoose_rdbms:prepare(pubsub_old_get_last_item, pubsub_last_item, [nidx],
         <<"SELECT nidx, itemid, created_luser, created_at, created_lserver, payload "
           "FROM pubsub_last_item WHERE nidx = ?">>),
-    mongoose_rdbms:prepare(pubsub_delete_last_item, pubsub_last_item, [nidx],
+    mongoose_rdbms:prepare(pubsub_old_delete_last_item, pubsub_last_item, [nidx],
         <<"DELETE FROM pubsub_last_item WHERE nidx = ?">>),
-    rdbms_queries:prepare_upsert(Host, pubsub_last_item_upsert, pubsub_last_item,
+    rdbms_queries:prepare_upsert(Host, pubsub_old_last_item_upsert, pubsub_last_item,
                                  InsertFields,
                                  UpdateFields,
                                  [<<"nidx">>]),
@@ -46,20 +46,20 @@ upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
      CreatedAt, PayloadBin} = prepare_upsert_params(Publisher, Payload),
     UpdateParams = [ItemID, ModifiedLUser, ModifiedLServer, CreatedAt, PayloadBin],
     InsertParams = [Nidx | UpdateParams],
-    Res = rdbms_queries:execute_upsert(ServerHost, pubsub_last_item_upsert, InsertParams, UpdateParams),
+    Res = rdbms_queries:execute_upsert(ServerHost, pubsub_old_last_item_upsert, InsertParams, UpdateParams),
     convert_rdbms_response(Res).
 
 -spec delete_last_item(ServerHost :: binary(),
                        Nidx :: mod_pubsub_old:nodeIdx()) -> ok | {error, Reason :: term()}.
 delete_last_item(ServerHost, Nidx) ->
-    Res = mongoose_rdbms:execute_successfully(ServerHost, pubsub_delete_last_item, [Nidx]),
+    Res = mongoose_rdbms:execute_successfully(ServerHost, pubsub_old_delete_last_item, [Nidx]),
     convert_rdbms_response(Res).
 
 -spec get_last_item(ServerHost :: binary(),
                     Nidx :: mod_pubsub_old:nodeIdx()) ->
     {ok, LastItem :: mod_pubsub_old:pubsubLastItem()} | {error, Reason :: term()}.
 get_last_item(ServerHost, Nidx) ->
-    Res = mongoose_rdbms:execute_successfully(ServerHost, pubsub_get_last_item, [Nidx]),
+    Res = mongoose_rdbms:execute_successfully(ServerHost, pubsub_old_get_last_item, [Nidx]),
     convert_rdbms_response(Res).
 
 %%====================================================================

@@ -242,6 +242,10 @@
     namespace = "urn:xmpp:microblog:0"
     node = "mb"
 
+[modules.mod_pubsub]
+  backend = "rdbms"
+  iqdisc.type = "no_queue"
+
 [modules.mod_push_service_mongoosepush]
   pool_name = "mongoose_push_http"
   api_version = "v3"
