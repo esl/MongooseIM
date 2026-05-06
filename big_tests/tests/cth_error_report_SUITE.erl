@@ -12,8 +12,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(distributed_helper, [rpc/4, mim/0, mim2/0,
-                             require_rpc_nodes/1]).
+-import(distributed_helper, [rpc/4, mim/0, mim2/0, require_rpc_nodes/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration

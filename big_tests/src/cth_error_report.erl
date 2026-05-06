@@ -256,8 +256,7 @@ check_unexpected_limit(Suite, Unexp, Max, ReportDir) ->
 
 %% Node spec resolution
 
--spec node_specs() ->
-    [{atom(), distributed_helper:rpc_spec()}].
+-spec node_specs() -> [{atom(), distributed_helper:rpc_spec()}].
 node_specs() ->
     lists:filtermap(
         fun(Key) ->
