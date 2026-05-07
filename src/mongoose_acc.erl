@@ -135,12 +135,11 @@
 %% --------------------------------------------------------
 
 -spec new(Params :: new_acc_params()) -> t().
-new(#{ location := Location, lserver := LServer } = Params) ->
+new(#{ location := Location, lserver := LServer, host_type := HostType } = Params) ->
     Stanza = case maps:get(element, Params, undefined) of
                  undefined -> undefined;
                  _Element -> stanza_from_params(Params)
              end,
-    HostType = get_host_type(Params),
     Origin = get_origin(Params),
     #{
       mongoose_acc => true,
@@ -356,17 +355,14 @@ strip(#{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
     Stripped#{statem_acc := mongoose_c2s_acc:new()}.
 
 -spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
-strip(#{ lserver := NewLServer } = Params, Acc) ->
+strip(#{ lserver := NewLServer, host_type := NewHostType } = Params, Acc) ->
     StrippedAcc = strip(Acc),
-    StrippedAcc#{ lserver := NewLServer, host_type := get_host_type(Params),
+    StrippedAcc#{ lserver := NewLServer, host_type := NewHostType,
                   stanza := stanza_from_params(Params) }.
 
 %% --------------------------------------------------------
 %% Internal functions
 %% --------------------------------------------------------
--spec get_host_type(new_acc_params() | strip_params()) -> mongooseim:host_type().
-get_host_type(#{host_type := HostType}) ->
-    HostType.
 
 -spec get_origin(new_acc_params()) -> origin() | undefined.
 get_origin(#{origin := Origin}) ->
