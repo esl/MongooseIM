@@ -132,13 +132,6 @@
   bounce.max_retries = 3
   redis.pool = "global_distrib"
 
-[modules.mod_jingle_sip]
-  proxy_host = "proxy.com"
-  proxy_port = 9999
-  listen_port = 9998
-  local_host = "localhost"
-  sdp_origin = "127.0.0.1"
-
 [modules.mod_keystore]
   ram_key_size = 1000
 

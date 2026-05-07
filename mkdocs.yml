@@ -73,7 +73,6 @@ nav:
       - 'High-level Architecture': 'user-guide/High-level-Architecture.md'
   - Tutorials:
       - 'How to Build MongooseIM from source code': 'tutorials/How-to-build.md'
-      - 'How to build and run MongooseIM docker image': 'tutorials/Docker-build.md'
       - 'How to configure MongooseIM to use CETS instead of Mnesia': 'tutorials/CETS-configure.md'
       - 'How to Set up Push Notifications': 'tutorials/push-notifications/Push-notifications.md'
       - 'How to Set up Push Notifications on the client side': 'tutorials/push-notifications/Push-notifications-client-side.md'
@@ -146,7 +145,6 @@ nav:
       - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
       - 'mod_inbox': 'modules/mod_inbox.md'
-      - 'mod_jingle_sip': 'modules/mod_jingle_sip.md'
       - 'mod_keystore': 'modules/mod_keystore.md'
       - 'mod_last': 'modules/mod_last.md'
       - 'mod_mam': 'modules/mod_mam.md'
