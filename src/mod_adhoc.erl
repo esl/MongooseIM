@@ -166,7 +166,8 @@ disco_local_items(Acc, _, _) ->
       Acc :: mongoose_disco:item_acc(),
       Params :: map(),
       Extra :: #{host_type := mongooseim:host_type()}.
-disco_sm_items(Acc = #{to_jid := To, node := <<>>, lang := Lang}, _, #{host_type := HostType}) ->
+disco_sm_items(Acc = #{to_jid := To, node := <<>>, presence_subscribed := true, lang := Lang},
+               _, #{host_type := HostType}) ->
     Items = case are_commands_visible(HostType) of
                 false ->
                     [];
@@ -204,7 +205,7 @@ disco_local_identity(Acc, _, _) ->
       Acc :: mongoose_disco:identity_acc(),
       Params :: map(),
       Extra :: gen_hook:extra().
-disco_sm_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}, _, _) ->
+disco_sm_identity(Acc = #{node := ?NS_COMMANDS, presence_subscribed := true, lang := Lang}, _, _) ->
     {ok, mongoose_disco:add_identities([command_list_identity(Lang)], Acc)};
 disco_sm_identity(Acc, _, _) ->
     {ok, Acc}.
@@ -242,9 +243,9 @@ disco_local_features(Acc, _, _) ->
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_sm_features(Acc = #{node := <<>>}, _, _) ->
+disco_sm_features(Acc = #{node := <<>>, presence_subscribed := true}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_COMMANDS], Acc)};
-disco_sm_features(Acc = #{node := ?NS_COMMANDS}, _, _) ->
+disco_sm_features(Acc = #{node := ?NS_COMMANDS, presence_subscribed := true}, _, _) ->
     %% override all lesser features...
     {ok, Acc#{result := []}};
 disco_sm_features(Acc, _, _) ->

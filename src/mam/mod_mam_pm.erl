@@ -161,7 +161,7 @@ disco_local_features(Acc, _, _) ->
 
 -spec disco_sm_features(mongoose_disco:feature_acc(),
                         map(), map()) -> {ok, mongoose_disco:feature_acc()}.
-disco_sm_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
+disco_sm_features(Acc = #{host_type := HostType, node := <<>>, presence_subscribed := true}, _, _) ->
     {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
 disco_sm_features(Acc, _, _) ->
     {ok, Acc}.
