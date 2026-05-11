@@ -57,8 +57,8 @@ We offer a set of additional server-side components:
 
 For a quick start just download:
 
-* The [pre-built packages](https://github.com/esl/MongooseIM/releases/latest) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
-* The [Docker image](https://hub.docker.com/r/erlangsolutions/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
+* The [pre-built packages](https://trymongoose.im/downloads#packages) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
+* The [Docker image](https://trymongoose.im/downloads#docker)
 * The [Helm chart](https://trymongoose.im/downloads#helm)
 
 See the [installation guide](getting-started/Installation.md) for more details.
