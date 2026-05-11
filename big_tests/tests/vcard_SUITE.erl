@@ -1129,7 +1129,8 @@ get_jid_record(JID) ->
     jid:make_bare(User, Server).
 
 vcard_rpc(JID, Stanza) ->
-    Acc = rpc(mim(), mongoose_acc, new, [JID, JID, Stanza, ?LOCATION]),
+    {ok, HostType} = rpc(mim(), mongoose_domain_api, get_host_type, [jid:lserver(JID)]),
+    Acc = rpc(mim(), mongoose_acc, new, [HostType, JID, JID, Stanza, ?LOCATION]),
     Res = rpc(mim(), mongoose_router, route, [Acc]),
     case Res of
         #{stanza := #{type := <<"set">>}} ->
