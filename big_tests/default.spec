@@ -112,7 +112,6 @@
 {suites, "tests", component_SUITE}.
 {suites, "tests", dynamic_domains_SUITE}.
 {suites, "tests", graphql_server_SUITE}.
-{suites, "tests", jingle_SUITE}.
 {suites, "tests", last_SUITE}.
 {suites, "tests", local_iq_SUITE}.
 {suites, "tests", mod_global_distrib_SUITE}.

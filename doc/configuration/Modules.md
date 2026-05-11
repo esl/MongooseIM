@@ -120,9 +120,6 @@ Implements custom inbox XEP
 ### [mod_global_distrib](../modules/mod_global_distrib.md)
 Enables sharing a single XMPP domain between distinct datacenters (**experimental**).
 
-### [mod_jingle_sip](../modules/mod_jingle_sip.md)
-Enables Jingle to SIP and SIP to Jingle translator.
-
 ### [mod_keystore](../modules/mod_keystore.md)
 Serves as a storage for crypto keys for `mod_auth_token`.
 
@@ -138,6 +135,7 @@ It is tightly coupled with user presence in chat rooms.
 
 ### [mod_muc_log](../modules/mod_muc_log.md)
 Implements a logging subsystem for [mod_muc](../modules/mod_muc.md).
+Deprecated: this module will be removed in the next release.
 
 ### [mod_muc_light](../modules/mod_muc_light.md)
 Implements [XEP Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html).
@@ -207,7 +205,6 @@ There are some modules that don't support dynamic domains for now.
 These must **not** be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
 
 * [mod_global_distrib](../modules/mod_global_distrib.md)
-* [mod_jingle_sip](../modules/mod_jingle_sip.md)
 * [mod_pubsub_old](../modules/mod_pubsub_old.md)
 * [mod_shared_roster_ldap](../modules/mod_shared_roster_ldap.md)
 

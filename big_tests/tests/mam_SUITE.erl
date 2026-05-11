@@ -449,7 +449,8 @@ muc_light_cases() ->
      muc_light_chat_markers_are_not_archived_if_disabled,
      muc_light_failed_to_decode_message_in_database,
      muc_light_sql_query_failed,
-     muc_light_async_pools_batch_flush
+     muc_light_async_pools_batch_flush,
+     async_pool_queue_lengths_are_updated
     ].
 
 muc_rsm_cases() ->
@@ -865,9 +866,14 @@ maybe_setup(pm_sql_query_failed, Config) ->
               end]),
     Config;
 maybe_setup(async_pool_queue_lengths_are_updated, Config) ->
-    PoolName = rpc(mim(), mongoose_async_pools, pool_name, [host_type(), pm_mam]),
+    Group = proplists:get_value(basic_group, Config),
+    PoolId = case Group of
+                 muc_light -> muc_mam;
+                 impl_specific -> pm_mam
+             end,
+    PoolName = rpc(mim(), mongoose_async_pools, pool_name, [host_type(), PoolId]),
     Workers = rpc(mim(), wpool, get_workers, [PoolName]),
-    [{workers, Workers} | Config];
+    [{pool_id, PoolId}, {workers, Workers} | Config];
 maybe_setup(_CaseName, Config) ->
     Config.
 
@@ -2171,15 +2177,17 @@ async_pools_batch_flush(Config) ->
     assert_async_batch_flush_event(TS, 2, pm_mam).
 
 async_pool_queue_lengths_are_updated(Config) ->
+    PoolId = proplists:get_value(pool_id, Config),
     Workers = proplists:get_value(workers, Config),
+
     HostType = host_type(),
     Event = async_pool_queue_lengths,
-    Labels = #{pool_id => pm_mam, host_type => HostType},
+    Labels = #{pool_id => PoolId, host_type => HostType},
 
     #{total := Total} = rpc(mim(), mongoose_async_pools, probe, [Event, Labels]),
 
     [rpc(mim(), sys, suspend, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
-    rpc(mim(), mongoose_async_pools, put_task, [HostType, pm_mam, {}]),
+    rpc(mim(), mongoose_async_pools, put_task, [HostType, PoolId, {}]),
 
     F = fun(#{total := NewTotal}) -> NewTotal > Total end,
     instrument_helper:wait_and_assert_new(Event, Labels, F).

@@ -208,6 +208,11 @@ set_room_occupants(HostType, RoomPID, RoomJID, Occupants) ->
 %%--------------------------------------------------------------------
 -spec init({HostType :: mongooseim:host_type(), map()}) -> {ok, logstate()}.
 init({HostType, Opts}) ->
+    Text = <<"mod_muc_log is deprecated and will be removed in the next release.">>,
+    mongoose_deprecations:log(
+        {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
+        #{what => mod_muc_log_deprecated, text => Text, host_type => HostType},
+        [{log_level, warning}]),
     #{
         access_log := AccessLog,
         css_file := CSSFile,
