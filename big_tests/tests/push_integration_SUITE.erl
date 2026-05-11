@@ -952,16 +952,8 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
       pubsub_node => NodeName}.
 
 add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
-    AffList = [ #xmlel{ name = <<"affiliation">>,
-                        attrs = #{<<"jid">> => escalus_utils:get_server(User),
-                                  <<"affiliation">> => <<"publish-only">>} }
-              ],
-    Affiliations = #xmlel{ name = <<"affiliations">>, attrs = #{<<"node">> => NodeName},
-                           children = AffList },
-    Id = base64:encode(crypto:strong_rand_bytes(5)),
-    Stanza = escalus_pubsub_stanza:pubsub_owner_iq(<<"set">>, User, Id, NodeAddr, [Affiliations]),
-    escalus:send(User, Stanza),
-    escalus:assert(is_iq_result, [Stanza], escalus:wait_for_stanza(User)).
+    pubsub_tools:set_affiliations(User, {NodeAddr, NodeName},
+                                  [{escalus_utils:get_server(User), <<"publish-only">>}], []).
 
 assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
     Info = mongoose_helper:get_session_info(?RPC_SPEC, User),

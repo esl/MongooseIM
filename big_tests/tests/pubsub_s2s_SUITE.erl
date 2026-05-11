@@ -117,10 +117,11 @@ publish_without_node_attr_test(Config) ->
       Config,
       [{alice, 1}, {alice2, 1}],
       fun(Alice, Alice2) ->
-              Node = pubsub_tools:pubsub_node(),
+              {NodeAddr, _} = Node = pubsub_tools:pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
-              pubsub_tools:publish_without_node_attr(Alice2, <<"item2">>, Node, [{expected_error_type, <<"modify">>}]),
+              pubsub_tools:publish(Alice2, <<"item2">>, {NodeAddr, undefined},
+                                   [{expected_error_type, <<"modify">>}]),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
