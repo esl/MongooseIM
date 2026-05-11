@@ -959,7 +959,7 @@ add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
     Affiliations = #xmlel{ name = <<"affiliations">>, attrs = #{<<"node">> => NodeName},
                            children = AffList },
     Id = base64:encode(crypto:strong_rand_bytes(5)),
-    Stanza = escalus_pubsub_stanza:pubsub_owner_iq(<<"set">>, User, Id, NodeAddr, [Affiliations]),
+    Stanza = escalus_pubsub_stanza:pubsub_owner_iq(<<"set">>, Id, NodeAddr, [Affiliations]),
     escalus:send(User, Stanza),
     escalus:assert(is_iq_result, [Stanza], escalus:wait_for_stanza(User)).
 

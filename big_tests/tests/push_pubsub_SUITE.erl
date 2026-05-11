@@ -133,7 +133,7 @@ publish_fails_with_invalid_item(Config) ->
                 {<<"service">>, <<"apns">>}
             ],
 
-            Publish = escalus_pubsub_stanza:publish_with_options(Alice, <<"itemid">>, Item,
+            Publish = escalus_pubsub_stanza:publish_with_options(<<"itemid">>, Item,
                                                                  <<"id">>, Node, Options),
             escalus:send(Alice, Publish),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
@@ -161,7 +161,7 @@ publish_fails_with_no_options(Config) ->
                        attrs = #{<<"xmlns">> => ?NS_PUSH},
                        children = push_helper:maybe_form(ContentFields, ?PUSH_FORM_TYPE)},
 
-            Publish = escalus_pubsub_stanza:publish(Alice, <<"itemid">>, Item, <<"id">>, Node),
+            Publish = escalus_pubsub_stanza:publish(<<"itemid">>, Item, <<"id">>, Node),
             escalus:send(Alice, Publish),
             escalus:assert(is_error, [<<"cancel">>, <<"conflict">>],
                            escalus:wait_for_stanza(Alice)),
@@ -366,7 +366,7 @@ publish_iq(Client, Node, Content, Options) ->
         #xmlel{name = <<"publish-options">>,
                children = push_helper:maybe_form(Options, ?NS_PUBSUB_PUB_OPTIONS)},
 
-    Publish = escalus_pubsub_stanza:publish(Client, <<"itemid">>, Item, <<"id">>, Node),
+    Publish = escalus_pubsub_stanza:publish(<<"itemid">>, Item, <<"id">>, Node),
     #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
     NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
     Publish#xmlel{children = [NewPubsubEl]}.

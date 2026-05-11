@@ -261,8 +261,9 @@ publish_options_success_test(Config) ->
       fun(Alice, Bob) ->
             NodeNS = random_node_ns(),
             PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode,
-                                     [{modify_request,fun add_config_to_create_node_request/1}]),
+            CreateOpts = [{config, [{<<"pubsub#roster_groups_allowed">>,
+                                     [<<"friends">>, <<"enemies">>]}]}],
+            pubsub_tools:create_node(Alice, PepNode, CreateOpts),
             escalus_story:make_all_clients_friends([Alice, Bob]),
             PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"1">>},
                               {<<"pubsub#notify_config">>, <<"0">>},
@@ -280,7 +281,7 @@ publish_options_success_test(Config) ->
                               {<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>},
                               {<<"pubsub#deliver_notifications">>, <<"1">>},
                               {<<"pubsub#presence_based_delivery">>, <<"1">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
+            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, [], PublishOptions),
             escalus:assert(is_iq_result, Result)
       end).
 
@@ -294,12 +295,11 @@ publish_options_fail_unknown_option_story(Config) ->
             pubsub_tools:create_node(Alice, PepNode, []),
 
             PublishOptions = [{<<"deliver_payloads">>, <<"1">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
+            Opts = [{expected_error_type, {~"cancel", ~"conflict"}}],
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions),
 
             PublishOptions2 = [{<<"pubsub#not_existing_option">>, <<"1">>}],
-            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions2)
       end).
 
 publish_options_fail_wrong_value_story(Config) ->
@@ -309,16 +309,16 @@ publish_options_fail_wrong_value_story(Config) ->
       fun(Alice) ->
             NodeNS = random_node_ns(),
             PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode,
-                                     [{modify_request,fun add_config_to_create_node_request/1}]),
+            CreateOpts = [{config, [{<<"pubsub#roster_groups_allowed">>,
+                                     [<<"friends">>, <<"enemies">>]}]}],
+            pubsub_tools:create_node(Alice, PepNode, CreateOpts),
 
             PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"0">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
+            Opts = [{expected_error_type, {~"cancel", ~"conflict"}}],
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions),
 
             PublishOptions2 = [{<<"pubsub#roster_groups_allowed">>, <<"friends">>}],
-            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions2)
       end).
 
 publish_options_fail_wrong_form(Config) ->
@@ -330,8 +330,8 @@ publish_options_fail_wrong_form(Config) ->
             PepNode = make_pep_node_info(Alice, NodeNS),
             pubsub_tools:create_node(Alice, PepNode, []),
             PublishOptions = [{<<"deliver_payloads">>, <<"0">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions, <<"WRONG_NS">>),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result)
+            Opts = [{expected_error_type, {~"cancel", ~"conflict"}}],
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions)
       end).
 
 send_caps_after_login_test(Config) ->
@@ -461,7 +461,7 @@ unsubscribe_after_presence_unsubscription(Config) ->
               NodeNS = random_node_ns(),
               PepNode = make_pep_node_info(Alice, NodeNS),
               pubsub_tools:create_node(Alice, PepNode, []),
-              pubsub_tools:subscribe(Bob, PepNode, []),
+              pubsub_tools:subscribe(Bob, PepNode, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"fish">>, {pep, NodeNS}, []),
               pubsub_tools:receive_item_notification(
                 Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
@@ -482,34 +482,6 @@ unsubscribe_after_presence_unsubscription(Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
-
-add_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
-    Fields = [#{values => [<<"friends">>, <<"enemies">>], var => <<"pubsub#roster_groups_allowed">>}],
-    Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
-    ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
-    PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
-    Request#xmlel{children = [PubsubEl2]}.
-
-publish_with_publish_options(Client, Node, Content, Options) ->
-    publish_with_publish_options(Client, Node, Content, Options, ?NS_PUBSUB_PUB_OPTIONS).
-
-publish_with_publish_options(Client, Node, Content, Options, FormType) ->
-    OptionsEl = #xmlel{name = <<"publish-options">>,
-                       children = form(Options, FormType)},
-
-    Id = pubsub_tools:id(Client, Node, <<"publish">>),
-    Publish = pubsub_tools:publish_request(Id, Client, Content, Node, Options),
-    #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
-    NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
-    escalus:send(Client, Publish#xmlel{children = [NewPubsubEl]}),
-    escalus:wait_for_stanza(Client).
-
-form(FormFields, FormType) ->
-    FieldSpecs = lists:map(fun field_spec/1, FormFields),
-    [form_helper:form(#{fields => FieldSpecs, ns => FormType})].
-
-field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
-field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
     [{mod_caps, default_mod_config(mod_caps)},
@@ -620,8 +592,8 @@ make_friends_sm(Bob, Alice) ->
 publish_with_sm(User, ItemId, Node, Options) ->
     Id = id(User, Node, <<"publish">>),
     Request = case proplists:get_value(with_payload, Options, true) of
-                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
+                  true -> escalus_pubsub_stanza:publish(ItemId, item_content(), Id, Node);
+                  false -> escalus_pubsub_stanza:publish(Id, Node)
               end,
     escalus_client:send(User, Request),
     escalus:wait_for_stanzas(User, 2).

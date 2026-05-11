@@ -1005,10 +1005,10 @@ retrieve_pubsub_payloads(Config) ->
         {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
         {BinOther, StringOther} = item_content(<<"OtherItemData">>),
 
-        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, BinItem1}]),
-        pubsub_tools:publish(Alice, <<"Item2">>, Node1, [{with_payload, BinItem2}]),
-        pubsub_tools:publish(Alice, <<"Item3">>, Node1, [{with_payload, BinItem3}]),
-        pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, BinOther}]),
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
+        pubsub_tools:publish(Alice, <<"Item2">>, Node1, [{with_payload, {true, BinItem2}}]),
+        pubsub_tools:publish(Alice, <<"Item3">>, Node1, [{with_payload, {true, BinItem3}}]),
+        pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, {true, BinOther}}]),
 
         ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
                          pubsub_payloads_row_map(NodeName1, "Item2", StringItem2),
@@ -1081,7 +1081,7 @@ remove_pubsub_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = pubsub_tools:pubsub_node(),
             pubsub_tools:create_node(Alice, Node, []),
-            pubsub_tools:subscribe(Bob, Node, []),
+            pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
             unregister(Bob, Config),
 
@@ -1095,7 +1095,7 @@ retrieve_pubsub_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
             pubsub_tools:create_node(Alice, Node, []),
-            pubsub_tools:subscribe(Bob, Node, []),
+            pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
             retrieve_and_validate_personal_data(Bob, Config, "pubsub_subscriptions", ["node_name"],
                 [pubsub_subscription_row_map(NodeName)]),
 
@@ -1188,8 +1188,8 @@ remove_pubsub_all_data(Config) ->
 
         AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
-        pubsub_tools:subscribe(Bob, Node2, []),
-        pubsub_tools:subscribe(Alice, Node3, []),
+        pubsub_tools:subscribe(Bob, Node2, [{subid, true}]),
+        pubsub_tools:subscribe(Alice, Node3, [{subid, true}]),
 
         {BinItem1, _} = item_content(<<"Item1Data">>),
         {BinItem2, _} = item_content(<<"Item2Data">>),
@@ -1244,7 +1244,7 @@ retrieve_all_pubsub_data(Config) ->
 
         AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
-        pubsub_tools:subscribe(Bob, Node2, []),
+        pubsub_tools:subscribe(Bob, Node2, [{subid, true}]),
 
         {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
         {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
