@@ -38,7 +38,11 @@ basic_test_cases() ->
      user_can_query_friend_resources,
      user_can_query_friend_features,
      user_cannot_query_own_resources_with_unknown_node,
+     user_cannot_query_own_features_with_unknown_node,
      user_cannot_query_friend_resources_with_unknown_node,
+     user_cannot_query_friend_features_with_unknown_node,
+     user_cannot_query_stranger_resources_with_unknown_node,
+     user_cannot_query_stranger_features_with_unknown_node,
      user_can_query_server_features].
 
 server_caps_test_cases() ->
@@ -228,6 +232,17 @@ user_cannot_query_own_resources_with_unknown_node(Config) ->
         escalus:assert(is_stanza_from, [AliceJid], Stanza)
     end).
 
+user_cannot_query_own_features_with_unknown_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        AliceJid = escalus_client:short_jid(Alice),
+        Request = escalus_stanza:disco_info(AliceJid, <<"unknown-node">>),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Stanza),
+        escalus:assert(is_stanza_from, [AliceJid], Stanza)
+    end).
+
 user_cannot_query_friend_resources_with_unknown_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus_story:make_all_clients_friends([Alice, Bob]),
@@ -238,6 +253,42 @@ user_cannot_query_friend_resources_with_unknown_node(Config) ->
         escalus:assert(is_iq_error, [Request], Stanza),
         escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Stanza),
         escalus:assert(is_stanza_from, [BobJid], Stanza)
+    end).
+
+user_cannot_query_friend_features_with_unknown_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        escalus_story:make_all_clients_friends([Alice, Bob]),
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:disco_info(BobJid, <<"unknown-node">>),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Stanza),
+        escalus:assert(is_stanza_from, [BobJid], Stanza)
+    end).
+
+user_cannot_query_stranger_resources_with_unknown_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:disco_items(BobJid, <<"unknown-node">>),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza),
+        escalus:assert(is_stanza_from, [BobJid], Stanza),
+        assert_roster_get_event(Alice)
+    end).
+
+user_cannot_query_stranger_features_with_unknown_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:disco_info(BobJid, <<"unknown-node">>),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza),
+        escalus:assert(is_stanza_from, [BobJid], Stanza),
+        assert_roster_get_event(Alice)
     end).
 
 user_can_query_extra_domains(Config) ->
