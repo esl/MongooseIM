@@ -44,11 +44,9 @@ chat_markers_tests() ->
      room_chatmarker_is_overriden_and_only_unique_markers_are_delivered].
 
 groups() ->
-    G = [{mod_offline_tests, [parallel], all_tests()},
-         {with_groupchat, [], [groupchat_message_is_stored]},
-         {chatmarkers, [], chat_markers_tests()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{mod_offline_tests, [parallel], all_tests()},
+     {with_groupchat, [], [groupchat_message_is_stored]},
+     {chatmarkers, [], chat_markers_tests()}].
 
 suite() ->
     escalus:suite().
@@ -119,13 +117,23 @@ end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 %%%===================================================================
 
 disco_info_sm(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}],
-        fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+                %% Alice should be able to get her own features
                 AliceJid = escalus_client:short_jid(Alice),
                 escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
                 Stanza = escalus:wait_for_stanza(Alice),
                 escalus:assert(has_feature, [?NS_FEATURE_MSGOFFLINE], Stanza),
-                escalus:assert(is_stanza_from, [AliceJid], Stanza)
+                escalus:assert(is_stanza_from, [AliceJid], Stanza),
+
+                %% Alice shouldn't be able to get Bob's features
+                BobJid = escalus_client:short_jid(Bob),
+                Request = escalus_stanza:disco_info(BobJid),
+                escalus:send(Alice, Request),
+                Error = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_iq_error, [Request], Error),
+                escalus:assert(is_error, [~"cancel", ~"service-unavailable"], Error),
+                escalus:assert(is_stanza_from, [BobJid], Error)
         end).
 
 offline_message_is_stored_and_delivered_at_login(Config) ->
