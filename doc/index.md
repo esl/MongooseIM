@@ -1,10 +1,10 @@
 # MongooseIM Documentation
 
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.6.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.6)
-[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.6/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.6)
-[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.6)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.6)
-[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.6)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.6)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/master.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=master)
+[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/master)
+[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.6)
+[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=master)](https://coveralls.io/github/esl/MongooseIM?branch=master)
 
 * Home: [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
@@ -79,6 +79,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [6.7.0](https://esl.github.io/MongooseDocs/6.7.0/)
 * [6.6.0](https://esl.github.io/MongooseDocs/6.6.0/)
 * [6.5.0](https://esl.github.io/MongooseDocs/6.5.0/)
 * [6.4.0](https://esl.github.io/MongooseDocs/6.4.0/)
