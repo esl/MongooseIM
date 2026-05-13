@@ -10,7 +10,7 @@
 ## Added
 - Added dynamic domains support in `mod_push_service_mongoosepush` (#4686)
 - Introduced the `wpool_queue_lengths` metric (#4657, #4709)
-- Introduced cross-node error aggregation for better observability (#4680, #4693, #4698, #4701)
+- Introduced cross-node error aggregation in tests for better observability (#4680, #4693, #4698, #4701)
 
 ## Changed
 - Reimplemented `mod_caps`, supporting XEP-0115 and XEP-0390, and aligning hashing with XEP-0300 and XEP-0414 (#4681)
@@ -2691,7 +2691,7 @@ zlib driver configuration (in c2s or s2s section) takes new parameter which is m
 
 # MongooseIM 1.2.0
 
-2013-05-13
+2013-05-12
 
 - BOSH support (XMPP over HTTP)
 - WSS (WebSocekt Secure)
