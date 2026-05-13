@@ -1,8 +1,8 @@
 # [MongooseIM 6.7.0](https://github.com/esl/MongooseIM/releases/tag/6.7.0) - 2026-05-13
 
 ## Highlights
-- Refactored `mod_caps`
-- Migrated project artifacts to trymongoose.im
+- Lightweight and performance-focused implementation of entity capabilities, supporting XEP-0115 and XEP-0390.
+- Migrated project artifacts to [trymongoose.im](https://trymongoose.im/downloads)
 - MongooseICE was removed from the documentation and replaced with a guide on integrating MIM with Coturn
 - Cleaned up legacy modules
 - Various enhancements and bug fixes
@@ -13,8 +13,8 @@
 - Introduced cross-node error aggregation for better observability (#4680, #4693, #4698, #4701)
 
 ## Changed
-- Reworked `mod_caps`, aligning hashing with XEP-0300 and XEP-0414 (#4681)
-- Migrated artifacts to trymongoose.im (#4697, #4702, #4706, #4710, #4712)
+- Reimplemented `mod_caps`, supporting XEP-0115 and XEP-0390, and aligning hashing with XEP-0300 and XEP-0414 (#4681)
+- Migrated artifacts to [trymongoose.im](https://trymongoose.im/downloads) (#4697, #4702, #4706, #4710, #4712)
 - Improved script portability (#4703)
 - Changed the `externalId` GQL field type to ID in `mod_external_filter` (#4684)
 
