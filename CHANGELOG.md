@@ -1,4 +1,4 @@
-# [MongooseIM 6.7.0](https://github.com/esl/MongooseIM/releases/tag/6.7.0) - 2026-05-12
+# [MongooseIM 6.7.0](https://github.com/esl/MongooseIM/releases/tag/6.7.0) - 2026-05-13
 
 ## Highlights
 - Refactored `mod_caps`
@@ -37,9 +37,9 @@
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.7.0)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-03-18..2026-05-12)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-03-18..2026-05-13)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-03-18&to=2026-05-12&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-03-18&to=2026-05-13&type=c)
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.7.0+sort%3Aupdated-desc)
 
@@ -2691,7 +2691,7 @@ zlib driver configuration (in c2s or s2s section) takes new parameter which is m
 
 # MongooseIM 1.2.0
 
-2013-05-12
+2013-05-13
 
 - BOSH support (XMPP over HTTP)
 - WSS (WebSocekt Secure)
