@@ -409,7 +409,7 @@ set_roster_item(HostType, ContactJID, From, To, MakeItem) ->
             push_item(HostType, From, To, NewItem),
             case NewItem#roster.subscription of
                 remove ->
-                    send_unsubscribing_presence(From, OldItem),
+                    send_unsubscribing_presence(HostType, From, OldItem),
                     ok;
                 _ -> ok
             end;
@@ -494,7 +494,7 @@ push_item(HostType, JID, From, Item) ->
     broadcast_item(JID, Item#roster.jid, Item#roster.subscription),
     case roster_versioning_enabled(HostType) of
         true ->
-            push_item_version(JID, From, Item, roster_version(HostType, JID));
+            push_item_version(HostType, JID, From, Item, roster_version(HostType, JID));
         false ->
             lists:foreach(fun(Resource) ->
                                   push_item_without_version(HostType, JID, Resource, From, Item)
@@ -513,15 +513,16 @@ push_item_without_version(HostType, JID, Resource, From, Item) ->
     mongoose_instrument:execute(mod_roster_push, #{host_type => HostType},
                                 #{count => 1, jid => TargetJID}),
     mongoose_hooks:roster_push(HostType, From, Item),
-    push_item_final(TargetJID, From, Item, not_found).
+    push_item_final(HostType, TargetJID, From, Item, not_found).
 
-push_item_version(JID, From, Item, RosterVersion) ->
+push_item_version(HostType, JID, From, Item, RosterVersion) ->
     lists:foreach(fun(Resource) ->
-                          push_item_final(jid:replace_resource(JID, Resource),
+                          push_item_final(HostType,
+                                          jid:replace_resource(JID, Resource),
                                           From, Item, RosterVersion)
                   end, ejabberd_sm:get_user_resources(JID)).
 
-push_item_final(JID, From, Item, RosterVersion) ->
+push_item_final(HostType, JID, From, Item, RosterVersion) ->
     ExtraAttrs = case RosterVersion of
                      not_found -> #{};
                      _ -> #{<<"ver">> => RosterVersion}
@@ -534,7 +535,7 @@ push_item_final(JID, From, Item, RosterVersion) ->
                 [#xmlel{name = <<"query">>,
                         attrs = ExtraAttrs#{<<"xmlns">> => ?NS_ROSTER},
                         children = [item_to_xml(Item)]}]},
-    mongoose_router:route(mongoose_acc:new(From, JID, jlib:iq_to_xml(ResIQ), ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, From, JID, jlib:iq_to_xml(ResIQ), ?LOCATION)).
 
 -spec get_subscription_lists(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -625,7 +626,8 @@ process_subscription(HostType, Direction, JID, ContactJID, Type, Reason) ->
                     PresenceStanza = #xmlel{name = <<"presence">>,
                                             attrs = #{<<"type">> => autoreply_to_type(AutoReply)},
                                             children = []},
-                    mongoose_router:route(mongoose_acc:new(JID, ContactJID, PresenceStanza, ?LOCATION))
+                    mongoose_router:route(mongoose_acc:new(HostType, JID, ContactJID,
+                                                          PresenceStanza, ?LOCATION))
             end,
             case Push of
                 {push, #roster{subscription = none, ask = in}} ->
@@ -829,32 +831,33 @@ try_send_unsubscription_to_rosteritems(Acc, JID) ->
 %% Both or To, send a "unsubscribe" presence stanza.
 -spec send_unsubscription_to_rosteritems(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 send_unsubscription_to_rosteritems(Acc, JID) ->
-    RosterItems = do_get_user_roster(mongoose_acc:host_type(Acc), JID),
+    HostType = mongoose_acc:host_type(Acc),
+    RosterItems = do_get_user_roster(HostType, JID),
     lists:foreach(fun(RosterItem) ->
-                          send_unsubscribing_presence(JID, RosterItem)
+                          send_unsubscribing_presence(HostType, JID, RosterItem)
                   end, RosterItems),
     Acc.
 
--spec send_unsubscribing_presence(From :: jid:jid(), Item :: roster()) -> ok | mongoose_acc:t().
-send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item) ->
+-spec send_unsubscribing_presence(mongooseim:host_type(), jid:jid(), roster()) -> ok | mongoose_acc:t().
+send_unsubscribing_presence(HostType, From, #roster{ subscription = Subscription } = Item) ->
     BareFrom = jid:to_bare(From),
     ContactJID = jid:make_noprep(Item#roster.jid),
     IsTo = Subscription == both orelse Subscription == to,
     IsFrom = Subscription == both orelse Subscription == from,
     case IsTo of
-        true -> send_presence_type(BareFrom, ContactJID, <<"unsubscribe">>);
+        true -> send_presence_type(HostType, BareFrom, ContactJID, <<"unsubscribe">>);
         _ -> ok
     end,
     case IsFrom of
-        true -> send_presence_type(BareFrom, ContactJID, <<"unsubscribed">>);
+        true -> send_presence_type(HostType, BareFrom, ContactJID, <<"unsubscribed">>);
         _ -> ok
     end.
 
-send_presence_type(From, To, Type) ->
+send_presence_type(HostType, From, To, Type) ->
     Pres = #xmlel{name = <<"presence">>,
                   attrs = #{<<"type">> => Type},
                   children = []},
-    mongoose_router:route( mongoose_acc:new(From, To, Pres, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, From, To, Pres, ?LOCATION)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

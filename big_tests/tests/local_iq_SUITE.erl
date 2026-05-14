@@ -84,6 +84,7 @@ process_iq_timeout(Config) ->
 route_iq(Alice, Timeout) ->
     Jid = escalus_client:full_jid(Alice),
     Server = escalus_client:server(Alice),
+    {ok, HostType} = rpc(mim(), mongoose_domain_api, get_host_type, [Server]),
     To = jid:from_binary(Jid),
     From = jid:from_binary(Server),
     Query = #xmlel{name = <<"query">>,
@@ -93,7 +94,7 @@ route_iq(Alice, Timeout) ->
                            <<"from">> => Server, <<"to">> => Jid},
                  children = [Query]},
     Acc = rpc(mim(), mongoose_acc, new,
-              [#{location => #{}, lserver => Server, element => Xml}]),
+              [#{location => #{}, lserver => Server, host_type => HostType, element => Xml}]),
     IQ = rpc(mim(), jlib, iq_query_info, [Xml]),
     Self = self(),
     Callback = fun(CbFrom, CbTo, CbAcc, CbIQ) ->

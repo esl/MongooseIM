@@ -314,7 +314,7 @@ hooks(HostType) ->
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
                      El :: exml:element(), Extra :: gen_hook:extra()) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, _Extra) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     DecodedPacket = mod_muc_light_codec_backend:decode(From, To, El, Acc),
     process_decoded_packet(HostType, From, To, Acc, El, DecodedPacket).
 
@@ -493,7 +493,7 @@ process_iq_get(Acc, #{from := #jid{lserver = FromS} = From, to := To, iq := IQ},
     Params :: map(),
     Extra :: gen_hook:extra().
 process_iq_set(Acc, #{from := #jid{ lserver = FromS } = From, to := To, iq := IQ}, _Extra) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     MUCHost = server_host_to_muc_host(HostType, FromS),
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
           gen_mod:get_module_opt(HostType, ?MODULE, blocking)} of

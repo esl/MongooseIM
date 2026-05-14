@@ -64,7 +64,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
                   stable_stanza_id => mongoose_acc:get(stable_stanza_id, value, undefined, Acc),
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff),
                   timestamp => TS},
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     Packet1 = #xmlel{ children = Children }
         = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     lists:foreach(
@@ -244,7 +244,7 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
     {iq_reply, XMLNS :: binary(), Els :: [exml:child()], ID :: binary()} |
     noreply.
 encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, Acc) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     IdentityXML = mongoose_disco:identities_to_xml([identity()]),
     FeatureXML = mongoose_disco:get_muc_features(HostType, SenderJID, RoomJID, <<>>, <<>>,
                                                  [?NS_MUC]),
@@ -273,7 +273,7 @@ encode_meta({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
                        Affs#affiliations.aff_users, HandleFun),
     {iq_reply, Affs#affiliations.id};
 encode_meta({get, #blocking{} = Blocking}, RoomJID, _SenderJID, _HandleFun, Acc) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     ServerHost = mod_muc_light_utils:room_jid_to_server_host(RoomJID),
     MUCHost = mongoose_subdomain_utils:get_fqdn(mod_muc_light:subdomain_pattern(HostType), ServerHost),
     BlockingEls = [ blocking_to_el(BlockingItem, MUCHost)

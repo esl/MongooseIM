@@ -68,7 +68,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
                   stable_stanza_id => mongoose_acc:get(stable_stanza_id, value, undefined, Acc),
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff),
                   timestamp => TS},
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     Packet1 = #xmlel{ children = Children }
                      = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     lists:foreach(
@@ -257,7 +257,7 @@ parse_blocking_list(_, _) ->
 %%====================================================================
 
 encode_iq({get, #disco_info{ id = ID }}, Sender, RoomJID, _RoomBin, _HandleFun, Acc) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     IdentityXML = mongoose_disco:identities_to_xml([identity()]),
     FeatureXML = mongoose_disco:get_muc_features(HostType, Sender, RoomJID, <<>>, <<>>,
                                                  [?NS_MUC_LIGHT]),
@@ -313,7 +313,7 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
     EventData = room_event(Acc, RoomJID),
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     #xmlel{children = FinalChildrenForCurrentNoPrevVersion}
         = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
@@ -342,7 +342,7 @@ encode_iq({set, #create{} = Create, UniqueRequested},
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
     EventData = room_event(Acc, RoomJID),
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
 
     %% IQ reply "from"
@@ -374,7 +374,7 @@ encode_iq({set, #config{} = Config, AffUsers},
           _Sender, RoomJID, RoomBin, HandleFun, Acc) ->
     MsgForArch = encode_set_config(Config, RoomBin),
     EventData = room_event(Acc, RoomJID),
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     #xmlel{ children = FinalConfigNotif }
         = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
 

@@ -287,15 +287,6 @@ lserver_to_host_type(LServer) ->
             error({get_domain_host_type_failed, LServer})
     end.
 
--spec acc_to_host_type(mongoose_acc:t()) -> host_type().
-acc_to_host_type(Acc) ->
-    case mongoose_acc:host_type(Acc) of
-        undefined ->
-            lserver_to_host_type(mongoose_acc:lserver(Acc));
-        HostType ->
-            HostType
-    end.
-
 -spec is_action_allowed(HostType :: host_type(),
                         Action :: mam_iq:action(), From :: jid:jid(),
                         To :: jid:jid()) -> boolean().
@@ -334,7 +325,7 @@ handle_set_prefs(ArcJID=#jid{}, IQ=#iq{sub_el = PrefsEl}, Acc) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = mod_mam_utils:parse_prefs(PrefsEl),
     ?LOG_DEBUG(#{what => mam_set_prefs, default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
-    HostType = acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
     Res = set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
     handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
@@ -350,7 +341,7 @@ handle_set_prefs_result({error, Reason},
 -spec handle_get_prefs(jid:jid(), IQ :: jlib:iq(), Acc :: mongoose_acc:t()) ->
                               jlib:iq() | {error, term(), jlib:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}, Acc) ->
-    HostType = acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
     Res = get_prefs(HostType, ArcID, ArcJID, always),
     handle_get_prefs_result(Res, IQ).
@@ -368,7 +359,7 @@ handle_get_prefs_result({error, Reason}, IQ) ->
                               IQ :: jlib:iq(), Acc :: mongoose_acc:t()) ->
     jlib:iq() | ignore | {error, term(), jlib:iq()}.
 handle_set_message_form(#jid{} = From, #jid{} = ArcJID, #iq{} = IQ, Acc) ->
-    HostType = acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
     try iq_to_lookup_params(HostType, IQ) of
         Params0 ->
@@ -439,13 +430,13 @@ send_message(SendModule, Row, ArcJID, From, Packet) ->
 -spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq(), mongoose_acc:t()) ->
                                      jlib:iq().
 handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}, Acc) ->
-    HostType = acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     return_message_form_iq(HostType, IQ).
 
 -spec handle_get_metadata(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
                                  jlib:iq() | {error, term(), jlib:iq()}.
 handle_get_metadata(ArcJID=#jid{}, IQ=#iq{}, Acc) ->
-    HostType = acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
     case mod_mam_utils:lookup_first_and_last_messages(HostType, ArcID, ArcJID,
                                                       fun lookup_messages/2) of
@@ -472,7 +463,7 @@ amp_deliver_strategy([direct, none]) -> [direct, stored, none].
     {MaybeMessID :: binary() | undefined, Acc :: mongoose_acc:t()}.
 handle_package(Dir, ReturnMessID,
                LocJID = #jid{}, RemJID = #jid{}, SrcJID = #jid{}, Packet, Acc) ->
-    HostType = acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     MsgType = exml_query:attr(Packet, <<"type">>),
     case is_archivable_message(HostType, Dir, Packet)
          andalso should_archive_if_groupchat(HostType, MsgType)

@@ -51,7 +51,7 @@ handle_request(From, RoomJID, OrigPacket, Request, Acc1) ->
                    NewAffUsers :: aff_users(),
                    Version :: binary() ) -> any().
 maybe_forget(Acc, {RoomU, RoomS} = RoomUS, [], _Version) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     mongoose_hooks:forget_room(HostType, RoomS, RoomU),
     mod_muc_light_db_backend:destroy_room(HostType, RoomUS);
 maybe_forget(Acc, {RoomU, RoomS}, NewAffs, Version) ->
@@ -126,13 +126,13 @@ process_request({get, #info{} = InfoReq},
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq},
                 _From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     AllCanConfigure = all_can_configure(HostType),
     process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq},
                 From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
     UserUS = jid:to_lus(From),
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     OwnerUS = case lists:keyfind(owner, 2, AffUsers) of
                   false -> undefined;
                   {OwnerUS0, _} -> OwnerUS0
@@ -260,9 +260,11 @@ send_response(From, RoomJID, _OriginalPacket, Response, Acc) ->
 %% Internal functions
 %%====================================================================
 make_handler_fun(Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
     fun(From, To, Packet) ->
         NewAcc0 = mongoose_acc:new(#{location => ?LOCATION,
                                      lserver => From#jid.lserver,
+                                     host_type => HostType,
                                      element => Packet,
                                      from_jid => From,
                                      to_jid => To}),

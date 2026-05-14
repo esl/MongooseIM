@@ -754,7 +754,8 @@ stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} =
             ItemAttrs = #{<<"affiliation">> => <<"owner">>, <<"role">> => <<"none">>},
             Packet = unavailable_presence(ItemAttrs, <<"Room hibernation">>),
             FromRoom = jid:replace_resource(RoomJID, Nick),
-            mongoose_router:route(mongoose_acc:new(FromRoom, LastUser, Packet, ?LOCATION)),
+            mongoose_router:route(mongoose_acc:new(State#state.host_type, FromRoom,
+                                                   LastUser, Packet, ?LOCATION)),
             tab_remove_online_user(LJID, State),
             do_stop_persistent_room(RoomName, State);
         _ ->
@@ -788,6 +789,7 @@ terminate(Reason, _StateName, StateData) ->
                   shutdown ->
                       mongoose_router:route(
                           mongoose_acc:new(
+                              StateData#state.host_type,
                               jid:replace_resource(StateData#state.jid, Nick),
                               Info#user.jid,
                               Packet,
@@ -903,7 +905,8 @@ process_message_from_allowed_user(From, #routed_message{packet = Packet} = RMess
         false ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
-            mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
+            mongoose_router:route(mongoose_acc:new(StateData#state.host_type,
+                                                   StateData#state.jid, From, Err, ?LOCATION)),
             next_normal_state(StateData)
     end.
 
@@ -934,7 +937,7 @@ broadcast_room_packet(From, FromNick, Role, RMess, StateData) ->
     run_update_inbox_for_muc_hook(StateData#state.host_type, HookInfo),
     maps_foreach(fun(_LJID, Info) ->
                      mongoose_router:route(
-                         mongoose_acc:new(RouteFrom,
+                         mongoose_acc:new(StateData#state.host_type, RouteFrom,
                                              Info#user.jid,
                                              FilteredPacket,
                                              ?LOCATION))
@@ -959,7 +962,8 @@ change_subject_error(From, FromNick, Packet, Lang, StateData) ->
                                            " to change the subject in this room">>)
           end,
     mongoose_router:route(
-        mongoose_acc:new(jid:replace_resource(StateData#state.jid, FromNick),
+        mongoose_acc:new(StateData#state.host_type,
+                         jid:replace_resource(StateData#state.jid, FromNick),
                          From,
                          jlib:make_error_reply(Packet, Err),
                          ?LOCATION)).
@@ -1188,7 +1192,8 @@ handle_new_user(From, Nick = <<>>, _Packet, StateData, Packet) ->
                 #xmlel{name = <<"presence">>},
                 mongoose_xmpp_errors:jid_malformed(Lang, ErrText)),
     mongoose_router:route(
-        mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
+        mongoose_acc:new(StateData#state.host_type,
+                         jid:replace_resource(StateData#state.jid, Nick),
                          From,
                          Error,
                          ?LOCATION)),
@@ -1198,7 +1203,8 @@ handle_new_user(From, Nick, Packet, StateData, Packet) ->
         undefined ->
             Response = kick_stanza_for_old_protocol(Packet),
             mongoose_router:route(
-                mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
+                mongoose_acc:new(StateData#state.host_type,
+                                 jid:replace_resource(StateData#state.jid, Nick),
                                  From,
                                  Response,
                                  ?LOCATION)),
@@ -2346,7 +2352,8 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                           children = ItemEls} | Status2]}]),
     mongoose_router:route(
-        mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
+        mongoose_acc:new(StateData#state.host_type,
+                         jid:replace_resource(StateData#state.jid, Nick),
                          ReceiverInfo#user.jid,
                          Packet,
                          ?LOCATION)).
@@ -2391,7 +2398,8 @@ send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
                        children = [#xmlel{name = <<"item">>,
                                           attrs = ItemAttrs}]}]),
     mongoose_router:route(
-        mongoose_acc:new(jid:replace_resource(StateData#state.jid, FromNick),
+        mongoose_acc:new(StateData#state.host_type,
+                         jid:replace_resource(StateData#state.jid, FromNick),
                          RealToJID,
                          Packet,
                          ?LOCATION)).
@@ -2419,7 +2427,8 @@ send_invitation(From, To, Reason, StateData=#state{host=Host,
         true -> Config#config.password
     end,
     Packet = jlib:make_invitation(jid:to_bare(From), Password, Reason),
-    mongoose_router:route(mongoose_acc:new(RoomJID, To, Packet, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(StateData#state.host_type,
+                                           RoomJID, To, Packet, ?LOCATION)).
 
 
 -spec change_nick(jid:jid(), binary(), state()) -> state().
@@ -2473,14 +2482,16 @@ send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
     Unavailable = nick_unavailable_presence(MaybePublicJID, Nick, Affiliation,
                                             Role, MaybeSelfPresenceCode),
     mongoose_router:route(
-        mongoose_acc:new(jid:replace_resource(S#state.jid, OldNick),
+        mongoose_acc:new(S#state.host_type,
+                         jid:replace_resource(S#state.jid, OldNick),
                          Info#user.jid,
                          Unavailable,
                          ?LOCATION)),
     Available = nick_available_presence(Presence, MaybePublicJID, Affiliation,
                                         Role, MaybeSelfPresenceCode),
     mongoose_router:route(
-        mongoose_acc:new(jid:replace_resource(S#state.jid, Nick),
+        mongoose_acc:new(S#state.host_type,
+                         jid:replace_resource(S#state.jid, Nick),
                          Info#user.jid,
                          Available,
                          ?LOCATION)).
@@ -2622,6 +2633,7 @@ send_history(JID, Shift, StateData) ->
       fun({Nick, Packet, HaveSubject, _TimeStamp, _Size}, B) ->
           mongoose_router:route(
               mongoose_acc:new(
+                  StateData#state.host_type,
                   jid:replace_resource(StateData#state.jid, Nick),
                   JID,
                   Packet, ?LOCATION)),
@@ -2635,7 +2647,8 @@ send_subject(JID, _Lang, StateData = #state{subject = <<>>, subject_author = <<>
                     attrs = #{<<"type">> => <<"groupchat">>},
                     children = [#xmlel{name = <<"subject">>},
                                 #xmlel{name = <<"body">>}]},
-    mongoose_router:route(mongoose_acc:new(StateData#state.jid, JID, Packet, ?LOCATION));
+    mongoose_router:route(mongoose_acc:new(StateData#state.host_type,
+                                           StateData#state.jid, JID, Packet, ?LOCATION));
 send_subject(JID, _Lang, StateData) ->
     Subject = StateData#state.subject,
     TimeStamp = StateData#state.subject_timestamp,
@@ -2648,7 +2661,8 @@ send_subject(JID, _Lang, StateData) ->
                                        attrs = #{<<"xmlns">> => ?NS_DELAY,
                                                  <<"from">> => jid:to_binary(RoomJID),
                                                  <<"stamp">> => TimeStamp}}]},
-    mongoose_router:route(mongoose_acc:new(RoomJID, JID, Packet, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(StateData#state.host_type,
+                                           RoomJID, JID, Packet, ?LOCATION)).
 
 
 -spec check_subject(exml:element()) -> undefined | binary().
@@ -3158,6 +3172,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
                                                                 attrs = #{<<"code">> => Code}}]}]},
         mongoose_router:route(
             mongoose_acc:new(
+                StateData#state.host_type,
                 jid:replace_resource(StateData#state.jid, Nick),
                 Info#user.jid,
                 Packet,
@@ -3752,7 +3767,8 @@ remove_each_occupant_from_room(DestroyEl, StateData) ->
 send_to_occupants(Packet, StateData=#state{jid=RoomJID}) ->
     F = fun(User=#user{jid=UserJID}) ->
         mongoose_router:route(
-            mongoose_acc:new(occupant_jid(User, RoomJID), UserJID, Packet, ?LOCATION))
+            mongoose_acc:new(StateData#state.host_type,
+                             occupant_jid(User, RoomJID), UserJID, Packet, ?LOCATION))
         end,
     foreach_user(F, StateData).
 
@@ -3760,7 +3776,8 @@ send_to_occupants(Packet, StateData=#state{jid=RoomJID}) ->
 send_to_all_users(Packet, StateData=#state{jid=RoomJID}) ->
     F = fun(#user{jid = UserJID}) ->
           mongoose_router:route(
-              mongoose_acc:new(RoomJID, UserJID, Packet, ?LOCATION))
+                            mongoose_acc:new(StateData#state.host_type,
+                                             RoomJID, UserJID, Packet, ?LOCATION))
       end,
     foreach_user(F, StateData).
 
@@ -3981,7 +3998,8 @@ unsafe_check_invitation(FromJID, Els, Lang,
                       mongoose_hooks:invitation_sent(Host, ServerHost, RoomJID,
                                                      FromJID, JID, Reason),
                       mongoose_router:route(
-                          mongoose_acc:new(StateData#state.jid, JID, Msg, ?LOCATION))
+                                                    mongoose_acc:new(StateData#state.host_type,
+                                                                     StateData#state.jid, JID, Msg, ?LOCATION))
               end, InviteEls),
             {ok, JIDs}
     end.
@@ -4141,6 +4159,7 @@ check_decline_invitation(Packet) ->
 -spec send_decline_invitation({exml:element(), exml:element(), exml:element(), jid:jid()},
         jid:jid(), jid:simple_jid() | jid:jid()) -> mongoose_acc:t().
 send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(RoomJID#jid.lserver),
     FromString = jid:to_binary(FromJID),
     #xmlel{name = <<"decline">>, attrs = DAttrs, children = DEls} = DEl,
     DAttrs2 = maps:remove(<<"to">>, DAttrs),
@@ -4148,17 +4167,18 @@ send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
     DEl2 = #xmlel{name = <<"decline">>, attrs = DAttrs3, children = DEls},
     XEl2 = jlib:replace_subelement(XEl, DEl2),
     Packet2 = jlib:replace_subelement(Packet, XEl2),
-    mongoose_router:route(mongoose_acc:new(RoomJID, ToJID, Packet2, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, RoomJID, ToJID, Packet2, ?LOCATION)).
 
 -spec send_error_only_occupants(binary(), exml:element(),
                                 binary() | nonempty_string(),
                                 jid:jid(), jid:jid()) -> mongoose_acc:t().
 send_error_only_occupants(What, Packet, Lang, RoomJID, From)
   when is_binary(What) ->
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(RoomJID#jid.lserver),
     ErrText = <<"Only occupants are allowed to send ",
                 What/bytes, " to the conference">>,
     Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
-    mongoose_router:route(mongoose_acc:new(RoomJID, From, Err, ?LOCATION)).
+    mongoose_router:route(mongoose_acc:new(HostType, RoomJID, From, Err, ?LOCATION)).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4240,7 +4260,8 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
         {true, _, _} ->
             ErrText = <<"Traffic rate limit is exceeded">>,
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
-            mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
+            mongoose_router:route(mongoose_acc:new(StateData#state.host_type,
+                                                   StateData#state.jid, From, Err, ?LOCATION)),
             StateData;
         {false, true, 0} ->
             {RoomShaper, RoomShaperInterval} = mongoose_shaper:update(StateData#state.room_shaper, Size),
@@ -4290,7 +4311,8 @@ route_message(#routed_message{allowed = true, type = <<"chat">>, from = From, pa
     ErrText = <<"It is not allowed to send private messages to the conference">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
-    mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(StateData#state.host_type,
+                                           StateData#state.jid, From, Err, ?LOCATION)),
     StateData;
 route_message(#routed_message{allowed = true, type = Type, from = From,
                               packet = #xmlel{name = <<"message">>,
@@ -4310,7 +4332,7 @@ route_message(#routed_message{allowed = true, from = From, packet = Packet,
     ErrText = <<"Improper message type">>,
     Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     mongoose_router:route(
-        mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
+        mongoose_acc:new(StateData#state.host_type, StateData#state.jid, From, Err, ?LOCATION)),
     StateData;
 route_message(#routed_message{type = <<"error">>}, StateData) ->
     StateData;
@@ -4334,8 +4356,9 @@ schedule_queue_processing_when_empty(_RoomQueueEmpty, _RoomShaper,
 route_error(Nick, From, Error, StateData) ->
     %% TODO: s/Nick/<<>>/
     mongoose_router:route(
-        mongoose_acc:new(jid:replace_resource(StateData#state.jid, Nick),
-                          From, Error, ?LOCATION)),
+        mongoose_acc:new(StateData#state.host_type,
+                         jid:replace_resource(StateData#state.jid, Nick),
+                         From, Error, ?LOCATION)),
     StateData.
 
 
@@ -4344,18 +4367,19 @@ route_error(Nick, From, Error, StateData) ->
         ejabberd:lang(), state()) -> state().
 route_voice_approval({error, ErrType}, From, Packet, _Lang, StateData) ->
     mongoose_router:route(
-        mongoose_acc:new(StateData#state.jid, From,
-                          jlib:make_error_reply(Packet, ErrType), ?LOCATION)),
+        mongoose_acc:new(StateData#state.host_type, StateData#state.jid, From,
+                         jlib:make_error_reply(Packet, ErrType), ?LOCATION)),
     StateData;
 route_voice_approval({form, RoleName}, From, _Packet, _Lang, StateData) ->
     {Nick, _} = get_participant_data(From, StateData),
     ApprovalForm = make_voice_approval_form(From, Nick, RoleName),
     F = fun({_, Info}) ->
                 mongoose_router:route(
-                    mongoose_acc:new(StateData#state.jid,
-                                        Info#user.jid,
-                                        ApprovalForm,
-                                        ?LOCATION))
+                    mongoose_acc:new(StateData#state.host_type,
+                                     StateData#state.jid,
+                                     Info#user.jid,
+                                     ApprovalForm,
+                                     ?LOCATION))
         end,
     lists:foreach(F, search_role(moderator, StateData)),
     StateData;
@@ -4367,18 +4391,20 @@ route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
         {result, _Res, SD1} -> SD1;
         {error, Error} ->
             mongoose_router:route(
-                mongoose_acc:new(StateData#state.jid,
-                                    From,
-                                    jlib:make_error_reply(Packet, Error),
-                                    ?LOCATION)),
+                mongoose_acc:new(StateData#state.host_type,
+                                 StateData#state.jid,
+                                 From,
+                                 jlib:make_error_reply(Packet, Error),
+                                 ?LOCATION)),
             StateData
     end;
 route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
     mongoose_router:route(
-        mongoose_acc:new(StateData#state.jid,
-                            From,
-                            jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
-                            ?LOCATION)),
+        mongoose_acc:new(StateData#state.host_type,
+                         StateData#state.jid,
+                         From,
+                         jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
+                         ?LOCATION)),
     StateData.
 
 
@@ -4391,7 +4417,8 @@ route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
       Lang :: ejabberd:lang().
 route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     Err = jlib:make_error_reply(Packet, Error),
-    mongoose_router:route(mongoose_acc:new(StateData#state.jid, From, Err, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(StateData#state.host_type,
+                                           StateData#state.jid, From, Err, ?LOCATION)),
     StateData;
 route_invitation({ok, IJIDs}, _From, _Packet, _Lang,
                  #state{ config = #config{ members_only = true } } = StateData0) ->
@@ -4519,6 +4546,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
         StateData#state.users),
     mongoose_router:route(
         mongoose_acc:new(
+            StateData#state.host_type,
             jid:replace_resource(StateData#state.jid, FromNick),
             ToJID,
             Packet1,
@@ -4559,6 +4587,7 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, NewId, FromFul
     {ToJID2, Packet2} = handle_iq_vcard(FromFull, ToJID, StanzaId, NewId, Packet),
     mongoose_router:route(
         mongoose_acc:new(
+            StateData#state.host_type,
             jid:replace_resource(StateData#state.jid, FromNick),
             ToJID2, Packet2, ?LOCATION));
 route_nick_iq(#routed_nick_iq{online = {false, _, _}, iq = reply}, _StateData) ->

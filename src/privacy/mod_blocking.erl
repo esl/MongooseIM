@@ -100,15 +100,17 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
                 unblock -> blocking_stanza(JIDs, <<"unblock">>)
             end,
     PrivPushIQ = blocking_iq(SubEl),
+    HostType = mongoose_c2s:get_host_type(StateData),
     T = mongoose_c2s:get_jid(StateData),
     F = jid:to_bare(T),
     PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
-    mongoose_router:route(mongoose_acc:new(F, T, PrivPushEl, ?LOCATION)),
+    mongoose_router:route(mongoose_acc:new(HostType, F, T, PrivPushEl, ?LOCATION)),
     ok.
 
 -spec blocking_presence_to_contacts(blocking_type(), [binary()], mongoose_c2s:data()) -> ok.
 blocking_presence_to_contacts(_Action, [], _StateData) -> ok;
 blocking_presence_to_contacts(Action, [Jid | JIDs], StateData) ->
+    HostType = mongoose_c2s:get_host_type(StateData),
     Presences = mod_presence:maybe_get_handler(StateData),
     Pres = case Action of
                block ->
@@ -120,7 +122,7 @@ blocking_presence_to_contacts(Action, [Jid | JIDs], StateData) ->
     case mod_presence:is_subscribed_to_my_presence(T, jid:to_bare(T), Presences) of
         true ->
             F = jid:to_bare(mongoose_c2s:get_jid(StateData)),
-            mongoose_router:route(mongoose_acc:new(F, T, Pres, ?LOCATION));
+            mongoose_router:route(mongoose_acc:new(HostType, F, T, Pres, ?LOCATION));
         false ->
             ok
     end,

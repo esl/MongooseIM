@@ -836,7 +836,7 @@ can_access_room(HostType, Acc, Room, User) ->
       NewAcc :: mongoose_acc:t().
 acc_room_affiliations(Acc, Room) ->
     Params = #{room => Room},
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(acc_room_affiliations, HostType, Acc, Params).
 
 -spec room_exists(HostType, Room) -> Result when
@@ -855,7 +855,7 @@ room_exists(HostType, Room) ->
       NewAcc :: mongoose_acc:t().
 room_new_affiliations(Acc, Room, NewAffs, Version) ->
     Params = #{room => Room, new_affs => NewAffs, version => Version},
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(room_new_affiliations, HostType, Acc, Params).
 
 %% MAM related hooks

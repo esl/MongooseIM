@@ -322,6 +322,7 @@ route_incoming_stanza(Data, El, RemoteJid, LocalJid) ->
     FromTo = {LLocalServer, LRemoteServer},
     Acc = mongoose_acc:new(#{location => ?LOCATION,
                              lserver => LLocalServer,
+                             host_type => Data#s2s_data.host_type,
                              element => El,
                              from_jid => RemoteJid,
                              to_jid => LocalJid,
