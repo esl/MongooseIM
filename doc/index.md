@@ -1,10 +1,10 @@
 # MongooseIM Documentation
 
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.6.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.6)
-[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.6/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.6)
-[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.6)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.6)
-[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.6)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.6)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.7.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.7)
+[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.7/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.7)
+[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.7)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.7)
+[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.7)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.7)
 
 * Home: [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
@@ -57,8 +57,8 @@ We offer a set of additional server-side components:
 
 For a quick start just download:
 
-* The [pre-built packages](https://github.com/esl/MongooseIM/releases/latest) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
-* The [Docker image](https://hub.docker.com/r/erlangsolutions/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
+* The [pre-built packages](https://trymongoose.im/downloads#packages) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
+* The [Docker image](https://trymongoose.im/downloads#docker)
 * The [Helm chart](https://trymongoose.im/downloads#helm)
 
 See the [installation guide](getting-started/Installation.md) for more details.
@@ -79,6 +79,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [6.7.0](https://esl.github.io/MongooseDocs/6.7.0/)
 * [6.6.0](https://esl.github.io/MongooseDocs/6.6.0/)
 * [6.5.0](https://esl.github.io/MongooseDocs/6.5.0/)
 * [6.4.0](https://esl.github.io/MongooseDocs/6.4.0/)

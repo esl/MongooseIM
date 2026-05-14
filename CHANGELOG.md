@@ -1,3 +1,48 @@
+# [MongooseIM 6.7.0](https://github.com/esl/MongooseIM/releases/tag/6.7.0) - 2026-05-13
+
+## Highlights
+- Lightweight and performance-focused implementation of entity capabilities, supporting XEP-0115 and XEP-0390.
+- Migrated project artifacts to [trymongoose.im](https://trymongoose.im/downloads)
+- MongooseICE was removed from the documentation and replaced with a guide on integrating MIM with Coturn
+- Cleaned up legacy modules
+- Various enhancements and bug fixes
+
+## Added
+- Added dynamic domains support in `mod_push_service_mongoosepush` (#4686)
+- Introduced the `wpool_queue_lengths` metric (#4657, #4709)
+- Introduced cross-node error aggregation in tests for better observability (#4680, #4693, #4698, #4701)
+
+## Changed
+- Reimplemented `mod_caps`, supporting XEP-0115 and XEP-0390, and aligning hashing with XEP-0300 and XEP-0414 (#4681)
+- Migrated artifacts to [trymongoose.im](https://trymongoose.im/downloads) (#4697, #4702, #4706, #4710, #4712)
+- Improved script portability (#4703)
+- Changed the `externalId` GQL field type to ID in `mod_external_filter` (#4684)
+
+## Fixed
+
+- Fixed an issue with removing users from MUC rooms (#4688)
+
+## Removed
+- Replaced legacy routing module with `mongoose_router` (#4695)
+- Removed `mod_jingle_sip` (#4705)
+- Deprecated `mod_muc_log` (#4707)
+- Removed MongooseICE from documentation and replaced it with a tutorial on how to integrate MIM with Coturn (#4677, #4694)
+
+## Other
+- Updated big test presets (#4682, #4692)
+- Reduced log noise in `mongoose_s2s_in` (#4689)
+- Coverage is now collected separately on each node (#4690)
+- Updated OTP and dependencies (#4700, #4704)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.7.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-03-18..2026-05-13)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-03-18&to=2026-05-13&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.7.0+sort%3Aupdated-desc)
+
 # [MongooseIM 6.6.0](https://github.com/esl/MongooseIM/releases/tag/6.6.0) - 2026-03-18
 
 ## Highlights
