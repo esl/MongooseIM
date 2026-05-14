@@ -41,7 +41,8 @@
          pop_offline_messages/3,
          remove_user/3,
          remove_domain/3,
-         disco_features/3,
+         disco_local_features/3,
+         disco_sm_features/3,
          determine_amp_strategy/3,
          amp_failed_event/3,
          get_personal_data/3]).
@@ -139,8 +140,8 @@ hooks(HostType) ->
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
         {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-        {disco_sm_features, HostType, fun ?MODULE:disco_features/3, #{}, 50},
-        {disco_local_features, HostType, fun ?MODULE:disco_features/3, #{}, 50},
+        {disco_sm_features, HostType, fun ?MODULE:disco_sm_features/3, #{}, 50},
+        {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 50},
         {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 30},
         {failed_to_store_message, HostType, fun ?MODULE:amp_failed_event/3, #{}, 30},
         {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
@@ -472,16 +473,30 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_offline_backend:remove_domain(HostType, Domain),
     {ok, Acc}.
 
--spec disco_features(Acc, Params, Extra) -> {ok, Acc} when
+-spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_features(Acc = #{node := <<>>}, _Params, _Extra) ->
+disco_local_features(Acc, _Params, _Extra) ->
+    add_offline_disco_features(Acc).
+
+-spec disco_sm_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc(),
+    Params :: mongoose_disco:sm_params(),
+    Extra :: gen_hook:extra().
+disco_sm_features(Acc, #{presence_subscribed := true}, _Extra) ->
+    add_offline_disco_features(Acc);
+disco_sm_features(Acc, _Params, _Extra) ->
+    {ok, Acc}.
+
+-spec add_offline_disco_features(Acc) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc().
+add_offline_disco_features(Acc = #{node := <<>>}) ->
     {ok, mongoose_disco:add_features([?NS_FEATURE_MSGOFFLINE], Acc)};
-disco_features(Acc = #{node := ?NS_FEATURE_MSGOFFLINE}, _Params, _Extra) ->
+add_offline_disco_features(Acc = #{node := ?NS_FEATURE_MSGOFFLINE}) ->
     %% override all lesser features...
     {ok, Acc#{result := []}};
-disco_features(Acc, _Params, _Extra) ->
+add_offline_disco_features(Acc) ->
     {ok, Acc}.
 
 -spec determine_amp_strategy(Acc, Params, Extra) -> {ok, Acc} when

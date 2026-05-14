@@ -663,11 +663,13 @@ disco_local_features(Acc, _, _) ->
 
 -spec disco_sm_identity(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:identity_acc(),
-    Params :: map(),
+    Params :: mongoose_disco:sm_params(),
     Extra :: gen_hook:extra().
-disco_sm_identity(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+disco_sm_identity(Acc = #{from_jid := From, to_jid := To}, #{presence_subscribed := true}, _) ->
     Identities = disco_identity(jid:to_lower(jid:to_bare(To)), From),
-    {ok, mongoose_disco:add_identities(Identities, Acc)}.
+    {ok, mongoose_disco:add_identities(Identities, Acc)};
+disco_sm_identity(Acc, _, _) ->
+    {ok, Acc}.
 
 disco_identity(error, _From) ->
     [];
@@ -679,11 +681,13 @@ pep_identity() ->
 
 -spec disco_sm_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
-    Params :: map(),
+    Params :: mongoose_disco:sm_params(),
     Extra :: gen_hook:extra().
-disco_sm_features(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+disco_sm_features(Acc = #{from_jid := From, to_jid := To}, #{presence_subscribed := true}, _) ->
     Features = disco_features(jid:to_lower(jid:to_bare(To)), From),
-    {ok, mongoose_disco:add_features(Features, Acc)}.
+    {ok, mongoose_disco:add_features(Features, Acc)};
+disco_sm_features(Acc, _, _) ->
+    {ok, Acc}.
 
 -spec disco_features(error | jid:simple_jid(), jid:jid()) -> [mongoose_disco:feature()].
 disco_features(error, _From) ->
@@ -693,11 +697,13 @@ disco_features(_Host, _From) ->
 
 -spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:item_acc(),
-    Params :: map(),
+    Params :: mongoose_disco:sm_params(),
     Extra :: gen_hook:extra().
-disco_sm_items(Acc = #{from_jid := From, to_jid := To}, _, _) ->
+disco_sm_items(Acc = #{from_jid := From, to_jid := To}, #{presence_subscribed := true}, _) ->
     Items = disco_items(jid:to_lower(jid:to_bare(To)), From),
-    {ok, mongoose_disco:add_items(Items, Acc)}.
+    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_sm_items(Acc, _, _) ->
+    {ok, Acc}.
 
 -spec disco_items(mod_pubsub_old:host(), jid:jid()) -> [mongoose_disco:item()].
 disco_items(Host, From) ->

@@ -6,11 +6,11 @@
 
 %% Hooks wrappers
 -export([get_local_identity/5,
-         get_sm_identity/5,
+         get_sm_identity/6,
          get_local_items/5,
-         get_sm_items/5,
+         get_sm_items/6,
          get_local_features/5,
-         get_sm_features/5,
+         get_sm_features/6,
          get_muc_features/6,
          get_info/4]).
 
@@ -34,7 +34,7 @@
 -type feature() :: binary().
 
 -type item_acc() :: acc(item()).
--type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
+-type item() :: #{jid := jid:literal_jid(), name => binary(), node => binary()}.
 
 -type identity_acc() :: acc(identity()).
 -type identity() :: #{category := binary(), type := binary(), name => binary()}.
@@ -46,6 +46,7 @@
                       result := empty | [info()]}.
 -type info() :: #{xmlns := binary(), fields := [info_field()]}.
 -type info_field() :: #{var := binary(), values := [binary()], label => binary()}.
+-type sm_params() :: #{presence_subscribed := boolean()}.
 
 -type acc(Elem) :: #{host_type := mongooseim:host_type(),
                      from_jid := jid:jid(),
@@ -54,7 +55,7 @@
                      lang := ejabberd:lang(),
                      result := empty | [Elem]}.
 
--export_type([item_acc/0, feature_acc/0, identity_acc/0,
+-export_type([item_acc/0, feature_acc/0, identity_acc/0, sm_params/0,
               item/0, feature/0, identity/0,
               info_field/0, info/0, info_acc/0]).
 
@@ -68,11 +69,11 @@ get_local_identity(HostType, From, To, Node, Lang) ->
     Identities = extract_result(FinalAcc),
     identities_to_xml(Identities).
 
--spec get_sm_identity(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          [exml:element()].
-get_sm_identity(HostType, From, To, Node, Lang) ->
+-spec get_sm_identity(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                      boolean()) -> [exml:element()].
+get_sm_identity(HostType, From, To, Node, Lang, PresenceSubscribed) ->
     InitialAcc = new_acc(HostType, From, To, Node, Lang),
-    IdentityAcc = mongoose_hooks:disco_sm_identity(InitialAcc),
+    IdentityAcc = mongoose_hooks:disco_sm_identity(InitialAcc, sm_params(PresenceSubscribed)),
     Identities = extract_result(IdentityAcc),
     identities_to_xml(Identities).
 
@@ -85,11 +86,11 @@ get_local_items(HostType, From, To, Node, Lang) ->
         #{result := Items} -> {result, items_to_xml(Items)}
     end.
 
--spec get_sm_items(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          {result, [exml:element()]} | empty.
-get_sm_items(HostType, From, To, Node, Lang) ->
+-spec get_sm_items(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                   boolean()) -> {result, [exml:element()]} | empty.
+get_sm_items(HostType, From, To, Node, Lang, PresenceSubscribed) ->
     Acc = new_acc(HostType, From, To, Node, Lang),
-    case mongoose_hooks:disco_sm_items(Acc) of
+    case mongoose_hooks:disco_sm_items(Acc, sm_params(PresenceSubscribed)) of
         #{result := empty} -> empty;
         #{result := Items} -> {result, items_to_xml(Items)}
     end.
@@ -103,11 +104,11 @@ get_local_features(HostType, From, To, Node, Lang) ->
         #{result := Features} -> {result, features_to_xml(Features)}
     end.
 
--spec get_sm_features(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          {result, [exml:element()]} | empty.
-get_sm_features(HostType, From, To, Node, Lang) ->
+-spec get_sm_features(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                      boolean()) -> {result, [exml:element()]} | empty.
+get_sm_features(HostType, From, To, Node, Lang, PresenceSubscribed) ->
     Acc = new_acc(HostType, From, To, Node, Lang),
-    case mongoose_hooks:disco_sm_features(Acc) of
+    case mongoose_hooks:disco_sm_features(Acc, sm_params(PresenceSubscribed)) of
         #{result := empty} -> empty;
         #{result := Features} -> {result, features_to_xml(Features)}
     end.
@@ -199,6 +200,10 @@ add(Elements, Acc = #{result := InitialElements}) ->
                     (info_acc()) -> [info()].
 extract_result(#{result := empty}) -> [];
 extract_result(#{result := Elements}) -> Elements.
+
+-spec sm_params(boolean()) -> sm_params().
+sm_params(PresenceSubscribed) ->
+    #{presence_subscribed => PresenceSubscribed}.
 
 %% Conversion to XML
 

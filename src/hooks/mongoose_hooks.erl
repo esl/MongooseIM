@@ -114,11 +114,11 @@
          s2s_send_packet/4]).
 
 -export([disco_local_identity/1,
-         disco_sm_identity/1,
+         disco_sm_identity/2,
          disco_local_items/1,
-         disco_sm_items/1,
+         disco_sm_items/2,
          disco_local_features/1,
-         disco_sm_features/1,
+         disco_sm_features/2,
          disco_muc_features/1,
          disco_info/1]).
 
@@ -1177,9 +1177,10 @@ disco_local_identity(Acc = #{host_type := HostType}) ->
 
 %%% @doc `disco_sm_identity' hook is called to get the identity of the
 %%% client when a discovery IQ gets to session management.
--spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_sm_identity(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_identity, HostType, Acc, #{}).
+-spec disco_sm_identity(mongoose_disco:identity_acc(), mongoose_disco:sm_params()) ->
+    mongoose_disco:identity_acc().
+disco_sm_identity(Acc = #{host_type := HostType}, Params) ->
+    run_hook_for_host_type(disco_sm_identity, HostType, Acc, Params).
 
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
 -spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
@@ -1188,9 +1189,10 @@ disco_local_items(Acc = #{host_type := HostType}) ->
 
 %%% @doc `disco_sm_items' hook is called to get the items associated
 %%% with the client when a discovery IQ gets to session management.
--spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_sm_items(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_items, HostType, Acc, #{}).
+-spec disco_sm_items(mongoose_disco:item_acc(), mongoose_disco:sm_params()) ->
+    mongoose_disco:item_acc().
+disco_sm_items(Acc = #{host_type := HostType}, Params) ->
+    run_hook_for_host_type(disco_sm_items, HostType, Acc, Params).
 
 %%% @doc `disco_local_features' hook is called to extract features
 %%% offered by the server.
@@ -1200,9 +1202,10 @@ disco_local_features(Acc = #{host_type := HostType}) ->
 
 %%% @doc `disco_sm_features' hook is called to get the features of the client
 %%% when a discovery IQ gets to session management.
--spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_sm_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_features, HostType, Acc, #{}).
+-spec disco_sm_features(mongoose_disco:feature_acc(), mongoose_disco:sm_params()) ->
+    mongoose_disco:feature_acc().
+disco_sm_features(Acc = #{host_type := HostType}, Params) ->
+    run_hook_for_host_type(disco_sm_features, HostType, Acc, Params).
 
 %%% @doc `disco_muc_features' hook is called to get the features
 %%% supported by the MUC (Light) service.
