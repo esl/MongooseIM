@@ -20,6 +20,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 
 -import(distributed_helper, [mim/0]).
 
@@ -30,6 +31,7 @@
 all() ->
     [
      {group, xep0114},
+     {group, check_from_disabled},
      {group, subdomain},
      {group, hidden_components},
      {group, distributed}
@@ -37,7 +39,13 @@ all() ->
 
 groups() ->
     [{xep0114, [parallel], xep0114_tests()},
-     {subdomain, [], [register_subdomain]},
+     {check_from_disabled, [], [
+                                %% Duplicated here to cover extra code paths
+                                intercomponent_communication,
+                                deliver_stanza_with_custom_from_domain]},
+     {subdomain, [], [register_subdomain,
+                      deliver_stanza_from_subdomain_component,
+                      from_jid_is_validated_for_subdomain_component]},
      {hidden_components, [], [disco_with_hidden_component]},
      {distributed, [], [register_in_cluster,
                         register_same_on_both
@@ -57,7 +65,11 @@ xep0114_tests() ->
      try_registering_component_twice,
      try_registering_existing_host,
      disco_components,
-     kick_old_component_on_conflict
+     kick_old_component_on_conflict,
+     component_sends_unexpected_stanza_name,
+     component_sends_stanza_with_invalid_to_jid,
+     component_sends_stanza_with_invalid_from_jid,
+     iq_and_presence_are_routed_from_component
      ].
 
 %%--------------------------------------------------------------------
@@ -74,8 +86,12 @@ end_per_suite(Config) ->
 init_per_group(xep0114, Config) ->
     instrument_helper:start(events()),
     Config;
+init_per_group(check_from_disabled, Config) ->
+    setup_mim_config(Config, "false"),
+    instrument_helper:start(events()),
+    Config;
 init_per_group(subdomain, Config) ->
-    add_domain(Config),
+    setup_mim_config(Config, "true"),
     Config;
 init_per_group(distributed, Config) ->
     distributed_helper:add_node_to_cluster(Config);
@@ -84,6 +100,9 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(xep0114, _Config) ->
     instrument_helper:stop();
+end_per_group(check_from_disabled, Config) ->
+    instrument_helper:stop(),
+    restore_domain(Config);
 end_per_group(subdomain, Config) ->
     restore_domain(Config);
 end_per_group(distributed, Config) ->
@@ -157,7 +176,7 @@ register_one_component_tls(Config) ->
 
     component_helper:disconnect_component(Component, ComponentAddr).
 
-dirty_disconnect(Config) ->
+dirty_disconnect(_Config) ->
     %% Given one connected component, kill the connection and reconnect
     CompSpec = component_helper:spec(component1),
     {Component, Addr, _} = component_helper:connect_component(CompSpec),
@@ -165,7 +184,7 @@ dirty_disconnect(Config) ->
     {Component1, Addr, _} = component_helper:connect_component(CompSpec),
     component_helper:disconnect_component(Component1, Addr).
 
-intercomponent_communication(Config) ->
+intercomponent_communication(_Config) ->
     %% Given two connected components
     CompSpec1 = component_helper:spec(component1),
     CompSpec2 = component_helper:spec(component2),
@@ -183,10 +202,15 @@ intercomponent_communication(Config) ->
     FullCheckF = fun(#{byte_size := S, lserver := LServer}) ->
                          S > 0 andalso LServer =:= CompAddr1 orelse LServer =:= CompAddr2
                  end,
+    CheckBytes = fun(#{byte_size := S}) -> S > 0 end,
     instrument_helper:assert(xmpp_element_out, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
     instrument_helper:assert(xmpp_element_in, ht_labels(), FullCheckF,
         #{expected_count => 1, min_timestamp => TS}),
+    instrument_helper:assert(tcp_data_in, labels(), CheckBytes,
+        #{min_timestamp => TS}),
+    instrument_helper:assert(tcp_data_out, labels(), CheckBytes,
+        #{min_timestamp => TS}),
 
     component_helper:disconnect_component(Comp1, CompAddr1),
     component_helper:disconnect_component(Comp2, CompAddr2).
@@ -246,7 +270,7 @@ register_two_components(Config) ->
     component_helper:disconnect_component(Comp1, CompAddr1),
     component_helper:disconnect_component(Comp2, CompAddr2).
 
-try_registering_with_wrong_password(Config) ->
+try_registering_with_wrong_password(_Config) ->
     %% Given a component with a wrong password
     TS = instrument_helper:timestamp(),
     CompSpec1 = component_helper:spec(component1),
@@ -263,7 +287,7 @@ try_registering_with_wrong_password(Config) ->
         ok
     end.
 
-try_registering_component_twice(Config) ->
+try_registering_component_twice(_Config) ->
     %% Given two components with the same name
     CompSpec1 = component_helper:spec(component1),
     {Comp1, Addr, _} = component_helper:connect_component(CompSpec1),
@@ -280,7 +304,7 @@ try_registering_component_twice(Config) ->
 
     component_helper:disconnect_component(Comp1, Addr).
 
-try_registering_existing_host(Config) ->
+try_registering_existing_host(_Config) ->
     %% Given a external vjud component
     Component = component_helper:spec(vjud_component),
 
@@ -361,6 +385,68 @@ disco_with_hidden_component(Config) ->
     component_helper:disconnect_component(Comp1, Addr1),
     component_helper:disconnect_component(HComp, HAddr).
 
+component_sends_unexpected_stanza_name(Config) ->
+    CompSpec = component_helper:spec(component1),
+    {Comp, CompAddr, _} = component_helper:connect_component(CompSpec),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        BadStanza = #xmlel{name = <<"foo">>,
+                           attrs = #{<<"from">> => CompAddr,
+                                     <<"to">> => escalus_client:full_jid(Alice)}},
+        escalus:send(Comp, BadStanza),
+        Err = escalus:wait_for_stanza(Comp),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err),
+        Msg = escalus_stanza:chat_to(Alice, <<"still alive">>),
+        escalus:send(Comp, escalus_stanza:from(Msg, CompAddr)),
+        Reply = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_chat_message, [<<"still alive">>], Reply)
+    end),
+    component_helper:disconnect_component(Comp, CompAddr).
+
+component_sends_stanza_with_invalid_to_jid(_Config) ->
+    CompSpec = component_helper:spec(component1),
+    {Comp, CompAddr, _} = component_helper:connect_component(CompSpec),
+    BadStanza = escalus_stanza:from(
+                  escalus_stanza:chat_to(<<"@@@">>, <<"Hi">>),
+                  CompAddr),
+    escalus:send(Comp, BadStanza),
+    Err = escalus:wait_for_stanza(Comp),
+    escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err),
+    component_helper:disconnect_component(Comp, CompAddr).
+
+component_sends_stanza_with_invalid_from_jid(_Config) ->
+    CompSpec = component_helper:spec(component1),
+    {Comp, CompAddr, _} = component_helper:connect_component(CompSpec),
+    BadStanza = escalus_stanza:from(
+                  escalus_stanza:chat_to(<<"alice@localhost">>, <<"Hi">>),
+                  <<"@@@">>),
+    escalus:send(Comp, BadStanza),
+    Err = escalus:wait_for_stanza(Comp),
+    escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err),
+    component_helper:disconnect_component(Comp, CompAddr).
+
+iq_and_presence_are_routed_from_component(Config) ->
+    CompSpec = component_helper:spec(component1),
+    {Comp, CompAddr, _} = component_helper:connect_component(CompSpec),
+    try
+        escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+            Presence = #xmlel{name = <<"presence">>,
+                              attrs = #{<<"from">> => CompAddr,
+                                        <<"to">> => escalus_client:full_jid(Alice)}},
+            escalus:send(Comp, Presence),
+            RoutedPresence = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_presence, [], RoutedPresence),
+            escalus:assert(is_stanza_from, [CompAddr], RoutedPresence),
+
+            Server = escalus_client:server(Alice),
+            DiscoIq = escalus_stanza:service_discovery(Server),
+            escalus:send(Comp, escalus_stanza:from(DiscoIq, CompAddr)),
+            RoutedIq = escalus:wait_for_stanza(Comp),
+            escalus:assert(is_iq_result, [DiscoIq], RoutedIq)
+        end)
+    after
+        component_helper:disconnect_component(Comp, CompAddr)
+    end.
+
 register_subdomain(Config) ->
     %% Given one connected component
     CompSpec1 = component_helper:spec(component1),
@@ -391,6 +477,58 @@ register_subdomain(Config) ->
         end),
 
     component_helper:disconnect_component(Comp, Addr).
+
+deliver_stanza_from_subdomain_component(Config) ->
+    CompSpec = component_helper:spec(component1),
+    {Comp, Addr, _Name} = component_helper:connect_component_subdomain(CompSpec),
+    try
+        escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+                Msg = escalus_stanza:chat_to(Alice, <<"Stanza from subdomain component">>),
+                escalus:send(Comp, escalus_stanza:from(Msg, Addr)),
+                GotStanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_chat_message, [<<"Stanza from subdomain component">>], GotStanza),
+                escalus:assert(is_stanza_from, [Addr], GotStanza)
+            end)
+    after
+        component_helper:disconnect_component(Comp, Addr)
+    end.
+
+deliver_stanza_with_custom_from_domain(Config) ->
+    CompSpec = component_helper:spec(component1),
+    {Comp, Addr, _Name} = component_helper:connect_component_subdomain(CompSpec),
+    CustomFrom = <<"other.localhost">>,
+    ?assertNotEqual(Addr, CustomFrom),
+    try
+        escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+                Msg = escalus_stanza:chat_to(Alice, <<"Stanza with custom from domain">>),
+                escalus:send(Comp, escalus_stanza:from(Msg, CustomFrom)),
+                GotStanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_chat_message, [<<"Stanza with custom from domain">>], GotStanza),
+                escalus:assert(is_stanza_from, [CustomFrom], GotStanza)
+            end)
+    after
+        component_helper:disconnect_component(Comp, Addr)
+    end.
+
+from_jid_is_validated_for_subdomain_component(Config) ->
+    CompSpec = component_helper:spec(component1),
+    {Comp, Addr, _} = component_helper:connect_component_subdomain(CompSpec),
+    try
+        escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+            OutsideFrom = <<"user@other.localhost">>,
+            Msg1 = escalus_stanza:chat_to(Alice, <<"rejected by subdomain check">>),
+            escalus:send(Comp, escalus_stanza:from(Msg1, OutsideFrom)),
+            Err1 = escalus:wait_for_stanza(Comp),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err1),
+
+            Msg2 = escalus_stanza:chat_to(Alice, <<"also rejected">>),
+            escalus:send(Comp, escalus_stanza:from(Msg2, <<"@@@">>)),
+            Err2 = escalus:wait_for_stanza(Comp),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err2)
+        end)
+    after
+        component_helper:disconnect_component(Comp, Addr)
+    end.
 
 
 register_in_cluster(Config) ->
@@ -571,10 +709,11 @@ verify_component(Config, Component, ComponentAddr) ->
                 escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
         end).
 
-add_domain(Config) ->
+setup_mim_config(Config, CheckFrom) ->
     Hosts = {hosts, "\"localhost\", \"sogndal\""},
+    VarsToChange = [Hosts, {component_check_from, CheckFrom}],
     ejabberd_node_utils:backup_config_file(Config),
-    ejabberd_node_utils:modify_config_file([Hosts], Config),
+    ejabberd_node_utils:modify_config_file(VarsToChange, Config),
     ejabberd_node_utils:restart_application(mongooseim),
     ok.
 
@@ -590,7 +729,12 @@ events() ->
 labels() ->
     #{connection_type => component}.
 
-%% XMPP element metric labels include host_type, but components don't have host types
+%% XMPP element metric labels include host_type, but component connection-level
+%% events (xmpp_element_in/out emitted from the socket handlers) are not tied to
+%% a single host type, so the label is the empty binary. Note: per-stanza routing
+%% always resolves a host type for the accumulator (falling back to
+%% hd(?ALL_HOST_TYPES) when no domain matches), but that value is not propagated
+%% to these connection-level instrumentation events.
 ht_labels() ->
     (labels())#{host_type => <<>>}.
 
