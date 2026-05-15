@@ -108,6 +108,7 @@ all() -> [
           {group, admin},
           {group, admin_membersonly},
           {group, occupant},
+          {group, occupant_no_parallel},
           {group, owner},
           {group, owner_no_parallel},
           {group, room_management},
@@ -171,7 +172,8 @@ groups() ->
                                   moderator_voice_approval_errors,
                                   moderator_voice_forbidden,
                                   moderator_voice_not_occupant,
-                                  moderator_voice_nonick
+                                  moderator_voice_nonick,
+                                  voice_approval_with_invalid_role
                                  ]},
          {admin, [parallel], [
                               admin_ban,
@@ -239,6 +241,10 @@ groups() ->
                                  send_and_receive_private_message_client_with_x_elem,
                                  send_and_receive_private_message_client_without_x_elem,
                                  send_private_groupchat,
+                                 route_chat_to_room,
+                                 route_error_message_to_room,
+                                 route_unknown_message_type_to_room,
+                                 iq_reply_to_nick,
                                  change_nickname,
                                  deny_nickname_change_conflict,
                                  change_availability_status,
@@ -249,6 +255,9 @@ groups() ->
                                  exit_room_with_status,
                                  kicked_after_sending_malformed_presence
                                 ]},
+         {occupant_no_parallel, [], [
+                                     groupchat_traffic_rate_limit_exceeded
+                                    ]},
          {owner, [parallel], [
                               %% fails, see testcase
                               cant_enter_locked_room,
@@ -432,6 +441,10 @@ init_per_group(register_over_s2s, Config) ->
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
+required_modules(traffic_rate_limit) ->
+    #{mod_muc := OrigOpts} = dynamic_modules:get_current_modules(host_type()),
+    Opts = OrigOpts#{min_message_interval => 5},
+    [{mod_muc, Opts}];
 required_modules(http_auth) ->
     #{mod_muc := OrigOpts} = dynamic_modules:get_current_modules(host_type()),
     #{default_room := DefRoomOpts} = OrigOpts,
@@ -551,6 +564,10 @@ init_per_testcase(CaseName = create_instant_persistent_room, Config) ->
     ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
     dynamic_modules:ensure_modules(host_type(), required_modules(persistent_by_default)),
     escalus:init_per_testcase(CaseName, ConfigWithModules);
+init_per_testcase(CaseName = groupchat_traffic_rate_limit_exceeded, Config) ->
+    ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), required_modules(traffic_rate_limit)),
+    escalus:init_per_testcase(CaseName, ConfigWithModules);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -618,6 +635,9 @@ end_per_testcase(CaseName = room_creation_not_allowed, Config) ->
     restore_config_option(Config, [{access, host_type()}, muc_create]),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = create_instant_persistent_room, Config) ->
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = groupchat_traffic_rate_limit_exceeded, Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = acl_deny, Config) ->
@@ -1141,6 +1161,41 @@ moderator_voice_nonick(ConfigIn) ->
             Error)
 
     end).
+
+voice_approval_with_invalid_role(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, moderator_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        %% Alice joins room as moderator (owner)
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room as visitor (moderated, members_by_default=false)
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence notification to Alice
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob sends a voice request form
+        escalus:send(Bob, stanza_voice_request_form(?config(room, Config))),
+        VoiceRequest = escalus:wait_for_stanza(Alice),
+        true = is_message_form(VoiceRequest),
+
+        %% Alice approves with an invalid role value ("bogus-role") and allow=true
+        Fields = [#{var => <<"muc#role">>, values => [<<"bogus-role">>], type => <<"list-single">>},
+                  #{var => <<"muc#jid">>, values => [escalus_utils:get_short_jid(Bob)], type => <<"jid-single">>},
+                  #{var => <<"muc#roomnick">>, values => [<<"bob">>], type => <<"text-single">>},
+                  #{var => <<"muc#request_allow">>, values => [<<"true">>], type => <<"boolean">>}],
+        BadApproval = stanza_message_to_room(?config(room, Config),
+                          [form_helper:form(#{fields => Fields, ns => ?NS_MUC_REQUEST})]),
+        escalus:send(Alice, BadApproval),
+
+        %% Alice receives an error reply
+        ApprovalErr = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], ApprovalErr),
+
+        %% Bob receives no role-change presence (was not promoted)
+        escalus_assert:has_no_stanzas(Bob)
+    end).
+
 %%--------------------------------------------------------------------
 %%  Admin use case tests
 %%
@@ -2780,6 +2835,125 @@ send_private_groupchat(ConfigIn) ->
 
         escalus_assert:has_no_stanzas(Bob),
         escalus_assert:has_no_stanzas(Kate)
+    end).
+
+route_chat_to_room(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob) ->
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
+
+        RoomAddress = room_address(?config(room, Config)),
+        %% Bob sends a chat message to the bare room JID (not to a nick)
+        ChatMsg = escalus_stanza:chat_to(RoomAddress, <<"hello room">>),
+        escalus:send(Bob, ChatMsg),
+
+        %% Bob receives not-acceptable error - private messages to conference not allowed
+        Err = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Err),
+        escalus:assert(is_stanza_from, [RoomAddress], Err),
+
+        %% Bob remains in the room: a subsequent groupchat round-trips normally
+        escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddress, <<"check">>)),
+        escalus:wait_for_stanza(Bob),
+        escalus:wait_for_stanza(Alice)
+    end).
+
+route_error_message_to_room(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob (occupant) sends type="error" message -> expulsion branch
+        ErrMsgBob = #xmlel{name = <<"message">>,
+                           attrs = #{<<"type">> => <<"error">>,
+                                     <<"to">> => room_address(?config(room, Config))}},
+        escalus:send(Bob, ErrMsgBob),
+
+        %% Bob receives his own unavailable presence - he was expelled
+        BobUnavailable = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], BobUnavailable),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config), <<"bob">>)], BobUnavailable),
+
+        %% Alice also sees Bob's departure
+        AliceSeesBobGone = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], AliceSeesBobGone),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config), <<"bob">>)], AliceSeesBobGone),
+
+        %% Kate (non-occupant) sends type="error" message -> silent drop
+        ErrMsgKate = #xmlel{name = <<"message">>,
+                            attrs = #{<<"type">> => <<"error">>,
+                                      <<"to">> => room_address(?config(room, Config))}},
+        escalus:send(Kate, ErrMsgKate),
+
+        %% Kate receives nothing - the stanza was silently dropped
+        escalus_assert:has_no_stanzas(Kate),
+
+        %% Room is still operational: Alice's sentinel works
+        escalus:send(Alice, escalus_stanza:groupchat_to(room_address(?config(room, Config)), <<"sentinel-2">>)),
+        escalus:wait_for_stanza(Alice)
+    end).
+
+route_unknown_message_type_to_room(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob) ->
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob sends a headline message to the room - falls through to the catch-all clause
+        HeadlineMsg = #xmlel{name = <<"message">>,
+                             attrs = #{<<"type">> => <<"headline">>,
+                                       <<"to">> => room_address(?config(room, Config))}},
+        escalus:send(Bob, HeadlineMsg),
+
+        %% Bob receives not-acceptable error with "Improper message type" text
+        Err = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Err),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Err),
+
+        %% Bob remains in the room: a subsequent groupchat round-trips normally
+        escalus:send(Bob, escalus_stanza:groupchat_to(room_address(?config(room, Config)), <<"sentinel">>)),
+        escalus:wait_for_stanza(Bob),
+        escalus:wait_for_stanza(Alice)
+    end).
+
+iq_reply_to_nick(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob) ->
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
+
+        BobNickJID = room_address(?config(room, Config), <<"bob">>),
+        AliceNickJID = room_address(?config(room, Config), <<"alice">>),
+
+        IqGet = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), BobNickJID),
+        escalus:send(Alice, IqGet),
+
+        ForwardedReq = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_iq_get, [], ForwardedReq),
+        escalus:assert(is_stanza_from, [AliceNickJID], ForwardedReq),
+
+        escalus:send(Bob, escalus_stanza:iq_result(ForwardedReq)),
+
+        ForwardedResult = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, [ForwardedReq], ForwardedResult),
+        escalus:assert(is_stanza_from, [BobNickJID], ForwardedResult),
+
+        escalus_assert:has_no_stanzas(Bob),
+        escalus_assert:has_no_stanzas(Alice)
     end).
 
 %Examples  49, 50
@@ -5027,6 +5201,34 @@ check_message_route_to_offline_room(Config) ->
         %% Check that we receive the mecked pid instead of a real one
         P = ?FAKEPID,
         ?assertReceivedMatch(P, 3000)
+    end).
+
+groupchat_traffic_rate_limit_exceeded(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob) ->
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
+
+        RoomAddress = room_address(?config(room, Config)),
+        %% First message is delivered normally (message=undefined, time elapsed)
+        escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddress, <<"first">>)),
+        escalus:wait_for_stanza(Bob),   %% Bob's own reflection
+        escalus:wait_for_stanza(Alice), %% Alice receives it
+
+        escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddress, <<"second">>)),
+
+        %% Third message while second is still queued
+        escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddress, <<"third">>)),
+
+        %% Bob receives resource-constraint error for the third message
+        RateLimitErr = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], RateLimitErr),
+
+        %% Alice does not receive the rate-limited third message
+        escalus_assert:has_no_stanzas(Alice)
     end).
 
 %%--------------------------------------------------------------------
