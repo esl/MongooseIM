@@ -145,7 +145,10 @@ groups() ->
                               disco_rooms,
                               disco_info,
                               disco_items,
-                              disco_items_nonpublic
+                              disco_items_nonpublic,
+                              service_vcard,
+                              service_unique_room_id,
+                              service_unknown_iq_error
                              ]},
          {disco_with_mam, [parallel], [
                                        disco_features_with_mam,
@@ -3250,6 +3253,42 @@ disco_items_nonpublic(ConfigIn) ->
         escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), RoomName)),
         Error = escalus:wait_for_stanza(Bob),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
+    end).
+
+service_vcard(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Res = escalus:send_iq_and_wait_for_result(Alice, muc_helper:stanza_service_get_vcard()),
+        escalus:assert(is_stanza_from, [muc_helper:muc_host()], Res),
+        [VCard] = exml_query:subelements(Res, <<"vCard">>),
+        ?NS_VCARD = exml_query:attr(VCard, <<"xmlns">>),
+        <<"ejabberd/mod_muc">> = exml_query:path(VCard, [{element, <<"FN">>}, cdata]),
+        ?assertNotEqual(undefined, exml_query:subelement(VCard, <<"URL">>)),
+        ?assertNotEqual(undefined, exml_query:subelement(VCard, <<"DESC">>))
+    end).
+
+service_unique_room_id(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Res1 = escalus:send_iq_and_wait_for_result(Alice, muc_helper:stanza_service_get_unique()),
+        escalus:assert(is_stanza_from, [muc_helper:muc_host()], Res1),
+        [Unique1] = exml_query:subelements(Res1, <<"unique">>),
+        ?NS_MUC_UNIQUE = exml_query:attr(Unique1, <<"xmlns">>),
+        Id1 = exml_query:cdata(Unique1),
+        ?assertNotEqual(<<"">>, Id1),
+        Res2 = escalus:send_iq_and_wait_for_result(Alice, muc_helper:stanza_service_get_unique()),
+        [Unique2] = exml_query:subelements(Res2, <<"unique">>),
+        Id2 = exml_query:cdata(Unique2),
+        ?assertNotEqual(Id1, Id2)
+    end).
+
+service_unknown_iq_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        UnknownIQ = escalus_stanza:setattr(
+                      escalus_stanza:iq_get(<<"urn:example:unknown">>, []),
+                      <<"to">>, muc_helper:muc_host()),
+        escalus:send(Alice, UnknownIQ),
+        Error = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"cancel">>, <<"feature-not-implemented">>], Error),
+        escalus:assert(is_stanza_from, [muc_helper:muc_host()], Error)
     end).
 
 probe_metrics_are_updated(Config) ->
