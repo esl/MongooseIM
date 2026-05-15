@@ -2,7 +2,7 @@
 
 set -e
 # master from 2026-01-13
-MIM_DOCKER_VERSION=c2987fef0e436a80962b077a261cda3f2dcb453c
+MIM_DOCKER_VERSION=dc3d4a329976a003865830a4bb499b19819b21a7
 
 # We use output of generate_vsn, because it does not contain illegal characters, returns
 # git tag when building from tag itself, and is unique in any other case
