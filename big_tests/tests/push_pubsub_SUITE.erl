@@ -7,6 +7,7 @@
 -import(distributed_helper, [subhost_pattern/1]).
 -import(domain_helper, [domain/0]).
 -import(config_parser_helper, [config/2]).
+-import(push_helper, [notification_el/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -21,7 +22,7 @@ all() ->
     ].
 
 groups() ->
-    G = [
+    [
          {disco, [], [has_disco_identity]},
          {allocate, [], [allocate_basic_node]},
          {pubsub_publish, [], [
@@ -35,8 +36,7 @@ groups() ->
                                     rest_service_gets_correct_payload_v2,
                                     rest_service_gets_correct_payload_silent_v2
                                    ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 suite() ->
     escalus:suite().
@@ -128,16 +128,13 @@ publish_fails_with_invalid_item(Config) ->
                 #xmlel{name = <<"invalid-item">>,
                        attrs = #{<<"xmlns">> => ?NS_PUSH}},
 
-            Options = [
-                {<<"device_id">>, <<"sometoken">>},
-                {<<"service">>, <<"apns">>}
-            ],
-
-            Publish = escalus_pubsub_stanza:publish_with_options(Alice, <<"itemid">>, Item,
-                                                                 <<"id">>, Node, Options),
-            escalus:send(Alice, Publish),
-            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
-                           escalus:wait_for_stanza(Alice)),
+            PublishOptions = [
+                              {<<"device_id">>, <<"sometoken">>},
+                              {<<"service">>, <<"apns">>}
+                             ],
+            Opts = [{with_payload, Item},
+                    {expected_error_type, {<<"modify">>, <<"bad-request">>}}],
+            pubsub_tools:publish_with_options(Alice, <<"itemid">>, Node, Opts, PublishOptions),
 
             ok
 
@@ -156,15 +153,9 @@ publish_fails_with_no_options(Config) ->
                 {<<"last-message-body">>, <<"message body">>}
             ],
 
-            Item =
-                #xmlel{name = <<"notification">>,
-                       attrs = #{<<"xmlns">> => ?NS_PUSH},
-                       children = push_helper:maybe_form(ContentFields, ?PUSH_FORM_TYPE)},
-
-            Publish = escalus_pubsub_stanza:publish(Alice, <<"itemid">>, Item, <<"id">>, Node),
-            escalus:send(Alice, Publish),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>],
-                           escalus:wait_for_stanza(Alice)),
+            Opts = [{with_payload, notification_el(ContentFields)},
+                    {expected_error_type, {<<"cancel">>, <<"conflict">>}}],
+            pubsub_tools:publish(Alice, <<"itemid">>, Node, Opts),
 
             ok
 
@@ -188,9 +179,8 @@ publish_succeeds_with_valid_options(Config) ->
                 {<<"service">>, <<"apns">>}
             ],
 
-            PublishIQ = publish_iq(Alice, Node, Content, Options),
-            escalus:send(Alice, PublishIQ),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            pubsub_tools:publish_with_options(Alice, <<"itemid">>, Node,
+                                              [{with_payload, notification_el(Content)}], Options),
 
             ok
 
@@ -207,8 +197,8 @@ push_node_can_be_configured_to_whitelist_publishers(Config) ->
                                                    {config, Configuration}]),
 
             ActiveConfig = pubsub_tools:get_configuration(Alice, Node, []),
-            ?assertMatch({_, _, <<"whitelist">>}, lists:keyfind(<<"pubsub#access_model">>, 1, ActiveConfig)),
-            ?assertMatch({_, _, <<"publishers">>}, lists:keyfind(<<"pubsub#publish_model">>, 1, ActiveConfig)),
+            ?assertMatch({_, <<"whitelist">>}, lists:keyfind(<<"pubsub#access_model">>, 1, ActiveConfig)),
+            ?assertMatch({_, <<"publishers">>}, lists:keyfind(<<"pubsub#publish_model">>, 1, ActiveConfig)),
 
             Content = [
                 {<<"message-count">>, <<"1">>},
@@ -221,10 +211,9 @@ push_node_can_be_configured_to_whitelist_publishers(Config) ->
                 {<<"service">>, <<"apns">>}
             ],
 
-            PublishIQ = publish_iq(Bob, Node, Content, Options),
-            escalus:send(Bob, PublishIQ),
-            escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
-                           escalus:wait_for_stanza(Bob)),
+            Opts = [{with_payload, notification_el(Content)},
+                    {expected_error_type, {<<"auth">>, <<"forbidden">>}}],
+            pubsub_tools:publish_with_options(Bob, <<"itemid">>, Node, Opts, Options),
 
 
             ok
@@ -321,9 +310,8 @@ rest_service_gets_correct_payload_silent_v2(Config) ->
 %%--------------------------------------------------------------------
 
 send_notification(User, Node, Notification, Options) ->
-    PublishIQ = publish_iq(User, Node, Notification, Options),
-    escalus:send(User, PublishIQ),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
+    pubsub_tools:publish_with_options(User, <<"itemid">>, Node,
+                                      [{with_payload, notification_el(Notification)}], Options).
 
 get_mocked_request() ->
     {Req, BodyRaw} = next_rest_req(),
@@ -352,25 +340,6 @@ setup_pubsub(User) ->
     Node = push_pubsub_node(),
     pubsub_tools:create_node(User, Node, [{type, <<"push">>}]),
     Node.
-
-%% ----------------------------------
-%% Stanzas
-%% ----------------------------------
-
-publish_iq(Client, Node, Content, Options) ->
-    Item =
-        #xmlel{name = <<"notification">>,
-               attrs = #{<<"xmlns">> => ?NS_PUSH},
-               children = push_helper:maybe_form(Content, ?PUSH_FORM_TYPE)},
-    OptionsEl =
-        #xmlel{name = <<"publish-options">>,
-               children = push_helper:maybe_form(Options, ?NS_PUBSUB_PUB_OPTIONS)},
-
-    Publish = escalus_pubsub_stanza:publish(Client, <<"itemid">>, Item, <<"id">>, Node),
-    #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
-    NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
-    Publish#xmlel{children = [NewPubsubEl]}.
-
 
 %% ----------------------------------
 %% Other helpers

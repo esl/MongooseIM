@@ -177,7 +177,7 @@ disco_sm_items_test(Config, UseNode) ->
               escalus:assert(is_stanza_from, [AliceJid], Stanza1),
 
               %% Publish an item to trigger node creation
-              pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+              pubsub_tools:publish(Alice, <<"item1">>, make_pep_node_info(Alice, NodeNS), []),
 
               %% Node present
               escalus:send(Alice, DiscoStanza),
@@ -201,26 +201,27 @@ native_bookmarks_story(Config, Bob) ->
                       {<<"pubsub#access_model">>, <<"whitelist">>}],
     Id = <<"myroom@conference.localhost">>,
     BobJid = escalus_utils:get_short_jid(Bob),
+    PepNode = make_pep_node_info(Bob, NodeNS),
     NotificationOpt = [{expected_notification, BobJid}],
 
     %% Example 6. Client adds a new bookmark (notification and IQ result could arrive in any order)
-    Options = [{with_payload, {true, bookmark_element()}} | NotificationOpt],
-    {_Resp1, Msg1} = pubsub_tools:publish_with_options(Bob, Id, {pep, NodeNS}, Options, PublishOptions),
+    Options = [{with_payload, bookmark_element()} | NotificationOpt],
+    {_Resp1, Msg1} = pubsub_tools:publish_with_options(Bob, Id, PepNode, Options, PublishOptions),
 
     %% Example 12. Client receives a new bookmark notification (stanza already received)
     pubsub_tools:check_item_notification(Msg1, Id, {BobJid, NodeNS}, []),
 
     %% Example 4. Client retrieves all bookmarks
-    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, [Id]}]),
+    pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, [Id]}]),
 
     %% Example 10. Client removes a bookmark (notification and IQ result could arrive in any order)
-    {_Resp2, Msg2} = pubsub_tools:retract_item(Bob, {pep, NodeNS}, Id, [{notify, true} | NotificationOpt]),
+    {_Resp2, Msg2} = pubsub_tools:retract_item(Bob, PepNode, Id, [{notify, true} | NotificationOpt]),
 
     %% Example 14. Client receives a bookmark retraction notification (stanza already received)
     pubsub_tools:check_retract_notification(Msg2, Id, {BobJid, NodeNS}),
 
-    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, []}]),
-    pubsub_tools:delete_node(Bob, make_pep_node_info(Bob, NodeNS), []).
+    pubsub_tools:get_all_items(Bob, PepNode, [{expected_result, []}]),
+    pubsub_tools:delete_node(Bob, PepNode, []).
 
 bookmark_element() ->
     #xmlel{name = <<"conference">>,
@@ -233,7 +234,7 @@ publish_and_notify_test(Config) ->
 publish_and_notify_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
     make_friends(Bob, Alice, 0),
-    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+    pubsub_tools:publish(Alice, <<"item1">>, make_pep_node_info(Alice, NodeNS), []),
     pubsub_tools:receive_item_notification(
       Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []).
 
@@ -245,13 +246,13 @@ auto_create_with_publish_options_test(Config) ->
       fun(Alice) ->
 
             % When publishing an item with publish-options
-            Node = {pep, random_node_ns()},
+            Node = make_pep_node_info(Alice, random_node_ns()),
             PublishOptions = [{<<"pubsub#access_model">>, <<"open">>}],
             pubsub_tools:publish_with_options(Alice, <<"item1">>, Node, [], PublishOptions),
 
             % Then node configuration contains specified publish-options
             NodeConfig = pubsub_tools:get_configuration(Alice, Node, []),
-            verify_publish_options(NodeConfig, PublishOptions)
+            ?assertEqual([], PublishOptions -- NodeConfig)
       end).
 
 publish_options_success_test(Config) ->
@@ -261,8 +262,9 @@ publish_options_success_test(Config) ->
       fun(Alice, Bob) ->
             NodeNS = random_node_ns(),
             PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode,
-                                     [{modify_request,fun add_config_to_create_node_request/1}]),
+            CreateOpts = [{config, [{<<"pubsub#roster_groups_allowed">>,
+                                     [<<"friends">>, <<"enemies">>]}]}],
+            pubsub_tools:create_node(Alice, PepNode, CreateOpts),
             escalus_story:make_all_clients_friends([Alice, Bob]),
             PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"1">>},
                               {<<"pubsub#notify_config">>, <<"0">>},
@@ -280,7 +282,7 @@ publish_options_success_test(Config) ->
                               {<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>},
                               {<<"pubsub#deliver_notifications">>, <<"1">>},
                               {<<"pubsub#presence_based_delivery">>, <<"1">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
+            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, [], PublishOptions),
             escalus:assert(is_iq_result, Result)
       end).
 
@@ -294,12 +296,11 @@ publish_options_fail_unknown_option_story(Config) ->
             pubsub_tools:create_node(Alice, PepNode, []),
 
             PublishOptions = [{<<"deliver_payloads">>, <<"1">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
+            Opts = [{expected_error_type, {~"cancel", ~"conflict"}}],
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions),
 
             PublishOptions2 = [{<<"pubsub#not_existing_option">>, <<"1">>}],
-            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions2)
       end).
 
 publish_options_fail_wrong_value_story(Config) ->
@@ -309,16 +310,16 @@ publish_options_fail_wrong_value_story(Config) ->
       fun(Alice) ->
             NodeNS = random_node_ns(),
             PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode,
-                                     [{modify_request,fun add_config_to_create_node_request/1}]),
+            CreateOpts = [{config, [{<<"pubsub#roster_groups_allowed">>,
+                                     [<<"friends">>, <<"enemies">>]}]}],
+            pubsub_tools:create_node(Alice, PepNode, CreateOpts),
 
             PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"0">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
+            Opts = [{expected_error_type, {~"cancel", ~"conflict"}}],
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions),
 
             PublishOptions2 = [{<<"pubsub#roster_groups_allowed">>, <<"friends">>}],
-            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions2)
       end).
 
 publish_options_fail_wrong_form(Config) ->
@@ -330,8 +331,8 @@ publish_options_fail_wrong_form(Config) ->
             PepNode = make_pep_node_info(Alice, NodeNS),
             pubsub_tools:create_node(Alice, PepNode, []),
             PublishOptions = [{<<"deliver_payloads">>, <<"0">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions, <<"WRONG_NS">>),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result)
+            Opts = [{expected_error_type, {~"cancel", ~"conflict"}}],
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, PepNode, Opts, PublishOptions)
       end).
 
 send_caps_after_login_test(Config) ->
@@ -340,7 +341,8 @@ send_caps_after_login_test(Config) ->
       [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               NodeNS = random_node_ns(),
-              pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
+              PepNode = make_pep_node_info(Alice, NodeNS),
+              pubsub_tools:publish(Alice, <<"item2">>, PepNode, []),
 
               escalus_story:make_all_clients_friends([Alice, Bob]),
 
@@ -365,13 +367,14 @@ delayed_receive(Config) ->
 
 delayed_receive_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
-    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
+    PepNode = make_pep_node_info(Alice, NodeNS),
+    pubsub_tools:publish(Alice, <<"item2">>, PepNode, []),
     [Message] = make_friends(Bob, Alice),
     Node = {escalus_utils:get_short_jid(Alice), NodeNS},
     pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []),
 
     %% Bob can receive further notifications
-    pubsub_tools:publish(Alice, <<"item3">>, {pep, NodeNS}, []),
+    pubsub_tools:publish(Alice, <<"item3">>, PepNode, []),
     pubsub_tools:receive_item_notification(Bob, <<"item3">>, Node, []).
 
 delayed_receive_with_sm(Config) ->
@@ -382,9 +385,10 @@ delayed_receive_with_sm(Config) ->
 
 delayed_receive_with_sm_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
+    PepNode = make_pep_node_info(Alice, NodeNS),
     enable_sm(Alice),
     enable_sm(Bob),
-    publish_with_sm(Alice, <<"item2">>, {pep, NodeNS}, []),
+    publish_with_sm(Alice, <<"item2">>, PepNode, []),
     [Message] = make_friends_sm(Bob, Alice),
     Node = {escalus_utils:get_short_jid(Alice), NodeNS},
     pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []).
@@ -397,9 +401,10 @@ h_ok_after_notify_test(ConfigIn) ->
 
 h_ok_after_notify_story(Config, Alice, Kate) ->
     NodeNS = ?config(node_ns, Config),
+    PepNode = make_pep_node_info(Alice, NodeNS),
     escalus_story:make_all_clients_friends([Alice, Kate]),
 
-    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
+    pubsub_tools:publish(Alice, <<"item2">>, PepNode, []),
     Node = {escalus_utils:get_short_jid(Alice), NodeNS},
     Check = fun(Message) ->
                     pubsub_tools:check_item_notification(Message, <<"item2">>, Node, [])
@@ -445,7 +450,7 @@ authorize_access_model(Config) ->
               pubsub_tools:submit_subscription_response(Alice, BobsRequest, PepNode, true, []),
               pubsub_tools:receive_subscription_notification(Bob, <<"subscribed">>, PepNode, []),
 
-              pubsub_tools:publish(Alice, <<"fish">>, {pep, NodeNS}, []),
+              pubsub_tools:publish(Alice, <<"fish">>, PepNode, []),
               pubsub_tools:receive_item_notification(
                 Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
 
@@ -461,8 +466,8 @@ unsubscribe_after_presence_unsubscription(Config) ->
               NodeNS = random_node_ns(),
               PepNode = make_pep_node_info(Alice, NodeNS),
               pubsub_tools:create_node(Alice, PepNode, []),
-              pubsub_tools:subscribe(Bob, PepNode, []),
-              pubsub_tools:publish(Alice, <<"fish">>, {pep, NodeNS}, []),
+              pubsub_tools:subscribe(Bob, PepNode, [{subid, true}]),
+              pubsub_tools:publish(Alice, <<"fish">>, PepNode, []),
               pubsub_tools:receive_item_notification(
                 Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
 
@@ -473,7 +478,7 @@ unsubscribe_after_presence_unsubscription(Config) ->
               _ = escalus:wait_for_stanza(Alice),
 
               %% Unsubscription from PEP nodes is implicit
-              pubsub_tools:publish(Alice, <<"salmon">>, {pep, NodeNS}, []),
+              pubsub_tools:publish(Alice, <<"salmon">>, PepNode, []),
               [] = escalus:wait_for_stanzas(Bob, 1, 500),
 
               pubsub_tools:delete_node(Alice, PepNode, [])
@@ -482,34 +487,6 @@ unsubscribe_after_presence_unsubscription(Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
-
-add_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
-    Fields = [#{values => [<<"friends">>, <<"enemies">>], var => <<"pubsub#roster_groups_allowed">>}],
-    Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
-    ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
-    PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
-    Request#xmlel{children = [PubsubEl2]}.
-
-publish_with_publish_options(Client, Node, Content, Options) ->
-    publish_with_publish_options(Client, Node, Content, Options, ?NS_PUBSUB_PUB_OPTIONS).
-
-publish_with_publish_options(Client, Node, Content, Options, FormType) ->
-    OptionsEl = #xmlel{name = <<"publish-options">>,
-                       children = form(Options, FormType)},
-
-    Id = pubsub_tools:id(Client, Node, <<"publish">>),
-    Publish = pubsub_tools:publish_request(Id, Client, Content, Node, Options),
-    #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
-    NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
-    escalus:send(Client, Publish#xmlel{children = [NewPubsubEl]}),
-    escalus:wait_for_stanza(Client).
-
-form(FormFields, FormType) ->
-    FieldSpecs = lists:map(fun field_spec/1, FormFields),
-    [form_helper:form(#{fields => FieldSpecs, ns => FormType})].
-
-field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
-field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
     [{mod_caps, default_mod_config(mod_caps)},
@@ -530,12 +507,6 @@ required_modules(cache_tests) ->
 
 make_pep_node_info(Client, NodeName) ->
     {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
-
-verify_publish_options(FullNodeConfig, Options) ->
-    NodeConfig = [{Opt, Value} || {Opt, _, Value} <- FullNodeConfig],
-    Options = lists:filter(fun(Option) ->
-                               lists:member(Option, NodeConfig)
-                           end, Options).
 
 set_caps(Config) ->
     set_caps(Config, random_name()).
@@ -617,11 +588,11 @@ make_friends_sm(Bob, Alice) ->
                         BobStanzas = escalus_client:wait_for_stanzas(Bob, 8)),
     lists:filter(fun escalus_pred:is_message/1, BobStanzas).
 
-publish_with_sm(User, ItemId, Node, Options) ->
+publish_with_sm(User, ItemId, {_, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"publish">>),
     Request = case proplists:get_value(with_payload, Options, true) of
-                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
+                  true -> escalus_pubsub_stanza:publish(ItemId, item_content(), Id, NodeName);
+                  false -> escalus_pubsub_stanza:publish(Id, NodeName)
               end,
     escalus_client:send(User, Request),
     escalus:wait_for_stanzas(User, 2).

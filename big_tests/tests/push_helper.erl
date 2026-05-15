@@ -107,3 +107,8 @@ http_notifications_port() ->
 
 http_notifications_host() ->
     "http://localhost:" ++ integer_to_list(http_notifications_port()).
+
+notification_el(Content) ->
+    #xmlel{name = <<"notification">>,
+           attrs = #{<<"xmlns">> => ?NS_PUSH},
+           children = push_helper:maybe_form(Content, ?PUSH_FORM_TYPE)}.
