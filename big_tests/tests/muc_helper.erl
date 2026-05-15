@@ -282,6 +282,12 @@ stanza_get_features() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
                            muc_host()).
 
+stanza_service_get_vcard() ->
+    escalus_stanza:setattr(escalus_stanza:iq_get(?NS_VCARD, []), <<"to">>, muc_host()).
+
+stanza_service_get_unique() ->
+    escalus_stanza:setattr(escalus_stanza:iq_get(?NS_MUC_UNIQUE, []), <<"to">>, muc_host()).
+
 has_features(#xmlel{children = [ Query ]} = _Iq, Features) ->
     %%<iq from='chat.shakespeare.lit'
     %%  id='lx09df27'
