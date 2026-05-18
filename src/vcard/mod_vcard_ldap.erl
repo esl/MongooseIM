@@ -133,7 +133,8 @@ remove_user(_HostType, _LUser, _LServer) ->
     %% removing user = delete all user info
     ok.
 
--spec get_vcard(mongooseim:host_type(), jid:luser(), jid:lserver()) -> {ok, [exml:element()]}.
+-spec get_vcard(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          {ok, [exml:element()]} | {error, exml:element()}.
 get_vcard(HostType, LUser, LServer) ->
     State = get_state(HostType, LServer),
     JID = jid:make_bare(LUser, LServer),
@@ -145,10 +146,10 @@ get_vcard(HostType, LUser, LServer) ->
                     VCard = ldap_attributes_to_vcard(Attributes, VCardMap, {LUser, LServer}),
                     {ok, VCard};
                 _ ->
-                    {ok, []}
+                    {error, mongoose_xmpp_errors:item_not_found()}
             end;
         _ ->
-            {ok, []}
+            {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 -spec set_vcard(mongooseim:host_type(), jid:luser(), jid:lserver(), exml:element(), mod_vcard:vcard_search()) ->
