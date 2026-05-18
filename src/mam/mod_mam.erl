@@ -17,7 +17,7 @@
 -module(mod_mam).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
--xep([{xep, 313}, {version, "1.1.0"}, {legacy_versions, ["0.5"]}]).
+-xep([{xep, 313}, {version, "1.1.3"}, {legacy_versions, ["0.5"]}]).
 -xep([{xep, 441}, {version, "0.2.0"}]).
 -xep([{xep, 424}, {version, "0.3.0"}]).
 -xep([{xep, 431}, {version, "0.2.0"}]).
