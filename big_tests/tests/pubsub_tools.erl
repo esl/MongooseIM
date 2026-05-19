@@ -187,40 +187,14 @@ retract_item(User, {NodeAddr, NodeName} = Node, ItemId, Options) ->
     Request = escalus_pubsub_stanza:retract(Id, NodeName, ItemId, Attrs),
     send_request_and_receive_response(User, NodeAddr, Request, Options).
 
-get_all_items(User, {NodeAddr, NodeName} = Node, Options) ->
-    Id = id(User, Node, <<"items">>),
-    Request = escalus_pubsub_stanza:get_all_items(Id, NodeName),
-    send_request_and_receive_response(
-      User, NodeAddr, Request, Options,
-      fun(Response, ExpectedResult) ->
-              Items = exml_query:path(Response, [{element, <<"pubsub">>},
-                                                 {element, <<"items">>}]),
-              check_items(Items, ExpectedResult, NodeName)
-      end).
+get_item(User, Node, ItemId, Options) ->
+    get_items(User, Node, [{item_ids, [ItemId]} | Options]).
 
-get_items(User, {NodeAddr, NodeName} = Node, ItemIds, Options) ->
+get_items(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"items">>),
-    ItemsEl = #xmlel{name = ~"items",
-                     attrs = #{~"node" => NodeName},
-                     children = [requested_item_el(ItemId) || ItemId <- ItemIds]},
     ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
-    Request = ModifyF(escalus_pubsub_stanza:pubsub_iq(~"get", Id, [ItemsEl])),
-    send_request_and_receive_response(
-      User, NodeAddr, Request, Options,
-      fun(Response, ExpectedResult) ->
-              Items = exml_query:path(Response, [{element, <<"pubsub">>},
-                                                 {element, <<"items">>}]),
-              check_items(Items, ExpectedResult, NodeName)
-      end).
-
-requested_item_el(undefined) ->
-    #xmlel{name = ~"item"}; % missing item ID (malformed on purpose)
-requested_item_el(ItemId) ->
-    #xmlel{name = ~"item", attrs = #{~"id" => ItemId}}.
-
-get_item(User, {NodeAddr, NodeName} = Node, ItemId, Options) ->
-    Id = id(User, Node, <<"items">>),
-    Request = escalus_pubsub_stanza:get_item(Id, ItemId, NodeName),
+    ReqOpts = maps:with([item_ids, max_items], maps:from_list(Options)),
+    Request = ModifyF(escalus_pubsub_stanza:get_items(Id, NodeName, ReqOpts)),
     send_request_and_receive_response(
       User, NodeAddr, Request, Options,
       fun(Response, ExpectedResult) ->

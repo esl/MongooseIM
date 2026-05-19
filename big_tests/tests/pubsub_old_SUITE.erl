@@ -550,8 +550,7 @@ request_all_items_test(Config) ->
 
               %% Request:  6.5.2 Ex.78 subscriber requests all items
               %% Response: 6.5.3 Ex.79 service returns all items
-              pubsub_tools:get_all_items(Bob, Node,
-                                         [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
               %% TODO check ordering (although XEP does not specify this)
 
               pubsub_tools:delete_node(Alice, Node, []),
@@ -589,7 +588,7 @@ retract_test(Config) ->
               %% Request:  7.2.1 Ex.115 Entity deletes an item from a node
               %% Response: 7.2.2 Ex.116 Service replies with success
               pubsub_tools:retract_item(Alice, Node, <<"item1">>, []),
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, [<<"item2">>]}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>]}]),
 
               %% Request:  7.2.1 Ex.115 Entity deletes an item from a node
               %% Response: 7.2.2 Ex.116 Service replies with success
@@ -599,7 +598,7 @@ retract_test(Config) ->
               pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:retract_item(Alice, Node, <<"item2">>, []),
               pubsub_tools:receive_retract_notification(Bob, <<"item2">>, Node, []),
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -616,12 +615,11 @@ retract_when_user_goes_offline_test(Config) ->
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Bob, <<"item2">>, Node, []),
-              pubsub_tools:get_all_items(Alice, Node,
-                                         [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              pubsub_tools:get_items(Alice, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
               mongoose_helper:logout_user(Config, Bob),
 
-              pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
+              pubsub_tools:get_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -639,14 +637,13 @@ purge_all_items_test(Config) ->
               %% Response: 8.5.3.2 Ex.165 insufficient privileges
               pubsub_tools:purge_all_items(Bob, Node, [{expected_error_type, <<"auth">>}]),
 
-              pubsub_tools:get_all_items(Bob, Node,
-                                         [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
               %% Request:  8.5.1 Ex.161 owner purges all items from node
               %% Response: 8.5.2 Ex.162 success
               pubsub_tools:purge_all_items(Alice, Node, []),
 
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, []),
 
@@ -674,7 +671,7 @@ publish_only_retract_items_scope_test(Config) ->
                 %% Request:  7.2.1 Ex.116 publish-only sends a retract request for someone's else item
                 %% Response: 7.2.3.1 Ex.120 insufficient privileges
                 pubsub_tools:retract_item(Bob, Node, <<"item2">>, [{expected_error_type, <<"auth">>}]),
-                pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item2">>]}]),
+                pubsub_tools:get_items(Alice, Node, [{expected_result, [<<"item2">>]}]),
 
                 pubsub_tools:delete_node(Alice, Node, []),
 
@@ -858,7 +855,7 @@ disable_persist_items_test(Config) ->
               pubsub_tools:receive_item_notification(Bob, <<"item1">>, Node, []),
 
               %% No items should be stored
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1577,14 +1574,13 @@ request_all_items_leaf_test(Config) ->
               pubsub_tools:publish(Alice, <<"item2">>, Leaf2, []),
 
               %% Request items from leaf nodes - as described in XEP-0060
-              pubsub_tools:get_all_items(Bob, Leaf, [{expected_result, [<<"item1">>]}]),
-              pubsub_tools:get_all_items(Bob, Leaf2, [{expected_result, [<<"item2">>]}]),
+              pubsub_tools:get_items(Bob, Leaf, [{expected_result, [<<"item1">>]}]),
+              pubsub_tools:get_items(Bob, Leaf2, [{expected_result, [<<"item2">>]}]),
 
               %% NOTE: This is not implemented yet
               %% Request:  6.2.1 Ex.15 Subscriber requests all items on a collection
               %% Response: 6.2.2 Ex.16 Service returns items on leaf nodes
-              %%pubsub_tools:get_all_items(Bob, Node,
-              %%                           [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              %%pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Leaf2, []),
@@ -1665,7 +1661,7 @@ disable_persist_items_leaf_test(Config) ->
               pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
 
               %% No items should be stored
-              pubsub_tools:get_all_items(Bob, Leaf, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Leaf, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1741,7 +1737,7 @@ disable_payload_and_persist_test(Config) ->
               pubsub_tools:receive_item_notification(Bob, <<"item1">>, Node, []),
 
               %% No items should be stored
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               %% No more notifications
               escalus_assert:has_no_stanzas(Bob),
