@@ -13,7 +13,7 @@
 -import(domain_helper, [host_type/0]).
 -import(pubsub_tools, [check_item_notification/4,
                        create_node/3, delete_node/3,
-                       get_all_items/3, get_configuration/3, get_item/4, get_items/4,
+                       get_configuration/3, get_item/4, get_items/3,
                        item_content/0, item_el/2,
                        publish/4, publish_raw/4, publish_with_options/5, published_item_id/2,
                        receive_item_notification/4, receive_node_deletion_notification/3,
@@ -356,8 +356,7 @@ create_and_delete_story(Alice, Bob) ->
     subscribe(Bob, PepNode, []),
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Alice, PepNode, [{expected_result, []}]),
-    get_item(Alice, PepNode, ~"item1", [{expected_result, []}]),
+    get_items(Alice, PepNode, [{expected_result, []}]),
 
     %% XEP-0060 8.2 Delete a Node
     delete_node(Alice, PepNode, []),
@@ -405,8 +404,7 @@ create_open_and_publish_both_subs_story(Config, Alice, Bob) ->
     [] = escalus:wait_for_stanzas(Bob, 1, 500),
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
 
 create_open_and_publish_explicit_sub_story(Alice, Bob) ->
     NodeNS = random_node_ns(),
@@ -419,8 +417,7 @@ create_open_and_publish_explicit_sub_story(Alice, Bob) ->
     receive_item_notification(Bob, ~"item1", PepNode, []),
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
 
     %% XEP-0060 6.2.2 Success Case
     unsubscribe(Bob, PepNode, []),
@@ -438,8 +435,7 @@ create_open_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     receive_item_notification(Bob, ~"item1", PepNode, []),
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
 
 create_open_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     NodeNS = ?config(node_ns, Config),
@@ -454,12 +450,9 @@ create_open_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     escalus_assert:has_no_stanzas(Mike), % presence subscription but no caps
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Alice, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
-    get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
-    get_all_items(Mike, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Mike, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
+    get_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
+    get_items(Mike, PepNode, [{expected_result, [~"item1"]}]).
 
 create_presence_and_publish_explicit_sub_story(Alice, Bob) ->
     NodeNS = random_node_ns(),
@@ -491,8 +484,7 @@ create_presence_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     receive_item_notification(Bob, ~"item1", PepNode, []),
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
 
 create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     NodeNS = ?config(node_ns, Config),
@@ -507,12 +499,9 @@ create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     escalus_assert:has_no_stanzas(Mike), % presence subscription but no caps
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Alice, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
-    get_all_items(Bob, PepNode, [{expected_error_type, ~"auth"}]),
-    get_item(Bob, PepNode, ~"item1", [{expected_error_type, ~"auth"}]),
-    get_all_items(Mike, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Mike, PepNode, ~"item1", [{expected_result, [~"item1"]}]).
+    get_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
+    get_items(Bob, PepNode, [{expected_error_type, ~"auth"}]),
+    get_items(Mike, PepNode, [{expected_result, [~"item1"]}]).
 
 publish_and_get_items_story(Alice) ->
     PepNode = pep_node(Alice, random_node_ns()),
@@ -521,10 +510,10 @@ publish_and_get_items_story(Alice) ->
     publish(Alice, ~"item2", PepNode, []),
 
     %% XEP-0060 6.5 Request items
-    get_all_items(Alice, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]),
+    get_items(Alice, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]),
     get_item(Alice, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
-    get_items(Alice, PepNode, [~"item1", ~"item404", ~"item0"],
-              [{expected_result, [~"item1", ~"item0"]}]).
+    get_items(Alice, PepNode, [{item_ids, [~"item1", ~"item404", ~"item0"]},
+                               {expected_result, [~"item1", ~"item0"]}]).
 
 publish_implicit_sub_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -538,7 +527,7 @@ publish_implicit_sub_story(Config, Alice, Bob) ->
     receive_item_notification(Bob, ~"item1", PepNode, []),
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
 
 publish_open_explicit_sub_story(Alice, Bob) ->
     NodeNS = random_node_ns(),
@@ -559,7 +548,7 @@ publish_open_explicit_sub_story(Alice, Bob) ->
     receive_item_notification(Bob, ~"item2", PepNode, []),
 
     %% XEP-0060 6.5 Bob can request all items
-    get_all_items(Bob, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]).
+    get_items(Bob, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]).
 
 publish_self_notify_story(Config, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -569,8 +558,7 @@ publish_self_notify_story(Config, Bob) ->
     publish(Bob, ~"item1", PepNode, [{expected_notification, {PepNode, ~"item1"}}]),
 
     %% XEP-0060 6.5 Retrieve items
-    get_all_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
-    get_item(Bob, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
 
     %% XEP-0060 7.1.2 Generated item ID
     {Response, Msg} = publish(Bob, undefined, PepNode, [{expected_notification, PepNode}]),
@@ -684,7 +672,8 @@ get_item_without_id_fails_story(Alice) ->
 
     %% XEP-0060 6.5 Request an item: missing item ID
     Opts = [{expected_error_type, {~"modify", ~"bad-request"}}],
-    get_items(Alice, PepNode, [undefined], Opts).
+    get_item(Alice, PepNode, undefined, Opts),
+    get_items(Alice, PepNode, [{item_ids, [undefined, ~"item1"]} | Opts]).
 
 manage_nonexistent_node_fails_story(Alice) ->
     PepNode = pep_node(Alice),
