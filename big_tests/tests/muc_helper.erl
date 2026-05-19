@@ -20,9 +20,6 @@
 make_opts(ExtraOpts) ->
     config_parser_helper:mod_config(mod_muc, ExtraOpts).
 
-make_log_opts(ExtraOpts) ->
-    config_parser_helper:mod_config(mod_muc_log, ExtraOpts).
-
 -spec foreach_occupant(
         Users :: [escalus:client()], Stanza :: #xmlel{}, VerifyFun :: verify_fun()) -> ok.
 foreach_occupant(Users, Stanza, VerifyFun) ->
@@ -65,18 +62,14 @@ load_muc(HostType) ->
              hibernated_room_check_interval => 1000,
              hibernated_room_timeout => 2000,
              access => muc, access_create => muc_create},
-    LogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
-    dynamic_modules:start(HostType, mod_muc, make_opts(Opts)),
-    dynamic_modules:start(HostType, mod_muc_log, make_log_opts(LogOpts)).
+    dynamic_modules:start(HostType, mod_muc, make_opts(Opts)).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),
-    dynamic_modules:stop(HostType, mod_muc),
-    dynamic_modules:stop(HostType, mod_muc_log).
+    dynamic_modules:stop(HostType, mod_muc).
 
 unload_muc(HostType) ->
-    dynamic_modules:stop(HostType, mod_muc),
-    dynamic_modules:stop(HostType, mod_muc_log).
+    dynamic_modules:stop(HostType, mod_muc).
 
 muc_host() ->
     ct:get_config({hosts, mim, muc_service}).

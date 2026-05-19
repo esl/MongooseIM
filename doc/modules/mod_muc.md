@@ -4,10 +4,6 @@ This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xe
 It's a common XMPP group chat solution.
 This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself.
 Note that only `mod_muc` needs to be enabled in the configuration file.
-Also `mod_muc_log` is a logging submodule.
-
-!!! Warning
-    `mod_muc_log` is deprecated and will be removed in the next release.
 
 ## Options
 
@@ -356,17 +352,6 @@ Available room configuration options to be overridden in the initial state:
 
     Maximum user count per room. Admins and the room owner are not affected.
 
-* `modules.mod_muc.default_room.logging`
-    * **Syntax:** boolean
-    * **Default:** `false`
-    * **Example:** `logging = true`
-
-    Enables logging of room events (messages, presences) to a file on the disk.
-    Uses `mod_muc_log`.
-
-    !!! Warning
-        `mod_muc_log` is deprecated and will be removed in the next release.
-
 * `modules.mod_muc.default_room.maygetmemberlist` 
     * **Syntax:** array of non-empty strings
     * **Default:** `[]`
@@ -389,7 +374,7 @@ Available room configuration options to be overridden in the initial state:
   server = "localhost"
   resource = "resource1"
   affiliation = "member"
-                
+
 [[modules.mod_muc.default_room.affiliations]]
   user = "bob"
   server = "localhost"

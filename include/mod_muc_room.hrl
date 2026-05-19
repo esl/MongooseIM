@@ -44,8 +44,7 @@
                  password = <<>>,
                  anonymous = true               :: boolean(),
                  max_users = ?MAX_USERS_DEFAULT :: pos_integer() | none,
-                 maygetmemberlist = [],
-                 logging = false                :: boolean()
+                 maygetmemberlist = []
                 }).
 
 -record(user, {
