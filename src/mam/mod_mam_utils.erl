@@ -398,7 +398,7 @@ get_retract_id(Packet) ->
                   exml_query:path(Fasten, [{attr, <<"id">>}], none)} of
                 {none, _} -> none;
                 {_, none} -> none;
-                {?NS_RETRACT, OriginId} -> {origin_id, OriginId};
+                {?NS_RETRACT_0, OriginId} -> {origin_id, OriginId};
                 {?NS_ESL_RETRACT, StanzaId} -> {stanza_id, StanzaId}
             end
     end.
@@ -462,7 +462,7 @@ retracted_element(#{retract_on := origin_id,
                     origin_id := OriginID}, _LocJid) ->
     Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
     #xmlel{name = <<"retracted">>,
-           attrs = #{<<"xmlns">> => ?NS_RETRACT,
+           attrs = #{<<"xmlns">> => ?NS_RETRACT_0,
                      <<"stamp">> => list_to_binary(Timestamp)},
            children = [#xmlel{name = <<"origin-id">>,
                               attrs = #{<<"xmlns">> => ?NS_STANZAID,
@@ -761,8 +761,8 @@ mam_features() ->
 
 retraction_features(Module, HostType) ->
     case has_message_retraction(Module, HostType) of
-        true -> [?NS_RETRACT, ?NS_RETRACT_TOMBSTONE, ?NS_ESL_RETRACT];
-        false -> [?NS_RETRACT]
+        true -> [?NS_RETRACT_0, ?NS_RETRACT_0_TOMBSTONE, ?NS_ESL_RETRACT];
+        false -> [?NS_RETRACT_0]
     end.
 
 groupchat_features(mod_mam_pm = Module, HostType) ->

@@ -174,7 +174,7 @@ chat_marker() ->
 retraction() ->
     #xmlel{name = <<"apply-to">>,
            attrs = #{<<"id">> => bin(), <<"xmlns">> => ?NS_FASTEN},
-           children = [#xmlel{name = <<"retract">>, attrs = #{<<"xmlns">> => ?NS_RETRACT}}]}.
+           children = [#xmlel{name = <<"retract">>, attrs = #{<<"xmlns">> => ?NS_RETRACT_0}}]}.
 mam_result() ->
     #xmlel{name = <<"result">>,
            attrs = #{<<"id">> => bin(), <<"queryid">> => bin(), <<"xmlns">> => ?NS_MAM_06}}.

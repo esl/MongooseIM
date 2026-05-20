@@ -112,8 +112,8 @@
 -define(NS_CHAT_MARKERS,        <<"urn:xmpp:chat-markers:0">>).
 
 -define(NS_FASTEN,              <<"urn:xmpp:fasten:0">>).
--define(NS_RETRACT,             <<"urn:xmpp:message-retract:0">>).
--define(NS_RETRACT_TOMBSTONE,   <<"urn:xmpp:message-retract:0#tombstone">>).
+-define(NS_RETRACT_0,           <<"urn:xmpp:message-retract:0">>).
+-define(NS_RETRACT_0_TOMBSTONE, <<"urn:xmpp:message-retract:0#tombstone">>).
 
 -define(JINGLE_NS, <<"urn:xmpp:jingle:1">>).
 
