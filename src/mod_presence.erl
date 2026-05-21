@@ -55,7 +55,10 @@
          set_presence/2,
          get_presence_type/1,
          maybe_get_handler/1,
-         get_old_priority/1
+         get_old_priority/1,
+         is_subscribed/3,
+         put_state_in_acc/2,
+         get_state_from_acc/1
         ]).
 
 -ignore_xref([am_i_subscribed_to_presence/3]). % unused but still exported for tests/debugging
@@ -729,9 +732,12 @@ is_available(#presences_state{available = Available}, Jid) ->
     sets:is_element(Jid, Available).
 
 -spec is_subscribed(state(), jid:jid(), subscription()) -> boolean().
-is_subscribed(#presences_state{subscriptions = Subs}, Jid, DesiredSub) ->
-    Sub = maps:get(Jid, Subs, '$imposible_status'),
-    both =:= Sub orelse DesiredSub =:= Sub.
+is_subscribed(#presences_state{subscriptions = Subscriptions}, Jid, DesiredSub) ->
+    case Subscriptions of
+        #{Jid := DesiredSub} -> true;
+        #{Jid := both} -> true;
+        _ -> false
+    end.
 
 -spec get_by_sub(state(), subscription()) -> subscriptions().
 get_by_sub(#presences_state{subscriptions = Subs}, DesiredStatus) ->
@@ -746,3 +752,17 @@ get(#presences_state{available = Value}, s_available) -> Value;
 get(#presences_state{pres_pri = Value}, priority) -> Value;
 get(#presences_state{pres_last = Value}, last) -> Value;
 get(#presences_state{pres_timestamp = Value}, timestamp) -> Value.
+
+-doc "Store presences state in Acc for later use by other modules (e.g. mod_pubsub)".
+-spec put_state_in_acc(mongoose_c2s:data(), mongoose_acc:t()) -> mongoose_acc:t().
+put_state_in_acc(C2SData, Acc) ->
+    case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
+        {ok, State} ->
+            mongoose_acc:set_permanent(?MODULE, state, State, Acc);
+        _ ->
+            Acc
+    end.
+
+-spec get_state_from_acc(mongoose_acc:t()) -> state() | undefined.
+get_state_from_acc(Acc) ->
+    mongoose_acc:get(?MODULE, state, undefined, Acc).
