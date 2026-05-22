@@ -203,7 +203,7 @@ column_names(Mappings) ->
 %% ----------------------------------------------------------------------
 %% Options
 
--spec get_retract_id(exml:element(), env_vars()) -> none | mod_mam_utils:retraction_id().
+-spec get_retract_id(exml:element(), env_vars()) -> none | mod_mam_utils:retraction_ref().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
     mod_mam_utils:get_retract_id(Enabled, Packet).
 
@@ -282,10 +282,10 @@ make_tombstone(HostType, ArcID, _RetractionId,
     TombstoneData = mam_encoder:encode_packet(Tombstone, Env),
     execute_make_tombstone(HostType, TombstoneData, ArcID, MessID).
 
-execute_select_messages_to_retract(HostType, ArcID, SenderID, {origin_id, OriginID}) ->
+execute_select_messages_to_retract(HostType, ArcID, SenderID, {retract_0, OriginID}) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_select_messages_to_retract_on_origin_id,
                                       [ArcID, SenderID, OriginID]);
-execute_select_messages_to_retract(HostType, ArcID, SenderID, {stanza_id, BinStanzaId}) ->
+execute_select_messages_to_retract(HostType, ArcID, SenderID, {retract_esl, BinStanzaId}) ->
     StanzaId = mod_mam_utils:external_binary_to_mess_id(BinStanzaId),
     mongoose_rdbms:execute_successfully(HostType, mam_muc_select_messages_to_retract_on_stanza_id,
                                       [ArcID, SenderID, StanzaId]).

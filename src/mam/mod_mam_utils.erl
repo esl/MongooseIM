@@ -137,7 +137,7 @@
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 -define(BIGINT_MAX, 16#7fffffffffffffff).  % 9223372036854775807, (2^63 - 1)
 
--export_type([direction/0, retraction_id/0, retraction_info/0]).
+-export_type([direction/0, retraction_ref/0, retraction_info/0]).
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -150,8 +150,8 @@
 -type archive_behaviour_bin() :: binary(). % `<<"roster">> | <<"always">> | <<"never">>'.
 
 -type direction() :: incoming | outgoing.
--type retraction_id() :: {origin_id | stanza_id, binary()}.
--type retraction_info() :: #{retract_on := origin_id | stanza_id,
+-type retraction_ref() :: {retract_0 | retract_esl, binary()}.
+-type retraction_info() :: #{retract_type := retract_0 | retract_esl,
                              packet := exml:element(),
                              message_id := mod_mam:message_id(),
                              origin_id := null | binary()}.
@@ -383,13 +383,13 @@ has_chat_marker(Packet) ->
     mongoose_chat_markers:has_chat_markers(Packet).
 
 -spec get_retract_id(false, exml:element()) -> none;
-                    (true, exml:element()) -> none | retraction_id().
+                    (true, exml:element()) -> none | retraction_ref().
 get_retract_id(true = _Enabled, Packet) ->
     get_retract_id(Packet);
 get_retract_id(false, _Packet) ->
     none.
 
--spec get_retract_id(exml:element()) -> none | retraction_id().
+-spec get_retract_id(exml:element()) -> none | retraction_ref().
 get_retract_id(Packet) ->
     case exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN}], none) of
         none -> none;
@@ -398,8 +398,8 @@ get_retract_id(Packet) ->
                   exml_query:path(Fasten, [{attr, <<"id">>}], none)} of
                 {none, _} -> none;
                 {_, none} -> none;
-                {?NS_RETRACT_0, OriginId} -> {origin_id, OriginId};
-                {?NS_ESL_RETRACT, StanzaId} -> {stanza_id, StanzaId}
+                {?NS_RETRACT_0, OriginId} -> {retract_0, OriginId};
+                {?NS_ESL_RETRACT, StanzaId} -> {retract_esl, StanzaId}
             end
     end.
 
@@ -458,7 +458,7 @@ tombstone(RetractionInfo = #{packet := Packet}, LocJid) ->
     Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.
 
 -spec retracted_element(retraction_info(), jid:jid()) -> exml:element().
-retracted_element(#{retract_on := origin_id,
+retracted_element(#{retract_type := retract_0,
                     origin_id := OriginID}, _LocJid) ->
     Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
     #xmlel{name = <<"retracted">>,
@@ -468,7 +468,7 @@ retracted_element(#{retract_on := origin_id,
                               attrs = #{<<"xmlns">> => ?NS_STANZAID,
                                         <<"id">> => OriginID}}
                       ]};
-retracted_element(#{retract_on := stanza_id,
+retracted_element(#{retract_type := retract_esl,
                     message_id := MessID} = Env, LocJid) ->
     Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
     StanzaID = mod_mam_utils:mess_id_to_external_binary(MessID),

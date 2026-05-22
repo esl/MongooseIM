@@ -32,17 +32,17 @@ decode_muc_gdpr_row({ExtMessID, ExtData}, Env) ->
 
 -spec decode_retraction_info(env_vars(),
                              [{binary(), mod_mam:message_id(), binary()}],
-                             mod_mam_utils:retraction_id()) ->
+                             mod_mam_utils:retraction_ref()) ->
     skip | mod_mam_utils:retraction_info().
 decode_retraction_info(_Env, [], _) -> skip;
-decode_retraction_info(Env, [{ResMessID, Data}], {origin_id, OriginID}) ->
+decode_retraction_info(Env, [{ResMessID, Data}], {retract_0, OriginID}) ->
     Packet = decode_packet(Data, Env),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
-    #{retract_on => origin_id, packet => Packet, message_id => MessID, origin_id => OriginID};
-decode_retraction_info(Env, [{OriginID, Data}], {stanza_id, StanzaID}) ->
+    #{retract_type => retract_0, packet => Packet, message_id => MessID, origin_id => OriginID};
+decode_retraction_info(Env, [{OriginID, Data}], {retract_esl, StanzaID}) ->
     Packet = decode_packet(Data, Env),
     MessID = mod_mam_utils:external_binary_to_mess_id(StanzaID),
-    #{retract_on => stanza_id, packet => Packet, message_id => MessID, origin_id => OriginID}.
+    #{retract_type => retract_esl, packet => Packet, message_id => MessID, origin_id => OriginID}.
 
 -spec decode_jid(binary(), env_vars()) -> jid:jid().
 decode_jid(ExtJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->

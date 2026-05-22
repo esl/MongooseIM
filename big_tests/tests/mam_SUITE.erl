@@ -2266,16 +2266,16 @@ message_with_stanzaid(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 retract_message_on_stanza_id(Config) ->
-    test_retract_message([{retract_on, stanza_id} | Config]).
+    test_retract_message([{retract_on, retract_esl} | Config]).
 
 retract_wrong_message(Config) ->
-    test_retract_message([{retract_on, {origin_id, <<"wrong-id">>}} | Config]).
+    test_retract_message([{retract_on, {retract_0, <<"wrong-id">>}} | Config]).
 
 ignore_bad_retraction(Config) ->
     test_retract_message([{retract_on, none} | Config]).
 
 retract_message(Config) ->
-    test_retract_message([{retract_on, {origin_id, origin_id()}} | Config]).
+    test_retract_message([{retract_on, {retract_0, origin_id()}} | Config]).
 
 test_retract_message(Config) ->
     P = ?config(props, Config),
@@ -2419,13 +2419,13 @@ muc_message_with_stanzaid(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 retract_muc_message_on_stanza_id(Config) ->
-    test_retract_muc_message([{retract_on, stanza_id} | Config]).
+    test_retract_muc_message([{retract_on, retract_esl} | Config]).
 
 retract_wrong_muc_message(Config) ->
-    test_retract_muc_message([{retract_on, {origin_id, <<"wrong-id">>}} | Config]).
+    test_retract_muc_message([{retract_on, {retract_0, <<"wrong-id">>}} | Config]).
 
 retract_muc_message(Config) ->
-    test_retract_muc_message([{retract_on, {origin_id, origin_id()}} | Config]).
+    test_retract_muc_message([{retract_on, {retract_0, origin_id()}} | Config]).
 
 test_retract_muc_message(Config) ->
     P = ?config(props, Config),
@@ -4184,8 +4184,8 @@ retraction_requested(Config) ->
     OriginId = origin_id(),
     case lists:keyfind(retract_on, 1, Config) of
         {retract_on, none} -> ignore;
-        {retract_on, stanza_id} -> true;
-        {retract_on, {origin_id, OriginId}} -> true;
+        {retract_on, retract_esl} -> true;
+        {retract_on, {retract_0, OriginId}} -> true;
         _ -> false
     end.
 
