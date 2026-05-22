@@ -52,22 +52,25 @@ foreach_recipient(Users, VerifyFun) ->
               VerifyFun(escalus:wait_for_stanza(Recipient))
       end, Users).
 
-load_muc() ->
-    load_muc(domain_helper:host_type()).
-
-load_muc(HostType) ->
-    Backend = muc_backend(),
+load_muc(HostType, ExtraOpts) ->
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
-    ct:log("Starting MUC for ~p", [HostType]),
-    Opts = #{host => subhost_pattern(MucHostPattern), backend => Backend,
-             online_backend => muc_online_backend(),
-             hibernate_timeout => 2000,
-             hibernated_room_check_interval => 1000,
-             hibernated_room_timeout => 2000,
-             access => muc, access_create => muc_create},
+    ct:log("Starting MUC for ~p with extra opts ~p", [HostType, ExtraOpts]),
+    DefaultOpts = #{host => subhost_pattern(MucHostPattern), backend => muc_backend(),
+                    online_backend => muc_online_backend(),
+                    hibernate_timeout => 2000,
+                    hibernated_room_check_interval => 1000,
+                    hibernated_room_timeout => 2000,
+                    access => muc, access_create => muc_create},
+    Opts = merge_muc_opts(DefaultOpts, ExtraOpts),
     LogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
-    dynamic_modules:start(HostType, mod_muc, make_opts(Opts)),
-    dynamic_modules:start(HostType, mod_muc_log, make_log_opts(LogOpts)).
+    dynamic_modules:ensure_modules(HostType, [{mod_muc, make_opts(Opts)},
+                                              {mod_muc_log, make_log_opts(LogOpts)}]).
+
+merge_muc_opts(BaseOpts, #{default_room := ExtraDefaultRoom} = ExtraOpts) ->
+    BaseDefaultRoom = maps:get(default_room, config_parser_helper:default_mod_config(mod_muc)),
+    maps:merge(BaseOpts, ExtraOpts#{default_room => maps:merge(BaseDefaultRoom, ExtraDefaultRoom)});
+merge_muc_opts(BaseOpts, ExtraOpts) ->
+    maps:merge(BaseOpts, ExtraOpts).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),

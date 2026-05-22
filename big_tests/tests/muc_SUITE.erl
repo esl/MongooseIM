@@ -242,7 +242,8 @@ groups() ->
                                  send_and_receive_private_message_client_without_x_elem,
                                  send_private_groupchat,
                                  route_chat_to_room,
-                                 route_error_message_to_room,
+                                 route_error_message_to_room_from_occupant,
+                                 route_error_message_to_room_from_non_occupant,
                                  route_unknown_message_type_to_room,
                                  iq_reply_to_nick,
                                  change_nickname,
@@ -362,7 +363,7 @@ init_per_suite(Config) ->
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
     Config4 = backup_and_set_config_option(Config3, [instrumentation, probe_interval], 1),
     dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
-    muc_helper:load_muc(),
+    muc_helper:load_muc(domain_helper:host_type(), #{}),
     mongoose_helper:ensure_muc_clean(),
     Config4.
 
@@ -422,7 +423,8 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
         _ -> ok
     end,
     ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
-    dynamic_modules:ensure_modules(host_type(), required_modules(http_auth)),
+    muc_helper:load_muc(host_type(), #{http_auth_pool => muc_http_auth_test,
+                                       default_room => #{password_protected => true}}),
     ConfigWithModules;
 init_per_group(hibernation, Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
@@ -440,22 +442,6 @@ init_per_group(register_over_s2s, Config) ->
     escalus:create_users(Config2, Users);
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
-
-required_modules(traffic_rate_limit) ->
-    #{mod_muc := OrigOpts} = dynamic_modules:get_current_modules(host_type()),
-    Opts = OrigOpts#{min_message_interval => 5},
-    [{mod_muc, Opts}];
-required_modules(http_auth) ->
-    #{mod_muc := OrigOpts} = dynamic_modules:get_current_modules(host_type()),
-    #{default_room := DefRoomOpts} = OrigOpts,
-    Opts = OrigOpts#{http_auth_pool => muc_http_auth_test,
-                     default_room => DefRoomOpts#{password_protected => true}},
-    [{mod_muc, Opts}];
-required_modules(persistent_by_default) ->
-    #{mod_muc := OrigOpts} = dynamic_modules:get_current_modules(host_type()),
-    #{default_room := DefRoomOpts} = OrigOpts,
-    Opts = OrigOpts#{default_room => DefRoomOpts#{persistent => true}},
-    [{mod_muc, Opts}].
 
 handle_http_auth(Req) ->
     Qs = cowboy_req:parse_qs(Req),
@@ -562,11 +548,11 @@ init_per_testcase(CaseName = room_creation_not_allowed, Config) ->
     escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(CaseName = create_instant_persistent_room, Config) ->
     ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
-    dynamic_modules:ensure_modules(host_type(), required_modules(persistent_by_default)),
+    muc_helper:load_muc(host_type(), #{default_room => #{persistent => true}}),
     escalus:init_per_testcase(CaseName, ConfigWithModules);
 init_per_testcase(CaseName = groupchat_traffic_rate_limit_exceeded, Config) ->
     ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
-    dynamic_modules:ensure_modules(host_type(), required_modules(traffic_rate_limit)),
+    muc_helper:load_muc(host_type(), #{min_message_interval => 5}),
     escalus:init_per_testcase(CaseName, ConfigWithModules);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -2862,9 +2848,9 @@ route_chat_to_room(ConfigIn) ->
         escalus:wait_for_stanza(Alice)
     end).
 
-route_error_message_to_room(ConfigIn) ->
-    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
-    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+route_error_message_to_room_from_occupant(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob) ->
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
         escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
@@ -2885,7 +2871,14 @@ route_error_message_to_room(ConfigIn) ->
         %% Alice also sees Bob's departure
         AliceSeesBobGone = escalus:wait_for_stanza(Alice),
         escalus:assert(is_presence_with_type, [<<"unavailable">>], AliceSeesBobGone),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config), <<"bob">>)], AliceSeesBobGone),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config), <<"bob">>)], AliceSeesBobGone)
+    end).
+
+route_error_message_to_room_from_non_occupant(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {kate, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Kate) ->
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
 
         %% Kate (non-occupant) sends type="error" message -> silent drop
         ErrMsgKate = #xmlel{name = <<"message">>,
