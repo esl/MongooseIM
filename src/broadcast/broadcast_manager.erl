@@ -447,7 +447,7 @@ map_workers(HostType) ->
 synchronize_jobs(#state{host_type = HostType} = State) ->
     case try_take_renew_and_fetch(HostType) of
         {ok, RunningJobs, TakenJobIDs} ->
-            ?LOG_DEBUG(#{what => broadcast_taken_oven_jobs,
+            ?LOG_DEBUG(#{what => broadcast_taken_over_jobs,
                          host_type => HostType,
                          taken_job_ids => TakenJobIDs}),
             %% We need to stop workers for taken jobs in case we were experiencing problems
