@@ -33,6 +33,7 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include("mod_muc_room.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -type short_room_desc() :: #{jid := jid:jid(),
                              title := binary(),
@@ -126,7 +127,7 @@ verify_user(JID) ->
 -spec create_room(jid:jid(), jid:jid()) -> ok | {could_not_create_room, iolist()}.
 create_room(OwnerJID, UserRoomJID) ->
     CreationStanza = presence(OwnerJID, UserRoomJID, undefined),
-    ResponseAcc = ejabberd_router:route(OwnerJID, UserRoomJID, CreationStanza),
+    ResponseAcc = mongoose_router:route(mongoose_acc:new(OwnerJID, UserRoomJID, CreationStanza, ?LOCATION)),
     ResponseEl = mongoose_acc:element(ResponseAcc),
     verify_routing_result(ResponseEl).
 
@@ -134,7 +135,7 @@ create_room(OwnerJID, UserRoomJID) ->
 -spec unlock_room(jid:jid(), jid:jid()) -> ok | {could_not_create_room, iolist()}.
 unlock_room(OwnerJID, BareRoomJID) ->
     UnlockStanza = declination(OwnerJID, BareRoomJID),
-    ResponseAcc = ejabberd_router:route(OwnerJID, BareRoomJID, UnlockStanza),
+    ResponseAcc = mongoose_router:route(mongoose_acc:new(OwnerJID, BareRoomJID, UnlockStanza, ?LOCATION)),
     ResponseEl = #xmlel{} = mongoose_acc:element(ResponseAcc),
     verify_routing_result(ResponseEl).
 
@@ -190,7 +191,7 @@ invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) ->
                                       <<"reason">> => Reason}
             },
             Invite = message(SenderJID, RecipientJID, <<>>, [X]),
-            ejabberd_router:route(SenderJID, RecipientJID, Invite),
+            mongoose_router:route(mongoose_acc:new(SenderJID, RecipientJID, Invite, ?LOCATION)),
             {ok, "Invitation sent successfully"};
         Error ->
             Error
@@ -201,7 +202,7 @@ send_message_to_room(RoomJID, SenderJID, Message) ->
     Body = #xmlel{name = <<"body">>,
                   children = [#xmlcdata{content = Message}]},
     Stanza = message(SenderJID, RoomJID, <<"groupchat">>, [Body]),
-    ejabberd_router:route(SenderJID, RoomJID, Stanza),
+    mongoose_router:route(mongoose_acc:new(SenderJID, RoomJID, Stanza, ?LOCATION)),
     {ok, "Message sent successfully"}.
 
 -spec send_private_message(jid:jid(), jid:jid(), binary(), binary()) -> {ok, iolist()}.
@@ -211,7 +212,7 @@ send_private_message(RoomJID, SenderJID, ToNick, Message) ->
                   children = [#xmlcdata{content = Message}]},
     X = #xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC}},
     Stanza = message(SenderJID, RoomJID, <<"chat">>, [Body, X]),
-    ejabberd_router:route(SenderJID, RoomJIDRes, Stanza),
+    mongoose_router:route(mongoose_acc:new(SenderJID, RoomJIDRes, Stanza, ?LOCATION)),
     {ok, "Message sent successfully"}.
 
 -spec kick_user_from_room(jid:jid(), binary(), binary()) ->
@@ -400,13 +401,13 @@ set_role(RoomJID, UserJID, Nick, Role) ->
 -spec enter_room(jid:jid(), jid:jid(), binary() | undefined) -> {ok, iolist()}.
 enter_room(RoomJID, UserJID, Password) ->
     Presence = presence(UserJID, RoomJID, Password),
-    ejabberd_router:route(UserJID, RoomJID, Presence),
+    mongoose_router:route(mongoose_acc:new(UserJID, RoomJID, Presence, ?LOCATION)),
     {ok, "Entering room message sent successfully"}.
 
 -spec exit_room(jid:jid(), jid:jid()) -> {ok, iolist()}.
 exit_room(RoomJID, UserJID) ->
     Presence = exit_room_presence(UserJID, RoomJID),
-    ejabberd_router:route(UserJID, RoomJID, Presence),
+    mongoose_router:route(mongoose_acc:new(UserJID, RoomJID, Presence, ?LOCATION)),
     {ok, "Exiting room message sent successfully"}.
 
 %% Internal
@@ -422,7 +423,7 @@ kick_user_from_room_raw(RoomJID, ModJID, Nick, ReasonIn) ->
                   children = [ Reason ]
                  },
     IQ = iq(<<"set">>, ModJID, RoomJID, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
-    ejabberd_router:route(ModJID, RoomJID, IQ),
+    mongoose_router:route(mongoose_acc:new(ModJID, RoomJID, IQ, ?LOCATION)),
     {ok, "Kick message sent successfully"}.
 
 -spec try_add_role_resource(jid:jid(), jid:jid(), mod_muc:role()) ->

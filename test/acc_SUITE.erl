@@ -28,6 +28,7 @@ groups() ->
        store_retrieve_and_delete,
        store_retrieve_and_delete_many,
        init_from_element,
+       update,
        produce_iq_meta_automatically,
        strip,
        strip_with_params,
@@ -108,8 +109,30 @@ init_from_element(_C) ->
     ?PRT("Acc", Acc),
     ?assertEqual(<<"iq">>, mongoose_acc:stanza_name(Acc)),
     ?assertEqual(<<"set">>, mongoose_acc:stanza_type(Acc)),
+    ?assertEqual(<<"a">>, jid:luser(mongoose_acc:from_jid(Acc))),
+    ?assertEqual(<<"a">>, jid:luser(mongoose_acc:to_jid(Acc))),
     ok.
 
+update(_C) ->
+    Acc = mongoose_acc:new(?ACC_PARAMS#{element => sample_stanza()}),
+    F1 = jid:from_binary(<<"b@localhost">>),
+    T1 = jid:from_binary(<<"c@localhost">>),
+    M1 = #xmlel{name = <<"presence">>,
+                attrs = #{<<"type">> => <<"get">>}},
+    Acc1 = mongoose_acc:update(F1, T1, M1, Acc),
+    ?assertEqual(<<"presence">>, mongoose_acc:stanza_name(Acc1)),
+    ?assertEqual(<<"get">>, mongoose_acc:stanza_type(Acc1)),
+    ?assertEqual(<<"b">>, jid:luser(mongoose_acc:from_jid(Acc1))),
+    ?assertEqual(<<"c">>, jid:luser(mongoose_acc:to_jid(Acc1))),
+    M2 = #xmlel{name = <<"presence">>,
+                attrs = #{<<"type">> => <<"set">>}},
+    Acc2 = mongoose_acc:update(element, M2, Acc1),
+    ?assertEqual(<<"set">>, mongoose_acc:stanza_type(Acc2)),
+    Acc3 = mongoose_acc:update(from_jid, jid:from_binary(<<"z@localhost">>), Acc2),
+    ?assertEqual(<<"z">>, jid:luser(mongoose_acc:from_jid(Acc3))),
+    Acc4 = mongoose_acc:update(to_jid, jid:from_binary(<<"y@localhost">>), Acc3),
+    ?assertEqual(<<"y">>, jid:luser(mongoose_acc:to_jid(Acc4))),
+    ok.
 
 produce_iq_meta_automatically(_C) ->
     Acc = mongoose_acc:new(?ACC_PARAMS#{element => sample_stanza()}),

@@ -172,6 +172,37 @@ my_SUITE: 8 unexpected errors logged, max allowed: 5
 
 Suites without `max_unexpected_errors_logged` are not checked.
 
+## Multi-node collection
+
+The hook collects errors from all reachable MongooseIM nodes
+(`mim`, `mim2`, `mim3`, `fed`, `reg`) using a push-mode design:
+
+- A single **sink** (`cth_error_report_sink`, a gen_server) runs on
+  the test runner. It owns one ETS table that holds every error
+  entry from every node, keyed by a global monotonic sequence.
+- A **logger handler** (`log_error_collector`) is injected on each
+  reachable MIM node. For every error-level event it sends a
+  `{log_entry, Node, Level, Msg, Meta}` Erlang message to the sink
+  using `[noconnect, nosuspend]` (a slow or disconnected runner
+  cannot back-pressure logging).
+- After a MIM node restart, the restart caller is responsible for
+  re-injecting the handler. `distributed_helper:start_node/2` does
+  this automatically by calling `cth_error_report_sink:inject/1`.
+  Accumulated entries on the runner-side sink are unaffected by
+  node restarts -- only entries logged in the brief window between
+  the node coming up and `inject/1` returning are missed.
+
+Each error entry includes the originating node (in the `meta` map),
+so reports show which node logged each error. Expected error
+patterns apply to all nodes -- a single `expect` declaration matches
+errors regardless of which node produced them.
+
+**Limitation:** if a MIM node is restarted by a path that does not go
+through `distributed_helper:start_node/2` (e.g. an external script,
+or a future custom helper), error collection on that node will not
+resume until something calls `cth_error_report_sink:inject/1`
+explicitly. Plan-fully restarted nodes are fine.
+
 ## Parallel groups
 
 For parallel test groups, per-testcase error tracking is not possible because

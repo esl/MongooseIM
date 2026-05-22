@@ -1,5 +1,5 @@
 -module(mongoose_data_forms).
--xep([{xep, 4}, {version, "2.13.1"}]).
+-xep([{xep, 4}, {version, "2.13.2"}]).
 -xep([{xep, 68}, {version, "1.3.0"}]).
 
 %% Form processing

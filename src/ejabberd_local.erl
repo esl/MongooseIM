@@ -111,12 +111,13 @@ process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
             T = <<"Local server does not implement this feature">>,
-            ejabberd_router:route_error_reply(To, From, Acc,
-                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, T))
+            {Acc1, Error} = jlib:make_error_reply(Acc,
+                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, T)),
+            mongoose_router:route(mongoose_acc:update(To, From, Error, Acc1))
     end;
 process_iq(_, Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:bad_request()),
-    ejabberd_router:route(To, From, Acc1, Err).
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)).
 
 -spec process_iq_reply(From :: jid:jid(),
                        To :: jid:jid(),
@@ -196,7 +197,7 @@ route_iq(From, To, Acc, #iq{type = Type} = IQ, Callback, Timeout)
                 false ->
                      jlib:iq_to_xml(IQ)
              end,
-    ejabberd_router:route(From, To, Acc, Packet).
+    mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc)).
 
 -spec register_iq_response_handler(
            ID :: id(),
@@ -233,7 +234,7 @@ unregister_iq_handler(Domain, XMLNS) ->
                              El :: exml:element()) -> mongoose_acc:t().
 bounce_resource_packet(Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:item_not_found()),
-    ejabberd_router:route(To, From, Acc1, Err),
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
     Acc.
 
 -spec register_host(Host :: jid:server()) -> ok.

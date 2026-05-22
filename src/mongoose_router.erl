@@ -2,7 +2,8 @@
 
 -define(TABLE, ?MODULE).
 
--export([start/0, stop/0, routing_modules_list/0, default_routing_modules/0]).
+-export([start/0, stop/0, default_routing_modules/0]).
+-export([route/1]).
 
 -export([get_all_domains/0, lookup_route/1, is_registered_route/1,
          register_route/2, unregister_route/1]).
@@ -11,6 +12,20 @@
 
 %% Instrumentation
 -export([drop_stanza/1]).
+
+-spec route(Acc :: mongoose_acc:t()) -> mongoose_acc:t().
+route(Acc) ->
+    ?LOG_DEBUG(#{what => route, acc => Acc}),
+    RoutingModules = routing_modules_list(),
+    NewAcc = route(mongoose_acc:from_jid(Acc),
+                   mongoose_acc:to_jid(Acc),
+                   Acc,
+                   mongoose_acc:element(Acc),
+                   RoutingModules),
+    ?LOG_DEBUG(#{what => routing_result,
+                 routing_result => mongoose_acc:get(router, result, {drop, undefined}, NewAcc),
+                 routing_modules => RoutingModules, acc => Acc}),
+    NewAcc.
 
 -spec get_all_domains() -> [jid:lserver()].
 get_all_domains() ->
@@ -48,10 +63,17 @@ is_registered_route(LDomain) ->
 
 %% start/stop
 start() ->
-    ets:new(?TABLE, [named_table, public, set, {read_concurrency, true}]),
+    case ets:info(?TABLE) of
+        undefined ->
+            ets:new(?TABLE, [named_table, public, set, {read_concurrency, true}]);
+        _ ->
+            ok
+    end,
+    mongoose_component:start(),
     mongoose_instrument:set_up(instrumentation()).
 
 stop() ->
+    mongoose_component:stop(),
     mongoose_instrument:tear_down(instrumentation()).
 
 default_routing_modules() ->
@@ -88,3 +110,37 @@ instrumentation(HostType) ->
       #{metrics => #{count => spiral}}},
      {router_no_route_found, #{host_type => HostType},
       #{metrics => #{count => spiral}}}].
+
+-spec route(From   :: jid:jid(),
+            To     :: jid:jid(),
+            Acc    :: mongoose_acc:t(),
+            Packet :: exml:element(),
+            [xmpp_router:t()]) -> mongoose_acc:t().
+route(_From, To, Acc, _Packet, []) ->
+    HT = mongoose_acc:host_type(Acc),
+    ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc, host_type => HT}),
+    mongoose_instrument:execute(router_no_route_found, #{host_type => HT}, #{count => 1, to => To}),
+    mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
+route(OrigFrom, OrigTo, Acc0, OrigPacket, [M | Tail]) ->
+    try xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc0, OrigPacket) of
+        drop ->
+            mongoose_acc:append(router, result, {drop, M}, Acc0);
+        {OrigFrom, OrigTo, Acc1, OrigPacketFiltered} ->
+            try xmpp_router:call_route(M, OrigFrom, OrigTo, Acc1, OrigPacketFiltered) of
+                {done, Acc2} ->
+                    mongoose_acc:append(router, result, {done, M}, Acc2);
+                {From, To, NAcc1, Packet} ->
+                    route(From, To, NAcc1, Packet, Tail)
+            catch Class:Reason:Stacktrace ->
+                ?LOG_WARNING(#{what => routing_failed,
+                               router_module => M, acc => Acc1,
+                               class => Class, reason => Reason, stacktrace => Stacktrace}),
+                mongoose_acc:append(router, result, {error, {M, Reason}}, Acc1)
+            end
+    catch Class:Reason:Stacktrace ->
+        ?LOG_WARNING(#{what => route_filter_failed,
+                       text => <<"Error when filtering packet in router">>,
+                       router_module => M, acc => Acc0,
+                       class => Class, reason => Reason, stacktrace => Stacktrace}),
+        mongoose_acc:append(router, result, {error, {M, Reason}}, Acc0)
+    end.

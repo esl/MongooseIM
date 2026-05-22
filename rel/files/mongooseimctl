@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 RUNNER_SCRIPT_DIR={{{mongooseim_script_dir}}}
 RUNNER_BASE_DIR="${RUNNER_SCRIPT_DIR%/*}"
@@ -20,7 +20,7 @@ function preserved_variables
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
     # Preserve some env variables
-    exec runuser -s /bin/bash -l "$RUNNER_USER" -c "$(preserved_variables) $0 $*"
+    exec runuser -s "$(command -v bash)" -l "$RUNNER_USER" -c "$(preserved_variables) $0 $*"
 fi
 
 MIM_DIR="${RUNNER_SCRIPT_DIR%/*}"

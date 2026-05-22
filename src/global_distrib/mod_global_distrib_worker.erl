@@ -52,7 +52,7 @@ handle_call({data, Host, TransferTime, Stamp, Data}, From, State) ->
     handle_cast({data, Host, TransferTime, Stamp, Data}, State).
 
 handle_cast({route, {From, To, Acc, Packet}}, State) ->
-    ejabberd_router:route(From, To, Acc, Packet),
+    mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc)),
     {noreply, State, ?TIMEOUT};
 handle_cast({data, Host, TransferTime, Stamp, Data}, State) ->
     QueueTimeNative = erlang:monotonic_time() - Stamp,
@@ -84,4 +84,4 @@ do_work(Data) ->
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
     ?LOG_DEBUG(#{what => gd_route_incoming, acc => Acc,
                  gd_id => mod_global_distrib:get_metadata(Acc, id, "unknown")}),
-    ejabberd_router:route(From, To, Acc, Packet).
+    mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc)).

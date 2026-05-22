@@ -153,7 +153,7 @@ send(#{host_type := HostType, from := From, to := To, stanza := Stanza, origin :
     maybe
         {ok, Acc1} ?= mongoose_c2s_hooks:user_send_packet(HostType, Acc, Params),
         {ok, Acc2} ?= handle_message(HostType, Acc1, Params),
-        ejabberd_router:route(From, To, Acc2)
+        mongoose_router:route(Acc2)
     end,
     {ok, #{<<"id">> => get_id(Stanza)}}.
 

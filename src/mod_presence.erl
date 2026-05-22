@@ -123,7 +123,7 @@ handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData) ->
     Lang = mongoose_c2s:get_lang(StateData),
     Error = mongoose_xmpp_errors:bad_request(Lang, <<"Invalid presence type">>),
     Reply = jlib:make_error_reply(Packet, Error),
-    ejabberd_router:route(ToJid, FromJid, Acc, Reply),
+    mongoose_router:route(mongoose_acc:update(ToJid, FromJid, Reply, Acc)),
     {stop, Acc}.
 
 -spec user_terminate(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
@@ -242,7 +242,7 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
                 {true, _} ->
                     ?LOG_DEBUG(#{what => become_available_to, roster_jid => To,
                                  acc => Acc, c2s_state => StateData}),
-                    ejabberd_router:route(From, To, Acc, P),
+                    mongoose_router:route(mongoose_acc:update(From, To, P, Acc)),
                     Available = sets:add_element(To, Presences#presences_state.available),
                     NewPresences = Presences#presences_state{subscriptions = Subs,
                                                              available = Available},
@@ -251,7 +251,7 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
                     ?LOG_DEBUG(#{what => become_unavailable_to, roster_jid => To,
                                  acc => Acc, c2s_state => StateData}),
                     PU = presence_unavailable_stanza(),
-                    ejabberd_router:route(From, To, Acc, PU),
+                    mongoose_router:route(mongoose_acc:update(From, To, PU, Acc)),
                     Available = sets:del_element(To, Presences#presences_state.available),
                     NewPresences = Presences#presences_state{subscriptions = Subs,
                                                              available = Available},
@@ -295,7 +295,8 @@ process_presence_probe(Acc, Presences, FromJid, BareFromJid, ToJid) ->
         {true, _} ->
             route_probe(Acc, Presences, FromJid, ToJid);
         {false, true} ->
-            ejabberd_router:route(ToJid, FromJid, Acc, #xmlel{name = <<"presence">>}),
+            mongoose_router:route(
+                mongoose_acc:update(ToJid, FromJid, #xmlel{name = <<"presence">>}, Acc)),
             Acc;
         _ ->
             Acc
@@ -312,7 +313,7 @@ route_probe(Acc, Presences, FromJid, ToJid) ->
     %% Don't route a presence probe to oneself
     case jid:are_equal(FromJid, ToJid) of
         false ->
-            ejabberd_router:route(ToJid, FromJid, Acc2, Packet1),
+            mongoose_router:route(mongoose_acc:update(ToJid, FromJid, Packet1, Acc2)),
             Acc;
         true ->
             Acc2
@@ -396,26 +397,26 @@ presence_track(Acc, FromJid, ToJid, Packet, StateData, unavailable) ->
     Presences = maybe_get_handler(StateData),
     process_presence_track_unavailable(Acc, FromJid, ToJid, Packet, Presences);
 presence_track(Acc, FromJid, ToJid, Packet, _, Type) when error =:= Type; probe =:= Type ->
-    ejabberd_router:route(FromJid, ToJid, Acc, Packet),
+    mongoose_router:route(mongoose_acc:update(FromJid, ToJid, Packet, Acc)),
     Acc;
 presence_track(Acc, FromJid, ToJid, Packet, _, Type) ->
     process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, Type).
 
 process_presence_track_available(Acc, FromJid, ToJid, Packet, Presences) ->
-    ejabberd_router:route(FromJid, ToJid, Acc, Packet),
+    mongoose_router:route(mongoose_acc:update(FromJid, ToJid, Packet, Acc)),
     Available = sets:add_element(ToJid, Presences#presences_state.available),
     NewPresences = Presences#presences_state{available = Available},
     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences}).
 
 process_presence_track_unavailable(Acc, FromJid, ToJid, Packet, Presences) ->
-    ejabberd_router:route(FromJid, ToJid, Acc, Packet),
+    mongoose_router:route(mongoose_acc:update(FromJid, ToJid, Packet, Acc)),
     Available = sets:del_element(ToJid, Presences#presences_state.available),
     NewPresences = Presences#presences_state{available = Available},
     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences}).
 
 process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, Type) ->
     Acc1 = mongoose_hooks:roster_out_subscription(Acc, FromJid, ToJid, Type),
-    ejabberd_router:route(jid:to_bare(FromJid), ToJid, Acc1, Packet),
+    mongoose_router:route(mongoose_acc:update(jid:to_bare(FromJid), ToJid, Packet, Acc1)),
     Acc1.
 
 -spec presence_broadcast_filtered(mongoose_acc:t(), term(), state()) -> ok.
@@ -436,7 +437,7 @@ presence_broadcast_filtered(Acc, _Reason = {shutdown, {replaced, Pid}}, #presenc
                                _ ->
                                    % Create the full JID for this resource
                                    ResourceJID = jid:replace_resource(FromJID, Resource),
-                                   ejabberd_router:route(FromJID, ResourceJID, Acc, Packet)
+                                   mongoose_router:route(mongoose_acc:update(FromJID, ResourceJID, Packet, Acc))
                            end
                        end,
     lists:foreach(RouteToResources, ResourcesPids),
@@ -444,7 +445,7 @@ presence_broadcast_filtered(Acc, _Reason = {shutdown, {replaced, Pid}}, #presenc
     RouteToAvailable = fun(ToJID, _) ->
                            case jid:are_bare_equal(FromJID, ToJID) of
                                true -> ok;  % Skip FromJID itself
-                               false -> ejabberd_router:route(FromJID, ToJID, Acc, Packet)
+                               false -> mongoose_router:route(mongoose_acc:update(FromJID, ToJID, Packet, Acc))
                            end
                        end,
     sets:fold(RouteToAvailable, undefined, Available);
@@ -453,8 +454,7 @@ presence_broadcast_filtered(Acc, _Reason, #presences_state{available = Available
 
 -spec presence_broadcast(mongoose_acc:t(), state()) -> ok.
 presence_broadcast(Acc, #presences_state{available = Available}) ->
-    {FromJID, _, Packet} = mongoose_acc:packet(Acc),
-    Route = fun(ToJID, _) -> ejabberd_router:route(FromJID, ToJID, Acc, Packet) end,
+    Route = fun(ToJID, _) -> mongoose_router:route(mongoose_acc:update(to_jid, ToJID, Acc)) end,
     sets:fold(Route, undefined, Available).
 
 -spec presence_update_to_available(
@@ -491,7 +491,7 @@ presence_broadcast_to_trusted(Acc, FromJid, Presences, Packet) ->
       fun(JID, _) ->
               case is_subscribed(Presences, JID, from) of
                   true ->
-                      ejabberd_router:route(FromJid, JID, Acc, Packet);
+                      mongoose_router:route(mongoose_acc:update(FromJid, JID, Packet, Acc));
                   _ ->
                       Acc
               end
@@ -514,7 +514,7 @@ resend_offline_messages(Acc, StateData) ->
 resend_offline_message(Acc0, FromJid, To, Acc, in) ->
     Packet = mongoose_acc:element(Acc),
     NewAcc = strip_c2s_fields(Acc),
-    ejabberd_router:route(FromJid, To, NewAcc, Packet),
+    mongoose_router:route(mongoose_acc:update(FromJid, To, Packet, NewAcc)),
     Acc0.
 
 -spec strip_c2s_fields(mongoose_acc:t()) -> mongoose_acc:t().
@@ -539,10 +539,10 @@ presence_broadcast_first(Acc0, FromJid, Packet, Presences, Pending) ->
         mongoose_acc:t(), jid:jid(), exml:element(), jid:jid(), subscriptions(), available()) ->
     available().
 notify_available_to_subscribers(Acc0, FromJid, Packet, JID, both, S) ->
-    ejabberd_router:route(FromJid, JID, Acc0, Packet),
+    mongoose_router:route(mongoose_acc:update(FromJid, JID, Packet, Acc0)),
     sets:add_element(JID, S);
 notify_available_to_subscribers(Acc0, FromJid, Packet, JID, from, S) ->
-    ejabberd_router:route(FromJid, JID, Acc0, Packet),
+    mongoose_router:route(mongoose_acc:update(FromJid, JID, Packet, Acc0)),
     sets:add_element(JID, S);
 notify_available_to_subscribers(_, _, _, _, _, S) ->
     S.
@@ -551,7 +551,7 @@ notify_available_to_subscribers(_, _, _, _, _, S) ->
 broadcast_probe(Acc, FromJid, Presences) ->
     Probe = presence_probe(),
     Fun = fun(ToJid, Sub) when both =:= Sub; to =:= Sub ->
-                  ejabberd_router:route(FromJid, ToJid, Acc, Probe);
+                  mongoose_router:route(mongoose_acc:update(FromJid, ToJid, Probe, Acc));
              (_, _) ->
                   ok
           end,
@@ -602,7 +602,7 @@ route_with_self_skip(FromJID, ToJID, Acc, Packet) ->
             % ToJID should be bare if self
             route_to_other_resources(FromJID, Acc, Packet);
         false ->
-            ejabberd_router:route(FromJID, ToJID, Acc, Packet)
+            mongoose_router:route(mongoose_acc:update(FromJID, ToJID, Packet, Acc))
     end.
 
 %% @doc Route packet to all user resources except the sender
@@ -613,7 +613,7 @@ route_to_other_resources(FromJID, Acc, Packet) ->
                       ResourceJID = jid:replace_resource(FromJID, Resource),
                       case jid:are_equal(FromJID, ResourceJID) of
                           true -> ok;  % Skip self
-                          false -> ejabberd_router:route(FromJID, ResourceJID, Acc, Packet)
+                          false -> mongoose_router:route(mongoose_acc:update(FromJID, ResourceJID, Packet, Acc))
                       end
                   end, Resources).
 

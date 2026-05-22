@@ -370,7 +370,7 @@ inspect_xevent(Acc, From, To, Packet, XEvent) ->
                 undefined ->
                     true;
                 _ ->
-                    ejabberd_router:route(To, From, Acc, patch_offline_message(Packet)),
+                    mongoose_router:route(mongoose_acc:update(To, From, patch_offline_message(Packet), Acc)),
                     true
             end;
         _ ->
@@ -568,7 +568,7 @@ discard_warn_sender(Msgs) ->
               mod_amp:check_packet(Acc, offline_failed),
               {Acc1, Err} = jlib:make_error_reply(
                       Acc, Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
-              ejabberd_router:route(To, From, Acc1, Err)
+              mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
       end, Msgs).
 
 fallback_timestamp(HowManyDays, TSMicroSeconds) ->

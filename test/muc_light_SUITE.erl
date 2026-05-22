@@ -59,7 +59,7 @@ init_per_testcase(codec_calls, Config) ->
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),
     mongooseim_helper:start_link_loaded_hooks(),
-    ejabberd_router:start_link(),
+    mongoose_router:start(),
     mim_ct_sup:start_link(ejabberd_sup),
     mongoose_modules:start(),
     ets:new(testcalls, [named_table]),

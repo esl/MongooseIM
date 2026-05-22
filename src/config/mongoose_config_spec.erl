@@ -744,7 +744,6 @@ configurable_modules() ->
      mod_global_distrib,
      mod_http_upload,
      mod_inbox,
-     mod_jingle_sip,
      mod_keystore,
      mod_last,
      mod_mam,

@@ -259,7 +259,7 @@ handle_stream_established(StateData, #xmlel{name = Name} = El) ->
     case IsStanza andalso IsValidFromJid andalso (error =/= ToJid) of
         true ->
             Acc = element_to_origin_accum(StateData, FromJid, ToJid, NewEl),
-            ejabberd_router:route(FromJid, ToJid, Acc, NewEl);
+            mongoose_router:route(Acc);
         false ->
             ?LOG_INFO(#{what => comp_bad_request,
                         text => <<"Not valid Name or error in FromJid or ToJid">>,
@@ -361,7 +361,8 @@ handle_route(StateData = #component_data{}, _, Acc) ->
             Packet2 = jlib:replace_from_to(From, To, Packet),
             send_xml(StateData, Packet2);
         deny ->
-            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:not_allowed())
+            {Acc1, Error} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
+            mongoose_router:route(mongoose_acc:update(To, From, Error, Acc1))
     end,
     keep_state_and_data.
 

@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @doc
 %%% A behaviour which should be used by all modules being used in a
-%%% routing pipeline. The pipeline, manage by ejabberd_router:route
+%%% routing pipeline. The pipeline, manage by mongoose_router:route/1
 %%% func, calls filter and route for each successful module.
 %%%
 %%% Module has to implement both functions, can be a no-op just returning

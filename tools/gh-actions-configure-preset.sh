@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ##########################################################################################################
 ## for testing purposes run:
 ##    GITHUB_ENV=/dev/tty tools/gh-actions-configure-preset.sh internal_mnesia TESTSPEC=default.spec

@@ -254,7 +254,7 @@ maybe_forward_last(Acc) ->
             {ok, Acc};
         false ->
             {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:forbidden()),
-            ejabberd_router:route(To, From, Acc1, Err),
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
             {stop, Acc}
     end.
 
