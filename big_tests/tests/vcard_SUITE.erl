@@ -277,18 +277,8 @@ user_doesnt_exist(Config) ->
       fun(Client) ->
               Domain = domain(),
               BadJID = <<"nonexistent@", Domain/binary>>,
-              Res = escalus:send_and_wait(Client,
-                        escalus_stanza:vcard_request(BadJID)),
-          case
-          escalus_pred:is_error(<<"cancel">>,
-              <<"item-not-found">>,
-              Res) of
-              true ->
-                  ok;
-              _ ->
-                  [] = Res#xmlel.children,
-                  ct:comment("empty result instead of error")
-          end
+              Res = escalus:send_and_wait(Client, escalus_stanza:vcard_request(BadJID)),
+              escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Res)
       end).
 
 update_other_card(Config) ->
