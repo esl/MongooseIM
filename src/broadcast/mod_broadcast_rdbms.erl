@@ -359,8 +359,14 @@ decode_execution_state(<<"abort_admin">>) -> abort_admin.
 
 decode_recipient_group(<<"all_users_in_domain">>) -> all_users_in_domain.
 
-decode_owner_node(null) -> undefined;
-decode_owner_node(Bin) -> binary_to_atom(Bin, utf8).
+decode_owner_node(null) ->
+    undefined;
+decode_owner_node(Bin) ->
+    try binary_to_existing_atom(Bin, utf8) of
+        Atom -> Atom
+    catch
+        error:badarg -> undefined
+    end.
 
 postprocess_timestamp({Date, {Hour, Min, Sec}}) ->
     {Date, {Hour, Min, round(Sec)}};
