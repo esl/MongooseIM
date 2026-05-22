@@ -1,3 +1,7 @@
+## Deprecation Notice
+
+This module is deprecated and will be removed in the next release.
+
 ## Module Description
 A logging submodule for [mod_muc](mod_muc.md). 
 Is must be explicitly configured to work. 

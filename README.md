@@ -1,14 +1,14 @@
 # MongooseIM platform
 
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.5.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.5)
-[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.5/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.5)
-[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.5)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.5)
-[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.5)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.5)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.7.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.7)
+[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.7/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.7)
+[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.7)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.7)
+[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.7)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.7)
 
 * [Getting started](https://esl.github.io/MongooseDocs/latest/getting-started/Installation/)
 * [Developer's guide](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/)
-* [Packages](https://github.com/esl/MongooseIM/releases/latest)
+* [Packages](https://trymongoose.im/downloads#packages) / [Docker images](https://trymongoose.im/downloads#docker) / [Helm charts](https://trymongoose.im/downloads#helm)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/latest/)
 * Try it now: [https://trymongoose.im](https://trymongoose.im)
@@ -43,9 +43,9 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/).
 
 For a quick start just download:
 
-* The [Docker image](https://hub.docker.com/r/erlangsolutions/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
+* The [Docker image](https://trymongoose.im/downloads#docker)
 * The [Helm chart](https://trymongoose.im/downloads#helm)
-* The [pre-built packages](https://github.com/esl/MongooseIM/releases/latest) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
+* The [pre-built packages](https://trymongoose.im/downloads#packages) that suit your platform (Ubuntu, Debian, CentOS compatible: AlmaLinux and Rocky Linux)
 
 ## Public testing
 
@@ -63,6 +63,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [6.7.0](https://esl.github.io/MongooseDocs/6.7.0/)
 * [6.6.0](https://esl.github.io/MongooseDocs/6.6.0/)
 * [6.5.0](https://esl.github.io/MongooseDocs/6.5.0/)
 * [6.4.0](https://esl.github.io/MongooseDocs/6.4.0/)

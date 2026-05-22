@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Frontend for ejabberd's extract_translations.erl
 # by Badlop

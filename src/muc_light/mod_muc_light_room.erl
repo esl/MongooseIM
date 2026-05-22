@@ -268,5 +268,5 @@ make_handler_fun(Acc) ->
                                      to_jid => To}),
         PermanentFields = mongoose_acc:get_permanent_fields(Acc),
         NewAcc = mongoose_acc:set_permanent(PermanentFields, NewAcc0),
-        ejabberd_router:route(From, To, NewAcc, Packet)
+        mongoose_router:route(mongoose_acc:update(From, To, Packet, NewAcc))
     end.

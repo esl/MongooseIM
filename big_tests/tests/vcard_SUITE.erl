@@ -32,6 +32,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 %% Element CData
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
@@ -276,18 +277,8 @@ user_doesnt_exist(Config) ->
       fun(Client) ->
               Domain = domain(),
               BadJID = <<"nonexistent@", Domain/binary>>,
-              Res = escalus:send_and_wait(Client,
-                        escalus_stanza:vcard_request(BadJID)),
-          case
-          escalus_pred:is_error(<<"cancel">>,
-              <<"item-not-found">>,
-              Res) of
-              true ->
-                  ok;
-              _ ->
-                  [] = Res#xmlel.children,
-                  ct:comment("empty result instead of error")
-          end
+              Res = escalus:send_and_wait(Client, escalus_stanza:vcard_request(BadJID)),
+              escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Res)
       end).
 
 update_other_card(Config) ->
@@ -1128,7 +1119,8 @@ get_jid_record(JID) ->
     jid:make_bare(User, Server).
 
 vcard_rpc(JID, Stanza) ->
-    Res = rpc(mim(), ejabberd_router, route, [JID, JID, Stanza]),
+    Acc = rpc(mim(), mongoose_acc, new, [JID, JID, Stanza, ?LOCATION]),
+    Res = rpc(mim(), mongoose_router, route, [Acc]),
     case Res of
         #{stanza := #{type := <<"set">>}} ->
             ok;

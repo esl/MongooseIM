@@ -335,7 +335,7 @@ big_tests/ct_report/ct_run.[gobbledygook][datetime]/
 Each run is saved into a new directory. This snippet:
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 
 lst=$(ls -rt ct_report | grep ct_run | tail -n 1)
 rm ct_report/lastrun

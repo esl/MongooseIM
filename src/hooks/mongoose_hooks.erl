@@ -310,7 +310,7 @@ push_notifications(HostType, Acc, NotificationForms, Options) ->
     run_hook_for_host_type(push_notifications, HostType, Acc, Params).
 
 %%% @doc The `register_subhost' hook is called when a component
-%%% is registered for ejabberd_router or a subdomain is added to mongoose_subdomain_core.
+%%% is registered for mongoose_router or a subdomain is added to mongoose_subdomain_core.
 -spec register_subhost(LDomain, IsHidden) -> Result when
     LDomain :: binary(),
     IsHidden :: boolean(),
@@ -399,7 +399,7 @@ filter_unacknowledged_messages(HostType, Jid, Buffer) ->
     run_hook_for_host_type(filter_unacknowledged_messages, HostType, Buffer, #{jid => Jid}).
 
 %%% @doc The `unregister_subhost' hook is called when a component
-%%% is unregistered from ejabberd_router or a subdomain is removed from mongoose_subdomain_core.
+%%% is unregistered from mongoose_router or a subdomain is removed from mongoose_subdomain_core.
 -spec unregister_subhost(LDomain) -> Result when
     LDomain :: binary(),
     Result :: any().

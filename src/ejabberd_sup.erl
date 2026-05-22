@@ -46,7 +46,6 @@ init(noargs) ->
     Hooks = worker_spec(gen_hook),
     Instrument = worker_spec(mongoose_instrument),
     Cleaner = worker_spec(mongoose_cleaner),
-    Router = worker_spec(ejabberd_router),
     S2S = worker_spec(ejabberd_s2s),
     Local = worker_spec(ejabberd_local),
     MucIQ = worker_spec(mod_muc_iq),
@@ -74,7 +73,6 @@ init(noargs) ->
            SMBackendSupervisor,
            OutgoingPoolsSupervisor
            ] ++ mongoose_cets_discovery:supervisor_specs() ++ [
-           Router,
            S2S,
            S2SReceiverSupervisor,
            S2SOutSupervisor,

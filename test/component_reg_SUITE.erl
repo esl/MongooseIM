@@ -19,7 +19,7 @@ init_per_suite(Config) ->
     application:ensure_all_started(exometer_core),
     async_helper:start(Config, [{mongoose_instrument, start_link, []},
                                 {mongooseim_helper, start_link_loaded_hooks, []},
-                                {ejabberd_router, start_link, []}]).
+                                {mongoose_router, start, []}]).
 
 init_per_testcase(_, Config) ->
     mongoose_router:start(),

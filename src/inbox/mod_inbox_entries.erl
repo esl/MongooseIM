@@ -135,7 +135,7 @@ broadcast_inbox_update(Acc, Owner, MsgId, XAttrs, Children) ->
     Msg = #xmlel{name = <<"message">>,
                  attrs = #{<<"id">> => MsgId},
                  children = [X]},
-    ejabberd_router:route(Owner, jid:to_bare(Owner), Acc, Msg).
+    mongoose_router:route(mongoose_acc:update(Owner, jid:to_bare(Owner), Msg, Acc)).
 
 maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
     case mod_inbox_utils:extract_attr_jid(ResetStanza) of

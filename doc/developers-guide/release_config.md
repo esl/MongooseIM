@@ -6,8 +6,6 @@ It's now possible to install MongooseIM from source in two modes:
 * `user`  - which is the default mode and used for testing on GitHub Actions and
     in development
 
-You can also build OS specific packages by using the tools in `[MongooseIM repo root]/tools/pkg` - refer to `README.md` therein.
-
 ### Configure script
 
 The `tools/configure` script can be used to specify which 3rd party
@@ -60,7 +58,7 @@ Generated build configs:
 ```sh
 $ cat configure.out rel/configure.vars.config
 export MONGOOSEIM_CONFIGURED="yes"
-export APPS="mysql epgsql eredis nksip cqerl tirerl erlcloud"
+export APPS="mysql epgsql eredis cqerl tirerl erlcloud"
 export PREFIX="/tmp/mim-sandbox-system"
 export RELTOOL_VARS="rel/configure.vars.config"
 export SYSTEM="yes"

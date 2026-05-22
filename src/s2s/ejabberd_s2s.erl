@@ -166,7 +166,7 @@ do_route(From, To, Acc0, Packet) ->
                     ?LOG_DEBUG(#{what => s2s_connection_not_found, acc => Acc0}),
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc0, Packet, mongoose_xmpp_errors:service_unavailable()),
-                    Acc2 = ejabberd_router:route(To, From, Acc1, Err),
+                    Acc2 = mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
                     {done, Acc2}
             end
     end.

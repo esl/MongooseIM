@@ -97,4 +97,4 @@ maybe_send_back_error(From, To, Acc, FPacketAcc) ->
     Acc :: mongoose_acc:t().
 send_back_error(Etype, From, To, Acc) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Etype),
-    ejabberd_router:route(To, From, Acc1, Err).
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)).

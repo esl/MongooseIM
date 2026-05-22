@@ -20,10 +20,7 @@
                lock_dir         = "$RUNNER_BASE_DIR/var/lock",
                pid_dir          = "$RUNNER_BASE_DIR/var",
                status_dir       = "$RUNNER_BASE_DIR/var",
-               nodetool_etc_dir = "etc",
-               % nksip writes an erlang module file, which is used as a cache.
-               % By default it uses "log" directory, and we want to change it.
-               nksip_cache_dir  = "priv/nksip_cache"
+               nodetool_etc_dir = "etc"
               }).
 
 main(["help"]) ->
@@ -79,8 +76,7 @@ system_install(Opts) ->
               mdb_dir           = "$PREFIX/var/lib/mongooseim",
               mdb_dir_toggle    = "",
               lock_dir          = "$PREFIX/var/lock/mongooseim",
-              nodetool_etc_dir  = "$PREFIX/etc/mongooseim",
-              nksip_cache_dir   = "$PREFIX/var/lib/mongooseim/nksip"}.
+              nodetool_etc_dir  = "$PREFIX/etc/mongooseim"}.
 
 usage() ->
     print(standard_error,
@@ -140,8 +136,7 @@ write(reltool, FileName, Opts) ->
             rt_var(mongooseim_lock_dir, Opts#opts.lock_dir),
             rt_var(mongooseim_pid_dir, Opts#opts.pid_dir),
             rt_var(mongooseim_status_dir, Opts#opts.status_dir),
-            rt_var(mongooseim_nodetool_etc_dir, Opts#opts.nodetool_etc_dir),
-            rt_var(nksip_cache_dir, Opts#opts.nksip_cache_dir)],
+            rt_var(mongooseim_nodetool_etc_dir, Opts#opts.nodetool_etc_dir)],
     file:write_file(FileName, Data).
 
 expand_prefix(Opts) when Opts#opts.system /= "yes" -> Opts;
@@ -156,8 +151,7 @@ expand_prefix(Opts) ->
                               #opts.lock_dir,
                               #opts.pid_dir,
                               #opts.status_dir,
-                              #opts.nodetool_etc_dir,
-                              #opts.nksip_cache_dir]),
+                              #opts.nodetool_etc_dir]),
     NOpts.
 
 expand_prefix(Index, {Opts, Prefix}) ->

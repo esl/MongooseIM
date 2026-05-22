@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 SRC_ROOT="$(dirname "${BASH_SOURCE}")"

@@ -467,7 +467,7 @@ bounce_one(Error, Acc) ->
         _ ->
             {From, To, Packet} = mongoose_acc:packet(Acc),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, Error),
-            ejabberd_router:route(To, From, Acc1, Err)
+            mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end.
 
 -spec send_xml(data(), exml_stream:element()) -> maybe_ok().

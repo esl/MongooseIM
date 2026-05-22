@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Env variables:
 # BUILD_TESTS - disable the script

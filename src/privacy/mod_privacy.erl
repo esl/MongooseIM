@@ -247,7 +247,7 @@ do_user_send_iq(Acc1, StateData, HostType, #iq{type = Type, sub_el = SubEl} = IQ
                 {error, Error} ->
                     IQ#iq{type = error, sub_el = [SubEl, Error]}
             end,
-    ejabberd_router:route(ToJid, FromJid, Acc2, jlib:iq_to_xml(IQRes)),
+    mongoose_router:route(mongoose_acc:update(ToJid, FromJid, jlib:iq_to_xml(IQRes), Acc2)),
     {stop, Acc2}.
 
 -spec handle_new_privacy_list(
@@ -329,7 +329,7 @@ send_unavail_if_newly_blocked(Acc, Jid, ContactJID, OldList, NewList, StateData)
     do_send_unavail_if_newly_blocked(Acc, OldResult, NewResult, Jid, ContactJID, Packet).
 
 do_send_unavail_if_newly_blocked(Acc, allow, deny, From, To, Packet) ->
-    ejabberd_router:route(From, To, Acc, Packet);
+    mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc));
 do_send_unavail_if_newly_blocked(Acc, _, _, _, _, _) ->
     Acc.
 
@@ -362,7 +362,7 @@ send_back_error(Acc1, ErrorType, send) ->
     {From, To, _El} = mongoose_acc:packet(Acc2),
     Error = mongoose_xmpp_errors:ErrorType(),
     {Acc3, Err} = jlib:make_error_reply(Acc2, Error),
-    ejabberd_router:route(To, From, Acc3, Err),
+    mongoose_router:route(mongoose_acc:update(To, From, Err, Acc3)),
     Acc3;
 send_back_error(Acc, _, _) ->
     Acc.

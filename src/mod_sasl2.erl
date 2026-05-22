@@ -11,7 +11,7 @@
 %% most recent from the accumulator, modify that one, and reinsert, otherwise it can override
 %% updates made by previous handlers.
 -module(mod_sasl2).
--xep([{xep, 388}, {version, "0.4.0"}, {status, partial}]).
+-xep([{xep, 388}, {version, "1.0.4"}, {status, partial}]).
 
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
