@@ -22,8 +22,7 @@
          delete_job/2,
          delete_inactive_jobs_by_domain/2,
          renew_ownership/2,
-         take_expired_jobs/2,
-         remove_ownership/2]).
+         take_expired_jobs/2]).
 
 -include("mod_broadcast.hrl").
 
@@ -76,9 +75,6 @@
 
 -callback take_expired_jobs(mongooseim:host_type(), LeaseTime :: non_neg_integer()) ->
     {ok, [broadcast_job_id()]}.
-
--callback remove_ownership(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
-    ok.
 
 %%====================================================================
 %% API
@@ -172,11 +168,6 @@ renew_ownership(HostType, LeaseTime) ->
     {ok, [broadcast_job_id()]}.
 take_expired_jobs(HostType, LeaseTime) ->
     Args = [HostType, LeaseTime],
-    mongoose_backend:call(HostType, main_module(), ?FUNCTION_NAME, Args).
-
--spec remove_ownership(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
-remove_ownership(HostType, JobId) ->
-    Args = [HostType, JobId],
     mongoose_backend:call(HostType, main_module(), ?FUNCTION_NAME, Args).
 
 %% =====================================================================

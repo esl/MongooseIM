@@ -325,9 +325,8 @@ persist_job_aborted_by_admin(HostType, Domain, JobId) ->
                 job_id => JobId,
                 domain => Domain,
                 host_type => HostType}),
-    try
-        mod_broadcast_backend:set_job_aborted_admin(HostType, JobId),
-        mod_broadcast_backend:remove_ownership(HostType, JobId)
+    try mod_broadcast_backend:set_job_aborted_admin(HostType, JobId) of
+        _ -> ok
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_aborted_admin_failed,
@@ -347,9 +346,8 @@ persist_job_finished(HostType, Domain, JobId) ->
                 job_id => JobId,
                 domain => Domain,
                 host_type => HostType}),
-    try
-        mod_broadcast_backend:set_job_finished(HostType, JobId),
-        mod_broadcast_backend:remove_ownership(HostType, JobId)
+    try mod_broadcast_backend:set_job_finished(HostType, JobId) of
+        _ -> ok
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_finished_failed,
@@ -370,9 +368,8 @@ persist_job_aborted_error(HostType, Domain, JobId, Reason) ->
                  domain => Domain,
                  host_type => HostType}),
     ReasonBin = iolist_to_binary(io_lib:format("~p", [Reason])),
-    try
-        mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin),
-        mod_broadcast_backend:remove_ownership(HostType, JobId)
+    try mod_broadcast_backend:set_job_aborted_error(HostType, JobId, ReasonBin) of
+        _ -> ok
     catch
         Class:BackendReason:Stacktrace ->
             ?LOG_ERROR(#{what => broadcast_set_job_aborted_error_failed,

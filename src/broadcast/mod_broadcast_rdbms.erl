@@ -29,8 +29,7 @@
         ]).
 -export([
          renew_ownership/2,
-         take_expired_jobs/2,
-         remove_ownership/2
+         take_expired_jobs/2
         ]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
@@ -87,19 +86,34 @@ set_job_started(HostType, JobId) ->
 
 -spec set_job_finished(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
 set_job_finished(HostType, JobId) ->
-    {updated, 1} = execute_successfully(HostType, broadcast_set_job_finished, [JobId]),
+    T = fun() ->
+        {updated, 1} = execute_successfully(HostType, broadcast_set_job_finished, [JobId]),
+        {updated, _} = execute_successfully(HostType, broadcast_remove_ownership, [JobId]),
+        ok
+    end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, T),
     ok.
 
 -spec set_job_aborted_error(mongooseim:host_type(), JobId :: broadcast_job_id(), Reason :: binary()) ->
     ok.
 set_job_aborted_error(HostType, JobId, Reason) ->
-    {updated, 1} = execute_successfully(HostType, broadcast_set_job_aborted_error, [Reason, JobId]),
+    T = fun() ->
+        {updated, 1} = execute_successfully(HostType, broadcast_set_job_aborted_error, [Reason, JobId]),
+        {updated, _} = execute_successfully(HostType, broadcast_remove_ownership, [JobId]),
+        ok
+    end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, T),
     ok.
 
 -spec set_job_aborted_admin(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
     ok.
 set_job_aborted_admin(HostType, JobId) ->
-    {updated, 1} = execute_successfully(HostType, broadcast_set_job_aborted_admin, [JobId]),
+    T = fun() ->
+        {updated, 1} = execute_successfully(HostType, broadcast_set_job_aborted_admin, [JobId]),
+        {updated, _} = execute_successfully(HostType, broadcast_remove_ownership, [JobId]),
+        ok
+    end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, T),
     ok.
 
 -spec delete_job(mongooseim:host_type(), JobId :: broadcast_job_id()) ->
@@ -192,11 +206,6 @@ take_expired_jobs(HostType, LeaseTime) ->
     end,
     {atomic, Result} = mongoose_rdbms:sql_transaction(HostType, T),
     Result.
-
--spec remove_ownership(mongooseim:host_type(), JobId :: broadcast_job_id()) -> ok.
-remove_ownership(HostType, JobId) ->
-    {updated, _} = execute_successfully(HostType, broadcast_remove_ownership, [JobId]),
-    ok.
 
 %%====================================================================
 %% Internal functions

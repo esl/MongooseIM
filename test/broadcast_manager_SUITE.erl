@@ -398,8 +398,6 @@ worker_crash_persists_abort_error_instrumentation_and_cleans_worker_map(Config) 
                         #{count => 1}]),
     true = meck:called(mod_broadcast_backend, set_job_aborted_error,
                        [broadcast_helper:host_type(), JobId, '_']),
-    true = meck:called(mod_broadcast_backend, remove_ownership,
-                       [broadcast_helper:host_type(), JobId]),
     assert_manager_survived(Pid).
 
 tagged_down_with_unexpected_pid_exercises_unknown_worker_down_path(Config) ->
@@ -577,8 +575,6 @@ reset_meck_defaults() ->
                 fun(_HostType, _JobId) -> ok end),
     meck:expect(mod_broadcast_backend, set_job_aborted_error,
                 fun(_HostType, _JobId, _ReasonBin) -> ok end),
-    meck:expect(mod_broadcast_backend, remove_ownership,
-                fun(_HostType, _JobId) -> ok end),
     meck:expect(broadcast_jobs_sup, get_children,
                 fun(_HostType) -> [] end),
     meck:expect(broadcast_jobs_sup, start_worker,
