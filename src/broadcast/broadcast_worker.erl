@@ -375,8 +375,10 @@ send_message(Job, RecipientJid) ->
         Acc = mongoose_acc:new(#{location => ?LOCATION,
                                  host_type => HostType,
                                  lserver => Job#broadcast_job.domain,
+                                 from_jid => Job#broadcast_job.sender,
+                                 to_jid => RecipientJid,
                                  element => Stanza}),
-        ejabberd_router:route(Job#broadcast_job.sender, RecipientJid, Acc, Stanza),
+        mongoose_router:route(Acc),
         ok
     catch
         Class:Reason:_Stacktrace ->

@@ -324,7 +324,7 @@ batch_to_batch_transition_completes(_Config) ->
         ct:fail(worker_did_not_finish)
     end,
 
-    3 = meck:num_calls(ejabberd_router, route, '_'),
+    3 = meck:num_calls(mongoose_router, route, '_'),
     ok.
 
 route_exception_skips_recipient_and_finishes(_Config) ->
@@ -336,8 +336,8 @@ route_exception_skips_recipient_and_finishes(_Config) ->
                 fun(_AuthMod, _HostType, _Domain, _Params) ->
                     {ok, {[<<"user1">>, <<"user2">>, <<"user3">>], undefined}}
                 end),
-    meck:expect(ejabberd_router, route,
-                fun(_From, _To, _Acc, _Stanza) ->
+    meck:expect(mongoose_router, route,
+                fun(_Acc) ->
                     Count = counters:get(RouteCallCount, 1) + 1,
                     counters:put(RouteCallCount, 1, Count),
                     case Count of
@@ -356,7 +356,7 @@ route_exception_skips_recipient_and_finishes(_Config) ->
         ct:fail(worker_did_not_finish)
     end,
 
-    3 = meck:num_calls(ejabberd_router, route, ['_', '_', '_', '_']),
+    3 = meck:num_calls(mongoose_router, route, ['_']),
     1 = meck:num_calls(mongoose_instrument, execute,
                        [mod_broadcast_recipients_skipped, '_', '_']),
     ok.
@@ -467,8 +467,8 @@ unexpected_event_in_sending_batch_survives(_Config) ->
                 end),
 
     Self = self(),
-    meck:expect(ejabberd_router, route,
-                fun(_From, _To, _Acc, _Stanza) ->
+    meck:expect(mongoose_router, route,
+                fun(_Acc) ->
                     Self ! in_sending_batch,
                     ok
                 end),
@@ -561,7 +561,7 @@ message_id_is_deterministic(_Config) ->
 setup_mocks_for_worker() ->
     meck:new(mod_broadcast_backend, [no_link]),
     meck:new(mongoose_gen_auth, [no_link]),
-    meck:new(ejabberd_router, [no_link]),
+    meck:new(mongoose_router, [no_link]),
     meck:new(mongoose_instrument, [no_link]),
     meck:new(mongoose_acc, [no_link]),
 
@@ -583,9 +583,9 @@ reset_meck_defaults() ->
                 fun(_AuthMod, _HostType, _Domain, _Params) ->
                     {ok, {[<<"user1">>], undefined}}
                 end),
-    meck:expect(ejabberd_router, route,
-                fun(_From, _To, _Acc, _Stanza) -> ok end),
-    meck:reset(ejabberd_router).
+    meck:expect(mongoose_router, route,
+                fun(_Acc) -> ok end),
+    meck:reset(mongoose_router).
 
 teardown_mocks() ->
     catch meck:unload(),
@@ -604,7 +604,7 @@ setup_pause_resume_case_mocks(Job) ->
                 fun(_HostType, _JobId) -> {ok, Job} end),
     meck:expect(mongoose_gen_auth, get_registered_users_snapshot, 4,
                 {ok, {[<<"user1">>, <<"user2">>, <<"user3">>, <<"user4">>, <<"user5">>], undefined}}),
-    meck:expect(ejabberd_router, route, 4, ok).
+    meck:expect(mongoose_router, route, 1, ok).
 
 wait_for_worker_state(Pid, ExpectedState) ->
     wait_helper:wait_until(fun() ->
