@@ -8,6 +8,7 @@
 %% XML Construction
 -export([make_reply/1,
          deletion_notification_message_el/1,
+         retraction_notification_message_el/2,
          notification_message_el/2]).
 
 -include_lib("exml/include/exml.hrl").
@@ -54,6 +55,15 @@ iq_pubsub_set([#xmlel{name = ~"subscribe",
 iq_pubsub_set([#xmlel{name = ~"unsubscribe",
                       attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
     #{action => unsubscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
+iq_pubsub_set([#xmlel{name = ~"retract", attrs = #{~"node" := NodeId} = Attrs,
+                      children = Children}]) ->
+    maybe
+        {ok, ItemId} ?= parse_retract_item(Children),
+        {ok, Notify} ?= parse_flag(~"notify", Attrs, false),
+        #{action => retract, node_id => NodeId, item_id => ItemId, notify => Notify}
+    end;
+iq_pubsub_set([#xmlel{name = ~"retract"}]) ->
+    {error, {bad_request, ~"nodeid-required"}};
 iq_pubsub_set([El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}} | Rest]) ->
     maybe
         {ok, Config} ?= parse_publish_options(Rest),
@@ -63,7 +73,18 @@ iq_pubsub_set([El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}} | Re
 iq_pubsub_set(_) ->
     {error, bad_request}.
 
--spec iq_pubsub_get([exml:element()]) -> iq_action() | error_result().
+-spec parse_retract_item([exml:child()]) -> mod_pubsub:result(mod_pubsub:item_id()).
+parse_retract_item([#xmlel{name = ~"item", attrs = #{~"id" := ItemId}, children = []}]) ->
+    {ok, ItemId};
+parse_retract_item([#xmlel{name = ~"item", attrs = #{~"id" := _ItemId}}]) ->
+    {error, bad_request}; % XEP-0060 7.2.1 the <item/> element MUST be empty
+parse_retract_item([#xmlel{name = ~"item"}]) ->
+    {error, {bad_request, ~"item-required"}}; % XEP-0060 7.2.3.4 ItemID Required
+parse_retract_item([]) ->
+    {error, {bad_request, ~"item-required"}}; % XEP-0060 7.2.3.4 Item Required
+parse_retract_item(_) ->
+    {error, bad_request}.
+
 -spec iq_pubsub_get([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = []}]) ->
     #{action => get_items, node_id => NodeId};
@@ -157,6 +178,13 @@ parse_item_ids(Elements) ->
     [ItemId || #xmlel{name = ~"item", attrs = #{~"id" := ItemId}} <- Elements].
 
 -spec parse_flag(binary(), exml:attrs(), boolean()) -> {ok, boolean()} | mod_pubsub:error_result().
+parse_flag(Key, Attrs, Default) ->
+    case Attrs of
+        #{Key := Value} when Value =:= ~"0"; Value =:= ~"false" -> {ok, false};
+        #{Key := Value} when Value =:= ~"1"; Value =:= ~"true" -> {ok, true};
+        #{Key := _} -> {error, bad_request};
+        #{} -> {ok, Default}
+    end.
 
 -spec parse_form_config(exml:element(), binary()) -> mod_pubsub:result(mod_pubsub:node_config()).
 parse_form_config(FormEl, NS) ->
@@ -274,9 +302,18 @@ item_el(#item{id = ItemId, payload = Payload}) ->
 published_item_el(ItemId) ->
     #xmlel{name = ~"item", attrs = #{~"id" => ItemId}}.
 
+-spec retract_item_el(mod_pubsub:item_id()) -> exml:element().
+retract_item_el(ItemId) ->
+    #xmlel{name = ~"retract", attrs = #{~"id" => ItemId}}.
+
 -spec deletion_notification_message_el(mod_pubsub:node_id()) -> exml:element().
 deletion_notification_message_el(NodeId) ->
     event_message_el(#xmlel{name = ~"delete", attrs = #{~"node" => NodeId}}).
+
+-spec retraction_notification_message_el(mod_pubsub:node_id(), mod_pubsub:item_id()) ->
+          exml:element().
+retraction_notification_message_el(NodeId, ItemId) ->
+    event_message_el(items_el(NodeId, [retract_item_el(ItemId)])).
 
 -spec notification_message_el(mod_pubsub:item(), boolean()) -> exml:element().
 notification_message_el(#item{node_key = {_, NodeId}} = Item, Delayed) ->
