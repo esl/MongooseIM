@@ -17,6 +17,8 @@
                        item_content/0, item_el/2,
                        publish/4, publish_raw/4, publish_with_options/5, published_item_id/2,
                        receive_item_notification/4, receive_node_deletion_notification/3,
+                       receive_retract_notification/4,
+                       retract_item/4, retract_items/4, retract_raw/4,
                        send_generic_request/6,
                        set_configuration/4,
                        subscribe/3, unsubscribe/3]).
@@ -96,6 +98,8 @@ basic_tests() ->
      create_presence_and_publish_implicit_sub,
      create_presence_and_publish_no_sub,
      publish_and_get_items,
+     publish_and_retract_item,
+     publish_and_retract_item_with_notify,
      publish_implicit_sub,
      publish_open_explicit_sub,
      publish_self_notify,
@@ -116,6 +120,7 @@ negative_tests() ->
      publish_with_invalid_items_fails,
      publish_options_invalid_config_fails,
      request_without_nodeid_fails,
+     retract_invalid_request_fails,
      subscribe_presence_required_fails,
      subscribe_to_nonexistent_node_fails,
      subscribe_with_invalid_jid_fails,
@@ -185,6 +190,14 @@ create_and_configure(Config) ->
 publish_and_get_items(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun publish_and_get_items_story/1).
 
+publish_and_retract_item(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun publish_and_retract_item_story/3).
+
+publish_and_retract_item_with_notify(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun publish_and_retract_item_with_notify_story/3).
+
 publish_implicit_sub(Config) ->
     escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
                                     fun publish_implicit_sub_story/3).
@@ -242,6 +255,9 @@ publish_options_invalid_config_fails(Config) ->
 
 request_without_nodeid_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun request_without_nodeid_fails_story/1).
+
+retract_invalid_request_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun retract_invalid_request_fails_story/2).
 
 subscribe_presence_required_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
@@ -515,6 +531,48 @@ publish_and_get_items_story(Alice) ->
     get_items(Alice, PepNode, [{item_ids, [~"item1", ~"item404", ~"item0"]},
                                {expected_result, [~"item1", ~"item0"]}]).
 
+publish_and_retract_item_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    publish(Alice, ~"item1", PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+    publish(Alice, ~"item3", PepNode, []),
+    publish(Alice, ~"item4", PepNode, []),
+
+    %% XEP-0060 7.2 Retract an item
+    retract_item(Alice, PepNode, ~"item4", []),
+
+    [Message] = set_up_presence_subscription(Bob, Alice, 1),
+    check_item_notification(Message, ~"item3", PepNode, []), % This is the last item now
+
+    %% XEP-0060 7.2 Retract an Item without notification
+    retract_item(Alice, PepNode, ~"item1", []),
+    retract_item(Alice, PepNode, ~"item3", [{notify, ~"false"}]),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Alice, PepNode, [{expected_result, [~"item2"]}]).
+
+publish_and_retract_item_with_notify_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    publish(Alice, ~"item1", PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+    publish(Alice, ~"item3", PepNode, []),
+
+    %% XEP-0060 7.2 Retract with notify but without any recipients
+    retract_item(Alice, PepNode, ~"item3", [{notify, ~"true"}]),
+
+    [Message] = set_up_presence_subscription(Bob, Alice, 1),
+    check_item_notification(Message, ~"item2", PepNode, []), % This is the last item now
+
+    %% XEP-0060 7.2 Retract an Item with notification
+    retract_item(Alice, PepNode, ~"item1", [{notify, ~"true"}]),
+    receive_retract_notification(Bob, ~"item1", PepNode, []),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Alice, PepNode, [{expected_result, [~"item2"]}]).
+
 publish_implicit_sub_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
     PepNode = pep_node(Alice, NodeNS),
@@ -781,6 +839,45 @@ request_without_nodeid_fails_story(Alice) ->
     %% XEP-0060 8.5.3.2 NodeID Required for 'set'
     SetOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"nodeid-required"}}],
     set_configuration(Alice, MissingNode, [{~"pubsub#access_model", ~"open"}], SetOpts).
+
+retract_invalid_request_fails_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+
+    %% XEP-0060 7.2.2.2 NodeID Required
+    NodeOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"nodeid-required"}}],
+    retract_item(Alice, pep_node(Alice, undefined), ~"item1", NodeOpts),
+
+    %% XEP-0060 7.2.2.3 Node Does Not Exist
+    MissingNodeOpts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+    retract_item(Alice, PepNode, ~"item1", MissingNodeOpts),
+
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0060 7.2.2.1 Item Required (no item id)
+    ItemOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"item-required"}}],
+    retract_item(Alice, PepNode, undefined, ItemOpts),
+    retract_items(Alice, PepNode, [], ItemOpts),
+
+    %% XEP-0060 7.2.1 Request: retract item must be empty
+    BadRequestOpts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    retract_raw(Alice, PepNode, [item_el(~"item1", [item_content()])], BadRequestOpts),
+
+    %% XEP-0060 7.2.2.4 Item Not Found
+    NotFoundOpts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+    retract_item(Alice, PepNode, ~"item404", NotFoundOpts),
+
+    %% Only single-item retraction is supported
+    MultiItemOpts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    retract_items(Alice, PepNode, [~"item1", ~"item2"], MultiItemOpts),
+
+    %% XEP-0060 7.2.2.1 Insufficient Privileges
+    ForbiddenOpts = [{expected_error_type, {~"auth", ~"forbidden"}}],
+    retract_item(Bob, PepNode, ~"item1", ForbiddenOpts),
+
+    %% Invalid notify flag
+    NotifyOpts = [{notify, ~"definitely-invalid"},
+                  {expected_error_type, {~"modify", ~"bad-request"}}],
+    retract_item(Alice, PepNode, ~"item1", NotifyOpts).
 
 subscribe_presence_required_fails_story(Alice, Bob) ->
     PepNode = pep_node(Alice),
