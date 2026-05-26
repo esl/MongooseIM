@@ -180,14 +180,12 @@ ensure_rdbms_auth_enabled(HostType) ->
                     host_type => HostType})
     end.
 
+ensure_minimum_lease_time(HostType, #{lease_time := LeaseTime})
+  when LeaseTime >= ?MIN_LEASE_TIME_SEC ->
+    ok;
 ensure_minimum_lease_time(HostType, #{lease_time := LeaseTime}) ->
-    case LeaseTime >= ?MIN_LEASE_TIME_SEC of
-        true ->
-            ok;
-        false ->
-            error(#{what => mod_broadcast_invalid_lease_time,
-                    text => <<"mod_broadcast lease_time must be at least 10 seconds">>,
-                    host_type => HostType,
-                    lease_time => LeaseTime,
-                    min_lease_time => ?MIN_LEASE_TIME_SEC})
-    end.
+    error(#{what => mod_broadcast_invalid_lease_time,
+            text => <<"mod_broadcast lease_time must be at least 10 seconds">>,
+            host_type => HostType,
+            lease_time => LeaseTime,
+            min_lease_time => ?MIN_LEASE_TIME_SEC}).
