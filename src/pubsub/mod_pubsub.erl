@@ -71,7 +71,9 @@
           result => item_id()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
-              item_id/0, item_payload/0, access_model/0, node_config/0]).
+              item_id/0, item_ids/0, item_payload/0, access_model/0, node_config/0,
+              generic_error_reason/0, error_reason/0, error_result/0, result/1,
+              ok_result/0, iq_request/0, iq_action/0]).
 
 %% gen_mod callbacks
 
