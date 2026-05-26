@@ -16,6 +16,10 @@
 
 -export_type([verify_fun/0]).
 
+-spec make_opts(ExtraOpts :: map()) -> map().
+make_opts(ExtraOpts) ->
+    config_parser_helper:config([modules, mod_muc], ExtraOpts).
+
 -spec foreach_occupant(
         Users :: [escalus:client()], Stanza :: #xmlel{}, VerifyFun :: verify_fun()) -> ok.
 foreach_occupant(Users, Stanza, VerifyFun) ->
@@ -63,7 +67,7 @@ load_muc(HostType, ExtraOpts) ->
     CustomOpts = maps:merge(DefaultOpts, ExtraOpts),
     CustomLogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
 
-    MUCOpts = config_parser_helper:config([modules, mod_muc], CustomOpts),
+    MUCOpts = make_opts(CustomOpts),
     MUCLogOpts = config_parser_helper:config([modules, mod_muc_log], CustomLogOpts),
     dynamic_modules:ensure_modules(HostType, [{mod_muc, MUCOpts},
                                               {mod_muc_log, MUCLogOpts}]).
