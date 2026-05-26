@@ -16,13 +16,6 @@
 
 -export_type([verify_fun/0]).
 
-%% Extend default opts with new ExtraOpts
-make_opts(ExtraOpts) ->
-    config_parser_helper:mod_config(mod_muc, ExtraOpts).
-
-make_log_opts(ExtraOpts) ->
-    config_parser_helper:mod_config(mod_muc_log, ExtraOpts).
-
 -spec foreach_occupant(
         Users :: [escalus:client()], Stanza :: #xmlel{}, VerifyFun :: verify_fun()) -> ok.
 foreach_occupant(Users, Stanza, VerifyFun) ->
@@ -67,16 +60,13 @@ load_muc(HostType, ExtraOpts) ->
                     hibernated_room_check_interval => 1000,
                     hibernated_room_timeout => 2000,
                     access => muc, access_create => muc_create},
-    Opts = merge_muc_opts(DefaultOpts, ExtraOpts),
-    LogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
-    dynamic_modules:ensure_modules(HostType, [{mod_muc, make_opts(Opts)},
-                                              {mod_muc_log, make_log_opts(LogOpts)}]).
+    CustomOpts = maps:merge(DefaultOpts, ExtraOpts),
+    CustomLogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
 
-merge_muc_opts(BaseOpts, #{default_room := ExtraDefaultRoom} = ExtraOpts) ->
-    BaseDefaultRoom = maps:get(default_room, config_parser_helper:default_mod_config(mod_muc)),
-    maps:merge(BaseOpts, ExtraOpts#{default_room => maps:merge(BaseDefaultRoom, ExtraDefaultRoom)});
-merge_muc_opts(BaseOpts, ExtraOpts) ->
-    maps:merge(BaseOpts, ExtraOpts).
+    MUCOpts = config_parser_helper:config([modules, mod_muc], CustomOpts),
+    MUCLogOpts = config_parser_helper:config([modules, mod_muc_log], CustomLogOpts),
+    dynamic_modules:ensure_modules(HostType, [{mod_muc, MUCOpts},
+                                              {mod_muc_log, MUCLogOpts}]).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),
