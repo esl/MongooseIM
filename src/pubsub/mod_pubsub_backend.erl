@@ -4,7 +4,7 @@
 
 -export([start/2, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscription/3,
-         set_item/2, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
+         set_item/2, delete_item/3, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
 
 -callback start(mongooseim:host_type()) -> ok.
 -callback stop(mongooseim:host_type()) -> ok.
@@ -22,6 +22,8 @@
 -callback get_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
     mod_pubsub:subscription() | undefined.
 -callback set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
+-callback delete_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
+    ok | not_found.
 -callback get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
     mod_pubsub:item() | undefined.
 -callback get_items(mongooseim:host_type(), mod_pubsub:node_key()) ->
@@ -79,7 +81,8 @@ set_subscription(HostType, Subscription) ->
 get_subscriptions(HostType, NodeKey) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey]).
 
--spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) -> ok | not_found.
+-spec delete_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
+          ok | not_found.
 delete_subscription(HostType, NodeKey, SubscriberJid) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, SubscriberJid]).
 
@@ -90,6 +93,11 @@ get_subscription(HostType, NodeKey, SubscriberJid) ->
 
 set_item(HostType, Item) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, Item]).
+
+-spec delete_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
+          ok | not_found.
+delete_item(HostType, NodeKey, ItemId) ->
+    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, ItemId]).
 
 -spec get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
     mod_pubsub:item() | undefined.
@@ -112,4 +120,5 @@ get_last_items(HostType, ServiceJid) ->
 %% Helpers
 
 tracked_funs() ->
-    [set_node, delete_node, delete_nodes, set_subscription, delete_subscription, set_item].
+    [set_node, delete_node, delete_nodes, set_subscription, delete_subscription,
+     set_item, delete_item].
