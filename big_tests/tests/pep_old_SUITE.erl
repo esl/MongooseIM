@@ -215,7 +215,7 @@ native_bookmarks_story(Config, Bob) ->
     pubsub_tools:get_items(Bob, PepNode, [{expected_result, [Id]}]),
 
     %% Example 10. Client removes a bookmark (notification and IQ result could arrive in any order)
-    {_Resp2, Msg2} = pubsub_tools:retract_item(Bob, PepNode, Id, [{notify, true} | NotificationOpt]),
+    {_Resp2, Msg2} = pubsub_tools:retract_item(Bob, PepNode, Id, [{notify, ~"true"} | NotificationOpt]),
 
     %% Example 14. Client receives a bookmark retraction notification (stanza already received)
     pubsub_tools:check_retract_notification(Msg2, Id, {BobJid, NodeNS}),
