@@ -47,8 +47,6 @@
          remove_user/3,
          remove_domain/3,
          add_rooms_to_roster/3,
-         process_iq_get/3,
-         process_iq_set/3,
          is_muc_room_owner/3,
          can_access_room/3,
          acc_room_affiliations/3,
@@ -283,7 +281,6 @@ schema_field_types() ->
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    Codec = host_type_to_codec(HostType),
     Roster = gen_mod:get_module_opt(HostType, ?MODULE, rooms_in_rosters),
     [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
      {can_access_room, HostType, fun ?MODULE:can_access_room/3, #{}, 50},
@@ -295,13 +292,6 @@ hooks(HostType) ->
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 50}] ++
-    case Codec of
-        legacy ->
-            [{privacy_iq_get, HostType, fun ?MODULE:process_iq_get/3, #{}, 1},
-             {privacy_iq_set, HostType, fun ?MODULE:process_iq_set/3, #{}, 1}];
-        _ ->
-            []
-    end ++
     case Roster of
         false -> [];
         true -> [{roster_get, HostType, fun ?MODULE:add_rooms_to_roster/3, #{}, 50}]
@@ -461,61 +451,6 @@ make_roster_item({{RoomU, RoomS}, RoomName, RoomVersion}) ->
             subscription = to,
             groups = [?NS_MUC_LIGHT],
             xs = [VerEl] }.
-
--spec process_iq_get(Acc, Params, Extra) -> {ok | stop, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: map(),
-    Extra :: gen_hook:extra().
-process_iq_get(Acc, #{from := #jid{lserver = FromS} = From, to := To, iq := IQ}, #{host_type := HostType}) ->
-    MUCHost = server_host_to_muc_host(HostType, FromS),
-    case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
-          gen_mod:get_module_opt(HostType, ?MODULE, blocking)} of
-        {{ok, {get, #blocking{} = Blocking}}, true} ->
-            Items = mod_muc_light_db_backend:get_blocking(HostType, jid:to_lus(From), MUCHost),
-            mod_muc_light_codec_backend:encode(
-              {get, Blocking#blocking{ items = Items }}, From, To,
-              fun(_, _, Packet) -> put(encode_res, Packet) end,
-              Acc),
-            #xmlel{ children = ResponseChildren } = erase(encode_res),
-            Result = {result, ResponseChildren},
-            {stop, mongoose_acc:set(hook, result, Result, Acc)};
-        {{ok, {get, #blocking{}}}, false} ->
-            Result = {error, mongoose_xmpp_errors:bad_request()},
-            {stop, mongoose_acc:set(hook, result, Result, Acc)};
-        _ ->
-            Result = {error, mongoose_xmpp_errors:bad_request()},
-            {ok, mongoose_acc:set(hook, result, Result, Acc)}
-    end.
-
-%% Blocking is done using your local domain
--spec process_iq_set(Acc, Params, Extra) -> {ok | stop, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: map(),
-    Extra :: gen_hook:extra().
-process_iq_set(Acc, #{from := #jid{ lserver = FromS } = From, to := To, iq := IQ}, _Extra) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    MUCHost = server_host_to_muc_host(HostType, FromS),
-    case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
-          gen_mod:get_module_opt(HostType, ?MODULE, blocking)} of
-        {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
-            RouteFun = fun(_, _, Packet) -> put(encode_res, Packet) end,
-            ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
-            case lists:any(ConditionFun, Items) of
-                true ->
-                    {stop, mongoose_acc:set(hook, result,
-                                            {error, mongoose_xmpp_errors:bad_request()}, Acc)};
-                false ->
-                    ok = mod_muc_light_db_backend:set_blocking(HostType, jid:to_lus(From), MUCHost, Items),
-                    mod_muc_light_codec_backend:encode(Blocking, From, To, RouteFun, Acc),
-                    #xmlel{ children = ResponseChildren } = erase(encode_res),
-                    {stop, mongoose_acc:set(hook, result, {result, ResponseChildren}, Acc)}
-            end;
-        {{ok, {set, #blocking{}}}, false} ->
-            {stop, mongoose_acc:set(hook, result,
-                                    {error, mongoose_xmpp_errors:bad_request()}, Acc)};
-        _ ->
-            {ok, mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)}
-    end.
 
 -spec is_muc_room_owner(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: boolean(),

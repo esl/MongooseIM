@@ -1528,9 +1528,8 @@ and MUST include a status code 321 (i.e. user leaving due to affiliation change)
 #### 8.1.8. Blocking functionality
 
 The blocking functionality uses a small subset of the Privacy Lists protocol.
-Stanzas MUST be addressed to the sender's bare JID (the `to` attribute may be skipped).
+Stanzas MUST be addressed to the MUC Light service bare JID.
 The privacy list name MUST be equal to "urn:xmpp:muclight:0".
-Obviously, this method won't work properly in XMPP Server Federation, because privacy stanzas are handled by sender's server and the MUC Light Blocking functionality is handled by a MUC Light service server.
 As opposed to XEP-0016, it is allowed to send "delta" privacy lists.
 
 ##### 8.1.8.1. Request blocking list
@@ -1538,7 +1537,7 @@ As opposed to XEP-0016, it is allowed to send "delta" privacy lists.
 **Retrieving blocking list**
 
 ```xml
-<iq from='crone1@shakespeare.lit/desktop' type='get' id='comp-getlist'>
+<iq from='crone1@shakespeare.lit/desktop' type='get' id='comp-getlist' to='coven.shakespeare.lit'>
     <query xmlns='jabber:iq:privacy'>
         <list name='urn:xmpp:muclight:0'/>
     </query>
@@ -1546,7 +1545,7 @@ As opposed to XEP-0016, it is allowed to send "delta" privacy lists.
 ```
 
 ```xml
-<iq type='result' id='comp-getlist' to='crone1@shakespeare.lit/desktop'>
+<iq type='result' id='comp-getlist' to='crone1@shakespeare.lit/desktop' from='coven.shakespeare.lit'>
     <query xmlns='jabber:iq:privacy'>
         <list name='urn:xmpp:muclight:0'>
             <item type='jid'
@@ -1569,7 +1568,7 @@ In order to block a room, the client MUST deny a room bare JID in privacy list.
 **Blocking a room**
 
 ```xml
-<iq from='crone1@shakespeare.lit/desktop' type='set' id='comp-blockroom'>
+<iq from='crone1@shakespeare.lit/desktop' type='set' id='comp-blockroom' to='coven.shakespeare.lit'>
     <query xmlns='jabber:iq:privacy'>
         <list name='urn:xmpp:muclight:0'>
             <item type='jid'
@@ -1582,7 +1581,7 @@ In order to block a room, the client MUST deny a room bare JID in privacy list.
 ```
 
 ```xml
-<iq type='result' id='comp-blockroom' to='crone1@shakespeare.lit/desktop' />
+<iq type='result' id='comp-blockroom' to='crone1@shakespeare.lit/desktop' from='coven.shakespeare.lit' />
 ```
 
 ##### 8.1.8.3. Blocking a user
@@ -1592,7 +1591,7 @@ In order to block a room, the client MUST deny a service JID with user's bare JI
 **Blocking a user**
 
 ```xml
-<iq from='crone1@shakespeare.lit/desktop' type='set' id='comp-blockuser'>
+<iq from='crone1@shakespeare.lit/desktop' type='set' id='comp-blockuser' to='coven.shakespeare.lit'>
     <query xmlns='jabber:iq:privacy'>
         <list name='urn:xmpp:muclight:0'>
             <item type='jid'
@@ -1605,7 +1604,7 @@ In order to block a room, the client MUST deny a service JID with user's bare JI
 ```
 
 ```xml
-<iq type='result' id='comp-blockuser' to='crone1@shakespeare.lit/desktop' />
+<iq type='result' id='comp-blockuser' to='crone1@shakespeare.lit/desktop' from='coven.shakespeare.lit' />
 ```
 
 ##### 8.1.8.4. Unblocking
@@ -1613,7 +1612,7 @@ In order to block a room, the client MUST deny a service JID with user's bare JI
 **Unblocking**
 
 ```xml
-<iq from='crone1@shakespeare.lit/desktop' type='get' id='comp-getlist'>
+<iq from='crone1@shakespeare.lit/desktop' type='get' id='comp-getlist' to='coven.shakespeare.lit'>
     <query xmlns='jabber:iq:privacy'>
         <list name='urn:xmpp:muclight:0'>
             <item type='jid'
@@ -1630,7 +1629,7 @@ In order to block a room, the client MUST deny a service JID with user's bare JI
 ```
 
 ```xml
-<iq type='result' id='comp-getlist' to='crone1@shakespeare.lit/desktop' />
+<iq type='result' id='comp-getlist' to='crone1@shakespeare.lit/desktop' from='coven.shakespeare.lit' />
 ```
 
 #### 8.1.9. Creating a room
