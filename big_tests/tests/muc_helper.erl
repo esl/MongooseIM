@@ -53,7 +53,10 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc() ->
-    load_muc(domain_helper:host_type(), #{}).
+    load_muc(domain_helper:host_type()).
+
+load_muc(HostType) ->
+    load_muc(HostType, #{}).
 
 load_muc(HostType, ExtraOpts) ->
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
