@@ -17,7 +17,7 @@
     body :: binary(),
     message_rate :: pos_integer(),
     recipient_group :: recipient_group(),
-    owner_node :: node(),
+    owner_node :: node() | undefined,
     recipient_count :: non_neg_integer(),
     recipients_processed :: recipients_processed(),
     execution_state :: execution_state(),

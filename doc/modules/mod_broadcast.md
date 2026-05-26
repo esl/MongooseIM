@@ -26,6 +26,16 @@ The module itself is not user-facing: broadcasts are typically created and manag
 
 Backend used to store broadcast jobs and worker progress.
 
+### `modules.mod_broadcast.lease_time`
+
+* **Syntax:** integer (seconds), minimum `10`
+* **Default:** `600`
+* **Example:** `lease_time = 900`
+
+Lease duration in seconds for broadcast job ownership. The owner node periodically renews the lease while the job is running.
+
+Values below `10` seconds are rejected and `mod_broadcast` will not start, to avoid too frequent sync cycles.
+
 !!! Warning
     `mod_broadcast` relies on standard RDBMS auth API to retrieve the recipient count. If [user count estimation](../authentication-methods/rdbms.md#authrdbmsusers_number_estimate) is enabled, then the number of recipients per job may be inaccurate. This option is disabled by default.
 
@@ -112,8 +122,9 @@ mutation {
 ```
 
 !!! Note
-    Aborting a running job is performed by contacting the Erlang node that owns the job.
-    If that node is down or unreachable, aborting may fail until the node is back.
+  Aborting a running job is performed by contacting the Erlang node that currently owns the job.
+  If that node is down or unreachable, aborting may fail temporarily until the owner becomes online again
+  or the job is taken over by another node.
 
 ## Message format and delivery semantics
 
@@ -134,6 +145,7 @@ This extension delivers messages at least once - duplication may occur in case o
 ```toml
 [modules.mod_broadcast]
   backend = "rdbms"
+  lease_time = 600
 ```
 
 ## Metrics
@@ -176,10 +188,11 @@ Since Exometer doesn't support labels, the host types, or the word `global`, are
 ## Architecture overview
 
 A broadcast is represented as a **job** persisted in the database.
-The job is started on the Erlang node that handled the start request, and it remains owned by that node for its whole lifecycle.
+The job is started on the Erlang node that handled the start request.
+That node is the initial owner, but ownership may later move to another node if the original owner stops renewing its lease.
 In a cluster, this means that different broadcast runs may be owned by different nodes.
 
-Aborting a job is automatically routed to the correct owner node.
+Aborting a job is routed to the node currently recorded as the owner.
 Retrieving broadcast information (listing jobs and reading job details) is independent of job ownership and can be served by any node.
 
 A per-host-type manager process starts a worker that:
@@ -190,3 +203,28 @@ A per-host-type manager process starts a worker that:
 4. Persists progress after each batch.
 
 If the node restarts, the manager resumes jobs that were owned by that node and were still marked as `RUNNING`.
+
+## Ownership and failover
+
+Broadcast ownership exists to make sure that, in a cluster, each running job has exactly one active node responsible for sending messages and updating progress.
+Without this mechanism, multiple nodes could continue the same job at the same time and cause unnecessary duplication.
+
+Ownership is lease-based.
+When a broadcast starts, the node that accepted the request becomes the owner for a limited time window defined by `lease_time`.
+While the job is healthy, that node keeps renewing its lease in the database, which signals to the rest of the cluster that the job is still actively managed.
+
+If the owner node stops, loses database access for long enough, or otherwise cannot renew the lease, the lease eventually expires.
+At that point, another node can take over the job and continue it from the last persisted worker state.
+This is how unfinished broadcasts survive node loss and other interruptions without restarting from the beginning.
+
+Workers may also be paused temporarily even if the node itself is still up.
+This happens when the local manager cannot reliably synchronize ownership state with the database.
+In that situation, the node stops actively progressing its local broadcast workers until synchronization succeeds again, which reduces the risk of processing a job whose ownership is uncertain.
+While this safety mode is active, starting new broadcasts may temporarily be unavailable.
+
+Once synchronization recovers, the node re-checks which jobs it currently owns.
+Workers for jobs that are still owned by that node are resumed from their saved progress.
+Workers for jobs that are no longer owned stay stopped, because another node has already taken responsibility for them.
+
+From an operator's perspective, this means a running broadcast can briefly pause during node restarts, database outages, or cluster instability, and later resume automatically.
+Some delivery duplication is still possible around failures, so clients should rely on the message IDs for deduplication if needed.
