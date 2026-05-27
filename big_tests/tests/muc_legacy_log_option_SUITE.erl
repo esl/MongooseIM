@@ -28,16 +28,12 @@ suite() ->
     distributed_helper:require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config0) ->
-    case mongoose_helper:is_rdbms_enabled(host_type()) of
-        true ->
-            Config1 = escalus:init_per_suite(Config0),
-            Config2 = dynamic_modules:save_modules(host_type(), Config1),
-            muc_helper:load_muc(),
-            mongoose_helper:ensure_muc_clean(),
-            Config2;
-        false ->
-            {skip, "RDBMS not available"}
-    end.
+    Config1 = escalus:init_per_suite(Config0),
+    Config2 = dynamic_modules:save_modules(host_type(), Config1),
+    muc_helper:load_muc(),
+    mongoose_helper:ensure_muc_clean(),
+    ct:log("MUC backend: ~p", [mongoose_helper:mnesia_or_rdbms_backend()]),
+    Config2.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
