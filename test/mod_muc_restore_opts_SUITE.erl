@@ -8,7 +8,7 @@
 
 all() ->
     [rdbms_restore_ignores_unknown_opts,
-     mnesia_restore_allows_unknown_opts].
+     mnesia_restore_ignores_unknown_opts].
 
 init_per_suite(Config) ->
     Config.
@@ -39,7 +39,7 @@ rdbms_restore_ignores_unknown_opts(_Config) ->
     ?assertEqual(false, lists:keymember(logging, 1, Opts)),
     ok.
 
-mnesia_restore_allows_unknown_opts(_Config) ->
+mnesia_restore_ignores_unknown_opts(_Config) ->
     Opts = [{title, <<"room">>}, {logging, true}],
     meck:new(mnesia, [no_link]),
     meck:expect(mnesia, dirty_read,
@@ -47,5 +47,6 @@ mnesia_restore_allows_unknown_opts(_Config) ->
                         [#muc_room{name_host = {RoomName, MucHost}, opts = Opts}]
                 end),
     {ok, RestoredOpts} = mod_muc_mnesia:restore_room(test, <<"muc.example">>, <<"room">>),
-    ?assertEqual(Opts, RestoredOpts),
+    ?assertEqual(<<"room">>, proplists:get_value(title, RestoredOpts)),
+    ?assertEqual(false, lists:keymember(logging, 1, RestoredOpts)),
     ok.
