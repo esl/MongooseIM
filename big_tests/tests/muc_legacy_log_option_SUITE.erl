@@ -96,12 +96,14 @@ stop_room(RoomName) ->
     MucHost = muc_host(),
     case rpc(mim(), mod_muc_online_backend, find_room_pid, [HostType, MucHost, RoomName]) of
         {ok, Pid} ->
+            Ref = erlang:monitor(process, Pid),
             Pid ! stop_persistent_room_process,
-            wait_helper:wait_until(
-              fun() ->
-                  rpc(mim(), mod_muc_online_backend, find_room_pid, [HostType, MucHost, RoomName])
-              end,
-              {error, not_found}),
+            receive
+                {'DOWN', Ref, process, Pid, _Reason} ->
+                    ok
+            after ?WAIT_TIMEOUT ->
+                    ct:fail({room_stop_timeout, RoomName})
+            end,
             ok;
         {error, not_found} ->
             ok
