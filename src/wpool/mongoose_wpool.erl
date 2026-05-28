@@ -19,7 +19,7 @@
          }).
 
 % mongoose_instrument_probe
--export([probe/2]).
+-export([probe/3]).
 
 %% API
 -export([ensure_started/0,
@@ -444,12 +444,12 @@ best_worker_with_max_queue_len(Name, MaxQueueLen) ->
             Worker
     end.
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(), mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
-probe(wpool_global_queue_lengths, #{pool_type := PoolType, pool_tag := PoolTag}) ->
+probe(wpool_global_queue_lengths, #{pool_type := PoolType, pool_tag := PoolTag}, _Extra) ->
     PoolName = make_pool_name(PoolType, global, PoolTag),
     #{total => workers_queue_len(PoolName)};
-probe(wpool_queue_lengths, #{host_type := HostType, pool_type := PoolType, pool_tag := PoolTag}) ->
+probe(wpool_queue_lengths, #{host_type := HostType, pool_type := PoolType, pool_tag := PoolTag}, _Extra) ->
     PoolName = make_pool_name(PoolType, HostType, PoolTag),
     #{total => workers_queue_len(PoolName)}.
 

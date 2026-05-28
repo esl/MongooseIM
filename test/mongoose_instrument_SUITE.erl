@@ -1,6 +1,8 @@
 -module(mongoose_instrument_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-behaviour(mongoose_instrument_probe).
+
 -include("log_helper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -10,6 +12,7 @@
 -define(ADDED_HANDLER, mongoose_instrument_added_handler).
 -define(FAILING_HANDLER, mongoose_instrument_failing_handler).
 -define(LABELS, #{key => value}).
+-define(EXTRA, #{extra => value}).
 -define(CFG, #{metrics => #{time => histogram}}).
 -define(MEASUREMENTS, #{count => 1}).
 
@@ -21,8 +24,8 @@ all() ->
     ].
 
 groups() ->
-    [{persistent, [parallel], api_test_cases()},
-     {not_persistent, [parallel], api_test_cases()}].
+    [{persistent, [], api_test_cases()},
+     {not_persistent, [], api_test_cases()}].
 
 api_test_cases() ->
     [set_up_and_execute,
@@ -37,6 +40,7 @@ api_test_cases() ->
      set_up_and_span_with_error,
      span_fails_when_not_set_up,
      set_up_probe,
+     set_up_probe_before_starting,
      set_up_probe_with_incorrect_metric_type,
      set_up_failing_probe,
      set_up_and_tear_down_probe,
@@ -64,6 +68,7 @@ end_per_suite(_Config) ->
 init_per_group(Group, Config) ->
     lists:foreach(fun meck:reset/1, maps:keys(mocked_handlers())),
     Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
+    mongoose_instrument:start_probes(),
     set_up_persistence(Group),
     Config1.
 
@@ -71,6 +76,9 @@ init_per_testcase(Case, Config) ->
     log_helper:subscribe(),
     [{event, event_name(Case)} | Config].
 
+end_per_testcase(set_up_probe_before_starting, Config) ->
+    mongoose_instrument:start_probes(),
+    end_per_testcase(default, Config);
 end_per_testcase(_Case, _Config) ->
     log_helper:unsubscribe().
 
@@ -100,7 +108,7 @@ event_name(Case) ->
 %% Test cases
 
 set_up_and_execute(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     Measurements = ?MEASUREMENTS,
     Labels = ?LABELS,
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
@@ -119,7 +127,7 @@ set_up_and_execute(Config) ->
                         handler_fun := HandlerFun}).
 
 set_up_multiple_and_execute_one(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     Specs = [{Event, Labels1 = #{key => value1}, ?CFG},
              {Event, Labels2 = #{key => value2}, ?CFG}],
     ok = mongoose_instrument:set_up(Specs),
@@ -130,7 +138,7 @@ set_up_multiple_and_execute_one(Config) ->
                  history(?HANDLER, handle_event, Event)).
 
 set_up_fails_when_already_registered(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
     ?assertError(#{what := event_already_registered},
                  mongoose_instrument:set_up(Event, ?LABELS, ?CFG)),
@@ -138,7 +146,7 @@ set_up_fails_when_already_registered(Config) ->
                  mongoose_instrument:set_up(Event, ?LABELS, #{})).
 
 set_up_fails_for_inconsistent_labels(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     Labels = ?LABELS,
     ok = mongoose_instrument:set_up(Event, Labels, ?CFG),
     ?assertError(#{what := inconsistent_labels},
@@ -149,7 +157,7 @@ set_up_fails_for_inconsistent_labels(Config) ->
                  mongoose_instrument:set_up(Event, #{different_key => value}, ?CFG)).
 
 set_up_and_tear_down(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
     ok = mongoose_instrument:tear_down(Event, ?LABELS),
     ?assertError(#{what := event_not_registered},
@@ -158,7 +166,7 @@ set_up_and_tear_down(Config) ->
     ok = mongoose_instrument:tear_down(Event, ?LABELS). % idempotent
 
 set_up_and_tear_down_multiple(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     Specs = [{Event, Labels1 = #{key => value1}, ?CFG},
              {Event, Labels2 = #{key => value2}, ?CFG}],
     ok = mongoose_instrument:set_up(Specs),
@@ -170,13 +178,13 @@ set_up_and_tear_down_multiple(Config) ->
     [] = history(?HANDLER, handle_event, Event).
 
 execute_fails_when_not_set_up(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     ?assertError(#{what := event_not_registered},
                  mongoose_instrument:execute(Event, ?LABELS, ?MEASUREMENTS)),
     [] = history(?HANDLER, handle_event, Event).
 
 set_up_and_span(Config) ->
-    {Event, Labels, InstrConfig} = {?config(event, Config), ?LABELS, ?CFG},
+    {Event, Labels, InstrConfig} = {proplists:get_value(event, Config), ?LABELS, ?CFG},
     ok = mongoose_instrument:set_up(Event, Labels, InstrConfig),
     ok = mongoose_instrument:span(Event, Labels, fun test_op/0, fun measure_test_op/2),
     [{[Event, Labels, InstrConfig, #{time := Time, result := ok}], ok}] =
@@ -184,7 +192,7 @@ set_up_and_span(Config) ->
     ?assert(Time >= 1000).
 
 set_up_and_span_with_arg(Config) ->
-    {Event, Labels, InstrConfig} = {?config(event, Config), ?LABELS, ?CFG},
+    {Event, Labels, InstrConfig} = {proplists:get_value(event, Config), ?LABELS, ?CFG},
     ok = mongoose_instrument:set_up(Event, Labels, InstrConfig),
     ok = mongoose_instrument:span(Event, Labels, fun test_op/1, [2], fun measure_test_op/2),
     [{[Event, Labels, InstrConfig, #{time := Time, result := ok}], ok}] =
@@ -192,14 +200,14 @@ set_up_and_span_with_arg(Config) ->
     ?assert(Time >= 2000).
 
 set_up_and_span_with_error(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
     ?assertError(simulated_error,
                  mongoose_instrument:span(Event, ?LABELS, fun crashing_op/0, fun measure_test_op/2)),
     [] = history(?HANDLER, handle_event, Event).
 
 span_fails_when_not_set_up(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     Labels = #{key => value},
     ?assertError(#{what := event_not_registered},
                  mongoose_instrument:span(Event, Labels, fun test_op/0, fun measure_test_op/2)),
@@ -209,8 +217,8 @@ span_fails_when_not_set_up(Config) ->
     [] = history(?HANDLER, handle_event, Event).
 
 set_up_probe(Config) ->
-    Event = ?config(event, Config),
-    Cfg = #{probe => #{module => ?MODULE, interval => 1}},
+    Event = proplists:get_value(event, Config),
+    Cfg = #{probe => #{module => ?MODULE, extra => ?EXTRA, interval => timer:seconds(1)}},
     ok = mongoose_instrument:set_up(Event, ?LABELS, Cfg),
     ExpectedMeasurements = #{event => Event, count => 1},
 
@@ -225,12 +233,33 @@ set_up_probe(Config) ->
                                             [], #{validator => fun(L) -> length(L) > 1 end}),
     ?assertEqual([ExpectedEvent, ExpectedEvent], History2).
 
+set_up_probe_before_starting(Config) ->
+    Event = proplists:get_value(event, Config),
+    Cfg = #{probe => #{module => ?MODULE, interval => timer:seconds(1)}},
+    sys:replace_state(mongoose_instrument, fun(S) -> S#{probe_started := false} end),
+    ok = mongoose_instrument:set_up(Event, ?LABELS, Cfg),
+    ExpectedMeasurements = #{event => Event, count => 1},
+
+    % The probe shouldn't be called yet
+    ?assertError(_,
+                 wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                        [], #{validator => fun(L) -> length(L) > 0 end,
+                                              time_left => timer:seconds(2)})),
+
+    mongoose_instrument:start_probes(),
+
+    % Wait until the probe is called
+    {ok, History1} = wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                            [], #{validator => fun(L) -> length(L) > 0 end}),
+    ExpectedEvent = {[Event, ?LABELS, Cfg, ExpectedMeasurements], ok},
+    ?assertEqual([ExpectedEvent], History1).
+
 set_up_probe_with_incorrect_metric_type(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     Cfg = #{metrics => #{test_metric => gauge},
-            probe => #{module => ?MODULE, interval => 1}},
+            probe => #{module => ?MODULE, interval => timer:seconds(1)}},
     Cfg1 = #{metrics => ImproperMetrics = #{test_metric => spiral},
-             probe => #{module => ?MODULE, interval => 1}},
+             probe => #{module => ?MODULE, interval => timer:seconds(1)}},
     Specs = [{Event, #{key => value1}, Cfg},
              {Event, #{key => value2}, Cfg1}],
     ?assertError(#{what := non_gauge_metrics_in_probe, improper_metrics := ImproperMetrics},
@@ -239,9 +268,9 @@ set_up_probe_with_incorrect_metric_type(Config) ->
                  mongoose_instrument:set_up(Specs)).
 
 set_up_failing_probe(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     Labels = ?LABELS,
-    Cfg = #{probe => #{module => ?MODULE, interval => 1}},
+    Cfg = #{probe => #{module => ?MODULE, interval => timer:seconds(1)}},
     ok = mongoose_instrument:set_up(Event, Labels, Cfg),
 
     %% Wait until the error appears in logs
@@ -255,16 +284,19 @@ set_up_failing_probe(Config) ->
                         event_name := Event, labels := Labels, probe_mod := ?MODULE}, 5000).
 
 set_up_and_tear_down_probe(Config) ->
-    Event = ?config(event, Config),
-    Cfg = #{probe => #{module => ?MODULE, interval => 1}},
+    Event = proplists:get_value(event, Config),
+    Cfg = #{probe => #{module => ?MODULE, interval => timer:seconds(1)}},
     ok = mongoose_instrument:set_up(Event, ?LABELS, Cfg),
     mongoose_instrument:tear_down(Event, ?LABELS),
+    ExpectedMeasurements = #{event => Event, count => 1},
 
-    %% The probe shouldn't be called anymore
-    ?assertError(_,
-                 wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
-                                        [], #{validator => fun(L) -> length(L) > 0 end,
-                                              time_left => timer:seconds(2)})).
+    %% The probe should be called once on set_up
+    {ok, History1} = wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                            [],
+                                            #{validator => fun(L) -> length(L) > 0 end,
+                                              sleep_time => timer:seconds(2)}),
+    ExpectedEvent = {[Event, ?LABELS, Cfg, ExpectedMeasurements], ok},
+    ?assertEqual([ExpectedEvent], History1).
 
 unexpected_events(_Config) ->
     Pid = whereis(mongoose_instrument),
@@ -274,7 +306,7 @@ unexpected_events(_Config) ->
     ?assertEqual(Pid, whereis(mongoose_instrument)). %% It should be still working
 
 add_and_remove_handler(Config) ->
-    Event = ?config(event, Config),
+    Event = proplists:get_value(event, Config),
     ok = mongoose_instrument:set_up(Event, Labels1 = #{key => value1}, ?CFG),
 
     %% Add handler
@@ -323,8 +355,12 @@ crashing_op() ->
 measure_test_op(Time, Result) ->
     #{time => Time, result => Result}.
 
-probe(set_up_failing_probe_event, _Labels) ->
+probe(set_up_failing_probe_event, _Labels, _Extra) ->
     error(simulated_error);
-probe(Event, Labels) ->
+probe(set_up_event_probe = Event, Labels, Extra) ->
+    ?assertEqual(?LABELS, Labels),
+    ?assertEqual(?EXTRA, Extra),
+    #{event => Event, count => 1};
+probe(Event, Labels, _Extra) ->
     ?assertEqual(?LABELS, Labels),
     #{event => Event, count => 1}.

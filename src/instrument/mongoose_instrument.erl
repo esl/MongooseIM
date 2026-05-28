@@ -4,7 +4,7 @@
 
 %% API
 -export([config_spec/0,
-         start_link/0, persist/0,
+         start_link/0, start_probes/0, persist/0,
          set_up/1, set_up/3,
          tear_down/1, tear_down/2,
          span/4, span/5, span/6,
@@ -24,6 +24,7 @@
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type(),
                     connection_type => mongoose_listener:connection_type(),
+                    listener_id => binary(),
                     function => atom(),
                     cache_name => atom(),
                     pool_id => atom(),
@@ -44,7 +45,9 @@
                     loglevel => logger:level(),
                     probe => probe_config()}.
 -type probe_config() :: #{module := module(),
-                          interval => pos_integer()}.
+                          interval => pos_integer(),
+                          extra => extra()}.
+-type extra() :: map().
 -type handler_key() :: atom(). % key in the `instrumentation' section of the config file
 -type handler_fun() :: fun((event_name(), labels(), config(), measurements()) -> any()).
 -type handlers() :: {[handler_fun()], config()}.
@@ -62,7 +65,8 @@
 -optional_callbacks([config_spec/0, start/1, stop/1]).
 
 -export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
-              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0]).
+              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0,
+              extra/0]).
 
 %% API
 
@@ -79,6 +83,11 @@ config_spec() ->
 -spec start_link() -> gen_server:start_ret().
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+%% @doc Starts probes for the registered events.
+-spec start_probes() -> ok.
+start_probes() ->
+    gen_server:call(?MODULE, start_probes).
 
 %% @doc Saves the state to a persistent term, improving performance of `execute' and `span'.
 %% On the other hand, future calls to `set_up' or `tear_down' will update the persistent term,
@@ -168,9 +177,9 @@ remove_handler(Key) ->
 
 %% gen_server callbacks
 
--type state() :: #{events := event_map(), probe_timers := probe_timer_map()}.
+-type state() :: #{events := event_map(), probe_started := boolean(), probe_timers := probe_timer_map()}.
 -type event_map() :: #{event_name() => #{labels() => handlers()}}.
--type probe_timer_map() :: #{{event_name(), labels()} => timer:tref()}.
+-type probe_timer_map() :: #{{event_name(), labels()} => probe_config() | timer:tref()}.
 
 -spec init([]) -> {ok, state()}.
 init([]) ->
@@ -178,27 +187,27 @@ init([]) ->
      || {Key, Opts = #{}} <- maps:to_list(mongoose_config:get_opt(instrumentation))],
     erlang:process_flag(trap_exit, true), % Make sure that terminate is called
     persistent_term:erase(?MODULE), % Prevent inconsistency when restarted after a kill
-    {ok, #{events => #{}, probe_timers => #{}}}.
+    {ok, #{events => #{}, probe_started => false, probe_timers => #{}}}.
 
 -spec handle_call(any(), gen_server:from(), state()) ->
           {reply, ok | {ok, handlers()} | {error, map()}, state()} |
           {reply, ok | {ok, handlers()} | {error, map()}, state(), hibernate}.
 handle_call({set_up, EventName, Labels, Config}, _From,
-            #{events := Events, probe_timers := ProbeTimers} = State) ->
+            #{events := Events, probe_started := ProbeStarted, probe_timers := ProbeTimers} = State) ->
     case set_up_and_register_event(EventName, Labels, Config, Events) of
         {error, _} = Error ->
             {reply, Error, State};
         NewEvents = #{} ->
             update_if_persisted(Events, NewEvents),
-            NewProbeTimers = start_probe_if_needed(EventName, Labels, Config, ProbeTimers),
-            {reply, ok, #{events => NewEvents, probe_timers => NewProbeTimers}}
+            NewProbeTimers = set_up_probe_if_needed(EventName, Labels, Config, ProbeStarted, ProbeTimers),
+            {reply, ok, State#{events := NewEvents, probe_timers := NewProbeTimers}}
     end;
 handle_call({tear_down, EventName, Labels}, _From,
-            #{events := Events, probe_timers := ProbeTimers}) ->
+            #{events := Events, probe_timers := ProbeTimers} = State) ->
     NewProbeTimers = deregister_probe_timer(EventName, Labels, ProbeTimers),
     NewEvents = deregister_event(EventName, Labels, Events),
     update_if_persisted(Events, NewEvents),
-    {reply, ok, #{events => NewEvents, probe_timers => NewProbeTimers}};
+    {reply, ok, State#{events := NewEvents, probe_timers := NewProbeTimers}};
 handle_call({add_handler, Key, ConfigOpts}, _From, State = #{events := Events}) ->
     case mongoose_config:lookup_opt([instrumentation, Key]) of
         {error, not_found} ->
@@ -226,6 +235,9 @@ handle_call({remove_handler, Key}, _From, State = #{events := Events}) ->
             stop_handler(Module, ConfigOpts),
             {reply, ok, State#{events := NewEvents}}
     end;
+handle_call(start_probes, _From, State = #{probe_timers := ProbeTimers}) ->
+    NewProbeTimers = maps:map(fun start_probe_if_needed/2, ProbeTimers),
+    {reply, ok, State#{probe_timers := NewProbeTimers, probe_started := true}};
 handle_call(persist, _From, State = #{events := Events}) ->
     persistent_term:put(?MODULE, Events),
     {reply, ok, State, hibernate};
@@ -320,18 +332,24 @@ do_set_up(EventName, Labels, Config) ->
     HandlerFuns = set_up_handlers(EventName, Labels, Config, handler_modules()),
     {HandlerFuns, Config}.
 
--spec start_probe_if_needed(event_name(), labels(), config(), probe_timer_map()) ->
+-spec set_up_probe_if_needed(event_name(), labels(), config(), boolean(), probe_timer_map()) ->
           probe_timer_map().
-start_probe_if_needed(EventName, Labels, #{probe := ProbeConfig}, ProbeTimers) ->
-    TRef = mongoose_instrument_probe:start_probe_timer(EventName, Labels, ProbeConfig),
-    add_probe_timer(EventName, Labels, TRef, ProbeTimers);
-start_probe_if_needed(_EventName, _Labels, _Config, ProbeTimers) ->
+set_up_probe_if_needed(EventName, Labels, #{probe := ProbeConfig}, ProbeStarted, ProbeTimers) ->
+    false = maps:is_key({EventName, Labels}, ProbeTimers), % sanity check to detect timer leak
+    Value =
+        case ProbeStarted of
+            false -> ProbeConfig;
+            true -> mongoose_instrument_probe:start_probe_timer(EventName, Labels, ProbeConfig)
+        end,
+    ProbeTimers#{{EventName, Labels} => Value};
+set_up_probe_if_needed(_EventName, _Labels, _Config, _ProbeStarted, ProbeTimers) ->
     ProbeTimers.
 
--spec add_probe_timer(event_name(), labels(), timer:tref(), probe_timer_map()) -> probe_timer_map().
-add_probe_timer(EventName, Labels, TRef, ProbeTimers) ->
-    false = maps:is_key({EventName, Labels}, ProbeTimers), % sanity check to detect timer leak
-    ProbeTimers#{{EventName, Labels} => TRef}.
+-spec start_probe_if_needed({event_name(), labels()}, probe_config() | timer:tref()) -> timer:tref().
+start_probe_if_needed({EventName, Labels}, Config) when is_map(Config) ->
+    mongoose_instrument_probe:start_probe_timer(EventName, Labels, Config);
+start_probe_if_needed(_Key, TRef) ->
+    TRef.
 
 -spec update_handlers(event_map(), [module()], [module()]) -> event_map().
 update_handlers(Events, ToRemove, ToAdd) ->

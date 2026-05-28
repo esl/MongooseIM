@@ -388,7 +388,6 @@ commands:
             - MINIO_SECRET_KEY: "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"
             - MINIO_BUCKET: "mybucket"
           command: |
-            printenv
             if [[ "$DBS" == *minio* ]]; then
                 curl -sSL https://dl.minio.io/client/mc/release/linux-amd64/archive/mc.__MINIO_MC_VERSION__ -o ./mc
                 chmod +x ./mc
@@ -470,7 +469,6 @@ jobs:
       - run:
           name: Execute Docker image build and upload
           command: |
-            printenv
             tools/circle-build-and-push-docker.sh
 
   docker_smoke_test:
