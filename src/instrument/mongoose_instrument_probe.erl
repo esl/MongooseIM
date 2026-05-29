@@ -13,11 +13,7 @@
 start_probe_timer(EventName, Labels, #{module := Module} = ProbeConfig) ->
     Interval = get_probe_interval(ProbeConfig),
     Extra = maps:get(extra, ProbeConfig, #{}),
-    Args = [Module, EventName, Labels, Extra],
-    % Execute the first probe asynchronously to avoid calling `mongoose_instrument:execute/3` from
-    % the `mongoose_instrument` process.
-    {ok, _} = timer:apply_after(0, ?MODULE, call, Args),
-    {ok, TRef} = timer:apply_repeatedly(Interval, ?MODULE, call, Args),
+    {ok, TRef} = timer:apply_repeatedly(Interval, ?MODULE, call, [Module, EventName, Labels, Extra]),
     TRef.
 
 call(ProbeMod, EventName, Labels, Extra) ->

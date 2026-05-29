@@ -24,8 +24,8 @@ all() ->
     ].
 
 groups() ->
-    [{persistent, [], api_test_cases()},
-     {not_persistent, [], api_test_cases()}].
+    [{persistent, [parallel], api_test_cases()},
+     {not_persistent, [parallel], api_test_cases()}].
 
 api_test_cases() ->
     [set_up_and_execute,
@@ -40,7 +40,6 @@ api_test_cases() ->
      set_up_and_span_with_error,
      span_fails_when_not_set_up,
      set_up_probe,
-     set_up_probe_before_starting,
      set_up_probe_with_incorrect_metric_type,
      set_up_failing_probe,
      set_up_and_tear_down_probe,
@@ -68,7 +67,6 @@ end_per_suite(_Config) ->
 init_per_group(Group, Config) ->
     lists:foreach(fun meck:reset/1, maps:keys(mocked_handlers())),
     Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
-    mongoose_instrument:start_probes(),
     set_up_persistence(Group),
     Config1.
 
@@ -76,9 +74,6 @@ init_per_testcase(Case, Config) ->
     log_helper:subscribe(),
     [{event, event_name(Case)} | Config].
 
-end_per_testcase(set_up_probe_before_starting, Config) ->
-    mongoose_instrument:start_probes(),
-    end_per_testcase(default, Config);
 end_per_testcase(_Case, _Config) ->
     log_helper:unsubscribe().
 
@@ -233,27 +228,6 @@ set_up_probe(Config) ->
                                             [], #{validator => fun(L) -> length(L) > 1 end}),
     ?assertEqual([ExpectedEvent, ExpectedEvent], History2).
 
-set_up_probe_before_starting(Config) ->
-    Event = proplists:get_value(event, Config),
-    Cfg = #{probe => #{module => ?MODULE, interval => timer:seconds(1)}},
-    sys:replace_state(mongoose_instrument, fun(S) -> S#{probe_started := false} end),
-    ok = mongoose_instrument:set_up(Event, ?LABELS, Cfg),
-    ExpectedMeasurements = #{event => Event, count => 1},
-
-    % The probe shouldn't be called yet
-    ?assertError(_,
-                 wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
-                                        [], #{validator => fun(L) -> length(L) > 0 end,
-                                              time_left => timer:seconds(2)})),
-
-    mongoose_instrument:start_probes(),
-
-    % Wait until the probe is called
-    {ok, History1} = wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
-                                            [], #{validator => fun(L) -> length(L) > 0 end}),
-    ExpectedEvent = {[Event, ?LABELS, Cfg, ExpectedMeasurements], ok},
-    ?assertEqual([ExpectedEvent], History1).
-
 set_up_probe_with_incorrect_metric_type(Config) ->
     Event = proplists:get_value(event, Config),
     Cfg = #{metrics => #{test_metric => gauge},
@@ -288,15 +262,12 @@ set_up_and_tear_down_probe(Config) ->
     Cfg = #{probe => #{module => ?MODULE, interval => timer:seconds(1)}},
     ok = mongoose_instrument:set_up(Event, ?LABELS, Cfg),
     mongoose_instrument:tear_down(Event, ?LABELS),
-    ExpectedMeasurements = #{event => Event, count => 1},
 
-    %% The probe should be called once on set_up
-    {ok, History1} = wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
-                                            [],
-                                            #{validator => fun(L) -> length(L) > 0 end,
-                                              sleep_time => timer:seconds(2)}),
-    ExpectedEvent = {[Event, ?LABELS, Cfg, ExpectedMeasurements], ok},
-    ?assertEqual([ExpectedEvent], History1).
+    %% The probe shouldn't be called anymore
+    ?assertError(_,
+                 wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                        [], #{validator => fun(L) -> length(L) > 0 end,
+                                              time_left => timer:seconds(2)})).
 
 unexpected_events(_Config) ->
     Pid = whereis(mongoose_instrument),

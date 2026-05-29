@@ -79,7 +79,6 @@ do_start() ->
     service_mongoose_system_metrics:verify_if_configured(),
     mongoose_listener:start(),
     mongoose_instrument:persist(),
-    mongoose_instrument:start_probes(),
     gen_hook:reload_hooks(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
