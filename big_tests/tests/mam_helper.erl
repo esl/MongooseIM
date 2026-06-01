@@ -173,6 +173,8 @@ mam_ns_binary_extended() -> <<"urn:xmpp:mam:2#extended">>.
 retract_ns() -> <<"urn:xmpp:message-retract:0">>.
 retract_esl_ns() -> <<"urn:esl:message-retract-by-stanza-id:0">>.
 retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
+retract_v1_ns() -> <<"urn:xmpp:message-retract:1">>.
+retract_v1_tombstone_ns() -> <<"urn:xmpp:message-retract:1#tombstone">>.
 groupchat_field_ns() -> <<"urn:xmpp:mam:2#groupchat-field">>.
 groupchat_available_ns() -> <<"urn:xmpp:mam:2#groupchat-available">>.
 data_validate_ns() -> <<"http://jabber.org/protocol/xdata-validate">>.

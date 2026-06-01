@@ -150,11 +150,13 @@
 -type archive_behaviour_bin() :: binary(). % `<<"roster">> | <<"always">> | <<"never">>'.
 
 -type direction() :: incoming | outgoing.
--type retraction_ref() :: {retract_0 | retract_esl, binary()}.
--type retraction_info() :: #{retract_type := retract_0 | retract_esl,
+-type retraction_ref() :: {retract_0 | retract_esl, binary()}
+                        | {retract_1, RetractedId :: binary(), RetractionMsgId :: binary() | undefined}.
+-type retraction_info() :: #{retract_type := retract_0 | retract_esl | retract_1,
                              packet := exml:element(),
                              message_id := mod_mam:message_id(),
-                             origin_id := null | binary()}.
+                             origin_id := null | binary(),
+                             retraction_message_id => binary()}.
 
 %% -----------------------------------------------------------------------
 %% Time
@@ -391,6 +393,16 @@ get_retract_id(false, _Packet) ->
 
 -spec get_retract_id(exml:element()) -> none | retraction_ref().
 get_retract_id(Packet) ->
+    case exml_query:path(Packet, [{element_with_ns, <<"retract">>, ?NS_RETRACT_1},
+                                  {attr, <<"id">>}], none) of
+        none ->
+            get_retract_id_legacy(Packet);
+        MatchId ->
+            RetractionMsgId = exml_query:attr(Packet, <<"id">>, undefined),
+            {retract_1, MatchId, RetractionMsgId}
+    end.
+
+get_retract_id_legacy(Packet) ->
     case exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN}], none) of
         none -> none;
         Fasten ->
@@ -404,8 +416,11 @@ get_retract_id(Packet) ->
     end.
 
 get_origin_id(Packet) ->
-    exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
-                             {attr, <<"id">>}], none).
+    case exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
+                                  {attr, <<"id">>}]) of
+        undefined -> exml_query:attr(Packet, <<"id">>, none);
+        OriginId -> OriginId
+    end.
 
 is_groupchat(<<"groupchat">>) ->
     true;
@@ -481,7 +496,15 @@ retracted_element(#{retract_type := retract_esl,
                                         <<"id">> => StanzaID,
                                         <<"by">> => jid:to_bare_binary(LocJid)}} |
                        MaybeOriginId
-                      ]}.
+                      ]};
+retracted_element(#{retract_type := retract_1,
+                    retraction_message_id := RMID}, _LocJid) ->
+    Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
+    #xmlel{name = <<"retracted">>,
+           attrs = #{<<"xmlns">> => ?NS_RETRACT_1,
+                     <<"stamp">> => list_to_binary(Timestamp),
+                     <<"id">> => RMID},
+           children = []}.
 
 -spec maybe_append_origin_id(retraction_info()) -> [exml:element()].
 maybe_append_origin_id(#{origin_id := OriginID}) when is_binary(OriginID), <<>> =/= OriginID ->
@@ -761,8 +784,10 @@ mam_features() ->
 
 retraction_features(Module, HostType) ->
     case has_message_retraction(Module, HostType) of
-        true -> [?NS_RETRACT_0, ?NS_RETRACT_0_TOMBSTONE, ?NS_ESL_RETRACT];
-        false -> [?NS_RETRACT_0]
+        true -> [?NS_RETRACT_0, ?NS_RETRACT_0_TOMBSTONE,
+                 ?NS_RETRACT_1, ?NS_RETRACT_1_TOMBSTONE,
+                 ?NS_ESL_RETRACT];
+        false -> [?NS_RETRACT_0, ?NS_RETRACT_1]
     end.
 
 groupchat_features(mod_mam_pm = Module, HostType) ->

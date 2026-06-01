@@ -113,13 +113,13 @@ register_prepared_queries(Opts) ->
     LimitSQL = rdbms_queries:limit(1),
     mongoose_rdbms:prepare(mam_muc_select_messages_to_retract_on_origin_id, mam_muc_message,
                            [room_id, sender_id, origin_id],
-                           <<"SELECT id, message FROM mam_muc_message"
+                           <<"SELECT id, origin_id, message FROM mam_muc_message"
                              " WHERE room_id = ? AND sender_id = ? "
                              " AND origin_id = ?"
                              " ORDER BY id DESC", LimitSQL/binary>>),
     mongoose_rdbms:prepare(mam_muc_select_messages_to_retract_on_stanza_id, mam_muc_message,
                            [room_id, sender_id, id],
-                           <<"SELECT origin_id, message FROM mam_muc_message"
+                           <<"SELECT id, origin_id, message FROM mam_muc_message"
                              " WHERE room_id = ? AND sender_id = ? "
                              " AND id = ?"
                              " ORDER BY id DESC", LimitSQL/binary>>),
@@ -259,12 +259,26 @@ retract_message(HostType, #{local_jid := ArcJID} = Params)  ->
 retract_message(HostType, #{archive_id := ArcID, sender_id := SenderID,
                             packet := Packet} = Params, Env) ->
     case get_retract_id(Packet, Env) of
-        none -> ok;
+        {retract_1, _, undefined} ->
+            ok;
+        none ->
+            ok;
         RetractionId ->
             Info = get_retraction_info(HostType, ArcID, SenderID, RetractionId, Env),
             make_tombstone(HostType, ArcID, RetractionId, Info, Params, Env)
     end.
 
+get_retraction_info(HostType, ArcID, SenderID, {retract_1, MatchId, _} = RetractionId, Env) ->
+    Rows = case try_select_on_stanza_id(HostType, ArcID, SenderID, MatchId) of
+               {selected, [_|_] = StanzaRows} ->
+                   StanzaRows;
+               {selected, []} ->
+                   {selected, OriginRows} = mongoose_rdbms:execute_successfully(
+                                              HostType, mam_muc_select_messages_to_retract_on_origin_id,
+                                              [ArcID, SenderID, MatchId]),
+                   OriginRows
+           end,
+    mam_decoder:decode_retraction_info(Env, Rows, RetractionId);
 get_retraction_info(HostType, ArcID, SenderID, RetractionId, Env) ->
     {selected, Rows} =
         execute_select_messages_to_retract(HostType, ArcID, SenderID, RetractionId),
@@ -288,7 +302,20 @@ execute_select_messages_to_retract(HostType, ArcID, SenderID, {retract_0, Origin
 execute_select_messages_to_retract(HostType, ArcID, SenderID, {retract_esl, BinStanzaId}) ->
     StanzaId = mod_mam_utils:external_binary_to_mess_id(BinStanzaId),
     mongoose_rdbms:execute_successfully(HostType, mam_muc_select_messages_to_retract_on_stanza_id,
-                                      [ArcID, SenderID, StanzaId]).
+                                      [ArcID, SenderID, StanzaId]);
+execute_select_messages_to_retract(HostType, ArcID, SenderID, {retract_1, MatchId, _}) ->
+    mongoose_rdbms:execute_successfully(HostType, mam_muc_select_messages_to_retract_on_origin_id,
+                                      [ArcID, SenderID, MatchId]).
+
+try_select_on_stanza_id(HostType, ArcID, SenderID, MatchId) ->
+    try mod_mam_utils:external_binary_to_mess_id(MatchId) of
+        StanzaId ->
+            mongoose_rdbms:execute_successfully(
+              HostType, mam_muc_select_messages_to_retract_on_stanza_id,
+              [ArcID, SenderID, StanzaId])
+    catch throw:invalid_stanza_id ->
+            {selected, []}
+    end.
 
 execute_make_tombstone(HostType, TombstoneData, ArcID, MessID) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_make_tombstone,

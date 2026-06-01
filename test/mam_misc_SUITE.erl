@@ -15,7 +15,8 @@
 all() ->
     [
      test_encode_decode_functionality,
-     {group, should_archive}
+     {group, should_archive},
+     {group, retract_unit}
     ].
 
 groups() ->
@@ -26,7 +27,17 @@ groups() ->
        messages_type_error_false,
        other_message_types_return_false,
        must_be_rejected,
-       must_be_accepted
+       must_be_accepted,
+       must_be_accepted_v1_retract
+      ]},
+     {retract_unit, [parallel],
+      [
+       get_retract_id_v0,
+       get_retract_id_esl,
+       get_retract_id_v1,
+       get_retract_id_v1_missing_message_id,
+       get_retract_id_none,
+       retracted_element_v1_shape
       ]}
     ].
 
@@ -110,6 +121,68 @@ must_be_accepted(_) ->
                    is_valid_message(Mod, Dir, Msg, Acm)),
     run_prop(?FUNCTION_NAME, Prop).
 
+must_be_accepted_v1_retract(_) ->
+    Packet = packet(<<"message">>,
+                    #{<<"from">> => alice(), <<"to">> => bob(),
+                      <<"type">> => <<"chat">>, <<"id">> => <<"R1">>},
+                    [retraction_v1(<<"orig-1">>)]),
+    ?assert(is_archivable_message(mod_mam_pm, outgoing, Packet, false)),
+    ?assert(is_archivable_message(mod_mam_pm, incoming, Packet, false)).
+
+%% Direct unit tests for mod_mam_utils:get_retract_id/1 and retracted_element/2.
+
+get_retract_id_v0(_) ->
+    Packet = packet(<<"message">>,
+                    #{<<"from">> => alice(), <<"to">> => bob(), <<"type">> => <<"chat">>},
+                    [retraction()]),
+    {retract_0, _OriginId} = mod_mam_utils:get_retract_id(Packet).
+
+get_retract_id_esl(_) ->
+    Packet = packet(<<"message">>,
+                    #{<<"from">> => alice(), <<"to">> => bob(), <<"type">> => <<"chat">>},
+                    [#xmlel{name = <<"apply-to">>,
+                            attrs = #{<<"id">> => <<"S">>, <<"xmlns">> => ?NS_FASTEN},
+                            children = [#xmlel{name = <<"retract">>,
+                                               attrs = #{<<"xmlns">> => ?NS_ESL_RETRACT}}]}]),
+    ?assertEqual({retract_esl, <<"S">>}, mod_mam_utils:get_retract_id(Packet)).
+
+get_retract_id_v1(_) ->
+    Packet = packet(<<"message">>,
+                    #{<<"from">> => alice(), <<"to">> => bob(),
+                      <<"type">> => <<"chat">>, <<"id">> => <<"R">>},
+                    [retraction_v1(<<"X">>)]),
+    ?assertEqual({retract_1, <<"X">>, <<"R">>}, mod_mam_utils:get_retract_id(Packet)).
+
+%% A v1 retraction message lacking the required @id yields a retraction_ref
+%% with an undefined message id. The retraction is later skipped when
+%% decoding it into a retraction_info map (which requires a binary id),
+%% because XEP-0424 defines this attribute as mandatory.
+get_retract_id_v1_missing_message_id(_) ->
+    Packet = packet(<<"message">>,
+                    #{<<"from">> => alice(), <<"to">> => bob(), <<"type">> => <<"chat">>},
+                    [retraction_v1(<<"X">>)]),
+    ?assertEqual({retract_1, <<"X">>, undefined}, mod_mam_utils:get_retract_id(Packet)).
+
+get_retract_id_none(_) ->
+    Packet = packet(<<"message">>,
+                    #{<<"from">> => alice(), <<"to">> => bob(), <<"type">> => <<"chat">>},
+                    [body()]),
+    ?assertEqual(none, mod_mam_utils:get_retract_id(Packet)).
+
+retracted_element_v1_shape(_) ->
+    Env = #{retract_type => retract_1,
+            packet => packet(<<"message">>, #{}, []),
+            message_id => 0,
+            origin_id => <<"orig">>,
+            retraction_message_id => <<"R">>},
+    LocJid = jid:from_binary(alice()),
+    Tombstone = mod_mam_utils:tombstone(Env, LocJid),
+    [Retracted] = Tombstone#xmlel.children,
+    #xmlel{name = <<"retracted">>, attrs = Attrs, children = []} = Retracted,
+    ?assertEqual(?NS_RETRACT_1, maps:get(<<"xmlns">>, Attrs)),
+    ?assertEqual(<<"R">>, maps:get(<<"id">>, Attrs)),
+    ?assert(is_binary(maps:get(<<"stamp">>, Attrs))).
+
 %% Generators
 gen_modules() ->
     oneof([mod_mam_pm, mod_inbox]).
@@ -175,6 +248,9 @@ retraction() ->
     #xmlel{name = <<"apply-to">>,
            attrs = #{<<"id">> => bin(), <<"xmlns">> => ?NS_FASTEN},
            children = [#xmlel{name = <<"retract">>, attrs = #{<<"xmlns">> => ?NS_RETRACT_0}}]}.
+retraction_v1(Id) ->
+    #xmlel{name = <<"retract">>,
+           attrs = #{<<"id">> => Id, <<"xmlns">> => ?NS_RETRACT_1}}.
 mam_result() ->
     #xmlel{name = <<"result">>,
            attrs = #{<<"id">> => bin(), <<"queryid">> => bin(), <<"xmlns">> => ?NS_MAM_06}}.

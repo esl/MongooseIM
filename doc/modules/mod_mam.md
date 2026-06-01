@@ -16,18 +16,31 @@ Configure MAM with different storage backends:
 `mod_mam` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
 ### Message retraction
-This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone.
 
-The following criteria are used to find the original message:
+This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. Both the legacy v0 format and the current v1 format are accepted; v1 (`urn:xmpp:message-retract:1`) is the **recommended** method for new clients. When a retraction message is received, the MAM module finds the message to retract and replaces it with a tombstone.
 
-* The `id` attribute specified in the `apply-to` element of the retraction message has to be the same as the `id` attribute of the `origin-id` (or `stanza-id` when configured, see [below](#retraction-on-the-stanza-id)) element of the original message.
-* Both messages need to originate from the same user.
-* Both messages need to be addressed to the same user.
+#### How the original message is matched
+
+* **v1 (`urn:xmpp:message-retract:1`)** — the `id` attribute of the `<retract/>` element identifies the original message:
+    * For one-to-one chats, it is compared against the `origin-id` of the original message.
+    * For group chats, it is first compared against the MUC-assigned `stanza-id`; if no message matches, the server falls back to matching by `origin-id`.
+* **v0 (`urn:xmpp:message-retract:0`)** — the `id` attribute of the `apply-to` element is compared against the `origin-id` of the original message (or, with the ESL extension, against the `stanza-id`).
+* In all cases, both the retraction and the original message must originate from and be addressed to the same user (or, for MUC, share the same sender).
 
 If more than one message matches the criteria, only the most recent one is retracted. To avoid this case, it is recommended to use a unique identifier (UUID) as the origin ID.
 
+#### Tombstones and backwards compatibility
+
+The tombstone emitted by the server matches the namespace of the incoming retraction:
+
+* v1 retractions produce a `<retracted xmlns="urn:xmpp:message-retract:1" stamp="…" id="…"/>` element, where `id` is the `@id` of the retraction message.
+* v0 retractions produce a `<retracted xmlns="urn:xmpp:message-retract:0" stamp="…"><origin-id .../></retracted>` element.
+* ESL stanza-id retractions produce a `<retracted xmlns="urn:esl:message-retract-by-stanza-id:0" …/>` element with a `<stanza-id/>` child.
+
+Already-archived tombstones are never rewritten — there is no migration. A client retracting with the legacy v0 format will continue to produce v0 tombstones, and existing v0/ESL tombstones in the archive remain readable in their original form.
+
 #### Retraction on the stanza-id
-This module also implements an extension to the XEP, where it allows to specify the [`stanza-id`](https://xmpp.org/extensions/xep-0359.html#stanza-id) as [created by](https://xmpp.org/extensions/xep-0313.html#archives_id) the server's MAM, instead of the `origin-id` that the original [XEP-0424](https://xmpp.org/extensions/xep-0424.html) specifies. It announces this capability under the namespace `urn:esl:message-retract-by-stanza-id:0`. This is specially useful in groupchats where the `stanza-id` of a message is shared and known for all participants.
+This module also implements an extension to the XEP, where it allows to specify the [`stanza-id`](https://xmpp.org/extensions/xep-0359.html#stanza-id) as [created by](https://xmpp.org/extensions/xep-0313.html#archives_id) the server's MAM, instead of the `origin-id` that the original [XEP-0424](https://xmpp.org/extensions/xep-0424.html) specifies. It announces this capability under the namespace `urn:esl:message-retract-by-stanza-id:0`. This is specially useful in groupchats where the `stanza-id` of a message is shared and known for all participants. Note that v1 already provides this behaviour for MUC out of the box; the ESL extension remains for clients that target the legacy v0 wire format.
 
 In this case, to use such functionality,
 ```xml
