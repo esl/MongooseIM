@@ -75,11 +75,13 @@ reset_metric(Name, LabelValues, histogram) ->
 initialize_metric(Name, LabelValues, spiral) ->
     %% Initialize counter, because it has a meaningful initial value of zero
     %% Additionally, leaving it undefined would delay rate calculation in Prometheus
-    prometheus_counter:inc(Name, LabelValues, 0);
+    prometheus_metric:set_default(prometheus_counter, Name, LabelValues);
 initialize_metric(Name, LabelValues, counter) ->
     %% Initialize the gauge, because as a counter it has a meaningful initial value of zero
-    prometheus_gauge:inc(Name, LabelValues, 0);
-initialize_metric(_Name, _LabelValues, _) ->
+    prometheus_metric:set_default(prometheus_gauge, Name, LabelValues);
+initialize_metric(Name, LabelValues, histogram) ->
+    prometheus_metric:set_default(prometheus_histogram, Name, LabelValues);
+initialize_metric(_Name, _LabelValues, gauge) ->
     %% Don't initialize, because no meaningful value could be provided
     ok.
 
