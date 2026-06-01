@@ -1,7 +1,14 @@
 %% @doc Manage starting and stopping of configured listeners
 -module(mongoose_listener).
 
+-include_lib("public_key/include/public_key.hrl").
+
 -include("mongoose_logger.hrl").
+
+-behaviour(mongoose_instrument_probe).
+
+% mongoose_instrument_probe
+-export([probe/3]).
 
 %% API
 -export([start/0, stop/0]).
@@ -121,7 +128,35 @@ listener_instrumentation(Opts = #{module := Module}) ->
             Module:instrumentation(Opts);
         false ->
             []
-    end.
+    end ++ default_instrumentation(Opts).
+
+default_instrumentation(#{tls := Tls, port := Port, ip_tuple := IPTuple, proto := Proto}) ->
+    ListenerId = iolist_to_binary(io_lib:format("~s@~s/~p", [inet:ntoa(IPTuple), Proto, Port])),
+    [{tls_cert_remaining_days, #{listener_id => ListenerId},
+      #{probe => #{module => ?MODULE, extra => #{tls => Tls}},
+        metrics => #{count => gauge}}}];
+default_instrumentation(_Opts) ->
+    [].
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(), mongoose_instrument:extra()) ->
+    mongoose_instrument:measurements().
+probe(tls_cert_remaining_days, _Labels, #{tls := #{certfile := Certfile}}) ->
+    ?LOG_WARNING(#{what => kwaz, labels => _Labels}),
+    {ok, PemBin} = file:read_file(Certfile),
+    [PemEntry | _] = public_key:pem_decode(PemBin),
+    Count =
+        case cert_utils:get_validity(PemEntry) of
+            error ->
+                -1;
+            {NotBefore, NotAfter} ->
+                Now = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
+                if
+                    Now < NotBefore -> -1;
+                    Now > NotAfter -> 0;
+                    true -> (NotAfter - Now) div (24 * 60 * 60)
+                end
+        end,
+    #{count => Count}.
 
 -spec suspend_listeners_and_shutdown_connections() -> StoppedCount :: non_neg_integer().
 suspend_listeners_and_shutdown_connections() ->
