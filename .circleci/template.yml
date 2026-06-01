@@ -162,7 +162,7 @@ containers:
       - BASE32DEC: "__PYTHON2_BASE32_DEC__"
     entrypoint: *ENTRYPOINT
   - &cassandra_proxy_container
-    image: emicklei/zazkia
+    image: emicklei/zazkia:0.6
     environment:
       - OLD_ENTRYPOINT: "./zazkia -v -f /data/zazkia-routes.json"
       - ENV_FILE_CFG_PATH: "/data/zazkia-routes.json"
