@@ -170,7 +170,7 @@ search_fields(HostType, LServer) ->
 
 -spec search_reported_fields(mongooseim:host_type(), jid:lserver(), binary()) ->
           [mongoose_data_forms:field()].
-search_reported_fields(HostType, LServer, Lang) ->
+search_reported_fields(HostType, LServer, _Lang) ->
     State = get_state(HostType, LServer),
     SearchReported = State#state.search_reported,
     [?TLFIELD(<<"text-single">>, Name, Value) ||

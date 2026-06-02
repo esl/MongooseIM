@@ -481,9 +481,9 @@ do_route(HostType, LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_SEARCH, lang = Lang, sub_el = SubEl} = IQ) ->
     route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ);
 do_route(HostType, LServer, From, To, Acc,
-         #iq{type = get, xmlns = ?NS_SEARCH, lang = Lang} = IQ) ->
-    Instr = search_instructions(Lang),
-    Form = search_form(To, mod_vcard_backend:search_fields(HostType, LServer), Lang),
+         #iq{type = get, xmlns = ?NS_SEARCH} = IQ) ->
+    Instr = search_instructions(),
+    Form = search_form(To, mod_vcard_backend:search_fields(HostType, LServer)),
     ResIQ = make_search_form_result_iq(IQ, [Instr, Form]),
     mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(ResIQ), Acc));
 do_route(_HostType, _LServer, From, To, Acc,
@@ -491,8 +491,8 @@ do_route(_HostType, _LServer, From, To, Acc,
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route(HostType, _LServer, From, To, Acc,
-         #iq{type = get, xmlns = ?NS_DISCO_INFO, lang = Lang} = IQ) ->
-    IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+         #iq{type = get, xmlns = ?NS_DISCO_INFO} = IQ) ->
+    IdentityXML = mongoose_disco:identities_to_xml([identity()]),
     FeatureXML = mongoose_disco:features_to_xml(features()),
     InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, <<>>),
     ResIQ = IQ#iq{type = result,
@@ -530,13 +530,12 @@ make_search_form_result_iq(IQ, Elements) ->
                            children = Elements
                           }]}.
 
-search_instructions(Lang) ->
-    Text = service_translations:do(Lang, <<"You need an x:data capable client to search">>),
+search_instructions() ->
+    Text = <<"You need an x:data capable client to search">>,
     #xmlel{name = <<"instructions">>, children = [#xmlcdata{content = Text}]}.
 
-search_form(JID, SearchFields, Lang) ->
-    Title = <<(service_translations:do(Lang, <<"Search users in ">>))/binary,
-              (jid:to_binary(JID))/binary>>,
+search_form(JID, SearchFields) ->
+    Title = <<"Search users in ", (jid:to_binary(JID))/binary>>,
     Instructions = <<"Fill in fields to search for any matching Jabber User">>,
     Fields = lists:map(fun ({X, Y}) -> ?TLFIELD(<<"text-single">>, X, Y) end, SearchFields),
     mongoose_data_forms:form(#{title => Title, instructions => Instructions, fields => Fields}).
@@ -580,13 +579,13 @@ iq_get_vcard() ->
 features() ->
     [?NS_DISCO_INFO, ?NS_SEARCH, ?NS_VCARD].
 
-identity(Lang) ->
+identity() ->
     #{category => <<"directory">>,
       type => <<"user">>,
-      name => service_translations:do(Lang, <<"vCard User Search">>)}.
+      name => <<"vCard User Search">>}.
 
 search_result(HostType, LServer, Lang, JID, Data, RSMIn) ->
-    Title = service_translations:do(Lang, <<"Search Results for ", (jid:to_binary(JID))/binary>>),
+    Title = <<"Search Results for ", (jid:to_binary(JID))/binary>>,
     ReportedFields = mod_vcard_backend:search_reported_fields(HostType, LServer, Lang),
     Results1 = mod_vcard_backend:search(HostType, LServer, maps:to_list(Data)),
     Results2 = lists:filtermap(
@@ -771,7 +770,7 @@ prepare_index_allow_emoji(FieldName, Value) ->
 
 
 -spec get_default_reported_fields(binary()) -> [mongoose_data_forms:field()].
-get_default_reported_fields(Lang) ->
+get_default_reported_fields(_Lang) ->
     [
      ?TLFIELD(<<"jid-single">>, <<"Jabber ID">>, <<"jid">>),
      ?TLFIELD(<<"text-single">>, <<"Full Name">>, <<"fn">>),
