@@ -284,7 +284,7 @@ inband_registration_and_cancelation_allowed(HostType, ServerDomain, JID) ->
     Rule = gen_mod:get_module_opt(HostType, ?MODULE, access),
     allow =:= acl:match_rule(HostType, ServerDomain,  Rule, JID).
 
-process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
+process_iq_get(_HostType, From, _To, #iq{sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
     {_IsRegistered, UsernameSubels, QuerySubels} =
         case From of
@@ -299,13 +299,12 @@ process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Sou
             _ ->
                 {false, [], []}
         end,
-    TranslatedMsg = service_translations:do(
-                      Lang, <<"Choose a username and password to register with this server">>),
+    Msg = <<"Choose a username and password to register with this server">>,
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"query">>,
                            attrs = #{<<"xmlns">> => <<"jabber:iq:register">>},
                            children = [#xmlel{name = <<"instructions">>,
-                                              children = [#xmlcdata{content = TranslatedMsg}]},
+                                              children = [#xmlcdata{content = Msg}]},
                                        #xmlel{name = <<"username">>,
                                               children = UsernameSubels},
                                        #xmlel{name = <<"password">>}
