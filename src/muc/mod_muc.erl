@@ -768,7 +768,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
     MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+            IdentityXML = mongoose_disco:identities_to_xml([identity()]),
             FeatureXML =  mongoose_disco:get_muc_features(HostType, From, To, <<>>, Lang,
                                                           features()),
             InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, Lang),
@@ -779,8 +779,8 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
             mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
-        #iq{type = get, xmlns = ?NS_REGISTER = XMLNS, lang = Lang} = IQ ->
-            Result = iq_get_register_info(HostType, MucHost, From, Lang),
+        #iq{type = get, xmlns = ?NS_REGISTER = XMLNS} = IQ ->
+            Result = iq_get_register_info(HostType, MucHost, From),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
@@ -801,11 +801,11 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, Error),
                     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
             end;
-        #iq{type = get, xmlns = ?NS_VCARD = XMLNS, lang = Lang} = IQ ->
+        #iq{type = get, xmlns = ?NS_VCARD = XMLNS} = IQ ->
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"vCard">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
-                                         children = iq_get_vcard(Lang)}]},
+                                         children = iq_get_vcard()}]},
             mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_MUC_UNIQUE} = IQ ->
            Res = IQ#iq{type = result,
@@ -927,10 +927,10 @@ find_room_pid(HostType, MucHost, Room) ->
 default_host() ->
     mongoose_subdomain_utils:make_subdomain_pattern(<<"conference.@HOST@">>).
 
-identity(Lang) ->
+identity() ->
     #{category => <<"conference">>,
       type => <<"text">>,
-      name => service_translations:do(Lang, <<"Chatrooms">>)}.
+      name => <<"Chatrooms">>}.
 
 features() ->
     [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD, ?NS_CONFERENCE].
@@ -1043,10 +1043,9 @@ iq_get_unique(From) ->
     Raw = [From, erlang:unique_integer(), mongoose_bin:gen_from_crypto()],
     #xmlcdata{content = mongoose_bin:encode_crypto(term_to_binary(Raw))}.
 
--spec iq_get_register_info(host_type(), jid:server(),
-        jid:simple_jid() | jid:jid(), ejabberd:lang())
-            -> [exml:element(), ...].
-iq_get_register_info(HostType, MucHost, From, Lang) ->
+-spec iq_get_register_info(host_type(), jid:server(), jid:simple_jid() | jid:jid())
+    -> [exml:element(), ...].
+iq_get_register_info(HostType, MucHost, From) ->
     {Nick, Registered} =
         case catch get_nick(HostType, MucHost, From) of
             {'EXIT', _Reason} ->
@@ -1056,15 +1055,13 @@ iq_get_register_info(HostType, MucHost, From, Lang) ->
             {ok, N} ->
                 {N, [#xmlel{name = <<"registered">>}]}
         end,
-    ClientReqText = service_translations:do(
-                      Lang, <<"You need a client that supports x:data to register the nickname">>),
+    ClientReqText = <<"You need a client that supports x:data to register the nickname">>,
     ClientReqEl = #xmlel{name = <<"instructions">>,
                          children = [#xmlcdata{content = ClientReqText}]},
-    EnterNicknameText = service_translations:do(Lang, <<"Enter nickname you want to register">>),
-    TitleText = <<(service_translations:do(Lang, <<"Nickname Registration at ">>))/binary,
-                  MucHost/binary>>,
+    EnterNicknameText = <<"Enter nickname you want to register">>,
+    TitleText = <<"Nickname Registration at ", MucHost/binary>>,
     NickField = #{type => <<"text-single">>,
-                  label => service_translations:do(Lang, <<"Nickname">>),
+                  label => <<"Nickname">>,
                   var => <<"nick">>,
                   values => [Nick]},
     Registered ++ [ClientReqEl, mongoose_data_forms:form(#{title => TitleText,
@@ -1136,15 +1133,14 @@ process_register(_HostType, _MucHost, _From, Lang, #{}) ->
     ErrText = <<"You must fill in field \"Nickname\" in the form">>,
     {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}.
 
--spec iq_get_vcard(ejabberd:lang()) -> [exml:element(), ...].
-iq_get_vcard(Lang) ->
+-spec iq_get_vcard() -> [exml:element(), ...].
+iq_get_vcard() ->
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_muc">>}]},
      #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>,
             children = [#xmlcdata{content =
-                                  <<(service_translations:do(Lang, <<"ejabberd MUC module">>))/binary,
-                                    "\nCopyright (c) 2003-2011 ProcessOne">>}]}].
+                <<"ejabberd MUC module\nCopyright (c) 2003-2011 ProcessOne">>}]}].
 
 -spec broadcast_service_message(muc_host(), binary() | string()) -> ok.
 broadcast_service_message(MucHost, Msg) ->
