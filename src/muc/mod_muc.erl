@@ -1089,10 +1089,9 @@ iq_set_register_info(HostType, MucHost, From, Nick, Lang) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
--spec iq_set_unregister_info(host_type(), jid:server(),
-        jid:simple_jid() | jid:jid(), ejabberd:lang())
-            -> {'error', exml:element()} | {'result', []}.
-iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
+-spec iq_set_unregister_info(host_type(), jid:server(), jid:simple_jid() | jid:jid())
+    -> {'error', exml:element()} | {'result', []}.
+iq_set_unregister_info(HostType, MucHost, From) ->
     case unset_nick(HostType, MucHost, From) of
         ok ->
             {result, []};
@@ -1120,7 +1119,7 @@ process_iq_register_set(HostType, MucHost, From, SubEl, Lang) ->
                     {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form type">>)}
             end;
         _ ->
-            iq_set_unregister_info(HostType, MucHost, From, Lang)
+            iq_set_unregister_info(HostType, MucHost, From)
     end.
 
 -spec process_register(HostType :: host_type(), MucHost :: jid:server(),

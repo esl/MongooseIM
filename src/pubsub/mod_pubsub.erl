@@ -1272,7 +1272,7 @@ iq_pubsub_action(IQType, Name, Host, Node, From, ExtraArgs) ->
         {get, <<"affiliations">>} ->
             get_affiliations(Host, Node, From, ExtraArgs);
         {get, <<"options">>} ->
-            iq_pubsub_get_options(Host, Node, From, ExtraArgs);
+            iq_pubsub_get_options(Host, Node, ExtraArgs);
         {set, <<"options">>} ->
             iq_pubsub_set_options(Host, Node, ExtraArgs);
           _ ->
@@ -1446,10 +1446,10 @@ extract_item_id(#xmlel{name = <<"item">>} = Item, Acc) ->
 extract_item_id(_, Acc) -> Acc.
 
 
-iq_pubsub_get_options(Host, Node, Lang, #{action_el := #xmlel{} = El}) ->
+iq_pubsub_get_options(Host, Node, #{action_el := #xmlel{} = El}) ->
     SubId = exml_query:attr(El, <<"subid">>, <<>>),
     JID = exml_query:attr(El, <<"jid">>, <<>>),
-    get_options(Host, Node, JID, SubId, Lang).
+    get_options(Host, Node, JID, SubId).
 
 iq_pubsub_set_options(Host, Node, #{action_el := #xmlel{} = ActionEl}) ->
     XForm = mongoose_data_forms:find_form(ActionEl),
@@ -2768,27 +2768,26 @@ set_validated_affiliations_transaction(Host, #pubsub_node{ type = Type, id = Nid
                   end,
                   Entities).
 
-get_options(Host, Node, JID, SubId, Lang) ->
+get_options(Host, Node, JID, SubId) ->
     Action = fun(PubSubNode) ->
-                     get_options_transaction(Node, JID, SubId, Lang, PubSubNode)
+                get_options_transaction(Node, JID, SubId, PubSubNode)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_Node, XForm}} -> {result, [XForm]};
         Error -> Error
     end.
 
-get_options_transaction(Node, JID, SubId, Lang, #pubsub_node{type = Type, id = Nidx}) ->
+get_options_transaction(Node, JID, SubId, #pubsub_node{type = Type, id = Nidx}) ->
     case lists:member(<<"subscription-options">>, plugin_features(Type)) of
         true ->
-            get_sub_options_xml(JID, Lang, Node, Nidx, SubId, Type);
+            get_sub_options_xml(JID, Node, Nidx, SubId, Type);
         false ->
             {error,
              unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
                                <<"subscription-options">>)}
     end.
 
-% TODO: Support Lang at some point again
-get_sub_options_xml(JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
+get_sub_options_xml(JID, Node, Nidx, RequestedSubId, Type) ->
     Subscriber = string_to_ljid(JID),
     {result, Subs} = node_call(Type, get_subscriptions, [Nidx, Subscriber]),
     SubscribedSubs = [{Id, Opts} || {Sub, Id, Opts} <- Subs, Sub == subscribed],
