@@ -120,8 +120,7 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
 -spec handle_invalid_presence_type(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data()) ->
     mongoose_c2s_hooks:result().
 handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData) ->
-    Lang = mongoose_c2s:get_lang(StateData),
-    Error = mongoose_xmpp_errors:bad_request(Lang, <<"Invalid presence type">>),
+    Error = mongoose_xmpp_errors:bad_request(<<"Invalid presence type">>),
     Reply = jlib:make_error_reply(Packet, Error),
     mongoose_router:route(mongoose_acc:update(ToJid, FromJid, Reply, Acc)),
     {stop, Acc}.

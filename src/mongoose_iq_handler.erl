@@ -113,7 +113,7 @@ execute_handler(#iq_handler{handler_fn = IQHandlerFn, extra = Extra},
                            acc => Acc, extra => Extra, handler_function => IQHandlerFn,
                            class => Class, reason => Reason, stacktrace => StackTrace}),
             ErrorMsg = <<"The server could not process the IQ stanza">>,
-            ErrorEl = mongoose_xmpp_errors:internal_server_error(Lang, ErrorMsg),
+            ErrorEl = mongoose_xmpp_errors:internal_server_error(ErrorMsg),
             ErrorIQ = IQ#iq{type = error, sub_el = [SubEl, ErrorEl]},
             reply(From, To, Acc, ErrorIQ)
     end.

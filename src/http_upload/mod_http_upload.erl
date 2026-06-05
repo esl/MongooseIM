@@ -137,7 +137,7 @@ supported_features() ->
                  IQ :: jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
 process_iq(Acc, _From, _To, IQ = #iq{type = set, lang = Lang, sub_el = SubEl}, _Extra) ->
-    Error = mongoose_xmpp_errors:not_allowed(Lang, <<"IQ set is not allowed for HTTP upload">>),
+    Error = mongoose_xmpp_errors:not_allowed(<<"IQ set is not allowed for HTTP upload">>),
     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
 process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -161,7 +161,7 @@ process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
           {mongoose_acc:t(), jlib:iq()}.
 process_disco_iq(Acc, _From, _To, #iq{type = set, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     ErrorMsg = <<"IQ set is not allowed for service discovery">>,
-    Error = mongoose_xmpp_errors:not_allowed(Lang, ErrorMsg),
+    Error = mongoose_xmpp_errors:not_allowed(ErrorMsg),
     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
 process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     case exml_query:attr(SubEl, <<"node">>, <<>>) of
@@ -175,7 +175,7 @@ process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} =
                                          children = Identity ++ Info ++ Features}]}};
         _ ->
             ErrorMsg = <<"Node is not supported by HTTP upload">>,
-            Error = mongoose_xmpp_errors:item_not_found(Lang, ErrorMsg),
+            Error = mongoose_xmpp_errors:item_not_found(ErrorMsg),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 

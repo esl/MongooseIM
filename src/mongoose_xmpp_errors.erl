@@ -106,81 +106,81 @@ unexpected_request_cancel() ->
 %% Text Stanza Errors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bad_request(Lang, Text) ->
-    jlib:stanza_errort(<<"400">>, <<"modify">>, <<"bad-request">>, Lang, Text).
+bad_request(Text) ->
+    jlib:stanza_errort(<<"400">>, <<"modify">>, <<"bad-request">>, Text).
 
-conflict(Lang, Text) ->
-    jlib:stanza_errort(<<"409">>, <<"cancel">>, <<"conflict">>, Lang, Text).
+conflict(Text) ->
+    jlib:stanza_errort(<<"409">>, <<"cancel">>, <<"conflict">>, Text).
 
-feature_not_implemented(Lang, Text) ->
-    jlib:stanza_errort(<<"501">>, <<"cancel">>, <<"feature-not-implemented">>, Lang, Text).
+feature_not_implemented(Text) ->
+    jlib:stanza_errort(<<"501">>, <<"cancel">>, <<"feature-not-implemented">>, Text).
 
-forbidden(Lang, Text) ->
-    jlib:stanza_errort(<<"403">>, <<"auth">>, <<"forbidden">>, Lang, Text).
+forbidden(Text) ->
+    jlib:stanza_errort(<<"403">>, <<"auth">>, <<"forbidden">>, Text).
 
-gone(Lang, Text) ->
-    jlib:stanza_errort(<<"302">>, <<"modify">>, <<"gone">>, Lang, Text).
+gone(Text) ->
+    jlib:stanza_errort(<<"302">>, <<"modify">>, <<"gone">>, Text).
 
-internal_server_error(Lang, Text) ->
-    jlib:stanza_errort(<<"500">>, <<"wait">>, <<"internal-server-error">>, Lang, Text).
+internal_server_error(Text) ->
+    jlib:stanza_errort(<<"500">>, <<"wait">>, <<"internal-server-error">>, Text).
 
-item_not_found(Lang, Text) ->
-    jlib:stanza_errort(<<"404">>, <<"cancel">>, <<"item-not-found">>, Lang, Text).
+item_not_found(Text) ->
+    jlib:stanza_errort(<<"404">>, <<"cancel">>, <<"item-not-found">>, Text).
 
-jid_malformed(Lang, Text) ->
-    jlib:stanza_errort(<<"400">>, <<"modify">>, <<"jid-malformed">>, Lang, Text).
+jid_malformed(Text) ->
+    jlib:stanza_errort(<<"400">>, <<"modify">>, <<"jid-malformed">>, Text).
 
-not_acceptable(Lang, Text) ->
-    jlib:stanza_errort(<<"406">>, <<"modify">>, <<"not-acceptable">>, Lang, Text).
+not_acceptable(Text) ->
+    jlib:stanza_errort(<<"406">>, <<"modify">>, <<"not-acceptable">>, Text).
 
-not_allowed(Lang, Text) ->
-    jlib:stanza_errort(<<"405">>, <<"cancel">>, <<"not-allowed">>, Lang, Text).
+not_allowed(Text) ->
+    jlib:stanza_errort(<<"405">>, <<"cancel">>, <<"not-allowed">>, Text).
 
-not_authorized(Lang, Text) ->
-    jlib:stanza_errort(<<"401">>, <<"auth">>, <<"not-authorized">>, Lang, Text).
+not_authorized(Text) ->
+    jlib:stanza_errort(<<"401">>, <<"auth">>, <<"not-authorized">>, Text).
 
-payment_required(Lang, Text) ->
-    jlib:stanza_errort(<<"402">>, <<"auth">>, <<"payment-required">>, Lang, Text).
+payment_required(Text) ->
+    jlib:stanza_errort(<<"402">>, <<"auth">>, <<"payment-required">>, Text).
 
-recipient_unavailable(Lang, Text) ->
-    jlib:stanza_errort(<<"404">>, <<"wait">>, <<"recipient-unavailable">>, Lang, Text).
+recipient_unavailable(Text) ->
+    jlib:stanza_errort(<<"404">>, <<"wait">>, <<"recipient-unavailable">>, Text).
 
-redirect(Lang, Text) ->
-    jlib:stanza_errort(<<"302">>, <<"modify">>, <<"redirect">>, Lang, Text).
+redirect(Text) ->
+    jlib:stanza_errort(<<"302">>, <<"modify">>, <<"redirect">>, Text).
 
-registration_required(Lang, Text) ->
-    jlib:stanza_errort(<<"407">>, <<"auth">>, <<"registration-required">>, Lang, Text).
+registration_required(Text) ->
+    jlib:stanza_errort(<<"407">>, <<"auth">>, <<"registration-required">>, Text).
 
-remote_server_not_found(Lang, Text) ->
-    jlib:stanza_errort(<<"404">>, <<"cancel">>, <<"remote-server-not-found">>, Lang, Text).
+remote_server_not_found(Text) ->
+    jlib:stanza_errort(<<"404">>, <<"cancel">>, <<"remote-server-not-found">>, Text).
 
-remote_server_timeout(Lang, Text) ->
-    jlib:stanza_errort(<<"504">>, <<"wait">>, <<"remote-server-timeout">>, Lang, Text).
+remote_server_timeout(Text) ->
+    jlib:stanza_errort(<<"504">>, <<"wait">>, <<"remote-server-timeout">>, Text).
 
-resource_constraint(Lang, Text) ->
-    jlib:stanza_errort(<<"500">>, <<"wait">>, <<"resource-constraint">>, Lang, Text).
+resource_constraint(Text) ->
+    jlib:stanza_errort(<<"500">>, <<"wait">>, <<"resource-constraint">>, Text).
 
-service_unavailable(Lang, Text) ->
-    jlib:stanza_errort(<<"503">>, <<"cancel">>, <<"service-unavailable">>, Lang, Text).
+service_unavailable(Text) ->
+    jlib:stanza_errort(<<"503">>, <<"cancel">>, <<"service-unavailable">>, Text).
 
-subscription_required(Lang, Text) ->
-    jlib:stanza_errort(<<"407">>, <<"auth">>, <<"subscription-required">>, Lang, Text).
+subscription_required(Text) ->
+    jlib:stanza_errort(<<"407">>, <<"auth">>, <<"subscription-required">>, Text).
 
-unexpected_request(Lang, Text) ->
-    jlib:stanza_errort(<<"400">>, <<"wait">>, <<"unexpected-request">>, Lang, Text).
+unexpected_request(Text) ->
+    jlib:stanza_errort(<<"400">>, <<"wait">>, <<"unexpected-request">>, Text).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Auth Stanza Errors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-auth_no_resource_provided(Lang) ->
-    not_acceptable(Lang, <<"No resource provided">>).
+auth_no_resource_provided() ->
+    not_acceptable(<<"No resource provided">>).
 
-auth_bad_resource_format(Lang) ->
-    not_acceptable(Lang, <<"Illegal resource format">>).
+auth_bad_resource_format() ->
+    not_acceptable(<<"Illegal resource format">>).
 
-auth_resource_conflict(Lang) ->
-    conflict(Lang, <<"Resource conflict">>).
+auth_resource_conflict() ->
+    conflict(<<"Resource conflict">>).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Stream Errors
@@ -269,87 +269,81 @@ undefined_condition() ->
 %% Text Stream Errors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bad_format(Lang, Text) ->
-    jlib:stream_errort(<<"bad-format">>, Lang, Text).
+bad_format(Text) ->
+    jlib:stream_errort(<<"bad-format">>, <<"en">>, Text).
 
-bad_namespace_prefix(Lang, Text) ->
-    jlib:stream_errort(<<"bad-namespace-prefix">>, Lang, Text).
+bad_namespace_prefix(Text) ->
+    jlib:stream_errort(<<"bad-namespace-prefix">>, <<"en">>, Text).
 
-stream_conflict(Lang, Text) ->
-    jlib:stream_errort(<<"conflict">>, Lang, Text).
+stream_conflict(Text) ->
+    jlib:stream_errort(<<"conflict">>, <<"en">>, Text).
 
-connection_timeout(Lang, Text) ->
-    jlib:stream_errort(<<"connection-timeout">>, Lang, Text).
+connection_timeout(Text) ->
+    jlib:stream_errort(<<"connection-timeout">>, <<"en">>, Text).
 
-encryption_required(Lang, Text) ->
-    jlib:stream_errort(<<"encryption-required">>, Lang, Text).
+encryption_required(Text) ->
+    jlib:stream_errort(<<"encryption-required">>, <<"en">>, Text).
 
-host_gone(Lang, Text) ->
-    jlib:stream_errort(<<"host-gone">>, Lang, Text).
+host_gone(Text) ->
+    jlib:stream_errort(<<"host-gone">>, <<"en">>, Text).
 
-host_unknown(Lang, Text) ->
-    jlib:stream_errort(<<"host-unknown">>, Lang, Text).
+host_unknown(Text) ->
+    jlib:stream_errort(<<"host-unknown">>, <<"en">>, Text).
 
-improper_addressing(Lang, Text) ->
-    jlib:stream_errort(<<"improper-addressing">>, Lang, Text).
+improper_addressing(Text) ->
+    jlib:stream_errort(<<"improper-addressing">>, <<"en">>, Text).
 
-stream_internal_server_error(Lang, Text) ->
-    jlib:stream_errort(<<"internal-server-error">>, Lang, Text).
+stream_internal_server_error(Text) ->
+    jlib:stream_errort(<<"internal-server-error">>, <<"en">>, Text).
 
-invalid_from(Lang, Text) ->
-    jlib:stream_errort(<<"invalid-from">>, Lang, Text).
+invalid_from(Text) ->
+    jlib:stream_errort(<<"invalid-from">>, <<"en">>, Text).
 
-invalid_id(Lang, Text) ->
-    jlib:stream_errort(<<"invalid-id">>, Lang, Text).
+invalid_id(Text) ->
+    jlib:stream_errort(<<"invalid-id">>, <<"en">>, Text).
 
-invalid_namespace(Lang, Text) ->
-    jlib:stream_errort(<<"invalid-namespace">>, Lang, Text).
+invalid_namespace(Text) ->
+    jlib:stream_errort(<<"invalid-namespace">>, <<"en">>, Text).
 
-invalid_xml(Lang, Text) ->
-    jlib:stream_errort(<<"invalid-xml">>, Lang, Text).
+invalid_xml(Text) ->
+    jlib:stream_errort(<<"invalid-xml">>, <<"en">>, Text).
 
-malformed_request(Lang, Text) ->
-    jlib:stream_errort(<<"malformed-request">>, Lang, Text).
+malformed_request(Text) ->
+    jlib:stream_errort(<<"malformed-request">>, <<"en">>, Text).
 
-stream_not_authorized(Lang, Text) ->
-    jlib:stream_errort(<<"not-authorized">>, Lang, Text).
+stream_not_authorized(Text) ->
+    jlib:stream_errort(<<"not-authorized">>, <<"en">>, Text).
 
-policy_violation(Lang, Text) ->
-    jlib:stream_errort(<<"policy-violation">>, Lang, Text).
+policy_violation(Text) ->
+    jlib:stream_errort(<<"policy-violation">>, <<"en">>, Text).
 
-remote_connection_failed(Lang, Text) ->
-    jlib:stream_errort(<<"remote-connection-failed">>, Lang, Text).
+remote_connection_failed(Text) ->
+    jlib:stream_errort(<<"remote-connection-failed">>, <<"en">>, Text).
 
-stream_resource_constraint(Lang, Text) ->
-    jlib:stream_errort(<<"resource-constraint">>, Lang, Text).
+stream_resource_constraint(Text) ->
+    jlib:stream_errort(<<"resource-constraint">>, <<"en">>, Text).
 
-restricted_xml(Lang, Text) ->
-    jlib:stream_errort(<<"restricted-xml">>, Lang, Text).
+restricted_xml(Text) ->
+    jlib:stream_errort(<<"restricted-xml">>, <<"en">>, Text).
 
 % TODO: include hostname or IP
-see_other_host(Lang, Text) ->
-    jlib:stream_errort(<<"see-other-host">>, Lang, Text).
+see_other_host(Text) ->
+    jlib:stream_errort(<<"see-other-host">>, <<"en">>, Text).
 
-system_shutdown(Lang, Text) ->
-    jlib:stream_errort(<<"system-shutdown">>, Lang, Text).
+system_shutdown(Text) ->
+    jlib:stream_errort(<<"system-shutdown">>, <<"en">>, Text).
 
-unsupported_encoding(Lang, Text) ->
-    jlib:stream_errort(<<"unsupported-encoding">>, Lang, Text).
+unsupported_encoding(Text) ->
+    jlib:stream_errort(<<"unsupported-encoding">>, <<"en">>, Text).
 
-unsupported_stanza_type(Lang, Text) ->
-    jlib:stream_errort(<<"unsupported-stanza-type">>, Lang, Text).
+unsupported_stanza_type(Text) ->
+    jlib:stream_errort(<<"unsupported-stanza-type">>, <<"en">>, Text).
 
-unsupported_version(Lang, Text) ->
-    jlib:stream_errort(<<"unsupported-version">>, Lang, Text).
+unsupported_version(Text) ->
+    jlib:stream_errort(<<"unsupported-version">>, <<"en">>, Text).
 
-xml_not_well_formed(Lang, Text) ->
-    jlib:stream_errort(<<"xml-not-well-formed">>, Lang, Text).
+xml_not_well_formed(Text) ->
+    jlib:stream_errort(<<"xml-not-well-formed">>, <<"en">>, Text).
 
-xml_not_well_formed_bin() ->
-    exml:to_binary(xml_not_well_formed()).
-
-undefined_condition(Lang, Text) ->
-    jlib:stream_errort(<<"undefined-condition">>, Lang, Text).
-
-bad_format_bin() ->
-    exml:to_binary(bad_format()).
+undefined_condition(Text) ->
+    jlib:stream_errort(<<"undefined-condition">>, <<"en">>, Text).

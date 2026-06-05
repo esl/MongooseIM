@@ -567,7 +567,7 @@ discard_warn_sender(Msgs) ->
               Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
               mod_amp:check_packet(Acc, offline_failed),
               {Acc1, Err} = jlib:make_error_reply(
-                      Acc, Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
+                      Acc, Packet, mongoose_xmpp_errors:resource_constraint(ErrText)),
               mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
       end, Msgs).
 

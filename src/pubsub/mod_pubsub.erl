@@ -1601,7 +1601,7 @@ adhoc_get_pending_parse_options(Host, XEl) ->
                 Err -> Err
             end;
         #{} ->
-            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)}
+            {error, mongoose_xmpp_errors:bad_request(<<"Invalid form type">>)}
     end.
 
 %% @doc <p>Send a subscription approval form to Owner for all pending
@@ -1874,7 +1874,7 @@ parse_create_node_options(Host, Type, Configuration) ->
                 Err -> Err
             end;
         #{} ->
-            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)};
+            {error, mongoose_xmpp_errors:bad_request(<<"Invalid form type">>)};
         {error, _} ->
             {result, node_options(Host, Type)}
     end.
@@ -3848,9 +3848,9 @@ set_configure(Host, Node, From, #{action_el := ActionEl, lang := Lang}) ->
         #{type := <<"submit">>, kvs := KVs} ->
             set_configure_submit(Host, Node, From, KVs);
         {error, Msg} ->
-            {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
+            {error, mongoose_xmpp_errors:bad_request(Msg)};
         _ ->
-            {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form type">>)}
+            {error, mongoose_xmpp_errors:bad_request(<<"Invalid form type">>)}
     end.
 
 set_configure_submit(Host, Node, User, KVs) ->

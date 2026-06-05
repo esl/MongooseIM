@@ -443,7 +443,7 @@ bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     mongoose_instrument:execute(sm_message_bounced, #{host_type => HostType},
                                 #{count => 1, from_jid => From, to_jid => To, element => Packet}),
-    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
+    E = mongoose_xmpp_errors:service_unavailable(<<"Bounce offline message">>),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
     Acc2 = mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
     {stop, Acc2}.
@@ -727,7 +727,7 @@ do_route_offline(<<"iq">>, <<"error">>, _From, _To, Acc, _Packet) ->
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, Acc, _Packet) ->
     Acc;
 do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
-    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Route offline">>),
+    E = mongoose_xmpp_errors:service_unavailable(<<"Route offline">>),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route_offline(_, _, _, _, Acc, _) ->
@@ -808,7 +808,7 @@ route_message_by_type(_, From, To, Acc, Packet) ->
                     mongoose_hooks:failed_to_store_message(Acc)
             end;
         _ ->
-            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"User not found">>),
+            E = mongoose_xmpp_errors:service_unavailable(<<"User not found">>),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end.
@@ -966,7 +966,7 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
             Msg = <<"Unknown xmlns=", XMLNS/binary, " for host=", Host/binary>>,
-            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, Msg),
+            E = mongoose_xmpp_errors:service_unavailable(Msg),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end;

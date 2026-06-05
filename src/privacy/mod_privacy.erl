@@ -237,8 +237,7 @@ do_user_send_iq(Acc1, StateData, HostType, #iq{type = Type, sub_el = SubEl} = IQ
     Acc2 = process_privacy_iq(Acc1, HostType, Type, ToJid, StateData),
     Res = mongoose_acc:get(hook, result,
                            {error, mongoose_xmpp_errors:feature_not_implemented(
-                                     <<"en">>, <<"Failed to handle the privacy IQ request in
-                                                         c2s">>)}, Acc2),
+                                     <<"Failed to handle the privacy IQ request in c2s">>)}, Acc2),
     IQRes = case Res of
                 {result, Result} ->
                     IQ#iq{type = result, sub_el = Result};
@@ -438,7 +437,7 @@ process_lists_get(Acc, HostType, LUser, LServer, Active) ->
     end.
 
 process_list_get(_Acc, _HostType, _LUser, _LServer, undefined) ->
-    {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"name attribute is missing">>)};
+    {error, mongoose_xmpp_errors:bad_request(<<"name attribute is missing">>)};
 process_list_get(Acc, HostType, LUser, LServer, Name) ->
     case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, Name) of
         {ok, List} ->

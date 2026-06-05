@@ -90,12 +90,12 @@ handle_event(internal, #xmlstreamend{}, _, StateData) ->
 handle_event(internal, #xmlstreamstart{}, _, StateData) ->
     stream_start_error(StateData, mongoose_xmpp_errors:policy_violation());
 handle_event(cast, {exit, Reason}, _, StateData) when is_binary(Reason) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(?MYLANG, Reason),
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(Reason),
     send_xml(StateData, StreamConflict),
     send_trailer(StateData),
     {stop, {shutdown, Reason}};
 handle_event(cast, {exit, system_shutdown}, _, StateData) ->
-    Error = mongoose_xmpp_errors:system_shutdown(?MYLANG, <<"System shutting down">>),
+    Error = mongoose_xmpp_errors:system_shutdown(<<"System shutting down">>),
     send_xml(StateData, Error),
     send_trailer(StateData),
     {stop, {shutdown, system_shutdown}};
@@ -217,7 +217,7 @@ handle_handshake(StateData, El) ->
         false ->
             mongoose_instrument:execute(component_auth_failed, #{},
                                         #{count => 1, lserver => LServer}),
-            Error = mongoose_xmpp_errors:stream_not_authorized(?MYLANG, <<"Invalid handshake">>),
+            Error = mongoose_xmpp_errors:stream_not_authorized(<<"Invalid handshake">>),
             stream_start_error(StateData, Error)
     end.
 

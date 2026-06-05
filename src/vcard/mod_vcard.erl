@@ -384,7 +384,7 @@ process_sm_iq_set(HostType, From, To, Acc, IQ, VCARD) ->
                     ?LOG_WARNING(#{what => vcard_sm_iq_set_failed, value => Value,
                                    reason => invalid_input, field => Field, acc => Acc}),
                     Text = io_lib:format("Invalid input for vcard field ~s", [Field]),
-                    ReasonEl = mongoose_xmpp_errors:bad_request(<<"en">>, erlang:iolist_to_binary(Text)),
+                    ReasonEl = mongoose_xmpp_errors:bad_request(erlang:iolist_to_binary(Text)),
                     vcard_error(IQ, ReasonEl);
                 {error, Reason} ->
                     ?LOG_WARNING(#{what => vcard_sm_iq_set_failed,

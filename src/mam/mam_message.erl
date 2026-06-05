@@ -32,7 +32,7 @@ decode(Mod, Bin) ->
 
 error_stanza() ->
     Text = <<"Failed to decode message in database">>,
-    Err = mongoose_xmpp_errors:internal_server_error(<<"en">>, Text),
+    Err = mongoose_xmpp_errors:internal_server_error(Text),
     Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = Text}]},
     #xmlel{name = <<"message">>,
            attrs = #{<<"type">> => <<"error">>},

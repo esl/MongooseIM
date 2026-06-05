@@ -324,7 +324,7 @@ try_register_or_set_password(HostType, LUser, Server, Password, _From, IQ, SubEl
             end;
         false ->
             ErrText = <<"Users are not allowed to register accounts so quickly">>,
-            error_response(IQ, mongoose_xmpp_errors:resource_constraint(Lang, ErrText))
+            error_response(IQ, mongoose_xmpp_errors:resource_constraint(ErrText))
     end.
 
 %% @doc Try to change password and return IQ response
@@ -343,7 +343,7 @@ try_set_password(HostType, #jid{} = UserJID, Password, IQ, SubEl, Lang) ->
             end;
         false ->
             ErrText = <<"The password is too weak">>,
-            error_response(IQ, [SubEl, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)])
+            error_response(IQ, [SubEl, mongoose_xmpp_errors:not_acceptable(ErrText)])
     end.
 
 try_register(HostType, User, Server, Password, SourceRaw, Lang) ->
@@ -384,7 +384,7 @@ verify_password_and_register(HostType, #jid{} = JID, Password, SourceRaw, Lang) 
             end;
         false ->
             ErrText = <<"The password is too weak">>,
-            {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
+            {error, mongoose_xmpp_errors:not_acceptable(ErrText)}
     end.
 
 send_welcome_message(HostType, #jid{lserver = Server} = JID) ->

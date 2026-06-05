@@ -99,9 +99,9 @@ handle_event(internal, #xmlstreamend{}, _, Data) ->
     send_xml(Data, ?XML_STREAM_TRAILER),
     {stop, {shutdown, stream_end}};
 handle_event(internal, #xmlstreamerror{name = <<"element too big">> = Err}, _, Data) ->
-    stream_error(Data, mongoose_xmpp_errors:policy_violation(Data#s2s_data.lang, Err));
+    stream_error(Data, mongoose_xmpp_errors:policy_violation(Err));
 handle_event(internal, #xmlstreamerror{name = Err}, _, Data) ->
-    stream_error(Data, mongoose_xmpp_errors:xml_not_well_formed(Data#s2s_data.lang, Err));
+    stream_error(Data, mongoose_xmpp_errors:xml_not_well_formed(Err));
 handle_event(internal, #xmlel{name = <<"starttls">>} = El, wait_for_feature_before_auth, Data) ->
     handle_starttls(Data, El);
 handle_event(internal, #xmlel{name = <<"auth">>} = El, wait_for_feature_before_auth, Data) ->
@@ -127,7 +127,7 @@ handle_event(cast, {exit, system_shutdown}, _, Data) ->
     send_xml(Data, ?XML_STREAM_TRAILER),
     {stop, {shutdown, system_shutdown}};
 handle_event(cast, {exit, Reason}, _, Data) when is_binary(Reason) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(Data#s2s_data.lang, Reason),
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(Reason),
     send_xml(Data, StreamConflict),
     send_xml(Data, ?XML_STREAM_TRAILER),
     {stop, {shutdown, Reason}};
@@ -176,12 +176,12 @@ handle_stream_start(#s2s_data{myname = LServer} = D0,
             Msg = <<"The 'to' attribute differs from the originally provided one">>,
             Info = #{location => ?LOCATION, last_event => {stream_start, Attrs},
                      expected_server => LServer, provided_server => Server},
-            stream_start_error(D0, Info, mongoose_xmpp_errors:host_unknown(?MYLANG, Msg))
+            stream_start_error(D0, Info, mongoose_xmpp_errors:host_unknown(Msg))
     end;
 handle_stream_start(D0, #{<<"xmlns">> := ?NS_SERVER} = Attrs, _State) ->
     Msg = <<"The 'to' attribute is missing">>,
     Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
-    stream_start_error(D0, Info, mongoose_xmpp_errors:improper_addressing(?MYLANG, Msg));
+    stream_start_error(D0, Info, mongoose_xmpp_errors:improper_addressing(Msg));
 handle_stream_start(D0, Attrs, _State) ->
     Info = #{location => ?LOCATION, last_event => {stream_start, Attrs}},
     stream_start_error(D0, Info, mongoose_xmpp_errors:invalid_namespace()).
@@ -210,7 +210,7 @@ handle_starttls(#s2s_data{socket = TcpSocket,
                                     streamid = mongoose_bin:gen_from_crypto()},
             {next_state, {wait_for_stream, stream_start}, NewData, state_timeout(LOpts)};
         {error, already_tls_connection} ->
-            ErrorStanza = mongoose_xmpp_errors:bad_request(Data#s2s_data.lang, <<"bad_config">>),
+            ErrorStanza = mongoose_xmpp_errors:bad_request(<<"bad_config">>),
             Err = jlib:make_error_reply(El, ErrorStanza),
             send_xml(Data, Err),
             {stop, {shutdown, starttls_error}};
