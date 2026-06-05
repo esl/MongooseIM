@@ -75,7 +75,7 @@
 -export([start_link/2]).
 -export([default_search_fields/0]).
 -export([get_results_limit/1]).
--export([get_default_reported_fields/1]).
+-export([get_default_reported_fields/0]).
 -export([unsafe_set_vcard/3]).
 
 %% GDPR related
@@ -474,12 +474,12 @@ remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := 
                              invalid | not_iq | #iq{}) -> any().
 do_route(_HostType, _LServer, From,
          #jid{luser = LUser, lresource = LResource} = To, Acc, _IQ)
-  when (LUser /= <<>>) or (LResource /= <<>>) ->
+  when (LUser /= <<>>) orelse (LResource /= <<>>) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route(HostType, LServer, From, To, Acc,
-         #iq{type = set, xmlns = ?NS_SEARCH, lang = Lang, sub_el = SubEl} = IQ) ->
-    route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ);
+         #iq{type = set, xmlns = ?NS_SEARCH, sub_el = SubEl} = IQ) ->
+    route_search_iq_set(HostType, LServer, From, To, Acc, SubEl, IQ);
 do_route(HostType, LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_SEARCH} = IQ) ->
     Instr = search_instructions(),
@@ -540,7 +540,7 @@ search_form(JID, SearchFields) ->
     Fields = lists:map(fun ({X, Y}) -> ?TLFIELD(<<"text-single">>, X, Y) end, SearchFields),
     mongoose_data_forms:form(#{title => Title, instructions => Instructions, fields => Fields}).
 
-route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ) ->
+route_search_iq_set(HostType, LServer, From, To, Acc, SubEl, IQ) ->
     XDataEl = mongoose_data_forms:find_form(SubEl),
     RSMIn = jlib:rsm_decode(IQ),
     case XDataEl of
@@ -550,7 +550,7 @@ route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ) ->
         _ ->
             case mongoose_data_forms:parse_form_fields(XDataEl) of
                 #{type := <<"submit">>, kvs := KVs} ->
-                    {SearchResult, RSMOutEls} = search_result(HostType, LServer, Lang, To, KVs, RSMIn),
+                    {SearchResult, RSMOutEls} = search_result(HostType, LServer, To, KVs, RSMIn),
                     ResIQ = make_search_result_iq(IQ, SearchResult, RSMOutEls),
                     mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(ResIQ), Acc));
                 _ ->
@@ -584,9 +584,9 @@ identity() ->
       type => <<"user">>,
       name => <<"vCard User Search">>}.
 
-search_result(HostType, LServer, Lang, JID, Data, RSMIn) ->
+search_result(HostType, LServer, JID, Data, RSMIn) ->
     Title = <<"Search Results for ", (jid:to_binary(JID))/binary>>,
-    ReportedFields = mod_vcard_backend:search_reported_fields(HostType, LServer, Lang),
+    ReportedFields = mod_vcard_backend:search_reported_fields(HostType, LServer),
     Results1 = mod_vcard_backend:search(HostType, LServer, maps:to_list(Data)),
     Results2 = lists:filtermap(
                  fun(Result) ->
@@ -769,8 +769,8 @@ prepare_index_allow_emoji(FieldName, Value) ->
     prepare_index(FieldName, Sanitized).
 
 
--spec get_default_reported_fields(binary()) -> [mongoose_data_forms:field()].
-get_default_reported_fields(_Lang) ->
+-spec get_default_reported_fields() -> [mongoose_data_forms:field()].
+get_default_reported_fields() ->
     [
      ?TLFIELD(<<"jid-single">>, <<"Jabber ID">>, <<"jid">>),
      ?TLFIELD(<<"text-single">>, <<"Full Name">>, <<"fn">>),

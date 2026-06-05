@@ -8,7 +8,7 @@
 -export([set_vcard/5]).
 -export([search/3]).
 -export([search_fields/2]).
--export([search_reported_fields/3]).
+-export([search_reported_fields/2]).
 -export([remove_domain/2]).
 -export([tear_down/1]).
 
@@ -53,11 +53,10 @@
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver().
 
--callback search_reported_fields(HostType, LServer, Lang) ->
+-callback search_reported_fields(HostType, LServer) ->
     Res :: term() when
     HostType :: mongooseim:host_type(),
-    LServer :: jid:lserver(),
-    Lang :: binary().
+    LServer :: jid:lserver().
 
 -callback tear_down(HostType) -> ok when
     HostType :: mongooseim:host_type().
@@ -106,11 +105,10 @@ search_fields(HostType, LServer) ->
     Args = [HostType, LServer],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec search_reported_fields(mongooseim:host_type(), jid:lserver(), Lang) ->
-    Res :: [mongoose_data_forms:field()] when
-    Lang :: binary().
-search_reported_fields(HostType, LServer, Lang) ->
-    Args = [HostType, LServer, Lang],
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver()) ->
+    Res :: [mongoose_data_forms:field()].
+search_reported_fields(HostType, LServer) ->
+    Args = [HostType, LServer],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.

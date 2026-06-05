@@ -35,10 +35,9 @@
          set_vcard/5,
          search/3,
          search_fields/2,
-         search_reported_fields/3]).
+         search_reported_fields/2]).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
 -include("mod_vcard.hrl").
 
 -type filter_type() :: equal | like.
@@ -161,10 +160,10 @@ search_fields(_HostType, _VHost) ->
     mod_vcard:default_search_fields().
 
 %% Search vCards reported fields callback
--spec search_reported_fields(mongooseim:host_type(), jid:lserver(), ejabberd:lang()) ->
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver()) ->
           [mongoose_data_forms:field()].
-search_reported_fields(_HostType, _VHost, Lang) ->
-    mod_vcard:get_default_reported_fields(Lang).
+search_reported_fields(_HostType, _VHost) ->
+    mod_vcard:get_default_reported_fields().
 
 %% Search vCards callback
 -spec search(mongooseim:host_type(), jid:lserver(), term()) -> [[mongoose_data_forms:field()]].

@@ -36,7 +36,7 @@
          set_vcard/5,
          search/3,
          search_fields/2,
-         search_reported_fields/3]).
+         search_reported_fields/2]).
 
 -export([default_vcard_map/0,
          default_search_fields/0,
@@ -168,9 +168,9 @@ search_fields(HostType, LServer) ->
     State = get_state(HostType, LServer),
     State#state.search_fields.
 
--spec search_reported_fields(mongooseim:host_type(), jid:lserver(), binary()) ->
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver()) ->
           [mongoose_data_forms:field()].
-search_reported_fields(HostType, LServer, _Lang) ->
+search_reported_fields(HostType, LServer) ->
     State = get_state(HostType, LServer),
     SearchReported = State#state.search_reported,
     [?TLFIELD(<<"text-single">>, Name, Value) ||
