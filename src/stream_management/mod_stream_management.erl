@@ -1,5 +1,5 @@
 -module(mod_stream_management).
--xep([{xep, 198}, {version, "1.6.1"}]).
+-xep([{xep, 198}, {version, "1.6.3"}]).
 -behaviour(gen_mod).
 -behaviour(gen_statem).
 -behaviour(mongoose_module_metrics).

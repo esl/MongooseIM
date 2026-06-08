@@ -81,7 +81,7 @@ store_room(HostType, MucHost, RoomName, Opts) ->
 restore_room(HostType, MucHost, RoomName) ->
     try mnesia:dirty_read(muc_room, {RoomName, MucHost}) of
         [#muc_room{opts = Opts}] ->
-            {ok, Opts};
+            {ok, filter_room_opts(Opts)};
         [] ->
             {error, room_not_found};
         Other ->
@@ -92,6 +92,39 @@ restore_room(HostType, MucHost, RoomName) ->
                      class => Class, reason => Reason, stacktrace => Stacktrace}),
         {error, {Class, Reason}}
     end.
+
+filter_room_opts(Opts) ->
+    lists:filter(fun is_known_room_opt/1, Opts).
+
+is_known_room_opt({Key, _}) ->
+    lists:member(Key, known_room_opt_keys());
+is_known_room_opt(_Other) ->
+    false.
+
+known_room_opt_keys() ->
+    [title,
+     description,
+     allow_change_subj,
+     allow_query_users,
+     allow_private_messages,
+     allow_visitor_status,
+     allow_visitor_nickchange,
+     public,
+     public_list,
+     persistent,
+     moderated,
+     members_by_default,
+     members_only,
+     allow_user_invites,
+     allow_multiple_sessions,
+     password_protected,
+     password,
+     anonymous,
+     max_users,
+     maygetmemberlist,
+     subject,
+     subject_author,
+     affiliations].
 
 -spec forget_room(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
     ok | {error, term()}.

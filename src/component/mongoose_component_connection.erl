@@ -238,35 +238,25 @@ create_proof(StreamId, Password) ->
 %% 'from' attribute MUST match the hostname of the component. However, this is the only restriction
 %% on 'from' addresses, and the component MAY send stanzas from any user at its hostname.
 -spec handle_stream_established(data(), exml:element()) -> fsm_res().
-handle_stream_established(StateData, #xmlel{name = Name} = El) ->
-    #component_data{lserver = LServer, listener_opts = #{check_from := CheckFrom}} = StateData,
+handle_stream_established(#component_data{lserver = LServer} = StateData,
+                          #xmlel{name = Name} = El) ->
     NewEl = jlib:remove_attr(<<"xmlns">>, El),
     FromJid = jid:from_binary(exml_query:attr(El, <<"from">>, <<>>)),
-    IsValidFromJid =
-        case {CheckFrom, FromJid} of
-            %% The default is the standard behaviour in XEP-0114
-            {true, #jid{lserver = FromLServer}} ->
-                FromLServer =:= LServer;
-            %% If the admin does not want to check the from field when accept packets from any
-            %% address. In this case, the component can send packet of behalf of the server users.
-            _ ->
-                true
-        end,
-    ToJid = jid:from_binary(exml_query:attr(El, <<"to">>, <<>>)),
-    IsStanza = (<<"iq">> =:= Name)
-        orelse (<<"message">> =:= Name)
-        orelse (<<"presence">> =:= Name),
-    case IsStanza andalso IsValidFromJid andalso (error =/= ToJid) of
-        true ->
-            Acc = element_to_origin_accum(StateData, FromJid, ToJid, NewEl),
-            mongoose_router:route(Acc);
-        false ->
+    ToJidBin = exml_query:attr(El, <<"to">>, <<>>),
+    maybe
+        ok ?= check_routable_stanza(Name),
+        {ok, ToJid} ?= jid_from_binary(ToJidBin),
+        {ok, HostType} ?= valid_from_jid_to_host_type(StateData, FromJid, ToJid),
+        Acc = element_to_origin_accum(StateData, HostType, FromJid, ToJid, NewEl),
+        mongoose_router:route(Acc)
+    else
+        BadRequestReason ->
             ?LOG_INFO(#{what => comp_bad_request,
-                        text => <<"Not valid Name or error in FromJid or ToJid">>,
-                        stanza_name => Name, from_jid => FromJid, to_jid => ToJid}),
+                        text => <<"Bad request from component, sending error reply">>,
+                        reason => BadRequestReason, component => LServer,
+                        stanza_name => Name, from_jid => FromJid, to_jid => ToJidBin}),
             Err = jlib:make_error_reply(NewEl, mongoose_xmpp_errors:bad_request()),
-            send_xml(StateData, Err),
-            error
+            send_xml(StateData, Err)
     end,
     keep_state_and_data.
 
@@ -366,9 +356,10 @@ handle_route(StateData = #component_data{}, _, Acc) ->
     end,
     keep_state_and_data.
 
--spec element_to_origin_accum(data(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
-element_to_origin_accum(StateData, FromJid, ToJid, El) ->
-    Params = #{host_type => undefined,
+-spec element_to_origin_accum(data(), mongooseim:host_type(), jid:jid(), jid:jid(),
+                              exml:element()) -> mongoose_acc:t().
+element_to_origin_accum(StateData, HostType, FromJid, ToJid, El) ->
+    Params = #{host_type => HostType,
                lserver => StateData#component_data.lserver,
                location => ?LOCATION,
                element => El,
@@ -376,7 +367,72 @@ element_to_origin_accum(StateData, FromJid, ToJid, El) ->
                to_jid => ToJid,
                origin => xmpp_component},
     Acc = mongoose_acc:new(Params),
-    mongoose_acc:set_permanent(component, [{module, ?MODULE}, {origin_jid, 'TODO'}], Acc).
+    mongoose_acc:set_permanent(component, [{module, ?MODULE}, {origin_jid, FromJid}], Acc).
+
+-spec check_routable_stanza(binary()) -> ok | unexpected_stanza_name.
+check_routable_stanza(<<"iq">>) -> ok;
+check_routable_stanza(<<"message">>) -> ok;
+check_routable_stanza(<<"presence">>) -> ok;
+check_routable_stanza(_) -> unexpected_stanza_name.
+
+-spec jid_from_binary(binary()) -> {ok, jid:jid()} | invalid_jid.
+jid_from_binary(Bin) ->
+    case jid:from_binary(Bin) of
+        error -> invalid_jid;
+        #jid{} = Jid -> {ok, Jid}
+    end.
+
+-spec valid_from_jid_to_host_type(data(), jid:jid() | error, jid:jid()) ->
+    {ok, mongooseim:host_type()} | invalid_from_jid.
+valid_from_jid_to_host_type(#component_data{listener_opts = #{check_from := false}} = SD,
+                            #jid{lserver = FromLServer}, ToJid) ->
+    %% When check_from is disabled, accept any sender JID and try every host-type
+    %% resolution strategy available for the current #component_data{} and #jid{} values.
+    Steps = [fun() -> host_type_from_subdomain_parent(SD, FromLServer) end,
+             fun() -> mongoose_domain_api:get_host_type(FromLServer) end,
+             fun() -> mongoose_domain_api:get_host_type(ToJid#jid.lserver) end,
+             fun() -> {ok, hd(?ALL_HOST_TYPES)} end],
+    first_ok(Steps);
+valid_from_jid_to_host_type(#component_data{is_subdomain = true} = SD,
+                            #jid{lserver = FromLServer}, _ToJid) ->
+    %% For subdomain components, accept the sender only when the #jid.lserver value
+    %% starts with the prefix configured in #component_data.lserver, then resolve the
+    %% host type from the parent domain part of that subdomain.
+    case host_type_from_subdomain_parent(SD, FromLServer) of
+        {ok, _} = Ok -> Ok;
+        {error, _} -> invalid_from_jid
+    end;
+valid_from_jid_to_host_type(#component_data{lserver = LServer}, #jid{lserver = LServer}, ToJid) ->
+    %% For regular components, accept the sender only when #jid.lserver matches
+    %% #component_data.lserver exactly. Resolve the host type from the recipient JID,
+    %% then fall back to any configured host type. We intentionally do not resolve by
+    %% sender domain here, because a non-subdomain component hostname may be outside
+    %% the set of registered MIM domains.
+    Steps = [fun() -> mongoose_domain_api:get_host_type(ToJid#jid.lserver) end,
+             fun() -> {ok, hd(?ALL_HOST_TYPES)} end],
+    first_ok(Steps);
+valid_from_jid_to_host_type(_, _, _) ->
+    invalid_from_jid.
+
+%% Assumes that at least one of the predicates will succeed
+-spec first_ok([fun(() -> {ok, term()} | {error, term()})]) -> {ok, term()}.
+first_ok([F | Rest]) ->
+    case F() of
+        {ok, _} = Ok -> Ok;
+        _ -> first_ok(Rest)
+    end.
+
+-spec host_type_from_subdomain_parent(data(), jid:lserver()) ->
+    {ok, mongooseim:host_type()} | {error, not_found}.
+host_type_from_subdomain_parent(#component_data{lserver = Prefix, is_subdomain = true},
+                                FromLServer) ->
+    FullPrefix = <<Prefix/binary, ".">>,
+    case string:prefix(FromLServer, FullPrefix) of
+        nomatch -> {error, not_found};
+        Parent -> mongoose_domain_api:get_host_type(Parent)
+    end;
+host_type_from_subdomain_parent(_, _) ->
+    {error, not_found}.
 
 -spec stream_start_error(data(), exml:element()) -> fsm_res().
 stream_start_error(StateData, Error) ->

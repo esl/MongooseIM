@@ -53,7 +53,7 @@
 -xep([{xep, 277}, {version, "0.6.5"}]).
 
 %% https://xmpp.org/extensions/xep-0384.html#server-side
--xep([{xep, 384}, {version, "0.8.3"}]).
+-xep([{xep, 384}, {version, "0.9.1"}]).
 
 -xep([{xep, 402}, {version, "1.2.0"}]).
 

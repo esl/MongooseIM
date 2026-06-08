@@ -16,12 +16,9 @@
 
 -export_type([verify_fun/0]).
 
-%% Extend default opts with new ExtraOpts
+-spec make_opts(ExtraOpts :: map()) -> map().
 make_opts(ExtraOpts) ->
-    config_parser_helper:mod_config(mod_muc, ExtraOpts).
-
-make_log_opts(ExtraOpts) ->
-    config_parser_helper:mod_config(mod_muc_log, ExtraOpts).
+    config_parser_helper:config([modules, mod_muc], ExtraOpts).
 
 -spec foreach_occupant(
         Users :: [escalus:client()], Stanza :: #xmlel{}, VerifyFun :: verify_fun()) -> ok.
@@ -56,27 +53,28 @@ load_muc() ->
     load_muc(domain_helper:host_type()).
 
 load_muc(HostType) ->
-    Backend = muc_backend(),
+    load_muc(HostType, #{}).
+
+load_muc(HostType, ExtraOpts) ->
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
-    ct:log("Starting MUC for ~p", [HostType]),
-    Opts = #{host => subhost_pattern(MucHostPattern), backend => Backend,
-             online_backend => muc_online_backend(),
-             hibernate_timeout => 2000,
-             hibernated_room_check_interval => 1000,
-             hibernated_room_timeout => 2000,
-             access => muc, access_create => muc_create},
-    LogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
-    dynamic_modules:start(HostType, mod_muc, make_opts(Opts)),
-    dynamic_modules:start(HostType, mod_muc_log, make_log_opts(LogOpts)).
+    ct:log("Starting MUC for ~p with extra opts ~p", [HostType, ExtraOpts]),
+    DefaultOpts = #{host => subhost_pattern(MucHostPattern), backend => muc_backend(),
+                    online_backend => muc_online_backend(),
+                    hibernate_timeout => 2000,
+                    hibernated_room_check_interval => 1000,
+                    hibernated_room_timeout => 2000,
+                    access => muc, access_create => muc_create},
+    CustomOpts = maps:merge(DefaultOpts, ExtraOpts),
+
+    MUCOpts = make_opts(CustomOpts),
+    dynamic_modules:ensure_modules(HostType, [{mod_muc, MUCOpts}]).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),
-    dynamic_modules:stop(HostType, mod_muc),
-    dynamic_modules:stop(HostType, mod_muc_log).
+    dynamic_modules:stop(HostType, mod_muc).
 
 unload_muc(HostType) ->
-    dynamic_modules:stop(HostType, mod_muc),
-    dynamic_modules:stop(HostType, mod_muc_log).
+    dynamic_modules:stop(HostType, mod_muc).
 
 muc_host() ->
     ct:get_config({hosts, mim, muc_service}).
@@ -281,6 +279,12 @@ stanza_get_features() ->
     %% </iq>
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
                            muc_host()).
+
+stanza_service_get_vcard() ->
+    escalus_stanza:setattr(escalus_stanza:iq_get(?NS_VCARD, []), <<"to">>, muc_host()).
+
+stanza_service_get_unique() ->
+    escalus_stanza:setattr(escalus_stanza:iq_get(?NS_MUC_UNIQUE, []), <<"to">>, muc_host()).
 
 has_features(#xmlel{children = [ Query ]} = _Iq, Features) ->
     %%<iq from='chat.shakespeare.lit'

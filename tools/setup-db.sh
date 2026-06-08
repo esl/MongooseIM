@@ -187,7 +187,7 @@ function setup_db(){
         CASSANDRA_IP=$($DOCKER inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $NAME)
         echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
 
-        IMAGE2=emicklei/zazkia
+        IMAGE2=emicklei/zazkia:0.6
         # Circle CI version of this container does not need replace-ip.sh
         # (so, it does not define ENV_FILE_REPLACE_IP_PATH)
         $DOCKER run -d --name=$PROXY_NAME \

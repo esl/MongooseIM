@@ -94,8 +94,6 @@ type MUCRoomConfig{
   mayGetMemberList: [String!]!
   "Maximum number of users in the room"
   maxUsers: PosInt,
-  "Does the room enabled logging events to a file on the disk?"
-  logging: Boolean!,
 }
 
 "MUC rooom configuration input"
@@ -139,9 +137,7 @@ input MUCRoomConfigInput{
   "Array of roles and/or privileges that enable retrieving the room's member list"
   mayGetMemberList: [String!],
   "Maximum number of users in the room"
-  maxUsers: PosInt
-  "Does the room enabled logging events to a file on the disk?"
-  logging: Boolean,
+  maxUsers: PosInt,
 }
 
 "MUC rooms payload"

@@ -5,7 +5,7 @@ It enables a service to store all user messages for one-to-one chats as well as 
 It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.html) for paging.
 It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
 
-MongooseIM is compatible with MAM 0.4-1.1.0.
+MongooseIM is compatible with MAM 0.4-1.1.3.
 
 Configure MAM with different storage backends:
 
@@ -75,7 +75,7 @@ Database backend to use.
 * **Default:** `false`
 * **Example:** `no_stanzaid_element = true`
 
-Do not add a `<stanza-id/>` element from MAM v1.1.0.
+Do not add a `<stanza-id/>` element from MAM v1.1.3.
 
 _This setting may be overridden by `mod_stanzaid`._
 

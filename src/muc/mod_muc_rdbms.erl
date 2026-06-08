@@ -363,5 +363,51 @@ decode_affs(Affs) ->
      || {UserU, UserS, Res, Aff} <- Affs].
 
 keys_as_atoms(KVs) ->
-    [{binary_to_existing_atom(Key, utf8), Value}
-     || {Key, Value} <- KVs].
+    lists:filtermap(fun kv_to_opt/1, KVs).
+
+kv_to_opt({<<"title">>, Value}) ->
+    {true, {title, Value}};
+kv_to_opt({<<"description">>, Value}) ->
+    {true, {description, Value}};
+kv_to_opt({<<"allow_change_subj">>, Value}) ->
+    {true, {allow_change_subj, Value}};
+kv_to_opt({<<"allow_query_users">>, Value}) ->
+    {true, {allow_query_users, Value}};
+kv_to_opt({<<"allow_private_messages">>, Value}) ->
+    {true, {allow_private_messages, Value}};
+kv_to_opt({<<"allow_visitor_status">>, Value}) ->
+    {true, {allow_visitor_status, Value}};
+kv_to_opt({<<"allow_visitor_nickchange">>, Value}) ->
+    {true, {allow_visitor_nickchange, Value}};
+kv_to_opt({<<"public">>, Value}) ->
+    {true, {public, Value}};
+kv_to_opt({<<"public_list">>, Value}) ->
+    {true, {public_list, Value}};
+kv_to_opt({<<"persistent">>, Value}) ->
+    {true, {persistent, Value}};
+kv_to_opt({<<"moderated">>, Value}) ->
+    {true, {moderated, Value}};
+kv_to_opt({<<"members_by_default">>, Value}) ->
+    {true, {members_by_default, Value}};
+kv_to_opt({<<"members_only">>, Value}) ->
+    {true, {members_only, Value}};
+kv_to_opt({<<"allow_user_invites">>, Value}) ->
+    {true, {allow_user_invites, Value}};
+kv_to_opt({<<"allow_multiple_sessions">>, Value}) ->
+    {true, {allow_multiple_sessions, Value}};
+kv_to_opt({<<"password_protected">>, Value}) ->
+    {true, {password_protected, Value}};
+kv_to_opt({<<"password">>, Value}) ->
+    {true, {password, Value}};
+kv_to_opt({<<"anonymous">>, Value}) ->
+    {true, {anonymous, Value}};
+kv_to_opt({<<"max_users">>, Value}) ->
+    {true, {max_users, Value}};
+kv_to_opt({<<"maygetmemberlist">>, Value}) ->
+    {true, {maygetmemberlist, Value}};
+kv_to_opt({<<"subject">>, Value}) ->
+    {true, {subject, Value}};
+kv_to_opt({<<"subject_author">>, Value}) ->
+    {true, {subject_author, Value}};
+kv_to_opt({_Key, _Value}) ->
+    false.

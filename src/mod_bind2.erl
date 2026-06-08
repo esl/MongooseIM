@@ -12,7 +12,7 @@
 %% state or the carbons tag in the session info, before the session is actually established, so that
 %% session establishment is atomic to changes in the c2s data.
 -module(mod_bind2).
--xep([{xep, 386}, {version, "0.4.0"}, {status, partial}]).
+-xep([{xep, 386}, {version, "1.1.0"}, {status, partial}]).
 
 -include("jlib.hrl").
 
