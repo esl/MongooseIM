@@ -1,0 +1,41 @@
+HOME            = .
+RANDFILE        = $ENV::HOME/.rnd
+
+####################################################################
+[ req ]
+default_bits        = 4096
+distinguished_name  = server_distinguished_name
+req_extensions      = server_req_extensions
+string_mask         = utf8only
+prompt              = no
+
+####################################################################
+[ server_distinguished_name ]
+countryName                 = PL
+stateOrProvinceName         = Malopolska
+localityName                = Krakow
+commonName                  = MongooseIM
+
+####################################################################
+[ server_req_extensions ]
+
+subjectKeyIdentifier        = hash
+basicConstraints            = CA:FALSE
+keyUsage                    = digitalSignature, keyEncipherment
+extendedKeyUsage            = serverAuth, clientAuth
+subjectAltName              = @alternate_names
+nsComment                   = "Fake Dev-Only Certificate"
+
+####################################################################
+[ alternate_names ]
+
+DNS.1       = localhost
+
+##adding node names to let tls distribution with OTP 20.3
+DNS.2       = mongooseim@localhost
+DNS.3       = mongooseim2@localhost
+DNS.4       = mongooseim3@localhost
+DNS.5       = fed1@localhost
+DNS.6       = reg1@localhost
+
+IP          = 127.0.0.1

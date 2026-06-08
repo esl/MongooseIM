@@ -141,7 +141,6 @@ default_instrumentation(_Opts) ->
 -spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(), mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
 probe(tls_cert_remaining_days, _Labels, #{tls := #{certfile := Certfile}}) ->
-    ?LOG_WARNING(#{what => kwaz, labels => _Labels}),
     {ok, PemBin} = file:read_file(Certfile),
     [PemEntry | _] = public_key:pem_decode(PemBin),
     Count =
