@@ -34,14 +34,13 @@ system_cases() ->
 
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
-    Config1 = mongoose_helper:backup_and_set_config_option(
-                Config, [instrumentation, probe_interval], 1),
+    Config1 = instrument_helper:ensure_frequent_probes(Config),
     restart(mongoose_system_probes),
     instrument_helper:start(instrument_helper:declared_events(mongoose_system_probes, [])),
     require_rpc_nodes([mim, mim2]) ++ Config1.
 
 end_per_suite(Config) ->
-    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    instrument_helper:restore_probe_interval(Config),
     restart(mongoose_system_probes),
     instrument_helper:stop().
 

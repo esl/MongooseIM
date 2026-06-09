@@ -43,11 +43,15 @@ groups() ->
      {change_account_details, [parallel], change_password_tests()},
      {change_account_details_store_plain, [parallel], change_password_tests()},
      {utilities, [{group, user_info},
+                  {group, user_info_snapshot},
                   {group, users_number_estimate}]},
      {user_info, [parallel], [list_users,
                               list_selected_users,
                               count_users,
                               count_selected_users]},
+     {user_info_snapshot, [parallel], [list_users_snapshot,
+                                       list_users_snapshot_large_limit,
+                                       list_users_snapshot_invalid_params]},
      {users_number_estimate, [], [count_users_estimate]}
     ].
 
@@ -92,6 +96,23 @@ init_per_group(registration_timeout, Config) ->
     set_registration_timeout(Config);
 init_per_group(utilities, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob]));
+init_per_group(user_info_snapshot, Config) ->
+    case mongoose_helper:auth_modules() of
+        [Mod | _] when Mod =:= ejabberd_auth_rdbms ->
+            %% Create additional users with future timestamps to verify snapshot boundary
+            FutureUsers = future_users_spec(Config),
+            escalus:create_users(Config, FutureUsers),
+            %% Set their created_at to far future via direct DB update
+            %% Unless created_at in MySQL is changed to other type,
+            %% we can't go beyond 2038-01-19, so we use 2037-12-31 to be safe
+            FutureTs = {{2037, 12, 31}, {23, 59, 59}},
+            accounts_helper:prepare_user_created_at(),
+            accounts_helper:set_user_created_at(<<"aaalice">>, domain(), FutureTs),
+            accounts_helper:set_user_created_at(<<"bbbob">>, domain(), FutureTs),
+            Config;
+        Modules ->
+            {skip, {"Snapshot queries not supported by auth modules", Modules}}
+    end;
 init_per_group(users_number_estimate, Config) ->
     AuthOpts = get_auth_opts(),
     NewAuthOpts = AuthOpts#{rdbms => #{users_number_estimate => true}},
@@ -112,6 +133,10 @@ end_per_group(registration_timeout, Config) ->
     restore_registration_timeout(Config);
 end_per_group(utilities, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
+end_per_group(user_info_snapshot, Config) ->
+    %% Clean up the future-dated test users
+    escalus:delete_users(Config, future_users_spec(Config)),
+    Config;
 end_per_group(users_number_estimate, Config) ->
     mongoose_helper:restore_config(Config);
 end_per_group(_GroupName, Config) ->
@@ -396,6 +421,34 @@ count_selected_users(_Config) ->
     ?assertEqual(1, rpc(mim(), ejabberd_auth, get_vh_registered_users_number,
                         [domain(), #{prefix => <<"a">>}])).
 
+list_users_snapshot(_Config) ->
+    %% Capture snapshot timestamp - future users should be excluded
+    SnapshotTs = bumped_universal_time(),
+
+    %% First page: get 1 user (should be alice or bob, not aaalice/bbbob)
+    {ok, {[User1], Cursor1}} = get_users_snapshot(#{limit => 1, snapshot_timestamp => SnapshotTs}),
+    ?assertNotEqual(undefined, Cursor1),
+
+    %% Second page: get remaining user
+    {ok, {[User2], undefined}} = get_users_snapshot(#{limit => 1, cursor => Cursor1}),
+
+    %% Verify we got both users
+    ?assertEqual([<<"alice">>, <<"bob">>], lists:sort([User1, User2])).
+
+list_users_snapshot_large_limit(_Config) ->
+    SnapshotTs = bumped_universal_time(),
+    %% Request more users than exist
+    {ok, {Users, Cursor}} = get_users_snapshot(#{limit => 100, snapshot_timestamp => SnapshotTs}),
+    ?assertMatch([_, _], Users),
+    ?assertEqual(undefined, Cursor),
+    ?assertEqual([<<"alice">>, <<"bob">>], lists:sort(Users)).
+
+list_users_snapshot_invalid_params(_Config) ->
+    %% Missing both cursor and snapshot_timestamp
+    ?assertMatch({error, invalid_params}, get_users_snapshot(#{limit => 1})),
+    %% Cursor is provided but limit is missing
+    ?assertMatch({error, invalid_params}, get_users_snapshot(#{cursor => <<"abc">>})).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -455,3 +508,29 @@ enable_watcher(Config, Watcher) ->
 
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
+
+get_users_snapshot(Params) ->
+    {ok, HostType} = rpc(mim(), mongoose_domain_api, get_domain_host_type, [domain()]),
+    rpc(mim(), mongoose_gen_auth, get_registered_users_snapshot,
+        [ejabberd_auth_rdbms, HostType, domain(), Params]).
+
+future_users_spec(Config) ->
+    Spec = escalus_users:get_userspec(Config, alice),
+    Addr = proplists:get_value(host, Spec, <<"localhost">>),
+    [{aaalice, [
+        {username, <<"aaalice">>},
+        {server, domain()},
+        {host, Addr},
+        {password, <<"pass1">>}]},
+     {bbbob, [
+        {username, <<"bbbob">>},
+        {server, domain()},
+        {host, Addr},
+        {password, <<"pass2">>}]}].
+
+bumped_universal_time() ->
+    %% This works around DB including fractions of seconds in the timestamp.
+    DateTime = calendar:universal_time(),
+    Seconds = calendar:datetime_to_gregorian_seconds(DateTime),
+    NewSeconds = Seconds + 5,
+    calendar:gregorian_seconds_to_datetime(NewSeconds).

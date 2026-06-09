@@ -32,7 +32,8 @@
          limit_offset/0,
          sql_transaction/2,
          count_records_where/3,
-         create_bulk_insert_query/3]).
+         create_bulk_insert_query/3,
+         add_interval_seconds_expr/1]).
 
 -export([join/2,
          prepare_upsert/6,
@@ -42,7 +43,19 @@
          execute_upsert_many/4, execute_upsert_many/5,
          request_upsert/4]).
 
--ignore_xref([execute_upsert/5, count_records_where/3, execute_upsert_many/5]).
+-export([prepare_update_returning/2,
+         %% execute_update_returning MUST be called within a transaction,
+         %% because of the way MySQL emulates UPDATE ... RETURNING
+         %% via 2 queries: select-lock and bulk-update.
+         execute_update_returning/4, execute_update_returning/5]).
+
+-export([prepare_insert_returning_id/4,
+         %% execute_insert_returning_id MUST be called within a transaction on MySQL,
+         %% because it uses INSERT + SELECT LAST_INSERT_ID() as two separate queries.
+         execute_insert_returning_id/3, execute_insert_returning_id/4]).
+
+-ignore_xref([execute_upsert/5, count_records_where/3, execute_upsert_many/5,
+              execute_update_returning/5, execute_insert_returning_id/4]).
 
 -include("mongoose.hrl").
 
@@ -320,6 +333,197 @@ limit(Limit) ->
 limit_offset() ->
     <<" LIMIT ? OFFSET ?">>.
 
+%% Returns an engine-specific SQL expression for adding a parameterised number
+%% of seconds to the current timestamp.
+-spec add_interval_seconds_expr(mongooseim:host_type_or_global()) -> binary().
+add_interval_seconds_expr(HostType) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql -> <<"DATE_ADD(NOW(), INTERVAL ? SECOND)">>;
+        _ -> <<"now() + ((?::bigint) * interval '1 second')">>
+    end.
+
+%% -----------------
+%% Update-returning queries
+%%
+%% Generates engine-specific SQL for UPDATE ... RETURNING on PG/CRDB
+%% and an emulated select-lock / bulk-update sequence on MySQL.
+%%
+%% For PG/CRDB, join ON conditions are automatically merged into the WHERE clause.
+%% For MySQL, join ON conditions stay in the JOIN ... ON clause.
+%%
+%% Returned values are captured BEFORE the update on MySQL. For columns not
+%% modified by the update (e.g. primary keys), this is equivalent to RETURNING.
+%% Must be called within a transaction on MySQL.
+
+-type update_returning_spec() ::
+    #{%% Query name (also base for MySQL derived statements).
+      name          := mongoose_rdbms:query_name(),
+      %% Target table name.
+      table         := atom(),
+      %% binary() -> "column = ?" (consumes one update param).
+      %% {Column, Expr} -> "column = Expr" (consumes one update param iff Expr has '?').
+      update_fields := [binary() | {binary(), binary()}],
+      %% Placeholder-backed fields used in `filters`.
+      filter_fields := [binary()],
+      %% Qualified columns to return, e.g. <<"table_name_or_alias.column">>.
+      return_fields := [binary()],
+      %% {JoinTable, JoinAlias, JoinOnExpr}.
+      joins         := [{atom(), binary(), binary()}],
+      %% Non-join WHERE predicates with '?' placeholders.
+      filters       := binary()
+     }.
+
+-spec prepare_update_returning(mongooseim:host_type_or_global(), update_returning_spec()) ->
+    {ok, mongoose_rdbms:query_name()} | {error, already_exists}.
+prepare_update_returning(HostType, Spec) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql ->
+            prepare_update_returning_mysql(HostType, Spec);
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
+            prepare_update_returning_pgsql(HostType, Spec);
+        NotSupported ->
+            erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+-spec execute_update_returning(mongooseim:host_type_or_global(),
+                               Name :: mongoose_rdbms:query_name(),
+                               UpdateParams :: [any()],
+                               FilterParams :: [any()]) ->
+    mongoose_rdbms:query_result().
+execute_update_returning(HostType, Name, UpdateParams, FilterParams) ->
+    execute_update_returning(HostType, default, Name, UpdateParams, FilterParams).
+
+-spec execute_update_returning(mongooseim:host_type_or_global(),
+                               PoolTag :: mongoose_wpool:tag(),
+                               Name :: mongoose_rdbms:query_name(),
+                               UpdateParams :: [any()],
+                               FilterParams :: [any()]) ->
+    mongoose_rdbms:query_result().
+execute_update_returning(HostType, PoolTag, Name, UpdateParams, FilterParams) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql ->
+            execute_update_returning_mysql(HostType, PoolTag, Name, UpdateParams, FilterParams);
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
+            execute_update_returning_pgsql(HostType, PoolTag, Name, UpdateParams, FilterParams);
+        NotSupported ->
+            erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+%% --- PG/CockroachDB: single UPDATE ... FROM ... WHERE ... RETURNING ---
+
+prepare_update_returning_pgsql(HostType, Spec) ->
+    #{name := Name, table := Table,
+      update_fields := Updates, filter_fields := FilterFields,
+      return_fields := ReturnFields, joins := Joins, filters := Filters} = Spec,
+    TableBin = atom_to_binary(Table, utf8),
+    UpdatesT = format_fields_for_db(HostType, Updates),
+    SetClause = ur_set_clause(UpdatesT),
+    FromClause = pgsql_ur_from_clause(Joins),
+    WhereClause = pgsql_ur_where_clause(Joins, Filters),
+    ReturnClause = join(ReturnFields, <<", ">>),
+    SQL = ["UPDATE ", TableBin,
+           " SET ", SetClause,
+           FromClause,
+           " WHERE ", WhereClause,
+           " RETURNING ", ReturnClause],
+    Query = iolist_to_binary(SQL),
+    ?LOG_DEBUG(#{what => rdbms_update_returning_query, name => Name, query => Query}),
+    UpdateParamFields = lists:filtermap(fun ur_get_update_param_field/1, UpdatesT),
+    Fields = UpdateParamFields ++ FilterFields,
+    mongoose_rdbms:prepare(Name, Table, Fields, Query).
+
+ur_get_update_param_field({Field, Expr}) when is_binary(Field), is_binary(Expr) ->
+    case binary:match(Expr, <<"?">>) of
+        nomatch -> false;
+        _ -> {true, Field}
+    end;
+ur_get_update_param_field(Field) when is_binary(Field) ->
+    true.
+
+pgsql_ur_from_clause([]) ->
+    [];
+pgsql_ur_from_clause(Joins) ->
+    JoinParts = [[atom_to_binary(JT, utf8), " ", JA] || {JT, JA, _On} <- Joins],
+    [" FROM ", join(JoinParts, ", ")].
+
+pgsql_ur_where_clause([], Filters) ->
+    Filters;
+pgsql_ur_where_clause(Joins, Filters) ->
+    JoinConditions = [On || {_, _, On} <- Joins],
+    join(JoinConditions ++ [Filters], <<" AND ">>).
+
+execute_update_returning_pgsql(HostType, PoolTag, Name, UpdateParams, FilterParams) ->
+    mongoose_rdbms:execute_successfully(HostType, PoolTag, Name, UpdateParams ++ FilterParams).
+
+%% --- MySQL: emulated via select-lock / bulk-update in caller's transaction ---
+
+mysql_derived_name(BaseName, Suffix) ->
+    list_to_atom(atom_to_list(BaseName) ++ Suffix).
+
+prepare_update_returning_mysql(HostType, Spec) ->
+    #{name := Name, table := Table,
+      update_fields := Updates, filter_fields := FilterFields,
+      return_fields := ReturnFields, joins := Joins, filters := Filters} = Spec,
+    TableBin = atom_to_binary(Table, utf8),
+    UpdatesT = format_fields_for_db(HostType, Updates),
+    JoinClause = mysql_ur_join_clause(Joins),
+
+    %% 1. SELECT return_fields ... FOR UPDATE (lock rows and capture return values)
+    LockName = mysql_derived_name(Name, "_lock"),
+    ReturnSelect = join(ReturnFields, <<", ">>),
+    LockSQL = iolist_to_binary(
+        ["SELECT ", ReturnSelect,
+         " FROM ", TableBin,
+         JoinClause,
+         " WHERE ", Filters,
+         " FOR UPDATE"]),
+    ?LOG_DEBUG(#{what => rdbms_update_returning_mysql_lock, name => LockName, query => LockSQL}),
+    mongoose_rdbms:prepare(LockName, Table, FilterFields, LockSQL),
+
+    %% 2. UPDATE ... JOIN ... SET ... WHERE filters (bulk update the same rows)
+    UpdateName = mysql_derived_name(Name, "_update"),
+    SetClause = ur_set_clause(UpdatesT),
+    UpdateSQL = iolist_to_binary(
+        ["UPDATE ", TableBin,
+         JoinClause,
+         " SET ", SetClause,
+         " WHERE ", Filters]),
+    ?LOG_DEBUG(#{what => rdbms_update_returning_mysql_update, name => UpdateName, query => UpdateSQL}),
+    UpdateParamFields = lists:filtermap(fun ur_get_update_param_field/1, UpdatesT),
+    mongoose_rdbms:prepare(UpdateName, Table, UpdateParamFields ++ FilterFields, UpdateSQL),
+
+    {ok, Name}.
+
+mysql_ur_join_clause([]) ->
+    [];
+mysql_ur_join_clause(Joins) ->
+    [[" JOIN ", atom_to_binary(JT, utf8), " ", JA, " ON ", On]
+     || {JT, JA, On} <- Joins].
+
+ur_set_clause(Updates) ->
+    Exprs = [ur_set_field(U) || U <- Updates],
+    join(Exprs, <<", ">>).
+
+ur_set_field({Col, Expr}) when is_binary(Col), is_binary(Expr) ->
+    [Col, " = ", Expr];
+ur_set_field(Col) when is_binary(Col) ->
+    [Col, " = ?"].
+
+execute_update_returning_mysql(HostType, PoolTag, Name, UpdateParams, FilterParams) ->
+    LockName = mysql_derived_name(Name, "_lock"),
+    UpdateName = mysql_derived_name(Name, "_update"),
+    %% Step 1: lock rows and capture return values
+    {selected, LockedRows} = mongoose_rdbms:execute_successfully(HostType, PoolTag, LockName, FilterParams),
+    case LockedRows of
+        [] ->
+            {updated, 0, []};
+        _ ->
+            %% Step 2: bulk update the same rows (same filter, same params)
+            mongoose_rdbms:execute_successfully(HostType, PoolTag, UpdateName,
+                                                UpdateParams ++ FilterParams),
+            {updated, length(LockedRows), LockedRows}
+    end.
+
 format_fields_for_db(_, none) ->
     none;
 format_fields_for_db(HostType, Fields) when is_list(Fields) ->
@@ -339,5 +543,103 @@ format_fields_for_db(HostType, Field) when is_binary(Field) ->
 
 transform_field({_, Field, _} = Element) ->
     erlang:setelement(2, Element, transform_field(Field));
+transform_field({Field, Expr}) when is_binary(Field), is_binary(Expr) ->
+    {transform_field(Field), Expr};
 transform_field(Field) when is_binary(Field)->
     <<"\"", Field/binary, "\"">>.
+
+%% -----------------
+%% Insert-returning-id queries
+%%
+%% Helper for single-row INSERT into a table with an auto-generated `id`
+%% column (SERIAL / AUTO_INCREMENT). Returns {ok, Id}.
+%%
+%% PG/CockroachDB: INSERT ... RETURNING id  (single prepared statement).
+%% MySQL: INSERT + SELECT id WHERE id = LAST_INSERT_ID()  (two statements,
+%%        must be called within a transaction for correct results).
+
+-spec prepare_insert_returning_id(mongooseim:host_type_or_global(),
+                                  QueryName :: mongoose_rdbms:query_name(),
+                                  TableName :: atom(),
+                                  InsertFields :: [binary()]) ->
+    {ok, mongoose_rdbms:query_name()} | {error, already_exists}.
+prepare_insert_returning_id(HostType, Name, Table, InsertFields) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql ->
+            prepare_insert_returning_id_mysql(Name, Table, InsertFields);
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
+            prepare_insert_returning_id_pgsql(HostType, Name, Table, InsertFields);
+        NotSupported ->
+            erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+-spec execute_insert_returning_id(mongooseim:host_type_or_global(),
+                                  Name :: mongoose_rdbms:query_name(),
+                                  InsertParams :: [any()]) ->
+    {ok, integer()}.
+execute_insert_returning_id(HostType, Name, InsertParams) ->
+    execute_insert_returning_id(HostType, default, Name, InsertParams).
+
+-spec execute_insert_returning_id(mongooseim:host_type_or_global(),
+                                  PoolTag :: mongoose_wpool:tag(),
+                                  Name :: mongoose_rdbms:query_name(),
+                                  InsertParams :: [any()]) ->
+    {ok, integer()}.
+execute_insert_returning_id(HostType, PoolTag, Name, InsertParams) ->
+    case mongoose_rdbms:db_engine(HostType) of
+        mysql ->
+            execute_insert_returning_id_mysql(HostType, PoolTag, Name, InsertParams);
+        Driver when Driver =:= pgsql; Driver =:= cockroachdb ->
+            execute_insert_returning_id_pgsql(HostType, PoolTag, Name, InsertParams);
+        NotSupported ->
+            erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+%% --- PG/CockroachDB: INSERT ... RETURNING id ---
+
+prepare_insert_returning_id_pgsql(HostType, Name, Table, InsertFields) ->
+    FieldsT = format_fields_for_db(HostType, InsertFields),
+    JoinedFields = join(FieldsT, <<", ">>),
+    Placeholders = join(lists:duplicate(length(FieldsT), <<"?">>), <<", ">>),
+    TableBin = atom_to_binary(Table, utf8),
+    SQL = iolist_to_binary(
+        ["INSERT INTO ", TableBin, " (", JoinedFields, ") VALUES (",
+         Placeholders, ") RETURNING id"]),
+    ?LOG_DEBUG(#{what => rdbms_insert_returning_id_query, name => Name, query => SQL}),
+    mongoose_rdbms:prepare(Name, Table, FieldsT, SQL).
+
+execute_insert_returning_id_pgsql(HostType, PoolTag, Name, InsertParams) ->
+    {updated, _Count, [{Id}]} = mongoose_rdbms:execute_successfully(HostType, PoolTag, Name, InsertParams),
+    {ok, mongoose_rdbms:result_to_integer(Id)}.
+
+%% --- MySQL: INSERT then SELECT LAST_INSERT_ID() ---
+
+prepare_insert_returning_id_mysql(Name, Table, InsertFields) ->
+    TableBin = atom_to_binary(Table, utf8),
+    JoinedFields = join(InsertFields, <<", ">>),
+    Placeholders = join(lists:duplicate(length(InsertFields), <<"?">>), <<", ">>),
+
+    %% 1. Plain INSERT
+    InsertName = mysql_derived_name(Name, "_insert"),
+    InsertSQL = iolist_to_binary(
+        ["INSERT INTO ", TableBin, " (", JoinedFields, ") VALUES (",
+         Placeholders, ")"]),
+    ?LOG_DEBUG(#{what => rdbms_insert_returning_id_mysql_insert,
+                 name => InsertName, query => InsertSQL}),
+    mongoose_rdbms:prepare(InsertName, Table, InsertFields, InsertSQL),
+
+    %% 2. SELECT by LAST_INSERT_ID()
+    SelectName = mysql_derived_name(Name, "_last_id"),
+    SelectSQL = iolist_to_binary(
+        ["SELECT id FROM ", TableBin, " WHERE id = LAST_INSERT_ID()"]),
+    ?LOG_DEBUG(#{what => rdbms_insert_returning_id_mysql_select,
+                 name => SelectName, query => SelectSQL}),
+    mongoose_rdbms:prepare(SelectName, Table, [], SelectSQL),
+    {ok, Name}.
+
+execute_insert_returning_id_mysql(HostType, PoolTag, Name, InsertParams) ->
+    InsertName = mysql_derived_name(Name, "_insert"),
+    SelectName = mysql_derived_name(Name, "_last_id"),
+    {updated, 1} = mongoose_rdbms:execute_successfully(HostType, PoolTag, InsertName, InsertParams),
+    {selected, [{Id}]} = mongoose_rdbms:execute_successfully(HostType, PoolTag, SelectName, []),
+    {ok, mongoose_rdbms:result_to_integer(Id)}.

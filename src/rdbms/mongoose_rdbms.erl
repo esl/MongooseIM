@@ -273,6 +273,8 @@ execute_successfully(HostType, PoolTag, Name, Parameters) ->
             Result;
         {updated, _} = Result ->
             Result;
+        {updated, _RowsAffected, _ResultSet} = Result ->
+            Result;
         Other ->
             Log = #{what => sql_execute_failed, host => HostType, statement_name => Name,
                     statement_query => query_name_to_string(Name),
