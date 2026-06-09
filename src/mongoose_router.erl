@@ -102,14 +102,12 @@ drop_stanza(Acc) ->
 
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
-    lists:flatmap(fun instrumentation/1, ?ALL_HOST_TYPES).
+    [{router_no_route_found, #{}, #{metrics => #{count => spiral}}} |
+     lists:flatmap(fun instrumentation/1, ?ALL_HOST_TYPES)].
 
 -spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
 instrumentation(HostType) ->
-    [{router_stanza_dropped, #{host_type => HostType},
-      #{metrics => #{count => spiral}}},
-     {router_no_route_found, #{host_type => HostType},
-      #{metrics => #{count => spiral}}}].
+    [{router_stanza_dropped, #{host_type => HostType}, #{metrics => #{count => spiral}}}].
 
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
@@ -117,9 +115,8 @@ instrumentation(HostType) ->
             Packet :: exml:element(),
             [xmpp_router:t()]) -> mongoose_acc:t().
 route(_From, To, Acc, _Packet, []) ->
-    HT = mongoose_acc:host_type(Acc),
-    ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc, host_type => HT}),
-    mongoose_instrument:execute(router_no_route_found, #{host_type => HT}, #{count => 1, to => To}),
+    ?LOG_WARNING(#{what => no_more_routing_modules, acc => Acc}),
+    mongoose_instrument:execute(router_no_route_found, #{}, #{count => 1, to => To}),
     mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
 route(OrigFrom, OrigTo, Acc0, OrigPacket, [M | Tail]) ->
     try xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc0, OrigPacket) of
