@@ -43,6 +43,8 @@ type AdminQuery{
   cets: CETSAdminQuery
   "Server info and management"
   server: ServerAdminQuery
+  "Message broadcast management"
+  broadcast: BroadcastAdminQuery
   "Blocklist management"
   blocklist: BlocklistAdminQuery
 }
@@ -86,6 +88,8 @@ type AdminMutation @protected{
   mnesia: MnesiaAdminMutation
   "Server info and management"
   server: ServerAdminMutation
+  "Message broadcast management"
+  broadcast: BroadcastAdminMutation
   "Blocklist management"
   blocklist: BlocklistAdminMutation
 }

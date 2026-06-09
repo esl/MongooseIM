@@ -9,6 +9,8 @@
 %% Busy Wait
 -export([wait_until/2, wait_until/3]).
 -export([parse_ip_netmask/1]).
+% DateTime conversion to RFC 3339
+-export([datetime_to_rfc3339/1]).
 %% Regex
 -export([sh_to_awk/1]).
 
@@ -156,6 +158,13 @@ parse_ip_netmask(IPStr, MaskStr) ->
         _ ->
             error
     end.
+
+%% ------------------------------------------------------------------
+%% DateTime to RFC3339
+%% ------------------------------------------------------------------
+-spec datetime_to_rfc3339(UTCDateTime :: calendar:datetime()) -> RFC3339DateTime :: binary().
+datetime_to_rfc3339({{Y, MM, D}, {H, M, S}}) ->
+    iolist_to_binary(io_lib:format("~B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0BZ", [Y, MM, D, H, M, S])).
 
 %% ------------------------------------------------------------------
 %% does_local_user_exist

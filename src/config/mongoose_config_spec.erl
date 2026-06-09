@@ -730,6 +730,7 @@ configurable_modules() ->
      mod_auth_token,
      mod_blocking,
      mod_blocklist,
+     mod_broadcast,
      mod_cache_users,
      mod_caps,
      mod_carboncopy,
