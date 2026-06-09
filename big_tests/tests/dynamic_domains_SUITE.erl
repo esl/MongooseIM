@@ -30,7 +30,7 @@ groups() ->
 init_per_suite(Config0) ->
     Config = cluster_nodes(?CLUSTER_NODES, Config0),
     insert_domains(?TEST_NODES, ?DOMAINS),
-    instrument_helper:start([{router_no_route_found, #{host_type => ?HOST_TYPE}}]),
+    instrument_helper:start([{router_no_route_found, #{}}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config0) ->
@@ -104,7 +104,7 @@ no_route(Config) ->
             escalus:send(Alice, WrongServerMsg),
 
             escalus_assert:has_no_stanzas(Bob),
-            instrument_helper:wait_and_assert(router_no_route_found, #{host_type => ?HOST_TYPE},
+            instrument_helper:wait_and_assert(router_no_route_found, #{},
                 fun(#{count := 1, to := To}) -> jid:to_binary(To) =:= WrongJID end)
         end,
     escalus:story(Config, [{alice3, 1}, {bob3, 1}], StoryFn).

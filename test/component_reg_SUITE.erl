@@ -21,10 +21,6 @@ init_per_suite(Config) ->
                                 {mongooseim_helper, start_link_loaded_hooks, []},
                                 {mongoose_router, start, []}]).
 
-init_per_testcase(_, Config) ->
-    mongoose_router:start(),
-    Config.
-
 end_per_suite(Config) ->
     async_helper:stop_all(Config),
     mnesia:stop(),

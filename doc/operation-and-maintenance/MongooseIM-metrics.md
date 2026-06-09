@@ -175,7 +175,7 @@ Since Exometer doesn't support labels, in such cases the host type is a part of 
     | `c2s_message_processed_time` | `host_type` | histogram | Processing time for incoming c2s stanzas. |
     | `sm_message_bounced_count` | `host_type` | counter | A `service-unavailable` error is sent, because the message recipient is offline. |
     | `router_stanza_dropped_count` | `host_type` | counter | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
-    | `router_no_route_found_count` | `host_type` | counter | It is not possible to route a stanza (all routing handlers failed). |
+    | `router_no_route_found_count` | - | counter | It is not possible to route a stanza (all routing handlers failed). |
 
 === "Exometer"
 
@@ -190,7 +190,7 @@ Since Exometer doesn't support labels, in such cases the host type is a part of 
     | `[HostType, c2s_message_processing_time`] | histogram | Processing time for incoming c2s stanzas. |
     | `[HostType, sm_message_bounced, count]` | spiral | A `service-unavailable` error is sent, because the message recipient is offline. |
     | `[HostType, router_stanza_dropped, count]` | spiral | A stanza is dropped due to an AMP rule or a `filter_local_packet` processing flow. |
-    | `[HostType, router_no_route_found, count]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
+    | `[global, router_no_route_found, count]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
 
 ### Connection pools
 
