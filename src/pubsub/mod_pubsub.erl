@@ -66,12 +66,16 @@
       | #{action := get_items, node_id := node_id(),
           item_ids => item_ids(),
           result => [item()]}
+      | #{action := retract, node_id := node_id(), item_id := item_id(), notify := boolean(),
+          result => ok}
       | #{action := publish, node_id := node_id(), item_id := item_id(), payload := item_payload(),
           config => node_config(),
           result => item_id()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
-              item_id/0, item_payload/0, access_model/0, node_config/0]).
+              item_id/0, item_ids/0, item_payload/0, access_model/0, node_config/0,
+              generic_error_reason/0, error_reason/0, error_result/0, result/1,
+              ok_result/0, iq_request/0, iq_action/0]).
 
 %% gen_mod callbacks
 
@@ -329,6 +333,18 @@ perform_action(Request, Action = #{action := get_items}) ->
         Items = get_items(HostType, NodeKey, Action),
         Action#{result => Items}
     end;
+perform_action(Request, Action = #{action := retract}) ->
+    #{acc := Acc, service_jid := ServiceJid} = Request,
+    #{node_id := NodeId, item_id := ItemId, notify := Notify} = Action,
+    maybe
+        ok ?= assert_owner(Request),
+        HostType = mongoose_acc:host_type(Acc),
+        NodeKey = {ServiceJid, NodeId},
+        {ok, Node} ?= get_node(HostType, NodeKey),
+        ok ?= delete_item(HostType, NodeKey, ItemId),
+        maybe_notify_item_retraction(Notify, HostType, Request, Node, ItemId),
+        Action#{result => ok}
+    end;
 perform_action(Request, Action = #{action := publish}) ->
     #{acc := Acc, from_jid := PublisherJid, service_jid := ServiceJid} = Request,
     #{node_id := NodeId, item_id := ItemId, payload := Payload} = Action,
@@ -434,6 +450,13 @@ get_items(HostType, NodeKey, #{item_ids := ItemIds}) ->
 get_items(HostType, NodeKey, #{}) ->
     mod_pubsub_backend:get_items(HostType, NodeKey).
 
+-spec delete_item(mongooseim:host_type(), node_key(), item_id()) -> ok_result().
+delete_item(HostType, NodeKey, ItemId) ->
+    case mod_pubsub_backend:delete_item(HostType, NodeKey, ItemId) of
+        ok -> ok;
+        not_found -> {error, item_not_found}
+    end.
+
 -spec get_or_create_node(mongooseim:host_type(), node_key(), node_config()) ->
           result(pubsub_node()).
 get_or_create_node(HostType, NodeKey, Config) ->
@@ -493,6 +516,22 @@ broadcast_node_deletion(_HostType, _FromJid, [], _Item) ->
     ok;
 broadcast_node_deletion(HostType, FromJid, ToJids, NodeId) ->
     Notification = mod_pubsub_xml:deletion_notification_message_el(NodeId),
+    broadcast_notification(HostType, FromJid, ToJids, Notification).
+
+-spec maybe_notify_item_retraction(boolean(), mongooseim:host_type(), iq_request(), pubsub_node(),
+                                   item_id()) -> ok.
+maybe_notify_item_retraction(true, HostType, Request, Node, ItemId) ->
+    #pubsub_node{node_key = {ServiceJid, NodeId}} = Node,
+    broadcast_item_retraction(HostType, ServiceJid, recipient_jids(Node, Request), NodeId, ItemId);
+maybe_notify_item_retraction(false, _HostType, _Request, _Node, _ItemId) ->
+    ok.
+
+-spec broadcast_item_retraction(mongooseim:host_type(), jid:jid(), [jid:jid()], node_id(),
+                                item_id()) -> ok.
+broadcast_item_retraction(_HostType, _FromJid, [], _NodeId, _ItemId) ->
+    ok;
+broadcast_item_retraction(HostType, FromJid, ToJids, NodeId, ItemId) ->
+    Notification = mod_pubsub_xml:retraction_notification_message_el(NodeId, ItemId),
     broadcast_notification(HostType, FromJid, ToJids, Notification).
 
 -spec route_last_item_if_exists(mongooseim:host_type(), node_key(), jid:jid()) -> ok.
@@ -611,12 +650,14 @@ pep_base_features() ->
      ~"config-node",
      ~"create-and-configure",
      ~"create-nodes",
+     ~"delete-items",
      ~"delete-nodes",
      ~"item-ids",
      ~"last-published",
      ~"persistent-items",
      ~"publish",
      ~"publish-options",
+     ~"retract-items",
      ~"retrieve-items",
      ~"subscribe"].
 

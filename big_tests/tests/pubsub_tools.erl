@@ -178,13 +178,19 @@ payload(Options) ->
         Payload -> Payload
     end.
 
-retract_item(User, {NodeAddr, NodeName} = Node, ItemId, Options) ->
+retract_item(User, Node, ItemId, Options) ->
+    retract_items(User, Node, [ItemId], Options).
+
+retract_items(User, {NodeAddr, NodeName} = Node, ItemIds, Options) ->
     Id = id(User, Node, <<"retract">>),
-    Attrs = case proplists:get_value(notify, Options) of
-        Bool when is_boolean(Bool) -> #{<<"notify">> => atom_to_binary(Bool)};
-        undefined -> #{}
-    end,
-    Request = escalus_pubsub_stanza:retract(Id, NodeName, ItemId, Attrs),
+    ReqOpts = maps:with([notify], maps:from_list(Options)),
+    Request = escalus_pubsub_stanza:retract(Id, NodeName, ItemIds, ReqOpts),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
+
+retract_raw(User, {NodeAddr, NodeName} = Node, Children, Options) ->
+    Id = id(User, Node, <<"retract">>),
+    ReqOpts = maps:with([notify], maps:from_list(Options)),
+    Request = escalus_pubsub_stanza:retract_raw(Id, NodeName, Children, ReqOpts),
     send_request_and_receive_response(User, NodeAddr, Request, Options).
 
 get_item(User, Node, ItemId, Options) ->

@@ -16,7 +16,7 @@ It handles same-server PEP requests addressed to users' bare JIDs and does not e
 * Explicit node [creation](https://xmpp.org/extensions/xep-0060.html#owner-create) and [deletion](https://xmpp.org/extensions/xep-0060.html#owner-delete).
 * [Node configuration](https://xmpp.org/extensions/xep-0060.html#owner-configure) and [publish options](https://xmpp.org/extensions/xep-0060.html#publisher-publish-options) with the [`pubsub#access_model`](https://xmpp.org/extensions/xep-0060.html#accessmodels) option.
 * The `open` and `presence` access models.
-* [Publishing](https://xmpp.org/extensions/xep-0060.html#publisher-publish) an item.
+* [Publishing](https://xmpp.org/extensions/xep-0060.html#publisher-publish) and [retracting](https://xmpp.org/extensions/xep-0060.html#publisher-delete) an item.
 * Retrieving [all items](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestall) or [selected items by ID](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestone).
 * Explicit [subscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-subscribe) and [unsubscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-unsubscribe).
 * [Implicit PEP subscriptions](https://xmpp.org/extensions/xep-0163.html#notify-autosubscribe) based on presence subscription and entity capabilities.
@@ -32,7 +32,7 @@ Current intentional omissions and limitations are:
 * Access models other than `open` and `presence` are not supported.
 * Node and publish options other than `pubsub#access_model` are not supported.
 * [Subscription options](https://xmpp.org/extensions/xep-0060.html#subscriber-configure), [multiple subscriptions](https://xmpp.org/extensions/xep-0060.html#subscriber-subscribe-multi) for the same JID and node, and [collection nodes](https://xmpp.org/extensions/xep-0248.html) are not implemented.
-* [Affiliations](https://xmpp.org/extensions/xep-0060.html#owner-affiliations), [default node configuration requests](https://xmpp.org/extensions/xep-0060.html#owner-default), [purge](https://xmpp.org/extensions/xep-0060.html#owner-purge), [retract](https://xmpp.org/extensions/xep-0060.html#publisher-delete), and [subscription management by node owners](https://xmpp.org/extensions/xep-0060.html#owner-subscriptions) are not implemented.
+* [Affiliations](https://xmpp.org/extensions/xep-0060.html#owner-affiliations), [default node configuration requests](https://xmpp.org/extensions/xep-0060.html#owner-default), [purge](https://xmpp.org/extensions/xep-0060.html#owner-purge), and [subscription management by node owners](https://xmpp.org/extensions/xep-0060.html#owner-subscriptions) are not implemented.
 * [Result Set Management](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-returnsome) is not implemented for item retrieval.
 
 ## Options

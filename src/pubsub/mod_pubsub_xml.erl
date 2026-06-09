@@ -8,6 +8,7 @@
 %% XML Construction
 -export([make_reply/1,
          deletion_notification_message_el/1,
+         retraction_notification_message_el/2,
          notification_message_el/2]).
 
 -include_lib("exml/include/exml.hrl").
@@ -15,15 +16,7 @@
 -include("mongoose_ns.hrl").
 -include("mod_pubsub.hrl").
 
--type error_reason() :: generic_error_reason() | {generic_error_reason(), binary()}.
--type generic_error_reason() ::
-        bad_request | conflict | forbidden | not_acceptable | not_authorized |
-        unexpected_request | item_not_found.
--type error_result() :: {error, error_reason()}.
--type result(T) :: {ok, T} | {error, error_reason()}.
--type iq_action() :: map().
 -type node_config_field() :: {access_model, mod_pubsub:access_model()}.
--type item_ids() :: [mod_pubsub:item_id()].
 
 %% XML Parsing
 
@@ -31,13 +24,14 @@
 is_iq_relevant(#iq{xmlns = NS}) ->
     NS =:= ?NS_PUBSUB orelse NS =:= ?NS_PUBSUB_OWNER.
 
--spec iq_action(jlib:iq()) -> iq_action() | error_result().
+-spec iq_action(jlib:iq()) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_action(#iq{type = IQType, xmlns = NS, sub_el = #xmlel{name = ~"pubsub", children = Children}}) ->
     iq_action(IQType, NS, jlib:remove_cdata(Children));
 iq_action(_) ->
     {error, bad_request}.
 
--spec iq_action(get | set, binary(), [exml:element()]) -> iq_action() | error_result().
+-spec iq_action(get | set, binary(), [exml:element()]) ->
+          mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_action(set, ?NS_PUBSUB, Children) ->
     iq_pubsub_set(Children);
 iq_action(get, ?NS_PUBSUB, Children) ->
@@ -47,7 +41,7 @@ iq_action(set, ?NS_PUBSUB_OWNER, Children) ->
 iq_action(get, ?NS_PUBSUB_OWNER, Children) ->
     iq_pubsub_owner_get(Children).
 
--spec iq_pubsub_set([exml:element()]) -> iq_action() | error_result().
+-spec iq_pubsub_set([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_pubsub_set([#xmlel{name = ~"create", attrs = #{~"node" := NodeId}} | Rest]) ->
     maybe
         {ok, Config} ?= parse_create_config(Rest),
@@ -61,6 +55,15 @@ iq_pubsub_set([#xmlel{name = ~"subscribe",
 iq_pubsub_set([#xmlel{name = ~"unsubscribe",
                       attrs = #{~"node" := NodeId, ~"jid" := SubscriberJidBin}}]) ->
     #{action => unsubscribe, node_id => NodeId, subscriber_jid => jid:from_binary(SubscriberJidBin)};
+iq_pubsub_set([#xmlel{name = ~"retract", attrs = #{~"node" := NodeId} = Attrs,
+                      children = Children}]) ->
+    maybe
+        {ok, ItemId} ?= parse_retract_item(Children),
+        {ok, Notify} ?= parse_flag(~"notify", Attrs, false),
+        #{action => retract, node_id => NodeId, item_id => ItemId, notify => Notify}
+    end;
+iq_pubsub_set([#xmlel{name = ~"retract"}]) ->
+    {error, {bad_request, ~"nodeid-required"}};
 iq_pubsub_set([El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}} | Rest]) ->
     maybe
         {ok, Config} ?= parse_publish_options(Rest),
@@ -70,18 +73,32 @@ iq_pubsub_set([El = #xmlel{name = ~"publish", attrs = #{~"node" := NodeId}} | Re
 iq_pubsub_set(_) ->
     {error, bad_request}.
 
--spec iq_pubsub_get([exml:element()]) -> iq_action() | error_result().
+-spec parse_retract_item([exml:child()]) -> mod_pubsub:result(mod_pubsub:item_id()).
+parse_retract_item([#xmlel{name = ~"item", attrs = #{~"id" := ItemId}, children = []}]) ->
+    {ok, ItemId};
+parse_retract_item([#xmlel{name = ~"item", attrs = #{~"id" := _ItemId}}]) ->
+    {error, bad_request}; % XEP-0060 7.2.1 the <item/> element MUST be empty
+parse_retract_item([#xmlel{name = ~"item"}]) ->
+    {error, {bad_request, ~"item-required"}}; % XEP-0060 7.2.3.4 ItemID Required
+parse_retract_item([]) ->
+    {error, {bad_request, ~"item-required"}}; % XEP-0060 7.2.3.4 Item Required
+parse_retract_item(_) ->
+    {error, bad_request}.
+
+-spec iq_pubsub_get([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = []}]) ->
     #{action => get_items, node_id => NodeId};
 iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = Children}]) ->
-    maybe
-        {ok, ItemIds} ?= parse_requested_item_ids(Children),
-        #{action => get_items, node_id => NodeId, item_ids => ItemIds}
+    case parse_item_ids(Children) of
+        ItemIds when length(ItemIds) =:= length(Children) ->
+            #{action => get_items, node_id => NodeId, item_ids => ItemIds};
+        _ ->
+            {error, bad_request}
     end;
 iq_pubsub_get(_) ->
     {error, bad_request}.
 
--spec iq_pubsub_owner_set([exml:element()]) -> iq_action() | error_result().
+-spec iq_pubsub_owner_set([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_pubsub_owner_set([#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
     #{action => delete, node_id => NodeId};
 iq_pubsub_owner_set([ConfigureEl = #xmlel{name = ~"configure",
@@ -95,7 +112,7 @@ iq_pubsub_owner_set([#xmlel{name = Name}]) when Name =:= ~"configure" ->
 iq_pubsub_owner_set(_) ->
     {error, bad_request}.
 
--spec iq_pubsub_owner_get([exml:element()]) -> iq_action() | error_result().
+-spec iq_pubsub_owner_get([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_pubsub_owner_get([#xmlel{name = ~"configure", attrs = #{~"node" := NodeId}}]) ->
     #{action => get_configuration, node_id => NodeId};
 iq_pubsub_owner_get([#xmlel{name = Name}]) when Name =:= ~"configure" ->
@@ -103,7 +120,7 @@ iq_pubsub_owner_get([#xmlel{name = Name}]) when Name =:= ~"configure" ->
 iq_pubsub_owner_get(_) ->
     {error, bad_request}.
 
--spec parse_create_config([exml:element()]) -> result(mod_pubsub:node_config()).
+-spec parse_create_config([exml:element()]) -> mod_pubsub:result(mod_pubsub:node_config()).
 parse_create_config([ConfigureEl = #xmlel{name = ~"configure"}]) ->
     parse_configure_config(ConfigureEl);
 parse_create_config([]) ->
@@ -111,11 +128,11 @@ parse_create_config([]) ->
 parse_create_config(_) ->
     {error, bad_request}.
 
--spec parse_configure_config(exml:element()) -> result(mod_pubsub:node_config()).
+-spec parse_configure_config(exml:element()) -> mod_pubsub:result(mod_pubsub:node_config()).
 parse_configure_config(ConfigureEl) ->
     parse_form_config(ConfigureEl, ?NS_PUBSUB_NODE_CONFIG).
 
--spec parse_publish_options([exml:element()]) -> result(mod_pubsub:node_config()).
+-spec parse_publish_options([exml:element()]) -> mod_pubsub:result(mod_pubsub:node_config()).
 parse_publish_options([PublishOptionsEl = #xmlel{name = ~"publish-options"}]) ->
     case mongoose_data_forms:find_and_parse_form(PublishOptionsEl) of
         #{type := ~"submit", kvs := KVs, ns := ?NS_PUBSUB_PUB_OPTIONS} ->
@@ -132,7 +149,7 @@ parse_publish_options(_) ->
     {error, bad_request}.
 
 -spec parse_item([exml:child()]) ->
-    result(#{item_id := mod_pubsub:item_id(), payload := mod_pubsub:item_payload()}).
+    mod_pubsub:result(#{item_id := mod_pubsub:item_id(), payload := mod_pubsub:item_payload()}).
 parse_item([Item = #xmlel{name = ~"item", children = Children}]) ->
     maybe
         {ok, PayloadEl} ?= parse_payload(Children),
@@ -148,6 +165,7 @@ get_or_generate_item_id(#xmlel{attrs = #{~"id" := ItemId}}) ->
 get_or_generate_item_id(_) ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
+-spec parse_payload([exml:child()]) -> {ok, exml:element()} | mod_pubsub:error_result().
 parse_payload([#xmlel{} = PayloadEl]) ->
     {ok, PayloadEl};
 parse_payload([]) ->
@@ -155,19 +173,20 @@ parse_payload([]) ->
 parse_payload(_) ->
     {error, {bad_request, ~"invalid-payload"}}.
 
--spec parse_requested_item_ids([exml:element()]) -> result(item_ids()).
-parse_requested_item_ids(Children) ->
-    parse_requested_item_ids(Children, []).
+-spec parse_item_ids([exml:child()]) -> [mod_pubsub:item_id()].
+parse_item_ids(Elements) ->
+    [ItemId || #xmlel{name = ~"item", attrs = #{~"id" := ItemId}} <- Elements].
 
--spec parse_requested_item_ids([exml:element()], item_ids()) -> result(item_ids()).
-parse_requested_item_ids([#xmlel{name = ~"item", attrs = #{~"id" := ItemId}} | Rest], Acc) ->
-    parse_requested_item_ids(Rest, [ItemId | Acc]);
-parse_requested_item_ids([], Acc) ->
-    {ok, lists:reverse(Acc)};
-parse_requested_item_ids(_, _) ->
-    {error, bad_request}.
+-spec parse_flag(binary(), exml:attrs(), boolean()) -> {ok, boolean()} | mod_pubsub:error_result().
+parse_flag(Key, Attrs, Default) ->
+    case Attrs of
+        #{Key := Value} when Value =:= ~"0"; Value =:= ~"false" -> {ok, false};
+        #{Key := Value} when Value =:= ~"1"; Value =:= ~"true" -> {ok, true};
+        #{Key := _} -> {error, bad_request};
+        #{} -> {ok, Default}
+    end.
 
--spec parse_form_config(exml:element(), binary()) -> result(mod_pubsub:node_config()).
+-spec parse_form_config(exml:element(), binary()) -> mod_pubsub:result(mod_pubsub:node_config()).
 parse_form_config(FormEl, NS) ->
     case mongoose_data_forms:find_and_parse_form(FormEl) of
         #{type := ~"submit", kvs := KVs, ns := NS} ->
@@ -176,12 +195,13 @@ parse_form_config(FormEl, NS) ->
             {error, bad_request}
     end.
 
--spec parse_node_config(mongoose_data_forms:kv_map()) -> result(mod_pubsub:node_config()).
+-spec parse_node_config(mongoose_data_forms:kv_map()) ->
+          mod_pubsub:result(mod_pubsub:node_config()).
 parse_node_config(KVs) ->
     parse_node_config_fields(maps:to_list(KVs), []).
 
 -spec parse_node_config_fields([{binary(), [binary()]}], [node_config_field()]) ->
-          result(mod_pubsub:node_config()).
+          mod_pubsub:result(mod_pubsub:node_config()).
 parse_node_config_fields([{Key, Values} | Rest], ParsedKVs) ->
     maybe
         {ok, ParsedKV} ?= parse_node_config_field(Key, Values),
@@ -190,7 +210,7 @@ parse_node_config_fields([{Key, Values} | Rest], ParsedKVs) ->
 parse_node_config_fields([], ParsedKVs) ->
     {ok, maps:from_list(ParsedKVs)}.
 
--spec parse_node_config_field(binary(), [binary()]) -> result(node_config_field()).
+-spec parse_node_config_field(binary(), [binary()]) -> mod_pubsub:result(node_config_field()).
 parse_node_config_field(~"pubsub#access_model", Values) ->
     maybe
         {ok, AccessModel} ?= parse_access_model(Values),
@@ -199,7 +219,7 @@ parse_node_config_field(~"pubsub#access_model", Values) ->
 parse_node_config_field(_, _) ->
     {error, bad_request}.
 
--spec parse_access_model([binary()]) -> result(mod_pubsub:access_model()).
+-spec parse_access_model([binary()]) -> mod_pubsub:result(mod_pubsub:access_model()).
 parse_access_model([~"open"]) -> {ok, open};
 parse_access_model([~"presence"]) -> {ok, presence};
 parse_access_model([~"authorize"]) -> {error, {not_acceptable, ~"unsupported-access-model"}};
@@ -207,7 +227,8 @@ parse_access_model(_) -> {error, bad_request}.
 
 %% XML Construction
 
--spec make_reply(iq_action() | error_result()) -> {result | error, [exml:child()]}.
+-spec make_reply(mod_pubsub:iq_action() | mod_pubsub:error_result()) ->
+          {result | error, [exml:child()]}.
 make_reply({error, {GenericReason, PubSubReason}}) ->
     {error, [exml:append_children(error_el(GenericReason), [pubsub_error_el(PubSubReason)])]};
 make_reply({error, Reason}) ->
@@ -223,7 +244,7 @@ make_reply(#{action := get_items, node_id := NodeId, result := Items}) ->
 make_reply(#{action := publish, node_id := NodeId, result := ItemId}) ->
     {result, [pubsub_el([publish_el(NodeId, [published_item_el(ItemId)])])]}.
 
--spec error_el(generic_error_reason()) -> exml:element().
+-spec error_el(mod_pubsub:generic_error_reason()) -> exml:element().
 error_el(bad_request) -> mongoose_xmpp_errors:bad_request();
 error_el(conflict) -> mongoose_xmpp_errors:conflict();
 error_el(forbidden) -> mongoose_xmpp_errors:forbidden();
@@ -281,9 +302,18 @@ item_el(#item{id = ItemId, payload = Payload}) ->
 published_item_el(ItemId) ->
     #xmlel{name = ~"item", attrs = #{~"id" => ItemId}}.
 
+-spec retract_item_el(mod_pubsub:item_id()) -> exml:element().
+retract_item_el(ItemId) ->
+    #xmlel{name = ~"retract", attrs = #{~"id" => ItemId}}.
+
 -spec deletion_notification_message_el(mod_pubsub:node_id()) -> exml:element().
 deletion_notification_message_el(NodeId) ->
     event_message_el(#xmlel{name = ~"delete", attrs = #{~"node" => NodeId}}).
+
+-spec retraction_notification_message_el(mod_pubsub:node_id(), mod_pubsub:item_id()) ->
+          exml:element().
+retraction_notification_message_el(NodeId, ItemId) ->
+    event_message_el(items_el(NodeId, [retract_item_el(ItemId)])).
 
 -spec notification_message_el(mod_pubsub:item(), boolean()) -> exml:element().
 notification_message_el(#item{node_key = {_, NodeId}} = Item, Delayed) ->

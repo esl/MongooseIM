@@ -8,7 +8,7 @@
 
 -export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscription/3,
-         set_item/2, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
+         set_item/2, delete_item/3, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
@@ -46,6 +46,8 @@ start(HostType) ->
                            [service_jid, node_id], sql(get_last_item)),
     mongoose_rdbms:prepare(pubsub_get_last_items, pubsub_item,
                            [service_jid], sql(get_last_items)),
+    mongoose_rdbms:prepare(pubsub_delete_item, pubsub_item,
+                           [service_jid, node_id, item_id], sql(delete_item)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
@@ -140,6 +142,15 @@ set_item(HostType, #item{node_key = {ServiceJid, NodeId},
     {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_item_upsert,
                                                 InsertValues, UpdateValues),
     ok.
+
+-spec delete_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
+          ok | not_found.
+delete_item(HostType, {ServiceJid, NodeId}, ItemId) ->
+    Args = [jid:to_binary(ServiceJid), NodeId, ItemId],
+    case mongoose_rdbms:execute_successfully(HostType, pubsub_delete_item, Args) of
+        {updated, 1} -> ok;
+        {updated, 0} -> not_found
+    end.
 
 -spec get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
     mod_pubsub:item() | undefined.
@@ -273,4 +284,9 @@ sql(get_last_items) ->
          LIMIT 1
      ) AS i
      WHERE n.service_jid = ?
+     """;
+sql(delete_item) ->
+    ~"""
+     DELETE FROM pubsub_item
+     WHERE service_jid = ? AND node_id = ? AND item_id = ?
      """.
