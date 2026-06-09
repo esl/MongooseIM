@@ -420,12 +420,12 @@ forget_room(HostType, MucHost, Name) ->
 %% For rooms
 -spec process_iq_disco_items(MucHost :: jid:server(), From :: jid:jid(),
         To :: jid:jid(), jlib:iq()) -> mongoose_acc:t().
-process_iq_disco_items(MucHost, From, To, #iq{lang = Lang} = IQ) ->
+process_iq_disco_items(MucHost, From, To, IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"query">>,
                                  attrs = #{<<"xmlns">> => ?NS_DISCO_ITEMS},
-                                 children = iq_disco_items(MucHost, From, Lang, Rsm)}]},
+                                 children = iq_disco_items(MucHost, From, Rsm)}]},
     mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION)).
 
 -spec can_use_nick(host_type(), jid:server(), jid:jid(), nick()) -> boolean().
@@ -929,21 +929,20 @@ features() ->
     [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD, ?NS_CONFERENCE].
 
 %% Disco for rooms
--spec iq_disco_items(muc_host(), jid:jid(), ejabberd:lang(),
-                     Rsm :: none | jlib:rsm_in()) -> any().
-iq_disco_items(MucHost, From, Lang, none) ->
+-spec iq_disco_items(muc_host(), jid:jid(), Rsm :: none | jlib:rsm_in()) -> any().
+iq_disco_items(MucHost, From, none) ->
     AllRooms = get_vh_rooms(MucHost) ++ get_persistent_vh_rooms(MucHost),
     Rooms = lists:ukeysort(1, lists:map(fun record_to_simple/1, AllRooms)),
-    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From, Lang) end, Rooms),
+    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From) end, Rooms),
     lists:ukeysort(3, BareRooms);
-iq_disco_items(MucHost, From, Lang, Rsm) ->
+iq_disco_items(MucHost, From, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(MucHost, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
-    lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From, Lang) end, Rooms) ++ RsmOut.
+    lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From) end, Rooms) ++ RsmOut.
 
-room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
+room_to_item({{Name, _}, Pid}, MucHost, From) when is_pid(Pid) ->
      case catch gen_fsm_compat:sync_send_all_state_event(
-                  Pid, {get_disco_item, From, Lang}, 100) of
+                  Pid, {get_disco_item, From}, 100) of
          {item, Desc} ->
              {true,
               #xmlel{name = <<"item">>,
@@ -952,7 +951,7 @@ room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
          _ ->
              false
      end;
-room_to_item({{Name, _}, _}, MucHost, _, _) ->
+room_to_item({{Name, _}, _}, MucHost, _) ->
      {true,
      #xmlel{name = <<"item">>,
             attrs = #{<<"jid">> => jid:to_binary({Name, MucHost, <<>>}),
