@@ -37,11 +37,11 @@
 -export([user_send_xmlel/3]).
 
 %% API
--export([try_register/6,
+-export([try_register/5,
          process_ip_access/1,
          process_welcome_message/1]).
 
--ignore_xref([try_register/6]).
+-ignore_xref([try_register/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -249,9 +249,9 @@ register_or_change_password(HostType, Credentials, ClientJID, #jid{lserver = Ser
     {Username, Password} = Credentials,
     case inband_registration_and_cancelation_allowed(HostType, ServerDomain, ClientJID) of
         true ->
-            #iq{sub_el = Children, lang = Lang} = IQ,
+            #iq{sub_el = Children} = IQ,
             try_register_or_set_password(HostType, Username, ServerDomain, Password,
-                                         ClientJID, IQ, Children, IPAddr, Lang);
+                                         ClientJID, IQ, Children, IPAddr);
         false ->
             %% This is not described in XEP 0077.
             error_response(IQ, mongoose_xmpp_errors:forbidden())
@@ -311,12 +311,12 @@ process_iq_get(_HostType, From, _To, #iq{sub_el = Child} = IQ, _Source) ->
                                        | QuerySubels]}]}.
 
 try_register_or_set_password(HostType, LUser, Server, Password, #jid{luser = LUser, lserver = Server} = UserJID,
-                             IQ, SubEl, _Source, _Lang) ->
+                             IQ, SubEl, _Source) ->
     try_set_password(HostType, UserJID, Password, IQ, SubEl);
-try_register_or_set_password(HostType, LUser, Server, Password, _From, IQ, SubEl, Source, Lang) ->
+try_register_or_set_password(HostType, LUser, Server, Password, _From, IQ, SubEl, Source) ->
     case check_timeout(Source) of
         true ->
-            case try_register(HostType, LUser, Server, Password, Source, Lang) of
+            case try_register(HostType, LUser, Server, Password, Source) of
                 ok ->
                     IQ#iq{type = result, sub_el = [SubEl]};
                 {error, Error} ->
@@ -346,7 +346,7 @@ try_set_password(HostType, #jid{} = UserJID, Password, IQ, SubEl) ->
             error_response(IQ, [SubEl, mongoose_xmpp_errors:not_acceptable(ErrText)])
     end.
 
-try_register(HostType, User, Server, Password, SourceRaw, _Lang) ->
+try_register(HostType, User, Server, Password, SourceRaw) ->
     case jid:is_nodename(User) of
         false ->
             {error, mongoose_xmpp_errors:bad_request()};
