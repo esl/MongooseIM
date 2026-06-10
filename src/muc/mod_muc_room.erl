@@ -4350,8 +4350,8 @@ do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
 -spec route_nick_message(routed_nick_message(), state()) -> state().
 route_nick_message(#routed_nick_message{decide = {expulse_sender, _Reason},
     packet = Packet, from = From}, StateData) ->
-    ErrorText = <<"This participant is kicked from the room because he",
-                  "sent an error message to another participant">>,
+    ErrorText = <<"This participant is kicked from the room because he"
+                  " sent an error message to another participant">>,
     ?LOG_DEBUG(ls(#{what => muc_expulse_sender, text => ErrorText,
                     user => From#jid.luser, exml_packet => Packet}, StateData)),
     expulse_participant(Packet, From, StateData, ErrorText);

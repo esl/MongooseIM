@@ -695,7 +695,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
                                    host_type => HostType,
                                    room => Room, sub_host => MucHost,
                                    reason => Reason, acc => Acc}),
-                    ErrText = <<"Service is temporary unavailable">>,
+                    ErrText = <<"Service is temporarily unavailable">>,
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable(ErrText)),
                     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
@@ -725,7 +725,7 @@ get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Pac
             ?LOG_WARNING(#{what => muc_send_service_unavailable,
                            room => Room, host_type => HostType, sub_host => MucHost,
                            reason => Reason, acc => Acc}),
-            ErrText = <<"Service is temporary unavailable">>,
+            ErrText = <<"Service is temporarily unavailable">>,
             {Acc1, Err} = jlib:make_error_reply(
                     Acc, Packet, mongoose_xmpp_errors:service_unavailable(ErrText)),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
