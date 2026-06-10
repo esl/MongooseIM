@@ -66,11 +66,11 @@ Moreover, server-to-server connections do not support dynamic domains. See the c
 This domain is used as a default when one cannot be determined, for example when sending XMPP stream errors to unauthenticated clients.
 
 ### `general.language`
-* **Syntax:** string representing the two-letter language code.
+* **Syntax:** string with a language code.
 * **Default:** `"en"`
 * **Example:** `language = "pl"`
 
-Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
+The default language tag advertised as `xml:lang` in the server's stream header. It is also used as the fallback stream language when a connecting client does not provide `xml:lang` in its own stream header.
 
 ## Access management
 

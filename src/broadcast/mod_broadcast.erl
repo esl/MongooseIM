@@ -180,7 +180,7 @@ ensure_rdbms_auth_enabled(HostType) ->
                     host_type => HostType})
     end.
 
-ensure_minimum_lease_time(HostType, #{lease_time := LeaseTime})
+ensure_minimum_lease_time(_HostType, #{lease_time := LeaseTime})
   when LeaseTime >= ?MIN_LEASE_TIME_SEC ->
     ok;
 ensure_minimum_lease_time(HostType, #{lease_time := LeaseTime}) ->

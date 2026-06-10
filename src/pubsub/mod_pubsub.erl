@@ -3841,7 +3841,7 @@ get_configure_xfields(Options, Groups) ->
 %%<li>The node has no configuration options.</li>
 %%<li>The specified node does not exist.</li>
 %%</ul>
-set_configure(Host, Node, From, #{action_el := ActionEl, lang := Lang}) ->
+set_configure(Host, Node, From, #{action_el := ActionEl}) ->
     case mongoose_data_forms:find_and_parse_form(ActionEl) of
         #{type := <<"cancel">>} ->
             {result, []};

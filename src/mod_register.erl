@@ -311,8 +311,8 @@ process_iq_get(_HostType, From, _To, #iq{sub_el = Child} = IQ, _Source) ->
                                        | QuerySubels]}]}.
 
 try_register_or_set_password(HostType, LUser, Server, Password, #jid{luser = LUser, lserver = Server} = UserJID,
-                             IQ, SubEl, _Source, Lang) ->
-    try_set_password(HostType, UserJID, Password, IQ, SubEl, Lang);
+                             IQ, SubEl, _Source, _Lang) ->
+    try_set_password(HostType, UserJID, Password, IQ, SubEl);
 try_register_or_set_password(HostType, LUser, Server, Password, _From, IQ, SubEl, Source, Lang) ->
     case check_timeout(Source) of
         true ->
@@ -328,7 +328,7 @@ try_register_or_set_password(HostType, LUser, Server, Password, _From, IQ, SubEl
     end.
 
 %% @doc Try to change password and return IQ response
-try_set_password(HostType, #jid{} = UserJID, Password, IQ, SubEl, Lang) ->
+try_set_password(HostType, #jid{} = UserJID, Password, IQ, SubEl) ->
     case is_strong_password(HostType, Password) of
         true ->
             case ejabberd_auth:set_password(UserJID, Password) of
@@ -346,7 +346,7 @@ try_set_password(HostType, #jid{} = UserJID, Password, IQ, SubEl, Lang) ->
             error_response(IQ, [SubEl, mongoose_xmpp_errors:not_acceptable(ErrText)])
     end.
 
-try_register(HostType, User, Server, Password, SourceRaw, Lang) ->
+try_register(HostType, User, Server, Password, SourceRaw, _Lang) ->
     case jid:is_nodename(User) of
         false ->
             {error, mongoose_xmpp_errors:bad_request()};
@@ -361,11 +361,11 @@ try_register(HostType, User, Server, Password, SourceRaw, Lang) ->
                 {_, deny} ->
                     {error, mongoose_xmpp_errors:forbidden()};
                 {allow, allow} ->
-                    verify_password_and_register(HostType, JID, Password, SourceRaw, Lang)
+                    verify_password_and_register(HostType, JID, Password, SourceRaw)
             end
     end.
 
-verify_password_and_register(HostType, #jid{} = JID, Password, SourceRaw, Lang) ->
+verify_password_and_register(HostType, #jid{} = JID, Password, SourceRaw) ->
     case is_strong_password(HostType, Password) of
         true ->
             case ejabberd_auth:try_register(JID, Password) of

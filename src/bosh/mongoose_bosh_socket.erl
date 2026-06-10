@@ -866,7 +866,7 @@ stream_start(From, To) ->
                     attrs = #{<<"from">> => From,
                               <<"to">> => To,
                               <<"version">> => <<"1.0">>,
-                              <<"xml:lang">> => <<"en">>,
+                              <<"xml:lang">> => ?MYLANG,
                               <<"xmlns">> => ?NS_CLIENT,
                               <<"xmlns:stream">> => ?NS_STREAM}}.
 
