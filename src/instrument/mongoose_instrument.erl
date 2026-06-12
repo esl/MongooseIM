@@ -24,6 +24,7 @@
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type(),
                     connection_type => mongoose_listener:connection_type(),
+                    listener_id => binary(),
                     function => atom(),
                     cache_name => atom(),
                     pool_id => atom(),
@@ -44,7 +45,9 @@
                     loglevel => logger:level(),
                     probe => probe_config()}.
 -type probe_config() :: #{module := module(),
-                          interval => pos_integer()}.
+                          interval => pos_integer(),
+                          extra => extra()}.
+-type extra() :: map().
 -type handler_key() :: atom(). % key in the `instrumentation' section of the config file
 -type handler_fun() :: fun((event_name(), labels(), config(), measurements()) -> any()).
 -type handlers() :: {[handler_fun()], config()}.
@@ -62,7 +65,8 @@
 -optional_callbacks([config_spec/0, start/1, stop/1]).
 
 -export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
-              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0]).
+              spec/0, handlers/0, metrics/0, metric_name/0, metric_type/0, probe_config/0,
+              extra/0]).
 
 %% API
 
@@ -170,7 +174,7 @@ remove_handler(Key) ->
 
 -type state() :: #{events := event_map(), probe_timers := probe_timer_map()}.
 -type event_map() :: #{event_name() => #{labels() => handlers()}}.
--type probe_timer_map() :: #{{event_name(), labels()} => timer:tref()}.
+-type probe_timer_map() :: #{{event_name(), labels()} => probe_config()}.
 
 -spec init([]) -> {ok, state()}.
 init([]) ->
@@ -191,14 +195,14 @@ handle_call({set_up, EventName, Labels, Config}, _From,
         NewEvents = #{} ->
             update_if_persisted(Events, NewEvents),
             NewProbeTimers = start_probe_if_needed(EventName, Labels, Config, ProbeTimers),
-            {reply, ok, #{events => NewEvents, probe_timers => NewProbeTimers}}
+            {reply, ok, State#{events := NewEvents, probe_timers := NewProbeTimers}}
     end;
 handle_call({tear_down, EventName, Labels}, _From,
-            #{events := Events, probe_timers := ProbeTimers}) ->
+            #{events := Events, probe_timers := ProbeTimers} = State) ->
     NewProbeTimers = deregister_probe_timer(EventName, Labels, ProbeTimers),
     NewEvents = deregister_event(EventName, Labels, Events),
     update_if_persisted(Events, NewEvents),
-    {reply, ok, #{events => NewEvents, probe_timers => NewProbeTimers}};
+    {reply, ok, State#{events := NewEvents, probe_timers := NewProbeTimers}};
 handle_call({add_handler, Key, ConfigOpts}, _From, State = #{events := Events}) ->
     case mongoose_config:lookup_opt([instrumentation, Key]) of
         {error, not_found} ->

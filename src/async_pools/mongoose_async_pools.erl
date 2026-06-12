@@ -9,7 +9,7 @@
 -ignore_xref([start_link/3]).
 
 % mongoose_instrument_probe
--export([probe/2]).
+-export([probe/3]).
 
 % API
 -export([start_pool/3, stop_pool/2]).
@@ -189,8 +189,8 @@ instrumentation(HostType, PoolId) ->
      {async_pool_queue_lengths, #{pool_id => PoolId, host_type => HostType},
       #{probe => #{module => ?MODULE}, metrics => #{total => gauge}}}].
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(), mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
-probe(async_pool_queue_lengths, #{pool_id := PoolId, host_type := HostType}) ->
+probe(async_pool_queue_lengths, #{pool_id := PoolId, host_type := HostType}, _Extra) ->
     PoolName = pool_name(HostType, PoolId),
     #{total => mongoose_wpool:workers_queue_len(PoolName)}.

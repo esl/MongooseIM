@@ -181,6 +181,8 @@ exometer_labels(#{pool_id := PoolId} = Labels) when map_size(Labels) =:= 1 ->
     [PoolId];
 exometer_labels(#{connection_type := ConnectionType} = Labels) when map_size(Labels) =:= 1 ->
     [ConnectionType];
+exometer_labels(#{listener_id := ListenerId} = Labels) when map_size(Labels) =:= 1 ->
+    [ListenerId];
 exometer_labels(#{cache_name := CacheName} = Labels) when map_size(Labels) =:= 1 ->
     [CacheName];
 exometer_labels(#{} = Labels) when map_size(Labels) =:= 0 ->

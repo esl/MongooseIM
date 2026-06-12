@@ -235,6 +235,12 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 All of these metrics are updated periodically. The interval at which they are probed can be configured with the [`instrumentation.probe_interval`](../configuration/instrumentation.md#instrumentationprobe_interval) option.
 
+The following metrics include labels:
+
+* `tls_cert_remaining_days` - `ListenerId` identifying the listener (format: `<ip-address>@<protocol>/<port>`)
+
+Since Exometer does not support labels, they are included in the metrics names.
+
 === "Prometheus"
 
     | Name | Type | Description |
@@ -247,6 +253,7 @@ All of these metrics are updated periodically. The interval at which they are pr
     | `system_tcp_ports_count` | gauge | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
     | `system_process_queue_lengths_total` | gauge | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
     | `system_dist_data_Metric` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
+    | `tls_cert_remaining_days` | gauge | Number of days until the certificate expires. Negative values indicate that the certificate has already expired. Special values: `-32768`: invalid certificate; `-32767`: certificate is not yet valid. |
 
 === "Exometer"
 
@@ -260,6 +267,7 @@ All of these metrics are updated periodically. The interval at which they are pr
     | `[global, system_tcp_ports, count]` | gauge | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests. A constantly growing value might indicate a connection leak. |
     | `[global, system_process_queue_lengths, total]` | probe | The total number of incoming messages queued in the Erlang processes. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is most likely overloaded with incoming data. |
     | `[global, system_dist_data, Metric]` | gauge | Network stats for Erlang distributed communication. `Metric` can be `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend` or `connections`. |
+    | `[global, tls_cert_remaining_days, ListenerId, count]` | gauge | Number of days until the certificate expires. Negative values indicate that the certificate has already expired. Special values: `-32768`: invalid certificate; `-32767`: certificate is not yet valid. |
 
 ### XMPP traffic metrics
 
