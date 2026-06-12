@@ -79,6 +79,9 @@
 -export_type([options/0, init_args/0, connection_type/0,
               transport_module/0, connection_details/0, id/0]).
 
+-define(INVALID_CERTIFICATE, -32768).
+-define(NOT_YET_VALID_CERTIFICATE, -32767).
+
 %% API
 
 -spec start() -> ok.
@@ -148,11 +151,11 @@ probe(tls_cert_remaining_days, _Labels, #{tls := #{certfile := Certfile}}) ->
     Count =
         case cert_utils:get_validity(PemEntry) of
             error ->
-                -32768;
+                ?INVALID_CERTIFICATE;
             {NotBefore, NotAfter} ->
                 Now = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
                 if
-                    Now < NotBefore -> -32767;
+                    Now < NotBefore -> ?NOT_YET_VALID_CERTIFICATE;
                     true -> (NotAfter - Now) div (24 * 60 * 60)
                 end
         end,
