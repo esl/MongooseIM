@@ -20,7 +20,7 @@ done
 
 args=()
 case "$(basename "$req_file")" in
-  future_cert.csr)
+  not_yet_valid_cert.csr)
     # Valid from 01.01.3000
     args+=(-startdate 30000101000000Z);;
   expired_cert.csr)

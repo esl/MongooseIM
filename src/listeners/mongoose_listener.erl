@@ -143,15 +143,16 @@ default_instrumentation(_Opts) ->
 probe(tls_cert_remaining_days, _Labels, #{tls := #{certfile := Certfile}}) ->
     {ok, PemBin} = file:read_file(Certfile),
     [PemEntry | _] = public_key:pem_decode(PemBin),
+    % Certificate validity in days:
+    % -32768 - invalid certificate, -32767 - not yet valid, else days to expiry (negative indicates expired)
     Count =
         case cert_utils:get_validity(PemEntry) of
             error ->
-                -1;
+                -32768;
             {NotBefore, NotAfter} ->
                 Now = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
                 if
-                    Now < NotBefore -> -1;
-                    Now > NotAfter -> 0;
+                    Now < NotBefore -> -32767;
                     true -> (NotAfter - Now) div (24 * 60 * 60)
                 end
         end,
