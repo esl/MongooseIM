@@ -67,6 +67,7 @@ nav:
   - 'Getting Started':
       - 'Installation': 'getting-started/Installation.md'
       - 'Quick Setup': 'getting-started/Quick-setup.md'
+      - 'Docker': 'getting-started/Docker.md'
   - 'User Guide':
       - 'Features': 'user-guide/Features.md'
       - 'Supported Standards': 'user-guide/Supported-standards.md'
