@@ -3324,7 +3324,7 @@ get_config(StateData, From) ->
      boolxfield(<<"Allow users to query other users">>,
              <<"allow_query_users">>,
               Config#config.allow_query_users),
-     boolxfield(<<"Allow users to send invites">>,
+     boolxfield(<<"Allow members to invite others">>,
              <<"muc#roomconfig_allowinvites">>,
               Config#config.allow_user_invites),
      boolxfield(<<"Allow users to enter room with multiple sessions">>,
@@ -3857,10 +3857,10 @@ check_invitation(FromJID, Els, StateData) ->
 -spec unsafe_check_invitation(jid:jid(), [exml:child()], state()) -> {ok, [jid:jid()]}.
 unsafe_check_invitation(FromJID, Els,
                         StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
-    FAffiliation = get_affiliation(FromJID, StateData),
-    CanInvite = (StateData#state.config)#config.allow_user_invites
-                orelse (FAffiliation == admin)
-                orelse (FAffiliation == owner),
+    FRole = get_role(FromJID, StateData),
+    CanInvite = (FRole == moderator)
+                orelse (lists:member(FRole, [participant, visitor])
+                        andalso (StateData#state.config)#config.allow_user_invites),
     case CanInvite of
         false ->
             throw({error, mongoose_xmpp_errors:forbidden()});
