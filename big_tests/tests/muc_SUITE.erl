@@ -201,7 +201,8 @@ groups() ->
                                   admin_mo_revoke,
                                   admin_mo_invite,
                                   admin_mo_invite_with_reason,
-                                  admin_mo_invite_mere
+                                  admin_mo_invite_mere,
+                                  admin_mo_invite_allowed
                                  ]},
          {occupant, [parallel], [
                                  %nick registration in a room is not implemented and will not be tested
@@ -2147,6 +2148,32 @@ admin_mo_invite_mere(ConfigIn) ->
         Error = escalus:wait_for_stanza(Bob),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error)
+    end).
+
+%%  A member may invite when allow_user_invites is enabled
+admin_mo_invite_allowed(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    RoomOpts = admin_mo_room_opts() ++ [{allow_user_invites, true}],
+    story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, Alice, Bob, Kate) ->
+        %% Make Bob a member
+        Items = [{escalus_utils:get_short_jid(Bob), <<"member">>}],
+        escalus:send(Alice, stanza_set_affiliations(?config(room,Config), Items)),
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob gets an invitation
+        escalus:wait_for_stanza(Bob),
+
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob invites Kate
+        escalus:send(Bob, stanza_mediated_invitation(?config(room,Config), Kate)),
+
+        %% Kate receives the invitation
+        Inv = escalus:wait_for_stanza(Kate),
+        is_invitation(Inv),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Inv)
     end).
 
 %%--------------------------------------------------------------------
