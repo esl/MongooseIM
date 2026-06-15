@@ -42,7 +42,7 @@
          rsm_decode/1,
          stanza_error/3,
          stanza_error/5,
-         stanza_errort/5,
+         stanza_errort/4,
          stream_error/1,
          stream_errort/3,
          maybe_append_delay/4,
@@ -405,10 +405,8 @@ stanza_error(Code, Type, Condition) ->
 -spec stanza_errort(Code :: binary(),
                     Type :: binary(),
                     Condition :: binary(),
-                    Lang :: ejabberd:lang(),
                     Text :: binary()) -> exml:element().
-stanza_errort(Code, Type, Condition, Lang, Text) ->
-  Txt = service_translations:do(Lang, Text),
+stanza_errort(Code, Type, Condition, Text) ->
   #xmlel{ name = <<"error">>
        , attrs = #{<<"code">> => Code, <<"type">> => Type}
        , children = [ #xmlel{ name = Condition
@@ -416,7 +414,7 @@ stanza_errort(Code, Type, Condition, Lang, Text) ->
                              }
                     , #xmlel{ name = <<"text">>
                             , attrs = #{<<"xmlns">> => ?NS_STANZAS}
-                            , children = [#xmlcdata{ content = Txt }]
+                            , children = [#xmlcdata{ content = Text }]
                              }]
         }.
 
@@ -433,14 +431,13 @@ stream_error(Condition) ->
                     Lang :: ejabberd:lang(),
                     Text :: binary()) -> exml:element().
 stream_errort(Condition, Lang, Text) ->
-  Txt = service_translations:do(Lang, Text),
   #xmlel{ name = <<"stream:error">>
        , children = [ #xmlel{ name = Condition
                             , attrs = #{<<"xmlns">> => ?NS_STREAMS} }
                     , #xmlel{ name = <<"text">>
                             , attrs = #{ <<"xml:lang">> => Lang
                                        , <<"xmlns">> => ?NS_STREAMS}
-                            , children = [ #xmlcdata{ content = Txt} ]}
+                            , children = [ #xmlcdata{ content = Text} ]}
                      ]
         }.
 

@@ -160,10 +160,10 @@ parse_ts(BinTS) ->
                     MaybePrivate :: boolean()) -> jlib:iq().
 fetch_markers(IQ, _, _, error, _, _, _) ->
     IQ#iq{type = error,
-          sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, <<"invalid-peer">>)]};
+          sub_el = [mongoose_xmpp_errors:bad_request(<<"invalid-peer">>)]};
 fetch_markers(IQ, _, _, _, _, error, _) ->
     IQ#iq{type = error,
-          sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, <<"invalid-timestamp">>)]};
+          sub_el = [mongoose_xmpp_errors:bad_request(<<"invalid-timestamp">>)]};
 fetch_markers(IQ, Acc, From, Peer, Thread, TS, Private) ->
     HostType = mongoose_acc:host_type(Acc),
     Markers = mod_smart_markers_backend:get_conv_chat_marker(HostType, From, Peer, Thread, TS, Private),

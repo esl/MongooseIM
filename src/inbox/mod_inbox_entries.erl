@@ -170,7 +170,7 @@ build_query_children(Acc, Entry, _IQ, only_properties) ->
 -spec return_error(mongoose_acc:t(), jlib:iq(), bad_request | item_not_found, binary()) ->
     {mongoose_acc:t(), jlib:iq()}.
 return_error(Acc, IQ, Type, Msg) when is_binary(Msg) ->
-    {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Type(<<"en">>, Msg)]}}.
+    {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Type(Msg)]}}.
 
 -spec form_to_query(mongoose_acc:t(), [exml:element()], map()) -> entry_query() | {error, binary()}.
 form_to_query(_, [], Acc) when map_size(Acc) == 0 ->

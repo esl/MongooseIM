@@ -95,7 +95,7 @@ user_send_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc),
     case {get_presence_type(Acc), jid:are_bare_equal(FromJid, ToJid)} of
         {{error, invalid_presence}, _} ->
-            handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData);
+            handle_invalid_presence_type(Acc, FromJid, ToJid, Packet);
         {Type, true} ->
             Acc1 = presence_update(Acc, FromJid, ToJid, Packet, StateData, Type),
             {ok, Acc1};
@@ -110,18 +110,17 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     case {get_presence_type(Acc), get_mod_state(StateData)} of
         {{error, invalid_presence}, _} ->
             {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc),
-            handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData);
+            handle_invalid_presence_type(Acc, FromJid, ToJid, Packet);
         {_, {error, not_found}} ->
             {stop, Acc};
         {Type, Presences} ->
             handle_user_received_presence(Acc, Presences, Type)
     end.
 
--spec handle_invalid_presence_type(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data()) ->
+-spec handle_invalid_presence_type(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
     mongoose_c2s_hooks:result().
-handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData) ->
-    Lang = mongoose_c2s:get_lang(StateData),
-    Error = mongoose_xmpp_errors:bad_request(Lang, <<"Invalid presence type">>),
+handle_invalid_presence_type(Acc, FromJid, ToJid, Packet) ->
+    Error = mongoose_xmpp_errors:bad_request(<<"Invalid presence type">>),
     Reply = jlib:make_error_reply(Packet, Error),
     mongoose_router:route(mongoose_acc:update(ToJid, FromJid, Reply, Acc)),
     {stop, Acc}.

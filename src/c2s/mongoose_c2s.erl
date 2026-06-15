@@ -109,9 +109,9 @@ handle_event(internal, #xmlstreamend{}, _, StateData) ->
     send_trailer(StateData),
     {stop, {shutdown, stream_end}};
 handle_event(internal, #xmlstreamerror{name = <<"element too big">> = Err}, _, StateData) ->
-    c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(StateData#c2s_data.lang, Err));
+    c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(Err));
 handle_event(internal, #xmlstreamerror{name = Err}, _, StateData) ->
-    c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(StateData#c2s_data.lang, Err));
+    c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(Err));
 handle_event(internal,
              #xmlel{name = <<"starttls">>} = El,
              {wait_for_feature_before_auth, SaslAcc, Retries},
@@ -405,7 +405,7 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
                                               streamid = new_stream_id()},
             {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout(LOpts)};
         {error, already_tls_connection} ->
-            ErrorStanza = mongoose_xmpp_errors:bad_request(StateData#c2s_data.lang, <<"bad_config">>),
+            ErrorStanza = mongoose_xmpp_errors:bad_request(<<"bad_config">>),
             Err = jlib:make_error_reply(El, ErrorStanza),
             send_element_from_server_jid(StateData, Err),
             maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslAcc, Retries});
@@ -485,9 +485,8 @@ handle_sasl_failure(#c2s_data{host_type = HostType, lserver = LServer} = StateDa
     maybe_retry_state(StateData, {wait_for_feature_before_auth, NewSaslAcc, Retries}).
 
 -spec handle_sasl_error(data(), mongoose_acc:t(), mongoose_c2s_sasl:error(), retries()) -> fsm_res().
-handle_sasl_error(#c2s_data{lang = Lang} = StateData, _SaslAcc,
-                  #{type := Type, text := Text}, _Retries) ->
-    Error = mongoose_xmpp_errors:Type(Lang, Text),
+handle_sasl_error(StateData, _SaslAcc, #{type := Type, text := Text}, _Retries) ->
+    Error = mongoose_xmpp_errors:Type(Text),
     c2s_stream_error(StateData, Error).
 
 -spec handle_sasl_abort(data(), mongoose_acc:t(), retries()) -> fsm_res().
@@ -627,12 +626,12 @@ maybe_retry_state(StateData = #c2s_data{listener_opts = LOpts}, C2SState) ->
 -spec handle_cast(data(), state(), term()) -> fsm_res().
 handle_cast(StateData, _C2SState, {exit, {replaced, _} = Reason}) ->
     ReasonText = <<"Replaced by new connection">>,
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(StateData#c2s_data.lang, ReasonText),
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(ReasonText),
     send_element_from_server_jid(StateData, StreamConflict),
     send_trailer(StateData),
     {stop, {shutdown, Reason}};
 handle_cast(StateData, _C2SState, {exit, Reason}) when is_binary(Reason) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(StateData#c2s_data.lang, Reason),
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(Reason),
     send_element_from_server_jid(StateData, StreamConflict),
     send_trailer(StateData),
     {stop, {shutdown, Reason}};

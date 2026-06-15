@@ -97,8 +97,7 @@ produce_response(Request, Status, DefaultAction, Elements) ->
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record.
 -spec produce_response(response()) -> exml:element().
-produce_response(#adhoc_response{lang = _Lang,
-                                 node = Node,
+produce_response(#adhoc_response{node = Node,
                                  session_id = ProvidedSessionID,
                                  status = Status,
                                  default_action = DefaultAction,

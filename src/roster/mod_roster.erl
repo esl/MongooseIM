@@ -185,11 +185,11 @@ hooks(HostType) ->
 process_iq(Acc, From = #jid{lserver = LServer, luser = LUser},
            To = #jid{lserver = LServer, luser = LUser}, IQ, _Extra) ->
     process_local_iq(Acc, From, To, IQ);
-process_iq(Acc, _From, _To, IQ = #iq{lang = Lang, sub_el = SubEl}, _Extra) ->
+process_iq(Acc, _From, _To, IQ = #iq{sub_el = SubEl}, _Extra) ->
     %% Error type 'forbidden' is specified in Section 2.3.3 of RFC6121 for iq set.
     %% The behaviour is unspecified for iq get, but it makes sense to handle them consistently.
     ErrorMsg = <<"It is forbidden to query the roster of another user">>,
-    ErrorEl = mongoose_xmpp_errors:forbidden(Lang, ErrorMsg),
+    ErrorEl = mongoose_xmpp_errors:forbidden(ErrorMsg),
     {Acc, IQ#iq{type = error, sub_el = [SubEl, ErrorEl]}}.
 
 -spec process_local_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq()) ->

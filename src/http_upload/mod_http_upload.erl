@@ -136,8 +136,8 @@ supported_features() ->
 -spec process_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                  IQ :: jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
-process_iq(Acc, _From, _To, IQ = #iq{type = set, lang = Lang, sub_el = SubEl}, _Extra) ->
-    Error = mongoose_xmpp_errors:not_allowed(Lang, <<"IQ set is not allowed for HTTP upload">>),
+process_iq(Acc, _From, _To, IQ = #iq{type = set, sub_el = SubEl}, _Extra) ->
+    Error = mongoose_xmpp_errors:not_allowed(<<"IQ set is not allowed for HTTP upload">>),
     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
 process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -159,14 +159,14 @@ process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
 -spec process_disco_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                        IQ :: jlib:iq(), map()) ->
           {mongoose_acc:t(), jlib:iq()}.
-process_disco_iq(Acc, _From, _To, #iq{type = set, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
+process_disco_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     ErrorMsg = <<"IQ set is not allowed for service discovery">>,
-    Error = mongoose_xmpp_errors:not_allowed(Lang, ErrorMsg),
+    Error = mongoose_xmpp_errors:not_allowed(ErrorMsg),
     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
-process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
+process_disco_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     case exml_query:attr(SubEl, <<"node">>, <<>>) of
         <<>> ->
-            Identity = mongoose_disco:identities_to_xml(disco_identity(Lang)),
+            Identity = mongoose_disco:identities_to_xml(disco_identity()),
             Info = disco_info(mongoose_acc:host_type(Acc)),
             Features = mongoose_disco:features_to_xml([?NS_HTTP_UPLOAD_030]),
             {Acc, IQ#iq{type = result,
@@ -175,7 +175,7 @@ process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} =
                                          children = Identity ++ Info ++ Features}]}};
         _ ->
             ErrorMsg = <<"Node is not supported by HTTP upload">>,
-            Error = mongoose_xmpp_errors:item_not_found(Lang, ErrorMsg),
+            Error = mongoose_xmpp_errors:item_not_found(ErrorMsg),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
@@ -183,8 +183,8 @@ process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} =
     Acc :: mongoose_disco:item_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
-disco_local_items(Acc = #{host_type := HostType, to_jid := #jid{lserver = Domain}, node := <<>>, lang := Lang}, _, _) ->
-    {ok, mongoose_disco:add_items([#{jid => subdomain(HostType, Domain), name => my_disco_name(Lang)}], Acc)};
+disco_local_items(Acc = #{host_type := HostType, to_jid := #jid{lserver = Domain}, node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_items([#{jid => subdomain(HostType, Domain), name => my_disco_name()}], Acc)};
 disco_local_items(Acc, _, _) ->
     {ok, Acc}.
 
@@ -212,11 +212,11 @@ get_urls_helper(HostType, Filename, Size, ContentType, Opts) ->
             file_too_large_error
     end.
 
--spec disco_identity(ejabberd:lang()) -> [mongoose_disco:identity()].
-disco_identity(Lang) ->
+-spec disco_identity() -> [mongoose_disco:identity()].
+disco_identity() ->
     [#{category => <<"store">>,
        type => <<"file">>,
-       name => my_disco_name(Lang)}].
+       name => my_disco_name()}].
 
 -spec disco_info(mongooseim:host_type()) -> [exml:element()].
 disco_info(HostType) ->
@@ -234,9 +234,9 @@ subdomain(HostType, Domain) ->
 subdomain_pattern(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, host).
 
--spec my_disco_name(ejabberd:lang()) -> binary().
-my_disco_name(Lang) ->
-    service_translations:do(Lang, <<"HTTP File Upload">>).
+-spec my_disco_name() -> binary().
+my_disco_name() ->
+    <<"HTTP File Upload">>.
 
 
 -spec compose_iq_reply(IQ :: jlib:iq(),

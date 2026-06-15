@@ -564,10 +564,9 @@ discard_warn_sender(Msgs) ->
       fun({Acc, #offline_msg{from=From, to=To, packet=Packet}}) ->
               ErrText = <<"Your contact offline message queue is full."
                           " The message has been discarded.">>,
-              Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
               mod_amp:check_packet(Acc, offline_failed),
               {Acc1, Err} = jlib:make_error_reply(
-                      Acc, Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
+                      Acc, Packet, mongoose_xmpp_errors:resource_constraint(ErrText)),
               mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
       end, Msgs).
 

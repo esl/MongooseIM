@@ -337,8 +337,7 @@ foreign_event(Acc,
     #sm_state{buffer_size = BufferSize, buffer_max = BufferMax} = get_mod_state(StateData),
     case is_buffer_full(BufferSize, BufferMax) of
         true ->
-            Lang = mongoose_c2s:get_lang(StateData),
-            Err = mongoose_xmpp_errors:stream_resource_constraint(Lang, <<"too many unacked stanzas">>),
+            Err = mongoose_xmpp_errors:stream_resource_constraint(<<"too many unacked stanzas">>),
             mongoose_c2s:c2s_stream_error(StateData, Err),
             {stop, mongoose_c2s_acc:to_acc(Acc, hard_stop, too_many_unacked_stanzas)};
         false ->
@@ -494,7 +493,7 @@ handle_a(Acc, #{c2s_data := StateData}, El) ->
         {{error, not_found}, _} ->
             {ok, Acc};
         {_, invalid_h_attribute} ->
-            Stanza = mongoose_xmpp_errors:policy_violation(?MYLANG, <<"Invalid h attribute">>),
+            Stanza = mongoose_xmpp_errors:policy_violation(<<"Invalid h attribute">>),
             mongoose_c2s:c2s_stream_error(StateData, Stanza),
             {stop, mongoose_c2s_acc:to_acc(Acc, hard_stop, invalid_h_attribute)};
         {Handler, H} ->
@@ -519,7 +518,7 @@ do_handle_ack(#sm_state{counter_out = OldAcked,
         true ->
             ErrorStanza0 = #xmlel{children = Children}
                 = mongoose_xmpp_errors:undefined_condition(
-                    ?MYLANG, <<"You acknowledged more stanzas that what has been sent">>),
+                    <<"You acknowledged more stanzas that what has been sent">>),
             HandledCountField = mod_stream_management_stanzas:sm_handled_count_too_high_stanza(Acked, OldAcked),
             ErrorStanza = ErrorStanza0#xmlel{children = [HandledCountField | Children]},
             {error, ErrorStanza, {shutdown, sm_handled_count_too_high_stanza}};

@@ -634,15 +634,15 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %% disco hooks handling functions
 %%
 
--spec identities(jid:lserver(), ejabberd:lang()) -> [mongoose_disco:identity()].
-identities(Host, Lang) ->
-    pubsub_identity(Lang) ++ node_identity(Host, ?PEPNODE) ++ node_identity(Host, ?PUSHNODE).
+-spec identities(jid:lserver()) -> [mongoose_disco:identity()].
+identities(Host) ->
+    pubsub_identity() ++ node_identity(Host, ?PEPNODE) ++ node_identity(Host, ?PUSHNODE).
 
--spec pubsub_identity(ejabberd:lang()) -> [mongoose_disco:identity()].
-pubsub_identity(Lang) ->
+-spec pubsub_identity() -> [mongoose_disco:identity()].
+pubsub_identity() ->
     [#{category => <<"pubsub">>,
        type => <<"service">>,
-       name => service_translations:do(Lang, <<"Publish-Subscribe">>)}].
+       name => <<"Publish-Subscribe">>}].
 
 -spec node_identity(jid:lserver(), binary()) -> [mongoose_disco:identity()].
 node_identity(Host, Type) ->
@@ -953,11 +953,11 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
          #jid{luser = <<>>, lresource = <<>>} = To,
          #xmlel{ name = <<"iq">> } = Packet) ->
     case jlib:iq_query_info(Packet) of
-        #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
+        #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = exml_query:attr(SubEl, <<"node">>, <<>>),
             InfoXML = mongoose_disco:get_info(ServerHost, ?MODULE, <<>>, <<>>),
-            Res = case iq_disco_info(ServerHost, Host, Node, From, Lang) of
+            Res = case iq_disco_info(ServerHost, Host, Node, From) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
                                                sub_el =
@@ -1004,12 +1004,12 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
                           make_error_reply(Packet, Error)
                   end,
             mongoose_router:route(mongoose_acc:update(To, From, Res, Acc));
-        #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, lang = Lang, sub_el = _SubEl} = IQ ->
+        #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, sub_el = _SubEl} = IQ ->
             Res = IQ#iq{type = result,
                         sub_el =
                         [#xmlel{name = <<"vCard">>,
                                 attrs = #{<<"xmlns">> => XMLNS},
-                                children = iq_get_vcard(Lang)}]},
+                                children = iq_get_vcard()}]},
             mongoose_router:route(mongoose_acc:update(To, From, jlib:iq_to_xml(Res), Acc));
         #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
             Res = case iq_command(Host, ServerHost, From, IQ, Access, Plugins) of
@@ -1093,14 +1093,14 @@ node_disco_info(Host, Node, _From, _Identity, _Features) ->
         Other -> Other
     end.
 
-iq_disco_info(ServerHost, Host, SNode, From, Lang) ->
+iq_disco_info(ServerHost, Host, SNode, From) ->
     [Node | _] = case SNode of
                      <<>> -> [<<>>];
                      _ -> mongoose_bin:tokens(SNode, <<"!">>)
                  end,
     case Node of
         <<>> ->
-            Identities = identities(ServerHost, Lang),
+            Identities = identities(ServerHost),
             Features = [?NS_DISCO_INFO,
                         ?NS_DISCO_ITEMS,
                         ?NS_PUBSUB,
@@ -1205,9 +1205,8 @@ iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang
         {error, Error} -> {Acc, make_error_reply(IQ, Error)}
     end.
 
-iq_get_vcard(Lang) ->
-    Desc = <<(service_translations:do(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
-             "\nCopyright (c) 2004-2015 ProcessOne">>,
+iq_get_vcard() ->
+    Desc = <<"ejabberd Publish-Subscribe module\nCopyright (c) 2004-2015 ProcessOne">>,
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_pubsub">>}]},
      #xmlel{name = <<"URL">>,
@@ -1273,7 +1272,7 @@ iq_pubsub_action(IQType, Name, Host, Node, From, ExtraArgs) ->
         {get, <<"affiliations">>} ->
             get_affiliations(Host, Node, From, ExtraArgs);
         {get, <<"options">>} ->
-            iq_pubsub_get_options(Host, Node, From, ExtraArgs);
+            iq_pubsub_get_options(Host, Node, ExtraArgs);
         {set, <<"options">>} ->
             iq_pubsub_set_options(Host, Node, ExtraArgs);
           _ ->
@@ -1447,10 +1446,10 @@ extract_item_id(#xmlel{name = <<"item">>} = Item, Acc) ->
 extract_item_id(_, Acc) -> Acc.
 
 
-iq_pubsub_get_options(Host, Node, Lang, #{action_el := #xmlel{} = El}) ->
+iq_pubsub_get_options(Host, Node, #{action_el := #xmlel{} = El}) ->
     SubId = exml_query:attr(El, <<"subid">>, <<>>),
     JID = exml_query:attr(El, <<"jid">>, <<>>),
-    get_options(Host, Node, JID, SubId, Lang).
+    get_options(Host, Node, JID, SubId).
 
 iq_pubsub_set_options(Host, Node, #{action_el := #xmlel{} = ActionEl}) ->
     XForm = mongoose_data_forms:find_form(ActionEl),
@@ -1602,7 +1601,7 @@ adhoc_get_pending_parse_options(Host, XEl) ->
                 Err -> Err
             end;
         #{} ->
-            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)}
+            {error, mongoose_xmpp_errors:bad_request(<<"Invalid form type">>)}
     end.
 
 %% @doc <p>Send a subscription approval form to Owner for all pending
@@ -1639,23 +1638,20 @@ get_node_subscriptions_transaction(Owner, #pubsub_node{id = Nidx, type = Type}) 
 %%% authorization handling
 
 send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
-                           Subscriber) ->
-    Lang = <<"en">>,
-    Title = service_translations:do(Lang, <<"PubSub subscriber request">>),
-    Instructions = service_translations:do(Lang, <<"Choose whether to approve this entity's "
-                                               "subscription.">>),
+                                                     Subscriber) ->
+        Title = <<"PubSub subscriber request">>,
+        Instructions = <<"Choose whether to approve this entity's subscription.">>,
     Fields = [#{var => <<"pubsub#node">>,
                 type => <<"text-single">>,
-                label => service_translations:do(Lang, <<"Node ID">>),
+                label => <<"Node ID">>,
                 values => [Node]},
               #{var => <<"pubsub#subscriber_jid">>,
                 type => <<"jid-single">>,
-                label => service_translations:do(Lang, <<"Subscriber Address">>),
+                label => <<"Subscriber Address">>,
                 values => [jid:to_binary(Subscriber)]},
               #{var => <<"pubsub#allow">>,
                 type => <<"boolean">>,
-                label => service_translations:do(Lang, <<"Allow this Jabber ID to subscribe to "
-                                                     "this pubsub node?">>),
+                label => <<"Allow this Jabber ID to subscribe to this pubsub node?">>,
                 values => [<<"false">>]}],
     Form = mongoose_data_forms:form(#{title => Title, instructions => Instructions,
                                       ns => ?NS_PUBSUB_SUB_AUTH, fields => Fields}),
@@ -1750,7 +1746,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(XFIELD(Type, Label, Var, Val),
         #{type => Type,
-          label => service_translations:do(Lang, Label),
+          label => Label,
           var => Var,
           values => [Val]}).
 
@@ -1766,13 +1762,13 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(STRINGMXFIELD(Label, Var, Vals),
         #{type => <<"text-multi">>,
-          label => service_translations:do(Lang, Label),
+          label => Label,
           var => Var,
           values => Vals}).
 
 -define(XFIELDOPT(Type, Label, Var, Val, Opts),
         #{type => Type,
-          label => service_translations:do(Lang, Label),
+          label => Label,
           var => Var,
           options => Opts,
           values => [Val]}).
@@ -1782,7 +1778,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 
 -define(LISTMXFIELD(Label, Var, Vals, Opts),
         #{type => <<"list-multi">>,
-          label => service_translations:do(Lang, Label),
+          label => Label,
           var => Var,
           options => Opts,
           values => Vals}).
@@ -1878,7 +1874,7 @@ parse_create_node_options(Host, Type, Configuration) ->
                 Err -> Err
             end;
         #{} ->
-            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)};
+            {error, mongoose_xmpp_errors:bad_request(<<"Invalid form type">>)};
         {error, _} ->
             {result, node_options(Host, Type)}
     end.
@@ -2772,27 +2768,26 @@ set_validated_affiliations_transaction(Host, #pubsub_node{ type = Type, id = Nid
                   end,
                   Entities).
 
-get_options(Host, Node, JID, SubId, Lang) ->
+get_options(Host, Node, JID, SubId) ->
     Action = fun(PubSubNode) ->
-                     get_options_transaction(Node, JID, SubId, Lang, PubSubNode)
+                get_options_transaction(Node, JID, SubId, PubSubNode)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_Node, XForm}} -> {result, [XForm]};
         Error -> Error
     end.
 
-get_options_transaction(Node, JID, SubId, Lang, #pubsub_node{type = Type, id = Nidx}) ->
+get_options_transaction(Node, JID, SubId, #pubsub_node{type = Type, id = Nidx}) ->
     case lists:member(<<"subscription-options">>, plugin_features(Type)) of
         true ->
-            get_sub_options_xml(JID, Lang, Node, Nidx, SubId, Type);
+            get_sub_options_xml(JID, Node, Nidx, SubId, Type);
         false ->
             {error,
              unsupported_error(mongoose_xmpp_errors:feature_not_implemented(),
                                <<"subscription-options">>)}
     end.
 
-% TODO: Support Lang at some point again
-get_sub_options_xml(JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
+get_sub_options_xml(JID, Node, Nidx, RequestedSubId, Type) ->
     Subscriber = string_to_ljid(JID),
     {result, Subs} = node_call(Type, get_subscriptions, [Nidx, Subscriber]),
     SubscribedSubs = [{Id, Opts} || {Sub, Id, Opts} <- Subs, Sub == subscribed],
@@ -3396,12 +3391,12 @@ broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
         end),
     {result, true}.
 
-broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
+broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions) ->
     case get_option(NodeOptions, notify_config) of
         true ->
             case get_collection_subscriptions(Host, Node) of
                 SubsByDepth when is_list(SubsByDepth) ->
-                    Content = payload_by_option(Type, NodeOptions, Lang),
+                    Content = payload_by_option(Type, NodeOptions),
                     Stanza = event_stanza([#xmlel{name = <<"configuration">>,
                                                   attrs = node_attr(Node), children = Content}]),
                     broadcast_step(Host, fun() ->
@@ -3416,10 +3411,10 @@ broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
             {result, false}
     end.
 
-payload_by_option(_Type, NodeOptions, Lang) ->
+payload_by_option(_Type, NodeOptions) ->
     case get_option(NodeOptions, deliver_payloads) of
         true ->
-            [configure_form(<<"result">>, NodeOptions, Lang, [])];
+            [configure_form(<<"result">>, NodeOptions, [])];
         false ->
             []
     end.
@@ -3620,21 +3615,21 @@ user_resource(_, _, Resource) ->
 
 %%%%%%% Configuration handling
 
-get_configure(Host, Node, From, #{server_host := ServerHost, lang := Lang}) ->
+get_configure(Host, Node, From, #{server_host := ServerHost}) ->
     Action = fun(PubSubNode) ->
-                     get_configure_transaction(ServerHost, Node, From, Lang, PubSubNode)
+                     get_configure_transaction(ServerHost, Node, From, PubSubNode)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Result}} -> {result, Result};
         Other -> Other
     end.
 
-get_configure_transaction(ServerHost, Node, From, Lang,
+get_configure_transaction(ServerHost, Node, From,
                           #pubsub_node{options = Options, type = Type, id = Nidx}) ->
     case node_call(Type, get_affiliation, [Nidx, From]) of
         {result, owner} ->
             Groups = mongoose_hooks:roster_groups(ServerHost),
-            XEl = configure_form(<<"form">>, Options, Lang, Groups),
+            XEl = configure_form(<<"form">>, Options, Groups),
             ConfigureEl = #xmlel{name = <<"configure">>,
                                  attrs = node_attr(Node),
                                  children = [XEl]},
@@ -3646,10 +3641,10 @@ get_configure_transaction(ServerHost, Node, From, Lang,
             {error, mongoose_xmpp_errors:forbidden()}
     end.
 
-get_default(Host, Node, _From, #{lang := Lang}) ->
+get_default(Host, Node, _From, _ExtraParams) ->
     Type = select_type(Host, Node),
     Options = node_options(Host, Type),
-    XEl = configure_form(<<"form">>, Options, Lang, []),
+    XEl = configure_form(<<"form">>, Options, []),
     DefaultEl = #xmlel{name = <<"default">>, children = [XEl]},
     {result,
      [#xmlel{name = <<"pubsub">>,
@@ -3794,11 +3789,11 @@ max_items(Host, Options) ->
                        <<"pubsub#", (atom_to_binary(Var, latin1))/binary>>,
                        get_option(Options, Var, []))).
 
-configure_form(Type, Options, Lang, Groups) ->
-    Fields = get_configure_xfields(Options, Lang, Groups),
+configure_form(Type, Options, Groups) ->
+    Fields = get_configure_xfields(Options, Groups),
     mongoose_data_forms:form(#{type => Type, ns => ?NS_PUBSUB_NODE_CONFIG, fields => Fields}).
 
-get_configure_xfields(Options, Lang, Groups) ->
+get_configure_xfields(Options, Groups) ->
     [?BOOL_CONFIG_FIELD(<<"Deliver payloads with event notifications">>,
                         deliver_payloads),
      ?BOOL_CONFIG_FIELD(<<"Deliver event notifications">>,
@@ -3846,19 +3841,19 @@ get_configure_xfields(Options, Lang, Groups) ->
 %%<li>The node has no configuration options.</li>
 %%<li>The specified node does not exist.</li>
 %%</ul>
-set_configure(Host, Node, From, #{action_el := ActionEl, lang := Lang}) ->
+set_configure(Host, Node, From, #{action_el := ActionEl}) ->
     case mongoose_data_forms:find_and_parse_form(ActionEl) of
         #{type := <<"cancel">>} ->
             {result, []};
         #{type := <<"submit">>, kvs := KVs} ->
-            set_configure_submit(Host, Node, From, KVs, Lang);
+            set_configure_submit(Host, Node, From, KVs);
         {error, Msg} ->
-            {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
+            {error, mongoose_xmpp_errors:bad_request(Msg)};
         _ ->
-            {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form type">>)}
+            {error, mongoose_xmpp_errors:bad_request(<<"Invalid form type">>)}
     end.
 
-set_configure_submit(Host, Node, User, KVs, Lang) ->
+set_configure_submit(Host, Node, User, KVs) ->
     Action = fun(NodeRec) ->
                      set_configure_transaction(Host, User, KVs, NodeRec)
              end,
@@ -3867,7 +3862,7 @@ set_configure_submit(Host, Node, User, KVs, Lang) ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
             Options = TNode#pubsub_node.options,
-            broadcast_config_notification(Host, Node, Nidx, Type, Options, Lang),
+            broadcast_config_notification(Host, Node, Nidx, Type, Options),
             {result, []};
         Other ->
             Other

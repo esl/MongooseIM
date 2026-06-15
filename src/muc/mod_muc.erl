@@ -420,12 +420,12 @@ forget_room(HostType, MucHost, Name) ->
 %% For rooms
 -spec process_iq_disco_items(MucHost :: jid:server(), From :: jid:jid(),
         To :: jid:jid(), jlib:iq()) -> mongoose_acc:t().
-process_iq_disco_items(MucHost, From, To, #iq{lang = Lang} = IQ) ->
+process_iq_disco_items(MucHost, From, To, IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"query">>,
                                  attrs = #{<<"xmlns">> => ?NS_DISCO_ITEMS},
-                                 children = iq_disco_items(MucHost, From, Lang, Rsm)}]},
+                                 children = iq_disco_items(MucHost, From, Rsm)}]},
     mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION)).
 
 -spec can_use_nick(host_type(), jid:server(), jid:jid(), nick()) -> boolean().
@@ -631,9 +631,8 @@ process_packet(Acc, From, To, El, #{state := State}) ->
             route_to_room(MucHost, Room, {From, To, Acc, El}, State),
             Acc;
         _ ->
-            Lang = exml_query:attr(El, <<"xml:lang">>, <<>>),
             ErrText = <<"Access denied by service policy">>,
-            {Acc1, Error} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
+            {Acc1, Error} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:forbidden(ErrText)),
             mongoose_router:route(mongoose_acc:update(To, From, Error, Acc1))
     end.
 
@@ -696,19 +695,17 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
                                    host_type => HostType,
                                    room => Room, sub_host => MucHost,
                                    reason => Reason, acc => Acc}),
-                    Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
-                    ErrText = <<"Service is temporary unavailable">>,
+                    ErrText = <<"Service is temporarily unavailable">>,
                     {Acc1, Err} = jlib:make_error_reply(
-                            Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
+                            Acc, Packet, mongoose_xmpp_errors:service_unavailable(ErrText)),
                     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
                     {route_error, ErrText}
             end;
         {error, Reason} ->
-            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             Policy = iolist_to_binary(io_lib:format("~p", [Reason])),
             ErrText = <<"Room creation is denied by service policy: ", Policy/binary>>,
             {Acc1, Err} = jlib:make_error_reply(
-                    Acc, Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
+                    Acc, Packet, mongoose_xmpp_errors:not_allowed(ErrText)),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
             {route_error, ErrText}
     end.
@@ -719,20 +716,18 @@ get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Pac
     ServerHost = make_server_host(To, State),
     case restore_room(HostType, MucHost, Room) of
         {error, room_not_found} ->
-            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Conference room does not exist">>,
             {Acc1, Err} = jlib:make_error_reply(
-                    Acc, Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
+                    Acc, Packet, mongoose_xmpp_errors:item_not_found(ErrText)),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
             {route_error, ErrText};
         {error, Reason} ->
             ?LOG_WARNING(#{what => muc_send_service_unavailable,
                            room => Room, host_type => HostType, sub_host => MucHost,
                            reason => Reason, acc => Acc}),
-            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
-            ErrText = <<"Service is temporary unavailable">>,
+            ErrText = <<"Service is temporarily unavailable">>,
             {Acc1, Err} = jlib:make_error_reply(
-                    Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
+                    Acc, Packet, mongoose_xmpp_errors:service_unavailable(ErrText)),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
             {route_error, ErrText};
         {ok, Opts} ->
@@ -768,7 +763,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
     MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+            IdentityXML = mongoose_disco:identities_to_xml([identity()]),
             FeatureXML =  mongoose_disco:get_muc_features(HostType, From, To, <<>>, Lang,
                                                           features()),
             InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, Lang),
@@ -779,8 +774,8 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
             mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
-        #iq{type = get, xmlns = ?NS_REGISTER = XMLNS, lang = Lang} = IQ ->
-            Result = iq_get_register_info(HostType, MucHost, From, Lang),
+        #iq{type = get, xmlns = ?NS_REGISTER = XMLNS} = IQ ->
+            Result = iq_get_register_info(HostType, MucHost, From),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
@@ -788,9 +783,8 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
             mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = set,
             xmlns = ?NS_REGISTER = XMLNS,
-            lang = Lang,
             sub_el = SubEl} = IQ ->
-            case process_iq_register_set(HostType, MucHost, From, SubEl, Lang) of
+            case process_iq_register_set(HostType, MucHost, From, SubEl) of
                 {result, IQRes} ->
                     Res = IQ#iq{type = result,
                                 sub_el = [#xmlel{name = <<"query">>,
@@ -801,11 +795,11 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
                     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, Error),
                     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
             end;
-        #iq{type = get, xmlns = ?NS_VCARD = XMLNS, lang = Lang} = IQ ->
+        #iq{type = get, xmlns = ?NS_VCARD = XMLNS} = IQ ->
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"vCard">>,
                                          attrs = #{<<"xmlns">> => XMLNS},
-                                         children = iq_get_vcard(Lang)}]},
+                                         children = iq_get_vcard()}]},
             mongoose_router:route(mongoose_acc:new(To, From, jlib:iq_to_xml(Res), ?LOCATION));
         #iq{type = get, xmlns = ?NS_MUC_UNIQUE} = IQ ->
            Res = IQ#iq{type = result,
@@ -816,7 +810,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
         #iq{} ->
             ?LOG_INFO(#{what => muc_ignore_unknown_iq, acc => Acc}),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet,
-                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_muc">>)),
+                mongoose_xmpp_errors:feature_not_implemented(<<"From mod_muc">>)),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
         Other ->
             ?LOG_INFO(#{what => muc_failed_to_parse_iq, acc => Acc, reason => Other}),
@@ -836,9 +830,8 @@ route_by_type(<<"message">>, {From, To, Acc, Packet},
                     Msg = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
                     broadcast_service_message(MucHost, Msg);
                 _ ->
-                    Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
                     ErrTxt = <<"Only service administrators are allowed to send service messages">>,
-                    Err = mongoose_xmpp_errors:forbidden(Lang, ErrTxt),
+                    Err = mongoose_xmpp_errors:forbidden(ErrTxt),
                     {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Packet, Err),
                     mongoose_router:route(mongoose_acc:update(To, From, ErrorReply, Acc1))
             end
@@ -927,30 +920,29 @@ find_room_pid(HostType, MucHost, Room) ->
 default_host() ->
     mongoose_subdomain_utils:make_subdomain_pattern(<<"conference.@HOST@">>).
 
-identity(Lang) ->
+identity() ->
     #{category => <<"conference">>,
       type => <<"text">>,
-      name => service_translations:do(Lang, <<"Chatrooms">>)}.
+      name => <<"Chatrooms">>}.
 
 features() ->
     [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD, ?NS_CONFERENCE].
 
 %% Disco for rooms
--spec iq_disco_items(muc_host(), jid:jid(), ejabberd:lang(),
-                     Rsm :: none | jlib:rsm_in()) -> any().
-iq_disco_items(MucHost, From, Lang, none) ->
+-spec iq_disco_items(muc_host(), jid:jid(), Rsm :: none | jlib:rsm_in()) -> any().
+iq_disco_items(MucHost, From, none) ->
     AllRooms = get_vh_rooms(MucHost) ++ get_persistent_vh_rooms(MucHost),
     Rooms = lists:ukeysort(1, lists:map(fun record_to_simple/1, AllRooms)),
-    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From, Lang) end, Rooms),
+    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From) end, Rooms),
     lists:ukeysort(3, BareRooms);
-iq_disco_items(MucHost, From, Lang, Rsm) ->
+iq_disco_items(MucHost, From, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(MucHost, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
-    lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From, Lang) end, Rooms) ++ RsmOut.
+    lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From) end, Rooms) ++ RsmOut.
 
-room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
+room_to_item({{Name, _}, Pid}, MucHost, From) when is_pid(Pid) ->
      case catch gen_fsm_compat:sync_send_all_state_event(
-                  Pid, {get_disco_item, From, Lang}, 100) of
+                  Pid, {get_disco_item, From}, 100) of
          {item, Desc} ->
              {true,
               #xmlel{name = <<"item">>,
@@ -959,7 +951,7 @@ room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
          _ ->
              false
      end;
-room_to_item({{Name, _}, _}, MucHost, _, _) ->
+room_to_item({{Name, _}, _}, MucHost, _) ->
      {true,
      #xmlel{name = <<"item">>,
             attrs = #{<<"jid">> => jid:to_binary({Name, MucHost, <<>>}),
@@ -1043,10 +1035,9 @@ iq_get_unique(From) ->
     Raw = [From, erlang:unique_integer(), mongoose_bin:gen_from_crypto()],
     #xmlcdata{content = mongoose_bin:encode_crypto(term_to_binary(Raw))}.
 
--spec iq_get_register_info(host_type(), jid:server(),
-        jid:simple_jid() | jid:jid(), ejabberd:lang())
-            -> [exml:element(), ...].
-iq_get_register_info(HostType, MucHost, From, Lang) ->
+-spec iq_get_register_info(host_type(), jid:server(), jid:simple_jid() | jid:jid())
+    -> [exml:element(), ...].
+iq_get_register_info(HostType, MucHost, From) ->
     {Nick, Registered} =
         case catch get_nick(HostType, MucHost, From) of
             {'EXIT', _Reason} ->
@@ -1056,15 +1047,13 @@ iq_get_register_info(HostType, MucHost, From, Lang) ->
             {ok, N} ->
                 {N, [#xmlel{name = <<"registered">>}]}
         end,
-    ClientReqText = service_translations:do(
-                      Lang, <<"You need a client that supports x:data to register the nickname">>),
+    ClientReqText = <<"You need a client that supports x:data to register the nickname">>,
     ClientReqEl = #xmlel{name = <<"instructions">>,
                          children = [#xmlcdata{content = ClientReqText}]},
-    EnterNicknameText = service_translations:do(Lang, <<"Enter nickname you want to register">>),
-    TitleText = <<(service_translations:do(Lang, <<"Nickname Registration at ">>))/binary,
-                  MucHost/binary>>,
+    EnterNicknameText = <<"Enter nickname you want to register">>,
+    TitleText = <<"Nickname Registration at ", MucHost/binary>>,
     NickField = #{type => <<"text-single">>,
-                  label => service_translations:do(Lang, <<"Nickname">>),
+                  label => <<"Nickname">>,
                   var => <<"nick">>,
                   values => [Nick]},
     Registered ++ [ClientReqEl, mongoose_data_forms:form(#{title => TitleText,
@@ -1072,18 +1061,18 @@ iq_get_register_info(HostType, MucHost, From, Lang) ->
                                                            fields => [NickField]})].
 
 -spec iq_set_register_info(host_type(), jid:server(),
-        jid:simple_jid() | jid:jid(), nick(), ejabberd:lang())
+        jid:simple_jid() | jid:jid(), nick())
             -> {'error', exml:element()} | {'result', []}.
-iq_set_register_info(HostType, MucHost, From, Nick, Lang) ->
+iq_set_register_info(HostType, MucHost, From, Nick) ->
     case set_nick(HostType, MucHost, From, Nick) of
         ok ->
             {result, []};
         {error, conflict} ->
             ErrText = <<"That nickname is registered by another person">>,
-            {error, mongoose_xmpp_errors:conflict(Lang, ErrText)};
+            {error, mongoose_xmpp_errors:conflict(ErrText)};
         {error, should_not_be_empty} ->
             ErrText = <<"You must fill in field \"Nickname\" in the form">>,
-            {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
+            {error, mongoose_xmpp_errors:not_acceptable(ErrText)};
         {error, ErrorReason} ->
             ?LOG_ERROR(#{what => muc_iq_set_register_info_failed,
                          host_type => HostType, sub_host => MucHost,
@@ -1092,10 +1081,9 @@ iq_set_register_info(HostType, MucHost, From, Nick, Lang) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
--spec iq_set_unregister_info(host_type(), jid:server(),
-        jid:simple_jid() | jid:jid(), ejabberd:lang())
-            -> {'error', exml:element()} | {'result', []}.
-iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
+-spec iq_set_unregister_info(host_type(), jid:server(), jid:simple_jid() | jid:jid())
+    -> {'error', exml:element()} | {'result', []}.
+iq_set_unregister_info(HostType, MucHost, From) ->
     case unset_nick(HostType, MucHost, From) of
         ok ->
             {result, []};
@@ -1106,45 +1094,42 @@ iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
--spec process_iq_register_set(host_type(), jid:server(),
-                              jid:jid(), exml:element(), ejabberd:lang())
-            -> {'error', exml:element()} | {'result', []}.
-process_iq_register_set(HostType, MucHost, From, SubEl, Lang) ->
+-spec process_iq_register_set(host_type(), jid:server(), jid:jid(), exml:element())
+    -> {'error', exml:element()} | {'result', []}.
+process_iq_register_set(HostType, MucHost, From, SubEl) ->
     case exml_query:subelement(SubEl, <<"remove">>) of
         undefined ->
             case mongoose_data_forms:find_and_parse_form(SubEl) of
                 #{type := <<"cancel">>} ->
                     {result, []};
                 #{type := <<"submit">>, kvs := KVs} ->
-                    process_register(HostType, MucHost, From, Lang, KVs);
+                    process_register(HostType, MucHost, From, KVs);
                 {error, Msg} ->
-                    {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
+                    {error, mongoose_xmpp_errors:bad_request(Msg)};
                 _ ->
-                    {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form type">>)}
+                    {error, mongoose_xmpp_errors:bad_request(<<"Invalid form type">>)}
             end;
         _ ->
-            iq_set_unregister_info(HostType, MucHost, From, Lang)
+            iq_set_unregister_info(HostType, MucHost, From)
     end.
 
 -spec process_register(HostType :: host_type(), MucHost :: jid:server(),
-                       From :: jid:jid(), Lang :: ejabberd:lang(),
-                       KVs :: mongoose_data_forms:kv_map()) ->
+                       From :: jid:jid(), KVs :: mongoose_data_forms:kv_map()) ->
     {error, exml:element()} | {result, []}.
-process_register(HostType, MucHost, From, Lang, #{<<"nick">> := [Nick]}) ->
-    iq_set_register_info(HostType, MucHost, From, Nick, Lang);
-process_register(_HostType, _MucHost, _From, Lang, #{}) ->
+process_register(HostType, MucHost, From, #{<<"nick">> := [Nick]}) ->
+    iq_set_register_info(HostType, MucHost, From, Nick);
+process_register(_HostType, _MucHost, _From, #{}) ->
     ErrText = <<"You must fill in field \"Nickname\" in the form">>,
-    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}.
+    {error, mongoose_xmpp_errors:not_acceptable(ErrText)}.
 
--spec iq_get_vcard(ejabberd:lang()) -> [exml:element(), ...].
-iq_get_vcard(Lang) ->
+-spec iq_get_vcard() -> [exml:element(), ...].
+iq_get_vcard() ->
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_muc">>}]},
      #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>,
             children = [#xmlcdata{content =
-                                  <<(service_translations:do(Lang, <<"ejabberd MUC module">>))/binary,
-                                    "\nCopyright (c) 2003-2011 ProcessOne">>}]}].
+                <<"ejabberd MUC module\nCopyright (c) 2003-2011 ProcessOne">>}]}].
 
 -spec broadcast_service_message(muc_host(), binary() | string()) -> ok.
 broadcast_service_message(MucHost, Msg) ->
