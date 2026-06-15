@@ -173,7 +173,8 @@ groups() ->
                                   moderator_voice_forbidden,
                                   moderator_voice_not_occupant,
                                   moderator_voice_nonick,
-                                  voice_approval_with_invalid_role
+                                  voice_approval_with_invalid_role,
+                                  moderator_invite
                                  ]},
          {admin, [parallel], [
                               admin_ban,
@@ -1179,6 +1180,34 @@ voice_approval_with_invalid_role(ConfigIn) ->
 
         %% Bob receives no role-change presence (was not promoted)
         escalus_assert:has_no_stanzas(Bob)
+    end).
+
+%%  A moderator may always invite, even with allow_user_invites disabled
+moderator_invite(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    story_with_room(ConfigIn, moderator_room_opts(), UserSpecs, fun(Config, Alice, Bob, Kate) ->
+        Room = ?config(room, Config),
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(Room, <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room as a visitor
+        escalus:send(Bob, stanza_muc_enter_room(Room, <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        %% Alice grants Bob the moderator role
+        escalus:send(Alice, stanza_set_roles(Room, [{<<"bob">>, <<"moderator">>}])),
+        %% Skip Bob's new presence
+        escalus:wait_for_stanza(Bob),
+
+        %% Bob, now a moderator, invites Kate even though allow_user_invites is false
+        escalus:send(Bob, stanza_mediated_invitation(Room, Kate)),
+
+        %% Kate receives the invitation
+        Inv = escalus:wait_for_stanza(Kate),
+        is_invitation(Inv),
+        escalus:assert(is_stanza_from, [room_address(Room)], Inv)
     end).
 
 %%--------------------------------------------------------------------
