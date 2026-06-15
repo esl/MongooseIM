@@ -56,9 +56,9 @@ docker exec mongooseim-1 /usr/lib/mongooseim/bin/mongooseimctl account registerU
 ```
 
 Where:
-* $USER - a username
-* $XMPP_HOST - the XMPP host served by MongooseIM - by default it's localhost
-* $PASSWORD - password used for authentication
+* `$USER` - a username
+* `$XMPP_HOST` - the XMPP host served by MongooseIM - by default it's localhost
+* `$PASSWORD` - password used for authentication
 
 #### Example
 
@@ -111,7 +111,7 @@ docker run -d --name mongooseim-postgres --net mim \
 
 `${PATH_TO_MONGOOSEIM_PGSQL_FILE}` is an absolute path to `priv/pgsql.sql`, which can be found in the MongooseIM repo.
 
-Don't forget to configure the [outgoing connection pools](https://esl.github.io/MongooseDocs/latest/configuration/outgoing-connections/) in `mongooseim.toml` to connect with the services you set up!
+Don't forget to configure the [outgoing connection pools](../configuration/outgoing-connections.md) in `mongooseim.toml` to connect with the services you set up!
 
 #### Persisting Mnesia files
 
@@ -120,7 +120,7 @@ In this case the `/var/lib/mongooseim` dir should be mounted to a host directory
 
 #### Using CETS
 
-You can use CETS, which is the recommended backend for transient data, instead of Mnesia - see the [tutorial](https://esl.github.io/MongooseDocs/latest/tutorials/CETS-configure/) for more details.
+You can use CETS, which is the recommended backend for transient data, instead of Mnesia - see the [tutorial](../tutorials/CETS-configure.md) for more details.
 
 ### Setting up a cluster
 
@@ -174,7 +174,7 @@ $ docker exec mongooseim-2 /usr/lib/mongooseim/bin/mongooseimctl cets systemInfo
 
 ##### File-based discovery
 
-It is possible to read a list of nodes to cluster from a file. See [CETS with the file discovery backend](https://esl.github.io/MongooseDocs/latest/tutorials/CETS-configure/#cets-with-the-file-discovery-backend).
+It is possible to read a list of nodes to cluster from a file. See [CETS with the file discovery backend](../tutorials/CETS-configure.md#cets-with-the-file-discovery-backend).
 
 #### Mnesia
 
