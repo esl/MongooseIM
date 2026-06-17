@@ -171,7 +171,7 @@ http_notification(HostType, post, URL, ReqHeaders, Payload) ->
 %%--------------------------------------------------------------------
 
 %% Create notification for API v2 and v3
-make_notification(Notification, Options) ->
+make_notification(Notification_, Options) ->
     RequiredParameters = #{service => maps:get(<<"service">>, Options)},
     %% The full list of supported optional parameters can be found here:
     %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
@@ -184,21 +184,25 @@ make_notification(Notification, Options) ->
     OptionalParameters = maps:with(OptionalKeys, Options),
     NotificationParams = maps:merge(RequiredParameters, OptionalParameters),
 
-    MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
+    Notification = normalize_notification(Notification_),
 
     DataOrAlert = case Options of
                       #{<<"silent">> := <<"true">>} ->
-                          Data = Notification#{<<"message-count">> := MessageCount},
-                          #{data => Data};
+                          #{data => Notification};
                       _ ->
                           BasicAlert = #{body => maps:get(<<"last-message-body">>, Notification),
                                          title => maps:get(<<"last-message-sender">>, Notification),
                                          tag => maps:get(<<"last-message-sender">>, Notification),
-                                         badge => MessageCount},
+                                         badge => maps:get(<<"message-count">>, Notification)},
                           OptionalAlert = maps:with([<<"click_action">>, <<"sound">>], Options),
                           #{alert => maps:merge(BasicAlert, OptionalAlert)}
                   end,
     {ok, maps:merge(NotificationParams, DataOrAlert)}.
+
+%% normalize Notification recursively
+normalize_notification(#{<<"message-count">> := MC} = N) when is_binary(MC) ->
+    normalize_notification(N#{<<"message-count">> := binary_to_integer(MC)});
+normalize_notification(Notification) -> Notification.
 
 -spec call(mongooseim:host_type(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 call(HostType, M, F, A) ->

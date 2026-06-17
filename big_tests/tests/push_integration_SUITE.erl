@@ -8,6 +8,7 @@
 
 -define(RPC_SPEC, distributed_helper:mim()).
 -define(SESSION_KEY, publish_service).
+-define(JINGLE_SESSION_ID, <<"ca3cf894-5325-482f-a412-a6e9f832298d">>).
 
 -import(muc_light_helper,
         [
@@ -68,7 +69,8 @@ groups() ->
           [
               immediate_notification,
               double_notification_with_two_sessions_in_resume,
-              hints_filtering
+              hints_filtering,
+              bodiless_messages
           ]},
          {pm_msg_notifications, [],
           [
@@ -471,7 +473,29 @@ hints_filtering(Config) ->
             escalus:send(Alice, add_message_hint(Msg, <<"no-store">>)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
+        end).
 
+bodiless_messages(Config) ->
+        escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := FcmDeviceToken} =
+                 enable_push_for_user(Bob, <<"fcm">>, [{<<"silent">>, <<"true">>}], Config),
+            #{device_token := ApnsDeviceToken} =
+                 enable_push_for_user(Bob, <<"apns">>, [{<<"silent">>, <<"true">>}], Config),
+            become_unavailable(Bob),
+            Msg = dummy_jingle_propose_message(Bob),
+            %% bodiless message with store hint should pass
+            escalus:send(Alice, add_message_hint(Msg, <<"store">>)),
+            {ApnsNotification, _} = wait_for_push_request(ApnsDeviceToken),
+            {FcmNotification, _} = wait_for_push_request(FcmDeviceToken),
+            AliceJID = bare_jid(Alice),
+            assert_jingle_push_notification(ApnsNotification, <<"apns">>, AliceJID, <<"propose">>),
+            assert_jingle_push_notification(FcmNotification, <<"fcm">>, AliceJID,  <<"propose">>),
+            %% bodiless message with no-copy hint should be blocked
+            escalus:send(Alice, add_message_hint(Msg, <<"no-copy">>)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
         end).
 
 add_message_hint(#xmlel{children = Children} = Msg, HintType) when is_binary(HintType) ->
@@ -479,6 +503,18 @@ add_message_hint(#xmlel{children = Children} = Msg, HintType) when is_binary(Hin
                        attrs = #{<<"xmlns">> => <<"urn:xmpp:hints">>},
                        children = []},
     Msg#xmlel{children = [MsgHintEl | Children]}.
+
+dummy_jingle_propose_message(Recipient) ->
+    Propose = #xmlel{name = <<"propose">>,
+                     attrs = #{<<"xmlns">> => "urn:xmpp:jingle-message:0",
+                               <<"id">> => ?JINGLE_SESSION_ID},
+                     children = [
+                        #xmlel{name = <<"description">>,
+                               attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:rtp:1">>,
+                                         <<"media">> => <<"audio">>}}]},
+    #xmlel{name = <<"message">>,
+           attrs = #{<<"type">> => <<"chat">>, <<"to">> => escalus_utils:get_jid(Recipient)},
+           children = [Propose]}.
 
 verify_notification(DeviceToken, Service, EnableOpts, Jid, Msg) ->
     verify_notification(DeviceToken, Service, EnableOpts, [{Jid, Msg}]).
@@ -527,6 +563,16 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
             assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
         end).
+
+assert_jingle_push_notification(Notification, Service, SenderJID, JingleMessageType) ->
+
+    ?assertMatch(#{<<"service">> := Service}, Notification),
+
+    Data = maps:get(<<"data">>, Notification, undefined),
+
+    ?assertMatch(#{<<"message-sender">> := SenderJID}, Data),
+    ?assertMatch(#{<<"jingle-message">> := JingleMessageType}, Data),
+    ?assertMatch(#{<<"jingle-session-id">> := ?JINGLE_SESSION_ID}, Data).
 
 assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
     assert_push_notification(Notification, Service, EnableOpts, SenderJID, []).
