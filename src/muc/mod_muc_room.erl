@@ -2819,6 +2819,12 @@ process_admin_item_set_unsafe({JID, role, Role, Reason}, _UJID, SD) ->
     SD1 = set_role(JID, Role, SD),
     catch send_new_presence(JID, Reason, SD1),
     SD1;
+process_admin_item_set_unsafe({JID, nick, <<>>, _Reason}, _UJID, SD) ->
+    mod_muc:unset_nick(SD#state.host_type, SD#state.host, JID),
+    SD;
+process_admin_item_set_unsafe({JID, nick, Nick, _Reason}, _UJID, SD) ->
+    mod_muc:set_nick(SD#state.host_type, SD#state.host, JID, Nick),
+    SD;
 process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD) ->
     SD1 = set_affiliation(JID, A, SD),
     send_update_presence(JID, Reason, SD1),
@@ -2837,7 +2843,7 @@ remove_user_from_room(JID, Reason, SD) ->
     end.
 
 -type res_row() :: {jid:simple_jid() | jid:jid(),
-                    'affiliation' | 'role', any(), any()}.
+                    'affiliation' | 'role' | 'nick', any(), any()}.
 -type find_changed_items_res() :: {'error', exml:element()} | {'result', [res_row()]}.
 -spec find_changed_items(jid:jid(), mod_muc:affiliation(), mod_muc:role(),
                          [exml:element()], state(), [res_row()]) ->
@@ -2916,15 +2922,46 @@ check_changed_item(UJID, UAffiliation, URole, JID, Item, Items, StateData, Res) 
                     false
             end,
             case CanChangeRA of
-                nothing -> find_changed_items(UJID, UAffiliation, URole, Items, StateData, Res);
-                true -> find_changed_items(UJID, UAffiliation, URole, Items, StateData,
-                                           [{jid:to_bare(JID), affiliation,
-                                             Affiliation, decode_reason(Item)} | Res]);
+                nothing -> check_reserved_nick(UJID, UAffiliation, URole, JID, Item, Items,
+                                               StateData, Res);
+                true ->
+                    AffRow = {jid:to_bare(JID), affiliation,
+                              Affiliation, decode_reason(Item)},
+                    check_reserved_nick(UJID, UAffiliation, URole, JID, Item, Items,
+                                        StateData, [AffRow | Res]);
                 cancel -> {error, mongoose_xmpp_errors:not_allowed()};
                 false -> {error, mongoose_xmpp_errors:forbidden()}
             end;
         Err -> Err
     end.
+
+-spec check_reserved_nick(jid:jid(), mod_muc:affiliation(), mod_muc:role(), jid:jid(),
+                          exml:element(), [exml:element()], state(), [res_row()]) ->
+    find_changed_items_res().
+check_reserved_nick(UJID, UAffiliation, URole, JID, Item, Items, StateData, Res) ->
+    case exml_query:attr(Item, <<"nick">>) of
+        undefined ->
+            find_changed_items(UJID, UAffiliation, URole, Items, StateData, Res);
+        Nick when UAffiliation =:= owner; UAffiliation =:= admin ->
+            case can_use_reserved_nick(JID, Nick, StateData) of
+                true ->
+                    Row = {jid:to_bare(JID), nick, Nick, decode_reason(Item)},
+                    find_changed_items(UJID, UAffiliation, URole, Items, StateData,
+                                       [Row | Res]);
+                false ->
+                    {error, mongoose_xmpp_errors:conflict()}
+            end;
+        _ ->
+            {error, mongoose_xmpp_errors:forbidden()}
+    end.
+
+-spec can_use_reserved_nick(jid:jid(), mod_muc:nick(), state()) -> boolean().
+can_use_reserved_nick(_JID, <<>>, _StateData) ->
+    %% Unsetting a reserved nickname is always allowed
+    true;
+can_use_reserved_nick(JID, Nick, StateData) ->
+    mod_muc:can_use_nick(StateData#state.host_type, StateData#state.host,
+                         jid:to_bare(JID), Nick).
 
 -spec is_owner(UJID ::jid:jid(), StateData :: state()) -> boolean().
 is_owner(UJID, StateData) ->
