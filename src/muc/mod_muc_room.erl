@@ -2801,7 +2801,7 @@ process_admin_item_set_unsafe({JID, affiliation, outcast, Reason}, _UJID, SD) ->
     safe_send_kickban_presence(JID, Reason, <<"301">>, outcast, SD),
     set_affiliation_and_reason(JID, outcast, Reason, set_role(JID, none, SD));
 process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD)
-  when (A == admin) or (A == owner) ->
+  when (A == admin) orelse (A == owner) ->
     SD1 = set_affiliation_and_reason(JID, A, Reason, SD),
     SD2 = set_role(JID, moderator, SD1),
     send_update_presence(JID, Reason, SD2),
@@ -2824,11 +2824,7 @@ process_admin_item_set_unsafe({JID, nick, <<>>, _Reason}, _UJID, SD) ->
     SD;
 process_admin_item_set_unsafe({JID, nick, Nick, _Reason}, _UJID, SD) ->
     mod_muc:set_nick(SD#state.host_type, SD#state.host, JID, Nick),
-    SD;
-process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD) ->
-    SD1 = set_affiliation(JID, A, SD),
-    send_update_presence(JID, Reason, SD1),
-    SD1.
+    SD.
 
 remove_user_from_room(JID, Reason, SD) ->
     case (SD#state.config)#config.members_only of
