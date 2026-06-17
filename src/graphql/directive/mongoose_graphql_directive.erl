@@ -52,7 +52,7 @@ process_directives(Ctx, #document{definitions = Definitions}) ->
            #{set := ResSet, parent := RootObject3} = process_selection_set(Set, Ctx3),
            Op#op{schema = RootObject3, selection_set = ResSet}
         end,
-    Definitions2 = lists:map(fun(D) -> if_req_operation(D, OpName, F) end, Definitions),
+    Definitions2 = process_operations(OpName, Definitions, F),
     #document{definitions = Definitions2}.
 
 %% Internal
@@ -157,12 +157,17 @@ get_fragment(Id, #{definitions := Definitions}) ->
           end,
     hd(lists:filter(Fun, Definitions)).
 
-if_req_operation(#op{id = 'ROOT'} = Op, undefined, Fun) ->
-    Fun(Op);
-if_req_operation(#op{id = {name, _, Name}} = Op, Name, Fun) ->
-    Fun(Op);
-if_req_operation(Op, _, _) ->
-    Op.
+process_operations(undefined, [Op], Fun) ->
+    [Fun(Op)];
+process_operations(undefined, Ops, _Fun) ->
+    % No need to validate directives here since this request will fail later
+    % with `more_than_one_operation`
+    Ops;
+process_operations(Name, Ops, Fun) ->
+    lists:map(fun(#op{id = {name, _, N}} = Op) when N == Name -> Fun(Op);
+                 (Op) -> Op
+              end,
+             Ops).
 
 field_args_to_map(FieldArgs, Params) ->
     maps:from_list([prepare_arg(ArgName, Type, Params) || {ArgName, Type} <- FieldArgs]).

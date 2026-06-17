@@ -32,6 +32,7 @@ all() ->
      unexpected_internal_error,
      admin_and_user_load_global_types,
      admin_schema_has_server_host_types,
+     {group, operations},
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, error_handling},
@@ -44,7 +45,8 @@ all() ->
      {group, domain_admin_listener}].
 
 groups() ->
-    [{protected_graphql, [parallel], protected_graphql()},
+    [{operations, [parallel], operations()},
+     {protected_graphql, [parallel], protected_graphql()},
      {unprotected_graphql, [parallel], unprotected_graphql()},
      {error_handling, [parallel], error_handling()},
      {error_formatting, [parallel], error_formatting()},
@@ -54,6 +56,18 @@ groups() ->
      {admin_listener, [parallel], admin_listener()},
      {domain_admin_listener, [parallel], domain_admin_listener()},
      {user_listener, [parallel], user_listener()}].
+
+operations() ->
+    [single_operation,
+     single_operation_with_invalid_op_name,
+     named_single_operation,
+     named_single_operation_with_op_name,
+     named_single_operation_with_invalid_op_name,
+     multiple_operations,
+     multiple_operations_with_invalid_op_name,
+     multiple_named_operations,
+     multiple_named_operations_with_op_name,
+     multiple_named_operations_with_invalid_op_name].
 
 protected_graphql() ->
     [auth_can_execute_protected_query,
@@ -217,7 +231,8 @@ init_per_group(domain_permissions, Config) ->
     Domains = [{<<"subdomain.test-domain.com">>, <<"test-domain.com">>},
                {<<"subdomain.test-domain2.com">>, <<"test-domain2.com">>}],
     [{domains, Domains} | Config];
-init_per_group(use_directive, Config) ->
+init_per_group(Group, Config) when Group == operations;
+                                   Group == use_directive ->
     Config1 = meck_domain_api(Config),
     mongoose_config:set_opts(#{internal_databases => #{db_a => #{}}}),
     meck_module_and_service_checking(Config1);
@@ -239,7 +254,8 @@ end_per_group(domain_admin_listener, Config) ->
     Config;
 end_per_group(domain_permissions, _Config) ->
     meck:unload(mongoose_domain_api);
-end_per_group(use_directive, Config) ->
+end_per_group(Group, Config) when Group == operations;
+                                  Group == use_directive ->
     unmeck_domain_api(Config),
     unmeck_module_and_service_checking(Config),
     mongoose_config:erase_opts();
@@ -289,7 +305,17 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
     [{endpoint, Ep} | Config];
-init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
+init_per_testcase(C, Config) when C =:= single_operation;
+                                  C =:= single_operation_with_invalid_op_name;
+                                  C =:= named_single_operation;
+                                  C =:= named_single_operation_with_op_name;
+                                  C =:= named_single_operation_with_invalid_op_name;
+                                  C =:= multiple_operations;
+                                  C =:= multiple_operations_with_invalid_op_name;
+                                  C =:= multiple_named_operations;
+                                  C =:= multiple_named_operations_with_op_name;
+                                  C =:= multiple_named_operations_with_invalid_op_name;
+                                  C =:= use_dir_module_not_loaded;
                                   C =:= use_dir_all_modules_loaded;
                                   C =:= use_dir_module_and_service_not_loaded;
                                   C =:= use_dir_module_service_and_db_loaded;
@@ -382,6 +408,106 @@ admin_schema_has_server_host_types(_Config) ->
                  maps:get(<<"modules">>, HostTypeFields)),
     ?assertMatch(#schema_field{ty = {non_null, {list, {non_null, <<"String">>}}}},
                  maps:get(<<"authMethods">>, HostTypeFields)).
+
+%% Operations
+
+single_operation(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(undefined, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({ok, #{data => #{<<"catA">> => #{<<"command">> => <<"command">>}}}}, Res),
+    ErrorRes = mongoose_graphql:execute(Ep, Req#{vars => #{<<"domain">> => <<"test-domain.com">>}}),
+    ?assertEqual({ok, #{
+        data => #{<<"catA">> => #{<<"command">> => null}},
+        errors => [make_dep_error(#{not_loaded_modules => [<<"mod_b">>]}, [<<"catA">>, <<"command">>])]
+    }}, ErrorRes).
+
+single_operation_with_invalid_op_name(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query ($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(<<"Invalid">>, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({error, make_error([], type_check, {operation_not_found, <<"Invalid">>})}, Res).
+
+named_single_operation(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query A($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(undefined, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({ok, #{data => #{<<"catA">> => #{<<"command">> => <<"command">>}}}}, Res),
+    ErrorRes = mongoose_graphql:execute(Ep, Req#{vars => #{<<"domain">> => <<"test-domain.com">>}}),
+    ?assertEqual({ok, #{
+        data => #{<<"catA">> => #{<<"command">> => null}},
+        errors => [make_dep_error(#{not_loaded_modules => [<<"mod_b">>]}, [<<"catA">>, <<"command">>])]
+    }}, ErrorRes).
+
+named_single_operation_with_op_name(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query A($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(<<"A">>, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({ok, #{data => #{<<"catA">> => #{<<"command">> => <<"command">>}}}}, Res),
+    ErrorRes = mongoose_graphql:execute(Ep, Req#{vars => #{<<"domain">> => <<"test-domain.com">>}}),
+    ?assertEqual({ok, #{
+        data => #{<<"catA">> => #{<<"command">> => null}},
+        errors => [make_dep_error(#{not_loaded_modules => [<<"mod_b">>]}, [<<"catA">>, <<"command">>])]
+    }}, ErrorRes).
+
+named_single_operation_with_invalid_op_name(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query A($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(<<"Invalid">>, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({error, make_error([], type_check, {operation_not_found, <<"Invalid">>})}, Res).
+
+multiple_operations(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query($domain: String!) { catA { command(domain: $domain) } } "
+            "query($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(undefined, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({error, make_error([], validate, {not_unique, <<"ROOT">>})}, Res).
+
+multiple_operations_with_invalid_op_name(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query($domain: String!) { catA { command(domain: $domain) } } "
+            "query($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(<<"Invalid">>, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({error, make_error([], validate, {not_unique, <<"ROOT">>})}, Res).
+
+multiple_named_operations(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query A($domain: String!) { catA { command(domain: $domain) } } "
+            "query B($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(undefined, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({ok, #{errors => [#{extensions => #{code => more_than_one_operation},
+                                     message => <<"Error in execution: more_than_one_operation">>,
+                                     path => []}]}},
+                 Res).
+
+multiple_named_operations_with_op_name(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query A($domain: String!) { catA { command(domain: $domain) } } "
+            "query B($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(<<"A">>, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({ok, #{data => #{<<"catA">> => #{<<"command">> => <<"command">>}}}}, Res),
+    ErrorRes = mongoose_graphql:execute(Ep, Req#{vars => #{<<"domain">> => <<"test-domain.com">>}}),
+    ?assertEqual({ok, #{
+        data => #{<<"catA">> => #{<<"command">> => null}},
+        errors => [make_dep_error(#{not_loaded_modules => [<<"mod_b">>]}, [<<"catA">>, <<"command">>])]
+    }}, ErrorRes).
+
+multiple_named_operations_with_invalid_op_name(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query A($domain: String!) { catA { command(domain: $domain) } } "
+            "query B($domain: String!) { catA { command(domain: $domain) } }">>,
+    Req = request(<<"Invalid">>, Doc, true, #{<<"domain">> => <<"localhost">>}),
+    Res = mongoose_graphql:execute(Ep, Req),
+    ?assertEqual({error, make_error([], type_check, {operation_not_found, <<"Invalid">>})}, Res).
 
 %% Protected graphql
 
@@ -890,13 +1016,7 @@ use_dir_module_not_loaded(Config) ->
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_b">>]
-         },
-      message := <<"Some of the required modules are not loaded">>,
-      path := [<<"catA">>, <<"command">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{not_loaded_modules => [<<"mod_b">>]}, [<<"catA">>, <<"command">>]), Error).
 
 use_dir_all_modules_and_services_loaded(Config) ->
     Doc = <<"{catA { command2(domain: \"localhost\")} }">>,
@@ -910,14 +1030,10 @@ use_dir_module_and_service_not_loaded(Config) ->
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_z">>],
-          not_loaded_services := [<<"service_d">>]
-         },
-      message := <<"Some of the required modules and services are not loaded">>,
-      path := [<<"catA">>, <<"command3">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{
+        not_loaded_modules => [<<"mod_z">>],
+        not_loaded_services => [<<"service_d">>]
+    }, [<<"catA">>, <<"command3">>]), Error).
 
 use_dir_module_service_and_db_loaded(Config) ->
     Doc = <<"{catA { command4(domain: \"localhost\")} }">>,
@@ -931,28 +1047,18 @@ use_dir_db_not_loaded(Config) ->
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_internal_databases := [<<"db_x">>]},
-      message :=
-        <<"Some of the required internal databases are not loaded">>,
-      path := [<<"catA">>, <<"command5">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{not_loaded_internal_databases => [<<"db_x">>]}, [<<"catA">>, <<"command5">>]), Error).
 
 use_dir_module_service_and_db_not_loaded(Config) ->
     Doc = <<"{catA { command6(domain: \"localhost\")} }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>],
-          not_loaded_internal_databases := [<<"db_x">>]},
-      message :=
-        <<"Some of the required modules and services and internal databases are not loaded">>,
-      path := [<<"catA">>, <<"command6">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{
+        not_loaded_modules => [<<"mod_x">>],
+        not_loaded_services => [<<"service_x">>],
+        not_loaded_internal_databases => [<<"db_x">>]
+    }, [<<"catA">>, <<"command6">>]), Error).
 
 use_dir_object_all_modules_services_and_dbs_loaded(Config) ->
     Doc = <<"{ catC { command(domain: \"localhost\") } }">>,
@@ -966,43 +1072,31 @@ use_dir_object_module_and_db_not_loaded(Config) ->
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_x">>],
-          not_loaded_internal_databases := [<<"db_x">>]},
-      message :=
-        <<"Some of the required modules and internal databases are not loaded">>,
-      path := [<<"catD">>, <<"command">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{
+        not_loaded_modules => [<<"mod_x">>],
+        not_loaded_internal_databases => [<<"db_x">>]
+    }, [<<"catD">>, <<"command">>]), Error).
 
 use_dir_object_service_and_db_not_loaded(Config) ->
     Doc = <<"{ catD { command3 } }">>,
     Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_services := [<<"service_x">>],
-          not_loaded_internal_databases := [<<"db_x">>]},
-      message := <<"Some of the required services and internal databases are not loaded">>,
-      path := [<<"catD">>, <<"command3">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{
+        not_loaded_services => [<<"service_x">>],
+        not_loaded_internal_databases => [<<"db_x">>]
+    }, [<<"catD">>, <<"command3">>]), Error).
 
 use_dir_object_module_service_and_db_loaded(Config) ->
     Doc = <<"{ catB { command(domain: \"localhost\") } }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>],
-          not_loaded_internal_databases := [<<"db_x">>]
-         },
-      message :=
-        <<"Some of the required modules and services and internal databases are not loaded">>,
-      path := [<<"catB">>, <<"command">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{
+        not_loaded_modules => [<<"mod_x">>],
+        not_loaded_services => [<<"service_x">>],
+        not_loaded_internal_databases => [<<"db_x">>]
+    }, [<<"catB">>, <<"command">>]), Error).
 
 use_dir_auth_all_modules_services_and_dbs_loaded(UserRole, Config) ->
     Doc = <<"{ catC { command2 } }">>,
@@ -1022,16 +1116,11 @@ use_dir_auth_module_service_and_db_not_loaded(UserRole, Config) ->
     Ctx = #{user => jid:make_bare(UserRole, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>],
-          not_loaded_internal_databases := [<<"db_x">>]
-         },
-      message :=
-        <<"Some of the required modules and services and internal databases are not loaded">>,
-      path := [<<"catB">>, <<"command2">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{
+        not_loaded_modules => [<<"mod_x">>],
+        not_loaded_services => [<<"service_x">>],
+        not_loaded_internal_databases => [<<"db_x">>]
+    }, [<<"catB">>, <<"command2">>]), Error).
 
 use_dir_auth_user_module_service_and_db_not_loaded(Config) ->
     use_dir_auth_module_service_and_db_not_loaded(<<"user">>, Config).
@@ -1044,12 +1133,7 @@ use_dir_auth_db_not_loaded(UserRole, Config) ->
     Ctx = #{user => jid:make_bare(UserRole, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_internal_databases := [<<"db_x">>]},
-      message := <<"Some of the required internal databases are not loaded">>,
-      path := [<<"catD">>, <<"command2">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{not_loaded_internal_databases => [<<"db_x">>]}, [<<"catD">>, <<"command2">>]), Error).
 
 use_dir_auth_user_db_not_loaded(Config) ->
     use_dir_auth_db_not_loaded(<<"user">>, Config).
@@ -1075,13 +1159,7 @@ use_dir_multiple_args_module_not_loaded(Config, Doc) ->
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_b">>]},
-      message :=
-        <<"Some of the required modules are not loaded">>,
-      path := [<<"catE">>, <<"command2">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{not_loaded_modules => [<<"mod_b">>]}, [<<"catE">>, <<"command2">>]), Error).
 
 use_dir_arg_list_module_loaded(Config) ->
     Doc = <<"{ catE { command3(domains: [\"test-domain.com\", \"localhost\"]) } }">>,
@@ -1101,13 +1179,7 @@ use_dir_arg_list_module_not_loaded(Config, Doc) ->
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
-    #{extensions :=
-        #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_b">>]},
-      message :=
-        <<"Some of the required modules are not loaded">>,
-      path := [<<"catE">>, <<"command4">>]
-     } = Error.
+    ?assertEqual(make_dep_error(#{not_loaded_modules => [<<"mod_b">>]}, [<<"catE">>, <<"command4">>]), Error).
 
 %% Helpers
 
@@ -1133,6 +1205,21 @@ make_error(Phase, Term) ->
 
 make_error(Path, Phase, Term) ->
     #{path => Path, phase => Phase, error_term => Term}.
+
+make_dep_error(NotLoaded, Path) ->
+    #{extensions => maps:merge(#{code => deps_not_loaded}, NotLoaded),
+      message => dep_error_message(NotLoaded),
+      path => Path}.
+
+dep_error_message(NotLoaded) ->
+    Types = [dep_to_type(T) || T <- [not_loaded_modules, not_loaded_services, not_loaded_internal_databases],
+                               maps:is_key(T, NotLoaded)],
+    TypesStr = list_to_binary(string:join(Types, " and ")),
+    <<"Some of the required ", TypesStr/binary, " are not loaded">>.
+
+dep_to_type(not_loaded_modules) -> "modules";
+dep_to_type(not_loaded_services) -> "services";
+dep_to_type(not_loaded_internal_databases) -> "internal databases".
 
 check_directives(Config, Ctx, Doc) ->
     Ep = ?config(endpoint, Config),
@@ -1174,9 +1261,12 @@ request(Doc, Authorized) ->
     request(undefined, Doc, Authorized).
 
 request(Op, Doc, Authorized) ->
+    request(Op, Doc, Authorized, #{}).
+
+request(Op, Doc, Authorized, Vars) ->
     #{document => Doc,
       operation_name => Op,
-      vars => #{},
+      vars => Vars,
       authorized => Authorized,
       ctx => #{}}.
 
