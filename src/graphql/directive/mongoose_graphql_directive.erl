@@ -167,7 +167,7 @@ process_operations(Name, Ops, Fun) ->
     lists:map(fun(#op{id = {name, _, N}} = Op) when N == Name -> Fun(Op);
                  (Op) -> Op
               end,
-             Ops).
+              Ops).
 
 field_args_to_map(FieldArgs, Params) ->
     maps:from_list([prepare_arg(ArgName, Type, Params) || {ArgName, Type} <- FieldArgs]).
