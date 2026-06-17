@@ -184,7 +184,7 @@ handle_event(internal,
             send_xml(NewData, stream_header(NewData)),
             {next_state, {wait_for_stream, stream_start}, NewData, state_timeout(Opts)};
         {error, already_tls_connection} ->
-            ErrorStanza = mongoose_xmpp_errors:bad_request(?MYLANG, <<"bad_config">>),
+            ErrorStanza = mongoose_xmpp_errors:bad_request(<<"bad_config">>),
             send_xml(Data, jlib:make_error_reply(El, ErrorStanza)),
             {stop, {shutdown, starttls_error}};
         {error, Reason} ->
@@ -227,7 +227,7 @@ handle_event(info, {route, Acc}, stream_established, Data) ->
     send_xml(Data, mongoose_acc:element(Acc)),
     {keep_state_and_data, stream_timeout(Data)};
 handle_event(info, {route, Acc}, bounce_and_disconnect, _) ->
-    E = mongoose_xmpp_errors:remote_server_not_found(?MYLANG, <<"From s2s (waiting)">>),
+    E = mongoose_xmpp_errors:remote_server_not_found(<<"From s2s (waiting)">>),
     bounce_one(E, Acc),
     keep_state_and_data;
 handle_event(info, {route, _}, _, _) ->
@@ -254,7 +254,7 @@ handle_event(cast, {exit, system_shutdown}, _, #s2s_data{} = Data) ->
     {stop, {shutdown, system_shutdown}};
 handle_event(cast, {exit, Reason}, _, #s2s_data{} = Data)
   when is_binary(Reason) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(?MYLANG, Reason),
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(Reason),
     send_xml(Data, StreamConflict),
     send_xml(Data, ?XML_STREAM_TRAILER),
     {stop, {shutdown, Reason}};
@@ -288,15 +288,15 @@ handle_event(EventType, EventContent, State, Data) ->
 terminate(_, _, #s2s_data{myname = MyName, remote_server = ToServer,
                           parser = Parser, socket = Socket, process_type = new}) ->
     ejabberd_s2s:remove_connection({MyName, ToServer}, self()),
-    bounce_messages(mongoose_xmpp_errors:remote_server_not_found(?MYLANG, <<"Bounced by s2s">>)),
+    bounce_messages(mongoose_xmpp_errors:remote_server_not_found(<<"Bounced by s2s">>)),
     exml_stream:free_parser(Parser),
     mongoose_xmpp_socket:close(Socket);
 terminate(_Reason, _State, #s2s_data{parser = Parser, socket = Socket}) ->
-    bounce_messages(mongoose_xmpp_errors:remote_server_not_found(?MYLANG, <<"Bounced by s2s">>)),
+    bounce_messages(mongoose_xmpp_errors:remote_server_not_found(<<"Bounced by s2s">>)),
     exml_stream:free_parser(Parser),
     mongoose_xmpp_socket:close(Socket);
 terminate(_Reason, _State, _FromTo) ->
-    bounce_messages(mongoose_xmpp_errors:remote_server_not_found(?MYLANG, <<"Bounced by s2s">>)).
+    bounce_messages(mongoose_xmpp_errors:remote_server_not_found(<<"Bounced by s2s">>)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -137,12 +137,12 @@ start_requires_minimum_lease_time_raises_error(_Config) ->
 probe_live_jobs_noproc_returns_zero(_Config) ->
     meck:expect(broadcast_manager, get_live_job_count,
                 fun(_HostType) -> meck:exception(exit, {noproc, mock}) end),
-    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}).
+    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}, #{}).
 
 probe_live_jobs_timeout_returns_zero(_Config) ->
     meck:expect(broadcast_manager, get_live_job_count,
                 fun(_HostType) -> meck:exception(exit, {timeout, mock}) end),
-    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}).
+    #{count := 0} = mod_broadcast:probe(mod_broadcast_live_jobs, #{host_type => broadcast_helper:host_type()}, #{}).
 
 %%====================================================================
 %% abort_broadcast/2 error path tests

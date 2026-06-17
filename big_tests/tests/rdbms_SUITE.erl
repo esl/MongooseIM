@@ -700,7 +700,7 @@ wpool_rdbms_stats_are_updated(Config) ->
     {Event, Labels} = scope_event(Config, wpool_global_rdbms_stats, wpool_rdbms_stats,
                                   #{pool_tag => Tag}),
 
-    #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
+    #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels, #{}]),
 
     select_one_works_case(Config),
 
@@ -713,7 +713,7 @@ wpool_queue_lengths_are_updated(Config) ->
     {Event, Labels} = scope_event(Config, wpool_global_queue_lengths, wpool_queue_lengths,
                                   #{pool_type => rdbms, pool_tag => Tag}),
 
-    #{total := Total} = rpc(mim(), mongoose_wpool, probe, [Event, Labels]),
+    #{total := Total} = rpc(mim(), mongoose_wpool, probe, [Event, Labels, #{}]),
 
     [rpc(mim(), sys, suspend, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
     sql_query_cast(Config, <<"SELECT 1">>),

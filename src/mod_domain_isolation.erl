@@ -83,8 +83,7 @@ maybe_send_back_error(From, To, Acc, FPacketAcc) ->
         <<"error">> -> %% Never reply to the errors
             FPacketAcc;
         _ ->
-            Err = mongoose_xmpp_errors:service_unavailable(<<"en">>,
-                    <<"Filtered by the domain isolation">>),
+            Err = mongoose_xmpp_errors:service_unavailable(<<"Filtered by the domain isolation">>),
             Acc2 = mongoose_acc:set_permanent(domain_isolation, ignore, true, Acc),
             send_back_error(Err, From, To, Acc2),
             drop

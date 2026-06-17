@@ -20,13 +20,19 @@
 -include_lib("exml/include/exml.hrl").
 
 -import(domain_helper, [host_type/0]).
+-import(distributed_helper, [mim/0, rpc/4]).
+
+-dialyzer({nowarn_function, tls_cert_remaining_days/1}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, events}].
+    [{group, events},
+     {group, invalid_cert},
+     {group, not_yet_valid_cert},
+     {group, expired_cert}].
 
 groups() ->
     [{events, [parallel], [login,
@@ -36,7 +42,11 @@ groups() ->
                            presence_error,
                            iq,
                            iq_error,
-                           message_bounced]}].
+                           message_bounced,
+                           tls_cert_remaining_days]},
+      {invalid_cert, [], [tls_cert_remaining_days]},
+      {not_yet_valid_cert, [], [tls_cert_remaining_days]},
+      {expired_cert, [], [tls_cert_remaining_days]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -47,24 +57,63 @@ suite() ->
 
 init_per_suite(Config) ->
     HostType = host_type(),
+    Listener = c2s_listener(),
+    Config1 = [{c2s_listener_backup, Listener} | Config],
     instrument_helper:start([{xmpp_element_in, labels()},
                              {xmpp_element_out, labels()},
-                             {sm_message_bounced, #{host_type => HostType}}]),
-    Config1 = dynamic_modules:save_modules(HostType, Config),
+                             {sm_message_bounced, #{host_type => HostType}},
+                             {tls_cert_remaining_days, #{listener_id => listener_id(Listener)}}]),
+    Config2 = instrument_helper:ensure_frequent_probes(Config1),
+    restart_listener(Listener),
+    Config3 = dynamic_modules:save_modules(HostType, Config2),
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
-    escalus:init_per_suite(Config1).
+    escalus:init_per_suite(Config3).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config),
+    dynamic_modules:restore_modules(Config),
+    mongoose_helper:restore_config(Config),
+    Listener = proplists:get_value(c2s_listener_backup, Config),
+    restart_listener(Listener),
     instrument_helper:stop().
+
+init_per_group(invalid_cert, Config) ->
+    #{tls := Tls} = Listener = proplists:get_value(c2s_listener_backup, Config),
+    restart_listener(Listener#{tls => Tls#{certfile => <<"priv/ssl/fake_key.pem">>}}),
+    Config;
+init_per_group(Group, Config) when Group == not_yet_valid_cert; Group == expired_cert ->
+    CertSpec = #{cn => atom_to_list(Group)},
+    #{key := Keyfile, cert := Certfile} = ca_certificate_helper:generate_cert(Config, CertSpec, #{}),
+    #{tls := Tls} = Listener = proplists:get_value(c2s_listener_backup, Config),
+    restart_listener(Listener#{tls => Tls#{certfile => Certfile, keyfile => Keyfile}}),
+    Config;
+init_per_group(_Group, Config) ->
+    Config.
+
+end_per_group(_Group, Config) ->
+    Listener = proplists:get_value(c2s_listener_backup, Config),
+    restart_listener(Listener).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+c2s_listener() ->
+    Listeners = rpc(mim(), mongoose_config, get_opt, [[listen]]),
+    hd([Opts || #{access := c2s, tls := #{}} = Opts <- Listeners]).
+
+listener_id(#{port := Port, ip_tuple := IPTuple, proto := Proto}) ->
+    iolist_to_binary(io_lib:format("~s@~s/~p", [inet:ntoa(IPTuple), Proto, Port])).
+
+restart_listener(Listener) ->
+    [_ | Rest] = rpc(mim(), mongoose_config, get_opt, [[listen]]),
+    rpc(mim(), mongoose_config, set_opt, [[listen], [Listener | Rest]]),
+    % Instrumentation is set up again only when all listeners are restarted
+    rpc(mim(), mongoose_listener, stop, []),
+    rpc(mim(), mongoose_listener, start, []).
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -179,6 +228,32 @@ message_bounced_story(Config, Alice, Bob) ->
                  Error),
     assert_message_bounced_event(Alice, Bob).
 
+tls_cert_remaining_days(Config) ->
+    #{tls := #{certfile := Certfile}} = Listener = c2s_listener(),
+    Event = tls_cert_remaining_days,
+    Labels = #{listener_id => listener_id(Listener)},
+
+    Expected = case group_name(Config) of
+                   invalid_cert ->
+                       -32768;
+                   not_yet_valid_cert ->
+                       -32767;
+                    _ ->
+                        Cmd = io_lib:format("openssl x509 -in ~s -noout -enddate | cut -d= -f2", [Certfile]),
+                        CmdOutput = list_to_binary(string:trim(rpc(mim(), os, cmd, [Cmd]))),
+                        % Timezone is ignored since all datetimes are in UTC
+                        {ok, EndDate} = tempo:parse(<<"%b %d %H:%M:%S %Y">>, {unix, CmdOutput}),
+                        ct:pal("~p", [Certfile]),
+                        ct:pal("~p -> ~p", [CmdOutput, EndDate]),
+                        (EndDate - erlang:system_time(second)) div (24 * 60 * 60)
+               end,
+    ct:pal("~p", [Expected]),
+
+    F = fun(#{count := NewCount}) -> NewCount == Expected end,
+    instrument_helper:wait_and_assert_new(Event, Labels, F).
+
+%% Helpers
+
 %% C2S instrumentation events
 
 has_child(SubElName, El) ->
@@ -207,6 +282,9 @@ assert_events(Dir, CheckElFun) ->
 
 event_name(out) -> xmpp_element_out;
 event_name(in) -> xmpp_element_in.
+
+group_name(Config) ->
+    proplists:get_value(name, proplists:get_value(tc_group_properties, Config)).
 
 labels() -> #{connection_type => c2s, host_type => host_type()}.
 

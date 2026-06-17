@@ -3,7 +3,7 @@
 -include("mongoose_logger.hrl").
 
 %% Probe callbacks
--export([probe/2, instrumentation/0]).
+-export([probe/3, instrumentation/0]).
 -ignore_xref([instrumentation/0]).
 
 -spec instrumentation() -> [mongoose_instrument:spec()].
@@ -27,7 +27,7 @@ instrumentation_metrics_names() ->
      conflict_nodes,
      conflict_tables].
 
-probe(cets_info, _Labels) ->
+probe(cets_info, _Labels, _Extra) ->
     try cets_status:status(mongoose_cets_discovery) of
         #{available_nodes := AvNodes,
           unavailable_nodes := UnNodes,

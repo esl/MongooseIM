@@ -154,8 +154,7 @@ user_send_sasl2_element(Acc, #{c2s_data := C2SData, c2s_state := C2SState}, El) 
             ToAcc = [{c2s_state, ?EXT_C2S_STATE(C2SState)}, {actions, Actions}],
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
         false ->
-            Lang = mongoose_c2s:get_lang(C2SData),
-            Stanza = mongoose_xmpp_errors:policy_violation(Lang, <<"SALS2 violation">>),
+            Stanza = mongoose_xmpp_errors:policy_violation(<<"SASL2 violation">>),
             mongoose_c2s:c2s_stream_error(C2SData, Stanza),
             {stop, mongoose_c2s_acc:to_acc(Acc, hard_stop, sasl2_violation)}
     end.

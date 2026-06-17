@@ -66,7 +66,7 @@
          sessions_cleanup/1,
          terminate_session/2,
          sm_backend/0,
-         probe/2,
+         probe/3,
          start_probes/0,
          stop_probes/0
         ]).
@@ -443,7 +443,7 @@ bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     mongoose_instrument:execute(sm_message_bounced, #{host_type => HostType},
                                 #{count => 1, from_jid => From, to_jid => To, element => Packet}),
-    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
+    E = mongoose_xmpp_errors:service_unavailable(<<"Bounce offline message">>),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
     Acc2 = mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1)),
     {stop, Acc2}.
@@ -727,7 +727,7 @@ do_route_offline(<<"iq">>, <<"error">>, _From, _To, Acc, _Packet) ->
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, Acc, _Packet) ->
     Acc;
 do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
-    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Route offline">>),
+    E = mongoose_xmpp_errors:service_unavailable(<<"Route offline">>),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
     mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1));
 do_route_offline(_, _, _, _, Acc, _) ->
@@ -808,7 +808,7 @@ route_message_by_type(_, From, To, Acc, Packet) ->
                     mongoose_hooks:failed_to_store_message(Acc)
             end;
         _ ->
-            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"User not found">>),
+            E = mongoose_xmpp_errors:service_unavailable(<<"User not found">>),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end.
@@ -966,7 +966,7 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
             Msg = <<"Unknown xmlns=", XMLNS/binary, " for host=", Host/binary>>,
-            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, Msg),
+            E = mongoose_xmpp_errors:service_unavailable(Msg),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             mongoose_router:route(mongoose_acc:update(To, From, Err, Acc1))
     end;
@@ -1004,11 +1004,11 @@ global_probes() ->
      {sm_node_sessions, #{},
       #{probe => #{module => ?MODULE}, metrics => #{count => gauge}}}].
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(), mongoose_instrument:extra()) ->
     mongoose_instrument:measurements().
-probe(sm_total_sessions, #{}) ->
+probe(sm_total_sessions, #{}, _Extra) ->
     #{count => get_total_sessions_number()};
-probe(sm_unique_sessions, #{}) ->
+probe(sm_unique_sessions, #{}, _Extra) ->
     #{count => get_unique_sessions_number()};
-probe(sm_node_sessions, #{}) ->
+probe(sm_node_sessions, #{}, _Extra) ->
     #{count => get_node_sessions_number()}.

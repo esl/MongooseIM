@@ -112,7 +112,7 @@ process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
         [] ->
             T = <<"Local server does not implement this feature">>,
             {Acc1, Error} = jlib:make_error_reply(Acc,
-                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, T)),
+                mongoose_xmpp_errors:feature_not_implemented(T)),
             mongoose_router:route(mongoose_acc:update(To, From, Error, Acc1))
     end;
 process_iq(_, Acc, From, To, El) ->

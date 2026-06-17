@@ -93,11 +93,6 @@ The number of seconds between cleaning attempts of the `domain_events` table.
 
 The number of seconds after an event must be deleted from the `domain_events` table.
 
-## `service_translations`
-
-Enables translations for system messages.
-Support is minimal, you can check `priv/translations/` for translated messages.
-
 ## `service_bosh`
 
 This service implements [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html) (using [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html)),

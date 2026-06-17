@@ -201,7 +201,7 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
     LServer = From#jid.lserver,
     case query_to_params(HostType, QueryEl) of
         {error, Error, Msg} ->
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Error(<<"en">>, Msg)]}};
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Error(Msg)]}};
         Params ->
             List0 = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
             List1 = with_rsm(List0, Params),

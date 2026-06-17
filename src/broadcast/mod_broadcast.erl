@@ -15,7 +15,7 @@
          supported_features/0,
          config_spec/0,
          instrumentation/1]).
--export([probe/2]).
+-export([probe/3]).
 -export([remove_domain/3]).
 -export([lease_time/1]).
 
@@ -109,9 +109,9 @@ instrumentation(HostType) ->
 %% mongoose_instrument_probe callback
 %%====================================================================
 
--spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels(), mongoose_instrument:extra()) ->
           mongoose_instrument:measurements().
-probe(mod_broadcast_live_jobs, #{host_type := HostType}) ->
+probe(mod_broadcast_live_jobs, #{host_type := HostType}, _Extra) ->
     try broadcast_manager:get_live_job_count(HostType) of
         Count ->
             ?LOG_DEBUG(#{what => broadcast_live_jobs_probe, host_type => HostType, count => Count}),
@@ -180,7 +180,7 @@ ensure_rdbms_auth_enabled(HostType) ->
                     host_type => HostType})
     end.
 
-ensure_minimum_lease_time(HostType, #{lease_time := LeaseTime})
+ensure_minimum_lease_time(_HostType, #{lease_time := LeaseTime})
   when LeaseTime >= ?MIN_LEASE_TIME_SEC ->
     ok;
 ensure_minimum_lease_time(HostType, #{lease_time := LeaseTime}) ->

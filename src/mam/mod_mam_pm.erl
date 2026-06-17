@@ -679,27 +679,26 @@ handle_error_iq(_Host, Acc, _To, _Action, IQ) ->
 -spec return_action_not_allowed_error_iq(jlib:iq()) -> jlib:iq().
 return_action_not_allowed_error_iq(IQ) ->
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
-                                 <<"en">>, <<"The action is not allowed.">>),
+                                 <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 -spec return_max_delay_reached_error_iq(jlib:iq()) -> jlib:iq().
 return_max_delay_reached_error_iq(IQ) ->
     %% Message not found.
-    ErrorEl = mongoose_xmpp_errors:resource_constraint(
-                 <<"en">>, <<"The action is cancelled because of flooding.">>),
+    ErrorEl = mongoose_xmpp_errors:resource_constraint(<<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 -spec return_error_iq(jlib:iq(), Reason :: term()) -> {error, term(), jlib:iq()}.
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
-    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout">>),
+    E = mongoose_xmpp_errors:service_unavailable(<<"Timeout">>),
     {error, timeout, IQ#iq{type = error, sub_el = [E]}};
 return_error_iq(IQ, invalid_stanza_id) ->
-    Text = mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"Invalid stanza ID provided">>),
+    Text = mongoose_xmpp_errors:not_acceptable(<<"Invalid stanza ID provided">>),
     {error, invalid_stanza_id, IQ#iq{type = error, sub_el = [Text]}};
 return_error_iq(IQ, item_not_found) ->
-    Text = mongoose_xmpp_errors:item_not_found(<<"en">>, <<"Message with specified ID is not found">>),
+    Text = mongoose_xmpp_errors:item_not_found(<<"Message with specified ID is not found">>),
     {error, item_not_found, IQ#iq{type = error, sub_el = [Text]}};
 return_error_iq(IQ, not_implemented) ->
     {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};

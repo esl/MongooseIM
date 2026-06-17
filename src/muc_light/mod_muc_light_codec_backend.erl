@@ -114,19 +114,19 @@ encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, Acc) ->
 make_error_elem({error, not_allowed}) ->
     mongoose_xmpp_errors:not_allowed();
 make_error_elem({error, bad_request}) ->
-    mongoose_xmpp_errors:bad_request(<<"en">>, <<"Uncategorized bad request">>);
+    mongoose_xmpp_errors:bad_request(<<"Uncategorized bad request">>);
 make_error_elem({error, item_not_found}) ->
     mongoose_xmpp_errors:item_not_found();
 make_error_elem({error, {conflict, Text}}) ->
-    mongoose_xmpp_errors:conflict(<<"en">>, Text);
+    mongoose_xmpp_errors:conflict(Text);
 make_error_elem({error, {bad_request, Text}}) ->
     make_error_elem({error, bad_request, Text});
 make_error_elem({error, bad_request, Text}) ->
-    mongoose_xmpp_errors:bad_request(<<"en">>, iolist_to_binary(Text));
+    mongoose_xmpp_errors:bad_request(iolist_to_binary(Text));
 make_error_elem({error, feature_not_implemented}) ->
     mongoose_xmpp_errors:feature_not_implemented();
 make_error_elem({error, {feature_not_implemented, Text}}) ->
-    mongoose_xmpp_errors:feature_not_implemented(<<"en">>, iolist_to_binary(Text));
+    mongoose_xmpp_errors:feature_not_implemented(iolist_to_binary(Text));
 make_error_elem({error, internal_server_error}) ->
     mongoose_xmpp_errors:internal_server_error();
 make_error_elem({error, registration_required}) ->

@@ -143,17 +143,17 @@ run_request_hook(adhoc_sm_commands, HostType, From, To, AdhocRequest) ->
       Acc :: mongoose_disco:item_acc(),
       Params :: map(),
       Extra :: #{host_type := mongooseim:host_type()}.
-disco_local_items(Acc = #{to_jid := ToJid, node := <<>>, lang := Lang}, _, #{host_type := HostType}) ->
+disco_local_items(Acc = #{to_jid := ToJid, node := <<>>}, _, #{host_type := HostType}) ->
     #jid{lserver = LServer} = ToJid,
     Items = case are_commands_visible(HostType) of
                 false ->
                     [];
                 _ ->
-                    [item(LServer, ?NS_COMMANDS, <<"Commands">>, Lang)]
+                    [item(LServer, ?NS_COMMANDS, <<"Commands">>)]
             end,
     {ok, mongoose_disco:add_items(Items, Acc)};
-disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := ?NS_COMMANDS, lang := Lang}, _, _) ->
-    Items = [item(LServer, <<"ping">>, <<"Ping">>, Lang)],
+disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := ?NS_COMMANDS}, _, _) ->
+    Items = [item(LServer, <<"ping">>, <<"Ping">>)],
     {ok, mongoose_disco:add_items(Items, Acc)};
 disco_local_items(Acc = #{node := <<"ping">>}, _, _) ->
     {ok, Acc#{result := []}}; % override the result
@@ -166,13 +166,13 @@ disco_local_items(Acc, _, _) ->
       Acc :: mongoose_disco:item_acc(),
       Params :: mongoose_disco:sm_params(),
       Extra :: #{host_type := mongooseim:host_type()}.
-disco_sm_items(Acc = #{to_jid := To, node := <<>>, lang := Lang},
+disco_sm_items(Acc = #{to_jid := To, node := <<>>},
                #{presence_subscribed := true}, #{host_type := HostType}) ->
     Items = case are_commands_visible(HostType) of
                 false ->
                     [];
                 _ ->
-                    [item(jid:to_binary(To), ?NS_COMMANDS, <<"Commands">>, Lang)]
+                    [item(jid:to_binary(To), ?NS_COMMANDS, <<"Commands">>)]
             end,
     {ok, mongoose_disco:add_items(Items, Acc)};
 disco_sm_items(Acc, _, _) ->
@@ -181,8 +181,8 @@ disco_sm_items(Acc, _, _) ->
 are_commands_visible(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, report_commands_node).
 
-item(LServer, Node, Name, Lang) ->
-    #{jid => LServer, node => Node, name => service_translations:do(Lang, Name)}.
+item(LServer, Node, Name) ->
+    #{jid => LServer, node => Node, name => Name}.
 
 %%-------------------------------------------------------------------------
 
@@ -191,10 +191,10 @@ item(LServer, Node, Name, Lang) ->
       Acc :: mongoose_disco:identity_acc(),
       Params :: map(),
       Extra :: gen_hook:extra().
-disco_local_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}, _, _) ->
-    {ok, mongoose_disco:add_identities([command_list_identity(Lang)], Acc)};
-disco_local_identity(Acc = #{node := <<"ping">>, lang := Lang}, _, _) ->
-    {ok, mongoose_disco:add_identities([ping_identity(Lang)], Acc)};
+disco_local_identity(Acc = #{node := ?NS_COMMANDS}, _, _) ->
+    {ok, mongoose_disco:add_identities([command_list_identity()], Acc)};
+disco_local_identity(Acc = #{node := <<"ping">>}, _, _) ->
+    {ok, mongoose_disco:add_identities([ping_identity()], Acc)};
 disco_local_identity(Acc, _, _) ->
     {ok, Acc}.
 
@@ -205,21 +205,21 @@ disco_local_identity(Acc, _, _) ->
       Acc :: mongoose_disco:identity_acc(),
       Params :: mongoose_disco:sm_params(),
       Extra :: gen_hook:extra().
-disco_sm_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang},
+disco_sm_identity(Acc = #{node := ?NS_COMMANDS},
                   #{presence_subscribed := true}, _) ->
-    {ok, mongoose_disco:add_identities([command_list_identity(Lang)], Acc)};
+    {ok, mongoose_disco:add_identities([command_list_identity()], Acc)};
 disco_sm_identity(Acc, _, _) ->
     {ok, Acc}.
 
-ping_identity(Lang) ->
+ping_identity() ->
     #{category => <<"automation">>,
       type => <<"command-node">>,
-      name => service_translations:do(Lang, <<"Ping">>)}.
+      name => <<"Ping">>}.
 
-command_list_identity(Lang) ->
+command_list_identity() ->
     #{category => <<"automation">>,
       type => <<"command-list">>,
-      name => service_translations:do(Lang, <<"Commands">>)}.
+      name => <<"Commands">>}.
 
 %%-------------------------------------------------------------------------
 
@@ -269,7 +269,7 @@ ping_command(empty,
                               node = Node,
                               session_id = SessionID,
                               status = completed,
-                              notes = [{<<"info">>, service_translations:do(Lang, <<"Pong">>)}]});
+                              notes = [{<<"info">>, <<"Pong">>}]});
         false ->
             {error, mongoose_xmpp_errors:bad_request()}
     end,

@@ -12,14 +12,18 @@
 
 -export([get_cert_domains/1,
          get_common_name/1,
-         get_xmpp_addresses/1
+         get_xmpp_addresses/1,
+         get_validity/1
 ]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include("XmppAddr.hrl").
 -include("jlib.hrl").
 
--type certificate() :: binary() | #'Certificate'{} | #'OTPCertificate'{}.
+-type certificate() :: binary()
+                     | #'Certificate'{}
+                     | #'OTPCertificate'{}
+                     | PemEntry :: {'Certificate', binary(), not_encrypted}.
 -type general_name() :: term().
 
 -export_type([certificate/0]).
@@ -60,6 +64,22 @@ get_xmpp_addresses(Cert) ->
         Class:Exception:StackTrace ->
             log_exception(Cert, Class, Exception, StackTrace),
             []
+    end.
+
+
+-spec get_validity(certificate()) -> {non_neg_integer(), non_neg_integer()} | error.
+get_validity(Cert) ->
+    try
+        Cert1 = ensure_cert(Cert),
+        #'OTPCertificate'{tbsCertificate = TBSCert} = Cert1,
+        #'OTPTBSCertificate'{validity = Validity} = TBSCert,
+        #'Validity'{notBefore = NotBefore, notAfter = NotAfter} = Validity,
+        {pubkey_cert:time_str_2_gregorian_sec(NotBefore),
+         pubkey_cert:time_str_2_gregorian_sec(NotAfter)}
+    catch
+        Class:Exception:StackTrace ->
+            log_exception(Cert, Class, Exception, StackTrace),
+            error
     end.
 
 
@@ -118,6 +138,8 @@ ensure_cert(#'OTPCertificate'{} = Cert) ->
 ensure_cert(#'Certificate'{} = PlainCert) ->
     Der = public_key:pkix_encode('Certificate', PlainCert, plain),
     public_key:pkix_decode_cert(Der, otp);
+ensure_cert({'Certificate', Der, not_encrypted}) ->
+    ensure_cert(Der);
 ensure_cert(Bin) when is_binary(Bin) ->
     public_key:pkix_decode_cert(Bin, otp).
 

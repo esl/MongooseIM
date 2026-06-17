@@ -2184,7 +2184,7 @@ async_pool_queue_lengths_are_updated(Config) ->
     Event = async_pool_queue_lengths,
     Labels = #{pool_id => PoolId, host_type => HostType},
 
-    #{total := Total} = rpc(mim(), mongoose_async_pools, probe, [Event, Labels]),
+    #{total := Total} = rpc(mim(), mongoose_async_pools, probe, [Event, Labels, #{}]),
 
     [rpc(mim(), sys, suspend, [rpc(mim(), erlang, whereis, [W])]) || W <- Workers],
     rpc(mim(), mongoose_async_pools, put_task, [HostType, PoolId, {}]),
