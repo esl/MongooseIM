@@ -1409,12 +1409,15 @@ access_persistent(#state{access=Access}) ->
     AccessPersistent.
 
 
+-dialyzer({no_match, set_affiliation/3}).
 -spec set_affiliation(jid:jid(), mod_muc:affiliation(), state()) -> state().
 set_affiliation(JID, Affiliation, StateData)
-        when is_atom(Affiliation), Affiliation =/= none ->
-    %% Removing an affiliation (setting it to 'none') goes through set_affiliation_and_reason/4
+        when is_atom(Affiliation) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
-    Affiliations = maps:put(LJID, Affiliation, StateData#state.affiliations),
+    Affiliations = case Affiliation of
+               none -> maps:remove(LJID, StateData#state.affiliations);
+               _ -> maps:put(LJID, Affiliation, StateData#state.affiliations)
+           end,
     StateData#state{affiliations = Affiliations}.
 
 
