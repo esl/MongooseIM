@@ -1,102 +1,52 @@
-%%%===================================================================
-%%% @copyright (C) 2016, Erlang Solutions Ltd.
-%%% @doc Suite for testing Personal Eventing Protocol features
-%%%      as described in XEP-0163
-%%% @end
-%%%===================================================================
-
 -module(pep_SUITE).
+-moduledoc "PEP (XEP-0163) tests for mod_pubsub".
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("eunit/include/eunit.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
-                             subhost_pattern/1,
-                             rpc/4]).
--import(config_parser_helper, [default_mod_config/1, mod_config/2]).
--import(domain_helper, [domain/0]).
-
--define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
-
-%%--------------------------------------------------------------------
-%% Suite configuration
-%%--------------------------------------------------------------------
-
-all() ->
-    [
-     {group, pep_tests},
-     {group, cache_tests}
-    ].
-
-groups() ->
-    [
-         {pep_tests, [parallel],
-          [
-           disco_test,
-           disco_sm_test,
-           disco_sm_node_test,
-           disco_sm_items_test,
-           disco_sm_items_node_test,
-           publish_and_notify_test,
-           auto_create_with_publish_options_test,
-           publish_options_success_test,
-           publish_options_fail_unknown_option_story,
-           publish_options_fail_wrong_value_story,
-           publish_options_fail_wrong_form,
-           send_caps_after_login_test,
-           delayed_receive,
-           delayed_receive_with_sm,
-           h_ok_after_notify_test,
-           authorize_access_model,
-           unsubscribe_after_presence_unsubscription,
-           native_bookmarks_test
-          ]
-         },
-         {cache_tests, [parallel],
-          [
-           send_caps_after_login_test,
-           delayed_receive,
-           delayed_receive_with_sm,
-           unsubscribe_after_presence_unsubscription
-          ]
-         }
-    ].
-
-suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+-import(config_parser_helper, [default_mod_config/1]).
+-import(distributed_helper, [require_rpc_nodes/1]).
+-import(domain_helper, [host_type/0]).
+-import(pubsub_tools, [check_item_notification/4,
+                       create_node/3, delete_node/3,
+                       get_configuration/3, get_item/4, get_items/3,
+                       item_content/0, item_el/2,
+                       publish/4, publish_raw/4, publish_with_options/5, published_item_id/2,
+                       receive_item_notification/4, receive_node_deletion_notification/3,
+                       receive_retract_notification/4,
+                       retract_item/4, retract_items/4, retract_raw/4,
+                       send_generic_request/6,
+                       set_configuration/4,
+                       subscribe/3, unsubscribe/3]).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+suite() ->
+    require_rpc_nodes([mim]) ++ escalus:suite().
+
 init_per_suite(Config) ->
     maybe
         ok ?= caps_helper:check_backend(),
-        escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config))
+        escalus:init_per_suite(dynamic_modules:save_modules(host_type(), Config))
     end.
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(cache_tests, Config) ->
-    Config0 = dynamic_modules:save_modules(domain(), Config),
-    NewConfig = required_modules(cache_tests),
-    dynamic_modules:ensure_modules(domain(), NewConfig),
-    Config0;
-
-init_per_group(_GroupName, Config) ->
-    dynamic_modules:ensure_modules(domain(), required_modules()),
-    Config.
+init_per_group(GroupName, Config) ->
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+    Config1.
 
 end_per_group(_GroupName, Config) ->
+    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config).
 
 init_per_testcase(TestName, Config) ->
@@ -106,439 +56,906 @@ end_per_testcase(TestName, Config) ->
     escalus:end_per_testcase(TestName, Config).
 
 %%--------------------------------------------------------------------
-%% Test cases for XEP-0163
-%% Comments in test cases refer to sections is the XEP
+%% Test cases
 %%--------------------------------------------------------------------
 
-%% Group: pep_tests (sequence)
+all() ->
+    [{group, pep},
+     {group, pep_no_caps}].
 
-disco_test(Config) ->
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
-              escalus:send(Alice, escalus_stanza:disco_info(pubsub_tools:node_addr())),
-              Stanza = escalus:wait_for_stanza(Alice),
-              escalus:assert(has_identity, [<<"pubsub">>, <<"service">>], Stanza),
-              escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
-              escalus:assert(has_feature, [?NS_PUBSUB], Stanza)
-      end).
+groups() ->
+    [{pep, [parallel], pep_tests()},
+     {pep_no_caps, [parallel], pep_no_caps_tests()}].
 
-disco_sm_test(Config) ->
-    disco_sm_test(Config, undefined).
+pep_tests() ->
+    disco_tests() ++ protocol_tests() ++ protocol_tests_with_sm().
 
-disco_sm_node_test(Config) ->
-    disco_sm_test(Config, random_node_ns()).
+pep_no_caps_tests() ->
+    [disco_info_no_caps,
+     create_presence_and_publish_implicit_sub_no_caps].
 
-disco_sm_test(Config, Node) ->
-    escalus:fresh_story(
-        Config,
-        [{alice, 1}],
-        fun(Alice) ->
-            AliceJid = escalus_client:short_jid(Alice),
-            Disco =
-                case Node of
-                    undefined ->
-                        escalus_stanza:disco_info(AliceJid);
-                    _ ->
-                        escalus_stanza:disco_info(AliceJid, Node)
-                end,
-            escalus:send(Alice, Disco),
-            Stanza = escalus:wait_for_stanza(Alice),
-            ?assertNot(escalus_pred:has_identity(<<"pubsub">>, <<"service">>, Stanza)),
-            escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
-            escalus:assert(has_feature, [?NS_PUBSUB], Stanza),
-            escalus:assert(is_stanza_from, [AliceJid], Stanza)
-        end).
+-doc "Tests for XEP-0030 Service Discovery with rules from XEP-0163 / XEP-0060".
+disco_tests() ->
+    [disco_info,
+     disco_info_node,
+     disco_items,
+     disco_items_node,
+     disco_items_open].
 
-disco_sm_items_test(Config) ->
-    disco_sm_items_test(Config, false).
+-doc "PEP tests for the XEP-0163 / XEP-0060 protocol".
+protocol_tests() ->
+    basic_tests() ++ negative_tests().
 
-disco_sm_items_node_test(Config) ->
-    disco_sm_items_test(Config, true).
+basic_tests() ->
+    [create_and_delete,
+     create_with_empty_config,
+     create_and_configure,
+     create_open_and_publish_both_subs,
+     create_open_and_publish_explicit_sub,
+     create_open_and_publish_implicit_sub,
+     create_open_and_publish_no_sub,
+     create_presence_and_publish_explicit_sub,
+     create_presence_and_publish_implicit_sub,
+     create_presence_and_publish_no_sub,
+     publish_and_get_items,
+     publish_and_retract_item,
+     publish_and_retract_item_with_notify,
+     publish_implicit_sub,
+     publish_open_explicit_sub,
+     publish_self_notify,
+     send_last_item_on_caps,
+     send_last_item_on_implicit_sub].
 
-disco_sm_items_test(Config, UseNode) ->
+negative_tests() ->
+    [bad_request_fails,
+     configure_with_invalid_form_fails,
+     create_at_foreign_jid_fails,
+     create_duplicate_node_fails,
+     create_with_invalid_config_fails,
+     delete_nonexistent_node_fails,
+     get_item_without_id_fails,
+     manage_nonexistent_node_fails,
+     manage_foreign_node_fails,
+     publish_to_foreign_node_fails,
+     publish_with_invalid_items_fails,
+     publish_options_invalid_config_fails,
+     request_without_nodeid_fails,
+     retract_invalid_request_fails,
+     subscribe_presence_required_fails,
+     subscribe_to_nonexistent_node_fails,
+     subscribe_with_invalid_jid_fails,
+     unsubscribe_implicit_fails,
+     unsubscribe_foreign_jid_fails].
+
+-doc "Tests ensuring that PEP works with XEP-0198 Stream Management enabled".
+protocol_tests_with_sm() ->
+    [send_last_item_on_implicit_sub_with_sm]. % check for regressions in a typical scenario
+
+%% Disco
+
+disco_info(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun disco_info_story/1).
+
+disco_info_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun disco_info_node_story/3).
+
+disco_items(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun disco_items_story/3).
+
+disco_items_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun disco_items_node_story/3).
+
+disco_items_open(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun disco_items_open_story/3).
+
+%% Basic cases
+
+create_and_delete(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun create_and_delete_story/2).
+
+create_open_and_publish_both_subs(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun create_open_and_publish_both_subs_story/3).
+
+create_open_and_publish_explicit_sub(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun create_open_and_publish_explicit_sub_story/2).
+
+create_open_and_publish_implicit_sub(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun create_open_and_publish_implicit_sub_story/3).
+
+create_open_and_publish_no_sub(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}, {mike, 1}],
+                                    fun create_open_and_publish_no_sub_story/4).
+
+create_presence_and_publish_explicit_sub(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun create_presence_and_publish_explicit_sub_story/2).
+
+create_presence_and_publish_implicit_sub(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun create_presence_and_publish_implicit_sub_story/3).
+
+create_presence_and_publish_no_sub(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}, {mike, 1}],
+                                    fun create_presence_and_publish_no_sub_story/4).
+
+create_with_empty_config(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun create_with_empty_config_story/1).
+
+create_and_configure(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun create_and_configure_story/1).
+
+publish_and_get_items(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun publish_and_get_items_story/1).
+
+publish_and_retract_item(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun publish_and_retract_item_story/3).
+
+publish_and_retract_item_with_notify(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun publish_and_retract_item_with_notify_story/3).
+
+publish_implicit_sub(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun publish_implicit_sub_story/3).
+
+publish_open_explicit_sub(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun publish_open_explicit_sub_story/2).
+
+publish_self_notify(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{bob, 1}], fun publish_self_notify_story/2).
+
+send_last_item_on_caps(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun send_last_item_on_caps_story/2).
+
+send_last_item_on_implicit_sub(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun send_last_item_on_implicit_sub_story/3).
+
+%% Negative cases
+
+bad_request_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun bad_request_fails_story/1).
+
+configure_with_invalid_form_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun configure_with_invalid_form_fails_story/1).
+
+create_at_foreign_jid_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun create_at_foreign_jid_fails_story/2).
+
+create_duplicate_node_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun create_duplicate_node_fails_story/1).
+
+create_with_invalid_config_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun create_with_invalid_config_fails_story/1).
+
+delete_nonexistent_node_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun delete_nonexistent_node_fails_story/1).
+
+get_item_without_id_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun get_item_without_id_fails_story/1).
+
+manage_nonexistent_node_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun manage_nonexistent_node_fails_story/1).
+
+manage_foreign_node_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun manage_foreign_node_fails_story/2).
+
+publish_to_foreign_node_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun publish_to_foreign_node_fails_story/2).
+
+publish_with_invalid_items_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun publish_with_invalid_items_fails_story/1).
+
+publish_options_invalid_config_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun publish_options_invalid_config_fails_story/1).
+
+request_without_nodeid_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun request_without_nodeid_fails_story/1).
+
+retract_invalid_request_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun retract_invalid_request_fails_story/2).
+
+subscribe_presence_required_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun subscribe_presence_required_fails_story/2).
+
+subscribe_to_nonexistent_node_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun subscribe_to_nonexistent_node_fails_story/1).
+
+subscribe_with_invalid_jid_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun subscribe_with_invalid_jid_fails_story/2).
+
+unsubscribe_implicit_fails(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
+                                    fun unsubscribe_implicit_fails_story/3).
+
+unsubscribe_foreign_jid_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun unsubscribe_foreign_jid_fails_story/2).
+
+%% Stream management
+
+send_last_item_on_implicit_sub_with_sm(ConfigIn) ->
+    Config0 = escalus_users:update_userspec(ConfigIn, alice, stream_management, true),
+    Config1 = escalus_users:update_userspec(Config0, bob, stream_management, true),
+    Config2 = set_caps(Config1),
+    escalus:fresh_story_with_config(Config2, [{alice, 1}, {bob, 1}],
+                                    fun send_last_item_on_implicit_sub_story/3).
+
+%% No mod_caps
+
+disco_info_no_caps(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun disco_info_no_caps_story/1).
+
+create_presence_and_publish_implicit_sub_no_caps(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun create_presence_and_publish_implicit_sub_no_caps_story/2).
+
+%%--------------------------------------------------------------------
+%% Stories
+%%--------------------------------------------------------------------
+
+%% Disco
+
+disco_info_story(Alice) ->
+    %% XEP-0163 6.1 Account Owner Service Discovery
+    assert_disco_info(Alice, escalus_client:short_jid(Alice), true),
+
+    %% XEP-0030 8 Security Considerations
+    assert_no_disco_info(Alice, nonexistent_bare_jid()).
+
+disco_info_node_story(Alice, Bob, Kate) ->
     NodeNS = random_node_ns(),
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
-              AliceJid = escalus_client:short_jid(Alice),
+    AliceJid = escalus_client:short_jid(Alice),
+    publish(Alice, ~"item1", pep_node(Alice, NodeNS), []),
+    set_up_presence_subscription(Bob, Alice, 0),
 
-              %% Node not present yet
-              DiscoStanza = case UseNode of
-                                true -> escalus_stanza:disco_items(AliceJid, NodeNS);
-                                false -> escalus_stanza:disco_items(AliceJid)
-                            end,
-              escalus:send(Alice, DiscoStanza),
-              Stanza1 = escalus:wait_for_stanza(Alice),
-              Query1 = exml_query:subelement(Stanza1, <<"query">>),
-              ?assertEqual(undefined, exml_query:subelement_with_attr(Query1, <<"node">>, NodeNS)),
-              escalus:assert(is_stanza_from, [AliceJid], Stanza1),
+    %% XEP-0163 6.2 Contact Service Discovery
+    assert_disco_info_node(Alice, AliceJid, NodeNS),
+    assert_disco_info_node(Bob, AliceJid, NodeNS),
 
-              %% Publish an item to trigger node creation
-              pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+    %% XEP-0030 7 Error Conditions
+    assert_no_disco_info_node(Alice, AliceJid, random_node_ns(), ~"item-not-found"),
 
-              %% Node present
-              escalus:send(Alice, DiscoStanza),
-              Stanza2 = escalus:wait_for_stanza(Alice),
-              Query2 = exml_query:subelement(Stanza2, <<"query">>),
-              Item = exml_query:subelement_with_attr(Query2, <<"node">>, NodeNS),
-              ?assertEqual(jid:str_tolower(AliceJid), exml_query:attr(Item, <<"jid">>)),
-              escalus:assert(is_stanza_from, [AliceJid], Stanza2)
-      end).
+    %% XEP-0030 8 Security Considerations
+    assert_no_disco_info_node(Kate, AliceJid, NodeNS, ~"service-unavailable").
 
-native_bookmarks_test(Config) ->
-    Config1 = set_caps(Config, ?NS_PEP_BOOKMARKS),
-    escalus:fresh_story_with_config(Config1, [{bob, 1}], fun native_bookmarks_story/2).
+disco_items_story(Alice, Bob, Kate) ->
+    NodeNS = random_node_ns(),
+    AliceJid = escalus_client:short_jid(Alice),
+    publish(Alice, ~"item1", pep_node(Alice, NodeNS), []),
+    set_up_presence_subscription(Bob, Alice, 0),
 
-%% Minimal test for XEP-0402
-native_bookmarks_story(Config, Bob) ->
+    %% XEP-0163 6.2 Contact Service Discovery
+    assert_disco_items(Alice, AliceJid, NodeNS),
+    assert_disco_items(Bob, AliceJid, NodeNS),
+    assert_no_disco_items(Kate, AliceJid),
+
+    %% XEP-0030 8 Security Considerations
+    assert_no_disco_items(Alice, nonexistent_bare_jid()).
+
+disco_items_node_story(Alice, Bob, Kate) ->
+    NodeNS = random_node_ns(),
+    AliceJid = escalus_client:short_jid(Alice),
+    publish(Alice, ~"item1", pep_node(Alice, NodeNS), []),
+    set_up_presence_subscription(Bob, Alice, 0),
+
+    %% XEP-0030 7 Error Conditions
+    assert_no_disco_items_node(Alice, AliceJid, NodeNS, ~"item-not-found"),
+    assert_no_disco_items_node(Bob, AliceJid, NodeNS, ~"item-not-found"),
+
+    %% XEP-0030 8 Security Considerations
+    assert_no_disco_items_node(Kate, AliceJid, NodeNS, ~"service-unavailable").
+
+disco_items_open_story(Alice, Bob, Kate) ->
+    NodeNS = random_node_ns(),
+    AliceJid = escalus_client:short_jid(Alice),
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    publish(Alice, ~"item1", PepNode, []),
+    set_up_presence_subscription(Bob, Alice, 0),
+
+    %% XEP-0163 6.2 Contact Service Discovery
+    assert_disco_items(Alice, AliceJid, NodeNS),
+    assert_disco_items(Bob, AliceJid, NodeNS),
+    assert_disco_items(Kate, AliceJid, NodeNS).
+
+%% Basic cases
+
+create_and_delete_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    subscribe(Bob, PepNode, []),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Alice, PepNode, [{expected_result, []}]),
+
+    %% XEP-0060 8.2 Delete a Node
+    delete_node(Alice, PepNode, []),
+    receive_node_deletion_notification(Bob, PepNode, []),
+
+    %% Create + delete without subscribers - to exercise the no-subscribers path in the code
+    PepNodeNoSubs = pep_node(Alice),
+    create_node(Alice, PepNodeNoSubs, []),
+    delete_node(Alice, PepNodeNoSubs, []).
+
+create_with_empty_config_story(Alice) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, [{config, []}]),
+    get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"presence"}]}]).
+
+create_and_configure_story(Alice) ->
+    PepNode = pep_node(Alice),
+    DefaultConfig = [{~"pubsub#access_model", ~"presence"}],
+    UpdatedConfig = [{~"pubsub#access_model", ~"open"}],
+    create_node(Alice, PepNode, []),
+
+    %% XEP-0060 8.2.5.1 Success (no-op)
+    set_configuration(Alice, PepNode, DefaultConfig, []),
+    get_configuration(Alice, PepNode, [{expected_result, DefaultConfig}]),
+
+    %% XEP-0060 8.2.5.1 Success
+    set_configuration(Alice, PepNode, UpdatedConfig, []),
+    get_configuration(Alice, PepNode, [{expected_result, UpdatedConfig}]).
+
+create_open_and_publish_both_subs_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
-    PublishOptions = [{<<"pubsub#persist_items">>, <<"true">>},
-                      {<<"pubsub#max_items">>, <<"max">>},
-                      {<<"pubsub#send_last_published_item">>, <<"never">>},
-                      {<<"pubsub#access_model">>, <<"whitelist">>}],
-    Id = <<"myroom@conference.localhost">>,
-    BobJid = escalus_utils:get_short_jid(Bob),
-    NotificationOpt = [{expected_notification, BobJid}],
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
 
-    %% Example 6. Client adds a new bookmark (notification and IQ result could arrive in any order)
-    Options = [{with_payload, {true, bookmark_element()}} | NotificationOpt],
-    {_Resp1, Msg1} = pubsub_tools:publish_with_options(Bob, Id, {pep, NodeNS}, Options, PublishOptions),
+    %% Set up implicit subscription
+    set_up_presence_subscription(Bob, Alice, 0),
 
-    %% Example 12. Client receives a new bookmark notification (stanza already received)
-    pubsub_tools:check_item_notification(Msg1, Id, {BobJid, NodeNS}, []),
+    %% Set up explicit subscription with bare and full JID (to exercise all deduplication paths)
+    subscribe(Bob, PepNode, []),
+    subscribe(Bob, PepNode, [{jid_type, bare}]),
 
-    %% Example 4. Client retrieves all bookmarks
-    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, [Id]}]),
+    %% XEP-0163 4.3.2 Avoid duplicated notifications for overlapping recipients
+    publish(Alice, ~"item1", PepNode, []),
+    receive_item_notification(Bob, ~"item1", PepNode, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500),
 
-    %% Example 10. Client removes a bookmark (notification and IQ result could arrive in any order)
-    {_Resp2, Msg2} = pubsub_tools:retract_item(Bob, {pep, NodeNS}, Id, [{notify, true} | NotificationOpt]),
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
 
-    %% Example 14. Client receives a bookmark retraction notification (stanza already received)
-    pubsub_tools:check_retract_notification(Msg2, Id, {BobJid, NodeNS}),
+create_open_and_publish_explicit_sub_story(Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
 
-    pubsub_tools:get_all_items(Bob, {pep, NodeNS}, [{expected_result, []}]),
-    pubsub_tools:delete_node(Bob, make_pep_node_info(Bob, NodeNS), []).
+    %% XEP-0163 4 Open access model with explicit subscription
+    subscribe(Bob, PepNode, []),
+    publish(Alice, ~"item1", PepNode, []),
+    receive_item_notification(Bob, ~"item1", PepNode, []),
 
-bookmark_element() ->
-    #xmlel{name = <<"conference">>,
-           attrs = #{<<"xmlns">> => ?NS_PEP_BOOKMARKS}}.
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
 
-publish_and_notify_test(Config) ->
-    Config1 = set_caps(Config),
-    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}], fun publish_and_notify_story/3).
+    %% XEP-0060 6.2.2 Success Case
+    unsubscribe(Bob, PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500).
 
-publish_and_notify_story(Config, Alice, Bob) ->
+create_open_and_publish_implicit_sub_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
-    make_friends(Bob, Alice, 0),
-    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
-    pubsub_tools:receive_item_notification(
-      Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []).
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    set_up_presence_subscription(Bob, Alice, 0),
 
-auto_create_with_publish_options_test(Config) ->
-    % Given pubsub is configured with pep plugin
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
+    %% XEP-0163 4 Open access model with implicit subscription
+    publish(Alice, ~"item1", PepNode, []),
+    receive_item_notification(Bob, ~"item1", PepNode, []),
 
-            % When publishing an item with publish-options
-            Node = {pep, random_node_ns()},
-            PublishOptions = [{<<"pubsub#access_model">>, <<"open">>}],
-            pubsub_tools:publish_with_options(Alice, <<"item1">>, Node, [], PublishOptions),
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
 
-            % Then node configuration contains specified publish-options
-            NodeConfig = pubsub_tools:get_configuration(Alice, Node, []),
-            verify_publish_options(NodeConfig, PublishOptions)
-      end).
-
-publish_options_success_test(Config) ->
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
-            NodeNS = random_node_ns(),
-            PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode,
-                                     [{modify_request,fun add_config_to_create_node_request/1}]),
-            escalus_story:make_all_clients_friends([Alice, Bob]),
-            PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"1">>},
-                              {<<"pubsub#notify_config">>, <<"0">>},
-                              {<<"pubsub#notify_delete">>, <<"0">>},
-                              {<<"pubsub#purge_offline">>, <<"0">>},
-                              {<<"pubsub#notify_retract">>, <<"0">>},
-                              {<<"pubsub#persist_items">>, <<"1">>},
-                              {<<"pubsub#roster_groups_allowed">>, [<<"friends">>, <<"enemies">>]},
-                              {<<"pubsub#max_items">>, <<"1">>},
-                              {<<"pubsub#subscribe">>, <<"1">>},
-                              {<<"pubsub#access_model">>, <<"presence">>},
-                              {<<"pubsub#publish_model">>, <<"publishers">>},
-                              {<<"pubsub#notification_type">>, <<"headline">>},
-                              {<<"pubsub#max_payload_size">>, <<"60000">>},
-                              {<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>},
-                              {<<"pubsub#deliver_notifications">>, <<"1">>},
-                              {<<"pubsub#presence_based_delivery">>, <<"1">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
-            escalus:assert(is_iq_result, Result)
-      end).
-
-publish_options_fail_unknown_option_story(Config) ->
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
-            NodeNS = random_node_ns(),
-            PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode, []),
-
-            PublishOptions = [{<<"deliver_payloads">>, <<"1">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
-
-            PublishOptions2 = [{<<"pubsub#not_existing_option">>, <<"1">>}],
-            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
-      end).
-
-publish_options_fail_wrong_value_story(Config) ->
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
-            NodeNS = random_node_ns(),
-            PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode,
-                                     [{modify_request,fun add_config_to_create_node_request/1}]),
-
-            PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"0">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
-
-            PublishOptions2 = [{<<"pubsub#roster_groups_allowed">>, <<"friends">>}],
-            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
-      end).
-
-publish_options_fail_wrong_form(Config) ->
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}],
-      fun(Alice) ->
-            NodeNS = random_node_ns(),
-            PepNode = make_pep_node_info(Alice, NodeNS),
-            pubsub_tools:create_node(Alice, PepNode, []),
-            PublishOptions = [{<<"deliver_payloads">>, <<"0">>}],
-            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions, <<"WRONG_NS">>),
-            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result)
-      end).
-
-send_caps_after_login_test(Config) ->
-    escalus:fresh_story(
-      Config,
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
-              NodeNS = random_node_ns(),
-              pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
-
-              escalus_story:make_all_clients_friends([Alice, Bob]),
-
-              Features = features(NodeNS),
-              Caps = caps_helper:enable_new_caps(Bob, Features, v1),
-              caps_helper:receive_presence_with_caps(Alice, Bob, Caps),
-
-              Node = {escalus_utils:get_short_jid(Alice), NodeNS},
-              pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
-
-              %% Unchanged caps shouldn't trigger notifications
-              caps_helper:enable_caps(Bob, Features, v1),
-              ct:sleep(200),
-              escalus_assert:has_no_stanzas(Bob)
-        end).
-
-delayed_receive(Config) ->
-    %% if alice publishes an item and then bob subscribes successfully to her presence
-    %% then bob will receive the item right after final subscription stanzas
-    Config1 = set_caps(Config),
-    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}], fun delayed_receive_story/3).
-
-delayed_receive_story(Config, Alice, Bob) ->
+create_open_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     NodeNS = ?config(node_ns, Config),
-    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
-    [Message] = make_friends(Bob, Alice),
-    Node = {escalus_utils:get_short_jid(Alice), NodeNS},
-    pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []),
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    set_up_presence_subscription(Mike, Alice, 0),
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0163 4 Notification filtering
+    [] = escalus:wait_for_stanzas(Alice, 1, 500), % account owner without caps
+    escalus_assert:has_no_stanzas(Bob), % caps but no presence subscription
+    escalus_assert:has_no_stanzas(Mike), % presence subscription but no caps
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
+    get_items(Mike, PepNode, [{expected_result, [~"item1"]}]).
+
+create_presence_and_publish_explicit_sub_story(Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, []),
+
+    set_up_presence_subscription(Bob, Alice, 0),
+
+    %% XEP-0163 4 (point 1) requires explicit subscriptions only for the 'open' model.
+    %% However, here we follow XEP-0060: 4.2 (table 3) says a 'subscribed' entity MUST receive
+    %% event notifications, and 12.2 (point 2) lists this trigger without access-model restrictions.
+    subscribe(Bob, PepNode, []),
+    publish(Alice, ~"item1", PepNode, []),
+    receive_item_notification(Bob, ~"item1", PepNode, []),
+
+    %% XEP-0060 6.2.2 Success Case
+    unsubscribe(Bob, PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500).
+
+create_presence_and_publish_implicit_sub_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, []),
+    set_up_presence_subscription(Bob, Alice, 0),
+
+    %% XEP-0163 4 Automatic subscription plus notification filtering
+    publish(Alice, ~"item1", PepNode, []),
+    receive_item_notification(Bob, ~"item1", PepNode, []),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
+
+create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, []),
+    set_up_presence_subscription(Mike, Alice, 0),
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0163 4 Notification filtering
+    [] = escalus:wait_for_stanzas(Alice, 1, 500), % account owner without caps
+    escalus_assert:has_no_stanzas(Bob), % caps but no presence subscription
+    escalus_assert:has_no_stanzas(Mike), % presence subscription but no caps
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Alice, PepNode, [{expected_result, [~"item1"]}]),
+    get_items(Bob, PepNode, [{expected_error_type, ~"auth"}]),
+    get_items(Mike, PepNode, [{expected_result, [~"item1"]}]).
+
+publish_and_get_items_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    publish(Alice, ~"item0", PepNode, []),
+    publish(Alice, ~"item1", PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+
+    %% XEP-0060 6.5 Request items
+    get_items(Alice, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]),
+    get_item(Alice, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
+    get_items(Alice, PepNode, [{item_ids, [~"item1", ~"item404", ~"item0"]},
+                               {expected_result, [~"item1", ~"item0"]}]).
+
+publish_and_retract_item_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    publish(Alice, ~"item1", PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+    publish(Alice, ~"item3", PepNode, []),
+    publish(Alice, ~"item4", PepNode, []),
+
+    %% XEP-0060 7.2 Retract an item
+    retract_item(Alice, PepNode, ~"item4", []),
+
+    [Message] = set_up_presence_subscription(Bob, Alice, 1),
+    check_item_notification(Message, ~"item3", PepNode, []), % This is the last item now
+
+    %% XEP-0060 7.2 Retract an Item without notification
+    retract_item(Alice, PepNode, ~"item1", []),
+    retract_item(Alice, PepNode, ~"item3", [{notify, ~"false"}]),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Alice, PepNode, [{expected_result, [~"item2"]}]).
+
+publish_and_retract_item_with_notify_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    publish(Alice, ~"item1", PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+    publish(Alice, ~"item3", PepNode, []),
+
+    %% XEP-0060 7.2 Retract with notify but without any recipients
+    retract_item(Alice, PepNode, ~"item3", [{notify, ~"true"}]),
+
+    [Message] = set_up_presence_subscription(Bob, Alice, 1),
+    check_item_notification(Message, ~"item2", PepNode, []), % This is the last item now
+
+    %% XEP-0060 7.2 Retract an Item with notification
+    retract_item(Alice, PepNode, ~"item1", [{notify, ~"true"}]),
+    receive_retract_notification(Bob, ~"item1", PepNode, []),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Alice, PepNode, [{expected_result, [~"item2"]}]).
+
+publish_implicit_sub_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    set_up_presence_subscription(Bob, Alice, 0),
+
+    %% XEP-0163 3 Auto-create and publish an item
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0163 4.3.3 Publish generates a notification
+    receive_item_notification(Bob, ~"item1", PepNode, []),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]).
+
+publish_open_explicit_sub_story(Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = pep_node(Alice, NodeNS),
+    PublishOptions = [{~"pubsub#access_model", ~"open"}],
+    publish_with_options(Alice, ~"item0", PepNode, [], PublishOptions),
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0163 4.3.4 Bob can subscribe and receive the last item
+    subscribe(Bob, PepNode, [{expected_notification, {PepNode, ~"item1"}}]),
+
+    %% XEP-0060 6.1.6 Subsequent 'subscribe' returns the current subscription state
+    subscribe(Bob, PepNode, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500),
+
+    %% XEP-0163 4.3.3 'publish' by Alice results in a notification to Bob
+    publish(Alice, ~"item2", PepNode, []),
+    receive_item_notification(Bob, ~"item2", PepNode, []),
+
+    %% XEP-0060 6.5 Bob can request all items
+    get_items(Bob, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]).
+
+publish_self_notify_story(Config, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Bob, NodeNS),
+
+    %% XEP-0163 4, Case 3 Entity is the account owner itself
+    publish(Bob, ~"item1", PepNode, [{expected_notification, {PepNode, ~"item1"}}]),
+
+    %% XEP-0060 6.5 Retrieve items
+    get_items(Bob, PepNode, [{expected_result, [~"item1"]}]),
+
+    %% XEP-0060 7.1.2 Generated item ID
+    {Response, Msg} = publish(Bob, undefined, PepNode, [{expected_notification, PepNode}]),
+    GeneratedItemId = published_item_id(Response, PepNode),
+    check_item_notification(Msg, GeneratedItemId, PepNode, []),
+    get_item(Bob, PepNode, GeneratedItemId, [{expected_result, [GeneratedItemId]}]).
+
+send_last_item_on_caps_story(Alice, Bob) ->
+    NodeNS = random_node_ns(),
+    PepNode = pep_node(Alice, NodeNS),
+    publish(Alice, ~"item2", PepNode, []),
+
+    escalus_story:make_all_clients_friends([Alice, Bob]),
+
+    Features = features(NodeNS),
+    Caps = caps_helper:enable_new_caps(Bob, Features, v1),
+    caps_helper:receive_presence_with_caps(Alice, Bob, Caps),
+
+    receive_item_notification(Bob, ~"item2", PepNode, []),
+
+    %% Unchanged caps shouldn't trigger notifications
+    caps_helper:enable_caps(Bob, Features, v1),
+    ct:sleep(200),
+    escalus_assert:has_no_stanzas(Bob).
+
+send_last_item_on_implicit_sub_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    PepNode = pep_node(Alice, NodeNS),
+    publish(Alice, ~"item1", PepNode, []), % previous item - not delivered
+    publish(Alice, ~"item2", PepNode, []), % last item
+    [Message] = set_up_presence_subscription(Bob, Alice, 1),
+    check_item_notification(Message, ~"item2", PepNode, []),
+    assert_delayed_notification(Message),
 
     %% Bob can receive further notifications
-    pubsub_tools:publish(Alice, <<"item3">>, {pep, NodeNS}, []),
-    pubsub_tools:receive_item_notification(Bob, <<"item3">>, Node, []).
+    publish(Alice, ~"item3", PepNode, []),
+    receive_item_notification(Bob, ~"item3", PepNode, []).
 
-delayed_receive_with_sm(Config) ->
-    %% Same as delayed_receive but with stream management turned on
-    Config1 = set_caps(Config),
-    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
-                                    fun delayed_receive_with_sm_story/3).
+%% Negative cases
 
-delayed_receive_with_sm_story(Config, Alice, Bob) ->
+bad_request_fails_story(Alice) ->
+    AliceJid = escalus_utils:get_short_jid(Alice),
+    Opts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    send_generic_request(Alice, AliceJid, ~"set", ?NS_PUBSUB, ~"unknown-action", Opts),
+    send_generic_request(Alice, AliceJid, ~"get", ?NS_PUBSUB, ~"unknown-action", Opts),
+    send_generic_request(Alice, AliceJid, ~"set", ?NS_PUBSUB_OWNER, ~"unknown-action", Opts),
+    send_generic_request(Alice, AliceJid, ~"get", ?NS_PUBSUB_OWNER, ~"unknown-action", Opts),
+    send_generic_request(Alice, AliceJid, ~"set", ?NS_PUBSUB, {raw, ~"pubstub"}, Opts).
+
+configure_with_invalid_form_fails_story(Alice) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+
+    %% Malformed configuration form
+    UpdatedConfig = [{~"pubsub#access_model", ~"open"}],
+    Opts = [{expected_error_type, {~"modify", ~"bad-request"}},
+            {modify_request, fun form_helper:remove_form_types/1}],
+    set_configuration(Alice, PepNode, UpdatedConfig, Opts).
+
+create_at_foreign_jid_fails_story(Alice, Bob) ->
+    Opts = [{expected_error_type, {~"auth", ~"forbidden"}}],
+
+    %% XEP-0060 8.1 Create a Node, Example 128
+    create_node(Bob, pep_node(Alice), Opts),
+
+    %% XEP-0060 7.1.3.1 Insufficient Privileges (auto-create attempt)
+    publish(Bob, ~"item2", pep_node(Alice), Opts).
+
+create_duplicate_node_fails_story(Alice) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+
+    %% XEP-0060 8.1.3.2 Node Already Exists
+    Opts = [{expected_error_type, {~"cancel", ~"conflict"}}],
+    create_node(Alice, PepNode, Opts).
+
+create_with_invalid_config_fails_story(Alice) ->
+    InvalidOptionOpts = [{config, [{~"pubsub#definitely_invalid_option", ~"1"}]},
+                         {expected_error_type, {~"modify", ~"bad-request"}}],
+    create_node(Alice, pep_node(Alice), InvalidOptionOpts),
+
+    InvalidModelOpts = [{config, [{~"pubsub#access_model", ~"not-a-real-model"}]},
+                        {expected_error_type, {~"modify", ~"bad-request"}}],
+    create_node(Alice, pep_node(Alice), InvalidModelOpts),
+
+    %% Malformed create request with unexpected extra child
+    ExtraChildOpts = [{expected_error_type, {~"modify", ~"bad-request"}},
+                      {modify_request, fun pubsub_tools:add_unexpected_pubsub_child/1}],
+    create_node(Alice, pep_node(Alice), ExtraChildOpts),
+
+    %% Malformed create configuration form
+    PepNode = pep_node(Alice),
+    MalformedConfigOpts = [{config, [{~"pubsub#access_model", ~"open"}]},
+                           {expected_error_type, {~"modify", ~"bad-request"}},
+                           {modify_request, fun form_helper:remove_form_types/1}],
+    create_node(Alice, PepNode, MalformedConfigOpts),
+
+    UnsupportedModelOpts = [{config, [{~"pubsub#access_model", ~"authorize"}]},
+                            {expected_error_type,
+                             {~"modify", ~"not-acceptable", ~"unsupported-access-model"}}],
+    create_node(Alice, pep_node(Alice), UnsupportedModelOpts).
+
+delete_nonexistent_node_fails_story(Alice) ->
+    %% XEP-0060 8.2.4 Node Does Not Exist
+    Opts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+    delete_node(Alice, pep_node(Alice), Opts).
+
+get_item_without_id_fails_story(Alice) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+
+    %% XEP-0060 6.5 Request an item: missing item ID
+    Opts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    get_item(Alice, PepNode, undefined, Opts),
+    get_items(Alice, PepNode, [{item_ids, [undefined, ~"item1"]} | Opts]).
+
+manage_nonexistent_node_fails_story(Alice) ->
+    PepNode = pep_node(Alice),
+    Opts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+
+    %% XEP-0060 8.2.3.5 Node Does Not Exist
+    get_configuration(Alice, PepNode, Opts),
+
+    %% XEP-0060 8.2.3.5 Node Does Not Exist: same missing-node condition applies to 'set'
+    set_configuration(Alice, PepNode, [{~"pubsub#access_model", ~"open"}], Opts),
+
+    %% XEP-0060 8.2.4 Node Does Not Exist
+    delete_node(Alice, PepNode, Opts).
+
+manage_foreign_node_fails_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+    Opts = [{expected_error_type, {~"auth", ~"forbidden"}}],
+
+    %% XEP-0060 8.5.3.1 Insufficient Privileges
+    get_configuration(Bob, PepNode, Opts),
+
+    %% XEP-0060 8.5.6.1 Insufficient Privileges
+    set_configuration(Bob, PepNode, [{~"pubsub#access_model", ~"open"}], Opts),
+
+    %% XEP-0060 8.4.3.1 Insufficient Privileges (existing node)
+    delete_node(Bob, PepNode, Opts),
+
+    %% XEP-0060 8.4.3.1 Insufficient Privileges (non-existent node)
+    delete_node(Bob, pep_node(Alice), Opts).
+
+publish_to_foreign_node_fails_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+
+    %% XEP-0060 7.1.3.1 Insufficient Privileges
+    publish(Bob, ~"item1", PepNode, [{expected_error_type, {~"auth", ~"forbidden"}}]).
+
+publish_with_invalid_items_fails_story(Alice) ->
+    PepNode = pep_node(Alice),
+
+    %% XEP-0060 7.1.3.4 Item Required
+    ItemRequiredOpts = [{with_payload, false},
+                        {expected_error_type, {~"modify", ~"bad-request", ~"item-required"}}],
+    publish(Alice, ~"item1", PepNode, ItemRequiredOpts),
+
+    %% XEP-0060 7.1.3.6 Payload Required
+    EmptyItem = item_el(~"item2", []),
+    PayloadRequiredOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"payload-required"}}],
+    publish_raw(Alice, PepNode, [EmptyItem], PayloadRequiredOpts),
+
+    %% XEP-0060 7.1.3.6 Invalid Payload
+    Content = item_content(),
+    InvalidItem = item_el(~"item3", [Content, Content]),
+    InvalidPayloadOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"invalid-payload"}}],
+    publish_raw(Alice, PepNode, [InvalidItem], InvalidPayloadOpts),
+
+    %% XEP-0060 7.1.3.5 Too Many Items
+    ItemEl = item_el(~"item4", [Content]),
+    BadRequestOpts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    publish_raw(Alice, PepNode, [ItemEl, ItemEl], BadRequestOpts),
+
+    %% Malformed publish request: direct child is not <item/>.
+    publish_raw(Alice, PepNode, [Content], BadRequestOpts).
+
+publish_options_invalid_config_fails_story(Alice) ->
+    PreconditionOpts = [{expected_error_type, {~"cancel", ~"conflict", ~"precondition-not-met"}}],
+
+    %% XEP-0060 7.1.5 Publishing Options: unmet publish-options precondition
+    UnknownOptionFields = [{~"pubsub#definitely_invalid_option", ~"1"}],
+    publish_with_options(Alice, ~"item1", pep_node(Alice), PreconditionOpts, UnknownOptionFields),
+
+    %% XEP-0060 7.1.5 Publishing Options: unmet publish-options precondition
+    InvalidAccessModelFields = [{~"pubsub#access_model", ~"not-a-real-model"}],
+    publish_with_options(Alice, ~"item1", pep_node(Alice),
+                         PreconditionOpts, InvalidAccessModelFields),
+
+    %% XEP-0060 7.1.5 Publishing Options: unmet publish-options precondition
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+    Fields = [{~"pubsub#access_model", ~"open"}],
+    publish_with_options(Alice, ~"item1", PepNode, PreconditionOpts, Fields),
+
+    %% Malformed publish-options request with unexpected extra child
+    MalformedOpts = [{expected_error_type, {~"modify", ~"bad-request"}},
+                     {modify_request, fun pubsub_tools:add_unexpected_pubsub_child/1}],
+    publish_with_options(Alice, ~"item1", pep_node(Alice), MalformedOpts, Fields),
+
+    %% Malformed publish-options form
+    MalformedFormOpts = [{expected_error_type, {~"modify", ~"bad-request"}},
+                         {modify_request, fun form_helper:remove_form_types/1}],
+    publish_with_options(Alice, ~"item1", pep_node(Alice), MalformedFormOpts, Fields).
+
+request_without_nodeid_fails_story(Alice) ->
+    MissingNode = pep_node(Alice, undefined),
+
+    %% XEP-0060 8.1.2.3 NodeID Required
+    CreateOpts = [{expected_error_type, {~"modify", ~"not-acceptable", ~"nodeid-required"}}],
+    create_node(Alice, MissingNode, CreateOpts),
+
+    %% XEP-0060 8.5.3.2 NodeID Required for 'get'
+    GetOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"nodeid-required"}}],
+    get_configuration(Alice, MissingNode, GetOpts),
+
+    %% XEP-0060 8.5.3.2 NodeID Required for 'set'
+    SetOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"nodeid-required"}}],
+    set_configuration(Alice, MissingNode, [{~"pubsub#access_model", ~"open"}], SetOpts).
+
+retract_invalid_request_fails_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+
+    %% XEP-0060 7.2.2.2 NodeID Required
+    NodeOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"nodeid-required"}}],
+    retract_item(Alice, pep_node(Alice, undefined), ~"item1", NodeOpts),
+
+    %% XEP-0060 7.2.2.3 Node Does Not Exist
+    MissingNodeOpts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+    retract_item(Alice, PepNode, ~"item1", MissingNodeOpts),
+
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0060 7.2.2.1 Item Required (no item id)
+    ItemOpts = [{expected_error_type, {~"modify", ~"bad-request", ~"item-required"}}],
+    retract_item(Alice, PepNode, undefined, ItemOpts),
+    retract_items(Alice, PepNode, [], ItemOpts),
+
+    %% XEP-0060 7.2.1 Request: retract item must be empty
+    BadRequestOpts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    retract_raw(Alice, PepNode, [item_el(~"item1", [item_content()])], BadRequestOpts),
+
+    %% XEP-0060 7.2.2.4 Item Not Found
+    NotFoundOpts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+    retract_item(Alice, PepNode, ~"item404", NotFoundOpts),
+
+    %% Only single-item retraction is supported
+    MultiItemOpts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    retract_items(Alice, PepNode, [~"item1", ~"item2"], MultiItemOpts),
+
+    %% XEP-0060 7.2.2.1 Insufficient Privileges
+    ForbiddenOpts = [{expected_error_type, {~"auth", ~"forbidden"}}],
+    retract_item(Bob, PepNode, ~"item1", ForbiddenOpts),
+
+    %% Invalid notify flag
+    NotifyOpts = [{notify, ~"definitely-invalid"},
+                  {expected_error_type, {~"modify", ~"bad-request"}}],
+    retract_item(Alice, PepNode, ~"item1", NotifyOpts).
+
+subscribe_presence_required_fails_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+
+    %% XEP-0060 6.1.3.2 Presence Subscription Required
+    Opts = [{expected_error_type, {~"auth", ~"not-authorized", ~"presence-subscription-required"}}],
+    subscribe(Bob, PepNode, Opts).
+
+subscribe_to_nonexistent_node_fails_story(Alice) ->
+    PepNode = pep_node(Alice),
+    Opts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+
+    %% XEP-0060 6.1.3.4 Node Does Not Exist
+    subscribe(Alice, PepNode, Opts),
+
+    %% XEP-0060 6.2.3.4 Node Does Not Exist
+    unsubscribe(Alice, PepNode, Opts).
+
+subscribe_with_invalid_jid_fails_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+
+    %% XEP-0060 6.1.3.3 Invalid JID
+    InvalidJid = escalus_utils:get_short_jid(Alice),
+    Opts = [{subscriber_jid, InvalidJid},
+            {expected_error_type, {~"modify", ~"bad-request", ~"invalid-jid"}}],
+    subscribe(Bob, PepNode, Opts).
+
+unsubscribe_implicit_fails_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
-    enable_sm(Alice),
-    enable_sm(Bob),
-    publish_with_sm(Alice, <<"item2">>, {pep, NodeNS}, []),
-    [Message] = make_friends_sm(Bob, Alice),
-    Node = {escalus_utils:get_short_jid(Alice), NodeNS},
-    pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []).
+    PepNode = pep_node(Alice, NodeNS),
+    create_node(Alice, PepNode, []),
+    set_up_presence_subscription(Bob, Alice, 0),
 
-h_ok_after_notify_test(ConfigIn) ->
-    Config = escalus_users:update_userspec(ConfigIn, kate, stream_management, true),
-    Config1 = set_caps(Config),
-    escalus:fresh_story_with_config(Config1, [{alice, 1}, {kate, 1}],
-                                    fun h_ok_after_notify_story/3).
+    %% XEP-0060 6.2.3.2 No Such Subscriber
+    Opts = [{expected_error_type, {~"cancel", ~"unexpected-request", ~"not-subscribed"}}],
+    unsubscribe(Bob, PepNode, Opts).
 
-h_ok_after_notify_story(Config, Alice, Kate) ->
-    NodeNS = ?config(node_ns, Config),
-    escalus_story:make_all_clients_friends([Alice, Kate]),
+unsubscribe_foreign_jid_fails_story(Alice, Bob) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    subscribe(Bob, PepNode, []),
 
-    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
-    Node = {escalus_utils:get_short_jid(Alice), NodeNS},
-    Check = fun(Message) ->
-                    pubsub_tools:check_item_notification(Message, <<"item2">>, Node, [])
-            end,
-    Check(escalus_connection:get_stanza(Kate, item2)),
+    %% XEP-0060 6.2.3.1 Insufficient Privileges
+    Opts = [{subscriber_jid, escalus_utils:get_short_jid(Alice)},
+            {expected_error_type, {~"auth", ~"forbidden"}}],
+    unsubscribe(Bob, PepNode, Opts).
 
-    H = escalus_tcp:get_sm_h(Kate#client.rcv_pid),
-    escalus:send(Kate, escalus_stanza:sm_ack(H)),
+%% No mod_caps
 
-    escalus_connection:send(Kate, escalus_stanza:sm_request()),
+disco_info_no_caps_story(Alice) ->
+    %% XEP-0163 6.1 Account Owner Service Discovery
+    assert_disco_info(Alice, escalus_client:short_jid(Alice), false).
 
-    % Presence exchange triggers asynchronous sending of the last published item.
-    % If this happens after item2 is published, Kate will receive it twice.
-    Stanza = escalus_connection:get_stanza(Kate, stream_mgmt_ack_or_item2),
-    case escalus_pred:is_sm_ack(Stanza) of
-        true ->
-            ok;
-        false ->
-            Check(Stanza),
-            escalus:assert(is_sm_ack, escalus_connection:get_stanza(Kate, stream_mgmt_ack))
-    end.
+create_presence_and_publish_implicit_sub_no_caps_story(Alice, Bob) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    create_node(Alice, PepNode, []),
+    set_up_presence_subscription(Bob, Alice, 0),
 
-authorize_access_model(Config) ->
-    escalus:fresh_story(Config,
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
-              NodeNS = random_node_ns(),
-              {NodeAddr, _} = PepNode = make_pep_node_info(Alice, NodeNS),
-              AccessModel = {<<"pubsub#access_model">>, <<"authorize">>},
-              pubsub_tools:create_node(Alice, PepNode, [{config, [AccessModel]}]),
+    %% Without mod_caps, caps-based implicit notifications are not delivered
+    publish(Alice, ~"item1", PepNode, []),
+    [] = escalus:wait_for_stanzas(Bob, 1, 500).
 
-              pubsub_tools:subscribe(Bob, PepNode, [{subscription, <<"pending">>}]),
-              BobsRequest = pubsub_tools:receive_subscription_request(Alice, Bob, PepNode, []),
-
-              %% FIXME: Only one item should be here but node_pep is based on node_flat, which
-              %% is node_dag's ancestor, so this entry gets duplicated because every plugin
-              %% is queried for subscriptions. Nasty fix involves deduplicating entries
-              %% in mod_pubsub:get_subscriptions. The proper fix means not hacking node plugins
-              %% into serving PEP but it's definitely a major change...
-              Subs = [{NodeNS, <<"pending">>}, {NodeNS, <<"pending">>}],
-              pubsub_tools:get_user_subscriptions(Bob, NodeAddr, [{expected_result, Subs}]),
-
-              pubsub_tools:submit_subscription_response(Alice, BobsRequest, PepNode, true, []),
-              pubsub_tools:receive_subscription_notification(Bob, <<"subscribed">>, PepNode, []),
-
-              pubsub_tools:publish(Alice, <<"fish">>, {pep, NodeNS}, []),
-              pubsub_tools:receive_item_notification(
-                Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
-
-              pubsub_tools:delete_node(Alice, PepNode, [])
-      end).
-
-unsubscribe_after_presence_unsubscription(Config) ->
-    escalus:fresh_story(Config,
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
-              escalus_story:make_all_clients_friends([Alice, Bob]),
-
-              NodeNS = random_node_ns(),
-              PepNode = make_pep_node_info(Alice, NodeNS),
-              pubsub_tools:create_node(Alice, PepNode, []),
-              pubsub_tools:subscribe(Bob, PepNode, []),
-              pubsub_tools:publish(Alice, <<"fish">>, {pep, NodeNS}, []),
-              pubsub_tools:receive_item_notification(
-                Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
-
-              BobJid = escalus_utils:get_short_jid(Bob),
-              escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"unsubscribed">>)),
-              %% Bob & Alice get roster update, Bob gets presence unsubscribed & unavailable
-              [_, _, _] = escalus:wait_for_stanzas(Bob, 3),
-              _ = escalus:wait_for_stanza(Alice),
-
-              %% Unsubscription from PEP nodes is implicit
-              pubsub_tools:publish(Alice, <<"salmon">>, {pep, NodeNS}, []),
-              [] = escalus:wait_for_stanzas(Bob, 1, 500),
-
-              pubsub_tools:delete_node(Alice, PepNode, [])
-      end).
-
-%%-----------------------------------------------------------------
+%%--------------------------------------------------------------------
 %% Helpers
-%%-----------------------------------------------------------------
+%%--------------------------------------------------------------------
 
-add_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
-    Fields = [#{values => [<<"friends">>, <<"enemies">>], var => <<"pubsub#roster_groups_allowed">>}],
-    Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
-    ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
-    PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
-    Request#xmlel{children = [PubsubEl2]}.
+%% Setup
 
-publish_with_publish_options(Client, Node, Content, Options) ->
-    publish_with_publish_options(Client, Node, Content, Options, ?NS_PUBSUB_PUB_OPTIONS).
-
-publish_with_publish_options(Client, Node, Content, Options, FormType) ->
-    OptionsEl = #xmlel{name = <<"publish-options">>,
-                       children = form(Options, FormType)},
-
-    Id = pubsub_tools:id(Client, Node, <<"publish">>),
-    Publish = pubsub_tools:publish_request(Id, Client, Content, Node, Options),
-    #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
-    NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
-    escalus:send(Client, Publish#xmlel{children = [NewPubsubEl]}),
-    escalus:wait_for_stanza(Client).
-
-form(FormFields, FormType) ->
-    FieldSpecs = lists:map(fun field_spec/1, FormFields),
-    [form_helper:form(#{fields => FieldSpecs, ns => FormType})].
-
-field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
-field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
-
-required_modules() ->
+required_modules(pep) ->
     [{mod_caps, default_mod_config(mod_caps)},
-     {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
-                                           nodetree => nodetree_dag,
-                                           backend => mongoose_helper:mnesia_or_rdbms_backend(),
-                                           pep_mapping => #{},
-                                           host => subhost_pattern("pubsub.@HOST@")})}].
-required_modules(cache_tests) ->
-    [{mod_caps, default_mod_config(mod_caps)},
-     {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
-                                           nodetree => nodetree_dag,
-                                           backend => mongoose_helper:mnesia_or_rdbms_backend(),
-                                           pep_mapping => #{},
-                                           host => subhost_pattern("pubsub.@HOST@"),
-                                           last_item_cache => mongoose_helper:mnesia_or_rdbms_backend()
-     })}].
-
-make_pep_node_info(Client, NodeName) ->
-    {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
-
-verify_publish_options(FullNodeConfig, Options) ->
-    NodeConfig = [{Opt, Value} || {Opt, _, Value} <- FullNodeConfig],
-    Options = lists:filter(fun(Option) ->
-                               lists:member(Option, NodeConfig)
-                           end, Options).
+     {mod_pubsub, default_mod_config(mod_pubsub)}];
+required_modules(pep_no_caps) ->
+    [{mod_pubsub, default_mod_config(mod_pubsub)}].
 
 set_caps(Config) ->
-    set_caps(Config, random_name()).
+    set_caps(Config, random_node_ns()).
 
 set_caps(Config, NS) ->
     [{escalus_overrides, [{start_ready_clients, {?MODULE, start_caps_clients}}]},
@@ -559,13 +976,126 @@ exchange_initial_presence(_Config, Client, false) ->
 
 is_caps_client(Client) ->
     case escalus_client:username(Client) of
-        <<"alice", _/binary>> -> false;
-        _ -> true
+        <<"bob", _/binary>> -> true;
+        _ -> false
     end.
 
-%%-----------------------------------------------------------------
-%% XML helpers
-%%-----------------------------------------------------------------
+set_up_presence_subscription(Subscriber, Owner, ExpectedMessageCount) ->
+    send_presence(Subscriber, ~"subscribe", Owner),
+    escalus:assert(is_iq, escalus_client:wait_for_stanza(Subscriber)),
+    escalus:assert(is_presence, escalus_client:wait_for_stanza(Owner)),
+    send_presence(Owner, ~"subscribed", Subscriber),
+    escalus:assert(is_iq, escalus_client:wait_for_stanza(Owner)),
+    Preds = [is_iq] ++ lists:duplicate(ExpectedMessageCount, is_message)
+        ++ lists:duplicate(2, is_presence),
+    Stanzas = escalus_client:wait_for_stanzas(Subscriber, length(Preds)),
+    escalus:assert_many(Preds, Stanzas),
+    lists:filter(fun escalus_pred:is_message/1, Stanzas). % return only messages
+
+send_presence(From, Type, To) ->
+    ToJid = escalus_client:short_jid(To),
+    Stanza = escalus_stanza:presence_direct(ToJid, Type),
+    escalus_client:send(From, Stanza).
+
+%% Disco helpers and assertions
+
+assert_no_disco_info(Client, OwnerJid) ->
+    Request = escalus_stanza:disco_info(OwnerJid),
+    escalus:send(Client, Request),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_iq_error, [Request], Stanza),
+    escalus:assert(is_error, [~"cancel", ~"service-unavailable"], Stanza),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza).
+
+assert_disco_info(Client, OwnerJid, HasCapsModule) ->
+    Request = escalus_stanza:disco_info(OwnerJid),
+    escalus:send(Client, Request),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_iq_result, [Request], Stanza),
+    ?assertNot(escalus_pred:has_identity(~"pubsub", ~"service", Stanza)),
+    escalus:assert(has_identity, [~"pubsub", ~"pep"], Stanza),
+    lists:foreach(fun(Feature) ->
+                          escalus:assert(has_feature, [Feature], Stanza)
+                  end, pep_disco_features(HasCapsModule)),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza).
+
+assert_no_disco_items(Client, OwnerJid) ->
+    ResultQuery = make_disco_items_query(Client, OwnerJid),
+    ?assertEqual([], ResultQuery#xmlel.children).
+
+assert_disco_items(Client, OwnerJid, NodeNS) ->
+    ResultQuery = make_disco_items_query(Client, OwnerJid),
+    Item = exml_query:subelement_with_attr(ResultQuery, ~"node", NodeNS),
+    ?assertEqual(jid:str_tolower(OwnerJid), exml_query:attr(Item, ~"jid")).
+
+assert_no_disco_items_node(Client, OwnerJid, NodeNS, ErrorCondition) ->
+    Request = escalus_stanza:disco_items(OwnerJid, NodeNS),
+    escalus:send(Client, Request),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_iq_error, [Request], Stanza),
+    escalus:assert(is_error, [~"cancel", ErrorCondition], Stanza),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza).
+
+assert_disco_info_node(Client, OwnerJid, NodeNS) ->
+    Request = escalus_stanza:disco_info(OwnerJid, NodeNS),
+    escalus:send(Client, Request),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza),
+    escalus:assert(is_iq_result, [Request], Stanza),
+    Query = exml_query:subelement(Stanza, ~"query"),
+    ?assertEqual(NodeNS, exml_query:attr(Query, ~"node")),
+    escalus:assert(has_identity, [~"pubsub", ~"leaf"], Stanza),
+    escalus:assert(has_feature, [?NS_PUBSUB], Stanza).
+
+assert_no_disco_info_node(Client, OwnerJid, NodeNS, ErrorCondition) ->
+    Request = escalus_stanza:disco_info(OwnerJid, NodeNS),
+    escalus:send(Client, Request),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza),
+    escalus:assert(is_iq_error, [Request], Stanza),
+    escalus:assert(is_error, [~"cancel", ErrorCondition], Stanza).
+
+assert_delayed_notification(Stanza) ->
+    DelayEl = exml_query:subelement(Stanza, ~"delay"),
+    escalus:assert(has_ns, [?NS_DELAY], DelayEl),
+    ?assertMatch(Stamp when is_binary(Stamp), exml_query:attr(DelayEl, ~"stamp")).
+
+make_disco_items_query(Client, OwnerJid) ->
+    Request = escalus_stanza:disco_items(OwnerJid),
+    escalus:send(Client, Request),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_stanza_from, [OwnerJid], Stanza),
+    escalus:assert(is_iq_result, [Request], Stanza),
+    exml_query:subelement(Stanza, ~"query").
+
+%% Nodes, features, jids
+
+pep_node(Client) ->
+    pep_node(Client, random_node_ns()).
+
+pep_node(Client, NodeName) ->
+    {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
+
+pep_disco_features(HasCapsModule) ->
+    [?NS_PUBSUB,
+     <<?NS_PUBSUB/binary, "#access-open">>,
+     <<?NS_PUBSUB/binary, "#access-presence">>,
+     <<?NS_PUBSUB/binary, "#auto-create">>,
+     <<?NS_PUBSUB/binary, "#config-node">>,
+     <<?NS_PUBSUB/binary, "#create-and-configure">>,
+     <<?NS_PUBSUB/binary, "#create-nodes">>,
+     <<?NS_PUBSUB/binary, "#delete-nodes">>,
+     <<?NS_PUBSUB/binary, "#item-ids">>,
+     <<?NS_PUBSUB/binary, "#last-published">>,
+     <<?NS_PUBSUB/binary, "#persistent-items">>,
+     <<?NS_PUBSUB/binary, "#publish">>,
+     <<?NS_PUBSUB/binary, "#publish-options">>,
+     <<?NS_PUBSUB/binary, "#retrieve-items">>,
+     <<?NS_PUBSUB/binary, "#subscribe">>] ++
+    case HasCapsModule of
+        true -> [<<?NS_PUBSUB/binary, "#filtered-notifications">>];
+        false -> []
+    end.
 
 features(NodeNS) ->
     [NodeNS, ns_notify(NodeNS)].
@@ -574,66 +1104,7 @@ ns_notify(NS) ->
     <<NS/binary, "+notify">>.
 
 random_node_ns() ->
-    random_name().
-
-random_name() ->
     base64:encode(crypto:strong_rand_bytes(16)).
 
-send_presence(From, Type, To) ->
-    ToJid = escalus_client:short_jid(To),
-    Stanza = escalus_stanza:presence_direct(ToJid, Type),
-    escalus_client:send(From, Stanza).
-
-make_friends(Bob, Alice) ->
-    make_friends(Bob, Alice, 1).
-
-make_friends(Bob, Alice, ExpectedMessageCount) ->
-    % makes uni-directional presence subscriptions while SM is disabled
-    % returns stanzas received finally by the inviter
-    send_presence(Bob, <<"subscribe">>, Alice),
-    escalus:assert(is_iq, escalus_client:wait_for_stanza(Bob)),
-    escalus:assert(is_presence, escalus_client:wait_for_stanza(Alice)),
-    send_presence(Alice, <<"subscribed">>, Bob),
-    escalus:assert(is_iq, escalus_client:wait_for_stanza(Alice)),
-    Preds = [is_iq] ++ lists:duplicate(ExpectedMessageCount, is_message)
-        ++ lists:duplicate(2, is_presence),
-    escalus:assert_many(Preds, BobStanzas = escalus_client:wait_for_stanzas(Bob, length(Preds))),
-    lists:filter(fun escalus_pred:is_message/1, BobStanzas).
-
-make_friends_sm(Bob, Alice) ->
-    % makes uni-directional presence subscriptions while SM is enabled
-    % returns stanzas received finally by the inviter
-    send_presence(Bob, <<"subscribe">>, Alice),
-    escalus:assert_many([is_iq, is_sm_ack_request],
-                        escalus_client:wait_for_stanzas(Bob, 2)),
-    escalus:assert_many([is_presence, is_sm_ack_request],
-                        escalus_client:wait_for_stanzas(Alice, 2)),
-    send_presence(Alice, <<"subscribed">>, Bob),
-    escalus:assert_many([is_iq, is_sm_ack_request],
-                        escalus_client:wait_for_stanzas(Alice, 2)),
-    escalus:assert_many([is_message, is_iq]
-                        ++ lists:duplicate(2, is_presence)
-                        ++ lists:duplicate(4, is_sm_ack_request),
-                        BobStanzas = escalus_client:wait_for_stanzas(Bob, 8)),
-    lists:filter(fun escalus_pred:is_message/1, BobStanzas).
-
-publish_with_sm(User, ItemId, Node, Options) ->
-    Id = id(User, Node, <<"publish">>),
-    Request = case proplists:get_value(with_payload, Options, true) of
-                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
-              end,
-    escalus_client:send(User, Request),
-    escalus:wait_for_stanzas(User, 2).
-
-id(User, {NodeAddr, NodeName}, Suffix) ->
-    UserName = escalus_utils:get_username(User),
-    list_to_binary(io_lib:format("~s-~s-~s-~s", [UserName, NodeAddr, NodeName, Suffix])).
-
-item_content() ->
-    #xmlel{name = <<"entry">>,
-        attrs = #{<<"xmlns">> => <<"http://www.w3.org/2005/Atom">>}}.
-
-enable_sm(User) ->
-    escalus_client:send(User, escalus_stanza:enable_sm()),
-    #xmlel{name = <<"enabled">>} = escalus:wait_for_stanza(User).
+nonexistent_bare_jid() ->
+    <<"unknown@", (domain_helper:domain())/binary>>.

@@ -28,7 +28,7 @@
 -author('christophe.romain@process-one.net').
 
 -include("mongoose.hrl").
--include("pubsub.hrl").
+-include("mod_pubsub_old.hrl").
 -include("jlib.hrl").
 
 %%% @doc The module <strong>{@module}</strong> is the pep PubSub plugin.
@@ -144,9 +144,9 @@ get_entity_affiliations(Host, {_, D, _} = Owner) ->
     get_entity_affiliations(Host, D, Owner).
 
 get_entity_affiliations(Host, D, Owner) ->
-    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(Owner),
-    HT = mod_pubsub:host_to_host_type(Host),
-    NodeTree = mod_pubsub:tree(HT),
+    {ok, States} = mod_pubsub_old_db_backend:get_states_by_bare(Owner),
+    HT = mod_pubsub_old:host_to_host_type(Host),
+    NodeTree = mod_pubsub_old:tree(HT),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
                     case gen_pubsub_nodetree:get_node(NodeTree, N) of
                         #pubsub_node{nodeid = {{_, D, _}, _}} = Node -> [{Node, A} | Acc];
@@ -165,14 +165,14 @@ get_entity_subscriptions(Host, D, R, Owner) ->
     LOwner = jid:to_lower(Owner),
     States = case R of
                  <<>> ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(LOwner),
+                     {ok, States0} = mod_pubsub_old_db_backend:get_states_by_lus(LOwner),
                      States0;
                  _ ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(LOwner),
+                     {ok, States0} = mod_pubsub_old_db_backend:get_states_by_bare_and_full(LOwner),
                      States0
              end,
-    HT = mod_pubsub:host_to_host_type(Host),
-    NodeTree = mod_pubsub:tree(HT),
+    HT = mod_pubsub_old:host_to_host_type(Host),
+    NodeTree = mod_pubsub_old:tree(HT),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->
                     case gen_pubsub_nodetree:get_node(NodeTree, N) of
                         #pubsub_node{nodeid = {{_, D, _}, _}} = Node ->
@@ -204,13 +204,13 @@ should_delete_when_owner_removed() -> true.
 %%%
 
 %% @doc Check mod_caps is enabled, otherwise show warning.
-%% The PEP plugin for mod_pubsub requires mod_caps to be enabled in the host.
+%% The PEP plugin for mod_pubsub_old requires mod_caps to be enabled in the host.
 %% Check that the mod_caps module is enabled in that Jabber Host
 %% If not, log a warning message.
 complain_if_modcaps_disabled(ServerHost) ->
     ?WARNING_MSG_IF(
        not gen_mod:is_loaded(ServerHost, mod_caps),
-       "The PEP plugin is enabled in mod_pubsub "
+       "The PEP plugin is enabled in mod_pubsub_old "
        "of host ~p. This plugin requires mod_caps "
        "to be enabled, but it isn't.",
        [ServerHost]).

@@ -25,10 +25,10 @@
 
 %% -------------------------------
 %% Pubsub constants
--define(ERR_EXTENDED(E, C), mod_pubsub:extended_error(E, C)).
--define(PROCNAME, mongooseim_mod_pubsub).
+-define(ERR_EXTENDED(E, C), mod_pubsub_old:extended_error(E, C)).
+-define(PROCNAME, mongooseim_mod_pubsub_old).
 
-%% The actual limit can be configured with mod_pubsub's option max_items_node
+%% The actual limit can be configured with mod_pubsub_old's option max_items_node
 -define(MAXITEMS, 10).
 
 %% this is currently a hard limit.
@@ -64,14 +64,14 @@
      Value::atom() | [binary()] | boolean() | non_neg_integer()
 }).
 
--type(nodeOptions() :: [mod_pubsub:nodeOption(),...]).
+-type(nodeOptions() :: [mod_pubsub_old:nodeOption(),...]).
 
 -type(subOption() ::
     {Option::atom(),
      Value::binary() | [binary()] | boolean()
 }).
 
--type(subOptions() :: [mod_pubsub:subOption()]).
+-type(subOptions() :: [mod_pubsub_old:subOption()]).
 
 -type(affiliation() :: 'none'
                      | 'owner'
@@ -101,47 +101,47 @@
 -record(pubsub_index,
 {
     index :: atom(),
-    last  :: mod_pubsub:nodeIdx(),
-    free  :: [mod_pubsub:nodeIdx()]
+    last  :: mod_pubsub_old:nodeIdx(),
+    free  :: [mod_pubsub_old:nodeIdx()]
 }).
 
 -record(pubsub_node,
 {
-    nodeid              ,% :: {mod_pubsub:host(), mod_pubsub:nodeId()},
-    id                  ,% :: mod_pubsub:nodeIdx(),
-    parents = []        ,% :: [mod_pubsub:nodeId(),...],
+    nodeid              ,% :: {mod_pubsub_old:host(), mod_pubsub_old:nodeId()},
+    id                  ,% :: mod_pubsub_old:nodeIdx(),
+    parents = []        ,% :: [mod_pubsub_old:nodeId(),...],
     type    = <<"flat">>,% :: binary(),
     owners  = []        ,% :: [jid:ljid(),...],
-    options = []        % :: mod_pubsub:nodeOptions()
+    options = []        % :: mod_pubsub_old:nodeOptions()
 }).
 
 -record(pubsub_state,
 {
-    stateid               ,% :: {jid:ljid(), mod_pubsub:nodeIdx()},
-    items         = []    ,% :: [mod_pubsub:itemId(),...],
-    affiliation   = 'none',% :: mod_pubsub:affiliation(),
-    subscriptions = []    % :: [{mod_pubsub:subscription(), mod_pubsub:subId()}]
+    stateid               ,% :: {jid:ljid(), mod_pubsub_old:nodeIdx()},
+    items         = []    ,% :: [mod_pubsub_old:itemId(),...],
+    affiliation   = 'none',% :: mod_pubsub_old:affiliation(),
+    subscriptions = []    % :: [{mod_pubsub_old:subscription(), mod_pubsub_old:subId()}]
 }).
 
 -record(pubsub_item,
 {
-    itemid                           ,% :: {mod_pubsub:itemId(), mod_pubsub:nodeIdx()},
+    itemid                           ,% :: {mod_pubsub_old:itemId(), mod_pubsub_old:nodeIdx()},
     creation     = {unknown, unknown},% :: {erlang:timestamp(), jid:ljid()},
     modification = {unknown, unknown},% :: {erlang:timestamp(), jid:ljid()},
     publisher    = undefined         ,% :: jid:jid(),
-    payload      = []                % :: mod_pubsub:payload()
+    payload      = []                % :: mod_pubsub_old:payload()
 }).
 
 -record(pubsub_last_item,
 {
-    nodeid   ,% :: mod_pubsub:nodeIdx(),
-    itemid   ,% :: mod_pubsub:itemId(),
+    nodeid   ,% :: mod_pubsub_old:nodeIdx(),
+    itemid   ,% :: mod_pubsub_old:itemId(),
     creation ,% :: {erlang:timestamp(), jid:ljid()},
-    payload  % :: mod_pubsub:payload()
+    payload  % :: mod_pubsub_old:payload()
 }).
 
 -record(pubsub_subnode,
 {
-    nodeid   ,% :: mod_pubsub:nodeIdx(),
-    subnode   % :: mod_pubsub:nodeId()
+    nodeid   ,% :: mod_pubsub_old:nodeIdx(),
+    subnode   % :: mod_pubsub_old:nodeId()
 }).

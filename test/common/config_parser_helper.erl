@@ -457,14 +457,16 @@ all_modules() ->
                                    })
                       }),
       mod_pubsub =>
-          mod_config(mod_pubsub, #{access_createnode => pubsub_createnode,
+          mod_config(mod_pubsub, #{backend => rdbms, iqdisc => no_queue}),
+      mod_pubsub_old =>
+          mod_config(mod_pubsub_old, #{access_createnode => pubsub_createnode,
                                    backend => rdbms,
                                    ignore_pep_from_offline => false,
                                    last_item_cache => mnesia,
                                    max_items_node => 1000,
                                    pep_mapping => #{<<"urn:xmpp:microblog:0">> => <<"mb">>},
                                    plugins => [<<"flat">>, <<"pep">>],
-                                   wpool => default_config([modules, mod_pubsub, wpool])}),
+                                   wpool => default_config([modules, mod_pubsub_old, wpool])}),
       mod_version => mod_config(mod_version, #{os_info => true}),
       mod_auth_token => #{backend => rdbms,
                           validity_period => #{access => #{unit => minutes, value => 13},
@@ -951,11 +953,13 @@ default_mod_config(mod_privacy) ->
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_pubsub) ->
+    #{backend => rdbms, iqdisc => no_queue};
+default_mod_config(mod_pubsub_old) ->
     #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access_createnode => all,
       max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
       last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
       default_node_config => [], item_publisher => false, sync_broadcast => false,
-      wpool => default_config([modules, mod_pubsub, wpool])};
+      wpool => default_config([modules, mod_pubsub_old, wpool])};
 default_mod_config(mod_push_service_mongoosepush) ->
     #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
 default_mod_config(mod_register) ->
@@ -1135,7 +1139,7 @@ default_config([modules, mod_event_pusher, push]) ->
       virtual_pubsub_hosts => []};
 default_config([modules, mod_event_pusher, push, wpool]) ->
     (default_wpool_opts())#{strategy := available_worker};
-default_config([modules, mod_pubsub, wpool]) ->
+default_config([modules, mod_pubsub_old, wpool]) ->
     default_wpool_opts();
 default_config([modules, mod_event_pusher, rabbit, presence_exchange]) ->
     #{name => <<"presence">>, type => <<"topic">>, durable => false};

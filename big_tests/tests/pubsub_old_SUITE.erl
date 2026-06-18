@@ -4,7 +4,7 @@
 %%% @end
 %%%===================================================================
 
--module(pubsub_SUITE).
+-module(pubsub_old_SUITE).
 
 -compile([export_all, nowarn_export_all]).
 
@@ -180,7 +180,7 @@ last_item_cache_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrument_helper:declared_events(mod_pubsub)),
+    instrument_helper:start(instrument_helper:declared_events(mod_pubsub_old)),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
@@ -345,20 +345,20 @@ subscribe_unsubscribe_test(Config) ->
 
               %% Request:  6.1.1 Ex.32 entity subscribes to a node
               %% Response: 6.1.2 Ex.33 success (with subscription ID)
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Request:  6.2.1 Ex.51 unsubscribe from a node
               %% Response: 6.2.2 Ex.52 success
               pubsub_tools:unsubscribe(Bob, Node, []),
 
               %% Check subscriptions without resources
-              pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {jid_type, bare}]),
               pubsub_tools:unsubscribe(Bob, Node, [{jid_type, bare}]),
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_events(mod_pubsub_set_subscribe, Bob, 2),
-              assert_events(mod_pubsub_set_unsubscribe, Bob, 2)
+              assert_events(mod_pubsub_old_set_subscribe, Bob, 2),
+              assert_events(mod_pubsub_old_set_unsubscribe, Bob, 2)
       end).
 
 subscribe_options_test(Config) ->
@@ -376,8 +376,8 @@ subscribe_options_test(Config) ->
 
               GeraltOpts = [{<<"pubsub#deliver">>, <<"true">>}],
               BobOpts = [{<<"pubsub#deliver">>, <<"false">>}],
-              pubsub_tools:subscribe(Geralt, Node, [{config, GeraltOpts}]),
-              pubsub_tools:subscribe(Bob, Node, [{config, BobOpts}]),
+              pubsub_tools:subscribe(Geralt, Node, [{subid, true}, {config, GeraltOpts}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {config, BobOpts}]),
 
               %% 6.3.2 Example 59. Subscriber requests subscription options form
               pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName},
@@ -385,7 +385,7 @@ subscribe_options_test(Config) ->
               pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName},
                                                     [{expected_result, BobOpts}]),
 
-              assert_event(mod_pubsub_get_options, Bob)
+              assert_event(mod_pubsub_old_get_options, Bob)
       end).
 
 subscribe_options_deliver_option_test(Config) ->
@@ -396,8 +396,10 @@ subscribe_options_deliver_option_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Geralt, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
-              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
+              pubsub_tools:subscribe(Geralt, Node,
+                                     [{subid, true}, {config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Bob, Node,
+                                     [{subid, true}, {config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
@@ -419,8 +421,9 @@ subscribe_options_separate_request_test(Config) ->
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
-              pubsub_tools:subscribe(Alice, Node, []),
+              pubsub_tools:subscribe(Bob, Node,
+                                     [{subid, true}, {config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Alice, Node, [{subid, true}]),
 
               %% 6.3.5 Example 68. Subscriber submits completed options form
               [ pubsub_tools:upsert_subscription_options(
@@ -436,7 +439,7 @@ subscribe_options_separate_request_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_options, Alice)
+              assert_event(mod_pubsub_old_set_options, Alice)
       end).
 
 publish_test(Config) ->
@@ -453,7 +456,7 @@ publish_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_publish, Alice)
+              assert_event(mod_pubsub_old_set_publish, Alice)
       end).
 
 publish_with_max_items_test(Config) ->
@@ -468,9 +471,9 @@ publish_with_max_items_test(Config) ->
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
-              %% mod_pubsub:broadcast_step/1 ensures that a publish notification for a new item
+              %% mod_pubsub_old:broadcast_step/1 ensures that a publish notification for a new item
               %% would always arrive before a retraction notification for an old item
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
               pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
@@ -517,8 +520,8 @@ notify_test(Config) ->
               NodeConfig = [{<<"pubsub#presence_based_delivery">>, <<"1">>}],
 
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob1, Node, []),
-              pubsub_tools:subscribe(Geralt1, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob1, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt1, Node, [{subid, true}, {jid_type, bare}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% 7.1.2.1 Ex.101 notification with payload
@@ -547,13 +550,12 @@ request_all_items_test(Config) ->
 
               %% Request:  6.5.2 Ex.78 subscriber requests all items
               %% Response: 6.5.3 Ex.79 service returns all items
-              pubsub_tools:get_all_items(Bob, Node,
-                                         [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
               %% TODO check ordering (although XEP does not specify this)
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_get_items, Bob)
+              assert_event(mod_pubsub_old_get_items, Bob)
       end).
 
 request_particular_item_test(Config) ->
@@ -586,17 +588,17 @@ retract_test(Config) ->
               %% Request:  7.2.1 Ex.115 Entity deletes an item from a node
               %% Response: 7.2.2 Ex.116 Service replies with success
               pubsub_tools:retract_item(Alice, Node, <<"item1">>, []),
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, [<<"item2">>]}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>]}]),
 
               %% Request:  7.2.1 Ex.115 Entity deletes an item from a node
               %% Response: 7.2.2 Ex.116 Service replies with success
               %% Notification: 7.2.2.1 Ex.117 Subscribers are notified of deletion
               pubsub_tools:set_configuration(Alice, Node,
                                              [{<<"pubsub#notify_retract">>, <<"1">>}], []),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:retract_item(Alice, Node, <<"item2">>, []),
               pubsub_tools:receive_retract_notification(Bob, <<"item2">>, Node, []),
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -613,12 +615,11 @@ retract_when_user_goes_offline_test(Config) ->
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Bob, <<"item2">>, Node, []),
-              pubsub_tools:get_all_items(Alice, Node,
-                                         [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              pubsub_tools:get_items(Alice, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
               mongoose_helper:logout_user(Config, Bob),
 
-              pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
+              pubsub_tools:get_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -636,18 +637,17 @@ purge_all_items_test(Config) ->
               %% Response: 8.5.3.2 Ex.165 insufficient privileges
               pubsub_tools:purge_all_items(Bob, Node, [{expected_error_type, <<"auth">>}]),
 
-              pubsub_tools:get_all_items(Bob, Node,
-                                         [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
               %% Request:  8.5.1 Ex.161 owner purges all items from node
               %% Response: 8.5.2 Ex.162 success
               pubsub_tools:purge_all_items(Alice, Node, []),
 
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_purge, Alice)
+              assert_event(mod_pubsub_old_set_purge, Alice)
       end).
 
 publish_only_retract_items_scope_test(Config) ->
@@ -671,11 +671,11 @@ publish_only_retract_items_scope_test(Config) ->
                 %% Request:  7.2.1 Ex.116 publish-only sends a retract request for someone's else item
                 %% Response: 7.2.3.1 Ex.120 insufficient privileges
                 pubsub_tools:retract_item(Bob, Node, <<"item2">>, [{expected_error_type, <<"auth">>}]),
-                pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item2">>]}]),
+                pubsub_tools:get_items(Alice, Node, [{expected_result, [<<"item2">>]}]),
 
                 pubsub_tools:delete_node(Alice, Node, []),
 
-                assert_event(mod_pubsub_set_retract, Bob)
+                assert_event(mod_pubsub_old_set_retract, Bob)
       end).
 
 
@@ -691,7 +691,7 @@ max_subscriptions_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Alice, Node, []),
+              pubsub_tools:subscribe(Alice, Node, [{subid, true}]),
               IQError = pubsub_tools:subscribe(Bob, Node, [{expected_error_type, <<"cancel">>}]),
               is_not_allowed_and_closed(IQError),
 
@@ -712,7 +712,7 @@ retrieve_default_configuration_test(Config) ->
               pubsub_tools:get_default_configuration(Alice, NodeAddr,
                                                      [{expected_result, default_config()}]),
 
-              assert_wait_for_event(mod_pubsub_get_default, Alice)
+              assert_wait_for_event(mod_pubsub_old_get_default, Alice)
       end).
 
 retrieve_configuration_test(Config) ->
@@ -728,7 +728,7 @@ retrieve_configuration_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_get_configure, Alice)
+              assert_event(mod_pubsub_old_get_configure, Alice)
       end).
 
 set_configuration_test(Config) ->
@@ -746,7 +746,7 @@ set_configuration_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_set_configure, Alice)
+              assert_event(mod_pubsub_old_set_configure, Alice)
       end).
 
 set_configuration_errors_test(Config) ->
@@ -761,7 +761,8 @@ set_configuration_errors_test(Config) ->
               BadOpts = [{<<"pubsub#notify_config">>, <<"7">>}],
 
               %% Missing <configure> element
-              pubsub_tools:set_configuration(Alice, Node, [], [{expected_error_type, <<"modify">>}]),
+              pubsub_tools:set_configuration(Alice, Node, undefined,
+                                             [{expected_error_type, <<"modify">>}]),
 
               %% Missing data form
               pubsub_tools:set_configuration(Alice, Node, GoodOpts,
@@ -777,7 +778,7 @@ set_configuration_errors_test(Config) ->
                                               {expected_error_type, <<"modify">>}]),
               pubsub_tools:set_configuration(Alice, Node, BadOpts,
                                              [{expected_error_type, <<"modify">>}]),
-              assert_no_event(mod_pubsub_set_configure, Alice),
+              assert_no_event(mod_pubsub_old_set_configure, Alice),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -790,7 +791,7 @@ notify_config_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(
                 Alice, Node, [{config, [{<<"pubsub#notify_config">>, <<"1">>}]}]),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               ConfigChange = [{<<"pubsub#title">>, <<"newtitle">>}],
               pubsub_tools:set_configuration(Alice, Node, ConfigChange, []),
@@ -808,7 +809,7 @@ disable_notifications_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% Notifications disabled
@@ -827,7 +828,7 @@ disable_payload_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% Payloads disabled
@@ -847,14 +848,14 @@ disable_persist_items_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               %% Notifications should work
               pubsub_tools:receive_item_notification(Bob, <<"item1">>, Node, []),
 
               %% No items should be stored
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -869,7 +870,7 @@ notify_only_available_users_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {jid_type, bare}]),
 
               push_helper:become_unavailable(Bob),
 
@@ -888,7 +889,7 @@ notify_unavailable_user_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {jid_type, bare}]),
 
               push_helper:become_unavailable(Bob),
 
@@ -918,10 +919,8 @@ send_last_published_item_test(Config) ->
 
               %% Note: when Bob subscribes, the last item (item2) is sent to him
               %%       6.1.7 Ex.50 service sends last published item
-              %%       This is sent BEFORE the response iq stanza
-              pubsub_tools:subscribe(Bob, Node, [{receive_response, false}]),
-              pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
-              pubsub_tools:receive_subscribe_response(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true},
+                                                 {expected_notification, {Node, <<"item2">>}}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -936,9 +935,7 @@ send_last_published_item_no_items_test(Config) ->
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
               %% Note: when Bob subscribes, no last item is sent (there are none)
-              %% Receive subscription response to clear the mailbox before checking
-              pubsub_tools:subscribe(Bob, Node, [{receive_response, false}]),
-              pubsub_tools:receive_subscribe_response(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               escalus_assert:has_no_stanzas(Bob),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -962,7 +959,7 @@ get_affiliations_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              assert_event(mod_pubsub_get_affiliations, Alice)
+              assert_event(mod_pubsub_old_get_affiliations, Alice)
       end).
 
 add_publisher_and_member_test(Config) ->
@@ -983,14 +980,14 @@ add_publisher_and_member_test(Config) ->
               pubsub_tools:set_affiliations(Alice, Node, AffChange, []),
 
               pubsub_tools:publish(Kate, <<"nope">>, Node, [{expected_error_type, <<"auth">>}]),
-              pubsub_tools:subscribe(Kate, Node, []),
+              pubsub_tools:subscribe(Kate, Node, [{subid, true}]),
               pubsub_tools:publish(Bob, <<"item1">>, Node, []),
               pubsub_tools:receive_item_notification(Kate, <<"item1">>, Node, []),
 
               pubsub_tools:delete_node(Alice, Node, []),
-              assert_event(mod_pubsub_set_create, Alice),
-              assert_event(mod_pubsub_set_affiliations, Alice),
-              assert_wait_for_event(mod_pubsub_set_delete, Alice)
+              assert_event(mod_pubsub_old_set_create, Alice),
+              assert_event(mod_pubsub_old_set_affiliations, Alice),
+              assert_wait_for_event(mod_pubsub_old_set_delete, Alice)
       end).
 
 swap_owners_test(Config) ->
@@ -1045,7 +1042,7 @@ retrieve_user_subscriptions_test(Config) ->
 
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Ex. 21 Service returns subscriptions
               Sub = [{NodeName, <<"subscribed">>}],
@@ -1053,7 +1050,7 @@ retrieve_user_subscriptions_test(Config) ->
 
               {_, NodeName2} = Node2 = pubsub_node(),
               pubsub_tools:create_node(Alice, Node2, []),
-              pubsub_tools:subscribe(Bob, Node2, []),
+              pubsub_tools:subscribe(Bob, Node2, [{subid, true}]),
 
               %% Ex. 21 Service returns subscriptions
               Subs = [{NodeName, <<"subscribed">>}, {NodeName2, <<"subscribed">>}],
@@ -1065,7 +1062,7 @@ retrieve_user_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, []),
               pubsub_tools:delete_node(Alice, Node2, []),
 
-              assert_events(mod_pubsub_get_subscriptions, Bob, 3)
+              assert_events(mod_pubsub_old_get_subscriptions, Bob, 3)
       end).
 
 retrieve_node_subscriptions_test(Config) ->
@@ -1083,8 +1080,8 @@ retrieve_node_subscriptions_test(Config) ->
               %% Response: 8.8.1.3 Ex.185 Entity is not an owner
               pubsub_tools:get_node_subscriptions(Bob, Node, [{expected_error_type, <<"auth">>}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Geralt, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, Node, [{subid, true}, {jid_type, bare}]),
 
               NodeSubs = [{Bob, full, <<"subscribed">>}, {Geralt, bare, <<"subscribed">>}],
               pubsub_tools:get_node_subscriptions(Alice, Node, [{expected_result, NodeSubs}]),
@@ -1132,12 +1129,12 @@ modify_node_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, []),
 
               BobJid = escalus_utils:get_jid(Bob),
-              instrument_helper:assert(mod_pubsub_set_subscriptions, #{host_type => domain()},
+              instrument_helper:assert(mod_pubsub_old_set_subscriptions, #{host_type => domain()},
                                        fun(#{errors := 1, jid := From}) ->
                                            BobJid =:= jid:to_binary(From)
                                        end),
-              assert_events(mod_pubsub_set_subscriptions, Alice, 2),
-              assert_no_event(mod_pubsub_set_subscriptions, Bob)
+              assert_events(mod_pubsub_old_set_subscriptions, Alice, 2),
+              assert_no_event(mod_pubsub_old_set_subscriptions, Bob)
       end).
 
 process_subscription_requests_test(Config) ->
@@ -1245,7 +1242,7 @@ subscribe_unsubscribe_collection_test(Config) ->
 
               %% Request:  6.1.1 Ex.10 subscribe (no configuration)
               %% Response: 6.1.2 Ex.12 success
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Same as XEP-0060
               pubsub_tools:unsubscribe(Bob, Node, []),
@@ -1271,7 +1268,7 @@ collection_delete_makes_leaf_parentless(Config) ->
 
               % Leaf becomes an orphan
               NewNodeConfig = pubsub_tools:get_configuration(Alice, Leaf, []),
-              {_, _, []} = lists:keyfind(<<"pubsub#collection">>, 1, NewNodeConfig)
+              {_, []} = lists:keyfind(<<"pubsub#collection">>, 1, NewNodeConfig)
       end).
 
 notify_collection_test(Config) ->
@@ -1288,7 +1285,7 @@ notify_collection_test(Config) ->
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
               Leaf2 = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf2, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Publish to leaf nodes, Bob should get notifications
               %% 5.3.1.1 Ex.5 Subscriber receives a publish notification from a collection
@@ -1312,7 +1309,7 @@ notify_collection_leaf_and_item_test(Config) ->
               pubsub_tools:create_node(Alice, Node, [{config, CollectionConfig}]),
 
               %% Subscribe before creating the leaf node
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
@@ -1341,8 +1338,8 @@ notify_collection_bare_jid_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob1, Node, []),
-              pubsub_tools:subscribe(Geralt1, Node, [{jid_type, bare}]),
+              pubsub_tools:subscribe(Bob1, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt1, Node, [{subid, true}, {jid_type, bare}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Bob subscribed with resource
@@ -1371,8 +1368,8 @@ notify_collection_and_leaf_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Geralt, Leaf, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, Leaf, [{subid, true}]),
 
               %% Publish to leaf nodes, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1397,8 +1394,8 @@ notify_collection_and_leaf_same_user_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Bob, Leaf, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Bob, Leaf, [{subid, true}]),
 
               %% Bob should get only one notification
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1420,12 +1417,11 @@ notify_collections_with_same_leaf_test(Config) ->
               {_, CollectionName2} = Collection2 = pubsub_node(),
               pubsub_tools:create_node(Alice, Collection2, [{config, CollectionConfig}]),
 
-              LeafConfig = [{<<"pubsub#collection">>, <<"text-multi">>,
-                             [CollectionName1, CollectionName2]}],
+              LeafConfig = [{<<"pubsub#collection">>, [CollectionName1, CollectionName2]}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
-              pubsub_tools:subscribe(Bob, Collection1, []),
-              pubsub_tools:subscribe(Geralt, Collection2, []),
+              pubsub_tools:subscribe(Bob, Collection1, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, Collection2, [{subid, true}]),
 
               %% Publish to leaf node, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1458,8 +1454,8 @@ notify_nested_collections_test(Config) ->
               LeafConfig = [{<<"pubsub#collection">>, MiddleCollectionName}],
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
-              pubsub_tools:subscribe(Bob, MiddleCollection, []),
-              pubsub_tools:subscribe(Geralt, TopCollection, []),
+              pubsub_tools:subscribe(Bob, MiddleCollection, [{subid, true}]),
+              pubsub_tools:subscribe(Geralt, TopCollection, [{subid, true}]),
 
               %% Publish to leaf node, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
@@ -1487,8 +1483,8 @@ retrieve_subscriptions_collection_test(Config) ->
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
               Leaf2 = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf2, [{config, NodeConfig}]),
-              pubsub_tools:subscribe(Bob, Node, []),
-              pubsub_tools:subscribe(Bob, Leaf, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
+              pubsub_tools:subscribe(Bob, Leaf, [{subid, true}]),
 
               % Only the nodes for which subscriptions were made should be returned
               Subs = [{LeafName, <<"subscribed">>}, {NodeName, <<"subscribed">>}],
@@ -1578,14 +1574,13 @@ request_all_items_leaf_test(Config) ->
               pubsub_tools:publish(Alice, <<"item2">>, Leaf2, []),
 
               %% Request items from leaf nodes - as described in XEP-0060
-              pubsub_tools:get_all_items(Bob, Leaf, [{expected_result, [<<"item1">>]}]),
-              pubsub_tools:get_all_items(Bob, Leaf2, [{expected_result, [<<"item2">>]}]),
+              pubsub_tools:get_items(Bob, Leaf, [{expected_result, [<<"item1">>]}]),
+              pubsub_tools:get_items(Bob, Leaf2, [{expected_result, [<<"item2">>]}]),
 
               %% NOTE: This is not implemented yet
               %% Request:  6.2.1 Ex.15 Subscriber requests all items on a collection
               %% Response: 6.2.2 Ex.16 Service returns items on leaf nodes
-              %%pubsub_tools:get_all_items(Bob, Node,
-              %%                           [{expected_result, [<<"item2">>, <<"item1">>]}]),
+              %%pubsub_tools:get_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Leaf2, []),
@@ -1610,7 +1605,7 @@ disable_notifications_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications disabled
@@ -1634,7 +1629,7 @@ disable_payload_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Payloads disabled
@@ -1659,14 +1654,14 @@ disable_persist_items_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications should work
               pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
 
               %% No items should be stored
-              pubsub_tools:get_all_items(Bob, Leaf, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Leaf, [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1686,11 +1681,11 @@ debug_get_items_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
 
-              Items = rpc(mim(), mod_pubsub, get_items, [NodeAddr, NodeName]),
+              Items = rpc(mim(), mod_pubsub_old, get_items, [NodeAddr, NodeName]),
               % We won't bother with importing records etc...
               2 = length(Items),
 
-              {error, _} = rpc(mim(), mod_pubsub, get_items, [NodeAddr, <<"no_such_node_here">>]),
+              {error, _} = rpc(mim(), mod_pubsub_old, get_items, [NodeAddr, <<"no_such_node_here">>]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1705,11 +1700,11 @@ debug_get_item_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
 
-              Item = rpc(mim(), mod_pubsub, get_item, [NodeAddr, NodeName, <<"item2">>]),
+              Item = rpc(mim(), mod_pubsub_old, get_item, [NodeAddr, NodeName, <<"item2">>]),
               % We won't bother with importing records etc...
               {<<"item2">>, _} = element(2, Item),
 
-              {error, _} = rpc(mim(), mod_pubsub, get_item, [NodeAddr, NodeName, <<"itemX">>]),
+              {error, _} = rpc(mim(), mod_pubsub_old, get_item, [NodeAddr, NodeName, <<"itemX">>]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1728,7 +1723,7 @@ disable_payload_and_persist_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
               %% Response  7.1.3 Ex.112 attempt to publish payload to transient notification node
               %%                   Expected error of type 'modify'
@@ -1742,7 +1737,7 @@ disable_payload_and_persist_test(Config) ->
               pubsub_tools:receive_item_notification(Bob, <<"item1">>, Node, []),
 
               %% No items should be stored
-              pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
+              pubsub_tools:get_items(Bob, Node, [{expected_result, []}]),
 
               %% No more notifications
               escalus_assert:has_no_stanzas(Bob),
@@ -1761,7 +1756,7 @@ disable_delivery_test(Config) ->
               %% Request: 6.3.7 Ex.71 Subscribe and configure
               %%                Ex.72 Success
               SubscrConfig = [{<<"pubsub#deliver">>, <<"false">>}],
-              pubsub_tools:subscribe(Bob, Node, [{config, SubscrConfig}]),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}, {config, SubscrConfig}]),
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
@@ -1799,7 +1794,7 @@ receive_item_notification_with_publisher_option_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
-              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
 
@@ -1892,42 +1887,37 @@ required_modules(ExtraOpts) ->
     Opts = maps:merge(#{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                         host => subhost_pattern("pubsub.@HOST@")},
                       ExtraOpts),
-    [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, Opts)}].
+    [{mod_pubsub_old, config_parser_helper:mod_config(mod_pubsub_old, Opts)}].
 
 verify_config_fields(NodeConfig) ->
     ValidFields = [
-                   {<<"FORM_TYPE">>, <<"hidden">>},
-                   {<<"pubsub#title">>, <<"text-single">>},
-                   {<<"pubsub#deliver_notifications">>, <<"boolean">>},
-                   {<<"pubsub#deliver_payloads">>, <<"boolean">>},
-                   {<<"pubsub#notify_config">>, <<"boolean">>},
-                   {<<"pubsub#notify_delete">>, <<"boolean">>},
-                   {<<"pubsub#notify_retract">>, <<"boolean">>},
-% not supported yet                   {<<"pubsub#notify_sub">>, <<"boolean">>},
-                   {<<"pubsub#persist_items">>, <<"boolean">>},
-                   {<<"pubsub#max_items">>, <<"text-single">>},
-% not supported yet                   {<<"pubsub#item_expire">>, <<"text-single">>},
-                   {<<"pubsub#subscribe">>, <<"boolean">>},
-                   {<<"pubsub#access_model">>, <<"list-single">>},
-                   {<<"pubsub#roster_groups_allowed">>, <<"list-multi">>},
-                   {<<"pubsub#publish_model">>, <<"list-single">>},
-                   {<<"pubsub#purge_offline">>, <<"boolean">>},
-                   {<<"pubsub#max_payload_size">>, <<"text-single">>},
-                   {<<"pubsub#send_last_published_item">>, <<"list-single">>},
-                   {<<"pubsub#presence_based_delivery">>, <<"boolean">>},
-                   {<<"pubsub#notification_type">>, <<"list-single">>},
-                   {<<"pubsub#type">>, <<"text-single">>},
-% not supported yet                   {<<"pubsub#dataform_xslt">>, <<"text-single">>}
-% not supported yet                   {<<"pubsub#node_type">>, undef},
-% not supported yet                   {<<"pubsub#children">>, undef},
-                   {<<"pubsub#collection">>, <<"text-multi">>}
+                   <<"FORM_TYPE">>,
+                   <<"pubsub#title">>,
+                   <<"pubsub#deliver_notifications">>,
+                   <<"pubsub#deliver_payloads">>,
+                   <<"pubsub#notify_config">>,
+                   <<"pubsub#notify_delete">>,
+                   <<"pubsub#notify_retract">>,
+% not supported yet                   <<"pubsub#notify_sub">>,
+                   <<"pubsub#persist_items">>,
+                   <<"pubsub#max_items">>,
+% not supported yet                   <<"pubsub#item_expire">>,
+                   <<"pubsub#subscribe">>,
+                   <<"pubsub#access_model">>,
+                   <<"pubsub#roster_groups_allowed">>,
+                   <<"pubsub#publish_model">>,
+                   <<"pubsub#purge_offline">>,
+                   <<"pubsub#max_payload_size">>,
+                   <<"pubsub#send_last_published_item">>,
+                   <<"pubsub#presence_based_delivery">>,
+                   <<"pubsub#notification_type">>,
+                   <<"pubsub#type">>,
+% not supported yet                   <<"pubsub#dataform_xslt">>,
+% not supported yet                   <<"pubsub#node_type">>,
+% not supported yet                   <<"pubsub#children">>,
+                   <<"pubsub#collection">>
                   ],
-    [] =
-    lists:foldl(fun({Var, Type}, Fields) ->
-                        {{value, {_, Type, _}, NewFields}, _}
-                        = {lists:keytake(Var, 1, Fields), Var},
-                        NewFields
-                end, NodeConfig, ValidFields).
+    ?assertEqual(lists:sort(ValidFields), lists:sort(proplists:get_keys(NodeConfig))).
 
 node_config_for_test() ->
     [

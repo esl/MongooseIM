@@ -1,6 +1,6 @@
--module(mod_pubsub_db_backend).
+-module(mod_pubsub_old_db_backend).
 
--behaviour(mod_pubsub_db).
+-behaviour(mod_pubsub_old_db).
 
 -export([init/2, stop/0]).
 % Funs execution
@@ -61,7 +61,7 @@
          find_nodes_by_affiliated_user/1
         ]).
 
--define(MAIN_MODULE, mod_pubsub_db).
+-define(MAIN_MODULE, mod_pubsub_old_db).
 
 %%====================================================================
 %% Behaviour callbacks

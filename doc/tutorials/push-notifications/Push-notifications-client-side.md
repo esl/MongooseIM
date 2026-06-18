@@ -22,7 +22,7 @@ This step is specific to the PubSub-full push configuration that you chose for y
 server. If you're running a PubSub-less configuration, skip to [this point](#enabling-push-notifications).
 
 ### Creating a new push node
-In this example `mypubsub.com` is a domain of the MongooseIM server that has [mod_pubsub][] enabled
+In this example `mypubsub.com` is a domain of the MongooseIM server that has [mod_pubsub_old][] enabled
 with the `push` node support. The client sends the following stanza to the server:
 
 ```xml
@@ -170,7 +170,7 @@ showing the typical communication when using push notifications:
  ![](pubsub_less_push_notifications_example_message_flow.png)
 
 [mod_event_pusher_push]: ../../modules/mod_event_pusher_push.md
-[mod_pubsub]: ../../modules/mod_pubsub.md
+[mod_pubsub_old]: ../../modules/mod_pubsub_old.md
 [mod_push_service_mongoosepush]: ../../modules/mod_push_service_mongoosepush.md
 [MongoosePush]: https://github.com/esl/MongoosePush
 [MongoosePushReadme]: https://github.com/esl/MongoosePush/blob/master/README.md

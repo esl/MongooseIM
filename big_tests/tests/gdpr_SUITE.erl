@@ -60,6 +60,7 @@
 -import(domain_helper, [host_type/0]).
 -import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2]).
+-import(push_helper, [notification_el/1]).
 
 -define(ROOM, <<"tt1">>).
 
@@ -415,12 +416,12 @@ pubsub_required_modules() ->
     pubsub_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
 pubsub_required_modules(Plugins) ->
     HostPattern = subhost_pattern("pubsub.@HOST@"),
-    PubsubConfig = mod_config(mod_pubsub, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+    PubsubConfig = mod_config(mod_pubsub_old, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                             host => HostPattern,
                                             nodetree => nodetree_tree,
                                             plugins => Plugins}),
     [{mod_caps, default_mod_config(mod_caps)},
-     {mod_pubsub, PubsubConfig}].
+     {mod_pubsub_old, PubsubConfig}].
 
 is_mim2_started() ->
     #{node := Node} = distributed_helper:mim2(),
@@ -1030,8 +1031,8 @@ dont_retrieve_other_user_pubsub_payload(Config) ->
 
         AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
-        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
-        pubsub_tools:publish(Bob, <<"Item2">>, Node1, [{with_payload, {true, BinItem2}}]),
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, BinItem1}]),
+        pubsub_tools:publish(Bob, <<"Item2">>, Node1, [{with_payload, BinItem2}]),
 
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_payloads", ["node_name", "item_id", "payload"],
@@ -1081,7 +1082,7 @@ remove_pubsub_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = pubsub_tools:pubsub_node(),
             pubsub_tools:create_node(Alice, Node, []),
-            pubsub_tools:subscribe(Bob, Node, []),
+            pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
 
             unregister(Bob, Config),
 
@@ -1095,7 +1096,7 @@ retrieve_pubsub_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
             pubsub_tools:create_node(Alice, Node, []),
-            pubsub_tools:subscribe(Bob, Node, []),
+            pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
             retrieve_and_validate_personal_data(Bob, Config, "pubsub_subscriptions", ["node_name"],
                 [pubsub_subscription_row_map(NodeName)]),
 
@@ -1125,14 +1126,12 @@ remove_pubsub_push_node(Config) ->
                    {<<"last-message-sender">>, <<"senderId">>},
                    {<<"last-message-body">>, <<"message body">>}
                   ],
-        Options = [
-                   {<<"device_id">>, <<"sometoken">>},
-                   {<<"service">>, <<"apns">>}
-                  ],
-
-        PublishIQ = push_pubsub_SUITE:publish_iq(Bob, Node, Content, Options),
-        escalus:send(Bob, PublishIQ),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+        PublishOptions = [
+                          {<<"device_id">>, <<"sometoken">>},
+                          {<<"service">>, <<"apns">>}
+                         ],
+        Options = [{with_payload, notification_el(Content)}],
+        pubsub_tools:publish_with_options(Bob, <<"itemid">>, Node, Options, PublishOptions),
 
         unregister(Alice, Config),
 
@@ -1188,8 +1187,8 @@ remove_pubsub_all_data(Config) ->
 
         AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
-        pubsub_tools:subscribe(Bob, Node2, []),
-        pubsub_tools:subscribe(Alice, Node3, []),
+        pubsub_tools:subscribe(Bob, Node2, [{subid, true}]),
+        pubsub_tools:subscribe(Alice, Node3, [{subid, true}]),
 
         {BinItem1, _} = item_content(<<"Item1Data">>),
         {BinItem2, _} = item_content(<<"Item2Data">>),
@@ -1200,14 +1199,14 @@ remove_pubsub_all_data(Config) ->
         BobToNode1 = <<"Bob publishes to Node1, but nobody is subscribed">>,
         BobToNode3 = <<"Bob publishes to Node3, so Alice receives it">>,
 
-        pubsub_tools:publish(Alice, AliceToNode1, Node1, [{with_payload, {true, BinItem1}}]),
+        pubsub_tools:publish(Alice, AliceToNode1, Node1, [{with_payload, BinItem1}]),
 
-        pubsub_tools:publish(Alice, AliceToNode2, Node2, [{with_payload, {true, BinItem2}}]),
+        pubsub_tools:publish(Alice, AliceToNode2, Node2, [{with_payload, BinItem2}]),
         pubsub_tools:receive_item_notification(Bob, AliceToNode2, Node2, []),
 
-        pubsub_tools:publish(Bob, BobToNode1, Node1, [{with_payload, {true, BinItem3}}]),
+        pubsub_tools:publish(Bob, BobToNode1, Node1, [{with_payload, BinItem3}]),
 
-        pubsub_tools:publish(Bob, BobToNode3, Node3, [{with_payload, {true, BinItem4}}]),
+        pubsub_tools:publish(Bob, BobToNode3, Node3, [{with_payload, BinItem4}]),
         pubsub_tools:receive_item_notification(Alice, BobToNode3, Node3, []),
 
         unregister(Alice, Config),
@@ -1244,16 +1243,16 @@ retrieve_all_pubsub_data(Config) ->
 
         AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
-        pubsub_tools:subscribe(Bob, Node2, []),
+        pubsub_tools:subscribe(Bob, Node2, [{subid, true}]),
 
         {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
         {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
         {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
 
-        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
-        pubsub_tools:publish(Alice, <<"Item2">>, Node2, [{with_payload, {true, BinItem2}}]),
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, BinItem1}]),
+        pubsub_tools:publish(Alice, <<"Item2">>, Node2, [{with_payload, BinItem2}]),
         pubsub_tools:receive_item_notification(Bob, <<"Item2">>, Node2, []),
-        pubsub_tools:publish(Bob, <<"Item3">>, Node1, [{with_payload, {true, BinItem3}}]),
+        pubsub_tools:publish(Bob, <<"Item3">>, Node1, [{with_payload, BinItem3}]),
 
         %% Bob has one subscription, one node created and one payload sent
         retrieve_and_validate_personal_data(

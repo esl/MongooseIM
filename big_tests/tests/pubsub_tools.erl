@@ -25,28 +25,39 @@
 discover_nodes(User, {NodeAddr, NodeName}, Options) ->
     %% discover child nodes
     Id = id(User, {NodeAddr, NodeName}, <<"disco_children">>),
-    Request = escalus_pubsub_stanza:discover_nodes(User, Id, {NodeAddr, NodeName}),
+    Request = escalus_pubsub_stanza:discover_nodes(Id, NodeName),
     send_request_and_receive_response(
-      User, Request, Id, Options,
+      User, NodeAddr, Request, Options,
       fun(Response, ExpectedResult) ->
               check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedResult)
       end);
 discover_nodes(User, NodeAddr, Options) ->
     %% discover top-level nodes
     Id = id(User, {NodeAddr, <<>>}, <<"disco_nodes">>),
-    Request = escalus_pubsub_stanza:discover_nodes(User, Id, NodeAddr),
+    Request = escalus_pubsub_stanza:discover_nodes(Id, undefined),
     send_request_and_receive_response(
-      User, Request, Id, Options,
+      User, NodeAddr, Request, Options,
       fun(Response, ExpectedResult) ->
               check_node_discovery_response(Response, {NodeAddr, undefined}, ExpectedResult)
       end).
 
 %% ------------------------ create & delete --------------------------------
 
-create_node(User, Node, Options) ->
+send_generic_request(User, NodeAddr, Type, NS, Shape, Options) ->
+    Id = rand_name(Type),
+    Request = generic_request(Type, NS, Shape, Id),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
+
+generic_request(Type, NS, ActionName, Id) when is_binary(ActionName) ->
+    escalus_pubsub_stanza:pubsub_iq(Type, Id, [#xmlel{name = ActionName}], NS);
+generic_request(Type, NS, {raw, ChildName}, Id) ->
+    Child = #xmlel{name = ChildName, attrs = #{~"xmlns" => NS}},
+    escalus_pubsub_stanza:iq(Type, Id, [Child]).
+
+create_node(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"create_node">>),
-    Config = proplists:get_value(config, Options, []),
-    Request0 = escalus_pubsub_stanza:create_node(User, Id, Node, Config),
+    Config = proplists:get_value(config, Options),
+    Request0 = escalus_pubsub_stanza:create_node(Id, NodeName, Config),
 
     Request =
         case proplists:get_value(type, Options, undefined) of
@@ -63,195 +74,224 @@ create_node(User, Node, Options) ->
         end,
 
     ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
-    send_request_and_receive_response(User, ModifyF(Request), Id, Options).
+    send_request_and_receive_response(User, NodeAddr, ModifyF(Request), Options).
 
-delete_node(User, Node, Options) ->
+delete_node(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"delete_node">>),
-    Request = escalus_pubsub_stanza:delete_node(User, Id, Node),
-    send_request_and_receive_response(User, Request, Id, Options).
+    Request = escalus_pubsub_stanza:delete_node(Id, NodeName),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
 %% ------------------------ config --------------------------------
 
-get_configuration(User, Node, Options) ->
+get_configuration_request(Id, NodeName) ->
+    escalus_pubsub_stanza:get_configuration(Id, NodeName).
+
+get_configuration(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"get_config">>),
-    Request = escalus_pubsub_stanza:get_configuration(User, Id, Node),
+    Request = get_configuration_request(Id, NodeName),
+    ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
     NOptions = lists:keystore(preprocess_response, 1, Options,
                               {preprocess_response, fun decode_config_form/1}),
-    send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
+    send_request_and_receive_response(User, NodeAddr, ModifyF(Request), NOptions,
+                                      fun verify_form_values/2).
 
-set_configuration(User, Node, Config, Options) ->
+set_configuration_request(Id, NodeName, Config) ->
+    escalus_pubsub_stanza:set_configuration(Id, NodeName, Config).
+
+set_configuration(User, {NodeAddr, NodeName} = Node, Config, Options) ->
     Id = id(User, Node, <<"set_config">>),
-    Request = escalus_pubsub_stanza:set_configuration(User, Id, Node, Config),
+    Request = set_configuration_request(Id, NodeName, Config),
     ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
-    send_request_and_receive_response(User, ModifyF(Request), Id, Options).
+    send_request_and_receive_response(User, NodeAddr, ModifyF(Request), Options).
 
 get_default_configuration(User, NodeAddr, Options) ->
     Id = id(User, {NodeAddr, <<>>}, <<"get_default_config">>),
-    Request = escalus_pubsub_stanza:get_default_configuration(User, Id, NodeAddr),
+    Request = escalus_pubsub_stanza:get_default_configuration(Id),
     NOptions = lists:keystore(preprocess_response, 1, Options,
                               {preprocess_response, fun decode_default_config_form/1}),
-    send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
+    send_request_and_receive_response(User, NodeAddr, Request, NOptions, fun verify_form_values/2).
 
 %% ------------------------ affiliations --------------------------------
 
-get_affiliations(User, Node, Options) ->
+get_affiliations(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"get_affs">>),
-    Request = escalus_pubsub_stanza:get_affiliations(User, Id, Node),
-    decode_affiliations(send_request_and_receive_response(User, Request, Id, Options)).
+    Request = escalus_pubsub_stanza:get_affiliations(Id, NodeName),
+    decode_affiliations(send_request_and_receive_response(User, NodeAddr, Request, Options)).
 
-set_affiliations(User, Node, AffChange, Options) ->
+set_affiliations(User, {NodeAddr, NodeName} = Node, AffChange, Options) ->
     Id = id(User, Node, <<"set_affs">>),
-    Request = escalus_pubsub_stanza:set_affiliations(User, Id, Node, AffChange),
-    send_request_and_receive_response(User, Request, Id, Options).
+    Request = escalus_pubsub_stanza:set_affiliations(Id, NodeName, AffChange),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
 %% ------------------------ publishing & items --------------------------------
 
-publish(User, ItemId, Node, Options) ->
+publish(User, ItemId, {NodeAddr, _} = Node, Options) ->
     Id = id(User, Node, <<"publish">>),
-    Request = publish_request(Id, User, ItemId, Node, Options),
-    send_request_and_receive_response(User, Request, Id, Options).
+    Request = publish_request(Id, ItemId, Node, Options),
+    CheckF = case ItemId of
+                 undefined -> fun(Result) -> published_item_id(Result, Node) end;
+                 _ -> fun(Result) -> assert_publish_result(Result, Node, ItemId) end
+             end,
+    send_request_and_receive_response(User, NodeAddr, Request, Options, CheckF).
 
-publish_with_options(User, ItemId, Node, Options, PublishOptions) ->
+assert_publish_result(Stanza, Node, ItemId) ->
+    ?assertEqual(ItemId, published_item_id(Stanza, Node)).
+
+published_item_id(Stanza, {_, NodeNS}) ->
+    Publish = exml_query:path(Stanza, [{element, ~"pubsub"}, {element, ~"publish"}]),
+    ?assertEqual(NodeNS, exml_query:attr(Publish, ~"node")),
+    ItemId = exml_query:path(Publish, [{element, ~"item"}, {attr, ~"id"}]),
+    ?assertMatch(<<_, _/binary>>, ItemId),
+    ItemId.
+
+publish_with_options(User, ItemId, {NodeAddr, _} = Node, Options, PublishOptions) ->
     Id = id(User, Node, <<"publish">>),
-    Request = publish_request(Id, User, ItemId, Node, Options, PublishOptions),
-    send_request_and_receive_response(User, Request, Id, Options).
+    ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
+    Request = ModifyF(publish_request(Id, ItemId, Node, Options, PublishOptions)),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
-publish_without_node_attr(User, ItemId, Node, Options) ->
+publish_raw(User, {NodeAddr, NodeName} = Node, Children, Options) ->
     Id = id(User, Node, <<"publish">>),
-    Request = publish_request(Id, User, ItemId, Node, Options),
-    [PubSubEl] = Request#xmlel.children,
-    [PublishEl] = PubSubEl#xmlel.children,
-    PublishElDefect = PublishEl#xmlel{ attrs = #{} },
-    RequestDefect = Request#xmlel{ children = [PubSubEl#xmlel{ children = [PublishElDefect] }] },
-    send_request_and_receive_response(User, RequestDefect, Id, Options).
+    Request = escalus_pubsub_stanza:publish_raw(Children, Id, NodeName),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
-publish_request(Id, User, ItemId, Node, Options) ->
-    case proplists:get_value(with_payload, Options, true) of
-        true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-        {true, Payload} -> escalus_pubsub_stanza:publish(User, ItemId, Payload, Id, Node);
-        false -> escalus_pubsub_stanza:publish(User, Id, Node);
-        #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
+publish_request(Id, ItemId, {_, NodeName}, Options) ->
+    case payload(Options) of
+        undefined ->
+            escalus_pubsub_stanza:publish(Id, NodeName);
+        Payload ->
+            escalus_pubsub_stanza:publish(ItemId, Payload, Id, NodeName)
     end.
 
-publish_request(Id, User, ItemId, Node, Options, PublishOptions) ->
+publish_request(Id, ItemId, {_, NodeName}, Options, PublishOptions) ->
+    case payload(Options) of
+        undefined ->
+            escalus_pubsub_stanza:publish_with_options(Id, NodeName, PublishOptions);
+        Payload ->
+            escalus_pubsub_stanza:publish_with_options(ItemId, Payload, Id, NodeName, PublishOptions)
+    end.
+
+payload(Options) ->
     case proplists:get_value(with_payload, Options, true) of
-        true -> escalus_pubsub_stanza:publish_with_options(User, ItemId, item_content(), Id, Node, PublishOptions);
-        {true, Payload} -> escalus_pubsub_stanza:publish_with_options(User, ItemId, Payload, Id, Node, PublishOptions);
-        false -> escalus_pubsub_stanza:publish(User, Id, Node, PublishOptions);
-        #xmlel{} = El -> escalus_pubsub_stanza:publish_with_options(User, ItemId, El, Id, Node, PublishOptions)
+        true -> item_content();
+        false -> undefined;
+        Payload -> Payload
     end.
 
 retract_item(User, Node, ItemId, Options) ->
+    retract_items(User, Node, [ItemId], Options).
+
+retract_items(User, {NodeAddr, NodeName} = Node, ItemIds, Options) ->
     Id = id(User, Node, <<"retract">>),
-    Attrs = case proplists:get_value(notify, Options) of
-        Bool when is_boolean(Bool) -> #{<<"notify">> => atom_to_binary(Bool)};
-        undefined -> #{}
-    end,
-    Request = escalus_pubsub_stanza:retract(User, Id, Node, ItemId, Attrs),
-    send_request_and_receive_response(User, Request, Id, Options).
+    ReqOpts = maps:with([notify], maps:from_list(Options)),
+    Request = escalus_pubsub_stanza:retract(Id, NodeName, ItemIds, ReqOpts),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
-get_all_items(User, {_, NodeName} = Node, Options) ->
+retract_raw(User, {NodeAddr, NodeName} = Node, Children, Options) ->
+    Id = id(User, Node, <<"retract">>),
+    ReqOpts = maps:with([notify], maps:from_list(Options)),
+    Request = escalus_pubsub_stanza:retract_raw(Id, NodeName, Children, ReqOpts),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
+
+get_item(User, Node, ItemId, Options) ->
+    get_items(User, Node, [{item_ids, [ItemId]} | Options]).
+
+get_items(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"items">>),
-    Request = escalus_pubsub_stanza:get_all_items(User, Id, Node),
+    ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
+    ReqOpts = maps:with([item_ids, max_items], maps:from_list(Options)),
+    Request = ModifyF(escalus_pubsub_stanza:get_items(Id, NodeName, ReqOpts)),
     send_request_and_receive_response(
-      User, Request, Id, Options,
+      User, NodeAddr, Request, Options,
       fun(Response, ExpectedResult) ->
               Items = exml_query:path(Response, [{element, <<"pubsub">>},
                                                  {element, <<"items">>}]),
               check_items(Items, ExpectedResult, NodeName)
       end).
 
-get_item(User, {_, NodeName} = Node, ItemId, Options) ->
-    Id = id(User, Node, <<"items">>),
-    Request = escalus_pubsub_stanza:get_item(User, Id, ItemId, Node),
-    send_request_and_receive_response(
-      User, Request, Id, Options,
-      fun(Response, ExpectedResult) ->
-              Items = exml_query:path(Response, [{element, <<"pubsub">>},
-                                                 {element, <<"items">>}]),
-              check_items(Items, ExpectedResult, NodeName)
-      end).
-
-purge_all_items(User, Node, Options) ->
+purge_all_items(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"purge">>),
-    Request = escalus_pubsub_stanza:purge_all_items(User, Id, Node),
-    send_request_and_receive_response(User, Request, Id, Options).
+    Request = escalus_pubsub_stanza:purge_all_items(Id, NodeName),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
 %% ------------------------ subscriptions --------------------------------
 
-subscribe(User, Node, Options) ->
-    Jid = jid(User, proplists:get_value(jid_type, Options, full)),
+subscribe(User, {NodeAddr, NodeName} = Node, Options) ->
+    Jid = subscriber_jid(User, Options),
     Id = id(User, Node, <<"subscribe">>),
-    Config = proplists:get_value(config, Options, []),
-    Request = escalus_pubsub_stanza:subscribe(Jid, Id, Node, Config),
+    Config = proplists:get_value(config, Options),
+    Request = escalus_pubsub_stanza:subscribe(Jid, Id, NodeName, Config),
     send_request_and_receive_response(
-      User, Request, Id, [{expected_result, true} | Options],
+      User, NodeAddr, Request, [{expected_result, true} | Options],
       fun(Response) ->
         check_subscription_response(Response, User, Node, Options)
       end).
 
-unsubscribe(User, Node, Options) ->
-    Jid = jid(User, proplists:get_value(jid_type, Options, full)),
+unsubscribe(User, {NodeAddr, NodeName} = Node, Options) ->
+    Jid = subscriber_jid(User, Options),
     Id = id(User, Node, <<"unsubscribe">>),
-    Request = escalus_pubsub_stanza:unsubscribe(Jid, Id, Node),
-    send_request_and_receive_response(User, Request, Id, Options).
+    Request = escalus_pubsub_stanza:unsubscribe(Jid, Id, NodeName),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
 get_user_subscriptions(User, NodeAddr, Options) ->
     Id = id(User, {NodeAddr, <<>>}, <<"user_subscriptions">>),
-    Request = escalus_pubsub_stanza:get_user_subscriptions(User, Id, NodeAddr),
+    Request = escalus_pubsub_stanza:get_user_subscriptions(Id, undefined),
     send_request_and_receive_response(
-      User, Request, Id, Options,
+      User, NodeAddr, Request, Options,
       fun(Response, ExpectedResult) ->
               check_user_subscriptions_response(User, Response, ExpectedResult)
       end).
 
 get_subscription_options(User, {NodeAddr, NodeName}, Options) ->
     Id = id(User, {NodeAddr, <<>>}, <<"options">>),
-    Request = escalus_pubsub_stanza:get_subscription_options(User, Id, {NodeAddr, NodeName}),
+    Request = escalus_pubsub_stanza:get_subscription_options(User, Id, NodeName),
     NOptions = lists:keystore(preprocess_response, 1, Options,
                               {preprocess_response, fun decode_options_form/1}),
-    send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
+    send_request_and_receive_response(User, NodeAddr, Request, NOptions,
+                                      fun verify_form_values/2).
 
 upsert_subscription_options(User, {NodeAddr, NodeName}, Options) ->
     Id = id(User, {NodeAddr, <<>>}, <<"upsert_options">>),
-    SubOpts = proplists:get_value(subscription_options, Options, []),
-    Request = escalus_pubsub_stanza:set_subscription_options(User, Id, {NodeAddr, NodeName}, SubOpts),
-    send_request_and_receive_response(User, Request, Id, Options, fun (Response, _) -> Response end).
+    SubOpts = proplists:get_value(subscription_options, Options),
+    Request = escalus_pubsub_stanza:set_subscription_options(User, Id, NodeName, SubOpts),
+    send_request_and_receive_response(User, NodeAddr, Request, Options,
+                                      fun(Response, _) -> Response end).
 
-get_node_subscriptions(User, Node, Options) ->
+get_node_subscriptions(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"node_subscriptions">>),
-    Request = escalus_pubsub_stanza:get_node_subscriptions(User, Id, Node),
+    Request = escalus_pubsub_stanza:get_node_subscriptions(Id, NodeName),
     send_request_and_receive_response(
-      User, Request, Id, Options,
+      User, NodeAddr, Request, Options,
       fun(Response, ExpectedResult) ->
               check_node_subscriptions_response(Response, ExpectedResult, Node)
       end).
 
-submit_subscription_response(User, {MsgId, SubForm}, Node, Allow, Options) ->
+submit_subscription_response(User, {MsgId, SubForm}, {NodeAddr, _}, Allow, Options) ->
     Key = <<"pubsub#allow">>,
-    NewSubForm = lists:keyreplace(Key, 1, SubForm, {Key, <<"boolean">>, bool2bin(Allow)}),
-    Request = escalus_pubsub_stanza:submit_subscription_response(User, MsgId, Node, NewSubForm),
-    send_request_and_receive_response(User, Request, MsgId, Options ++ [{receive_response, false}]).
+    NewSubForm = lists:keyreplace(Key, 1, SubForm, {Key, bool2bin(Allow)}),
+    Request = escalus_pubsub_stanza:submit_subscription_response(MsgId, NewSubForm),
+    send_request_and_receive_response(User, NodeAddr, Request,
+                                      Options ++ [{receive_response, false}]).
 
-get_pending_subscriptions(User, Node, Options) ->
+get_pending_subscriptions(User, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"request_pending_subscriptions">>),
     ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
-    Request = ModifyF(escalus_pubsub_stanza:get_pending_subscriptions(User, Id, Node)),
-    send_request_and_receive_response(User, Request, Id, Options),
+    Request = ModifyF(escalus_pubsub_stanza:get_pending_subscriptions(Id, NodeName)),
+    send_request_and_receive_response(User, NodeAddr, Request, Options),
     Request.
 
 get_pending_subscriptions(User, NodesAddr, NodeNames, Options) ->
     Id = id(User, {<<>>, <<>>}, <<"get_pending_subscriptions">>),
     ModifyF = proplists:get_value(modify_request, Options, fun(R) -> R end),
-    Request = ModifyF(escalus_pubsub_stanza:get_pending_subscriptions(User, Id, NodesAddr)),
-    Response = send_request_and_receive_response(User, Request, Id, Options),
+    Request = ModifyF(escalus_pubsub_stanza:get_pending_subscriptions(Id, undefined)),
+    Response = send_request_and_receive_response(User, NodesAddr, Request, Options),
     check_pending_subscriptions(Response, NodeNames).
 
-modify_node_subscriptions(User, ModifiedSubscriptions, Node, Options) ->
+modify_node_subscriptions(User, ModifiedSubscriptions, {NodeAddr, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"modify_node_subs">>),
     Subs = fill_subscriptions_jids(ModifiedSubscriptions),
-    Request = escalus_pubsub_stanza:set_subscriptions(User, Id, Subs, Node),
-    send_request_and_receive_response(User, Request, Id, Options).
+    Request = escalus_pubsub_stanza:set_subscriptions(Id, Subs, NodeName),
+    send_request_and_receive_response(User, NodeAddr, Request, Options).
 
 %%-----------------------------------------------------------------------------
 %% Receive functions for notifications and responses
@@ -291,16 +331,9 @@ receive_node_creation_notification(User, {NodeAddr, NodeName}, Options) ->
     Stanza = receive_notification(User, NodeAddr, Options),
     check_node_creation_notification(Stanza, NodeName).
 
-receive_subscribe_response(User, Node, Options) ->
-    Id = id(User, Node, <<"subscribe">>),
-    Stanza = receive_response(User, Id, Options),
-    check_subscription_response(Stanza, User, Node, Options).
-
-receive_unsubscribe_response(User, Node, Options) ->
-    Id = id(User, Node, <<"unsubscribe">>),
-    Stanza = receive_response(User, Id, Options),
-    check_response(Stanza, Id),
-    Stanza.
+receive_node_deletion_notification(User, {NodeAddr, NodeName}, Options) ->
+    Stanza = receive_notification(User, NodeAddr, Options),
+    check_node_deletion_notification(Stanza, NodeName).
 
 %%-----------------------------------------------------------------------------
 %% Internal functions
@@ -312,6 +345,11 @@ check_subscription_response(Response, User, {_, NodeName}, Options) ->
                                               {element, <<"subscription">>}]),
     check_subscription(Subscription, Jid, NodeName, Options),
     Response.
+
+check_node_deletion_notification(Stanza, NodeName) ->
+    Delete = exml_query:path(Stanza, [{element, <<"event">>}, {element, <<"delete">>}]),
+    NodeName = exml_query:attr(Delete, <<"node">>),
+    Stanza.
 
 check_user_subscriptions_response(User, Response, ExpectedSubscriptions) ->
     SubscriptionElems = exml_query:paths(Response, [{element, <<"pubsub">>},
@@ -376,9 +414,9 @@ check_subscription_request(Stanza, Requester, NodeName, Options) ->
 
     RequesterJid = escalus_utils:jid_to_lower(
                      jid(Requester, proplists:get_value(jid_type, Options, full))),
-    {_, _, RequesterJid} = lists:keyfind(<<"pubsub#subscriber_jid">>, 1, DecodedForm),
+    {_, RequesterJid} = lists:keyfind(<<"pubsub#subscriber_jid">>, 1, DecodedForm),
 
-    {_, _, NodeName} = lists:keyfind(<<"pubsub#node">>, 1, DecodedForm),
+    {_, NodeName} = lists:keyfind(<<"pubsub#node">>, 1, DecodedForm),
 
     {exml_query:attr(Stanza, <<"id">>), DecodedForm}.
 
@@ -416,45 +454,51 @@ check_retract_notification(Response, ItemId, {NodeAddr, NodeName}) ->
         exml_query:subelements(Items, <<"retract">>),
     ok.
 
-send_request_and_receive_response(User, Request, Id, Options) ->
-    send_request_and_receive_response(User, Request, Id, Options, fun(R) -> R end).
+send_request_and_receive_response(User, NodeAddr, Request, Options) ->
+    send_request_and_receive_response(User, NodeAddr, Request, Options, fun(R) -> R end).
 
-send_request_and_receive_response(User, Request, Id, Options, CheckResponseF) ->
-    escalus:send(User, Request),
+send_request_and_receive_response(User, NodeAddr, Request, Options, CheckResponseF) ->
+    RequestId = exml_query:attr(Request, <<"id">>),
+    escalus:send(User, maybe_set_recipient(User, NodeAddr, Request)),
     case {proplists:get_value(receive_response, Options, true),
           proplists:get_value(expected_error_type, Options, none),
           proplists:get_value(expected_notification, Options, none)} of
         {false, _, none} ->
             ok;
-        {false, _, NodeAddr} ->
-            receive_notification(User, NodeAddr, Options);
+        {false, _, Notification} ->
+            receive_notification(User, Notification, Options);
         {true, none, none} ->
-            receive_and_check_response(User, Id, Options, CheckResponseF);
-        {true, none, NodeAddr} ->
-            receive_response_and_notification(User, Id, Options, CheckResponseF, NodeAddr);
+            receive_and_check_response(User, RequestId, Options, CheckResponseF);
+        {true, none, Notification} ->
+            receive_response_and_notification(User, RequestId, Options, CheckResponseF, Notification);
         {true, ExpectedErrorType, _} ->
-            receive_error_response(User, Id, ExpectedErrorType, Options)
+            receive_error_response(User, RequestId, ExpectedErrorType, Options)
     end.
 
-receive_response_and_notification(User, Id, Options, CheckResponseF, NodeAddr) ->
+receive_response_and_notification(User, Id, Options, CheckResponseF, Notification) ->
     Stanzas = escalus:wait_for_stanzas(User, 2),
     [IQ] = lists:filter(fun escalus_pred:is_iq/1, Stanzas),
-    Response = preprocess_and_check_response(IQ, Options, CheckResponseF),
+    Response = preprocess_and_check_response(IQ, Id, Options, CheckResponseF),
     [Msg] = Stanzas -- [IQ],
-    check_notification(Msg, NodeAddr),
+    check_notification(Msg, Notification),
     {Response, Msg}.
 
 receive_and_check_response(User, Id, Options, CheckF) ->
     Response = receive_response(User, Id, Options),
-    preprocess_and_check_response(Response, Options, CheckF).
+    preprocess_and_check_response(Response, Id, Options, CheckF).
 
-preprocess_and_check_response(Response, Options, CheckF) ->
+preprocess_and_check_response(Response, Id, Options, CheckF) ->
+    check_response(Response, Id),
     PreppedResponse = preprocess_response(Response, Options),
     case proplists:get_value(expected_result, Options) of
         undefined -> PreppedResponse;
         true -> CheckF(PreppedResponse);
         ExpectedResult -> CheckF(PreppedResponse, ExpectedResult)
     end.
+
+add_unexpected_pubsub_child(#xmlel{children = [#xmlel{} = PubsubEl]} = IQ) ->
+    ExtraEl = #xmlel{name = ~"unexpected"},
+    IQ#xmlel{children = [exml:append_children(PubsubEl, [ExtraEl])]}.
 
 receive_response(User, Id, Options) ->
     Stanza = receive_stanza(User, Options),
@@ -472,18 +516,33 @@ check_response(Stanza, Id) ->
     Id = exml_query:attr(Stanza, <<"id">>),
     Stanza.
 
-receive_error_response(User, Id, Type, Options) ->
+receive_error_response(User, Id, ExpectedError, Options) ->
     ErrorStanza = receive_stanza(User, Options),
     true = escalus_pred:is_iq_error(ErrorStanza),
     Id = exml_query:attr(ErrorStanza, <<"id">>),
     ErrorElem = exml_query:subelement(ErrorStanza, <<"error">>),
-    Type = exml_query:attr(ErrorElem, <<"type">>),
+    check_expected_error(ExpectedError, ErrorElem, ErrorStanza),
     ErrorStanza.
+
+check_expected_error({Type, Condition, PubSubCondition}, ErrorElem, ErrorStanza) ->
+    check_expected_error({Type, Condition}, ErrorElem, ErrorStanza),
+    #xmlel{} = exml_query:subelement(ErrorElem, PubSubCondition);
+check_expected_error({Type, Condition}, ErrorElem, ErrorStanza) ->
+    Type = exml_query:attr(ErrorElem, <<"type">>),
+    escalus:assert(is_error, [Type, Condition], ErrorStanza);
+check_expected_error(Type, ErrorElem, _ErrorStanza) ->
+    Type = exml_query:attr(ErrorElem, <<"type">>).
 
 receive_notification(User, NodeAddr, Options) ->
     Stanza = receive_stanza(User, Options),
     check_notification(Stanza, NodeAddr).
 
+check_notification(Stanza, {{_, _} = Node, ItemId}) ->
+    check_notification(Stanza, Node),
+    check_item_notification(Stanza, ItemId, Node, []),
+    Stanza;
+check_notification(Stanza, {NodeAddr, _}) ->
+    check_notification(Stanza, NodeAddr);
 check_notification(Stanza, NodeAddr) ->
     true = escalus_pred:is_stanza_from(NodeAddr, Stanza),
     true = escalus_pred:is_message(Stanza),
@@ -539,7 +598,11 @@ check_subscription(Subscr, Jid, NodeName, Options) ->
     NodeName = exml_query:attr(Subscr, <<"node">>),
     case proplists:get_value(subscription, Options) of
         undefined ->
-            true = exml_query:attr(Subscr, <<"subid">>) =/= undefined,
+            SubId = exml_query:attr(Subscr, <<"subid">>),
+            case proplists:get_value(subid, Options) of
+                true -> ?assertNotEqual(undefined, SubId);
+                Other -> ?assertEqual(Other, SubId) % undefined or expected binary value
+            end,
             <<"subscribed">> = exml_query:attr(Subscr, <<"subscription">>);
         <<"pending">> ->
             <<"pending">> = exml_query:attr(Subscr, <<"subscription">>)
@@ -548,6 +611,7 @@ check_subscription(Subscr, Jid, NodeName, Options) ->
 check_items(ReceivedItemsElem, ExpectedItemIds, NodeName) ->
     NodeName = exml_query:attr(ReceivedItemsElem, <<"node">>),
     ReceivedItems = exml_query:subelements(ReceivedItemsElem, <<"item">>),
+    ?assertEqual(length(ExpectedItemIds), length(ReceivedItems)),
     [check_item(ExpectedItemId, ReceivedItem) ||
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
@@ -587,6 +651,18 @@ convert_subscriptions_to_ljids(Subscriptions) ->
 fill_subscriptions_jids(Subscriptions) ->
     [{jid(User, JidType), Subscr} || {User, JidType, Subscr} <- Subscriptions].
 
+subscriber_jid(User, Options) ->
+    case proplists:get_value(subscriber_jid, Options) of
+        undefined -> jid(User, proplists:get_value(jid_type, Options, full));
+        Jid -> Jid
+    end.
+
+maybe_set_recipient(User, NodeAddr, Request) ->
+    case escalus_utils:get_short_jid(User) of
+        NodeAddr -> Request;
+        _ -> escalus_stanza:to(Request, NodeAddr)
+    end.
+
 jid(User, full) -> escalus_utils:get_jid(User);
 jid(User, bare) -> escalus_utils:get_short_jid(User).
 
@@ -594,6 +670,9 @@ assert_ljid_equal(ActualJid, ExpectedJid) ->
     LJid = escalus_utils:jid_to_lower(ExpectedJid),
     LJid = escalus_utils:jid_to_lower(ActualJid).
 
+id(User, {NodeAddr, undefined}, Suffix) ->
+    UserName = escalus_utils:get_username(User),
+    list_to_binary(io_lib:format("~s-~s-~s", [UserName, NodeAddr, Suffix]));
 id(User, {NodeAddr, NodeName}, Suffix) ->
     UserName = escalus_utils:get_username(User),
     list_to_binary(io_lib:format("~s-~s-~s-~s", [UserName, NodeAddr, NodeName, Suffix])).
@@ -601,6 +680,9 @@ id(User, {NodeAddr, NodeName}, Suffix) ->
 item_content() ->
     #xmlel{name = <<"entry">>,
            attrs = #{<<"xmlns">> => <<"http://www.w3.org/2005/Atom">>}}.
+
+item_el(ItemId, Children) ->
+    #xmlel{name = ~"item", attrs = #{~"id" => ItemId}, children = Children}.
 
 decode_config_form(IQResult) ->
     decode_form(IQResult, ?NS_PUBSUB_OWNER, <<"configure">>).
@@ -621,15 +703,14 @@ decode_form(IQResult, ExpectedNS, FormParent) ->
 
 decode_form_field(F) ->
     Var = exml_query:attr(F, <<"var">>),
-    Type = exml_query:attr(F, <<"type">>),
     case exml_query:paths(F, [{element, <<"value">>}, cdata]) of
-        [Value] -> {Var, Type, Value};
-        Values -> {Var, Type, Values}
+        [Value] -> {Var, Value};
+        Values -> {Var, Values}
     end.
 
 verify_form_values(DecodedForm, ExpectedValues) ->
     lists:foreach(fun({Var, Val}) ->
-                          {{_, _, Val}, _} = {lists:keyfind(Var, 1, DecodedForm), Var}
+                          {{_, Val}, _} = {lists:keyfind(Var, 1, DecodedForm), Var}
                   end, ExpectedValues).
 
 decode_affiliations(IQResult) ->

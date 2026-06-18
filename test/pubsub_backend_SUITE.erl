@@ -22,7 +22,7 @@
 -include_lib("exml/include/exml.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("pubsub.hrl").
+-include("mod_pubsub_old.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -51,12 +51,12 @@ suite() ->
 init_per_suite(Config) ->
     ok = mnesia:create_schema([node()]),
     mnesia:start(),
-    mod_pubsub_db_mnesia:init(global, #{}),
+    mod_pubsub_old_db_mnesia:init(global, #{}),
     {ok, _} = application:ensure_all_started(jid),
     Config.
 
 end_per_suite(Config) ->
-    mod_pubsub_db_mnesia:stop(),
+    mod_pubsub_old_db_mnesia:stop(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     Config.
@@ -78,7 +78,7 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 get_subnodes_case(_Config) ->
-    mod_pubsub_db_mnesia:transaction(fun() ->
+    mod_pubsub_old_db_mnesia:transaction(fun() ->
         get_subnodes_case_tr()
         end, #{}).
 
@@ -136,16 +136,16 @@ host() ->
     <<"localhost">>.
 
 set_node(N) ->
-    mod_pubsub_db_mnesia:set_node(N).
+    mod_pubsub_old_db_mnesia:set_node(N).
 
 get_subnodes(Name) ->
-    mod_pubsub_db_mnesia:get_subnodes(host(), Name).
+    mod_pubsub_old_db_mnesia:get_subnodes(host(), Name).
 
 get_subnodes_tree(Name) ->
-    mod_pubsub_db_mnesia:get_subnodes_tree(host(), Name).
+    mod_pubsub_old_db_mnesia:get_subnodes_tree(host(), Name).
 
 get_parentnodes_tree(Name) ->
-    mod_pubsub_db_mnesia:get_parentnodes_tree(host(), Name).
+    mod_pubsub_old_db_mnesia:get_parentnodes_tree(host(), Name).
 
 %% https://jojo.fandom.com/wiki/Joestar_Family
 create_jojo_tree() ->

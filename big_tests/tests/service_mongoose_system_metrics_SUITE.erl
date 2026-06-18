@@ -233,7 +233,7 @@ module_opts_are_reported(_Config) ->
     check_module_backend(mod_offline, Backend),
     check_module_backend(mod_privacy, Backend),
     check_module_backend(mod_private, Backend),
-    check_module_backend(mod_pubsub, Backend),
+    check_module_backend(mod_pubsub_old, Backend),
     check_module_opt(mod_push_service_mongoosepush, <<"api_version">>, <<"v3">>),
     check_module_backend(mod_roster, Backend),
     check_module_backend(mod_vcard, Backend).
@@ -354,7 +354,7 @@ modules_to_test(module_opts_are_reported) ->
      required_module(mod_offline, Backend),
      required_module(mod_privacy, Backend),
      required_module(mod_private, Backend),
-     required_module(mod_pubsub, Backend),
+     required_module(mod_pubsub_old, Backend),
      required_module(mod_push_service_mongoosepush),
      required_module(mod_roster, Backend),
      required_module(mod_vcard, Backend)];

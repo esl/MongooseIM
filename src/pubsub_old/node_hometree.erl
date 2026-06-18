@@ -28,7 +28,7 @@
 -behaviour(gen_pubsub_node).
 -author('christophe.romain@process-one.net').
 -include("mongoose.hrl").
--include("pubsub.hrl").
+-include("mod_pubsub_old.hrl").
 -include("jlib.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
@@ -39,7 +39,7 @@ based_on() ->  node_flat.
 
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
-    Owner = mod_pubsub:service_jid(Host),
+    Owner = mod_pubsub_old:service_jid(Host),
     spawn(fun() -> continue_init(Host, ServerHost, Owner) end),
     ok.
 
@@ -82,12 +82,12 @@ path_to_node([]) -> <<>>;
 path_to_node(Path) -> mongoose_bin:join([<<"">> | Path], <<"/">>).
 
 continue_init(Host, ServerHost, Owner) ->
-    % we have to wait for mod_pubsub to be up and running before we try to use it
+    % we have to wait for mod_pubsub_old to be up and running before we try to use it
     Proc = gen_mod:get_module_proc(ServerHost, ?PROCNAME),
     case wait_for(Proc, 5) of
         {ok, _} ->
-            mod_pubsub:create_node(Host, ServerHost, <<"/home">>, Owner, <<"hometree">>),
-            mod_pubsub:create_node(Host, ServerHost, <<"/home/", ServerHost/binary>>, Owner, <<"hometree">>);
+            mod_pubsub_old:create_node(Host, ServerHost, <<"/home">>, Owner, <<"hometree">>),
+            mod_pubsub_old:create_node(Host, ServerHost, <<"/home/", ServerHost/binary>>, Owner, <<"hometree">>);
         {error, E} ->
             error(E)
     end.

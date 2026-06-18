@@ -164,9 +164,10 @@ disco_local_items(Acc, _, _) ->
 
 -spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:item_acc(),
-      Params :: map(),
+      Params :: mongoose_disco:sm_params(),
       Extra :: #{host_type := mongooseim:host_type()}.
-disco_sm_items(Acc = #{to_jid := To, node := <<>>}, _, #{host_type := HostType}) ->
+disco_sm_items(Acc = #{to_jid := To, node := <<>>},
+               #{presence_subscribed := true}, #{host_type := HostType}) ->
     Items = case are_commands_visible(HostType) of
                 false ->
                     [];
@@ -202,9 +203,10 @@ disco_local_identity(Acc, _, _) ->
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
 -spec disco_sm_identity(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:identity_acc(),
-      Params :: map(),
+      Params :: mongoose_disco:sm_params(),
       Extra :: gen_hook:extra().
-disco_sm_identity(Acc = #{node := ?NS_COMMANDS}, _, _) ->
+disco_sm_identity(Acc = #{node := ?NS_COMMANDS},
+                  #{presence_subscribed := true}, _) ->
     {ok, mongoose_disco:add_identities([command_list_identity()], Acc)};
 disco_sm_identity(Acc, _, _) ->
     {ok, Acc}.
@@ -240,11 +242,11 @@ disco_local_features(Acc, _, _) ->
 
 -spec disco_sm_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
-    Params :: map(),
+    Params :: mongoose_disco:sm_params(),
     Extra :: gen_hook:extra().
-disco_sm_features(Acc = #{node := <<>>}, _, _) ->
+disco_sm_features(Acc = #{node := <<>>}, #{presence_subscribed := true}, _) ->
     {ok, mongoose_disco:add_features([?NS_COMMANDS], Acc)};
-disco_sm_features(Acc = #{node := ?NS_COMMANDS}, _, _) ->
+disco_sm_features(Acc = #{node := ?NS_COMMANDS}, #{presence_subscribed := true}, _) ->
     %% override all lesser features...
     {ok, Acc#{result := []}};
 disco_sm_features(Acc, _, _) ->

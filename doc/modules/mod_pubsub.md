@@ -1,431 +1,72 @@
-## What is PubSub?
+## Module description
 
-PubSub is a design pattern which mostly promotes a loose coupling between two kinds of entities - publishers and subscribers.
-Like their names suggest, in the pubsub world we have publishers who fire events, and subscribers who wish to be notified about those events when publishers push data.
-There might be several subscribers, several publishers, and even several channels (or nodes) where the events are sent.
+This module provides a lightweight, performance-focused implementation of [XEP-0163: Personal Eventing Protocol](https://xmpp.org/extensions/xep-0163.html), using selected parts of [XEP-0060: Publish-Subscribe](https://xmpp.org/extensions/xep-0060.html).
+It handles same-server PEP requests addressed to users' bare JIDs and does not expose a generic PubSub service on a `pubsub.@HOST@` domain.
 
-## Module Description
+`mod_pubsub` stores nodes, subscriptions, and items in RDBMS tables.
+[mod_caps](mod_caps.md) should also be enabled for filtered PEP notifications.
 
-This module implements [XEP-0060: Publish-Subscribe](http://www.xmpp.org/extensions/xep-0060.html).
-Due to the complexity of the protocol, the PubSub engine makes successive calls to the `nodetree` and `node plugins` in order to check the validity of requests, perform the corresponding action and return a result or appropriate error.
-Such an architecture makes it much easier to write custom pubsub plugins and add new storage backends.
-It's all about tailoring PubSub to your needs!
+!!! Note
+    The goal is to gradually extend this lightweight implementation while phasing out [mod_pubsub_old](mod_pubsub_old.md).
+    Until the missing functionality is implemented here, deployments that need a generic PubSub component, collection nodes, plugin-based node implementations, or push-notification PubSub nodes still need the old module.
 
-!!! warning
-    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
+## Supported functionality
+
+* [Automatic creation](https://xmpp.org/extensions/xep-0060.html#publisher-publish-autocreate) of PEP nodes on publish.
+* Explicit node [creation](https://xmpp.org/extensions/xep-0060.html#owner-create) and [deletion](https://xmpp.org/extensions/xep-0060.html#owner-delete).
+* [Node configuration](https://xmpp.org/extensions/xep-0060.html#owner-configure) and [publish options](https://xmpp.org/extensions/xep-0060.html#publisher-publish-options) with the [`pubsub#access_model`](https://xmpp.org/extensions/xep-0060.html#accessmodels) option.
+* The `open` and `presence` access models.
+* [Publishing](https://xmpp.org/extensions/xep-0060.html#publisher-publish) and [retracting](https://xmpp.org/extensions/xep-0060.html#publisher-delete) an item.
+* Retrieving [all items](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestall) or [selected items by ID](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-requestone).
+* Explicit [subscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-subscribe) and [unsubscribe](https://xmpp.org/extensions/xep-0060.html#subscriber-unsubscribe).
+* [Implicit PEP subscriptions](https://xmpp.org/extensions/xep-0163.html#notify-autosubscribe) based on presence subscription and entity capabilities.
+* [Filtered item notifications](https://xmpp.org/extensions/xep-0163.html#notify-filterednotifications) with [mod_caps](mod_caps.md), and [node deletion notifications](https://xmpp.org/extensions/xep-0060.html#owner-delete-success).
+* [Last published item delivery](https://xmpp.org/extensions/xep-0163.html#notify-last), with [`urn:xmpp:delay`](https://xmpp.org/extensions/xep-0203.html) metadata.
+* Service discovery for [PEP support](https://xmpp.org/extensions/xep-0163.html#support-owner) on users' bare JIDs, [node-qualified disco info](https://xmpp.org/extensions/xep-0060.html#entity-info), and [disco items](https://xmpp.org/extensions/xep-0060.html#entity-nodes) listing discoverable PEP nodes.
+
+## Known omissions and limitations
+
+`mod_pubsub` is intended to grow over time, but it does not implement the full XEP-0060 feature set yet.
+Current intentional omissions and limitations are:
+
+* Access models other than `open` and `presence` are not supported.
+* Node and publish options other than `pubsub#access_model` are not supported.
+* [Subscription options](https://xmpp.org/extensions/xep-0060.html#subscriber-configure), [multiple subscriptions](https://xmpp.org/extensions/xep-0060.html#subscriber-subscribe-multi) for the same JID and node, and [collection nodes](https://xmpp.org/extensions/xep-0248.html) are not implemented.
+* [Affiliations](https://xmpp.org/extensions/xep-0060.html#owner-affiliations), [default node configuration requests](https://xmpp.org/extensions/xep-0060.html#owner-default), [purge](https://xmpp.org/extensions/xep-0060.html#owner-purge), and [subscription management by node owners](https://xmpp.org/extensions/xep-0060.html#owner-subscriptions) are not implemented.
+* [Result Set Management](https://xmpp.org/extensions/xep-0060.html#subscriber-retrieve-returnsome) is not implemented for item retrieval.
 
 ## Options
 
-### `modules.mod_pubsub.iqdisc.type`
-* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"one_queue"`
-
-Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
-
-### `modules.mod_pubsub.host`
-* **Syntax:** string
-* **Default:** `"pubsub.@HOST@"`
-* **Example:** `host = "pubsub.localhost"`
-
-Subdomain for Pubsub service to reside under.
-`@HOST@` is replaced with each served domain.
-
 ### `modules.mod_pubsub.backend`
-* **Syntax:** string, one of `"mnesia"`, `"rdbms"`
-* **Default:** `"mnesia"`
+* **Syntax:** string, currently only `"rdbms"` is supported.
+* **Default:** `"rdbms"`
 * **Example:** `backend = "rdbms"`
 
-Database backend to use.
+Database backend used to store PEP nodes, subscriptions, and items.
+The `rdbms` backend requires a `default` RDBMS connection pool in [`outgoing_pools`](../configuration/outgoing-connections.md#rdbms-options).
 
-### `modules.mod_pubsub.access_createnode`
-* **Syntax:** string, rule name, or `"all"`
-* **Default:** `"all"`
-* **Example:** `access_createnode = "all"`
+### `modules.mod_pubsub.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
+* **Default:** `"no_queue"`
 
-Specifies who is allowed to create pubsub nodes. The access rule referenced here needs to be defined in the [access](../configuration/access.md) section.
-
-### `modules.mod_pubsub.max_items_node`
-* **Syntax:** non-negative integer
-* **Default:** `10`
-* **Example:** `max_items_node = 10`
-
-Defines the maximum number of items that can be stored in a node.
-
-### `modules.mod_pubsub.max_subscriptions_node`
-* **Syntax:** non-negative integer
-* **Default:** not specified (no limit)
-* **Example:** `max_subscriptions_node = 10`
-
-The maximum number of subscriptions managed by a node. By default there is no limit.
-
-### `modules.mod_pubsub.nodetree`
-* **Syntax:** string
-* **Default:** `"tree"`
-* **Example:** `nodetree = "tree"`
-
-Specifies the storage and organisation of the pubsub nodes. See the section below.
-
-### `modules.mod_pubsub.ignore_pep_from_offline`
-* **Syntax:** boolean
-* **Default:** `true`
-* **Example:** `ignore_pep_from_offline = false`
-
-Specifies whether or not we should get last published PEP items from users in our roster which are offline when we connect.
-The default option is `true` hence we will get only the last items from the online contacts.
-
-### `modules.mod_pubsub.last_item_cache`
-* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"false"`
-* **Default:** `"false"`
-* **Example:** `last_item_cache = "mnesia"`
-
-If enabled, PubSub will cache the last published items in the nodes. It may increase PubSub performance but at a price of an increased memory usage.
-
-### `modules.mod_pubsub.plugins`
-* **Syntax:** array of strings
-* **Default:** `["flat"]`
-* **Example:** `plugins = ["flat", "pep"]`
-
-List of enabled pubsub plugins.
-
-### `modules.mod_pubsub.pep_mapping`
-* **Syntax:** Array of TOML tables with the following keys: `"namespace"`, `"node"` and string values.
-* **Default:** `[]`
-* **Example:** `pep_mapping = [{namespace = "urn:xmpp:microblog:0", node = "mb"}]`
-
-This permits creating a Key-Value list to define a custom node plugin on a given PEP namespace.
-E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.
-
-### `modules.mod_pubsub.default_node_config`
-* **Syntax:** TOML table with the following values: string, boolean or non-negative integer.
-* **Default:** `{}`
-* **Example:** `default_node_config = {deliver_payloads = true, max_payload_size = 10000, node_type = "leaf"}`
-
-Overrides the default node configuration, regardless of the node plugin.
-Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
-
-The possible options, altogether with their default values for each node plugin, are listed in the table below:
-
-|  | syntax | node_flat / node_hometree | node_pep | node_dag | node_push |
-|  | ---------|-----------|--------- |------|-----|
-| `access_model`| non-empty string | `open` | `presence` | `open` | `whitelist` |
-| `deliver_notifications` | boolean | `true` | `true` | `true` | `true` |
-| `deliver_payloads` | boolean | `true` | `true` | `true` | `true` |
-| `max_items` | non-negative integer | `10` | `1` | `10` | `1` |
-| `max_payload_size` | non-negative integer | `60000` | `60000` | `60000` | `60000` |
-| `node_type` | non-empty string | N/A | N/A | `leaf` | N/A |
-| `notification_type` | non-empty string | `headline` | `headline` | `headline` | `headline` |
-| `notify_config` | boolean | `false` | `false` | `false` | `false` |
-| `notify_delete` | boolean | `false` | `false` | `false` | `false` |
-| `notify_retract` | boolean | `false` | `false` | `false` | `false` |
-| `persist_items` | boolean | `true` | `true` | `true` | `false` |
-| `presence_based_delivery` | boolean | `false` | `true` | `false` | `true` |
-| `publish_model` | non-empty string | `publishers` | `publishers` | `publishers` | `open` |
-| `purge_offline` | boolean | `false` | `false` | `false` | `false` |
-| `roster_groups_allowed` | non-empty string | `[]` | `[]` | `[]` | `[]` |
-| `send_last_published_item` | non-empty string | `never` | `on_sub_and_presence` | `never` | `on_sub_and_presence` |
-| `subscribe` | boolean | `true` | `true` | `true` | `true` |
-
-### `modules.mod_pubsub.item_publisher`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `item_publisher = false`
-
-When enabled, a JID of the publisher will be saved in the item metadata.
-This effectively makes them an owner of this item.
-
-### `modules.mod_pubsub.sync_broadcast`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `sync_broadcast = false`
-
-If false, routing of notifications to subscribers is done in a separate Erlang process. As a consequence, some notifications *may* arrive to the subscribers in the wrong order (however, the two events would have to be published at the exact same time).
-
-### Cache Backend
-
-Caching is disabled by default.
-You may enable it by specifying the backend it should use.
-It is not coupled with the main DB backend, so it is possible to store the cached data in `mnesia`, while the actual PubSub information is kept in RDBMS (and vice versa!).
+Strategy to handle incoming IQ stanzas.
+By default, IQ requests are handled by the C2S process of a sender.
+For details, please refer to [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ## Example Configuration
 
-```toml
-[modules.mod_pubsub]
-  access_createnode = "pubsub_createnode"
-  ignore_pep_from_offline = false
-  backend = "rdbms"
-  last_item_cache = "mnesia"
-  max_items_node = 1000
-  plugins = ["flat", "pep"]
+It is recommended to start with the default options and enable [mod_caps](mod_caps.md) for filtered notifications:
 
-  [[modules.mod_pubsub.pep_mapping]]
-    namespace = "urn:xmpp:microblog:0"
-    node = "mb"
+```toml
+[modules.mod_caps]
+
+[modules.mod_pubsub]
 ```
 
-## Nodetrees
-
-Called on `get`, `create` and `delete` node.
-Only one nodetree can be used per host and is shared by all node plugins.
-
-### `"tree"`
-
-Stores nodes in a tree structure.
-Every node name must be formatted like a UNIX path (e.g. `/top/middle/leaf`).
-When a node is created, its direct ancestor must already exist, so in order to create `/top/middle/leaf`, `/top/middle` is needed.
-A user may create any top-level node.
-A user may create a subnode of a node, only if they own it or it was created by the service.
-
-
-### `"dag"`
-
-Provides experimental support for [XEP-0248: PubSub Collection Nodes](http://xmpp.org/extensions/xep-0248.html).
-In this case you should also add the `"dag"` node plugin as default, for example: `plugins = ["dag", "flat", "hometree", "pep"]`.
-
-## Plugins
-
-They handle affiliations, subscriptions and items and also provide default node conﬁguration and features.
-PubSub clients can define which plugin to use when creating a node by adding `type='plugin-name'` attribute to the create stanza element.
-If such an attribute is not specified, the default plugin will be the first on the plugin list.
-
-### `"flat"`
-
-No node hierarchy.
-It handles the standard PubSub case.
-
-### `"hometree"`
-
-Uses the exact same features as the flat plugin but additionally organises nodes in a tree.
-Basically it follows a scheme similar to the filesystem's structure.
-Every user can create nodes in their own home root: e.g `/home/user`.
-Each node can contain items and/or sub-nodes.
-
-### `"pep"`
-
-Implementation of [XEP-0163: Personal Eventing Protocol](http://xmpp.org/extensions/xep-0163.html).
-In this case, items are not persisted but kept in an in-memory cache.
-When the `pep` plugin is enabled, a user can have their own node (exposed as their bare jid) with a common namespace.
-Requires module `mod_caps` to be enabled.
-
-For [XEP-0384: OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html), it might be required to configure the `access_model` to `open` or override the default `access_model` in the following way:
+The example below shows a different configuration where IQ requests are handled by a pool of 50 workers:
 
 ```toml
 [modules.mod_pubsub]
-  access_createnode = "pubsub_createnode"
-  plugins = ["pep"]
-  default_node_config = {access_model = "open"}
+  iqdisc.type = "queues"
+  iqdisc.workers = 50
 ```
-
-### `"dag"`
-
-Implementation of [XEP-0248: PubSub Collection Nodes](https://xmpp.org/extensions/xep-0248.html).
-Every node takes a place in a collection and becomes either a collection node (and have only sub-nodes) or a leaf node (contains only items).
-
-### `"push"`
-
-Special node type that may be used as a target node for [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_event_pusher_push`).
-For each published notification, a hook `push_notification` is run.
-You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`).
-This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.
-
-## Metrics
-
-If you'd like to learn more about metrics in MongooseIM, please visit the [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
-
-### Overall PubSub action metrics
-
-=== "Prometheus"
-
-    For every PubSub action, like node creation, subscription, publication the following metrics are available:
-
-    * count - a counter metric showing the number of given action invocations
-    * errors - a counter metric counting the errors for a given action
-    * time - a histogram metric showing the time it took to finish the action in case of success
-
-    All PubSub metrics have a `host_type` label associated with them.
-
-    Below there is a table describing all metrics related to PubSub actions
-
-    | Name | Description (when it gets incremented) |
-    | ---- | -------------------------------------- |
-    |`mod_pubsub_get_affiliations_TYPE` | When node's affiliations are read |
-    |`mod_pubsub_get_configure_TYPE` | When node's configuration is read |
-    |`mod_pubsub_get_default_TYPE` | When node's defaults are read |
-    |`mod_pubsub_get_items_TYPE` | When node's items are read |
-    |`mod_pubsub_get_options_TYPE` | When node's options are read |
-    |`mod_pubsub_get_subscriptions_TYPE` | When node's subscriptions are read |
-    |`mod_pubsub_set_affiliations_TYPE` | When node's subscriptions are set |
-    |`mod_pubsub_set_configure_TYPE` | When node's configuration is set |
-    |`mod_pubsub_set_create_TYPE` | When node is created |
-    |`mod_pubsub_set_delete_TYPE` | When node is deleted |
-    |`mod_pubsub_set_options_TYPE` | When node's options are set |
-    |`mod_pubsub_set_publish_TYPE` | When an item is published |
-    |`mod_pubsub_set_purge_TYPE` | When node's items are purged |
-    |`mod_pubsub_set_retract_TYPE` | When node's items are retracted |
-    |`mod_pubsub_set_subscribe_TYPE` | When a subscriber subscribes to a node |
-    |`mod_pubsub_set_subscriptions_TYPE` | When a subscription is set (for instance accepted) |
-    |`mod_pubsub_set_unsubscribe_TYPE` | When a subscriber unsubscribes |
-
-    Where:
-    
-    * `TYPE` is one of the following `count`, `errors`, `time` (described above the table)
-
-=== "Exometer"
-
-    For every PubSub action, like node creation, subscription, publication the following metrics are available:
-
-    * count - a spiral metric showing the number of given action invocations
-    * errors - a spiral metric counting the errors for a given action
-    * time - a histogram metric showing the time it took to finish the action in case of success
-
-    Below there is a table describing all metrics related to PubSub actions
-
-    | Name | Description (when it gets incremented) |
-    | ---- | -------------------------------------- |
-    |`[HOST, pubsub, get, affiliations, TYPE]` | When node's affiliations are read |
-    |`[HOST, pubsub, get, configure, TYPE]` | When node's configuration is read |
-    |`[HOST, pubsub, get, default, TYPE]` | When node's defaults are read |
-    |`[HOST, pubsub, get, items, TYPE]` | When node's items are read |
-    |`[HOST, pubsub, get, options, TYPE]` | When node's options are read |
-    |`[HOST, pubsub, get, subscriptions, TYPE]` | When node's subscriptions are read |
-    |`[HOST, pubsub, set, affiliations, TYPE]` | When node's subscriptions are set |
-    |`[HOST, pubsub, set, configure, TYPE]` | When node's configuration is set |
-    |`[HOST, pubsub, set, create, TYPE]` | When node is created |
-    |`[HOST, pubsub, set, delete, TYPE]` | When node is deleted |
-    |`[HOST, pubsub, set, options, TYPE]` | When node's options are set |
-    |`[HOST, pubsub, set, publish, TYPE]` | When an item is published |
-    |`[HOST, pubsub, set, purge, TYPE]` | When node's items are purged |
-    |`[HOST, pubsub, set, retract, TYPE]` | When node's items are retracted |
-    |`[HOST, pubsub, set, subscribe, TYPE]` | When a subscriber subscribes to a node |
-    |`[HOST, pubsub, set, subscriptions, TYPE]` | When a subscription is set (for instance accepted) |
-    |`[HOST, pubsub, set, unsubscribe, TYPE]` | When a subscriber unsubscribes |
-
-    Where:
-    
-    * `HOST` is the XMPP host for which `mod_pubsub` is running. Can be set to `global` if all metrics are set to be global.
-    * `TYPE` is one of the following `count`, `errors`, `time` (described above the table)
-
-### Backend operations
-
-`mod_pubsub` also provides detailed [backend metrics](../operation-and-maintenance/MongooseIM-metrics.md#backend-metrics) measuring execution time of backend operations.
-
-Prometheus metrics have a `host_type` and `function` labels associated with these metrics.
-Since Exometer doesn't support labels, the function as well as the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
-
-Backend in the action name can be either `rdbms` or `mnesia`.
-
-#### Cache backend
-
-=== "Prometheus"
-
-    | Backend action | Type | Function | Description (when it gets incremented) |
-    | -------------- | ---- | -------- | -------------------------------------- |
-    | `mod_pubsub_cache_Backend_count` | counter | `upsert_last_item` | Last item is upserted into a node. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `upsert_last_item` | Time to upsert last item into a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `delete_last_item` | Last item is deleted from a node. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `delete_last_item` | Time to delete last item from a node. |
-    | `mod_pubsub_cache_Backend_count` | counter | `get_last_item` | Last item from a node is fetched. |
-    | `mod_pubsub_cache_Backend_time` | histogram | `get_last_item` | Time to fetch the last item from a node. |
-
-=== "Exometer"
-
-    | Backend action | Type | Description (when it gets incremented) |
-    | -------------- | ---- | -------------------------------------- |
-    | `[HostType, mod_pubsub_cache_Backend, upsert_last_item, count]` | spiral | Last item is upserted into a node. |
-    | `[HostType, mod_pubsub_cache_Backend, upsert_last_item, time]` | histogram | Time to upsert last item into a node. |
-    | `[HostType, mod_pubsub_cache_Backend, delete_last_item, count]` | spiral | Last item is deleted from a node. |
-    | `[HostType, mod_pubsub_cache_Backend, delete_last_item, time]` | histogram | Time to delete last item from a node. |
-    | `[HostType, mod_pubsub_cache_Backend, get_last_item, count]` | spiral | Last item from a node is fetched. |
-    | `[HostType, mod_pubsub_cache_Backend, get_last_item, time]` | histogram | Time to fetch the last item from a node. |
-
-#### Database backend
-
-=== "Prometheus"
-
-    | Backend action | Type | Function | Description (when it gets incremented) |
-    | -------------- | ---- | -------- | -------------------------------------- |
-    | `mod_pubsub_db_Backend_count` | counter | `get_state` | User's state for a specific node is fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_state` | Time to fetch user's state for a specific node. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_states` | Node's states are fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_states` | Time to fetch node's states. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_states_by_lus` | Nodes' states for user + domain are fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_states_by_lus` | Time to fetch the nodes' states for user + domain. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_states_by_bare` | Nodes' states for bare JID are fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_states_by_bare` | Time to fetch nodes' states for bare JID. |
-    | `mod_pubsub_db_Backend_count` | counter | `create_node` | A node's owner is set. |
-    | `mod_pubsub_db_Backend_time` | histogram | `create_node` | Time to set a node's owner. |
-    | `mod_pubsub_db_Backend_count` | counter | `del_node` | All data related to a node is removed. |
-    | `mod_pubsub_db_Backend_time` | histogram | `del_node` | Time to remove all data related to a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_items` | Node's items are fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_items` | Time to fetch node's items. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_item` | A specific item from a node is fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_item` | Time to fetch a specific item from a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `add_item` | An item is upserted into a node. |
-    | `mod_pubsub_db_Backend_time` | histogram | `add_item` | Time to upsert an item into a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `set_item` | An item is updated in a node. |
-    | `mod_pubsub_db_Backend_time` | histogram | `set_item` | Time to update an item in a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `del_item` | An item is deleted from a node. |
-    | `mod_pubsub_db_Backend_time` | histogram | `del_item` | Time to delete an item from a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `del_items` | Specified items are deleted from a node. |
-    | `mod_pubsub_db_Backend_time` | histogram | `del_items` | Time to delete specified items from a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `set_node` | A node is upserted. |
-    | `mod_pubsub_db_Backend_time` | histogram | `set_node` | Time to upsert a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `find_node_by_id` | A node is fetched by its ID. |
-    | `mod_pubsub_db_Backend_time` | histogram | `find_node_by_id` | Time to fetch a node by its ID. |
-    | `mod_pubsub_db_Backend_count` | counter | `find_nodes_by_key` | Nodes are fetched by key. |
-    | `mod_pubsub_db_Backend_time` | histogram | `find_nodes_by_key` | Time to fetch nodes by key. |
-    | `mod_pubsub_db_Backend_count` | counter | `find_node_by_name` | A node is fetched by its name. |
-    | `mod_pubsub_db_Backend_time` | histogram | `find_node_by_name` | Time to fetch a node by its name. |
-    | `mod_pubsub_db_Backend_count` | counter | `delete_node` | A node is deleted. |
-    | `mod_pubsub_db_Backend_time` | histogram | `delete_node` | Time to delete a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_subnodes` | Subnodes of a node are fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_subnodes` | Time to fetch the subnodes of a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_subnodes_tree` | Full tree of subnodes of a node is fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_subnodes_tree` | Time to fetch the full tree of subnodes of a node. |
-    | `mod_pubsub_db_Backend_count` | counter | `get_parentnodes_tree` | All parents of a node are fetched. |
-    | `mod_pubsub_db_Backend_time` | histogram | `get_parentnodes_tree` | Time to fetch all parents of a node. |
-
-=== "Exometer"
-
-    | Backend action | Type | Description (when it gets incremented) |
-    | -------------- | ---- | -------------------------------------- |
-    | `[HostType, mod_pubsub_db_Backend, get_state, count]` | spiral | User's state for a specific node is fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_state, time]` | histogram | Time to fetch user's state for a specific node. |
-    | `[HostType, mod_pubsub_db_Backend, get_states, count]` | spiral | Node's states are fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_states, time]` | histogram | Time to fetch node's states. |
-    | `[HostType, mod_pubsub_db_Backend, get_states_by_lus, count]` | spiral | Nodes' states for user + domain are fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_states_by_lus, time]` | histogram | Time to fetch the nodes' states for user + domain. |
-    | `[HostType, mod_pubsub_db_Backend, get_states_by_bare, count]` | spiral | Nodes' states for bare JID are fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_states_by_bare, time]` | histogram | Time to fetch nodes' states for bare JID. |
-    | `[HostType, mod_pubsub_db_Backend, create_node, count]` | spiral | A node's owner is set. |
-    | `[HostType, mod_pubsub_db_Backend, create_node, time]` | histogram | Time to set a node's owner. |
-    | `[HostType, mod_pubsub_db_Backend, del_node, count]` | spiral | All data related to a node is removed. |
-    | `[HostType, mod_pubsub_db_Backend, del_node, time]` | histogram | Time to remove all data related to a node. |
-    | `[HostType, mod_pubsub_db_Backend, get_items, count]` | spiral | Node's items are fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_items, time]` | histogram | Time to fetch node's items. |
-    | `[HostType, mod_pubsub_db_Backend, get_item, count]` | spiral | A specific item from a node is fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_item, time]` | histogram | Time to fetch a specific item from a node. |
-    | `[HostType, mod_pubsub_db_Backend, add_item, count]` | spiral | An item is upserted into a node. |
-    | `[HostType, mod_pubsub_db_Backend, add_item, time]` | histogram | Time to upsert an item into a node. |
-    | `[HostType, mod_pubsub_db_Backend, set_item, count]` | spiral | An item is updated in a node. |
-    | `[HostType, mod_pubsub_db_Backend, set_item, time]` | histogram | Time to update an item in a node. |
-    | `[HostType, mod_pubsub_db_Backend, del_item, count]` | spiral | An item is deleted from a node. |
-    | `[HostType, mod_pubsub_db_Backend, del_item, time]` | histogram | Time to delete an item from a node. |
-    | `[HostType, mod_pubsub_db_Backend, del_items, count]` | spiral | Specified items are deleted from a node. |
-    | `[HostType, mod_pubsub_db_Backend, del_items, time]` | histogram | Time to delete specified items from a node. |
-    | `[HostType, mod_pubsub_db_Backend, set_node, count]` | spiral | A node is upserted. |
-    | `[HostType, mod_pubsub_db_Backend, set_node, time]` | histogram | Time to upsert a node. |
-    | `[HostType, mod_pubsub_db_Backend, find_node_by_id, count]` | spiral | A node is fetched by its ID. |
-    | `[HostType, mod_pubsub_db_Backend, find_node_by_id, time]` | histogram | Time to fetch a node by its ID. |
-    | `[HostType, mod_pubsub_db_Backend, find_nodes_by_key, count]` | spiral | Nodes are fetched by key. |
-    | `[HostType, mod_pubsub_db_Backend, find_nodes_by_key, time]` | histogram | Time to fetch nodes by key. |
-    | `[HostType, mod_pubsub_db_Backend, find_node_by_name, count]` | spiral | A node is fetched by its name. |
-    | `[HostType, mod_pubsub_db_Backend, find_node_by_name, time]` | histogram | Time to fetch a node by its name. |
-    | `[HostType, mod_pubsub_db_Backend, delete_node, count]` | spiral | A node is deleted. |
-    | `[HostType, mod_pubsub_db_Backend, delete_node, time]` | histogram | Time to delete a node. |
-    | `[HostType, mod_pubsub_db_Backend, get_subnodes, count]` | spiral | Subnodes of a node are fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_subnodes, time]` | histogram | Time to fetch the subnodes of a node. |
-    | `[HostType, mod_pubsub_db_Backend, get_subnodes_tree, count]` | spiral | Full tree of subnodes of a node is fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_subnodes_tree, time]` | histogram | Time to fetch the full tree of subnodes of a node. |
-    | `[HostType, mod_pubsub_db_Backend, get_parentnodes_tree, count]` | spiral | All parents of a node are fetched. |
-    | `[HostType, mod_pubsub_db_Backend, get_parentnodes_tree, time]` | histogram | Time to fetch all parents of a node. |

@@ -31,20 +31,20 @@
 
 -include("jlib.hrl").
 
--type(host() :: mod_pubsub:host()).
--type(nodeId() :: mod_pubsub:nodeId()).
--type(nodeIdx() :: mod_pubsub:nodeIdx()).
--type(itemId() :: mod_pubsub:itemId()).
--type(pubsubNode() :: mod_pubsub:pubsubNode()).
--type(pubsubItem() :: mod_pubsub:pubsubItem()).
--type(subOptions() :: mod_pubsub:subOptions()).
--type(affiliation() :: mod_pubsub:affiliation()).
--type(subscription() :: mod_pubsub:subscription()).
--type(subId() :: mod_pubsub:subId()).
--type(accessModel() :: mod_pubsub:accessModel()).
--type(publishModel() :: mod_pubsub:publishModel()).
--type(payload() :: mod_pubsub:payload()).
--type(publishOptions() :: mod_pubsub:publishOptions()).
+-type(host() :: mod_pubsub_old:host()).
+-type(nodeId() :: mod_pubsub_old:nodeId()).
+-type(nodeIdx() :: mod_pubsub_old:nodeIdx()).
+-type(itemId() :: mod_pubsub_old:itemId()).
+-type(pubsubNode() :: mod_pubsub_old:pubsubNode()).
+-type(pubsubItem() :: mod_pubsub_old:pubsubItem()).
+-type(subOptions() :: mod_pubsub_old:subOptions()).
+-type(affiliation() :: mod_pubsub_old:affiliation()).
+-type(subscription() :: mod_pubsub_old:subscription()).
+-type(subId() :: mod_pubsub_old:subId()).
+-type(accessModel() :: mod_pubsub_old:accessModel()).
+-type(publishModel() :: mod_pubsub_old:publishModel()).
+-type(payload() :: mod_pubsub_old:payload()).
+-type(publishOptions() :: mod_pubsub_old:publishOptions()).
 -type(get_authorised_item_options() :: #{access_model := accessModel(),
                                          presence_permission := boolean(),
                                          roster_permission := boolean(),

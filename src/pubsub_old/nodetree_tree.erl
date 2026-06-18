@@ -40,7 +40,7 @@
 
 -include_lib("stdlib/include/qlc.hrl").
 
--include("pubsub.hrl").
+-include("mod_pubsub_old.hrl").
 -include("jlib.hrl").
 
 -export([init/2, terminate/2, set_node/1,
@@ -49,7 +49,7 @@
          get_subnodes/3, create_node/6,
          delete_node/2]).
 
--define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_db_backend).
+-define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_old_db_backend).
 -ignore_xref([
     {?MOD_PUBSUB_DB_BACKEND, set_node, 1},
     {?MOD_PUBSUB_DB_BACKEND, get_subnodes, 2},
@@ -66,37 +66,37 @@ terminate(_Host, _ServerHost) ->
     ok.
 
 set_node(Node) ->
-    mod_pubsub_db_backend:set_node(Node).
+    mod_pubsub_old_db_backend:set_node(Node).
 
 get_node(Host, Node) ->
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, Node) of
         #pubsub_node{} = Record -> Record;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_node(Nidx) ->
-    case catch mod_pubsub_db_backend:find_node_by_id(Nidx) of
+    case catch mod_pubsub_old_db_backend:find_node_by_id(Nidx) of
         {ok, Node} -> Node;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_nodes(Key, _From) ->
-    mod_pubsub_db_backend:find_nodes_by_key(Key).
+    mod_pubsub_old_db_backend:find_nodes_by_key(Key).
 
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
 get_parentnodes_tree(Host, Node, _From) ->
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, Node) of
         #pubsub_node{} = Record -> [{0, [Record]}];
         _ -> []
     end.
 
 get_subnodes(Host, Node, _From) ->
-    mod_pubsub_db_backend:get_subnodes(Host, Node).
+    mod_pubsub_old_db_backend:get_subnodes(Host, Node).
 
 create_node(Host, NodeName, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, NodeName) of
+    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, NodeName) of
         false ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
@@ -119,7 +119,7 @@ check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
 check_parent_and_its_owner_list(_Host, [], _BJID) ->
     true;
 check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Parent) of
+    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, Parent) of
         #pubsub_node{owners = [{<<>>, Host, <<>>}]} ->
             true;
         #pubsub_node{owners = Owners} ->
@@ -131,10 +131,10 @@ check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->
     false.
 
 delete_node(Host, Node) ->
-    SubNodesTree = mod_pubsub_db_backend:get_subnodes_tree(Host, Node),
+    SubNodesTree = mod_pubsub_old_db_backend:get_subnodes_tree(Host, Node),
     Removed = lists:flatten([Nodes || {_, Nodes} <- SubNodesTree]),
     lists:foreach(fun (NodeToDel) ->
-                mod_pubsub_db_backend:delete_node(NodeToDel)
+                mod_pubsub_old_db_backend:delete_node(NodeToDel)
         end,
         Removed),
     Removed.

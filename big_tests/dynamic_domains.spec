@@ -29,7 +29,7 @@
 {skip_groups, "tests", gdpr_SUITE,
  [retrieve_personal_data_pubsub,
   remove_personal_data_pubsub],
- "at the moment mod_pubsub doesn't support dynamic domains"}.
+ "mod_pubsub_old doesn't support dynamic domains"}.
 
 {suites, "tests", graphql_SUITE}.
 {suites, "tests", graphql_sse_SUITE}.
@@ -92,6 +92,7 @@
 {suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", offline_stub_SUITE}.
+{suites, "tests", pep_SUITE}.
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
