@@ -2790,14 +2790,6 @@ process_admin_item_set_unsafe({JID, affiliation, owner, _}, _UJID, SD)
     %% If the provided JID does not have username,
     %% ignore the affiliation completely
     SD;
-process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
-    safe_send_kickban_presence(JID, Reason, <<"307">>, SD),
-    set_role(JID, none, SD);
-process_admin_item_set_unsafe({JID, affiliation, none, Reason}, _UJID, SD) ->
-    remove_user_from_room(JID, Reason, SD);
-process_admin_item_set_unsafe({JID, affiliation, outcast, Reason}, _UJID, SD) ->
-    safe_send_kickban_presence(JID, Reason, <<"301">>, outcast, SD),
-    set_affiliation_and_reason(JID, outcast, Reason, set_role(JID, none, SD));
 process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD)
   when (A == admin) orelse (A == owner) ->
     SD1 = set_affiliation_and_reason(JID, A, Reason, SD),
@@ -2813,6 +2805,14 @@ process_admin_item_set_unsafe({JID, affiliation, member, Reason}, UJID, SD) ->
     SD2 = set_role(JID, participant, SD1),
     send_update_presence(JID, Reason, SD2),
     SD2;
+process_admin_item_set_unsafe({JID, affiliation, outcast, Reason}, _UJID, SD) ->
+    safe_send_kickban_presence(JID, Reason, <<"301">>, outcast, SD),
+    set_affiliation_and_reason(JID, outcast, Reason, set_role(JID, none, SD));
+process_admin_item_set_unsafe({JID, affiliation, none, Reason}, _UJID, SD) ->
+    remove_user_from_room(JID, Reason, SD);
+process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
+    safe_send_kickban_presence(JID, Reason, <<"307">>, SD),
+    set_role(JID, none, SD);
 process_admin_item_set_unsafe({JID, role, Role, Reason}, _UJID, SD) ->
     SD1 = set_role(JID, Role, SD),
     catch send_new_presence(JID, Reason, SD1),
