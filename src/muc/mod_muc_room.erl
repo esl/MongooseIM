@@ -1409,28 +1409,15 @@ access_persistent(#state{access=Access}) ->
     AccessPersistent.
 
 
--dialyzer({no_match, set_affiliation/3}).
--spec set_affiliation(jid:jid(), mod_muc:affiliation(), state()) -> state().
-set_affiliation(JID, Affiliation, StateData)
-        when is_atom(Affiliation) ->
+-spec set_affiliation(jid:jid(),
+                      mod_muc:affiliation() | {mod_muc:affiliation(), term()},
+                      state()) -> state().
+set_affiliation(JID, none, StateData) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
-    Affiliations = case Affiliation of
-               none -> maps:remove(LJID, StateData#state.affiliations);
-               _ -> maps:put(LJID, Affiliation, StateData#state.affiliations)
-           end,
-    StateData#state{affiliations = Affiliations}.
-
-
--spec set_affiliation_and_reason(jid:jid(), mod_muc:affiliation(), term(),
-                                 state()) -> state().
-set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
-        when is_atom(Affiliation) ->
+    StateData#state{affiliations = maps:remove(LJID, StateData#state.affiliations)};
+set_affiliation(JID, AffOrAffReason, StateData) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
-    Affiliations = case Affiliation of
-               none -> maps:remove(LJID, StateData#state.affiliations);
-               _ -> maps:put(LJID, {Affiliation, Reason}, StateData#state.affiliations)
-           end,
-    StateData#state{affiliations = Affiliations}.
+    StateData#state{affiliations = maps:put(LJID, AffOrAffReason, StateData#state.affiliations)}.
 
 
 -spec get_affiliation(jid:jid(), state()) -> mod_muc:affiliation().
@@ -2795,7 +2782,7 @@ process_admin_item_set_unsafe({JID, affiliation, owner, _}, _UJID, SD)
     SD;
 process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD)
   when (A == admin) orelse (A == owner) ->
-    SD1 = set_affiliation_and_reason(JID, A, Reason, SD),
+    SD1 = set_affiliation(JID, {A, Reason}, SD),
     SD2 = set_role(JID, moderator, SD1),
     send_update_presence(JID, Reason, SD2),
     SD2;
@@ -2804,13 +2791,13 @@ process_admin_item_set_unsafe({JID, affiliation, member, Reason}, UJID, SD) ->
         true -> send_invitation(UJID, JID, Reason, SD);
         _ -> ok
     end,
-    SD1 = set_affiliation_and_reason(JID, member, Reason, SD),
+    SD1 = set_affiliation(JID, {member, Reason}, SD),
     SD2 = set_role(JID, participant, SD1),
     send_update_presence(JID, Reason, SD2),
     SD2;
 process_admin_item_set_unsafe({JID, affiliation, outcast, Reason}, _UJID, SD) ->
     safe_send_kickban_presence(JID, Reason, <<"301">>, outcast, SD),
-    set_affiliation_and_reason(JID, outcast, Reason, set_role(JID, none, SD));
+    set_affiliation(JID, {outcast, Reason}, set_role(JID, none, SD));
 process_admin_item_set_unsafe({JID, affiliation, none, Reason}, _UJID, SD) ->
     remove_user_from_room(JID, Reason, SD);
 process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
@@ -2831,10 +2818,10 @@ remove_user_from_room(JID, Reason, SD) ->
     case (SD#state.config)#config.members_only of
         true ->
             safe_send_kickban_presence(JID, Reason, <<"321">>, none, SD),
-            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            SD1 = set_affiliation(JID, none, SD),
             set_role(JID, none, SD1);
         _ ->
-            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            SD1 = set_affiliation(JID, none, SD),
             send_update_presence(JID, Reason, SD1),
             SD1
     end.
