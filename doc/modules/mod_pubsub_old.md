@@ -1,3 +1,6 @@
+!!! warning
+    `mod_pubsub_old` is deprecated. Use [`mod_pubsub`](mod_pubsub.md) for better performance if your deployment only needs the selected PEP features supported by the new implementation.
+
 ## What is PubSub?
 
 PubSub is a design pattern which mostly promotes a loose coupling between two kinds of entities - publishers and subscribers.
