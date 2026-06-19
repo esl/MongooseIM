@@ -101,13 +101,8 @@ push_notifications(AccIn,
     ProtocolVersion = gen_mod:get_module_opt(HostType, ?MODULE, api_version),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     Fun = fun(Notification) ->
-            ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
-            {ok, JSON} =
-                make_notification(Notification, Options),
-            Payload = jiffy:encode(JSON),
-            call(HostType, ?MODULE, http_notification,
-                 [HostType, post, Path, ReqHeaders, Payload])
-        end,
+              send_push_notification(HostType, Notification, Options, Path)
+          end,
     {ok, send_push_notifications(Notifications, Fun, ok)}.
 
 send_push_notifications([], _, Result) ->
@@ -127,6 +122,22 @@ send_push_notifications([Notification | Notifications], Fun, Result) ->
             send_push_notifications(Notifications, Fun, Other)
     end.
 
+send_push_notification(HostType, Notification, Options, Path) ->
+    ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
+    try make_notification(Notification, Options) of
+        Payload ->
+            call(HostType, ?MODULE, http_notification,
+                 [HostType, post, Path, ReqHeaders, Payload])
+    catch
+        C:R:S ->
+            Info = #{what => make_notification_failed,
+                     text => <<"Error making push notification">>,
+                     notification => Notification,
+                     options => Options},
+            Error = Info#{class => C, reason => R, stacktrace => S},
+            ?LOG_ERROR(Error),
+            {ok, {error, make_notification_failed}}
+    end.
 
 %%--------------------------------------------------------------------
 %% Module API
@@ -197,7 +208,8 @@ make_notification(Notification_, Options) ->
                           OptionalAlert = maps:with([<<"click_action">>, <<"sound">>], Options),
                           #{alert => maps:merge(BasicAlert, OptionalAlert)}
                   end,
-    {ok, maps:merge(NotificationParams, DataOrAlert)}.
+    JSON = maps:merge(NotificationParams, DataOrAlert),
+    jiffy:encode(JSON).
 
 %% normalize Notification recursively
 normalize_notification(#{<<"message-count">> := MC} = N) when is_binary(MC) ->
