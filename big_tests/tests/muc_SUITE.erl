@@ -1581,7 +1581,7 @@ admin_sets_reserved_nick(ConfigIn) ->
         %% Bob has no reserved nickname yet
         ?assert_equal(<<>>, get_nick(Bob)),
         %% Alice (owner) makes Bob a member and reserves a nickname for him
-        escalus:send(Alice, stanza_set_reserved_nick(Room, BobJID, <<"member">>, Nick)),
+        escalus:send(Alice, stanza_set_nicks(Room, [{BobJID, <<"member">>, Nick}])),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
         %% Bob's reserved nickname is now set
         ?assert_equal(Nick, get_nick(Bob)),
@@ -1599,7 +1599,7 @@ admin_unsets_reserved_nick(ConfigIn) ->
         set_nick(Bob, Nick),
         ?assert_equal(Nick, get_nick(Bob)),
         %% Alice (owner) unsets Bob's reserved nickname
-        escalus:send(Alice, stanza_set_reserved_nick(Room, BobJID, <<"member">>, <<>>)),
+        escalus:send(Alice, stanza_set_nicks(Room, [{BobJID, <<"member">>, <<>>}])),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
         ?assert_equal(<<>>, get_nick(Bob))
     end).
@@ -1614,7 +1614,7 @@ admin_sets_conflicting_reserved_nick(ConfigIn) ->
         %% Kate reserves the nickname first
         set_nick(Kate, Nick),
         %% Alice tries to give the same nickname to Bob
-        escalus:send(Alice, stanza_set_reserved_nick(Room, BobJID, <<"member">>, Nick)),
+        escalus:send(Alice, stanza_set_nicks(Room, [{BobJID, <<"member">>, Nick}])),
         escalus:assert(is_error, [<<"cancel">>, <<"conflict">>],
                        escalus:wait_for_stanza(Alice)),
         %% Bob's nickname stays unset
@@ -1630,7 +1630,7 @@ user_cannot_set_others_reserved_nick(ConfigIn) ->
         KateJID = escalus_utils:get_short_jid(Kate),
         Nick = fresh_nick_name(<<"katenick">>),
         %% Bob has no affiliation, so he cannot manage Kate's reserved nickname
-        escalus:send(Bob, stanza_set_reserved_nick(Room, KateJID, <<"none">>, Nick)),
+        escalus:send(Bob, stanza_set_nicks(Room, [{KateJID, <<"none">>, Nick}])),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
                        escalus:wait_for_stanza(Bob)),
         ?assert_equal(<<>>, get_nick(Kate))
@@ -5481,12 +5481,15 @@ stanza_set_affiliations(Room, List) ->
         end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
 
-stanza_set_reserved_nick(Room, JID, Affiliation, Nick) ->
-    Item = #xmlel{name = <<"item">>,
-                  attrs = #{<<"jid">> => JID,
-                            <<"affiliation">> => Affiliation,
-                            <<"nick">> => Nick}},
-    stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, [Item]), Room).
+stanza_set_nicks(Room, List) ->
+    Payload = lists:map(
+        fun({JID, Affiliation, Nick}) ->
+            #xmlel{name = <<"item">>,
+                   attrs = #{<<"jid">> => JID,
+                             <<"affiliation">> => Affiliation,
+                             <<"nick">> => Nick}}
+        end, List),
+    stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_role_list_request(Room, Role) ->
     Payload = [ #xmlel{name = <<"item">>,
