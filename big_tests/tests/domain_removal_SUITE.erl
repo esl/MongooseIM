@@ -10,6 +10,8 @@
                         secondary_domain/0]).
 -import(config_parser_helper, [mod_config/2]).
 -import(muc_helper, [get_member_list/2]).
+-import(pubsub_tools, [create_node/3, delete_node/3, get_items/3, publish/4, subscribe/3,
+                       receive_item_notification/4]).
 
 -include("mam_helper.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -35,6 +37,7 @@ all() ->
      {group, last_removal},
      {group, broadcast_removal},
      {group, push_removal},
+     {group, pubsub_removal},
      {group, blocklist_removal},
      {group, removal_failures}
     ].
@@ -61,6 +64,7 @@ groups() ->
      {broadcast_removal, [], [broadcast_removal]},
      {push_removal, [], [push_removal,
                          push_removal_keeps_other_domain_subscriptions]},
+     {pubsub_removal, [], [pep_removal]},
      {blocklist_removal, [], [blocklist_removal]},
      {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
@@ -182,6 +186,8 @@ group_to_modules(broadcast_removal) ->
 group_to_modules(push_removal) ->
     PushOpts = #{backend => rdbms},
     [{mod_event_pusher, #{push => config_parser_helper:config([modules, mod_event_pusher, push], PushOpts)}}];
+group_to_modules(pubsub_removal) ->
+    [{mod_pubsub, mod_config(mod_pubsub, #{backend => rdbms})}];
 group_to_modules(blocklist_removal) ->
     [{mod_blocklist, #{backend => rdbms}}].
 
@@ -584,6 +590,38 @@ push_removal_keeps_other_domain_subscriptions(Config) ->
         ?assertMatch([_], AliceBisServicesAfter)
     end).
 
+pep_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceBis) ->
+        RemovedNode = pep_node(Alice),
+        create_node(Alice, RemovedNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+        publish(Alice, ~"item0", RemovedNode, []),
+
+        OtherNode = pep_node(AliceBis),
+        create_node(AliceBis, OtherNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+        subscribe(Alice, OtherNode, []),
+
+        %% Get items and test cross-domain subscriptions before removal
+        get_items(AliceBis, RemovedNode, [{expected_result, [~"item0"]}]),
+        publish(AliceBis, ~"item1", OtherNode, []),
+        receive_item_notification(Alice, ~"item1", OtherNode, []),
+        get_items(AliceBis, OtherNode, [{expected_result, [~"item1"]}]),
+
+        run_remove_domain(),
+
+        %% Removed node should not exist
+        NotFoundOpts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+        get_items(AliceBis, RemovedNode, NotFoundOpts),
+
+        %% Removed user's subscription should not exist
+        publish(AliceBis, ~"item2", OtherNode, []),
+        [] = escalus:wait_for_stanzas(Alice, 1, 500),
+
+        %% Items on another node should not be deleted
+        get_items(AliceBis, OtherNode, [{expected_result, [~"item1", ~"item2"]}]),
+
+        delete_node(AliceBis, OtherNode, [])
+    end).
+
 blocklist_removal(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], fun(Alice) ->
         HostType = host_type(),
@@ -691,6 +729,9 @@ block_muclight_user(Bob, Alice) ->
     BlocklistChange = [{user, deny, AliceJIDBin}],
     escalus:send(Bob, muc_light_helper:stanza_blocking_set(BlocklistChange)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)).
+
+pep_node(Client) ->
+    pep_SUITE:pep_node(Client, pep_SUITE:random_node_ns()).
 
 my_banana(NS) ->
     #xmlel{

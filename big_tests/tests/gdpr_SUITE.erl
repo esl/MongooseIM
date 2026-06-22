@@ -30,11 +30,12 @@
          remove_roster/1,
          retrieve_offline/1,
          remove_offline/1,
-         retrieve_pubsub_payloads/1,
-         retrieve_created_pubsub_nodes/1,
-         retrieve_all_pubsub_data/1,
-         dont_retrieve_other_user_pubsub_payload/1,
-         retrieve_pubsub_subscriptions/1,
+         retrieve_pubsub_data/1,
+         retrieve_pubsub_old_payloads/1,
+         retrieve_created_pubsub_old_nodes/1,
+         retrieve_all_pubsub_old_data/1,
+         dont_retrieve_other_user_pubsub_old_payload/1,
+         retrieve_pubsub_old_subscriptions/1,
          retrieve_private_xml/1,
          dont_retrieve_other_user_private_xml/1,
          retrieve_multiple_private_xmls/1,
@@ -46,12 +47,13 @@
          remove_inbox_muclight/1,
          remove_inbox_muc/1,
          retrieve_logs/1,
-         remove_pubsub_all_data/1,
-         remove_pubsub_dont_remove_node_when_only_publisher/1,
-         remove_pubsub_subscriptions/1,
-         remove_pubsub_dont_remove_flat_pubsub_node/1,
-         remove_pubsub_push_node/1,
-         remove_pubsub_pep_node/1
+         remove_pubsub_user/1,
+         remove_pubsub_old_all_data/1,
+         remove_pubsub_old_dont_remove_node_when_only_publisher/1,
+         remove_pubsub_old_subscriptions/1,
+         remove_pubsub_old_dont_remove_flat_pubsub_node/1,
+         remove_pubsub_old_push_node/1,
+         remove_pubsub_old_pep_node/1
         ]).
 
 -import(mongooseimctl_helper, [mongooseimctl/3]).
@@ -88,6 +90,7 @@ groups() ->
                                    retrieve_inbox,
                                    retrieve_logs,
                                    {group, retrieve_personal_data_pubsub},
+                                   {group, retrieve_personal_data_pubsub_old},
                                    {group, retrieve_personal_data_private_xml},
                                    {group, retrieve_personal_data_mam},
                                    {group, retrieve_personal_data_inbox}
@@ -99,12 +102,15 @@ groups() ->
         retrieve_inbox_muc
     ]},
      {retrieve_personal_data_pubsub, [], [
-                                          retrieve_pubsub_payloads,
-                                          dont_retrieve_other_user_pubsub_payload,
-                                          retrieve_pubsub_subscriptions,
-                                          retrieve_created_pubsub_nodes,
-                                          retrieve_all_pubsub_data
+                                          retrieve_pubsub_data
                                          ]},
+     {retrieve_personal_data_pubsub_old, [], [
+                                              retrieve_pubsub_old_payloads,
+                                              dont_retrieve_other_user_pubsub_old_payload,
+                                              retrieve_pubsub_old_subscriptions,
+                                              retrieve_created_pubsub_old_nodes,
+                                              retrieve_all_pubsub_old_data
+                                             ]},
      {retrieve_personal_data_private_xml, [], [
                                                retrieve_private_xml,
                                                dont_retrieve_other_user_private_xml,
@@ -129,13 +135,16 @@ groups() ->
      {remove_personal_data_mam_cassandra, [], mam_removal_testcases()},
      {remove_personal_data_mam_elasticsearch, [], mam_removal_testcases()},
      {remove_personal_data_pubsub, [], [
-                                        remove_pubsub_subscriptions,
-                                        remove_pubsub_dont_remove_node_when_only_publisher,
-                                        remove_pubsub_dont_remove_flat_pubsub_node,
-                                        remove_pubsub_push_node,
-                                        remove_pubsub_pep_node,
-                                        remove_pubsub_all_data
-                                       ]}
+                                        remove_pubsub_user
+                                       ]},
+     {remove_personal_data_pubsub_old, [], [
+                                            remove_pubsub_old_subscriptions,
+                                            remove_pubsub_old_dont_remove_node_when_only_publisher,
+                                            remove_pubsub_old_dont_remove_flat_pubsub_node,
+                                            remove_pubsub_old_push_node,
+                                            remove_pubsub_old_pep_node,
+                                            remove_pubsub_old_all_data
+                                           ]}
     ].
 
 removal_testcases() ->
@@ -148,6 +157,7 @@ removal_testcases() ->
         dont_remove_other_user_private_xml,
         {group, remove_personal_data_inbox},
         {group, remove_personal_data_pubsub},
+        {group, remove_personal_data_pubsub_old},
         {group, remove_personal_data_mam}
     ].
 
@@ -190,9 +200,18 @@ end_per_suite(Config) ->
 init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
                                 GN =:= retrieve_personal_data_mam_rdbms ->
     try_backend_for_mam(Config, rdbms);
+init_per_group(GN, Config) when GN =:= retrieve_personal_data_pubsub_old;
+                                GN =:= remove_personal_data_pubsub_old ->
+    [{group, GN} | Config];
 init_per_group(GN, Config) when GN =:= retrieve_personal_data_pubsub;
                                 GN =:= remove_personal_data_pubsub ->
-    [{group, GN} | Config];
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
+        true ->
+            dynamic_modules:ensure_modules(host_type(), pubsub_required_modules()),
+            [{group, GN} | Config];
+        false ->
+            {skip, require_rdbms}
+    end;
 init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_cassandra;
                                 GN =:= remove_personal_data_mam_cassandra->
     try_backend_for_mam(Config, cassandra);
@@ -209,6 +228,10 @@ init_per_group(retrieve_personal_data_private_xml, Config) ->
 init_per_group(_GN, Config) ->
     Config.
 
+end_per_group(GN, Config) when GN =:= retrieve_personal_data_pubsub;
+                               GN =:= remove_personal_data_pubsub ->
+    dynamic_modules:restore_modules(Config),
+    Config;
 end_per_group(_GN, Config) ->
     Config.
 
@@ -289,17 +312,17 @@ init_per_testcase(remove_roster = CN, Config) ->
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     maybe
-        ok ?= maybe_set_up_pubsub(proplists:get_value(group, Config)),
+        ok ?= maybe_set_up_pubsub_old(proplists:get_value(group, Config)),
         escalus:init_per_testcase(CN, Config)
     end.
 
-maybe_set_up_pubsub(GN) when GN =:= retrieve_personal_data_pubsub;
-                             GN =:= remove_personal_data_pubsub ->
+maybe_set_up_pubsub_old(GN) when GN =:= retrieve_personal_data_pubsub_old;
+                                 GN =:= remove_personal_data_pubsub_old ->
     maybe
         ok ?= caps_helper:check_backend(),
-        dynamic_modules:ensure_modules(host_type(), pubsub_required_modules())
+        dynamic_modules:ensure_modules(host_type(), pubsub_old_required_modules())
     end;
-maybe_set_up_pubsub(_GN) ->
+maybe_set_up_pubsub_old(_GN) ->
     ok.
 
 end_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
@@ -412,9 +435,9 @@ offline_required_modules() ->
 mod_offline_config(Backend) ->
     config_parser_helper:mod_config(mod_offline, #{backend => Backend}).
 
-pubsub_required_modules() ->
-    pubsub_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
-pubsub_required_modules(Plugins) ->
+pubsub_old_required_modules() ->
+    pubsub_old_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
+pubsub_old_required_modules(Plugins) ->
     HostPattern = subhost_pattern("pubsub.@HOST@"),
     PubsubConfig = mod_config(mod_pubsub_old, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                             host => HostPattern,
@@ -422,6 +445,9 @@ pubsub_required_modules(Plugins) ->
                                             plugins => Plugins}),
     [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub_old, PubsubConfig}].
+
+pubsub_required_modules() ->
+    [{mod_pubsub, default_mod_config(mod_pubsub)}].
 
 is_mim2_started() ->
     #{node := Node} = distributed_helper:mim2(),
@@ -998,7 +1024,57 @@ remove_offline(Config) ->
               Alice, [{offline, ["timestamp","from", "to", "packet"],[]}])
         end).
 
-retrieve_pubsub_payloads(Config) ->
+retrieve_pubsub_data(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceNodeId = <<"urn:gdpr:alice">>,
+        BobNodeId = <<"urn:gdpr:bob">>,
+        AliceNode = make_pep_node_info(Alice, AliceNodeId),
+        BobNode = make_pep_node_info(Bob, BobNodeId),
+        {BinItem, StringItem} = item_content(<<"ItemData">>),
+
+        pubsub_tools:create_node(Alice, AliceNode, []),
+        pubsub_tools:publish(Alice, <<"Item1">>, AliceNode, [{with_payload, BinItem}]),
+
+        pubsub_tools:create_node(Bob, BobNode, [{config, [{<<"pubsub#access_model">>, <<"open">>}]}]),
+        pubsub_tools:subscribe(Alice, BobNode, [{jid_type, bare}]),
+
+        Dir = retrieve_all_personal_data(Alice, Config),
+        validate_personal_data(Dir, "pubsub_items",
+                               ["node_id", "item_id", "publisher_jid", "payload"],
+                               [pubsub_items_row_map(Alice, AliceNodeId, "Item1", StringItem)],
+                               ["node_id", "item_id"]),
+        validate_personal_data(Dir, "pubsub_nodes", ["node_id", "access_model"],
+                               [pubsub_nodes_row_map(AliceNodeId, "presence")],
+                               ["node_id"]),
+        validate_personal_data(Dir, "pubsub_subscriptions",
+                               ["service_jid", "node_id", "subscriber_jid"],
+                               [pubsub_subscriptions_row_map(Bob, BobNodeId, Alice)],
+                               ["service_jid", "node_id"])
+    end).
+
+remove_pubsub_user(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceNodeId = <<"urn:gdpr:alice">>,
+        BobNodeId = <<"urn:gdpr:bob">>,
+        AliceNode = make_pep_node_info(Alice, AliceNodeId),
+        BobNode = make_pep_node_info(Bob, BobNodeId),
+        {BinItem, StringItem} = item_content(<<"ItemData">>),
+
+        pubsub_tools:create_node(Alice, AliceNode, []),
+        pubsub_tools:publish(Alice, <<"Item1">>, AliceNode, [{with_payload, BinItem}]),
+
+        pubsub_tools:create_node(Bob, BobNode, [{config, [{<<"pubsub#access_model">>, <<"open">>}]}]),
+        pubsub_tools:subscribe(Alice, BobNode, [{jid_type, bare}]),
+
+        unregister(Alice, Config),
+
+        assert_personal_data_via_rpc(
+            Alice, [{pubsub_items, ["node_id", "item_id", "publisher_jid", "payload"], []},
+                    {pubsub_nodes, ["node_id", "access_model"], []},
+                    {pubsub_subscriptions, ["service_jid", "node_id", "subscriber_jid"], []}])
+    end).
+
+retrieve_pubsub_old_payloads(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         [Node1={_,NodeName1}, Node2={_,NodeName2}] = pubsub_tools:create_node_names(2),
         {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
@@ -1011,17 +1087,17 @@ retrieve_pubsub_payloads(Config) ->
         pubsub_tools:publish(Alice, <<"Item3">>, Node1, [{with_payload, BinItem3}]),
         pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, BinOther}]),
 
-        ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
-                         pubsub_payloads_row_map(NodeName1, "Item2", StringItem2),
-                         pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
-                         pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
+        ExpectedItems = [pubsub_old_payloads_row_map(NodeName1, "Item1", StringItem1),
+                         pubsub_old_payloads_row_map(NodeName1, "Item2", StringItem2),
+                         pubsub_old_payloads_row_map(NodeName1, "Item3", StringItem3),
+                         pubsub_old_payloads_row_map(NodeName2, "OtherItem", StringOther)],
 
         retrieve_and_validate_personal_data(Alice, Config, "pubsub_payloads",
                                             ["node_name", "item_id", "payload"],
                                             ExpectedItems, ["item_id"])
                                               end).
 
-dont_retrieve_other_user_pubsub_payload(Config) ->
+dont_retrieve_other_user_pubsub_old_payload(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [Node1={_,NodeName1}] = pubsub_tools:create_node_names(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
@@ -1036,16 +1112,16 @@ dont_retrieve_other_user_pubsub_payload(Config) ->
 
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_payloads", ["node_name", "item_id", "payload"],
-            [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1)]),
+            [pubsub_old_payloads_row_map(NodeName1, "Item1", StringItem1)]),
 
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_payloads", ["node_name","item_id", "payload"],
-            [pubsub_payloads_row_map(NodeName1, "Item2", StringItem2)]),
+            [pubsub_old_payloads_row_map(NodeName1, "Item2", StringItem2)]),
 
         pubsub_tools:delete_node(Alice, Node1, [])
                                               end).
 
-retrieve_created_pubsub_nodes(Config) ->
+retrieve_created_pubsub_old_nodes(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [Node1={_,NodeName1}, Node2={_,NodeName2}, Node3={_,NodeName3}] =
         pubsub_tools:create_node_names(3),
@@ -1065,20 +1141,20 @@ retrieve_created_pubsub_nodes(Config) ->
 
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_nodes", ExpectedHeader,
-            [pubsub_nodes_row_map(NodeNS, "pep"),
-             pubsub_nodes_row_map(NodeName1, "flat"),
-             pubsub_nodes_row_map(NodeName2, "flat")]),
+            [pubsub_old_nodes_row_map(NodeNS, "pep"),
+             pubsub_old_nodes_row_map(NodeName1, "flat"),
+             pubsub_old_nodes_row_map(NodeName2, "flat")]),
 
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_nodes", ExpectedHeader,
-            [pubsub_nodes_row_map(NodeName3, "push")]),
+            [pubsub_old_nodes_row_map(NodeName3, "push")]),
 
 
         Nodes = [{Alice, PepNode}, {Alice, Node1}, {Alice, Node2}, {Bob, Node3}],
         [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
                                                         end).
 
-remove_pubsub_subscriptions(Config) ->
+remove_pubsub_old_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = pubsub_tools:pubsub_node(),
             pubsub_tools:create_node(Alice, Node, []),
@@ -1092,18 +1168,18 @@ remove_pubsub_subscriptions(Config) ->
                                           {pubsub_subscriptions,["node_name"],[]}])
         end).
 
-retrieve_pubsub_subscriptions(Config) ->
+retrieve_pubsub_old_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
             pubsub_tools:create_node(Alice, Node, []),
             pubsub_tools:subscribe(Bob, Node, [{subid, true}]),
             retrieve_and_validate_personal_data(Bob, Config, "pubsub_subscriptions", ["node_name"],
-                [pubsub_subscription_row_map(NodeName)]),
+                [pubsub_old_subscription_row_map(NodeName)]),
 
             pubsub_tools:delete_node(Alice, Node, [])
         end).
 
-remove_pubsub_dont_remove_flat_pubsub_node(Config) ->
+remove_pubsub_old_dont_remove_flat_pubsub_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Node1 = {_,NodeName} = pubsub_tools:pubsub_node_with_num(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
@@ -1116,7 +1192,7 @@ remove_pubsub_dont_remove_flat_pubsub_node(Config) ->
                                       {pubsub_subscriptions,["node_name"],[]}])
         end).
 
-remove_pubsub_push_node(Config) ->
+remove_pubsub_old_push_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [Node] = pubsub_tools:create_node_names(1),
         pubsub_tools:create_nodes([{Alice, Node, [{type, <<"push">>}]}]),
@@ -1140,7 +1216,7 @@ remove_pubsub_push_node(Config) ->
                                              {pubsub_subscriptions,["node_name"],[]}])
         end).
 
-remove_pubsub_pep_node(Config) ->
+remove_pubsub_old_pep_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         NodeName = <<"myns">>,
         PepNode = make_pep_node_info(Alice, NodeName),
@@ -1156,7 +1232,7 @@ remove_pubsub_pep_node(Config) ->
                                              {pubsub_subscriptions,["node_name"],[]}])
         end).
 
-remove_pubsub_dont_remove_node_when_only_publisher(Config) ->
+remove_pubsub_old_dont_remove_node_when_only_publisher(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Node1 = {_,NodeName} = pubsub_tools:pubsub_node_with_num(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
@@ -1172,7 +1248,7 @@ remove_pubsub_dont_remove_node_when_only_publisher(Config) ->
                                       {pubsub_subscriptions,["node_name"],[]}])
         end).
 
-remove_pubsub_all_data(Config) ->
+remove_pubsub_old_all_data(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [Node1={_,Name1}, Node2={_,Name2}, Node3={_,Name3}, Node4={_,Name4}]
             = pubsub_tools:create_node_names(4),
@@ -1235,7 +1311,7 @@ remove_pubsub_all_data(Config) ->
         [[Name2]] = Subs
       end).
 
-retrieve_all_pubsub_data(Config) ->
+retrieve_all_pubsub_old_data(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [Node1={_,NodeName1}, Node2={_,NodeName2}, Node3={_,NodeName3}] =
         pubsub_tools:create_node_names(3),
@@ -1257,27 +1333,27 @@ retrieve_all_pubsub_data(Config) ->
         %% Bob has one subscription, one node created and one payload sent
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_subscriptions", ["node_name"],
-            [pubsub_subscription_row_map(NodeName2)]),
+            [pubsub_old_subscription_row_map(NodeName2)]),
 
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_nodes", ["node_name", "type"],
-            [pubsub_nodes_row_map(NodeName3, "flat")]),
+            [pubsub_old_nodes_row_map(NodeName3, "flat")]),
 
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_payloads", ["node_name", "item_id", "payload"],
-            [pubsub_payloads_row_map(NodeName1, "Item3", StringItem3)]),
+            [pubsub_old_payloads_row_map(NodeName1, "Item3", StringItem3)]),
 
         %% Alice has two nodes created and two payloads sent
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_nodes", ["node_name", "type"],
-            [pubsub_nodes_row_map(NodeName1, "flat"),
-             pubsub_nodes_row_map(NodeName2, "flat")]),
+            [pubsub_old_nodes_row_map(NodeName1, "flat"),
+             pubsub_old_nodes_row_map(NodeName2, "flat")]),
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_payloads", ["node_name", "item_id","payload"],
-            [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
-             pubsub_payloads_row_map(NodeName2, "Item2", StringItem2)]),
+            [pubsub_old_payloads_row_map(NodeName1, "Item1", StringItem1),
+             pubsub_old_payloads_row_map(NodeName2, "Item2", StringItem2)]),
 
-        dynamic_modules:ensure_modules(host_type(), pubsub_required_modules()),
+        dynamic_modules:ensure_modules(host_type(), pubsub_old_required_modules()),
         Nodes = [{Alice, Node1}, {Alice, Node2}, {Bob, Node3}],
         [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
       end).
@@ -1745,14 +1821,28 @@ is_file_to_be_deleted(Filename) ->
         end,
     DeletableRegexes).
 
-pubsub_payloads_row_map(Node, ItemId, Payload) ->
+pubsub_old_payloads_row_map(Node, ItemId, Payload) ->
     #{"node_name" => binary_to_list(Node), "item_id" => ItemId, "payload" => Payload}.
 
-pubsub_nodes_row_map(Node, Type) ->
+pubsub_old_nodes_row_map(Node, Type) ->
     #{"node_name" => binary_to_list(Node), "type" => Type}.
 
-pubsub_subscription_row_map(Node) ->
+pubsub_old_subscription_row_map(Node) ->
     #{"node_name" => binary_to_list(Node)}.
+
+pubsub_items_row_map(Publisher, NodeId, ItemId, Payload) ->
+    #{"node_id" => binary_to_list(NodeId),
+      "item_id" => ItemId,
+      "publisher_jid" => [{jid, escalus_client:full_jid(Publisher)}],
+      "payload" => Payload}.
+
+pubsub_nodes_row_map(NodeId, AccessModel) ->
+    #{"node_id" => binary_to_list(NodeId), "access_model" => AccessModel}.
+
+pubsub_subscriptions_row_map(Service, NodeId, Subscriber) ->
+    #{"service_jid" => [{jid, escalus_client:short_jid(Service)}],
+      "node_id" => binary_to_list(NodeId),
+      "subscriber_jid" => [{jid, escalus_client:short_jid(Subscriber)}]}.
 
 make_pep_node_info(Client, NodeName) ->
     {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.

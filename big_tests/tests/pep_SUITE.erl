@@ -103,6 +103,7 @@ basic_tests() ->
      publish_implicit_sub,
      publish_open_explicit_sub,
      publish_self_notify,
+     remove_user_deletes_nodes_and_subscriptions,
      send_last_item_on_caps,
      send_last_item_on_implicit_sub].
 
@@ -207,6 +208,10 @@ publish_open_explicit_sub(Config) ->
 
 publish_self_notify(Config) ->
     escalus:fresh_story_with_config(set_caps(Config), [{bob, 1}], fun publish_self_notify_story/2).
+
+remove_user_deletes_nodes_and_subscriptions(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun remove_user_deletes_nodes_and_subscriptions_story/3).
 
 send_last_item_on_caps(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun send_last_item_on_caps_story/2).
@@ -623,6 +628,37 @@ publish_self_notify_story(Config, Bob) ->
     GeneratedItemId = published_item_id(Response, PepNode),
     check_item_notification(Msg, GeneratedItemId, PepNode, []),
     get_item(Bob, PepNode, GeneratedItemId, [{expected_result, [GeneratedItemId]}]).
+
+remove_user_deletes_nodes_and_subscriptions_story(Config, Alice, Bob) ->
+    AliceNode = pep_node(Alice),
+    create_node(Alice, AliceNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    publish(Alice, ~"item0", AliceNode, []),
+
+    BobNode = pep_node(Bob),
+    create_node(Bob, BobNode, [{config, [{~"pubsub#access_model", ~"open"}]}]),
+    subscribe(Alice, BobNode, [{jid_type, bare}]),
+
+    %% Get items and test subscriptions before removal
+    get_items(Bob, AliceNode, [{expected_result, [~"item0"]}]),
+    publish(Bob, ~"item1", BobNode, []),
+    receive_item_notification(Alice, ~"item1", BobNode, []),
+
+    AliceSpec = escalus_users:get_userspec(Config, alice),
+    escalus_client:stop(Config, Alice),
+    escalus_users:delete_user(Config, {alice, AliceSpec}),
+    escalus_users:create_user(Config, {alice, AliceSpec}),
+    {ok, Alice2} = escalus_client:start(Config, AliceSpec, ~"after-removal"),
+
+    %% Removed node should not exist
+    NotFoundOpts = [{expected_error_type, {~"cancel", ~"item-not-found"}}],
+    get_items(Bob, AliceNode, NotFoundOpts),
+
+    %% Removed user's subscription should not exist
+    publish(Bob, ~"item2", BobNode, []),
+    [] = escalus:wait_for_stanzas(Alice2, 1, 500),
+
+    %% Items on another node should not be deleted
+    get_items(Bob, BobNode, [{expected_result, [~"item1", ~"item2"]}]).
 
 send_last_item_on_caps_story(Alice, Bob) ->
     NodeNS = random_node_ns(),
