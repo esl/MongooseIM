@@ -399,6 +399,9 @@ CREATE TABLE pubsub_subscription (
         REFERENCES pubsub_node(service_domain, service_user, node_id) ON DELETE CASCADE
 );
 
+CREATE INDEX i_pubsub_subscription_subscriber ON pubsub_subscription USING btree
+    (subscriber_domain, subscriber_user);
+
 -- mod_pubsub_old
 
 CREATE SEQUENCE pubsub_nodes_nidx;
