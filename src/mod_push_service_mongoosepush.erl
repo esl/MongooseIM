@@ -182,7 +182,7 @@ http_notification(HostType, post, URL, ReqHeaders, Payload) ->
 %%--------------------------------------------------------------------
 
 %% Create notification for API v2 and v3
-make_notification(Notification_, Options) ->
+make_notification(Notification0, Options) ->
     RequiredParameters = #{service => maps:get(<<"service">>, Options)},
     %% The full list of supported optional parameters can be found here:
     %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
@@ -195,7 +195,7 @@ make_notification(Notification_, Options) ->
     OptionalParameters = maps:with(OptionalKeys, Options),
     NotificationParams = maps:merge(RequiredParameters, OptionalParameters),
 
-    Notification = normalize_notification(Notification_),
+    Notification = normalize_notification(Notification0),
 
     DataOrAlert = case Options of
                       #{<<"silent">> := <<"true">>} ->

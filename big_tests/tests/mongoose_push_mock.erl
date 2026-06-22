@@ -42,7 +42,6 @@ wait_for_push_request(Token, Timeout) ->
 
 init(Req, State) ->
     Token = cowboy_req:binding(token, Req),
-    ct:pal("PUSH NOTIFICATION: ~p", [Token]),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     [{_, Subscriber, {RespStatus, RespBody} = Resp}] = ets:lookup(mongoose_push_mock_subscribers, Token),
     Subscriber ! {push_request, Token, Body, Resp},

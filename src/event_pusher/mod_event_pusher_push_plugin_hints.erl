@@ -1,5 +1,5 @@
 -module(mod_event_pusher_push_plugin_hints).
--behavior(mod_event_pusher_push_plugin).
+-behaviour(mod_event_pusher_push_plugin).
 
 -include("mod_event_pusher_events.hrl").
 
