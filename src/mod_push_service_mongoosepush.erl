@@ -211,9 +211,9 @@ make_notification(Notification0, Options) ->
     JSON = maps:merge(NotificationParams, DataOrAlert),
     jiffy:encode(JSON).
 
-%% normalize Notification recursively
+%% at the moment there's only one field to normalize
 normalize_notification(#{<<"message-count">> := MC} = N) when is_binary(MC) ->
-    normalize_notification(N#{<<"message-count">> := binary_to_integer(MC)});
+    N#{<<"message-count">> := binary_to_integer(MC)};
 normalize_notification(Notification) -> Notification.
 
 -spec call(mongooseim:host_type(), M :: atom(), F :: atom(), A :: [any()]) -> any().

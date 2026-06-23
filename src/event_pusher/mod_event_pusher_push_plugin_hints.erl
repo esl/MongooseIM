@@ -58,7 +58,6 @@ bodiless_message_notification_processors() ->
 maybe_prepare_bodiless_notification(Processors, Acc, _Event) ->
     {From, _To, Packet} = mongoose_acc:packet(Acc),
     SenderId = jid:to_bare_binary(jid:to_lower(From)),
-    Processors = bodiless_message_notification_processors(),
     case prepare_bodiless_notification(Processors, Packet) of
         skip -> skip;
         ContentFields -> [{<<"message-sender">>, SenderId} | ContentFields]
