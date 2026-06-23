@@ -506,7 +506,7 @@ add_message_hint(#xmlel{children = Children} = Msg, HintType) when is_binary(Hin
 
 dummy_jingle_propose_message(Recipient) ->
     Propose = #xmlel{name = <<"propose">>,
-                     attrs = #{<<"xmlns">> => "urn:xmpp:jingle-message:0",
+                     attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle-message:0">>,
                                <<"id">> => ?JINGLE_SESSION_ID},
                      children = [
                         #xmlel{name = <<"description">>,
