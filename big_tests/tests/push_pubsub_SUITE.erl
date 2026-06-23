@@ -27,6 +27,7 @@ groups() ->
          {allocate, [], [allocate_basic_node]},
          {pubsub_publish, [], [
                                publish_fails_with_invalid_item,
+                               publish_fails_when_missing_mandatory_fields,
                                publish_fails_with_no_options,
                                publish_succeeds_with_valid_options,
                                push_node_can_be_configured_to_whitelist_publishers
@@ -133,6 +134,33 @@ publish_fails_with_invalid_item(Config) ->
                               {<<"service">>, <<"apns">>}
                              ],
             Opts = [{with_payload, Item},
+                    {expected_error_type, {<<"modify">>, <<"bad-request">>}}],
+            pubsub_tools:publish_with_options(Alice, <<"itemid">>, Node, Opts, PublishOptions),
+
+            ok
+
+        end).
+
+publish_fails_when_missing_mandatory_fields(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Node = push_pubsub_node(),
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
+
+            ContentFields = [
+                {<<"message-count">>, <<"1">>},
+                %% last-message-sender is mandatory for non-silent notifications
+                % {<<"last-message-sender">>, <<"senderId">>},
+                {<<"last-message-body">>, <<"message body">>}
+            ],
+
+            PublishOptions = [
+                              {<<"device_id">>, <<"sometoken">>},
+                              {<<"service">>, <<"apns">>}
+                             ],
+
+            Opts = [{with_payload, notification_el(ContentFields)},
                     {expected_error_type, {<<"modify">>, <<"bad-request">>}}],
             pubsub_tools:publish_with_options(Alice, <<"itemid">>, Node, Opts, PublishOptions),
 

@@ -116,6 +116,7 @@
 -define(NS_RETRACT_TOMBSTONE,   <<"urn:xmpp:message-retract:0#tombstone">>).
 
 -define(JINGLE_NS, <<"urn:xmpp:jingle:1">>).
+-define(JINGLE_MSG_NS, <<"urn:xmpp:jingle-message:0">>).
 
 -define(NS_DATA_VALIDATE, <<"http://jabber.org/protocol/xdata-validate">>).
 

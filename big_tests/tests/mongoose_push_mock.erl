@@ -47,4 +47,3 @@ init(Req, State) ->
     Subscriber ! {push_request, Token, Body, Resp},
     Req3 = cowboy_req:reply(RespStatus, #{}, RespBody, Req2),
     {ok, Req3, State}.
-

@@ -101,13 +101,8 @@ push_notifications(AccIn,
     ProtocolVersion = gen_mod:get_module_opt(HostType, ?MODULE, api_version),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     Fun = fun(Notification) ->
-            ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
-            {ok, JSON} =
-                make_notification(Notification, Options),
-            Payload = jiffy:encode(JSON),
-            call(HostType, ?MODULE, http_notification,
-                 [HostType, post, Path, ReqHeaders, Payload])
-        end,
+              send_push_notification(HostType, Notification, Options, Path)
+          end,
     {ok, send_push_notifications(Notifications, Fun, ok)}.
 
 send_push_notifications([], _, Result) ->
@@ -127,6 +122,22 @@ send_push_notifications([Notification | Notifications], Fun, Result) ->
             send_push_notifications(Notifications, Fun, Other)
     end.
 
+send_push_notification(HostType, Notification, Options, Path) ->
+    ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
+    try make_notification(Notification, Options) of
+        Payload ->
+            call(HostType, ?MODULE, http_notification,
+                 [HostType, post, Path, ReqHeaders, Payload])
+    catch
+        C:R:S ->
+            Info = #{what => make_notification_failed,
+                     text => <<"Error making push notification">>,
+                     notification => Notification,
+                     options => Options},
+            Error = Info#{class => C, reason => R, stacktrace => S},
+            ?LOG_ERROR(Error),
+            {ok, {error, make_notification_failed}}
+    end.
 
 %%--------------------------------------------------------------------
 %% Module API
@@ -171,7 +182,7 @@ http_notification(HostType, post, URL, ReqHeaders, Payload) ->
 %%--------------------------------------------------------------------
 
 %% Create notification for API v2 and v3
-make_notification(Notification, Options) ->
+make_notification(Notification0, Options) ->
     RequiredParameters = #{service => maps:get(<<"service">>, Options)},
     %% The full list of supported optional parameters can be found here:
     %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
@@ -184,21 +195,26 @@ make_notification(Notification, Options) ->
     OptionalParameters = maps:with(OptionalKeys, Options),
     NotificationParams = maps:merge(RequiredParameters, OptionalParameters),
 
-    MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
+    Notification = normalize_notification(Notification0),
 
     DataOrAlert = case Options of
                       #{<<"silent">> := <<"true">>} ->
-                          Data = Notification#{<<"message-count">> := MessageCount},
-                          #{data => Data};
+                          #{data => Notification};
                       _ ->
                           BasicAlert = #{body => maps:get(<<"last-message-body">>, Notification),
                                          title => maps:get(<<"last-message-sender">>, Notification),
                                          tag => maps:get(<<"last-message-sender">>, Notification),
-                                         badge => MessageCount},
+                                         badge => maps:get(<<"message-count">>, Notification)},
                           OptionalAlert = maps:with([<<"click_action">>, <<"sound">>], Options),
                           #{alert => maps:merge(BasicAlert, OptionalAlert)}
                   end,
-    {ok, maps:merge(NotificationParams, DataOrAlert)}.
+    JSON = maps:merge(NotificationParams, DataOrAlert),
+    jiffy:encode(JSON).
+
+%% at the moment there's only one field to normalize
+normalize_notification(#{<<"message-count">> := MC} = N) when is_binary(MC) ->
+    N#{<<"message-count">> := binary_to_integer(MC)};
+normalize_notification(Notification) -> Notification.
 
 -spec call(mongooseim:host_type(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 call(HostType, M, F, A) ->
