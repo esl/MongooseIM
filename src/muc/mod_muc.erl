@@ -50,6 +50,8 @@
          create_instant_room/6,
          broadcast_service_message/2,
          can_use_nick/4,
+         set_nick/4,
+         unset_nick/3,
          room_jid_to_pid/1,
          get_vh_rooms/2,
          default_host/0]).

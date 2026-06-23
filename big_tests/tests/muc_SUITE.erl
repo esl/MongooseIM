@@ -188,6 +188,10 @@ groups() ->
                               admin_membership,
                               admin_membership_with_reason,
                               admin_member_list,
+                              admin_sets_reserved_nick,
+                              admin_unsets_reserved_nick,
+                              admin_sets_conflicting_reserved_nick,
+                              user_cannot_set_others_reserved_nick,
                               admin_remove_user,
                               admin_remove_user_from_offline_room,
                               admin_member_list_allowed,
@@ -1596,6 +1600,71 @@ admin_member_list(ConfigIn) ->
         Error = escalus:wait_for_stanza(Kate),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
   end).
+
+%% An admin can set another user's reserved nickname through the member list by including the 'nick' attribute
+admin_sets_reserved_nick(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        Room = ?config(room, Config),
+        BobJID = escalus_utils:get_short_jid(Bob),
+        Nick = fresh_nick_name(<<"bobsnick">>),
+        %% Bob has no reserved nickname yet
+        ?assert_equal(<<>>, get_nick(Bob)),
+        %% Alice (owner) makes Bob a member and reserves a nickname for him
+        escalus:send(Alice, stanza_set_nicks(Room, [{BobJID, <<"member">>, Nick}])),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        %% Bob's reserved nickname is now set
+        ?assert_equal(Nick, get_nick(Bob)),
+        unset_nick(Bob)
+    end).
+
+%% An admin can unset another user's reserved nickname with an empty 'nick'
+admin_unsets_reserved_nick(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        Room = ?config(room, Config),
+        BobJID = escalus_utils:get_short_jid(Bob),
+        Nick = fresh_nick_name(<<"bobsnick">>),
+        %% Bob reserves a nickname for himself
+        set_nick(Bob, Nick),
+        ?assert_equal(Nick, get_nick(Bob)),
+        %% Alice (owner) unsets Bob's reserved nickname
+        escalus:send(Alice, stanza_set_nicks(Room, [{BobJID, <<"member">>, <<>>}])),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        ?assert_equal(<<>>, get_nick(Bob))
+    end).
+
+%% A reserved nickname already taken by another user cannot be assigned
+admin_sets_conflicting_reserved_nick(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, Alice, Bob, Kate) ->
+        Room = ?config(room, Config),
+        BobJID = escalus_utils:get_short_jid(Bob),
+        Nick = fresh_nick_name(<<"bestnick">>),
+        %% Kate reserves the nickname first
+        set_nick(Kate, Nick),
+        %% Alice tries to give the same nickname to Bob
+        escalus:send(Alice, stanza_set_nicks(Room, [{BobJID, <<"member">>, Nick}])),
+        escalus:assert(is_error, [<<"cancel">>, <<"conflict">>],
+                       escalus:wait_for_stanza(Alice)),
+        %% Bob's nickname stays unset
+        ?assert_equal(<<>>, get_nick(Bob)),
+        unset_nick(Kate)
+    end).
+
+%% A non-admin user cannot change another user's reserved nickname
+user_cannot_set_others_reserved_nick(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    story_with_room(ConfigIn, admin_room_opts(), UserSpecs, fun(Config, _Alice, Bob, Kate) ->
+        Room = ?config(room, Config),
+        KateJID = escalus_utils:get_short_jid(Kate),
+        Nick = fresh_nick_name(<<"katenick">>),
+        %% Bob has no affiliation, so he cannot manage Kate's reserved nickname
+        escalus:send(Bob, stanza_set_nicks(Room, [{KateJID, <<"none">>, Nick}])),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
+                       escalus:wait_for_stanza(Bob)),
+        ?assert_equal(<<>>, get_nick(Kate))
+    end).
 
 %% removing user from the system removes them from a room
 admin_remove_user(ConfigIn) ->
@@ -5465,6 +5534,16 @@ stanza_set_affiliations(Room, List) ->
                    attrs = #{<<"jid">> => JID, <<"affiliation">> => Affiliation},
                    children = [#xmlel{name = <<"reason">>,
                                       children = [#xmlcdata{content = Reason}]}]}
+        end, List),
+    stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
+
+stanza_set_nicks(Room, List) ->
+    Payload = lists:map(
+        fun({JID, Affiliation, Nick}) ->
+            #xmlel{name = <<"item">>,
+                   attrs = #{<<"jid">> => JID,
+                             <<"affiliation">> => Affiliation,
+                             <<"nick">> => Nick}}
         end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
 
