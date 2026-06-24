@@ -348,6 +348,7 @@ CREATE TABLE pubsub_node (
     service_user VARCHAR(125) NOT NULL,
     node_id VARCHAR(125) NOT NULL,
     access_model pubsub_node_access_model NOT NULL,
+    max_items BIGINT,
     PRIMARY KEY (service_domain, service_user, node_id)
 );
 

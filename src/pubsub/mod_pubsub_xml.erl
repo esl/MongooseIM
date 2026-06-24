@@ -16,7 +16,8 @@
 -include("mongoose_ns.hrl").
 -include("mod_pubsub.hrl").
 
--type node_config_field() :: {access_model, mod_pubsub:access_model()}.
+-type node_config_field() :: {access_model, mod_pubsub:access_model()} |
+                             {max_items, mod_pubsub:max_items_node()}.
 
 %% XML Parsing
 
@@ -239,6 +240,11 @@ parse_node_config_field(~"pubsub#access_model", Values) ->
         {ok, AccessModel} ?= parse_access_model(Values),
         {ok, {access_model, AccessModel}}
     end;
+parse_node_config_field(~"pubsub#max_items", Values) ->
+    maybe
+        {ok, MaxItems} ?= parse_max_items_node(Values),
+        {ok, {max_items, MaxItems}}
+    end;
 parse_node_config_field(_, _) ->
     {error, bad_request}.
 
@@ -247,6 +253,24 @@ parse_access_model([~"open"]) -> {ok, open};
 parse_access_model([~"presence"]) -> {ok, presence};
 parse_access_model([~"authorize"]) -> {error, {not_acceptable, ~"unsupported-access-model"}};
 parse_access_model(_) -> {error, bad_request}.
+
+-spec parse_max_items_node([binary()]) -> mod_pubsub:result(mod_pubsub:max_items_node()).
+parse_max_items_node([~"max"]) ->
+    {ok, max};
+parse_max_items_node([MaxItemsBin]) ->
+    try binary_to_non_neg_integer(MaxItemsBin) of
+        MaxItems -> {ok, MaxItems}
+    catch
+        _:_ -> {error, bad_request}
+    end;
+parse_max_items_node(_) ->
+    {error, bad_request}.
+
+-spec binary_to_non_neg_integer(binary()) -> non_neg_integer().
+binary_to_non_neg_integer(BinValue) ->
+    IntValue = binary_to_integer(BinValue),
+    true = IntValue >= 0,
+    IntValue.
 
 %% XML Construction
 
@@ -296,11 +320,20 @@ configure_el(Node = #pubsub_node{node_key = {_, NodeId}}) ->
     #xmlel{name = ~"configure", attrs = #{~"node" => NodeId}, children = [Form]}.
 
 -spec configure_fields(mod_pubsub:pubsub_node()) -> [mongoose_data_forms:field()].
-configure_fields(#pubsub_node{config = #{access_model := AccessModel}}) ->
+configure_fields(#pubsub_node{config = #{access_model := AccessModel, max_items := MaxItems}}) ->
     [#{var => ~"pubsub#access_model",
        type => ~"list-single",
        values => [atom_to_binary(AccessModel)],
-       options => [~"open", ~"presence"]}].
+       options => [~"open", ~"presence"]},
+     #{var => ~"pubsub#max_items",
+       type => ~"text-single",
+       values => [max_items_node_to_binary(MaxItems)]}].
+
+-spec max_items_node_to_binary(mod_pubsub:max_items_node()) -> binary().
+max_items_node_to_binary(max) ->
+    ~"max";
+max_items_node_to_binary(MaxItems) ->
+    integer_to_binary(MaxItems).
 
 -spec subscription_el(jid:jid(), mod_pubsub:node_id(), binary()) -> exml:element().
 subscription_el(SubscriberJid, NodeId, Subscription) ->

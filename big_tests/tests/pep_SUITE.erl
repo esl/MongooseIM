@@ -90,6 +90,7 @@ basic_tests() ->
     [create_and_delete,
      create_with_empty_config,
      create_and_configure,
+     create_and_configure_with_max_items,
      create_open_and_publish_both_subs,
      create_open_and_publish_explicit_sub,
      create_open_and_publish_implicit_sub,
@@ -97,12 +98,15 @@ basic_tests() ->
      create_presence_and_publish_explicit_sub,
      create_presence_and_publish_implicit_sub,
      create_presence_and_publish_no_sub,
+     create_with_max_items_and_publish,
+     create_with_max_items_zero_and_publish,
      publish_and_get_items,
      publish_and_retract_item,
      publish_and_retract_item_with_notify,
      publish_implicit_sub,
      publish_open_explicit_sub,
      publish_self_notify,
+     publish_with_max_items,
      remove_user_deletes_nodes_and_subscriptions,
      send_last_item_on_caps,
      send_last_item_on_implicit_sub].
@@ -189,6 +193,16 @@ create_with_empty_config(Config) ->
 create_and_configure(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun create_and_configure_story/1).
 
+create_and_configure_with_max_items(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun create_and_configure_with_max_items_story/1).
+
+create_with_max_items_and_publish(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun create_with_max_items_and_publish_story/1).
+
+create_with_max_items_zero_and_publish(Config) ->
+    escalus:fresh_story_with_config(set_caps(Config), [{bob, 1}],
+                                    fun create_with_max_items_zero_and_publish_story/2).
+
 publish_and_get_items(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun publish_and_get_items_story/1).
 
@@ -209,6 +223,9 @@ publish_open_explicit_sub(Config) ->
 
 publish_self_notify(Config) ->
     escalus:fresh_story_with_config(set_caps(Config), [{bob, 1}], fun publish_self_notify_story/2).
+
+publish_with_max_items(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun publish_with_max_items_story/1).
 
 remove_user_deletes_nodes_and_subscriptions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -395,12 +412,13 @@ create_and_delete_story(Alice, Bob) ->
 create_with_empty_config_story(Alice) ->
     PepNode = pep_node(Alice),
     create_node(Alice, PepNode, [{config, []}]),
-    get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"presence"}]}]).
+    get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"presence"},
+                                                          {~"pubsub#max_items", ~"max"}]}]).
 
 create_and_configure_story(Alice) ->
     PepNode = pep_node(Alice),
-    DefaultConfig = [{~"pubsub#access_model", ~"presence"}],
-    UpdatedConfig = [{~"pubsub#access_model", ~"open"}],
+    DefaultConfig = [{~"pubsub#access_model", ~"presence"}, {~"pubsub#max_items", ~"max"}],
+    UpdatedConfig = [{~"pubsub#access_model", ~"open"}, {~"pubsub#max_items", ~"10"}],
     create_node(Alice, PepNode, []),
 
     %% XEP-0060 8.2.5.1 Success (no-op)
@@ -410,6 +428,19 @@ create_and_configure_story(Alice) ->
     %% XEP-0060 8.2.5.1 Success
     set_configuration(Alice, PepNode, UpdatedConfig, []),
     get_configuration(Alice, PepNode, [{expected_result, UpdatedConfig}]).
+
+create_and_configure_with_max_items_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    create_node(Alice, PepNode, []),
+    [publish(Alice, ItemId, PepNode, []) || ItemId <- [~"item0", ~"item1", ~"item2"]],
+    get_items(Alice, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]),
+
+    %% XEP-0060 8.2 Configure a Node: reconfiguring max_items limits already persisted items
+    set_configuration(Alice, PepNode, [{~"pubsub#max_items", ~"2"}], []),
+    get_items(Alice, PepNode, [{expected_result, [~"item1", ~"item2"]}]),
+
+    set_configuration(Alice, PepNode, [{~"pubsub#max_items", ~"0"}], []),
+    get_items(Alice, PepNode, [{expected_result, []}]).
 
 create_open_and_publish_both_subs_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -528,11 +559,25 @@ create_presence_and_publish_no_sub_story(Config, Alice, Bob, Mike) ->
     get_items(Bob, PepNode, [{expected_error_type, ~"auth"}]),
     get_items(Mike, PepNode, [{expected_result, [~"item1"]}]).
 
+create_with_max_items_and_publish_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#max_items", ~"2"}]}]),
+    [publish(Alice, ItemId, PepNode, []) || ItemId <- [~"item0", ~"item1", ~"item2"]],
+
+    %% XEP-0060 6.5 Request items: node stores only the configured number of items
+    get_items(Alice, PepNode, [{expected_result, [~"item1", ~"item2"]}]).
+
+create_with_max_items_zero_and_publish_story(Config, Bob) ->
+    PepNode = pep_node(Bob, ?config(node_ns, Config)),
+    create_node(Bob, PepNode, [{config, [{~"pubsub#max_items", ~"0"}]}]),
+
+    %% XEP-0060 7.1 Publish still notifies, but no items are persisted
+    publish(Bob, ~"item1", PepNode, [{expected_notification, {PepNode, ~"item1"}}]),
+    get_items(Bob, PepNode, [{expected_result, []}]).
+
 publish_and_get_items_story(Alice) ->
     PepNode = pep_node(Alice, random_node_ns()),
-    publish(Alice, ~"item0", PepNode, []),
-    publish(Alice, ~"item1", PepNode, []),
-    publish(Alice, ~"item2", PepNode, []),
+    [publish(Alice, ItemId, PepNode, []) || ItemId <- [~"item0", ~"item1", ~"item2"]],
 
     %% XEP-0060 6.5 Request items
     get_items(Alice, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]),
@@ -546,10 +591,7 @@ publish_and_get_items_story(Alice) ->
 publish_and_retract_item_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
     PepNode = pep_node(Alice, NodeNS),
-    publish(Alice, ~"item1", PepNode, []),
-    publish(Alice, ~"item2", PepNode, []),
-    publish(Alice, ~"item3", PepNode, []),
-    publish(Alice, ~"item4", PepNode, []),
+    [publish(Alice, ItemId, PepNode, []) || ItemId <- [~"item1", ~"item2", ~"item3", ~"item4"]],
 
     %% XEP-0060 7.2 Retract an item
     retract_item(Alice, PepNode, ~"item4", []),
@@ -635,6 +677,15 @@ publish_self_notify_story(Config, Bob) ->
     GeneratedItemId = published_item_id(Response, PepNode),
     check_item_notification(Msg, GeneratedItemId, PepNode, []),
     get_item(Bob, PepNode, GeneratedItemId, [{expected_result, [GeneratedItemId]}]).
+
+publish_with_max_items_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    PublishOptions = [{~"pubsub#max_items", ~"1"}],
+    publish_with_options(Alice, ~"item0", PepNode, [], PublishOptions),
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0060 7.1.5 Publishing Options: auto-created node keeps publish-options config
+    get_items(Alice, PepNode, [{expected_result, [~"item1"]}]).
 
 remove_user_deletes_nodes_and_subscriptions_story(Config, Alice, Bob) ->
     AliceNode = pep_node(Alice),
@@ -744,6 +795,13 @@ create_with_invalid_config_fails_story(Alice) ->
     InvalidModelOpts = [{config, [{~"pubsub#access_model", ~"not-a-real-model"}]},
                         {expected_error_type, {~"modify", ~"bad-request"}}],
     create_node(Alice, pep_node(Alice), InvalidModelOpts),
+
+    InvalidMaxItemsOpts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    lists:foreach(fun(MaxItems) ->
+                          create_node(Alice, pep_node(Alice),
+                                      [{config, [{~"pubsub#max_items", MaxItems}]}
+                                       | InvalidMaxItemsOpts])
+                  end, [~"-1", ~"abc", [~"1", ~"2"]]),
 
     %% Malformed create request with unexpected extra child
     ExtraChildOpts = [{expected_error_type, {~"modify", ~"bad-request"}},

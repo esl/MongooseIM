@@ -37,9 +37,10 @@
 -type item_id() :: binary().
 -type get_items_opts() :: #{} | #{max_items := max_items()} | #{item_ids := [item_id()]}.
 -type max_items() :: pos_integer().
+-type max_items_node() :: max | non_neg_integer().
 -type item_payload() :: exml:element().
 -type access_model() :: open | presence.
--type node_config() :: #{access_model => access_model()}.
+-type node_config() :: #{access_model => access_model(), max_items => max_items_node()}.
 -type error_reason() :: generic_error_reason() | {generic_error_reason(), binary()}.
 -type generic_error_reason() ::
         bad_request | conflict | forbidden | not_acceptable | not_authorized |
@@ -75,7 +76,7 @@
           result => item_id()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0, item_id/0,
-              get_items_opts/0, max_items/0, item_payload/0,
+              get_items_opts/0, max_items/0, max_items_node/0, item_payload/0,
               access_model/0, node_config/0, generic_error_reason/0, error_reason/0,
               error_result/0, result/1, ok_result/0, iq_request/0, iq_action/0]).
 
@@ -392,7 +393,7 @@ perform_action(Request, Action = #{action := publish}) ->
         {ok, Node} ?= get_or_create_node(HostType, NodeKey, maps:get(config, Action, #{})),
         Item = #item{node_key = NodeKey, id = ItemId, publisher_jid = PublisherJid,
                      payload = Payload},
-        mod_pubsub_backend:set_item(HostType, Item),
+        maybe_set_item(HostType, Item, maps:get(max_items, Node#pubsub_node.config)),
         Recipients = recipient_jids(Node, Request),
         broadcast_item(HostType, jid:to_bare(PublisherJid), Recipients, Item, false),
         Action#{result => ItemId}
@@ -478,6 +479,12 @@ delete_subscription(HostType, NodeKey, SubscriberJid) ->
 get_items(HostType, NodeKey, #{opts := Opts}) ->
     mod_pubsub_backend:get_items(HostType, NodeKey, Opts).
 
+-spec maybe_set_item(mongooseim:host_type(), item(), max_items_node()) -> ok.
+maybe_set_item(_HostType, _Item, 0) ->
+    ok;
+maybe_set_item(HostType, Item, MaxItems) ->
+    mod_pubsub_backend:set_item(HostType, Item, MaxItems).
+
 -spec delete_item(mongooseim:host_type(), node_key(), item_id()) -> ok_result().
 delete_item(HostType, NodeKey, ItemId) ->
     case mod_pubsub_backend:delete_item(HostType, NodeKey, ItemId) of
@@ -491,8 +498,9 @@ get_or_create_node(HostType, NodeKey, Config) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
         undefined ->
             Node = #pubsub_node{node_key = NodeKey},
-            mod_pubsub_backend:set_node(HostType, apply_node_config(Node, Config)),
-            {ok, Node};
+            ConfiguredNode = apply_node_config(Node, Config),
+            mod_pubsub_backend:set_node(HostType, ConfiguredNode),
+            {ok, ConfiguredNode};
         Node = #pubsub_node{config = ExistingConfig} ->
             case maps:with(maps:keys(Config), ExistingConfig) of
                 Config -> {ok, Node};

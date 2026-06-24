@@ -1,5 +1,6 @@
 -record(pubsub_node, {node_key :: mod_pubsub:node_key(),
-                      config = #{access_model => presence} :: mod_pubsub:node_config()}).
+                      config = #{access_model => presence,
+                                 max_items => max} :: mod_pubsub:node_config()}).
 
 -record(subscription, {node_key :: mod_pubsub:node_key(),
                        jid :: jid:jid()}).

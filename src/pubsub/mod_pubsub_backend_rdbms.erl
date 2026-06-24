@@ -11,7 +11,7 @@
          remove_user/2, remove_domain/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2,
          get_user_subscriptions/2, get_subscription/3,
-         set_item/2, delete_item/3, get_items/3, get_user_items/2,
+         set_item/3, delete_item/3, get_items/3, get_user_items/2,
          get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
@@ -23,7 +23,7 @@ start(HostType) ->
     ItemKey = NodeKey ++ [item_id],
     PublisherFullJid = [publisher_domain, publisher_user, publisher_resource],
     ItemUpdateFields = PublisherFullJid ++ [payload, published_at],
-    prepare_upsert(HostType, pubsub_node_upsert, pubsub_node, [access_model], NodeKey),
+    prepare_upsert(HostType, pubsub_node_upsert, pubsub_node, [access_model, max_items], NodeKey),
     mongoose_rdbms:prepare(pubsub_get_node, pubsub_node, NodeKey, sql(get_node)),
     mongoose_rdbms:prepare(pubsub_delete_node, pubsub_node, NodeKey, sql(delete_node)),
     mongoose_rdbms:prepare(pubsub_delete_nodes, pubsub_node, NodeJid, sql(delete_nodes)),
@@ -52,6 +52,10 @@ start(HostType) ->
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_item, NodeKey, sql(get_last_item)),
     mongoose_rdbms:prepare(pubsub_get_last_items, pubsub_item, NodeJid, sql(get_last_items)),
     mongoose_rdbms:prepare(pubsub_delete_item, pubsub_item, ItemKey, sql(delete_item)),
+    mongoose_rdbms:prepare(pubsub_get_extra_item_published_at, pubsub_item,
+                           NodeKey ++ [offset], sql(get_extra_item_published_at)),
+    mongoose_rdbms:prepare(pubsub_delete_old_items, pubsub_item,
+                           NodeKey ++ [published_at], sql(delete_old_items)),
     ok.
 
 -spec prepare_upsert(mongooseim:host_type(), mongoose_rdbms:query_name(), atom(), [atom()],
@@ -68,11 +72,21 @@ stop(_HostType) ->
     ok.
 
 -spec set_node(mongooseim:host_type(), mod_pubsub:pubsub_node()) -> ok.
-set_node(HostType, #pubsub_node{node_key = {ServiceJid, NodeId},
-                                config = #{access_model := AccessModel}}) ->
-    Values = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, atom_to_binary(AccessModel)],
+set_node(HostType, Node) ->
+    F = fun() -> set_node_t(HostType, Node) end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
+
+-spec set_node_t(mongooseim:host_type(), mod_pubsub:pubsub_node()) -> ok.
+set_node_t(HostType, #pubsub_node{node_key = NodeKey = {ServiceJid, NodeId},
+                                  config = #{access_model := AccessModel,
+                                             max_items := MaxItems}}) ->
+    MaxItemsValue = max_items_node_to_sql(MaxItems),
+    Values = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId,
+              atom_to_binary(AccessModel), MaxItemsValue],
     {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_node_upsert, Values,
-                                                [atom_to_binary(AccessModel)]),
+                                                [atom_to_binary(AccessModel), MaxItemsValue]),
+    delete_old_items(HostType, NodeKey, MaxItems),
     ok.
 
 -spec get_node(mongooseim:host_type(), mod_pubsub:node_key()) ->
@@ -82,18 +96,16 @@ get_node(HostType, {ServiceJid, NodeId} = NodeKey) ->
     case mongoose_rdbms:execute_successfully(HostType, pubsub_get_node, Args) of
         {selected, []} ->
             undefined;
-        {selected, [{AccessModelBin}]} ->
-            #pubsub_node{node_key = NodeKey,
-                         config = #{access_model => binary_to_existing_atom(AccessModelBin)}}
+        {selected, [{AccessModelBin, MaxItems}]} ->
+            row_to_node(NodeKey, AccessModelBin, MaxItems)
     end.
 
 -spec get_nodes(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:pubsub_node()].
 get_nodes(HostType, ServiceJid) ->
     Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser],
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_nodes, Args),
-    [#pubsub_node{node_key = {ServiceJid, NodeId},
-                  config = #{access_model => binary_to_existing_atom(AccessModelBin)}}
-     || {NodeId, AccessModelBin} <- Rows].
+    [row_to_node({ServiceJid, NodeId}, AccessModelBin, MaxItems)
+     || {NodeId, AccessModelBin, MaxItems} <- Rows].
 
 -spec delete_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
 delete_node(HostType, {ServiceJid, NodeId}) ->
@@ -176,11 +188,18 @@ delete_subscription(HostType, {ServiceJid, NodeId}, SubscriberJid) ->
         {updated, 0} -> not_found
     end.
 
--spec set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
-set_item(HostType, #item{node_key = {ServiceJid, NodeId},
-                         id = ItemId,
-                         publisher_jid = PublisherJid,
-                         payload = Payload}) ->
+-spec set_item(mongooseim:host_type(), mod_pubsub:item(), max | pos_integer()) -> ok.
+set_item(HostType, Item, MaxItems) ->
+    F = fun() -> set_item_t(HostType, Item, MaxItems) end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
+
+-spec set_item_t(mongooseim:host_type(), mod_pubsub:item(), max | pos_integer()) -> ok.
+set_item_t(HostType, #item{node_key = NodeKey = {ServiceJid, NodeId},
+                           id = ItemId,
+                           publisher_jid = PublisherJid,
+                           payload = Payload},
+           MaxItems) ->
     PublishedAt = os:system_time(microsecond),
     PayloadBin = encode_payload(Payload),
     KeyValues = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, ItemId],
@@ -189,6 +208,7 @@ set_item(HostType, #item{node_key = {ServiceJid, NodeId},
     InsertValues = KeyValues ++ UpdateValues,
     {updated, _} = rdbms_queries:execute_upsert(HostType, pubsub_item_upsert,
                                                 InsertValues, UpdateValues),
+    delete_old_items(HostType, NodeKey, MaxItems),
     ok.
 
 -spec delete_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
@@ -313,23 +333,33 @@ max_items_node_from_sql(null) ->
 max_items_node_from_sql(MaxItems) ->
     MaxItems.
 
--spec delete_extra_item(mongooseim:host_type(), mod_pubsub:node_key(),
-                        max | pos_integer()) -> ok.
-delete_extra_item(_HostType, _NodeKey, max) ->
+-spec delete_old_items(mongooseim:host_type(), mod_pubsub:node_key(),
+                       mod_pubsub:max_items_node()) -> ok.
+delete_old_items(_HostType, _NodeKey, max) ->
     ok;
-delete_extra_item(HostType, NodeKey, MaxItems) ->
-    case get_extra_item_id(HostType, NodeKey, MaxItems) of
-        [ItemId] -> ok = delete_item(HostType, NodeKey, ItemId);
-        [] -> ok
+delete_old_items(HostType, NodeKey, MaxItems) ->
+    case get_extra_item_published_at(HostType, NodeKey, MaxItems) of
+        undefined -> ok;
+        PublishedAt -> delete_items_published_at_or_before(HostType, NodeKey, PublishedAt)
     end.
 
--spec get_extra_item_id(mongooseim:host_type(), mod_pubsub:node_key(),
-                        pos_integer()) -> [mod_pubsub:item_id()].
-get_extra_item_id(HostType, {ServiceJid, NodeId}, MaxItems) ->
+-spec get_extra_item_published_at(mongooseim:host_type(), mod_pubsub:node_key(),
+                                  non_neg_integer()) -> integer() | undefined.
+get_extra_item_published_at(HostType, {ServiceJid, NodeId}, MaxItems) ->
     Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, MaxItems],
-    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_extra_item_id,
-                                                           Args),
-    [ItemId || {ItemId} <- Rows].
+    case mongoose_rdbms:execute_successfully(HostType, pubsub_get_extra_item_published_at,
+                                             Args) of
+        {selected, [{PublishedAt}]} -> PublishedAt;
+        {selected, []} -> undefined
+    end.
+
+-spec delete_items_published_at_or_before(mongooseim:host_type(), mod_pubsub:node_key(),
+                                          integer()) -> ok.
+delete_items_published_at_or_before(HostType, {ServiceJid, NodeId}, PublishedAt) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, PublishedAt],
+    {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_old_items,
+                                                       Args),
+    ok.
 
 %% SQL queries
 
@@ -365,7 +395,7 @@ sql(get_last_item) ->
      """;
 sql(get_nodes) ->
     ~"""
-     SELECT node_id, access_model
+     SELECT node_id, access_model, max_items
      FROM pubsub_node
      WHERE service_domain = ? AND service_user = ?
      """;
@@ -397,7 +427,7 @@ sql(delete_subscription) ->
      """;
 sql(get_node) ->
     ~"""
-     SELECT access_model
+     SELECT access_model, max_items
      FROM pubsub_node
      WHERE service_domain = ? AND service_user = ? AND node_id = ?
      """;
@@ -446,4 +476,17 @@ sql(delete_item) ->
     ~"""
      DELETE FROM pubsub_item
      WHERE service_domain = ? AND service_user = ? AND node_id = ? AND item_id = ?
+     """;
+sql(get_extra_item_published_at) ->
+    ~"""
+     SELECT published_at
+     FROM pubsub_item
+     WHERE service_domain = ? AND service_user = ? AND node_id = ?
+     ORDER BY published_at DESC
+     LIMIT 1 OFFSET ?
+     """;
+sql(delete_old_items) ->
+    ~"""
+     DELETE FROM pubsub_item
+     WHERE service_domain = ? AND service_user = ? AND node_id = ? AND published_at <= ?
      """.
