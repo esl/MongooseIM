@@ -98,6 +98,9 @@ basic_tests() ->
      create_presence_and_publish_implicit_sub,
      create_presence_and_publish_no_sub,
      publish_and_get_items,
+     publish_and_get_items_with_max_items,
+     publish_with_max_items_zero,
+     publish_with_options_and_get_items_with_max_items,
      publish_and_retract_item,
      publish_and_retract_item_with_notify,
      publish_implicit_sub,
@@ -191,6 +194,17 @@ create_and_configure(Config) ->
 
 publish_and_get_items(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun publish_and_get_items_story/1).
+
+publish_and_get_items_with_max_items(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun publish_and_get_items_with_max_items_story/1).
+
+publish_with_max_items_zero(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun publish_with_max_items_zero_story/2).
+
+publish_with_options_and_get_items_with_max_items(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun publish_with_options_and_get_items_with_max_items_story/1).
 
 publish_and_retract_item(Config) ->
     escalus:fresh_story_with_config(set_caps(Config), [{alice, 1}, {bob, 1}],
@@ -395,12 +409,13 @@ create_and_delete_story(Alice, Bob) ->
 create_with_empty_config_story(Alice) ->
     PepNode = pep_node(Alice),
     create_node(Alice, PepNode, [{config, []}]),
-    get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"presence"}]}]).
+    get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"presence"},
+                                                          {~"pubsub#max_items", ~"max"}]}]).
 
 create_and_configure_story(Alice) ->
     PepNode = pep_node(Alice),
-    DefaultConfig = [{~"pubsub#access_model", ~"presence"}],
-    UpdatedConfig = [{~"pubsub#access_model", ~"open"}],
+    DefaultConfig = [{~"pubsub#access_model", ~"presence"}, {~"pubsub#max_items", ~"max"}],
+    UpdatedConfig = [{~"pubsub#access_model", ~"open"}, {~"pubsub#max_items", ~"10"}],
     create_node(Alice, PepNode, []),
 
     %% XEP-0060 8.2.5.1 Success (no-op)
@@ -542,6 +557,36 @@ publish_and_get_items_story(Alice) ->
 
     %% XEP-0060 6.5.7 Requesting the Most Recent Items
     get_items(Alice, PepNode, [{max_items, ~"2"}, {expected_result, [~"item1", ~"item2"]}]).
+
+publish_and_get_items_with_max_items_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#max_items", ~"2"}]}]),
+    publish(Alice, ~"item0", PepNode, []),
+    publish(Alice, ~"item1", PepNode, []),
+    publish(Alice, ~"item2", PepNode, []),
+
+    %% XEP-0060 6.5 Request items: node stores only the configured number of items
+    get_items(Alice, PepNode, [{expected_result, [~"item1", ~"item2"]}]).
+
+publish_with_max_items_zero_story(Alice, Bob) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    create_node(Alice, PepNode, [{config, [{~"pubsub#access_model", ~"open"},
+                                           {~"pubsub#max_items", ~"0"}]}]),
+    subscribe(Bob, PepNode, []),
+    publish(Alice, ~"item0", PepNode, []),
+
+    %% XEP-0060 7.1 Publish still notifies, but no items are persisted
+    receive_item_notification(Bob, ~"item0", PepNode, []),
+    get_items(Alice, PepNode, [{expected_result, []}]).
+
+publish_with_options_and_get_items_with_max_items_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    PublishOptions = [{~"pubsub#max_items", ~"1"}],
+    publish_with_options(Alice, ~"item0", PepNode, [], PublishOptions),
+    publish(Alice, ~"item1", PepNode, []),
+
+    %% XEP-0060 7.1.5 Publishing Options: auto-created node keeps publish-options config
+    get_items(Alice, PepNode, [{expected_result, [~"item1"]}]).
 
 publish_and_retract_item_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -744,6 +789,13 @@ create_with_invalid_config_fails_story(Alice) ->
     InvalidModelOpts = [{config, [{~"pubsub#access_model", ~"not-a-real-model"}]},
                         {expected_error_type, {~"modify", ~"bad-request"}}],
     create_node(Alice, pep_node(Alice), InvalidModelOpts),
+
+    InvalidMaxItemsOpts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    lists:foreach(fun(MaxItems) ->
+                          create_node(Alice, pep_node(Alice),
+                                      [{config, [{~"pubsub#max_items", MaxItems}]}
+                                       | InvalidMaxItemsOpts])
+                  end, [~"-1", ~"abc"]),
 
     %% Malformed create request with unexpected extra child
     ExtraChildOpts = [{expected_error_type, {~"modify", ~"bad-request"}},
