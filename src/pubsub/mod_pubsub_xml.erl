@@ -86,17 +86,29 @@ parse_retract_item(_) ->
     {error, bad_request}.
 
 -spec iq_pubsub_get([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
-iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = []}]) ->
-    #{action => get_items, node_id => NodeId};
-iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = Children}]) ->
+iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId} = Attrs,
+                      children = Children}]) ->
+    maybe
+        {ok, Opts} ?= parse_max_items(Attrs),
+        get_items_action(NodeId, Opts, Children)
+    end;
+iq_pubsub_get(_) ->
+    {error, bad_request}.
+
+-spec get_items_action(mod_pubsub:node_id(), #{max_items => mod_pubsub:max_items()} | #{},
+                       [exml:child()]) ->
+    mod_pubsub:iq_action() | mod_pubsub:error_result().
+get_items_action(NodeId, Opts, []) ->
+    Opts#{action => get_items, node_id => NodeId};
+get_items_action(_NodeId, #{max_items := _}, _Children) ->
+    {error, bad_request};
+get_items_action(NodeId, #{}, Children) ->
     case parse_item_ids(Children) of
         ItemIds when length(ItemIds) =:= length(Children) ->
             #{action => get_items, node_id => NodeId, item_ids => ItemIds};
         _ ->
             {error, bad_request}
-    end;
-iq_pubsub_get(_) ->
-    {error, bad_request}.
+    end.
 
 -spec iq_pubsub_owner_set([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_pubsub_owner_set([#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
@@ -176,6 +188,24 @@ parse_payload(_) ->
 -spec parse_item_ids([exml:child()]) -> [mod_pubsub:item_id()].
 parse_item_ids(Elements) ->
     [ItemId || #xmlel{name = ~"item", attrs = #{~"id" := ItemId}} <- Elements].
+
+-spec parse_max_items(exml:attrs()) -> {ok, #{max_items => mod_pubsub:max_items()}} |
+                                       {ok, #{}} |
+                                       mod_pubsub:error_result().
+parse_max_items(#{~"max_items" := MaxItemsBin}) ->
+    try binary_to_pos_integer(MaxItemsBin) of
+        MaxItems -> {ok, #{max_items => MaxItems}}
+    catch
+        _:_ -> {error, bad_request}
+    end;
+parse_max_items(#{}) ->
+    {ok, #{}}.
+
+-spec binary_to_pos_integer(binary()) -> pos_integer().
+binary_to_pos_integer(BinValue) ->
+    IntValue = binary_to_integer(BinValue),
+    true = IntValue > 0,
+    IntValue.
 
 -spec parse_flag(binary(), exml:attrs(), boolean()) -> {ok, boolean()} | mod_pubsub:error_result().
 parse_flag(Key, Attrs, Default) ->

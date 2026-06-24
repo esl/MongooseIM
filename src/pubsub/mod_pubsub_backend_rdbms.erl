@@ -7,11 +7,13 @@
 -include("jlib.hrl").
 -include("mod_pubsub.hrl").
 
+-define(NO_MAX_ITEMS_LIMIT, 16#7FFFFFFFFFFFFFFF).
+
 -export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2,
          remove_user/2, remove_domain/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2,
          get_user_subscriptions/2, get_subscription/3,
-         set_item/2, delete_item/3, get_item/3, get_items/2, get_user_items/2,
+         set_item/2, delete_item/3, get_item/3, get_items/3, get_user_items/2,
          get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
@@ -45,7 +47,7 @@ start(HostType) ->
                            SubscriptionKey, sql(get_subscription)),
     prepare_upsert(HostType, pubsub_item_upsert, pubsub_item, ItemUpdateFields, ItemKey),
     mongoose_rdbms:prepare(pubsub_get_item, pubsub_item, ItemKey, sql(get_item)),
-    mongoose_rdbms:prepare(pubsub_get_items, pubsub_item, NodeKey, sql(get_items)),
+    mongoose_rdbms:prepare(pubsub_get_items, pubsub_item, NodeKey ++ [limit], sql(get_items)),
     mongoose_rdbms:prepare(pubsub_get_user_items, pubsub_item, NodeJid, sql(get_user_items)),
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_item, NodeKey, sql(get_last_item)),
     mongoose_rdbms:prepare(pubsub_get_last_items, pubsub_item, NodeJid, sql(get_last_items)),
@@ -210,14 +212,15 @@ get_item(HostType, {ServiceJid, NodeId} = NodeKey, ItemId) ->
                         PublisherResource, PayloadBin, PublishedAt)
     end.
 
--spec get_items(mongooseim:host_type(), mod_pubsub:node_key()) -> [mod_pubsub:item()].
-get_items(HostType, {ServiceJid, NodeId} = NodeKey) ->
-    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId],
+-spec get_items(mongooseim:host_type(), mod_pubsub:node_key(),
+                undefined | mod_pubsub:max_items()) -> [mod_pubsub:item()].
+get_items(HostType, {ServiceJid, NodeId} = NodeKey, MaxItems) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, max_items_limit(MaxItems)],
     {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_items, Args),
     [row_to_item(HostType, NodeKey, ItemId, PublisherDomain, PublisherUser, PublisherResource,
                  PayloadBin, PublishedAt)
      || {ItemId, PublisherDomain, PublisherUser, PublisherResource, PayloadBin, PublishedAt}
-            <- Rows].
+            <- lists:reverse(Rows)].
 
 -spec get_user_items(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:item()].
 get_user_items(HostType, ServiceJid) ->
@@ -277,6 +280,12 @@ row_to_subscription(NodeKey, SubscriberDomain, SubscriberUser, SubscriberResourc
     #subscription{node_key = NodeKey,
                   jid = jid:make_noprep(SubscriberUser, SubscriberDomain, SubscriberResource)}.
 
+-spec max_items_limit(undefined | mod_pubsub:max_items()) -> pos_integer().
+max_items_limit(undefined) ->
+    ?NO_MAX_ITEMS_LIMIT;
+max_items_limit(MaxItems) ->
+    MaxItems.
+
 %% SQL queries
 
 sql(get_item) ->
@@ -290,7 +299,7 @@ sql(get_items) ->
      SELECT item_id, publisher_domain, publisher_user, publisher_resource, payload, published_at
      FROM pubsub_item
      WHERE service_domain = ? AND service_user = ? AND node_id = ?
-     ORDER BY published_at
+     ORDER BY published_at DESC LIMIT ?
      """;
 sql(get_user_items) ->
     ~"""

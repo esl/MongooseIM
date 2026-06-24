@@ -36,6 +36,7 @@
 -type node_id() :: binary().
 -type item_id() :: binary().
 -type item_ids() :: [item_id()].
+-type max_items() :: pos_integer().
 -type item_payload() :: exml:element().
 -type access_model() :: open | presence.
 -type node_config() :: #{access_model => access_model()}.
@@ -66,7 +67,7 @@
       | #{action := unsubscribe, node_id := node_id(), subscriber_jid := jid:jid(),
           result => ok}
       | #{action := get_items, node_id := node_id(),
-          item_ids => item_ids(),
+          item_ids => item_ids(), max_items => max_items(),
           result => [item()]}
       | #{action := retract, node_id := node_id(), item_id := item_id(), notify := boolean(),
           result => ok}
@@ -75,7 +76,7 @@
           result => item_id()}.
 
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
-              item_id/0, item_ids/0, item_payload/0, access_model/0, node_config/0,
+              item_id/0, item_ids/0, max_items/0, item_payload/0, access_model/0, node_config/0,
               generic_error_reason/0, error_reason/0, error_result/0, result/1,
               ok_result/0, iq_request/0, iq_action/0]).
 
@@ -484,8 +485,8 @@ get_item(HostType, NodeKey, ItemId) ->
 -spec get_items(mongooseim:host_type(), node_key(), iq_action()) -> [item()].
 get_items(HostType, NodeKey, #{item_ids := ItemIds}) ->
     lists:flatmap(fun(ItemId) -> get_item(HostType, NodeKey, ItemId) end, ItemIds);
-get_items(HostType, NodeKey, #{}) ->
-    mod_pubsub_backend:get_items(HostType, NodeKey).
+get_items(HostType, NodeKey, Action) ->
+    mod_pubsub_backend:get_items(HostType, NodeKey, maps:get(max_items, Action, undefined)).
 
 -spec delete_item(mongooseim:host_type(), node_key(), item_id()) -> ok_result().
 delete_item(HostType, NodeKey, ItemId) ->

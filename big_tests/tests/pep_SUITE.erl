@@ -115,6 +115,7 @@ negative_tests() ->
      create_with_invalid_config_fails,
      delete_nonexistent_node_fails,
      get_item_without_id_fails,
+     get_items_with_invalid_max_items_fails,
      manage_nonexistent_node_fails,
      manage_foreign_node_fails,
      publish_to_foreign_node_fails,
@@ -242,6 +243,9 @@ delete_nonexistent_node_fails(Config) ->
 
 get_item_without_id_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun get_item_without_id_fails_story/1).
+
+get_items_with_invalid_max_items_fails(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun get_items_with_invalid_max_items_fails_story/1).
 
 manage_nonexistent_node_fails(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun manage_nonexistent_node_fails_story/1).
@@ -534,7 +538,10 @@ publish_and_get_items_story(Alice) ->
     get_items(Alice, PepNode, [{expected_result, [~"item0", ~"item1", ~"item2"]}]),
     get_item(Alice, PepNode, ~"item1", [{expected_result, [~"item1"]}]),
     get_items(Alice, PepNode, [{item_ids, [~"item1", ~"item404", ~"item0"]},
-                               {expected_result, [~"item1", ~"item0"]}]).
+                               {expected_result, [~"item1", ~"item0"]}]),
+
+    %% XEP-0060 6.5.7 Requesting the Most Recent Items
+    get_items(Alice, PepNode, [{max_items, ~"2"}, {expected_result, [~"item1", ~"item2"]}]).
 
 publish_and_retract_item_story(Config, Alice, Bob) ->
     NodeNS = ?config(node_ns, Config),
@@ -768,6 +775,16 @@ get_item_without_id_fails_story(Alice) ->
     Opts = [{expected_error_type, {~"modify", ~"bad-request"}}],
     get_item(Alice, PepNode, undefined, Opts),
     get_items(Alice, PepNode, [{item_ids, [undefined, ~"item1"]} | Opts]).
+
+get_items_with_invalid_max_items_fails_story(Alice) ->
+    PepNode = pep_node(Alice),
+    create_node(Alice, PepNode, []),
+
+    %% XEP-0060 6.5.7 Requesting the Most Recent Items: max_items must be positive
+    Opts = [{expected_error_type, {~"modify", ~"bad-request"}}],
+    lists:foreach(fun(MaxItems) ->
+                          get_items(Alice, PepNode, [{max_items, MaxItems} | Opts])
+                  end, [~"abc", ~"-10", ~"0"]).
 
 manage_nonexistent_node_fails_story(Alice) ->
     PepNode = pep_node(Alice),
