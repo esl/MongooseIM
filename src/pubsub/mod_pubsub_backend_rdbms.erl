@@ -7,34 +7,46 @@
 -include("jlib.hrl").
 -include("mod_pubsub.hrl").
 
--export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2, delete_nodes/2,
-         set_subscription/2, delete_subscription/3, get_subscriptions/2, get_subscription/3,
-         set_item/2, delete_item/3, get_item/3, get_items/2, get_last_item/2, get_last_items/2]).
+-export([start/1, stop/1, set_node/2, get_node/2, get_nodes/2, delete_node/2,
+         remove_user/2, remove_domain/2,
+         set_subscription/2, delete_subscription/3, get_subscriptions/2,
+         get_user_subscriptions/2, get_subscription/3,
+         set_item/2, delete_item/3, get_item/3, get_items/2, get_user_items/2,
+         get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
     NodeJid = [service_domain, service_user],
     NodeKey = NodeJid ++ [node_id],
-    SubscriberJid = [subscriber_domain, subscriber_user, subscriber_resource],
-    SubscriptionKey = NodeKey ++ SubscriberJid,
+    SubscriberBareJid = [subscriber_domain, subscriber_user],
+    SubscriptionKey = NodeKey ++ SubscriberBareJid ++ [subscriber_resource],
     ItemKey = NodeKey ++ [item_id],
-    PublisherJid = [publisher_domain, publisher_user, publisher_resource],
-    ItemUpdateFields = PublisherJid ++ [payload, published_at],
+    PublisherFullJid = [publisher_domain, publisher_user, publisher_resource],
+    ItemUpdateFields = PublisherFullJid ++ [payload, published_at],
     prepare_upsert(HostType, pubsub_node_upsert, pubsub_node, [access_model], NodeKey),
     mongoose_rdbms:prepare(pubsub_get_node, pubsub_node, NodeKey, sql(get_node)),
     mongoose_rdbms:prepare(pubsub_delete_node, pubsub_node, NodeKey, sql(delete_node)),
     mongoose_rdbms:prepare(pubsub_delete_nodes, pubsub_node, NodeJid, sql(delete_nodes)),
+    mongoose_rdbms:prepare(pubsub_delete_domain_nodes, pubsub_node,
+                           [service_domain], sql(delete_domain_nodes)),
     mongoose_rdbms:prepare(pubsub_get_nodes, pubsub_node, NodeJid, sql(get_nodes)),
     prepare_upsert(HostType, pubsub_subscription_upsert, pubsub_subscription, [], SubscriptionKey),
     mongoose_rdbms:prepare(pubsub_delete_subscription, pubsub_subscription,
                            SubscriptionKey, sql(delete_subscription)),
+    mongoose_rdbms:prepare(pubsub_delete_user_subscriptions, pubsub_subscription,
+                           SubscriberBareJid, sql(delete_user_subscriptions)),
+    mongoose_rdbms:prepare(pubsub_delete_domain_subscriptions, pubsub_subscription,
+                           [subscriber_domain], sql(delete_domain_subscriptions)),
     mongoose_rdbms:prepare(pubsub_get_subscriptions, pubsub_subscription,
                            NodeKey, sql(get_subscriptions)),
-    mongoose_rdbms:prepare(pubsub_get_subscriptions_for_jid, pubsub_subscription,
-                           SubscriptionKey, sql(get_subscriptions_for_jid)),
+    mongoose_rdbms:prepare(pubsub_get_user_subscriptions, pubsub_subscription,
+                           SubscriberBareJid, sql(get_user_subscriptions)),
+    mongoose_rdbms:prepare(pubsub_get_subscription, pubsub_subscription,
+                           SubscriptionKey, sql(get_subscription)),
     prepare_upsert(HostType, pubsub_item_upsert, pubsub_item, ItemUpdateFields, ItemKey),
     mongoose_rdbms:prepare(pubsub_get_item, pubsub_item, ItemKey, sql(get_item)),
     mongoose_rdbms:prepare(pubsub_get_items, pubsub_item, NodeKey, sql(get_items)),
+    mongoose_rdbms:prepare(pubsub_get_user_items, pubsub_item, NodeJid, sql(get_user_items)),
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_item, NodeKey, sql(get_last_item)),
     mongoose_rdbms:prepare(pubsub_get_last_items, pubsub_item, NodeJid, sql(get_last_items)),
     mongoose_rdbms:prepare(pubsub_delete_item, pubsub_item, ItemKey, sql(delete_item)),
@@ -81,16 +93,39 @@ get_nodes(HostType, ServiceJid) ->
                   config = #{access_model => binary_to_existing_atom(AccessModelBin)}}
      || {NodeId, AccessModelBin} <- Rows].
 
--spec delete_nodes(mongooseim:host_type(), jid:jid()) -> ok.
-delete_nodes(HostType, ServiceJid) ->
-    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser],
-    {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_nodes, Args),
-    ok.
-
 -spec delete_node(mongooseim:host_type(), mod_pubsub:node_key()) -> ok.
 delete_node(HostType, {ServiceJid, NodeId}) ->
     Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId],
     {updated, _} = mongoose_rdbms:execute_successfully(HostType, pubsub_delete_node, Args),
+    ok.
+
+-spec remove_user(mongooseim:host_type(), jid:jid()) -> ok.
+remove_user(HostType, ServiceJid) ->
+    F = fun() -> remove_user_t(HostType, ServiceJid) end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
+
+-spec remove_user_t(mongooseim:host_type(), jid:jid()) -> ok.
+remove_user_t(HostType, #jid{lserver = Domain, luser = User}) ->
+    {updated, _} =
+        mongoose_rdbms:execute_successfully(HostType, pubsub_delete_nodes, [Domain, User]),
+    {updated, _} =
+        mongoose_rdbms:execute_successfully(HostType, pubsub_delete_user_subscriptions,
+                                            [Domain, User]),
+    ok.
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(HostType, Domain) ->
+    F = fun() -> remove_domain_t(HostType, Domain) end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
+
+-spec remove_domain_t(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain_t(HostType, Domain) ->
+    {updated, _} =
+        mongoose_rdbms:execute_successfully(HostType, pubsub_delete_domain_nodes, [Domain]),
+    {updated, _} =
+        mongoose_rdbms:execute_successfully(HostType, pubsub_delete_domain_subscriptions, [Domain]),
     ok.
 
 -spec set_subscription(mongooseim:host_type(), mod_pubsub:subscription()) -> ok.
@@ -108,12 +143,21 @@ get_subscriptions(HostType, {ServiceJid, NodeId} = NodeKey) ->
     [row_to_subscription(NodeKey, SubscriberDomain, SubscriberUser, SubscriberResource)
      || {SubscriberDomain, SubscriberUser, SubscriberResource} <- Rows].
 
+-spec get_user_subscriptions(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:subscription()].
+get_user_subscriptions(HostType, #jid{lserver = SubscriberDomain, luser = SubscriberUser}) ->
+    Args = [SubscriberDomain, SubscriberUser],
+    {selected, Rows} =
+        mongoose_rdbms:execute_successfully(HostType, pubsub_get_user_subscriptions, Args),
+    [row_to_subscription({jid:make_noprep(ServiceUser, ServiceDomain, <<>>), NodeId},
+                         SubscriberDomain, SubscriberUser, SubscriberResource)
+     || {ServiceDomain, ServiceUser, NodeId, SubscriberResource} <- Rows].
+
 -spec get_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
     mod_pubsub:subscription() | undefined.
 get_subscription(HostType, {ServiceJid, NodeId} = NodeKey, SubscriberJid) ->
     Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId,
             SubscriberJid#jid.lserver, SubscriberJid#jid.luser, SubscriberJid#jid.lresource],
-    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_subscriptions_for_jid,
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_subscription,
                                                            Args),
     case Rows of
         [{SubscriberDomain, SubscriberUser, SubscriberResource}] ->
@@ -173,6 +217,15 @@ get_items(HostType, {ServiceJid, NodeId} = NodeKey) ->
     [row_to_item(HostType, NodeKey, ItemId, PublisherDomain, PublisherUser, PublisherResource,
                  PayloadBin, PublishedAt)
      || {ItemId, PublisherDomain, PublisherUser, PublisherResource, PayloadBin, PublishedAt}
+            <- Rows].
+
+-spec get_user_items(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:item()].
+get_user_items(HostType, ServiceJid) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser],
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_user_items, Args),
+    [row_to_item(HostType, {ServiceJid, NodeId}, ItemId, PublisherDomain, PublisherUser,
+                 PublisherResource, PayloadBin, PublishedAt)
+     || {NodeId, ItemId, PublisherDomain, PublisherUser, PublisherResource, PayloadBin, PublishedAt}
             <- Rows].
 
 -spec get_last_item(mongooseim:host_type(), mod_pubsub:node_key()) ->
@@ -239,6 +292,14 @@ sql(get_items) ->
      WHERE service_domain = ? AND service_user = ? AND node_id = ?
      ORDER BY published_at
      """;
+sql(get_user_items) ->
+    ~"""
+     SELECT node_id, item_id, publisher_domain, publisher_user, publisher_resource,
+            payload, published_at
+     FROM pubsub_item
+     WHERE service_domain = ? AND service_user = ?
+     ORDER BY node_id, published_at
+     """;
 sql(get_last_item) ->
     ~"""
      SELECT item_id, publisher_domain, publisher_user, publisher_resource, payload, published_at
@@ -258,7 +319,14 @@ sql(get_subscriptions) ->
      FROM pubsub_subscription
      WHERE service_domain = ? AND service_user = ? AND node_id = ?
      """;
-sql(get_subscriptions_for_jid) ->
+sql(get_user_subscriptions) ->
+    ~"""
+     SELECT service_domain, service_user, node_id, subscriber_resource
+     FROM pubsub_subscription
+     WHERE subscriber_domain = ? AND subscriber_user = ?
+     ORDER BY service_domain, service_user, node_id
+     """;
+sql(get_subscription) ->
     ~"""
      SELECT subscriber_domain, subscriber_user, subscriber_resource
      FROM pubsub_subscription
@@ -286,6 +354,21 @@ sql(delete_nodes) ->
     ~"""
      DELETE FROM pubsub_node
      WHERE service_domain = ? AND service_user = ?
+     """;
+sql(delete_domain_nodes) ->
+    ~"""
+     DELETE FROM pubsub_node
+     WHERE service_domain = ?
+     """;
+sql(delete_user_subscriptions) ->
+    ~"""
+     DELETE FROM pubsub_subscription
+     WHERE subscriber_domain = ? AND subscriber_user = ?
+     """;
+sql(delete_domain_subscriptions) ->
+    ~"""
+     DELETE FROM pubsub_subscription
+     WHERE subscriber_domain = ?
      """;
 sql(get_last_items) ->
     ~"""

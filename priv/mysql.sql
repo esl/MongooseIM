@@ -441,6 +441,9 @@ CREATE TABLE pubsub_subscription (
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
+CREATE INDEX i_pubsub_subscription_subscriber USING BTREE
+    ON pubsub_subscription(subscriber_domain, subscriber_user);
+
 -- mod_pubsub_old
 
 CREATE TABLE pubsub_nodes (

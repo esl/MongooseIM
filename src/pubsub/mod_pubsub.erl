@@ -16,7 +16,9 @@
          disco_sm_items/3,
          caps_recognised/3,
          roster_out_subscription/3,
-         remove_user/3]).
+         get_personal_data/3,
+         remove_user/3,
+         remove_domain/3]).
 
 %% IQ handlers
 -export([iq_sm/5]).
@@ -111,7 +113,9 @@ hooks(HostType) ->
      {disco_sm_items, HostType, fun ?MODULE:disco_sm_items/3, #{}, 75},
      {caps_recognised, HostType, fun ?MODULE:caps_recognised/3, #{}, 50},
      {roster_out_subscription, HostType, fun ?MODULE:roster_out_subscription/3, #{}, 50},
+     {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50},
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
      {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50}].
 
 %% Hook handlers
@@ -203,12 +207,45 @@ roster_out_subscription(Acc, #{to := SubscriberJid, from := OwnerJid, type := su
 roster_out_subscription(Acc, _, _) ->
     {ok, Acc}.
 
+-spec get_personal_data(Acc, #{jid := jid:jid()}, #{host_type := mongooseim:host_type()}) ->
+          {ok, Acc} when Acc :: gdpr:personal_data().
+get_personal_data(Acc, #{jid := Jid}, #{host_type := HostType}) ->
+    Items = mod_pubsub_backend:get_user_items(HostType, Jid),
+    Nodes = mod_pubsub_backend:get_nodes(HostType, Jid),
+    Subscriptions = mod_pubsub_backend:get_user_subscriptions(HostType, Jid),
+    {ok, [{pubsub_items, ["node_id", "item_id", "publisher_jid", "payload"],
+           lists:map(fun item_to_personal_data/1, Items)},
+          {pubsub_nodes, ["node_id", "access_model"],
+           lists:map(fun node_to_personal_data/1, Nodes)},
+          {pubsub_subscriptions, ["service_jid", "node_id", "subscriber_jid"],
+           lists:map(fun subscription_to_personal_data/1, Subscriptions)} | Acc]}.
+
 -spec remove_user(Acc, gen_hook:hook_params(), gen_hook:extra()) -> {ok, Acc} when
       Acc :: mongoose_acc:t().
 remove_user(Acc, #{jid := ServiceJid}, _) ->
     HostType = mongoose_acc:host_type(Acc),
-    mod_pubsub_backend:delete_nodes(HostType, ServiceJid),
+    mod_pubsub_backend:remove_user(HostType, ServiceJid),
     {ok, Acc}.
+
+-spec remove_domain(Acc, #{domain := jid:lserver()}, gen_hook:extra()) -> {ok, Acc} when
+      Acc :: mongoose_domain_api:remove_domain_acc().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
+    mod_pubsub_backend:remove_domain(HostType, Domain),
+    {ok, Acc}.
+
+-spec item_to_personal_data(item()) -> gdpr:entry().
+item_to_personal_data(#item{node_key = {_, NodeId}, id = ItemId,
+                            publisher_jid = PublisherJid, payload = Payload}) ->
+    [NodeId, ItemId, jid:to_binary(PublisherJid), exml:to_binary(Payload)].
+
+-spec node_to_personal_data(pubsub_node()) -> gdpr:entry().
+node_to_personal_data(#pubsub_node{node_key = {_, NodeId},
+                                   config = #{access_model := AccessModel}}) ->
+    [NodeId, atom_to_binary(AccessModel)].
+
+-spec subscription_to_personal_data(subscription()) -> gdpr:entry().
+subscription_to_personal_data(#subscription{node_key = {ServiceJid, NodeId}, jid = SubscriberJid}) ->
+    [jid:to_binary(ServiceJid), NodeId, jid:to_binary(SubscriberJid)].
 
 %% IQ handlers
 
