@@ -400,35 +400,46 @@ CREATE INDEX i_inbox_box USING BTREE ON inbox(box);
 -- mod_pubsub
 
 CREATE TABLE pubsub_node (
-    service_jid VARCHAR(250) NOT NULL,
-    node_id VARCHAR(250) NOT NULL,
+    service_domain VARCHAR(125) NOT NULL,
+    service_user VARCHAR(125) NOT NULL,
+    node_id VARCHAR(125) NOT NULL,
     access_model ENUM('open', 'presence') NOT NULL,
-    PRIMARY KEY (service_jid, node_id)
+    PRIMARY KEY (service_domain, service_user, node_id)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE pubsub_item (
-    service_jid VARCHAR(250) NOT NULL,
-    node_id VARCHAR(250) NOT NULL,
-    item_id VARCHAR(250) NOT NULL,
-    publisher_jid VARCHAR(250) NOT NULL,
+    service_domain VARCHAR(125) NOT NULL,
+    service_user VARCHAR(125) NOT NULL,
+    node_id VARCHAR(125) NOT NULL,
+    item_id VARCHAR(125) NOT NULL,
+    publisher_domain VARCHAR(125) NOT NULL,
+    publisher_user VARCHAR(125) NOT NULL,
+    publisher_resource VARCHAR(125) NOT NULL,
     payload TEXT NOT NULL,
     published_at BIGINT NOT NULL,
-    PRIMARY KEY (service_jid, node_id, item_id),
-    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
+    PRIMARY KEY (service_domain, service_user, node_id, item_id),
+    FOREIGN KEY (service_domain, service_user, node_id)
+        REFERENCES pubsub_node(service_domain, service_user, node_id) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
+
+CREATE INDEX i_pubsub_item_published_at USING BTREE
+    ON pubsub_item(service_domain, service_user, node_id, published_at);
 
 CREATE TABLE pubsub_subscription (
-    service_jid VARCHAR(250) NOT NULL,
-    node_id VARCHAR(250) NOT NULL,
-    subscriber_jid VARCHAR(250) NOT NULL,
-    PRIMARY KEY (service_jid, node_id, subscriber_jid),
-    FOREIGN KEY (service_jid, node_id) REFERENCES pubsub_node(service_jid, node_id) ON DELETE CASCADE
+    service_domain VARCHAR(125) NOT NULL,
+    service_user VARCHAR(125) NOT NULL,
+    node_id VARCHAR(125) NOT NULL,
+    subscriber_domain VARCHAR(125) NOT NULL,
+    subscriber_user VARCHAR(125) NOT NULL,
+    subscriber_resource VARCHAR(125) NOT NULL,
+    PRIMARY KEY (service_domain, service_user, node_id,
+                 subscriber_domain, subscriber_user, subscriber_resource),
+    FOREIGN KEY (service_domain, service_user, node_id)
+        REFERENCES pubsub_node(service_domain, service_user, node_id) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
-
-CREATE INDEX i_pubsub_item_published_at USING BTREE ON pubsub_item(service_jid, node_id, published_at);
 
 -- mod_pubsub_old
 
