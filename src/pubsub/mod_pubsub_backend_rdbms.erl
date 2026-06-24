@@ -11,7 +11,7 @@
          remove_user/2, remove_domain/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2,
          get_user_subscriptions/2, get_subscription/3,
-         set_item/2, delete_item/3, get_item/3, get_items/2, get_user_items/2,
+         set_item/2, delete_item/3, get_items/3, get_user_items/2,
          get_last_item/2, get_last_items/2]).
 
 -spec start(mongooseim:host_type()) -> ok.
@@ -46,6 +46,8 @@ start(HostType) ->
     prepare_upsert(HostType, pubsub_item_upsert, pubsub_item, ItemUpdateFields, ItemKey),
     mongoose_rdbms:prepare(pubsub_get_item, pubsub_item, ItemKey, sql(get_item)),
     mongoose_rdbms:prepare(pubsub_get_items, pubsub_item, NodeKey, sql(get_items)),
+    mongoose_rdbms:prepare(pubsub_get_items_limit, pubsub_item,
+                           NodeKey ++ [limit], sql(get_items_limit)),
     mongoose_rdbms:prepare(pubsub_get_user_items, pubsub_item, NodeJid, sql(get_user_items)),
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_item, NodeKey, sql(get_last_item)),
     mongoose_rdbms:prepare(pubsub_get_last_items, pubsub_item, NodeJid, sql(get_last_items)),
@@ -198,26 +200,41 @@ delete_item(HostType, {ServiceJid, NodeId}, ItemId) ->
         {updated, 0} -> not_found
     end.
 
--spec get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
-    mod_pubsub:item() | undefined.
-get_item(HostType, {ServiceJid, NodeId} = NodeKey, ItemId) ->
-    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, ItemId],
-    case mongoose_rdbms:execute_successfully(HostType, pubsub_get_item, Args) of
-        {selected, []} ->
-            undefined;
-        {selected, [{PublisherDomain, PublisherUser, PublisherResource, PayloadBin, PublishedAt}]} ->
-            row_to_item(HostType, NodeKey, ItemId, PublisherDomain, PublisherUser,
-                        PublisherResource, PayloadBin, PublishedAt)
-    end.
-
--spec get_items(mongooseim:host_type(), mod_pubsub:node_key()) -> [mod_pubsub:item()].
-get_items(HostType, {ServiceJid, NodeId} = NodeKey) ->
-    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId],
-    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_items, Args),
-    [row_to_item(HostType, NodeKey, ItemId, PublisherDomain, PublisherUser, PublisherResource,
-                 PayloadBin, PublishedAt)
+-spec get_items(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:get_items_opts()) ->
+          [mod_pubsub:item()].
+get_items(HostType, NodeKey, #{item_ids := ItemIds}) ->
+    lists:flatmap(fun(ItemId) -> get_item(HostType, NodeKey, ItemId) end, ItemIds);
+get_items(HostType, {ServiceJid, NodeId}, Opts) ->
+    Rows = get_item_rows(HostType, {ServiceJid, NodeId}, Opts),
+    [row_to_item(HostType, {ServiceJid, NodeId}, ItemId, PublisherDomain, PublisherUser,
+                 PublisherResource, PayloadBin, PublishedAt)
      || {ItemId, PublisherDomain, PublisherUser, PublisherResource, PayloadBin, PublishedAt}
             <- Rows].
+
+-spec get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
+          [mod_pubsub:item()].
+get_item(HostType, {ServiceJid, NodeId} = NodeKey, ItemId) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, ItemId],
+    {selected, Results} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_item, Args),
+    case Results of
+        [] ->
+            [];
+        [{PublisherDomain, PublisherUser, PublisherResource, PayloadBin, PublishedAt}] ->
+            [row_to_item(HostType, NodeKey, ItemId, PublisherDomain, PublisherUser,
+                         PublisherResource, PayloadBin, PublishedAt)]
+    end.
+
+-spec get_item_rows(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:get_items_opts()) ->
+          [{mod_pubsub:item_id(), jid:lserver(), jid:luser(), jid:lresource(), binary(),
+            integer()}].
+get_item_rows(HostType, {ServiceJid, NodeId}, #{max_items := MaxItems}) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, MaxItems],
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_items_limit, Args),
+    lists:reverse(Rows);
+get_item_rows(HostType, {ServiceJid, NodeId}, #{}) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId],
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_items, Args),
+    Rows.
 
 -spec get_user_items(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:item()].
 get_user_items(HostType, ServiceJid) ->
@@ -277,6 +294,43 @@ row_to_subscription(NodeKey, SubscriberDomain, SubscriberUser, SubscriberResourc
     #subscription{node_key = NodeKey,
                   jid = jid:make_noprep(SubscriberUser, SubscriberDomain, SubscriberResource)}.
 
+-spec row_to_node(mod_pubsub:node_key(), binary(), null | non_neg_integer()) ->
+    mod_pubsub:pubsub_node().
+row_to_node(NodeKey, AccessModelBin, MaxItems) ->
+    #pubsub_node{node_key = NodeKey,
+                 config = #{access_model => binary_to_existing_atom(AccessModelBin),
+                            max_items => max_items_node_from_sql(MaxItems)}}.
+
+-spec max_items_node_to_sql(mod_pubsub:max_items_node()) -> null | non_neg_integer().
+max_items_node_to_sql(max) ->
+    null;
+max_items_node_to_sql(MaxItems) ->
+    MaxItems.
+
+-spec max_items_node_from_sql(null | non_neg_integer()) -> mod_pubsub:max_items_node().
+max_items_node_from_sql(null) ->
+    max;
+max_items_node_from_sql(MaxItems) ->
+    MaxItems.
+
+-spec delete_extra_item(mongooseim:host_type(), mod_pubsub:node_key(),
+                        max | pos_integer()) -> ok.
+delete_extra_item(_HostType, _NodeKey, max) ->
+    ok;
+delete_extra_item(HostType, NodeKey, MaxItems) ->
+    case get_extra_item_id(HostType, NodeKey, MaxItems) of
+        [ItemId] -> ok = delete_item(HostType, NodeKey, ItemId);
+        [] -> ok
+    end.
+
+-spec get_extra_item_id(mongooseim:host_type(), mod_pubsub:node_key(),
+                        pos_integer()) -> [mod_pubsub:item_id()].
+get_extra_item_id(HostType, {ServiceJid, NodeId}, MaxItems) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, MaxItems],
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, pubsub_get_extra_item_id,
+                                                           Args),
+    [ItemId || {ItemId} <- Rows].
+
 %% SQL queries
 
 sql(get_item) ->
@@ -292,6 +346,8 @@ sql(get_items) ->
      WHERE service_domain = ? AND service_user = ? AND node_id = ?
      ORDER BY published_at
      """;
+sql(get_items_limit) ->
+    <<(sql(get_items))/binary, " DESC LIMIT ?">>;
 sql(get_user_items) ->
     ~"""
      SELECT node_id, item_id, publisher_domain, publisher_user, publisher_resource,

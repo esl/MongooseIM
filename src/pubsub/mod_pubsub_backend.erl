@@ -6,7 +6,7 @@
          remove_user/2, remove_domain/2,
          set_subscription/2, delete_subscription/3, get_subscriptions/2,
          get_user_subscriptions/2, get_subscription/3,
-         set_item/2, delete_item/3, get_item/3, get_items/2, get_user_items/2,
+         set_item/2, delete_item/3, get_items/3, get_user_items/2,
          get_last_item/2, get_last_items/2]).
 
 -callback start(mongooseim:host_type()) -> ok.
@@ -30,9 +30,7 @@
 -callback set_item(mongooseim:host_type(), mod_pubsub:item()) -> ok.
 -callback delete_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
     ok | not_found.
--callback get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
-    mod_pubsub:item() | undefined.
--callback get_items(mongooseim:host_type(), mod_pubsub:node_key()) ->
+-callback get_items(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:get_items_opts()) ->
     [mod_pubsub:item()].
 -callback get_user_items(mongooseim:host_type(), jid:jid()) ->
     [mod_pubsub:item()].
@@ -116,14 +114,10 @@ set_item(HostType, Item) ->
 delete_item(HostType, NodeKey, ItemId) ->
     mongoose_backend:call_tracked(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, ItemId]).
 
--spec get_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
-    mod_pubsub:item() | undefined.
-get_item(HostType, NodeKey, ItemId) ->
-    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, ItemId]).
-
--spec get_items(mongooseim:host_type(), mod_pubsub:node_key()) -> [mod_pubsub:item()].
-get_items(HostType, NodeKey) ->
-    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey]).
+-spec get_items(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:get_items_opts()) ->
+    [mod_pubsub:item()].
+get_items(HostType, NodeKey, Opts) ->
+    mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, Opts]).
 
 -spec get_user_items(mongooseim:host_type(), jid:jid()) -> [mod_pubsub:item()].
 get_user_items(HostType, Jid) ->

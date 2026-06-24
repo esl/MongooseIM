@@ -35,7 +35,8 @@
 -type node_key() :: {jid:jid(), node_id()}.
 -type node_id() :: binary().
 -type item_id() :: binary().
--type item_ids() :: [item_id()].
+-type get_items_opts() :: #{} | #{max_items := max_items()} | #{item_ids := [item_id()]}.
+-type max_items() :: pos_integer().
 -type item_payload() :: exml:element().
 -type access_model() :: open | presence.
 -type node_config() :: #{access_model => access_model()}.
@@ -65,8 +66,7 @@
           result => ok}
       | #{action := unsubscribe, node_id := node_id(), subscriber_jid := jid:jid(),
           result => ok}
-      | #{action := get_items, node_id := node_id(),
-          item_ids => item_ids(),
+      | #{action := get_items, node_id := node_id(), opts := get_items_opts(),
           result => [item()]}
       | #{action := retract, node_id := node_id(), item_id := item_id(), notify := boolean(),
           result => ok}
@@ -74,10 +74,10 @@
           config => node_config(),
           result => item_id()}.
 
--export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0,
-              item_id/0, item_ids/0, item_payload/0, access_model/0, node_config/0,
-              generic_error_reason/0, error_reason/0, error_result/0, result/1,
-              ok_result/0, iq_request/0, iq_action/0]).
+-export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0, item_id/0,
+              get_items_opts/0, max_items/0, item_payload/0,
+              access_model/0, node_config/0, generic_error_reason/0, error_reason/0,
+              error_result/0, result/1, ok_result/0, iq_request/0, iq_action/0]).
 
 %% gen_mod callbacks
 
@@ -474,18 +474,9 @@ delete_subscription(HostType, NodeKey, SubscriberJid) ->
         not_found -> {error, {unexpected_request, ~"not-subscribed"}}
     end.
 
--spec get_item(mongooseim:host_type(), node_key(), item_id()) -> [item()].
-get_item(HostType, NodeKey, ItemId) ->
-    case mod_pubsub_backend:get_item(HostType, NodeKey, ItemId) of
-        undefined -> [];
-        Item -> [Item]
-    end.
-
 -spec get_items(mongooseim:host_type(), node_key(), iq_action()) -> [item()].
-get_items(HostType, NodeKey, #{item_ids := ItemIds}) ->
-    lists:flatmap(fun(ItemId) -> get_item(HostType, NodeKey, ItemId) end, ItemIds);
-get_items(HostType, NodeKey, #{}) ->
-    mod_pubsub_backend:get_items(HostType, NodeKey).
+get_items(HostType, NodeKey, #{opts := Opts}) ->
+    mod_pubsub_backend:get_items(HostType, NodeKey, Opts).
 
 -spec delete_item(mongooseim:host_type(), node_key(), item_id()) -> ok_result().
 delete_item(HostType, NodeKey, ItemId) ->
