@@ -26,11 +26,12 @@
 main(["help"]) ->
     usage();
 main(Args) ->
-    case catch process_args(Args, #opts{}) of
+    try process_args(Args, #opts{}) of
         {ok, Opts} ->
             ok = write(shell, "configure.out", Opts),
-            ok = write(reltool, Opts#opts.reltool_vars, expand_prefix(Opts));
-        error ->
+            ok = write(reltool, Opts#opts.reltool_vars, expand_prefix(Opts))
+    catch
+        throw:error ->
             ok
     end.
 

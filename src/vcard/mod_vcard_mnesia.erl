@@ -66,19 +66,17 @@ do_search(_, _, #vcard_search{_ = '_'}) ->
     [];
 do_search(HostType, LServer, MatchHeadIn) ->
     MatchHead = MatchHeadIn#vcard_search{us = {'_', LServer}},
-    case catch mnesia:dirty_select(vcard_search,
-        [{MatchHead, [], ['$_']}]) of
-        {'EXIT', Reason} ->
-            ?LOG_ERROR(#{what => vcard_search_failed, server => LServer, host_type => HostType,
-                         reason => Reason}),
-            [];
+    try mnesia:dirty_select(vcard_search, [{MatchHead, [], ['$_']}]) of
         Rs ->
             case mod_vcard:get_results_limit(HostType) of
-                infinity ->
-                    Rs;
-                Val ->
-                    lists:sublist(Rs, Val)
+                infinity -> Rs;
+                Val -> lists:sublist(Rs, Val)
             end
+    catch
+        _:Reason ->
+            ?LOG_ERROR(#{what => vcard_search_failed, server => LServer, host_type => HostType,
+                         reason => Reason}),
+            []
     end.
 
 search_fields(_HostType, _LServer) ->

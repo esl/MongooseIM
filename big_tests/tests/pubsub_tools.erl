@@ -321,9 +321,11 @@ receive_subscription_requests(User, Requesters, {NodeAddr, NodeName}, Options) -
       fun(Requester) ->
               lists:any(
                 fun(Stanza) ->
-                        element(1, catch check_subscription_request(
-                                           Stanza, Requester, NodeName, Options))
-                        =/= 'EXIT'
+                        try check_subscription_request(Stanza, Requester, NodeName, Options) of
+                            _ -> true
+                        catch
+                            _:_ -> false
+                        end
                 end, Stanzas)
       end, Requesters).
 

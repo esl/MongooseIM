@@ -78,10 +78,13 @@ total_roster_items() ->
 -spec clear_last_activity(list(), atom() | binary() | [atom() | binary()]) -> no_return().
 clear_last_activity(Config, User) ->
     S = ct:get_config({hosts, mim, domain}),
-    case catch rpc(mim(), gen_mod, is_loaded, [S, mod_last]) of
+    try rpc(mim(), gen_mod, is_loaded, [S, mod_last]) of
         true ->
             do_clear_last_activity(Config, User);
         _ ->
+            ok
+    catch
+        _:_ ->
             ok
     end.
 

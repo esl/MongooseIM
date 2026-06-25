@@ -368,8 +368,8 @@ terminate(State = #state{ test_cases = [] }) ->
     {ok,D} = file:open(State#state.filepath,[write,{encoding,utf8}]),
     io:format(D, "<?xml version=\"1.0\" encoding= \"UTF-8\" ?>", []),
     io:format(D, "~ts", [to_xml(State)]),
-    catch file:sync(D),
-    catch file:close(D);
+    try file:sync(D) catch _:_ -> ok end,
+    try file:close(D) catch _:_ -> ok end;
 terminate(State) ->
     %% Have to close the last suite
     terminate(close_suite(State)).

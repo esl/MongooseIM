@@ -479,7 +479,9 @@ make_html(Modules) ->
                   case cover:analyse(Module, module) of
                       {ok, {Module, {C, NC}}} ->
                           FilePathC = filename:join([Root, CoverageDir, FileName]),
-                          case catch cover:analyse_to_file(Module, FilePathC, [html]) of
+                          Analysis = try cover:analyse_to_file(Module, FilePathC, [html])
+                                     catch Class:Reason -> {error, {Class, Reason}} end,
+                          case Analysis of
                               {ok, _} ->
                                   file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                                   {CAcc + C, NCAcc + NC, Skipped, Failed, OK + 1};

@@ -277,7 +277,7 @@ fix_gaps(Gaps, Retries) when Retries > 0 ->
     %%
     %% RDBMS servers do not overwrite data when INSERT operation is used.
     %% i.e. only one insert for a key succeeded.
-    catch mongoose_domain_sql:insert_dummy_events(Gaps),
+    try mongoose_domain_sql:insert_dummy_events(Gaps) catch _:_ -> ok end,
     %% The gaps should be filled at this point
     Rows = lists:append([mongoose_domain_sql:select_updates_between(Id, Id) || Id <- Gaps]),
     ?LOG_WARNING(#{what => domain_fix_gaps, gaps => Gaps, rows => Rows}),

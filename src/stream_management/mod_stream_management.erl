@@ -787,9 +787,11 @@ get_peer_state(Pid, H) ->
 
 -spec stream_mgmt_parse_h(exml:element()) -> invalid_h_attribute | non_neg_integer().
 stream_mgmt_parse_h(El) ->
-    case catch binary_to_integer(exml_query:attr(El, <<"h">>)) of
-        H when is_integer(H), H >= 0 -> H;
+    try binary_to_integer(exml_query:attr(El, <<"h">>)) of
+        H when H >= 0 -> H;
         _ -> invalid_h_attribute
+    catch
+        _:_ -> invalid_h_attribute
     end.
 
 -spec get_previd(exml:element()) -> undefined | binary().

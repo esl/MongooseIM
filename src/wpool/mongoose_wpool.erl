@@ -155,7 +155,7 @@ start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
     CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
     %% If a callback doesn't explicitly blacklist a strategy, let's proceed.
     CallbackModule = make_callback_module_name(PoolType),
-    case catch CallbackModule:is_supported_strategy(Strategy) of
+    case (try CallbackModule:is_supported_strategy(Strategy) catch _:_ -> true end) of
         false ->
             error({strategy_not_supported, PoolType, HostType, Tag, Strategy});
         _ ->

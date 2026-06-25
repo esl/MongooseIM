@@ -61,9 +61,9 @@ write_roster_version(_HostType, LUser, LServer, TransactionState, Ver) ->
 -spec get_roster(mongooseim:host_type(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
 get_roster(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_index_read(roster, US, #roster.us) of
-        Items  when is_list(Items)-> Items;
-        _ -> []
+    try mnesia:dirty_index_read(roster, US, #roster.us)
+    catch
+        _:_ -> []
     end.
 
 -spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact(),
@@ -81,9 +81,9 @@ get_roster_entry(_HostType, LUser, LServer, LJID, TransactionState, _Format) ->
 -spec get_subscription_lists(mongoose_acc:t(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
 get_subscription_lists(_, LUser, LServer) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_index_read(roster, US, #roster.us) of
-        Items when is_list(Items) -> Items;
-        _ -> []
+    try mnesia:dirty_index_read(roster, US, #roster.us)
+    catch
+        _:_ -> []
     end.
 
 -spec roster_subscribe_t(mongooseim:host_type(), mod_roster:roster()) -> ok.

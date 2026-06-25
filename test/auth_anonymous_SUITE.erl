@@ -30,9 +30,9 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
-    catch ejabberd_auth_anonymous:stop(host_type()),
-    catch gen_hook:stop(),
-    catch mongoose_instrument:stop(),
+    try ejabberd_auth_anonymous:stop(host_type()) catch _:_ -> ok end,
+    try gen_hook:stop() catch _:_ -> ok end,
+    try mongoose_instrument:stop() catch _:_ -> ok end,
     mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
