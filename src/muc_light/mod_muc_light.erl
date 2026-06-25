@@ -109,7 +109,7 @@ config_schema_for_host_type(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, config_schema).
 
 force_clear_from_ct(HostType) ->
-    catch mod_muc_light_cache:force_clear(HostType),
+    try mod_muc_light_cache:force_clear(HostType) catch _:_ -> ok end,
     mod_muc_light_db_backend:force_clear(HostType).
 
 %%====================================================================

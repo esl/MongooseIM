@@ -149,7 +149,7 @@ init_per_suite(Config) ->
     %%
     cth_error_report:expect({regex, <<"'ETS-TRANSFER',mongoose_wpool_">>}),
     cth_error_report:expect({what, push_send_failed}, 6),
-    catch mongoose_push_mock:stop(),
+    try mongoose_push_mock:stop() catch _:_ -> ok end,
     mongoose_push_mock:start(Config),
     Port = mongoose_push_mock:port(),
     PoolOpts = #{strategy => available_worker, workers => 20},
@@ -206,7 +206,7 @@ init_per_testcase(CaseName, Config) ->
     %% in 'valid' flag resetting (see meck_proc module),
     %% so we have to unload existing mocking and mock
     %% module again before running every test case.
-    catch rpc(?RPC_SPEC, meck, unload, [mod_event_pusher]),
+    try rpc(?RPC_SPEC, meck, unload, [mod_event_pusher]) catch _:_ -> ok end,
     rpc(?RPC_SPEC, meck, new, [mod_event_pusher, [no_link, passthrough]]),
     escalus:init_per_testcase(CaseName, Config).
 

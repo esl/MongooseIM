@@ -26,15 +26,15 @@ handles_errors_similar_to_catch(_) ->
 handles_exits_similar_to_errors(_) ->
     ExitF = fun() -> exit(i_quit) end,
     {exception, #{class := exit, reason := i_quit, stacktrace := _S}} = safely:apply(ExitF,[]),
-    {'EXIT', i_quit} = (catch apply(ExitF,[])),
+    {'EXIT', i_quit} = (try apply(ExitF,[]) catch exit:R -> {'EXIT', R} end),
     ok.
 
 handles_throws_unlike_catch(_) ->
     ThrowF = fun() -> throw(up) end,
     {exception, #{class := throw, reason := up}} = safely:apply(ThrowF,[]),
-    up = (catch apply(ThrowF,[])),
+    up = (try apply(ThrowF,[]) catch throw:T -> T end),
     ok.
 
 handles_success_like_catch(_) ->
     1 = safely:apply(lists, min, [[1,2,3]]),
-    1 = (catch apply(lists, min, [[1,2,3]])).
+    1 = (try apply(lists, min, [[1,2,3]]) catch _:_ -> error end).

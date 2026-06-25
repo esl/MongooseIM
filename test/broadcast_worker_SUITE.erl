@@ -588,7 +588,7 @@ reset_meck_defaults() ->
     meck:reset(mongoose_router).
 
 teardown_mocks() ->
-    catch meck:unload(),
+    try meck:unload() catch _:_ -> ok end,
     ok.
 
 start_and_monitor_worker(HostType, JobId) ->

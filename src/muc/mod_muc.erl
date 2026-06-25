@@ -454,7 +454,7 @@ get_nick(HostType, MucHost, From) ->
 -spec init({host_type(), map()}) -> {ok, state()}.
 init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
-    catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
+    try ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]) catch _:_ -> ok end,
     #{access := Access,
       access_create := AccessCreate,
       access_admin := AccessAdmin,
@@ -1041,13 +1041,14 @@ iq_get_unique(From) ->
     -> [exml:element(), ...].
 iq_get_register_info(HostType, MucHost, From) ->
     {Nick, Registered} =
-        case catch get_nick(HostType, MucHost, From) of
-            {'EXIT', _Reason} ->
-                {<<>>, []};
+        try get_nick(HostType, MucHost, From) of
             {error, _} ->
                 {<<>>, []};
             {ok, N} ->
                 {N, [#xmlel{name = <<"registered">>}]}
+        catch
+            _:_ ->
+                {<<>>, []}
         end,
     ClientReqText = <<"You need a client that supports x:data to register the nickname">>,
     ClientReqEl = #xmlel{name = <<"instructions">>,

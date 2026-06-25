@@ -2101,17 +2101,23 @@ extract_history([_ | Els], Type) ->
 
 -spec parse_history_val(binary(), binary()) -> false | non_neg_integer().
 parse_history_val(AttrVal, <<"since">>) ->
-    case catch calendar:rfc3339_to_system_time(binary_to_list(AttrVal)) of
-        IntVal when is_integer(IntVal) and (IntVal >= 0) ->
+    try calendar:rfc3339_to_system_time(binary_to_list(AttrVal)) of
+        IntVal when IntVal >= 0 ->
             IntVal;
         _ ->
             false
+    catch
+        _:_ ->
+            false
     end;
 parse_history_val(AttrVal, _) ->
-    case catch binary_to_integer(AttrVal) of
-        IntVal when is_integer(IntVal) and (IntVal >= 0) ->
+    try binary_to_integer(AttrVal) of
+        IntVal when IntVal >= 0 ->
             IntVal;
         _ ->
+            false
+    catch
+        _:_ ->
             false
     end.
 

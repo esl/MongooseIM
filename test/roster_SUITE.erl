@@ -160,11 +160,11 @@ assert_state_old(Subscription, Ask) ->
     ?assertEqual(Ask, Rentry#roster.ask).
 
 init_ets() ->
-    catch ets:new(mongoose_services, [named_table]),
+    try ets:new(mongoose_services, [named_table]) catch _:_ -> ok end,
     ok.
 
 delete_ets() ->
-    catch ets:delete(mongoose_services),
+    try ets:delete(mongoose_services) catch _:_ -> ok end,
     ok.
 
 alice_jid() ->

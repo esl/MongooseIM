@@ -248,10 +248,10 @@ reset_meck_defaults() ->
     ok.
 
 teardown_mocks() ->
-    catch meck:unload(ejabberd_auth),
-    catch meck:unload(mongoose_domain_api),
-    catch meck:unload(mod_broadcast_backend),
-    catch meck:unload(broadcast_manager),
+    try meck:unload(ejabberd_auth) catch _:_ -> ok end,
+    try meck:unload(mongoose_domain_api) catch _:_ -> ok end,
+    try meck:unload(mod_broadcast_backend) catch _:_ -> ok end,
+    try meck:unload(broadcast_manager) catch _:_ -> ok end,
     ok.
 
 set_domain_api_expectation(api_domain_not_found_paths) ->

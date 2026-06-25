@@ -171,7 +171,9 @@ run_flush(State = #state{flush_interval_tref = TRef}) ->
 cancel_and_flush_timer(undefined) ->
     ok;
 cancel_and_flush_timer(TRef) ->
-    catch erlang:cancel_timer(TRef, [{async, true}]).
+    try erlang:cancel_timer(TRef, [{async, true}])
+    catch _:_ -> ok
+    end.
 
 do_run_flush(State = #state{flush_callback = FlushCallback,
                             flush_queue_length = Length,

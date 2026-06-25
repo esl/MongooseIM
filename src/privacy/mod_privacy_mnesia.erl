@@ -52,7 +52,7 @@ init(_HostType, _Opts) ->
     ok.
 
 get_default_list(_HostType, LUser, LServer) ->
-    case catch mnesia:dirty_read(privacy, {LUser, LServer}) of
+    try mnesia:dirty_read(privacy, {LUser, LServer}) of
         [] ->
             {error, not_found};
         [#privacy{default = Default, lists = Lists}] ->
@@ -61,26 +61,26 @@ get_default_list(_HostType, LUser, LServer) ->
                     {ok, {Default, List}};
                 _ ->
                     {error, not_found}
-            end;
-        {'EXIT', Reason} ->
+            end
+    catch
+        _:Reason ->
             {error, Reason}
     end.
 
 get_list_names(_HostType, LUser, LServer) ->
-    case catch mnesia:dirty_read(privacy, {LUser, LServer}) of
-        {'EXIT', Reason} ->
-            {error, Reason};
+    try mnesia:dirty_read(privacy, {LUser, LServer}) of
         [] ->
             {error, not_found};
         [#privacy{default = Default, lists = Lists}] ->
             Names = [Name || {Name, _} <- Lists],
             {ok, {Default, Names}}
+    catch
+        _:Reason ->
+            {error, Reason}
     end.
 
 get_privacy_list(_HostType, LUser, LServer, Name) ->
-    case catch mnesia:dirty_read(privacy, {LUser, LServer}) of
-        {'EXIT', Reason} ->
-            {error, Reason};
+    try mnesia:dirty_read(privacy, {LUser, LServer}) of
         [] ->
             {error, not_found};
         [#privacy{lists = Lists}] ->
@@ -90,6 +90,9 @@ get_privacy_list(_HostType, LUser, LServer, Name) ->
                 _ ->
                     {error, not_found}
             end
+    catch
+        _:Reason ->
+            {error, Reason}
     end.
 
 %% @doc Set no default list for user.

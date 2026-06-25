@@ -313,7 +313,7 @@ end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_di
     %% removing from one cluster would remove from all clusters.
     %% For mnesia auth backend we need to call removal from each cluster.
     %% That's why there is a catch here.
-    catch escalus_users:delete_users(Config, [{mim_eve, MimEveSpec}]),
+    try escalus_users:delete_users(Config, [{mim_eve, MimEveSpec}]) catch _:_ -> ok end,
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_instrumentation_events_on_one_host;

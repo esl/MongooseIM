@@ -52,7 +52,7 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, Config) ->
-    catch mongoose_lazy_routing:sync(),
+    try mongoose_lazy_routing:sync() catch _:_ -> ok end,
     meck:unload(),
     Config.
 
