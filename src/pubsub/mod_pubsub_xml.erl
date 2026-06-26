@@ -16,7 +16,8 @@
 -include("mongoose_ns.hrl").
 -include("mod_pubsub.hrl").
 
--type node_config_field() :: {access_model, mod_pubsub:access_model()}.
+-type node_config_field() :: {access_model, mod_pubsub:access_model()} |
+                             {max_items, mod_pubsub:max_items_node()}.
 
 %% XML Parsing
 
@@ -86,17 +87,40 @@ parse_retract_item(_) ->
     {error, bad_request}.
 
 -spec iq_pubsub_get([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
-iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = []}]) ->
-    #{action => get_items, node_id => NodeId};
-iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId}, children = Children}]) ->
-    case parse_item_ids(Children) of
-        ItemIds when length(ItemIds) =:= length(Children) ->
-            #{action => get_items, node_id => NodeId, item_ids => ItemIds};
-        _ ->
-            {error, bad_request}
+iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId} = Attrs,
+                      children = Children}]) ->
+    maybe
+        {ok, Opts} ?= parse_get_items_opts(Attrs, Children),
+        #{action => get_items, node_id => NodeId, opts => Opts}
     end;
 iq_pubsub_get(_) ->
     {error, bad_request}.
+
+-spec parse_get_items_opts(exml:attrs(), [exml:child()]) ->
+          mod_pubsub:result(mod_pubsub:get_items_opts()).
+parse_get_items_opts(#{~"max_items" := MaxItemsBin}, []) ->
+    try binary_to_pos_integer(MaxItemsBin) of
+        MaxItems -> {ok, #{max_items => MaxItems}}
+    catch
+        _:_ -> {error, bad_request}
+    end;
+parse_get_items_opts(#{~"max_items" := _}, _Children) ->
+    {error, bad_request};
+parse_get_items_opts(#{}, []) ->
+    {ok, #{}};
+parse_get_items_opts(#{}, Children) ->
+    case parse_item_ids(Children) of
+        ItemIds when length(ItemIds) =:= length(Children) ->
+            {ok, #{item_ids => ItemIds}};
+        _ ->
+            {error, bad_request}
+    end.
+
+-spec binary_to_pos_integer(binary()) -> pos_integer().
+binary_to_pos_integer(BinValue) ->
+    IntValue = binary_to_integer(BinValue),
+    true = IntValue > 0,
+    IntValue.
 
 -spec iq_pubsub_owner_set([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
 iq_pubsub_owner_set([#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
@@ -165,7 +189,7 @@ get_or_generate_item_id(#xmlel{attrs = #{~"id" := ItemId}}) ->
 get_or_generate_item_id(_) ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
--spec parse_payload([exml:child()]) -> {ok, exml:element()} | mod_pubsub:error_result().
+-spec parse_payload([exml:child()]) -> mod_pubsub:result(exml:element()).
 parse_payload([#xmlel{} = PayloadEl]) ->
     {ok, PayloadEl};
 parse_payload([]) ->
@@ -177,7 +201,7 @@ parse_payload(_) ->
 parse_item_ids(Elements) ->
     [ItemId || #xmlel{name = ~"item", attrs = #{~"id" := ItemId}} <- Elements].
 
--spec parse_flag(binary(), exml:attrs(), boolean()) -> {ok, boolean()} | mod_pubsub:error_result().
+-spec parse_flag(binary(), exml:attrs(), boolean()) -> mod_pubsub:result(boolean()).
 parse_flag(Key, Attrs, Default) ->
     case Attrs of
         #{Key := Value} when Value =:= ~"0"; Value =:= ~"false" -> {ok, false};
@@ -216,6 +240,11 @@ parse_node_config_field(~"pubsub#access_model", Values) ->
         {ok, AccessModel} ?= parse_access_model(Values),
         {ok, {access_model, AccessModel}}
     end;
+parse_node_config_field(~"pubsub#max_items", Values) ->
+    maybe
+        {ok, MaxItems} ?= parse_max_items_node(Values),
+        {ok, {max_items, MaxItems}}
+    end;
 parse_node_config_field(_, _) ->
     {error, bad_request}.
 
@@ -224,6 +253,24 @@ parse_access_model([~"open"]) -> {ok, open};
 parse_access_model([~"presence"]) -> {ok, presence};
 parse_access_model([~"authorize"]) -> {error, {not_acceptable, ~"unsupported-access-model"}};
 parse_access_model(_) -> {error, bad_request}.
+
+-spec parse_max_items_node([binary()]) -> mod_pubsub:result(mod_pubsub:max_items_node()).
+parse_max_items_node([~"max"]) ->
+    {ok, max};
+parse_max_items_node([MaxItemsBin]) ->
+    try binary_to_non_neg_integer(MaxItemsBin) of
+        MaxItems -> {ok, MaxItems}
+    catch
+        _:_ -> {error, bad_request}
+    end;
+parse_max_items_node(_) ->
+    {error, bad_request}.
+
+-spec binary_to_non_neg_integer(binary()) -> non_neg_integer().
+binary_to_non_neg_integer(BinValue) ->
+    IntValue = binary_to_integer(BinValue),
+    true = IntValue >= 0,
+    IntValue.
 
 %% XML Construction
 
@@ -273,11 +320,20 @@ configure_el(Node = #pubsub_node{node_key = {_, NodeId}}) ->
     #xmlel{name = ~"configure", attrs = #{~"node" => NodeId}, children = [Form]}.
 
 -spec configure_fields(mod_pubsub:pubsub_node()) -> [mongoose_data_forms:field()].
-configure_fields(#pubsub_node{config = #{access_model := AccessModel}}) ->
+configure_fields(#pubsub_node{config = #{access_model := AccessModel, max_items := MaxItems}}) ->
     [#{var => ~"pubsub#access_model",
        type => ~"list-single",
        values => [atom_to_binary(AccessModel)],
-       options => [~"open", ~"presence"]}].
+       options => [~"open", ~"presence"]},
+     #{var => ~"pubsub#max_items",
+       type => ~"text-single",
+       values => [max_items_node_to_binary(MaxItems)]}].
+
+-spec max_items_node_to_binary(mod_pubsub:max_items_node()) -> binary().
+max_items_node_to_binary(max) ->
+    ~"max";
+max_items_node_to_binary(MaxItems) ->
+    integer_to_binary(MaxItems).
 
 -spec subscription_el(jid:jid(), mod_pubsub:node_id(), binary()) -> exml:element().
 subscription_el(SubscriberJid, NodeId, Subscription) ->
