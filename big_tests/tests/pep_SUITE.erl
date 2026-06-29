@@ -8,7 +8,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(config_parser_helper, [default_mod_config/1]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 -import(distributed_helper, [require_rpc_nodes/1]).
 -import(domain_helper, [host_type/0]).
 -import(pubsub_tools, [check_item_notification/4,
@@ -61,11 +61,13 @@ end_per_testcase(TestName, Config) ->
 
 all() ->
     [{group, pep},
-     {group, pep_no_caps}].
+     {group, pep_no_caps},
+     {group, max_items_per_node}].
 
 groups() ->
     [{pep, [parallel], pep_tests()},
-     {pep_no_caps, [parallel], pep_no_caps_tests()}].
+     {pep_no_caps, [parallel], pep_no_caps_tests()},
+     {max_items_per_node, [parallel], max_items_per_node_tests()}].
 
 pep_tests() ->
     disco_tests() ++ protocol_tests() ++ protocol_tests_with_sm().
@@ -137,6 +139,11 @@ negative_tests() ->
 protocol_tests_with_sm() ->
     [send_last_item_on_implicit_sub_with_sm]. % check for regressions in a typical scenario
 
+-doc "Tests checking the max_items_per_node config option".
+max_items_per_node_tests() ->
+    [create_with_max_items_and_publish,
+     create_with_max_items_per_node_and_publish].
+
 %% Disco
 
 disco_info(Config) ->
@@ -198,6 +205,10 @@ create_and_configure_with_max_items(Config) ->
 
 create_with_max_items_and_publish(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun create_with_max_items_and_publish_story/1).
+
+create_with_max_items_per_node_and_publish(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun create_with_max_items_per_node_and_publish_story/1).
 
 create_with_max_items_zero_and_publish(Config) ->
     escalus:fresh_story_with_config(set_caps(Config), [{bob, 1}],
@@ -566,6 +577,14 @@ create_with_max_items_and_publish_story(Alice) ->
 
     %% XEP-0060 6.5 Request items: node stores only the configured number of items
     get_items(Alice, PepNode, [{expected_result, [~"item1", ~"item2"]}]).
+
+create_with_max_items_per_node_and_publish_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    create_node(Alice, PepNode, []),
+    [publish(Alice, ItemId, PepNode, []) || ItemId <- [~"item0", ~"item1", ~"item2", ~"item3"]],
+
+    %% XEP-0060 6.5 Request items: node stores only max_items_per_node items
+    get_items(Alice, PepNode, [{expected_result, [~"item1", ~"item2", ~"item3"]}]).
 
 create_with_max_items_zero_and_publish_story(Config, Bob) ->
     PepNode = pep_node(Bob, ?config(node_ns, Config)),
@@ -1066,7 +1085,9 @@ required_modules(pep) ->
     [{mod_caps, default_mod_config(mod_caps)},
      {mod_pubsub, default_mod_config(mod_pubsub)}];
 required_modules(pep_no_caps) ->
-    [{mod_pubsub, default_mod_config(mod_pubsub)}].
+    [{mod_pubsub, default_mod_config(mod_pubsub)}];
+required_modules(max_items_per_node) ->
+    [{mod_pubsub, mod_config(mod_pubsub, #{max_items_per_node => 3})}].
 
 set_caps(Config) ->
     set_caps(Config, random_node_ns()).

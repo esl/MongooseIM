@@ -231,6 +231,7 @@
 [modules.mod_pubsub]
   backend = "rdbms"
   iqdisc.type = "no_queue"
+  max_items_per_node = 100
 
 [modules.mod_push_service_mongoosepush]
   pool_name = "mongoose_push_http"
