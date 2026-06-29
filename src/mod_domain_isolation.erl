@@ -39,29 +39,15 @@ filter_local_packet(drop, _, _) ->
     {ok, drop};
 filter_local_packet({#jid{lserver = Server}, #jid{lserver = Server}, _Acc, _Packet} = FPacketAcc, _, _) ->
     {ok, FPacketAcc};
-filter_local_packet({#jid{lserver = FromServer}, #jid{lserver = ToServer}, _Acc, _Packet} = FPacketAcc, _, _) ->
-    FromHost = domain_to_host(FromServer),
-    ToHost = domain_to_host(ToServer),
-    case resolve_hosts(FromHost, ToHost, FPacketAcc) of
-        drop ->
-            {stop, drop};
-        FPacketAcc ->
-            {ok, FPacketAcc}
-    end.
-
--spec resolve_hosts(Host, Host, FPacketAcc) -> FPacketAcc | drop when
-    Host :: jid:lserver(),
-    FPacketAcc :: mongoose_hooks:filter_packet_acc().
-resolve_hosts(Host, Host, FPacketAcc) ->
-    FPacketAcc;
-resolve_hosts(_FromHost, _ToHost, {From, To, Acc, _Packet} = FPacketAcc) ->
-    %% Allow errors from this module to be passed
-    case mongoose_acc:get(domain_isolation, ignore, false, Acc) of
+filter_local_packet({#jid{lserver = FromServer} = From, #jid{lserver = ToServer} = To, Acc, _Packet} = FPacketAcc, _, _) ->
+    case mongoose_acc:get(domain_isolation, ignore, false, Acc)
+            orelse domain_to_host(FromServer) =:= domain_to_host(ToServer)
+            orelse is_external_component(FromServer) of
         true ->
-            FPacketAcc;
+            {ok, FPacketAcc};
         false ->
             maybe_send_back_error(From, To, Acc, FPacketAcc),
-            drop
+            {stop, drop}
     end.
 
 %% muc.localhost becomes localhost.
@@ -72,6 +58,10 @@ domain_to_host(Domain) ->
         {ok, #{parent_domain := Parent}} when is_binary(Parent) -> Parent;
         _ -> Domain
     end.
+
+-spec is_external_component(jid:lserver()) -> boolean().
+is_external_component(Domain) ->
+    mongoose_component:lookup_component(Domain) =/= [].
 
 -spec maybe_send_back_error(From, To, Acc, FPacketAcc) -> FPacketAcc | drop when
     From :: jid:jid(),
