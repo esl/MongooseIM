@@ -334,23 +334,30 @@ max_items_node_from_sql(MaxItems) ->
     MaxItems.
 
 -spec delete_old_items(mongooseim:host_type(), mod_pubsub:node_key(),
-                       mod_pubsub:max_items_node()) -> ok.
-delete_old_items(_HostType, _NodeKey, max) ->
-    ok;
+                       mod_pubsub:max_items_node()) -> ok | no_limit | no_extra_items.
 delete_old_items(HostType, NodeKey, MaxItems) ->
-    case get_extra_item_published_at(HostType, NodeKey, MaxItems) of
-        undefined -> ok;
-        PublishedAt -> delete_items_published_at_or_before(HostType, NodeKey, PublishedAt)
+    maybe
+        {ok, Limit} ?= get_effective_max_items_limit(HostType, MaxItems),
+        {ok, PublishedAt} ?= get_extra_item_published_at(HostType, NodeKey, Limit),
+        delete_items_published_at_or_before(HostType, NodeKey, PublishedAt)
+    end.
+
+-spec get_effective_max_items_limit(mongooseim:host_type(), mod_pubsub:max_items_node()) ->
+          {ok, non_neg_integer()} | no_limit.
+get_effective_max_items_limit(HostType, MaxItems) ->
+    case min(MaxItems, gen_mod:get_module_opt(HostType, mod_pubsub, max_items_per_node)) of
+        Limit when is_integer(Limit) -> {ok, Limit};
+        _ -> no_limit % both were atoms: 'max', 'infinity'
     end.
 
 -spec get_extra_item_published_at(mongooseim:host_type(), mod_pubsub:node_key(),
-                                  non_neg_integer()) -> integer() | undefined.
-get_extra_item_published_at(HostType, {ServiceJid, NodeId}, MaxItems) ->
-    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, MaxItems],
+                                  non_neg_integer()) -> {ok, integer()} | no_extra_items.
+get_extra_item_published_at(HostType, {ServiceJid, NodeId}, Limit) ->
+    Args = [ServiceJid#jid.lserver, ServiceJid#jid.luser, NodeId, Limit],
     case mongoose_rdbms:execute_successfully(HostType, pubsub_get_extra_item_published_at,
                                              Args) of
-        {selected, [{PublishedAt}]} -> PublishedAt;
-        {selected, []} -> undefined
+        {selected, [{PublishedAt}]} -> {ok, PublishedAt};
+        {selected, []} -> no_extra_items
     end.
 
 -spec delete_items_published_at_or_before(mongooseim:host_type(), mod_pubsub:node_key(),

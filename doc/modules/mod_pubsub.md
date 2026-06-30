@@ -28,7 +28,7 @@ It handles same-server PEP requests addressed to users' bare JIDs and does not e
 `mod_pubsub` supports the following node configuration and publish options:
 
 * [`pubsub#access_model`](https://xmpp.org/extensions/xep-0060.html#accessmodels): controls who can access a node. Supported values are `open` and `presence`.
-* `pubsub#max_items`: controls how many published items are stored for later retrieval. It defaults to `max`, which stores all published items. A non-negative integer limits stored items for the node; when the limit is exceeded, the oldest stored item is removed. `0` allows publish notifications but does not persist items for later retrieval.
+* `pubsub#max_items`: controls how many published items are stored for later retrieval. It defaults to `max`, which stores all published items up to the server-wide [`max_items_per_node`](#modulesmod_pubsubmax_items_per_node) limit. A non-negative integer limits stored items for the node; when the limit is exceeded, the oldest stored item is removed. `0` allows publish notifications but does not persist items for later retrieval.
 
 ### Known omissions and limitations
 
@@ -49,6 +49,15 @@ Current intentional omissions and limitations are:
 
 Database backend used to store PEP nodes, subscriptions, and items.
 The `rdbms` backend requires a `default` RDBMS connection pool in [`outgoing_pools`](../configuration/outgoing-connections.md#rdbms-options).
+
+### `modules.mod_pubsub.max_items_per_node`
+* **Syntax:** non-negative integer or `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `max_items_per_node = 1000`
+
+Maximum number of items stored in a node.
+The effective limit is the lower of this value and `pubsub#max_items`.
+If you reduce this limit, excess items for each already existing node are removed when it is next configured or receives a published item.
 
 ### `modules.mod_pubsub.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`

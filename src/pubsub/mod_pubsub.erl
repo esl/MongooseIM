@@ -101,9 +101,12 @@ config_spec() ->
     #section{
         items = #{~"backend" => #option{type = atom,
                                         validate = {module, mod_pubsub_backend}},
-                  ~"iqdisc" => mongoose_config_spec:iqdisc()},
+                  ~"iqdisc" => mongoose_config_spec:iqdisc(),
+                  ~"max_items_per_node" => #option{type = int_or_infinity,
+                                                   validate = non_negative}},
         defaults = #{~"backend" => rdbms,
-                     ~"iqdisc" => no_queue}
+                     ~"iqdisc" => no_queue,
+                     ~"max_items_per_node" => infinity}
     }.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().

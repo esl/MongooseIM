@@ -2504,7 +2504,10 @@ mod_pubsub(_Config) ->
     P = [modules, mod_pubsub],
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?errh(T(#{<<"backend">> => <<"mysql">>})).
+    ?cfgh(P ++ [max_items_per_node], 20,
+          T(#{<<"max_items_per_node">> => 20})),
+    ?errh(T(#{<<"backend">> => <<"mysql">>})),
+    ?errh(T(#{<<"max_items_per_node">> => -1})).
 
 mod_pubsub_old(_Config) ->
     check_iqdisc(mod_pubsub_old),
