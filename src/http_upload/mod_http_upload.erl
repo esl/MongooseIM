@@ -289,7 +289,7 @@ file_too_large_error(MaxFileSize) ->
 parse_request(Request) ->
     Keys = [<<"filename">>, <<"size">>, <<"content-type">>],
     [Filename, SizeBin, ContentType] = [exml_query:attr(Request, K) || K <- Keys],
-    Size = (catch erlang:binary_to_integer(SizeBin)),
+    Size = try erlang:binary_to_integer(SizeBin) catch _:_ -> undefined end,
     case is_nonempty_binary(Filename) andalso is_positive_integer(Size) of
         false -> bad_request;
         true -> {Filename, Size, ContentType}

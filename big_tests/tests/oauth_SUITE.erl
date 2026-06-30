@@ -235,7 +235,7 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
 
     {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(BobSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, RefreshToken}),
-    (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
+    try escalus_auth:auth_sasl_oauth(ClientConnection, Props2) catch _:_ -> ok end,
     ok.
 
 %% users logs in using access token he obtained in previous session (stream has been
@@ -259,7 +259,8 @@ login_with_token(Config, User, Token) ->
                  maybe_use_compression],
     {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, Token}),
-    AuthResult = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
+    AuthResult = (try escalus_auth:auth_sasl_oauth(ClientConnection, Props2)
+                  catch Class:Reason -> {'EXIT', {Class, Reason}} end),
     {AuthResult, ClientConnection}.
 
 token_revocation_test(Config) ->
