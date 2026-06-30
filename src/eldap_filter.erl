@@ -87,9 +87,7 @@ parse(L, SList) ->
         {error, {_, _, Msg}} ->
             {error, Msg};
         {ok, Result} ->
-            {ok, Result};
-        {regexp, Err} ->
-            {error, Err}
+            {ok, Result}
     catch
         _:Reason ->
             {error, {'EXIT', Reason}}
