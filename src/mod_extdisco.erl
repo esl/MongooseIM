@@ -112,9 +112,9 @@ request_type(#xmlel{name = <<"services">>} = Element) ->
     case exml_query:attr(Element, <<"type">>) of
         undefined -> all_services;
         ServiceType ->
-            case catch binary_to_existing_atom(ServiceType, utf8) of
-                {'EXIT', _} -> {error, bad_request};
-                Type -> {selected_services, Type}
+            try {selected_services, binary_to_existing_atom(ServiceType, utf8)}
+            catch
+                _:_ -> {error, bad_request}
             end
     end;
 request_type(#xmlel{name = <<"credentials">>, children = [Children]}) ->
@@ -122,9 +122,9 @@ request_type(#xmlel{name = <<"credentials">>, children = [Children]}) ->
     case exml_query:attr(Children, <<"type">>) of
         undefined -> {error, bad_request};
         ServiceType ->
-            case catch binary_to_existing_atom(ServiceType, utf8) of
-                {'EXIT', _} -> {error, bad_request};
-                Type -> {credentials, {Type, Host}}
+            try {credentials, {binary_to_existing_atom(ServiceType, utf8), Host}}
+            catch
+                _:_ -> {error, bad_request}
             end
     end;
 request_type(_) ->

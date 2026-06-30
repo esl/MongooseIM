@@ -220,7 +220,7 @@ post_end_per_suite(Suite, _Config, Return, State) ->
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: failed for ~p: ~p:~p~n~p",
                [Suite, Class, Reason, Stacktrace]),
-        _ = catch cth_error_report_sink:unwatch(),
+        _ = try cth_error_report_sink:unwatch() catch _:_ -> ok end,
         delete_patterns_table(),
         {Suite, State#state.all_total,
          State#state.unexpected_total}
@@ -238,7 +238,7 @@ terminate(#state{summary_dir = Dir, suite_results = RevResults}) ->
         {_, []} -> ok;
         {_, _} -> write_summary(Dir, lists:sort(RevResults))
     end,
-    _ = catch cth_error_report_sink:stop(),
+    _ = try cth_error_report_sink:stop() catch _:_ -> ok end,
     ok.
 
 %% Unexpected errors limit check

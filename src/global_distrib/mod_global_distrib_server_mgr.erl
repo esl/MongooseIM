@@ -240,7 +240,7 @@ handle_info(process_pending_get, #state{ pending_gets = PendingGets,
 handle_info(process_pending_endpoint,
             #state{ pending_endpoints = [{enable, Endpoint} | RPendingEndpoints] } = State) ->
     State2 =
-    case catch enable(Endpoint, State) of
+    case enable(Endpoint, State) of
         {ok, NState0} ->
             ?LOG_INFO(ls(#{what => gd_endpoint_enabled,
                            text => <<"GD server manager enables pending endpoint">>,
@@ -261,7 +261,7 @@ handle_info(process_pending_endpoint,
 handle_info(process_pending_endpoint,
             #state{ pending_endpoints = [{disable, Endpoint} | RPendingEndpoints] } = State) ->
     State2 =
-    case catch disable(Endpoint, State) of
+    case disable(Endpoint, State) of
         {ok, NState0} ->
             ?LOG_INFO(ls(#{what => gd_endpoint_disabled,
                            text => <<"GD server manager disables pending endpoint">>,
@@ -323,7 +323,7 @@ do_call(Server, Msg) ->
     try
         gen_server:call(MgrName, Msg)
     catch exit:{timeout,_} = Reason:Stacktrace ->
-        catch gen_server:cast(MgrName, {call_timeout, self(), Msg}),
+        try gen_server:cast(MgrName, {call_timeout, self(), Msg}) catch _:_ -> ok end,
         erlang:raise(exit, Reason, Stacktrace)
     end.
 
@@ -462,13 +462,17 @@ enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
 
 -spec disable(Endpoint :: endpoint(), State :: state()) -> {ok, state()} | {error, any()}.
 disable(Endpoint, #state{ disabled = Disabled, enabled = Enabled } = State) ->
-    {value, EndpointInfo, NewEnabled} = lists:keytake(Endpoint, #endpoint_info.endpoint, Enabled),
-    {ok, State#state{ enabled = NewEnabled, disabled = [EndpointInfo | Disabled] }}.
+    case lists:keytake(Endpoint, #endpoint_info.endpoint, Enabled) of
+        {value, EndpointInfo, NewEnabled} ->
+            {ok, State#state{ enabled = NewEnabled, disabled = [EndpointInfo | Disabled] }};
+        false ->
+            {error, not_enabled}
+    end.
 
 -spec stop_disabled(Endpoint :: endpoint(), State :: state()) -> any().
 stop_disabled(Endpoint, State) ->
-    case catch mod_global_distrib_server_sup:stop_pool(
-                 State#state.supervisor, Endpoint) of
+    case (try mod_global_distrib_server_sup:stop_pool(State#state.supervisor, Endpoint)
+          catch Class:Reason -> {'EXIT', {Class, Reason}} end) of
         ok ->
             ok;
         Error ->

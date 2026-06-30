@@ -197,8 +197,11 @@ retrieve_others_card(Config) ->
               %% respond on behalf of the requestor and not forward the IQ to
               %% the requestee's connected resource.
 
-              Res2 = (catch escalus:wait_for_stanza(Client)),
-              escalus:assert(stanza_timeout, Res2)
+              try escalus:wait_for_stanza(Client) of
+                  Stanza -> ct:fail({unexpected_stanza, Stanza})
+              catch
+                  error:timeout_when_waiting_for_stanza -> ok
+              end
       end).
 
 %%--------------------------------------------------------------------

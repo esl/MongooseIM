@@ -12,7 +12,7 @@ all() ->
 handles_errors_similar_to_catch(_) ->
     {SafeRes, CatchRes} =
         %% These two must be on the same line for the stacktraces to be equal.
-        {safely:apply(lists, min, [[]]),(catch apply(lists, min, [[]]))},
+        {safely:apply(lists, min, [[]]),(try apply(lists, min, [[]]) catch error:R0:S0 -> {'EXIT', {R0, S0}} end)},
 
     {exception, #{class := error, reason := function_clause, stacktrace := SafeST}} = SafeRes,
     {'EXIT', {function_clause, CatchST}} = CatchRes,

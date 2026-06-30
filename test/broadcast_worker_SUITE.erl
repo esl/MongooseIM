@@ -612,11 +612,12 @@ wait_for_worker_state(Pid, ExpectedState) ->
     end, ExpectedState).
 
 get_worker_state(Pid) ->
-    case catch sys:get_state(Pid) of
+    try sys:get_state(Pid) of
         {State, _Data} when is_atom(State) ->
             State;
-        {'EXIT', _Reason} ->
-            down;
         _Other ->
             undefined
+    catch
+        _:_ ->
+            down
     end.

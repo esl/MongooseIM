@@ -294,11 +294,11 @@ is_bare_to(Direction, To, _PrioRes) ->
         _ -> false
     end.
 
+max_prio([]) ->
+    0;
 max_prio(PrioRes) ->
-    case catch lists:max(PrioRes) of
-        {Prio, _Res} -> Prio;
-        _ -> 0
-    end.
+    {Prio, _Res} = lists:max(PrioRes),
+    Prio.
 
 is_max_prio(Res, PrioRes) ->
     lists:member({max_prio(PrioRes), Res}, PrioRes).

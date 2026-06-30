@@ -788,7 +788,7 @@ aff_iq_verify_fun(AffUsers) ->
 -spec presence_verify_fun(AffUser :: ct_aff_user()) -> verify_fun().
 presence_verify_fun({User, UserAff}) ->
     fun(Incoming) ->
-            true == (catch presence_verify(User, UserAff, Incoming))
+            true == (try presence_verify(User, UserAff, Incoming) catch _:_ -> false end)
     end.
 
 -spec presence_verify(User :: escalus:client(), UserAff :: none | member | owner,

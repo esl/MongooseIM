@@ -1366,21 +1366,16 @@ check_error_kick(Packet) ->
 
 -spec get_error_condition(exml:element()) -> binary().
 get_error_condition(Packet) ->
-    case catch get_error_condition2(Packet) of
-        {condition, ErrorCondition} ->
-            ErrorCondition;
-        {'EXIT', _} ->
-            <<"badformed error stanza">>
+    EEls = case exml_query:subelement(Packet, <<"error">>) of
+               #xmlel{children = Children} -> Children;
+               _ -> []
+           end,
+    case [Name || #xmlel{name = Name,
+                         attrs = #{<<"xmlns">> := ?NS_STANZAS},
+                         children = []} <- EEls] of
+        [Condition] -> Condition;
+        _ -> <<"badformed error stanza">>
     end.
-
-
--spec get_error_condition2(exml:element()) -> {condition, binary()}.
-get_error_condition2(Packet) ->
-    #xmlel{children = EEls} = exml_query:subelement(Packet, <<"error">>),
-    [Condition] = [Name || #xmlel{name = Name,
-                                  attrs = #{<<"xmlns">> := ?NS_STANZAS},
-                                  children = []} <- EEls],
-    {condition, Condition}.
 
 
 -spec expulse_participant(exml:element(), jid:jid(), state(), binary()) -> state().
@@ -4084,9 +4079,10 @@ tab_add_online_user(JID, StateData) ->
     US = {LUser, LServer},
     Room = StateData#state.room,
     Host = StateData#state.host,
-    catch ets:insert(
-        muc_online_users,
-        #muc_online_users{us = US, room = Room, host = Host}).
+    try ets:insert(
+           muc_online_users,
+           #muc_online_users{us = US, room = Room, host = Host})
+    catch _:_ -> ok end.
 
 
 -spec tab_remove_online_user(jid:simple_jid() | jid:jid(), state()) -> any().
@@ -4095,9 +4091,10 @@ tab_remove_online_user(JID, StateData) ->
     US = {LUser, LServer},
     Room = StateData#state.room,
     Host = StateData#state.host,
-    catch ets:delete_object(
-        muc_online_users,
-        #muc_online_users{us = US, room = Room, host = Host}).
+    try ets:delete_object(
+           muc_online_users,
+           #muc_online_users{us = US, room = Room, host = Host})
+    catch _:_ -> ok end.
 
 
 -spec tab_count_user(jid:jid()) -> non_neg_integer().

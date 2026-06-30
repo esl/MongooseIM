@@ -52,11 +52,10 @@
 %% more information.
 -spec health() -> {ok, Resp :: map()} | {error, term()}.
 health() ->
-    case catch tirerl:health(?POOL_NAME) of
-        {'EXIT', _} = Err ->
-            {error, Err};
-        Other ->
-            Other
+    try tirerl:health(?POOL_NAME)
+    catch
+        Class:Reason ->
+            {error, {'EXIT', {Class, Reason}}}
     end.
 
 %% @doc Tries to insert a document into given ElasticSearch index.
