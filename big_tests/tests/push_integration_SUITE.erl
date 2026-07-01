@@ -1092,7 +1092,7 @@ init_modules(G, Config) ->
     PubSubHost = ?config(pubsub_host, Config),
     Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost),
     C = dynamic_modules:save_modules(host_type(), Config),
-    Fun = fun() -> catch dynamic_modules:ensure_modules(host_type(), Modules) end,
+    Fun = fun() -> try dynamic_modules:ensure_modules(host_type(), Modules) catch _:_ -> error end end,
     wait_helper:wait_until(Fun, ok),
     [{api_v, MongoosePushAPI}, {required_modules, Modules} | C].
 

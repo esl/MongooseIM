@@ -47,8 +47,8 @@ test_encode_decode_functionality(_Config) ->
     FailedJIDs = [[{U1, D1, R1}, {U2, D2, R2}, EncodedJID, DecodedJID]
                   || {U1, D1, R1, JID1} <- PossibleJIDs,
                      {U2, D2, R2, JID2} <- PossibleJIDs,
-                     EncodedJID <- [catch mam_jid_mini:encode(JID1, JID2)],
-                     DecodedJID <- [catch mam_jid_mini:decode(JID1, EncodedJID)],
+                     EncodedJID <- [try mam_jid_mini:encode(JID1, JID2) catch C1:R1 -> {'EXIT', {C1, R1}} end],
+                     DecodedJID <- [try mam_jid_mini:decode(JID1, EncodedJID) catch C2:R2 -> {'EXIT', {C2, R2}} end],
                      DecodedJID =/= JID2],
     case lists:sublist(FailedJIDs, 100) of
         [] -> ok;
