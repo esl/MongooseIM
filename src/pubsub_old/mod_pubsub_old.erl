@@ -3927,14 +3927,17 @@ add_opt(Key, Value, Opts) ->
         end).
 
 -define(SET_INTEGER_XOPT(Opt, Val, Min, Max),
-        case catch binary_to_integer(Val) of
-            IVal when is_integer(IVal), IVal >= Min ->
+        try binary_to_integer(Val) of
+            IVal when IVal >= Min ->
                 if (Max =:= undefined) orelse (IVal =< Max) ->
                         set_xoption(Host, Opts, add_opt(Opt, IVal, NewOpts));
                    true ->
                         {error, mongoose_xmpp_errors:not_acceptable()}
                 end;
             _ ->
+                {error, mongoose_xmpp_errors:not_acceptable()}
+        catch
+            _:_ ->
                 {error, mongoose_xmpp_errors:not_acceptable()}
         end).
 

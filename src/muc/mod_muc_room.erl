@@ -1293,23 +1293,25 @@ affiliation_to_binary(Affiliation) ->
         none    -> <<"none">>
     end.
 
--spec binary_to_role(binary()) -> mod_muc:role().
+-spec binary_to_role(binary()) -> mod_muc:role() | error.
 binary_to_role(Role) ->
     case Role of
         <<"moderator">>     -> moderator;
         <<"participant">>   -> participant;
         <<"visitor">>       -> visitor;
-        <<"none">>          -> none
+        <<"none">>          -> none;
+        _                   -> error
     end.
 
--spec binary_to_affiliation(binary()) -> mod_muc:affiliation().
+-spec binary_to_affiliation(binary()) -> mod_muc:affiliation() | error.
 binary_to_affiliation(Affiliation) ->
     case Affiliation of
         <<"owner">>     -> owner;
         <<"admin">>     -> admin;
         <<"member">>    -> member;
         <<"outcast">>   -> outcast;
-        <<"none">>      -> none
+        <<"none">>      -> none;
+        _               -> error
     end.
 
 
@@ -2658,13 +2660,13 @@ extract_role_or_affiliation(Item) ->
         {undefined, undefined} ->
             {error, mongoose_xmpp_errors:bad_request()};
         {undefined, BAffiliation} ->
-            case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
+            case binary_to_affiliation(BAffiliation) of
+                error -> {error, mongoose_xmpp_errors:bad_request()};
                 Affiliation -> {affiliation, Affiliation}
             end;
         {BRole, _} ->
-            case catch binary_to_role(BRole) of
-                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
+            case binary_to_role(BRole) of
+                error -> {error, mongoose_xmpp_errors:bad_request()};
                 Role -> {role, Role}
             end
     end.
@@ -2806,7 +2808,7 @@ process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
     set_role(JID, none, SD);
 process_admin_item_set_unsafe({JID, role, Role, Reason}, _UJID, SD) ->
     SD1 = set_role(JID, Role, SD),
-    catch send_new_presence(JID, Reason, SD1),
+    try send_new_presence(JID, Reason, SD1) catch _:_ -> ok end,
     SD1;
 process_admin_item_set_unsafe({JID, nick, <<>>, _Reason}, _UJID, SD) ->
     mod_muc:unset_nick(SD#state.host_type, SD#state.host, JID),
@@ -2962,16 +2964,16 @@ which_property_changed(Item) ->
         {undefined, undefined} ->
             {error, mongoose_xmpp_errors:bad_request()};
         {undefined, BAffiliation} ->
-            case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} ->
+            case binary_to_affiliation(BAffiliation) of
+                error ->
                     ErrText1 = <<"Invalid affiliation ", BAffiliation/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(ErrText1)};
                 Affiliation ->
                     {affiliation, Affiliation}
             end;
         {BRole, _} ->
-            case catch binary_to_role(BRole) of
-                {'EXIT', _} ->
+            case binary_to_role(BRole) of
+                error ->
                     ErrText1 = <<"Invalid role ", BRole/binary>>,
                     {error, mongoose_xmpp_errors:bad_request(ErrText1)};
                 Role ->
@@ -3190,8 +3192,8 @@ process_authorized_iq_owner(From, get, SubEl, StateData, _StateName) ->
         undefined ->
             get_config(StateData, From);
         BAffiliation ->
-            case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} ->
+            case binary_to_affiliation(BAffiliation) of
+                error ->
                     ErrText = <<"Invalid affiliation ", BAffiliation/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(ErrText)};
                 Affiliation ->
@@ -3434,12 +3436,11 @@ notify_config_change(_, _, _StateData) ->
     end).
 
 -define(SET_NAT_XOPT(Opt, Val),
-    case catch binary_to_integer(Val) of
-        I when is_integer(I),
-               I > 0 ->
-        set_xoption(Opts, Config#config{Opt = I});
-        _ ->
-        {error, mongoose_xmpp_errors:bad_request()}
+    try binary_to_integer(Val) of
+        I when I > 0 -> set_xoption(Opts, Config#config{Opt = I});
+        _ -> {error, mongoose_xmpp_errors:bad_request()}
+    catch
+        _:_ -> {error, mongoose_xmpp_errors:bad_request()}
     end).
 
 -define(SET_XOPT(Opt, Val),
@@ -3505,7 +3506,13 @@ set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
         [<<"none">>] ->
             ?SET_XOPT(maygetmemberlist, []);
         _ ->
-            ?SET_XOPT(maygetmemberlist, [binary_to_role(V) || V <- Val])
+            Roles = [binary_to_role(V) || V <- Val],
+            case lists:member(error, Roles) of
+                true ->
+                    {error, mongoose_xmpp_errors:bad_request()};
+                false ->
+                    ?SET_XOPT(maygetmemberlist, Roles)
+            end
     end;
 set_xoption([_ | _Opts], _Config) ->
     {error, mongoose_xmpp_errors:bad_request()}.
@@ -3845,8 +3852,8 @@ check_voice_approval(From, XEl, StateData) ->
                   maps:find(<<"muc#request_allow">>, KVs),
                   maps:find(<<"muc#roomnick">>, KVs)} of
                 {_, error, error} ->
-                    case catch binary_to_role(BRole) of
-                        {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
+                    case binary_to_role(BRole) of
+                        error -> {error, mongoose_xmpp_errors:bad_request()};
                         _ -> {form, BRole}
                     end;
                 {false, _, _} ->
