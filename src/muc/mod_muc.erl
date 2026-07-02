@@ -943,14 +943,15 @@ iq_disco_items(MucHost, From, Rsm) ->
     lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From) end, Rooms) ++ RsmOut.
 
 room_to_item({{Name, _}, Pid}, MucHost, From) when is_pid(Pid) ->
-     case catch gen_fsm_compat:sync_send_all_state_event(
-                  Pid, {get_disco_item, From}, 100) of
-         {item, Desc} ->
-             {true,
-              #xmlel{name = <<"item">>,
-                     attrs = #{<<"jid">> => jid:to_binary({Name, MucHost, <<>>}),
-                               <<"name">> => Desc}}};
-         _ ->
+     try
+         {item, Desc} = gen_fsm_compat:sync_send_all_state_event(
+                          Pid, {get_disco_item, From}, 100),
+         {true,
+          #xmlel{name = <<"item">>,
+                 attrs = #{<<"jid">> => jid:to_binary({Name, MucHost, <<>>}),
+                           <<"name">> => Desc}}}
+     catch
+         _:_ ->
              false
      end;
 room_to_item({{Name, _}, _}, MucHost, _) ->
@@ -1041,11 +1042,9 @@ iq_get_unique(From) ->
     -> [exml:element(), ...].
 iq_get_register_info(HostType, MucHost, From) ->
     {Nick, Registered} =
-        try get_nick(HostType, MucHost, From) of
-            {error, _} ->
-                {<<>>, []};
-            {ok, N} ->
-                {N, [#xmlel{name = <<"registered">>}]}
+        try
+            {ok, N} = get_nick(HostType, MucHost, From),
+            {N, [#xmlel{name = <<"registered">>}]}
         catch
             _:_ ->
                 {<<>>, []}

@@ -144,13 +144,16 @@ do_start_cowboy(Ref, Opts) ->
     ProtocolOpts = ProtocolOpts0#{env => #{dispatch => Dispatch}},
     TransportOpts = TransportOpts0#{socket_opts => [{port, Port}, {ip, IPTuple}]},
     store_trails(Routes),
-    case catch start_http_or_https(Opts, Ref, TransportOpts, ProtocolOpts) of
+    try start_http_or_https(Opts, Ref, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
                   {failed_to_start_child, ranch_acceptors_sup,
                    {{badmatch, {error, eaddrinuse}}, _ }}}, _}} ->
             {error, eaddrinuse};
         Result ->
             Result
+    catch
+        _:Reason ->
+            {error, Reason}
     end.
 
 start_http_or_https(#{tls := TLSOpts, hibernate_after := HibernateAfter},

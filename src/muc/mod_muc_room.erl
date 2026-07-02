@@ -4029,10 +4029,11 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
 -spec handle_roommessage_from_nonparticipant(exml:element(), state(),
     jid:simple_jid() | jid:jid()) -> mongoose_acc:t().
 handle_roommessage_from_nonparticipant(Packet, StateData, From) ->
-    case catch check_decline_invitation(Packet) of
-        {true, DeclineData} ->
-            send_decline_invitation(DeclineData, StateData#state.jid, From);
-        _ ->
+    try check_decline_invitation(Packet) of
+        DeclineData ->
+            send_decline_invitation(DeclineData, StateData#state.jid, From)
+    catch
+        _:_ ->
             send_error_only_occupants(<<"messages">>, Packet, StateData#state.jid, From)
     end.
 
@@ -4041,7 +4042,7 @@ handle_roommessage_from_nonparticipant(Packet, StateData, From) ->
 %% packet. This function must be catched, because it crashes when the packet
 %% is not a decline message.
 -spec check_decline_invitation(exml:element()) ->
-    {true, {exml:element(), exml:element(), exml:element(), 'error' | jid:jid()}}.
+    {exml:element(), exml:element(), exml:element(), 'error' | jid:jid()}.
 check_decline_invitation(Packet) ->
     #xmlel{name = <<"message">>} = Packet,
 
@@ -4051,7 +4052,7 @@ check_decline_invitation(Packet) ->
     DEl = exml_query:subelement(XEl, <<"decline">>),
     ToString = exml_query:attr(DEl, <<"to">>),
     ToJID = jid:from_binary(ToString),
-    {true, {Packet, XEl, DEl, ToJID}}.
+    {Packet, XEl, DEl, ToJID}.
 
 
 %% @doc Send the decline to the inviter user.
@@ -4108,13 +4109,14 @@ tab_remove_online_user(JID, StateData) ->
 tab_count_user(JID) ->
     {LUser, LServer, _} = jid:to_lower(JID),
     US = {LUser, LServer},
-    case catch ets:select(
-         muc_online_users,
-         [{#muc_online_users{us = US, _ = '_'}, [], [[]]}]) of
-    Res when is_list(Res) ->
-        length(Res);
-    _ ->
-        0
+    try ets:select(
+           muc_online_users,
+           [{#muc_online_users{us = US, _ = '_'}, [], [[]]}]) of
+        Res ->
+            length(Res)
+    catch
+        _:_ ->
+            0
     end.
 
 element_size(El) ->
