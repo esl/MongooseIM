@@ -266,9 +266,9 @@ disco_local_features(Acc, _, _) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init(noargs) ->
-    catch ets:new(?IQTABLE, [named_table, protected, {read_concurrency, true}]),
-    catch ets:new(?NSTABLE, [named_table, bag, protected, {read_concurrency, true}]),
-    catch ets:new(?IQRESPONSE, [named_table, public]),
+    try ets:new(?IQTABLE, [named_table, protected, {read_concurrency, true}]) catch _:_ -> ok end,
+    try ets:new(?NSTABLE, [named_table, bag, protected, {read_concurrency, true}]) catch _:_ -> ok end,
+    try ets:new(?IQRESPONSE, [named_table, public]) catch _:_ -> ok end,
     gen_hook:add_handlers(hooks()),
     {ok, #state{}}.
 

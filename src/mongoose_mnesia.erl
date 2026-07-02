@@ -33,7 +33,8 @@ table_types() ->
 report_mnesia_table_error(Table, Opts, Res) ->
     ?LOG_CRITICAL(#{what => mnesia_create_table_failed,
                     table => Table, create_opts => Opts, reason => Res,
-                    schema_nodes => catch mnesia:table_info(schema, disc_copies)}),
+                    schema_nodes => (try mnesia:table_info(schema, disc_copies)
+                                     catch _:_ -> undefined end)}),
     error({mnesia_create_table_failed, Table, Res}).
 
 maybe_add_copies(Table, Opts, Type) ->

@@ -477,12 +477,15 @@ to_user_map(#user{jid = JID, role = Role, nick = Nick}, true) ->
 
 -spec room_to_item(tuple(), jid:lserver(), jid:jid()) -> {true, short_room_desc()} | false.
 room_to_item({{Name, _}, Pid}, MUCServer, From) ->
-     case catch gen_fsm_compat:sync_send_all_state_event(
-                  Pid, {get_disco_item, From}, 100) of
+     try gen_fsm_compat:sync_send_all_state_event(
+           Pid, {get_disco_item, From}, 100) of
          {item, Desc} ->
              Map = room_desc_to_map(Desc),
              {true, Map#{jid => jid:to_binary({Name, MUCServer, <<>>})}};
          _ ->
+             false
+     catch
+         _:_ ->
              false
      end.
 

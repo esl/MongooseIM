@@ -353,11 +353,12 @@ refresh_set(Key, Members) ->
     q([<<"PERSIST">>, Key]),
 
     ToDelete =
-        case catch q([<<"SMEMBERS">>, Key]) of
-            {ok, ExistingMembers} ->
-                ordsets:subtract(ordsets:from_list(ExistingMembers),
-                                 ordsets:from_list(Members));
-            _ ->
+        try
+            {ok, ExistingMembers} = q([<<"SMEMBERS">>, Key]),
+            ordsets:subtract(ordsets:from_list(ExistingMembers),
+                             ordsets:from_list(Members))
+        catch
+            _:_ ->
                 []
         end,
 

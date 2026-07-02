@@ -588,7 +588,7 @@ reset_meck_defaults() ->
     meck:reset(mongoose_router).
 
 teardown_mocks() ->
-    catch meck:unload(),
+    try meck:unload() catch _:_ -> ok end,
     ok.
 
 start_and_monitor_worker(HostType, JobId) ->
@@ -612,11 +612,12 @@ wait_for_worker_state(Pid, ExpectedState) ->
     end, ExpectedState).
 
 get_worker_state(Pid) ->
-    case catch sys:get_state(Pid) of
+    try sys:get_state(Pid) of
         {State, _Data} when is_atom(State) ->
             State;
-        {'EXIT', _Reason} ->
-            down;
         _Other ->
             undefined
+    catch
+        _:_ ->
+            down
     end.

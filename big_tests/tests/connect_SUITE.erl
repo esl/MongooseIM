@@ -226,8 +226,8 @@ end_per_testcase(replaced_session_cannot_terminate_different_nodes = CaseName, C
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(verify_peer_disconnects_when_client_has_no_cert, Config) ->
     mongoose_helper:restore_config(Config),
-    catch escalus_event:stop(Config),
-    catch escalus_cleaner:stop(Config);
+    try escalus_event:stop(Config) catch _:_ -> ok end,
+    try escalus_cleaner:stop(Config) catch _:_ -> ok end;
 end_per_testcase(CaseName, Config) ->
     mongoose_helper:restore_config(Config),
     escalus:end_per_testcase(CaseName, Config).

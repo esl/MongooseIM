@@ -72,7 +72,7 @@ script_path(Node, Config, Script) ->
     filename:join([get_cwd(Node, Config), "bin", Script]).
 
 verify_result(Node, Op) ->
-    wait_helper:wait_until(fun() -> catch do_verify_result(Node, Op) end, [],
+    wait_helper:wait_until(fun() -> do_verify_result(Node, Op) end, [],
                            #{time_left => timer:seconds(20),
                              sleep_time => 1000,
                              name => verify_result}),

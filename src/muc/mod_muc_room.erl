@@ -1293,23 +1293,25 @@ affiliation_to_binary(Affiliation) ->
         none    -> <<"none">>
     end.
 
--spec binary_to_role(binary()) -> mod_muc:role().
+-spec binary_to_role(binary()) -> mod_muc:role() | error.
 binary_to_role(Role) ->
     case Role of
         <<"moderator">>     -> moderator;
         <<"participant">>   -> participant;
         <<"visitor">>       -> visitor;
-        <<"none">>          -> none
+        <<"none">>          -> none;
+        _                   -> error
     end.
 
--spec binary_to_affiliation(binary()) -> mod_muc:affiliation().
+-spec binary_to_affiliation(binary()) -> mod_muc:affiliation() | error.
 binary_to_affiliation(Affiliation) ->
     case Affiliation of
         <<"owner">>     -> owner;
         <<"admin">>     -> admin;
         <<"member">>    -> member;
         <<"outcast">>   -> outcast;
-        <<"none">>      -> none
+        <<"none">>      -> none;
+        _               -> error
     end.
 
 
@@ -1366,21 +1368,16 @@ check_error_kick(Packet) ->
 
 -spec get_error_condition(exml:element()) -> binary().
 get_error_condition(Packet) ->
-    case catch get_error_condition2(Packet) of
-        {condition, ErrorCondition} ->
-            ErrorCondition;
-        {'EXIT', _} ->
-            <<"badformed error stanza">>
+    EEls = case exml_query:subelement(Packet, <<"error">>) of
+               #xmlel{children = Children} -> Children;
+               _ -> []
+           end,
+    case [Name || #xmlel{name = Name,
+                         attrs = #{<<"xmlns">> := ?NS_STANZAS},
+                         children = []} <- EEls] of
+        [Condition] -> Condition;
+        _ -> <<"badformed error stanza">>
     end.
-
-
--spec get_error_condition2(exml:element()) -> {condition, binary()}.
-get_error_condition2(Packet) ->
-    #xmlel{children = EEls} = exml_query:subelement(Packet, <<"error">>),
-    [Condition] = [Name || #xmlel{name = Name,
-                                  attrs = #{<<"xmlns">> := ?NS_STANZAS},
-                                  children = []} <- EEls],
-    {condition, Condition}.
 
 
 -spec expulse_participant(exml:element(), jid:jid(), state(), binary()) -> state().
@@ -2101,17 +2098,23 @@ extract_history([_ | Els], Type) ->
 
 -spec parse_history_val(binary(), binary()) -> false | non_neg_integer().
 parse_history_val(AttrVal, <<"since">>) ->
-    case catch calendar:rfc3339_to_system_time(binary_to_list(AttrVal)) of
-        IntVal when is_integer(IntVal) and (IntVal >= 0) ->
+    try calendar:rfc3339_to_system_time(binary_to_list(AttrVal)) of
+        IntVal when IntVal >= 0 ->
             IntVal;
         _ ->
             false
+    catch
+        _:_ ->
+            false
     end;
 parse_history_val(AttrVal, _) ->
-    case catch binary_to_integer(AttrVal) of
-        IntVal when is_integer(IntVal) and (IntVal >= 0) ->
+    try binary_to_integer(AttrVal) of
+        IntVal when IntVal >= 0 ->
             IntVal;
         _ ->
+            false
+    catch
+        _:_ ->
             false
     end.
 
@@ -2657,13 +2660,13 @@ extract_role_or_affiliation(Item) ->
         {undefined, undefined} ->
             {error, mongoose_xmpp_errors:bad_request()};
         {undefined, BAffiliation} ->
-            case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
+            case binary_to_affiliation(BAffiliation) of
+                error -> {error, mongoose_xmpp_errors:bad_request()};
                 Affiliation -> {affiliation, Affiliation}
             end;
         {BRole, _} ->
-            case catch binary_to_role(BRole) of
-                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
+            case binary_to_role(BRole) of
+                error -> {error, mongoose_xmpp_errors:bad_request()};
                 Role -> {role, Role}
             end
     end.
@@ -2805,7 +2808,7 @@ process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
     set_role(JID, none, SD);
 process_admin_item_set_unsafe({JID, role, Role, Reason}, _UJID, SD) ->
     SD1 = set_role(JID, Role, SD),
-    catch send_new_presence(JID, Reason, SD1),
+    try send_new_presence(JID, Reason, SD1) catch _:_ -> ok end,
     SD1;
 process_admin_item_set_unsafe({JID, nick, <<>>, _Reason}, _UJID, SD) ->
     mod_muc:unset_nick(SD#state.host_type, SD#state.host, JID),
@@ -2961,16 +2964,16 @@ which_property_changed(Item) ->
         {undefined, undefined} ->
             {error, mongoose_xmpp_errors:bad_request()};
         {undefined, BAffiliation} ->
-            case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} ->
+            case binary_to_affiliation(BAffiliation) of
+                error ->
                     ErrText1 = <<"Invalid affiliation ", BAffiliation/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(ErrText1)};
                 Affiliation ->
                     {affiliation, Affiliation}
             end;
         {BRole, _} ->
-            case catch binary_to_role(BRole) of
-                {'EXIT', _} ->
+            case binary_to_role(BRole) of
+                error ->
                     ErrText1 = <<"Invalid role ", BRole/binary>>,
                     {error, mongoose_xmpp_errors:bad_request(ErrText1)};
                 Role ->
@@ -3189,8 +3192,8 @@ process_authorized_iq_owner(From, get, SubEl, StateData, _StateName) ->
         undefined ->
             get_config(StateData, From);
         BAffiliation ->
-            case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} ->
+            case binary_to_affiliation(BAffiliation) of
+                error ->
                     ErrText = <<"Invalid affiliation ", BAffiliation/binary>>,
                     {error, mongoose_xmpp_errors:not_acceptable(ErrText)};
                 Affiliation ->
@@ -3433,12 +3436,11 @@ notify_config_change(_, _, _StateData) ->
     end).
 
 -define(SET_NAT_XOPT(Opt, Val),
-    case catch binary_to_integer(Val) of
-        I when is_integer(I),
-               I > 0 ->
-        set_xoption(Opts, Config#config{Opt = I});
-        _ ->
-        {error, mongoose_xmpp_errors:bad_request()}
+    try binary_to_integer(Val) of
+        I when I > 0 -> set_xoption(Opts, Config#config{Opt = I});
+        _ -> {error, mongoose_xmpp_errors:bad_request()}
+    catch
+        _:_ -> {error, mongoose_xmpp_errors:bad_request()}
     end).
 
 -define(SET_XOPT(Opt, Val),
@@ -3504,7 +3506,13 @@ set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
         [<<"none">>] ->
             ?SET_XOPT(maygetmemberlist, []);
         _ ->
-            ?SET_XOPT(maygetmemberlist, [binary_to_role(V) || V <- Val])
+            Roles = [binary_to_role(V) || V <- Val],
+            case lists:member(error, Roles) of
+                true ->
+                    {error, mongoose_xmpp_errors:bad_request()};
+                false ->
+                    ?SET_XOPT(maygetmemberlist, Roles)
+            end
     end;
 set_xoption([_ | _Opts], _Config) ->
     {error, mongoose_xmpp_errors:bad_request()}.
@@ -3844,8 +3852,8 @@ check_voice_approval(From, XEl, StateData) ->
                   maps:find(<<"muc#request_allow">>, KVs),
                   maps:find(<<"muc#roomnick">>, KVs)} of
                 {_, error, error} ->
-                    case catch binary_to_role(BRole) of
-                        {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
+                    case binary_to_role(BRole) of
+                        error -> {error, mongoose_xmpp_errors:bad_request()};
                         _ -> {form, BRole}
                     end;
                 {false, _, _} ->
@@ -4021,10 +4029,11 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
 -spec handle_roommessage_from_nonparticipant(exml:element(), state(),
     jid:simple_jid() | jid:jid()) -> mongoose_acc:t().
 handle_roommessage_from_nonparticipant(Packet, StateData, From) ->
-    case catch check_decline_invitation(Packet) of
-        {true, DeclineData} ->
-            send_decline_invitation(DeclineData, StateData#state.jid, From);
-        _ ->
+    try check_decline_invitation(Packet) of
+        DeclineData ->
+            send_decline_invitation(DeclineData, StateData#state.jid, From)
+    catch
+        _:_ ->
             send_error_only_occupants(<<"messages">>, Packet, StateData#state.jid, From)
     end.
 
@@ -4033,7 +4042,7 @@ handle_roommessage_from_nonparticipant(Packet, StateData, From) ->
 %% packet. This function must be catched, because it crashes when the packet
 %% is not a decline message.
 -spec check_decline_invitation(exml:element()) ->
-    {true, {exml:element(), exml:element(), exml:element(), 'error' | jid:jid()}}.
+    {exml:element(), exml:element(), exml:element(), 'error' | jid:jid()}.
 check_decline_invitation(Packet) ->
     #xmlel{name = <<"message">>} = Packet,
 
@@ -4043,7 +4052,7 @@ check_decline_invitation(Packet) ->
     DEl = exml_query:subelement(XEl, <<"decline">>),
     ToString = exml_query:attr(DEl, <<"to">>),
     ToJID = jid:from_binary(ToString),
-    {true, {Packet, XEl, DEl, ToJID}}.
+    {Packet, XEl, DEl, ToJID}.
 
 
 %% @doc Send the decline to the inviter user.
@@ -4078,9 +4087,10 @@ tab_add_online_user(JID, StateData) ->
     US = {LUser, LServer},
     Room = StateData#state.room,
     Host = StateData#state.host,
-    catch ets:insert(
-        muc_online_users,
-        #muc_online_users{us = US, room = Room, host = Host}).
+    try ets:insert(
+           muc_online_users,
+           #muc_online_users{us = US, room = Room, host = Host})
+    catch _:_ -> ok end.
 
 
 -spec tab_remove_online_user(jid:simple_jid() | jid:jid(), state()) -> any().
@@ -4089,22 +4099,24 @@ tab_remove_online_user(JID, StateData) ->
     US = {LUser, LServer},
     Room = StateData#state.room,
     Host = StateData#state.host,
-    catch ets:delete_object(
-        muc_online_users,
-        #muc_online_users{us = US, room = Room, host = Host}).
+    try ets:delete_object(
+           muc_online_users,
+           #muc_online_users{us = US, room = Room, host = Host})
+    catch _:_ -> ok end.
 
 
 -spec tab_count_user(jid:jid()) -> non_neg_integer().
 tab_count_user(JID) ->
     {LUser, LServer, _} = jid:to_lower(JID),
     US = {LUser, LServer},
-    case catch ets:select(
-         muc_online_users,
-         [{#muc_online_users{us = US, _ = '_'}, [], [[]]}]) of
-    Res when is_list(Res) ->
-        length(Res);
-    _ ->
-        0
+    try ets:select(
+           muc_online_users,
+           [{#muc_online_users{us = US, _ = '_'}, [], [[]]}]) of
+        Res ->
+            length(Res)
+    catch
+        _:_ ->
+            0
     end.
 
 element_size(El) ->

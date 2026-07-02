@@ -5,7 +5,9 @@ setup_meck() ->
     meck:expect(ranch_tcp, send, fun ranch_tcp_send/2).
 
 ranch_tcp_send(Socket, Data) ->
-    case catch binary:match(Data, <<"Recipient connection breaks">>) of
-        {N, _} when is_integer(N) -> {error, simulated};
-        _ -> meck:passthrough([Socket, Data])
+    try binary:match(Data, <<"Recipient connection breaks">>) of
+        nomatch -> meck:passthrough([Socket, Data]);
+        _ -> {error, simulated}
+    catch
+        _:_ -> meck:passthrough([Socket, Data])
     end.

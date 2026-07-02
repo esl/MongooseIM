@@ -39,12 +39,13 @@ init(_HostType, _Opts) ->
 -spec get_last(host_type(), jid:luser(), jid:lserver()) ->
     {ok, mod_last:timestamp(), mod_last:status()} | {error, term()} | not_found.
 get_last(_HostType, LUser, LServer) ->
-    case catch mnesia:dirty_read(last_activity, {LUser, LServer}) of
-        {'EXIT', Reason} -> {error, Reason};
+    try mnesia:dirty_read(last_activity, {LUser, LServer}) of
         [] -> not_found;
         [#last_activity{timestamp = TimeStamp,
             status = Status}] ->
             {ok, TimeStamp, Status}
+    catch
+        _:Reason -> {error, Reason}
     end.
 
 -spec count_active_users(host_type(), jid:lserver(), mod_last:timestamp()) -> non_neg_integer().

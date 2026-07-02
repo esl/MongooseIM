@@ -770,25 +770,32 @@ is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
 route_message(From, To, Acc, Packet) ->
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
-    PrioPid = get_user_present_pids(LUser, LServer),
-    case catch lists:max(PrioPid) of
-        {Priority, _} when is_integer(Priority), Priority >= 0 ->
-            lists:foreach(
-              %% Route messages to all priority that equals the max, if
-              %% positive
-              fun({Prio, Pid}) when Prio == Priority ->
-                 %% we will lose message if PID is not alive
-                      mongoose_c2s:route(Pid, Acc);
-                 %% Ignore other priority:
-                 ({_Prio, _Pid}) ->
-                      ok
-              end,
-              PrioPid),
-              Acc;
-        _ ->
-            MessageType = mongoose_acc:stanza_type(Acc),
-            route_message_by_type(MessageType, From, To, Acc, Packet)
+    case get_user_present_pids(LUser, LServer) of
+        [] ->
+            route_message_fallback(From, To, Acc, Packet);
+        PrioPid ->
+            case lists:max(PrioPid) of
+                {Priority, _} when Priority >= 0 ->
+                    lists:foreach(
+                      %% Route messages to all priority that equals the max, if
+                      %% positive
+                      fun({Prio, Pid}) when Prio == Priority ->
+                         %% we will lose message if PID is not alive
+                              mongoose_c2s:route(Pid, Acc);
+                         %% Ignore other priority:
+                         ({_Prio, _Pid}) ->
+                              ok
+                      end,
+                      PrioPid),
+                      Acc;
+                _ ->
+                    route_message_fallback(From, To, Acc, Packet)
+            end
     end.
+
+route_message_fallback(From, To, Acc, Packet) ->
+    MessageType = mongoose_acc:stanza_type(Acc),
+    route_message_by_type(MessageType, From, To, Acc, Packet).
 
 route_message_by_type(<<"error">>, _From, _To, Acc, _Packet) ->
     Acc;
@@ -862,11 +869,16 @@ get_user_present_resources(#jid{luser = LUser, lserver = LServer}) ->
 
 -spec is_offline(jid:jid()) -> boolean().
 is_offline(#jid{luser = LUser, lserver = LServer}) ->
-    case catch lists:max(get_user_present_pids(LUser, LServer)) of
-        {Priority, _} when is_integer(Priority), Priority >= 0 ->
-            false;
-        _ ->
-            true
+    case get_user_present_pids(LUser, LServer) of
+        [] ->
+            true;
+        Pids ->
+            case lists:max(Pids) of
+                {Priority, _} when Priority >= 0 ->
+                    false;
+                _ ->
+                    true
+            end
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

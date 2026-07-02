@@ -142,7 +142,7 @@ do_serialize(Header, ScramMap, [{Sha, Prefix} | RemainingSha]) ->
     do_serialize(NewHeader, ScramMap, RemainingSha).
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
-    case catch binary:split(Serialized, <<",">>, [global]) of
+    case binary:split(Serialized, <<",">>, [global]) of
         [StoredKey, ServerKey, Salt, IterationCount] ->
             {ok, #{iteration_count => binary_to_integer(IterationCount),
                    sha => #{salt       => Salt,
@@ -153,7 +153,7 @@ deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
             {error, incorrect_scram}
     end;
 deserialize(<<?MULTI_SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
-    case catch binary:split(Serialized, <<",">>, [global]) of
+    case binary:split(Serialized, <<",">>, [global]) of
         [IterationCountBin | ListOfShaSpecificDetails] ->
             IterationCount = binary_to_integer(IterationCountBin),
             DeserializedKeys = [deserialize(supported_sha_types(), ShaDetails)
@@ -173,7 +173,7 @@ deserialize([], _) ->
     [];
 deserialize([{Sha, Prefix} | _RemainingSha],
     <<Prefix:10/binary, ShaDetails/binary>>) ->
-    case catch binary:split(ShaDetails, <<"|">>, [global]) of
+    case binary:split(ShaDetails, <<"|">>, [global]) of
         [Salt, StoredKey, ServerKey] ->
             {Sha, #{salt => Salt, server_key => ServerKey, stored_key => StoredKey}};
         _ ->

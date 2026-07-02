@@ -248,7 +248,7 @@ wait_for_process(Process) ->
     case wait_for_stop(MonitorReference) of
         ok -> ok;
         timeout ->
-            catch exit(whereis(Process), kill),
+            try exit(whereis(Process), kill) catch _:_ -> ok end,
             wait_for_stop(MonitorReference),
             ok
     end.

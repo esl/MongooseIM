@@ -69,15 +69,18 @@ set_node(Node) ->
     mod_pubsub_old_db_backend:set_node(Node).
 
 get_node(Host, Node) ->
-    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, Node) of
-        #pubsub_node{} = Record -> Record;
-        _ -> {error, mongoose_xmpp_errors:item_not_found()}
+    try
+        #pubsub_node{} = mod_pubsub_old_db_backend:find_node_by_name(Host, Node)
+    catch
+        _:_ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_node(Nidx) ->
-    case catch mod_pubsub_old_db_backend:find_node_by_id(Nidx) of
-        {ok, Node} -> Node;
-        _ -> {error, mongoose_xmpp_errors:item_not_found()}
+    try
+        {ok, Node} = mod_pubsub_old_db_backend:find_node_by_id(Nidx),
+        Node
+    catch
+        _:_ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_nodes(Key, _From) ->
@@ -86,9 +89,11 @@ get_nodes(Key, _From) ->
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
 get_parentnodes_tree(Host, Node, _From) ->
-    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, Node) of
-        #pubsub_node{} = Record -> [{0, [Record]}];
-        _ -> []
+    try
+        #pubsub_node{} = Record = mod_pubsub_old_db_backend:find_node_by_name(Host, Node),
+        [{0, [Record]}]
+    catch
+        _:_ -> []
     end.
 
 get_subnodes(Host, Node, _From) ->
@@ -96,7 +101,7 @@ get_subnodes(Host, Node, _From) ->
 
 create_node(Host, NodeName, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, NodeName) of
+    try mod_pubsub_old_db_backend:find_node_by_name(Host, NodeName) of
         false ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
@@ -110,6 +115,9 @@ create_node(Host, NodeName, Type, Owner, Options, Parents) ->
             end;
         _ ->
             {error, mongoose_xmpp_errors:conflict()}
+    catch
+        _:_ ->
+            {error, mongoose_xmpp_errors:conflict()}
     end.
 
 check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
@@ -119,12 +127,11 @@ check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
 check_parent_and_its_owner_list(_Host, [], _BJID) ->
     true;
 check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
-    case catch mod_pubsub_old_db_backend:find_node_by_name(Host, Parent) of
-        #pubsub_node{owners = [{<<>>, Host, <<>>}]} ->
-            true;
-        #pubsub_node{owners = Owners} ->
-            lists:member(BJID, Owners);
-        _ ->
+    try
+        #pubsub_node{owners = Owners} = mod_pubsub_old_db_backend:find_node_by_name(Host, Parent),
+        Owners =:= [{<<>>, Host, <<>>}] orelse lists:member(BJID, Owners)
+    catch
+        _:_ ->
             false
     end;
 check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->

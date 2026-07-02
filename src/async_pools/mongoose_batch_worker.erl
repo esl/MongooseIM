@@ -168,10 +168,10 @@ run_flush(State = #state{flush_interval_tref = TRef}) ->
     erlang:garbage_collect(self(), [{async, asynchronous_gc_triggered}, {type, major}]),
     NewState.
 
-cancel_and_flush_timer(undefined) ->
-    ok;
-cancel_and_flush_timer(TRef) ->
-    catch erlang:cancel_timer(TRef, [{async, true}]).
+cancel_and_flush_timer(TRef) when is_reference(TRef) ->
+    erlang:cancel_timer(TRef, [{async, true}]);
+cancel_and_flush_timer(_) ->
+    ok.
 
 do_run_flush(State = #state{flush_callback = FlushCallback,
                             flush_queue_length = Length,

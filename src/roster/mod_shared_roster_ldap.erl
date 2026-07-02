@@ -429,15 +429,11 @@ search_group_info(State, Group) ->
     Extractor = case State#state.uid_format_re of
                     <<"">> ->
                         fun (UID) ->
-                                catch eldap_utils:get_user_part(
-                                        UID,
-                                        State#state.uid_format)
+                            eldap_utils:get_user_part(UID, State#state.uid_format)
                         end;
                     _ ->
                         fun (UID) ->
-                                catch get_user_part_re(
-                                        UID,
-                                        State#state.uid_format_re)
+                            get_user_part_re(UID, State#state.uid_format_re)
                         end
                 end,
     AuthChecker = case State#state.auth_check of
@@ -517,12 +513,14 @@ search_user_name(State, User) ->
 
 %% Getting User ID part by regex pattern
 get_user_part_re(String, Pattern) ->
-    case catch re:run(String, Pattern) of
+    try re:run(String, Pattern) of
         {match, Captured} ->
             {First, Len} = lists:nth(2, Captured),
             Result = binary:part(String, First, Len),
             {ok, Result};
         _ -> {error, badmatch}
+    catch
+        _:_ -> {error, badmatch}
     end.
 
 

@@ -40,11 +40,10 @@ domain_utf8_to_ascii(Domain, string) ->
 
 -spec domain_utf8_to_ascii(string() | jid:lserver()) -> string() | false.
 domain_utf8_to_ascii(Domain) ->
-    case catch idna:utf8_to_ascii(Domain) of
-        {'EXIT', _} ->
-            false;
-        AsciiDomain ->
-            AsciiDomain
+    try idna:utf8_to_ascii(Domain)
+    catch
+        _:_ ->
+            false
     end.
 
 -spec check_shared_secret(HostType, StoredSecretResult) -> ok | {update, NewSecret} when

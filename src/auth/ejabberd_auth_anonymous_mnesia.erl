@@ -16,7 +16,12 @@ init(_HostType) ->
 
 -spec does_anonymous_user_exist(mongooseim:host_type(), jid:simple_bare_jid()) -> boolean().
 does_anonymous_user_exist(_HostType, US) ->
-    [] =/= catch mnesia:dirty_read({anonymous, US}).
+    try mnesia:dirty_read({anonymous, US}) of
+        [] -> false;
+        _ -> true
+    catch
+        _:_ -> true
+    end.
 
 -spec add_connection(mongooseim:host_type(), ejabberd_sm:sid(), jid:simple_bare_jid()) -> ok.
 add_connection(_HostType, SID, US) ->

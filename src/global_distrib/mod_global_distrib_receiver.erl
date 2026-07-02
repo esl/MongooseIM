@@ -148,7 +148,7 @@ terminate(Reason, State) ->
     end,
     mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_CLOSED, #{},
                                 #{count => 1, host => State#state.host}),
-    catch mod_global_distrib_transport:close(State#state.socket),
+    try mod_global_distrib_transport:close(State#state.socket) catch _:_ -> ok end,
     ignore.
 
 %%--------------------------------------------------------------------

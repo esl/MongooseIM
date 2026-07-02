@@ -487,8 +487,9 @@ cleanup_request(#request{id = ReqId}, State) ->
 cleanup_request(ReqId, State) ->
     #state{inflight = Inflight, monitors = Monitors, cql_tags = Tags} = State,
     #request{tag = Tag, cql_mref = CqlMRef, timeout_tref = TRef} = maps:get(ReqId, Inflight),
-    catch demonitor(CqlMRef), %% If may be unset at this point and we don't really care about it
-    catch erlang:cancel_timer(TRef),
+    %% Mref may be unset at this point and we don't really care about it
+    try demonitor(CqlMRef) catch _:_ -> ok end,
+    try erlang:cancel_timer(TRef) catch _:_ -> ok end,
 
     NextInflight = maps:remove(ReqId, Inflight),
     NextMonitors = maps:remove(CqlMRef, Monitors),

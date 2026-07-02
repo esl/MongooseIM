@@ -16,10 +16,11 @@ get_services(Domain, ServiceType) ->
 get_services(HostType, null, Domain) ->
     mod_extdisco:get_external_services(HostType, Domain);
 get_services(HostType, ServiceType, Domain) when is_binary(ServiceType) ->
-    case catch binary_to_existing_atom(ServiceType, utf8) of
-        %% if the type is unknown, then we do not have such services
-        {'EXIT', _} -> [];
+    try binary_to_existing_atom(ServiceType, utf8) of
         Type -> mod_extdisco:get_external_services(HostType, Type, Domain)
+    catch
+        %% if the type is unknown, then we do not have such services
+        _:_ -> []
     end.
 
 
