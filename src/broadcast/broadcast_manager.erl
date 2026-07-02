@@ -172,7 +172,9 @@ handle_call({start_job, #{domain := Domain} = JobSpec}, _From, #state{host_type 
     %% Small race condition risk: a user may be created between getting the count
     %% and creating the job (which sets the snapshot timestamp).
     %% It means the total count may be slightly off, but this is acceptable for now
-    RecipientCount = catch ejabberd_auth:get_vh_registered_users_number(Domain),
+    RecipientCount = try ejabberd_auth:get_vh_registered_users_number(Domain)
+                     catch _:_ -> {error, count_unavailable}
+                     end,
     JobSpecWithCount = JobSpec#{recipient_count => RecipientCount},
     LeaseTime = mod_broadcast:lease_time(HostType),
     %% If RecipientCount is an error tuple, it will be handled in validation

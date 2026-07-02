@@ -529,14 +529,15 @@ init_plugins(Host, ServerHost, Opts = #{nodetree := TreePlugin, plugins := Plugi
 
 init_plugin(Host, ServerHost, Opts, Name, Acc) ->
     Plugin = plugin(Name),
-    case catch apply(Plugin, init, [Host, ServerHost, Opts]) of
-        {'EXIT', Error} ->
-            ?LOG_ERROR(#{what => pubsub_plugin_init_failed, plugin => Plugin,
-                server => ServerHost, sub_host => Host, opts => Opts, error => Error}),
-            Acc;
+    try apply(Plugin, init, [Host, ServerHost, Opts]) of
         _ ->
             ?LOG_DEBUG(#{what => pubsub_init_plugin, plugin_name => Name}),
             [Name | Acc]
+    catch
+        Class:Reason ->
+            ?LOG_ERROR(#{what => pubsub_plugin_init_failed, plugin => Plugin,
+                server => ServerHost, sub_host => Host, opts => Opts, error => {Class, Reason}}),
+            Acc
     end.
 
 terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
@@ -2449,9 +2450,9 @@ get_items(Host, Node, From, SubId, <<>>, ItemIds, RSM) ->
                end,
     get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems);
 get_items(Host, Node, From, SubId, SMaxItems, ItemIds, RSM) ->
-    MaxItems = case catch binary_to_integer(SMaxItems) of
-                   {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
-                   Val -> Val
+    MaxItems = try binary_to_integer(SMaxItems)
+               catch
+                   _:_ -> {error, mongoose_xmpp_errors:bad_request()}
                end,
     get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems).
 
@@ -3722,12 +3723,11 @@ node_options(Host, Type) ->
 
 node_plugin_options(Type) ->
     Module = plugin(Type),
-    case catch gen_pubsub_node:options(Module) of
-        {'EXIT', {undef, _}} ->
+    try gen_pubsub_node:options(Module)
+    catch
+        error:undef ->
             DefaultModule = plugin(?STDNODE),
-            gen_pubsub_node:options(DefaultModule);
-        Result ->
-            Result
+            gen_pubsub_node:options(DefaultModule)
     end.
 
 %% @doc <p>Return the maximum number of items for a given node.</p>
@@ -4158,9 +4158,9 @@ features() ->
 
 plugin_features(Type) ->
     Module = plugin(Type),
-    case catch gen_pubsub_node:features(Module) of
-        {'EXIT', {undef, _}} -> [];
-        Result -> Result
+    try gen_pubsub_node:features(Module)
+    catch
+        error:undef -> []
     end.
 
 features(Host, <<>>) ->
@@ -4193,7 +4193,9 @@ tree_action(HostType, Function, Args) ->
       function => Function,
       args => Args
      },
-    catch mod_pubsub_old_db_backend:dirty(Fun, ErrorDebug).
+    try mod_pubsub_old_db_backend:dirty(Fun, ErrorDebug)
+    catch Class:Reason -> {'EXIT', {Class, Reason}}
+    end.
 
 %% @doc <p>node plugin call.</p>
 node_call(Type, Function, Args) ->
