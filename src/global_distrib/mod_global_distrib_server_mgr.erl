@@ -93,9 +93,10 @@ get_connection(Server) ->
 %% some remote server but the manager process instead
 -spec ping_proc(Server :: jid:lserver()) -> pong | pang.
 ping_proc(Server) ->
-    case catch do_call(Server, ping_proc) of
-        pong -> pong;
-        _Error -> pang
+    try
+        pong = do_call(Server, ping_proc)
+    catch
+        _:_ -> pang
     end.
 
 -spec get_state_info(Server :: jid:lserver()) -> map().
@@ -442,8 +443,7 @@ enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
                          enabled = Enabled, server = Server, conn_opts = ConnOpts } = State) ->
     case lists:keytake(Endpoint, #endpoint_info.endpoint, Disabled) of
         false ->
-            case catch mod_global_distrib_server_sup:start_pool(Supervisor, Endpoint,
-                                                                Server, ConnOpts) of
+            case mod_global_distrib_server_sup:start_pool(Supervisor, Endpoint, Server, ConnOpts) of
                 {ok, ConnPoolRef, ConnPoolPid} ->
                     MonitorRef = monitor(process, ConnPoolPid),
                     EndpointInfo = #endpoint_info{
@@ -453,8 +453,8 @@ enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
                                       monitor_ref = MonitorRef
                                      },
                     {ok, State#state{ enabled = [EndpointInfo | Enabled] }};
-                Error ->
-                    {error, Error}
+                {error, Reason} ->
+                    {error, Reason}
             end;
         {value, EndpointInfo, NewDisabled} ->
             {ok, State#state{ enabled = [EndpointInfo | Enabled], disabled = NewDisabled }}

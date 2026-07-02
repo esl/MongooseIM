@@ -83,8 +83,14 @@ start_pool(Supervisor, Endpoint, Server, #{connections_per_endpoint := PoolSize}
       type => supervisor,
       modules => dynamic
      },
-    {ok, PoolPid} = supervisor:start_child(Supervisor, PoolSpec),
-    {ok, PoolRef, PoolPid}.
+    case supervisor:start_child(Supervisor, PoolSpec) of
+        {ok, PoolPid} ->
+            {ok, PoolRef, PoolPid};
+        {ok, PoolPid, _Info} ->
+            {ok, PoolRef, PoolPid};
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 -spec stop_pool(Supervisor :: pid(), Endpoint :: mod_global_distrib_utils:endpoint()) ->
     ok | {error, any()}.
