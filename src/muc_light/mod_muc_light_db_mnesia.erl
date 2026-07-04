@@ -43,7 +43,8 @@
          set_blocking/4,
          get_aff_users/2,
          modify_aff_users/5,
-         get_info/2
+         get_info/2,
+         get_room_descs/5
         ]).
 
 %% Extra API for testing
@@ -51,6 +52,7 @@
 -ignore_xref([force_clear/0]).
 
 -include("mod_muc_light.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 
 -record(muc_light_room, {
           room :: jid:simple_bare_jid(),
@@ -230,6 +232,46 @@ get_info(_HostType, RoomUS) ->
             {error, not_exists};
         [#muc_light_room{ config = Config, aff_users = AffUsers, version = Version }] ->
             {ok, Config, AffUsers, Version}
+    end.
+
+-spec get_room_descs(mongooseim:host_type(), jid:lserver(), binary() | undefined,
+                     jid:luser() | undefined, pos_integer()) ->
+    {[mod_muc_light_db_backend:room_desc()], non_neg_integer()}.
+get_room_descs(_HostType, MUCServer, Filter, After, Limit) ->
+    MS = ets:fun2ms(fun(#muc_light_room{room = {_, RoomS}} = Room)
+                          when RoomS =:= MUCServer -> Room end),
+    Rooms = mnesia:dirty_select(muc_light_room, MS),
+    Schema = mod_muc_light:config_schema(MUCServer),
+    Matching = lists:keysort(#muc_light_room.room,
+                             [R || R <- Rooms, room_matches_filter(R, Filter, Schema)]),
+    Page = lists:sublist(drop_up_to_cursor(Matching, After), Limit),
+    Descs = [#{room => RoomUS, config => Config, aff_users => AffUsers}
+             || #muc_light_room{room = RoomUS, config = Config, aff_users = AffUsers} <- Page],
+    {Descs, length(Matching)}.
+
+drop_up_to_cursor(Rooms, undefined) ->
+    Rooms;
+drop_up_to_cursor(Rooms, After) ->
+    lists:dropwhile(fun(#muc_light_room{room = {RoomU, _}}) -> RoomU =< After end, Rooms).
+
+room_matches_filter(_Room, undefined, _Schema) ->
+    true;
+room_matches_filter(#muc_light_room{room = {RoomU, _}, config = Config}, Filter, Schema) ->
+    binary:match(RoomU, Filter) =/= nomatch
+        orelse room_name_matches(Config, Filter, Schema).
+
+%% Config is keyed by the internal schema key, which may differ from the field name
+room_name_matches(Config, Filter, Schema) ->
+    case lists:keyfind(<<"roomname">>, 1, Schema) of
+        {_FieldName, _Default, Key, _Type} ->
+            case proplists:get_value(Key, Config) of
+                Name when is_binary(Name) ->
+                    binary:match(string:lowercase(Name), Filter) =/= nomatch;
+                _ ->
+                    false
+            end;
+        false ->
+            false
     end.
 
 %%====================================================================
