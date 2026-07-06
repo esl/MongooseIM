@@ -271,7 +271,6 @@ get_ip(#xmpp_socket{module = Module, state = State}) ->
       ConsumeSecret :: boolean(),
       ExportKeyMaterials :: binary() | [binary()].
 
--if(?OTP_RELEASE >= 27).
 is_channel_binding_supported(#ranch_ssl{}) ->
     true;
 is_channel_binding_supported(#ranch_tcp{}) ->
@@ -286,19 +285,3 @@ export_key_materials(#ranch_tcp{}, _, _, _, _) ->
 export_key_materials(#xmpp_socket{module = Module, state = State},
                      Labels, Contexts, WantedLengths, ConsumeSecret) ->
     Module:export_key_materials(State, Labels, Contexts, WantedLengths, ConsumeSecret).
--else.
-is_channel_binding_supported(#ranch_ssl{}) ->
-    false;
-is_channel_binding_supported(#ranch_tcp{}) ->
-    false;
-is_channel_binding_supported(#xmpp_socket{module = Module, state = State}) ->
-    Module:is_channel_binding_supported(State).
-
-export_key_materials(#ranch_tcp{}, _, _, _, _) ->
-    {error, undefined_tls_material};
-export_key_materials(#ranch_ssl{}, _, _, _, _) ->
-    {error, undefined_tls_material};
-export_key_materials(#xmpp_socket{module = Module, state = State},
-                     Labels, Contexts, WantedLengths, ConsumeSecret) ->
-    Module:export_key_materials(State, Labels, Contexts, WantedLengths, ConsumeSecret).
--endif.

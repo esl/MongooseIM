@@ -17,7 +17,7 @@ To compile MongooseIM you need:
 
       *   Make: `make`,
       *   C and C++ compiler: `gcc`, `g++`,
-      *   Erlang/OTP 26.0 or higher:
+      *   Erlang/OTP 27.0 or higher:
         * `erlang` EPEL package, or,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: `openssl` and `openssl-devel`,
@@ -27,7 +27,7 @@ To compile MongooseIM you need:
 
       *   Make: `make`,
       *   C and C++ compiler: `gcc`, `g++`,
-      *   Erlang/OTP 24.0 or higher:
+      *   Erlang/OTP 27.0 or higher:
         * `erlang` package, or,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: `olibssl-dev`,
@@ -36,7 +36,7 @@ To compile MongooseIM you need:
 === "macOS"
 
       *   Make, C and C++ compiler: Xcode Command Line Tools,
-      *   Erlang/OTP 24.0 or higher:
+      *   Erlang/OTP 27.0 or higher:
         * [`erlang`](https://formulae.brew.sh/formula/erlang) from Homebrew,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 3.0.2 or higher, for STARTTLS, SASL and SSL encryption: [`openssl`](https://formulae.brew.sh/formula/openssl@3.0) from Homebrew

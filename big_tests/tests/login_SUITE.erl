@@ -63,7 +63,6 @@ scram_tests() ->
      | scram_plus_tests()
     ].
 
--if(?OTP_RELEASE >= 27).
 scram_plus_tests() ->
     [log_one_scram_sha1_plus,
      log_one_scram_sha224_plus,
@@ -81,10 +80,6 @@ configure_scram_plus_tests() ->
      configure_sha256_plus_fail_log_with_sha256,
      configure_sha384_plus_fail_log_with_sha384,
      configure_sha512_plus_fail_log_with_sha512].
--else.
-scram_plus_tests() -> [].
-configure_scram_plus_tests() -> [].
--endif.
 
 configure_specific_scram_test() ->
     [configure_sha1_log_with_sha1,
