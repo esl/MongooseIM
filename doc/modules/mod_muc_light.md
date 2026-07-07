@@ -55,6 +55,9 @@ It means that every occupant will be a `member`, even the room creator.
 Enables XEP-0045 compatibility mode. 
 It allows using a subset of classic MUC stanzas with some MUC Light functions limited.
 
+!!! Warning
+    This option is **deprecated** and will be removed in the next release.
+
 ### `modules.mod_muc_light.rooms_per_user`
   * **Syntax:** positive integer or the string `"infinity"`
   * **Default:** `"infinity"`
