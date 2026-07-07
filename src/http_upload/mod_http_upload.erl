@@ -27,7 +27,7 @@
 
 -define(DEFAULT_TOKEN_BYTES, 32).
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
--define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
+-define(DEFAULT_SUBHOST, mongoose_subdomain_utils:make_subdomain_pattern(~"upload.@HOST@")).
 
 %% gen_mod callbacks
 -export([start/2,
@@ -103,10 +103,10 @@ config_spec() ->
                   <<"s3">> => s3_spec()
         },
         defaults = #{<<"iqdisc">> => one_queue,
-                     <<"host">> => <<"upload.@HOST@">>,
+                     <<"host">> => ?DEFAULT_SUBHOST,
                      <<"backend">> => s3,
                      <<"expiration_time">> => 60,
-                     <<"token_bytes">> => 32,
+                     <<"token_bytes">> => ?DEFAULT_TOKEN_BYTES,
                      <<"max_file_size">> => ?DEFAULT_MAX_FILE_SIZE
         },
         required = [<<"s3">>]
