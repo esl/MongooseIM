@@ -171,6 +171,7 @@ delete_room({_, RoomS} = RoomUS) ->
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     Codec = host_type_to_codec(HostType),
+    maybe_warn_about_legacy_mode(HostType, Codec),
     mod_muc_light_db_backend:start(HostType, Opts),
     mod_muc_light_codec_backend:start(HostType, #{backend => Codec}),
     %% Handler
@@ -207,6 +208,15 @@ host_type_to_codec(HostType) ->
         false ->
             modern
     end.
+
+-spec maybe_warn_about_legacy_mode(host_type(), legacy | modern) -> ok.
+maybe_warn_about_legacy_mode(HostType, legacy) ->
+    ?LOG_WARNING(#{what => muc_light_legacy_mode_deprecated,
+                   text => <<"The mod_muc_light 'legacy_mode' option is deprecated "
+                             "and will be removed in the next release.">>,
+                   host_type => HostType});
+maybe_warn_about_legacy_mode(_HostType, modern) ->
+    ok.
 
 %% Config callbacks
 -spec config_spec() -> mongoose_config_spec:config_section().
