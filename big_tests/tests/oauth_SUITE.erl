@@ -150,7 +150,7 @@ token_login_failure(Config, User, Token) ->
     %% when
     Result = login_with_token(Config, User, Token),
     % then
-    {{auth_failed, _}, _} = Result.
+    {{error, auth_failed}, _} = Result.
 
 get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
@@ -235,7 +235,7 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
 
     {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(BobSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, RefreshToken}),
-    (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
+    try escalus_auth:auth_sasl_oauth(ClientConnection, Props2) catch _:_ -> ok end,
     ok.
 
 %% users logs in using access token he obtained in previous session (stream has been
@@ -259,7 +259,7 @@ login_with_token(Config, User, Token) ->
                  maybe_use_compression],
     {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, Token}),
-    AuthResult = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
+    AuthResult = try escalus_auth:auth_sasl_oauth(ClientConnection, Props2) catch _:_ -> {error, auth_failed} end,
     {AuthResult, ClientConnection}.
 
 token_revocation_test(Config) ->

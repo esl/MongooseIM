@@ -144,9 +144,8 @@ parse_ip_netmask(IPStr, undefined) ->
             error
     end;
 parse_ip_netmask(IPStr, MaskStr) ->
-    case catch list_to_integer(MaskStr) of
-        Mask when is_integer(Mask),
-                  Mask >= 0 ->
+    try list_to_integer(MaskStr) of
+        Mask when Mask >= 0 ->
             case inet_parse:address(IPStr) of
                 {ok, {_, _, _, _} = IP} when Mask =< 32 ->
                     {ok, {IP, Mask}};
@@ -156,6 +155,9 @@ parse_ip_netmask(IPStr, MaskStr) ->
                     error
             end;
         _ ->
+            error
+    catch
+        _:_ ->
             error
     end.
 

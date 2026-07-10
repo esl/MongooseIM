@@ -125,12 +125,15 @@ authorize(Creds) ->
                      Password :: binary()) -> boolean().
 check_password(_HostType, LUser, LServer, Password) ->
     US = {LUser, LServer},
-    case catch dirty_read_passwd(US) of
+    try dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_map(Scram) orelse is_record(Scram, scram) ->
             mongoose_scram:check_password(Password, Scram);
         [#passwd{password = Password}] ->
             Password /= <<>>;
         _ ->
+            false
+    catch
+        _:_ ->
             false
     end.
 
@@ -143,12 +146,15 @@ check_password(_HostType, LUser, LServer, Password) ->
                      DigestGen :: fun()) -> boolean().
 check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
     US = {LUser, LServer},
-    case catch dirty_read_passwd(US) of
+    try dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) orelse is_map(Scram) ->
             mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
         [#passwd{password = Passwd}] ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         _ ->
+            false
+    catch
+        _:_ ->
             false
     end.
 
@@ -282,7 +288,7 @@ matching_users(Prefix, Users) ->
           ejabberd_auth:passterm() | false.
 get_password(_, LUser, LServer) ->
     US = {LUser, LServer},
-    case catch dirty_read_passwd(US) of
+    try dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
             mongoose_scram:scram_record_to_map(Scram);
         [#passwd{password = Params}] when is_map(Params)->
@@ -291,12 +297,15 @@ get_password(_, LUser, LServer) ->
             Password;
         _ ->
             false
+    catch
+        _:_ ->
+            false
     end.
 
 -spec get_password_s(mongooseim:host_type(), jid:luser(), jid:lserver()) -> binary().
 get_password_s(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
-    case catch dirty_read_passwd(US) of
+    try dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
             <<"">>;
         [#passwd{password = Params}] when is_map(Params)->
@@ -305,19 +314,25 @@ get_password_s(_HostType, LUser, LServer) ->
             Password;
         _ ->
             <<"">>
+    catch
+        _:_ ->
+            <<"">>
     end.
 
 -spec does_user_exist(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
           boolean() | {error, atom()}.
 does_user_exist(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
-    case catch dirty_read_passwd(US) of
+    try dirty_read_passwd(US) of
         [] ->
             false;
         [_] ->
             true;
         Other ->
             {error, Other}
+    catch
+        _:Reason ->
+            {error, Reason}
     end.
 
 

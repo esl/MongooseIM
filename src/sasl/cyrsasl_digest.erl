@@ -207,7 +207,7 @@ binary_reverse(<<H, T/binary>>) ->
                          JabberHost :: 'undefined' | jid:server()) -> boolean().
 is_digesturi_valid(DigestURICase, JabberHost) ->
     DigestURI = jid:str_tolower(DigestURICase),
-    case catch binary:split(DigestURI, <<"/">>) of
+    case binary:split(DigestURI, <<"/">>) of
         [<<"xmpp">>, Host] when Host == JabberHost ->
             true;
         [<<"xmpp">>, _Host, ServName] when ServName == JabberHost ->

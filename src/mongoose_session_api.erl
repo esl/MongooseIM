@@ -244,7 +244,7 @@ prepare_reason(Reason) when is_binary(Reason) ->
 
 -spec get_status_list([session()], status()) -> [status_user_info()].
 get_status_list(Sessions0, StatusRequired) ->
-    Sessions = [ {catch mod_presence:get_presence(Pid), S, P}
+    Sessions = [ {try mod_presence:get_presence(Pid) catch _:_ -> undefined end, S, P}
                  || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P} <- Sessions0],
 
     [{jid:make_noprep(User, Server, Resource), Priority, StatusText}

@@ -63,7 +63,8 @@ get_rdbms_data_stats(HostType, Tag) ->
     Wpool = wpool_pool:find_wpool(PoolName),
     PoolSize = wpool_pool:wpool_get(size, Wpool),
     RDBMSWorkers = [whereis(wpool_pool:worker_name(PoolName, I)) || I <- lists:seq(1, PoolSize)],
-    RDBMSConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- RDBMSWorkers],
+    RDBMSConnections = [{try mongoose_rdbms:get_db_info(Pid) catch _:_ -> {error, no_info} end, Pid}
+                        || Pid <- RDBMSWorkers],
     Ports = [get_port_from_rdbms_connection(Conn) || Conn <- RDBMSConnections],
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
 

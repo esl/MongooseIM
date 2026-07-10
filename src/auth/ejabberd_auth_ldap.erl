@@ -147,9 +147,9 @@ authorize(Creds) ->
                      Password :: binary()) -> boolean().
 check_password(_HostType, _LUser, _LServer, <<"">>) -> false;
 check_password(HostType, LUser, LServer, Password) ->
-    case catch check_password_ldap(HostType, LUser, LServer, Password) of
-        {'EXIT', _} -> false;
-        Result -> Result
+    try check_password_ldap(HostType, LUser, LServer, Password)
+    catch
+        _:_ -> false
     end.
 
 -spec check_password(HostType :: mongooseim:host_type(),
@@ -198,8 +198,7 @@ try_register(HostType, LUser, _LServer, Password) ->
                            LServer :: jid:lserver(),
                            Opts :: map()) -> [jid:simple_bare_jid()].
 get_registered_users(HostType, LServer, Opts) ->
-    case catch get_registered_users_ldap(HostType, LServer) of
-      {'EXIT', _} -> [];
+    try get_registered_users_ldap(HostType, LServer) of
       Result ->
           Limit = maps:get(limit, Opts, undefined),
           Offset = maps:get(offset, Opts, 0),
@@ -209,6 +208,8 @@ get_registered_users(HostType, LServer, Opts) ->
                   SortedUsers = lists:sort(Result),
                   mongoose_pagination_utils:slice(SortedUsers, Limit, Offset)
           end
+    catch
+      _:_ -> []
     end.
 
 
@@ -223,9 +224,9 @@ get_registered_users_number(HostType, LServer, Opts) ->
                       LUser :: jid:luser(),
                       LServer :: jid:lserver()) -> boolean() | {error, atom()}.
 does_user_exist(HostType, LUser, LServer) ->
-    case catch does_user_exist_in_ldap(HostType, LUser, LServer) of
-      {'EXIT', Error} -> {error, Error};
-      Result -> Result
+    try does_user_exist_in_ldap(HostType, LUser, LServer)
+    catch
+      _:Error -> {error, Error}
     end.
 
 

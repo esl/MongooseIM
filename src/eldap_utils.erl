@@ -124,13 +124,9 @@ get_user_part(String, Pattern) ->
         TailLength = byte_size(P) - (First + 1),
         binary:part(S, First, byte_size(S) - TailLength - First + 1)
     end,
-    case catch F(String, Pattern) of
-            {'EXIT', _} ->
-                {error, badmatch};
+    try F(String, Pattern) of
         Result ->
-            case catch re:replace(Pattern, <<"%u">>, Result, [global, {return, binary}]) of
-                {'EXIT', _} ->
-                    {error, badmatch};
+            try re:replace(Pattern, <<"%u">>, Result, [global, {return, binary}]) of
                 StringRes ->
                     case case_insensitive_match(StringRes, String) of
                         true ->
@@ -138,7 +134,13 @@ get_user_part(String, Pattern) ->
                         false ->
                             {error, badmatch}
                     end
+            catch
+                _:_ ->
+                    {error, badmatch}
             end
+    catch
+        _:_ ->
+            {error, badmatch}
     end.
 
 

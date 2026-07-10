@@ -583,12 +583,12 @@ reset_meck_defaults() ->
                 fun(_Pid) -> ok end).
 
 teardown_mocks() ->
-    catch meck:unload(gen_mod),
-    catch meck:unload(mod_broadcast_backend),
-    catch meck:unload(ejabberd_auth),
-    catch meck:unload(broadcast_jobs_sup),
-    catch meck:unload(broadcast_worker),
-    catch meck:unload(mongoose_instrument),
+    try meck:unload(gen_mod) catch _:_ -> ok end,
+    try meck:unload(mod_broadcast_backend) catch _:_ -> ok end,
+    try meck:unload(ejabberd_auth) catch _:_ -> ok end,
+    try meck:unload(broadcast_jobs_sup) catch _:_ -> ok end,
+    try meck:unload(broadcast_worker) catch _:_ -> ok end,
+    try meck:unload(mongoose_instrument) catch _:_ -> ok end,
     ok.
 
 start_test_manager() ->
@@ -597,7 +597,7 @@ start_test_manager() ->
    {ok, Pid}.
 
 stop_test_manager(_Pid) ->
-    catch broadcast_manager:stop(broadcast_helper:host_type()),
+    try broadcast_manager:stop(broadcast_helper:host_type()) catch _:_ -> ok end,
     ok.
 
 assert_manager_survived(Pid) ->

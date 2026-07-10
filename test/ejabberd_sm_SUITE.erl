@@ -473,8 +473,8 @@ unload_meck() ->
     meck:unload(acl),
     meck:unload(gen_hook),
     meck:unload(mongoose_domain_api),
-    catch ets:delete(test_c2s_info),
-    catch meck:unload(mongoose_c2s).
+    try ets:delete(test_c2s_info) catch _:_ -> ok end,
+    try meck:unload(mongoose_c2s) catch _:_ -> ok end.
 
 set_test_case_meck(MaxUserSessions, MeckC2s) ->
     ets:new(test_c2s_info, [public, named_table]),

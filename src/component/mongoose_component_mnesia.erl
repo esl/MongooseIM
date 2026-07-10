@@ -22,10 +22,13 @@ init(_) ->
 
 update_tables() ->
     %% delete old schema
-    case catch mnesia:table_info(external_componenst, local_content) of
+    try mnesia:table_info(external_componenst, local_content) of
         true ->
             mnesia:delete_table(external_component);
         _ ->
+            ok
+    catch
+        _:_ ->
             ok
     end.
 

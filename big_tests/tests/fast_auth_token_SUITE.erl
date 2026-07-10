@@ -99,14 +99,8 @@ is_mech_supported(Mech, early_data) ->
     %% it requires per-connection random data as a part of the channel bindning
     %% data)
     mech_to_cb_type(Mech) =:= none;
-is_mech_supported(Mech, ParentGroup) ->
-    Ver = list_to_integer(erlang:system_info(otp_release)),
-    case mech_to_cb_type(Mech) of
-        expr ->
-            Ver >= 27;
-        _ ->
-            true
-    end.
+is_mech_supported(_Mech, _ParentGroup) ->
+    true.
 
 mech_to_cb_type(Mech) ->
     Type = lists:last(binary:split(Mech, <<"-">>, [global])),

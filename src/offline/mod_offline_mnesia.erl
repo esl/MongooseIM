@@ -108,9 +108,9 @@ count_offline_messages(_HostType, LUser, LServer, _MaxNeeded) ->
         Result = mnesia:read(offline_msg, US, read),
         length(Result)
     end,
-    case catch mnesia:async_dirty(F) of
-        I when is_integer(I) -> I;
-        _ -> 0
+    try mnesia:async_dirty(F)
+    catch
+        _:_ -> 0
     end.
 
 -spec remove_expired_messages(mongooseim:host_type(), jid:lserver()) ->

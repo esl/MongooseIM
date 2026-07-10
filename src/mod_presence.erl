@@ -654,9 +654,11 @@ get_mod_state(StateData) ->
 -spec get_priority_from_presence(exml:element()) -> priority().
 get_priority_from_presence(PresencePacket) ->
     MaybePriority = exml_query:path(PresencePacket, [{element, <<"priority">>}, cdata], undefined),
-    case catch binary_to_integer(MaybePriority) of
-        P when is_integer(P), -128 =< P, P =< 127 -> P;
+    try binary_to_integer(MaybePriority) of
+        P when -128 =< P, P =< 127 -> P;
         _ -> 0
+    catch
+        _:_ -> 0
     end.
 
 -spec get_old_priority(state()) -> maybe_priority().

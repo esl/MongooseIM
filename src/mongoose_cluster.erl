@@ -48,7 +48,7 @@ do_leave() ->
                   text => <<"Stop mongooseim to leave the cluster">>}),
     with_app_stopped(mongooseim,
                      fun () ->
-                             catch mnesia:stop(),
+                             try mnesia:stop() catch _:_ -> ok end,
                              detach_nodes(mnesia_nodes()),
                              delete_mnesia(),
                              ok = mnesia:start()
@@ -164,7 +164,7 @@ table_type(ClusterMember, T) ->
 %% This will remove all your Mnesia data!
 %% You've been warned.
 delete_mnesia() ->
-    catch mnesia:stop(),
+    try mnesia:stop() catch _:_ -> ok end,
     Dir = mnesia:system_info(directory),
     case application:get_env(mnesia, dir, undefined) of
         undefined -> ok;

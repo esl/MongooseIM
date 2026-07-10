@@ -277,7 +277,8 @@ insert_full_event(EventId, Domain) ->
 
 insert_full_events(EventIdDomain) ->
     Pool = get_db_pool(),
-    [catch execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+    [(try execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+      catch _:Reason -> {'EXIT', Reason} end)
      || {EventId, Domain} <- EventIdDomain].
 
 %% ----------------------------------------------------------------------------

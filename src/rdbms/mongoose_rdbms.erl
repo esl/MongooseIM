@@ -717,7 +717,7 @@ handle_info(Info, State) ->
 
 -spec terminate(Reason :: term(), state()) -> any().
 terminate(_Reason, #state{db_ref = DbRef}) ->
-    catch mongoose_rdbms_backend:disconnect(DbRef).
+    try mongoose_rdbms_backend:disconnect(DbRef) catch _:_ -> ok end.
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
@@ -777,16 +777,19 @@ nested_op({sql_execute_wrapped, Name, Params, Wrapper}, State) ->
 %% @doc Never retry nested transactions - only outer transactions
 -spec inner_transaction(fun(), state()) -> transaction_result() | {'EXIT', any()}.
 inner_transaction(F, _State) ->
-    case catch F() of
-        {aborted, Reason} ->
-            {aborted, Reason};
-        {'EXIT', Reason} ->
-            {'EXIT', Reason};
-        {atomic, Res} ->
-            {atomic, Res};
-        Res ->
-            {atomic, Res}
+    try F() of
+        Result -> tag_transaction_result(Result)
+    catch
+        throw:Result -> tag_transaction_result(Result);
+        exit:Reason -> {'EXIT', Reason};
+        error:Reason:Stacktrace -> {'EXIT', {Reason, Stacktrace}}
     end.
+
+-spec tag_transaction_result(any()) -> transaction_result() | {'EXIT', any()}.
+tag_transaction_result({aborted, _} = Result) -> Result;
+tag_transaction_result({atomic, _} = Result) -> Result;
+tag_transaction_result({'EXIT', _} = Result) -> Result;
+tag_transaction_result(Res) -> {atomic, Res}.
 
 -spec outer_transaction(F :: fun(),
                         NRestarts :: 0..10,

@@ -107,7 +107,8 @@ terminate(_State) ->
 check_server_purity(Suite, Config) ->
     case escalus_server:name(Config) of
         mongooseim ->
-            case catch do_check_server_purity(Suite) of
+            case (try do_check_server_purity(Suite)
+                   catch Class:Reason -> {'EXIT', {Class, Reason}} end) of
                 [] ->
                     ok;
                 R ->
