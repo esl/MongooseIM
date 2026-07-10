@@ -136,9 +136,13 @@ unavailable_presence_on_ws_disconnect(Config) ->
               escalus_assert:is_stanza_from(Geralt, Received),
 
               %% Geralt's websocket connection dies abruptly
+              C2SRef = sm_helper:monitor_session(Geralt),
               escalus_client:kill_connection(Config, Geralt),
 
-              %% Alice must receive unavailable presence from Geralt
+              %% the associated c2s process must terminate
+              ok = sm_helper:wait_for_process_termination(C2SRef),
+
+              %% and Alice must receive unavailable presence from Geralt
               Received2 = escalus:wait_for_stanza(Alice, timer:seconds(5)),
               escalus:assert(is_presence_with_type, [<<"unavailable">>], Received2),
               escalus_assert:is_stanza_from(Geralt, Received2)
