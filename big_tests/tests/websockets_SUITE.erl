@@ -34,6 +34,7 @@
 
 all() ->
     [metrics_test,
+     unavailable_presence_on_ws_disconnect,
      {group, ws_chat},
      {group, wss_chat}].
 
@@ -120,6 +121,28 @@ metrics_test(Config) ->
 
         ok
         end).
+
+%% When a websocket client abruptly drops the connection, the associated c2s
+%% process must terminate.
+unavailable_presence_on_ws_disconnect(Config) ->
+    escalus:story(
+      Config, [{alice, 1}, {geralt, 1}],
+      fun(Alice, Geralt) ->
+              %% Geralt sends directed available presence to Alice
+              AliceJid = escalus_client:short_jid(Alice),
+              escalus:send(Geralt, escalus_stanza:presence_direct(AliceJid, <<"available">>)),
+              Received = escalus:wait_for_stanza(Alice),
+              escalus:assert(is_presence, Received),
+              escalus_assert:is_stanza_from(Geralt, Received),
+
+              %% Geralt's websocket connection dies abruptly
+              escalus_client:kill_connection(Config, Geralt),
+
+              %% Alice must receive unavailable presence from Geralt
+              Received2 = escalus:wait_for_stanza(Alice, timer:seconds(5)),
+              escalus:assert(is_presence_with_type, [<<"unavailable">>], Received2),
+              escalus_assert:is_stanza_from(Geralt, Received2)
+      end).
 
 too_big_stanza_is_rejected(Config) ->
     escalus:story(
