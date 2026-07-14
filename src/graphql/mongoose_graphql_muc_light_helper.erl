@@ -51,15 +51,12 @@ options_to_map(Options) ->
     maps:from_list([{K, V} || #{<<"key">> := K, <<"value">> := V} <- Options]).
 
 -spec make_rooms_payload([mod_muc_light_api:room_desc()], non_neg_integer(),
-                         jid:jid() | undefined) -> map().
-make_rooms_payload(RoomDescs, Count, NextCursor) ->
+                         boolean()) -> map().
+make_rooms_payload(RoomDescs, Count, HasNextPage) ->
     Rooms = [{ok, make_room_desc(D)} || D <- RoomDescs],
     #{<<"rooms">> => Rooms,
       <<"count">> => Count,
-      <<"nextCursor">> => next_cursor_value(NextCursor)}.
-
-next_cursor_value(undefined) -> null;
-next_cursor_value(JID) -> jid:to_binary(JID).
+      <<"nextPage">> => HasNextPage}.
 
 -spec make_room_desc(mod_muc_light_api:room_desc()) -> map().
 make_room_desc(#{jid := JID, name := Name, subject := Subject,

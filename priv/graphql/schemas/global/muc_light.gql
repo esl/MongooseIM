@@ -86,8 +86,8 @@ type MUCLightRoomsPayload{
   rooms: [MUCLightRoomDesc!]
   "Total number of rooms in the domain matching the filter"
   count: NonNegInt
-  "JID of the last room in this page; pass it as 'after' to get the next page. Null when there are no more rooms"
-  nextCursor: BareJID
+  "Whether more rooms exist after this page"
+  nextPage: Boolean
 }
 
 "MUC Light room description"

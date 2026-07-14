@@ -42,7 +42,7 @@
 
 -type list_rooms_result() :: {Rooms :: [room_desc()],
                               Count :: non_neg_integer(),
-                              NextCursor :: jid:jid() | undefined}.
+                              HasNextPage :: boolean()}.
 
 -export_type([room/0, room_desc/0, list_rooms_result/0]).
 
@@ -171,7 +171,7 @@ get_user_rooms(UserJID) ->
 get_rooms(MUCServer, Filter, After, Limit) ->
     M = #{muc_server => MUCServer, filter => normalize_filter(Filter),
           after_room => After, limit => Limit},
-    fold(M, [fun check_muc_domain/1, fun do_get_rooms/1]).
+    fold(M, [fun check_muc_server/1, fun do_get_rooms/1]).
 
 -spec get_blocking_list(jid:jid()) -> {ok, [blocking_item()]} | {user_not_found, iolist()}.
 get_blocking_list(UserJID) ->
@@ -195,22 +195,25 @@ check_user(M = #{user := UserJID = #jid{lserver = LServer}}) ->
     end.
 
 check_muc_domain(M = #{room := #jid{lserver = LServer}}) ->
-    check_muc_lserver(LServer, M);
-check_muc_domain(M = #{muc_server := MUCServer}) ->
-    case jid:nameprep(MUCServer) of
-        error ->
-            ?MUC_SERVER_NOT_FOUND_RESULT;
-        LServer ->
-            %% Store the nameprepped value, as the backends match on it verbatim
-            check_muc_lserver(LServer, M#{muc_server := LServer})
-    end.
-
-check_muc_lserver(LServer, M) ->
     case mongoose_domain_api:get_subdomain_host_type(LServer) of
         {ok, HostType} ->
             M#{muc_host_type => HostType};
         {error, not_found} ->
             ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
+
+check_muc_server(M = #{muc_server := MUCServer}) ->
+    case jid:nameprep(MUCServer) of
+        error ->
+            ?MUC_SERVER_NOT_FOUND_RESULT;
+        LServer ->
+            case mongoose_domain_api:get_subdomain_host_type(LServer) of
+                {ok, HostType} ->
+                    %% Store the nameprepped value, as the backends match on it verbatim
+                    M#{muc_server := LServer, muc_host_type => HostType};
+                {error, not_found} ->
+                    ?MUC_SERVER_NOT_FOUND_RESULT
+            end
     end.
 
 check_room_member(M = #{user := UserJID, aff_users := AffUsers}) ->
@@ -385,11 +388,7 @@ do_get_rooms(#{muc_server := MUCServer, muc_host_type := HostType,
         mod_muc_light_db_backend:get_room_descs(HostType, MUCServer, Filter, After, Limit + 1),
     Schema = mod_muc_light:config_schema(MUCServer),
     Page = [raw_to_room_desc(R, Schema) || R <- lists:sublist(Raw, Limit)],
-    NextCursor = case length(Raw) > Limit of
-                     true -> maps:get(jid, lists:last(Page));
-                     false -> undefined
-                 end,
-    {ok, {Page, Count, NextCursor}}.
+    {ok, {Page, Count, length(Raw) > Limit}}.
 
 normalize_filter(undefined) -> undefined;
 normalize_filter(<<>>) -> undefined;

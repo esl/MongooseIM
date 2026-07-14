@@ -87,8 +87,8 @@ list_rooms(#{<<"mucDomain">> := MUCDomain, <<"filter">> := Filter,
     After2 = after_to_luser(null_to_undefined(After)),
     Limit2 = null_to_default(Limit, ?DEFAULT_ROOMS_PAGE_SIZE),
     case mod_muc_light_api:get_rooms(MUCDomain, Filter2, After2, Limit2) of
-        {ok, {Rooms, Count, NextCursor}} ->
-            {ok, mongoose_graphql_muc_light_helper:make_rooms_payload(Rooms, Count, NextCursor)};
+        {ok, {Rooms, Count, HasNextPage}} ->
+            {ok, mongoose_graphql_muc_light_helper:make_rooms_payload(Rooms, Count, HasNextPage)};
         Err ->
             make_error(Err, #{mucDomain => MUCDomain})
     end.

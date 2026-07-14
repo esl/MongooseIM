@@ -674,22 +674,10 @@ room_desc(HostType, MUCServer, Schema, DbRoomID, RoomU) ->
             false;
         AffUsers ->
             {selected, ConfigRows} = select_config_by_room_id(HostType, RoomID),
+            {ok, Config} = mod_muc_light_room_config:from_binary_kv(ConfigRows, Schema),
             {true, #{room => {RoomU, MUCServer},
-                     config => decode_config_lenient(ConfigRows, RoomU, MUCServer, Schema),
+                     config => Config,
                      aff_users => AffUsers}}
-    end.
-
-%% A config that no longer decodes against the current schema (e.g. created
-%% before a config_schema change) must not break the room listing, so it
-%% degrades to an empty config instead of crashing.
-decode_config_lenient(ConfigRows, RoomU, MUCServer, Schema) ->
-    case mod_muc_light_room_config:from_binary_kv(ConfigRows, Schema) of
-        {ok, Config} ->
-            Config;
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => muc_light_room_config_decode_failed,
-                           room => RoomU, sub_host => MUCServer, reason => Reason}),
-            []
     end.
 
 %% ------------------------ Conversions ------------------------

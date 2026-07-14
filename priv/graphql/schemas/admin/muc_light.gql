@@ -46,15 +46,7 @@ type MUCLightAdminQuery @protected @use(modules: ["mod_muc_light"]){
   "Get the user's list of blocked entities"
   getBlockingList(user: JID!): [BlockingItem!]
     @protected(type: DOMAIN, args: ["user"]) @use(args: ["user"])
-  "Get rooms under the given MUC Light domain, paginated by room JID"
-  listRooms(
-    mucDomain: DomainName!
-    "Return only rooms whose JID localpart or name contains this string (case-insensitive)"
-    filter: String
-    "JID of the last room from the previous page (see MUCLightRoomsPayload.nextCursor)"
-    after: BareJID
-    "Maximum number of rooms to return in one page"
-    limit: PosInt = 50
-  ): MUCLightRoomsPayload
+  "Get rooms of the given MUC Light domain, ordered by JID. To get the next page, pass the JID of the last room as 'after'. 'filter' matches a substring of the room JID or name"
+  listRooms(mucDomain: DomainName!, filter: String, after: BareJID, limit: PosInt = 50): MUCLightRoomsPayload
     @protected(type: DOMAIN, args: ["mucDomain"]) @use(args: ["mucDomain"])
 }

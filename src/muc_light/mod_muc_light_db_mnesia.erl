@@ -238,21 +238,29 @@ get_info(_HostType, RoomUS) ->
                      jid:luser() | undefined, pos_integer()) ->
     {[mod_muc_light_db_backend:room_desc()], non_neg_integer()}.
 get_room_descs(_HostType, MUCServer, Filter, After, Limit) ->
-    MS = ets:fun2ms(fun(#muc_light_room{room = {_, RoomS}} = Room)
-                          when RoomS =:= MUCServer -> Room end),
+    %% The first page passes an empty cursor: every luser sorts after <<>>
+    AfterLUser = case After of undefined -> <<>>; _ -> After end,
+    MS = ets:fun2ms(fun(#muc_light_room{room = {RoomU, RoomS}} = Room)
+                          when RoomS =:= MUCServer, RoomU > AfterLUser -> Room end),
     Rooms = mnesia:dirty_select(muc_light_room, MS),
     Schema = mod_muc_light:config_schema(MUCServer),
     Matching = lists:keysort(#muc_light_room.room,
                              [R || R <- Rooms, room_matches_filter(R, Filter, Schema)]),
-    Page = lists:sublist(drop_up_to_cursor(Matching, After), Limit),
+    Page = lists:sublist(Matching, Limit),
     Descs = [#{room => RoomUS, config => Config, aff_users => AffUsers}
              || #muc_light_room{room = RoomUS, config = Config, aff_users = AffUsers} <- Page],
-    {Descs, length(Matching)}.
+    {Descs, count_rooms(MUCServer, Filter, Schema)}.
 
-drop_up_to_cursor(Rooms, undefined) ->
-    Rooms;
-drop_up_to_cursor(Rooms, After) ->
-    lists:dropwhile(fun(#muc_light_room{room = {RoomU, _}}) -> RoomU =< After end, Rooms).
+%% The count covers the whole domain, so it cannot reuse the page cursor
+count_rooms(MUCServer, undefined, _Schema) ->
+    MS = ets:fun2ms(fun(#muc_light_room{room = {_, RoomS}})
+                          when RoomS =:= MUCServer -> true end),
+    length(mnesia:dirty_select(muc_light_room, MS));
+count_rooms(MUCServer, Filter, Schema) ->
+    MS = ets:fun2ms(fun(#muc_light_room{room = {_, RoomS}} = Room)
+                          when RoomS =:= MUCServer -> Room end),
+    length([R || R <- mnesia:dirty_select(muc_light_room, MS),
+                 room_matches_filter(R, Filter, Schema)]).
 
 room_matches_filter(_Room, undefined, _Schema) ->
     true;
@@ -260,7 +268,7 @@ room_matches_filter(#muc_light_room{room = {RoomU, _}, config = Config}, Filter,
     binary:match(RoomU, Filter) =/= nomatch
         orelse room_name_matches(Config, Filter, Schema).
 
-%% Config is keyed by the internal schema key, which may differ from the field name
+%% The stored config is keyed by the internal key of the schema's roomname field
 room_name_matches(Config, Filter, Schema) ->
     case lists:keyfind(<<"roomname">>, 1, Schema) of
         {_FieldName, _Default, Key, _Type} ->
