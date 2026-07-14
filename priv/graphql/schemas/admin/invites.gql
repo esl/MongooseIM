@@ -1,0 +1,16 @@
+"""
+Allow admin to manage invites.
+"""
+type InvitesAdminMutation @use(modules: ["mod_invites"]) @protected{
+  "Generate Account Creation Invite for given XMPP hostname"
+  generateInvite(host: DomainName!): Invite
+    @protected(type: DOMAIN, args: ["host"]) @use(args: ["host"])
+}
+
+"""
+Allow admin to retrieve information about invites.
+"""
+type InvitesAdminQuery @protected @use(modules: ["mod_invites"]){
+  listInvites(host: DomainName!): [Invite!]
+    @protected(type: DOMAIN, args: ["host"]) @use(args: ["host"])
+}

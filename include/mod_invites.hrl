@@ -1,0 +1,24 @@
+-define(DEFAULT_MAX_INVITES, infinity).
+-define(DEFAULT_TOKEN_EXPIRE_SECONDS, 5*86400).
+-define(DEFAULT_TOKEN_LENGTH, 24).
+
+-define(NS_INVITE_INVITE, <<"urn:xmpp:invite#invite">>).
+-define(NS_INVITE_CREATE_ACCOUNT, <<"urn:xmpp:invite#create-account">>).
+
+-define(OVERUSE_LIMIT, 1000).
+
+-define(SPEEDY_GOAT_LEVELS, 2).
+-define(SPEEDY_GOAT_SECONDS, 300).
+
+-record(invite_token, {token :: binary(),
+                       inviter :: {binary(), binary()},
+                       %% A non-empty value if `invitee` indicates the invite has been used.
+                       invitee = <<>> :: binary(),
+                       created_at = calendar:now_to_datetime(erlang:timestamp()) :: calendar:datetime(),
+                       expires = calendar:gregorian_seconds_to_datetime(calendar:datetime_to_gregorian_seconds(calendar:now_to_datetime(erlang:timestamp())) + ?DEFAULT_TOKEN_EXPIRE_SECONDS) :: calendar:datetime(),
+                       type = roster_only :: roster_only | account_only | account_subscription | reset_token,
+                       %% If type is 'roster_only' then we indicate a token has been used to create
+                       %% an account (if allowed) by setting `account_name` to the name of the user
+                       %% (which should match `invitee`).
+                       account_name = <<>> :: binary()
+                      }).
