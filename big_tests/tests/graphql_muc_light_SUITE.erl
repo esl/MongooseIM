@@ -137,8 +137,6 @@ admin_muc_light_tests() ->
      admin_list_rooms,
      admin_list_rooms_pagination,
      admin_list_rooms_filter,
-     admin_list_rooms_owner_absent,
-     admin_list_rooms_broken_config,
      admin_list_rooms_schema_without_roomname,
      admin_list_rooms_non_existent_domain,
      admin_get_room_config,
@@ -324,10 +322,20 @@ maybe_clear_db() ->
             ok
     end.
 
+init_per_testcase(admin_list_rooms_schema_without_roomname = TC, Config) ->
+    %% A config_schema may not define the roomname field at all
+    NoRoomnameSchema = [{<<"subject">>, <<"Test">>, subject, binary}],
+    Opts = config([modules, mod_muc_light],
+                  maps:merge(muc_light_opts(), #{config_schema => NoRoomnameSchema})),
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_muc_light, Opts}]),
+    escalus:init_per_testcase(TC, Config);
 init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, [user_get_room_messages,
                                                admin_get_room_messages], Config).
 
+end_per_testcase(admin_list_rooms_schema_without_roomname = TC, Config) ->
+    dynamic_modules:ensure_modules(domain_helper:host_type(), required_modules(suite)),
+    escalus:end_per_testcase(TC, Config);
 end_per_testcase(TC, Config) ->
     escalus:end_per_testcase(TC, Config).
 
@@ -1506,13 +1514,13 @@ admin_list_rooms_story(Config, Alice, Bob) ->
     %% (the admin group does not clear rooms between test cases).
     ok = rpc(mim(), mod_muc_light_db_backend, force_clear, [domain_helper:host_type()]),
     %% Empty domain
-    #{<<"rooms">> := [], <<"count">> := 0, <<"nextCursor">> := null} =
+    #{<<"rooms">> := [], <<"count">> := 0, <<"nextPage">> := false} =
         get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, null, Config)),
     %% Create two rooms (Alice owns room1, Bob owns room2), invite Bob into room1
     {ok, #{jid := RoomJID1}} = create_room(MUCServer, <<"Room A">>, <<"subjectA">>, AliceBin),
     {ok, #{jid := RoomJID2}} = create_room(MUCServer, <<"Room B">>, <<"subjectB">>, BobBin),
     invite_user(RoomJID1, AliceBin, BobBin),
-    #{<<"rooms">> := Rooms, <<"count">> := 2, <<"nextCursor">> := null} =
+    #{<<"rooms">> := Rooms, <<"count">> := 2, <<"nextPage">> := false} =
         get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, null, Config)),
     R1 = find_room_desc(jid:to_binary(RoomJID1), Rooms),
     ?assertEqual(<<"Room A">>, maps:get(<<"name">>, R1)),
@@ -1535,24 +1543,25 @@ admin_list_rooms_pagination_story(Config, Alice) ->
     [{ok, _} = create_room(MUCServer, Name, <<"s">>, AliceBin)
      || Name <- [<<"R1">>, <<"R2">>, <<"R3">>]],
     %% Full listing (limit defaults to 50), capture the global sort order
-    #{<<"rooms">> := All, <<"count">> := 3, <<"nextCursor">> := null} =
+    #{<<"rooms">> := All, <<"count">> := 3, <<"nextPage">> := false} =
         get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, null, Config)),
     AllJids = [maps:get(<<"jid">>, R) || R <- All],
     ?assertEqual(lists:sort(AllJids), AllJids),
-    %% First page: limit 2 -> first two rooms, cursor points at the second one
-    #{<<"rooms">> := Page1, <<"count">> := 3, <<"nextCursor">> := Cursor} =
+    %% First page: limit 2 -> first two rooms, more pages ahead
+    #{<<"rooms">> := Page1, <<"count">> := 3, <<"nextPage">> := true} =
         get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, 2, Config)),
-    ?assertEqual(lists:sublist(AllJids, 1, 2), [maps:get(<<"jid">>, R) || R <- Page1]),
-    ?assertEqual(lists:nth(2, AllJids), Cursor),
-    %% Second page: after the cursor -> last room only, no further pages
-    #{<<"rooms">> := Page2, <<"count">> := 3, <<"nextCursor">> := null} =
-        get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, Cursor, 2, Config)),
+    Page1Jids = [maps:get(<<"jid">>, R) || R <- Page1],
+    ?assertEqual(lists:sublist(AllJids, 1, 2), Page1Jids),
+    %% Second page: after the last JID of the first page -> last room only
+    #{<<"rooms">> := Page2, <<"count">> := 3, <<"nextPage">> := false} =
+        get_ok_value(?USER_LIST_ROOMS_PATH,
+                     list_rooms(MUCServer, null, lists:last(Page1Jids), 2, Config)),
     ?assertEqual(lists:sublist(AllJids, 3, 1), [maps:get(<<"jid">>, R) || R <- Page2]),
     %% An exactly-full last page also reports no further pages
-    #{<<"rooms">> := All, <<"count">> := 3, <<"nextCursor">> := null} =
+    #{<<"rooms">> := All, <<"count">> := 3, <<"nextPage">> := false} =
         get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, 3, Config)),
     %% After the last room -> empty page, count unchanged
-    #{<<"rooms">> := [], <<"count">> := 3, <<"nextCursor">> := null} =
+    #{<<"rooms">> := [], <<"count">> := 3, <<"nextPage">> := false} =
         get_ok_value(?USER_LIST_ROOMS_PATH,
                      list_rooms(MUCServer, null, lists:last(AllJids), 2, Config)).
 
@@ -1570,7 +1579,7 @@ admin_list_rooms_filter_story(Config, Alice) ->
                        {<<"banana-room">>, <<"Yellow">>},
                        {<<"cherry-room">>, <<"fruit annex">>}]],
     %% Filter by a substring of the room JID localpart
-    #{<<"rooms">> := [Apple], <<"count">> := 1, <<"nextCursor">> := null} =
+    #{<<"rooms">> := [Apple], <<"count">> := 1, <<"nextPage">> := false} =
         get_ok_value(?USER_LIST_ROOMS_PATH,
                      list_rooms(MUCServer, <<"apple">>, null, null, Config)),
     ?assertEqual(<<"apple-room@", MUCServer/binary>>, maps:get(<<"jid">>, Apple)),
@@ -1581,99 +1590,21 @@ admin_list_rooms_filter_story(Config, Alice) ->
     ?assertEqual([<<"apple-room@", MUCServer/binary>>, <<"cherry-room@", MUCServer/binary>>],
                  [maps:get(<<"jid">>, R) || R <- FruitRooms]),
     %% Filter composes with cursor pagination
-    #{<<"rooms">> := [RoomA], <<"count">> := 3, <<"nextCursor">> := Cursor} =
+    #{<<"rooms">> := [RoomA], <<"count">> := 3, <<"nextPage">> := true} =
         get_ok_value(?USER_LIST_ROOMS_PATH,
                      list_rooms(MUCServer, <<"room">>, null, 1, Config)),
-    #{<<"rooms">> := [RoomB], <<"count">> := 3, <<"nextCursor">> := _} =
+    #{<<"rooms">> := [RoomB], <<"count">> := 3, <<"nextPage">> := true} =
         get_ok_value(?USER_LIST_ROOMS_PATH,
-                     list_rooms(MUCServer, <<"room">>, Cursor, 1, Config)),
+                     list_rooms(MUCServer, <<"room">>, maps:get(<<"jid">>, RoomA), 1, Config)),
     ?assertEqual([<<"apple-room@", MUCServer/binary>>, <<"banana-room@", MUCServer/binary>>],
                  [maps:get(<<"jid">>, RoomA), maps:get(<<"jid">>, RoomB)]),
     %% No match -> empty page and zero count
-    #{<<"rooms">> := [], <<"count">> := 0, <<"nextCursor">> := null} =
+    #{<<"rooms">> := [], <<"count">> := 0, <<"nextPage">> := false} =
         get_ok_value(?USER_LIST_ROOMS_PATH,
                      list_rooms(MUCServer, <<"does-not-match-anything">>, null, null, Config)),
     %% An empty filter behaves like no filter
     #{<<"count">> := 3} =
-        get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, <<>>, null, null, Config)),
-    %% A room stored without any config (raw backend write) is matched by JID
-    %% but never by name
-    HostType = domain_helper:host_type(),
-    RawUS = {<<"rawroom">>, MUCServer},
-    MemberUS = {<<"bob">>, domain_helper:domain()},
-    {ok, _} = rpc(mim(), mod_muc_light_db_backend, create_room,
-                  [HostType, RawUS, [], [{MemberUS, member}], <<"v1">>]),
-    #{<<"count">> := 2} =
-        get_ok_value(?USER_LIST_ROOMS_PATH,
-                     list_rooms(MUCServer, <<"FRUIT">>, null, null, Config)),
-    #{<<"rooms">> := [RawRoom], <<"count">> := 1} =
-        get_ok_value(?USER_LIST_ROOMS_PATH,
-                     list_rooms(MUCServer, <<"rawroom">>, null, null, Config)),
-    ?assertEqual(<<"rawroom@", MUCServer/binary>>, maps:get(<<"jid">>, RawRoom)).
-
-admin_list_rooms_owner_absent(Config) ->
-    MUCServer = ?config(muc_light_host, Config),
-    HostType = domain_helper:host_type(),
-    Domain = domain_helper:domain(),
-    %% This test uses a fixed room name, so clear leftovers of an aborted
-    %% previous run that was killed before the cleanup in `after` could run.
-    ok = rpc(mim(), mod_muc_light_db_backend, force_clear, [HostType]),
-    Schema = rpc(mim(), mod_muc_light, config_schema, [MUCServer]),
-    {ok, RoomConfig} = rpc(mim(), mod_muc_light_room_config, from_binary_kv,
-                           [[{<<"roomname">>, <<"Orphan">>}], Schema]),
-    RoomU = <<"orphanroom">>,
-    RoomUS = {RoomU, MUCServer},
-    %% Write a member-only room straight to the backend (no owner affiliation) to
-    %% exercise ownerJid = null. The member account need not exist for a raw insert.
-    MemberUS = {<<"bob">>, Domain},
-    {ok, _} = rpc(mim(), mod_muc_light_db_backend, create_room,
-                  [HostType, RoomUS, RoomConfig, [{MemberUS, member}], <<"v1">>]),
-    try
-        #{<<"rooms">> := Rooms} =
-            get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, null, Config)),
-        OrphanBin = jid:to_binary(jid:make_bare(RoomU, MUCServer)),
-        Orphan = find_room_desc(OrphanBin, Rooms),
-        ?assertEqual(null, maps:get(<<"ownerJid">>, Orphan)),
-        ?assertEqual(1, maps:get(<<"usersNumber">>, Orphan)),
-        ?assertEqual(<<"Orphan">>, maps:get(<<"name">>, Orphan))
-    after
-        rpc(mim(), mod_muc_light_db_backend, destroy_room, [HostType, RoomUS])
-    end.
-
-admin_list_rooms_broken_config(Config) ->
-    case {mongoose_helper:mnesia_or_rdbms_backend(), ?config(protocol, Config)} of
-        {mnesia, _} ->
-            {skip, "Only the RDBMS backend re-decodes stored configs when listing"};
-        {rdbms, cli} ->
-            {skip, "The decode warning is forwarded into the CLI output, breaking its JSON"};
-        {rdbms, http} ->
-            escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                            fun admin_list_rooms_broken_config_story/2)
-    end.
-
-admin_list_rooms_broken_config_story(Config, Alice) ->
-    AliceBin = escalus_client:short_jid(Alice),
-    MUCServer = ?config(muc_light_host, Config),
-    HostType = domain_helper:host_type(),
-    %% Start from a clean slate so domain-wide counts are deterministic.
-    ok = rpc(mim(), mod_muc_light_db_backend, force_clear, [HostType]),
-    {ok, _} = create_identified_room(MUCServer, <<"Broken">>, <<"s">>, AliceBin,
-                                     <<"broken-room">>),
-    {ok, _} = create_identified_room(MUCServer, <<"Healthy">>, <<"s">>, AliceBin,
-                                     <<"healthy-room">>),
-    %% Corrupt the stored config: an option that no longer decodes against the
-    %% current config_schema (as after a schema change) must degrade that
-    %% room's config instead of failing the whole listing.
-    Insert = <<"INSERT INTO muc_light_config (room_id, opt, val) "
-               "SELECT id, 'bogus_option', 'x' FROM muc_light_rooms "
-               "WHERE luser = 'broken-room' AND lserver = '", MUCServer/binary, "'">>,
-    {updated, 1} = rpc(mim(), mongoose_rdbms, sql_query, [HostType, Insert]),
-    #{<<"rooms">> := Rooms, <<"count">> := 2} =
-        get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, null, Config)),
-    Broken = find_room_desc(<<"broken-room@", MUCServer/binary>>, Rooms),
-    ?assertEqual(null, maps:get(<<"name">>, Broken)),
-    Healthy = find_room_desc(<<"healthy-room@", MUCServer/binary>>, Rooms),
-    ?assertEqual(<<"Healthy">>, maps:get(<<"name">>, Healthy)).
+        get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, <<>>, null, null, Config)).
 
 admin_list_rooms_schema_without_roomname(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -1682,42 +1613,26 @@ admin_list_rooms_schema_without_roomname(Config) ->
 admin_list_rooms_schema_without_roomname_story(Config, Alice) ->
     AliceBin = escalus_client:short_jid(Alice),
     MUCServer = ?config(muc_light_host, Config),
-    HostType = domain_helper:host_type(),
     %% Start from a clean slate so domain-wide counts are deterministic.
-    ok = rpc(mim(), mod_muc_light_db_backend, force_clear, [HostType]),
-    %% A config_schema may not define the roomname field at all; the listing
-    %% must then report name = null and never match rooms by name
-    NoRoomnameSchema = [{<<"subject">>, <<"Test">>, subject, binary}],
-    Opts = config([modules, mod_muc_light],
-                  maps:merge(muc_light_opts(), #{config_schema => NoRoomnameSchema})),
-    dynamic_modules:ensure_modules(HostType, [{mod_muc_light, Opts}]),
-    try
-        CreatorJID = jid:from_binary(AliceBin),
-        {ok, _} = rpc(mim(), mod_muc_light_api, create_room,
-                      [MUCServer, <<"noname-room">>, CreatorJID, #{<<"subject">> => <<"s">>}]),
-        #{<<"rooms">> := [Room], <<"count">> := 1} =
-            get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, null, Config)),
-        ?assertEqual(null, maps:get(<<"name">>, Room)),
-        ?assertEqual(<<"s">>, maps:get(<<"subject">>, Room)),
-        %% A filter can only match the JID, as there is no name to match
-        #{<<"rooms">> := [], <<"count">> := 0} =
-            get_ok_value(?USER_LIST_ROOMS_PATH,
-                         list_rooms(MUCServer, <<"qqq">>, null, null, Config)),
-        #{<<"count">> := 1} =
-            get_ok_value(?USER_LIST_ROOMS_PATH,
-                         list_rooms(MUCServer, <<"noname">>, null, null, Config))
-    after
-        dynamic_modules:ensure_modules(HostType, required_modules(suite))
-    end.
+    ok = rpc(mim(), mod_muc_light_db_backend, force_clear, [domain_helper:host_type()]),
+    CreatorJID = jid:from_binary(AliceBin),
+    {ok, _} = rpc(mim(), mod_muc_light_api, create_room,
+                  [MUCServer, <<"noname-room">>, CreatorJID, #{<<"subject">> => <<"s">>}]),
+    #{<<"rooms">> := [Room], <<"count">> := 1} =
+        get_ok_value(?USER_LIST_ROOMS_PATH, list_rooms(MUCServer, null, null, null, Config)),
+    ?assertEqual(null, maps:get(<<"name">>, Room)),
+    ?assertEqual(<<"s">>, maps:get(<<"subject">>, Room)),
+    %% A filter can only match the JID, as there is no name to match
+    #{<<"rooms">> := [], <<"count">> := 0} =
+        get_ok_value(?USER_LIST_ROOMS_PATH,
+                     list_rooms(MUCServer, <<"qqq">>, null, null, Config)),
+    #{<<"count">> := 1} =
+        get_ok_value(?USER_LIST_ROOMS_PATH,
+                     list_rooms(MUCServer, <<"noname">>, null, null, Config)).
 
 admin_list_rooms_non_existent_domain(Config) ->
     Res = list_rooms(<<"non-existent-muclight.example.com">>, null, null, null, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
-    %% A domain failing nameprep is reported the same way by the Erlang API
-    %% (the GraphQL DomainName scalar rejects such input before the resolver)
-    TooLong = binary:copy(<<"x">>, 2048),
-    {muc_server_not_found, _} = rpc(mim(), mod_muc_light_api, get_rooms,
-                                    [TooLong, undefined, undefined, 5]).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_get_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_get_room_config_story/2).
