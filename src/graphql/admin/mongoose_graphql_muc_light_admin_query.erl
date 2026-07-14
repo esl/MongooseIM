@@ -84,7 +84,7 @@ get_blocking_list(#{<<"user">> := UserJID}) ->
 list_rooms(#{<<"mucDomain">> := MUCDomain, <<"filter">> := Filter,
              <<"after">> := After, <<"limit">> := Limit}) ->
     Filter2 = null_to_undefined(Filter),
-    After2 = after_to_luser(null_to_undefined(After)),
+    After2 = after_to_luser(After),
     Limit2 = null_to_default(Limit, ?DEFAULT_ROOMS_PAGE_SIZE),
     case mod_muc_light_api:get_rooms(MUCDomain, Filter2, After2, Limit2) of
         {ok, {Rooms, Count, HasNextPage}} ->
@@ -93,7 +93,7 @@ list_rooms(#{<<"mucDomain">> := MUCDomain, <<"filter">> := Filter,
             make_error(Err, #{mucDomain => MUCDomain})
     end.
 
-after_to_luser(undefined) ->
+after_to_luser(null) ->
     undefined;
 after_to_luser(JID) ->
     {LUser, _} = jid:to_lus(JID),

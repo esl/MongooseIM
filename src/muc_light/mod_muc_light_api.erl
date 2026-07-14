@@ -209,7 +209,6 @@ check_muc_server(M = #{muc_server := MUCServer}) ->
         LServer ->
             case mongoose_domain_api:get_subdomain_host_type(LServer) of
                 {ok, HostType} ->
-                    %% Store the nameprepped value, as the backends match on it verbatim
                     M#{muc_server := LServer, muc_host_type => HostType};
                 {error, not_found} ->
                     ?MUC_SERVER_NOT_FOUND_RESULT
@@ -439,14 +438,12 @@ get_aff(UserUS, Affs) ->
 -spec raw_to_room_desc(mod_muc_light_db_backend:room_desc(),
                        mod_muc_light_room_config:schema()) -> room_desc().
 raw_to_room_desc(#{room := {RoomU, RoomS}, config := Config, aff_users := AffUsers}, Schema) ->
-    %% DB rows are already prepped; make_noprep cannot fail on a malformed row
     #{jid => jid:make_noprep(RoomU, RoomS, <<>>),
       name => config_field(<<"roomname">>, Config, Schema),
       subject => config_field(<<"subject">>, Config, Schema),
       users_number => length(AffUsers),
       owner => find_owner(AffUsers)}.
 
-%% Config kv() is keyed by the internal schema key, which may differ from the field name
 -spec config_field(binary(), mod_muc_light_room_config:kv(),
                    mod_muc_light_room_config:schema()) -> binary() | undefined.
 config_field(FieldName, Config, Schema) ->

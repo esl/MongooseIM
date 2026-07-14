@@ -268,7 +268,6 @@ room_matches_filter(#muc_light_room{room = {RoomU, _}, config = Config}, Filter,
     binary:match(RoomU, Filter) =/= nomatch
         orelse room_name_matches(Config, Filter, Schema).
 
-%% The stored config is keyed by the internal key of the schema's roomname field
 room_name_matches(Config, Filter, Schema) ->
     case lists:keyfind(<<"roomname">>, 1, Schema) of
         {_FieldName, _Default, Key, _Type} ->
