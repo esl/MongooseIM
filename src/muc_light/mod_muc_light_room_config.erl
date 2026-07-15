@@ -32,8 +32,8 @@
 
 %% Config primitives
 -type key() :: atom().
--type value() :: binary() | integer() | float().
--type value_type() :: binary | integer | float.
+-type value() :: binary() | integer() | float() | boolean().
+-type value_type() :: binary | integer | float | boolean.
 
 %% Actual config
 -type item() :: {key(), value()}.
@@ -107,9 +107,17 @@ take_next_binary_kv([{KeyBin, _} | _], _) ->
 -spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: value().
 b2value(ValBin, binary) when is_binary(ValBin) -> ValBin;
 b2value(ValBin, integer) -> binary_to_integer(ValBin);
-b2value(ValBin, float) -> binary_to_float(ValBin).
+b2value(ValBin, float) -> binary_to_float(ValBin);
+b2value(ValBin, boolean) -> binary_to_bool(ValBin).
 
 -spec value2b(Val :: value(), Type :: value_type()) -> Converted :: binary().
 value2b(Val, binary) when is_binary(Val) -> Val;
 value2b(Val, integer) -> integer_to_binary(Val);
-value2b(Val, float) -> float_to_binary(Val).
+value2b(Val, float) -> float_to_binary(Val);
+value2b(Val, boolean) -> bool_to_binary(Val).
+
+binary_to_bool(<<"true">>) -> true;
+binary_to_bool(<<"false">>) -> false.
+
+bool_to_binary(true) -> <<"true">>;
+bool_to_binary(false) -> <<"false">>.

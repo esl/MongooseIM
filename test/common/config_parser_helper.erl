@@ -934,6 +934,8 @@ default_mod_config(mod_muc_light) ->
       rooms_per_page => 10,
       rooms_in_rosters => false,
       allow_multiple_owners => false,
+      promote_on_last_admin_leave => true,
+      % NOTE: The config schema must be sorted by the first element
       config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
                         {<<"subject">>, <<>>, subject, binary}]};
 default_mod_config(mod_ping) ->

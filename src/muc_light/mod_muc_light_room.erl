@@ -127,26 +127,24 @@ process_request({get, #info{} = InfoReq},
 process_request({set, #config{} = ConfigReq},
                 _From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    AllCanConfigure = all_can_configure(HostType),
+    {ok, Config, _RoomVersion} = mod_muc_light_db_backend:get_config(HostType, RoomUS),
+    AllCanConfigure = all_can_configure(HostType, Config),
     process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq},
                 From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
     UserUS = jid:to_lus(From),
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    OwnerUS = case lists:keyfind(owner, 2, AffUsers) of
-                  false -> undefined;
-                  {OwnerUS0, _} -> OwnerUS0
-              end,
-    ValidateResult
-    = case UserAff of
-          owner ->
-              {ok, mod_muc_light_utils:filter_out_prevented(HostType,
-                     UserUS, RoomUS, AffReq#affiliations.aff_users)};
-          member ->
-              AllCanInvite = all_can_invite(HostType),
-              validate_aff_changes_by_member(
-                AffReq#affiliations.aff_users, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
-      end,
+    {ok, Config, _RoomVersion} = mod_muc_light_db_backend:get_config(HostType, RoomUS),
+    Owners = [OwnerUS || {OwnerUS, owner} <- AffUsers],
+    ValidateResult = case UserAff of
+                         owner ->
+                             {ok, mod_muc_light_utils:filter_out_prevented(HostType,
+                                      UserUS, RoomUS, AffReq#affiliations.aff_users)};
+                         member ->
+                             AllCanInvite = all_can_invite(HostType, Config),
+                             validate_aff_changes_by_member(AffReq#affiliations.aff_users, [],
+                                                            UserUS, Owners, AllCanInvite)
+                     end,
     process_aff_set(AffReq, RoomUS, ValidateResult, Acc);
 process_request({set, #destroy{} = DestroyReq},
                 _From, RoomUS, {_, owner}, AffUsers, Acc) ->
@@ -160,11 +158,17 @@ process_request({set, #destroy{}},
 process_request(_UnknownReq, _From, _RoomUS, _Auth, _AffUsers, _Acc) ->
     {error, bad_request}.
 
-all_can_invite(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_invite).
+all_can_invite(HostType, Config) ->
+    get_config_or_module_opt(HostType, Config, all_can_invite).
 
-all_can_configure(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_configure).
+all_can_configure(HostType, Config) ->
+    get_config_or_module_opt(HostType, Config, all_can_configure).
+
+get_config_or_module_opt(HostType, Config, Opt) ->
+    case lists:keyfind(Opt, 1, Config) of
+        {_, Value} -> Value;
+        false -> gen_mod:get_module_opt(HostType, mod_muc_light, Opt)
+    end.
 
 %% --------- Config set ---------
 
@@ -195,26 +199,25 @@ process_config_set(HostType, ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers,
 
 %% Member can only add new members or leave
 -spec validate_aff_changes_by_member(AffUsersChanges :: aff_users(),
-                                   AffUsersChangesAcc :: aff_users(),
-                                   UserUS :: jid:simple_bare_jid(),
-                                   OwnerUS :: jid:simple_bare_jid(),
-                                   RoomUS :: jid:simple_bare_jid(),
-                                   AllCanInvite :: boolean()) ->
+                                     AffUsersChangesAcc :: aff_users(),
+                                     UserUS :: jid:simple_bare_jid(),
+                                     Owners :: [jid:simple_bare_jid()],
+                                     AllCanInvite :: boolean()) ->
     {ok, aff_users()} | {error, not_allowed}.
-validate_aff_changes_by_member([], Acc, _UserUS, _OwnerUS, _RoomUS, _AllCanInvite) ->
+validate_aff_changes_by_member([], Acc, _UserUS, _Owners, _AllCanInvite) ->
     {ok, Acc};
-validate_aff_changes_by_member([{UserUS, none} | RAffUsersChanges], Acc, UserUS, OwnerUS,
-                               RoomUS, AllCanInvite) ->
-    validate_aff_changes_by_member(RAffUsersChanges, [{UserUS, none} | Acc], UserUS, OwnerUS,
-                                   RoomUS, AllCanInvite);
-validate_aff_changes_by_member([{OwnerUS, _} | _RAffUsersChanges], _Acc, _UserUS, OwnerUS,
-                               _RoomUS, _AllCanInvite) ->
-    {error, not_allowed};
-validate_aff_changes_by_member([{_, member} = AffUserChange | RAffUsersChanges], Acc, UserUS,
-                               OwnerUS, RoomUS, true) ->
-    validate_aff_changes_by_member(
-      RAffUsersChanges, [AffUserChange | Acc], UserUS, OwnerUS, RoomUS, true);
-validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomUS, _AllCanInvite) ->
+validate_aff_changes_by_member([{UserUS, none} | RAffUsersChanges], Acc, UserUS,
+                                Owners, AllCanInvite) ->
+    validate_aff_changes_by_member(RAffUsersChanges, [{UserUS, none} | Acc], UserUS,
+                                   Owners, AllCanInvite);
+validate_aff_changes_by_member([{AffUS, member} | RAffUsersChanges], Acc, UserUS,
+                               Owners, true) ->
+    case lists:member(AffUS, Owners) of
+        true -> {error, not_allowed};
+        false -> validate_aff_changes_by_member(RAffUsersChanges, [{AffUS, member} | Acc], UserUS,
+                                                Owners, true)
+    end;
+validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _Owners, _AllCanInvite) ->
     {error, not_allowed}.
 
 -spec process_aff_set(AffReq :: affiliations_req_props(),
