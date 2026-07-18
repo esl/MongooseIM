@@ -40,8 +40,15 @@
 -export([disco_local_identity/3, disco_local_features/3, disco_local_items/3]).
 
 %% commands
--export([cleanup_expired/0, delete_invite_by_token/2, expire_invites/2, expire_invite_by_token/2, generate_invite/1,
-         generate_invite/2, generate_reset_token/2, list_invites/1]).
+-export([
+%%          cleanup_expired/0,
+%%          delete_invite_by_token/2,
+%%          expire_invites/2,
+%%          expire_invite_by_token/2,
+          generate_invite/1,
+          generate_invite/2,
+%%          generate_reset_token/2,
+          list_invites/1]).
 
 %% helpers
 -export([create_account_allowed/2, create_account_invite/4, format_invite/2,
@@ -145,31 +152,31 @@ stop(HostType) ->
 %%--------------------------------------------------------------------
 %%| ejabberd command callbacks
 
-cleanup_expired() ->
-    lists:foldl(fun(Host, Count) ->
-                   case gen_mod:is_loaded(Host, ?MODULE) of
-                       true ->
-                           Count + db_call(Host, cleanup_expired, [Host]);
-                       false ->
-                           Count
-                   end
-                end,
-                0,
-                ?MYHOSTS).
+%% cleanup_expired() ->
+%%     lists:foldl(fun(Host, Count) ->
+%%                    case gen_mod:is_loaded(Host, ?MODULE) of
+%%                        true ->
+%%                            Count + db_call(Host, cleanup_expired, [Host]);
+%%                        false ->
+%%                            Count
+%%                    end
+%%                 end,
+%%                 0,
+%%                 ?MYHOSTS).
 
--spec delete_invite_by_token(binary(), binary()) -> ok | {error, not_found}.
-delete_invite_by_token(Host, Token) ->
-    pretty_format_command_result(try_db_call(Host, delete_invite_by_token, [Host, Token])).
+%% -spec delete_invite_by_token(binary(), binary()) -> ok | {error, not_found}.
+%% delete_invite_by_token(Host, Token) ->
+%%     pretty_format_command_result(try_db_call(Host, delete_invite_by_token, [Host, Token])).
 
--spec expire_invites(binary(), binary()) -> non_neg_integer().
-expire_invites(User0, Server0) ->
-    User = jid:nodeprep(User0),
-    Server = jid:nameprep(Server0),
-    pretty_format_command_result(try_db_call(Server, expire_tokens, [User, Server])).
+%% -spec expire_invites(binary(), binary()) -> non_neg_integer().
+%% expire_invites(User0, Server0) ->
+%%     User = jid:nodeprep(User0),
+%%     Server = jid:nameprep(Server0),
+%%     pretty_format_command_result(try_db_call(Server, expire_tokens, [User, Server])).
 
--spec expire_invite_by_token(binary(), binary()) -> ok | {error, not_found}.
-expire_invite_by_token(Host, Token) ->
-    pretty_format_command_result(try_db_call(Host, expire_invite_by_token, [Host, Token])).
+%% -spec expire_invite_by_token(binary(), binary()) -> ok | {error, not_found}.
+%% expire_invite_by_token(Host, Token) ->
+%%     pretty_format_command_result(try_db_call(Host, expire_invite_by_token, [Host, Token])).
 
 -spec generate_invite(binary()) -> {binary(), binary()} | {error, any()}.
 generate_invite(Host) ->
@@ -180,33 +187,33 @@ generate_invite(AccountName, Host0) ->
     Host = jid:nameprep(Host0),
     lift(create_account_invite(Host, {<<>>, Host}, AccountName, false)).
 
--ifdef(TEST).
+%% -ifdef(TEST).
 
--spec gen_invite(binary()) -> binary() | {error, any()}.
-gen_invite(Host) ->
-    gen_invite(<<>>, Host).
+%% -spec gen_invite(binary()) -> binary() | {error, any()}.
+%% gen_invite(Host) ->
+%%     gen_invite(<<>>, Host).
 
--endif.
+%% -endif.
 
--spec gen_invite(binary(), binary()) -> {binary(), binary()} | {error, any()}.
-gen_invite(AccountName, Host0) ->
-    Host = jid:nameprep(Host0),
-    case create_account_invite(Host, {<<>>, Host}, AccountName, false) of
-        {error, _Reason} = Error ->
-            Error;
-        Invite ->
-            {token_uri(Invite), landing_page(Host, Invite)}
-    end.
+%% -spec gen_invite(binary(), binary()) -> {binary(), binary()} | {error, any()}.
+%% gen_invite(AccountName, Host0) ->
+%%     Host = jid:nameprep(Host0),
+%%     case create_account_invite(Host, {<<>>, Host}, AccountName, false) of
+%%         {error, _Reason} = Error ->
+%%             Error;
+%%         Invite ->
+%%             {token_uri(Invite), landing_page(Host, Invite)}
+%%     end.
 
--spec generate_reset_token(binary(), binary()) -> {binary(), binary()} | {error, any()}.
-generate_reset_token(User, Host) ->
-    Res = case create_reset_token(User, Host) of
-              {error, _Reason} = Error ->
-                  Error;
-              Invite ->
-                  {token_uri(Invite), landing_page(Host, Invite)}
-          end,
-    pretty_format_command_result(Res).
+%% -spec generate_reset_token(binary(), binary()) -> {binary(), binary()} | {error, any()}.
+%% generate_reset_token(User, Host) ->
+%%     Res = case create_reset_token(User, Host) of
+%%               {error, _Reason} = Error ->
+%%                   Error;
+%%               Invite ->
+%%                   {token_uri(Invite), landing_page(Host, Invite)}
+%%           end,
+%%     pretty_format_command_result(Res).
 
 list_invites(Host) ->
     try_db_call(Host, list_invites, [Host]).
@@ -760,25 +767,25 @@ invite_token_t(Type, Host, Inviter, AccountName0) ->
                                     account_name = AccountName},
                       ExpireSeconds).
 
--spec create_reset_token(binary(), binary()) -> invite_token() | {error, any()}.
-create_reset_token(User, Host) ->
-    maybe
-        (#invite_token{} = ResetToken) ?= reset_token(User, Host),
-        F = fun() -> db_call(Host, create_invite_t, [ResetToken]) end,
-        transaction(Host, F)
-    end.
+%% -spec create_reset_token(binary(), binary()) -> invite_token() | {error, any()}.
+%% create_reset_token(User, Host) ->
+%%     maybe
+%%         (#invite_token{} = ResetToken) ?= reset_token(User, Host),
+%%         F = fun() -> db_call(Host, create_invite_t, [ResetToken]) end,
+%%         transaction(Host, F)
+%%     end.
 
-reset_token(User, Host) ->
-    maybe
-        true ?= lists:member(Host, ?MYHOSTS) orelse {error, host_unknown},
-        true ?= ejabberd_auth:user_exists(User, Host) orelse {error, user_not_exists},
-        set_token_expires(#invite_token{token =
-                                            p1_rand:get_alphanum_string(?DEFAULT_TOKEN_LENGTH),
-                                        inviter = {<<>>, Host},
-                                        type = reset_token,
-                                        account_name = User},
-                          gen_mod:get_module_opt(Host, ?MODULE, token_expire_seconds))
-    end.
+%% reset_token(User, Host) ->
+%%     maybe
+%%         true ?= lists:member(Host, ?MYHOSTS) orelse {error, host_unknown},
+%%         true ?= ejabberd_auth:user_exists(User, Host) orelse {error, user_not_exists},
+%%         set_token_expires(#invite_token{token =
+%%                                             p1_rand:get_alphanum_string(?DEFAULT_TOKEN_LENGTH),
+%%                                         inviter = {<<>>, Host},
+%%                                         type = reset_token,
+%%                                         account_name = User},
+%%                           gen_mod:get_module_opt(Host, ?MODULE, token_expire_seconds))
+%%     end.
 
 token_uri(#invite_token{type = roster_only,
                         token = Token,
@@ -953,18 +960,3 @@ send_presence(HostType, FromJid, ToJid, Type) ->
                   element => Presence, from_jid => FromJid, to_jid => ToJid},
     Acc = mongoose_acc:new(AccParams),
     mongoose_router:route(Acc).
-
-pretty_format_command_result({error, {module_not_loaded, ?MODULE, Host}}) ->
-    {error,
-     lists:flatten(
-         io_lib:format("Virtual host not known: ~s", [binary_to_list(Host)]))};
-pretty_format_command_result({error, host_unknown}) ->
-    {error, "Virtual host not known"};
-pretty_format_command_result({error, user_exists}) ->
-    {error, "Username already taken"};
-pretty_format_command_result({error, user_not_exists}) ->
-    {error, "User does not exist"};
-pretty_format_command_result({ok, Result}) ->
-    Result;
-pretty_format_command_result(Result) ->
-    Result.
