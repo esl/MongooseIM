@@ -31,9 +31,10 @@
 -export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, deps/2]).
 
 %% hooks and callbacks
--export([adhoc_commands/3, remove_user/3, stream_feature_register/3]).
-%% -export([adhoc_commands/4, c2s_unauthenticated_packet/2, remove_user/3,
-%%          s2s_receive_packet/1, sm_receive_packet/1, stream_feature_register/2]).
+-export([adhoc_commands/3,
+         %c2s_unauthenticated_packet/2,
+         remove_user/3,
+         s2s_receive_packet/3, user_receive_packet/3, stream_feature_register/3]).
 
 %% Service Discovery
 -export([disco_local_identity/3, disco_local_features/3, disco_local_items/3]).
@@ -126,8 +127,8 @@ hooks(HostType) ->
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 50},
      {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 50},
      {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 50},
-%     {s2s_receive_packet, HostType, fun ?MODULE:s2s_receive_packet/3, #{}, 50},
-%     {sm_receive_packet, HostType, fun ?MODULE:sm_receive_packet/3, #{}, 50},
+     {s2s_receive_packet, HostType, fun ?MODULE:s2s_receive_packet/3, #{}, 50},
+     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 50},
      {c2s_stream_features, HostType, fun ?MODULE:stream_feature_register/3, #{}, 50}%,
      %% note the sequence below is important
 %     {c2s_unauthenticated_packet, HostType, fun ?MODULE:c2s_unauthenticated_packet/3, #{}, 10}
@@ -373,58 +374,52 @@ adhoc_commands(empty,
 adhoc_commands(Acc, _, _) ->
     {ok, Acc}.
 
-%% -spec s2s_receive_packet({stanza() | drop, State}) ->
-%%                             {stanza() | drop, State} | {stop, {drop, State}}
-%%     when State :: ejabberd_s2s_in:state().
-%% s2s_receive_packet({Stanza, State}) ->
-%%     case sm_receive_packet(Stanza) of
-%%         {stop, drop} ->
-%%             {stop, {drop, State}};
-%%         Res ->
-%%             {Res, State}
-%%     end.
+-spec s2s_receive_packet(Acc, map(), any()) -> {ok|stop, Acc} when Acc :: mongoose_acc:t().
+s2s_receive_packet(Acc, Params, Extras) ->
+    user_receive_packet(Acc, Params, Extras).
 
-%% -spec sm_receive_packet(stanza() | drop) -> stanza() | drop | {stop, drop}.
-%% sm_receive_packet(#presence{from = From,
-%%                             to = To,
-%%                             type = subscribe,
-%%                             sub_els = Els} =
-%%                       Presence) ->
-%%     case handle_pre_auth_token(Els, To, From) of
-%%         true ->
-%%             {stop, drop};
-%%         false ->
-%%             Presence
-%%     end;
-%% sm_receive_packet(Other) ->
-%%     Other.
+-spec user_receive_packet(Acc, map(), any()) -> {ok|stop, Acc} when Acc :: mongoose_acc:t().
+user_receive_packet(Acc, _Params, _Extras) ->
+    case maybe_handle_pre_auth_token(Acc) of
+        true ->
+            {stop, Acc};
+        false ->
+            {ok, Acc}
+    end.
 
-%% handle_pre_auth_token([], _To, _From) ->
-%%     false;
-%% handle_pre_auth_token([El | Els],
-%%                       #jid{luser = LUser, lserver = LServer} = To,
-%%                       FromFullJid) ->
-%%     From = jid:remove_resource(FromFullJid),
-%%     try xmpp:decode(El) of
-%%         #preauth{token = Token} = PreAuth ->
-%%             ?DEBUG("got preauth token: ~p", [PreAuth]),
-%%             case is_token_valid(LServer, Token, {LUser, LServer}) of
-%%                 true ->
-%%                     roster_add(To, From),
-%%                     send_presence(To, From, subscribed),
-%%                     send_presence(To, From, subscribe),
-%%                     set_invitee(LServer, Token, From),
-%%                     true;
-%%                 false ->
-%%                     ?INFO_MSG("Got invalid preauth token from ~s: ~p", [jid:encode(From), PreAuth]),
-%%                     false
-%%             end;
-%%         _Other ->
-%%             handle_pre_auth_token(Els, To, From)
-%%     catch
-%%         _:{xmpp_codec, _} ->
-%%             handle_pre_auth_token(Els, To, From)
-%%     end.
+maybe_handle_pre_auth_token(Acc) ->
+    case get_preauth_token(Acc) of
+        undefined ->
+            ?DEBUG("no preauth token", []),
+            false;
+        Token ->
+            ?DEBUG("got preauth token: ~p", [Token]),
+            #jid{luser = LUser, lserver = LServer} = To = jid:to_bare(mongoose_acc:to_jid(Acc)),
+            case is_token_valid(LServer, Token, {LUser, LServer}) of
+                true ->
+                    ?DEBUG("got valid token! ~p", [Token]),
+                    From = jid:to_bare(mongoose_acc:from_jid(Acc)),
+                    ok = roster_add(LServer, To, From),
+                    _Acc1 = send_presence(LServer, To, From, <<"subscribed">>),
+                    _Acc2 = send_presence(LServer, To, From, <<"subscribe">>),
+                    set_invitee(LServer, Token, From),
+                    true;
+                false ->
+                    ?INFO_MSG("Got invalid preauth token from ~s: ~p",
+                              [jid:to_binary(mongoose_acc:from_jid(Acc)), Token]),
+                    false
+            end
+    end.
+
+get_preauth_token(Acc) ->
+    case {mongoose_acc:stanza_name(Acc), mongoose_acc:stanza_type(Acc)} of
+        {<<"presence">>, <<"subscribe">>} ->
+            Presence = mongoose_acc:element(Acc),
+            ?DEBUG("got presence: ~p", [Presence]),
+            exml_query:path(Presence, [{element_with_ns, <<"preauth">>, ?NS_PARS}, {attr, <<"token">>}]);
+        _ ->
+            undefined
+    end.
 
 %%--------------------------------------------------------------------
 %%| Service Disco
@@ -547,8 +542,7 @@ is_token_valid(Host, Token, Inviter) ->
 set_invitee(Host, Token, #jid{} = InviteeJid) ->
     set_invitee(Host,
                 Token,
-                jid:encode(
-                    jid:remove_resource(InviteeJid)),
+                jid:to_bare_binary(InviteeJid),
                 <<>>);
 set_invitee(Host, Token, Invitee) ->
     set_invitee(Host, Token, Invitee, <<>>).
@@ -946,19 +940,19 @@ maybe_gen_sid(<<>>) ->
 maybe_gen_sid(SID) ->
     SID.
 
-%% roster_add(UserJID, RosterItemJID) ->
-%%     RosterItem =
-%%         #roster_item{jid = RosterItemJID,
-%%                      subscription = from,
-%%                      ask = subscribe},
-%%     mod_roster:set_item_and_notify_clients(UserJID, RosterItem, true).
+roster_add(Host, UserJID, RosterItemJID) ->
+    mod_roster:set_roster_entry(Host, UserJID, RosterItemJID, #{subscription => from, ask => subscribe}).
 
-%% send_presence(From, To, Type) ->
-%%     Presence =
-%%         #presence{from = From,
-%%                   to = To,
-%%                   type = Type},
-%%     ejabberd_router:route(Presence).
+send_presence(HostType, FromJid, ToJid, Type) ->
+    #jid{lserver =FromS} = FromJid,
+    Presence = #xmlel{name = <<"presence">>,
+                      attrs = #{<<"from">> => jid:to_binary(FromJid),
+                                <<"to">> => jid:to_binary(ToJid),
+                                <<"type">> => Type}},
+    AccParams = #{host_type => HostType, lserver => FromS, location => ?LOCATION,
+                  element => Presence, from_jid => FromJid, to_jid => ToJid},
+    Acc = mongoose_acc:new(AccParams),
+    mongoose_router:route(Acc).
 
 pretty_format_command_result({error, {module_not_loaded, ?MODULE, Host}}) ->
     {error,
