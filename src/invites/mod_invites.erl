@@ -31,7 +31,7 @@
 -export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, deps/2]).
 
 %% hooks and callbacks
--export([adhoc_commands/3, remove_user/3]).
+-export([adhoc_commands/3, remove_user/3, stream_feature_register/3]).
 %% -export([adhoc_commands/4, c2s_unauthenticated_packet/2, remove_user/3,
 %%          s2s_receive_packet/1, sm_receive_packet/1, stream_feature_register/2]).
 
@@ -88,9 +88,6 @@
  when OkOrError :: ok | {error, term()}.
 -callback transaction(Host:: binary(), fun(() -> T)) -> {atomic, T} | {aborted, any()}.
 
-%%% FIXME
--define(BIN(S), <<S>>).
-
 %%--------------------------------------------------------------------
 %%| gen_mod callbacks
 
@@ -128,10 +125,10 @@ hooks(HostType) ->
      {adhoc_local_commands, HostType, fun ?MODULE:adhoc_commands/3, #{}, 50},
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 50},
      {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 50},
-     {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 50}%,
+     {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 50},
 %     {s2s_receive_packet, HostType, fun ?MODULE:s2s_receive_packet/3, #{}, 50},
 %     {sm_receive_packet, HostType, fun ?MODULE:sm_receive_packet/3, #{}, 50},
-%     {c2s_pre_auth_features, HostType, fun ?MODULE:stream_feature_register/3, #{}, 50},
+     {c2s_stream_features, HostType, fun ?MODULE:stream_feature_register/3, #{}, 50}%,
      %% note the sequence below is important
 %     {c2s_unauthenticated_packet, HostType, fun ?MODULE:c2s_unauthenticated_packet/3, #{}, 10}
     ].
@@ -507,13 +504,8 @@ disco_local_items(Acc, _Params, _Extra) ->
 
 %%--------------------------------------------------------------------
 %%| ibr hooks
-stream_feature_register(Acc, Host) ->
-    case gen_mod:is_loaded(Host, ?MODULE) of
-        true ->
-            mod_invites_register:stream_feature_register(Acc, Host);
-        false ->
-            Acc
-    end.
+stream_feature_register(Acc, #{lserver := Host}, _) ->
+    {ok, mod_invites_register:stream_feature_register(Acc, Host)}.
 
 c2s_unauthenticated_packet(State, IQ) ->
     mod_invites_register:c2s_unauthenticated_packet(State, IQ).

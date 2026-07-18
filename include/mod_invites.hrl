@@ -5,6 +5,9 @@
 -define(NS_INVITE_INVITE, <<"urn:xmpp:invite#invite">>).
 -define(NS_INVITE_CREATE_ACCOUNT, <<"urn:xmpp:invite#create-account">>).
 
+-define(NS_FEATURE_IBR_TOKEN, <<"urn:xmpp:ibr-token:0">>).
+-define(NS_FEATURE_SUB_PRE_APPROVAL, <<"urn:xmpp:features:pre-approval">>).
+
 -define(OVERUSE_LIMIT, 1000).
 
 -define(SPEEDY_GOAT_LEVELS, 2).
@@ -22,3 +25,6 @@
                        %% (which should match `invitee`).
                        account_name = <<>> :: binary()
                       }).
+
+%%% FIXME - just being lazy here, replacing ejabberd's lazy T with BIN
+-define(BIN(S), <<S>>).
