@@ -49,13 +49,9 @@
           list_invites/1]).
 
 %% helpers
--export([create_account_allowed/2, create_account_invite/4, format_invite/2,
-         get_invite/2, get_invites_tree_t/2,
+-export([create_account_allowed/2, create_account_invite/4, format_invite/2, get_invite/2, get_invites_tree_t/2,
          get_max_invites/2, is_create_allowed/2, is_expired/1, is_reserved/3, is_token_valid/2,
-         %roster_add/3,
-         %send_presence/4,
-         set_invitee/3, set_invitee/5, token_uri/1, transaction/2,
-         xdata_field/3]).
+         roster_add/3, send_presence/4, set_invitee/3, set_invitee/5, token_uri/1, transaction/2]).
 
 -ifdef(TEST).
 -export([create_roster_invite/2, create_reset_token/2, find_invites_tree_root_t/4, gen_invite/1,
@@ -117,9 +113,7 @@ config_spec() ->
       }.
 
 deps(_Host, _Opts) ->
-    %% TODO
-   % [{mod_adhoc, #{}, soft}, {mod_register, #{}, soft}, {mod_roster, #{}, soft}].
-    [].
+    [{mod_adhoc, #{}, soft}, {mod_register, #{}, soft}, {mod_roster, #{}, soft}].
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -867,17 +861,6 @@ set_token_expires(#invite_token{created_at = CreatedAt} = Invite, ExpireSecs) ->
     Invite#invite_token{expires =
                             calendar:gregorian_seconds_to_datetime(calendar:datetime_to_gregorian_seconds(CreatedAt)
                                                                    + ExpireSecs)}.
-
-xdata_field(_Field, [], Default) ->
-    Default;
-xdata_field(Field, [El | Fields], Default) ->
-    case exml_query:paths(El, [{element_with_attr, <<"var">>, Field}, {element, <<"value">>}, cdata]) of
-        [<<>> | _] -> Default;
-        [Value | _] ->
-            Value;
-        [] ->
-            xdata_field(Field, Fields, Default)
-    end.
 
 maybe_add_landing_url(Host, Invite, Lang, Fields) ->
     case landing_page(Host, Invite) of

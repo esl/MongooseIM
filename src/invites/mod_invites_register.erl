@@ -29,7 +29,7 @@
 -export([user_send_xmlel/3, stream_feature_register/2]).
 %% -export([try_register/6]).
 
--import(mod_invites, [roster_add/2, send_presence/3, xdata_field/3]).
+-import(mod_invites, [roster_add/2, send_presence/3]).
 
 -include("mongoose.hrl").
 -include("mod_invites.hrl").
