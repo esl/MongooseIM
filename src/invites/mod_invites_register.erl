@@ -26,31 +26,14 @@
 
 -author('stefan@strigler.de').
 
-%% -export([c2s_unauthenticated_packet/2, stream_feature_register/2]).
+-export([user_send_xmlel/3, stream_feature_register/2]).
 %% -export([try_register/6]).
-
--export([stream_feature_register/2]).
 
 -import(mod_invites, [roster_add/2, send_presence/3, xdata_field/3]).
 
 -include("mongoose.hrl").
 -include("mod_invites.hrl").
 -include("jlib.hrl").
-
--define(TRY_SUBTAG(IQ, SUBTAG, F, Else),
-        try xmpp:try_subtag(IQ, SUBTAG) of
-            false ->
-                Else();
-            SubTag ->
-                F(SubTag)
-        catch
-            _:{xmpp_codec, Why} ->
-                Txt = xmpp:io_format_error(Why),
-                Lang = maps:get(lang, State),
-                Err = make_stripped_error(IQ, SUBTAG, xmpp:err_bad_request(Txt, Lang)),
-                {stop, ejabberd_c2s:send(State, Err)}
-        end).
--define(TRY_SUBTAG(IQ, SUBTAG, F), ?TRY_SUBTAG(IQ, SUBTAG, F, fun() -> State end)).
 
 -spec stream_feature_register([#xmlel{}], binary()) -> [#xmlel{}].
 stream_feature_register(Acc, Host) ->
@@ -61,85 +44,80 @@ stream_feature_register(Acc, Host) ->
             [#xmlel{name = <<"register">>, attrs = #{<<"xmlns">> => ?NS_FEATURE_IBR_TOKEN}} | Acc]
     end.
 
-%% c2s_unauthenticated_packet(#{invite := Invite} = State,
-%%                            #iq{type = get, sub_els = [_]} = IQ) ->
-%%     %% User requests registration form after processing token
-%%     ?TRY_SUBTAG(IQ,
-%%                 #register{},
-%%                 fun(Register) ->
-%%                    #{server := Server} = State,
-%%                    IQ1 = xmpp:set_els(IQ, [Register]),
-%%                    User = Invite#invite_token.account_name,
-%%                    IQ2 = xmpp:set_from_to(IQ1, jid:make(User, Server), jid:make(Server)),
-%%                    Meta = xmpp:get_meta(IQ2),
-%%                    ResIQ =
-%%                        mod_register:process_iq(
-%%                            xmpp:set_meta(IQ2, Meta#{pre_auth => true})),
-%%                    ResIQ1 = xmpp:set_from_to(ResIQ, jid:make(Server), undefined),
-%%                    {stop, ejabberd_c2s:send(State, ResIQ1)}
-%%                 end);
-%% c2s_unauthenticated_packet(#{invite := Invite, server := Server} = State,
-%%                            #iq{type = set,
-%%                                sub_els = [_],
-%%                                lang = Lang} =
-%%                                IQ) ->
-%%     %% Process registration request after processing token
-%%     ?TRY_SUBTAG(IQ,
-%%                 #register{},
-%%                 fun(Register) ->
-%%                    case check_captcha(mod_register_opt:captcha_protected(Server), Register, IQ) of
-%%                        {ok, {Username, Password}} ->
-%%                            #{ip := IP} = State,
-%%                            {Address, _} = IP,
-%%                            case try_register(Invite, Username, Server, Password, Address, Lang) of
-%%                                {ok, UpdatedInvite} ->
-%%                                    ResState = State#{invite => UpdatedInvite},
-%%                                    {stop, ejabberd_c2s:send(ResState, xmpp:make_iq_result(IQ))};
-%%                                {error, #stanza_error{} = Err} ->
-%%                                    ResIQ = make_stripped_error(IQ, #register{}, Err),
-%%                                    {stop, ejabberd_c2s:send(State, ResIQ)}
-%%                            end;
-%%                        {error, ResIQ} ->
-%%                            {stop, ejabberd_c2s:send(State, ResIQ)}
-%%                    end
-%%                 end);
-%% c2s_unauthenticated_packet(State, #iq{type = set, sub_els = [_]} = IQ) ->
-%%     %% Check for preauth token and process it
-%%     ?TRY_SUBTAG(IQ,
-%%                 #preauth{},
-%%                 fun(#preauth{token = Token}) ->
-%%                    #{server := Server} = State,
-%%                    IQ1 = xmpp:set_from_to(IQ, jid:make(<<>>), jid:make(Server)),
-%%                    {ResState, ResIQ} = process_token(State, Token, IQ1),
-%%                    ResIQ1 = xmpp:set_from_to(ResIQ, jid:make(Server), undefined),
-%%                    {stop, ejabberd_c2s:send(ResState, ResIQ1)}
-%%                 end,
-%%                 fun() ->
-%%                    ?TRY_SUBTAG(IQ,
-%%                                #register{},
-%%                                fun (#register{username = User, password = Password})
-%%                                        when is_binary(User), is_binary(Password) ->
-%%                                        #{server := Server} = State,
-%%                                        case mod_invites:is_reserved(Server, <<>>, User) of
-%%                                            true ->
-%%                                                ResIQ =
-%%                                                    make_stripped_error(IQ,
-%%                                                                        #register{},
-%%                                                                        xmpp:err_not_allowed()),
-%%                                                {stop, ejabberd_c2s:send(State, ResIQ)};
-%%                                            false ->
-%%                                                State
-%%                                        end;
-%%                                    (_) ->
-%%                                        State
-%%                                end)
-%%                 end);
-c2s_unauthenticated_packet(State, _) ->
-    State.
+-spec user_send_xmlel(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_send_xmlel(Acc, Params, Extra) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"iq">> ->
+            {Iq, Acc1} = mongoose_iq:info(Acc),
+            handle_unauthenticated_iq(Acc1, Params, Extra, Iq);
+        _ -> {ok, Acc}
+    end.
 
-make_stripped_error(IQ, SubTag, Err) ->
-    xmpp:make_error(
-        xmpp:remove_subtag(IQ, SubTag), Err).
+handle_unauthenticated_iq(Acc,
+                          #{c2s_data := StateData},
+                          #{host_type := _HostType},
+                          #iq{type = set, xmlns=?NS_PARS} = IQ) ->
+    Token = exml_query:path(mongoose_iq:iq_to_sub_el(IQ), [{attr, <<"token">>}], <<>>),
+    LServer = mongoose_c2s:get_lserver(StateData),
+    %% invite is stored in state (ResAcc) so we have access at next step
+    {ResAcc, ResIQ} = process_token(Acc, LServer, Token, IQ),
+    Res = make_iq_response_acc(ResIQ, ResAcc, jid:make_noprep(<<>>, LServer, <<>>)),
+    {stop, Res};
+handle_unauthenticated_iq(Acc,
+                          #{c2s_data := StateData},
+                          #{host_type := HostType},
+                          #iq{type = set, xmlns=?NS_REGISTER, lang = Lang} = IQ) ->
+    LServer = mongoose_c2s:get_lserver(StateData),
+    FromServer = jid:make_noprep(<<>>, LServer, <<>>),
+    case mongoose_c2s:get_mod_state(StateData, mod_invites) of
+        {ok, Invite} ->
+            case check_form(mongoose_iq:iq_to_sub_el(IQ)) of
+                {ok, {Username, Password}} ->
+                    {Address, _} = mongoose_c2s:get_ip(StateData),
+                    case try_register_or_reset(Invite, Username, LServer, Password, Address, Lang) of
+                        {ok, UpdatedInvite} ->
+                            NewAcc = mongoose_c2s_acc:to_acc(Acc, state_mod, {mod_invites, UpdatedInvite}),
+                            {stop, make_iq_response_acc(IQ, NewAcc, FromServer)};
+                        {error, Err} ->
+                            ResIQ = error_response(IQ, Err),
+                            {stop, make_iq_response_acc(ResIQ, Acc, FromServer)}
+                    end;
+                {error, BadRes} ->
+                    ?LOG_INFO(#{what => invites_iq_set_register_check_form, host => HostType, value => BadRes}),
+                    ResIQ = error_response(IQ, mongoose_xmpp_errors:bad_request()),
+                    {stop, make_iq_response_acc(ResIQ, Acc, FromServer)}
+            end;
+        _ ->
+            %% This is to protect regular IBR (w/0 token, if enabled) from taking a reserved name
+            case check_form(mongoose_iq:iq_to_sub_el(IQ)) of
+                {ok, {Username, _Password}} ->
+                    case mod_invites:is_reserved(LServer, <<>>, Username) of
+                        true ->
+                            ResIQ = error_response(IQ, mongoose_xmpp_errors:not_allowed()),
+                            {stop, make_iq_response_acc(ResIQ, Acc, FromServer)};
+                        false ->
+                            {ok, Acc}
+                    end;
+                _ ->
+                    {ok, Acc}
+            end
+    end;
+handle_unauthenticated_iq(Acc, _Params, _Extra, _IQ) ->
+    {ok, Acc}.
+
+make_iq_response_acc(IQ, Acc, From) ->
+    make_iq_response_acc(IQ, Acc, From, #jid{}).
+
+make_iq_response_acc(IQ, Acc, From, To) ->
+    Response = set_sender(jlib:iq_to_xml(IQ), From),
+    AccParams = #{from_jid => From, to_jid => To, element => Response},
+    ResponseAcc = mongoose_acc:update_stanza(AccParams, Acc),
+    mongoose_c2s_acc:to_acc(Acc, route, ResponseAcc).
+
+
+set_sender(#xmlel{attrs = A} = Stanza, #jid{} = From) ->
+    Stanza#xmlel{attrs = A#{<<"from">> => jid:to_binary(From)}}.
 
 maybe_create_mutual_subscription(#invite_token{inviter = {User, _Server}, type = Type})
     when User == <<>>; % server token
@@ -147,8 +125,8 @@ maybe_create_mutual_subscription(#invite_token{inviter = {User, _Server}, type =
     noop;
 maybe_create_mutual_subscription(#invite_token{inviter = {User, Server},
                                                invitee = Invitee}) ->
-    InviterJID = jid:make(User, Server),
-    InviteeJID = jid:decode(Invitee),
+    InviterJID = jid:make_bare(User, Server),
+    InviteeJID = jid:to_binary(Invitee),
     roster_add(InviterJID, InviteeJID),
     roster_add(InviteeJID, InviterJID),
     send_presence(InviteeJID, InviterJID, subscribe),
@@ -157,15 +135,14 @@ maybe_create_mutual_subscription(#invite_token{inviter = {User, Server},
     send_presence(InviteeJID, InviterJID, subscribed),
     ok.
 
-%% process_token(#{server := Host} = State, Token, #iq{lang = Lang} = IQ) ->
-%%     ?DEBUG("processing token (~s): ~s", [Host, Token]),
-%%     case can_create_account_or_change_pw(Host, Token) of
-%%         {true, Invite} ->
-%%             NewState = State#{invite => Invite},
-%%             {NewState, xmpp:make_iq_result(IQ)};
-%%         false ->
-%%             {State, preauth_invalid(IQ, Lang)}
-%%     end.
+process_token(Acc, Host, Token, #iq{lang = Lang} = IQ) ->
+    case can_create_account_or_change_pw(Host, Token) of
+        {true, Invite} ->
+            NewAcc = mongoose_c2s_acc:to_acc(Acc, state_mod, {mod_invites, Invite}),
+            {NewAcc, mongoose_iq:empty_result_iq(IQ)};
+        false ->
+            {Acc, preauth_invalid(IQ, Lang)}
+    end.
 
 can_create_account_or_change_pw(Host, Token) ->
     try mod_invites:is_token_valid(Host, Token) of
@@ -207,129 +184,107 @@ create_account_allowed(#invite_token{inviter = {<<>>, _Host}}) ->
 create_account_allowed(#invite_token{inviter = {User, Host}}) ->
     mod_invites:create_account_allowed(Host, jid:make(User, Host)) == ok.
 
-%% preauth_invalid(IQ, Lang) ->
-%%     Text = ?BIN("The token provided is either invalid or expired."),
-%%     make_stripped_error(IQ, #preauth{}, xmpp:err_item_not_found(Text, Lang)).
+preauth_invalid(IQ, _Lang) ->
+    Text = ?BIN("The token provided is either invalid or expired."),
+    error_response(IQ, mongoose_xmpp_errors:item_not_found(Text)).
 
-%% -spec try_register(mod_invites:invite_token(),
-%%                    binary(),
-%%                    binary(),
-%%                    binary(),
-%%                    tuple(),
-%%                    binary()) ->
-%%                       {ok, mod_invites:invite_token()} | {error, stanza_error()}.
-%% try_register(#invite_token{type = reset_token} = Invite,
-%%              User,
-%%              Server,
-%%              Password,
-%%              _Source,
-%%              Lang) ->
-%%     case Invite#invite_token.account_name == User of
-%%         true ->
-%%             ChPwF = fun() -> mod_register:try_set_password(User, Server, Password) end,
-%%             NewInvite =
-%%                 #invite_token{invitee = Invitee} =
-%%                     maybe_set_invitee(Invite, jid:make(User, Server)),
-%%             case mod_invites:set_invitee(ChPwF, Server, Invite#invite_token.token, Invitee, User) of
-%%                 ok ->
-%%                     {ok, NewInvite};
-%%                 {error, Why} ->
-%%                     {error, to_xmpp_error(Why, Lang)}
-%%             end;
-%%         false ->
-%%             {error, to_xmpp_error(not_allowed, Lang)}
-%%     end;
-%% try_register(Invite, User, Server, Password, Source, Lang) ->
-%%     #invite_token{token = Token} = Invite,
-%%     case {jid:nodeprep(User), not mod_invites:is_reserved(Server, Token, User)} of
-%%         {error, _} ->
-%%             {error, to_xmpp_error(invalid_jid, Lang)};
-%%         {_, false} ->
-%%             {error, to_xmpp_error(not_allowed, Lang)};
-%%         {_, true} ->
-%%             RegF =
-%%                 fun() ->
-%%                    mod_register:try_register(User, Server, Password, Source, mod_invites, Lang)
-%%                 end,
-%%             NewInvite =
-%%                 #invite_token{invitee = Invitee, account_name = AccountName} =
-%%                     maybe_set_account_name(maybe_set_invitee(Invite, jid:make(User, Server)), User),
-%%             case mod_invites:set_invitee(RegF, Server, Token, Invitee, AccountName) of
-%%                 ok ->
-%%                     maybe_create_mutual_subscription(NewInvite),
-%%                     {ok, NewInvite};
-%%                 {error, conflict} ->
-%%                     ?LOG_WARNING("Conflict when redeeming invite token: ~p", [NewInvite]),
-%%                     {error, to_xmpp_error(conflict, Lang)};
-%%                 {error, Why} ->
-%%                     {error, to_xmpp_error(Why, Lang)}
-%%             end
-%%     end.
+-spec try_register_or_reset(mod_invites:invite_token(),
+                   binary(),
+                   binary(),
+                   binary(),
+                   tuple(),
+                   binary()) ->
+                      {ok, mod_invites:invite_token()} | {error, exml:element()}.
+try_register_or_reset(#invite_token{type = reset_token} = Invite,
+             User,
+             Server,
+             Password,
+             _Source,
+             Lang) ->
+    case Invite#invite_token.account_name == User of
+        true ->
+            ChPwF = fun() -> mod_register:try_set_password(User, Server, Password) end,
+            NewInvite =
+                #invite_token{invitee = Invitee} =
+                    maybe_set_invitee(Invite, jid:make(User, Server)),
+            case mod_invites:set_invitee(ChPwF, Server, Invite#invite_token.token, Invitee, User) of
+                ok ->
+                    {ok, NewInvite};
+                {error, #xmlel{} = XmlEl} ->
+                    {error, XmlEl}
+            end;
+        false ->
+            {error, to_xmpp_error(not_allowed, Lang)}
+    end;
+try_register_or_reset(Invite, User, Server, Password, Source, Lang) ->
+    #invite_token{token = Token} = Invite,
+    case {jid:nodeprep(User), not mod_invites:is_reserved(Server, Token, User)} of
+        {error, _} ->
+            {error, to_xmpp_error(invalid_jid, Lang)};
+        {_, false} ->
+            {error, to_xmpp_error(not_allowed, Lang)};
+        {_, true} ->
+            UserJid = jid:make_bare(User, Server),
+            RegF =
+                fun() ->
+                        mod_register:verify_password_and_register(
+                          Server, UserJid, Password, Source)
+                end,
+            NewInvite =
+                #invite_token{invitee = Invitee, account_name = AccountName} =
+                    maybe_set_account_name(
+                      maybe_set_invitee(Invite, UserJid),
+                      User),
+            case mod_invites:set_invitee(RegF, Server, Token, Invitee, AccountName) of
+                ok ->
+                    maybe_create_mutual_subscription(NewInvite),
+                    {ok, NewInvite};
+                {error, conflict} ->
+                    ?LOG_WARNING("Conflict when redeeming invite token: ~p", [NewInvite]),
+                    {error, to_xmpp_error(conflict, Lang)};
+                {error, #xmlel{} = XmlEl} ->
+                    {error, XmlEl}
+            end
+    end.
 
-to_xmpp_error(Why, Lang) when Why == not_allowed; Why == invalid_password ->
-    xmpp:err_not_allowed(
-        mod_register:format_error(Why), Lang);
-to_xmpp_error(weak_password = Why, Lang) ->
-    xmpp:err_not_acceptable(
-        mod_register:format_error(Why), Lang);
-to_xmpp_error(invalid_jid = Why, Lang) ->
-    xmpp:err_jid_malformed(
-        mod_register:format_error(Why), Lang);
-to_xmpp_error(db_failure = Why, Lang) ->
-    xmpp:err_internal_server_error(
-        mod_register:format_error(Why), Lang);
-to_xmpp_error(conflict, Lang) ->
-    xmpp:err_conflict(
-        mod_register:format_error(not_allowed), Lang);
-to_xmpp_error(Unexpected, Lang) ->
-    xmpp:err_internal_server_error(
-        mod_register:format_error(Unexpected), Lang).
+to_xmpp_error(Why, _Lang) when Why == not_allowed; Why == invalid_password ->
+    mongoose_xmpp_errors:not_allowed();
+to_xmpp_error(weak_password = _Why, _Lang) ->
+    mongoose_xmpp_errors:not_acceptable();
+to_xmpp_error(invalid_jid = _Why, _Lang) ->
+    mongoose_xmpp_errors:jid_malformed();
+to_xmpp_error(db_failure = _Why, _Lang) ->
+    mongoose_xmpp_errors:internal_server_error();
+to_xmpp_error(conflict, _Lang) ->
+    mongoose_xmpp_errors:conflict();
+to_xmpp_error(_Unexpected, _Lang) ->
+    mongoose_xmpp_errors:internal_server_error().
 
-%% check_captcha(true, #register{xdata = X}, #iq{lang = Lang} = IQ) ->
-%%     XdataC =
-%%         xmpp_util:set_xdata_field(#xdata_field{var = <<"FORM_TYPE">>,
-%%                                                type = hidden,
-%%                                                values = [?NS_CAPTCHA]},
-%%                                   X),
-%%     case ejabberd_captcha:process_reply(XdataC) of
-%%         ok ->
-%%             case process_xdata_submit(X) of
-%%                 {ok, _} = Result ->
-%%                     Result;
-%%                 _ ->
-%%                     Txt = ?T("Incorrect data form"),
-%%                     make_stripped_error(IQ, #register{}, xmpp:err_bad_request(Txt, Lang))
-%%             end;
-%%         {error, malformed} ->
-%%             Txt = ?T("Incorrect CAPTCHA submit"),
-%%             make_stripped_error(IQ, #register{}, xmpp:err_bad_request(Txt, Lang));
-%%         _ ->
-%%             ErrText = ?T("The CAPTCHA verification has failed"),
-%%             make_stripped_error(IQ, #register{}, xmpp:err_not_allowed(ErrText, Lang))
-%%     end;
-%% check_captcha(false, #register{username = Username, password = Password}, _IQ)
-%%     when is_binary(Username), is_binary(Password) ->
-%%     {ok, {Username, Password}};
-%% check_captcha(_IsCaptchaEnabled, _Register, IQ) ->
-%%     ResIQ = make_stripped_error(IQ, #register{}, xmpp:err_bad_request()),
-%%     {error, ResIQ}.
-
-%% process_xdata_submit(#xdata{fields = Fields}) ->
-%%     case {mod_invites:xdata_field(<<"username">>, Fields, undefined),
-%%           mod_invites:xdata_field(<<"password">>, Fields, undefined)}
-%%     of
-%%         {UndefU, UndefP} when UndefU == undefined; UndefP == undefined ->
-%%             error;
-%%         {Username, Password} ->
-%%             {ok, {Username, Password}}
-%%     end.
+check_form(XmlEl) ->
+    case
+        {
+         exml_query:path(XmlEl, [{element, <<"username">>}, cdata]),
+         exml_query:path(XmlEl, [{element, <<"password">>}, cdata])
+        }
+    of
+        {Username, Password} when is_binary(Username),
+                                  is_binary(Password) ->
+            {ok, {Username, Password}};
+        BadRes ->
+            {error, {bad_form, BadRes}}
+    end.
 
 maybe_set_invitee(#invite_token{type = roster_only} = Invite, _Invitee) ->
     Invite;
 maybe_set_invitee(Invite, Invitee) ->
-    Invite#invite_token{invitee = jid:encode(Invitee)}.
+    Invite#invite_token{invitee = jid:to_binary(Invitee)}.
 
 maybe_set_account_name(#invite_token{type = roster_only} = Invite, AccountName) ->
     Invite#invite_token{account_name = AccountName};
 maybe_set_account_name(Invite, _AccountName) ->
     Invite.
+
+error_response(Request, Reasons) when is_list(Reasons) ->
+    Request#iq{type = error, sub_el = Reasons};
+error_response(Request, Reason) ->
+    Request#iq{type = error, sub_el = Reason}.

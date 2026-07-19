@@ -31,9 +31,7 @@
 -export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, deps/2]).
 
 %% hooks and callbacks
--export([adhoc_commands/3,
-         %c2s_unauthenticated_packet/2,
-         remove_user/3,
+-export([adhoc_commands/3, user_send_xmlel/3, remove_user/3,
          s2s_receive_packet/3, user_receive_packet/3, stream_feature_register/3]).
 
 %% Service Discovery
@@ -54,8 +52,8 @@
 -export([create_account_allowed/2, create_account_invite/4, format_invite/2,
          get_invite/2, get_invites_tree_t/2,
          get_max_invites/2, is_create_allowed/2, is_expired/1, is_reserved/3, is_token_valid/2,
-         %roster_add/2,
-         %send_presence/3,
+         %roster_add/3,
+         %send_presence/4,
          set_invitee/3, set_invitee/5, token_uri/1, transaction/2,
          xdata_field/3]).
 
@@ -136,9 +134,9 @@ hooks(HostType) ->
      {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 50},
      {s2s_receive_packet, HostType, fun ?MODULE:s2s_receive_packet/3, #{}, 50},
      {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 50},
-     {c2s_stream_features, HostType, fun ?MODULE:stream_feature_register/3, #{}, 50}%,
+     {c2s_stream_features, HostType, fun ?MODULE:stream_feature_register/3, #{}, 50},
      %% note the sequence below is important
-%     {c2s_unauthenticated_packet, HostType, fun ?MODULE:c2s_unauthenticated_packet/3, #{}, 10}
+     {user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 10}
     ].
 
 start(HostType, Opts) ->
@@ -423,7 +421,7 @@ get_preauth_token(Acc) ->
         {<<"presence">>, <<"subscribe">>} ->
             Presence = mongoose_acc:element(Acc),
             ?DEBUG("got presence: ~p", [Presence]),
-            exml_query:path(Presence, [{element_with_ns, <<"preauth">>, ?NS_PARS}, {attr, <<"token">>}]);
+            get_pars_token(Presence);
         _ ->
             undefined
     end.
@@ -509,8 +507,8 @@ disco_local_items(Acc, _Params, _Extra) ->
 stream_feature_register(Acc, #{lserver := Host}, _) ->
     {ok, mod_invites_register:stream_feature_register(Acc, Host)}.
 
-c2s_unauthenticated_packet(State, IQ) ->
-    mod_invites_register:c2s_unauthenticated_packet(State, IQ).
+user_send_xmlel(Acc, Params, Extras) ->
+    mod_invites_register:user_send_xmlel(Acc, Params, Extras).
 
 
 %%--------------------------------------------------------------------
@@ -554,10 +552,11 @@ set_invitee(Host, Token, #jid{} = InviteeJid) ->
 set_invitee(Host, Token, Invitee) ->
     set_invitee(Host, Token, Invitee, <<>>).
 
+-spec set_invitee(binary(), binary(), binary(), binary()) -> ok.
 set_invitee(Host, Token, Invitee, AccountName) ->
     set_invitee(fun() -> ok end, Host, Token, Invitee, AccountName).
 
--spec set_invitee(binary(), binary(), binary(), binary()) -> ok.
+-spec set_invitee(fun(() -> ok | {error, any()}), binary(), binary(), binary(), binary()) -> ok.
 set_invitee(F, Host, Token, Invitee, AccountName) ->
     %% This invalidates the invite token if Invitee isn't empty
     db_call(Host, set_invitee, [F, Host, Token, Invitee, AccountName]).
@@ -960,3 +959,6 @@ send_presence(HostType, FromJid, ToJid, Type) ->
                   element => Presence, from_jid => FromJid, to_jid => ToJid},
     Acc = mongoose_acc:new(AccParams),
     mongoose_router:route(Acc).
+
+get_pars_token(Xmlel) ->
+    exml_query:path(Xmlel, [{element_with_ns, <<"preauth">>, ?NS_PARS}, {attr, <<"token">>}]).
