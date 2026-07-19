@@ -14,11 +14,11 @@ execute(_Ctx, _Obj, <<"listInvites">>, Args) ->
 
 -spec list_invites(map()) -> {ok, [map()]} | {error, resolver_error()}.
 list_invites(#{<<"host">> := Host}) ->
-    case mod_invites:list_invites(Host) of
-        {ok, Invites} ->
-            {ok, [{ok, mod_invites:format_invite(Host, Invite)} || Invite <- sort(Invites)]};
-        Err ->
-            make_error(Err, #{host => Host})
+    case mod_invites:pretty_format_command_result(mod_invites:list_invites(Host)) of
+        {error, _} = Error ->
+            make_error(Error, #{host => Host});
+        Invites ->
+            {ok, [{ok, mod_invites:format_invite(Host, Invite)} || Invite <- sort(Invites)]}
     end.
 
 sort(Invites) ->
