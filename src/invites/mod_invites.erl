@@ -38,8 +38,7 @@
 -export([disco_local_identity/3, disco_local_features/3, disco_local_items/3]).
 
 %% commands
--export([
-         cleanup_expired/0,
+-export([cleanup_expired/0,
          delete_invite_by_token/2,
          expire_invite_by_token/2,
          expire_invites/2,
@@ -394,7 +393,6 @@ get_preauth_token(Acc) ->
 -define(INFO_COMMAND(Name),
         ?INFO_IDENTITY(<<"automation">>, <<"command-node">>, Name)).
 
-%-spec get_local_identity([identity()], jid(), jid(), binary(), binary()) -> [identity()].
 -spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:identity_acc(),
       Params :: map(),
@@ -406,7 +404,7 @@ disco_local_identity(Acc = #{node := ?NS_INVITE_INVITE}, _, _) ->
 disco_local_identity(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
--spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
+-spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} | {stop, exml:element()} when
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
     Extra :: gen_hook:extra().
@@ -427,8 +425,7 @@ disco_local_features(Acc = #{node := Ns, from_jid := From, to_jid := #jid{lserve
         false ->
             {ok, Acc};
         deny ->
-            %% FIXME
-            {error, "Access denied by service policy"}
+            {stop, mongoose_xmpp_errors:not_allowed("Access denied by service policy")}
     end;
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
