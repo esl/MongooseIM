@@ -4,7 +4,8 @@
 %%% Purpose : Account and Roster Invitation (aka Great Invitations)
 %%% Created : Fr Jul 12 2026 by Stefan Strigler <stefan@strigler.de>
 %%%
-%%% This is a backport of ejabberd's mod_invite.
+%%% This is a backport of ejabberd's mod_invites. Lets you create two types of
+%%% invites, roster invites and account creation invites.
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -22,8 +23,10 @@
 %%%
 %%%----------------------------------------------------------------------
 -module(mod_invites).
-
 -author('stefan@strigler.de').
+-xep([{xep, 379}, {version, "0.3.3"}]).
+-xep([{xep, 401}, {version, "0.6.0"}]).
+-xep([{xep, 445}, {version, "0.2.0"}]).
 
 -behaviour(gen_mod).
 
@@ -228,7 +231,10 @@ adhoc_commands(empty,
                     maybe_add_landing_url(LServer,
                                           Invite,
                                           Lang,
-                                          [#{var => <<"uri">>,
+                                          [#{var => <<"FORM_TYPE">>,
+                                             type => <<"hidden">>,
+                                             values => [?NS_INVITE_INVITATION]},
+                                           #{var => <<"uri">>,
                                              label => trans(Lang, <<"Invite URI">>),
                                              type => <<"text-single">>,
                                              values => [token_uri(Invite)]},
@@ -309,7 +315,10 @@ adhoc_commands(empty,
                                       maybe_add_landing_url(LServer,
                                                             Invite,
                                                             Lang,
-                                                            [#{var => <<"uri">>,
+                                                            [#{var => <<"FORM_TYPE">>,
+                                                               type => <<"hidden">>,
+                                                               values => [?NS_INVITE_INVITATION]},
+                                                             #{var => <<"uri">>,
                                                                label => trans(Lang, <<"Invite URI">>),
                                                                type => <<"text-single">>,
                                                                values => [token_uri(Invite)]},

@@ -5,6 +5,7 @@
 -define(NS_FEATURE_IBR_TOKEN, <<"urn:xmpp:ibr-token:0">>).
 -define(NS_INVITE_CREATE_ACCOUNT, <<"urn:xmpp:invite#create-account">>).
 -define(NS_INVITE_INVITE, <<"urn:xmpp:invite#invite">>).
+-define(NS_INVITE_INVITATION, <<"urn:xmpp:invite#invation">>).
 -define(NS_PARS, <<"urn:xmpp:pars:0">>).
 
 -define(OVERUSE_LIMIT, 1000).

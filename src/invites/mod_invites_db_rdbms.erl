@@ -53,7 +53,6 @@ init(HostType, _Opts) ->
     ok.
 
 prepare_queries(_HostType) ->
-
     prepare(invites_cleanup_expired, invites,
             [host],
             <<"DELETE FROM invites WHERE host = ? AND expires < NOW()">>),
