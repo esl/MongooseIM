@@ -65,17 +65,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        preset: [internal_mnesia, pgsql_mnesia, mysql_cets,
-                 ldap_mnesia, elasticsearch_and_cassandra_mnesia]
+        # Every supported database is tested with CETS, every internal database with PostgreSQL.
+        # internal_mnesia is special (Mnesia for everything, plus MinIO and RabbitMQ).
+        # ldap_mnesia and elasticsearch_and_cassandra_mnesia are not migrated to CETS yet.
+        preset: [cockroachdb_cets, mysql_cets, pgsql_cets, ldap_mnesia,
+                 elasticsearch_and_cassandra_mnesia, internal_mnesia,
+                 pgsql_mnesia, pgsql_redis]
         otp: [ '29.0.3' ]
         include:
           - test-spec: "default.spec"
-          - preset: elasticsearch_and_cassandra_mnesia
-            test-spec: "mam.spec"
-          - preset: ldap_mnesia
-            test-spec: "default.spec"
-            otp: '28.4.2'
-          - preset: pgsql_mnesia
+          # Legacy OTP must be tested on PostgreSQL and CETS
+          - preset: pgsql_cets
             test-spec: "default.spec"
             otp: '28.4.2'
     runs-on: ubuntu-22.04
@@ -102,11 +102,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        preset: [pgsql_mnesia, mysql_cets]
+        # Dynamic domains must be tested for PostgreSQL and CETS
+        preset: [pgsql_cets]
         otp: [ '29.0.3' ]
         test-spec: ["dynamic_domains.spec"]
         include:
-          - preset: pgsql_mnesia
+          - preset: pgsql_cets
             otp: '28.4.2'
             test-spec: "dynamic_domains.spec"
     runs-on: ubuntu-22.04
