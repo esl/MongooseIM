@@ -236,7 +236,7 @@ tmux new-window -n mim1 '_build/mim1/rel/mongooseim/bin/mongooseimctl live'
 tmux new-window -n mim2 '_build/mim2/rel/mongooseim/bin/mongooseimctl live'
 tmux new-window -n mim3 '_build/mim3/rel/mongooseim/bin/mongooseimctl live'
 tmux new-window -n fed1 '_build/fed1/rel/mongooseim/bin/mongooseimctl live'
-tmux new-window -n reg1 '_build/fed1/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n reg1 '_build/reg1/rel/mongooseim/bin/mongooseimctl live'
 _build/mim1/rel/mongooseim/bin/mongooseimctl started
 _build/mim2/rel/mongooseim/bin/mongooseimctl started
 _build/mim3/rel/mongooseim/bin/mongooseimctl started
