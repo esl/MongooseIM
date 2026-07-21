@@ -3,6 +3,11 @@ name: CI
 on:
   push:
     branches: [ master ]
+  # Validate changes to the CI's own config on pull requests that touch it
+  pull_request:
+    paths:
+      - '.github/workflows/ci.yml'
+      - '.github/actions/big-tests/**'
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
