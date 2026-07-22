@@ -127,6 +127,14 @@ which can be done with the [all_can_configure](#modulesmod_muc_lightall_can_conf
     This is a custom option, not compatible with our [MUC Light XEP](../open-extensions/muc_light.md).
     If a client is adhering to the XEP, its behaviour may be unexpected, and this option should not be enabled.
 
+### `modules.mod_muc_light.promote_on_last_owner_leave`
+* **Syntax**: boolean
+* **Default**: `true`
+* **Example**: `promote_on_last_owner_leave = false`
+
+When enabled, one of the group members is promoted to owner when the last owner leaves the room.
+Otherwise, leaving the room is rejected.
+
 ### `modules.mod_muc_light.config_schema`
   * **Syntax:** an array of `config_schema` items, as described below
   * **Default:**
@@ -150,19 +158,24 @@ which can be done with the [all_can_configure](#modulesmod_muc_lightall_can_conf
           internal_key = "display_lines"
 ```
 
-Defines fields allowed in the room configuration.
-
-Each `config_schema` item is a TOML table with the following keys:
+Defines fields allowed in the room configuration. Each `config_schema` item is a TOML table with the following keys:
 
 * `field` - mandatory, non-empty string - field name.
-* `string_value`, `integer_value`, `float_value` - exactly one of them has to be present, depending on the type of the field:
+* `string_value`, `integer_value`, `float_value`, `boolean_value` - exactly one of them has to be present, depending on the type of the field:
     * `string_value` - string,
     * `integer_value` - integer,
-    * `float_value` - floating-point number.
+    * `float_value` - floating-point number,
+    * `boolean_value` - boolean.
 * `internal_key` - optional, non-empty string - field name used in the internal representation, useful only for debugging or custom applications. By default it is the same as `field`.
 
-!!! WARNING
-    Lack of the `roomname` field will cause room names in Disco results and Roster items be set to the room username.
+The following internal fields are reserved and have special meaning:
+
+* `roomname` (`string_value`) - specifies the room name displayed in Disco results and Roster items. If not configured, the room username is used.
+* `all_can_configure` (`boolean_value`) - overrides the `all_can_configure` module option for the room.
+* `all_can_invite` (`boolean_value`) - overrides the `all_can_invite` module option for the room.
+
+!!! NOTE
+  Internal fields can be specified either explicitly using `internal_key` or implicitly by the value of `field`.
 
 ## Example Configuration
 

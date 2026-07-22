@@ -322,7 +322,7 @@ muc_light_opts(blocking_disabled) ->
 muc_light_opts(multiple_owner_change) ->
     #{allow_multiple_owners => true};
 muc_light_opts(implicit_owner_change_disabled) ->
-    #{promote_on_last_admin_leave => false};
+    #{promote_on_last_owner_leave => false};
 muc_light_opts(_) ->
     #{}.
 

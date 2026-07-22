@@ -69,7 +69,7 @@ change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
             {error, {bad_request, <<"Ownerless room">>}};
         _ ->
             MultipleOwners = allow_multiple_owners(HostType),
-            CanPromote = promote_on_last_admin_leave(HostType),
+            CanPromote = promote_on_last_owner_leave(HostType),
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
                         change_aff_functions(MultipleOwners, CanPromote))
@@ -338,6 +338,6 @@ run_forget_room_hook({Room, MucHost}) ->
 allow_multiple_owners(HostType) ->
     gen_mod:get_module_opt(HostType, mod_muc_light, allow_multiple_owners).
 
-promote_on_last_admin_leave(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light, promote_on_last_admin_leave).
+promote_on_last_owner_leave(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, promote_on_last_owner_leave).
 

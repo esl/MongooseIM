@@ -19,9 +19,9 @@ Here are some high-level features required from a new variant of MUC
 1. The full occupant list is always available to all occupants.
 1. The occupant is always visible on the list, even if they do not have any resources online.
 1. Occupants can only have two affiliations: owner and member.
-1. There MUST be at most one owner in the room (the service can choose to treat all users equally).
+1. There MUST be at least one owner in the room (the service can choose to treat all users equally).
 1. If the room becomes empty, it is destroyed.
-1. Occupants cannot hide behind nicks. Their real bare JID is always visible to everyone
+1. Occupants cannot hide behind nicks. Their real bare JID is always visible to everyone.
 1. No exchange of any `<presence/>` stanza inside the room.
 1. The user MUST be able to retrieve the list of rooms they occupy.
 1. The owner can modify the room configuration at any time; members may also be allowed to set configuration.
@@ -915,8 +915,8 @@ The occupant list is modified by a direct affiliation change. Following rules ap
 1. Every occupant can change its own affiliation to none in order to leave the room.
 1. The only way to join the room is being added by other occupant.
 1. The owner can change affiliations at will.
-1. If the owner leaves, the server MAY use any strategy to choose a new one.
-1. The room can have at most one owner. Giving someone else the 'owner' status effectively causes the current one to lose it.
+1. If the owner leaves, the server MAY use any strategy to choose a new one or reject the change.
+1. The room MAY be configured to have either a single owner or multiple owners. When configured for a single owner, giving someone else the 'owner' status effectively causes the current one to lose it.
 1. The owner can choose a new owner when leaving by including both 'none' and 'owner' items in affiliation change request.
 1. Every user JID can be used in the request at most once.
 1. A single request MAY change multiple affiliations.
