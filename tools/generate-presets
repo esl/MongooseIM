@@ -18,7 +18,8 @@ load(Path) ->
     parse_presets(Presets).
 
 parse_presets(Presets) ->
-    maps:from_list([maps:take(name, maps:from_list(P)) || P <- Presets]).
+    Map = maps:from_list([maps:take(name, maps:from_list(P)) || P <- Presets]),
+    maps:map(fun(_Name, Opts) -> resolve_include(Opts, Map) end, Map).
 
 resolve_include(Opts, Presets) ->
     case maps:take(include, Opts) of
@@ -29,12 +30,7 @@ resolve_include(Opts, Presets) ->
 %% CircleCI: workflow job YAML fragment
 
 print_circleci(Presets) ->
-    maps:foreach(
-        fun(Name, Opts) ->
-            print_circleci_preset(Name, resolve_include(Opts, Presets))
-        end,
-        Presets
-    ).
+    maps:foreach(fun print_circleci_preset/2, Presets).
 
 print_circleci_preset(Name, #{executor := Executor, preset := Preset, requires := Requires} = Opts) ->
     MaybeSpec =
@@ -59,20 +55,14 @@ print_circleci_preset(Name, #{executor := Executor, preset := Preset, requires :
 %% mapped to the OTP versions given as arguments.
 
 print_github(Presets, Otp) ->
-    Objs = [github_object(Name, resolve_include(maps:get(Name, Presets), Presets), Otp)
-            || Name <- lists:sort(maps:keys(Presets))],
-    io:format("~s", [["{\"include\":[", lists:join(",", Objs), "]}"]]).
+    Include = [github_object(Name, Opts, Otp) || {Name, Opts} <- lists:sort(maps:to_list(Presets))],
+    io:format("~s", [json:encode(#{include => Include})]).
 
 github_object(Name, #{executor := Executor, preset := Preset} = Opts, Otp) ->
-    Fields = [kv("name", Name), kv("preset", Preset),
-              kv("otp", otp_version(Executor, Otp)),
-              kv("test-spec", maps:get(spec, Opts, "default.spec"))],
-    ["{", lists:join(",", Fields), "}"].
-
-kv(Key, Value) -> ["\"", Key, "\":\"", to_str(Value), "\""].
-
-to_str(A) when is_atom(A) -> atom_to_list(A);
-to_str(L) -> L.
+    #{name => atom_to_binary(Name),
+      preset => list_to_binary(Preset),
+      otp => list_to_binary(otp_version(Executor, Otp)),
+      'test-spec' => list_to_binary(maps:get(spec, Opts, "default.spec"))}.
 
 otp_version("latest_otp" ++ _, #{latest := V}) -> V;
 otp_version("legacy_otp" ++ _, #{legacy := V}) -> V.
