@@ -45,7 +45,7 @@ CERTS_CACHE_KEY=$(cat certs_cache_key)
 # Matches plugins list in the rebar.config
 REBAR_PLUGINS_HASH=$(cat rebar.config | sed -n '/^{plugins/,/]}./p' | sha1sum | awk '{print $1}')
 
-BIG_TESTS="$(./tools/circle-generate-presets .circleci/presets.config | "$SED" 's/^/      /')"
+BIG_TESTS="$(./tools/generate-presets .circleci/presets.config circleci | "$SED" 's/^/      /')"
 BIG_TESTS_LIST="$(awk '$1 == "name:" {print "-", $2}' <<< "$BIG_TESTS" | "$SED" 's/^/            /')"
 
 env \

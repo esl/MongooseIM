@@ -60,55 +60,29 @@ jobs:
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh _build/test/logs test_logs
 
-  big_tests:
-    name: ${{matrix.preset}} on OTP ${{matrix.otp}}
-    strategy:
-      fail-fast: false
-      matrix:
-        preset: [internal_mnesia, pgsql_mnesia, mysql_cets,
-                 ldap_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: [ '29.0.3' ]
-        include:
-          - test-spec: "default.spec"
-          - preset: elasticsearch_and_cassandra_mnesia
-            test-spec: "mam.spec"
-          - preset: ldap_mnesia
-            test-spec: "default.spec"
-            otp: '28.4.2'
-          - preset: pgsql_mnesia
-            test-spec: "default.spec"
-            otp: '28.4.2'
+  # The big-test presets are defined once in .circleci/presets.config and shared with
+  # CircleCI; this job turns them into a GitHub Actions matrix consumed by big_tests below.
+  generate_matrix:
+    name: generate big tests matrix
     runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/big-tests
+      - uses: erlef/setup-beam@v1.16.0
         with:
-          otp: ${{matrix.otp}}
-          preset: ${{matrix.preset}}
-          gh-token: ${{secrets.GITHUB_TOKEN}}
-          test-spec: ${{matrix.test-spec}}
-      - name: upload common test results on failure
-        if: ${{ failure() }}
-        run: tools/gh-upload-to-s3.sh big_tests/ct_report
-      - name: upload big_tests results to GA4
-        if: ${{ !cancelled() && github.ref_name == 'master' }}
-        run: tools/gh-report-failing-testcases-to-ga4.sh
+          otp-version: '28.4.2'
+      - id: gen
+        run: echo "matrix=$(tools/generate-presets .circleci/presets.config github 29.0.3 28.4.2)" >> "$GITHUB_OUTPUT"
 
-  dynamic_domains_big_tests:
-    name: dynamic domains ${{matrix.preset}} on OTP ${{matrix.otp}}
+  big_tests:
+    name: ${{matrix.name}}
+    needs: generate_matrix
     strategy:
       fail-fast: false
-      matrix:
-        preset: [pgsql_mnesia, mysql_cets]
-        otp: [ '29.0.3' ]
-        test-spec: ["dynamic_domains.spec"]
-        include:
-          - preset: pgsql_mnesia
-            otp: '28.4.2'
-            test-spec: "dynamic_domains.spec"
+      matrix: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -129,7 +103,7 @@ jobs:
         run: tools/gh-report-failing-testcases-to-ga4.sh
 
   coveralls_webhook:
-    needs: [big_tests, small_tests, dynamic_domains_big_tests]
+    needs: [big_tests, small_tests]
     runs-on: ubuntu-22.04
     steps:
       - name: Finish coveralls parallel build

@@ -1,0 +1,68 @@
+#!/usr/bin/env escript
+
+%% Generates the big-test job list from the presets file for both CIs, so they share a
+%% single source of truth.
+%%
+%%   generate-presets <presets.config> circleci
+%%   generate-presets <presets.config> github <latest-otp> <legacy-otp>
+
+main([Path, "circleci"]) ->
+    print_circleci(load(Path));
+main([Path, "github", LatestOtp, LegacyOtp]) ->
+    print_github(load(Path), #{latest => LatestOtp, legacy => LegacyOtp});
+main(_Args) ->
+    halt(1).
+
+load(Path) ->
+    {ok, Presets} = file:consult(Path),
+    parse_presets(Presets).
+
+parse_presets(Presets) ->
+    Map = maps:from_list([maps:take(name, maps:from_list(P)) || P <- Presets]),
+    maps:map(fun(_Name, Opts) -> resolve_include(Opts, Map) end, Map).
+
+resolve_include(Opts, Presets) ->
+    case maps:take(include, Opts) of
+        error -> Opts;
+        {Include, Opts1} -> maps:merge(maps:get(Include, Presets), Opts1)
+    end.
+
+%% CircleCI: workflow job YAML fragment
+
+print_circleci(Presets) ->
+    maps:foreach(fun print_circleci_preset/2, Presets).
+
+print_circleci_preset(Name, #{executor := Executor, preset := Preset, requires := Requires} = Opts) ->
+    MaybeSpec =
+        case maps:get(spec, Opts, undefined) of
+            undefined -> "";
+            Spec -> [io_lib:nl(), "    spec: ", Spec]
+        end,
+    io:format(
+        """
+        - big_tests_in_docker:
+            name: ~s
+            executor: ~s
+            preset: ~s
+            requires: ~p~s
+            context: mongooseim-org
+            filters: *all_tags~n
+        """,
+        [Name, Executor, Preset, Requires, MaybeSpec]
+    ).
+
+%% GitHub Actions: strategy matrix JSON. The presets' latest/legacy executors are
+%% mapped to the OTP versions given as arguments.
+
+print_github(Presets, Otp) ->
+    Include = [github_object(Name, Opts, Otp) || {Name, Opts} <- lists:sort(maps:to_list(Presets))],
+    io:format("~s", [json:encode(#{include => Include})]).
+
+github_object(Name, #{executor := Executor, preset := Preset} = Opts, Otp) ->
+    #{name => atom_to_binary(Name),
+      preset => list_to_binary(Preset),
+      otp => list_to_binary(otp_version(Executor, Otp)),
+      'test-spec' => list_to_binary(maps:get(spec, Opts, "default.spec"))}.
+
+otp_version("latest_otp" ++ _, #{latest := V}) -> V;
+otp_version("legacy_otp" ++ _, #{legacy := V}) -> V.
