@@ -171,11 +171,8 @@ Defines fields allowed in the room configuration. Each `config_schema` item is a
 The following internal fields are reserved and have special meaning:
 
 * `roomname` (`string_value`) - specifies the room name displayed in Disco results and Roster items. If not configured, the room username is used.
-* `all_can_configure` (`boolean_value`) - overrides the `all_can_configure` module option for the room.
-* `all_can_invite` (`boolean_value`) - overrides the `all_can_invite` module option for the room.
-
-!!! NOTE
-  Internal fields can be specified either explicitly using `internal_key` or implicitly by the value of `field`.
+* `all_can_configure` (`boolean_value`) - overrides the [`all_can_configure`](#modulesmod_muc_lightall_can_configure) module option for the room.
+* `all_can_invite` (`boolean_value`) - overrides the [`all_can_invite`](#modulesmod_muc_lightall_can_invite) module option for the room.
 
 ## Example Configuration
 
