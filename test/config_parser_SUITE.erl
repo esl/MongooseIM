@@ -2412,6 +2412,8 @@ mod_muc_light_config_schema(_Config) ->
           T([Field#{<<"integer_value">> => 1}])),
     ?cfgh(P, [{<<"my_field">>, 0.5, my_field, float}],
           T([Field#{<<"float_value">> => 0.5}])),
+    ?cfgh(P, [{<<"my_field">>, true, my_field, boolean}],
+          T([Field#{<<"boolean_value">> => true}])),
     ?cfgh(P, [{<<"my_field">>, 0, your_field, integer}],
           T([Field#{<<"integer_value">> => 0,
                     <<"internal_key">> => <<"your_field">>}])),
@@ -2429,10 +2431,17 @@ mod_muc_light_config_schema(_Config) ->
     ?errh(T([Field#{<<"string_value">> => 0}])),
     ?errh(T([Field#{<<"integer_value">> => 1.5}])),
     ?errh(T([Field#{<<"float_value">> => 1}])),
+    ?errh(T([Field#{<<"boolean_value">> => <<"yes">>}])),
     ?errh(T([Field#{<<"integer_value">> => 0,
                     <<"string_value">> => <<"My Room">>}])),
     ?errh(T([Field#{<<"integer_value">> => 0,
-                    <<"internal_key">> => <<>>}])).
+                    <<"internal_key">> => <<>>}])),
+    ?errh([#{reason := invalid_reserved_field_type}],
+          T([#{<<"field">> => <<"roomname">>, <<"boolean_value">> => true}])),
+    ?errh([#{reason := invalid_reserved_field_type}],
+          T([#{<<"field">> => <<"all_can_configure">>, <<"string_value">> => <<"yes">>}])),
+    ?errh([#{reason := invalid_reserved_field_type}],
+          T([#{<<"field">> => <<"all_can_invite">>, <<"string_value">> => <<"no">>}])).
 
 mod_offline(_Config) ->
     check_module_defaults(mod_offline),

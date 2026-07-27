@@ -16,6 +16,7 @@
 -define(DEFAULT_ROOMS_PER_PAGE, 10).
 -define(DEFAULT_ROOMS_IN_ROSTERS, false).
 -define(DEFAULT_ALLOW_MULTIPLE_OWNERS, false).
+-define(DEFAULT_PROMOTE_ON_LAST_OWNER_LEAVE, true).
 
 -type aff() :: owner | member | none.
 -type aff_user() :: {jid:simple_bare_jid(), aff()}.

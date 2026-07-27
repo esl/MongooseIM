@@ -69,9 +69,10 @@ change_aff_users(HostType, AffUsers, AffUsersChangesAssorted) ->
             {error, {bad_request, <<"Ownerless room">>}};
         _ ->
             MultipleOwners = allow_multiple_owners(HostType),
+            CanPromote = promote_on_last_owner_leave(HostType),
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
-                        change_aff_functions(MultipleOwners))
+                        change_aff_functions(MultipleOwners, CanPromote))
     end.
 
 
@@ -159,26 +160,31 @@ filter_out_loop(_HostType, _FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, [
 
 %% ---------------- Affiliations manipulation ----------------
 
--spec change_aff_functions(AllowMultipleOwners :: boolean()) -> [fun(), ...].
-change_aff_functions(_AllowMultipleOwners = false)->
-    [fun maybe_demote_old_owner/1, fun maybe_select_new_owner/1];
-change_aff_functions(_AllowMultipleOwners = true)->
-    [fun maybe_select_new_owner/1].
+-spec change_aff_functions(AllowMultipleOwners :: boolean(), CanPromote :: boolean()) -> [fun(), ...].
+change_aff_functions(_AllowMultipleOwners = false, CanPromote)->
+    [fun maybe_demote_old_owner/1, maybe_select_new_owner(CanPromote)];
+change_aff_functions(_AllowMultipleOwners = true, CanPromote)->
+    [maybe_select_new_owner(CanPromote)].
 
--spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
+-spec maybe_select_new_owner(CanPromote :: boolean()) -> fun().
+maybe_select_new_owner(CanPromote) ->
+    fun(Result) -> maybe_select_new_owner(Result, CanPromote) end.
+
+-spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request()},
+                             CanPromote :: boolean()) ->
     change_aff_success() | {error, bad_request()}.
-maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = _AffRes) ->
-    {AffUsers, AffUsersChanged} =
-        case is_new_owner_needed(AU) andalso find_new_owner(AU, AUC, JoiningUsers) of
-            {NewOwner, PromotionType} ->
-                NewAU = lists:keyreplace(NewOwner, 1, AU, {NewOwner, owner}),
-                NewAUC = update_auc(PromotionType, NewOwner, AUC),
-                {NewAU, NewAUC};
-            false ->
-                {AU, AUC}
-        end,
-    {ok, AffUsers, AffUsersChanged, JoiningUsers, LeavingUsers};
-maybe_select_new_owner(Error) ->
+maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = AffRes, CanPromote) ->
+    case is_new_owner_needed(AU) andalso find_new_owner(CanPromote, AU, AUC, JoiningUsers) of
+        {NewOwner, PromotionType} ->
+            NewAU = lists:keyreplace(NewOwner, 1, AU, {NewOwner, owner}),
+            NewAUC = update_auc(PromotionType, NewOwner, AUC),
+            {ok, NewAU, NewAUC, JoiningUsers, LeavingUsers};
+        disabled ->
+            {error, {bad_request, <<"Cannot remove the last owner">>}};
+        false ->
+            AffRes
+    end;
+maybe_select_new_owner(Error, _CanPromote) ->
     Error.
 
 update_auc(promote_old_member, NewOwner, AUC) ->
@@ -195,9 +201,11 @@ is_new_owner_needed(AU) ->
     end.
 
 
--spec find_new_owner(aff_users(), aff_users(), [jid:simple_bare_jid()]) ->
-    {jid:simple_bare_jid(), promotion_type()} | false.
-find_new_owner(AU, AUC, JoiningUsers) ->
+-spec find_new_owner(CanPromote :: boolean(), aff_users(), aff_users(), [jid:simple_bare_jid()]) ->
+    {jid:simple_bare_jid(), promotion_type()} | false | disabled.
+find_new_owner(false, _AU, _AUC, _JoiningUsers) ->
+    disabled;
+find_new_owner(true, AU, AUC, JoiningUsers) ->
     AllMembers = [U || {U, member} <- (AU)],
     NewMembers = [U || {U, member} <- (AUC)],
     OldMembers = AllMembers -- NewMembers,
@@ -329,3 +337,7 @@ run_forget_room_hook({Room, MucHost}) ->
 
 allow_multiple_owners(HostType) ->
     gen_mod:get_module_opt(HostType, mod_muc_light, allow_multiple_owners).
+
+promote_on_last_owner_leave(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, promote_on_last_owner_leave).
+

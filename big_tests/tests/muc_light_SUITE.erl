@@ -31,13 +31,16 @@
          change_subject/1,
          change_roomname/1,
          all_can_configure/1,
+         all_can_configure_opt/1,
          set_config_deny/1,
          get_room_config/1,
          custom_default_config_works/1,
          get_room_occupants/1,
          get_room_info/1,
          leave_room/1,
-         change_other_aff_deny/1
+         change_other_aff_deny/1,
+         all_can_invite/1,
+         all_can_invite_opt/1
         ]).
 -export([ % owner
          create_room/1,
@@ -57,6 +60,7 @@
          explicit_owner_change/1,
          explicit_owner_handover/1,
          implicit_owner_change/1,
+         implicit_owner_change_disabled/1,
          edge_case_owner_change/1,
          adding_wrongly_named_user_triggers_infinite_loop/1
         ]).
@@ -157,13 +161,16 @@ groups() ->
                                  change_subject,
                                  change_roomname,
                                  all_can_configure,
+                                 all_can_configure_opt,
                                  set_config_deny,
                                  get_room_config,
                                  custom_default_config_works,
                                  get_room_occupants,
                                  get_room_info,
                                  leave_room,
-                                 change_other_aff_deny
+                                 change_other_aff_deny,
+                                 all_can_invite,
+                                 all_can_invite_opt
                                 ]},
          {owner, [sequence], [
                               create_room,
@@ -183,6 +190,7 @@ groups() ->
                               explicit_owner_handover,
                               multiple_owner_change,
                               implicit_owner_change,
+                              implicit_owner_change_disabled,
                               edge_case_owner_change,
                               adding_wrongly_named_user_triggers_infinite_loop
                              ]},
@@ -291,6 +299,16 @@ muc_light_opts(CaseName) when CaseName =:= disco_rooms_empty_page_infinity;
     #{rooms_per_page => infinity};
 muc_light_opts(all_can_configure) ->
     #{all_can_configure => true};
+muc_light_opts(all_can_configure_opt) ->
+    #{config_schema => [{<<"all_can_configure">>, false, all_can_configure, boolean},
+                        {<<"roomname">>, <<"Untitled">>, roomname, binary},
+                        {<<"subject">>, <<>>, subject, binary}]};
+muc_light_opts(all_can_invite) ->
+    #{all_can_invite => true};
+muc_light_opts(all_can_invite_opt) ->
+    #{config_schema => [{<<"all_can_invite">>, false, all_can_invite, boolean},
+                        {<<"roomname">>, <<"Untitled">>, roomname, binary},
+                        {<<"subject">>, <<>>, subject, binary}]};
 muc_light_opts(create_room_with_equal_occupants) ->
     #{equal_occupants => true};
 muc_light_opts(rooms_per_user) ->
@@ -303,6 +321,8 @@ muc_light_opts(blocking_disabled) ->
     #{blocking => false};
 muc_light_opts(multiple_owner_change) ->
     #{allow_multiple_owners => true};
+muc_light_opts(implicit_owner_change_disabled) ->
+    #{promote_on_last_owner_leave => false};
 muc_light_opts(_) ->
     #{}.
 
@@ -563,6 +583,21 @@ all_can_configure(Config) ->
             foreach_occupant([Alice, Bob, Kate], Stanza, config_msg_verify_fun(ConfigChange))
         end).
 
+all_can_configure_opt(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            RoomNameChange = [{<<"roomname">>, <<"new subject">>}],
+            RoomNameStanza = stanza_config_set(?ROOM, RoomNameChange),
+            escalus:send(Kate, RoomNameStanza),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+            verify_no_stanzas([Alice, Bob, Kate]),
+
+            AllCanConfigureChange = [{<<"all_can_configure">>, <<"true">>}],
+            change_room_config(Alice, [Alice, Bob, Kate], AllCanConfigureChange),
+            
+            foreach_occupant([Alice, Bob, Kate], RoomNameStanza, config_msg_verify_fun(RoomNameChange))
+        end).
+
 set_config_deny(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             ConfigChange = [{<<"roomname">>, <<"new subject">>}],
@@ -653,6 +688,47 @@ change_other_aff_deny(Config) ->
                            escalus:wait_for_stanza(Kate)),
 
             verify_no_stanzas([Alice, Bob, Kate, Mike])
+        end).
+
+all_can_invite(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                  fun(Alice, Bob, Kate, Mike) ->
+            AffUsersChanges1 = [{Bob, none}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+
+            AffUsersChanges2 = [{Alice, member}, {Kate, owner}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges2)),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+
+            AffUsersChanges3 = [{Mike, member}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges3)),
+            verify_aff_bcast([{Alice, owner}, {Bob, member}, {Kate, member}, {Mike, member}],
+                             AffUsersChanges3),
+            escalus:assert(is_iq_result,
+                           escalus:wait_for_stanza(Kate))
+        end).
+
+all_can_invite_opt(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                  fun(Alice, Bob, Kate, Mike) ->
+            AffUsersChanges1 = [{Mike, member}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+            verify_no_stanzas([Alice, Bob, Kate, Mike]),
+
+            AllCanConfigureChange = [{<<"all_can_invite">>, <<"true">>}],
+            change_room_config(Alice, [Alice, Bob, Kate], AllCanConfigureChange),
+
+            AffUsersChanges2 = [{Mike, member}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges2)),
+            verify_aff_bcast([{Alice, owner}, {Bob, member}, {Kate, member}, {Mike, member}],
+                             AffUsersChanges2),
+            escalus:assert(is_iq_result,
+                           escalus:wait_for_stanza(Kate))
         end).
 
 %% ---------------------- owner ----------------------
@@ -829,6 +905,14 @@ implicit_owner_change(Config) ->
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
             verify_aff_bcast([{Kate, owner}, {Alice, member}], [{Kate, owner} | AffUsersChanges1]),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+implicit_owner_change_disabled(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            AffUsersChanges1 = [{Bob, none}, {Alice, member}],
+            escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Alice))
         end).
 
 edge_case_owner_change(Config) ->
