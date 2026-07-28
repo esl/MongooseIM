@@ -188,7 +188,6 @@
 [modules.mod_muc_light]
   host = "muclight.example.com"
   equal_occupants = true
-  legacy_mode = true
   rooms_per_user = 10
   blocking = false
   all_can_configure = true

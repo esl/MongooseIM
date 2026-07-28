@@ -132,26 +132,22 @@ codec_calls(_Config) ->
                               element => undefined,
                               from_jid => jid:make_noprep(<<"a">>, <<"localhost">>, <<>>),
                               to_jid => jid:make_noprep(<<>>, <<"muc.localhost">>, <<>>) }),
-    mod_muc_light_codec_modern:encode({#msg{id = <<"ajdi">>}, AffUsers},
-                                      Sender, RoomJid, HandleFun, Acc),
+    mod_muc_light_codec:encode({#msg{id = <<"ajdi">>}, AffUsers},
+                               Sender, RoomJid, HandleFun, Acc),
     % 1 filter packet, sent 1 msg to 2 users
     check_count(1, 2),
-    mod_muc_light_codec_modern:encode({set, #affiliations{}, [], []},
-                                      Sender, RoomJid, HandleFun, Acc),
+    mod_muc_light_codec:encode({set, #affiliations{}, [], []},
+                               Sender, RoomJid, HandleFun, Acc),
     % 1 filter packet, sent 1 IQ response to Sender
     check_count(1, 1),
-    mod_muc_light_codec_modern:encode({set, #create{id = <<"ajdi">>, aff_users = AffUsers}, false},
-                                      Sender, RoomJid, HandleFun, Acc),
+    mod_muc_light_codec:encode({set, #create{id = <<"ajdi">>, aff_users = AffUsers}, false},
+                               Sender, RoomJid, HandleFun, Acc),
     % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
     check_count(1, 3),
-    mod_muc_light_codec_modern:encode({set, #config{id = <<"ajdi">>}, AffUsers},
-        Sender, RoomJid, HandleFun, Acc),
+    mod_muc_light_codec:encode({set, #config{id = <<"ajdi">>}, AffUsers},
+                               Sender, RoomJid, HandleFun, Acc),
     % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
     check_count(1, 3),
-    mod_muc_light_codec_legacy:encode({#msg{id = <<"ajdi">>}, AffUsers},
-        Sender, RoomJid, HandleFun, Acc),
-    % 1 filter, 1 msg to 2 users
-    check_count(1, 2),
     ok.
 
 filter_room_packet_handler(Acc, _Params, _Extra) ->
