@@ -100,6 +100,4 @@ type MUCLightRoomDesc{
   subject: String
   "Number of room members"
   usersNumber: NonNegInt
-  "JID of one of the room's owners (there is normally exactly one); null if no owner can be resolved"
-  ownerJid: JID
 }

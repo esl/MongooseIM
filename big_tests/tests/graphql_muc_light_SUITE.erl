@@ -1526,10 +1526,8 @@ admin_list_rooms_story(Config, Alice, Bob) ->
     ?assertEqual(<<"Room A">>, maps:get(<<"name">>, R1)),
     ?assertEqual(<<"subjectA">>, maps:get(<<"subject">>, R1)),
     ?assertEqual(2, maps:get(<<"usersNumber">>, R1)),
-    ?assertEqual(escalus_utils:jid_to_lower(AliceBin), maps:get(<<"ownerJid">>, R1)),
     R2 = find_room_desc(jid:to_binary(RoomJID2), Rooms),
-    ?assertEqual(1, maps:get(<<"usersNumber">>, R2)),
-    ?assertEqual(escalus_utils:jid_to_lower(BobBin), maps:get(<<"ownerJid">>, R2)).
+    ?assertEqual(1, maps:get(<<"usersNumber">>, R2)).
 
 admin_list_rooms_pagination(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],

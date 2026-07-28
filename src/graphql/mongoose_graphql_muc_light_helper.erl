@@ -60,9 +60,8 @@ make_rooms_payload(RoomDescs, Count, HasNextPage) ->
 
 -spec make_room_desc(mod_muc_light_api:room_desc()) -> map().
 make_room_desc(#{jid := JID, name := Name, subject := Subject,
-                 users_number := UsersNumber, owner := Owner}) ->
+                 users_number := UsersNumber}) ->
     #{<<"jid">> => jid:to_binary(JID),
       <<"name">> => undefined_to_null(Name),
       <<"subject">> => undefined_to_null(Subject),
-      <<"usersNumber">> => UsersNumber,
-      <<"ownerJid">> => undefined_to_null(Owner)}.
+      <<"usersNumber">> => UsersNumber}.

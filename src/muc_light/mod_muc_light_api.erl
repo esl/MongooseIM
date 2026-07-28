@@ -37,8 +37,7 @@
 -type room_desc() :: #{jid := jid:jid(),
                        name := binary() | undefined,
                        subject := binary() | undefined,
-                       users_number := non_neg_integer(),
-                       owner := jid:simple_bare_jid() | undefined}.
+                       users_number := non_neg_integer()}.
 
 -type list_rooms_result() :: {Rooms :: [room_desc()],
                               Count :: non_neg_integer(),
@@ -441,21 +440,13 @@ raw_to_room_desc(#{room := {RoomU, RoomS}, config := Config, aff_users := AffUse
     #{jid => jid:make_noprep(RoomU, RoomS, <<>>),
       name => config_field(<<"roomname">>, Config, Schema),
       subject => config_field(<<"subject">>, Config, Schema),
-      users_number => length(AffUsers),
-      owner => find_owner(AffUsers)}.
+      users_number => length(AffUsers)}.
 
 -spec config_field(binary(), mod_muc_light_room_config:kv(),
                    mod_muc_light_room_config:schema()) -> binary() | undefined.
 config_field(FieldName, Config, Schema) ->
     case lists:keyfind(FieldName, 1, Schema) of
         {FieldName, _Default, Key, _Type} -> proplists:get_value(Key, Config, undefined);
-        false -> undefined
-    end.
-
--spec find_owner(aff_users()) -> jid:simple_bare_jid() | undefined.
-find_owner(AffUsers) ->
-    case lists:keyfind(owner, 2, AffUsers) of
-        {OwnerUS, owner} -> OwnerUS;
         false -> undefined
     end.
 
