@@ -916,7 +916,7 @@ The occupant list is modified by a direct affiliation change. Following rules ap
 1. The only way to join the room is being added by other occupant.
 1. The owner can change affiliations at will.
 1. If the owner leaves, the server MAY use any strategy to choose a new one or reject the change.
-1. The room MAY be configured to have either a single owner or multiple owners. When configured for a single owner, giving someone else the 'owner' status effectively causes the current one to lose it.
+1. The room MAY be configured to have either a single owner or multiple owners. When configured for a single owner, giving someone else the 'owner' status effectively causes the current owner to lose it.
 1. The owner can choose a new owner when leaving by including both 'none' and 'owner' items in affiliation change request.
 1. Every user JID can be used in the request at most once.
 1. A single request MAY change multiple affiliations.
