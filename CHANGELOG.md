@@ -1,3 +1,56 @@
+# [MongooseIM 6.8.0](https://github.com/esl/MongooseIM/releases/tag/6.8.0) - 2026-07-30
+
+## Highlights
+- New performance-focused `mod_pubsub`, implementing PEP with selected parts of XEP-0060. The previous implementation is available as `mod_pubsub_old` and is deprecated.
+- `mod_broadcast` lets administrators send announcements to all users of a domain.
+- Support for Erlang/OTP 29, with OTP 26 no longer supported.
+- Multiple MUC and MUC Light improvements, better aligned with XEP-0045.
+- Further cleanup of legacy modules and options.
+
+## Added
+- New `mod_pubsub` implementing PEP, with user/domain removal and GDPR data retrieval (#4731, #4738, #4740)
+- Support for `max_items` in PEP, with the `max_items_per_node` server-imposed limit (#4741, #4742)
+- `mod_broadcast` for messaging all users of a domain, managed with the GraphQL Admin API (#4724)
+- `listRooms` admin GraphQL query in `mod_muc_light` (#4744)
+- Per-room configuration overrides and the `promote_on_last_owner_leave` option in `mod_muc_light` (#4749)
+- Message hints support for push notifications, including basic Jingle message handling (#4739)
+- The `tls_cert_remaining_days` metric, and support for passing extra arguments to metric probes (#4725)
+- Database migration scripts for this release (#4748)
+
+## Changed
+- Added Erlang/OTP 29 support and dropped OTP 26 (#4743)
+- Aligned `muc#roomconfig_allowinvites` with XEP-0045, gating invitations by role instead of affiliation (#4733)
+- Admins can now change reserved nicknames through the MUC member list (#4735)
+- Bumped supported XEP versions, and unified `mod_vcard_ldap` behaviour for missing vCards with other backends (#4721)
+- `router_no_route_found` is now a global metric, and its log is less severe (#4730)
+- Updated `mongooseim-docker`, where cluster join detection uses a `.joined` marker instead of Mnesia files (#4719)
+- Updated the `exml` and `erlang_doctor` dependencies (#4737, #4755)
+
+## Fixed
+- Fixed the default host of `mod_http_upload` (#4745)
+- GraphQL directives are now processed for implicit operations, so `use` and `protected` checks cannot be bypassed (#4734)
+- Added the missing `BareJID` output conversion in the GraphQL API, removing unnecessary `notice` logs (#4756)
+
+## Removed
+- Removed `mod_muc_log` (#4708)
+- Removed system message translation support (#4728)
+- Deprecated `mod_pubsub_old`, the previous PubSub implementation (#4731)
+- Deprecated the `legacy_mode` option of `mod_muc_light` (#4746)
+
+## Other
+- Improved test coverage, together with the resulting code fixes (#4720, #4747)
+- CI improvements: big test presets synced with CircleCI, a fixed codecov uploader script, and a pinned `zazkia` version (#4717, #4727, #4729, #4751)
+- Documentation updates: a Docker guide, improved MUC Light docs, and testing guide fix (#4732, #4752, #4753)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-05-13..2026-07-30)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-05-13&to=2026-07-30&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.0+sort%3Aupdated-desc)
+
 # [MongooseIM 6.7.0](https://github.com/esl/MongooseIM/releases/tag/6.7.0) - 2026-05-13
 
 ## Highlights
