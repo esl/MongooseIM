@@ -19,7 +19,7 @@ make_room(#{jid := JID, aff_users := Users, options := Options}) ->
     Participants = lists:map(fun make_ok_user/1, Users),
     Name = maps:get(<<"roomname">>, Options, null),
     Subject = maps:get(<<"subject">>, Options, null),
-    #{<<"jid">> => jid:to_binary(JID), <<"name">> => Name, <<"subject">> => Subject,
+    #{<<"jid">> => JID, <<"name">> => Name, <<"subject">> => Subject,
       <<"participants">> => Participants, <<"options">> => make_options(Options)}.
 
 make_ok_user({JID, Aff}) ->
@@ -61,7 +61,7 @@ make_rooms_payload(RoomDescs, Count, HasNextPage) ->
 -spec make_room_desc(mod_muc_light_api:room_desc()) -> map().
 make_room_desc(#{jid := JID, name := Name, subject := Subject,
                  users_number := UsersNumber}) ->
-    #{<<"jid">> => jid:to_binary(JID),
+    #{<<"jid">> => JID,
       <<"name">> => undefined_to_null(Name),
       <<"subject">> => undefined_to_null(Subject),
       <<"usersNumber">> => UsersNumber}.

@@ -36,6 +36,7 @@ input(Ty, V) ->
 output(<<"DateTime">>, DT) -> {ok, encode_datetime(DT)};
 output(<<"XmlElement">>, Elem) -> {ok, exml:to_binary(Elem)};
 output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
+output(<<"BareJID">>, Jid) -> {ok, jid:to_bare_binary(Jid)};
 output(<<"UserName">>, User) -> {ok, User};
 output(<<"DomainName">>, Domain) -> {ok, Domain};
 output(<<"ResourceName">>, Res) -> {ok, Res};
