@@ -79,3 +79,25 @@ type RoomUser{
   "User's affiliation"
   affiliation: Affiliation!
 }
+
+"MUC Light rooms payload"
+type MUCLightRoomsPayload{
+  "List of room descriptions, ordered by room JID"
+  rooms: [MUCLightRoomDesc!]
+  "Total number of rooms in the domain matching the filter"
+  count: NonNegInt
+  "Whether more rooms exist after this page"
+  nextPage: Boolean
+}
+
+"MUC Light room description"
+type MUCLightRoomDesc{
+  "Room's JID"
+  jid: BareJID!
+  "Room's display name (may be empty)"
+  name: String
+  "Room's subject (may be empty)"
+  subject: String
+  "Number of room members"
+  usersNumber: NonNegInt
+}

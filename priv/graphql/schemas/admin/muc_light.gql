@@ -46,4 +46,7 @@ type MUCLightAdminQuery @protected @use(modules: ["mod_muc_light"]){
   "Get the user's list of blocked entities"
   getBlockingList(user: JID!): [BlockingItem!]
     @protected(type: DOMAIN, args: ["user"]) @use(args: ["user"])
+  "Get rooms of the given MUC Light domain, ordered by JID. To get the next page, pass the JID of the last room as 'after'. 'filter' matches a substring of the room JID or name"
+  listRooms(mucDomain: DomainName!, filter: String, after: BareJID, limit: PosInt = 50): MUCLightRoomsPayload
+    @protected(type: DOMAIN, args: ["mucDomain"]) @use(args: ["mucDomain"])
 }

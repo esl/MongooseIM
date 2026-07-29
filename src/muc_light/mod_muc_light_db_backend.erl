@@ -21,8 +21,13 @@
 -type remove_user_return() :: [{RoomUS :: jid:simple_bare_jid(),
                                 modify_aff_users_return()}].
 
+-type room_desc() :: #{room := jid:simple_bare_jid(),
+                       config := mod_muc_light_room_config:kv(),
+                       aff_users := aff_users()}.
+
 -export_type([modify_aff_users_return/0,
-              remove_user_return/0]).
+              remove_user_return/0,
+              room_desc/0]).
 
 %% API
 -export([start/2]).
@@ -42,6 +47,7 @@
 -export([get_aff_users/2]).
 -export([modify_aff_users/5]).
 -export([get_info/2]).
+-export([get_room_descs/5]).
 
 %% For tests
 -export([force_clear/1]).
@@ -134,6 +140,19 @@
                    RoomUS :: jid:simple_bare_jid()) ->
     {ok, mod_muc_light_room_config:kv(), aff_users(), Version :: binary()}
     | {error, not_exists}.
+
+%% ------------------------ Listing rooms in a domain ------------------------
+%% Returns a page of at most Limit rooms sorted by the room localpart,
+%% positioned strictly after the After cursor (undefined starts from the
+%% beginning), together with the total number of rooms matching the filter.
+%% Filter is a lowercase substring matched case-insensitively against the room
+%% localpart and the room name; undefined matches every room.
+-callback get_room_descs(HostType :: mongooseim:host_type(),
+                         MUCServer :: jid:lserver(),
+                         Filter :: binary() | undefined,
+                         After :: jid:luser() | undefined,
+                         Limit :: pos_integer()) ->
+    {[room_desc()], Count :: non_neg_integer()}.
 
 %% ------------------------ API for tests ------------------------
 -callback force_clear() -> ok.
@@ -273,6 +292,13 @@ modify_aff_users(HostType, RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     | {error, not_exists}.
 get_info(HostType, RoomUS) ->
     Args = [HostType, RoomUS],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec get_room_descs(mongooseim:host_type(), jid:lserver(), binary() | undefined,
+                     jid:luser() | undefined, pos_integer()) ->
+    {[room_desc()], Count :: non_neg_integer()}.
+get_room_descs(HostType, MUCServer, Filter, After, Limit) ->
+    Args = [HostType, MUCServer, Filter, After, Limit],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec force_clear(HostType :: mongooseim:host_type()) -> ok.

@@ -10,7 +10,12 @@
 -import(mongoose_graphql_helper, [make_error/2, format_result/2, null_to_undefined/1]).
 -import(mongoose_graphql_muc_light_helper, [make_room/1,
                                             make_ok_user/1,
-                                            page_size_or_max_limit/2]).
+                                            page_size_or_max_limit/2,
+                                            null_to_default/2]).
+
+%% Matches the schema default of the listRooms limit argument; only needed
+%% when the client passes an explicit null.
+-define(DEFAULT_ROOMS_PAGE_SIZE, 50).
 
 execute(_Ctx, _Obj, <<"listUserRooms">>, Args) ->
     list_user_rooms(Args);
@@ -21,7 +26,9 @@ execute(_Ctx, _Obj, <<"getRoomConfig">>, Args) ->
 execute(_Ctx, _Obj, <<"getRoomMessages">>, Args) ->
     get_room_messages(Args);
 execute(_Ctx, _Obj, <<"getBlockingList">>, Args) ->
-    get_blocking_list(Args).
+    get_blocking_list(Args);
+execute(_Ctx, _Obj, <<"listRooms">>, Args) ->
+    list_rooms(Args).
 
 -spec list_user_rooms(map()) -> {ok, [{ok, binary()}]} | {error, resolver_error()}.
 list_user_rooms(#{<<"user">> := UserJID}) ->
@@ -72,3 +79,22 @@ get_blocking_list(#{<<"user">> := UserJID}) ->
         Err ->
             make_error(Err, #{user => jid:to_binary(UserJID)})
     end.
+
+-spec list_rooms(map()) -> {ok, map()} | {error, resolver_error()}.
+list_rooms(#{<<"mucDomain">> := MUCDomain, <<"filter">> := Filter,
+             <<"after">> := After, <<"limit">> := Limit}) ->
+    Filter2 = null_to_undefined(Filter),
+    After2 = after_to_luser(After),
+    Limit2 = null_to_default(Limit, ?DEFAULT_ROOMS_PAGE_SIZE),
+    case mod_muc_light_api:get_rooms(MUCDomain, Filter2, After2, Limit2) of
+        {ok, {Rooms, Count, HasNextPage}} ->
+            {ok, mongoose_graphql_muc_light_helper:make_rooms_payload(Rooms, Count, HasNextPage)};
+        Err ->
+            make_error(Err, #{mucDomain => MUCDomain})
+    end.
+
+after_to_luser(null) ->
+    undefined;
+after_to_luser(JID) ->
+    {LUser, _} = jid:to_lus(JID),
+    LUser.

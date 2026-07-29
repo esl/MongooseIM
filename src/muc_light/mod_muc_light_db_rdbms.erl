@@ -43,7 +43,8 @@
          set_blocking/4,
          get_aff_users/2,
          modify_aff_users/5,
-         get_info/2
+         get_info/2,
+         get_room_descs/5
         ]).
 
 %% Extra API for testing
@@ -135,6 +136,37 @@ prepare_room_queries() ->
                              " FROM muc_light_occupants AS o "
                              " INNER JOIN muc_light_rooms AS r ON o.room_id = r.id"
                              " WHERE o.luser = ? AND o.lserver = ?">>),
+    %% Cursor-paginated room listing: keyset on luser, so the first page passes
+    %% an empty cursor (every luser sorts after <<>>).
+    LimitOffset = rdbms_queries:limit_offset(),
+    mongoose_rdbms:prepare(muc_light_select_rooms_page, muc_light_rooms,
+                           [lserver, luser, limit, offset],
+                           <<"SELECT r.id, r.luser FROM muc_light_rooms AS r "
+                             " WHERE r.lserver = ? AND r.luser > ?"
+                             " ORDER BY r.luser", LimitOffset/binary>>),
+    %% The filter matches a substring of the room localpart (stored lowercase)
+    %% or of the room name; 'roomname' is the schema field name under which
+    %% the name is persisted, regardless of any custom internal_key.
+    mongoose_rdbms:prepare(muc_light_select_rooms_page_filtered, muc_light_rooms,
+                           [lserver, luser, luser, val, limit, offset],
+                           <<"SELECT r.id, r.luser FROM muc_light_rooms AS r "
+                             " WHERE r.lserver = ? AND r.luser > ?"
+                             " AND (r.luser LIKE ? ESCAPE '$'"
+                             "      OR EXISTS (SELECT 1 FROM muc_light_config AS c"
+                             "                  WHERE c.room_id = r.id AND c.opt = 'roomname'"
+                             "                    AND LOWER(c.val) LIKE ? ESCAPE '$'))"
+                             " ORDER BY r.luser", LimitOffset/binary>>),
+    mongoose_rdbms:prepare(muc_light_count_rooms, muc_light_rooms,
+                           [lserver],
+                           <<"SELECT COUNT(*) FROM muc_light_rooms WHERE lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_count_rooms_filtered, muc_light_rooms,
+                           [lserver, luser, val],
+                           <<"SELECT COUNT(*) FROM muc_light_rooms AS r "
+                             " WHERE r.lserver = ?"
+                             " AND (r.luser LIKE ? ESCAPE '$'"
+                             "      OR EXISTS (SELECT 1 FROM muc_light_config AS c"
+                             "                  WHERE c.room_id = r.id AND c.opt = 'roomname'"
+                             "                    AND LOWER(c.val) LIKE ? ESCAPE '$'))">>),
     ok.
 
 prepare_affiliation_queries() ->
@@ -264,6 +296,27 @@ select_user_rooms(HostType, LUser, LServer) ->
 select_user_rooms_count(HostType, LUser, LServer) ->
     mongoose_rdbms:execute_successfully(
         HostType, muc_light_select_user_rooms_count, [LUser, LServer]).
+
+select_rooms_page(HostType, MUCServer, undefined, AfterLUser, Limit) ->
+    mongoose_rdbms:execute_successfully(
+        HostType, muc_light_select_rooms_page, [MUCServer, AfterLUser, Limit, 0]);
+select_rooms_page(HostType, MUCServer, Filter, AfterLUser, Limit) ->
+    Pattern = filter_to_like_pattern(Filter),
+    mongoose_rdbms:execute_successfully(
+        HostType, muc_light_select_rooms_page_filtered,
+        [MUCServer, AfterLUser, Pattern, Pattern, Limit, 0]).
+
+count_rooms(HostType, MUCServer, undefined) ->
+    mongoose_rdbms:execute_successfully(
+        HostType, muc_light_count_rooms, [MUCServer]);
+count_rooms(HostType, MUCServer, Filter) ->
+    Pattern = filter_to_like_pattern(Filter),
+    mongoose_rdbms:execute_successfully(
+        HostType, muc_light_count_rooms_filtered, [MUCServer, Pattern, Pattern]).
+
+filter_to_like_pattern(Filter) ->
+    Escaped = mongoose_rdbms:escape_prepared_like(Filter),
+    <<"%", Escaped/binary, "%">>.
 
 insert_room(HostType, RoomU, RoomS, Version) ->
     mongoose_rdbms:execute_successfully(
@@ -595,6 +648,36 @@ get_info(HostType, {RoomU, RoomS}) ->
             {ok, Config, AffUsers, Version};
         {selected, []} ->
             {error, not_exists}
+    end.
+
+-spec get_room_descs(mongooseim:host_type(), jid:lserver(), binary() | undefined,
+                     jid:luser() | undefined, pos_integer()) ->
+    {[mod_muc_light_db_backend:room_desc()], non_neg_integer()}.
+get_room_descs(HostType, MUCServer, Filter, After, Limit) ->
+    %% The first page passes an empty cursor: every luser sorts after <<>>
+    AfterLUser = case After of undefined -> <<>>; _ -> After end,
+    {selected, PageRows} = select_rooms_page(HostType, MUCServer, Filter, AfterLUser, Limit),
+    {selected, [{DbCount}]} = count_rooms(HostType, MUCServer, Filter),
+    Schema = mod_muc_light:config_schema(MUCServer),
+    Descs = lists:filtermap(fun({DbRoomID, RoomU}) ->
+                                room_desc(HostType, MUCServer, Schema, DbRoomID, RoomU)
+                            end, PageRows),
+    {Descs, mongoose_rdbms:result_to_integer(DbCount)}.
+
+room_desc(HostType, MUCServer, Schema, DbRoomID, RoomU) ->
+    RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
+    {selected, AffRows} = select_affs_by_room_id(HostType, RoomID),
+    case decode_affs(AffRows) of
+        [] ->
+            %% The room was destroyed between the page select and this fetch;
+            %% a live room always has at least one occupant
+            false;
+        AffUsers ->
+            {selected, ConfigRows} = select_config_by_room_id(HostType, RoomID),
+            {ok, Config} = mod_muc_light_room_config:from_binary_kv(ConfigRows, Schema),
+            {true, #{room => {RoomU, MUCServer},
+                     config => Config,
+                     aff_users => AffUsers}}
     end.
 
 %% ------------------------ Conversions ------------------------

@@ -1,7 +1,10 @@
 -module(mongoose_graphql_muc_light_helper).
 
+-import(mongoose_graphql_helper, [undefined_to_null/1]).
+
 -export([make_room/1, make_ok_user/1, blocking_item_to_map/1, prepare_blocking_items/1,
-         page_size_or_max_limit/2, null_to_default/2, config_to_map/3]).
+         page_size_or_max_limit/2, null_to_default/2, config_to_map/3,
+         make_rooms_payload/3]).
 
 -spec page_size_or_max_limit(null | integer(), integer()) -> integer().
 page_size_or_max_limit(null, MaxLimit) ->
@@ -46,3 +49,19 @@ options_to_map(null) ->
     #{};
 options_to_map(Options) ->
     maps:from_list([{K, V} || #{<<"key">> := K, <<"value">> := V} <- Options]).
+
+-spec make_rooms_payload([mod_muc_light_api:room_desc()], non_neg_integer(),
+                         boolean()) -> map().
+make_rooms_payload(RoomDescs, Count, HasNextPage) ->
+    Rooms = [{ok, make_room_desc(D)} || D <- RoomDescs],
+    #{<<"rooms">> => Rooms,
+      <<"count">> => Count,
+      <<"nextPage">> => HasNextPage}.
+
+-spec make_room_desc(mod_muc_light_api:room_desc()) -> map().
+make_room_desc(#{jid := JID, name := Name, subject := Subject,
+                 users_number := UsersNumber}) ->
+    #{<<"jid">> => jid:to_binary(JID),
+      <<"name">> => undefined_to_null(Name),
+      <<"subject">> => undefined_to_null(Subject),
+      <<"usersNumber">> => UsersNumber}.

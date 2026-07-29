@@ -14,6 +14,7 @@
          get_room_messages/4,
          get_room_messages/5,
          get_user_rooms/1,
+         get_rooms/4,
          get_room_info/1,
          get_room_info/2,
          get_room_aff/1,
@@ -33,7 +34,16 @@
                   aff_users := aff_users(),
                   options := map()}.
 
--export_type([room/0]).
+-type room_desc() :: #{jid := jid:jid(),
+                       name := binary() | undefined,
+                       subject := binary() | undefined,
+                       users_number := non_neg_integer()}.
+
+-type list_rooms_result() :: {Rooms :: [room_desc()],
+                              Count :: non_neg_integer(),
+                              HasNextPage :: boolean()}.
+
+-export_type([room/0, room_desc/0, list_rooms_result/0]).
 
 -define(ROOM_DELETED_SUCC_RESULT, {ok, "Room deleted successfully"}).
 -define(USER_NOT_ROOM_MEMBER_RESULT, {not_room_member, "Given user does not occupy this room"}).
@@ -151,6 +161,17 @@ get_room_aff(RoomJID) ->
 get_user_rooms(UserJID) ->
     fold(#{user => UserJID}, [fun check_user/1, fun do_get_user_rooms/1]).
 
+%% Filter is matched case-insensitively as a substring of the room localpart
+%% or the room name; After is the localpart of the last room of the previous
+%% page (keyset cursor).
+-spec get_rooms(jid:lserver(), binary() | undefined, jid:luser() | undefined,
+                pos_integer()) ->
+          {ok, list_rooms_result()} | {muc_server_not_found, iolist()}.
+get_rooms(MUCServer, Filter, After, Limit) ->
+    M = #{muc_server => MUCServer, filter => normalize_filter(Filter),
+          after_room => After, limit => Limit},
+    fold(M, [fun check_muc_server/1, fun do_get_rooms/1]).
+
 -spec get_blocking_list(jid:jid()) -> {ok, [blocking_item()]} | {user_not_found, iolist()}.
 get_blocking_list(UserJID) ->
     fold(#{user => UserJID}, [fun check_user/1, fun do_get_blocking_list/1]).
@@ -178,6 +199,19 @@ check_muc_domain(M = #{room := #jid{lserver = LServer}}) ->
             M#{muc_host_type => HostType};
         {error, not_found} ->
             ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
+
+check_muc_server(M = #{muc_server := MUCServer}) ->
+    case jid:nameprep(MUCServer) of
+        error ->
+            ?MUC_SERVER_NOT_FOUND_RESULT;
+        LServer ->
+            case mongoose_domain_api:get_subdomain_host_type(LServer) of
+                {ok, HostType} ->
+                    M#{muc_server := LServer, muc_host_type => HostType};
+                {error, not_found} ->
+                    ?MUC_SERVER_NOT_FOUND_RESULT
+            end
     end.
 
 check_room_member(M = #{user := UserJID, aff_users := AffUsers}) ->
@@ -345,6 +379,19 @@ do_get_user_rooms(#{user := UserJID, user_host_type := HostType}) ->
     MUCServer = mod_muc_light_utils:server_host_to_muc_host(HostType, UserJID#jid.lserver),
     {ok, mod_muc_light_db_backend:get_user_rooms(HostType, jid:to_lus(UserJID), MUCServer)}.
 
+do_get_rooms(#{muc_server := MUCServer, muc_host_type := HostType,
+               filter := Filter, after_room := After, limit := Limit}) ->
+    %% Fetch one extra room to learn whether a next page exists
+    {Raw, Count} =
+        mod_muc_light_db_backend:get_room_descs(HostType, MUCServer, Filter, After, Limit + 1),
+    Schema = mod_muc_light:config_schema(MUCServer),
+    Page = [raw_to_room_desc(R, Schema) || R <- lists:sublist(Raw, Limit)],
+    {ok, {Page, Count, length(Raw) > Limit}}.
+
+normalize_filter(undefined) -> undefined;
+normalize_filter(<<>>) -> undefined;
+normalize_filter(Filter) -> string:lowercase(Filter).
+
 do_get_blocking_list(#{user := UserJID, user_host_type := HostType}) ->
     MUCServer = mod_muc_light_utils:server_host_to_muc_host(HostType, UserJID#jid.lserver),
     {ok, mod_muc_light_db_backend:get_blocking(HostType, jid:to_lus(UserJID), MUCServer)}.
@@ -385,6 +432,22 @@ get_aff(UserUS, Affs) ->
     case lists:keyfind(UserUS, 1, Affs) of
         {_, Aff} -> Aff;
         false -> none
+    end.
+
+-spec raw_to_room_desc(mod_muc_light_db_backend:room_desc(),
+                       mod_muc_light_room_config:schema()) -> room_desc().
+raw_to_room_desc(#{room := {RoomU, RoomS}, config := Config, aff_users := AffUsers}, Schema) ->
+    #{jid => jid:make_noprep(RoomU, RoomS, <<>>),
+      name => config_field(<<"roomname">>, Config, Schema),
+      subject => config_field(<<"subject">>, Config, Schema),
+      users_number => length(AffUsers)}.
+
+-spec config_field(binary(), mod_muc_light_room_config:kv(),
+                   mod_muc_light_room_config:schema()) -> binary() | undefined.
+config_field(FieldName, Config, Schema) ->
+    case lists:keyfind(FieldName, 1, Schema) of
+        {FieldName, _Default, Key, _Type} -> proplists:get_value(Key, Config, undefined);
+        false -> undefined
     end.
 
 make_room(JID, #config{ raw_config = Options}, AffUsers) ->
