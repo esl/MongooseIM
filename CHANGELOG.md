@@ -1,11 +1,11 @@
 # [MongooseIM 6.8.0](https://github.com/esl/MongooseIM/releases/tag/6.8.0) - 2026-07-30
 
 ## Highlights
+- **Security fix:** GraphQL requests could skip the `use` and `protected` directives, bypassing authorization checks. Deployments exposing the GraphQL API should upgrade.
 - New performance-focused `mod_pubsub`, implementing PEP with selected parts of XEP-0060. The previous implementation is available as `mod_pubsub_old` and is deprecated.
 - `mod_broadcast` lets administrators send announcements to all users of a domain.
 - Support for Erlang/OTP 29, with OTP 26 no longer supported.
 - Multiple MUC and MUC Light improvements, better aligned with XEP-0045.
-- Further cleanup of legacy modules and options.
 
 ## Added
 - New `mod_pubsub` implementing PEP, with user/domain removal and GDPR data retrieval (#4731, #4738, #4740)
@@ -28,7 +28,7 @@
 
 ## Fixed
 - Fixed the default host of `mod_http_upload` (#4745)
-- GraphQL directives are now processed for implicit operations, so `use` and `protected` checks cannot be bypassed (#4734)
+- Fixed an authorization bypass in the GraphQL API: a named operation submitted without `operationName` skipped directive processing, so the `use` and `protected` checks were never applied (#4734)
 - Added the missing `BareJID` output conversion in the GraphQL API, removing unnecessary `notice` logs (#4756)
 
 ## Removed
