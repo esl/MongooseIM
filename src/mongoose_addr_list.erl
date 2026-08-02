@@ -129,7 +129,7 @@ do_lookup_services(HostType, Domain, EnforceTls) ->
 %%    connection over the other.
 -spec order_and_prepare_addrs(mongooseim:host_type(), [srv_tls()]) -> [addr()].
 order_and_prepare_addrs(HostType, TlsTaggedSrvAddrLists) ->
-    OrderedByPriority = order_by_priority_and_weight(TlsTaggedSrvAddrLists),
+    OrderedByPriority = lists:sort(fun compare_priority_and_weight/2, TlsTaggedSrvAddrLists),
     WithIpAddresses = for_each_tagged_srv_get_ip_addresses(HostType, OrderedByPriority),
     lists:flatten(WithIpAddresses).
 
@@ -142,12 +142,10 @@ order_and_prepare_addrs(HostType, TlsTaggedSrvAddrLists) ->
 %%  Weight:
 %%      The weight field specifies a relative weight for entries with the same priority.
 %%      Larger weights SHOULD be given a proportionately higher probability of being selected.
--spec order_by_priority_and_weight([srv_tls()]) -> [srv_tls()].
-order_by_priority_and_weight(TlsTaggedSrvAddrLists) ->
-    Fun = fun({P1, _W1}, {P2, _W2}) when P1 < P2 -> true;
-             ({P1, _W1}, {P2, _W2}) when P1 > P2 -> false;
-             ({_P1, W1}, {_P2, W2}) -> W2 < W1 end,
-    lists:sort(Fun, TlsTaggedSrvAddrLists).
+-spec compare_priority_and_weight(srv_tls(), srv_tls()) -> boolean().
+compare_priority_and_weight({P1, _W1, _, _, _}, {P2, _W2, _, _, _}) when P1 < P2 -> true;
+compare_priority_and_weight({P1, _W1, _, _, _}, {P2, _W2, _, _, _}) when P1 > P2 -> false;
+compare_priority_and_weight({_P1, W1, _, _, _}, {_P2, W2, _, _, _}) -> W2 < W1.
 
 -spec for_each_tagged_srv_get_ip_addresses(mongooseim:host_type(), [srv_tls()]) -> [[[addr()]]].
 for_each_tagged_srv_get_ip_addresses(HostType, TlsTaggedSrvAddrLists) ->
