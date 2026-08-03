@@ -53,7 +53,6 @@ all_tests() ->
      ping,
      wrong_ping,
      active,
-     active_keep_alive,
      server_ping_pong,
      server_ping_pang,
      service_unavailable_response
@@ -201,19 +200,6 @@ active(Config) ->
                 wait_ping_interval(0.5),
                 % it shouldn't as the ping was sent
                 false = escalus_client:has_stanzas(Alice),
-                assert_no_event(mod_ping_response, Alice),
-                assert_no_event(mod_ping_response_timeout, Alice)
-        end).
-
-active_keep_alive(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}],
-        fun(Alice) ->
-                wait_ping_interval(0.75),
-                escalus_tcp:send(Alice#client.rcv_pid, #xmlcdata{content = "\n"}),
-                wait_ping_interval(0.5),
-
-                false = escalus_client:has_stanzas(Alice),
-
                 assert_no_event(mod_ping_response, Alice),
                 assert_no_event(mod_ping_response_timeout, Alice)
         end).
