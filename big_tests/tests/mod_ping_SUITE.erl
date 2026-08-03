@@ -258,7 +258,7 @@ check_connection(_, Client) ->
     true = escalus_connection:is_connected(Client).
 
 wait_for_ping_req(Alice) ->
-    PingReq = escalus_client:wait_for_stanza(Alice, timer:seconds(10)),
+    PingReq = escalus_client:wait_for_stanza(Alice, ping_interval() + timer:seconds(1)),
     escalus:assert(is_iq_get, PingReq),
     <<"urn:xmpp:ping">> = exml_query:path(PingReq, [{element, <<"ping">>},
                                                     {attr, <<"xmlns">>}]),

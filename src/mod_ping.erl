@@ -173,15 +173,10 @@ determine_action(<<"error">>) ->
     mongoose_c2s_hooks:result().
 user_send_packet(Acc, _Params, #{host_type := HostType}) ->
     Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval),
-    Action = {{timeout, ping}, Interval, fun ping_c2s_handler/2},
+    Action = {{timeout, send_ping}, Interval, fun ping_c2s_handler/2},
     {ok, mongoose_c2s_acc:to_acc(Acc, actions, Action)}.
 
 -spec ping_c2s_handler(atom(), mongoose_c2s:data()) -> mongoose_c2s_acc:t().
-ping_c2s_handler(ping, StateData) ->
-    HostType = mongoose_c2s:get_host_type(StateData),
-    Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout),
-    Actions = [{{timeout, send_ping}, Interval, fun ping_c2s_handler/2}],
-    mongoose_c2s_acc:new(#{actions => Actions});
 ping_c2s_handler(send_ping, StateData) ->
     PingId = mongoose_bin:gen_from_crypto(),
     IQ = ping_get(PingId),
