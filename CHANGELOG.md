@@ -1,4 +1,4 @@
-# [MongooseIM 6.8.0](https://github.com/esl/MongooseIM/releases/tag/6.8.0) - 2026-07-30
+# [MongooseIM 6.8.0](https://github.com/esl/MongooseIM/releases/tag/6.8.0) - 2026-08-05
 
 ## Highlights
 - **Security fix:** GraphQL requests could skip the `use` and `protected` directives, bypassing authorization checks. Deployments exposing the GraphQL API should upgrade.
@@ -8,7 +8,7 @@
 - Multiple MUC and MUC Light improvements, better aligned with XEP-0045.
 
 ## Added
-- New `mod_pubsub` implementing PEP, with user/domain removal and GDPR data retrieval (#4731, #4738, #4740)
+- New `mod_pubsub` implementing PEP, with user/domain removal and GDPR data retrieval. It uses a new schema with no data migration from `mod_pubsub_old` (#4731, #4738, #4740)
 - Support for `max_items` in PEP, with the `max_items_per_node` server-imposed limit (#4741, #4742)
 - `mod_broadcast` for messaging all users of a domain, managed with the GraphQL Admin API (#4724)
 - `listRooms` admin GraphQL query in `mod_muc_light` (#4744)
@@ -45,9 +45,9 @@
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.0)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-05-13..2026-07-30)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-05-13..2026-08-05)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-05-13&to=2026-07-30&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-05-13&to=2026-08-05&type=c)
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.0+sort%3Aupdated-desc)
 
