@@ -9,7 +9,7 @@ This module implements XMPP Ping functionality as described in [XEP-0199: XMPP P
 * **Default:** `false`
 * **Example:** `send_pings = true`
 
-If set to true, the server will send ping iqs to the client if they are not active for a `ping_interval`.
+If set to true, the server will send ping IQs to clients that send no XMPP stanzas for a `ping_interval`.
 
 ### `modules.mod_ping.ping_interval`
 * **Syntax:** positive integer (seconds)

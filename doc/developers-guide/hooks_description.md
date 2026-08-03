@@ -50,8 +50,8 @@ These hooks are handled by the following modules:
 * [`mod_event_pusher`](../modules/mod_event_pusher.md) - sends selected messages to an external service.
 * [`mod_inbox`](../modules/mod_inbox.md) - stores messages in the user's inbox.
 * [`mod_mam`](../modules/mod_mam.md) - stores outgoing messages in an archive.
-* [`mod_ping`](../modules/mod_ping.md) - upon reception of every message from the client, this module (re)starts a timer;
- if nothing more is received from the client within 60 seconds, it sends an IQ ping, to which the client should reply - which starts another timer.
+* [`mod_ping`](../modules/mod_ping.md) - upon reception of every stanza from the client, this module (re)starts a timer;
+ if no more stanzas are received from the client within `ping_interval`, it sends an IQ ping, to which the client should reply - which starts another timer.
 * [`mod_presence`](../modules/mod_presence.md) - handles presence stanzas, updating the user presence state and broadcasting presence updates.
 * [`mod_privacy`](../modules/mod_privacy.md) - filters sent stanzas according to privacy lists and handles privacy-related IQ requests.
 * [`mod_register`](../modules/mod_register.md) - registers a new user when a registration IQ is received. `user_send_xmlel` is used because the stanza is received while the session is not established.
