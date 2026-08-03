@@ -1,4 +1,4 @@
-.PHONY: rel docs
+.PHONY: rel docs docs-serve
 
 # GNU Make is required. Use gmake on BSD systems.
 
@@ -85,6 +85,11 @@ docs: xeplist
 	## if build-docs.sh fails, mim_docs container remains running, so we can exec into it and debug ##
 	##################################################################################################
 	docker run --rm -d -v "$(PWD):/mim" -w /mim --name mim_docs cimg/python:3.11.5-node sleep infinity
-	docker exec mim_docs tools/install-mkdocs.sh &>/dev/null
+	docker exec mim_docs tools/install-docs-tools.sh &>/dev/null
 	docker exec mim_docs tools/build-docs.sh  &>/dev/null
 	docker stop mim_docs
+
+## Serve the docs locally with live reload, without going through Docker.
+## Requires `pip3 install zensical`.
+docs-serve: xeplist
+	zensical serve

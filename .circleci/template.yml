@@ -490,7 +490,7 @@ jobs:
       - add_ssh_keys
       - run:
           name: Install tools for building docs
-          command: tools/install-mkdocs.sh
+          command: tools/install-docs-tools.sh
       - run:
           name: Build the docs
           command: tools/build-docs.sh
@@ -523,7 +523,6 @@ jobs:
                 command: |
                   ssh-keyscan github.com >> ~/.ssh/known_hosts
                   git fetch git@github.com:esl/MongooseDocs.git gh-pages:gh-pages
-                  pip3 install mike
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push
 
   build_in_docker:

@@ -36,23 +36,21 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/esl/MongooseIM
 plugins:
-  - include-markdown
-  - mermaid2:
-      version: 11.1.0
-  - plantuml:
-      puml_url: https://www.plantuml.com/plantuml/
   - search:
       separator: '[\s\-_,:!=\[\]()"/<>]+|\.(?!\d)|&[lg]t;'
       lang: en
 extra_css: [css/custom.css]
 markdown_extensions:
+  - pymdownx.snippets:
+      base_path: [doc]
+      check_paths: true
   - pymdownx.highlight:
       linenums: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:mermaid2.fence_mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - admonition
   - pymdownx.tabbed:
       alternate_style: true
