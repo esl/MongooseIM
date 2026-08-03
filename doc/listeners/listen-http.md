@@ -137,7 +137,7 @@ The default value is 1 hour.
 
 Requires no additional options other than the [common handler options](#common-handler-options) in the listener section.
 In order to collect useful metrics, a `[prometheus]` section has to be added in [the instrumentation section](../configuration/instrumentation.md#).
-The default configuration available with MongooseIM is shown in [Example 7](#example-7-prometheus) below.
+The default configuration available with MongooseIM is shown in [Example 5](#example-5-prometheus) below.
 
 ## Transport options
 
