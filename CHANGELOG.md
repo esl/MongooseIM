@@ -1,4 +1,4 @@
-# [MongooseIM 6.8.0](https://github.com/esl/MongooseIM/releases/tag/6.8.0) - 2026-08-05
+# [MongooseIM 6.8.0](https://github.com/esl/MongooseIM/releases/tag/6.8.0) - 2026-08-04
 
 ## Highlights
 - **Security fix:** GraphQL requests could skip the `use` and `protected` directives, bypassing authorization checks. Deployments exposing the GraphQL API should upgrade.
@@ -47,15 +47,15 @@
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.0)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-05-13..2026-08-05)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-05-13..2026-08-04)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-05-13&to=2026-08-05&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-05-13&to=2026-08-04&type=c)
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.0+sort%3Aupdated-desc)
 
 ## Special thanks to our contributors
-- [@niecore](https://github.com/niecore) for fixing the ping interval in `mod_ping` (#4761)
-- [@aszlig](https://github.com/aszlig) for fixing the S2S SRV record ordering (#4760)
+- [@niecore](https://github.com/niecore) for fixing the ping interval in `mod_ping` (#4672)
+- [@aszlig](https://github.com/aszlig) for fixing the S2S SRV record ordering (#4759)
 
 # [MongooseIM 6.7.0](https://github.com/esl/MongooseIM/releases/tag/6.7.0) - 2026-05-13
 
