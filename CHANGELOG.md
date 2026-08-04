@@ -30,6 +30,8 @@
 - Fixed the default host of `mod_http_upload` (#4745)
 - Fixed an authorization bypass in the GraphQL API: a named operation submitted without `operationName` skipped directive processing, so the `use` and `protected` checks were never applied (#4734)
 - Added the missing `BareJID` output conversion in the GraphQL API, removing unnecessary `notice` logs (#4756)
+- Fixed `mod_ping` sending pings after `ping_interval` plus `ping_req_timeout` instead of just `ping_interval` (#4761)
+- Fixed a crash when ordering S2S SRV records, which broke outgoing S2S connections (#4760)
 
 ## Removed
 - Removed `mod_muc_log` (#4708)
@@ -50,6 +52,10 @@
 - [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-05-13&to=2026-08-05&type=c)
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.0+sort%3Aupdated-desc)
+
+## Special thanks to our contributors
+- [@niecore](https://github.com/niecore) for fixing the ping interval in `mod_ping` (#4761)
+- [@aszlig](https://github.com/aszlig) for fixing the S2S SRV record ordering (#4760)
 
 # [MongooseIM 6.7.0](https://github.com/esl/MongooseIM/releases/tag/6.7.0) - 2026-05-13
 
