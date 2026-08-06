@@ -19,7 +19,7 @@
     fun((From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> mongoose_acc:t()).
 
 -type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
-                       | {error, bad_request}
+                       | {error, bad_request()}
                        | ignore.
 
 -export_type([encoded_packet_handler/0, decode_result/0]).
