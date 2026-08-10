@@ -47,17 +47,6 @@ It means that every occupant will be a `member`, even the room creator.
     This option does not implicitly set `all_can_invite` to `true`. 
     If that option is set to `false`, nobody will be able to join the room after the initial creation request.
 
-### `modules.mod_muc_light.legacy_mode`
-  * **Syntax:** boolean
-  * **Default:** `false`
-  * **Example:** `legacy_mode = true`
-
-Enables XEP-0045 compatibility mode. 
-It allows using a subset of classic MUC stanzas with some MUC Light functions limited.
-
-!!! Warning
-    This option is **deprecated** and will be removed in the next release.
-
 ### `modules.mod_muc_light.rooms_per_user`
   * **Syntax:** positive integer or the string `"infinity"`
   * **Default:** `"infinity"`
@@ -180,7 +169,6 @@ The following internal fields are reserved and have special meaning:
 [modules.mod_muc_light]
   host = "muclight.example.com"
   equal_occupants = true
-  legacy_mode = true
   rooms_per_user = 10
   blocking = false
   all_can_configure = true
@@ -192,11 +180,11 @@ The following internal fields are reserved and have special meaning:
   [modules.mod_muc_light.cache_affs]
     time_to_live = 60
 
-  [[modules.mod_muc_light.config_schema]] 
+  [[modules.mod_muc_light.config_schema]]
     field = "roomname"
     string_value = "The Room"
-  
-  [[modules.mod_muc_light.config_schema]] 
+
+  [[modules.mod_muc_light.config_schema]]
     field = "display-lines"
     integer_value = 30
     internal_key = "display_lines"

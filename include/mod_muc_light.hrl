@@ -7,7 +7,6 @@
 -define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
 
 -define(DEFAULT_EQUAL_OCCUPANTS, false).
--define(DEFAULT_LEGACY_MODE, false).
 -define(DEFAULT_ROOMS_PER_USER, infinity).
 -define(DEFAULT_BLOCKING, true).
 -define(DEFAULT_ALL_CAN_CONFIGURE, false).

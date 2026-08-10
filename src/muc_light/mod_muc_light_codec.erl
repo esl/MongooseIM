@@ -1,14 +1,12 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_muc_light_codec_modern.erl
+%%% File    : mod_muc_light_codec.erl
 %%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : MUC Light codec for modern syntax
+%%% Purpose : MUC Light stanza translation
 %%% Created : 29 Sep 2015 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%%----------------------------------------------------------------------
 
--module(mod_muc_light_codec_modern).
+-module(mod_muc_light_codec).
 -author('piotr.nosek@erlang-solutions.com').
-
--behaviour(mod_muc_light_codec_backend).
 
 %% API
 -export([decode/4, encode/5, encode_error/5]).
@@ -16,6 +14,15 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
+
+-type encoded_packet_handler() ::
+    fun((From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> mongoose_acc:t()).
+
+-type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
+                       | {error, bad_request()}
+                       | ignore.
+
+-export_type([encoded_packet_handler/0, decode_result/0]).
 
 -define(HANDLE_PARSE_ERROR(Function, From, IQ),
         {error, Reason} ->
@@ -37,7 +44,7 @@
 
 -spec decode(From :: jid:jid(), To :: jid:jid(), Stanza :: exml:element(),
              Acc :: mongoose_acc:t()) ->
-    mod_muc_light_codec_backend:decode_result().
+    decode_result().
 decode(_From, #jid{ lresource = Resource }, _Stanza, _Acc) when Resource =/= <<>> ->
     {error, {bad_request, <<"Resource expected to be empty">>}};
 decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza, _Acc) ->
@@ -49,7 +56,7 @@ decode(_, _, _, _) ->
 
 -spec encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
              RoomJID :: jid:jid(),
-             HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler(),
+             HandleFun :: encoded_packet_handler(),
              Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
@@ -103,7 +110,31 @@ get_sender_aff(Users, US) ->
         OrigPacket :: exml:element(), Acc :: mongoose_acc:t()) ->
     mongoose_acc:t().
 encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
-    mod_muc_light_codec_backend:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, Acc).
+    ErrorElem = make_error_elem(ErrMsg),
+    ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = [] }, ErrorElem),
+    mongoose_router:route(mongoose_acc:update(OrigTo, OrigFrom, ErrorPacket, Acc)).
+
+-spec make_error_elem(tuple()) -> exml:element().
+make_error_elem({error, not_allowed}) ->
+    mongoose_xmpp_errors:not_allowed();
+make_error_elem({error, bad_request}) ->
+    mongoose_xmpp_errors:bad_request(<<"Uncategorized bad request">>);
+make_error_elem({error, item_not_found}) ->
+    mongoose_xmpp_errors:item_not_found();
+make_error_elem({error, {conflict, Text}}) ->
+    mongoose_xmpp_errors:conflict(Text);
+make_error_elem({error, {bad_request, Text}}) ->
+    make_error_elem({error, bad_request, Text});
+make_error_elem({error, bad_request, Text}) ->
+    mongoose_xmpp_errors:bad_request(iolist_to_binary(Text));
+make_error_elem({error, feature_not_implemented}) ->
+    mongoose_xmpp_errors:feature_not_implemented();
+make_error_elem({error, {feature_not_implemented, Text}}) ->
+    mongoose_xmpp_errors:feature_not_implemented(iolist_to_binary(Text));
+make_error_elem({error, internal_server_error}) ->
+    mongoose_xmpp_errors:internal_server_error();
+make_error_elem({error, _}) ->
+    mongoose_xmpp_errors:bad_request().
 
 %%====================================================================
 %% Message decoding
@@ -400,7 +431,7 @@ encode_set_config(Config, RoomBin) ->
 
 -spec identity() -> mongoose_disco:identity().
 identity() ->
-    #{category => <<"conference">>, type => <<"text">>, name => <<"MUC Light (modern)">>}.
+    #{category => <<"conference">>, type => <<"text">>, name => <<"MUC Light">>}.
 
 -spec aff_user_to_el(aff_user()) -> exml:element().
 aff_user_to_el({User, Aff}) ->
@@ -437,7 +468,7 @@ inject_prev_version([El | REls], PrevVersion) ->
 -spec bcast_aff_messages(From :: jid:jid(), OldAffUsers :: aff_users(),
                          NewAffUsers :: aff_users(), Attrs :: exml:attrs(),
                          VersionEl :: exml:element(), Children :: [exml:child()],
-                         HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
+                         HandleFun :: encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _, _) ->
     ok;
 bcast_aff_messages(From, [{User, _} | ROldAffUsers], [], Attrs, VersionEl, Children, HandleFun) ->
@@ -460,14 +491,14 @@ bcast_aff_messages(From, OldAffUsers, [{{ToU, ToS}, _} = AffUser | RNewAffUsers]
 
 -spec msg_to_leaving_user(From :: jid:jid(), User :: jid:simple_bare_jid(),
                           Attrs :: exml:attrs(),
-                          HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
+                          HandleFun :: encoded_packet_handler()) -> ok.
 msg_to_leaving_user(From, {ToU, ToS} = User, Attrs, HandleFun) ->
     NotifForLeaving = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, [ aff_user_to_el({User, none}) ]),
     msg_to_aff_user(From, ToU, ToS, Attrs, NotifForLeaving, HandleFun).
 
 -spec msg_to_aff_user(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
                       Attrs :: exml:attrs(), Children :: [exml:child()],
-                      HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
+                      HandleFun :: encoded_packet_handler()) -> ok.
 msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
     To = jid:make_noprep(ToU, ToS, <<>>),
     ToBin = jid:to_binary({ToU, ToS, <<>>}),

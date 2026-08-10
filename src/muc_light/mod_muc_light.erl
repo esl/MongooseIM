@@ -60,8 +60,6 @@
 -export([apply_rsm/3]).
 
 -export([config_metrics/1]).
-%% for mod_muc_light_codec_legacy
--export([subdomain_pattern/1]).
 
 -export([get_room_affs_from_acc/2, set_room_affs_from_acc/3]).
 
@@ -170,10 +168,7 @@ delete_room({_, RoomS} = RoomUS) ->
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    Codec = host_type_to_codec(HostType),
-    maybe_warn_about_legacy_mode(HostType, Codec),
     mod_muc_light_db_backend:start(HostType, Opts),
-    mod_muc_light_codec_backend:start(HostType, #{backend => Codec}),
     %% Handler
     SubdomainPattern = subdomain_pattern(HostType),
     PacketHandler = mongoose_packet_handler:new(?MODULE),
@@ -184,7 +179,6 @@ start(HostType, Opts) ->
 stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
-    mod_muc_light_codec_backend:stop(HostType),
     mod_muc_light_db_backend:stop(HostType),
     ok.
 
@@ -201,23 +195,6 @@ subdomain_pattern(HostType) ->
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
 
-host_type_to_codec(HostType) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode) of
-        true ->
-            legacy;
-        false ->
-            modern
-    end.
-
--spec maybe_warn_about_legacy_mode(host_type(), legacy | modern) -> ok.
-maybe_warn_about_legacy_mode(HostType, legacy) ->
-    ?LOG_WARNING(#{what => muc_light_legacy_mode_deprecated,
-                   text => <<"The mod_muc_light 'legacy_mode' option is deprecated "
-                             "and will be removed in the next release.">>,
-                   host_type => HostType});
-maybe_warn_about_legacy_mode(_HostType, modern) ->
-    ok.
-
 %% Config callbacks
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -229,7 +206,6 @@ config_spec() ->
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
                  <<"equal_occupants">> => #option{type = boolean},
-                 <<"legacy_mode">> => #option{type = boolean},
                  <<"rooms_per_user">> => #option{type = int_or_infinity,
                                                  validate = positive},
                  <<"blocking">> => #option{type = boolean},
@@ -248,7 +224,6 @@ config_spec() ->
        defaults = #{<<"backend">> => mnesia,
                     <<"host">> => default_host(),
                     <<"equal_occupants">> => ?DEFAULT_EQUAL_OCCUPANTS,
-                    <<"legacy_mode">> => ?DEFAULT_LEGACY_MODE,
                     <<"rooms_per_user">> => ?DEFAULT_ROOMS_PER_USER,
                     <<"blocking">> => ?DEFAULT_BLOCKING,
                     <<"all_can_configure">> => ?DEFAULT_ALL_CAN_CONFIGURE,
@@ -333,7 +308,7 @@ hooks(HostType) ->
                      El :: exml:element(), Extra :: gen_hook:extra()) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, _Extra) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    DecodedPacket = mod_muc_light_codec_backend:decode(From, To, El, Acc),
+    DecodedPacket = mod_muc_light_codec:decode(From, To, El, Acc),
     process_decoded_packet(HostType, From, To, Acc, El, DecodedPacket).
 
 -spec process_decoded_packet(
@@ -341,7 +316,7 @@ process_packet(Acc, From, To, El, _Extra) ->
                      From :: jid:jid(), To :: jid:jid(),
                      Acc :: mongoose_acc:t(),
                      OrigPacket :: exml:element(),
-                     DecodedPacket :: mod_muc_light_codec_backend:decode_result()) ->
+                     DecodedPacket :: mod_muc_light_codec:decode_result()) ->
     mongoose_acc:t().
 process_decoded_packet(HostType, From, To, Acc, El,
                        {ok, {set, #create{} = Create}}) ->
@@ -391,7 +366,7 @@ process_decoded_packet(_HostType, From, To, Acc, El, InvalidReq) ->
     make_err(From, To, El, Acc, {error, bad_request}).
 
 make_err(From, To, El, Acc, Reason) ->
-    mod_muc_light_codec_backend:encode_error(Reason, From, To, El, Acc).
+    mod_muc_light_codec:encode_error(Reason, From, To, El, Acc).
 
 %%====================================================================
 %% Hook handlers
@@ -416,18 +391,11 @@ disco_local_items(Acc = #{host_type := HostType,
                           node := <<>>},
                   _Params,
                   _Extra) ->
-    XMLNS = case legacy_mode(HostType) of
-                true -> ?NS_MUC;
-                false -> ?NS_MUC_LIGHT
-            end,
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
-    Items = [#{jid => MUCHost, node => XMLNS}],
+    Items = [#{jid => MUCHost, node => ?NS_MUC_LIGHT}],
     {ok, mongoose_disco:add_items(Items, Acc)};
 disco_local_items(Acc, _Params, _Extra) ->
     {ok, Acc}.
-
-legacy_mode(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode).
 
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -606,22 +574,20 @@ get_affiliation(Acc, Room, User) ->
 create_room(Acc, From, To, Create0, OrigPacket) ->
     case try_to_create_room(From, To, Create0) of
         {ok, FinalRoomJid, Details} ->
-            mod_muc_light_codec_backend:encode({set, Details, To#jid.luser == <<>>}, From,
-                                               FinalRoomJid, make_handler_fun(Acc), Acc);
+            mod_muc_light_codec:encode({set, Details, To#jid.luser == <<>>}, From,
+                                       FinalRoomJid, make_handler_fun(Acc), Acc);
         {error, exists} ->
-            mod_muc_light_codec_backend:encode_error({error, {conflict, <<"Room already exists">>}},
-                                                     From, To, OrigPacket,
-                                                     Acc);
+            mod_muc_light_codec:encode_error({error, {conflict, <<"Room already exists">>}},
+                                             From, To, OrigPacket, Acc);
         {error, bad_request} ->
-            mod_muc_light_codec_backend:encode_error({error, bad_request}, From, To, OrigPacket,
-                                                     Acc);
+            mod_muc_light_codec:encode_error({error, bad_request}, From, To, OrigPacket, Acc);
         {error, {_, _} = Error} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
-            mod_muc_light_codec_backend:encode_error(
+            mod_muc_light_codec:encode_error(
               {error, bad_request, ErrorText}, From, To, OrigPacket, Acc);
         {error, Error} ->
             ErrorText = io_lib:format("~p", [Error]),
-            mod_muc_light_codec_backend:encode_error(
+            mod_muc_light_codec:encode_error(
               {error, bad_request, ErrorText}, From, To, OrigPacket, Acc)
     end.
 
@@ -660,8 +626,8 @@ creator_aff(false) -> owner.
                             Acc :: mongoose_acc:t()) ->
     mongoose_acc:t().
 handle_disco_info_get(From, To, DiscoInfo, Acc) ->
-    mod_muc_light_codec_backend:encode({get, DiscoInfo}, From, To,
-                                       make_handler_fun(Acc), Acc).
+    mod_muc_light_codec:encode({get, DiscoInfo}, From, To,
+                               make_handler_fun(Acc), Acc).
 
 -spec handle_disco_items_get(HostType :: host_type(),
                              Acc :: mongoose_acc:t(),
@@ -677,7 +643,7 @@ handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
             ?LOG_ERROR(#{what => muc_get_user_rooms_failed,
                          text => <<"Couldn't get room list for user">>,
                          from_jid => From, reason => Error}),
-            mod_muc_light_codec_backend:encode_error(
+            mod_muc_light_codec:encode_error(
               {error, internal_server_error}, From, To, OrigPacket, Acc);
         Rooms ->
             RoomsInfo = get_rooms_info(HostType, lists:sort(Rooms)),
@@ -687,12 +653,10 @@ handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
                 {ok, RoomsInfoSlice, RSMOut} ->
                     DiscoItems = DiscoItems0#disco_items{ rooms = RoomsInfoSlice, rsm = RSMOut },
-                    mod_muc_light_codec_backend:encode({get, DiscoItems},
-                                                       From, To,
-                                                       RouteFun, Acc);
+                    mod_muc_light_codec:encode({get, DiscoItems}, From, To, RouteFun, Acc);
                 {error, item_not_found} ->
-                    mod_muc_light_codec_backend:encode_error({error, item_not_found},
-                                                             From, To, OrigPacket, Acc)
+                    mod_muc_light_codec:encode_error({error, item_not_found},
+                                                     From, To, OrigPacket, Acc)
             end
     end.
 
@@ -779,8 +743,8 @@ find_room_pos(_, [], _) -> {error, item_not_found}.
 handle_blocking(Acc, From, To, {get, #blocking{} = Blocking}) ->
     HostType = mongoose_acc:host_type(Acc),
     BlockingItems = mod_muc_light_db_backend:get_blocking(HostType, jid:to_lus(From), To#jid.lserver),
-    mod_muc_light_codec_backend:encode({get, Blocking#blocking{ items = BlockingItems }},
-                                       From, To, make_handler_fun(Acc), Acc);
+    mod_muc_light_codec:encode({get, Blocking#blocking{ items = BlockingItems }},
+                               From, To, make_handler_fun(Acc), Acc);
 handle_blocking(Acc, From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
     case lists:any(fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end, Items) of
         true ->
@@ -788,8 +752,7 @@ handle_blocking(Acc, From, To, {set, #blocking{ items = Items }} = BlockingReq) 
         false ->
             HostType = mongoose_acc:host_type(Acc),
             ok = mod_muc_light_db_backend:set_blocking(HostType, jid:to_lus(From), To#jid.lserver, Items),
-            mod_muc_light_codec_backend:encode(
-              BlockingReq, From, To, make_handler_fun(Acc), Acc),
+            mod_muc_light_codec:encode(BlockingReq, From, To, make_handler_fun(Acc), Acc),
             ok
     end.
 
@@ -817,7 +780,7 @@ bcast_removed_user(Acc, UserJID,
                      },
     Cmd = {set, Affiliations, OldAffUsers, NewAffUsers},
     RoomJid = jid:make_noprep(RoomU, RoomS, <<>>),
-    mod_muc_light_codec_backend:encode(Cmd, UserJID, RoomJid, make_handler_fun(Acc), Acc),
+    mod_muc_light_codec:encode(Cmd, UserJID, RoomJid, make_handler_fun(Acc), Acc),
     bcast_removed_user(Acc, UserJID, RAffected, Version, ID);
 bcast_removed_user(Acc, UserJID, [{{RoomU, RoomS} = _RoomUS, Error} | RAffected], Version, ID) ->
     ?LOG_ERROR(#{what => muc_remove_user_failed,

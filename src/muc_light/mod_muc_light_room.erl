@@ -253,11 +253,10 @@ process_aff_set(_AffReq, _RoomUS, Error, _Acc) ->
 -spec send_response(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
                     Result :: packet_processing_result(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 send_response(From, RoomJID, OrigPacket, {error, _} = Err, Acc) ->
-    mod_muc_light_codec_backend:encode_error(
-      Err, From, RoomJID, OrigPacket, Acc);
+    mod_muc_light_codec:encode_error(Err, From, RoomJID, OrigPacket, Acc);
 send_response(From, RoomJID, _OriginalPacket, Response, Acc) ->
     F = make_handler_fun(Acc),
-    mod_muc_light_codec_backend:encode(Response, From, RoomJID, F, Acc).
+    mod_muc_light_codec:encode(Response, From, RoomJID, F, Acc).
 
 %%====================================================================
 %% Internal functions
