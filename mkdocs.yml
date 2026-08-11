@@ -191,6 +191,7 @@ nav:
       - 'Release/Installation configuration': 'developers-guide/release_config.md'
       - 'Bootstrap scripts': 'developers-guide/Bootstrap-Scripts.md'
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
+      - 'Building the documentation': 'developers-guide/Building-the-documentation.md'
       - 'Logging': 'developers-guide/logging.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
       - 'Hooks description': 'developers-guide/hooks_description.md'
