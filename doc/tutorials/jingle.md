@@ -100,9 +100,9 @@ flowchart TB
     p3 <--> p4
     p4 --> p2
   end
-  style r1 fill:#add8e6,color:#000
+  style r1 fill:#0288d133,stroke:#0288d1,stroke-width:2px
   linkStyle 3,4,5,6 stroke:#0288d1,stroke-width:2px
-  linkStyle 0,7,9 stroke:#9c27b0,stroke-width:2px
+  linkStyle 0,7,9 stroke:#ba68c8,stroke-width:2px
 ```
 
 To further reduce downstream bandwidth and CPU usage, `content mixers` can be introduced.
@@ -128,9 +128,9 @@ flowchart TB
     p3 <--> p4
     p4 --> m1
   end
-  style m1 fill:#90ee90,color:#000
-  linkStyle 0,3,7,9 stroke:#2e7d32,stroke-width:2px
-  linkStyle 4,5,6 stroke:#9c27b0,stroke-width:2px
+  style m1 fill:#43a04733,stroke:#43a047,stroke-width:2px
+  linkStyle 0,3,7,9 stroke:#43a047,stroke-width:2px
+  linkStyle 4,5,6 stroke:#ba68c8,stroke-width:2px
 ```
 
 However, to ensure interoperability, each client must independently allocate its own `RTP relay` and `content mixer`.
@@ -158,9 +158,9 @@ flowchart TB
     p3 <--> p4
     p4 --> m1
   end
-  style m1 fill:#90ee90,color:#000
-  style r1 fill:#add8e6,color:#000
-  linkStyle 0,3,8,10 stroke:#2e7d32,stroke-width:2px
+  style m1 fill:#43a04733,stroke:#43a047,stroke-width:2px
+  style r1 fill:#0288d133,stroke:#0288d1,stroke-width:2px
+  linkStyle 0,3,8,10 stroke:#43a047,stroke-width:2px
   linkStyle 4,5,6,7 stroke:#0288d1,stroke-width:2px
 ```
 
@@ -194,9 +194,9 @@ flowchart TB
     r1 --> p3
     r1 --> p4
   end
-  style m1 fill:#90ee90,color:#000
-  style r1 fill:#add8e6,color:#000
-  linkStyle 0,1,2,3 stroke:#2e7d32,stroke-width:2px
+  style m1 fill:#43a04733,stroke:#43a047,stroke-width:2px
+  style r1 fill:#0288d133,stroke:#0288d1,stroke-width:2px
+  linkStyle 0,1,2,3 stroke:#43a047,stroke-width:2px
   linkStyle 4,5,6,7,8 stroke:#0288d1,stroke-width:2px
 ```
 
@@ -261,7 +261,7 @@ sequenceDiagram
     participant Bob
     participant TURN as STUN/TURN Server
 
-    rect rgba(0, 255, 255, 0.5)
+    rect rgba(2, 136, 209, 0.15)
         note right of Alice: XEP-0215: External Service Discovery (optional)
         note right of Alice: Usually performed right after connection
         Alice->>XMPP: External Service Discovery IQ
@@ -270,14 +270,14 @@ sequenceDiagram
         XMPP-->>Bob: STUN/TURN server address and credentials
     end
 
-    rect rgba(0, 255, 255, 0.5)
+    rect rgba(2, 136, 209, 0.15)
         note right of Alice: XEP-0353: Jingle Message Initiation (optional)
         Alice->>Bob: propose jingle-message
         Bob-->>Alice: ringing jingle-message
         Bob-->>Alice: proceed jingle-message
     end
 
-    rect rgba(255, 255, 0, 0.5)
+    rect rgba(255, 193, 7, 0.18)
         note right of Alice: ICE candidate gathering & Jingle session setup
         note right of Alice:  XEP-0166: Jingle<br/>XEP-0167: Jingle RTP Sessions<br/>XEP-0176: Jingle ICE-UDP Transport Method
         Alice->>TURN: STUN binding request
@@ -294,20 +294,20 @@ sequenceDiagram
         Alice-->>Bob: result IQ
     end
 
-    rect rgba(255, 255, 0, 0.5)
+    rect rgba(255, 193, 7, 0.18)
         note right of Alice: non-XMPP traffic
         Alice<<->>Bob: ICE connectivity checks
         Alice<<->>Bob: RTP/SRTP Media Session
     end
 
-    rect rgba(255, 255, 0, 0.5)
+    rect rgba(255, 193, 7, 0.18)
         note right of Alice: Session termination
         note right of Alice:  XEP-0166: Jingle
         Alice->>Bob: jingle session-terminate IQ
         Bob-->>Alice: result IQ
     end
 
-    rect rgba(0, 255, 255, 0.5)
+    rect rgba(2, 136, 209, 0.15)
         note right of Alice: XEP-0353: Jingle Message Initiation (optional)
         Alice->>Bob: finish jingle-message
         Bob->>Alice: finish jingle-message
