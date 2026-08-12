@@ -31,7 +31,8 @@
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
--type http_error_atom() :: conflict | not_found | not_authorized | not_allowed.
+-type http_error_atom() :: conflict | not_found | not_authorized | not_allowed
+                         | bad_request | unexpected_code.
 -type params() :: #{luser := jid:luser(),
                     lserver := jid:lserver(),
                     host_type := mongooseim:host_type(),
@@ -221,7 +222,13 @@ handle_result({ok, {Code, RespBody}}, Method, Path, LUser, HostType) ->
         <<"400">> -> {error, RespBody};
         <<"204">> -> {ok, <<>>};
         <<"201">> -> {ok, created};
-        <<"200">> -> {ok, RespBody}
+        <<"200">> -> {ok, RespBody};
+        _ ->
+            ?LOG_WARNING(#{what => http_auth_request_unexpected_code,
+                           text => <<"Unexpected HTTP status code received from the auth service">>,
+                           path => Path, method => Method, user => LUser, host_type => HostType,
+                           code => Code, result => RespBody}),
+            {error, unexpected_code}
     end;
 handle_result({error, Reason}, Method, Path, LUser, HostType) ->
     ?LOG_DEBUG(#{what => http_auth_request_failed, text => <<"HTTP request failed">>,
