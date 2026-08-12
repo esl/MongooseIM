@@ -14,7 +14,7 @@
 
 %% API
 -export([start/2, stop/0]).
--export([listen/0, verify/1, cancel_listen/0, fail/0]).
+-export([listen/0, verify/1, cancel_listen/0, fail/0, fail/1]).
 -export([op/1, consume_fail/0, get_basic_auth/0]).
 -export([check_password/3, get_password/2, user_exists/2, set_password/3,
          remove_user/2, remove_user_validate/3, register/3]).
@@ -31,7 +31,7 @@
           basic_auth = <<>> :: binary(),
           users = [] :: [user()],
           rest_listeners = [] :: [pid()],
-          fail_once = false :: boolean() | middle
+          fail_once = false :: boolean() | middle | pos_integer()
          }).
 
 %%% -------------------------------------
@@ -73,6 +73,9 @@ cancel_listen() ->
 
 fail() ->
     gen_server:call(mim_ct_rest_server, {fail, true}).
+
+fail(Code) when is_integer(Code) ->
+    gen_server:call(mim_ct_rest_server, {fail, Code}).
 
 op(Op) ->
     gen_server:call(mim_ct_rest_server, {op, Op}).

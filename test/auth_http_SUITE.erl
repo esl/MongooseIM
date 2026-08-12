@@ -47,7 +47,8 @@ all_tests() ->
      get_password,
      does_user_exist,
      remove_user,
-     supported_sasl_mechanisms
+     supported_sasl_mechanisms,
+     unexpected_http_code
     ].
 
 cert_auth() ->
@@ -217,6 +218,27 @@ supported_sasl_mechanisms(Config) ->
                       end,
     [true, DigestSupported, false, true, true, true, true, true] =
         [ejabberd_auth_http:supports_sasl_module(?HOST_TYPE, Mod) || Mod <- Modules].
+
+unexpected_http_code(_Config) ->
+    lists:foreach(fun check_unexpected_http_code/1, [500, 502, 503, 504, 429]).
+
+check_unexpected_http_code(Code) ->
+    mim_ct_rest:fail(Code),
+    false = ejabberd_auth_http:get_password(?HOST_TYPE, <<"alice">>, ?DOMAIN),
+    mim_ct_rest:fail(Code),
+    <<>> = ejabberd_auth_http:get_password_s(?HOST_TYPE, <<"alice">>, ?DOMAIN),
+    mim_ct_rest:fail(Code),
+    false = ejabberd_auth_http:check_password(?HOST_TYPE, <<"alice">>, ?DOMAIN, <<"makota">>),
+    mim_ct_rest:fail(Code),
+    false = ejabberd_auth_http:does_user_exist(?HOST_TYPE, <<"alice">>, ?DOMAIN),
+    mim_ct_rest:fail(Code),
+    {error, not_allowed} = ejabberd_auth_http:set_password(?HOST_TYPE, <<"alice">>,
+                                                           ?DOMAIN, <<"makota">>),
+    mim_ct_rest:fail(Code),
+    {error, not_allowed} = ejabberd_auth_http:try_register(?HOST_TYPE, <<"alice">>,
+                                                           ?DOMAIN, <<"makota">>),
+    mim_ct_rest:fail(Code),
+    {error, not_allowed} = ejabberd_auth_http:remove_user(?HOST_TYPE, <<"alice">>, ?DOMAIN).
 
 cert_auth_fail(Config) ->
     Creds = creds_with_cert(Config, <<"cert_user">>),
