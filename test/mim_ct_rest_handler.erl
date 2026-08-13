@@ -45,6 +45,8 @@ handle(Req, {_, _, _, _, _, false} = State) ->
     reply(Req1, State, 401, "401 Unauthorized");
 handle(Req, {_, _, _, _, true, _} = State) ->
     reply(Req, State, 404, "");
+handle(Req, {_, _, _, _, Code, _} = State) when is_integer(Code) ->
+    reply(Req, State, Code, <<>>);
 handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"check_password">>, {U, S, P}, _, _} = State) ->
     Result = mim_ct_rest:check_password(U, S, P),
     reply(Req, State, 200, atom_to_binary(Result));

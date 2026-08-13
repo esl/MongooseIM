@@ -73,6 +73,8 @@ For the best integration, the return code range should not exceed the list below
 * 200 - success, return value in response body
 
 Whenever the specification says "anything else", service should use one of the codes from the list above.
+Any other status code (e.g. 500 or 503) is logged and treated as a failure of the operation,
+i.e. authentication is rejected and registration or password change is not allowed.
 
 Some requests consider multiple return codes a "success".
 It is up to the server-side developer to pick one of the codes.
