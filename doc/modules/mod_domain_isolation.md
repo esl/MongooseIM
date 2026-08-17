@@ -2,6 +2,7 @@
 
 This module limits message passing between domains.
 When it is enabled, users won't be able to contact each other if they are registered in different domains.
+Communictaion between users and external components is not restricted by this module.
 
 ## Options
 
