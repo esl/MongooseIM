@@ -179,7 +179,7 @@ get_typed_listeners() ->
     Listeners1 = [{cowboy, ejabberd_cowboy:ref(Listener)}
                   || {Listener, _, _, [ejabberd_cowboy]} <- Children],
     Listeners2 = [{ranch, Ref}
-                  || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
+                  || {Ref, _, _, [mongoose_c2s_listener | _]} <- Children],
     Listeners1 ++ Listeners2.
 
 -spec broadcast_c2s_shutdown_sup() -> StoppedCount :: non_neg_integer().
