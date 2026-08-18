@@ -148,7 +148,7 @@ iq_pubsub_owner_get(_) ->
 parse_create_config([ConfigureEl = #xmlel{name = ~"configure"}]) ->
     parse_configure_config(ConfigureEl);
 parse_create_config([]) ->
-    {ok, #{access_model => presence}};
+    {ok, #{}};
 parse_create_config(_) ->
     {error, bad_request}.
 
@@ -256,7 +256,7 @@ parse_access_model(_) -> {error, bad_request}.
 
 -spec parse_max_items_node([binary()]) -> mod_pubsub:result(mod_pubsub:max_items_node()).
 parse_max_items_node([~"max"]) ->
-    {ok, max};
+    {ok, infinity};
 parse_max_items_node([MaxItemsBin]) ->
     try binary_to_non_neg_integer(MaxItemsBin) of
         MaxItems -> {ok, MaxItems}
@@ -330,7 +330,7 @@ configure_fields(#pubsub_node{config = #{access_model := AccessModel, max_items 
        values => [max_items_node_to_binary(MaxItems)]}].
 
 -spec max_items_node_to_binary(mod_pubsub:max_items_node()) -> binary().
-max_items_node_to_binary(max) ->
+max_items_node_to_binary(infinity) ->
     ~"max";
 max_items_node_to_binary(MaxItems) ->
     integer_to_binary(MaxItems).

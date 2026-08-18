@@ -188,13 +188,13 @@ delete_subscription(HostType, {ServiceJid, NodeId}, SubscriberJid) ->
         {updated, 0} -> not_found
     end.
 
--spec set_item(mongooseim:host_type(), mod_pubsub:item(), max | pos_integer()) -> ok.
+-spec set_item(mongooseim:host_type(), mod_pubsub:item(), infinity | pos_integer()) -> ok.
 set_item(HostType, Item, MaxItems) ->
     F = fun() -> set_item_t(HostType, Item, MaxItems) end,
     {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
     ok.
 
--spec set_item_t(mongooseim:host_type(), mod_pubsub:item(), max | pos_integer()) -> ok.
+-spec set_item_t(mongooseim:host_type(), mod_pubsub:item(), infinity | pos_integer()) -> ok.
 set_item_t(HostType, #item{node_key = NodeKey = {ServiceJid, NodeId},
                            id = ItemId,
                            publisher_jid = PublisherJid,
@@ -322,14 +322,14 @@ row_to_node(NodeKey, AccessModelBin, MaxItems) ->
                             max_items => max_items_node_from_sql(MaxItems)}}.
 
 -spec max_items_node_to_sql(mod_pubsub:max_items_node()) -> null | non_neg_integer().
-max_items_node_to_sql(max) ->
+max_items_node_to_sql(infinity) ->
     null;
 max_items_node_to_sql(MaxItems) ->
     MaxItems.
 
 -spec max_items_node_from_sql(null | non_neg_integer()) -> mod_pubsub:max_items_node().
 max_items_node_from_sql(null) ->
-    max;
+    infinity;
 max_items_node_from_sql(MaxItems) ->
     MaxItems.
 
@@ -347,7 +347,7 @@ delete_old_items(HostType, NodeKey, MaxItems) ->
 get_effective_max_items_limit(HostType, MaxItems) ->
     case min(MaxItems, gen_mod:get_module_opt(HostType, mod_pubsub, max_items_per_node)) of
         Limit when is_integer(Limit) -> {ok, Limit};
-        _ -> no_limit % both were atoms: 'max', 'infinity'
+        _ -> no_limit % both values were 'infinity'
     end.
 
 -spec get_extra_item_published_at(mongooseim:host_type(), mod_pubsub:node_key(),
