@@ -27,8 +27,8 @@ It handles same-server PEP requests addressed to users' bare JIDs and does not e
 
 `mod_pubsub` supports the following node configuration and publish options:
 
-* [`pubsub#access_model`](https://xmpp.org/extensions/xep-0060.html#accessmodels): controls who can access a node. Supported values are `open` and `presence`.
-* `pubsub#max_items`: controls how many published items are stored for later retrieval. It defaults to `max`, which stores all published items up to the server-wide [`max_items_per_node`](#modulesmod_pubsubmax_items_per_node) limit. A non-negative integer limits stored items for the node; when the limit is exceeded, the oldest stored item is removed. `0` allows publish notifications but does not persist items for later retrieval.
+* [`pubsub#access_model`](https://xmpp.org/extensions/xep-0060.html#accessmodels): controls who can access a node. Supported values are `open` and `presence`. It defaults to [`default_node_config.access_model`](#modulesmod_pubsubdefault_node_configaccess_model).
+* `pubsub#max_items`: controls how many published items are stored for later retrieval. It defaults to [`default_node_config.max_items`](#modulesmod_pubsubdefault_node_configmax_items). A non-negative integer limits stored items for the node; when the limit is exceeded, the oldest stored item is removed. `0` allows publish notifications but does not persist items for later retrieval.
 
 ### Known omissions and limitations
 
@@ -59,6 +59,26 @@ Maximum number of items stored in a node.
 The effective limit is the lower of this value and `pubsub#max_items`.
 If you reduce this limit, excess items for each already existing node are removed when it is next configured or receives a published item.
 
+### `modules.mod_pubsub.default_node_config`
+Default configuration applied to newly created PEP nodes, including nodes auto-created on publish.
+Request-level node configuration and publish options override these values.
+
+#### `modules.mod_pubsub.default_node_config.access_model`
+* **Syntax:** string, one of `"presence"`, `"open"`
+* **Default:** `"presence"`
+* **Example:** `default_node_config.access_model = "open"`
+
+Default value of `pubsub#access_model` for newly created nodes.
+The default `presence` as required for [PEP](https://xmpp.org/extensions/xep-0163.html#approach-presence).
+
+#### `modules.mod_pubsub.default_node_config.max_items`
+* **Syntax:** non-negative integer or `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `default_node_config.max_items = 100`
+
+Default value of `pubsub#max_items` for newly created nodes.
+The `"infinity"` value is exposed in node configuration forms as `max`, and stores all published items up to the [`max_items_per_node`](#modulesmod_pubsubmax_items_per_node) limit.
+
 ### `modules.mod_pubsub.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
@@ -83,4 +103,12 @@ The example below shows a different configuration where IQ requests are handled 
 [modules.mod_pubsub]
   iqdisc.type = "queues"
   iqdisc.workers = 50
+```
+
+The example below makes newly created PEP nodes open by default and stores only the most recent item per node, unless the create request or publish options override these values:
+
+```toml
+[modules.mod_pubsub]
+  default_node_config.access_model = "open"
+  default_node_config.max_items = 1
 ```
