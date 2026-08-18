@@ -2508,8 +2508,16 @@ mod_pubsub(_Config) ->
           T(#{<<"backend">> => <<"rdbms">>})),
     ?cfgh(P ++ [max_items_per_node], 20,
           T(#{<<"max_items_per_node">> => 20})),
+    ?cfgh(P ++ [default_node_config, access_model], open,
+          T(#{<<"default_node_config">> => #{<<"access_model">> => <<"open">>}})),
+    ?cfgh(P ++ [default_node_config, max_items], 20,
+          T(#{<<"default_node_config">> => #{<<"max_items">> => 20}})),
+    ?cfgh(P ++ [default_node_config, max_items], infinity,
+          T(#{<<"default_node_config">> => #{<<"max_items">> => <<"infinity">>}})),
     ?errh(T(#{<<"backend">> => <<"mysql">>})),
-    ?errh(T(#{<<"max_items_per_node">> => -1})).
+    ?errh(T(#{<<"max_items_per_node">> => -1})),
+    ?errh(T(#{<<"default_node_config">> => #{<<"access_model">> => <<"authorize">>}})),
+    ?errh(T(#{<<"default_node_config">> => #{<<"max_items">> => -1}})).
 
 mod_pubsub_old(_Config) ->
     check_iqdisc(mod_pubsub_old),

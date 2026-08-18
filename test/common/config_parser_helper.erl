@@ -954,7 +954,9 @@ default_mod_config(mod_privacy) ->
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_pubsub) ->
-    #{backend => rdbms, iqdisc => no_queue, max_items_per_node => infinity};
+    #{backend => rdbms,
+      default_node_config => #{access_model => presence, max_items => infinity},
+      iqdisc => no_queue, max_items_per_node => infinity};
 default_mod_config(mod_pubsub_old) ->
     #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access_createnode => all,
       max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
