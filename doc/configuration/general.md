@@ -1,3 +1,5 @@
+# Options: General
+
 The `general` section contains basic settings as well as some miscellaneous options.
 You can start with providing only the basic options, for example configuring the loglevel, a single host (XMPP domain) as the default, and setting the server language:
 

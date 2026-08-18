@@ -1,3 +1,5 @@
+# mod_broadcast
+
 ## Module Description
 
 `mod_broadcast` lets administrators send the same XMPP message to many users in a domain.

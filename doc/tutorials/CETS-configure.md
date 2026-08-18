@@ -1,3 +1,5 @@
+# How to configure MongooseIM to use CETS instead of Mnesia
+
 ## CETS Config Example
 
 [CETS](https://github.com/esl/cets/) is a library, which allows to replicate in-memory data

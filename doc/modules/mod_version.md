@@ -1,3 +1,5 @@
+# mod_version
+
 ## Module description
 
 This module provides the functionality specified in [XEP-0092: Software Version](https://xmpp.org/extensions/xep-0092.html).

@@ -1,4 +1,5 @@
-## Rolling upgrade
+# Rolling upgrade
+
 For all MongooseIM production deployments we recommend running multiple server nodes connected in a cluster behind a load-balancer.
 Rolling upgrade is a process of upgrading MongooseIM cluster, one node at a time.
 Make sure you have at least the number of nodes able to handle your traffic plus one before the rolling upgrade to guarantee the availability and minimise the downtime.

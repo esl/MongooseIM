@@ -1,3 +1,5 @@
+# RDBMS
+
 ## Overview
 
 This authentication method stores user accounts in a relational database, e.g. MySQL or PostgreSQL.

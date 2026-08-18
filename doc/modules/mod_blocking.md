@@ -1,3 +1,5 @@
+# mod_blocking
+
 ## Module Description
 
 This module implements [XEP-0191: Blocking command](http://xmpp.org/extensions/xep-0191.html).

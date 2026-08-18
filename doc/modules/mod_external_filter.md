@@ -1,3 +1,5 @@
+# mod_external_filter
+
 ## Module Description
 This module enables message filtering through an external service.
 It uses a configured HTTP pool to manage outgoing connections.

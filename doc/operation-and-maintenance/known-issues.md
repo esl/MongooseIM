@@ -1,3 +1,5 @@
+# Known issues
+
 This document provides a list of all known issues with MongooseIM operation and configuration.
 You may also find proposed workarounds if any are available.
 

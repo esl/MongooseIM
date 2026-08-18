@@ -1,3 +1,5 @@
+# mod_inbox
+
 ## Module Description
 
 `Inbox` is an experimental feature implemented as a few separate modules.

@@ -1,4 +1,4 @@
-# Supported standards
+# Supported Standards
 
 * XMPP Core: [RFC 3920](https://tools.ietf.org/html/rfc3920),
 [RFC 6120](https://tools.ietf.org/html/rfc6120)

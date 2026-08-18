@@ -1,3 +1,5 @@
+# mod_shared_roster_ldap
+
 ## Module Description
 
 This module injects roster entries fetched from LDAP.

@@ -1,3 +1,5 @@
+# Erlang Cookie Security
+
 In order for MongooseIM nodes to communicate with each other, they have to share a common secret - i.e. a cookie - which is a feature of the underlying Erlang VM.
 The cookie itself is an UTF-8 string that is up to 255 characters in size.
 Thanks to the cookie, MongooseIM nodes can determine if they are allowed to communicate with each other and with no cookie no communication would flow between the nodes - a feature especially useful when you are running more than one applications on a single machine. 

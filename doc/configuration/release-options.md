@@ -1,3 +1,5 @@
+# Release Options
+
 When building a MongooseIM release from source code, the initial configuration files are generated with options taken from the `vars-toml.config` file found in the `[MongooseIM root]/rel/` directory.
 You can change the values in this file to affect the resulting `vm.args` and `mongooseim.toml` files.
 

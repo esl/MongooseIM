@@ -1,3 +1,5 @@
+# Options: Auth
+
 The `auth` section is used to choose and configure the **method** which is used by MongooseIM to authenticate connecting users.
 The following methods are supported:
 

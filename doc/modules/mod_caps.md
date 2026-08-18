@@ -1,3 +1,5 @@
+# mod_caps
+
 ## Module description
 
 This module provides a presence-based mechanism for exchanging information about entity capabilities as defined in [XEP-0115: Entity Capabilities](https://xmpp.org/extensions/xep-0115.html) and [XEP-0390: Entity Capabilities 2.0](https://xmpp.org/extensions/xep-0390.html).

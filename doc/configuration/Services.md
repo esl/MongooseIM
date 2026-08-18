@@ -1,3 +1,5 @@
+# Options: Services
+
 Some functionalities in MongooseIM are provided by "services".
 A service is similar to a module, but while a module is started for every
 host type and may have global or specific configuration, a service is started

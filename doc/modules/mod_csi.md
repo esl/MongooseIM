@@ -1,3 +1,5 @@
+# mod_csi
+
 ## Module Description
 
 Enables [XEP-0352: Client State Indication](http://xmpp.org/extensions/xep-0352.html) functionality.

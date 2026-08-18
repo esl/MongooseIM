@@ -1,3 +1,5 @@
+# HTTP
+
 ## Overview
 
 The purpose of this method is to connect to an external REST API and delegate the authentication operations to it.

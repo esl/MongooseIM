@@ -1,3 +1,5 @@
+# mod_offline_stub
+
 ## Module Description
 
 RFC 6121 requires a `<service-unavailable/>` stanza error to be sent to a user messaging an unavailable recipient if the message is not stored for delayed delivery (i.e. as an "offline message").

@@ -1,3 +1,5 @@
+# JWT
+
 ## Overview
 
 This authentication method can verify [JSON Web Tokens](https://jwt.io) provided by the clients.

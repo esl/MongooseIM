@@ -1,3 +1,5 @@
+# SNS backend
+
 ## Module Description
 
 This module is a backend of [mod_event_pusher] that enables support for the Amazon SNS service. Currently there are 3 available notifications:

@@ -1,3 +1,5 @@
+# External
+
 ## Overview
 
 This authentication method delegates the authentication to an external script.

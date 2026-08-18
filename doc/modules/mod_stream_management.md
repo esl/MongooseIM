@@ -1,3 +1,5 @@
+# mod_stream_management
+
 ## Module Description
 
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html).

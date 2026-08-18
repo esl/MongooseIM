@@ -1,3 +1,5 @@
+# Cluster management considerations
+
 These apply to bare metal, virtualization, hypervisor, containers and other technologies.
 
 ## Single-node MongooseIM

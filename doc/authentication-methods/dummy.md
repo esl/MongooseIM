@@ -1,3 +1,5 @@
+# Dummy
+
 ## Overview
 
 The purpose of this method is to make it possible to authenticate a user without

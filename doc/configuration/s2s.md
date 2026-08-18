@@ -1,3 +1,5 @@
+# Options: S2S
+
 The `s2s` section contains options configuring the server-to-server connections used to communicate with other federated XMPP servers.
 
 !!! warning

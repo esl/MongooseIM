@@ -1,3 +1,5 @@
+# HTTP backend
+
 ## Module description
 
 This module is a backend of [mod_event_pusher] that enables forwarding certain events (messages, presence, etc.) via HTTP to external services such as push (by mobile, email or SMS), big data, or analytics services.

@@ -1,3 +1,5 @@
+# mod_private
+
 ## Module Description
 
 This module implements [XEP-0049: Private XML Storage](http://xmpp.org/extensions/xep-0049.html).

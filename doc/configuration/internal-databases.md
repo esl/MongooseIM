@@ -1,3 +1,5 @@
+# Options: Internal Databases
+
 Internal databases are used to cluster MongooseIM nodes, and to replicate in-memory data (e.g. client sessions) between them.
 
 Mnesia is a legacy way to cluster MongooseIM nodes. It is also could be used to store persistent data, but we recommend

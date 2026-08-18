@@ -1,3 +1,5 @@
+# LDAP
+
 ## Overview
 
 This authentication method provides a read-only abstraction over an LDAP directory.

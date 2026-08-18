@@ -1,3 +1,5 @@
+# Options: Acl
+
 The `acl` section is used to define **access classes** to which the connecting users are assigned. These classes are used in [access rules](access.md).
 
 * **Syntax:** each access class is a key-value pair, where:
