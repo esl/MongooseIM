@@ -37,7 +37,7 @@
 -type item_id() :: binary().
 -type get_items_opts() :: #{} | #{max_items := max_items()} | #{item_ids := [item_id()]}.
 -type max_items() :: pos_integer().
--type max_items_node() :: max | non_neg_integer().
+-type max_items_node() :: infinity | non_neg_integer().
 -type item_payload() :: exml:element().
 -type access_model() :: open | presence.
 -type node_config() :: #{access_model => access_model(), max_items => max_items_node()}.
@@ -103,11 +103,22 @@ config_spec() ->
                                         validate = {module, mod_pubsub_backend}},
                   ~"iqdisc" => mongoose_config_spec:iqdisc(),
                   ~"max_items_per_node" => #option{type = int_or_infinity,
-                                                   validate = non_negative}},
+                                                   validate = non_negative},
+                  ~"default_node_config" => default_node_config_spec()},
         defaults = #{~"backend" => rdbms,
                      ~"iqdisc" => no_queue,
                      ~"max_items_per_node" => infinity}
     }.
+
+-spec default_node_config_spec() -> mongoose_config_spec:config_section().
+default_node_config_spec() ->
+    #section{items = #{~"access_model" => #option{type = atom,
+                                                  validate = {enum, [open, presence]}},
+                       ~"max_items" => #option{type = int_or_infinity,
+                                               validate = non_negative}},
+             defaults = #{~"access_model" => presence,
+                          ~"max_items" => infinity},
+             include = always}.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
@@ -302,8 +313,8 @@ perform_action(Request, Action = #{action := create}) ->
         HostType = mongoose_acc:host_type(Acc),
         NodeKey = {ServiceJid, NodeId},
         ok ?= assert_node_does_not_exist(HostType, NodeKey),
-        Node = #pubsub_node{node_key = NodeKey},
-        mod_pubsub_backend:set_node(HostType, apply_node_config(Node, Config)),
+        Node = apply_node_config(new_node(HostType, NodeKey), Config),
+        mod_pubsub_backend:set_node(HostType, Node),
         Action#{result => ok}
     end;
 perform_action(Request, Action = #{action := get_configuration}) ->
@@ -449,10 +460,6 @@ is_owner(#{from_jid := FromJid, service_jid := ServiceJid}) ->
 is_open(#pubsub_node{config = #{access_model := AccessModel}}) ->
     AccessModel =:= open.
 
--spec apply_node_config(pubsub_node(), node_config()) -> pubsub_node().
-apply_node_config(Node, Config) ->
-    Node#pubsub_node{config = maps:merge(Node#pubsub_node.config, Config)}.
-
 -spec get_node(mongooseim:host_type(), node_key()) -> result(pubsub_node()).
 get_node(HostType, NodeKey) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
@@ -500,8 +507,7 @@ delete_item(HostType, NodeKey, ItemId) ->
 get_or_create_node(HostType, NodeKey, Config) ->
     case mod_pubsub_backend:get_node(HostType, NodeKey) of
         undefined ->
-            Node = #pubsub_node{node_key = NodeKey},
-            ConfiguredNode = apply_node_config(Node, Config),
+            ConfiguredNode = apply_node_config(new_node(HostType, NodeKey), Config),
             mod_pubsub_backend:set_node(HostType, ConfiguredNode),
             {ok, ConfiguredNode};
         Node = #pubsub_node{config = ExistingConfig} ->
@@ -510,6 +516,15 @@ get_or_create_node(HostType, NodeKey, Config) ->
                 _ -> {error, {conflict, ~"precondition-not-met"}}
             end
     end.
+
+-spec new_node(mongooseim:host_type(), node_key()) -> pubsub_node().
+new_node(HostType, NodeKey) ->
+    Config = gen_mod:get_module_opt(HostType, ?MODULE, default_node_config),
+    #pubsub_node{node_key = NodeKey, config = Config}.
+
+-spec apply_node_config(pubsub_node(), node_config()) -> pubsub_node().
+apply_node_config(Node, Config) ->
+    Node#pubsub_node{config = maps:merge(Node#pubsub_node.config, Config)}.
 
 %% Notification helpers
 

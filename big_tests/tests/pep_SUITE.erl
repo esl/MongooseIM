@@ -62,11 +62,13 @@ end_per_testcase(TestName, Config) ->
 all() ->
     [{group, pep},
      {group, pep_no_caps},
+     {group, default_node_config},
      {group, max_items_per_node}].
 
 groups() ->
     [{pep, [parallel], pep_tests()},
      {pep_no_caps, [parallel], pep_no_caps_tests()},
+     {default_node_config, [parallel], default_node_config_tests()},
      {max_items_per_node, [parallel], max_items_per_node_tests()}].
 
 pep_tests() ->
@@ -144,6 +146,11 @@ max_items_per_node_tests() ->
     [create_with_max_items_and_publish,
      create_with_max_items_per_node_and_publish].
 
+-doc "Tests checking the default_node_config option".
+default_node_config_tests() ->
+    [create_uses_default_node_config,
+     autocreate_uses_default_node_config].
+
 %% Disco
 
 disco_info(Config) ->
@@ -209,6 +216,12 @@ create_with_max_items_and_publish(Config) ->
 create_with_max_items_per_node_and_publish(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
                         fun create_with_max_items_per_node_and_publish_story/1).
+
+create_uses_default_node_config(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun create_uses_default_node_config_story/1).
+
+autocreate_uses_default_node_config(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun autocreate_uses_default_node_config_story/1).
 
 create_with_max_items_zero_and_publish(Config) ->
     escalus:fresh_story_with_config(set_caps(Config), [{bob, 1}],
@@ -425,6 +438,18 @@ create_with_empty_config_story(Alice) ->
     create_node(Alice, PepNode, [{config, []}]),
     get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"presence"},
                                                           {~"pubsub#max_items", ~"max"}]}]).
+
+create_uses_default_node_config_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    create_node(Alice, PepNode, []),
+    get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"open"},
+                                                          {~"pubsub#max_items", ~"1"}]}]).
+
+autocreate_uses_default_node_config_story(Alice) ->
+    PepNode = pep_node(Alice, random_node_ns()),
+    publish(Alice, ~"item0", PepNode, []),
+    get_configuration(Alice, PepNode, [{expected_result, [{~"pubsub#access_model", ~"open"},
+                                                          {~"pubsub#max_items", ~"1"}]}]).
 
 create_and_configure_story(Alice) ->
     PepNode = pep_node(Alice),
@@ -1086,6 +1111,9 @@ required_modules(pep) ->
      {mod_pubsub, default_mod_config(mod_pubsub)}];
 required_modules(pep_no_caps) ->
     [{mod_pubsub, default_mod_config(mod_pubsub)}];
+required_modules(default_node_config) ->
+    [{mod_pubsub, mod_config(mod_pubsub,
+                             #{default_node_config => #{access_model => open, max_items => 1}})}];
 required_modules(max_items_per_node) ->
     [{mod_pubsub, mod_config(mod_pubsub, #{max_items_per_node => 3})}].
 

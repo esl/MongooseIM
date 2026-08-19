@@ -27,7 +27,7 @@
     [mod_pubsub:subscription()].
 -callback get_subscription(mongooseim:host_type(), mod_pubsub:node_key(), jid:jid()) ->
     mod_pubsub:subscription() | undefined.
--callback set_item(mongooseim:host_type(), mod_pubsub:item(), mod_pubsub:max_items_node()) -> ok.
+-callback set_item(mongooseim:host_type(), mod_pubsub:item(), infinity | pos_integer()) -> ok.
 -callback delete_item(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:item_id()) ->
     ok | not_found.
 -callback get_items(mongooseim:host_type(), mod_pubsub:node_key(), mod_pubsub:get_items_opts()) ->
@@ -106,7 +106,7 @@ delete_subscription(HostType, NodeKey, SubscriberJid) ->
 get_subscription(HostType, NodeKey, SubscriberJid) ->
     mongoose_backend:call(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, NodeKey, SubscriberJid]).
 
--spec set_item(mongooseim:host_type(), mod_pubsub:item(), mod_pubsub:max_items_node()) -> ok.
+-spec set_item(mongooseim:host_type(), mod_pubsub:item(), infinity | pos_integer()) -> ok.
 set_item(HostType, Item, MaxItems) ->
     mongoose_backend:call_tracked(HostType, ?MODULE, ?FUNCTION_NAME, [HostType, Item, MaxItems]).
 
