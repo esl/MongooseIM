@@ -1,3 +1,5 @@
+# High-level Architecture
+
 ## Inside MongooseIM
 
 ![Inside MongooseIM](Inside_MongooseIM.png)

@@ -1,3 +1,5 @@
+# Quick Setup
+
 In this short guide we will set MongooseIM up and get users chatting right away.
 The goal is to get to know MongooseIM, set it up, go through basic operations and validation.
 

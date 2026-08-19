@@ -1,3 +1,5 @@
+# mod_pubsub_old
+
 !!! warning
     `mod_pubsub_old` is deprecated. Use [`mod_pubsub`](mod_pubsub.md) for better performance if your deployment only needs the selected PEP features supported by the new implementation.
 

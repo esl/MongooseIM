@@ -1,3 +1,5 @@
+# mod_offline
+
 ## Module Description
 
 This module implements an offline messages storage compliant with [XEP-0160: Best Practices for Handling Offline Messages](http://xmpp.org/extensions/xep-0160.html). 

@@ -1,3 +1,5 @@
+# Logging & monitoring
+
 ## Logs
 
 We strongly recommend storing logs in one centralized place when working in a clustered environment.

@@ -1,3 +1,5 @@
+# Token-based reconnection
+
 ## Introduction
 
 Automatic reconnection after spurious disconnection is a must-have feature in modern IM applications. 

@@ -1,3 +1,5 @@
+# mod_fast_auth_token
+
 ## Module Description
 
 This module implements [XEP-0484: Fast Authentication Streamlining Tokens](https://xmpp.org/extensions/xep-0484.html).

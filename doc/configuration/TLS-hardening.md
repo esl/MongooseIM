@@ -1,3 +1,5 @@
+# TLS Hardening
+
 ## Deprecations
 
 MongooseIM is configured to allow only TLS 1.2 or higher, due to known vulnerabilities in TLS 1.0 and 1.1.

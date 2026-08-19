@@ -1,3 +1,5 @@
+# mod_amp
+
 ## Module Description
 
 This module enables support for a subset of the functionality described under

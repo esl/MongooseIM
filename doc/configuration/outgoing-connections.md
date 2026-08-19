@@ -1,3 +1,5 @@
+# Options: Outgoing connections
+
 MongooseIM can be configured to talk to external services like databases or HTTP servers.
 The interface for outgoing connections management is available via the `outgoing_pools` config option for the following types of connections:
 

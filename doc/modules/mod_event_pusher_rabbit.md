@@ -1,3 +1,5 @@
+# RabbitMQ backend
+
 ## Module Description
 
 This module is a backend of [mod_event_pusher] that enables support for the

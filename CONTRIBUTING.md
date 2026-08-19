@@ -22,6 +22,7 @@ Write type specifications and function signatures because they're remarkably hel
 Place technical documentaion in the directory `doc`.
 Find or create a suitable place for your material in terms of which page and section you write it in.
 Where documentation is placed is paramount, otherwise regardless of its quality, it will be harder to find it if at all.
+To see your changes rendered, build the site locally as [described in the docs](https://esl.github.io/MongooseDocs/latest/developers-guide/Building-the-documentation/).
 
 What makes a good comment?
 Write about why something is done a certain way.

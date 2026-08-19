@@ -1,3 +1,5 @@
+# Options: Access
+
 The `access` section is used to define **access rules** which return specific values for specific access classes.
 
 * **Syntax:** each access rule is a key-value pair, where:

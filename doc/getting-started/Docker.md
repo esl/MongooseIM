@@ -1,3 +1,5 @@
+# Docker
+
 In this short guide we will set up MongooseIM using Docker and run it as part of a cluster.
 
 ## Running MongooseIM

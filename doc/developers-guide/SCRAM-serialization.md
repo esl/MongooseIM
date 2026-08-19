@@ -1,3 +1,5 @@
+# SCRAM serialization format
+
 ## Overview
 
 This document describes the SCRAM serialization format used by MongooseIM.

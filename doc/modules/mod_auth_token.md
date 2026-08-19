@@ -1,3 +1,5 @@
+# mod_auth_token
+
 ## Module Description
 
 This module implements handling of tokens in an OAuth-like authentication scheme. 

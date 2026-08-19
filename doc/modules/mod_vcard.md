@@ -1,3 +1,5 @@
+# mod_vcard
+
 ## Module Description
 
 This module provides support for vCards, as specified in [XEP-0054: vcard-temp](http://xmpp.org/extensions/xep-0054.html) and [XEP-0055: Jabber Search](http://xmpp.org/extensions/xep-0055.html).

@@ -1,3 +1,5 @@
+# MAM MUC migration helper
+
 ## The purpose of sender-jid-from-mam-message.escript
 
 This script may be used as a part of migration from MongooseIM 3.3.0 (or older).

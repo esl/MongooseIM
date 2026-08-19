@@ -1,3 +1,5 @@
+# mod_smart_markers
+
 ## Module Description
 
 Smart markers are an experimental feature, described in detail as our [Open XMPP Extension for markers](../open-extensions/smart-markers.md).

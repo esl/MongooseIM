@@ -1,3 +1,5 @@
+# mod_blocklist
+
 ## Module Description
 
 This module allows administrators to manage the blocklist by adding or removing users. Users included on the blocklist are not allowed to create sessions.

@@ -1,3 +1,5 @@
+# Configuration Files
+
 The following files are used to configure MongooseIM:
 
 * `mongooseim.toml` for MongooseIM settings,

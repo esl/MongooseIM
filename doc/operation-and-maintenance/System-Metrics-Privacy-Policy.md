@@ -1,3 +1,5 @@
+# System Metrics Privacy Policy
+
 ## Introduction
 MongooseIM system metrics are gathered to analyse the trends and needs of our users, improve MongooseIM, and let us know where to focus our efforts.
 This section is devoted to explaining how to customise, read, enable and disable collecting of the system metrics.

@@ -1,3 +1,5 @@
+# Smart Markers
+
 This module allows the client to query for the most recent [chat markers][chat-markers].
 
 When a client enters a conversation after being offline for a while, such client might want to know what was the last message-id that was marked according to the rules defined in [XEP-0333 - Chat Markers][chat-markers], in order to know where he left of, and build an enhanced UI.

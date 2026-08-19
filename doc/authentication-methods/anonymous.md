@@ -1,3 +1,5 @@
+# Anonymous
+
 ## Overview
 
 This authentication method allows the users to connect anonymously.

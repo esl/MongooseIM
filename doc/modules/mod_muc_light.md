@@ -1,3 +1,5 @@
+# mod_muc_light
+
 ## Module Description
 
 This module implements [Multi-User Chat Light](../open-extensions/muc_light.md).

@@ -1,3 +1,5 @@
+# mod_ping
+
 ## Module Description
 
 This module implements XMPP Ping functionality as described in [XEP-0199: XMPP Ping](http://www.xmpp.org/extensions/xep-0199.html).

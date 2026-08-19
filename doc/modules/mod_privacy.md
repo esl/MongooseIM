@@ -1,3 +1,5 @@
+# mod_privacy
+
 ## Module Description
 
 This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html).

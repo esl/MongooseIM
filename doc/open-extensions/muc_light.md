@@ -1,3 +1,5 @@
+# MUC light
+
 ## 1. Introduction
 
 Classic Multi-User chat, as described in XEP-0045, adds an IRC-like functionality to XMPP.

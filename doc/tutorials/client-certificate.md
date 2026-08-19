@@ -1,3 +1,5 @@
+# How to set up SASL client certificate authentication
+
 ## Overview
 
 Clients connected to MongooseIM may authenticate with their TLS certificates.

@@ -1,3 +1,5 @@
+# mod_event_pusher
+
 ## Module Description
 
 This module is a generic interface for pushing **events** to the configured **backends**.

@@ -1,3 +1,5 @@
+# mod_http_upload
+
 ## Module Description
 This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html), version 0.3.0+. 
 It enables a service that on user request creates an upload "slot". 

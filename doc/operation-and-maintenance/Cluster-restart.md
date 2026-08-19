@@ -1,3 +1,5 @@
+# Cluster restart
+
 When you are using a MongooseIM cluster that is using Mnesia backend for any extensions, there could occur an issue related to the distributed Mnesia nodes.
 
 ## How to restart a cluster:

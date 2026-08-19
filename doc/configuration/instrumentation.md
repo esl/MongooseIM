@@ -1,3 +1,5 @@
+# Options: Instrumentation
+
 This section is used to configure MongooseIM instrumentation.
 It is a system of executing events when something of interest happens in the server.
 They are mainly used for the purpose of metrics.

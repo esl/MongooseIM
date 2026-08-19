@@ -1,3 +1,5 @@
+# mod_presence
+
 ## Module Description
 
 This module implements server-side presence handling as specified in [RFC 6121](https://www.rfc-editor.org/rfc/rfc6121).

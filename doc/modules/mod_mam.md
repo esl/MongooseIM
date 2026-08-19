@@ -1,3 +1,5 @@
+# mod_mam
+
 ## Module Description
 
 This module implements [XEP-0313: Message Archive Management](https://xmpp.org/extensions/xep-0313.html).

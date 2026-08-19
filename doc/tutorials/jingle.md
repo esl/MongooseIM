@@ -59,114 +59,109 @@ For small groups (typically up to four participants for video), each participant
 * Strict codec agreement: all participants must use compatible audio/video formats.
 * Client-side mixing: each participant must mix incoming audio and video streams locally.
 
-```puml
-@startuml
-rectangle "full mesh" {
-  rectangle " <&phone*5>\n Peer 1" as p1
-  rectangle " <&phone*5>\n Peer 2" as p2
-  rectangle " <&phone*5>\n Peer 3" as p3
-  rectangle " <&phone*5>\n Peer 4" as p4
-
-  p1 <-down-> p2
-  p1 <-down-> p3
-  p1 <-down-> p4
-  p2 <-right-> p3
-  p2 <-down-> p4
-  p3 <-down-> p4
-}
-@enduml
+```mermaid
+flowchart TB
+  subgraph mesh["full mesh"]
+    p1["📞 Peer 1"]
+    p2["📞 Peer 2"]
+    p3["📞 Peer 3"]
+    p4["📞 Peer 4"]
+    p1 <--> p2
+    p1 <--> p3
+    p1 <--> p4
+    p2 <--> p3
+    p2 <--> p4
+    p3 <--> p4
+  end
 ```
 
 [STUN]/[TURN] servers can still be used to establish peer-to-peer connections, similar to one-to-one calls.
 
 [XEP-0272] also suggests using `RTP relays` to reduce upstream bandwidth usage.
 
-```puml
-@startuml
-rectangle "relay example" {
-  rectangle " <&phone*5>\n Peer 1" as p1
-  rectangle " " as p2i {
-    rectangle " <&phone*5>\n Peer 2" as p2
-    rectangle "RTP relay" as r1 #lightblue
-  }
-  rectangle " <&phone*5>\n Peer 3" as p3
-  rectangle " <&phone*5>\n Peer 4" as p4
-
-  note bottom of p2i: Peer 2 application infrastructure
-
-  p1 -down-> p2 #violet
-  p1 <-down-> p3
-  p1 <-down-> p4
-  p2 -right-> r1 #lightblue
-  r1 -up-> p1 #lightblue
-  r1 -right-> p3 #lightblue
-  r1 -down-> p4 #lightblue
-  p3 -right-> p2 #violet
-  p3 <-down-> p4
-  p4 -up-> p2 #violet
-}
-@enduml
+```mermaid
+flowchart TB
+  subgraph relay["relay example"]
+    p1["📞 Peer 1"]
+    subgraph p2i["Peer 2 application infrastructure"]
+      p2["📞 Peer 2"]
+      r1["RTP relay"]
+    end
+    p3["📞 Peer 3"]
+    p4["📞 Peer 4"]
+    p1 --> p2
+    p1 <--> p3
+    p1 <--> p4
+    p2 --> r1
+    r1 --> p1
+    r1 --> p3
+    r1 --> p4
+    p3 --> p2
+    p3 <--> p4
+    p4 --> p2
+  end
+  style r1 fill:#0288d133,stroke:#0288d1,stroke-width:2px
+  linkStyle 3,4,5,6 stroke:#0288d1,stroke-width:2px
+  linkStyle 0,7,9 stroke:#ba68c8,stroke-width:2px
 ```
 
 To further reduce downstream bandwidth and CPU usage, `content mixers` can be introduced.
 
-```puml
-@startuml
-rectangle "mixer example" {
-  rectangle " <&phone*5>\n Peer 1" as p1
-  rectangle " " as p2i {
-    rectangle " <&phone*5>\n Peer 2" as p2
-    rectangle "Content mixer" as m1 #lightgreen
-  }
-  rectangle " <&phone*5>\n Peer 3" as p3
-  rectangle " <&phone*5>\n Peer 4" as p4
-
-  note bottom of p2i: Peer 2 application infrastructure
-
-  p1 -down-> m1 #lightgreen
-  p1 <-down-> p3
-  p1 <-down-> p4
-  m1 -right-> p2 #lightgreen
-  p2 -up-> p1 #violet
-  p2 -right-> p3 #violet
-  p2 -down-> p4 #violet
-  p3 -left-> m1 #lightgreen
-  p3 <-down-> p4
-  p4 -up-> m1  #lightgreen
-}
-@enduml
+```mermaid
+flowchart TB
+  subgraph mixer["mixer example"]
+    p1["📞 Peer 1"]
+    subgraph p2i["Peer 2 application infrastructure"]
+      p2["📞 Peer 2"]
+      m1["Content mixer"]
+    end
+    p3["📞 Peer 3"]
+    p4["📞 Peer 4"]
+    p1 --> m1
+    p1 <--> p3
+    p1 <--> p4
+    m1 --> p2
+    p2 --> p1
+    p2 --> p3
+    p2 --> p4
+    p3 --> m1
+    p3 <--> p4
+    p4 --> m1
+  end
+  style m1 fill:#43a04733,stroke:#43a047,stroke-width:2px
+  linkStyle 0,3,7,9 stroke:#43a047,stroke-width:2px
+  linkStyle 4,5,6 stroke:#ba68c8,stroke-width:2px
 ```
 
 However, to ensure interoperability, each client must independently allocate its own `RTP relay` and `content mixer`.
 
-```puml
-@startuml
-rectangle "complex mesh example" {
-
-  rectangle " <&phone*5>\n Peer 1" as p1
-  rectangle " " as p2i {
-    rectangle " <&phone*5>\n Peer 2" as p2
-    rectangle "Content mixer" as m1 #lightgreen
-    rectangle "RTP relay" as r1 #lightblue
-  }
-  rectangle " <&phone*5>\n Peer 3" as p3
-  rectangle " <&phone*5>\n Peer 4" as p4
-
-  note bottom of p2i: Peer 2 application infrastructure
-
-  p1 -down-> m1 #lightgreen
-  p1 <-down-> p3
-  p1 <-down-> p4
-  m1 -right-> p2 #lightgreen
-  p2 -right-> r1 #lightblue
-  r1 -up-> p1 #lightblue
-  r1 -right-> p3 #lightblue
-  r1 -down-> p4 #lightblue
-  p3 -left-> m1 #lightgreen
-  p3 <-down-> p4
-  p4 -up-> m1  #lightgreen
-}
-@enduml
+```mermaid
+flowchart TB
+  subgraph complex["complex mesh example"]
+    p1["📞 Peer 1"]
+    subgraph p2i["Peer 2 application infrastructure"]
+      p2["📞 Peer 2"]
+      m1["Content mixer"]
+      r1["RTP relay"]
+    end
+    p3["📞 Peer 3"]
+    p4["📞 Peer 4"]
+    p1 --> m1
+    p1 <--> p3
+    p1 <--> p4
+    m1 --> p2
+    p2 --> r1
+    r1 --> p1
+    r1 --> p3
+    r1 --> p4
+    p3 --> m1
+    p3 <--> p4
+    p4 --> m1
+  end
+  style m1 fill:#43a04733,stroke:#43a047,stroke-width:2px
+  style r1 fill:#0288d133,stroke:#0288d1,stroke-width:2px
+  linkStyle 0,3,8,10 stroke:#43a047,stroke-width:2px
+  linkStyle 4,5,6,7 stroke:#0288d1,stroke-width:2px
 ```
 
 This results in inefficiencies, as the same optimization components are duplicated for each participant. In practice, this approach often evolves from a mesh topology into a star topology.
@@ -178,31 +173,31 @@ Large conferences require a centralized architecture. In this model:
 * A `focus agent` is responsible for allocating and managing these resources.
 * Each participant establishes an individual Jingle session with the `focus agent`, similar to a one-to-one call.
 
-```puml
-@startuml
-rectangle "conference example" {
-  rectangle " <&phone*5>\n Peer 1" as p1
-  rectangle " <&phone*5>\n Peer 2" as p2
-  rectangle " <&phone*5>\n Peer 3" as p3
-  rectangle " <&phone*5>\n Peer 4" as p4
-  rectangle " " as fai {
-    rectangle "Content mixer" as m1 #lightgreen
-    rectangle "RTP relay" as r1 #lightblue
-  }
-
-  note bottom of fai: Focus agent application infrastructure
-
-  p1 -down-> m1 #lightgreen
-  p2 -down-> m1 #lightgreen
-  p3 -up-> m1 #lightgreen
-  p4 -up-> m1 #lightgreen
-  m1 -right-> r1 #lightblue
-  r1 -up-> p1 #lightblue
-  r1 -up-> p2 #lightblue
-  r1 -down-> p3 #lightblue
-  r1 -down-> p4 #lightblue
-}
-@enduml
+```mermaid
+flowchart TB
+  subgraph conference["conference example"]
+    p1["📞 Peer 1"]
+    p2["📞 Peer 2"]
+    p3["📞 Peer 3"]
+    p4["📞 Peer 4"]
+    subgraph fai["Focus agent application infrastructure"]
+      m1["Content mixer"]
+      r1["RTP relay"]
+    end
+    p1 --> m1
+    p2 --> m1
+    p3 --> m1
+    p4 --> m1
+    m1 --> r1
+    r1 --> p1
+    r1 --> p2
+    r1 --> p3
+    r1 --> p4
+  end
+  style m1 fill:#43a04733,stroke:#43a047,stroke-width:2px
+  style r1 fill:#0288d133,stroke:#0288d1,stroke-width:2px
+  linkStyle 0,1,2,3 stroke:#43a047,stroke-width:2px
+  linkStyle 4,5,6,7,8 stroke:#0288d1,stroke-width:2px
 ```
 
 Conference management is partially defined by:
@@ -266,7 +261,7 @@ sequenceDiagram
     participant Bob
     participant TURN as STUN/TURN Server
 
-    rect rgba(0, 255, 255, 0.5)
+    rect rgba(2, 136, 209, 0.15)
         note right of Alice: XEP-0215: External Service Discovery (optional)
         note right of Alice: Usually performed right after connection
         Alice->>XMPP: External Service Discovery IQ
@@ -275,14 +270,14 @@ sequenceDiagram
         XMPP-->>Bob: STUN/TURN server address and credentials
     end
 
-    rect rgba(0, 255, 255, 0.5)
+    rect rgba(2, 136, 209, 0.15)
         note right of Alice: XEP-0353: Jingle Message Initiation (optional)
         Alice->>Bob: propose jingle-message
         Bob-->>Alice: ringing jingle-message
         Bob-->>Alice: proceed jingle-message
     end
 
-    rect rgba(255, 255, 0, 0.5)
+    rect rgba(255, 193, 7, 0.18)
         note right of Alice: ICE candidate gathering & Jingle session setup
         note right of Alice:  XEP-0166: Jingle<br/>XEP-0167: Jingle RTP Sessions<br/>XEP-0176: Jingle ICE-UDP Transport Method
         Alice->>TURN: STUN binding request
@@ -299,20 +294,20 @@ sequenceDiagram
         Alice-->>Bob: result IQ
     end
 
-    rect rgba(255, 255, 0, 0.5)
+    rect rgba(255, 193, 7, 0.18)
         note right of Alice: non-XMPP traffic
         Alice<<->>Bob: ICE connectivity checks
         Alice<<->>Bob: RTP/SRTP Media Session
     end
 
-    rect rgba(255, 255, 0, 0.5)
+    rect rgba(255, 193, 7, 0.18)
         note right of Alice: Session termination
         note right of Alice:  XEP-0166: Jingle
         Alice->>Bob: jingle session-terminate IQ
         Bob-->>Alice: result IQ
     end
 
-    rect rgba(0, 255, 255, 0.5)
+    rect rgba(2, 136, 209, 0.15)
         note right of Alice: XEP-0353: Jingle Message Initiation (optional)
         Alice->>Bob: finish jingle-message
         Bob->>Alice: finish jingle-message

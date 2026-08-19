@@ -7,3 +7,8 @@ img#mim-readme-logo {
   --md-primary-fg-color: #459bb6;
   --md-accent-fg-color: #0554b8;
 }
+
+/* dark theme */
+[data-md-color-scheme="slate"] {
+  --md-accent-fg-color: #7ab5ff;
+}

@@ -1,3 +1,5 @@
+# mod_roster
+
 ## Module Description
 
 The module implements roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).

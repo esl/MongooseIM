@@ -1,3 +1,5 @@
+# mod_cache_users
+
 ## Module Description
 
 `mod_cache_users` is a module that caches whether a user exists, and possibly stores metadata assigned to them. This is useful for example to decide if a message should be stored in [MAM] or [Inbox] — for example, the receiver might not exist, so no message should be stored in his archive nor his inbox.

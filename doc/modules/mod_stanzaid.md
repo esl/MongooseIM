@@ -1,3 +1,5 @@
+# mod_stanzaid
+
 ## Module Description
 
 Implements [XEP-0359: Unique and Stable Stanza ID](https://xmpp.org/extensions/xep-0359.html).

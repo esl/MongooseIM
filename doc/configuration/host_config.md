@@ -1,3 +1,5 @@
+# Options: Host config
+
 The `host_config` section is used to configure options for specific XMPP domains or for host types, which are used to group multiple domains.
 For each domain or host type requiring such options, a `host_config` section needs to be created with the following format:
 

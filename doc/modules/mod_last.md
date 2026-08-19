@@ -1,3 +1,5 @@
+# mod_last
+
 ## Module Description
 
 Implements [XEP-0012: Last Activity](https://xmpp.org/extensions/xep-0012.html).

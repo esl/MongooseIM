@@ -1,4 +1,6 @@
-### Module Description
+# mod_muc
+
+## Module Description
 
 This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) (MUC).
 It's a common XMPP group chat solution.

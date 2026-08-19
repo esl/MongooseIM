@@ -1,3 +1,5 @@
+# Release/Installation configuration
+
 ## Advanced release configuration
 
 It's now possible to install MongooseIM from source in two modes:

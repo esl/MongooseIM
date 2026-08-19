@@ -1,3 +1,5 @@
+# mod_global_distrib
+
 ## Module Description
 
 This module enables global distribution of a single XMPP domain.

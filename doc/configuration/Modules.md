@@ -1,3 +1,5 @@
+# Options: Extension Modules
+
 MongooseIM provides a wide range of pluggable and configurable modules,
 that implement various features including XEPs.
 For instance `mod_muc` enables Multi-User Chat (group chat),

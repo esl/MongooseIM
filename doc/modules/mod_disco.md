@@ -1,3 +1,5 @@
+# mod_disco
+
 ## Module Description
 
 Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.html). The module itself provides only the essential disco interface, the actual capabilities announced by Service Discovery are gathered via executing a fold-type hook.

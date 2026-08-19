@@ -1,3 +1,5 @@
+# Cluster configuration and node management
+
 ## Environment configuration
 
 ### File descriptors

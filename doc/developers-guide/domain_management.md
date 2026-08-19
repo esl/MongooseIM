@@ -1,3 +1,5 @@
+# Domain management
+
 !!! Warning
     Some [modules](../configuration/Modules.md#modules-incompatible-with-dynamic-domains) do not work with dynamic domains.
     This is also the case for [`s2s`](../configuration/s2s.md).
