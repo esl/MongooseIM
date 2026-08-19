@@ -50,40 +50,48 @@ end_per_testcase(Name, Config) ->
     escalus:end_per_testcase(Name, Config).
 
 shutdown(Config) ->
-    UserSpec = escalus_users:get_userspec(Config, geralt_s),
-    {ok, Alice, _} = escalus_connection:start(UserSpec),
+    {ok, Geralt, _} = escalus_connection:start(escalus_users:get_userspec(Config, geralt_s)),
+    {ok, Alice, _} = escalus_connection:start(escalus_users:get_userspec(Config, alice)),
     logger_ct_backend:capture(error),
     ejabberd_node_utils:restart_application(mongooseim),
     logger_ct_backend:stop_capture(),
     FilterFun = fun(_, Msg) -> re:run(Msg, "event_not_registered") /= nomatch end,
     [] = logger_ct_backend:recv(FilterFun),
-    %% Ensure that Alice gets a shutdown stanza
+    %% Ensure that both clients get a shutdown stanza
+    lists:foreach(fun assert_closed_by_system_shutdown/1, [Geralt, Alice]).
+
+assert_closed_by_system_shutdown(Client) ->
     escalus:assert(is_stream_error, [<<"system-shutdown">>, <<>>],
-                   escalus_client:wait_for_stanza(Alice)),
-    escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
-    true = escalus_connection:wait_for_close(Alice, timer:seconds(1)).
+                   escalus_client:wait_for_stanza(Client)),
+    escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Client)),
+    true = escalus_connection:wait_for_close(Client, timer:seconds(1)).
 
 client_tries_to_connect_before_listener_stop(Config) ->
     %% Ensures that user would not be able to connect while we are stopping
-    %% the listeners and other c2s processes
-    UserSpec = escalus_users:get_userspec(Config, geralt_s),
-    PortNum = proplists:get_value(port, UserSpec),
+    %% the listeners and other c2s processes.
+    %% The Cowboy and the Ranch listeners are suspended separately, so check both.
+    WsSpec = escalus_users:get_userspec(Config, geralt_s),
+    Ports = [proplists:get_value(port, WsSpec), ct:get_config({hosts, mim, c2s_port})],
     %% Ask MongooseIM to pause the stopping process
     %% so we can check that listeners were suspended correctly
     block_listener(),
-    %% Check that the listener is working
-    {ok, ConnPort} = gen_tcp:connect("127.0.0.1", PortNum, []),
+    %% Check that the listeners are working
+    ConnPorts = lists:map(fun connect_to/1, Ports),
     %% Trigger the restarting logic in a separate parallel process
     RestPid = restart_application_non_blocking(),
     %% Wait until we are blocked in mongoose_listener:stop/0
     Called = wait_for_called(),
-    {error, econnrefused} = gen_tcp:connect("127.0.0.1", PortNum, []),
+    [{error, econnrefused} = gen_tcp:connect("127.0.0.1", PortNum, []) || PortNum <- Ports],
     %% Resume to stop the listeners
     resume(Called),
     %% Check that the old TCP connections are closed
-    receive_tcp_closed(ConnPort),
+    lists:foreach(fun receive_tcp_closed/1, ConnPorts),
     %% Wait till mongooseim is fully restarted
     wait_for_down(RestPid).
+
+connect_to(PortNum) ->
+    {ok, ConnPort} = gen_tcp:connect("127.0.0.1", PortNum, []),
+    ConnPort.
 
 block_listener() ->
     rpc(mim(), meck, new, [mongoose_listener, [no_link, passthrough]]),
