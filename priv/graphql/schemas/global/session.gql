@@ -11,7 +11,7 @@ type Session{
   "The priority level of the resource"
   priority: Int
   "The node that the session process belongs to"
-  node: String
+  node: String!
   "The uptime of the session"
-  uptime: Int
+  uptime: Int!
 }

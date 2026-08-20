@@ -83,11 +83,11 @@ type RoomUser{
 "MUC Light rooms payload"
 type MUCLightRoomsPayload{
   "List of room descriptions, ordered by room JID"
-  rooms: [MUCLightRoomDesc!]
+  rooms: [MUCLightRoomDesc!]!
   "Total number of rooms in the domain matching the filter"
-  count: NonNegInt
+  count: NonNegInt!
   "Whether more rooms exist after this page"
-  nextPage: Boolean
+  nextPage: Boolean!
 }
 
 "MUC Light room description"
@@ -99,5 +99,5 @@ type MUCLightRoomDesc{
   "Room's subject (may be empty)"
   subject: String
   "Number of room members"
-  usersNumber: NonNegInt
+  usersNumber: NonNegInt!
 }
