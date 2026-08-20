@@ -50,15 +50,14 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 start_auth_pool() ->
-    %% ejabberd_auth_http requests relative paths and looks up the `auth' tag
     Pool = config([outgoing_pools, http, auth],
-                  #{conn_opts => #{host => ?AUTH_HOST, path_prefix => <<"/auth/">>}}),
+                  #{conn_opts => #{host => ?AUTH_HOST, path_prefix => ~"/auth/"}}),
     [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool]]).
 
 init_per_group(plain, Config) ->
     init_group(Config, plain, []);
 init_per_group(scram, Config) ->
-    init_group(Config, {scram, [sha]}, [{escalus_auth_method, <<"SCRAM-SHA-1">>}]).
+    init_group(Config, {scram, [sha]}, [{escalus_auth_method, ~"SCRAM-SHA-1"}]).
 
 end_per_group(_Group, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice])),
@@ -83,7 +82,7 @@ end_per_testcase(CaseName, Config) ->
 
 %% Without this the case below would pass even with a broken pool or mock
 login_succeeds_when_auth_service_is_up(Config) ->
-    {ok, Client} = escalus_client:start(Config, alice, <<"res">>),
+    {ok, Client} = escalus_client:start(Config, alice, ~"res"),
     escalus_client:stop(Config, Client).
 
 unexpected_codes_are_rejected_cleanly(Config) ->
@@ -93,7 +92,7 @@ unexpected_codes_are_rejected_cleanly(Config) ->
 unexpected_code_is_rejected_cleanly(Config, Code) ->
     mim_ct_rest:fail(Code), % one-shot, consumed by the next request
     {error, {connection_step_failed, _, Reason}} =
-        escalus_client:start(Config, alice, <<"res">>),
+        escalus_client:start(Config, alice, ~"res"),
     assert_sasl_failure(Code, Reason).
 
 %%--------------------------------------------------------------------
@@ -102,8 +101,8 @@ unexpected_code_is_rejected_cleanly(Config, Code) ->
 
 %% PLAIN reports it where it expects the result, SCRAM where it expects the
 %% challenge; anything else means no failure was sent at all
-assert_sasl_failure(_Code, {Step, _, #xmlel{name = <<"failure">>} = El})
+assert_sasl_failure(_Code, {Step, _, #xmlel{name = ~"failure"} = El})
   when Step =:= auth_failed; Step =:= expected_challenge ->
-    ?assertMatch(#xmlel{}, exml_query:subelement(El, <<"not-authorized">>));
+    ?assertMatch(#xmlel{}, exml_query:subelement(El, ~"not-authorized"));
 assert_sasl_failure(Code, Other) ->
-    ct:fail({no_sasl_failure_from_server, [{http_code, Code}, {got, Other}]}).
+    ct:fail({no_sasl_failure_from_server, [{http_code, Code}, {reason, Other}]}).
