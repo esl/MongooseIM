@@ -12,3 +12,41 @@ img#mim-readme-logo {
 [data-md-color-scheme="slate"] {
   --md-accent-fg-color: #7ab5ff;
 }
+
+/* Use more horizontal space on desktop docs pages. */
+@media screen and (min-width: 76.25em) {
+  .md-grid {
+    max-width: min(100%, 85rem);
+  }
+
+  .md-sidebar--primary {
+    width: 15rem;
+  }
+
+  .md-sidebar--secondary {
+    width: 20rem;
+  }
+
+  [dir="ltr"] .md-sidebar--primary .md-sidebar__inner {
+    padding-right: calc(100% - 14.4rem);
+  }
+
+  [dir="rtl"] .md-sidebar--primary .md-sidebar__inner {
+    padding-left: calc(100% - 14.4rem);
+  }
+
+  [dir="ltr"] .md-sidebar--secondary .md-sidebar__inner {
+    padding-right: calc(100% - 19.4rem);
+  }
+
+  [dir="rtl"] .md-sidebar--secondary .md-sidebar__inner {
+    padding-left: calc(100% - 19.4rem);
+  }
+}
+
+/* Don't scale the font up to 150% */
+@media screen and (min-width: 125em) {
+  html {
+    font-size: 137.5%;
+  }
+}
