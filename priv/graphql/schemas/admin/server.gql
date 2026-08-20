@@ -49,13 +49,13 @@ type ServerAdminMutation @protected{
 "Status of the server"
 type Status {
   "Code of the status"
-  statusCode: StatusCode
+  statusCode: StatusCode!
   "Message about the status"
-  message: String
+  message: String!
   "MongooseIM version"
-  version: String
+  version: String!
   "The hash of the commit that MongooseIM is running"
-  commitHash: String
+  commitHash: String!
 }
 
 "Specifies status of the server"
