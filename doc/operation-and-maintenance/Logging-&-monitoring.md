@@ -89,7 +89,7 @@ Moreover, Exometer metrics can be accessed through the GraphQL API.
 
 #### GraphQL metrics endpoint
 
-When using Exometer, the metrics can be accessed through <a href="../admin-graphql-doc.html#query-metric" target="_blank" rel="noopener noreferrer">a GraphQL query</a>.
+When using Exometer, the metrics can be accessed through <a href="../graphql-api/admin-graphql-doc.html#query-metric" target="_blank" rel="noopener noreferrer">a GraphQL query</a>.
 With Prometheus, this query will not work, however, the metrics will be available in the Prometheus format from [the configured endpoint](../listeners/listen-http.md#listenhttphandlerspath).
 
 ### Run Graphite & Grafana in Docker - quick start

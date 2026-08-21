@@ -146,4 +146,4 @@ Run `./mongooseimctl domain` to get more information about all supported operati
 
 ## API
 
-You can manage domains with our [GraphQL API](../graphql-api/Admin-GraphQL.md) which has the same functionality as the command line interface. The <a href="../../graphql-api/admin-graphql-doc.html#query-domain">queries</a> and <a href="../../graphql-api/admin-graphql-doc.html#mutation-domain">mutations</a> for domains are grouped under the `domain` category.
+You can manage domains with our [GraphQL API](../graphql-api/Admin-GraphQL.md) which has the same functionality as the command line interface. The <a href="../graphql-api/admin-graphql-doc.html#query-domain">queries</a> and <a href="../graphql-api/admin-graphql-doc.html#mutation-domain">mutations</a> for domains are grouped under the `domain` category.

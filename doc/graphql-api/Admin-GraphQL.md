@@ -13,9 +13,9 @@ There is only one schema for both admin types. Admin per domain simply has no pe
 ## Domain admin configuration
 
 Out of the box, domains are created with a disabled admin account. Admin per domain can be enabled only by the global admin with the command
-<a href="../admin-graphql-doc.html#definition-DomainAdminMutation" target="_blank" rel="noopener noreferrer">mutation.domains.setDomainPassword</a>. Afterward, the domain admin can change the password with the same command.
+<a href="admin-graphql-doc.html#definition-DomainAdminMutation" target="_blank" rel="noopener noreferrer">mutation.domains.setDomainPassword</a>. Afterward, the domain admin can change the password with the same command.
 
-The admin per domain can be disabled by the global admin with the command <a href="../admin-graphql-doc.html#definition-DomainAdminMutation" target="_blank" rel="noopener noreferrer">mutation.domains.removeDomainPassword</a>.
+The admin per domain can be disabled by the global admin with the command <a href="admin-graphql-doc.html#definition-DomainAdminMutation" target="_blank" rel="noopener noreferrer">mutation.domains.removeDomainPassword</a>.
 
 ## Authentication
 
@@ -91,7 +91,7 @@ query {
 
 ## Static documentation
 
-<a style="float: right; padding: 5px" href="../admin-graphql-doc.html" target="_blank" rel="noopener noreferrer">Open GraphQL documentation as a full page</a>
+<a style="float: right; padding: 5px" href="admin-graphql-doc.html" target="_blank" rel="noopener noreferrer">Open GraphQL documentation as a full page</a>
 
-<iframe src="../admin-graphql-doc.html"
+<iframe src="admin-graphql-doc.html"
 height="800" width="800" style="border: 1px solid black;"></iframe>

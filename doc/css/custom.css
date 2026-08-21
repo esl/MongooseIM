@@ -13,6 +13,33 @@ img#mim-readme-logo {
   --md-accent-fg-color: #7ab5ff;
 }
 
+/* The topbar with brand color. */
+.md-header {
+  background-color: var(--md-primary-fg-color);
+  color: #fff;
+}
+
+/* The search pill. */
+.md-header .md-search__button {
+  background-color: #ffffff26;
+  color: #fff;
+}
+
+.md-header .md-search__button:focus,
+.md-header .md-search__button:hover {
+  background-color: #ffffff40;
+  color: #fff;
+}
+
+.md-header .md-search__button::before {
+  background-color: #fff;
+}
+
+/* The keyboard-shortcut. */
+.md-header .md-search__button::after {
+  background: #0000002e;
+}
+
 /* Use more horizontal space on desktop docs pages. */
 @media screen and (min-width: 76.25em) {
   .md-grid {
