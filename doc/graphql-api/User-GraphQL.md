@@ -47,5 +47,4 @@ Executing some of the queries requires authorization. Just add the following JSO
 
 <a style="float: right; padding: 5px" href="user-graphql-doc.html" target="_blank" rel="noopener noreferrer">Open GraphQL documentation as a full page</a>
 
-<iframe src="user-graphql-doc.html"
-height="800" width="800" style="border: 1px solid black;"></iframe>
+<iframe class="graphql-doc" src="user-graphql-doc.html"></iframe>
