@@ -41,7 +41,7 @@ else
 SED := gsed
 endif
 
-dialyzer:
+dialyzer: mim_ct_rest
 	ERL_LIBS=../_build/default/lib ../rebar3 dialyzer
 
 test_clean: get-deps
