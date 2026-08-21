@@ -93,5 +93,4 @@ query {
 
 <a style="float: right; padding: 5px" href="admin-graphql-doc.html" target="_blank" rel="noopener noreferrer">Open GraphQL documentation as a full page</a>
 
-<iframe src="admin-graphql-doc.html"
-height="800" width="800" style="border: 1px solid black;"></iframe>
+<iframe class="graphql-doc" src="admin-graphql-doc.html"></iframe>

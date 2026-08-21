@@ -40,6 +40,14 @@ img#mim-readme-logo {
   background: #0000002e;
 }
 
+/* The embedded GraphQL reference. */
+.md-typeset iframe.graphql-doc {
+  display: block;
+  width: 100%;
+  height: 800px;
+  border: 1px solid black;
+}
+
 /* Use more horizontal space on desktop docs pages. */
 @media screen and (min-width: 76.25em) {
   .md-grid {
