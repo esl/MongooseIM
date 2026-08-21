@@ -23,7 +23,7 @@
 -export([add_hooks/1, delete_hooks/1]).
 
 -export([user_send_message/3,
-         filter_local_packet/3,
+         message_routed/3,
          user_present/3,
          user_not_present/3,
          unacknowledged_message/3]).
@@ -43,16 +43,17 @@ delete_hooks(HostType) ->
 %%--------------------------------------------------------------------
 %% Hook callbacks
 %%--------------------------------------------------------------------
--spec filter_local_packet(Acc, Args, Extra) -> {ok, Acc} when
-      Acc :: mongoose_hooks:filter_packet_acc(),
-      Args :: map(),
+-spec message_routed(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Args :: #{user_status := ejabberd_sm:user_status()},
       Extra :: gen_hook:extra().
-filter_local_packet({From, To, Acc0, Packet}, _, _) ->
-    Acc = case chat_type(Acc0) of
-              false -> Acc0;
-              Type -> push_chat_event(Acc0, Type, {From, To, Packet}, out)
-          end,
-    {ok, {From, To, Acc, Packet}}.
+message_routed(Acc, #{user_status := UserStatus}, _) ->
+    case chat_type(Acc) of
+        false ->
+            {ok, Acc};
+        Type ->
+            {ok, push_chat_event(Acc, Type, out, UserStatus)}
+    end.
 
 -spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
@@ -66,7 +67,7 @@ user_send_message(Acc, _, _) ->
             {_, false} ->
                 Acc;
             {_, Type} ->
-                push_chat_event(Acc, Type, Packet, in)
+                push_chat_event(Acc, Type, in, online)
         end,
     {ok, ResultAcc}.
 
@@ -101,16 +102,16 @@ unacknowledged_message(Acc, #{jid := Jid}, _) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec push_chat_event(Acc, Type, {From, To, Packet}, Direction) -> Acc when
+-spec push_chat_event(Acc, Type, Direction, UserStatus) -> Acc when
       Acc :: mongoose_acc:t(),
       Type :: chat | groupchat | headline | normal | false,
-      From :: jid:jid(),
-      To :: jid:jid(),
-      Packet :: exml:element(),
-      Direction :: in | out.
-push_chat_event(Acc, Type, {From, To, Packet}, Direction) ->
+      Direction :: in | out,
+      UserStatus :: ejabberd_sm:user_status().
+push_chat_event(Acc, Type, Direction, UserStatus) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
     Event = #chat_event{type = Type, direction = Direction,
-                        from = From, to = To, packet = Packet},
+                        from = From, to = To, packet = Packet,
+                        user_status = UserStatus},
     NewAcc = mod_event_pusher:push_event(Acc, Event),
     merge_acc(Acc, NewAcc).
 
@@ -133,7 +134,7 @@ merge_acc(Acc, EventPusherAcc) ->
 -spec hooks(mongooseim:host_type()) -> [gen_hook:hook_tuple()].
 hooks(HostType) ->
     [
-        {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 80},
+        {message_routed, HostType, fun ?MODULE:message_routed/3, #{}, 80},
         {unset_presence, HostType, fun ?MODULE:user_not_present/3, #{}, 90},
         {user_available, HostType, fun ?MODULE:user_present/3, #{}, 90},
         {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 90},
