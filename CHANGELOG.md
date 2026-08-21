@@ -1,3 +1,43 @@
+# [MongooseIM 6.8.1](https://github.com/esl/MongooseIM/releases/tag/6.8.1) - 2026-08-21
+
+## Highlights
+- Added configurable default node configuration for the new `mod_pubsub`.
+- Fixed HTTP authentication handling for unexpected service response codes.
+- Fixed C2S listener shutdown handling.
+- Migrated the documentation build setup to Zensical.
+- Removed the deprecated `mod_muc_light` legacy mode and its XEP-0045 compatibility codec.
+
+## Added
+- Added `modules.mod_pubsub.default_node_config.access_model` and `modules.mod_pubsub.default_node_config.max_items`, allowing deployments to choose default configuration for newly created PEP nodes (#4767)
+
+## Changed
+- Upgraded CETS to 0.3.2, fixing a long-running retry loop when multiple nodes tried to join at once and failed to acquire the global lock (#4762, [esl/cets#65](https://github.com/esl/cets/pull/65))
+- Migrated the documentation build setup to Zensical and updated the documentation tooling (#4763)
+- Made documentation pages use the available screen width more effectively (#4771)
+
+## Fixed
+- HTTP authentication now rejects operations cleanly when the auth service returns unexpected status codes, such as 500 or 503, instead of crashing with a `case_clause` error (#4764)
+- Fixed C2S listener pattern matching used during listener shutdown, including Ranch listener drain coverage (#4768, #4770)
+
+## Removed
+- Removed the deprecated `legacy_mode` option from `mod_muc_light`, together with the legacy XEP-0045 compatibility codec (#4754)
+
+## Other
+- Added big test coverage for HTTP authentication (#4766)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.1)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-08-04..2026-08-21)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-08-04&to=2026-08-21&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.8.1+sort%3Aupdated-desc)
+
+## Special thanks to our contributors
+- [@JoseClementeSantos](https://github.com/JoseClementeSantos) for the listener pattern matching fix (#4768)
+- [@ryblovAV](https://github.com/ryblovAV) for the original CETS concurrent join retry fix ([esl/cets#64](https://github.com/esl/cets/pull/64))
+
 # [MongooseIM 6.8.0](https://github.com/esl/MongooseIM/releases/tag/6.8.0) - 2026-08-04
 
 ## Highlights
