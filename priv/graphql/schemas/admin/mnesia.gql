@@ -46,23 +46,23 @@ union MnesiaInfo =  MnesiaStringResponse | MnesiaListResponse | MnesiaIntRespons
 "Mnesia response in the form of a string"
 type MnesiaStringResponse {
   "Result as a string"
-  result: String
+  result: String!
   "Result's key"
-  key: String
+  key: String!
 }
 
 "Mnesia response in the form of a list"
 type MnesiaListResponse {
   "Result as a list"
-  result: [String]
+  result: [String!]!
   "Result's key"
-  key: String
+  key: String!
 }
 
 "Mnesia response in the form of an integer"
 type MnesiaIntResponse {
   "Result as an integer"
-  result: Int
+  result: Int!
   "Result's key"
-  key: String
+  key: String!
 }

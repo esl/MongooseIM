@@ -20,81 +20,81 @@ union MetricResult = HistogramMetric | CounterMetric | SpiralMetric | GaugeMetri
 
 type HistogramMetric {
   "Metric name"
-  name: [String]
+  name: [String!]!
   "Metric type"
-  type: MetricType
+  type: MetricType!
   "The number of values used in the calculation"
-  n: Int
+  n: Int!
   "Mean value"
-  mean: Int
+  mean: Int!
   "Min value"
-  min: Int
+  min: Int!
   "Max value"
-  max: Int
+  max: Int!
   "Median value"
-  median: Int
+  median: Int!
   "50th percentile"
-  p50: Int
+  p50: Int!
   "75th percentile"
-  p75: Int
+  p75: Int!
   "90th percentile"
-  p90: Int
+  p90: Int!
   "95th percentile"
-  p95: Int
+  p95: Int!
   "99th percentile"
-  p99: Int
+  p99: Int!
   "99.9th percentile"
-  p999: Int
+  p999: Int!
 }
 
 type CounterMetric {
   "Metric name"
-  name: [String]
+  name: [String!]!
   "Metric type"
-  type: MetricType
+  type: MetricType!
   "The metric value"
-  value: Int
+  value: Int!
   "Time since last reset"
-  ms_since_reset: Int
+  ms_since_reset: Int!
 }
 
 type GaugeMetric {
   "Metric name"
-  name: [String]
+  name: [String!]!
   "Metric type"
-  type: MetricType
+  type: MetricType!
   "The metric value"
-  value: Int
+  value: Int!
 }
 
 type SpiralMetric {
   "Metric name"
-  name: [String]
+  name: [String!]!
   "Metric type"
-  type: MetricType
+  type: MetricType!
   "One minute value"
-  one: Int
+  one: Int!
   "Total value"
-  count: Int
+  count: Int!
 }
 
 type MetricDictEntry {
   "The name of the metric key (i.e. one, count, value)"
-  key: String
+  key: String!
   "Metric value"
-  value: Int
+  value: Int!
 }
 
 type MetricDictResult {
   "Metric name"
-  name: [String]
+  name: [String!]!
   "A list of keys and values"
-  dict: [MetricDictEntry]
+  dict: [MetricDictEntry!]!
 }
 
 type MetricNodeResult {
-  node: String
-  result: [MetricDictResult]
+  node: String!
+  result: [MetricDictResult!]!
 }
 
 """

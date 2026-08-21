@@ -1,7 +1,7 @@
 "Token data"
 type Token {
   "Access token data"
-   access: String
+   access: String!
    "Refresh token data"
-   refresh: String
+   refresh: String!
  }
