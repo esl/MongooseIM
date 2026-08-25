@@ -123,9 +123,7 @@ get_inbox(HostType, LUser, LServer, Params) ->
 get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
     Res = execute_select_unread_count(HostType, LUser, LServer, RemBareJID),
     {ok, Val} = check_result(Res),
-    %% We read unread_count value when the message is sent and is not yet in receiver inbox
-    %% so we have to add +1
-    {ok, Val + 1}.
+    {ok, Val}.
 
 -spec set_inbox(HostType, InboxEntryKey, Packet, Count, MsgId, Timestamp) ->
     mod_inbox:write_res() when
