@@ -84,6 +84,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(xep0114, Config) ->
+    %% The group registers conflicting components on purpose to check that the
+    %% second registration is rejected.
+    cth_error_report:expect({what, component_register_failed}),
+    cth_error_report:expect({what, comp_registration_conflict}),
     instrument_helper:start(events()),
     Config;
 init_per_group(check_from_disabled, Config) ->
@@ -94,6 +98,9 @@ init_per_group(subdomain, Config) ->
     setup_mim_config(Config, "true"),
     Config;
 init_per_group(distributed, Config) ->
+    %% Joining the cluster leaves CETS tasks waiting on RDBMS without the
+    %% process they monitor.
+    cth_error_report:expect({what, task_failed}),
     distributed_helper:add_node_to_cluster(Config);
 init_per_group(_GroupName, Config) ->
     Config.
@@ -710,6 +717,9 @@ verify_component(Config, Component, ComponentAddr) ->
         end).
 
 setup_mim_config(Config, CheckFrom) ->
+    %% Restarting the application leaves CETS tasks waiting on RDBMS without the
+    %% process they monitor.
+    cth_error_report:expect({what, task_failed}),
     Hosts = {hosts, "\"localhost\", \"sogndal\""},
     VarsToChange = [Hosts, {component_check_from, CheckFrom}],
     ejabberd_node_utils:backup_config_file(Config),

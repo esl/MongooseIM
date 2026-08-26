@@ -73,6 +73,7 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config) ->
+    expect_errors(CaseName),
     MongoosePushMockPort = setup_mock_rest(),
 
     %% Start HTTP pool
@@ -83,6 +84,10 @@ init_per_testcase(CaseName, Config) ->
                   #{opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(mongoose_wpool, start_configured_pools, [[Pool]]),
     escalus:init_per_testcase(CaseName, Config).
+
+expect_errors(publish_fails_when_missing_mandatory_fields) ->
+    cth_error_report:expect({what, make_notification_failed}, 1);
+expect_errors(_) -> ok.
 
 end_per_testcase(CaseName, Config) ->
     rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),

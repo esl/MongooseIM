@@ -134,6 +134,18 @@ end_per_group(global_rdbms_queries, Config) ->
     instrument_helper:stop(),
     Config.
 
+init_per_testcase(Case = test_failed_wrapper_transaction, Config) ->
+    cth_error_report:expect({what, rdbms_outer_transaction_failed}),
+    escalus:init_per_testcase(Case, Config);
+init_per_testcase(Case = test_failed_wrapper, Config) ->
+    cth_error_report:expect({what, sql_execute_wrapped_failed}),
+    escalus:init_per_testcase(Case, Config);
+init_per_testcase(Case = test_failed_transaction_with_execute_wrapped, Config) ->
+    cth_error_report:expect({what, rdbms_sql_transaction_restarts_exceeded}),
+    escalus:init_per_testcase(Case, Config);
+init_per_testcase(Case = test_restart_transaction_with_execute, Config) ->
+    cth_error_report:expect({what, rdbms_sql_transaction_restarts_exceeded}),
+    escalus:init_per_testcase(Case, Config);
 init_per_testcase(test_incremental_upsert, Config) ->
     erase_inbox(Config),
     escalus:init_per_testcase(test_incremental_upsert, Config);

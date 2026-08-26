@@ -103,9 +103,11 @@ end_per_group(_GroupName, _Config) ->
 init_per_testcase(get_all_domains_with_disabled, Config) ->
     disable_domain(?EXAMPLE_DOMAIN, Config),
     escalus:init_per_testcase(get_all_domains_with_disabled, Config);
-init_per_testcase(CaseName, Config)
-  when CaseName =:= create_domain_fails_if_db_transaction_fails_constantly;
-       CaseName =:= create_domain_succeeds_if_db_transaction_fails_once ->
+init_per_testcase(create_domain_fails_if_db_transaction_fails_constantly = CaseName, Config) ->
+    cth_error_report:expect({what, graphql_crash}, 1),
+    rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(create_domain_succeeds_if_db_transaction_fails_once = CaseName, Config) ->
     rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->

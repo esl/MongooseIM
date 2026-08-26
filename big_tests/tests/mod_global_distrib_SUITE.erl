@@ -195,6 +195,12 @@ init_per_group(_, Config) ->
     init_per_group_generic(Config).
 
 init_per_group_generic(Config0) ->
+    %% Starting and stopping the listeners on every node makes receiver
+    %% processes come and go, and generic_end_per_testcase/2 drops every
+    %% outgoing connection after each case, so which case logs a gd_ error is a
+    %% matter of timing.
+    cth_error_report:expect({regex, <<"what => gd_">>}),
+    cth_error_report:expect(<<"mod_global_distrib_receiver">>),
     Config2 = lists:foldl(fun init_modules_per_node/2, Config0, get_hosts()),
     wait_for_listeners_to_appear(),
     {SomeNode, _, _} = hd(get_hosts()),
@@ -247,6 +253,10 @@ set_opts(_, Opts) ->
     Opts.
 
 end_per_group(advertised_endpoints, Config) ->
+    %% unmock_inet/1 removes the inet:getaddrs mock before restore_modules tears
+    %% the module down, so the teardown refresh resolves the advertised
+    %% "somefakedomain.com" for real and the server manager terminates.
+    cth_error_report:expect(<<"mod_global_distrib_server_mgr">>),
     Pids = ?config(meck_handlers, Config),
     unmock_inet(Pids),
     escalus_fresh:clean(),
@@ -289,6 +299,14 @@ init_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_d
                                    CN == test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first;
                                    CN == test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first ->
     escalus:init_per_testcase(CN, init_user_eve(Config));
+init_per_testcase(test_location_disconnect = CN, Config) ->
+    cth_error_report:expect({what, hook_failed}),
+    escalus:init_per_testcase(CN, Config);
+init_per_testcase(test_host_refreshing = CN, Config) ->
+    cth_error_report:expect(<<"mod_global_distrib_connection">>),
+    cth_error_report:expect(<<"mod_global_distrib_server_mgr">>),
+    cth_error_report:expect(<<"mod_global_distrib_server_sup">>),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 

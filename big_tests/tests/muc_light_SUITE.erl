@@ -264,12 +264,17 @@ init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
             escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(CaseName, Config) ->
+    expect_errors(CaseName),
     dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     case lists:member(CaseName, ?ROOM_LESS_CASES) of
         false -> create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1));
         _ -> ok
     end,
     escalus:init_per_testcase(CaseName, Config).
+
+expect_errors(create_existing_room_deny) ->
+    cth_error_report:expect({what, rdbms_sql_transaction_restarts_exceeded});
+expect_errors(_) -> ok.
 
 end_per_testcase(CaseName, Config) ->
     muc_light_helper:clear_db(host_type()),

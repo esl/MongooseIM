@@ -128,16 +128,29 @@ init_per_group(both_tls_enforced, Config) ->
     Config1 = s2s_helper:configure_s2s(both_tls_enforced, Config),
     [{requires_tls, group_with_tls(both_tls_enforced)}, {group, both_tls_enforced} | Config1];
 init_per_group(start_stream_errors, Config) ->
+    expect_broken_stream_errors(),
     [{initial_steps, []} | Config];
 init_per_group(start_stream_errors_after_starttls, Config) ->
+    expect_broken_stream_errors(),
     [{initial_steps, [fun s2s_start_stream/2,
                       fun s2s_starttls/2]} | Config];
 init_per_group(start_stream_errors_after_auth, Config) ->
+    expect_broken_stream_errors(),
     [{initial_steps, [fun s2s_start_stream/2,
                       fun s2s_starttls/2,
                       fun s2s_start_stream/2,
                       fun s2s_external_auth/2]} | Config];
+init_per_group(node1_tls_required_trusted_node2_tls_optional = GroupName, Config) ->
+    %% Node1 only trusts its own CA, so it rejects node2's certificate.
+    cth_error_report:expect(<<"unknown_ca">>),
+    init_per_group_default(GroupName, Config);
 init_per_group(GroupName, Config) ->
+    init_per_group_default(GroupName, Config).
+
+expect_broken_stream_errors() ->
+    cth_error_report:expect(<<"s2s_sasl_failure">>).
+
+init_per_group_default(GroupName, Config) ->
     Config1 = s2s_helper:configure_s2s(GroupName, Config),
     [{requires_tls, group_with_tls(GroupName)}, {group, GroupName} | Config1].
 
@@ -155,6 +168,9 @@ init_per_testcase(dns_ip_discovery = CaseName, Config) ->
         true ->
             {skip, "Test skipped for GH Actions"};
         false ->
+            %% fed2 has no SRV record. The A record is mocked and resolves, so
+            %% no address lookup error is expected on top of it.
+            cth_error_report:expect({service, "_xmpp-server._tcp.fed2"}),
             meck_dns_srv_lookup("fed2", ip),
             Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
             escalus:init_per_testcase(CaseName, Config1)
@@ -164,6 +180,8 @@ init_per_testcase(dns_discovery_fail = CaseName, Config) ->
         true ->
             {skip, "Test skipped for GH Actions"};
         false ->
+            cth_error_report:expect({service, "_xmpp-server._tcp.fed3"}),
+            cth_error_report:expect({server, "fed3"}),
             meck_dns_srv_lookup("fed3", none),
             escalus:init_per_testcase(CaseName, Config)
     end;
@@ -172,8 +190,13 @@ init_per_testcase(unknown_domain = CaseName, Config) ->
         true ->
             {skip, "Test skipped for GH Actions"};
         false ->
+            cth_error_report:expect({service, "_xmpp-server._tcp.somebogushost"}),
+            cth_error_report:expect({server, "somebogushost"}),
             escalus:init_per_testcase(CaseName, Config)
     end;
+init_per_testcase(malformed_jid = CaseName, Config) ->
+    cth_error_report:expect({server, "not a jid"}),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 

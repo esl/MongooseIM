@@ -70,7 +70,11 @@ group(_Groupname) ->
 
 init_per_group(rdbms, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
-        true -> Config;
+        true ->
+            %% The group wipes Mnesia to check the id is restored, so CETS tasks
+            %% waiting on RDBMS lose the process they monitor.
+            cth_error_report:expect({what, task_failed}),
+            Config;
         false -> {skip, require_rdbms}
     end;
 init_per_group(_, Config) ->
