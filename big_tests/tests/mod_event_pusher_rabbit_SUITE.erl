@@ -95,13 +95,16 @@ chat_message_publish_tests() ->
     [chat_message_sent_event,
      chat_message_sent_event_properly_formatted,
      chat_message_received_event,
-     chat_message_received_event_properly_formatted].
+     chat_message_received_event_properly_formatted,
+     chat_message_to_nonexistent_user_is_skipped,
+     chat_message_to_server_is_skipped].
 
 group_chat_message_publish_tests() ->
     [group_chat_message_sent_event,
      group_chat_message_sent_event_properly_formatted,
      group_chat_message_received_event,
      group_chat_message_received_event_properly_formatted,
+     group_chat_message_to_room_is_skipped,
      group_chat_displayed_marker_is_skipped].
 
 instrumentation_tests() ->
@@ -408,6 +411,32 @@ chat_message_received_event_properly_formatted(Config) ->
                            get_decoded_message_from_rabbit(AliceChatMsgRecvRK))
       end).
 
+chat_message_to_nonexistent_user_is_skipped(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN
+              NonexistentUserJID = <<"nonexistent_user@", (domain())/binary>>,
+              listen_to_chat_msg_recv_events_from_rabbit([NonexistentUserJID], Config),
+              %% WHEN user sends a chat message to a nonexistent local user
+              escalus:send(Bob, escalus_stanza:chat_to(NonexistentUserJID, ~"Hi stranger!")),
+              %% THEN there is no received-message event for the nonexistent user JID
+              assert_no_message_from_rabbit([chat_msg_recv_rk(NonexistentUserJID)])
+      end).
+
+chat_message_to_server_is_skipped(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN
+              Server = domain(),
+              listen_to_chat_msg_recv_events_from_rabbit([Server], Config),
+              %% WHEN user sends a chat message to the local server JID
+              escalus:send(Bob, escalus_stanza:chat_to(Server, ~"Hi server!")),
+              %% THEN there is no received-message event for the server JID
+              assert_no_message_from_rabbit([chat_msg_recv_rk(Server)])
+      end).
+
 %%--------------------------------------------------------------------
 %% GROUP group_message_publish
 %%--------------------------------------------------------------------
@@ -515,6 +544,25 @@ group_chat_message_received_event_properly_formatted(Config) ->
                              <<"to_user_id">> := AliceFullJID,
                              <<"message">> := Message},
                            get_decoded_message_from_rabbit(AliceGroupChatMsgRecvRK))
+      end).
+
+group_chat_message_to_room_is_skipped(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN basic variables
+              Room = ?config(room, Config),
+              RoomAddr = muc_helper:room_address(Room),
+              RoomGroupChatMsgRecvRK = group_chat_msg_recv_rk(RoomAddr),
+              %% GIVEN user in room
+              escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room, nick(Bob))),
+              % wait for all room stanzas to be processed
+              escalus:wait_for_stanzas(Bob, 2),
+              listen_to_group_chat_msg_recv_events_from_rabbit([RoomAddr], Config),
+              %% WHEN user sends a groupchat message to the room
+              escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, <<"Hi there!">>)),
+              %% THEN there is no received-message event for the room JID
+              assert_no_message_from_rabbit([RoomGroupChatMsgRecvRK])
       end).
 
 group_chat_displayed_marker_is_skipped(Config) ->

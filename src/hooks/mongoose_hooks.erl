@@ -17,6 +17,7 @@
          filter_local_packet/1,
          filter_packet/1,
          inbox_unread_count/2,
+         message_routed/2,
          extend_inbox_result/3,
          get_key/2,
          packet_to_component/3,
@@ -242,6 +243,19 @@ failed_to_store_message(Acc) ->
 filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, #{}).
+
+%%% @doc The `message_routed' hook is called after `ejabberd_sm' routes a message
+%%% to an existing local user. `UserStatus' is `online' when the message was
+%%% routed to at least one online session (i.e. with integer priority), and `offline' otherwise.
+%%% It is called before `offline_message' or `offline_groupchat_message'.
+-spec message_routed(UserStatus, Acc) -> Result when
+    UserStatus :: ejabberd_sm:user_status(),
+    Acc :: mongoose_acc:t(),
+    Result :: mongoose_acc:t().
+message_routed(UserStatus, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    Params = #{user_status => UserStatus},
+    run_hook_for_host_type(message_routed, HostType, Acc, Params).
 
 %%% @doc The `filter_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_router_global'.

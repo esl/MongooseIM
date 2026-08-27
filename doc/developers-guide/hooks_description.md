@@ -87,7 +87,6 @@ The stanza can be filtered out (in case the handler returns `drop`), left unchan
 These hooks are handled by the following modules:
 
 * [`mod_domain_isolation`](../modules/mod_domain_isolation.md) - filters out cross-domain stanzas.
-* [`mod_event_pusher`](../modules/mod_event_pusher.md) - sends out configured events (e.g. push notifications) for incoming stanzas.
 * [`mod_inbox`](../modules/mod_inbox.md) - stores incoming messages in the recipient's inbox.
 * [`mod_mam`](../modules/mod_mam.md) - stores incoming messages in the recipient's archive, and adds MAM-related elements to the message.
 * [`mod_pubsub_old`](../modules/mod_pubsub_old.md) - for each subscription authorization form sent by a node owner, the subscription state is updated, and the stanza is dropped.
@@ -146,6 +145,22 @@ This hook is handled by the following modules, listed in the order of execution:
 * [`mod_offline_stub`](../modules/mod_offline_stub.md) - returns `{stop, Acc}` for all messages, preventing further handlers from being called.
 
 * `ejabberd_sm` - calls `ejabberd_sm:bounce_offline_message`, which responds with the `<service-unavailable/>` stanza error. In the case of using `mod_mam` the message is actually stored, and no such error should be sent - that's why the module `mod_offline_stub` can be enabled.
+
+## `message_routed`
+
+```erlang
+mongoose_hooks:message_routed(UserStatus, Acc)
+```
+
+This hook is run after routing a message to an existing local user.
+The `UserStatus` argument is `online` if the message was routed to at least one online session (i.e. with an integer priority), and `offline` otherwise.
+For users with no selected C2S process, the hook is run before `offline_message` or `offline_groupchat_message`.
+
+### Handler examples
+
+This hook is handled by the following module:
+
+* [`mod_event_pusher`](../modules/mod_event_pusher.md) - generates events e.g. for push notifications.
 
 ## `remove_user`
 
@@ -271,6 +286,7 @@ This is the perfect place to plug in custom security control.
 * mam_remove_archive
 * mam_retraction
 * mam_set_prefs
+* message_routed
 * mod_global_distrib_known_recipient
 * mod_global_distrib_unknown_recipient
 * node_cleanup

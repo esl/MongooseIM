@@ -31,11 +31,11 @@
                      Event :: mod_event_pusher:event(),
                      Services :: [mod_event_pusher_push:publish_service()]) ->
                         [mod_event_pusher_push:publish_service()].
-should_publish(Acc, #chat_event{to = To}, Services) ->
+should_publish(Acc, #chat_event{user_status = UserStatus}, Services) ->
     PublishedServices = mongoose_acc:get(event_pusher, published_services, [], Acc),
-    case should_publish(Acc, To) of
-        true -> Services -- PublishedServices;
-        false -> []
+    case UserStatus of
+        online -> [];
+        offline -> Services -- PublishedServices
     end;
 should_publish(_Acc, _Event, _Services) -> [].
 
@@ -77,19 +77,6 @@ publish_notification(Acc, _, Payload, Services) ->
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
-
--spec should_publish(Acc :: mongoose_acc:t(), To :: jid:jid()) -> boolean().
-should_publish(Acc, #jid{} = To) ->
-    HostType = mongoose_acc:host_type(Acc),
-    try ejabberd_auth:does_user_exist(HostType, To, stored) of
-        false ->
-            false;
-        true ->
-            ejabberd_sm:is_offline(To)
-    catch
-        _:_ ->
-            ejabberd_sm:is_offline(To)
-    end.
 
 -spec get_unread_count(mongoose_acc:t(), jid:jid()) -> pos_integer().
 get_unread_count(Acc, To) ->

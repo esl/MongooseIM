@@ -58,7 +58,6 @@
          get_session_ip/1,
          get_user_present_resources/1,
          get_raw_sessions/1,
-         is_offline/1,
          get_user_present_pids/2,
          get_user_present_resources_and_pids/1,
          sync/0,
@@ -111,6 +110,7 @@
                       info     :: info()
                      }.
 -type info() :: #{info_key() => any()}.
+-type user_status() :: online | offline.
 
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis | ejabberd_sm_cets.
 -type close_reason() :: resumed | normal | {replaced, pid()}.
@@ -122,7 +122,8 @@
               backend/0,
               close_reason/0,
               info/0,
-              info_key/0
+              info_key/0,
+              user_status/0
              ]).
 
 %% default value for the maximum number of user connections
@@ -619,17 +620,23 @@ do_route(Acc, From, To, El) ->
         <<>> ->
             do_route_no_resource(Name, From, To, Acc, El);
         _ ->
-            case get_session_pid(To) of
-                none ->
+            case get_session(To) of
+                offline ->
                     do_route_offline(Name, mongoose_acc:stanza_type(Acc),
                                      From, To, Acc, El);
-                Pid when is_pid(Pid) ->
+                #session{sid = {_, Pid}} = Session ->
                     ?LOG_DEBUG(#{what => sm_route_to_pid, session_pid => Pid,
                                  session_node => node(Pid), acc => Acc}),
                     mongoose_c2s:route(Pid, Acc),
-                    Acc
+                    notify_routed(Session, Acc, Name)
             end
     end.
+
+-spec notify_routed(session(), mongoose_acc:t(), binary()) -> mongoose_acc:t().
+notify_routed(Session, Acc, ~"message") ->
+    mongoose_hooks:message_routed(user_status([Session]), Acc);
+notify_routed(_Session, Acc, _) ->
+    Acc.
 
 -spec do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) -> boolean() when
       From :: jid:jid(),
@@ -768,29 +775,22 @@ is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 route_message(From, To, Acc, Packet) ->
-    LUser = To#jid.luser,
-    LServer = To#jid.lserver,
-    case get_user_present_pids(LUser, LServer) of
+    case sessions_to_route(get_user_present_sessions(To#jid.luser, To#jid.lserver)) of
         [] ->
             route_message_fallback(From, To, Acc, Packet);
-        PrioPid ->
-            case lists:max(PrioPid) of
-                {Priority, _} when Priority >= 0 ->
-                    lists:foreach(
-                      %% Route messages to all priority that equals the max, if
-                      %% positive
-                      fun({Prio, Pid}) when Prio == Priority ->
-                         %% we will lose message if PID is not alive
-                              mongoose_c2s:route(Pid, Acc);
-                         %% Ignore other priority:
-                         ({_Prio, _Pid}) ->
-                              ok
-                      end,
-                      PrioPid),
-                      Acc;
-                _ ->
-                    route_message_fallback(From, To, Acc, Packet)
-            end
+        Sessions ->
+            [mongoose_c2s:route(Pid, Acc) || #session{sid = {_, Pid}} <- Sessions],
+            mongoose_hooks:message_routed(user_status(Sessions), Acc)
+    end.
+
+-spec sessions_to_route([session()]) -> [session()].
+sessions_to_route([]) -> [];
+sessions_to_route(Sessions) ->
+    case lists:max([Prio || #session{priority = Prio} <- Sessions]) of
+        MaxPrio when MaxPrio >= 0 ->
+            lists:filter(fun(#session{priority = Prio}) -> Prio =:= MaxPrio end, Sessions);
+        _ ->
+            []
     end.
 
 route_message_fallback(From, To, Acc, Packet) ->
@@ -800,7 +800,12 @@ route_message_fallback(From, To, Acc, Packet) ->
 route_message_by_type(<<"error">>, _From, _To, Acc, _Packet) ->
     Acc;
 route_message_by_type(<<"groupchat">>, From, To, Acc, Packet) ->
-    mongoose_hooks:offline_groupchat_message(Acc, From, To, Packet);
+    HostType = mongoose_acc:host_type(Acc),
+    Acc1 = case ejabberd_auth:does_user_exist(HostType, To, stored) of
+               true -> mongoose_hooks:message_routed(offline, Acc);
+               false -> Acc
+           end,
+    mongoose_hooks:offline_groupchat_message(Acc1, From, To, Packet);
 route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, #{from => From, to => To, packet => Packet}, #{}),
     Acc1;
@@ -808,11 +813,12 @@ route_message_by_type(_, From, To, Acc, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
     case ejabberd_auth:does_user_exist(HostType, To, stored) of
         true ->
+            Acc1 = mongoose_hooks:message_routed(offline, Acc),
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->
-                    mongoose_hooks:offline_message(Acc, From, To, Packet);
+                    mongoose_hooks:offline_message(Acc1, From, To, Packet);
                 false ->
-                    mongoose_hooks:failed_to_store_message(Acc)
+                    mongoose_hooks:failed_to_store_message(Acc1)
             end;
         _ ->
             E = mongoose_xmpp_errors:service_unavailable(<<"User not found">>),
@@ -821,6 +827,13 @@ route_message_by_type(_, From, To, Acc, Packet) ->
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-spec user_status([session()]) -> user_status().
+user_status(Sessions) ->
+    case lists:any(fun(#session{priority = Priority}) -> is_integer(Priority) end, Sessions) of
+        true -> online;
+        false -> offline
+    end.
 
 -spec clean_session_list([#session{}]) -> [#session{}].
 clean_session_list(Ss) ->
@@ -843,7 +856,6 @@ clean_session_list([S1, S2 | Rest], Res) ->
             clean_session_list([S2 | Rest], [S1 | Res])
     end.
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -spec get_user_present_pids(LUser, LServer) -> [{priority(), pid()}] when
@@ -853,6 +865,11 @@ get_user_present_pids(LUser, LServer) ->
     Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [{S#session.priority, element(2, S#session.sid)} ||
      S <- clean_session_list(Ss), is_integer(S#session.priority)].
+
+-spec get_user_present_sessions(jid:luser(), jid:lserver()) -> [session()].
+get_user_present_sessions(LUser, LServer) ->
+    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
+    [S || S <- clean_session_list(Ss), is_integer(S#session.priority)].
 
 -spec get_user_present_resources_and_pids(jid:jid()) -> [{Resource :: binary(), pid()}].
 get_user_present_resources_and_pids(#jid{luser = LUser, lserver = LServer}) ->
@@ -866,20 +883,6 @@ get_user_present_resources(#jid{luser = LUser, lserver = LServer}) ->
     Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [{S#session.priority, element(3, S#session.usr)} ||
         S <- clean_session_list(Ss), is_integer(S#session.priority)].
-
--spec is_offline(jid:jid()) -> boolean().
-is_offline(#jid{luser = LUser, lserver = LServer}) ->
-    case get_user_present_pids(LUser, LServer) of
-        [] ->
-            true;
-        Pids ->
-            case lists:max(Pids) of
-                {Priority, _} when Priority >= 0 ->
-                    false;
-                _ ->
-                    true
-            end
-    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
