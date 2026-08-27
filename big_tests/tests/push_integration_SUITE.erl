@@ -58,6 +58,7 @@ groups() ->
          {integration_with_sm_and_offline_storage,[],
           [
            no_duplicates_default_plugin,
+           negative_priority_session_gets_offline_push,
            sm_unack_messages_notified_default_plugin
           ]},
          {enhanced_integration_with_sm,[],
@@ -261,9 +262,32 @@ no_duplicates_default_plugin(Config) ->
 
     escalus_connection:stop(Bob).
 
+negative_priority_session_gets_offline_push(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            BobJID = bare_jid(Bob),
+
+            Tags = escalus_stanza:tags([{<<"priority">>, <<"-10">>}]),
+            escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>, Tags)),
+            escalus_connection:get_stanza(Alice, presence),
+
+            #{device_token := APNSDevice} = enable_push_for_user(Alice, <<"apns">>, [], Config),
+
+            escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
+            wait_helper:wait_until(fun() -> get_number_of_offline_msgs_for_client(Alice) end, 1),
+            verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
+            escalus_assert:has_no_stanzas(Alice)
+        end).
+
 get_number_of_offline_msgs(Spec) ->
     Username = escalus_utils:jid_to_lower(proplists:get_value(username, Spec)),
     Server = proplists:get_value(server, Spec),
+    mongoose_helper:total_offline_messages({Username, Server}).
+
+get_number_of_offline_msgs_for_client(Client) ->
+    Username = escalus_utils:jid_to_lower(escalus_client:username(Client)),
+    Server = escalus_utils:jid_to_lower(escalus_client:server(Client)),
     mongoose_helper:total_offline_messages({Username, Server}).
 
 sm_unack_messages_notified_default_plugin(Config) ->
