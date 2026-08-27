@@ -55,7 +55,6 @@
          set_presence/2,
          get_presence_type/1,
          maybe_get_handler/1,
-         get_old_priority/1,
          is_subscribed/3,
          put_state_in_acc/2,
          get_state_from_acc/1
@@ -385,8 +384,9 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     Acc1 = ejabberd_sm:unset_presence(Acc, Sid, Jid, Status, Info),
     presence_broadcast(Acc1, Presences),
     NewPresences = Presences#presences_state{pres_last = undefined,
-                                   pres_timestamp = undefined},
-    mongoose_c2s_acc:to_acc(Acc1, state_mod, {?MODULE, NewPresences}).
+                                             pres_timestamp = undefined},
+    mongoose_c2s_acc:to_acc_many(Acc1, [{state_mod, {?MODULE, NewPresences}},
+                                        {set_priority, undefined}]).
 
 %% @doc User sends a directed presence packet
 -spec presence_track(
@@ -687,7 +687,8 @@ update_priority(Acc, Priority, Packet, StateData) ->
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
     Info = mongoose_c2s:get_info(StateData),
-    ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, Info).
+    Acc1 = ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, Info),
+    mongoose_c2s_acc:to_acc(Acc1, set_priority, Priority).
 
 -spec am_i_subscribed_to_presence(jid:jid(), jid:jid(), state()) -> boolean().
 am_i_subscribed_to_presence(LJID, LBareJID, S) ->

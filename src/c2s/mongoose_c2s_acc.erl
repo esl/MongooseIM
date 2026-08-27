@@ -8,6 +8,7 @@
 %% - `actions': a list of valid `gen_statem:action()' to request the `mongoose_c2s' engine.
 %% - `c2s_state': a new state is requested for the state machine.
 %% - `c2s_data': a new state data is requested for the state machine.
+%% - `set_priority': a new session priority is requested for the state machine.
 %% - `stop': an action of type `{cast, {stop, Reason}}' is to be triggered.
 %% - `hard_stop': no other request is allowed, the state machine is immediatly triggered to stop.
 %% - `route': mongoose_acc elements to trigger the whole `handle_route' pipeline.
@@ -26,6 +27,7 @@
              | actions
              | c2s_state
              | c2s_data
+             | set_priority
              | stop
              | hard_stop
              | route
@@ -37,6 +39,7 @@
               | {actions, gen_statem:action()}
               | {c2s_state, mongoose_c2s:state()}
               | {c2s_data, mongoose_c2s:data()}
+              | {set_priority, ejabberd_sm:priority()}
               | {stop, term() | {shutdown, atom()}}
               | {hard_stop, term() | {shutdown, atom()}}
               | {route, mongoose_acc:t()}
@@ -49,6 +52,7 @@
         actions := [gen_statem:action()],
         c2s_state := undefined | mongoose_c2s:state(),
         c2s_data := undefined | mongoose_c2s:data(),
+        set_priority => ejabberd_sm:priority(),
         hard_stop := undefined | Reason :: term(),
         socket_send := [exml:element()]
        }.
@@ -58,6 +62,7 @@
         actions => [gen_statem:action()],
         c2s_state => mongoose_c2s:state(),
         c2s_data => mongoose_c2s:data(),
+        set_priority => ejabberd_sm:priority(),
         stop => Reason :: term(),
         hard_stop => Reason :: term(),
         route => [mongoose_acc:t()],
@@ -129,6 +134,7 @@ from_mongoose_acc(Acc, Key) ->
             (mongoose_acc:t(), actions, gen_statem:action() | [gen_statem:action()]) -> mongoose_acc:t();
             (mongoose_acc:t(), c2s_state, mongoose_c2s:state()) -> mongoose_acc:t();
             (mongoose_acc:t(), c2s_data, mongoose_c2s:data()) -> mongoose_acc:t();
+            (mongoose_acc:t(), set_priority, ejabberd_sm:priority()) -> mongoose_acc:t();
             (mongoose_acc:t(), hard_stop, atom()) -> mongoose_acc:t();
             (mongoose_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_acc:t();
             (mongoose_acc:t(), route, mongoose_acc:t()) -> mongoose_acc:t();
@@ -169,6 +175,8 @@ to_c2s_acc(C2SAcc = #{actions := Actions}, {flush, Accs}) when is_list(Accs) ->
     C2SAcc#{actions := lists:reverse(Routes) ++ Actions};
 to_c2s_acc(C2SAcc = #{actions := Actions}, {flush, Acc}) ->
     C2SAcc#{actions := [{next_event, internal, {flush, Acc}} | Actions]};
+to_c2s_acc(C2SAcc, {set_priority, Priority}) ->
+    C2SAcc#{set_priority => Priority};
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, NewStanzas}) when is_list(NewStanzas) ->
     C2SAcc#{socket_send := lists:reverse(NewStanzas) ++ Stanzas};
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, Stanza}) ->

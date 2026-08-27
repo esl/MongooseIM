@@ -15,7 +15,7 @@
 %% utils
 -export([start_link/2, start/2, stop/2, exit/2, async/3, async_with_state/3, call/3, cast/3]).
 -export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
-         get_info/1, set_info/2,
+         get_info/1, set_info/2, get_session_priority/1,
          get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([get_auth_mechs/1, get_auth_mechs_to_announce/1,
@@ -39,7 +39,8 @@
           shaper :: undefined | mongoose_shaper:shaper(),
           listener_opts :: undefined | mongoose_listener:options(),
           state_mod = #{} :: #{module() => term()},
-          info = #{} :: info()
+          info = #{} :: info(),
+          session_priority = 0 :: ejabberd_sm:priority()
          }).
 -type data() :: #c2s_data{}.
 -type maybe_ok() :: ok | {error, atom()}.
@@ -866,17 +867,17 @@ handle_state_after_packet(StateData, C2SState, Acc) ->
                           state(),
                           undefined | mongoose_acc:t(),
                           mongoose_c2s_acc:t()) -> fsm_res().
-handle_state_result(StateData0, _, _, #{c2s_data := MaybeNewFsmData, hard_stop := Reason})
+handle_state_result(StateData0, _, _, #{c2s_data := MaybeNewFsmData, hard_stop := Reason} = C2SAcc)
   when Reason =/= undefined ->
     StateData1 = case MaybeNewFsmData of
                      undefined -> StateData0;
                      _ -> MaybeNewFsmData
                  end,
-    {stop, {shutdown, Reason}, StateData1};
+    {stop, {shutdown, Reason}, apply_session_priority(C2SAcc, StateData1)};
 handle_state_result(StateData0, C2SState, MaybeAcc,
                     #{state_mod := ModuleStates, actions := MaybeActions,
                       c2s_state := MaybeNewFsmState, c2s_data := MaybeNewFsmData,
-                      socket_send := MaybeSocketSend}) ->
+                      socket_send := MaybeSocketSend} = C2SAcc) ->
     NextFsmState = case MaybeNewFsmState of
                        undefined -> C2SState;
                        _ -> MaybeNewFsmState
@@ -885,12 +886,19 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
                      undefined -> StateData0;
                      _ -> MaybeNewFsmData
                  end,
-    StateData2 = case map_size(ModuleStates) of
-                     0 -> StateData1;
-                     _ -> merge_mod_state(StateData1, ModuleStates)
+    StateData2 = apply_session_priority(C2SAcc, StateData1),
+    StateData3 = case map_size(ModuleStates) of
+                     0 -> StateData2;
+                     _ -> merge_mod_state(StateData2, ModuleStates)
                  end,
-    [maybe_send_xml(StateData2, MaybeAcc, Send) || Send <- MaybeSocketSend ],
-    {next_state, NextFsmState, StateData2, MaybeActions}.
+    [maybe_send_xml(StateData3, MaybeAcc, Send) || Send <- MaybeSocketSend ],
+    {next_state, NextFsmState, StateData3, MaybeActions}.
+
+-spec apply_session_priority(mongoose_c2s_acc:t(), data()) -> data().
+apply_session_priority(#{set_priority := Priority}, StateData) ->
+    StateData#c2s_data{session_priority = Priority};
+apply_session_priority(#{}, StateData) ->
+    StateData.
 
 %% @doc This function is executed when c2s receives a stanza from the TCP connection.
 -spec element_to_origin_accum(data(), exml:element()) -> mongoose_acc:t().
@@ -973,7 +981,7 @@ open_session(
                   conn => mongoose_xmpp_socket:get_conn_type(Socket)},
     Info2 = maps:merge(Info, NewFields),
     ReplacedPids = ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info2),
-    {ReplacedPids, StateData#c2s_data{info = Info2}}.
+    {ReplacedPids, StateData#c2s_data{info = Info2, session_priority = 0}}.
 
 -spec close_session(data(), mongoose_acc:t(), term()) -> mongoose_acc:t().
 close_session(#c2s_data{sid = Sid, jid = Jid, info = Info}, Acc, Reason) ->
@@ -1200,6 +1208,10 @@ get_info(#c2s_data{info = Info}) ->
 set_info(StateData, Info) ->
     StateData#c2s_data{info = Info}.
 
+-spec get_session_priority(data()) -> ejabberd_sm:priority().
+get_session_priority(#c2s_data{session_priority = Priority}) ->
+    Priority.
+
 -spec get_lang(data()) -> ejabberd:lang().
 get_lang(#c2s_data{lang = Lang}) ->
     Lang.
@@ -1234,7 +1246,8 @@ merge_states(S0 = #c2s_data{}, S1 = #c2s_data{}) ->
       lserver = S0#c2s_data.lserver,
       jid = S0#c2s_data.jid,
       state_mod = S0#c2s_data.state_mod,
-      info = S0#c2s_data.info
+      info = S0#c2s_data.info,
+      session_priority = S0#c2s_data.session_priority
      }.
 
 %% Instrumentation helpers

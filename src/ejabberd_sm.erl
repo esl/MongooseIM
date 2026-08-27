@@ -228,7 +228,7 @@ remove_info(JID, SID, Key) ->
 store_info_async(C2sData, SID, JID, Key, Value) ->
     Info = mongoose_c2s:get_info(C2sData),
     Info2 = update_info(Key, Value, Info),
-    Priority = mod_presence:get_old_priority(mod_presence:maybe_get_handler(C2sData)),
+    Priority = mongoose_c2s:get_session_priority(C2sData),
     set_session(SID, JID, Priority, Info2),
     mongoose_c2s:set_info(C2sData, Info2).
 
