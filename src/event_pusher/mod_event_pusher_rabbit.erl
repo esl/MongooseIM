@@ -191,7 +191,7 @@ user_topic_routing_key(JID, Topic) ->
     BinJID = jid:to_binary(jid:to_lus(JID)),
     <<BinJID/binary, ".", Topic/binary>>.
 
--spec is_user_online(ejabberd_sm:user_status()) -> boolean().
+-spec is_user_online(online | offline) -> boolean().
 is_user_online(online) -> true;
 is_user_online(offline) -> false.
 
