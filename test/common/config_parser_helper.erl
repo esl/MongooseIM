@@ -517,7 +517,7 @@ all_modules() ->
                           ttl => 3600, secret => <<"some secret">>},
                         #{host => <<"192.168.0.1">>, type => turn}]},
       mod_external_filter => mod_config(mod_external_filter, #{pool_tag => external_filter_http}),
-      mod_csi => mod_config(mod_csi, #{buffer_max => 40}),
+      mod_csi => mod_config(mod_csi, #{buffer => #{max_size => 40}}),
       mod_http_upload =>
           mod_config(
             mod_http_upload,
@@ -805,7 +805,7 @@ default_pool_conn_opts(_Type) ->
     #{}.
 
 mod_config(Module, ExtraOpts) ->
-    maps:merge(default_mod_config(Module), ExtraOpts).
+    config([modules, Module], ExtraOpts).
 
 %% Selects backend automatically depending on which databases are available
 mod_config_with_auto_backend(Module) ->
@@ -836,8 +836,6 @@ default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_caps) ->
     #{backend => cets, iq_response_timeout => 5000, versions => [v1, v2]};
-default_mod_config(mod_csi) ->
-    #{buffer_max => 20};
 default_mod_config(mod_carboncopy) ->
     #{iqdisc => no_queue};
 default_mod_config(mod_disco) ->
@@ -1132,6 +1130,8 @@ default_config([listen, component, tls]) ->
     default_xmpp_tls_tls();
 default_config([modules, M]) ->
     default_mod_config(M);
+default_config([modules, mod_csi, buffer]) ->
+    #{max_size => 20};
 default_config([modules, mod_event_pusher, http]) ->
     #{handlers => []};
 default_config([modules, mod_event_pusher, push]) ->

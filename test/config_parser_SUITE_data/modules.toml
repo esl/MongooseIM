@@ -26,7 +26,7 @@
   iqdisc.type = "no_queue"
 
 [modules.mod_csi]
-  buffer_max = 40
+  buffer.max_size = 40
 
 [modules.mod_disco]
   iqdisc.type = "one_queue"
