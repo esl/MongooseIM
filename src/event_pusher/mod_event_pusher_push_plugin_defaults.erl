@@ -33,9 +33,9 @@
                         [mod_event_pusher_push:publish_service()].
 should_publish(Acc, #chat_event{user_status = UserStatus}, Services) ->
     PublishedServices = mongoose_acc:get(event_pusher, published_services, [], Acc),
-    case UserStatus of
-        online -> [];
-        offline -> Services -- PublishedServices
+    case should_publish(UserStatus) of
+        true -> Services -- PublishedServices;
+        false -> []
     end;
 should_publish(_Acc, _Event, _Services) -> [].
 
@@ -77,6 +77,14 @@ publish_notification(Acc, _, Payload, Services) ->
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
+
+-spec should_publish(ejabberd_sm:user_status()) -> boolean().
+should_publish(offline) ->
+    true;
+should_publish({online, #{client_state := inactive}}) ->
+    true;
+should_publish({online, _}) ->
+    false.
 
 -spec get_unread_count(mongoose_acc:t(), jid:jid()) -> pos_integer().
 get_unread_count(Acc, To) ->
