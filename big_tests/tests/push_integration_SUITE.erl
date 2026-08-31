@@ -46,6 +46,8 @@ basic_groups() ->
      {group, failure_cases_v3},
      {group, failure_cases_v2},
      {group, integration_with_sm_and_offline_storage},
+     {group, notifications_with_csi_without_buffer},
+     {group, notifications_with_csi_and_buffer},
      {group, enhanced_integration_with_sm_and_filtering},
      {group, enhanced_integration_with_sm},
      {group, disco}
@@ -58,8 +60,22 @@ groups() ->
          {integration_with_sm_and_offline_storage,[],
           [
            no_duplicates_default_plugin,
-           negative_priority_session_gets_offline_push,
+           negative_priority_session_gets_push,
            sm_unack_messages_notified_default_plugin
+          ]},
+         {notifications_with_csi_without_buffer, [],
+          [
+           pm_msg_notify_on_apns_no_click_action,
+           pm_msg_notify_on_fcm_no_click_action,
+           muclight_msg_notify_on_apns_no_click_action,
+           negative_priority_session_gets_push,
+           default_active_session_gets_no_push,
+           inactive_session_gets_push
+          ]},
+         {notifications_with_csi_and_buffer, [],
+          [
+           default_active_session_gets_no_push,
+           inactive_session_gets_push_with_buffer
           ]},
          {enhanced_integration_with_sm,[],
           [
@@ -75,6 +91,8 @@ groups() ->
           ]},
          {pm_msg_notifications, [],
           [
+           default_active_session_gets_no_push,
+           negative_priority_session_gets_push,
            pm_msg_notify_on_apns_w_high_priority,
            pm_msg_notify_on_fcm_w_high_priority,
            pm_msg_notify_on_apns_w_high_priority_silent,
@@ -262,7 +280,7 @@ no_duplicates_default_plugin(Config) ->
 
     escalus_connection:stop(Bob).
 
-negative_priority_session_gets_offline_push(Config) ->
+negative_priority_session_gets_push(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
@@ -275,9 +293,62 @@ negative_priority_session_gets_offline_push(Config) ->
             #{device_token := APNSDevice} = enable_push_for_user(Alice, <<"apns">>, [], Config),
 
             escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
-            wait_helper:wait_until(fun() -> get_number_of_offline_msgs_for_client(Alice) end, 1),
             verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
             escalus_assert:has_no_stanzas(Alice)
+        end).
+
+default_active_session_gets_no_push(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := APNSDevice} = enable_push_for_user(Alice, <<"apns">>, [], Config),
+            escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
+            escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500))
+        end).
+
+inactive_session_gets_push(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            BobJID = bare_jid(Bob),
+            #{device_token := APNSDevice} = enable_push_for_user(Alice, <<"apns">>, [], Config),
+
+            %% 'inactive' client state should enable notifications
+            csi_helper:given_client_is_inactive_and_no_messages_arrive(Alice),
+            escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
+            escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
+            verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
+
+            %% 'active' client state should disable notifications
+            csi_helper:given_client_is_active(Alice),
+            escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-2">>)),
+            escalus:assert(is_chat_message, [<<"msg-2">>], escalus_connection:get_stanza(Alice, msg)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500))
+        end).
+
+inactive_session_gets_push_with_buffer(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            BobJID = bare_jid(Bob),
+            #{device_token := APNSDevice} = enable_push_for_user(Alice, <<"apns">>, [], Config),
+
+            %% 'inactive' client state should enable notifications
+            csi_helper:given_client_is_inactive_and_no_messages_arrive(Alice),
+            escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
+            csi_helper:then_client_does_not_receive_any_message(Alice),
+            verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
+
+            %% 'active' client state should disable notifications
+            csi_helper:given_client_is_active(Alice),
+
+            %% buffered message is delivered now
+            escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
+
+            escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-2">>)),
+            escalus:assert(is_chat_message, [<<"msg-2">>], escalus_connection:get_stanza(Alice, msg)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500))
         end).
 
 get_number_of_offline_msgs(Spec) ->
@@ -1143,6 +1214,13 @@ required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubH
                                                              #{ack_freq => never, resume_timeout => 1,
                                                                backend => MemBackend})},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})} |
+     required_modules(API, PubSubHost)];
+required_modules_for_group(notifications_with_csi_without_buffer, API, PubSubHost) ->
+    [{mod_muc_light, muc_light_opts()},
+     {mod_csi, config_parser_helper:mod_config(mod_csi, #{})} |
+     required_modules(API, PubSubHost)];
+required_modules_for_group(notifications_with_csi_and_buffer, API, PubSubHost) ->
+    [{mod_csi, config_parser_helper:mod_config(mod_csi, #{buffer => #{max_size => 10}})} |
      required_modules(API, PubSubHost)];
 required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
     MemBackend = ct_helper:get_internal_database(),

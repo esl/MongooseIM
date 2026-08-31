@@ -10,13 +10,15 @@
 -define(CSI_BUFFER_MAX, 10).
 
 all() ->
-    [{group, basic}].
+    [{group, with_buffer},
+     {group, without_buffer}].
 
 
 groups() ->
-    [{basic, [parallel], all_tests()}].
+    [{with_buffer, [parallel], buffer_tests()},
+     {without_buffer, [parallel], no_buffer_tests()}].
 
-all_tests() ->
+buffer_tests() ->
     [
      server_announces_csi,
      alice_is_inactive_and_no_stanza_arrived,
@@ -31,29 +33,42 @@ all_tests() ->
      invalid_csi_request_returns_error
     ].
 
+no_buffer_tests() ->
+    [
+     server_announces_csi,
+     alice_gets_msgs_while_inactive_without_buffer
+    ].
+
 suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
     instrument_helper:start(instrument_helper:declared_events(mod_csi)),
-    NewConfig = dynamic_modules:save_modules(host_type(), Config),
-    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    dynamic_modules:ensure_modules(
-      host_type(), [{mod_offline, mod_config(mod_offline, #{backend => Backend})},
-                    {mod_csi, mod_config(mod_csi, #{buffer_max => ?CSI_BUFFER_MAX})}]),
-    [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(NewConfig)].
+    [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config),
     instrument_helper:stop().
 
-init_per_group(_, Config) ->
-    escalus_users:update_userspec(Config, alice, stream_management, true).
+init_per_group(Group, Config) ->
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Group)),
+    escalus_users:update_userspec(Config1, alice, stream_management, true).
 
 end_per_group(_Group, Config) ->
+    dynamic_modules:restore_modules(Config),
     Config.
+
+required_modules(Group) ->
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    [{mod_offline, mod_config(mod_offline, #{backend => Backend})},
+     {mod_csi, mod_config(mod_csi, csi_options(Group))}].
+
+csi_options(with_buffer) ->
+    #{buffer => #{max_size => ?CSI_BUFFER_MAX}};
+csi_options(without_buffer) ->
+    #{}.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -80,6 +95,15 @@ alice_is_inactive_and_no_stanza_arrived(Config) ->
         csi_helper:given_client_is_inactive_and_no_messages_arrive(Alice),
         csi_helper:given_messages_are_sent(Alice, Bob, 1),
         csi_helper:then_client_does_not_receive_any_message(Alice)
+    end).
+
+alice_gets_msgs_while_inactive_without_buffer(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        csi_helper:given_client_is_inactive_and_no_messages_arrive(Alice),
+        Msgs = csi_helper:given_messages_are_sent(Alice, Bob, 3),
+        csi_helper:then_client_receives_message(Alice, Msgs),
+        csi_helper:given_client_is_active(Alice),
+        csi_helper:then_client_does_not_receive_any_message(Alice) % no duplicates
     end).
 
 alice_gets_msgs_after_activate(Config) ->
