@@ -97,7 +97,7 @@ Allows sending online/offline notifications, chat and groupchat messages as even
 Allows sending presence changes (to available/unavailable), chat and groupchat messages as events to a RabbitMQ server.
 
 #### [mod_event_pusher_push](../modules/mod_event_pusher_push.md)
-Implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) to provide push notifications to clients that are temporary unavailable.
+Implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) to provide push notifications to clients that are temporarily unavailable or inactive.
 
 #### [mod_event_pusher_http](../modules/mod_event_pusher_http.md)
 Forward events to an external HTTP service.

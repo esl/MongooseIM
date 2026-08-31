@@ -111,12 +111,11 @@ In order to achieve that, you need to create a plugin module that implements the
 `mod_event_pusher_push_plugin` behaviour and enable this plugin in the `plugin_module` section as
 above.
 
-A plugin module handles the dynamic configuration of push notifications. 
+A plugin module handles the dynamic configuration of push notifications.
 It contains the filtering and custom logic for notifying about messages.
 
 Two plugin implementations are provided.
 They offer different behaviour considering unacknowledged messages when using [XEP-0198: Stream Management][XEP-0198]:
-
 
 * `mod_event_pusher_push_plugin_defaults`, which implements an older behaviour. It does not notify
   the user of unacknowledged messages immediately after detecting a lost connection to the user.
@@ -131,6 +130,12 @@ notifications) should be uniquely identified. The only correct way to identify a
 XMPP standpoint is to use the data provided with the [enable stanza][enabling]. Because of that,
 each device should (re)enable the push notifications at the beginning of each and every connection.
 
+### Message notification rules
+
+For regular chat and groupchat messages, both provided plugins send push notifications if one of the following conditions occurs at the moment of routing:
+
+* Recipient has no online sessions selected for delivery.
+* Recipient has one or more online sessions selected for delivery, but [`mod_csi`](./mod_csi.md) is enabled, and all these sessions are in the `inactive` CSI state.
 ### Custom plugins
 
 A custom module implementing the optional callbacks of `mod_event_pusher_push_plugin`
