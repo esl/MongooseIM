@@ -35,7 +35,7 @@ list_users(#{<<"domain">> := Domain} = Args) ->
             {ok, Users2}
     end.
 
--spec count_users(map()) -> {ok, non_neg_integer()}.
+-spec count_users(map()) -> {ok, non_neg_integer()} | {error, resolver_error()}.
 count_users(#{<<"domain">> := Domain}) ->
     case mongoose_account_api:count_users(Domain) of
         {domain_not_found, Msg} ->
