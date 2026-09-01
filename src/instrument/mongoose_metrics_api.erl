@@ -9,7 +9,8 @@
 -type name() :: [atom() | integer()].
 -type key() :: atom().
 -type metric_result() ::
-    {ok, #{binary() => binary() | non_neg_integer()}}.
+    {ok, #{binary() => binary() | non_neg_integer()}}
+    | {error, atom()}.
 -type dict_result() :: #{binary() => binary() | non_neg_integer()}.
 -type metric_dict_result() ::
     {ok, #{binary() => binary() | [dict_result()]}}.
@@ -67,9 +68,12 @@ prepare_nodes_arg(Nodes) ->
     Nodes.
 
 make_metric_result({Name, Dict}) ->
-    PreparedName = format_name(Name),
-    Map = format_dict(Dict),
-    {ok, Map#{<<"name">> => PreparedName}}.
+    case format_dict(Dict) of
+        {error, Reason} ->
+            {error, Reason};
+        Map ->
+            {ok, Map#{<<"name">> => format_name(Name)}}
+    end.
 
 make_metric_dict_result({Name, Dict}, Keys) ->
     PreparedName = format_name(Name),
@@ -97,7 +101,10 @@ format_dict2(#{ms_since_reset := _} = Dict) ->
 format_dict2(#{value := _} = Dict) ->
     format_gauge(Dict);
 format_dict2(#{median := _} = Dict) ->
-    format_histogram(Dict).
+    format_histogram(Dict);
+format_dict2(Dict) ->
+    ?LOG_ERROR(#{what => unknown_metric_type, dict => Dict}),
+    {error, unknown_metric_type}.
 
 format_spiral(#{one := One, count := Count}) ->
     #{<<"type">> => <<"spiral">>, <<"one">> => One, <<"count">> => Count}.
