@@ -397,10 +397,14 @@ safe_int_scalar_accepts_the_safe_integer_range(_Config) ->
     ?assertMatch(#scalar_type{id = <<"SafeInt">>, resolve_module = mongoose_graphql_scalar},
                  graphql_schema:get(AdminEp, <<"SafeInt">>)),
     Max = (1 bsl 53) - 1,
-    [?assertEqual({ok, V}, mongoose_graphql_scalar:output(<<"SafeInt">>, V))
-     || V <- [0, -1, 1 bsl 31, Max, -Max]],
-    [?assertMatch({error, _}, mongoose_graphql_scalar:output(<<"SafeInt">>, V))
-     || V <- [Max + 1, -Max - 1, <<"1">>]],
+    [begin
+         ?assertEqual({ok, V}, mongoose_graphql_scalar:input(<<"SafeInt">>, V)),
+         ?assertEqual({ok, V}, mongoose_graphql_scalar:output(<<"SafeInt">>, V))
+     end || V <- [0, -1, 1 bsl 31, Max, -Max]],
+    [begin
+         ?assertMatch({error, _}, mongoose_graphql_scalar:input(<<"SafeInt">>, V)),
+         ?assertMatch({error, _}, mongoose_graphql_scalar:output(<<"SafeInt">>, V))
+     end || V <- [Max + 1, -Max - 1, <<"1">>]],
     #object_type{fields = CounterFields} = graphql_schema:get(AdminEp, <<"CounterMetric">>),
     ?assertMatch(#schema_field{ty = {non_null, <<"SafeInt">>}},
                  maps:get(<<"value">>, CounterFields)),
