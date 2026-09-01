@@ -114,17 +114,13 @@ This option may be useful for creating a subset of users with admin rights, inst
 which can be done with the [all_can_configure](#modulesmod_muc_lightall_can_configure) and
 [all_can_invite](#modulesmod_muc_lightall_can_invite) options.
 
-!!! Warning
-    This is a custom option, not compatible with our [MUC Light XEP](../open-extensions/muc_light.md).
-    If a client is adhering to the XEP, its behaviour may be unexpected, and this option should not be enabled.
-
 ### `modules.mod_muc_light.promote_on_last_owner_leave`
 * **Syntax**: boolean
 * **Default**: `true`
 * **Example**: `promote_on_last_owner_leave = false`
 
-When enabled, one of the group members is promoted to owner when the last owner leaves the room.
-Otherwise, leaving the room is rejected.
+When enabled, if the last owner leaves the room, another user is promoted to owner.
+When disabled, if the last owner leaves the room while other members are still present, the operation fails.
 
 ### `modules.mod_muc_light.config_schema`
   * **Syntax:** an array of `config_schema` items, as described below

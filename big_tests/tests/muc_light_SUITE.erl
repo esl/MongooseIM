@@ -60,7 +60,9 @@
          explicit_owner_change/1,
          explicit_owner_handover/1,
          implicit_owner_change/1,
-         implicit_owner_change_disabled/1,
+         implicit_owner_change_no_promotion/1,
+         implicit_destroy_room/1,
+         implicit_destroy_room_no_promotion/1,
          edge_case_owner_change/1,
          adding_wrongly_named_user_triggers_infinite_loop/1
         ]).
@@ -190,7 +192,9 @@ groups() ->
                               explicit_owner_handover,
                               multiple_owner_change,
                               implicit_owner_change,
-                              implicit_owner_change_disabled,
+                              implicit_owner_change_no_promotion,
+                              implicit_destroy_room,
+                              implicit_destroy_room_no_promotion,
                               edge_case_owner_change,
                               adding_wrongly_named_user_triggers_infinite_loop
                              ]},
@@ -321,7 +325,8 @@ muc_light_opts(blocking_disabled) ->
     #{blocking => false};
 muc_light_opts(multiple_owner_change) ->
     #{allow_multiple_owners => true};
-muc_light_opts(implicit_owner_change_disabled) ->
+muc_light_opts(CaseName) when CaseName =:= implicit_owner_change_no_promotion;
+                              CaseName =:= implicit_destroy_room_no_promotion ->
     #{promote_on_last_owner_leave => false};
 muc_light_opts(_) ->
     #{}.
@@ -907,13 +912,31 @@ implicit_owner_change(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
         end).
 
-implicit_owner_change_disabled(Config) ->
+implicit_owner_change_no_promotion(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             AffUsersChanges1 = [{Bob, none}, {Alice, member}],
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice))
         end).
+
+implicit_destroy_room(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            AffUsersChanges1 = [{Bob, none}, {Kate, none}],
+            escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            verify_aff_bcast([{Alice, owner}], AffUsersChanges1),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            AffUsersChanges2 = [{Alice, none}],
+            escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges2)),
+            verify_aff_bcast([], AffUsersChanges2, []),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+            {error, not_exists} = rpc(mim(), mod_muc_light_db_backend, get_info,
+                                      [host_type(), {?ROOM, ?MUCHOST}])
+        end).
+
+implicit_destroy_room_no_promotion(Config) ->
+    implicit_destroy_room(Config).
 
 edge_case_owner_change(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->

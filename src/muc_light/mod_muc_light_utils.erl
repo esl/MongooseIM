@@ -203,6 +203,8 @@ is_new_owner_needed(AU) ->
 
 -spec find_new_owner(CanPromote :: boolean(), aff_users(), aff_users(), [jid:simple_bare_jid()]) ->
     {jid:simple_bare_jid(), promotion_type()} | false | disabled.
+find_new_owner(false, [], _AUC, _JoiningUsers) ->
+    false;
 find_new_owner(false, _AU, _AUC, _JoiningUsers) ->
     disabled;
 find_new_owner(true, AU, AUC, JoiningUsers) ->
