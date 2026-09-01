@@ -30,10 +30,10 @@ type MUCUserMutation @protected @use(modules: ["mod_muc"]){
   setUserAffiliation(room: BareJID!, user: JID!, affiliation: MUCAffiliation!): String
     @use(args: ["room"])
   "Enter the room with given resource and nick"
-  enterRoom(room: BareJID!, nick: ResourceName!, resource: ResourceName!, password: String): String
+  enterRoom(room: BareJID!, nick: ResourceName!, resource: ResourceName!, password: String): String!
     @use(args: ["room"])
   "Exit the room with given resource and nick"
-  exitRoom(room: BareJID!, nick: ResourceName!, resource: ResourceName!): String
+  exitRoom(room: BareJID!, nick: ResourceName!, resource: ResourceName!): String!
     @use(args: ["room"])
 }
 
