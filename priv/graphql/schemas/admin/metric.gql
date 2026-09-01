@@ -94,7 +94,7 @@ type MetricDictResult {
 
 type MetricNodeResult {
   node: String!
-  result: [MetricDictResult]
+  result: [MetricDictResult!]
 }
 
 """
@@ -113,7 +113,7 @@ type MetricAdminQuery @protected{
     Optionally returns only specified keys
     (i.e. keys: ["one"] only returns key "one", but not key "count")
     """
-    getMetricsAsDicts(name: [String!], keys: [String!]): [MetricDictResult]
+    getMetricsAsDicts(name: [String!], keys: [String!]): [MetricDictResult!]
       @protected(type: GLOBAL)
     """
     Gather metrics from multiple nodes.
