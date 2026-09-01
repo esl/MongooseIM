@@ -4,59 +4,59 @@ type Vcard{
     "Person's name details"
     nameComponents: NameComponents
     "User's nickname"
-    nickname: [String]
+    nickname: [String!]
     "User's photo"
     photo: [Image]
     "Birthday date"
-    birthday: [String]
+    birthday: [String!]
     "User's addresses"
-    address: [Address]
+    address: [Address!]
     "Formatted text corresponding to delivery address"
-    label: [Label]
+    label: [Label!]
     "User's telephone number"
-    telephone: [Telephone]
+    telephone: [Telephone!]
     "User's email"
-    email: [Email]
+    email: [Email!]
     "User's JID"
-    jabberId: [String]
+    jabberId: [String!]
     "User's mail agent type"
-    mailer: [String]
+    mailer: [String!]
     "User's timezone"
-    timeZone: [String]
+    timeZone: [String!]
     "Geographical position"
-    geo: [GeographicalPosition]
+    geo: [GeographicalPosition!]
     "Job title, functional position or function"
-    title: [String]
+    title: [String!]
     "User's role, occupation, or business category"
-    role: [String]
+    role: [String!]
     "Logo image"
     logo: [Image]
     "Person who will act on behalf of the user or resource associated with the vCard"
     agent: [Agent]
     "Organizational name and units associated"
-    org: [Organization]
+    org: [Organization!]
     "Application specific category information"
-    categories: [Keyword]
+    categories: [Keyword!]
     "Note about user"
-    note: [String]
+    note: [String!]
     "Identifier of product that generated the vCard property"
-    prodId: [String]
+    prodId: [String!]
     "Last revised property. The value must be an ISO 8601 formatted UTC date/time"
-    rev: [String]
+    rev: [String!]
     "Sort string property"
-    sortString: [String]
+    sortString: [String!]
     "Formatted name pronunciation property"
     sound: [Sound]
     "Unique identifier property"
-    uid: [String]
+    uid: [String!]
     "Directory URL property"
-    url: [String]
+    url: [String!]
     "Free-form descriptive text"
-    desc: [String]
+    desc: [String!]
     "Privacy classification property"
-    class: [Privacy]
+    class: [Privacy!]
     "Authentication credential or encryption  key property"
-    key: [Key]
+    key: [Key!]
 }
 
 type Keyword{
@@ -186,7 +186,7 @@ input VcardInput{
     "Person's name details"
     nameComponents: NameComponentsInput!
     "User's nickname"
-    nickname: [String]
+    nickname: [String!]
     "User's photo"
     photo: [ImageInput!]
     "Birthday date"
