@@ -94,7 +94,7 @@ type MetricDictResult {
 
 type MetricNodeResult {
   node: String!
-  result: [MetricDictResult!]
+  result: [MetricDictResult]
 }
 
 """
