@@ -17,7 +17,7 @@ type Broadcast {
   "Number of messages routed per second"
   messageRate: PosInt!
   "Erlang node name that owns the broadcast job"
-  ownerNode: String!
+  ownerNode: String
   "Timestamp when the job was created"
   createTimestamp: DateTime!
   "Timestamp when the job was started"
