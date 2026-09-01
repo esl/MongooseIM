@@ -59,7 +59,7 @@ config_spec() ->
 buffer_config_spec() ->
     #section{
        items = #{<<"max_size">> => #option{type = int_or_infinity,
-                                        validate = non_negative}},
+                                           validate = non_negative}},
        defaults = #{<<"max_size">> => 20}
     }.
 
@@ -245,8 +245,8 @@ maybe_flush_buffer(Acc, C2SData) ->
     case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
         {ok, Csi = #csi_buffer_state{buffer = Buffer}} ->
             NewCsi = Csi#csi_buffer_state{buffer = []},
-            Acc1 = mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewCsi}),
-            mongoose_c2s_acc:to_acc(Acc1, flush, lists:reverse(Buffer));
+            ToAcc = [{state_mod, {?MODULE, NewCsi}}, {flush, lists:reverse(Buffer)}],
+            mongoose_c2s_acc:to_acc_many(Acc, ToAcc);
         _ ->
             Acc
     end.

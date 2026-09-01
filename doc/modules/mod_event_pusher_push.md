@@ -136,6 +136,7 @@ For regular chat and groupchat messages, both provided plugins send push notific
 
 * Recipient has no online sessions selected for delivery.
 * Recipient has one or more online sessions selected for delivery, but [`mod_csi`](./mod_csi.md) is enabled, and all these sessions are in the `inactive` CSI state.
+
 ### Custom plugins
 
 A custom module implementing the optional callbacks of `mod_event_pusher_push_plugin`
