@@ -4,6 +4,9 @@
 
 -include_lib("jid/include/jid.hrl").
 
+%% Number.MAX_SAFE_INTEGER: the largest integer exact in an IEEE 754 double
+-define(MAX_SAFE_INT, ((1 bsl 53) - 1)).
+
 -spec input(Type, Value) -> {ok, Coerced} | {error, Reason}
   when
     Type :: binary(),
@@ -23,6 +26,7 @@ input(<<"NodeName">>, Node) -> node_from_binary(Node);
 input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
 input(<<"PosInt">>, Value) -> validate_pos_integer(Value);
 input(<<"NonNegInt">>, Value) -> validate_non_neg_integer(Value);
+input(<<"SafeInt">>, Value) -> validate_safe_integer(Value);
 input(Ty, V) ->
     error_logger:info_report({coercing_generic_scalar, Ty, V}),
     {ok, V}.
@@ -43,6 +47,7 @@ output(<<"ResourceName">>, Res) -> {ok, Res};
 output(<<"NonEmptyString">>, Value) -> binary_to_non_empty_string(Value);
 output(<<"PosInt">>, Value) -> validate_pos_integer(Value);
 output(<<"NonNegInt">>, Value) -> validate_non_neg_integer(Value);
+output(<<"SafeInt">>, Value) -> validate_safe_integer(Value);
 output(Ty, V) ->
     error_logger:info_report({output_generic_scalar, Ty, V}),
     {ok, V}.
@@ -160,6 +165,15 @@ validate_non_neg_integer(NonNegInt) when is_integer(NonNegInt), NonNegInt >= 0 -
     {ok, NonNegInt};
 validate_non_neg_integer(_Value) ->
     {error, "Value is not a non-negative integer"}.
+
+validate_safe_integer(SafeInt) when is_integer(SafeInt),
+                                    SafeInt =< ?MAX_SAFE_INT,
+                                    SafeInt >= -?MAX_SAFE_INT ->
+    {ok, SafeInt};
+validate_safe_integer(Value) when is_integer(Value) ->
+    {error, "Value is outside the safe integer range"};
+validate_safe_integer(_Value) ->
+    {error, "Value is not an integer"}.
 
 encode_datetime({_, _} = DateTime) ->
     mongoose_lib:datetime_to_rfc3339(DateTime);

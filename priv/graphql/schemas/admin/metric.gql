@@ -53,9 +53,9 @@ type CounterMetric {
   "Metric type"
   type: MetricType!
   "The metric value"
-  value: Int!
+  value: SafeInt!
   "Time since last reset"
-  ms_since_reset: Int!
+  ms_since_reset: SafeInt!
 }
 
 type GaugeMetric {
@@ -64,7 +64,7 @@ type GaugeMetric {
   "Metric type"
   type: MetricType!
   "The metric value"
-  value: Int!
+  value: SafeInt!
 }
 
 type SpiralMetric {
@@ -75,14 +75,14 @@ type SpiralMetric {
   "One minute value"
   one: Int!
   "Total value"
-  count: Int!
+  count: SafeInt!
 }
 
 type MetricDictEntry {
   "The name of the metric key (i.e. one, count, value)"
   key: String!
   "Metric value"
-  value: Int!
+  value: SafeInt!
 }
 
 type MetricDictResult {
@@ -94,7 +94,7 @@ type MetricDictResult {
 
 type MetricNodeResult {
   node: String!
-  result: [MetricDictResult!]!
+  result: [MetricDictResult]
 }
 
 """
