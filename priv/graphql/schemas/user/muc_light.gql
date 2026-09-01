@@ -38,9 +38,9 @@ type MUCLightUserQuery @protected @use(modules: ["mod_muc_light"]){
   listRoomUsers(room: BareJID!): [RoomUser!]
     @use(args: ["room"])
   "Get the list of MUC Light rooms that the user participates in"
-  listRooms: [JID!]
+  listRooms: [JID!]!
     @use
   "Get the user blocking list"
-  getBlockingList: [BlockingItem!]
+  getBlockingList: [BlockingItem!]!
     @use
 }
