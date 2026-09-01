@@ -33,7 +33,7 @@ execute(Ctx, _Obj, <<"enterRoom">>, Args) ->
 execute(Ctx, _Obj, <<"exitRoom">>, Args) ->
     exit_room(Ctx, Args).
 
--spec enter_room(map(), map()) -> {ok, binary()} | {error, resolver_error()}.
+-spec enter_room(map(), map()) -> {ok, binary()}.
 enter_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick,
                                  <<"resource">> := Resource, <<"password">> := Password}) ->
     UserJIDRes = jid:replace_resource(UserJID, Resource),
@@ -42,7 +42,7 @@ enter_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick,
     Res = mod_muc_api:enter_room(RoomJIDRes, UserJIDRes, Password2),
     format_result(Res, #{room => jid:to_binary(RoomJID)}).
 
--spec exit_room(map(), map()) -> {ok, binary()} | {error, resolver_error()}.
+-spec exit_room(map(), map()) -> {ok, binary()}.
 exit_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick,
                                 <<"resource">> := Resource}) ->
     UserJIDRes = jid:replace_resource(UserJID, Resource),
