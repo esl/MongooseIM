@@ -41,6 +41,7 @@ metrics_tests() ->
      get_by_name_metrics_as_dicts,
      get_metrics_as_dicts_by_nonexistent_name,
      get_metrics_as_dicts_with_key_one,
+     get_metrics_as_dicts_with_percentile_key,
      get_metrics_as_dicts_with_nonexistent_key,
      get_metrics_as_dicts_empty_args,
      get_metrics_as_dicts_empty_strings,
@@ -230,6 +231,14 @@ get_metrics_as_dicts_with_key_one(Config) ->
     SentName = [metric_host_type(), <<"xmpp_element_out">>, <<"c2s">>, <<"stanza_count">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     ?assert(is_integer(One)).
+
+get_metrics_as_dicts_with_percentile_key(Config) ->
+    Result = get_metrics_as_dicts_with_keys([<<"50">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
+    Map = dict_objects_to_map(ParsedResult),
+    RecvName = [metric_host_type(), <<"xmpp_element_in">>, <<"c2s">>, <<"byte_size">>],
+    [#{<<"key">> := <<"50">>, <<"value">> := P50}] = maps:get(RecvName, Map),
+    ?assert(is_integer(P50)).
 
 get_metrics_as_dicts_with_nonexistent_key(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"not_existing">>], Config),

@@ -23,10 +23,11 @@ get_keys2(Args) ->
     Keys = get_list(<<"keys">>, Args),
     lists:map(fun prepare_key/1, Keys).
 
+%% Percentile datapoints are integers, e.g. 50, other datapoints are atoms
 prepare_key(X) when is_binary(X) ->
-    binary_to_atom(X);
-prepare_key(X) when is_integer(X) -> %% For percentiles
-    X.
+    try binary_to_integer(X)
+    catch error:badarg -> binary_to_atom(X)
+    end.
 
 get_name(Args) ->
     Segments = get_list(<<"name">>, Args),
