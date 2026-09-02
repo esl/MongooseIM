@@ -39,43 +39,11 @@ maybe_prepare_notification(Acc, Event) ->
         Notification -> Notification
     end.
 
-maybe_prepare_bodiless_notification(Acc, Event) ->
+maybe_prepare_bodiless_notification(Acc, _Event) ->
     %% send notification for bodiless message only if it has store hint
     {_From, _To, Packet} = mongoose_acc:packet(Acc),
     Store = exml_query:path(Packet, [{element_with_ns, <<"store">>, ?NS_HINTS}], false),
     case Store of
         false -> skip;
-        _ ->
-            Processors = bodiless_message_notification_processors(),
-            maybe_prepare_bodiless_notification(Processors, Acc, Event)
-    end.
-
-bodiless_message_notification_processors() ->
-    [   %% add custom processors for different message types here
-        fun maybe_jingle_message_notification/1
-    ].
-
-maybe_prepare_bodiless_notification(Processors, Acc, _Event) ->
-    {From, _To, Packet} = mongoose_acc:packet(Acc),
-    SenderId = jid:to_bare_binary(jid:to_lower(From)),
-    case prepare_bodiless_notification(Processors, Packet) of
-        skip -> skip;
-        ContentFields -> [{<<"message-sender">>, SenderId} | ContentFields]
-    end.
-
-prepare_bodiless_notification([], _Packet) -> skip;
-prepare_bodiless_notification([Processor | T], Packet) ->
-    case Processor(Packet) of
-        skip -> prepare_bodiless_notification(T, Packet);
-        ContentFields -> ContentFields
-    end.
-
-maybe_jingle_message_notification(Packet) ->
-    case exml_query:path(Packet, [{element_with_ns, ?JINGLE_MSG_NS}]) of
-        #xmlel{name = Action, attrs = #{<<"id">> := Id}} ->
-            %% This is the bare minimum that each jingle message has
-            %% add sub-elements processing if necessary.
-            [{<<"jingle-message">>, Action},
-             {<<"jingle-session-id">>, Id}];
-        _ -> skip
+        _ -> mod_event_pusher_push_content:build(jingle, Acc)
     end.
