@@ -18,7 +18,7 @@ load_all_sasl2_modules(HostType) ->
     SMOpts = #{ack_freq => never, backend => MemBackend},
     Modules = [{mod_bind2, default_mod_config(mod_bind2)},
                {mod_sasl2, default_mod_config(mod_sasl2)},
-               {mod_csi, default_mod_config(mod_csi)},
+               {mod_csi, mod_config(mod_csi, #{buffer => #{}})},
                {mod_carboncopy, default_mod_config(mod_carboncopy)},
                {mod_stream_management, mod_config(mod_stream_management, SMOpts)}]
         ++ rdbms_mods(),

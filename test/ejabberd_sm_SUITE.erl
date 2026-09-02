@@ -495,6 +495,7 @@ do_meck_c2s(true) ->
     meck:expect(mongoose_c2s, async_with_state, fun async_with_state/3),
     meck:expect(mongoose_c2s, get_info, fun get_info/1),
     meck:expect(mongoose_c2s, set_info, fun set_info/2),
+    meck:expect(mongoose_c2s, get_session_priority, [{1, 0}]),
     %% Just return same thing all the time
     meck:expect(mongoose_c2s, get_mod_state, fun(_C2sState, _Mod) -> {error, not_found} end).
 

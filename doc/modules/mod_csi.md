@@ -5,22 +5,42 @@
 Enables [XEP-0352: Client State Indication](http://xmpp.org/extensions/xep-0352.html) functionality.
 
 The XEP doesn't **require** any specific server behaviour in response to CSI stanzas, there are only some suggestions.
-The implementation in MongooseIM will simply buffer all packets (up to a configured limit) when the session is "inactive" and will flush the buffer when it becomes "active" again.
+MongooseIM stores the reported client state in the user's session. Other modules can use this information, for example to send push notifications for `inactive` sessions.
 
 ## Options
 
-### `modules.mod_csi.buffer_max`
+### `modules.mod_csi.buffer`
+
+By default, `mod_csi` does not buffer stanzas. To enable buffering, configure this section.
+When buffering is enabled, MongooseIM buffers packets up to the configured limit while the session is `inactive`, and flushes the buffer when it becomes `active` again.
+
+#### `modules.mod_csi.buffer.max_size`
 * **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `20`
-* **Example:** `buffer_max = 40`
+* **Example:** `buffer.max_size = 40`
 
-Buffer size for messages queued when session was `inactive`.
+Maximum number of messages buffered while the session is `inactive`.
 
 ## Example Configuration
 
+CSI without buffering:
+
 ```toml
 [modules.mod_csi]
-  buffer_max = 40
+```
+
+CSI with default buffering:
+
+```toml
+[modules.mod_csi]
+  buffer = {}
+```
+
+CSI with buffering and a custom maximum buffer size:
+
+```toml
+[modules.mod_csi]
+  buffer.max_size = 40
 ```
 
 ## Metrics

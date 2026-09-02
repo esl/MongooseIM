@@ -1610,9 +1610,11 @@ mod_csi(_Config) ->
     check_module_defaults(mod_csi),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
     P = [modules, mod_csi],
-    ?cfgh(P ++ [buffer_max], 10, T(<<"buffer_max">>, 10)),
-    ?cfgh(P ++ [buffer_max], infinity, T(<<"buffer_max">>, <<"infinity">>)),
-    ?errh(T(<<"buffer_max">>, -1)).
+    ?cfgh(P ++ [buffer], config_parser_helper:default_config(P ++ [buffer]),
+          T(<<"buffer">>, #{})),
+    ?cfgh(P ++ [buffer, max_size], 10, T(<<"buffer">>, #{<<"max_size">> => 10})),
+    ?cfgh(P ++ [buffer, max_size], infinity, T(<<"buffer">>, #{<<"max_size">> => <<"infinity">>})),
+    ?errh(T(<<"buffer">>, #{<<"max_size">> => -1})).
 
 mod_disco(_Config) ->
     check_module_defaults(mod_disco),

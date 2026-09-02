@@ -67,7 +67,7 @@ user_send_message(Acc, _, _) ->
             {_, false} ->
                 Acc;
             {_, Type} ->
-                push_chat_event(Acc, Type, in, online)
+                push_chat_event(Acc, Type, in, {online, #{}})
         end,
     {ok, ResultAcc}.
 

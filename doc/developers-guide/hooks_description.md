@@ -153,14 +153,30 @@ mongoose_hooks:message_routed(UserStatus, Acc)
 ```
 
 This hook is run after routing a message to an existing local user.
-The `UserStatus` argument is `online` if the message was routed to at least one online session (i.e. with an integer priority), and `offline` otherwise.
+The `UserStatus` argument is `{online, StatusMap}` if the message was routed to at least one online session (i.e. with an integer priority), and `offline` otherwise.
 For users with no selected C2S process, the hook is run before `offline_message` or `offline_groupchat_message`.
+The `StatusMap` is built with the `get_user_status` hook.
 
 ### Handler examples
 
 This hook is handled by the following module:
 
 * [`mod_event_pusher`](../modules/mod_event_pusher.md) - generates events e.g. for push notifications.
+
+## `get_user_status`
+
+```erlang
+mongoose_hooks:get_user_status(HostType, Sessions)
+```
+
+This hook is run by `ejabberd_sm` to collect extra status information for online sessions selected for message routing.
+It accumulates a map. If no handler is registered, the result is an empty map.
+
+### Handler examples
+
+This hook is handled by the following module:
+
+* [`mod_csi`](../modules/mod_csi.md) - adds `client_state`: `active` or `inactive`.
 
 ## `remove_user`
 
@@ -259,6 +275,7 @@ This is the perfect place to plug in custom security control.
 * get_mam_pm_gdpr_data
 * get_pep_recipients
 * get_personal_data
+* get_user_status
 * inbox_unread_count
 * invitation_sent
 * is_muc_room_owner

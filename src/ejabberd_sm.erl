@@ -110,7 +110,7 @@
                       info     :: info()
                      }.
 -type info() :: #{info_key() => any()}.
--type user_status() :: online | offline.
+-type user_status() :: {online, map()} | offline.
 
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis | ejabberd_sm_cets.
 -type close_reason() :: resumed | normal | {replaced, pid()}.
@@ -228,7 +228,7 @@ remove_info(JID, SID, Key) ->
 store_info_async(C2sData, SID, JID, Key, Value) ->
     Info = mongoose_c2s:get_info(C2sData),
     Info2 = update_info(Key, Value, Info),
-    Priority = mod_presence:get_old_priority(mod_presence:maybe_get_handler(C2sData)),
+    Priority = mongoose_c2s:get_session_priority(C2sData),
     set_session(SID, JID, Priority, Info2),
     mongoose_c2s:set_info(C2sData, Info2).
 
@@ -634,7 +634,7 @@ do_route(Acc, From, To, El) ->
 
 -spec notify_routed(session(), mongoose_acc:t(), binary()) -> mongoose_acc:t().
 notify_routed(Session, Acc, ~"message") ->
-    mongoose_hooks:message_routed(user_status([Session]), Acc);
+    mongoose_hooks:message_routed(user_status([Session], Acc), Acc);
 notify_routed(_Session, Acc, _) ->
     Acc.
 
@@ -780,7 +780,7 @@ route_message(From, To, Acc, Packet) ->
             route_message_fallback(From, To, Acc, Packet);
         Sessions ->
             [mongoose_c2s:route(Pid, Acc) || #session{sid = {_, Pid}} <- Sessions],
-            mongoose_hooks:message_routed(user_status(Sessions), Acc)
+            mongoose_hooks:message_routed(user_status(Sessions, Acc), Acc)
     end.
 
 -spec sessions_to_route([session()]) -> [session()].
@@ -828,11 +828,14 @@ route_message_by_type(_, From, To, Acc, Packet) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec user_status([session()]) -> user_status().
-user_status(Sessions) ->
-    case lists:any(fun(#session{priority = Priority}) -> is_integer(Priority) end, Sessions) of
-        true -> online;
-        false -> offline
+-spec user_status([session()], mongoose_acc:t()) -> user_status().
+user_status(Sessions, Acc) ->
+    case lists:filter(fun(#session{priority = Priority}) -> is_integer(Priority) end, Sessions) of
+        [] ->
+            offline;
+        Sessions1 ->
+            HostType = mongoose_acc:host_type(Acc),
+            {online, mongoose_hooks:get_user_status(HostType, Sessions1)}
     end.
 
 -spec clean_session_list([#session{}]) -> [#session{}].

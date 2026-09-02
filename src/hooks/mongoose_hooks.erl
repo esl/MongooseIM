@@ -22,6 +22,7 @@
          get_key/2,
          packet_to_component/3,
          presence_probe/5,
+         get_user_status/2,
          push_notifications/4,
          register_subhost/2,
          register_user/3,
@@ -245,8 +246,8 @@ filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
     run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, #{}).
 
 %%% @doc The `message_routed' hook is called after `ejabberd_sm' routes a message
-%%% to an existing local user. `UserStatus' is `online' when the message was
-%%% routed to at least one online session (i.e. with integer priority), and `offline' otherwise.
+%%% to an existing local user. `UserStatus' is `{online, StatusMap}' when the message
+%%% was routed to at least one online session (i.e. with integer priority), and `offline' otherwise.
 %%% It is called before `offline_message' or `offline_groupchat_message'.
 -spec message_routed(UserStatus, Acc) -> Result when
     UserStatus :: ejabberd_sm:user_status(),
@@ -311,6 +312,16 @@ packet_to_component(Acc, From, To) ->
 presence_probe(HostType, Acc, From, To, Pid) ->
     Params = #{from => From, to => To, pid => Pid},
     run_hook_for_host_type(presence_probe, HostType, Acc, Params).
+
+%%% @doc The `get_user_status' hook is used to collect extra user status information
+%%% for online sessions selected for message routing.
+-spec get_user_status(HostType, Sessions) -> Result when
+    HostType :: mongooseim:host_type(),
+    Sessions :: [ejabberd_sm:session()],
+    Result :: map().
+get_user_status(HostType, Sessions) ->
+    Params = #{sessions => Sessions},
+    run_hook_for_host_type(get_user_status, HostType, #{}, Params).
 
 %%% @doc The `push_notifications' hook is called to push notifications.
 -spec push_notifications(HostType, Acc, NotificationForms, Options) -> Result when
