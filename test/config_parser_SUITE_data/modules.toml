@@ -55,8 +55,26 @@
   [modules.mod_event_pusher.push]
     backend = "mnesia"
     wpool.workers = 200
-    plugin_module = "mod_event_pusher_push_plugin_defaults"
     virtual_pubsub_hosts = ["host1", "host2"]
+
+    [[modules.mod_event_pusher.push.rules]]
+      conditions = { event = "chat", has_body = true, user_status = "offline" }
+      action = "push"
+      content = "message"
+
+    [[modules.mod_event_pusher.push.rules]]
+      conditions = { event = "chat", hint = "no_store" }
+      action = "skip"
+
+    [[modules.mod_event_pusher.push.rules]]
+      conditions = { event = "chat", hint = "store", jingle = true, user_status = "online", client_state = "inactive" }
+      action = "push"
+      content = "jingle"
+
+    [[modules.mod_event_pusher.push.rules]]
+      conditions = { event = "unack_msg" }
+      action = "push"
+      content = "message"
 
   [[modules.mod_event_pusher.http.handlers]]
     pool_name = "http_pool"
