@@ -64,7 +64,7 @@ format_broadcast(#broadcast_job{
       <<"messageBody">> => MessageBody,
       <<"senderJid">> => SenderJid,
       <<"messageRate">> => MessageRate,
-      <<"ownerNode">> => format_owner_node(OwnerNode),
+      ~"ownerNode" => format_owner_node(OwnerNode),
       <<"createTimestamp">> => undefined_to_null(CreateTimestamp),
       <<"startTimestamp">> => undefined_to_null(StartTimestamp),
       <<"stopTimestamp">> => undefined_to_null(StopTimestamp),

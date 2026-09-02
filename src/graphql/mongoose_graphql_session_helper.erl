@@ -24,7 +24,7 @@ format_session({USR, Conn, Address, Prio, Node, Uptime}) ->
       <<"connection">> => from_conn(Conn),
       <<"ip">> => IP,
       <<"port">> => Port,
-      <<"priority">> => undefined_to_null(Prio),
+      ~"priority" => undefined_to_null(Prio),
       <<"node">> => atom_to_binary(Node),
       <<"uptime">> => Uptime}.
 
@@ -43,5 +43,5 @@ format_status_users(Sessions) ->
 -spec format_status_user(mongoose_session_api:status_user_info()) -> status_user_data().
 format_status_user({JID, Prio, StatusText}) ->
     #{<<"user">> => jid:to_binary(JID),
-      <<"priority">> => undefined_to_null(Prio),
+      ~"priority" => undefined_to_null(Prio),
       <<"text">> => iolist_to_binary(StatusText)}.

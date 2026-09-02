@@ -13,20 +13,20 @@
     Value :: binary() | pos_integer(),
     Coerced :: any(),
     Reason :: term().
-input(<<"DateTime">>, DT) -> binary_to_microseconds(DT);
-input(<<"XmlElement">>, Value) -> exml:parse(Value);
-input(<<"JID">>, Jid) -> jid_from_binary(Jid);
-input(<<"BareJID">>, Jid) -> bare_jid_from_binary(Jid);
-input(<<"FullJID">>, Jid) -> full_jid_from_binary(Jid);
-input(<<"UserName">>, User) -> user_from_binary(User);
-input(<<"RoomName">>, Room) -> room_from_binary(Room);
-input(<<"DomainName">>, Domain) -> domain_from_binary(Domain);
-input(<<"ResourceName">>, Res) -> resource_from_binary(Res);
-input(<<"NodeName">>, Node) -> node_from_binary(Node);
-input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
-input(<<"PosInt">>, Value) -> validate_pos_integer(Value);
-input(<<"NonNegInt">>, Value) -> validate_non_neg_integer(Value);
-input(<<"SafeInt">>, Value) -> validate_safe_integer(Value);
+input(~"DateTime", DT) -> binary_to_microseconds(DT);
+input(~"XmlElement", Value) -> exml:parse(Value);
+input(~"JID", Jid) -> jid_from_binary(Jid);
+input(~"BareJID", Jid) -> bare_jid_from_binary(Jid);
+input(~"FullJID", Jid) -> full_jid_from_binary(Jid);
+input(~"UserName", User) -> user_from_binary(User);
+input(~"RoomName", Room) -> room_from_binary(Room);
+input(~"DomainName", Domain) -> domain_from_binary(Domain);
+input(~"ResourceName", Res) -> resource_from_binary(Res);
+input(~"NodeName", Node) -> node_from_binary(Node);
+input(~"NonEmptyString", Value) -> non_empty_string_to_binary(Value);
+input(~"PosInt", Value) -> validate_pos_integer(Value);
+input(~"NonNegInt", Value) -> validate_non_neg_integer(Value);
+input(~"SafeInt", Value) -> validate_safe_integer(Value);
 input(Ty, V) ->
     error_logger:info_report({coercing_generic_scalar, Ty, V}),
     {ok, V}.
@@ -37,17 +37,17 @@ input(Ty, V) ->
     Value :: binary() | pos_integer(),
     Coerced :: any(),
     Reason :: term().
-output(<<"DateTime">>, DT) -> {ok, encode_datetime(DT)};
-output(<<"XmlElement">>, Elem) -> {ok, exml:to_binary(Elem)};
-output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
-output(<<"BareJID">>, Jid) -> {ok, jid:to_bare_binary(Jid)};
-output(<<"UserName">>, User) -> {ok, User};
-output(<<"DomainName">>, Domain) -> {ok, Domain};
-output(<<"ResourceName">>, Res) -> {ok, Res};
-output(<<"NonEmptyString">>, Value) -> binary_to_non_empty_string(Value);
-output(<<"PosInt">>, Value) -> validate_pos_integer(Value);
-output(<<"NonNegInt">>, Value) -> validate_non_neg_integer(Value);
-output(<<"SafeInt">>, Value) -> validate_safe_integer(Value);
+output(~"DateTime", DT) -> {ok, encode_datetime(DT)};
+output(~"XmlElement", Elem) -> {ok, exml:to_binary(Elem)};
+output(~"JID", Jid) -> {ok, jid:to_binary(Jid)};
+output(~"BareJID", Jid) -> {ok, jid:to_bare_binary(Jid)};
+output(~"UserName", User) -> {ok, User};
+output(~"DomainName", Domain) -> {ok, Domain};
+output(~"ResourceName", Res) -> {ok, Res};
+output(~"NonEmptyString", Value) -> binary_to_non_empty_string(Value);
+output(~"PosInt", Value) -> validate_pos_integer(Value);
+output(~"NonNegInt", Value) -> validate_non_neg_integer(Value);
+output(~"SafeInt", Value) -> validate_safe_integer(Value);
 output(Ty, V) ->
     error_logger:info_report({output_generic_scalar, Ty, V}),
     {ok, V}.

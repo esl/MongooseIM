@@ -72,7 +72,7 @@ make_metric_result({Name, Dict}) ->
         {error, Reason} ->
             {error, Reason};
         Map ->
-            {ok, Map#{<<"name">> => format_name(Name)}}
+            {ok, Map#{~"name" => format_name(Name)}}
     end.
 
 make_metric_dict_result({Name, Dict}, Keys) ->

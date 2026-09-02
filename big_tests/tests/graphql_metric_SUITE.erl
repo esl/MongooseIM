@@ -233,11 +233,11 @@ get_metrics_as_dicts_with_key_one(Config) ->
     ?assert(is_integer(One)).
 
 get_metrics_as_dicts_with_percentile_key(Config) ->
-    Result = get_metrics_as_dicts_with_keys([<<"50">>], Config),
+    Result = get_metrics_as_dicts_with_keys([~"50"], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    RecvName = [metric_host_type(), <<"xmpp_element_in">>, <<"c2s">>, <<"byte_size">>],
-    [#{<<"key">> := <<"50">>, <<"value">> := P50}] = maps:get(RecvName, Map),
+    RecvName = [metric_host_type(), ~"xmpp_element_in", ~"c2s", ~"byte_size"],
+    [#{~"key" := ~"50", ~"value" := P50}] = maps:get(RecvName, Map),
     ?assert(is_integer(P50)).
 
 get_metrics_as_dicts_with_nonexistent_key(Config) ->

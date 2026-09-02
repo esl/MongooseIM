@@ -5,7 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("log_helper.hrl").
 
--define(HOST_TYPE, <<"localhost">>).
+-define(HOST_TYPE, ~"localhost").
 
 all() ->
     [every_metric_type_resolves_to_a_graphql_type,
@@ -38,26 +38,26 @@ every_metric_type_resolves_to_a_graphql_type(_Config) ->
      end || {Type, Dict} <- metric_dicts()].
 
 unknown_metric_type_is_reported_as_an_error(_Config) ->
-    Name = metric_name(<<"unknown">>),
+    Name = metric_name(~"unknown"),
     mock_metric_values([{Name, [{unexpected_key, 1}]}]),
     ?assertEqual({ok, [{error, unknown_metric_type}]},
                  mongoose_metrics_api:get_metrics(Name)),
     ?assertLog(error, #{what := unknown_metric_type}).
 
 unknown_metric_type_does_not_hide_the_remaining_metrics(_Config) ->
-    GaugeName = metric_name(<<"GaugeMetric">>),
-    mock_metric_values([{metric_name(<<"unknown">>), [{unexpected_key, 1}]},
+    GaugeName = metric_name(~"GaugeMetric"),
+    mock_metric_values([{metric_name(~"unknown"), [{unexpected_key, 1}]},
                         {GaugeName, [{value, 3}]}]),
     ?assertMatch({ok, [{error, unknown_metric_type},
-                       {ok, #{<<"type">> := <<"gauge">>, <<"value">> := 3}}]},
+                       {ok, #{~"type" := ~"gauge", ~"value" := 3}}]},
                  mongoose_metrics_api:get_metrics([localhost])),
     ?assertLog(error, #{what := unknown_metric_type}).
 
 metric_dicts() ->
-    [{<<"SpiralMetric">>, [{count, 10}, {one, 1}]},
-     {<<"CounterMetric">>, [{value, 5}, {ms_since_reset, 100}]},
-     {<<"GaugeMetric">>, [{value, 3}]},
-     {<<"HistogramMetric">>, [{n, 1}, {mean, 2}, {min, 1}, {max, 3}, {median, 2},
+    [{~"SpiralMetric", [{count, 10}, {one, 1}]},
+     {~"CounterMetric", [{value, 5}, {ms_since_reset, 100}]},
+     {~"GaugeMetric", [{value, 3}]},
+     {~"HistogramMetric", [{n, 1}, {mean, 2}, {min, 1}, {max, 3}, {median, 2},
                               {50, 2}, {75, 3}, {90, 3}, {95, 3}, {99, 3}, {999, 3}]}].
 
 metric_name(Type) ->
