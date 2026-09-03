@@ -58,23 +58,28 @@
     virtual_pubsub_hosts = ["host1", "host2"]
 
     [[modules.mod_event_pusher.push.rules]]
-      conditions = { event = "chat", has_body = true, user_status = "offline" }
-      action = "push"
-      content = "message"
-
-    [[modules.mod_event_pusher.push.rules]]
-      conditions = { event = "chat", hint = "no_store" }
+      conditions = [
+        { hint = "no_store" }
+      ]
       action = "skip"
 
     [[modules.mod_event_pusher.push.rules]]
-      conditions = { event = "chat", hint = "store", jingle = true, user_status = "online", client_state = "inactive" }
-      action = "push"
-      content = "jingle"
-
-    [[modules.mod_event_pusher.push.rules]]
-      conditions = { event = "unack_msg" }
+      conditions = [
+        { event = "msg", body = "non_empty", user_status = "offline" },
+        { event = "msg", body = "non_empty", user_status = "online", client_state = "inactive" },
+        { event = "unack_msg", body = "non_empty" },
+      ]
       action = "push"
       content = "message"
+
+    [[modules.mod_event_pusher.push.rules]]
+      conditions = [
+        { event = "msg", body = "absent", hint = "store", jingle = true, user_status = "offline" },
+        { event = "msg", body = "absent", hint = "store", jingle = true, user_status = "online", client_state = "inactive" },
+        { event = "unack_msg", body = "absent", hint = "store", jingle = true }
+      ]
+      action = "push"
+      content = "jingle"
 
   [[modules.mod_event_pusher.http.handlers]]
     pool_name = "http_pool"

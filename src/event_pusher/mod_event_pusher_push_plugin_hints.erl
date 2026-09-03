@@ -42,8 +42,10 @@ maybe_prepare_notification(Acc, Event) ->
 maybe_prepare_bodiless_notification(Acc, _Event) ->
     %% send notification for bodiless message only if it has store hint
     {_From, _To, Packet} = mongoose_acc:packet(Acc),
-    Store = exml_query:path(Packet, [{element_with_ns, <<"store">>, ?NS_HINTS}], false),
-    case Store of
-        false -> skip;
-        _ -> mod_event_pusher_push_content:build(jingle, Acc)
+    maybe
+        #xmlel{} ?= exml_query:subelement_with_name_and_ns(Packet, ~"store", ?NS_HINTS),
+        {ok, Content} ?= mod_event_pusher_push_content:build(jingle, Acc),
+        Content
+    else
+        _ -> skip
     end.

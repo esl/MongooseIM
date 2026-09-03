@@ -52,7 +52,7 @@ message_routed(Acc, #{user_status := UserStatus}, _) ->
         false ->
             {ok, Acc};
         Type ->
-            {ok, push_chat_event(Acc, Type, out, UserStatus)}
+            {ok, push_msg_event(Acc, Type, out, UserStatus)}
     end.
 
 -spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
@@ -67,7 +67,7 @@ user_send_message(Acc, _, _) ->
             {_, false} ->
                 Acc;
             {_, Type} ->
-                push_chat_event(Acc, Type, in, {online, #{}})
+                push_msg_event(Acc, Type, in, {online, #{}})
         end,
     {ok, ResultAcc}.
 
@@ -94,22 +94,28 @@ user_not_present(Acc, #{jid := UserJID}, _) ->
       Args :: #{jid := jid:jid()},
       Extra :: gen_hook:extra().
 unacknowledged_message(Acc, #{jid := Jid}, _) ->
-    Event = #unack_msg_event{to = Jid},
-    NewAcc = mod_event_pusher:push_event(Acc, Event),
-    {ok, merge_acc(Acc, NewAcc)}.
+    case chat_type(Acc) of
+        false ->
+            {ok, Acc};
+        Type ->
+            {_, _, Packet} = mongoose_acc:packet(Acc),
+            Event = #unack_msg_event{type = Type, to = Jid, packet = Packet},
+            NewAcc = mod_event_pusher:push_event(Acc, Event),
+            {ok, merge_acc(Acc, NewAcc)}
+    end.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec push_chat_event(Acc, Type, Direction, UserStatus) -> Acc when
+-spec push_msg_event(Acc, Type, Direction, UserStatus) -> Acc when
       Acc :: mongoose_acc:t(),
       Type :: chat | groupchat | headline | normal | false,
       Direction :: in | out,
       UserStatus :: ejabberd_sm:user_status().
-push_chat_event(Acc, Type, Direction, UserStatus) ->
+push_msg_event(Acc, Type, Direction, UserStatus) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
-    Event = #chat_event{type = Type, direction = Direction,
+    Event = #msg_event{type = Type, direction = Direction,
                         from = From, to = To, packet = Packet,
                         user_status = UserStatus},
     NewAcc = mod_event_pusher:push_event(Acc, Event),

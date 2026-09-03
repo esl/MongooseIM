@@ -9,7 +9,7 @@
 -define(PUSH_FORM_TYPE, <<"urn:xmpp:push:summary">>).
 
 -spec publish_notification(Acc :: mongoose_acc:t(),
-                           Payload :: mod_event_pusher_push_plugin:push_payload(),
+                           Payload :: mod_event_pusher_push_content:content(),
                            Services :: [mod_event_pusher_push:publish_service()]) ->
                               mongoose_acc:t().
 publish_notification(Acc, Payload, Services) ->
@@ -32,13 +32,13 @@ publish_notification(Acc, Payload, Services) ->
                        HostType :: mongooseim:host_type(),
                        To :: jid:jid(),
                        Service :: mod_event_pusher_push:publish_service(),
-                       PushPayload :: mod_event_pusher_push_plugin:push_payload()) ->
+                       PushPayload :: mod_event_pusher_push_content:content()) ->
                           any().
 publish_via_hook(Acc0, HostType, To, {PubsubJID, Node, Form}, PushPayload) ->
     %% Acc is ignored by mod_push_service_mongoosepush, added here only for
     %% traceability purposes and push_SUITE code unification
     Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
-    case mongoose_hooks:push_notifications(HostType, Acc, [maps:from_list(PushPayload)], Form) of
+    case mongoose_hooks:push_notifications(HostType, Acc, [PushPayload], Form) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
             mod_event_pusher_push:disable_node(HostType, To, PubsubJID, Node);
@@ -47,7 +47,7 @@ publish_via_hook(Acc0, HostType, To, {PubsubJID, Node, Form}, PushPayload) ->
 
 -spec publish_via_pubsub(mongooseim:host_type(), To :: jid:jid(),
                          Service :: mod_event_pusher_push:publish_service(),
-                         PushPayload :: mod_event_pusher_push_plugin:push_payload()) ->
+                         PushPayload :: mod_event_pusher_push_content:content()) ->
                             any().
 publish_via_pubsub(HostType, To, {PubsubJID, Node, Form}, PushPayload) ->
     Stanza = push_notification_iq(Node, Form, PushPayload),
@@ -90,7 +90,7 @@ handle_publish_response(HostType, Recipient, PubsubJID, Node, #iq{type = error, 
 
 -spec push_notification_iq(Node :: mod_event_pusher_push:pubsub_node(),
                            Form :: mod_event_pusher_push:form(),
-                           PushPayload :: mod_event_pusher_push_plugin:push_payload()) ->
+                           PushPayload :: mod_event_pusher_push_content:content()) ->
                               jlib:iq().
 push_notification_iq(Node, Form, PushPayload) ->
     #iq{type = set, sub_el = [
@@ -102,17 +102,17 @@ push_notification_iq(Node, Form, PushPayload) ->
                            children = [make_form(?PUSH_FORM_TYPE, PushPayload)]}
                 ]}
             ]}
-        ] ++ maybe_publish_options(maps:to_list(Form))}
+        ] ++ maybe_publish_options(Form)}
     ]}.
 
--spec make_form(binary(), mod_event_pusher_push_plugin:push_payload()) -> exml:element().
-make_form(FormType, FieldKVs) ->
-    Fields = [#{var => Name, values => [Value]} || {Name, Value} <- FieldKVs],
+-spec make_form(binary(), mod_event_pusher_push_content:content()) -> exml:element().
+make_form(FormType, Content) ->
+    Fields = [#{var => Name, values => [Value]} || Name := Value <- Content],
     mongoose_data_forms:form(#{ns => FormType, type => <<"submit">>, fields => Fields}).
 
--spec maybe_publish_options([{binary(), binary()}]) -> [exml:element()].
-maybe_publish_options([]) ->
+-spec maybe_publish_options(mod_event_pusher_push:form()) -> [exml:element()].
+maybe_publish_options(Form) when map_size(Form) =:= 0 ->
     [];
-maybe_publish_options(FormFields) ->
-    Children = [make_form(?NS_PUBSUB_PUB_OPTIONS, FormFields)],
+maybe_publish_options(Form) ->
+    Children = [make_form(?NS_PUBSUB_PUB_OPTIONS, Form)],
     [#xmlel{name = <<"publish-options">>, children = Children}].

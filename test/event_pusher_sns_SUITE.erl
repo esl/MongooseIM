@@ -134,7 +134,7 @@ send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
     Sender = ?config(sender, Config),
     Recipient = ?config(recipient, Config),
-    push_event(#chat_event{type = chat, direction = in,
+    push_event(#msg_event{type = chat, direction = in,
                            from = Sender, to = Recipient,
                            packet = Packet}).
 

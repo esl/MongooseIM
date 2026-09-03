@@ -93,7 +93,7 @@ instrumentation(HostType) ->
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
                  gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
-push_event(HookAcc, #{event := #chat_event{direction = Dir, from = From, to = To, packet = Packet}},
+push_event(HookAcc, #{event := #msg_event{direction = Dir, from = From, to = To, packet = Packet}},
            #{host_type := HostType}) ->
     #{acc := Acc} = HookAcc,
     lists:map(fun(Opts) -> push_event(Acc, Dir, From, To, Packet, Opts) end,

@@ -1,6 +1,7 @@
 -module(mod_event_pusher_push_rules).
 -moduledoc "Matches and executes configurable push notification rules".
 
+-include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include("mod_event_pusher_events.hrl").
 
@@ -15,14 +16,21 @@ config_spec() ->
 -spec push_event(mongoose_acc:t(), mod_event_pusher:event(), jid:jid(), [map()]) ->
           mongoose_acc:t().
 push_event(Acc, Event, BareRecipient, Rules) ->
-    case match_rule(Rules, Event) of
-        #{action := skip} ->
-            Acc;
-        #{action := push, content := ContentSpec} ->
-            case mod_event_pusher_push_content:build(ContentSpec, Acc) of
-                skip -> Acc;
-                Content -> publish_content(Acc, BareRecipient, Content)
-            end
+    perform_action(Acc, Event, BareRecipient, match_rule(Rules, Event)).
+
+perform_action(Acc, _Event, _BareRecipient, #{action := skip}) ->
+    Acc;
+perform_action(Acc, Event, BareRecipient, #{action := push, content := ContentSpec} = Rule) ->
+    case mod_event_pusher_push_content:build(ContentSpec, Acc) of
+        {ok, Content} ->
+            publish_content(Acc, BareRecipient, Content);
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => mod_event_pusher_push_failed_to_build_content,
+                           reason => Reason,
+                           rule => Rule,
+                           content_spec => ContentSpec,
+                           event => Event}),
+            Acc
     end.
 
 -spec rule_config_spec() -> mongoose_config_spec:config_section().
@@ -32,22 +40,30 @@ rule_config_spec() ->
                                             validate = {enum, [push, skip]}},
                        ~"content" => #option{type = atom,
                                              validate = {enum, [message, jingle]}}},
-             defaults = #{~"conditions" => #{}},
+             defaults = #{~"conditions" => [#{}]},
              required = [~"action"],
              process = fun ?MODULE:process_rule/1}.
 
--spec conditions_config_spec() -> mongoose_config_spec:config_section().
+-spec conditions_config_spec() -> mongoose_config_spec:config_list().
 conditions_config_spec() ->
+    #list{items = condition_config_spec(), validate = unique_non_empty}.
+
+-spec condition_config_spec() -> mongoose_config_spec:config_section().
+condition_config_spec() ->
     #section{items = #{~"event" => #option{type = atom,
-                                           validate = {enum, [chat, unack_msg]}},
-                       ~"has_body" => #option{type = boolean},
+                                           validate = {enum, [msg, unack_msg]}},
+                       ~"type" => #option{type = atom,
+                                          validate = {enum, [chat, groupchat]}},
+                       ~"body" => #option{type = atom,
+                                          validate = {enum, [absent, empty, non_empty]}},
                        ~"hint" => #option{type = atom,
                                           validate = {enum, [no_store, store]}},
                        ~"jingle" => #option{type = boolean},
                        ~"user_status" => #option{type = atom,
                                                   validate = {enum, [online, offline]}},
                        ~"client_state" => #option{type = atom,
-                                                   validate = {enum, [active, inactive]}}}}.
+                                                   validate = {enum, [active, inactive]}}},
+             validate = non_empty}.
 
 -spec process_rule(map()) -> map().
 process_rule(Rule = #{action := push}) when not is_map_key(content, Rule) ->
@@ -66,35 +82,62 @@ match_rule([#{conditions := Conditions} = Rule | RemainingRules], Event) ->
         false -> match_rule(RemainingRules, Event)
     end;
 match_rule([], _Event) ->
-    #{conditions => #{}, action => skip}.
+    #{conditions => [], action => skip}.
 
--spec check_conditions(map(), mod_event_pusher:event()) -> boolean().
+-spec check_conditions([map()], mod_event_pusher:event()) -> boolean().
 check_conditions(Conditions, Event) ->
+    lists:any(fun(Condition) -> check_condition_map(Condition, Event) end, Conditions).
+
+-spec check_condition_map(map(), mod_event_pusher:event()) -> boolean().
+check_condition_map(Condition, Event) ->
     lists:all(fun({Key, Value}) -> check_condition(Key, Value, Event) end,
-              maps:to_list(Conditions)).
+              maps:to_list(Condition)).
 
 -spec check_condition(atom(), term(), mod_event_pusher:event()) -> boolean().
-check_condition(event, chat, #chat_event{}) ->
+check_condition(event, msg, #msg_event{}) ->
     true;
 check_condition(event, unack_msg, #unack_msg_event{}) ->
     true;
-check_condition(user_status, offline, #chat_event{user_status = offline}) ->
+check_condition(type, Expected, #msg_event{type = Expected}) ->
     true;
-check_condition(user_status, online, #chat_event{user_status = {online, _}}) ->
+check_condition(type, Expected, #unack_msg_event{type = Expected}) ->
+    true;
+check_condition(user_status, offline, #msg_event{user_status = offline}) ->
+    true;
+check_condition(user_status, online, #msg_event{user_status = {online, _}}) ->
     true;
 check_condition(client_state, Expected,
-                #chat_event{user_status = {online, #{client_state := Expected}}}) ->
+                #msg_event{user_status = {online, #{client_state := Expected}}}) ->
     true;
-check_condition(has_body, Expected, #chat_event{packet = Packet}) ->
-    Expected =:= (exml_query:subelement(Packet, ~"body") =/= undefined);
-check_condition(hint, no_store, #chat_event{packet = Packet}) ->
-    exml_query:subelement_with_name_and_ns(Packet, ~"no-store", ?NS_HINTS) =/= undefined;
-check_condition(hint, store, #chat_event{packet = Packet}) ->
-    exml_query:subelement_with_name_and_ns(Packet, ~"store", ?NS_HINTS) =/= undefined;
-check_condition(jingle, Expected, #chat_event{packet = Packet}) ->
-    Expected =:= (exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) =/= undefined);
+check_condition(Condition, Expected, #msg_event{packet = Packet}) ->
+    check_packet_condition(Condition, Expected, Packet);
+check_condition(Condition, Expected, #unack_msg_event{packet = Packet}) ->
+    check_packet_condition(Condition, Expected, Packet);
 check_condition(_Condition, _Expected, _Event) ->
     false.
+
+-spec check_packet_condition(atom(), term(), exml:element()) -> boolean().
+check_packet_condition(body, Expected, Packet) ->
+    Expected =:= body_state(Packet);
+check_packet_condition(hint, no_store, Packet) ->
+    exml_query:subelement_with_name_and_ns(Packet, ~"no-store", ?NS_HINTS) =/= undefined;
+check_packet_condition(hint, store, Packet) ->
+    exml_query:subelement_with_name_and_ns(Packet, ~"store", ?NS_HINTS) =/= undefined;
+check_packet_condition(jingle, Expected, Packet) ->
+    Expected =:= (exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) =/= undefined);
+check_packet_condition(_Condition, _Expected, _Packet) ->
+    false.
+
+-spec body_state(exml:element()) -> absent | empty | non_empty.
+body_state(Packet) ->
+    case exml_query:subelement(Packet, ~"body") of
+        undefined -> absent;
+        Body ->
+            case exml_query:cdata(Body) of
+                ~"" -> empty;
+                _ -> non_empty
+            end
+    end.
 
 -spec publish_content(mongoose_acc:t(), jid:jid(), mod_event_pusher_push_content:content()) ->
           mongoose_acc:t().

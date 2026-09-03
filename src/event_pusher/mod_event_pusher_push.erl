@@ -156,14 +156,18 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
                  gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
-push_event(HookAcc, #{event := Event = #chat_event{direction = out, to = To, type = Type}}, _Extra)
+
+push_event(HookAcc, #{event := Event = #msg_event{direction = out, to = To, type = Type}}, _Extra)
   when Type =:= groupchat;
        Type =:= chat ->
     #{acc := Acc} = HookAcc,
     BareRecipient = jid:to_bare(To),
     NewAcc = do_push_event(Acc, Event, BareRecipient),
     {ok, HookAcc#{acc := NewAcc}};
-push_event(HookAcc = #{acc := Acc}, #{event := Event = #unack_msg_event{to = To}}, _Extra) ->
+push_event(HookAcc = #{acc := Acc},
+           #{event := Event = #unack_msg_event{to = To, type = Type}}, _Extra)
+  when Type =:= groupchat;
+       Type =:= chat ->
     BareRecipient = jid:to_bare(To),
     #{acc := Acc} = HookAcc,
     NewAcc = do_push_event(Acc, Event, BareRecipient),

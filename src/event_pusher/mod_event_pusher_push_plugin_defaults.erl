@@ -28,7 +28,7 @@
                      Event :: mod_event_pusher:event(),
                      Services :: [mod_event_pusher_push:publish_service()]) ->
                         [mod_event_pusher_push:publish_service()].
-should_publish(Acc, #chat_event{user_status = UserStatus}, Services) ->
+should_publish(Acc, #msg_event{user_status = UserStatus}, Services) ->
     PublishedServices = mongoose_acc:get(event_pusher, published_services, [], Acc),
     case should_publish(UserStatus) of
         true -> Services -- PublishedServices;
@@ -40,7 +40,10 @@ should_publish(_Acc, _Event, _Services) -> [].
                            Event :: mod_event_pusher:event()) ->
                               mod_event_pusher_push_plugin:push_payload() | skip.
 prepare_notification(Acc, _) ->
-    mod_event_pusher_push_content:build(message, Acc).
+    case mod_event_pusher_push_content:build(message, Acc) of
+        {error, _} -> skip;
+        {ok, Content} -> Content
+    end.
 
 -spec publish_notification(Acc :: mongoose_acc:t(),
                            Event :: mod_event_pusher:event(),
