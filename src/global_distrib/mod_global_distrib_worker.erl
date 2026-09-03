@@ -80,8 +80,31 @@ terminate(_Reason, _State) ->
 
 -spec do_work(Data :: binary()) -> any().
 do_work(Data) ->
-    {From, To, Acc, Packet} = erlang:binary_to_term(Data),
-    mod_global_distrib_utils:maybe_update_mapping(From, Acc),
-    ?LOG_DEBUG(#{what => gd_route_incoming, acc => Acc,
-                 gd_id => mod_global_distrib:get_metadata(Acc, id, "unknown")}),
-    mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc)).
+    case decode_packet(Data) of
+        {ok, {From, To, TransferAcc, Packet}} ->
+            Acc = mod_global_distrib_utils:restore_acc_after_transfer(TransferAcc),
+            mod_global_distrib_utils:maybe_update_mapping(From, Acc),
+            ?LOG_DEBUG(#{what => gd_route_incoming, acc => Acc,
+                         gd_id => mod_global_distrib:get_metadata(Acc, id, "unknown")}),
+            mongoose_router:route(mongoose_acc:update(From, To, Packet, Acc));
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => gd_decode_packet_failed,
+                           text => <<"Dropping an undecodable global distribution packet">>,
+                           reason => Reason, packet_size => byte_size(Data)}),
+            ok
+    end.
+
+%% The payload arrives from a remote cluster over a transport whose TLS is
+%% optional, so a decoding failure must cost one message rather than the worker.
+%% Note the reason is never allowed to carry the decoded term itself, which is
+%% attacker controlled and would end up in the logs verbatim.
+-spec decode_packet(Data :: binary()) ->
+    {ok, {jid:jid(), jid:jid(), mod_global_distrib_utils:transferable_acc(), exml:element()}}
+    | {error, term()}.
+decode_packet(Data) ->
+    try erlang:binary_to_term(Data) of
+        {_From, _To, _Acc, _Packet} = Decoded -> {ok, Decoded};
+        _Other -> {error, unexpected_term_shape}
+    catch
+        Class:Reason -> {error, {Class, Reason}}
+    end.

@@ -30,7 +30,8 @@
          cast_or_call/2, cast_or_call/3, cast_or_call/4,
          any_binary_to_atom/1, resolve_endpoints/1, recipient_to_worker_key/2,
          server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2,
-         parse_address/1
+         parse_address/1,
+         prepare_acc_for_transfer/1, restore_acc_after_transfer/1
         ]).
 
 -export([getaddrs/2]).
@@ -40,7 +41,12 @@
 -type domain_name() :: string().
 -type endpoint() :: {inet:ip_address() | domain_name(), inet:port_number()}.
 
--export_type([endpoint/0]).
+%% An accumulator stripped of node-local resources, ready to be serialised.
+%% It is deliberately not a mongoose_acc:t(), because the mandatory 'ref' and
+%% 'origin_pid' fields are absent while the acc is in flight.
+-type transferable_acc() :: map().
+
+-export_type([endpoint/0, transferable_acc/0]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -129,6 +135,40 @@ recipient_to_worker_key({_, GlobalHost, _} = Jid, GlobalHost) ->
     jid:to_binary(Jid);
 recipient_to_worker_key({_, Domain, _}, _GlobalHost) ->
     Domain.
+
+%% @doc Drop the node-local resources an acc carries, so that the serialised form
+%% contains no pids and no references.
+%%
+%% Those fields are created by the sending node and are meaningless on the peer,
+%% which is not part of the same Erlang cluster. Worse, they force the receiver to
+%% decode with binary_to_term/1: `[safe]' refuses any external pid or reference
+%% whose node name atom does not already exist locally, which is never the case
+%% for a global distribution peer.
+%%
+%% mongoose_acc:strip/1 also resets statem_acc, which is what keeps c2s_data (and
+%% the socket handles inside it) off the wire. Metadata that mod_global_distrib
+%% itself stores, the routing TTL in particular, is set with
+%% mongoose_acc:set_permanent/4 and therefore survives stripping.
+-spec prepare_acc_for_transfer(mongoose_acc:t()) -> transferable_acc().
+prepare_acc_for_transfer(Acc) ->
+    Stripped = mongoose_acc:strip(Acc),
+    strip_stanza_ref(maps:without([ref, origin_pid], Stripped)).
+
+%% @doc Reverse of prepare_acc_for_transfer/1, restoring the dropped fields with
+%% values that are valid on this node.
+-spec restore_acc_after_transfer(transferable_acc()) -> mongoose_acc:t().
+restore_acc_after_transfer(Acc) ->
+    restore_stanza_ref(Acc#{ref => make_ref(), origin_pid => self()}).
+
+strip_stanza_ref(#{stanza := Stanza} = Acc) when is_map(Stanza) ->
+    Acc#{stanza := maps:without([ref], Stanza)};
+strip_stanza_ref(Acc) ->
+    Acc.
+
+restore_stanza_ref(#{stanza := Stanza} = Acc) when is_map(Stanza) ->
+    Acc#{stanza := Stanza#{ref => make_ref()}};
+restore_stanza_ref(Acc) ->
+    Acc.
 
 -spec server_to_mgr_name(Server :: jid:lserver()) -> atom().
 server_to_mgr_name(Server) ->

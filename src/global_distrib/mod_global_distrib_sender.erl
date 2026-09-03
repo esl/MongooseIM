@@ -36,8 +36,9 @@ send(Server, {_,_, Acc, _} = Packet) when is_binary(Server) ->
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
               erlang:raise(Class, Reason, Stacktrace)
     end;
-send(Worker, {From, _To, _Acc, _Packet} = FPacket) ->
-    BinPacket = term_to_binary(FPacket),
+send(Worker, {From, To, Acc, Packet}) ->
+    TransferAcc = mod_global_distrib_utils:prepare_acc_for_transfer(Acc),
+    BinPacket = term_to_binary({From, To, TransferAcc, Packet}),
     BinFrom = mod_global_distrib_utils:recipient_to_worker_key(From, opt(global_host)),
     Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
     Stamp = erlang:monotonic_time(),
