@@ -40,6 +40,9 @@ end_per_suite(Config0) ->
     instrument_helper:stop().
 
 init_per_group(with_mod_dynamic_domains_test, Config) ->
+    %% Routing is checked for domains and subdomains that have no S2S route.
+    cth_error_report:expect({what, s2s_dns_lookup_failed}),
+    cth_error_report:expect({what, s2s_srv_lookup_failed}),
     MockedModules = [mod_dynamic_domains_test, mongoose_router],
     [ok = rpc(mim(), meck, new, [Module, [passthrough, no_link]])
      || Module <- MockedModules],

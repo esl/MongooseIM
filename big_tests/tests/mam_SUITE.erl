@@ -630,6 +630,12 @@ init_per_group(configurable_archiveid, Config) ->
 
 init_per_group(G, Config) when G =:= drop_msg;
                                G =:= muc_drop_msg ->
+    %% setup_meck/2 makes the archiving backend fail for every message. The
+    %% synchronous backends log the failure and re-raise, so gen_hook logs it a
+    %% second time.
+    cth_error_report:expect({what, archive_message_failed}),
+    cth_error_report:expect({what, archive_muc_single_message_failed}),
+    cth_error_report:expect({what, hook_failed}),
     setup_meck(G, ?config(configuration, Config)),
     Config;
 
@@ -845,7 +851,20 @@ init_per_testcase(CaseName, Config) ->
             {skip, Msg}
     end.
 
+maybe_setup(server_returns_item_not_found_for_after_filter_with_invalid_id, Config) ->
+    case ?config(muc_rsm, Config) of
+        true -> cth_error_report:expect({what, mam_muc_error});
+        _ -> cth_error_report:expect({what, mam_error})
+    end,
+    Config;
+maybe_setup(querying_with_invalid_mam_id_in_after, Config) ->
+    cth_error_report:expect({what, mam_error}),
+    Config;
+maybe_setup(text_search_query_fails_if_disabled, Config) ->
+    cth_error_report:expect({what, mam_error}),
+    Config;
 maybe_setup(muc_light_sql_query_failed, Config) ->
+    cth_error_report:expect({what, mam_muc_error}),
     ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect,
              [mongoose_rdbms, execute_successfully,
@@ -856,6 +875,7 @@ maybe_setup(muc_light_sql_query_failed, Config) ->
               end]),
     Config;
 maybe_setup(pm_sql_query_failed, Config) ->
+    cth_error_report:expect({what, mam_error}),
     ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect,
              [mongoose_rdbms, execute_successfully,
@@ -874,6 +894,11 @@ maybe_setup(async_pool_queue_lengths_are_updated, Config) ->
     PoolName = rpc(mim(), mongoose_async_pools, pool_name, [host_type(), PoolId]),
     Workers = rpc(mim(), wpool, get_workers, [PoolName]),
     [{pool_id, PoolId}, {workers, Workers} | Config];
+maybe_setup(CaseName, Config)
+  when CaseName =:= pm_failed_to_decode_message_in_database;
+       CaseName =:= muc_light_failed_to_decode_message_in_database ->
+    cth_error_report:expect({what, mam_failed_to_decode_message}),
+    Config;
 maybe_setup(_CaseName, Config) ->
     Config.
 

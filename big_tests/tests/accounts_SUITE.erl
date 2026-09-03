@@ -164,6 +164,9 @@ init_per_testcase(not_allowed_registration_cancelation, Config) ->
 init_per_testcase(registration_failure_timeout, Config) ->
     Config1 = deny_everyone_registration(Config),
     escalus:init_per_testcase(registration_failure_timeout, Config1);
+init_per_testcase(list_users_snapshot_invalid_params = CaseName, Config) ->
+    cth_error_report:expect({what, get_registered_users_snapshot_failed}, 2),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) when CaseName =:= list_selected_users;
                                          CaseName =:= count_selected_users ->
     case mongoose_helper:auth_modules() of

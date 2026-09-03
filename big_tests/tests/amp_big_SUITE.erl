@@ -143,6 +143,7 @@ init_per_group(GroupName, Config) ->
                       Config
               end,
     setup_meck(GroupName),
+    expect_errors(GroupName),
     save_offline_status(GroupName, Config1).
 
 setup_meck(suite) ->
@@ -153,6 +154,10 @@ setup_meck(mam_failure) ->
 setup_meck(offline_failure) ->
     ok = rpc(mim(), meck, expect, [mod_offline_backend_module(), write_messages, 4, {error, simulated}]);
 setup_meck(_) -> ok.
+
+expect_errors(offline_failure) ->
+    cth_error_report:expect({what, offline_write_failed});
+expect_errors(_) -> ok.
 
 save_offline_status(mam_success, Config) -> [{offline_storage, mam} | Config];
 save_offline_status(mam_failure, Config) -> [{offline_storage, mam_failure} | Config];
@@ -176,6 +181,11 @@ teardown_meck(suite) ->
     rpc(mim(), meck, unload, []);
 teardown_meck(_) -> ok.
 
+init_per_testcase(notify_deliver_to_unknown_domain_test = Name, C) ->
+    cth_error_report:expect({what, s2s_dns_lookup_failed}),
+    cth_error_report:expect({what, s2s_srv_lookup_failed}),
+    cth_error_report:expect({what, hook_failed}),
+    escalus:init_per_testcase(Name, C);
 init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
 end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 

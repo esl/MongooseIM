@@ -198,10 +198,20 @@ stop_online_rooms() ->
         true -> ok;
         false -> ct:fail({ejabberd_mod_muc_sup_not_found, Supervisor, HostType})
     end,
-    rpc(mim(), erlang, exit, [SupervisorPid, kill]),
+    %% Killing the supervisor instead logs a crash report per room. Rooms are
+    %% `brutal_kill' children, so terminate/3 does not run here.
+    [stop_online_room(SupervisorPid, RoomPid)
+     || {_, RoomPid, _, _} <- rpc(mim(), supervisor, which_children, [SupervisorPid]),
+        is_pid(RoomPid)],
     %% That's a pretty dirty way
     rpc(mim(), mod_muc_online_backend, clear_table, [HostType]),
     ok.
+
+stop_online_room(SupervisorPid, RoomPid) ->
+    case rpc(mim(), supervisor, terminate_child, [SupervisorPid, RoomPid]) of
+        ok -> ok;
+        {error, not_found} -> ok
+    end.
 
 forget_persistent_rooms() ->
     %% To avoid `binary_to_existing_atom(<<"maygetmemberlist">>, utf8)' failing

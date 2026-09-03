@@ -121,6 +121,10 @@ init_per_group(standard_keep_auth = GroupName, Config) ->
         true ->
             Config1
     end;
+init_per_group(demo_verification_module = GroupName, Config) ->
+    %% The demo verification module rejects some of the presented credentials by design.
+    cth_error_report:expect({what, cyrsasl_external_verification_failed}),
+    configure(GroupName, Config);
 init_per_group(GroupName, Config) ->
     configure(GroupName, Config).
 

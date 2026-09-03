@@ -74,8 +74,36 @@ drop_if_jid_not_mine(Acc, _, _) ->
     {ok, Acc}.
 
 recreate_table() ->
+    stop_table_owner(),
+    Owner = spawn(?MODULE, table_owner, [self()]),
+    receive
+        {table_created, Owner} -> ok
+    after 5000 ->
+        exit(Owner, kill),
+        error(test_message_index_not_created)
+    end.
+
+table_owner(Caller) ->
+    register(test_message_index_owner, self()),
     try ets:delete(test_message_index) catch _:_ -> ok end,
-    ets:new(test_message_index, [named_table, public, {heir, whereis(mongoose_c2s_sup), none}]).
+    ets:new(test_message_index, [named_table, public]),
+    Caller ! {table_created, self()},
+    receive stop -> ok end.
+
+stop_table_owner() ->
+    case whereis(test_message_index_owner) of
+        undefined ->
+            ok;
+        Owner ->
+            MRef = erlang:monitor(process, Owner),
+            Owner ! stop,
+            receive
+                {'DOWN', MRef, process, Owner, _} -> ok
+            after 5000 ->
+                erlang:demonitor(MRef, [flush]),
+                exit(Owner, kill)
+            end
+    end.
 
 check_acc(#{ stanza := #{ type := <<"chat">> } } = Acc) ->
     Ref = mongoose_acc:ref(Acc),

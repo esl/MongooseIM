@@ -79,6 +79,7 @@ end_per_suite(Config) ->
     instrument_helper:stop().
 
 init_per_group(invalid_cert, Config) ->
+    cth_error_report:expect({what, cert_parsing_failed}),
     #{tls := Tls} = Listener = proplists:get_value(c2s_listener_backup, Config),
     restart_listener(Listener#{tls => Tls#{certfile => <<"priv/ssl/fake_key.pem">>}}),
     Config;

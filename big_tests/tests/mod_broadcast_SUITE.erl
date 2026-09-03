@@ -156,6 +156,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(ownership, Config) ->
+    %% The group restarts the manager on the way in and on the way out.
+    cth_error_report:expect({regex, <<"reason,killed.*broadcast_manager">>}),
     ok = rpc(mim(), meck, new, [mod_broadcast, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect, [mod_broadcast, lease_time, 1, 1]),
     ok = rpc(mim(), meck, new, [mod_broadcast_backend, [no_link, passthrough]]),
@@ -187,6 +189,16 @@ init_per_testcase(take_expired_jobs_is_scoped_by_host_type = TestCase, Config) -
         false ->
             escalus:init_per_testcase(TestCase, Config)
     end;
+init_per_testcase(TestCase, Config)
+  when TestCase =:= manager_emergency_mode_pauses_workers_and_recovers;
+       TestCase =:= manager_repeated_emergency_failure_keeps_workers_paused ->
+    %% The case mecks renew_ownership into raising, to force emergency mode.
+    cth_error_report:expect({what, broadcast_job_synchronization_failed}),
+    escalus:init_per_testcase(TestCase, Config);
+init_per_testcase(manager_restart_is_idempotent_to_live_job_workers = TestCase, Config) ->
+    %% The case restarts the manager under live workers, which are killed with it.
+    cth_error_report:expect({regex, <<"reason,killed.*broadcast_manager">>}),
+    escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(broadcast_job_delivers_message = TestCase, Config) ->
     accounts_helper:prepare_user_created_at(),
     escalus:init_per_testcase(TestCase, Config);

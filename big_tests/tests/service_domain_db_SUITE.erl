@@ -141,17 +141,38 @@ end_per_group(_GroupName, Config) ->
         per_testcase -> ok
     end.
 
-init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
-    maybe_setup_meck(db_crash_on_initial_load_restarts_service),
+init_per_testcase(db_crash_on_initial_load_restarts_service = TestcaseName, Config) ->
+    expect_errors(TestcaseName),
+    maybe_setup_meck(TestcaseName),
     restart_domain_core(mim(), [], []),
     Config;
 init_per_testcase(TestcaseName, Config) ->
+    expect_errors(TestcaseName),
     maybe_setup_meck(TestcaseName),
     case ?config(service_setup, Config) of
         per_group -> ok;
         per_testcase -> setup_service(service_opts(TestcaseName), Config)
     end,
     init_per_testcase2(TestcaseName, Config).
+
+expect_errors(TC) when TC =:= db_cannot_delete_domain_with_unknown_host_type;
+                       TC =:= db_cannot_enable_domain_with_unknown_host_type;
+                       TC =:= db_cannot_disable_domain_with_unknown_host_type;
+                       TC =:= db_domains_with_unknown_host_type_are_ignored_by_core ->
+    cth_error_report:expect({what, ignore_domain_from_db_with_unknown_host_type});
+expect_errors(TC) when TC =:= db_gaps_are_getting_filled_automatically;
+                       TC =:= db_event_could_appear_with_lower_id ->
+    %% The case leaves a gap in the event ids and both nodes race to fill it,
+    %% so one of them hits a duplicate key on every id in the gap.
+    cth_error_report:expect({what, sql_execute_failed});
+expect_errors(db_record_is_ignored_if_domain_static) ->
+    cth_error_report:expect({what, domain_static_but_in_db});
+expect_errors(db_reinserted_from_one_node_while_service_disabled_on_another) ->
+    cth_error_report:expect({what, ignore_domain_from_db_with_different_host_type});
+expect_errors(db_restarts_properly) ->
+    %% The case restarts the service, so its supervisor reports the old one going down.
+    cth_error_report:expect({regex, <<"reason,shutdown.*service_domain_db">>});
+expect_errors(_) -> ok.
 
 service_opts(db_events_table_gets_truncated) ->
     #{event_cleaning_interval => 1, event_max_age => 3};

@@ -78,6 +78,11 @@ end_per_group(GN, Config) when GN =:= graphql_user; GN =:= graphql_admin ->
 end_per_group(_, Config) ->
     Config.
 
+init_per_testcase(CaseName, Config) when CaseName =:= allow_message_on_request_error;
+                                         CaseName =:= allow_message_on_request_error_muclight ->
+    %% These cases make the mocked filter service answer with a malformed body.
+    cth_error_report:expect({what, external_filter_bad_request}),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
