@@ -29,17 +29,28 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, hook_handlers}].
+    [{group, hook_handlers},
+     {group, acc_transfer}].
 
 groups() ->
     [
-     {hook_handlers, [], hook_handlers_tests()}
+     {hook_handlers, [], hook_handlers_tests()},
+     {acc_transfer, [], acc_transfer_tests()}
     ].
 
 hook_handlers_tests() ->
     [
         missing_struct_in_message_from_user,
         missing_struct_in_message_from_component
+    ].
+
+acc_transfer_tests() ->
+    [
+        prepared_acc_is_safe_decodable_on_a_foreign_node,
+        unprepared_acc_is_not_safe_decodable_on_a_foreign_node,
+        restore_reinstates_node_local_fields,
+        permanent_metadata_survives_transfer,
+        undecodable_payload_does_not_kill_the_worker
     ].
 
 suite() ->
@@ -126,8 +137,87 @@ missing_struct_in_message_from_component(_Config) ->
     {ok, Acc} = mod_global_distrib_mapping:packet_to_component(Acc, #{from => From}, #{}).
 
 %%--------------------------------------------------------------------
+%% Acc transfer tests
+%%--------------------------------------------------------------------
+
+%% The property that actually matters. A local round trip would pass trivially,
+%% because the local node's own name atom always exists; only a node that has
+%% never seen the sender exercises the [safe] restriction on external pids/refs.
+prepared_acc_is_safe_decodable_on_a_foreign_node(_Config) ->
+    Bin = term_to_binary(mod_global_distrib_utils:prepare_acc_for_transfer(fake_acc())),
+    {ok, DecodedAcc} = safe_decode_on_foreign_node(Bin),
+    #{mongoose_acc := true, lserver := _} = DecodedAcc,
+    false = maps:is_key(ref, DecodedAcc),
+    false = maps:is_key(origin_pid, DecodedAcc).
+
+%% Negative control: without the preparation step the very same payload is
+%% rejected, which is why binary_to_term/2 [safe] cannot simply be switched on.
+unprepared_acc_is_not_safe_decodable_on_a_foreign_node(_Config) ->
+    Bin = term_to_binary(fake_acc()),
+    {error, badarg} = safe_decode_on_foreign_node(Bin).
+
+restore_reinstates_node_local_fields(_Config) ->
+    Acc = fake_acc(),
+    Prepared = mod_global_distrib_utils:prepare_acc_for_transfer(Acc),
+    Restored = mod_global_distrib_utils:restore_acc_after_transfer(Prepared),
+    #{ref := Ref, origin_pid := Pid, stanza := #{ref := StanzaRef}} = Restored,
+    true = is_reference(Ref),
+    true = is_pid(Pid),
+    true = is_reference(StanzaRef),
+    Self = self(),
+    Self = Pid,
+    %% the payload itself must come through untouched
+    #{lserver := LServer, host_type := HostType, stanza := #{element := El}} = Acc,
+    #{lserver := LServer, host_type := HostType, stanza := #{element := El}} = Restored.
+
+%% Guards the assumption that mongoose_acc:strip/1 is safe to use here: the
+%% routing TTL is stored with set_permanent/4 and must survive the round trip.
+permanent_metadata_survives_transfer(_Config) ->
+    Acc = mod_global_distrib:put_metadata(fake_acc(), ttl, 5),
+    Prepared = mod_global_distrib_utils:prepare_acc_for_transfer(Acc),
+    Restored = mod_global_distrib_utils:restore_acc_after_transfer(
+                 binary_to_term(term_to_binary(Prepared))),
+    {ok, 5} = mod_global_distrib:find_metadata(Restored, ttl).
+
+undecodable_payload_does_not_kill_the_worker(_Config) ->
+    Stamp = erlang:monotonic_time(),
+    Garbage = <<"certainly not an erlang term">>,
+    {noreply, state, _} = mod_global_distrib_worker:handle_cast(
+                            {data, global_host(), 0, Stamp, Garbage}, state).
+
+%%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+%% Decodes Bin with [safe] on a separate node that has never been connected to
+%% this one, so this node's name atom does not exist there. The peer is driven
+%% over standard_io precisely to avoid the Erlang distribution handshake, which
+%% would create that atom on the peer and mask the failure we are testing for.
+safe_decode_on_foreign_node(Bin) ->
+    {ok, Peer, _Node} = peer:start(#{name => peer:random_name(),
+                                     connection => standard_io,
+                                     args => ["-pa" | code:get_path()]}),
+    try
+        %% A real peer runs the same release, so give it the same atoms. ?MODULE is
+        %% in the list because the acc's origin_location names this suite, standing
+        %% in for the MongooseIM module that would appear there in production.
+        ok = peer:call(Peer, code, ensure_modules_loaded,
+                       [[mongoose_acc, mongoose_c2s_acc, jid, exml, mod_global_distrib,
+                         ?MODULE]]),
+        try peer:call(Peer, erlang, binary_to_term, [Bin, [safe]]) of
+            Decoded -> {ok, Decoded}
+        catch
+            error:{exception, badarg, _} -> {error, badarg};
+            error:badarg -> {error, badarg}
+        end
+    after
+        peer:stop(Peer)
+    end.
+
+fake_acc() ->
+    From = jid:make(<<"user">>, global_host(), <<"resource">>),
+    {Acc, _To} = fake_acc_to_component(From),
+    Acc.
 
 global_host() ->
     <<"localhost">>.
