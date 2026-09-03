@@ -41,6 +41,18 @@
 -type domain_name() :: string().
 -type endpoint() :: {inet:ip_address() | domain_name(), inet:port_number()}.
 
+%% mod_global_distrib_worker_sup:get_worker/1 turns its argument into an atom to
+%% register the worker process under. On the receiving side that argument is the
+%% "From" prefix read straight off the wire (mod_global_distrib_receiver.erl),
+%% i.e. attacker-controlled before any of it is validated. Atoms are never
+%% garbage-collected, so minting one per distinct value a peer sends would let
+%% that peer grow the atom table without bound and crash the whole node. The
+%% cap below sits far above any realistic number of distinct domains a real
+%% deployment routes through GD, and far below the VM's default atom limit
+%% (1_048_576), so it stops the attack while never being hit in normal use.
+-define(GD_WORKER_ATOM_LIMIT_COUNTER, {mod_global_distrib, worker_atom_limit_counter}).
+-define(MAX_GD_WORKER_ATOMS, 100000).
+
 %% An accumulator stripped of node-local resources, ready to be serialised.
 %% It is deliberately not a mongoose_acc:t(), because the mandatory 'ref' and
 %% 'origin_pid' fields are absent while the acc is in flight.
@@ -52,18 +64,35 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec any_binary_to_atom(binary()) -> atom().
+-spec any_binary_to_atom(binary()) -> {ok, atom()} | {error, atom_limit_reached}.
 any_binary_to_atom(Binary) ->
-    binary_to_atom(base64:encode(Binary), latin1).
+    Encoded = base64:encode(Binary),
+    try
+        {ok, binary_to_existing_atom(Encoded, latin1)}
+    catch
+        error:badarg ->
+            bounded_new_atom(Encoded)
+    end.
+
+bounded_new_atom(Encoded) ->
+    Counter = persistent_term:get(?GD_WORKER_ATOM_LIMIT_COUNTER),
+    case atomics:add_get(Counter, 1, 1) of
+        N when N =< ?MAX_GD_WORKER_ATOMS ->
+            {ok, binary_to_atom(Encoded, latin1)};
+        _ ->
+            {error, atom_limit_reached}
+    end.
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{global_host := GlobalHost, local_host := LocalHost}) ->
     check_host(LocalHost),
     check_host(GlobalHost),
+    persistent_term:put(?GD_WORKER_ATOM_LIMIT_COUNTER, atomics:new(1, [])),
     persistent_term:put({mod_global_distrib, host_type}, HostType).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(_HostType) ->
+    persistent_term:erase(?GD_WORKER_ATOM_LIMIT_COUNTER),
     persistent_term:erase({mod_global_distrib, host_type}).
 
 -spec opt(module(), gen_mod:opt_key() | gen_mod:key_path()) -> gen_mod:opt_value().

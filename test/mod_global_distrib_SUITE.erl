@@ -30,12 +30,14 @@
 
 all() ->
     [{group, hook_handlers},
-     {group, acc_transfer}].
+     {group, acc_transfer},
+     {group, worker_atom_exhaustion_guard}].
 
 groups() ->
     [
      {hook_handlers, [], hook_handlers_tests()},
-     {acc_transfer, [], acc_transfer_tests()}
+     {acc_transfer, [], acc_transfer_tests()},
+     {worker_atom_exhaustion_guard, [], worker_atom_exhaustion_guard_tests()}
     ].
 
 hook_handlers_tests() ->
@@ -51,6 +53,12 @@ acc_transfer_tests() ->
         restore_reinstates_node_local_fields,
         permanent_metadata_survives_transfer,
         undecodable_payload_does_not_kill_the_worker
+    ].
+
+worker_atom_exhaustion_guard_tests() ->
+    [
+        any_binary_to_atom_reuses_existing_atom,
+        any_binary_to_atom_stops_at_the_cap
     ].
 
 suite() ->
@@ -184,6 +192,28 @@ undecodable_payload_does_not_kill_the_worker(_Config) ->
     Garbage = <<"certainly not an erlang term">>,
     {noreply, state, _} = mod_global_distrib_worker:handle_cast(
                             {data, global_host(), 0, Stamp, Garbage}, state).
+
+%%--------------------------------------------------------------------
+%% Worker atom exhaustion guard tests
+%%--------------------------------------------------------------------
+
+%% mod_global_distrib_worker_sup:get_worker/1 feeds attacker-controlled bytes
+%% (the "From" prefix read off the wire) into this. It must not mint a fresh,
+%% never-collected atom for a value it has already seen.
+any_binary_to_atom_reuses_existing_atom(_Config) ->
+    Bin = <<"repeated.example.com">>,
+    {ok, Atom} = mod_global_distrib_utils:any_binary_to_atom(Bin),
+    {ok, Atom} = mod_global_distrib_utils:any_binary_to_atom(Bin).
+
+%% A peer that keeps sending distinct "From" prefixes must eventually be
+%% refused rather than being allowed to grow the atom table without bound.
+%% The counter is pushed to the cap directly instead of by actually minting
+%% 100k atoms, which would make the test itself the exhaustion.
+any_binary_to_atom_stops_at_the_cap(_Config) ->
+    Counter = persistent_term:get({mod_global_distrib, worker_atom_limit_counter}),
+    atomics:put(Counter, 1, 100000),
+    Novel = crypto:strong_rand_bytes(16),
+    {error, atom_limit_reached} = mod_global_distrib_utils:any_binary_to_atom(Novel).
 
 %%--------------------------------------------------------------------
 %% Helpers

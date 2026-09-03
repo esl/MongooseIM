@@ -185,9 +185,16 @@ handle_data(Data, State = #state{host = Host}) ->
     <<ClockTime:64, BinFromSize:16, _/binary>> = Data,
     TransferTime = erlang:system_time(microsecond) - ClockTime,
     <<_:80, BinFrom:BinFromSize/binary, BinTerm/binary>> = Data,
-    Worker = mod_global_distrib_worker_sup:get_worker(BinFrom),
-    Stamp = erlang:monotonic_time(),
-    ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Host, TransferTime, Stamp, BinTerm}),
+    case mod_global_distrib_worker_sup:get_worker(BinFrom) of
+        {ok, Worker} ->
+            Stamp = erlang:monotonic_time(),
+            ok = mod_global_distrib_utils:cast_or_call(
+                   Worker, {data, Host, TransferTime, Stamp, BinTerm});
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => gd_get_worker_failed,
+                           text => <<"Dropping an incoming global distribution packet">>,
+                           peer => State#state.peer, server => Host, reason => Reason})
+    end,
     State.
 
 -spec handle_buffered(state()) -> state().
