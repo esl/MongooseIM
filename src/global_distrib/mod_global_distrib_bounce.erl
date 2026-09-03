@@ -211,8 +211,14 @@ resend_messages(Now) ->
                     mod_global_distrib_mapping:clear_cache(To),
                     WorkerKey = mod_global_distrib_utils:recipient_to_worker_key(
                                   From, opt(global_host)),
-                    Worker = mod_global_distrib_worker_sup:get_worker(WorkerKey),
-                    gen_server:cast(Worker, {route, FPacket});
+                    case mod_global_distrib_worker_sup:get_worker(WorkerKey) of
+                        {ok, Worker} ->
+                            gen_server:cast(Worker, {route, FPacket});
+                        {error, Reason} ->
+                            ?LOG_WARNING(#{what => gd_get_worker_failed,
+                                           text => <<"Dropping a bounced global distribution packet">>,
+                                           from => From, to => To, reason => Reason})
+                    end;
                 _ ->
                     ok
             end,

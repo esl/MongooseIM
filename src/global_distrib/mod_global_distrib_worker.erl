@@ -98,11 +98,18 @@ do_work(Data) ->
 %% optional, so a decoding failure must cost one message rather than the worker.
 %% Note the reason is never allowed to carry the decoded term itself, which is
 %% attacker controlled and would end up in the logs verbatim.
+%%
+%% `safe' is only viable because mod_global_distrib_utils:prepare_acc_for_transfer/1
+%% strips the pid/ref fields before sending: with those gone, a legitimate packet
+%% no longer contains anything but binaries, tuples and maps keyed by atoms this
+%% module already knows about, so `safe' never has to create a new atom to decode
+%% one. It still creates none for a forged packet either -- it raises badarg
+%% instead, which is what stops a peer from growing the atom table via this path.
 -spec decode_packet(Data :: binary()) ->
     {ok, {jid:jid(), jid:jid(), mod_global_distrib_utils:transferable_acc(), exml:element()}}
     | {error, term()}.
 decode_packet(Data) ->
-    try erlang:binary_to_term(Data) of
+    try erlang:binary_to_term(Data, [safe]) of
         {_From, _To, _Acc, _Packet} = Decoded -> {ok, Decoded};
         _Other -> {error, unexpected_term_shape}
     catch

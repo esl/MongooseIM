@@ -31,14 +31,18 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
--spec get_worker(From :: jid:lserver()) -> atom().
+-spec get_worker(From :: jid:lserver()) -> {ok, atom()} | {error, atom_limit_reached}.
 get_worker(From) when is_binary(From) ->
-    Name = mod_global_distrib_utils:any_binary_to_atom(From),
-    case whereis(Name) of
-        undefined -> supervisor:start_child(?MODULE, [Name]);
-        _ -> ok
-    end,
-    Name.
+    case mod_global_distrib_utils:any_binary_to_atom(From) of
+        {ok, Name} ->
+            case whereis(Name) of
+                undefined -> supervisor:start_child(?MODULE, [Name]);
+                _ -> ok
+            end,
+            {ok, Name};
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 %%--------------------------------------------------------------------
 %% supervisor API
