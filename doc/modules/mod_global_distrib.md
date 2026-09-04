@@ -127,6 +127,26 @@ Global distribution modules expose several per-datacenter metrics that can be us
     | `[mod_global_distrib_bounce_queue, size]` | spiral | A number of messages enqueued for rerouting (the value of this metric is individual per MongooseIM node!). |
 
 
+## Security
+
+The routing protocol carries serialised Erlang terms between datacenters, so a peer that can open a
+connection to a `mod_global_distrib` endpoint is trusted to a degree comparable with a cluster node.
+Two consequences follow.
+
+* **Do not expose the endpoints configured in [`connections.endpoints`](#modulesmod_global_distribconnectionsendpoints) to untrusted networks.** They should be reachable only from the other datacenters, whether by network segmentation or by a firewall.
+* **Configure [TLS](#tls-options).** It is disabled by default, in which case messages between datacenters travel over plain TCP, unauthenticated and in the clear.
+
+The accumulator is stripped of node-local resources before it is sent, so that no pids or references
+appear on the wire and undecodable payloads are dropped with a `gd_decode_packet_failed` warning
+rather than taking down a routing worker. That limits the damage a malformed payload can do, but it
+does not remove the need for the two points above.
+
+The same trust assumption applies to the Redis instance backing
+[`redis.pool`](#modulesmod_global_distribredispool): session records are stored as serialised terms
+and are deserialised on read, so an attacker able to write to Redis can inject terms into every node
+that reads them. See [Security scan triage](../developers-guide/security-scan-triage.md) for the
+wider picture.
+
 ## Notes
 
 * You should only start `mod_global_distrib` by configuring it under `modules` option in `mongooseim.toml`. Do not add it as host-specific module via `host_config`.

@@ -205,6 +205,7 @@ nav:
       - 'FIPS mode': 'developers-guide/OpenSSL-and-FIPS.md'
       - 'Basic IQ Handler': 'developers-guide/Basic-iq-handler.md'
       - 'mongoose_wpool': 'developers-guide/mongoose_wpool.md'
+      - 'Security scan triage': 'developers-guide/security-scan-triage.md'
   - Migration Guide:
       - '3.1.1 to 3.2.0': 'migrations/3.1.1_3.2.0.md'
       - '3.3.0 to 3.4.0': 'migrations/3.3.0_3.4.0.md'
