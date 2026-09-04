@@ -56,18 +56,15 @@ kick_user(#{<<"room">> := RoomJID, <<"nick">> := Nick, <<"reason">> := Reason}) 
     Res = mod_muc_api:kick_user_from_room(RoomJID, Nick, Reason2),
     format_result(Res, #{room => jid:to_binary(RoomJID)}).
 
--spec send_message_to_room(map()) -> {ok, binary()} | {error, resolver_error()}.
+-spec send_message_to_room(map()) -> {ok, binary()}.
 send_message_to_room(#{<<"room">> := RoomJID, <<"from">> := SenderJID, <<"body">> := Message}) ->
-    Res = mod_muc_api:send_message_to_room(RoomJID, SenderJID, Message),
-    format_result(Res, #{room => jid:to_binary(RoomJID),
-                         from => jid:to_binary(SenderJID)}).
+    mod_muc_api:send_message_to_room(RoomJID, SenderJID, Message).
 
--spec send_private_message(map()) -> {ok, binary()} | {error, resolver_error()}.
+
+-spec send_private_message(map()) -> {ok, binary()}.
 send_private_message(#{<<"room">> := RoomJID, <<"from">> := SenderJID,
                        <<"toNick">> := ToNick, <<"body">> := Message}) ->
-    Res = mod_muc_api:send_private_message(RoomJID, SenderJID, ToNick, Message),
-    format_result(Res, #{room => jid:to_binary(RoomJID),
-                         from => jid:to_binary(SenderJID)}).
+    mod_muc_api:send_private_message(RoomJID, SenderJID, ToNick, Message).
 
 -spec change_room_config(map()) -> {ok, map()} | {error, resolver_error()}.
 change_room_config(#{<<"room">> := RoomJID, <<"config">> := ConfigInput}) ->
@@ -96,16 +93,14 @@ set_user_affiliation(#{<<"room">> := RoomJID, <<"user">> := UserJID, <<"affiliat
     Result = mod_muc_api:set_affiliation(RoomJID, UserJID, Aff),
     format_result(Result, #{room => jid:to_binary(RoomJID)}).
 
--spec enter_room(map()) -> {ok, binary()} | {error, resolver_error()}.
+-spec enter_room(map()) -> {ok, binary()}.
 enter_room(#{<<"room">> := RoomJID, <<"user">> := UserJID, <<"nick">> := Nick,
              <<"password">> := Password}) ->
     RoomJIDRes = jid:replace_resource(RoomJID, Nick),
     Password2 = null_to_undefined(Password),
-    Result = mod_muc_api:enter_room(RoomJIDRes, UserJID, Password2),
-    format_result(Result, #{room => jid:to_binary(RoomJID)}).
+    mod_muc_api:enter_room(RoomJIDRes, UserJID, Password2).
 
--spec exit_room(map()) -> {ok, binary()} | {error, resolver_error()}.
+-spec exit_room(map()) -> {ok, binary()}.
 exit_room(#{<<"room">> := RoomJID, <<"user">> := UserJID, <<"nick">> := Nick}) ->
     RoomJIDRes = jid:replace_resource(RoomJID, Nick),
-    Result = mod_muc_api:exit_room(RoomJIDRes, UserJID),
-    format_result(Result, #{room => jid:to_binary(RoomJID)}).
+    mod_muc_api:exit_room(RoomJIDRes, UserJID).

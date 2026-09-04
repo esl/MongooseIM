@@ -76,6 +76,6 @@ list_users_with_status(#{<<"domain">> := Domain, <<"status">> := Status}) ->
 
 -spec count_users_with_status(map()) -> {ok, non_neg_integer()} | {error, resolver_error()}.
 count_users_with_status(#{<<"domain">> := null, <<"status">> := Status}) ->
-    format_result(mongoose_session_api:num_status_users(Status), #{status => Status});
+    mongoose_session_api:num_status_users(Status);
 count_users_with_status(#{<<"domain">> := Domain, <<"status">> := Status}) ->
     format_result(mongoose_session_api:num_status_users(Domain, Status), #{domain => Domain, status => Status}).
