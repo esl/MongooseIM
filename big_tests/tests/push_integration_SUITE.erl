@@ -632,9 +632,9 @@ bodiless_messages(Config) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             #{device_token := FcmDeviceToken} =
-                 enable_push_for_user(Bob, <<"fcm">>, [{<<"silent">>, <<"true">>}], Config),
+                 enable_push_for_user(Bob, <<"fcm">>, [], Config),
             #{device_token := ApnsDeviceToken} =
-                 enable_push_for_user(Bob, <<"apns">>, [{<<"silent">>, <<"true">>}], Config),
+                 enable_push_for_user(Bob, <<"apns">>, [], Config),
             become_unavailable(Bob),
             Msg = dummy_jingle_propose_message(Bob),
             %% bodiless message with store hint should pass
@@ -642,8 +642,9 @@ bodiless_messages(Config) ->
             {ApnsNotification, _} = wait_for_push_request(ApnsDeviceToken),
             {FcmNotification, _} = wait_for_push_request(FcmDeviceToken),
             AliceJID = bare_jid(Alice),
-            assert_jingle_push_notification(ApnsNotification, <<"apns">>, AliceJID, <<"propose">>),
-            assert_jingle_push_notification(FcmNotification, <<"fcm">>, AliceJID,  <<"propose">>),
+            Body = <<"Jingle message: propose, session ID: ", ?JINGLE_SESSION_ID/binary>>,
+            assert_push_notification(ApnsNotification, <<"apns">>, [], AliceJID, [{body, Body}]),
+            assert_push_notification(FcmNotification, <<"fcm">>, [], AliceJID, [{body, Body}]),
             %% bodiless message with no-copy hint should be blocked
             escalus:send(Alice, add_message_hint(Msg, <<"no-copy">>)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
@@ -787,16 +788,6 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
             assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
         end).
-
-assert_jingle_push_notification(Notification, Service, SenderJID, JingleMessageType) ->
-
-    ?assertMatch(#{<<"service">> := Service}, Notification),
-
-    Data = maps:get(<<"data">>, Notification, undefined),
-
-    ?assertMatch(#{<<"message-sender">> := SenderJID}, Data),
-    ?assertMatch(#{<<"jingle-message">> := JingleMessageType}, Data),
-    ?assertMatch(#{<<"jingle-session-id">> := ?JINGLE_SESSION_ID}, Data).
 
 assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
     assert_push_notification(Notification, Service, EnableOpts, SenderJID, []).

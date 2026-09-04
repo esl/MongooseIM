@@ -42,6 +42,7 @@ should_publish(_Acc, _Event, _Services) -> [].
 prepare_notification(Acc, _) ->
     case mod_event_pusher_push_content:build(message, Acc) of
         {error, _} -> skip;
+        {ok, #{~"last-message-body" := ~""}} -> skip;
         {ok, Content} -> Content
     end.
 
