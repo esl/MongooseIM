@@ -39,16 +39,14 @@ enter_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick,
     UserJIDRes = jid:replace_resource(UserJID, Resource),
     RoomJIDRes = jid:replace_resource(RoomJID, Nick),
     Password2 = null_to_undefined(Password),
-    Res = mod_muc_api:enter_room(RoomJIDRes, UserJIDRes, Password2),
-    format_result(Res, #{room => jid:to_binary(RoomJID)}).
+    mod_muc_api:enter_room(RoomJIDRes, UserJIDRes, Password2).
 
 -spec exit_room(map(), map()) -> {ok, binary()}.
 exit_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick,
                                 <<"resource">> := Resource}) ->
     UserJIDRes = jid:replace_resource(UserJID, Resource),
     RoomJIDRes = jid:replace_resource(RoomJID, Nick),
-    Res = mod_muc_api:exit_room(RoomJIDRes, UserJIDRes),
-    format_result(Res, #{room => jid:to_binary(RoomJID)}).
+    mod_muc_api:exit_room(RoomJIDRes, UserJIDRes).
 
 -spec create_instant_room(map(), map()) -> {ok, map()} | {error, resolver_error()}.
 create_instant_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick}) ->
