@@ -30,6 +30,9 @@
 %% gen_mod behaviour
 -export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
+%% config processing
+-export([process_options/1]).
+
 %% mongoose_module_metrics behaviour
 -export([config_metrics/1]).
 
@@ -64,8 +67,14 @@ start(HostType, Opts) ->
     ?LOG_INFO(#{what => event_pusher_starting, host_type => HostType}),
     start_pool(HostType, Opts),
     mod_event_pusher_push_backend:init(HostType, Opts),
-    mod_event_pusher_push_plugin:init(HostType, Opts),
+    maybe_init_plugin(HostType, Opts),
     init_iq_handlers(HostType, Opts),
+    ok.
+
+-spec maybe_init_plugin(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+maybe_init_plugin(HostType, Opts = #{plugin_module := _}) ->
+    mod_event_pusher_push_plugin:init(HostType, Opts);
+maybe_init_plugin(_HostType, #{rules := _}) ->
     ok.
 
 start_pool(HostType, #{wpool := WpoolOpts}) ->
@@ -96,16 +105,26 @@ config_spec() ->
     VirtPubSubHost = #option{type = string, validate = subdomain_template,
                              process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
     #section{
-        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
-                  <<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
-                  <<"wpool">> => wpool_spec(),
-                  <<"plugin_module">> => #option{type = atom, validate = module},
-                  <<"virtual_pubsub_hosts">> => #list{items = VirtPubSubHost}},
-        defaults = #{<<"iqdisc">> => one_queue,
-                     <<"backend">> => mnesia,
-                     <<"plugin_module">> => mod_event_pusher_push_plugin:default_plugin_module(),
-                     <<"virtual_pubsub_hosts">> => []}
+        items = #{~"iqdisc" => mongoose_config_spec:iqdisc(),
+                  ~"backend" => #option{type = atom, validate = {module, ?MODULE}},
+                  ~"wpool" => wpool_spec(),
+                  ~"plugin_module" => #option{type = atom, validate = module},
+                  ~"rules" => mod_event_pusher_push_rules:config_spec(),
+                  ~"virtual_pubsub_hosts" => #list{items = VirtPubSubHost}},
+        defaults = #{~"iqdisc" => one_queue,
+                     ~"backend" => mnesia,
+                     ~"virtual_pubsub_hosts" => []},
+        process = fun ?MODULE:process_options/1
     }.
+
+-spec process_options(gen_mod:module_opts()) -> gen_mod:module_opts().
+process_options(#{plugin_module := _, rules := _}) ->
+    error(#{what => invalid_push_options,
+            text => "The 'plugin_module' and 'rules' options cannot be specified together"});
+process_options(Opts) when not is_map_key(plugin_module, Opts), not is_map_key(rules, Opts) ->
+    Opts#{plugin_module => mod_event_pusher_push_plugin:default_plugin_module()};
+process_options(Opts) ->
+    Opts.
 
 wpool_spec() ->
     Wpool = mongoose_config_spec:wpool(#{<<"strategy">> => available_worker}),
@@ -137,14 +156,18 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
                  gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
-push_event(HookAcc, #{event := Event = #chat_event{direction = out, to = To, type = Type}}, _Extra)
+
+push_event(HookAcc, #{event := Event = #msg_event{direction = out, to = To, type = Type}}, _Extra)
   when Type =:= groupchat;
        Type =:= chat ->
     #{acc := Acc} = HookAcc,
     BareRecipient = jid:to_bare(To),
     NewAcc = do_push_event(Acc, Event, BareRecipient),
     {ok, HookAcc#{acc := NewAcc}};
-push_event(HookAcc = #{acc := Acc}, #{event := Event = #unack_msg_event{to = To}}, _Extra) ->
+push_event(HookAcc = #{acc := Acc},
+           #{event := Event = #unack_msg_event{to = To, type = Type}}, _Extra)
+  when Type =:= groupchat;
+       Type =:= chat ->
     BareRecipient = jid:to_bare(To),
     #{acc := Acc} = HookAcc,
     NewAcc = do_push_event(Acc, Event, BareRecipient),
@@ -203,6 +226,13 @@ is_virtual_pubsub_host(HostType, RecipientDomain, VirtPubsubDomain) ->
 %%--------------------------------------------------------------------
 -spec do_push_event(mongoose_acc:t(), mod_event_pusher:event(), jid:jid()) -> mongoose_acc:t().
 do_push_event(Acc, Event, BareRecipient) ->
+    HostType = mongoose_acc:host_type(Acc),
+    Opts = gen_mod:get_module_opts(HostType, ?MODULE),
+    do_push_event(Acc, Event, BareRecipient, Opts).
+
+-spec do_push_event(mongoose_acc:t(), mod_event_pusher:event(), jid:jid(),
+                    gen_mod:module_opts()) -> mongoose_acc:t().
+do_push_event(Acc, Event, BareRecipient, #{plugin_module := _}) ->
     case mod_event_pusher_push_plugin:prepare_notification(Acc, Event) of
         skip -> Acc;
         Payload ->
@@ -211,7 +241,9 @@ do_push_event(Acc, Event, BareRecipient) ->
                                                                                 BareRecipient),
             FilteredService = mod_event_pusher_push_plugin:should_publish(Acc, Event, Services),
             mod_event_pusher_push_plugin:publish_notification(Acc, Event, Payload, FilteredService)
-    end.
+    end;
+do_push_event(Acc, Event, BareRecipient, #{rules := Rules}) ->
+    mod_event_pusher_push_rules:push_event(Acc, Event, BareRecipient, Rules).
 
 -spec parse_request(Request :: exml:element()) ->
     {enable, jid:jid(), pubsub_node(), form()} |

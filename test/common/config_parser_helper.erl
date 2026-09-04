@@ -620,7 +620,19 @@ custom_mod_event_pusher_http() ->
 custom_mod_event_pusher_push() ->
     #{iqdisc => one_queue,
       backend => mnesia,
-      plugin_module => mod_event_pusher_push_plugin_defaults,
+      rules =>
+          [#{conditions => [#{hint => no_store}], action => skip},
+           #{conditions => [#{event => msg, body => non_empty, user_status => offline},
+                             #{event => msg, body => non_empty, user_status => online,
+                               client_state => inactive},
+                             #{event => unack_msg, body => non_empty}],
+             action => push, content => message},
+           #{conditions => [#{event => msg, body => absent, hint => store, jingle => true,
+                              user_status => offline},
+                             #{event => msg, body => absent, hint => store, jingle => true,
+                               user_status => online, client_state => inactive},
+                             #{event => unack_msg, body => absent, hint => store, jingle => true}],
+             action => push, content => jingle}],
       virtual_pubsub_hosts =>
           [{fqdn,<<"host1">>},{fqdn,<<"host2">>}],
       wpool => #{strategy => available_worker,

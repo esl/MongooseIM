@@ -121,7 +121,7 @@ create_exchanges(HostType, Opts) ->
 create_exchange(HostType, #{name := ExName, type := Type, durable := Durable}) ->
     call_rabbit_worker(HostType, {amqp_call, mongoose_amqp:exchange_declare(ExName, Type, Durable)}).
 
--spec handle_event(mongooseim:host_type(), #user_status_event{} | #chat_event{},
+-spec handle_event(mongooseim:host_type(), #user_status_event{} | #msg_event{},
                    mod_event_pusher:metadata(), exchange_opts()) -> ok.
 handle_event(HostType, Event, Metadata, ExchangeOpts = #{name := ExchangeName}) ->
     case message(Event) of
@@ -158,19 +158,19 @@ cast_rabbit_worker(HostType, Msg) ->
 exchange_keys() ->
     [presence_exchange, chat_msg_exchange, groupchat_msg_exchange].
 
--spec routing_key(#user_status_event{} | #chat_event{}, exchange_opts()) -> binary().
+-spec routing_key(#user_status_event{} | #msg_event{}, exchange_opts()) -> binary().
 routing_key(#user_status_event{jid = JID}, _) ->
     jid:to_binary(jid:to_lus(JID));
-routing_key(#chat_event{direction = in, from = From}, #{sent_topic := Topic}) ->
+routing_key(#msg_event{direction = in, from = From}, #{sent_topic := Topic}) ->
     user_topic_routing_key(From, Topic);
-routing_key(#chat_event{direction = out, to = To}, #{recv_topic := Topic}) ->
+routing_key(#msg_event{direction = out, to = To}, #{recv_topic := Topic}) ->
     user_topic_routing_key(To, Topic).
 
--spec message(#user_status_event{} | #chat_event{}) -> skip | #{atom() => binary()}.
+-spec message(#user_status_event{} | #msg_event{}) -> skip | #{atom() => binary()}.
 message(#user_status_event{jid = JID, status = Status}) ->
     #{user_id => jid:to_binary(jid:to_lower(JID)),
       present => is_user_online(Status)};
-message(#chat_event{packet = Packet, from = From, to = To}) ->
+message(#msg_event{packet = Packet, from = From, to = To}) ->
     case exml_query:path(Packet, [{element, <<"body">>}, cdata]) of
         undefined ->
             skip; % skip (group)chat messages w/o body, e.g. displayed markers
@@ -182,8 +182,8 @@ message(#chat_event{packet = Packet, from = From, to = To}) ->
 
 -spec event_to_key(mod_event_pusher:event()) -> {ok, exchange_key()} | skip.
 event_to_key(#user_status_event{}) -> {ok, presence_exchange};
-event_to_key(#chat_event{type = chat}) -> {ok, chat_msg_exchange};
-event_to_key(#chat_event{type = groupchat}) -> {ok, groupchat_msg_exchange};
+event_to_key(#msg_event{type = chat}) -> {ok, chat_msg_exchange};
+event_to_key(#msg_event{type = groupchat}) -> {ok, groupchat_msg_exchange};
 event_to_key(_) -> skip.
 
 -spec user_topic_routing_key(JID :: jid:jid(), Topic :: binary()) -> binary().

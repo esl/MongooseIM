@@ -24,7 +24,7 @@
 -include("mongoose_config_spec.hrl").
 
 -type backend() :: http | push | rabbit | sns.
--type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
+-type event() :: #user_status_event{} | #msg_event{} | #unack_msg_event{}.
 -type metadata() :: #{atom() => atom() | binary() | number()}.
 -type push_event_params() :: #{event := event()}.
 -type push_event_acc() :: #{acc := mongoose_acc:t(), metadata := metadata()}.

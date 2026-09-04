@@ -55,6 +55,9 @@ Pool options that will be passed to the `worker_pool` library that handles all t
 The module implementing `mod_event_pusher_push_plugin` behaviour, used for dynamic configuration of push notifications.
 See the [relevant section](#plugin-module) for more details.
 
+!!! Tip
+    For most cases, it is recommended to use [rules](#modulesmod_event_pusherpushrules) instead of plugins as they provide a higher level of configurability and flexibility.
+
 ### `modules.mod_event_pusher.push.virtual_pubsub_hosts`
 * **Syntax:** array of strings
 * **Default:** `[]`
@@ -63,6 +66,86 @@ See the [relevant section](#plugin-module) for more details.
 The list of "simulated" Publish-Subscribe domains. You may use the `@HOST@` pattern in the domain name.
 It will automatically be replaced by a respective XMPP domain (e.g. `localhost`).
 See the [relevant section](#virtual-pubsub-hosts) for more details.
+
+### `modules.mod_event_pusher.push.rules`
+* **Syntax:** array of TOML tables
+* **Default:** not set
+
+An ordered list of rules controlling which push notifications are sent and what content they have.
+Each rule consists of a list of [conditions](#modulesmod_event_pusherpushrulesconditions), an [action](#modulesmod_event_pusherpushrulesaction), and, when the action is `"push"`, [content](#modulesmod_event_pusherpushrulescontent) specification.
+
+Rules are checked in order, and the first matching rule determines the action. No subsequent rules
+are checked. If no rule matches, the notification is skipped.
+
+!!! Warning
+    Rules and plugins are mutually exclusive.
+    Make sure you don't specify `rules` and [`plugin_module`](#modulesmod_event_pusherpushplugin_module) together.
+
+#### `modules.mod_event_pusher.push.rules.conditions`
+* **Syntax:** non-empty array of non-empty TOML tables
+* **Default:** not set
+
+Specifies when the rule matches with a list of alternative condition tables.
+All fields within one table must match, while the tables are alternatives, so any one matching table is sufficient.
+Omitting `conditions` makes the rule match unconditionally.
+
+The following condition fields are available:
+
+| Condition | Values | Meaning |
+| --- | --- | --- |
+| `event` | `"msg"`, `"unack_msg"` | `"msg"` is generated while a message is routed to the recipient. `"unack_msg"` is generated for each unacknowledged message when its [XEP-0198: Stream Management][XEP-0198] connection closes and enters the resumption state. |
+| `type` | `"chat"`, `"groupchat"` | The XMPP message type. |
+| `body` | `"absent"`, `"empty"`, `"non_empty"` | The state of the message `<body>` element. |
+| `hint` | `"no_store"`, `"store"` | Presence of the corresponding [XEP-0334: Message Processing Hints][XEP-0334] hint. |
+| `jingle` | `true`, `false` | Whether the stanza contains an [XEP-0353: Jingle Message Initiation][XEP-0353] element. |
+| <nobr>`user_status`</nobr> | `"online"`, `"offline"` | Recipient status at routing time; available for `msg` events. |
+| <nobr>`client_state`</nobr> | `"active"`, `"inactive"` | Recipient [XEP-0352: Client State Indication][XEP-0352] state; available for online `msg` events when [`mod_csi`](./mod_csi.md) is enabled. |
+
+#### `modules.mod_event_pusher.push.rules.action`
+* **Syntax:** string, one of `"push"`, `"skip"`
+* **Default:** no default, this option is mandatory
+
+Determines whether a matching rule sends or skips the notification.
+
+#### `modules.mod_event_pusher.push.rules.content`
+* **Syntax:** string, one of `"message"`, `"jingle"`
+* **Default:** no default
+
+Determines the content of the last message body in the push notification:
+
+* `"message"` includes the message body,
+* `"jingle"` builds it from a valid Jingle Message Initiation element in the format `Jingle message: <action>, session ID: <id>`.
+
+This option is mandatory when `action` is `"push"` and cannot be specified when `action` is `"skip"`.
+If the selected content cannot be built from the stanza, the notification is **not** sent and a warning is logged, so make sure to match `conditions` with `content`.
+
+!!! Warning
+    Jingle notifications are experimental and very likely to change in future versions.
+
+#### Example
+
+This example configuration enables the module with the RDBMS backend, and using a virtual pubsub host.
+Push notifications are not sent for any messages with a `no-store` processing hint.
+For other messages with non-empty body, they are sent when the recipient is either offline, or online with all sessions selected for delivery in the inactive CSI state.
+
+```toml
+[modules.mod_event_pusher.push]
+  backend = "rdbms"
+  virtual_pubsub_hosts = ["push.@HOST@"]
+
+  [[modules.mod_event_pusher.push.rules]]
+    conditions = [{ hint = "no_store" }]
+    action = "skip"
+
+  [[modules.mod_event_pusher.push.rules]]
+    conditions = [
+      { event = "msg", body = "non_empty", user_status = "offline" },
+      { event = "msg", body = "non_empty", user_status = "online", client_state = "inactive" },
+      { event = "unack_msg", body = "non_empty" }
+    ]
+    action = "push"
+    content = "message"
+```
 
 ## Virtual PubSub hosts
 
@@ -102,7 +185,6 @@ option. `"pubsub.@HOST@"` is the default domain for `mod_pubsub_old`.
 * More complex configuration on the server side
 * Pays the PubSub performance penalty when the PubSub path is taken
 
-
 ## Plugin module
 
 You can also control the format of the "sender" of the push notification (which ultimately becomes
@@ -130,7 +212,7 @@ notifications) should be uniquely identified. The only correct way to identify a
 XMPP standpoint is to use the data provided with the [enable stanza][enabling]. Because of that,
 each device should (re)enable the push notifications at the beginning of each and every connection.
 
-### Message notification rules
+### Plugin message notification logic
 
 For regular chat and groupchat messages, both provided plugins send push notifications if one of the following conditions occurs at the moment of routing:
 
@@ -145,6 +227,9 @@ the defaults are used instead.
 
 [mod_event_pusher]: ./mod_event_pusher.md
 [XEP-0198]: https://xmpp.org/extensions/xep-0198.html
+[XEP-0334]: https://xmpp.org/extensions/xep-0334.html
+[XEP-0352]: https://xmpp.org/extensions/xep-0352.html
+[XEP-0353]: https://xmpp.org/extensions/xep-0353.html
 [enabling]: https://xmpp.org/extensions/xep-0357.html#enabling
 [tutorial]: ../tutorials/push-notifications/Push-notifications.md
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html

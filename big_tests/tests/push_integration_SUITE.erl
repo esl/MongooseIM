@@ -34,7 +34,9 @@
 all() ->
     [
      {group, pubsub_ful},
-     {group, pubsub_less}
+     {group, pubsub_ful_with_rules},
+     {group, pubsub_less},
+     {group, pubsub_less_with_rules}
     ].
 
 basic_groups() ->
@@ -53,10 +55,19 @@ basic_groups() ->
      {group, disco}
     ].
 
+rule_groups() ->
+    [{group, content_build_failure},
+     {group, type_condition}].
+
 groups() ->
     G = [
          {pubsub_ful, [], basic_groups()},
+         {pubsub_ful_with_rules, [], basic_groups() ++ rule_groups()},
          {pubsub_less, [], basic_groups()},
+         {pubsub_less_with_rules, [], basic_groups() ++ rule_groups()},
+         {content_build_failure, [], [missing_message_content_is_not_pushed]},
+         {type_condition, [], [only_chat_messages_are_pushed,
+                               only_unacknowledged_chat_messages_are_pushed]},
          {integration_with_sm_and_offline_storage,[],
           [
            no_duplicates_default_plugin,
@@ -158,6 +169,7 @@ suite() ->
 
 init_per_suite(Config) ->
     cth_error_report:max_unexpected_errors_logged(0),
+    logger_ct_backend:start(),
     %% known flaky error - a race between supervisor and worker shutting down,
     %% if the worker dies first it passes ETS ownership to heir process,
     %% which is the supervisor process not expecting this message
@@ -167,7 +179,8 @@ init_per_suite(Config) ->
     %%                                     <10782.4892.0>,testing}
     %%
     cth_error_report:expect({regex, <<"'ETS-TRANSFER',mongoose_wpool_">>}),
-    cth_error_report:expect({what, push_send_failed}, 6),
+    % 3 errors per each top-level group (from 500/503 codes in failure_cases)
+    cth_error_report:expect({what, push_send_failed}, length(all()) * 3),
     try mongoose_push_mock:stop() catch _:_ -> ok end,
     mongoose_push_mock:start(Config),
     Port = mongoose_push_mock:port(),
@@ -180,15 +193,20 @@ init_per_suite(Config) ->
     escalus:init_per_suite(ConfigWithModules).
 
 end_per_suite(Config) ->
+    logger_ct_backend:stop(),
     escalus_fresh:clean(),
     rpc(?RPC_SPEC, mongoose_wpool, stop, [http, global, mongoose_push_http]),
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
 
 init_per_group(pubsub_less, Config) ->
-    [{pubsub_host, virtual} | Config];
+    [{push_mode, plugins}, {pubsub_host, virtual} | Config];
+init_per_group(pubsub_less_with_rules, Config) ->
+    [{push_mode, rules}, {pubsub_host, virtual} | Config];
 init_per_group(pubsub_ful, Config) ->
-    [{pubsub_host, real} | Config];
+    [{push_mode, plugins}, {pubsub_host, real} | Config];
+init_per_group(pubsub_ful_with_rules, Config) ->
+    [{push_mode, rules}, {pubsub_host, real} | Config];
 init_per_group(disco, Config) ->
     escalus:create_users(Config, escalus:get_users([alice]));
 init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
@@ -433,12 +451,19 @@ immediate_notification(Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
     escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
 
+    AliceJID = bare_jid(Alice),
     C2SPid = mongoose_helper:get_session_pid(Alice, distributed_helper:mim()),
     escalus_connection:kill(Alice),
 
+    verify_immediate_notifications(?config(push_mode, Config), Bob, C2SPid,
+                                   APNSDevice, FCMDevice, BobJID, AliceJID),
+
+    escalus_connection:stop(Bob).
+
+verify_immediate_notifications(plugins, Bob, C2SPid, APNSDevice, FCMDevice, BobJID, AliceJID) ->
     verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-1">>),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-2">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(AliceJID, <<"msg-2">>)),
     verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-2">>),
 
     ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500)),
@@ -448,9 +473,19 @@ immediate_notification(Config) ->
     verify_notification(APNSDevice, <<"apns">>, [], [{BobJID, <<"msg-1">>},
                                                      {BobJID, <<"msg-2">>}]),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 500));
+verify_immediate_notifications(rules, Bob, C2SPid, APNSDevice, FCMDevice, BobJID, AliceJID) ->
+    verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
+    verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-1">>),
 
-    escalus_connection:stop(Bob).
+    escalus_connection:send(Bob, escalus_stanza:chat_to(AliceJID, <<"msg-2">>)),
+    verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-2">>),
+    verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-2">>),
+
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid, normal]),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 1)).
 
 double_notification_with_two_sessions_in_resume(Config) ->
 
@@ -527,6 +562,12 @@ double_notification_with_two_sessions_in_resume(Config) ->
     C2SPid2 = mongoose_helper:get_session_pid(Alice2, distributed_helper:mim()),
     escalus_connection:kill(Alice2),
 
+    verify_double_notifications(?config(push_mode, Config), C2SPid1, C2SPid2,
+                                APNSDevice1, APNSDevice2, BobJID),
+
+    escalus_connection:stop(Bob).
+
+verify_double_notifications(plugins, C2SPid1, C2SPid2, APNSDevice1, APNSDevice2, BobJID) ->
     verify_notification(APNSDevice1, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
     verify_notification(APNSDevice2, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
 
@@ -543,9 +584,25 @@ double_notification_with_two_sessions_in_resume(Config) ->
     rpc(?RPC_SPEC, sys, terminate, [C2SPid2, normal]),
 
     verify_notification(APNSDevice1, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
-    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 500));
+verify_double_notifications(rules, C2SPid1, C2SPid2, APNSDevice1, APNSDevice2, BobJID) ->
+    verify_notification(APNSDevice1, <<"apns">>, [], BobJID, <<"msg-1">>),
+    verify_notification(APNSDevice1, <<"apns">>, [], BobJID, <<"msg-1">>),
+    verify_notification(APNSDevice2, <<"apns">>, [], BobJID, <<"msg-1">>),
+    verify_notification(APNSDevice2, <<"apns">>, [], BobJID, <<"msg-1">>),
 
-    escalus_connection:stop(Bob).
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice1, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 1)),
+
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid1, normal]),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice1, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 1)),
+
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid2, normal]),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice1, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 1)).
 
 hints_filtering(Config) ->
         escalus:fresh_story(
@@ -575,9 +632,9 @@ bodiless_messages(Config) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             #{device_token := FcmDeviceToken} =
-                 enable_push_for_user(Bob, <<"fcm">>, [{<<"silent">>, <<"true">>}], Config),
+                 enable_push_for_user(Bob, <<"fcm">>, [], Config),
             #{device_token := ApnsDeviceToken} =
-                 enable_push_for_user(Bob, <<"apns">>, [{<<"silent">>, <<"true">>}], Config),
+                 enable_push_for_user(Bob, <<"apns">>, [], Config),
             become_unavailable(Bob),
             Msg = dummy_jingle_propose_message(Bob),
             %% bodiless message with store hint should pass
@@ -585,13 +642,86 @@ bodiless_messages(Config) ->
             {ApnsNotification, _} = wait_for_push_request(ApnsDeviceToken),
             {FcmNotification, _} = wait_for_push_request(FcmDeviceToken),
             AliceJID = bare_jid(Alice),
-            assert_jingle_push_notification(ApnsNotification, <<"apns">>, AliceJID, <<"propose">>),
-            assert_jingle_push_notification(FcmNotification, <<"fcm">>, AliceJID,  <<"propose">>),
+            Body = <<"Jingle message: propose, session ID: ", ?JINGLE_SESSION_ID/binary>>,
+            assert_push_notification(ApnsNotification, <<"apns">>, [], AliceJID, [{body, Body}]),
+            assert_push_notification(FcmNotification, <<"fcm">>, [], AliceJID, [{body, Body}]),
             %% bodiless message with no-copy hint should be blocked
             escalus:send(Alice, add_message_hint(Msg, <<"no-copy">>)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
         end).
+
+missing_message_content_is_not_pushed(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := DeviceToken} = enable_push_for_user(Bob, <<"fcm">>, [], Config),
+            become_unavailable(Bob),
+            logger_ct_backend:capture(warning),
+            try
+                escalus:send(Alice, dummy_jingle_propose_message(Bob)),
+                Filter = fun(_, Msg) ->
+                                 re:run(Msg, "mod_event_pusher_push_failed_to_build_content")
+                                     =/= nomatch
+                                 andalso re:run(Msg, "missing_message_body") =/= nomatch
+                         end,
+                wait_helper:wait_until(fun() -> length(logger_ct_backend:recv(Filter)) end, 1),
+                ?assertExit({test_case_failed, _}, wait_for_push_request(DeviceToken, 500))
+            after
+                logger_ct_backend:stop_capture()
+            end
+        end).
+
+only_chat_messages_are_pushed(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice,
+                                                            [{Bob, member}]),
+            #{device_token := DeviceToken} =
+                enable_push_and_become_unavailable(Bob, <<"fcm">>, [], Config),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Private message">>)),
+            verify_notification(DeviceToken, <<"fcm">>, [], bare_jid(Alice),
+                                <<"Private message">>),
+
+            muclight_conversation(Alice, RoomJID, <<"Groupchat message">>),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(DeviceToken, 500))
+        end).
+
+only_unacknowledged_chat_messages_are_pushed(Config) ->
+    ConnSteps = [start_stream, stream_features, maybe_use_ssl,
+                 authenticate, bind, session, stream_resumption],
+    BobSpec = escalus_fresh:create_fresh_user(Config, bob),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
+    escalus_session:send_presence_available(Bob),
+    escalus_connection:get_stanza(Bob, presence),
+    BobJID = bare_jid(Bob),
+
+    AliceSpec = [{manual_ack, false}, {stream_management, true} |
+                 escalus_fresh:create_fresh_user(Config, alice)],
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    escalus_session:send_presence_available(Alice),
+    escalus_connection:get_stanza(Alice, presence),
+
+    RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice,
+                                                    [{Bob, member}]),
+    #{device_token := DeviceToken} = enable_push_for_user(Alice, <<"fcm">>, [], Config),
+
+    escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Private message">>)),
+    escalus:assert(is_chat_message, [<<"Private message">>],
+                   escalus_connection:get_stanza(Alice, msg)),
+    muclight_conversation(Bob, RoomJID, <<"Groupchat message">>),
+    escalus:assert(is_groupchat_message, [<<"Groupchat message">>],
+                   escalus_connection:get_stanza(Alice, msg)),
+
+    C2SPid = mongoose_helper:get_session_pid(Alice, distributed_helper:mim()),
+    escalus_connection:kill(Alice),
+    verify_notification(DeviceToken, <<"fcm">>, [], BobJID, <<"Private message">>),
+
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid, normal]),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(DeviceToken, 500)),
+    escalus_connection:stop(Bob).
 
 add_message_hint(#xmlel{children = Children} = Msg, HintType) when is_binary(HintType) ->
     MsgHintEl = #xmlel{name = HintType,
@@ -658,16 +788,6 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
             assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
         end).
-
-assert_jingle_push_notification(Notification, Service, SenderJID, JingleMessageType) ->
-
-    ?assertMatch(#{<<"service">> := Service}, Notification),
-
-    Data = maps:get(<<"data">>, Notification, undefined),
-
-    ?assertMatch(#{<<"message-sender">> := SenderJID}, Data),
-    ?assertMatch(#{<<"jingle-message">> := JingleMessageType}, Data),
-    ?assertMatch(#{<<"jingle-session-id">> := ?JINGLE_SESSION_ID}, Data).
 
 assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
     assert_push_notification(Notification, Service, EnableOpts, SenderJID, []).
@@ -1185,7 +1305,8 @@ getenv(VarName, Default) ->
 init_modules(G, Config) ->
     MongoosePushAPI = mongoose_push_api_for_group(G),
     PubSubHost = ?config(pubsub_host, Config),
-    Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost),
+    PushMode = ?config(push_mode, Config),
+    Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost, PushMode),
     C = dynamic_modules:save_modules(host_type(), Config),
     Fun = fun() -> try dynamic_modules:ensure_modules(host_type(), Modules) catch _:_ -> error end end,
     wait_helper:wait_until(Fun, ok),
@@ -1196,17 +1317,26 @@ mongoose_push_api_for_group(failure_cases_v2) ->
 mongoose_push_api_for_group(_) ->
     <<"v3">>.
 
-required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost) ->
+required_modules_for_group(Group = pm_notifications_with_inbox, API, PubSubHost, PushMode) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     [{mod_inbox, inbox_opts()},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})} |
-     required_modules(API, PubSubHost)];
-required_modules_for_group(groupchat_notifications_with_inbox, API, PubSubHost) ->
+     required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = groupchat_notifications_with_inbox,
+                           API, PubSubHost, PushMode) ->
     [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}
-     | required_modules(API, PubSubHost)];
-required_modules_for_group(muclight_msg_notifications, API, PubSubHost) ->
-    [{mod_muc_light, muc_light_opts()} | required_modules(API, PubSubHost)];
-required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubHost) ->
+     | required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = muclight_msg_notifications, API, PubSubHost, PushMode) ->
+    [{mod_muc_light, muc_light_opts()} | required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = type_condition, API, PubSubHost, PushMode) ->
+    MemBackend = ct_helper:get_internal_database(),
+    [{mod_muc_light, muc_light_opts()},
+     {mod_stream_management,
+      config_parser_helper:mod_config(mod_stream_management,
+                                      #{ack_freq => never, backend => MemBackend})} |
+     required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = integration_with_sm_and_offline_storage,
+                           API, PubSubHost, PushMode) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     MemBackend = ct_helper:get_internal_database(),
     [{mod_muc_light, muc_light_opts()},
@@ -1214,36 +1344,45 @@ required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubH
                                                              #{ack_freq => never, resume_timeout => 1,
                                                                backend => MemBackend})},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})} |
-     required_modules(API, PubSubHost)];
-required_modules_for_group(notifications_with_csi_without_buffer, API, PubSubHost) ->
+     required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = notifications_with_csi_without_buffer,
+                           API, PubSubHost, PushMode) ->
     [{mod_muc_light, muc_light_opts()},
      {mod_csi, config_parser_helper:mod_config(mod_csi, #{})} |
-     required_modules(API, PubSubHost)];
-required_modules_for_group(notifications_with_csi_and_buffer, API, PubSubHost) ->
+     required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = notifications_with_csi_and_buffer,
+                           API, PubSubHost, PushMode) ->
     [{mod_csi, config_parser_helper:mod_config(mod_csi, #{buffer => #{max_size => 10}})} |
-     required_modules(API, PubSubHost)];
-required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
+     required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = enhanced_integration_with_sm, API, PubSubHost, PushMode) ->
     MemBackend = ct_helper:get_internal_database(),
     [{mod_stream_management,
       config_parser_helper:mod_config(mod_stream_management,
                                       #{ack_freq => never, backend => MemBackend})} |
-     required_modules(API, PubSubHost, enhanced_plugin_module_opts())];
-required_modules_for_group(enhanced_integration_with_sm_and_filtering, API, PubSubHost) ->
+     required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group = enhanced_integration_with_sm_and_filtering,
+                           API, PubSubHost, PushMode) ->
     MemBackend = ct_helper:get_internal_database(),
     [{mod_stream_management,
       config_parser_helper:mod_config(mod_stream_management,
                                       #{ack_freq => never, backend => MemBackend})} |
-     required_modules(API, PubSubHost, hints_plugin_module_opts())];
-required_modules_for_group(_, API, PubSubHost) ->
-    required_modules(API, PubSubHost).
+     required_modules(API, PubSubHost, PushMode, Group)];
+required_modules_for_group(Group, API, PubSubHost, PushMode) ->
+    required_modules(API, PubSubHost, PushMode, Group).
 
-required_modules(API, PubSubHost)->
-    required_modules(API, PubSubHost, #{}).
-
-required_modules(API, PubSubHost, ExtraPushOpts) ->
+required_modules(API, PubSubHost, PushMode, Group) ->
     PubSubHostOpts = virtual_pubsub_hosts_opts(PubSubHost),
-    PushOpts = maps:merge(ExtraPushOpts, PubSubHostOpts),
+    PushOpts = maps:merge(push_options(PushMode, Group), PubSubHostOpts),
     pubsub_modules(PubSubHost) ++ event_pusher_modules(API, PushOpts).
+
+push_options(plugins, enhanced_integration_with_sm) ->
+    enhanced_plugin_module_opts();
+push_options(plugins, enhanced_integration_with_sm_and_filtering) ->
+    hints_plugin_module_opts();
+push_options(plugins, _Group) ->
+    #{};
+push_options(rules, Group) ->
+    #{rules => push_rules(Group)}.
 
 pubsub_modules(virtual) ->
     [];
@@ -1264,6 +1403,10 @@ virtual_pubsub_hosts_opts(virtual) ->
 virtual_pubsub_hosts_opts(real) ->
     #{}.
 
+push_opts(ExtraOpts = #{rules := _}) ->
+    Opts = config([modules, mod_event_pusher, push],
+                  ExtraOpts#{backend => mongoose_helper:mnesia_or_rdbms_backend()}),
+    maps:remove(plugin_module, Opts);
 push_opts(ExtraOpts) ->
     config([modules, mod_event_pusher, push],
            ExtraOpts#{backend => mongoose_helper:mnesia_or_rdbms_backend()}).
@@ -1280,3 +1423,41 @@ muc_light_opts() ->
 
 inbox_opts() ->
     (inbox_helper:inbox_opts())#{aff_changes := false}.
+
+push_rules(enhanced_integration_with_sm) ->
+    [#{conditions => [#{event => msg, body => non_empty, user_status => offline},
+                       #{event => msg, body => non_empty, user_status => online,
+                         client_state => inactive},
+                       #{event => unack_msg, body => non_empty}],
+       action => push,
+       content => message}];
+push_rules(enhanced_integration_with_sm_and_filtering) ->
+    [#{conditions => [#{hint => no_store}], action => skip},
+     #{conditions => [#{event => msg, body => non_empty, user_status => offline},
+                      #{event => msg, body => non_empty, user_status => online,
+                        client_state => inactive},
+                      #{event => unack_msg, body => non_empty}],
+       action => push,
+       content => message},
+     #{conditions => [#{event => msg, body => absent, hint => store, jingle => true,
+                        user_status => offline},
+                      #{event => msg, body => absent, hint => store, jingle => true,
+                        user_status => online, client_state => inactive},
+                      #{event => unack_msg, body => absent, hint => store, jingle => true}],
+       action => push,
+       content => jingle}];
+push_rules(content_build_failure) ->
+    [#{conditions => [#{event => msg, body => absent}],
+       action => push,
+       content => message}];
+push_rules(type_condition) ->
+    [#{conditions => [#{event => msg, type => chat, user_status => offline},
+                       #{event => unack_msg, type => chat}],
+       action => push,
+       content => message}];
+push_rules(_Group) ->
+    [#{conditions => [#{event => msg, body => non_empty, user_status => offline},
+                      #{event => msg, body => non_empty, user_status => online,
+                        client_state => inactive}],
+       action => push,
+       content => message}].
