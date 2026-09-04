@@ -710,6 +710,30 @@ jobs:
           name: Run Elvis
           command: |
             make elvis
+
+  safe:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - restore_cache:
+          name: Maybe restore the SAFE engine
+          key: safe-engine-{{ checksum "safe.lock" }}-v1
+      - run:
+          name: Run SAFE
+          # TODO: drop `|| true` once the outstanding SAFE findings are triaged/fixed,
+          # turning this from a report into a real CI gate.
+          command: |
+            tools/test.sh -p safe_only || true
+      - save_cache:
+          name: Cache the SAFE engine
+          key: safe-engine-{{ checksum "safe.lock" }}-v1
+          paths:
+            - ~/project/safe
+
   edoc:
     executor: << parameters.executor >>
     parameters:
@@ -821,6 +845,14 @@ workflows:
       # ============= ELVIS =============
       - elvis:
           name: elvis
+          executor: latest_otp
+          context: mongooseim-org
+          requires:
+            - latest_otp_docker
+          filters: *all_tags
+      # ============= SAFE (security scan) =============
+      - safe:
+          name: safe
           executor: latest_otp
           context: mongooseim-org
           requires:
