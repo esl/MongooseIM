@@ -1,4 +1,30 @@
 """
+Allow admin to get the metric values. Only works with Exometer enabled.
+"""
+type MetricAdminQuery @protected{
+    """
+    Match metrics using a name pattern and return the metric values.
+    Return all metrics if the name is not provided.
+    Name is a list of name segments or an underscore (i.e. path).
+    """
+    getMetrics(name: [String!]): [MetricResult]!
+      @protected(type: GLOBAL)
+    """
+    Get metrics without using graphql unions.
+    Optionally returns only specified keys
+    (i.e. keys: ["one"] only returns key "one", but not key "count")
+    """
+    getMetricsAsDicts(name: [String!], keys: [String!]): [MetricDictResult!]!
+      @protected(type: GLOBAL)
+    """
+    Gather metrics from multiple nodes.
+    Optionally returns only from specified nodes.
+    """
+    getClusterMetricsAsDicts(name: [String!], keys: [String!], nodes: [String!]): [MetricNodeResult]!
+      @protected(type: GLOBAL)
+}
+
+"""
 Result of a metric
 """
 enum MetricType {
@@ -95,30 +121,4 @@ type MetricDictResult {
 type MetricNodeResult {
   node: String!
   result: [MetricDictResult!]!
-}
-
-"""
-Allow admin to get the metric values. Only works with Exometer enabled.
-"""
-type MetricAdminQuery @protected{
-    """
-    Match metrics using a name pattern and return the metric values.
-    Return all metrics if the name is not provided.
-    Name is a list of name segments or an underscore (i.e. path).
-    """
-    getMetrics(name: [String!]): [MetricResult]!
-      @protected(type: GLOBAL)
-    """
-    Get metrics without using graphql unions.
-    Optionally returns only specified keys
-    (i.e. keys: ["one"] only returns key "one", but not key "count")
-    """
-    getMetricsAsDicts(name: [String!], keys: [String!]): [MetricDictResult!]!
-      @protected(type: GLOBAL)
-    """
-    Gather metrics from multiple nodes.
-    Optionally returns only from specified nodes.
-    """
-    getClusterMetricsAsDicts(name: [String!], keys: [String!], nodes: [String!]): [MetricNodeResult]!
-      @protected(type: GLOBAL)
 }

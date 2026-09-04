@@ -120,7 +120,7 @@ set_user_affiliation(#{user := FromJID}, #{<<"room">> := RoomJID, <<"user">> := 
     format_result(Result, #{room => jid:to_binary(RoomJID)}).
 
 -spec do_send_message_to_room(jid:jid(), jid:jid(), binary(), binary() | null) ->
-    {ok | no_session, iolist()}.
+    {ok | no_session, binary()}.
 do_send_message_to_room(RoomJID, UserJID, Message, Res) ->
     case mongoose_graphql_muc_helper:add_user_resource(UserJID, Res) of
         {ok, UserJIDRes} ->
