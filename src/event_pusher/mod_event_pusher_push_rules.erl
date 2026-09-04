@@ -9,11 +9,13 @@
 
 -export([process_rule/1]).
 
+-type event() :: #msg_event{} | #unack_msg_event{}.
+
 -spec config_spec() -> mongoose_config_spec:config_list().
 config_spec() ->
     #list{items = rule_config_spec(), validate = unique}.
 
--spec push_event(mongoose_acc:t(), mod_event_pusher:event(), jid:jid(), [map()]) ->
+-spec push_event(mongoose_acc:t(), event(), jid:jid(), [map()]) ->
           mongoose_acc:t().
 push_event(Acc, Event, BareRecipient, Rules) ->
     perform_action(Acc, Event, BareRecipient, match_rule(Rules, Event)).
@@ -75,7 +77,7 @@ process_rule(#{action := Action, content := _}) when Action =/= push ->
 process_rule(Rule) ->
     Rule.
 
--spec match_rule([map()], mod_event_pusher:event()) -> map().
+-spec match_rule([map()], event()) -> map().
 match_rule([#{conditions := Conditions} = Rule | RemainingRules], Event) ->
     case check_conditions(Conditions, Event) of
         true -> Rule;
@@ -84,16 +86,16 @@ match_rule([#{conditions := Conditions} = Rule | RemainingRules], Event) ->
 match_rule([], _Event) ->
     #{conditions => [], action => skip}.
 
--spec check_conditions([map()], mod_event_pusher:event()) -> boolean().
+-spec check_conditions([map()], event()) -> boolean().
 check_conditions(Conditions, Event) ->
     lists:any(fun(Condition) -> check_condition_map(Condition, Event) end, Conditions).
 
--spec check_condition_map(map(), mod_event_pusher:event()) -> boolean().
+-spec check_condition_map(map(), event()) -> boolean().
 check_condition_map(Condition, Event) ->
     lists:all(fun({Key, Value}) -> check_condition(Key, Value, Event) end,
               maps:to_list(Condition)).
 
--spec check_condition(atom(), term(), mod_event_pusher:event()) -> boolean().
+-spec check_condition(atom(), term(), event()) -> boolean().
 check_condition(event, msg, #msg_event{}) ->
     true;
 check_condition(event, unack_msg, #unack_msg_event{}) ->
@@ -109,24 +111,23 @@ check_condition(user_status, online, #msg_event{user_status = {online, _}}) ->
 check_condition(client_state, Expected,
                 #msg_event{user_status = {online, #{client_state := Expected}}}) ->
     true;
-check_condition(Condition, Expected, #msg_event{packet = Packet}) ->
-    check_packet_condition(Condition, Expected, Packet);
-check_condition(Condition, Expected, #unack_msg_event{packet = Packet}) ->
-    check_packet_condition(Condition, Expected, Packet);
+check_condition(body, Expected, Event) ->
+    Expected =:= body_state(packet(Event));
+check_condition(hint, no_store, Event) ->
+    Packet = packet(Event),
+    exml_query:subelement_with_name_and_ns(Packet, ~"no-store", ?NS_HINTS) =/= undefined;
+check_condition(hint, store, Event) ->
+    Packet = packet(Event),
+    exml_query:subelement_with_name_and_ns(Packet, ~"store", ?NS_HINTS) =/= undefined;
+check_condition(jingle, Expected, Event) ->
+    Packet = packet(Event),
+    Expected =:= (exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) =/= undefined);
 check_condition(_Condition, _Expected, _Event) ->
     false.
 
--spec check_packet_condition(atom(), term(), exml:element()) -> boolean().
-check_packet_condition(body, Expected, Packet) ->
-    Expected =:= body_state(Packet);
-check_packet_condition(hint, no_store, Packet) ->
-    exml_query:subelement_with_name_and_ns(Packet, ~"no-store", ?NS_HINTS) =/= undefined;
-check_packet_condition(hint, store, Packet) ->
-    exml_query:subelement_with_name_and_ns(Packet, ~"store", ?NS_HINTS) =/= undefined;
-check_packet_condition(jingle, Expected, Packet) ->
-    Expected =:= (exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) =/= undefined);
-check_packet_condition(_Condition, _Expected, _Packet) ->
-    false.
+-spec packet(event()) -> exml:element().
+packet(#msg_event{packet = Packet}) -> Packet;
+packet(#unack_msg_event{packet = Packet}) -> Packet.
 
 -spec body_state(exml:element()) -> absent | empty | non_empty.
 body_state(Packet) ->
