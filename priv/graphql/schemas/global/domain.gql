@@ -21,7 +21,7 @@ type DomainWithType{
   "Domain hostType"
   hostType: String
   "Is domain enabled?"
-  status: DomainStatus
+  status: DomainStatus!
   "Domain source type"
   type: DomainType!
 }
