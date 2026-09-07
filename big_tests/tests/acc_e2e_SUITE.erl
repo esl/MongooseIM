@@ -53,12 +53,13 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    {Module, Binary, Filename} = code:get_object_code(acc_test_helper) ,
-    rpc(mim(), code, load_binary, [Module, Filename, Binary]),
-    recreate_table(),
+    mongoose_helper:inject_module(mim(), acc_test_helper, reload),
+    mongoose_helper:inject_module(mim(), ets_helper, reload),
+    create_table(),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    delete_table(),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
@@ -138,6 +139,13 @@ filter_local_packet_uses_recipient_values(Config) ->
 handler(Hook, F, Seq) ->
     {Hook, domain_helper:host_type(mim), fun acc_test_helper:F/3, #{}, Seq}.
 
-%% creates a temporary ets table keeping refs and some attrs of accumulators created in c2s
-recreate_table() ->
-    rpc(mim(), acc_test_helper, recreate_table, []).
+%% a temporary ets table keeping refs and some attrs of accumulators created in c2s
+create_table() ->
+    delete_table(),
+    ok = rpc(mim(), ets_helper, new, [test_message_index]).
+
+delete_table() ->
+    case rpc(mim(), ets, whereis, [test_message_index]) of
+        undefined -> ok;
+        _Tid -> ok = rpc(mim(), ets_helper, delete, [test_message_index])
+    end.
