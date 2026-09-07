@@ -15,7 +15,7 @@ execute(Ctx, _Obj, <<"getContact">>, Args) ->
     get_contact(Ctx, Args).
 
 -spec list_contacts(mongoose_graphql:context(), mongoose_graphql:args()) ->
-    {ok, mongoose_graphql_roster:contact_list()} | {error, resolver_error()}.
+    {ok, mongoose_graphql_roster:contact_list()}.
 list_contacts(#{user := UserJID}, #{}) ->
     {ok, Contacts} = mod_roster_api:list_contacts(UserJID),
     {ok, [mongoose_graphql_roster:make_ok_roster(C) || C <- Contacts]}.

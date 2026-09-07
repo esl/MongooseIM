@@ -9,7 +9,8 @@
 -type name() :: [atom() | integer()].
 -type key() :: atom().
 -type metric_result() ::
-    {ok, #{binary() => binary() | non_neg_integer()}}.
+    {ok, #{binary() => binary() | non_neg_integer()}}
+    | {error, atom()}.
 -type dict_result() :: #{binary() => binary() | non_neg_integer()}.
 -type metric_dict_result() ::
     {ok, #{binary() => binary() | [dict_result()]}}.
@@ -67,9 +68,12 @@ prepare_nodes_arg(Nodes) ->
     Nodes.
 
 make_metric_result({Name, Dict}) ->
-    PreparedName = format_name(Name),
-    Map = format_dict(Dict),
-    {ok, Map#{<<"name">> => PreparedName}}.
+    case format_dict(Dict) of
+        {error, Reason} ->
+            {error, Reason};
+        Map ->
+            {ok, Map#{~"name" => format_name(Name)}}
+    end.
 
 make_metric_dict_result({Name, Dict}, Keys) ->
     PreparedName = format_name(Name),
@@ -98,16 +102,9 @@ format_dict2(#{value := _} = Dict) ->
     format_gauge(Dict);
 format_dict2(#{median := _} = Dict) ->
     format_histogram(Dict);
-format_dict2(#{connections := _, recv_cnt := _} = Dict) ->
-    format_merged_inet_stats(Dict);
-format_dict2(#{processes_used := _} = Dict) ->
-    format_vm_stats_memory(Dict);
-format_dict2(#{port_count := _} = Dict) ->
-    format_vm_system_info(Dict);
-format_dict2(#{fsm := _, regular := _} = Dict) ->
-    format_probe_queues(Dict);
-format_dict2(#{recv_cnt := _, workers := _} = Dict) ->
-    format_rdbms_stats(Dict).
+format_dict2(Dict) ->
+    ?LOG_ERROR(#{what => unknown_metric_type, dict => Dict}),
+    {error, unknown_metric_type}.
 
 format_spiral(#{one := One, count := Count}) ->
     #{<<"type">> => <<"spiral">>, <<"one">> => One, <<"count">> => Count}.
@@ -125,42 +122,6 @@ format_histogram(#{n := N, mean := Mean, min := Min, max := Max, median := Media
       <<"min">> => Min, <<"max">> => Max, <<"median">> => Median,
       <<"p50">> => P50, <<"p75">> => P75, <<"p90">> => P90, <<"p95">> => P95,
       <<"p99">> => P99, <<"p999">> => P999}.
-
-format_merged_inet_stats(#{connections := Cons,
-                           recv_cnt := RCnt, recv_max := RMax, recv_oct := ROct,
-                           send_cnt := SCnt, send_max := SMax, send_oct := SOct,
-                           send_pend := SPend}) ->
-    %% Metrics from a pool of connections
-    #{<<"type">> => <<"merged_inet_stats">>, <<"connections">> => Cons,
-      <<"recv_cnt">> => RCnt, <<"recv_max">> => RMax, <<"recv_oct">> => ROct,
-      <<"send_cnt">> => SCnt, <<"send_max">> => SMax, <<"send_oct">> => SOct,
-      <<"send_pend">> => SPend}.
-
-format_rdbms_stats(#{recv_cnt := RCnt, recv_max := RMax, recv_oct := ROct,
-                     send_cnt := SCnt, send_max := SMax, send_oct := SOct,
-                     send_pend := SPend, workers := Workers}) ->
-    #{<<"type">> => <<"rdbms_stats">>, <<"workers">> => Workers,
-      <<"recv_cnt">> => RCnt, <<"recv_max">> => RMax, <<"recv_oct">> => ROct,
-      <<"send_cnt">> => SCnt, <<"send_max">> => SMax, <<"send_oct">> => SOct,
-      <<"send_pend">> => SPend}.
-
-format_vm_stats_memory(#{total := Total, processes_used := P,
-                         atom_used := A, binary := B, ets := E, system := S}) ->
-    #{<<"type">> => <<"vm_stats_memory">>,
-      <<"total">> => Total, <<"processes_used">> => P, <<"atom_used">> => A,
-      <<"binary">> => B, <<"ets">> => E, <<"system">> => S}.
-
-format_vm_system_info(#{port_count := PortCount, port_limit := PortLimit,
-                        process_count := ProcessCount, process_limit := ProcessLimit,
-                        ets_limit := EtsLimit}) ->
-    #{<<"type">> => <<"vm_system_info">>,
-      <<"port_count">> => PortCount, <<"port_limit">> => PortLimit,
-      <<"process_count">> => ProcessCount, <<"process_limit">> => ProcessLimit,
-      <<"ets_limit">> => EtsLimit}.
-
-format_probe_queues(#{fsm := FSM, regular := Regular, total := Total}) ->
-    #{<<"type">> => <<"probe_queues">>,
-      <<"fsm">> => FSM, <<"regular">> => Regular, <<"total">> => Total}.
 
 prepare_host_types(Name) ->
     lists:map(

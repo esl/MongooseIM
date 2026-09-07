@@ -64,8 +64,8 @@ format_broadcast(#broadcast_job{
       <<"messageBody">> => MessageBody,
       <<"senderJid">> => SenderJid,
       <<"messageRate">> => MessageRate,
-      <<"ownerNode">> => atom_to_binary(OwnerNode, utf8),
-      <<"createTimestamp">> => undefined_to_null(CreateTimestamp),
+      <<"ownerNode">> => format_owner_node(OwnerNode),
+      <<"createTimestamp">> => CreateTimestamp,
       <<"startTimestamp">> => undefined_to_null(StartTimestamp),
       <<"stopTimestamp">> => undefined_to_null(StopTimestamp),
       <<"executionState">> => ExecutionState,
@@ -73,3 +73,7 @@ format_broadcast(#broadcast_job{
       <<"recipientGroup">> => RecipientGroup,
       <<"recipientCount">> => RecipientCount,
       <<"recipientsProcessed">> => RecipientsProcessed}.
+
+-spec format_owner_node(node() | undefined) -> binary() | null.
+format_owner_node(undefined) -> null;
+format_owner_node(Node) -> atom_to_binary(Node, utf8).

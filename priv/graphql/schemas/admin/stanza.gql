@@ -16,7 +16,7 @@ type StanzaAdminMutation @protected{
   sendMessageHeadLine(from: JID!, to: JID!, subject: String, body: String): SendStanzaPayload
     @protected(type: DOMAIN, args: ["from"])
   "Send an arbitrary stanza. Only for global admin"
-  sendStanza(stanza: XmlElement): SendStanzaPayload
+  sendStanza(stanza: XmlElement!): SendStanzaPayload
     @protected(type: GLOBAL)
 }
 
@@ -25,7 +25,7 @@ type StanzaAdminSubscription @protected{
   subscribeForMessages(caller: JID!): StanzaMap
     @protected(type: DOMAIN, args: ["caller"])
   "Subscribe for XMPP traffic"
-  subscribeForTraffic(limit: Int): TraceMap
+  subscribeForTraffic(limit: Int!): TraceMap
     @protected(type: GLOBAL)
     @use(services: ["service_traffic"])
 }

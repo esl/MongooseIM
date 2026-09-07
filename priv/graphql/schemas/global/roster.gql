@@ -13,13 +13,13 @@ type Contact{
   "The contact jid"
   jid: JID!
   "The contact name"
-  name: String
+  name: String!
   "The list of the groups the contact belongs to"
-  groups: [String!]
+  groups: [String!]!
   "The type of the subscription"
-  subscription: ContactSub
+  subscription: ContactSub!
   "The type of the ask"
-  ask: ContactAsk
+  ask: ContactAsk!
 }
 
 "The contact subscription types"

@@ -1,31 +1,31 @@
 "Allow admin to get statistics"
 type StatsAdminQuery @protected{
     "Get statistics from all of the nodes. Only for global admin"
-    globalStats: GlobalStats
+    globalStats: GlobalStats!
       @protected(type: GLOBAL)
     "Get statistics from a specific domain"
-    domainStats(domain: DomainName!): DomainStats
+    domainStats(domain: DomainName!): DomainStats!
       @protected(type: DOMAIN, args: ["domain"])
 }
 
 type GlobalStats {
   "Uptime of the node"
-  uptimeSeconds: Int
+  uptimeSeconds: Int!
   "Number of registered users"
-  registeredUsers: Int
+  registeredUsers: Int!
   "Number of online users on the node"
-  onlineUsersNode: Int
+  onlineUsersNode: Int!
   "Number of online users"
-  onlineUsers: Int
+  onlineUsers: Int!
   "Number of all incoming s2s connections"
-  incomingS2S: Int
+  incomingS2S: Int!
   "Number of all outgoing s2s connections"
-  outgoingS2S: Int
+  outgoingS2S: Int!
 }
 
 type DomainStats {
   "Number of registered users on a given domain"
-  registeredUsers: Int
+  registeredUsers: Int!
   "Number of online users on a given domain"
-  onlineUsers: Int
+  onlineUsers: Int!
 }

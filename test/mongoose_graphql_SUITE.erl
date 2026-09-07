@@ -32,6 +32,7 @@ all() ->
      unexpected_internal_error,
      admin_and_user_load_global_types,
      admin_schema_has_server_host_types,
+     safe_int_scalar_accepts_the_safe_integer_range,
      {group, operations},
      {group, unprotected_graphql},
      {group, protected_graphql},
@@ -389,6 +390,21 @@ admin_and_user_load_global_types(_Config) ->
     ?assertMatch(#scalar_type{id = <<"JID">>}, graphql_schema:get(UserEp, <<"JID">>)),
     ?assertMatch(#directive_type{id = <<"protected">>},
                  graphql_schema:get(UserEp, <<"protected">>)).
+
+safe_int_scalar_accepts_the_safe_integer_range(_Config) ->
+    mongoose_graphql:init(),
+    AdminEp = mongoose_graphql:get_endpoint(admin),
+    ?assertMatch(#scalar_type{id = ~"SafeInt", resolve_module = mongoose_graphql_scalar},
+                 graphql_schema:get(AdminEp, ~"SafeInt")),
+    Max = (1 bsl 53) - 1,
+    [begin
+         ?assertEqual({ok, V}, mongoose_graphql_scalar:input(~"SafeInt", V)),
+         ?assertEqual({ok, V}, mongoose_graphql_scalar:output(~"SafeInt", V))
+     end || V <- [0, -1, 1 bsl 31, Max, -Max]],
+    [begin
+         ?assertMatch({error, _}, mongoose_graphql_scalar:input(~"SafeInt", V)),
+         ?assertMatch({error, _}, mongoose_graphql_scalar:output(~"SafeInt", V))
+     end || V <- [Max + 1, -Max - 1, ~"1"]].
 
 admin_schema_has_server_host_types(_Config) ->
     mongoose_graphql:init(),

@@ -1,40 +1,40 @@
 "Stanza payload data"
 type StanzasPayload{
   "List of stanza's maps"
-  stanzas: [StanzaMap]
+  stanzas: [StanzaMap!]!
   "Max number of stanzas"
-  limit: Int
+  limit: Int!
 }
 
 "Stanza map data"
 type StanzaMap{
   "Sender's JID"
-  sender: JID
+  sender: JID!
   "Stanza's timestamp"
-  timestamp: DateTime
+  timestamp: DateTime!
   "ID of the stanza"
-  stanza_id: String
+  stanza_id: String!
   "Stanza's data"
-  stanza: XmlElement
+  stanza: XmlElement!
 }
 
 "Send stanza payload"
 type SendStanzaPayload{
   "Stanza id"
-  id: ID
+  id: ID!
 }
 
 "Trace map data"
 type TraceMap{
   "Session pid"
-  pid: String
+  pid: String!
   "Session owner"
   jid: JID
   "Stanza's timestamp"
-  timestamp: DateTime
+  timestamp: DateTime!
   "Direction"
-  dir: String
+  dir: String!
   "Stanza's data"
-  stanza: String
+  stanza: String!
 }
 

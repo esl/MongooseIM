@@ -190,7 +190,7 @@ set_presence(JID, Type, Show, Status, Priority) ->
             Error
     end.
 
--spec kick_sessions(jid:jid(), binary()) -> {ok, [kick_user_result()]} | {user_not_found, binary()}.
+-spec kick_sessions(jid:jid(), binary() | null) -> {ok, [kick_user_result()]} | {user_not_found, binary()}.
 kick_sessions(JID, Reason) ->
     case check_user(JID) of
         ok ->

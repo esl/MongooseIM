@@ -40,7 +40,8 @@ add_contact(#jid{lserver = LServer} = CallerJID, ContactJID, Name, Groups) ->
             ?UNKNOWN_DOMAIN_RESULT
     end.
 
--spec list_contacts(jid:jid()) -> {ok, [mod_roster:roster()]} | {unknown_domain, iolist()}.
+-spec list_contacts(jid:jid()) ->
+    {ok, [mod_roster:roster()]} | {unknown_domain | user_not_exist, iolist()}.
 list_contacts(#jid{lserver = LServer} = CallerJID) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->

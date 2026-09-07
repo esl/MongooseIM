@@ -3,11 +3,11 @@ Type containing put url and get url for the file
 """
 type FileUrls {
     "Url to put the file"
-    putUrl: String
+    putUrl: String!
     "Url to get the file"
-    getUrl: String
+    getUrl: String!
     "Http headers"
-    headers: [Header]
+    headers: [Header!]!
 }
 
 """
@@ -15,7 +15,7 @@ Type containing a HTTP header
 """
 type Header {
     "Name"
-    name: String
+    name: String!
     "Value"
-    value: String
+    value: String!
 }

@@ -101,5 +101,5 @@ type UserStatus{
   "Status priority"
   priority: Int
   "Status text"
-  text: String
+  text: String!
 }

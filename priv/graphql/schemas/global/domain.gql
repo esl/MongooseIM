@@ -4,7 +4,7 @@ Some operation could return incomplete object i.e. some fields can be null.
 """
 type Domain{
   "Domain name"
-  domain: DomainName
+  domain: DomainName!
   "Domain hostType"
   hostType: String
   "Is domain enabled?"
@@ -17,13 +17,13 @@ Some operation could return incomplete object i.e. some fields can be null.
 """
 type DomainWithType{
   "Domain name"
-  domain: DomainName
+  domain: DomainName!
   "Domain hostType"
   hostType: String
   "Is domain enabled?"
-  status: DomainStatus
+  status: DomainStatus!
   "Domain source type"
-  type: DomainType
+  type: DomainType!
 }
 
 enum DomainStatus {

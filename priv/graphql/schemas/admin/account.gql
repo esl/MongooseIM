@@ -21,7 +21,7 @@ type AccountAdminQuery @protected{
   checkPasswordHash(user: JID!, passwordHash: String!, hashMethod: String!): CheckPasswordPayload
     @protected(type: DOMAIN, args: ["user"])
   "Check if a user exists"
-  checkUser(user: JID!): CheckUserPayload
+  checkUser(user: JID!): CheckUserPayload!
     @protected(type: DOMAIN, args: ["user"])
 }
 

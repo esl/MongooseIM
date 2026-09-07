@@ -3,13 +3,13 @@ Allow admin to acquire data about the node
 """
 type ServerAdminQuery @protected{
   "Get the status of the server"
-  status: Status
+  status: Status!
     @protected(type: GLOBAL)
   "Get MongooseIM node's current LogLevel"
-  getLoglevel: LogLevel
+  getLoglevel: LogLevel!
     @protected(type: GLOBAL)
   "Get the Erlang cookie of this node"
-  getCookie: String
+  getCookie: String!
     @protected(type: GLOBAL)
   "List configured host types with their modules and backends"
   hostTypes: [HostTypeInfo!]!
@@ -33,13 +33,13 @@ type ServerAdminMutation @protected{
   removeFromCluster(node: String!): String
     @protected(type: GLOBAL)
   "Restart MongooseIM node"
-  restart: String
+  restart: String!
     @protected(type: GLOBAL)
   "Stop MongooseIM node"
-  stop: String
+  stop: String!
     @protected(type: GLOBAL)
   "Remove a MongooseIM node from Mnesia clustering config"
-  removeNode(node: String!): String
+  removeNode(node: String!): String!
     @protected(type: GLOBAL)
   "Set MongooseIM node's LogLevel"
   setLoglevel(level: LogLevel!): String
@@ -49,13 +49,13 @@ type ServerAdminMutation @protected{
 "Status of the server"
 type Status {
   "Code of the status"
-  statusCode: StatusCode
+  statusCode: StatusCode!
   "Message about the status"
-  message: String
+  message: String!
   "MongooseIM version"
-  version: String
+  version: String!
   "The hash of the commit that MongooseIM is running"
-  commitHash: String
+  commitHash: String!
 }
 
 "Specifies status of the server"

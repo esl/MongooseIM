@@ -197,23 +197,23 @@ invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) ->
             Error
     end.
 
--spec send_message_to_room(jid:jid(), jid:jid(), binary()) -> {ok, iolist()}.
+-spec send_message_to_room(jid:jid(), jid:jid(), binary()) -> {ok, binary()}.
 send_message_to_room(RoomJID, SenderJID, Message) ->
-    Body = #xmlel{name = <<"body">>,
+    Body = #xmlel{name = ~"body",
                   children = [#xmlcdata{content = Message}]},
-    Stanza = message(SenderJID, RoomJID, <<"groupchat">>, [Body]),
+    Stanza = message(SenderJID, RoomJID, ~"groupchat", [Body]),
     mongoose_router:route(mongoose_acc:new(SenderJID, RoomJID, Stanza, ?LOCATION)),
-    {ok, "Message sent successfully"}.
+    {ok, ~"Message sent successfully"}.
 
--spec send_private_message(jid:jid(), jid:jid(), binary(), binary()) -> {ok, iolist()}.
+-spec send_private_message(jid:jid(), jid:jid(), binary(), binary()) -> {ok, binary()}.
 send_private_message(RoomJID, SenderJID, ToNick, Message) ->
     RoomJIDRes = jid:replace_resource(RoomJID, ToNick),
-    Body = #xmlel{name = <<"body">>,
+    Body = #xmlel{name = ~"body",
                   children = [#xmlcdata{content = Message}]},
-    X = #xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC}},
-    Stanza = message(SenderJID, RoomJID, <<"chat">>, [Body, X]),
+    X = #xmlel{name = ~"x", attrs = #{~"xmlns" => ?NS_MUC}},
+    Stanza = message(SenderJID, RoomJID, ~"chat", [Body, X]),
     mongoose_router:route(mongoose_acc:new(SenderJID, RoomJIDRes, Stanza, ?LOCATION)),
-    {ok, "Message sent successfully"}.
+    {ok, ~"Message sent successfully"}.
 
 -spec kick_user_from_room(jid:jid(), binary(), binary()) ->
     {ok | room_not_found | moderator_not_found, iolist()}.
@@ -398,33 +398,33 @@ set_role(RoomJID, UserJID, Nick, Role) ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
--spec enter_room(jid:jid(), jid:jid(), binary() | undefined) -> {ok, iolist()}.
+-spec enter_room(jid:jid(), jid:jid(), binary() | undefined) -> {ok, binary()}.
 enter_room(RoomJID, UserJID, Password) ->
     Presence = presence(UserJID, RoomJID, Password),
     mongoose_router:route(mongoose_acc:new(UserJID, RoomJID, Presence, ?LOCATION)),
-    {ok, "Entering room message sent successfully"}.
+    {ok, ~"Entering room message sent successfully"}.
 
--spec exit_room(jid:jid(), jid:jid()) -> {ok, iolist()}.
+-spec exit_room(jid:jid(), jid:jid()) -> {ok, binary()}.
 exit_room(RoomJID, UserJID) ->
     Presence = exit_room_presence(UserJID, RoomJID),
     mongoose_router:route(mongoose_acc:new(UserJID, RoomJID, Presence, ?LOCATION)),
-    {ok, "Exiting room message sent successfully"}.
+    {ok, ~"Exiting room message sent successfully"}.
 
 %% Internal
 
--spec kick_user_from_room_raw(jid:jid(), jid:jid(), binary(), binary()) -> {ok, iolist()}.
+-spec kick_user_from_room_raw(jid:jid(), jid:jid(), binary(), binary()) -> {ok, binary()}.
 kick_user_from_room_raw(RoomJID, ModJID, Nick, ReasonIn) ->
-    Reason = #xmlel{name = <<"reason">>,
+    Reason = #xmlel{name = ~"reason",
                     children = [#xmlcdata{content = ReasonIn}]
                    },
-    Item = #xmlel{name = <<"item">>,
-                  attrs = #{<<"nick">> => Nick,
-                            <<"role">> => <<"none">>},
+    Item = #xmlel{name = ~"item",
+                  attrs = #{~"nick" => Nick,
+                            ~"role" => ~"none"},
                   children = [ Reason ]
                  },
-    IQ = iq(<<"set">>, ModJID, RoomJID, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
+    IQ = iq(~"set", ModJID, RoomJID, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
     mongoose_router:route(mongoose_acc:new(ModJID, RoomJID, IQ, ?LOCATION)),
-    {ok, "Kick message sent successfully"}.
+    {ok, ~"Kick message sent successfully"}.
 
 -spec try_add_role_resource(jid:jid(), jid:jid(), mod_muc:role()) ->
     {ok, jid:jid()} | {error, not_found}.

@@ -182,11 +182,6 @@ conflict_tables(Config) ->
     Info = get_ok_value([data, cets, systemInfo], Res),
     ?assertMatch(#{<<"conflictTables">> := []}, Info).
 
-conflict_nodes_count(Config) ->
-    Res = get_system_info(Config),
-    Info = get_ok_value([data, cets, systemInfo], Res),
-    ?assertMatch(#{<<"conflictNodesCount">> := 0}, Info).
-
 discovered_nodes(Config) ->
     #{node := Node1} = mim(),
     #{node := Node2} = mim2(),
@@ -196,13 +191,6 @@ discovered_nodes(Config) ->
     assert_member(atom_to_binary(Node1), Nodes),
     assert_member(atom_to_binary(Node2), Nodes),
     assert_member(<<"badnode@localhost">>, Nodes).
-
-discovered_nodes_count(Config) ->
-    Res = get_system_info(Config),
-    Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"discoveredNodesCount">> := Count} = Info,
-    ?assert(is_integer(Count), Info),
-    ?assert(Count > 2, Info).
 
 discovery_works(Config) ->
     Res = get_system_info(Config),

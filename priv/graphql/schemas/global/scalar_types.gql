@@ -24,3 +24,5 @@ scalar NonEmptyString @spectaql(options: [{ key: "example", value: "xyz789" }])
 scalar PosInt @spectaql(options: [{ key: "example", value: "2" }])
 "Integer that has a value above or equal to zero"
 scalar NonNegInt @spectaql(options: [{ key: "example", value: "0" }])
+"Integer that is exactly representable by clients parsing JSON numbers as IEEE 754 doubles, i.e. from -(2^53 - 1) to 2^53 - 1"
+scalar SafeInt @spectaql(options: [{ key: "example", value: "1099511627776" }])

@@ -2,6 +2,8 @@
 
 -export([format_session/1, format_sessions/1, format_status_user/1, format_status_users/1]).
 
+-import(mongoose_graphql_helper, [undefined_to_null/1]).
+
 -ignore_xref([format_session/1, format_status_user/1]).
 
 -type session_data() :: map().
@@ -22,7 +24,7 @@ format_session({USR, Conn, Address, Prio, Node, Uptime}) ->
       <<"connection">> => from_conn(Conn),
       <<"ip">> => IP,
       <<"port">> => Port,
-      <<"priority">> => Prio,
+      ~"priority" => undefined_to_null(Prio),
       <<"node">> => atom_to_binary(Node),
       <<"uptime">> => Uptime}.
 
@@ -41,5 +43,5 @@ format_status_users(Sessions) ->
 -spec format_status_user(mongoose_session_api:status_user_info()) -> status_user_data().
 format_status_user({JID, Prio, StatusText}) ->
     #{<<"user">> => jid:to_binary(JID),
-      <<"priority">> => Prio,
+      ~"priority" => undefined_to_null(Prio),
       <<"text">> => iolist_to_binary(StatusText)}.

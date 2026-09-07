@@ -3,5 +3,5 @@ type UserAuthInfo{
   "Authorized as user with name"
   username: UserName
   "Authorization status"
-  authStatus: AuthStatus
+  authStatus: AuthStatus!
 }
