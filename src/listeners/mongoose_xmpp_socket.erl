@@ -119,6 +119,7 @@ connect(#{ip_tuple := Addr, ip_version := Inet, port := Port, tls := false}, Opt
     end;
 connect(#{ip_tuple := Addr, ip_version := Inet, port := Port, tls := true}, Opts, Type, Timeout) ->
     SockOpts = socket_options(true, Inet, Opts),
+    % safe-ignore ssl:connect/4
     case ssl:connect(Addr, Port, SockOpts, Timeout) of
         {ok, Socket} ->
             SocketState = #ranch_ssl{socket = Socket, connection_type = Type,
@@ -151,9 +152,11 @@ tcp_to_tls(#ranch_tcp{socket = TcpSocket, connection_type = Type, ranch_ref = Re
     Ret = case Side of
         server ->
             SslOpts = just_tls:make_server_opts(TlsConfig),
+            % safe-ignore ssl:handshake/3
             ssl:handshake(TcpSocket, SslOpts, 5000);
         client ->
             SslOpts = just_tls:make_client_opts(TlsConfig),
+            % safe-ignore ssl:connect/3
             ssl:connect(TcpSocket, SslOpts, 5000)
     end,
     VerifyResults = just_tls:receive_verify_results(),

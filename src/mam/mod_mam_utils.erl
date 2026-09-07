@@ -1141,10 +1141,12 @@ maybe_set_client_xmlns(false, Packet) ->
 
 -spec action_to_shaper_name(mam_iq:action()) -> atom().
 action_to_shaper_name(Action) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(atom_to_list(Action) ++ "_shaper").
 
 -spec action_to_global_shaper_name(mam_iq:action()) -> atom().
 action_to_global_shaper_name(Action) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 -spec wait_shaper(mongooseim:host_type(), jid:server(), mam_iq:action(), jid:jid()) ->

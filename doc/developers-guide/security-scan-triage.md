@@ -201,14 +201,22 @@ list_to_atom("ejabberd_auth_" ++ atom_to_list(Method)).
 compute_unique(ets:first(?TABLE), 0).
 ```
 
-They are **not** applied yet. Adding them is a separate change, so that the diff across roughly
-forty modules can be reviewed on its own merits rather than alongside the CI wiring. Until then the
-scan reports the full backlog, which is why the CI job runs with `|| true`.
+60 of the 71 findings carry one. The bar for suppressing a finding is that no unprivileged party can
+reach it: the config-derived, literal-derived, query-name and admin-API groups all require either an
+operator who edits `mongooseim.toml` or an authenticated administrator, and the man-in-the-middle,
+injection and race-condition findings are wrong about the code.
 
-One thing to settle before applying them in bulk: the datastore deserialisation group above is an
-accepted *trust assumption*, not a false positive. Suppressing it would mean that a deployment which
-breaks the assumption — an exposed Redis, say — produces no signal. That group is probably better
-left reporting.
+The other eleven keep reporting:
+
+- The **two real defects** above. Suppressing an open defect would hide it.
+- The **eight datastore deserialisation** findings. That group is an accepted *trust assumption*,
+  not a false positive: it holds only while the datastore is trusted. Silencing it would mean a
+  deployment that breaks the assumption — an exposed Redis, say — produces no signal at all.
+- **`gen_mod:get_module_proc/2`**. Config-bounded for almost every caller, but the two global
+  distribution ones take the server from the Redis-backed mapping, so it inherits the same trust
+  assumption rather than being purely config-derived.
+
+Because those eleven remain, the scan still exits non-zero and the CI job keeps its `|| true`.
 
 A suppression comment is tied to the line below it, so a refactor that moves a flagged call away
 from its comment loses the suppression and the finding returns on the next scan. That is the

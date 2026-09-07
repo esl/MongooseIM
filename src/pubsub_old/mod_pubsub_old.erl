@@ -4095,6 +4095,7 @@ tree_mod(Name) ->
 
 -spec plugin(Name :: plugin_name()) -> module().
 plugin(Name) ->
+    % safe-ignore binary_to_atom/2
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 -spec plugins(ServerHost :: mongooseim:domain_name()) -> [plugin_name()].

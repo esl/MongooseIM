@@ -24,16 +24,19 @@ get_keys2(Args) ->
     lists:map(fun prepare_key/1, Keys).
 
 prepare_key(X) when is_binary(X) ->
+    % safe-ignore binary_to_atom/1
     binary_to_atom(X);
 prepare_key(X) when is_integer(X) -> %% For percentiles
     X.
 
 get_name(Args) ->
     Segments = get_list(<<"name">>, Args),
+    % safe-ignore binary_to_atom/1
     lists:map(fun binary_to_atom/1, Segments).
 
 get_nodes(Args) ->
     Nodes = get_list(<<"nodes">>, Args),
+    % safe-ignore binary_to_atom/1
     lists:map(fun binary_to_atom/1, Nodes).
 
 get_list(Key, Map) ->
