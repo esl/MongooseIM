@@ -171,7 +171,7 @@ expect_errors(db_reinserted_from_one_node_while_service_disabled_on_another) ->
     cth_error_report:expect({what, ignore_domain_from_db_with_different_host_type});
 expect_errors(db_restarts_properly) ->
     %% The case restarts the service, so its supervisor reports the old one going down.
-    cth_error_report:expect({regex, <<"reason,shutdown.*service_domain_db">>});
+    cth_error_report:expect({regex, ~"reason,shutdown.*service_domain_db"});
 expect_errors(_) -> ok.
 
 service_opts(db_events_table_gets_truncated) ->

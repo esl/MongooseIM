@@ -110,10 +110,10 @@ end_per_group(_, _Config) ->
     escalus_fresh:clean().
 
 init_per_testcase(backup_wrong_filename_test, Config) ->
-    cth_error_report:expect(<<"Failed to abort backup">>),
+    cth_error_report:expect(~"Failed to abort backup"),
     Config;
 init_per_testcase(backup_wrong_path_test, Config) ->
-    cth_error_report:expect(<<"Failed to abort backup">>),
+    cth_error_report:expect(~"Failed to abort backup"),
     Config;
 init_per_testcase(_CaseName, Config) ->
     Config.

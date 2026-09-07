@@ -120,7 +120,7 @@ init_per_testcase(admin_start_broadcast_manager_temporarily_unavailable = TestCa
     escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(admin_get_broadcast_worker_killed = TestCase, Config) ->
     cth_error_report:expect({what, broadcast_job_aborted_error}),
-    cth_error_report:expect(<<"reason,killed">>),
+    cth_error_report:expect(~"reason,killed"),
     escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(TestCase, Config) ->
     escalus:init_per_testcase(TestCase, Config).

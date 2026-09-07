@@ -157,7 +157,7 @@ end_per_suite(Config) ->
 
 init_per_group(ownership, Config) ->
     %% The group restarts the manager on the way in and on the way out.
-    cth_error_report:expect({regex, <<"reason,killed.*broadcast_manager">>}),
+    cth_error_report:expect({regex, ~"reason,killed.*broadcast_manager"}),
     ok = rpc(mim(), meck, new, [mod_broadcast, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect, [mod_broadcast, lease_time, 1, 1]),
     ok = rpc(mim(), meck, new, [mod_broadcast_backend, [no_link, passthrough]]),
@@ -197,7 +197,7 @@ init_per_testcase(TestCase, Config)
     escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(manager_restart_is_idempotent_to_live_job_workers = TestCase, Config) ->
     %% The case restarts the manager under live workers, which are killed with it.
-    cth_error_report:expect({regex, <<"reason,killed.*broadcast_manager">>}),
+    cth_error_report:expect({regex, ~"reason,killed.*broadcast_manager"}),
     escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(broadcast_job_delivers_message = TestCase, Config) ->
     accounts_helper:prepare_user_created_at(),

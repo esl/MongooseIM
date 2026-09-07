@@ -142,13 +142,13 @@ init_per_group(start_stream_errors_after_auth, Config) ->
                       fun s2s_external_auth/2]} | Config];
 init_per_group(node1_tls_required_trusted_node2_tls_optional = GroupName, Config) ->
     %% Node1 only trusts its own CA, so it rejects node2's certificate.
-    cth_error_report:expect(<<"unknown_ca">>),
+    cth_error_report:expect(~"unknown_ca"),
     init_per_group_default(GroupName, Config);
 init_per_group(GroupName, Config) ->
     init_per_group_default(GroupName, Config).
 
 expect_broken_stream_errors() ->
-    cth_error_report:expect(<<"s2s_sasl_failure">>).
+    cth_error_report:expect(~"s2s_sasl_failure").
 
 init_per_group_default(GroupName, Config) ->
     Config1 = s2s_helper:configure_s2s(GroupName, Config),

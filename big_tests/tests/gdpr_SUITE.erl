@@ -252,7 +252,7 @@ init_per_testcase(retrieve_logs = CN, Config) ->
         _ ->
             %% The test case writes a marker line at error level on mim2 and then
             %% asserts that it can be retrieved from the logs.
-            cth_error_report:expect(<<"disturbance_in_the_force">>, 1),
+            cth_error_report:expect(~"disturbance_in_the_force", 1),
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(CN, Config) when CN =:= remove_offline;
