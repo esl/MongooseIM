@@ -66,6 +66,7 @@
 -define(NS_MAM_GC_AVAILABLE,    <<"urn:xmpp:mam:2#groupchat-available">>).
 -define(NS_HTTP_UPLOAD_030,     <<"urn:xmpp:http:upload:0">>).
 -define(NS_PUSH,                <<"urn:xmpp:push:0">>). % Push Notifications v0.2.1
+-define(NS_PUSH_SUMMARY,        <<"urn:xmpp:push:summary">>).
 -define(NS_STANZAID,            <<"urn:xmpp:sid:0">>).
 -define(NS_RECEIPTS,            <<"urn:xmpp:receipts">>).
 
