@@ -73,10 +73,6 @@ drop_if_jid_not_mine({F, T, #{ stanza := #{ type := <<"chat">> } } = Acc, P}, _,
 drop_if_jid_not_mine(Acc, _, _) ->
     {ok, Acc}.
 
-recreate_table() ->
-    try ets:delete(test_message_index) catch _:_ -> ok end,
-    ets:new(test_message_index, [named_table, public, {heir, whereis(mongoose_c2s_sup), none}]).
-
 check_acc(#{ stanza := #{ type := <<"chat">> } } = Acc) ->
     Ref = mongoose_acc:ref(Acc),
     [Data] = ets:lookup(test_message_index, Ref),

@@ -44,6 +44,7 @@ groups() ->
      {counted_patterns, [],
       [expect_counted_exact,
        expect_counted_accumulate,
+       expect_counted_accumulate_same_count,
        expect_counted_overflow_is_unexpected,
        expect_counted_across_testcases]},
      {mixed_patterns, [],
@@ -179,6 +180,12 @@ expect_counted_accumulate(_Config) ->
     trigger_error(counted_accum, "three"),
     trigger_error(counted_accum, "four"),
     trigger_error(counted_accum, "five").
+
+expect_counted_accumulate_same_count(_Config) ->
+    cth_error_report:expect({what, counted_same}, 1),
+    cth_error_report:expect({what, counted_same}, 1),
+    Allowances = cth_error_report:get_pattern_allowances(),
+    ?assertEqual(2, maps:get({what, counted_same}, Allowances)).
 
 expect_counted_overflow_is_unexpected(_Config) ->
     %% Expect 2, trigger 4 -- 2 should be expected, 2 unexpected

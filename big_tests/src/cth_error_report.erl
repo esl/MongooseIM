@@ -40,6 +40,7 @@ Usage in tests:
 
 %% API for tests
 -export([expect/1, expect/2, max_unexpected_errors_logged/1]).
+-export([get_pattern_allowances/0]).
 
 -define(PATTERNS_TABLE, cth_error_report_patterns).
 -define(NODE_KEYS, [mim, mim2, mim3, fed, reg]).
@@ -278,7 +279,7 @@ is_parallel_group(Config) ->
 init_patterns_table() ->
     case ets:whereis(?PATTERNS_TABLE) of
         undefined ->
-            ets_helper:new(?PATTERNS_TABLE, [bag]);
+            ets_helper:new(?PATTERNS_TABLE, [duplicate_bag]);
         _Tid ->
             ets:delete_all_objects(?PATTERNS_TABLE)
     end.

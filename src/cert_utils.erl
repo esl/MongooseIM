@@ -128,7 +128,7 @@ get_lserver_from_addr(_, _) -> [].
 
 
 log_exception(_Cert, Class, Exception, StackTrace) ->
-    ?LOG_ERROR(#{what => <<"cert_parsing_failed">>,
+    ?LOG_ERROR(#{what => cert_parsing_failed,
                  text => <<"failed to parse certificate">>,
                  class => Class, reason => Exception, stacktrace => StackTrace}).
 

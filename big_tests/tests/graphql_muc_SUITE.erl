@@ -216,6 +216,7 @@ domain_admin_muc_tests() ->
     ].
 
 init_per_suite(Config) ->
+    expect_unresolvable_domain_errors(),
     HostType = domain_helper:host_type(),
     SecondaryHostType = domain_helper:secondary_host_type(),
     Config2 = escalus:init_per_suite(Config),
@@ -278,6 +279,14 @@ maybe_enable_mam() ->
             dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_mam, MAMOpts}]),
             true
     end.
+
+%% Several cases address rooms or users on domains this node does not serve.
+%% Routing falls through to S2S, whose DNS and SRV lookups then fail - 4 DNS
+%% and 2 SRV in each of admin_muc_configured and user_muc_configured,
+%% 2 DNS and 1 SRV in domain_admin_muc.
+expect_unresolvable_domain_errors() ->
+    cth_error_report:expect({what, s2s_dns_lookup_failed}, 10),
+    cth_error_report:expect({what, s2s_srv_lookup_failed}, 5).
 
 ensure_muc_started() ->
     SecondaryHostType = domain_helper:secondary_host_type(),

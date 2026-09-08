@@ -85,6 +85,9 @@ init_per_group(admin_http, Config) ->
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(Group, Config) when Group =:= clustering_tests; Group =:= clustering_http_tests ->
+    %% These groups join and leave the cluster, so CETS tasks waiting on RDBMS
+    %% lose the process they monitor.
+    cth_error_report:expect({what, task_failed}),
     case is_sm_distributed() of
         true ->
             Config;

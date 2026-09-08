@@ -92,6 +92,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(clustered, Config) ->
+    expect_cluster_errors(),
     Node2 = mim2(),
     Config1 = add_node_to_cluster(Node2, Config),
     case is_sm_distributed() of
@@ -107,6 +108,7 @@ init_per_group(clustered, Config) ->
     end;
 
 init_per_group(Group, _Config) when Group == clustering_two orelse Group == clustering_three ->
+    expect_cluster_errors(),
     case is_sm_distributed() of
         true ->
             ok;
@@ -117,6 +119,11 @@ init_per_group(Group, _Config) when Group == clustering_two orelse Group == clus
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
+
+%% Every group joins and leaves the cluster, so CETS tasks waiting on RDBMS lose
+%% the process they monitor.
+expect_cluster_errors() ->
+    cth_error_report:expect({what, task_failed}).
 
 end_per_group(clustered, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),

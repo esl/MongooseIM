@@ -208,6 +208,9 @@ init_per_testcase(muc_removal, Config) ->
     muc_helper:load_muc(),
     mongoose_helper:ensure_muc_clean(),
     escalus:init_per_testcase(muc_removal, Config);
+init_per_testcase(removal_stops_if_handler_fails = TestCase, Config) ->
+    cth_error_report:expect({what, hook_failed}),
+    escalus:init_per_testcase(TestCase, Config);
 init_per_testcase(roster_removal, ConfigIn) ->
     Config = roster_helper:set_versioning(true, true, ConfigIn),
     escalus:init_per_testcase(roster_removal, Config);

@@ -322,6 +322,12 @@ maybe_clear_db() ->
             ok
     end.
 
+init_per_testcase(TC, Config) when TC =:= admin_create_identified_room;
+                                   TC =:= user_create_identified_room ->
+    %% These cases create the same room twice, which the RDBMS backend resolves
+    %% by exhausting the transaction restarts.
+    cth_error_report:expect({what, rdbms_sql_transaction_restarts_exceeded}),
+    escalus:init_per_testcase(TC, Config);
 init_per_testcase(admin_list_rooms_schema_without_roomname = TC, Config) ->
     %% A config_schema may not define the roomname field at all
     NoRoomnameSchema = [{<<"subject">>, <<"Test">>, subject, binary}],

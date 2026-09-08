@@ -151,6 +151,12 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     mongoose_helper:clear_last_activity(Config, carol).
 
+init_per_testcase(do_not_accept_0_hold_value = CaseName, Config) ->
+    cth_error_report:expect({what, bosh_stop}),
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(cant_send_invalid_rid = CaseName, Config) ->
+    cth_error_report:expect({what, bosh_socket_invalid_rid}),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
