@@ -38,6 +38,8 @@
 
 %% API
 -export([try_register/5,
+         try_set_password/3,
+         verify_password_and_register/4,
          process_ip_access/1,
          process_welcome_message/1]).
 
@@ -312,38 +314,37 @@ process_iq_get(_HostType, From, _To, #iq{sub_el = Child} = IQ, _Source) ->
 
 try_register_or_set_password(HostType, LUser, Server, Password, #jid{luser = LUser, lserver = Server} = UserJID,
                              IQ, SubEl, _Source) ->
-    try_set_password(HostType, UserJID, Password, IQ, SubEl);
+    handle_register_response(
+      try_set_password(HostType, UserJID, Password),
+      IQ, SubEl);
 try_register_or_set_password(HostType, LUser, Server, Password, _From, IQ, SubEl, Source) ->
     case check_timeout(Source) of
         true ->
-            case try_register(HostType, LUser, Server, Password, Source) of
-                ok ->
-                    IQ#iq{type = result, sub_el = [SubEl]};
-                {error, Error} ->
-                    error_response(IQ, [SubEl, Error])
-            end;
+            handle_register_response(
+              try_register(HostType, LUser, Server, Password, Source),
+              IQ, SubEl);
         false ->
             ErrText = <<"Users are not allowed to register accounts so quickly">>,
             error_response(IQ, mongoose_xmpp_errors:resource_constraint(ErrText))
     end.
 
 %% @doc Try to change password and return IQ response
-try_set_password(HostType, #jid{} = UserJID, Password, IQ, SubEl) ->
+try_set_password(HostType, #jid{} = UserJID, Password) ->
     case is_strong_password(HostType, Password) of
         true ->
             case ejabberd_auth:set_password(UserJID, Password) of
                 ok ->
-                    IQ#iq{type = result, sub_el = [SubEl]};
+                    ok;
                 {error, empty_password} ->
-                    error_response(IQ, [SubEl, mongoose_xmpp_errors:bad_request()]);
+                    {error, mongoose_xmpp_errors:bad_request()};
                 {error, not_allowed} ->
-                    error_response(IQ, [SubEl, mongoose_xmpp_errors:not_allowed()]);
+                    {error, mongoose_xmpp_errors:not_allowed()};
                 {error, invalid_jid} ->
-                    error_response(IQ, [SubEl, mongoose_xmpp_errors:item_not_found()])
+                    {error, mongoose_xmpp_errors:item_not_found()}
             end;
         false ->
             ErrText = <<"The password is too weak">>,
-            error_response(IQ, [SubEl, mongoose_xmpp_errors:not_acceptable(ErrText)])
+            {error, mongoose_xmpp_errors:not_acceptable(ErrText)}
     end.
 
 try_register(HostType, User, Server, Password, SourceRaw) ->
@@ -476,6 +477,11 @@ is_strong_password(HostType, Password) ->
                            host => HostType, value => Wrong}),
             true
     end.
+
+handle_register_response(ok, IQ, SubEl) ->
+    IQ#iq{type = result, sub_el = [SubEl]};
+handle_register_response({error, Error}, IQ, SubEl) ->
+    error_response(IQ, [SubEl, Error]).
 
 %%%
 %%% ip_access management

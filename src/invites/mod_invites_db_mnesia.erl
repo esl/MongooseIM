@@ -1,0 +1,199 @@
+%%%----------------------------------------------------------------------
+%%% File    : mod_invites_db_mnesia.erl
+%%% Author  : Stefan Strigler <stefan@strigler.de>
+%%% Created : Mon Sep 15 2025 by Stefan Strigler <stefan@strigler.de>
+%%%
+%%%
+%%% This program is free software; you can redistribute it and/or
+%%% modify it under the terms of the GNU General Public License as
+%%% published by the Free Software Foundation; either version 2 of the
+%%% License, or (at your option) any later version.
+%%%
+%%% This program is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+%%% General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License along
+%%% with this program; if not, write to the Free Software Foundation, Inc.,
+%%% 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+%%%
+%%%----------------------------------------------------------------------
+-module(mod_invites_db_mnesia).
+
+-author('stefan@strigler.de').
+
+-behaviour(mod_invites).
+-behaviour(mod_invites_db_backend).
+
+-export([start/2, stop/1]).
+
+-export([cleanup_expired/1, create_invite_t/2, delete_invite_by_token/2, expire_invite_by_token/2,
+         expire_tokens/2, get_invite/2, get_invites_t/2, get_invite_by_invitee_t/2,
+         is_reserved/3, is_token_valid/3, list_invites/1, remove_user/2, set_invitee/5, transaction/2]).
+
+-include("mod_invites.hrl").
+
+%%====================================================================
+%% API
+%%====================================================================
+
+%% ------------------------ Backend start/stop ------------------------
+
+-spec start(Host :: jid:server(), any()) -> ok.
+start(_Host, _) ->
+    mongoose_mnesia:create_table(invite_token,
+                                 [{disc_copies, [node()]},
+                                  {attributes, record_info(fields, invite_token)},
+                                  {index, [inviter, invitee, account_name]}]).
+
+
+-spec stop(Host :: jid:server()) -> ok.
+stop(_Host) ->
+    ok.
+
+%% ------------------------ general invites mgmt ------------------------
+
+cleanup_expired(_Host) ->
+    lists:foldl(fun(Token, Count) ->
+                   [Invite] = mnesia:dirty_read(invite_token, Token),
+                   case mod_invites:is_expired(Invite) of
+                       true ->
+                           ok = mnesia:dirty_delete(invite_token, Token),
+                           Count + 1;
+                       false ->
+                           Count
+                   end
+                end,
+                0,
+                mnesia:dirty_all_keys(invite_token)).
+
+create_invite_t(_Host, Invite) ->
+    ok = mnesia:write(Invite),
+    Invite.
+
+delete_invite_by_token(_Host, Token) ->
+    case mnesia:dirty_read(invite_token, Token) of
+        [_Invite] ->
+            mnesia:dirty_delete(invite_token, Token);
+        [] ->
+            {error, not_found}
+    end.
+
+expire_invite_by_token(_Host, Token) ->
+    case mnesia:dirty_read(invite_token, Token) of
+        [Invite] ->
+            mnesia:dirty_write(Invite#invite_token{expires = {{1970, 1, 1}, {0, 0, 1}}});
+        [] ->
+            {error, not_found}
+    end.
+
+expire_tokens(User, Server) ->
+    length([mnesia:dirty_write(I#invite_token{expires = {{1970, 1, 1}, {0, 0, 1}}})
+            || I <- mnesia:dirty_index_read(invite_token, {User, Server}, #invite_token.inviter),
+               not mod_invites:is_expired(I),
+               I#invite_token.type /= roster_only]).
+
+get_invite(_Host, Token) ->
+    case mnesia:dirty_read(invite_token, Token) of
+        [Invite] ->
+            Invite;
+        [] ->
+            {error, not_found}
+    end.
+
+get_invite_by_invitee_t(_Host, {User, Host}) ->
+    Invitee = jid:to_bare_binary({User, Host}),
+    Invites = mnesia:index_read(invite_token, Invitee, #invite_token.invitee),
+    case [I
+          || I = #invite_token{type = Type, account_name = AccountName} <- Invites,
+             Type =/= roster_only orelse AccountName == User]
+    of
+        [Invite] ->
+            Invite;
+        [] ->
+            %% It might be a roster_only invite was used to create account but invitee has not been
+            %% set
+            case mnesia:index_read(invite_token, User, #invite_token.account_name) of
+                [#invite_token{type = Type} = Invite] when Type == roster_only ->
+                    Invite;
+                _ ->
+                    {error, not_found}
+            end
+    end.
+
+get_invites_t(_Host, Inviter) ->
+    mnesia:index_read(invite_token, Inviter, #invite_token.inviter).
+
+is_reserved(_Host, Token, User) ->
+    lists:filter(fun(T) ->
+                    I = hd(mnesia:dirty_read(invite_token, T)),
+                    not mod_invites:is_expired(I)
+                    and (I#invite_token.token /= Token)
+                    and (I#invite_token.invitee == <<>>)
+                    and (I#invite_token.account_name == User)
+                 end,
+                 mnesia:dirty_all_keys(invite_token))
+    =/= [].
+
+is_token_valid(Host, Token, Scope) ->
+    case mnesia:dirty_read(invite_token, Token) of
+        [Invite = #invite_token{invitee = <<>>, inviter = {_, Host} = Inviter}]
+            when Scope == Inviter; Scope == {<<>>, Host} ->
+            not mod_invites:is_expired(Invite);
+        [#invite_token{}] ->
+            false;
+        [] ->
+            throw(not_found)
+    end.
+
+list_invites(Host) ->
+    lists:filtermap(fun(Token) ->
+                       Invite = hd(mnesia:dirty_read(invite_token, Token)),
+                       case element(2, Invite#invite_token.inviter) of
+                           Host ->
+                               {true, Invite};
+                           _ ->
+                               false
+                       end
+                    end,
+                    mnesia:dirty_all_keys(invite_token)).
+
+remove_user(User, Server) ->
+    Inviter = {User, Server},
+    [ok = mnesia:dirty_delete(invite_token, Token)
+     || #invite_token{token = Token}
+            <- mnesia:dirty_index_read(invite_token, Inviter, #invite_token.inviter)],
+    ok.
+
+-spec set_invitee(fun(() -> OkOrError), binary(), binary(), binary(), binary()) ->
+                     OkOrError | {error, conflict}
+    when OkOrError :: ok | {error, term()}.
+set_invitee(F, _Host, Token, Invitee, AccountName) ->
+    Transaction =
+        fun() ->
+           case hd(mnesia:read(invite_token, Token)) of
+               #invite_token{type = Type,
+                             invitee = OInvitee,
+                             account_name = OAccountName}
+                   when OInvitee =/= <<>>
+                        orelse Type == roster_only
+                               andalso OAccountName =/= <<>>
+                               andalso AccountName =/= <<>> ->
+                   {error, conflict};
+               Invite ->
+                   case F() of
+                       ok ->
+                           ok =
+                               mnesia:write(Invite#invite_token{invitee = Invitee,
+                                                                account_name = AccountName});
+                       {error, _Res} = Error ->
+                           Error
+                   end
+           end
+        end,
+    {atomic, Res} = mnesia:transaction(Transaction),
+    Res.
+
+transaction(_Host, Fun) ->
+    mnesia:transaction(Fun).
