@@ -101,12 +101,13 @@ groups() ->
               immediate_notification,
               double_notification_with_two_sessions_in_resume,
               hints_filtering,
-              bodiless_messages
+              bodiless_messages_are_pushed_with_rules
           ]},
          {pm_msg_notifications, [],
           [
            default_active_session_gets_no_push,
            negative_priority_session_gets_push,
+           bodiless_messages_are_not_pushed_by_default,
            pm_msg_notify_on_apns_w_high_priority,
            pm_msg_notify_on_fcm_w_high_priority,
            pm_msg_notify_on_apns_w_high_priority_silent,
@@ -652,7 +653,7 @@ hints_filtering(Config) ->
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
         end).
 
-bodiless_messages(Config) ->
+bodiless_messages_are_pushed_with_rules(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
@@ -673,6 +674,16 @@ bodiless_messages(Config) ->
             escalus:send(Alice, add_message_hint(Msg, ~"no-copy")),
             ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
+        end).
+
+bodiless_messages_are_not_pushed_by_default(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := FcmDeviceToken} = enable_push_for_user(Bob, ~"fcm", [], Config),
+            become_unavailable(Bob),
+            escalus:send(Alice, dummy_jingle_propose_message(Bob)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500))
         end).
 
 missing_message_content_is_not_pushed(Config) ->
