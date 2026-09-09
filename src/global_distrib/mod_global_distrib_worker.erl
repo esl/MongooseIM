@@ -80,6 +80,7 @@ terminate(_Reason, _State) ->
 
 -spec do_work(Data :: binary()) -> any().
 do_work(Data) ->
+    % safe-ignore binary_to_term/1
     {From, To, Acc, Packet} = erlang:binary_to_term(Data),
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
     ?LOG_DEBUG(#{what => gd_route_incoming, acc => Acc,

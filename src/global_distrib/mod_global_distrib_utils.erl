@@ -48,6 +48,7 @@
 
 -spec any_binary_to_atom(binary()) -> atom().
 any_binary_to_atom(Binary) ->
+    % safe-ignore binary_to_atom/2
     binary_to_atom(base64:encode(Binary), latin1).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.

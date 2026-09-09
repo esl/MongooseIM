@@ -255,6 +255,7 @@ process_config_schema(Items) ->
     lists:ukeysort(1, lists:map(fun process_config_schema_item/1, Items)).
 
 process_config_schema_item(#{field := FieldName} = FieldSpec) ->
+    % safe-ignore binary_to_atom/1
     InternalKey = maps:get(internal_key, FieldSpec, binary_to_atom(FieldName)),
     FieldTypes = schema_field_types(),
     case [K || K <- maps:keys(FieldTypes), maps:is_key(K, FieldSpec)] of

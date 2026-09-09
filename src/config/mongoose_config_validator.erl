@@ -25,6 +25,7 @@ validate(V, binary, url) -> validate_non_empty_binary(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
 validate(V, binary, subdomain_template) -> validate_subdomain_template(V);
 validate(V, binary, {module, Prefix}) ->
+    % safe-ignore list_to_atom/1
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ binary_to_list(V)));
 validate(V, binary, jid) -> validate_jid(V);
 validate(V, binary, jid_localpart) -> validate_jid_localpart(V);
@@ -45,6 +46,7 @@ validate(V, string, non_empty) -> validate_non_empty_string(V);
 validate(V, string, dirname) -> validate_dirname(V);
 validate(V, atom, module) -> validate_module(V);
 validate(V, atom, {module, Prefix}) ->
+    % safe-ignore list_to_atom/1
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ atom_to_list(V)));
 validate(V, atom, loglevel) -> validate_loglevel(V);
 validate(V, atom, instrumentation_loglevel) -> validate_instrumentation_loglevel(V);

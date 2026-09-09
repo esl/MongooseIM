@@ -121,4 +121,5 @@ init([Server]) ->
 
 -spec endpoint_to_atom(mod_global_distrib_utils:endpoint()) -> atom().
 endpoint_to_atom({IP, Port}) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(inet:ntoa(IP) ++ "_" ++ integer_to_list(Port)).

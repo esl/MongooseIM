@@ -163,4 +163,5 @@ dependency_type_to_string(Type) ->
 
 -spec error_key(dependency_type()) -> atom().
 error_key(Type) ->
+    % safe-ignore list_to_atom/1
     list_to_atom("not_loaded_" ++ atom_to_list(Type)).

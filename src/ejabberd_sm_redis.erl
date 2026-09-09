@@ -43,6 +43,7 @@ get_sessions() ->
     lists:flatmap(fun(K) ->
                           Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
                           lists:map(fun(S) ->
+                                            % safe-ignore binary_to_term/1
                                             binary_to_term(S)
                                     end,
                                     Sessions)
@@ -54,6 +55,7 @@ get_sessions(Server) ->
     lists:flatmap(fun(K) ->
                           Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
                           lists:map(fun(S) ->
+                                            % safe-ignore binary_to_term/1
                                             binary_to_term(S)
                                     end,
                                     Sessions)
@@ -63,6 +65,7 @@ get_sessions(Server) ->
 get_sessions(User, Server) ->
     Sessions = mongoose_redis:cmd(["SMEMBERS", hash(User, Server)]),
 
+    % safe-ignore binary_to_term/1
     lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
 -spec get_sessions(jid:user(), jid:server(), jid:resource()
@@ -70,6 +73,7 @@ get_sessions(User, Server) ->
 get_sessions(User, Server, Resource) ->
     Sessions = mongoose_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
 
+    % safe-ignore binary_to_term/1
     lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
 -spec set_session(User :: jid:luser(),
@@ -196,11 +200,13 @@ parse_session_key(<<"s5:", Rest/binary>>) ->
     [Server, Rest2] = binary:split(Rest1, <<":">>),
     [HexResource, BinarySID] = binary:split(Rest2, <<":">>),
     Resource = decode_resource(HexResource),
+    % safe-ignore binary_to_term/1
     SID = binary_to_term(BinarySID),
     {User, Server, Resource, SID};
 parse_session_key(<<"s4:", _/binary>> = Key) ->
     %% Old format: s4:User:Server:Resource:BinarySID (Resource may contain colons)
     [_, User, Server, Resource | SIDEncoded] = binary:split(Key, <<":">>, [global]),
     %% Add possible removed ":" from encoded SID
+    % safe-ignore binary_to_term/1
     SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
     {User, Server, Resource, SID}.

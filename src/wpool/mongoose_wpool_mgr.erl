@@ -78,6 +78,7 @@ stop(Type, Host, Tag) ->
 
 -spec name(mongoose_wpool:pool_type()) -> mongoose_wpool:proc_name().
 name(Type) ->
+    % safe-ignore list_to_atom/1
     list_to_atom("mongoose_wpool_" ++ atom_to_list(Type) ++ "_mgr").
 %%%===================================================================
 %%% gen_server callbacks

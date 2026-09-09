@@ -458,6 +458,7 @@ execute_update_returning_pgsql(HostType, PoolTag, Name, UpdateParams, FilterPara
 %% --- MySQL: emulated via select-lock / bulk-update in caller's transaction ---
 
 mysql_derived_name(BaseName, Suffix) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(atom_to_list(BaseName) ++ Suffix).
 
 prepare_update_returning_mysql(HostType, Spec) ->

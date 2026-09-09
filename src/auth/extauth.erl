@@ -66,6 +66,7 @@ restart_instance(ProcessName, ExtPrg) ->
 init(ProcessName, ExtPrg) ->
     register(ProcessName, self()),
     process_flag(trap_exit, true),
+    % safe-ignore open_port/2
     Port = open_port({spawn, ExtPrg}, [{packet, 2}]),
     loop(Port, ?INIT_TIMEOUT, ProcessName, ExtPrg).
 

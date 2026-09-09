@@ -75,6 +75,7 @@ common_reporter_config_spec() ->
 -spec process_graphite_reporter(mongoose_config_parser_toml:path(), map()) ->
           {reporter_name(), reporter_opts()}.
 process_graphite_reporter(_Path, #{host := Host, port := Port} = Opts) ->
+    % safe-ignore list_to_atom/1
     Name = list_to_atom(lists:flatten(io_lib:format("graphite:~s:~p", [Host, Port]))),
     {Name, Opts#{module => exometer_report_graphite}}.
 

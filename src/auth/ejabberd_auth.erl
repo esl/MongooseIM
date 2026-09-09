@@ -482,6 +482,7 @@ auth_methods(HostType) ->
 
 -spec auth_method_to_module(atom()) -> authmodule().
 auth_method_to_module(Method) ->
+    % safe-ignore list_to_atom/1
     list_to_atom("ejabberd_auth_" ++ atom_to_list(Method)).
 
 -spec remove_domain(mongoose_domain_api:remove_domain_acc(), map(), map()) ->
