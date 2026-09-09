@@ -82,6 +82,7 @@ prepare_insert_queries(muc, #{batch_size := MaxSize, batch_name := BatchName}) -
     mod_mam_muc_rdbms_arch:prepare_insert(BatchName, MaxSize).
 
 multi_name(Name, Times) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(atom_to_list(Name) ++ integer_to_list(Times)).
 
 %%% flush callbacks

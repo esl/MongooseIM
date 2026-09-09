@@ -334,6 +334,7 @@ stats(PoolType, HostType, Tag) ->
 make_pool_name(PoolType, HostType, Tag) when is_atom(HostType) ->
     make_pool_name(PoolType, atom_to_binary(HostType, utf8), Tag);
 make_pool_name(PoolType, HostType, Tag) when is_binary(HostType) ->
+    % safe-ignore binary_to_atom/2
     binary_to_atom(<<"mongoose_wpool$", (atom_to_binary(PoolType, utf8))/binary, $$,
                      HostType/binary, $$, (atom_to_binary(Tag, utf8))/binary>>, utf8).
 
@@ -361,6 +362,7 @@ call_callback(CallbackFun, PoolType, Args) ->
 -spec make_callback_module_name(pool_type()) -> module().
 make_callback_module_name(PoolType) ->
     Name = "mongoose_wpool_" ++ atom_to_list(PoolType),
+    % safe-ignore list_to_atom/1
     list_to_atom(Name).
 
 -spec get_host_type_specific_pools([mongooseim:host_type()]) -> [pool_map_in()].
