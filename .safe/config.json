@@ -1,0 +1,22 @@
+{
+  "output": [
+    "stdio",
+    "file"
+  ],
+  "version": "1.1",
+  "project": {
+    "name": "mim",
+    "type": "beam",
+    "config_env": "prod",
+    "apps": [
+      {
+        "name": "mongooseim",
+        "additional_includes": []
+      }
+    ],
+    "paths": [
+      "_build/default/lib"
+    ],
+    "config_files": []
+  }
+}
