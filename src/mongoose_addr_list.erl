@@ -81,14 +81,7 @@ lookup_services(HostType, Domain, EnforceTls) ->
                    Domain :: hostname(),
                    EnforceTls :: with_tls()) -> [addr()].
 lookup_addrs(HostType, Domain, EnforceTls) ->
-    Port = outgoing_s2s_port(HostType),
-    Types = outgoing_s2s_types(HostType),
-    Fun = fun(Type) ->
-                  MaybeHostEnt = dns_lookup(HostType, Domain, Type),
-                  prepare_addr(MaybeHostEnt, Port, EnforceTls, Domain, Type)
-          end,
-    Expanded = lists:map(Fun, Types),
-    lists:flatten(Expanded).
+    host_addrs(HostType, Domain, outgoing_s2s_port(HostType), EnforceTls).
 
 -spec ensure_tls_and_port(mongooseim:host_type(), pre_addr(), with_tls()) -> [addr()].
 ensure_tls_and_port(_, #{tls := false}, true) ->
@@ -130,8 +123,8 @@ do_lookup_services(HostType, Domain, EnforceTls) ->
 -spec order_and_prepare_addrs(mongooseim:host_type(), [srv_tls()]) -> [addr()].
 order_and_prepare_addrs(HostType, TlsTaggedSrvAddrLists) ->
     OrderedByPriority = lists:sort(fun compare_priority_and_weight/2, TlsTaggedSrvAddrLists),
-    WithIpAddresses = for_each_tagged_srv_get_ip_addresses(HostType, OrderedByPriority),
-    lists:flatten(WithIpAddresses).
+    MapFun = fun({_, _, Port, Host, Tls}) -> host_addrs(HostType, Host, Port, Tls) end,
+    lists:flatmap(MapFun, OrderedByPriority).
 
 %% Probabilities are not exactly proportional to weights
 %% for simplicity (higher weights are overvalued)
@@ -147,27 +140,22 @@ compare_priority_and_weight({P1, _W1, _, _, _}, {P2, _W2, _, _, _}) when P1 < P2
 compare_priority_and_weight({P1, _W1, _, _, _}, {P2, _W2, _, _, _}) when P1 > P2 -> false;
 compare_priority_and_weight({_P1, W1, _, _, _}, {_P2, W2, _, _, _}) -> W2 < W1.
 
--spec for_each_tagged_srv_get_ip_addresses(mongooseim:host_type(), [srv_tls()]) -> [[[addr()]]].
-for_each_tagged_srv_get_ip_addresses(HostType, TlsTaggedSrvAddrLists) ->
-    MapFun = fun({_, _, Port, Host, Tls}) ->
-                     build_with_ip_address_list_for_host(HostType, Host, Port, Tls)
-             end,
-    lists:map(MapFun, TlsTaggedSrvAddrLists).
-
--spec build_with_ip_address_list_for_host(
-        mongooseim:host_type(), hostname(), inet:port_number(), with_tls()) ->
-    [[addr()]].
-build_with_ip_address_list_for_host(HostType, Host, Port, Tls) ->
+%% Only a host resolving to nothing over every configured type has failed to resolve
+-spec host_addrs(mongooseim:host_type(), hostname(), inet:port_number(), with_tls()) -> [addr()].
+host_addrs(HostType, Host, Port, Tls) ->
     Types = outgoing_s2s_types(HostType),
-    FoldFun = fun(Type) -> build_with_typed_dns_lookup(HostType, Host, Port, Tls, Type) end,
-    lists:map(FoldFun, Types).
-
--spec build_with_typed_dns_lookup(
-        mongooseim:host_type(), hostname(), inet:port_number(), with_tls(), dns_ip_type()) ->
-    [addr()].
-build_with_typed_dns_lookup(HostType, Host, Port, Tls, Type) ->
-    MaybeHostEnt = dns_lookup(HostType, Host, Type),
-    prepare_addr(MaybeHostEnt, Port, Tls, Host, Type).
+    MapFun = fun(Type) -> prepare_addr(dns_lookup(HostType, Host, Type), Port, Tls, Type) end,
+    case lists:flatmap(MapFun, Types) of
+        [] ->
+            ?LOG_ERROR(#{what => s2s_dns_lookup_failed,
+                         text => <<"The DNS servers failed to lookup an A|AAAA record."
+                                   " You should check your DNS configuration.">>,
+                         nameserver => inet_db:res_option(nameserver),
+                         server => Host, dns_rr_types => Types}),
+            [];
+        Addrs ->
+            Addrs
+    end.
 
 %% Config lookup functions
 -spec outgoing_s2s_types(mongooseim:host_type()) -> dns_ip_types().
@@ -201,19 +189,12 @@ get_dns(HostType) ->
     mongoose_config:get_opt([{s2s, HostType}, outgoing, dns]).
 
 -spec prepare_addr
-    ([inet:ip4_address()], inet:port_number(), with_tls(), hostname(), a) -> [addr()];
-    ([inet:ip6_address()], inet:port_number(), with_tls(), hostname(), aaaa) -> [addr()].
-prepare_addr([_ | _] = Addrs, Port, Tls, _, Type) ->
+    ([inet:ip4_address()], inet:port_number(), with_tls(), a) -> [addr()];
+    ([inet:ip6_address()], inet:port_number(), with_tls(), aaaa) -> [addr()].
+prepare_addr(Addrs, Port, Tls, Type) ->
     MapFun = fun(Addr) -> #{ip_tuple => Addr, ip_version => dns_to_inet_type(Type),
                             port => Port, tls => Tls} end,
-    lists:map(MapFun, Addrs);
-prepare_addr([], _, _, Domain, Type) ->
-    ?LOG_ERROR(#{what => s2s_dns_lookup_failed,
-                 text => <<"The DNS servers failed to lookup an A|AAAA record."
-                           " You should check your DNS configuration.">>,
-                 nameserver => inet_db:res_option(nameserver),
-                 server => Domain, dns_rr_type => Type}),
-    [].
+    lists:map(MapFun, Addrs).
 
 -spec srv_lookups(HostType :: mongooseim:host_type(),
                   Domain :: hostname(),

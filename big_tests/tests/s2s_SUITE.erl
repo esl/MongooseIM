@@ -214,6 +214,10 @@ inet_res_lookup_fun(Domain, FedPort, srv_ssl) ->
 inet_res_lookup_fun(Domain, FedPort, srv) ->
     fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
             [{30, 0, FedPort, "localhost"}];
+       ("localhost", in, a, _Opts, _Timeout) ->
+            [{127, 0, 0, 1}];
+       ("localhost", in, aaaa, _Opts, _Timeout) ->
+            [];
        (Name, Class, Type, Opts, Timeout) ->
             meck:passthrough([Name, Class, Type, Opts, Timeout])
     end;
