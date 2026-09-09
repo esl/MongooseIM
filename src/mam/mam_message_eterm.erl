@@ -14,6 +14,7 @@ encode(Packet) ->
     term_to_binary(Packet).
 
 decode(Bin) ->
+    % safe-ignore binary_to_term/1
     Term = binary_to_term(Bin),
     maybe_convert_old_exml_format(Term).
 

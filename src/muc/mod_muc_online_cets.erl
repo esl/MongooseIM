@@ -20,6 +20,7 @@
 -type muc_tuple() :: {{MucHost :: jid:lserver(), Room :: mod_muc:room()}, Pid :: pid()}.
 
 table_name(HostType) ->
+    % safe-ignore binary_to_atom/1
     binary_to_atom(<<"cets_muc_online_room_", HostType/binary>>).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.

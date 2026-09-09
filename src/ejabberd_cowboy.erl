@@ -191,6 +191,7 @@ stop_cowboy(Ref) ->
 ref(Listener) ->
     Ref = handler(Listener),
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
+    % safe-ignore binary_to_atom/1
     binary_to_atom(iolist_to_binary(ModRef)).
 
 %% -------------------------------------------------------------------

@@ -71,8 +71,10 @@ hash_table(HostType) ->
 -spec store_table_names(mongooseim:host_type()) -> ok.
 store_table_names(HostType) ->
     persistent_term:put({?MODULE, HostType, jid_tab},
+                        % safe-ignore binary_to_atom/1
                         binary_to_atom(<<"cets_caps_jid_", HostType/binary>>)),
     persistent_term:put({?MODULE, HostType, hash_tab},
+                        % safe-ignore binary_to_atom/1
                         binary_to_atom(<<"cets_caps_hash_", HostType/binary>>)).
 
 -spec delete_table_names(mongooseim:host_type()) -> ok.

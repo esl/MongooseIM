@@ -203,6 +203,7 @@ do_insert_in_store(ResendAt, FPacket) ->
 
 -spec resend_messages(Now :: integer()) -> ok.
 resend_messages(Now) ->
+    % safe-ignore ets:first/1
     case ets:first(?MESSAGE_STORE) of
         Key when is_integer(Key) andalso Key < Now ->
             case ets:take(?MESSAGE_STORE, Key) of
