@@ -80,21 +80,27 @@
 -spec accept(mongoose_listener:transport_module(),
              mongoose_listener:connection_type(),
              ranch:ref(),
-             mongoose_listener:options()) -> socket().
+             mongoose_listener:options()) -> socket() | {error, term()}.
 accept(ranch_tcp, Type, Ref, LOpts) ->
-    {ok, Socket, ConnDetails} = mongoose_listener:read_connection_details(Ref, ranch_tcp, LOpts),
-    #{src_address := PeerIp, src_port := PeerPort} = ConnDetails,
-    SocketState = #ranch_tcp{socket = Socket, connection_type = Type,
-                             ranch_ref = Ref, ip = {PeerIp, PeerPort}},
-    activate(SocketState),
-    SocketState;
+    case mongoose_listener:read_connection_details(Ref, ranch_tcp, LOpts) of
+        {ok, Socket, #{src_address := PeerIp, src_port := PeerPort}} ->
+            SocketState = #ranch_tcp{socket = Socket, connection_type = Type,
+                                     ranch_ref = Ref, ip = {PeerIp, PeerPort}},
+            activate(SocketState),
+            SocketState;
+        {error, Reason} ->
+            {error, Reason}
+    end;
 accept(ranch_ssl, Type, Ref, LOpts) ->
-    {ok, Socket, ConnDetails} = mongoose_listener:read_connection_details(Ref, ranch_ssl, LOpts),
-    #{src_address := PeerIp, src_port := PeerPort} = ConnDetails,
-    SocketState = #ranch_ssl{socket = Socket, connection_type = Type,
-                             ranch_ref = Ref, ip = {PeerIp, PeerPort}},
-    activate(SocketState),
-    SocketState;
+    case mongoose_listener:read_connection_details(Ref, ranch_ssl, LOpts) of
+        {ok, Socket, #{src_address := PeerIp, src_port := PeerPort}} ->
+            SocketState = #ranch_ssl{socket = Socket, connection_type = Type,
+                                     ranch_ref = Ref, ip = {PeerIp, PeerPort}},
+            activate(SocketState),
+            SocketState;
+        {error, Reason} ->
+            {error, Reason}
+    end;
 accept(Module, Type, State, _LOpts) ->
     PeerIp = Module:peername(State),
     SocketState = #xmpp_socket{module = Module, state = State,

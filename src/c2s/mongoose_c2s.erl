@@ -92,12 +92,16 @@ init({Transport, Ref, LOpts}) ->
 handle_event(internal, {connect, {Transport, Ref}}, connect, StateData) ->
     #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts =
         StateData#c2s_data.listener_opts,
-    C2SSocket = mongoose_xmpp_socket:accept(Transport, c2s, Ref, LOpts),
-    verify_ip_is_not_blacklisted(C2SSocket),
-    {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
-    Shaper = mongoose_shaper:new(ShaperName),
-    StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
-    {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
+    case mongoose_xmpp_socket:accept(Transport, c2s, Ref, LOpts) of
+        {error, Reason} ->
+            {stop, {shutdown, Reason}};
+        C2SSocket ->
+            verify_ip_is_not_blacklisted(C2SSocket),
+            {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
+            Shaper = mongoose_shaper:new(ShaperName),
+            StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
+            {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)}
+    end;
 
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     handle_stream_start(StateData, Attrs, StreamState);
