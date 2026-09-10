@@ -13,6 +13,7 @@ while true; do
 
   case "$status" in
     *running* | "")
+      echo "."
       sleep 10;;
 
     success)
