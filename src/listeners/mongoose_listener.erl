@@ -232,16 +232,34 @@ broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
         {ok, ssl:sslsocket(), connection_details()} | {error, term()};
     (ranch:ref(), module(), options()) ->
         {ok, term(), connection_details()} | {error, term()}.
-read_connection_details(Ref, _Transport, #{proxy_protocol := true}) ->
-    {ok, #{src_address := PeerIp, src_port := PeerPort, dest_address := DestAddr,
-           dest_port := DesPort, version := Version}} = ranch:recv_proxy_header(Ref, 1000),
-    {ok, Socket} = ranch:handshake(Ref),
-    {ok, Socket, #{proxy => true,
-                   src_address => PeerIp,
-                   src_port => PeerPort,
-                   dest_address => DestAddr,
-                   dest_port => DesPort,
-                   version => Version}};
+read_connection_details(Ref, Transport, #{proxy_protocol := true}) ->
+    case ranch:recv_proxy_header(Ref, 1000) of
+        {ok, #{src_address := PeerIp, src_port := PeerPort, dest_address := DestAddr,
+               dest_port := DesPort, version := Version}} ->
+            {ok, Socket} = ranch:handshake(Ref),
+            {ok, Socket, #{proxy => true,
+                           src_address => PeerIp,
+                           src_port => PeerPort,
+                           dest_address => DestAddr,
+                           dest_port => DesPort,
+                           version => Version}};
+        %% A header relaying no addresses, like the v2 LOCAL one a proxy sends for its
+        %% own health checks.
+        {ok, #{version := Version}} ->
+            {ok, Socket} = ranch:handshake(Ref),
+            {ok, {DestAddr, DestPort}} = Transport:sockname(Socket),
+            {ok, {SrcAddr, SrcPort}} = Transport:peername(Socket),
+            {ok, Socket, #{proxy => true,
+                           src_address => SrcAddr,
+                           src_port => SrcPort,
+                           dest_address => DestAddr,
+                           dest_port => DestPort,
+                           version => Version}};
+        {error, protocol_error, Reason} ->
+            {error, {proxy_protocol, Reason}};
+        {error, Reason} ->
+            {error, {proxy_protocol, Reason}}
+    end;
 read_connection_details(Ref, ranch_tcp, _Opts) ->
     {ok, Socket} = ranch:handshake(Ref),
     {ok, {DestAddr, DestPort}} = ranch_tcp:sockname(Socket),

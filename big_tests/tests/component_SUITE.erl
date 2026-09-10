@@ -34,7 +34,8 @@ all() ->
      {group, check_from_disabled},
      {group, subdomain},
      {group, hidden_components},
-     {group, distributed}
+     {group, distributed},
+     {group, proxy_protocol}
     ].
 
 groups() ->
@@ -50,7 +51,8 @@ groups() ->
      {distributed, [], [register_in_cluster,
                         register_same_on_both
                         %clear_on_node_down TODO: Breaks cover
-                       ]}].
+                       ]},
+     {proxy_protocol, [], [cannot_connect_without_proxy_header]}].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim]) ++ escalus:suite().
@@ -102,6 +104,10 @@ init_per_group(distributed, Config) ->
     %% process they monitor.
     cth_error_report:expect({what, task_failed}),
     distributed_helper:add_node_to_cluster(Config);
+init_per_group(proxy_protocol, Config) ->
+    Listener = component_listener(),
+    mongoose_helper:restart_listener(mim(), Listener#{proxy_protocol => true}),
+    [{component_listener, Listener} | Config];
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -114,6 +120,8 @@ end_per_group(subdomain, Config) ->
     restore_domain(Config);
 end_per_group(distributed, Config) ->
     distributed_helper:remove_node_from_cluster(Config);
+end_per_group(proxy_protocol, Config) ->
+    mongoose_helper:restart_listener(mim(), ?config(component_listener, Config));
 end_per_group(_GroupName, _Config) ->
     ok.
 
@@ -694,9 +702,26 @@ register_same_on_both(Config) ->
     component_helper:disconnect_components([Comp2, Comp_d], Addr),
     ok.
 
+cannot_connect_without_proxy_header(_Config) ->
+    %% GIVEN proxy protocol is enabled on the component listener
+
+    %% WHEN a connection arrives with no PROXY header
+    #{port := Port} = component_listener(),
+    {ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}]),
+    ok = gen_tcp:send(Socket, ~"<stream:stream>"),
+
+    %% THEN it is closed without crashing the connection process
+    ?assertEqual({error, closed}, gen_tcp:recv(Socket, 0, timer:seconds(5))).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+component_listener() ->
+    Port = ct:get_config({hosts, mim, component_port}),
+    [Listener] = mongoose_helper:get_listeners(mim(), #{port => Port,
+                                                        module => mongoose_component_listener}),
+    Listener.
+
 verify_component(Config, Component, ComponentAddr) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
                 %% When Alice sends a message to the component
