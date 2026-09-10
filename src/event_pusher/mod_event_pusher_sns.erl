@@ -111,7 +111,7 @@ push_event(HookAcc, #{event := #user_status_event{jid = UserJID, status = Status
            #{host_type := HostType}) ->
     user_presence_changed(HostType, UserJID, Status == online),
     {ok, HookAcc};
-push_event(HookAcc, #{event := #chat_event{direction = in, from = From, to = To, packet = Packet}},
+push_event(HookAcc, #{event := #msg_event{direction = in, from = From, to = To, packet = Packet}},
            #{host_type := HostType}) ->
     handle_packet(HostType, From, To, Packet),
     {ok, HookAcc};

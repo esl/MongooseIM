@@ -134,9 +134,9 @@ send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
     Sender = ?config(sender, Config),
     Recipient = ?config(recipient, Config),
-    push_event(#chat_event{type = chat, direction = in,
-                           from = Sender, to = Recipient,
-                           packet = Packet}).
+    push_event(#msg_event{type = chat, direction = in,
+                          from = Sender, to = Recipient,
+                          packet = Packet}).
 
 user_present_callback(Config) ->
     Jid = ?config(sender, Config),
