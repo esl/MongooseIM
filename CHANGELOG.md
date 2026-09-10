@@ -1,3 +1,36 @@
+# [MongooseIM 6.9.0](https://github.com/esl/MongooseIM/releases/tag/6.9.0) - 2026-09-10
+
+## Highlights
+- Added configurable, rule-based push notification handling as an alternative to plugins.
+- Push notifications now use routing-time session state instead of the general presence status.
+- Fixed `mod_muc_light` preventing the last admin from leaving a room.
+- Tightened GraphQL schema nullability and added a `SafeInt` scalar for large metric values.
+
+## Added
+- Added configurable, rule-based push notification handling as an alternative to plugins, with ordered rules and `push`/`skip` actions (#4781)
+
+## Changed
+- `mod_event_pusher` no longer emits received-message events for non-user targets (#4777)
+- Push notifications now also fire for CSI-inactive recipients (#4779)
+- Tightened GraphQL schema nullability across many fields and arguments (#4772)
+
+## Fixed
+- Fixed `mod_muc_light` preventing the last admin from leaving a room when `promote_on_last_owner_leave` is disabled (#4780)
+
+## Other
+- Classified expected errors logged during big test runs (#4778)
+- Fixed s2s DNS lookup tests depending on the local DNS resolver (#4792)
+- CI fixes: a fixed docs build, and an avoided CircleCI timeout in the packages pipeline (#4791, #4793)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.9.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-08-24..2026-09-10)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-08-24&to=2026-09-10&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.9.0+sort%3Aupdated-desc)
+
 # [MongooseIM 6.8.1](https://github.com/esl/MongooseIM/releases/tag/6.8.1) - 2026-08-24
 
 ## Highlights
