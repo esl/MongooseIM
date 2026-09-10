@@ -106,6 +106,7 @@ parallel_cases() ->
      resume_session_with_wrong_namespace_is_a_noop,
      resume_dead_session_results_in_item_not_found,
      resume_session_kills_old_C2S_gracefully,
+     resume_session_twice,
      carboncopy_works,
      carboncopy_works_after_resume,
      replies_are_processed_by_resumed_session,
@@ -1271,6 +1272,17 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     %% C2S process should die gracefully with Reason=normal.
     sm_helper:wait_for_process_termination(MonitorRef),
     escalus_connection:stop(NewUser).
+
+resume_session_twice(Config) ->
+    User = connect_fresh(Config, ?config(user, Config), sr_presence, manual),
+    MonitorRef = sm_helper:monitor_session(User),
+    User1 = sm_helper:kill_and_connect_resume(User),
+    %% Cleanup of the old C2S must not unregister the resumed session's SMID.
+    sm_helper:wait_for_process_termination(MonitorRef),
+    SMID = sm_helper:client_to_smid(User1),
+    {sid, _} = sm_helper:get_sid_by_stream_id(host_type(), SMID),
+    User2 = sm_helper:kill_and_connect_resume(User1),
+    escalus_connection:stop(User2).
 
 carboncopy_works(Config) ->
     escalus:fresh_story(Config, [{?config(user, Config), 2}, {bob, 1}], fun(User1, User, Bob) ->
