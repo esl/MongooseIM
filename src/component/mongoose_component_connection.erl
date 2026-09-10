@@ -73,11 +73,16 @@ init({Transport, Ref, LOpts}) ->
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
 handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) ->
     #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
-    {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
-    Shaper = mongoose_shaper:new(ShaperName),
-    Socket = mongoose_xmpp_socket:accept(Transport, component, Ref, LOpts),
-    StateData = #component_data{socket = Socket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
-    {next_state, wait_for_stream, StateData, state_timeout(LOpts)};
+    case mongoose_xmpp_socket:accept(Transport, component, Ref, LOpts) of
+        {error, Reason} ->
+            {stop, {shutdown, Reason}};
+        Socket ->
+            {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
+            Shaper = mongoose_shaper:new(ShaperName),
+            StateData = #component_data{socket = Socket, parser = Parser,
+                                        shaper = Shaper, listener_opts = LOpts},
+            {next_state, wait_for_stream, StateData, state_timeout(LOpts)}
+    end;
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, wait_for_stream, StateData) ->
     handle_stream_start(StateData, Attrs);
 handle_event(internal, #xmlel{name = <<"handshake">>} = El, wait_for_handshake, StateData) ->
@@ -123,7 +128,9 @@ handle_event(EventType, EventContent, State, StateData) ->
                    event_type => EventType, event_content => EventContent}),
     keep_state_and_data.
 
--spec terminate(term(), undefined | state(), data()) -> any().
+-spec terminate(term(), undefined | state(), undefined | data()) -> any().
+terminate(Reason, connect, undefined) ->
+    ?LOG_INFO(#{what => component_failed_to_initialize, reason => Reason});
 terminate(Reason, stream_established, StateData) ->
     unregister_routes(StateData),
     terminate(Reason, undefined, StateData);

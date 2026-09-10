@@ -95,6 +95,7 @@ groups() ->
         {disconnect, [], [disconnect_inactive_tcp_connection_after_timeout]},
         {keep_secrets, [], [log_tls_secrets]},
         {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
+                                      connect_with_local_proxy_header,
                                       connect_with_proxy_header]}
     ].
 
@@ -797,6 +798,20 @@ cannot_connect_without_proxy_header(Config) ->
     %% THEN
     ?assertMatch({error, {connection_step_failed, _, _}}, ConnResult).
 
+connect_with_local_proxy_header(Config) ->
+    %% GIVEN proxy protocol is enabled
+    UserSpec = [{resource, ~"local_proxy"} | escalus_users:get_userspec(Config, alice)],
+
+    %% WHEN a v2 LOCAL header arrives, as sent by a proxy's own health check
+    ConnectionSteps = [{?MODULE, send_local_proxy_header}, start_stream, stream_features,
+                       authenticate, bind, session],
+    {ok, Conn, _Features} = escalus_connection:start(UserSpec, ConnectionSteps),
+
+    %% THEN the real connection endpoints are used, as the header relays none
+    SessionInfo = mongoose_helper:get_session_info(mim(), Conn),
+    ?assertMatch({{127, 0, 0, 1}, _}, maps:get(ip, SessionInfo)),
+    escalus_connection:stop(Conn).
+
 connect_with_proxy_header(Config) ->
     %% GIVEN proxy protocol is enabled
     UserSpec = escalus_users:get_userspec(Config, alice),
@@ -934,6 +949,11 @@ pipeline_connect(UserSpec) ->
 
 send_proxy_header(Conn, UnusedFeatures) ->
     Header = ranch_proxy_header:header(proxy_info()),
+    escalus_connection:send_raw(Conn, iolist_to_binary(Header)),
+    {Conn, UnusedFeatures}.
+
+send_local_proxy_header(Conn, UnusedFeatures) ->
+    Header = ranch_proxy_header:header(#{version => 2, command => local}),
     escalus_connection:send_raw(Conn, iolist_to_binary(Header)),
     {Conn, UnusedFeatures}.
 
