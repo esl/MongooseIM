@@ -120,7 +120,7 @@ config_spec() ->
 -spec process_options(gen_mod:module_opts()) -> gen_mod:module_opts().
 process_options(#{plugin_module := _, rules := _}) ->
     error(#{what => invalid_push_options,
-            text => "The 'plugin_module' and 'rules' options cannot be specified together"});
+            text => ~"The 'plugin_module' and 'rules' options cannot be specified together"});
 process_options(Opts) when not is_map_key(plugin_module, Opts), not is_map_key(rules, Opts) ->
     Opts#{plugin_module => mod_event_pusher_push_plugin:default_plugin_module()};
 process_options(Opts) ->
@@ -156,7 +156,6 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
                  gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
-
 push_event(HookAcc, #{event := Event = #msg_event{direction = out, to = To, type = Type}}, _Extra)
   when Type =:= groupchat;
        Type =:= chat ->

@@ -30,7 +30,7 @@ body(message, Packet) ->
             {ok, exml_query:cdata(Body)}
     end;
 body(jingle, Packet) ->
-    case exml_query:path(Packet, [{element_with_ns, ?JINGLE_MSG_NS}]) of
+    case exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) of
         #xmlel{name = Action, attrs = #{~"id" := Id}} ->
             {ok, <<"Jingle message: ", Action/binary, ", session ID: ", Id/binary>>};
         #xmlel{} ->
@@ -39,7 +39,7 @@ body(jingle, Packet) ->
             {error, missing_jingle_element}
     end.
 
--spec get_unread_count(mongoose_acc:t(), jid:jid()) -> pos_integer().
+-spec get_unread_count(mongoose_acc:t(), jid:jid()) -> non_neg_integer().
 get_unread_count(Acc, To) ->
     NewAcc = mongoose_hooks:inbox_unread_count(Acc, To),
     mongoose_acc:get(inbox, unread_count, 1, NewAcc).
