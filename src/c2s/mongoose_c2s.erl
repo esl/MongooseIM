@@ -674,8 +674,11 @@ handle_info(StateData, C2SState, Info) ->
 handle_timeout(StateData, _C2SState, activate_socket, activate_socket) ->
     activate_socket(StateData),
     keep_state_and_data;
-handle_timeout(StateData, C2SState, replaced_wait_timeout, ReplacedPids) ->
-    [ verify_process_alive(StateData, C2SState, Pid) || Pid <- ReplacedPids ],
+handle_timeout(_StateData, C2SState, replaced_wait_timeout, ReplacedPids) ->
+    %% Diagnostics only, see mongoose_c2s_replaced_probe. Whatever the replaced
+    %% sessions did - or whether their node is still reachable at all - this
+    %% connection keeps running.
+    mongoose_c2s_replaced_probe:verify(ReplacedPids, C2SState),
     keep_state_and_data;
 handle_timeout(StateData, C2SState, Name, Handler) when is_atom(Name), is_function(Handler, 2) ->
     C2sAcc = Handler(Name, StateData),
@@ -687,19 +690,6 @@ handle_timeout(StateData, _C2SState, state_timeout, state_timeout_termination) -
     {stop, {shutdown, state_timeout}};
 handle_timeout(StateData, C2SState, Name, Payload) ->
     handle_foreign_event(StateData, C2SState, {timeout, Name}, Payload).
-
-verify_process_alive(StateData, C2SState, Pid) ->
-    IsAlive = case node(Pid) =:= node() of
-                  true -> erlang:is_process_alive(Pid);
-                  false -> rpc:call(node(Pid), erlang, is_process_alive, [Pid])
-              end,
-    case IsAlive of
-        false -> ok;
-        true ->
-            ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
-                           text => <<"Some processes are not responding when handling replace messages">>,
-                           replaced_pid => Pid, state_name => C2SState, c2s_data => StateData})
-    end.
 
 -spec maybe_retry_state(state()) -> state() | {stop, term()}.
 maybe_retry_state(connect) -> connect;

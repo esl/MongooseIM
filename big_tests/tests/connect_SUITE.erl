@@ -29,6 +29,11 @@
     [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
      || (E) =/= (V)])).
 -define(SECURE_USER, secure_joe).
+%% The replaced_wait_timeout used by replaced_session_survives_remote_node_shutdown.
+%% It has to outlast a real `mongooseimctl stop' of the other node, because the
+%% whole point of the test is that the node is already gone when the timer fires.
+%% The case asserts that ordering instead of assuming it.
+-define(REMOTE_SHUTDOWN_WAIT, 30000).
 -define(CACERT_FILE, "priv/ssl/cacert.pem").
 -define(CERT_FILE, "priv/ssl/fake_cert.pem").
 -define(KEY_FILE, "priv/ssl/fake_key.pem").
@@ -86,7 +91,8 @@ groups() ->
                                    same_resource_replaces_session_with_colon,
                                    clean_close_of_replaced_session,
                                    replaced_session_cannot_terminate,
-                                   replaced_session_cannot_terminate_different_nodes]},
+                                   replaced_session_cannot_terminate_different_nodes,
+                                   replaced_session_survives_remote_node_shutdown]},
         {security, [], [return_proper_stream_error_if_service_is_not_hidden,
                         close_connection_if_service_type_is_hidden]},
         {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
@@ -216,9 +222,27 @@ init_per_testcase(replaced_session_cannot_terminate_different_nodes = CN, Config
     Config2 = distributed_helper:add_node_to_cluster(mim2(), Config1),
     logger_ct_backend:start(mim2()),
     escalus:init_per_testcase(CN, Config2);
+init_per_testcase(replaced_session_survives_remote_node_shutdown = CN, Config) ->
+    S = escalus_users:get_server(Config, alice),
+    OptKey = {replaced_wait_timeout, S},
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, OptKey, ?REMOTE_SHUTDOWN_WAIT),
+    Config2 = distributed_helper:add_node_to_cluster(mim2(), Config1),
+    %% distributed_helper:stop_node/2 and start_node/2 need mim2's release path
+    Config3 = ejabberd_node_utils:init(mim2(), Config2),
+    escalus:init_per_testcase(CN, Config3);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(replaced_session_survives_remote_node_shutdown = CaseName, Config) ->
+    %% The case stops mim2 on purpose; put it back before anything else runs.
+    #{node := Mim2Node} = mim2(),
+    case is_node_running(Mim2Node) of
+        true -> ok;
+        false -> distributed_helper:start_node(Mim2Node, Config)
+    end,
+    distributed_helper:remove_node_from_cluster(mim2(), Config),
+    mongoose_helper:restore_config(Config),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(replaced_session_cannot_terminate_different_nodes = CaseName, Config) ->
     logger_ct_backend:stop(mim2()),
     distributed_helper:remove_node_from_cluster(mim2(), Config),
@@ -688,6 +712,10 @@ replaced_session_cannot_terminate(Config) ->
     rpc(mim(), sys, resume, [C2SPid]),
     logger_ct_backend:stop_capture(),
 
+    %% The diagnostic reported a frozen old session - and left the new one alone
+    assert_connection_still_usable(Alice2),
+    assert_message_processed(),
+
     escalus_connection:stop(Alice2).
 
 replaced_session_cannot_terminate_different_nodes(Config) ->
@@ -712,7 +740,92 @@ replaced_session_cannot_terminate_different_nodes(Config) ->
     rpc(mim(), sys, resume, [C2SPid]),
     logger_ct_backend:stop_capture(),
 
+    %% Same, with the frozen old session on another node: the remote check
+    %% answered `true' and the new connection carried on regardless.
+    assert_connection_still_usable(Alice2),
+
     escalus_connection:stop(Alice2).
+
+%% Regression test for the rolling restart outage: the node that hosted the
+%% replaced session disappears between "capture the replaced pids" and "check
+%% whether they exited". The check then used to raise
+%% {case_clause, {badrpc, nodedown}} inside the new connection's own gen_statem
+%% callback and take that brand new, fully authenticated connection down with it.
+%%
+%% The assertion is deliberately on the ORIGINAL c2s process and the ORIGINAL
+%% socket. Checking that a client can reconnect afterwards would hide the bug.
+replaced_session_survives_remote_node_shutdown(Config) ->
+    logger_ct_backend:capture(error),
+    UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
+
+    %% GIVEN a session on the other node
+    {ok, Alice1, _} = escalus_connection:start([{port, 5232} | UserSpec]),
+
+    %% WHEN it is replaced by a new session on this node, which captures the
+    %% remote pid and arms replaced_wait_timeout with it
+    ArmedAt = erlang:monotonic_time(millisecond),
+    {ok, Alice2, _} = escalus_connection:start(UserSpec),
+
+    %% Barrier 1: the old session really was replaced, so the pid list was not
+    %% empty and the timer really is armed.
+    escalus:assert(is_stream_error, [<<"conflict">>, <<>>],
+                   escalus:wait_for_stanza(Alice1, timer:seconds(5))),
+    ReplacementConfirmedAt = erlang:monotonic_time(millisecond),
+    C2SPid = mongoose_helper:get_session_pid(Alice2, mim()),
+    ?assert(is_pid(C2SPid)),
+
+    %% Barrier 2: the other node is really gone, and this node knows it, before
+    %% the timer fires. No sleeping until "probably down".
+    #{node := Mim2Node} = mim2(),
+    distributed_helper:stop_node(Mim2Node, Config),
+    wait_helper:wait_until(
+      fun() -> lists:member(Mim2Node, rpc(mim(), erlang, nodes, [connected])) end, false,
+      #{name => remote_node_down, time_left => timer:seconds(60)}),
+    Elapsed = erlang:monotonic_time(millisecond) - ArmedAt,
+    Elapsed < ?REMOTE_SHUTDOWN_WAIT orelse
+        ct:fail("Stopping ~p took ~pms, which is not less than the armed "
+                "replaced_wait_timeout of ~pms - raise ?REMOTE_SHUTDOWN_WAIT",
+                [Mim2Node, Elapsed, ?REMOTE_SHUTDOWN_WAIT]),
+
+    %% Barrier 3: start from an upper bound on when the timer was armed.
+    %% Login may take longer than the margin, so ArmedAt alone could let the
+    %% assertions run before the timer fires and hide the original crash.
+    SinceReplacement = erlang:monotonic_time(millisecond) - ReplacementConfirmedAt,
+    timer:sleep(max(0, ?REMOTE_SHUTDOWN_WAIT - SinceReplacement) + timer:seconds(2)),
+
+    %% THEN the very same c2s process is still serving the very same socket
+    ?assert(rpc(mim(), erlang, is_process_alive, [C2SPid])),
+    ?assert_equal(C2SPid, mongoose_helper:get_session_pid(Alice2, mim())),
+    assert_connection_still_usable(Alice2),
+    assert_message_processed(),
+
+    %% ... and the diagnostic did not crash anything on the way
+    logger_ct_backend:stop_capture(),
+    FilterFun = fun(_, Msg) ->
+                        re:run(Msg, "case_clause|verify_process_alive") /= nomatch
+                end,
+    [] = logger_ct_backend:recv(FilterFun),
+
+    escalus_connection:stop(Alice2).
+
+%% Round trip an IQ and a message on the very same socket.
+assert_connection_still_usable(Client) ->
+    escalus:send(Client, escalus_stanza:roster_get()),
+    escalus:assert(is_roster_result, escalus:wait_for_stanza(Client, timer:seconds(5))),
+    Jid = escalus_client:full_jid(Client),
+    escalus:send(Client, escalus_stanza:chat_to(Jid, <<"still connected">>)),
+    escalus:assert(is_chat_message, [<<"still connected">>],
+                   escalus:wait_for_stanza(Client, timer:seconds(5))).
+
+%% The event collector observes mim(), so assert this for round trips on that node.
+assert_message_processed() ->
+    instrument_helper:wait_and_assert(c2s_message_processed,
+                                     #{host_type => domain_helper:host_type()},
+                                     fun(#{time := Time}) -> is_integer(Time) andalso Time >= 0 end).
+
+%% distributed_helper:rpc/4 raises on a dead node, so ask erlang directly.
+is_node_running(Node) ->
+    rpc:call(Node, erlang, node, [], timer:seconds(5)) =:= Node.
 
 return_proper_stream_error_if_service_is_not_hidden(_Config) ->
     % GIVEN MongooseIM is running default configuration
