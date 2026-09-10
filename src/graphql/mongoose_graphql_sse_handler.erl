@@ -104,12 +104,12 @@ handle_error(Msg, Reason, _State) ->
     ?LOG_ERROR(#{what => mongoose_graphql_sse_handler_failed,
                  reason => Reason, text => Msg}).
 
--spec terminate(term(), req(), state()) -> ok.
+-spec terminate(term(), req(), state() | undefined) -> ok.
 terminate(_Reason, _Req, #{ep := Ep, req := Req = #{ctx := Ctx}}) ->
     Ctx1 = Ctx#{event => terminate},
     {ok, #{aux := [{stream, closed}]}} = mongoose_graphql:execute(Ep, Req#{ctx := Ctx1}),
     ok;
-terminate(_Reason, _Req, #{}) ->
+terminate(_Reason, _Req, _State) ->
     ok.
 
 make_error(Phase, Term) ->
