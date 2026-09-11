@@ -50,6 +50,10 @@ convert_name_segment(S) ->
 
 get_nodes(Args) ->
     Nodes = get_list(<<"nodes">>, Args),
+    %% feeds rpc:call/4, which already handles {badrpc, nodedown} for a node that
+    %% isn't connected -- Erlang distribution auto-connects on rpc:call, so a
+    %% not-yet-connected-but-valid cluster node must remain queryable.
+    %% Admin-API-gated (GraphQL @protected), not exposed to unauthenticated/remote input.
     % safe-ignore binary_to_atom/1
     lists:map(fun binary_to_atom/1, Nodes).
 
