@@ -53,8 +53,8 @@ common_handler_config_spec() ->
              process = fun ?MODULE:process_config/2}.
 
 process_config([item, HandlerType | _], Opts) ->
-    % safe-ignore binary_to_atom/1
-    Opts#{module => binary_to_atom(HandlerType)}.
+    Module = binary_to_existing_atom(HandlerType),
+    Opts#{module => Module}.
 
 %% @doc Return the list of Cowboy routes for the specified handler configuration.
 %% Cowboy will search for a matching Host, then for a matching Path. If no Path matches,
