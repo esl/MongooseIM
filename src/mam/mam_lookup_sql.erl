@@ -104,6 +104,7 @@ filters_to_statement_name(Env, QueryType, Table, Filters, Order, OffsetLimit) ->
     Ids = [op_to_id(Op) ++ column_to_id(Env, Col) || {Op, Col, _Val} <- Filters],
     OrderId = order_type_to_id(Order),
     LimitId = offset_limit_to_id(OffsetLimit),
+    %% Prepared SQL statement name; permutations are bounded by schema-defined filter types.
     % safe-ignore list_to_atom/1
     list_to_atom(atom_to_list(Table) ++ "_" ++ QueryId ++ "_" ++ OrderId ++ "_" ++ lists:append(Ids) ++ "_" ++ LimitId).
 
