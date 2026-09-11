@@ -288,6 +288,7 @@ defaults() ->
       <<"default_room">> => keys_as_atoms(default_room_opts())}.
 
 keys_as_atoms(Map) ->
+    % safe-ignore binary_to_atom/1
     maps:from_list([{binary_to_atom(K), V} || {K, V} <- maps:to_list(Map)]).
 
 default_room_config_spec() ->

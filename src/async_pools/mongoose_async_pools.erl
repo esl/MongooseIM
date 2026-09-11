@@ -134,6 +134,7 @@ init({HostType, PoolId, PoolOpts}) ->
 %%% internal callbacks
 -spec sup_name(mongooseim:host_type(), pool_id()) -> atom().
 sup_name(HostType, PoolId) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(
       atom_to_list(PoolId) ++ "_sup_async_pool_" ++ binary_to_list(HostType)).
 
@@ -143,6 +144,7 @@ store_pool_name(HostType, PoolId, PoolName) ->
 
 -spec gen_pool_name(mongooseim:host_type(), pool_id()) -> pool_name().
 gen_pool_name(HostType, PoolId) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(
       atom_to_list(PoolId) ++ "_async_pool_" ++ binary_to_list(HostType)).
 

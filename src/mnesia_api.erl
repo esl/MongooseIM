@@ -39,6 +39,7 @@ mnesia_info(Keys) ->
             Acc ++ [{{bad_key_error, <<"Key \"all\" does not exist">>},
                     #{key => <<"all">>}}];
         (Key, Acc) ->
+            % safe-ignore binary_to_atom/1
             try mnesia:system_info(binary_to_atom(Key)) of
                 Value ->
                     Acc ++ [{ok, #{<<"result">> => convert_value(Value), <<"key">> => Key}}]
@@ -59,6 +60,7 @@ dump_mnesia(Path) ->
 
 -spec dump_table(file:name(), string()) -> {dump_error(), io_lib:chars()} | {ok, []}.
 dump_table(Path, STable) ->
+    % safe-ignore list_to_atom/1
     Table = list_to_atom(STable),
     dump_tables(Path, [Table]).
 

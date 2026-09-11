@@ -163,3 +163,22 @@ jobs:
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p edoc_only
+
+  safe:
+    name: SAFE security scan
+    runs-on: ubuntu-22.04
+    env:
+      SAFE_LICENSE: ${{ secrets.SAFE_LICENSE }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: erlef/setup-beam@v1.16.0
+        with:
+          otp-version: '28.4.2'
+      - uses: actions/cache@v3
+        with:
+          path: _build/safe
+          key: safe-engine-${{ hashFiles('safe.lock') }}-v1
+      - run: tools/test.sh -p safe_only

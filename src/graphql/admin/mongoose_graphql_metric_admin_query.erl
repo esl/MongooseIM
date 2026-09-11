@@ -26,15 +26,20 @@ get_keys2(Args) ->
 %% Percentile datapoints are integers, e.g. 50, other datapoints are atoms
 prepare_key(X) when is_binary(X) ->
     try binary_to_integer(X)
-    catch error:badarg -> binary_to_atom(X)
+    catch
+        error:badarg ->
+            % safe-ignore binary_to_atom/1
+            binary_to_atom(X)
     end.
 
 get_name(Args) ->
     Segments = get_list(<<"name">>, Args),
+    % safe-ignore binary_to_atom/1
     lists:map(fun binary_to_atom/1, Segments).
 
 get_nodes(Args) ->
     Nodes = get_list(<<"nodes">>, Args),
+    % safe-ignore binary_to_atom/1
     lists:map(fun binary_to_atom/1, Nodes).
 
 get_list(Key, Map) ->

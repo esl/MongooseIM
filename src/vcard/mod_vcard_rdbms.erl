@@ -214,6 +214,7 @@ limit_type(_Limit) ->
 filters_to_statement_name(Filters, LimitType) ->
    Ids = [type_to_id(Type) ++ column_to_id(Col) || {Type, Col, _Val} <- Filters],
    LimitId = limit_type_to_id(LimitType),
+   % safe-ignore list_to_atom/1
    list_to_atom("vcard_search_" ++ LimitId ++ "_" ++ lists:append(Ids)).
 
 filters_to_columns(Filters, LimitType) ->

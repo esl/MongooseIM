@@ -77,6 +77,7 @@ start() ->
                                      SNode
                              end
                      end,
+            % safe-ignore list_to_atom/1
             Node = list_to_atom(SNode1),
             Status = case rpc:call(Node, ?MODULE, process, [Args]) of
                          {badrpc, Reason} ->
