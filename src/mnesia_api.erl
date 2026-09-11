@@ -39,11 +39,13 @@ mnesia_info(Keys) ->
             Acc ++ [{{bad_key_error, <<"Key \"all\" does not exist">>},
                     #{key => <<"all">>}}];
         (Key, Acc) ->
-            % safe-ignore binary_to_atom/1
-            try mnesia:system_info(binary_to_atom(Key)) of
+            try mnesia:system_info(binary_to_existing_atom(Key, utf8)) of
                 Value ->
                     Acc ++ [{ok, #{<<"result">> => convert_value(Value), <<"key">> => Key}}]
             catch
+                error:badarg ->
+                    Acc ++ [{{bad_key_error, <<"Key \"", Key/binary, "\" does not exist">>},
+                            #{key => Key}}];
                 _:{_, {badarg, _}} ->
                     Acc ++ [{{bad_key_error, <<"Key \"", Key/binary, "\" does not exist">>},
                             #{key => Key}}];
@@ -58,11 +60,14 @@ dump_mnesia(Path) ->
     Tabs = get_local_tables(),
     dump_tables(Path, Tabs).
 
--spec dump_table(file:name(), string()) -> {dump_error(), io_lib:chars()} | {ok, []}.
-dump_table(Path, STable) ->
-    % safe-ignore list_to_atom/1
-    Table = list_to_atom(STable),
-    dump_tables(Path, [Table]).
+-spec dump_table(file:name(), binary()) -> {dump_error(), iodata()} | {ok, []}.
+dump_table(Path, Table) ->
+    try binary_to_existing_atom(Table, utf8) of
+        Tab -> dump_tables(Path, [Tab])
+    catch
+        error:badarg ->
+            {table_does_not_exist, <<"Table ", Table/binary, " does not exist">>}
+    end.
 
 -spec backup_mnesia(file:name()) -> {backup_error(), io_lib:chars()} | {ok, []}.
 backup_mnesia(Path) ->

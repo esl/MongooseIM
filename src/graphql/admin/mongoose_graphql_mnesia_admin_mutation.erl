@@ -38,7 +38,7 @@ execute(_Ctx, mnesia, <<"dump">>, #{<<"path">> := Path}) ->
         Error -> make_error(Error, #{path => Path})
     end;
 execute(_Ctx, mnesia, <<"dumpTable">>, #{<<"path">> := Path, <<"table">> := Table}) ->
-    case mnesia_api:dump_table(binary_to_list(Path), binary_to_list(Table)) of
+    case mnesia_api:dump_table(binary_to_list(Path), Table) of
         {ok, _} -> {ok, "Mnesia table successfully dumped"};
         Error -> make_error(Error, #{path => Path, table => Table})
     end;
