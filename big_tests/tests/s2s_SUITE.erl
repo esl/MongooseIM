@@ -65,7 +65,8 @@ groups() ->
      {start_stream_errors_after_starttls, [parallel], start_stream_error_cases()},
      {start_stream_errors_after_auth, [parallel], start_stream_error_cases()},
 
-     {proxy_protocol, [], [cannot_connect_without_proxy_header]}
+     {proxy_protocol, [], [connect_with_proxy_header,
+                           cannot_connect_without_proxy_header]}
     ].
 
 essentials() ->
@@ -264,6 +265,16 @@ end_per_testcase(CaseName, Config) ->
 %%% Server-to-server communication test
 %%%===================================================================
 
+connect_with_proxy_header(_Config) ->
+    %% GIVEN proxy protocol is enabled on the s2s listener
+
+    %% WHEN a connection arrives with a valid PROXY header
+    Steps = [{mongoose_helper, send_proxy_header}, fun s2s_start_stream/2],
+
+    %% THEN the header is consumed and the stream starts
+    {ok, Client, _Features} = escalus_connection:start(proxied_connection_args(), Steps),
+    escalus_connection:stop(Client).
+
 cannot_connect_without_proxy_header(_Config) ->
     %% GIVEN proxy protocol is enabled on the s2s listener
 
@@ -274,6 +285,14 @@ cannot_connect_without_proxy_header(_Config) ->
 
     %% THEN it is closed without crashing the connection process
     ?assertEqual({error, closed}, gen_tcp:recv(Socket, 0, timer:seconds(5))).
+
+%% The listener with proxy protocol enabled is on mim, not on fed1
+proxied_connection_args() ->
+    #{port := Port} = s2s_listener(),
+    [{host, "localhost"},
+     {to_server, "localhost"},
+     {from_server, "fed1"},
+     {port, Port}].
 
 s2s_listener() ->
     Port = ct:get_config({hosts, mim, incoming_s2s_port}),

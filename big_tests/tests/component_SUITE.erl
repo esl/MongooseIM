@@ -52,7 +52,8 @@ groups() ->
                         register_same_on_both
                         %clear_on_node_down TODO: Breaks cover
                        ]},
-     {proxy_protocol, [], [cannot_connect_without_proxy_header]}].
+     {proxy_protocol, [], [connect_with_proxy_header,
+                           cannot_connect_without_proxy_header]}].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim]) ++ escalus:suite().
@@ -701,6 +702,18 @@ register_same_on_both(Config) ->
     end),
     component_helper:disconnect_components([Comp2, Comp_d], Addr),
     ok.
+
+connect_with_proxy_header(Config) ->
+    %% GIVEN proxy protocol is enabled on the component listener
+
+    %% WHEN a component connects behind a proxy
+    Steps = [{mongoose_helper, send_proxy_header}, {component_helper, component_start_stream}],
+    {Component, Addr, _} = component_helper:connect_component(
+                             component_helper:spec(component1), Steps),
+
+    %% THEN the header is consumed and the component serves stanzas
+    verify_component(Config, Component, Addr),
+    component_helper:disconnect_component(Component, Addr).
 
 cannot_connect_without_proxy_header(_Config) ->
     %% GIVEN proxy protocol is enabled on the component listener

@@ -781,7 +781,7 @@ cannot_connect_with_proxy_header(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
 
     %% WHEN
-    ConnectionSteps = [{?MODULE, send_proxy_header}, start_stream],
+    ConnectionSteps = [{mongoose_helper, send_proxy_header}, start_stream],
     {ok, ConnResult, _} = escalus_connection:start(UserSpec, ConnectionSteps),
 
     StreamError = escalus:wait_for_stanza(ConnResult),
@@ -803,7 +803,7 @@ connect_with_local_proxy_header(Config) ->
     UserSpec = [{resource, ~"local_proxy"} | escalus_users:get_userspec(Config, alice)],
 
     %% WHEN a v2 LOCAL header arrives, as sent by a proxy's own health check
-    ConnectionSteps = [{?MODULE, send_local_proxy_header}, start_stream, stream_features,
+    ConnectionSteps = [{mongoose_helper, send_local_proxy_header}, start_stream, stream_features,
                        authenticate, bind, session],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, ConnectionSteps),
 
@@ -817,7 +817,7 @@ connect_with_proxy_header(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
 
     %% WHEN
-    ConnectionSteps = [{?MODULE, send_proxy_header}, start_stream, stream_features,
+    ConnectionSteps = [{mongoose_helper, send_proxy_header}, start_stream, stream_features,
                        authenticate, bind, session],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, ConnectionSteps),
     % make sure the session is present
@@ -826,7 +826,7 @@ connect_with_proxy_header(Config) ->
 
     %% THEN
     SessionInfo = mongoose_helper:get_session_info(mim(), Conn),
-    #{src_address := IPAddr, src_port := Port} = proxy_info(),
+    #{src_address := IPAddr, src_port := Port} = mongoose_helper:proxy_info(),
     ?assertMatch({IPAddr, Port}, maps:get(ip, SessionInfo)),
     escalus_connection:stop(Conn).
 
@@ -946,27 +946,6 @@ pipeline_connect(UserSpec) ->
     lists:foreach(fun(Stanza) -> escalus_connection:send(Conn, Stanza) end,
                   [Stream, Auth, Stream, Bind, Session]),
     Conn.
-
-send_proxy_header(Conn, UnusedFeatures) ->
-    Header = ranch_proxy_header:header(proxy_info()),
-    escalus_connection:send_raw(Conn, iolist_to_binary(Header)),
-    {Conn, UnusedFeatures}.
-
-send_local_proxy_header(Conn, UnusedFeatures) ->
-    Header = ranch_proxy_header:header(#{version => 2, command => local}),
-    escalus_connection:send_raw(Conn, iolist_to_binary(Header)),
-    {Conn, UnusedFeatures}.
-
-proxy_info() ->
-    #{version => 2,
-      command => proxy,
-      transport_family => ipv4,
-      transport_protocol => stream,
-      src_address => {1, 2, 3, 4},
-      src_port => 444,
-      dest_address => {192, 168, 0, 1},
-      dest_port => 443
-     }.
 
 instrumentation_events() ->
     C2sGenericEvents =

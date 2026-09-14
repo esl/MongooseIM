@@ -24,10 +24,11 @@
 connect_component(Component) ->
     connect_component(Component, component_start_stream).
 
-connect_component(ComponentOpts, StartStep) ->
+connect_component(ComponentOpts, StartStep) when is_atom(StartStep) ->
+    connect_component(ComponentOpts, [{?MODULE, StartStep}]);
+connect_component(ComponentOpts, StartSteps) when is_list(StartSteps) ->
     Res = escalus_connection:start(ComponentOpts,
-                                   [{?MODULE, StartStep},
-                                    {?MODULE, component_handshake}]),
+                                   StartSteps ++ [{?MODULE, component_handshake}]),
     case Res of
         {ok, Component, _} ->
             {component, ComponentName} = lists:keyfind(component, 1, ComponentOpts),
