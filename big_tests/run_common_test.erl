@@ -81,8 +81,8 @@ main(RawArgs) ->
         end,
         FinalStatus = case {ExitStatus, ErrorLimitExceeded} of
             {0, {true, Details}} ->
-                io:format("~n**** Failing due to unexpected error"
-                          " log limit exceeded:~n~s", [Details]),
+                io:format("~n**** Failing due to unexpected errors"
+                          " logged:~n~s", [Details]),
                 1;
             _ ->
                 ExitStatus
