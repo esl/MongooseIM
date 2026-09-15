@@ -174,15 +174,6 @@ suite() ->
 init_per_suite(Config) ->
     cth_error_report:max_unexpected_errors_logged(0),
     logger_ct_backend:start(),
-    %% known flaky error - a race between supervisor and worker shutting down,
-    %% if the worker dies first it passes ETS ownership to heir process,
-    %% which is the supervisor process not expecting this message
-    %%
-    %% [error] 2026-03-31T18:54:49.467092+02:00 mongooseim@localhost
-    %% Supervisor received unexpected message: {'ETS-TRANSFER',mongoose_wpool_http,
-    %%                                     <10782.4892.0>,testing}
-    %%
-    cth_error_report:expect({regex, ~"'ETS-TRANSFER',mongoose_wpool_"}),
     % 3 errors per each top-level group (from 500/503 codes in failure_cases)
     cth_error_report:expect({what, push_send_failed}, length(all()) * 3),
     try mongoose_push_mock:stop() catch _:_ -> ok end,
