@@ -419,6 +419,27 @@ change_listener_idle_timeout(Listener, Timeout) ->
     NewConfig = Listener#{protocol => ProtocolOpts#{idle_timeout => Timeout}},
     restart_listener(mim(), NewConfig).
 
+proxy_info() ->
+    #{version => 2,
+      command => proxy,
+      transport_family => ipv4,
+      transport_protocol => stream,
+      src_address => {1, 2, 3, 4},
+      src_port => 444,
+      dest_address => {192, 168, 0, 1},
+      dest_port => 443
+     }.
+
+send_proxy_header(Conn, UnusedFeatures) ->
+    Header = ranch_proxy_header:header(proxy_info()),
+    escalus_connection:send_raw(Conn, iolist_to_binary(Header)),
+    {Conn, UnusedFeatures}.
+
+send_local_proxy_header(Conn, UnusedFeatures) ->
+    Header = ranch_proxy_header:header(#{version => 2, command => local}),
+    escalus_connection:send_raw(Conn, iolist_to_binary(Header)),
+    {Conn, UnusedFeatures}.
+
 should_minio_be_running(Config) ->
     DBs = ct_helper:get_preset_var(Config, dbs, []),
     lists:member(minio, DBs).

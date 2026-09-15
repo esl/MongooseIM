@@ -37,7 +37,8 @@ all() ->
      {group, node1_tls_false_node2_tls_required},
      {group, node1_tls_required_node2_tls_false},
 
-     {group, dialback}
+     {group, dialback},
+     {group, proxy_protocol}
     ].
 
 groups() ->
@@ -62,7 +63,10 @@ groups() ->
 
      {start_stream_errors, [parallel], start_stream_error_cases()},
      {start_stream_errors_after_starttls, [parallel], start_stream_error_cases()},
-     {start_stream_errors_after_auth, [parallel], start_stream_error_cases()}
+     {start_stream_errors_after_auth, [parallel], start_stream_error_cases()},
+
+     {proxy_protocol, [], [connect_with_proxy_header,
+                           cannot_connect_without_proxy_header]}
     ].
 
 essentials() ->
@@ -144,6 +148,10 @@ init_per_group(node1_tls_required_trusted_node2_tls_optional = GroupName, Config
     %% Node1 only trusts its own CA, so it rejects node2's certificate.
     cth_error_report:expect(~"unknown_ca"),
     init_per_group_default(GroupName, Config);
+init_per_group(proxy_protocol, Config) ->
+    Listener = s2s_listener(),
+    mongoose_helper:restart_listener(mim(), Listener#{proxy_protocol => true}),
+    [{s2s_listener, Listener} | Config];
 init_per_group(GroupName, Config) ->
     init_per_group_default(GroupName, Config).
 
@@ -156,6 +164,8 @@ init_per_group_default(GroupName, Config) ->
 
 end_per_group(both_tls_enforced, _Config) ->
     rpc(mim(), meck, unload, []);
+end_per_group(proxy_protocol, Config) ->
+    mongoose_helper:restart_listener(mim(), ?config(s2s_listener, Config));
 end_per_group(_GroupName, _Config) ->
     ok.
 
@@ -254,6 +264,41 @@ end_per_testcase(CaseName, Config) ->
 %%%===================================================================
 %%% Server-to-server communication test
 %%%===================================================================
+
+connect_with_proxy_header(_Config) ->
+    %% GIVEN proxy protocol is enabled on the s2s listener
+
+    %% WHEN a connection arrives with a valid PROXY header
+    Steps = [{mongoose_helper, send_proxy_header}, fun s2s_start_stream/2],
+
+    %% THEN the header is consumed and the stream starts
+    {ok, Client, _Features} = escalus_connection:start(proxied_connection_args(), Steps),
+    escalus_connection:stop(Client).
+
+cannot_connect_without_proxy_header(_Config) ->
+    %% GIVEN proxy protocol is enabled on the s2s listener
+
+    %% WHEN a connection arrives with no PROXY header
+    #{port := Port} = s2s_listener(),
+    {ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}]),
+    ok = gen_tcp:send(Socket, ~"<stream:stream>"),
+
+    %% THEN it is closed without crashing the connection process
+    ?assertEqual({error, closed}, gen_tcp:recv(Socket, 0, timer:seconds(5))).
+
+%% The listener with proxy protocol enabled is on mim, not on fed1
+proxied_connection_args() ->
+    #{port := Port} = s2s_listener(),
+    [{host, "localhost"},
+     {to_server, "localhost"},
+     {from_server, "fed1"},
+     {port, Port}].
+
+s2s_listener() ->
+    Port = ct:get_config({hosts, mim, incoming_s2s_port}),
+    [Listener] = mongoose_helper:get_listeners(mim(), #{port => Port,
+                                                        module => mongoose_s2s_listener}),
+    Listener.
 
 simple_message(Config) ->
     escalus:fresh_story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->

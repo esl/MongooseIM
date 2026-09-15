@@ -82,12 +82,16 @@ init({Transport, Ref, LOpts}) ->
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
 handle_event(internal, {connect, {Transport, Ref, LOpts}}, connect, _) when is_atom(Transport) ->
     #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
-    {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
-    Shaper = mongoose_shaper:new(ShaperName),
-    Socket = mongoose_xmpp_socket:accept(Transport, s2s, Ref, LOpts),
-    ?LOG_DEBUG(#{what => s2s_in_started, text => "New incoming S2S connection", socket => Socket}),
-    Data = #s2s_data{socket = Socket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
-    {next_state, {wait_for_stream, stream_start}, Data, state_timeout(LOpts)};
+    case mongoose_xmpp_socket:accept(Transport, s2s, Ref, LOpts) of
+        {error, Reason} ->
+            {stop, {shutdown, Reason}};
+        Socket ->
+            ?LOG_DEBUG(#{what => s2s_in_started, text => "New incoming S2S connection", socket => Socket}),
+            {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
+            Shaper = mongoose_shaper:new(ShaperName),
+            Data = #s2s_data{socket = Socket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
+            {next_state, {wait_for_stream, stream_start}, Data, state_timeout(LOpts)}
+    end;
 handle_event(internal, #xmlstreamstart{attrs = Attrs}, {wait_for_stream, StreamState}, Data) ->
     handle_stream_start(Data, Attrs, StreamState);
 handle_event(internal, Unexpected, {wait_for_stream, _}, Data) ->
@@ -150,7 +154,9 @@ handle_event(EventType, EventContent, State, Data) ->
                    event_type => EventType, event_content => EventContent}),
     keep_state_and_data.
 
--spec terminate(term(), state(), data()) -> term().
+-spec terminate(term(), state(), undefined | data()) -> term().
+terminate(Reason, connect, undefined) ->
+    ?LOG_INFO(#{what => s2s_in_failed_to_initialize, reason => Reason});
 terminate(Reason, State, #s2s_data{parser = Parser, socket = Socket} = Data) ->
     ?LOG_DEBUG(#{what => s2s_statem_terminate, reason => Reason, s2s_state => State, s2s_data => Data}),
     exml_stream:free_parser(Parser),
