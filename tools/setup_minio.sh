@@ -15,8 +15,8 @@ minio_bucket="mybucket"
 
 $DOCKER rm -v -f "${minio_docker_name}" || echo "Skip removing previous container"
 
-IMAGE="minio/minio:$MINIO_VERSION"
-MC_IMAGE="minio/mc:$MINIO_MC_VERSION"
+IMAGE="quay.io/minio/minio:$MINIO_VERSION"
+MC_IMAGE="quay.io/minio/mc:$MINIO_MC_VERSION"
 
 $DOCKER run -d -p 9000:9000 \
     --name "${minio_docker_name}" \
