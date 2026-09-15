@@ -48,6 +48,7 @@
          instrumentation/1,
          process_iq/5,
          get_roster_entry/4,
+         set_roster_entry/4,
          set_roster_entry/5,
          remove_from_roster/3,
          item_to_xml/1
@@ -892,6 +893,30 @@ set_items_t(HostType, JID, #xmlel{children = Els}) ->
     lists:foreach(fun(El) ->
                           process_item_set_t(HostType, JID, El)
                   end, Els).
+
+
+-spec set_roster_entry(mongooseim:host_type(), jid:jid(), jid:jid(), map()) -> ok | {error, any()}.
+set_roster_entry(HostType, UserJid, ContactJid, Params) ->
+    UpdateF = update_item_from_params_f(Params),
+    set_roster_item(HostType, ContactJid, UserJid, UserJid, UpdateF).
+
+update_item_from_params_f(Params) ->
+    fun(Item) ->
+            maps:fold(fun(K, V, I) ->
+                              maybe_update(K, V, I)
+                      end, Item, Params)
+    end.
+
+maybe_update(name, Name, I) ->
+    I#roster{name = Name};
+maybe_update(group, Groups, I) ->
+    I#roster{groups = Groups};
+maybe_update(subscription, Subscription, I) ->
+    I#roster{subscription = Subscription};
+maybe_update(ask, Ask, I) ->
+    I#roster{ask = Ask};
+maybe_update(_, _, I) ->
+    I.
 
 %% @doc add a contact to roster, or update
 -spec set_roster_entry(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), [binary()]) ->
