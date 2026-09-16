@@ -12,7 +12,18 @@ groups() ->
     [{Name, [], cases()} || Name <- servers()].
 
 servers() ->
-    [mongoose_ets_heir].
+    [mongoose_ets_heir,
+     gen_hook,
+     mongoose_instrument,
+     mongoose_collector,
+     mongoose_subdomain_core,
+     mongoose_lazy_routing,
+     mongoose_domain_core,
+     mongoose_domain_db_cleaner,
+     mod_global_distrib_hosts_refresher,
+     mod_offline,
+     mongoose_batch_worker,
+     mongoose_aggregator_worker].
 
 cases() ->
     [unexpected_call,
@@ -21,10 +32,18 @@ cases() ->
 
 init_per_suite(Config) ->
     log_helper:set_up(),
+    mongoose_config:set_opts(opts()),
+    meck:new(mongoose_domain_sql, [no_link]),
+    meck:expect(mongoose_domain_sql, get_minmax_event_id, fun() -> {1, 1} end),
     Config.
 
 end_per_suite(_Config) ->
+    meck:unload(),
+    mongoose_config:erase_opts(),
     log_helper:tear_down().
+
+opts() ->
+    #{instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 init_per_group(Name, Config) ->
     [{server, Name} | Config].
@@ -42,7 +61,45 @@ end_per_testcase(_Case, Config) ->
     gen_server:stop(?config(server, Config)).
 
 start_server(mongoose_ets_heir) ->
-    mongoose_ets_heir:start_link().
+    mongoose_ets_heir:start_link();
+start_server(gen_hook) ->
+    gen_hook:start_link();
+start_server(mongoose_instrument) ->
+    mongoose_instrument:start_link();
+start_server(mongoose_collector) ->
+    mongoose_collector:start_link(mongoose_collector, #{host_type => <<"type">>,
+                                                       action => fun(_HostType, _Opts) -> ok end,
+                                                       opts => #{},
+                                                       interval => timer:hours(1)});
+start_server(mongoose_subdomain_core) ->
+    mongoose_subdomain_core:start_link();
+start_server(mongoose_lazy_routing) ->
+    mongoose_lazy_routing:start_link();
+start_server(mongoose_domain_core) ->
+    mongoose_domain_core:start_link([], []);
+start_server(mongoose_domain_db_cleaner) ->
+    mongoose_domain_db_cleaner:start_link(#{event_cleaning_interval => 3600,
+                                            event_max_age => 3600});
+start_server(mod_global_distrib_hosts_refresher) ->
+    mod_global_distrib_hosts_refresher:start_link(#{local_host => <<"localhost">>,
+                                                    hosts_refresh_interval => timer:hours(1)});
+start_server(mod_offline) ->
+    mod_offline:start_link(mod_offline, <<"type">>, max_user_offline_messages);
+start_server(mongoose_batch_worker) ->
+    gen_server:start_link({local, mongoose_batch_worker}, mongoose_batch_worker,
+                          #{host_type => <<"type">>,
+                            pool_id => test_pool,
+                            batch_size => 10,
+                            flush_interval => timer:hours(1),
+                            flush_callback => fun(_Tasks, _Extra) -> ok end,
+                            flush_extra => #{}}, []);
+start_server(mongoose_aggregator_worker) ->
+    gen_server:start_link({local, mongoose_aggregator_worker}, mongoose_aggregator_worker,
+                          #{host_type => <<"type">>,
+                            pool_id => test_pool,
+                            request_callback => fun(_Task, _Extra) -> ok end,
+                            aggregate_callback => fun(_Old, New, _Extra) -> {ok, New} end,
+                            flush_extra => #{}}, []).
 
 %% Test cases
 
