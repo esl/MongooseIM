@@ -43,6 +43,7 @@ start_link() ->
 
 -spec init(noargs) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(noargs) ->
+    EtsHeir = worker_spec(mongoose_ets_heir),
     Hooks = worker_spec(gen_hook),
     Instrument = worker_spec(mongoose_instrument),
     Cleaner = worker_spec(mongoose_cleaner),
@@ -65,7 +66,8 @@ init(noargs) ->
     IQSupervisor =
         template_supervisor_spec(ejabberd_iq_sup, mongoose_iq_worker),
     {ok, {{one_for_one, 10, 1},
-          [StartIdServer,
+          [EtsHeir,
+           StartIdServer,
            PG,
            Hooks,
            Instrument,
@@ -141,7 +143,7 @@ create_ets_table(TableName, TableOpts) ->
     case does_table_exist(TableName) of
         true -> ok;
         false ->
-            Opts = maybe_add_heir(whereis(?MODULE), self(), TableOpts),
+            Opts = maybe_add_heir(whereis(?MODULE), TableOpts),
             ets:new(TableName, Opts),
             ok
     end.
@@ -149,16 +151,18 @@ create_ets_table(TableName, TableOpts) ->
 does_table_exist(TableName) ->
     undefined =/= ets:info(TableName, name).
 
-%% In tests or when module is started in run-time, we need to set heir to the
-%% ETS table, otherwise it will be destroyed when the creator's process finishes.
-%% When started normally during node start up, self() =:= EjdSupPid and there
-%% is no need for setting heir
-maybe_add_heir(EjdSupPid, EjdSupPid, BaseOpts) when is_pid(EjdSupPid) ->
-    BaseOpts;
-maybe_add_heir(EjdSupPid, _Self, BaseOpts) when is_pid(EjdSupPid) ->
+%% The creating process may exit before the node stops, which would destroy the table.
+%% ejabberd_sup is only the fallback heir, for small tests that don't start mongoose_ets_heir.
+maybe_add_heir(EjdSupPid, BaseOpts) when is_pid(EjdSupPid) ->
     case lists:keymember(heir, 1, BaseOpts) of
         true -> BaseOpts;
-        false -> [{heir, EjdSupPid, testing} | BaseOpts]
+        false -> [{heir, heir_pid(EjdSupPid), testing} | BaseOpts]
     end;
-maybe_add_heir(_, _, BaseOpts) ->
+maybe_add_heir(undefined, BaseOpts) ->
     BaseOpts.
+
+heir_pid(EjdSupPid) ->
+    case whereis(mongoose_ets_heir) of
+        undefined -> EjdSupPid;
+        HeirPid -> HeirPid
+    end.
