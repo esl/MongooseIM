@@ -90,7 +90,8 @@ hooks(HostType) ->
 %% Hook 'push_notifications'
 -spec push_notifications(Acc, Params, Extra) -> {ok, ok | {error, Reason :: term()}} when
     Acc :: ok | mongoose_acc:t(),
-    Params :: #{notification_forms := [#{atom() => binary()}], options := #{binary() => binary()}},
+    Params :: #{notification_forms := [mod_event_pusher_push_content:content()],
+                options := mod_event_pusher_push:form()},
     Extra :: gen_hook:extra().
 push_notifications(AccIn,
                    #{notification_forms := Notifications, options := Options = #{<<"device_id">> := DeviceId}},
@@ -184,36 +185,37 @@ http_notification(HostType, post, URL, ReqHeaders, Payload) ->
 %% Create notification for API v2 and v3
 make_notification(Notification0, Options) ->
     RequiredParameters = #{service => maps:get(<<"service">>, Options)},
-    %% The full list of supported optional parameters can be found here:
-    %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
+    %% The full list of parameters can be found here:
+    %% doc/modules/mod_push_service_mongoosepush.md#request-parameters
     %%
-    %% Note that <<"tags">> parameter is explicitly excluded to avoid any
+    %% Note that ~"tags" parameter is explicitly excluded to avoid any
     %% security issues. User should not be allowed to select pools other than
-    %% prod and dev (see <<"mode">> parameter description).
-    OptionalKeys = [<<"mode">>, <<"priority">>, <<"topic">>,
-                    <<"mutable_content">>, <<"time_to_live">>],
+    %% prod and dev (see ~"mode" parameter description).
+    OptionalKeys = [~"mode", ~"priority", ~"topic", ~"mutable_content", ~"time_to_live"],
     OptionalParameters = maps:with(OptionalKeys, Options),
     NotificationParams = maps:merge(RequiredParameters, OptionalParameters),
 
     Notification = normalize_notification(Notification0),
-
-    DataOrAlert = case Options of
-                      #{<<"silent">> := <<"true">>} ->
-                          #{data => Notification};
-                      _ ->
-                          BasicAlert = #{body => maps:get(<<"last-message-body">>, Notification),
-                                         title => maps:get(<<"last-message-sender">>, Notification),
-                                         tag => maps:get(<<"last-message-sender">>, Notification),
-                                         badge => maps:get(<<"message-count">>, Notification)},
-                          OptionalAlert = maps:with([<<"click_action">>, <<"sound">>], Options),
-                          #{alert => maps:merge(BasicAlert, OptionalAlert)}
-                  end,
+    DataOrAlert = data_or_alert(Notification, Options),
     JSON = maps:merge(NotificationParams, DataOrAlert),
     jiffy:encode(JSON).
 
+-spec data_or_alert(map(), mod_event_pusher_push:form()) -> #{data | alert := map()}.
+data_or_alert(#{~"type" := ~"jmi"} = Notification, _Options) ->
+    #{data => Notification};
+data_or_alert(Notification, #{~"silent" := ~"true"}) ->
+    #{data => Notification};
+data_or_alert(Notification, Options) ->
+    BasicAlert = #{body => maps:get(~"last-message-body", Notification),
+                   title => maps:get(~"last-message-sender", Notification),
+                   tag => maps:get(~"last-message-sender", Notification),
+                   badge => maps:get(~"message-count", Notification)},
+    OptionalAlert = maps:with([~"click_action", ~"sound"], Options),
+    #{alert => maps:merge(BasicAlert, OptionalAlert)}.
+
 %% at the moment there's only one field to normalize
-normalize_notification(#{<<"message-count">> := MC} = N) when is_binary(MC) ->
-    N#{<<"message-count">> := binary_to_integer(MC)};
+normalize_notification(#{~"message-count" := MC} = N) when is_binary(MC) ->
+    N#{~"message-count" := binary_to_integer(MC)};
 normalize_notification(Notification) -> Notification.
 
 -spec call(mongooseim:host_type(), M :: atom(), F :: atom(), A :: [any()]) -> any().
