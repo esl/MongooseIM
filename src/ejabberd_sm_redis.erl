@@ -42,11 +42,7 @@ get_sessions() ->
     Keys = mongoose_redis:cmd(["KEYS", hash(<<"*">>)]),
     lists:flatmap(fun(K) ->
                           Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
-                          lists:map(fun(S) ->
-                                            % safe-ignore binary_to_term/1
-                                            binary_to_term(S)
-                                    end,
-                                    Sessions)
+                          lists:map(fun decode_term/1, Sessions)
                   end, Keys).
 
 -spec get_sessions(jid:server()) -> [ejabberd_sm:session()].
@@ -54,27 +50,19 @@ get_sessions(Server) ->
     Keys = mongoose_redis:cmd(["KEYS", hash(Server)]),
     lists:flatmap(fun(K) ->
                           Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
-                          lists:map(fun(S) ->
-                                            % safe-ignore binary_to_term/1
-                                            binary_to_term(S)
-                                    end,
-                                    Sessions)
+                          lists:map(fun decode_term/1, Sessions)
                   end, Keys).
 
 -spec get_sessions(jid:user(), jid:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     Sessions = mongoose_redis:cmd(["SMEMBERS", hash(User, Server)]),
-
-    % safe-ignore binary_to_term/1
-    lists:map(fun(S) -> binary_to_term(S) end, Sessions).
+    lists:map(fun decode_term/1, Sessions).
 
 -spec get_sessions(jid:user(), jid:server(), jid:resource()
                   ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     Sessions = mongoose_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
-
-    % safe-ignore binary_to_term/1
-    lists:map(fun(S) -> binary_to_term(S) end, Sessions).
+    lists:map(fun decode_term/1, Sessions).
 
 -spec set_session(User :: jid:luser(),
                   Server :: jid:lserver(),
@@ -200,13 +188,17 @@ parse_session_key(<<"s5:", Rest/binary>>) ->
     [Server, Rest2] = binary:split(Rest1, <<":">>),
     [HexResource, BinarySID] = binary:split(Rest2, <<":">>),
     Resource = decode_resource(HexResource),
-    % safe-ignore binary_to_term/1
-    SID = binary_to_term(BinarySID),
+    SID = decode_term(BinarySID),
     {User, Server, Resource, SID};
 parse_session_key(<<"s4:", _/binary>> = Key) ->
     %% Old format: s4:User:Server:Resource:BinarySID (Resource may contain colons)
     [_, User, Server, Resource | SIDEncoded] = binary:split(Key, <<":">>, [global]),
     %% Add possible removed ":" from encoded SID
-    % safe-ignore binary_to_term/1
-    SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
+    SID = decode_term(mongoose_bin:join(SIDEncoded, <<":">>)),
     {User, Server, Resource, SID}.
+
+%% Session terms contain Erlang Pids with node name atoms from other cluster nodes.
+-spec decode_term(binary()) -> term().
+decode_term(Bin) ->
+    % safe-ignore binary_to_term/1
+    binary_to_term(Bin).
