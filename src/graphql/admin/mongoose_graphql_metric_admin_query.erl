@@ -33,27 +33,12 @@ prepare_key(X) when is_binary(X) ->
             end
     end.
 
+%% Name segments are passed as binaries; mongoose_metrics_api translates them for exometer.
 get_name(Args) ->
-    Segments = get_list(<<"name">>, Args),
-    lists:map(fun convert_name_segment/1, Segments).
-
-%% Segments must stay atoms: prepare_host_types/1 later calls atom_to_binary/1 on
-%% every element unconditionally, so a raw binary sentinel would crash there instead
-%% of just matching nothing. ?MODULE is always a pre-existing atom and can never be
-%% a real segment, so it's a safe "matches nothing" fallback (mirrors prepare_key/1).
-convert_name_segment(S) ->
-    try
-        binary_to_existing_atom(S)
-    catch
-        error:badarg -> ?MODULE
-    end.
+    get_list(<<"name">>, Args).
 
 get_nodes(Args) ->
     Nodes = get_list(<<"nodes">>, Args),
-    %% feeds rpc:call/4, which already handles {badrpc, nodedown} for a node that
-    %% isn't connected -- Erlang distribution auto-connects on rpc:call, so a
-    %% not-yet-connected-but-valid cluster node must remain queryable.
-    %% Admin-API-gated (GraphQL @protected), not exposed to unauthenticated/remote input.
     % safe-ignore binary_to_atom/1
     lists:map(fun binary_to_atom/1, Nodes).
 

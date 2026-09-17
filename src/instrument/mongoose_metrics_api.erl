@@ -6,7 +6,7 @@
 -include("mongoose_logger.hrl").
 -include("mongoose.hrl").
 
--type name() :: [atom() | integer()].
+-type name() :: [binary()].
 -type key() :: atom().
 -type metric_result() ::
     {ok, #{binary() => binary() | non_neg_integer()}}
@@ -20,14 +20,14 @@
 
 -spec get_metrics(Name :: name()) -> {ok, [metric_result()]}.
 get_metrics(Name) ->
-    PrepName = prepare_host_types(Name),
+    PrepName = prepare_name(Name),
     Values = mongoose_instrument_exometer:get_metric_values(PrepName),
     {ok, lists:map(fun make_metric_result/1, Values)}.
 
 -spec get_metrics_as_dicts(Name :: name(), Keys :: [key()]) ->
     {ok, [metric_dict_result()]}.
 get_metrics_as_dicts(Name, Keys) ->
-    PrepName = prepare_host_types(Name),
+    PrepName = prepare_name(Name),
     Values = mongoose_instrument_exometer:get_metric_values(PrepName),
     {ok, [make_metric_dict_result(V, Keys) || V <- Values]}.
 
@@ -35,7 +35,7 @@ get_metrics_as_dicts(Name, Keys) ->
                                    Nodes :: [node()]) ->
     {ok, [metric_node_dict_result()]}.
 get_cluster_metrics_as_dicts(Name, Keys, Nodes) ->
-    PrepName = prepare_host_types(Name),
+    PrepName = prepare_name(Name),
     Nodes2 = prepare_nodes_arg(Nodes),
     F = fun(Node) ->
             case rpc:call(Node, mongoose_instrument_exometer, get_metric_values, [PrepName]) of
@@ -123,14 +123,16 @@ format_histogram(#{n := N, mean := Mean, min := Min, max := Max, median := Media
       <<"p50">> => P50, <<"p75">> => P75, <<"p90">> => P90, <<"p95">> => P95,
       <<"p99">> => P99, <<"p999">> => P999}.
 
-prepare_host_types(Name) ->
-    lists:map(
-        fun(Ele) ->
-            case lists:member(atom_to_binary(Ele), ?ALL_HOST_TYPES) of
-                true ->
-                    binary:replace(atom_to_binary(Ele), <<" ">>, <<"_">>);
-                false ->
-                    Ele
+%% Host types are normalized binaries; metric/module segments become existing atoms.
+prepare_name(Segments) ->
+    lists:map(fun prepare_name_segment/1, Segments).
+
+prepare_name_segment(S) ->
+    case lists:member(S, ?ALL_HOST_TYPES) of
+        true ->
+            binary:replace(S, <<" ">>, <<"_">>, [global]);
+        false ->
+            try binary_to_existing_atom(S)
+            catch error:badarg -> ?MODULE
             end
-        end,
-    Name).
+    end.
