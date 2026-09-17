@@ -4095,6 +4095,7 @@ tree_mod(Name) ->
 
 -spec plugin(Name :: plugin_name()) -> module().
 plugin(Name) ->
+    %% Name is config-validated (see select_type/4); plugin module may not be loaded yet.
     % safe-ignore binary_to_atom/2
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
