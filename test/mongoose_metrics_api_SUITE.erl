@@ -6,15 +6,19 @@
 -include("log_helper.hrl").
 
 -define(HOST_TYPE, ~"localhost").
+-define(HOST_TYPE_WITH_SPACE, ~"test host type").
 
 all() ->
     [every_metric_type_resolves_to_a_graphql_type,
      unknown_metric_type_is_reported_as_an_error,
-     unknown_metric_type_does_not_hide_the_remaining_metrics].
+     unknown_metric_type_does_not_hide_the_remaining_metrics,
+     prepare_name_normalizes_host_type_with_space,
+     prepare_name_matches_already_registered_atom,
+     prepare_name_falls_back_for_unregistered_segment].
 
 init_per_suite(Config) ->
     log_helper:set_up(),
-    mongoose_config:set_opts(#{hosts => [?HOST_TYPE], host_types => []}),
+    mongoose_config:set_opts(#{hosts => [?HOST_TYPE, ?HOST_TYPE_WITH_SPACE], host_types => []}),
     meck:new(mongoose_instrument_exometer, [no_link]),
     Config.
 
@@ -25,6 +29,7 @@ end_per_suite(_Config) ->
 
 init_per_testcase(_CaseName, Config) ->
     log_helper:subscribe(),
+    meck:reset(mongoose_instrument_exometer),
     Config.
 
 end_per_testcase(_CaseName, _Config) ->
@@ -50,8 +55,26 @@ unknown_metric_type_does_not_hide_the_remaining_metrics(_Config) ->
                         {GaugeName, [{value, 3}]}]),
     ?assertMatch({ok, [{error, unknown_metric_type},
                        {ok, #{~"type" := ~"gauge", ~"value" := 3}}]},
-                 mongoose_metrics_api:get_metrics([localhost])),
+                 mongoose_metrics_api:get_metrics([~"localhost"])),
     ?assertLog(error, #{what := unknown_metric_type}).
+
+prepare_name_normalizes_host_type_with_space(_Config) ->
+    mock_metric_values([]),
+    mongoose_metrics_api:get_metrics([?HOST_TYPE_WITH_SPACE]),
+    ?assertEqual([~"test_host_type"],
+                 meck:capture(last, mongoose_instrument_exometer, get_metric_values, '_', 1)).
+
+prepare_name_matches_already_registered_atom(_Config) ->
+    mock_metric_values([]),
+    mongoose_metrics_api:get_metrics([~"xmpp_element_in"]),
+    ?assertEqual([xmpp_element_in],
+                 meck:capture(last, mongoose_instrument_exometer, get_metric_values, '_', 1)).
+
+prepare_name_falls_back_for_unregistered_segment(_Config) ->
+    mock_metric_values([]),
+    mongoose_metrics_api:get_metrics([~"zzz_never_registered_metric_segment_9f3a1b"]),
+    ?assertEqual([mongoose_metrics_api],
+                 meck:capture(last, mongoose_instrument_exometer, get_metric_values, '_', 1)).
 
 metric_dicts() ->
     [{~"SpiralMetric", [{count, 10}, {one, 1}]},
@@ -61,7 +84,7 @@ metric_dicts() ->
                               {50, 2}, {75, 3}, {90, 3}, {95, 3}, {99, 3}, {999, 3}]}].
 
 metric_name(Type) ->
-    [localhost, binary_to_atom(Type)].
+    [~"localhost", Type].
 
 mock_metric_values(Values) ->
     meck:expect(mongoose_instrument_exometer, get_metric_values, fun(_) -> Values end).
