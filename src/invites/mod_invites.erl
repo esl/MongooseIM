@@ -291,11 +291,11 @@ adhoc_commands(empty,
 adhoc_commands(empty,
                #{adhoc_request := #adhoc_request{node = ?NS_INVITE_CREATE_ACCOUNT = Node,
                                                  session_id = SID,
-                                                 xdata = XData,
+                                                 xdata = #xmlel{} = XData,
                                                  lang = Lang},
                  from := #jid{luser = LUser, lserver = LServer} = From,
                  to := #jid{lserver = LServer}},
-               _) when XData /= false ->
+               _) ->
     case mongoose_data_forms:parse_form(XData) of
         #{type := <<"submit">>, kvs := KVs} ->
             check(fun create_account_allowed/2,
