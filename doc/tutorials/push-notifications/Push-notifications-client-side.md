@@ -120,25 +120,31 @@ For [mod_push_service_mongoosepush][] the next `publish-options` are mandatory:
   * `device_id` - device token (here: `your_pns_device_token`) that you received from your push notification service provider (as described in [Registering with Push Service provider](#registering-with-a-push-service-provider))
   * `service` - push notification service provider name (`apns` or `fcm`)
 
-there are also some other `publish-options` supported:
+The following optional `publish-options` are also supported:
 
-  * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool
-    type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is
-    configured to work with both production and development certificate.
-  * `click_action` - action to perform when notification is clicked on the device. `activity` on
-    _Android_ and `category` on _iOS_. Please refer to your platform / push notification service
-    provider for more info.
-  * `topic` - currently only used with _APNS_. The value is passed to _APNS_ as `topic` header. For
-    more information please refer to _APNS_ documentation.
+  * `mode` - either `prod` (the default) or `dev`. Selects the corresponding [MongoosePush][]
+    connection pool.
+  * `click_action` - action to perform when an alert notification is clicked: `activity` on
+    _Android_ or `category` on _iOS_. Please refer to the platform or push notification service
+    provider documentation for more information.
+  * `topic` - only used with _APNS_. The value is passed in the `apns-topic` request header. JMI VoIP
+    notifications require a PushKit device token and a topic ending in `.voip`.
   * `silent` - if set to `true`, all notifications will be "silent". This means that only the data
-    payload will be send to the push notifications provider with no notification. The data payload
-    will contain all notification fields as defined in [XEP-0357: Push Notifications][XEP-0357].
-  * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
-    This value will set the push notification priority. Please refer to FCM / APNS documentation for
-    more details on those values.
-  * `sound` - sound that should be played when a notification arrives. Please refer to _FCM_/_APNS_ documentation for more details.
-  * `mutable_content` - only applicable to _APNS_. If set to `true`, sets "mutable-content=1" in the _APNS_ payload.
-  * `time_to_live` - only applicable to _FCM_. Maximum lifespan of an FCM notification. Please refer to the _FCM_ documentation for more details.
+    payload is sent to the push notification provider, without a notification payload. The data
+    payload contains the notification fields defined in [XEP-0357: Push Notifications][XEP-0357].
+    JMI notifications are always data-only, regardless of this option.
+  * `priority` - either `normal` or `high`. For FCM JMI notifications, omitting this option uses the
+    selected MongoosePush pool's JMI priority, which defaults to `high`; an explicit value overrides
+    that default. For other FCM data messages, the provider default is `normal`. APNS defaults a
+    missing `apns-priority` header to `10` (`high`).
+  * `sound` - sound to play when an alert notification arrives. Please refer to the _FCM_ or _APNS_
+    documentation for more information.
+  * `mutable_content` - only applicable to _APNS_. If set to `true`, sets `mutable-content` to `1` in
+    the `aps` dictionary. It is not applied to JMI VoIP notifications, whose payload does not contain
+    an `aps` dictionary.
+  * `time_to_live` - only applicable to _FCM_. Maximum lifespan of an FCM notification, expressed as
+    an integer number of seconds from `0` through `2419200` (28 days). Please refer to the _FCM_
+    documentation for more information.
 
 Any other `publish-options` are ignored by [mod_push_service_mongoosepush][]
 

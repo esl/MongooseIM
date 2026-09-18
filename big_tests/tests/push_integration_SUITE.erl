@@ -101,7 +101,8 @@ groups() ->
               immediate_notification,
               double_notification_with_two_sessions_in_resume,
               hints_filtering,
-              bodiless_messages_are_pushed_with_rules
+              jmi_notifications_are_pushed_with_rules,
+              apns_notifications_use_matching_topics
           ]},
          {pm_msg_notifications, [],
           [
@@ -644,27 +645,58 @@ hints_filtering(Config) ->
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
         end).
 
-bodiless_messages_are_pushed_with_rules(Config) ->
+jmi_notifications_are_pushed_with_rules(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            Opts = [{~"silent", ~"true"}],
-            #{device_token := FcmDeviceToken} = enable_push_for_user(Bob, ~"fcm", Opts, Config),
-            #{device_token := ApnsDeviceToken} = enable_push_for_user(Bob, ~"apns", Opts, Config),
+            Topic = ~"com.example.app.voip",
+            #{device_token := FcmDeviceToken} =
+                enable_push_for_user(Bob, ~"fcm", [], Config),
+            #{device_token := ApnsDeviceToken} =
+                enable_push_for_user(Bob, ~"apns", [{~"topic", Topic}], Config),
             become_unavailable(Bob),
             Msg = dummy_jingle_propose_message(Bob),
             %% bodiless message with store hint should pass
             escalus:send(Alice, add_message_hint(Msg, ~"store")),
             {ApnsNotification, _} = wait_for_push_request(ApnsDeviceToken),
             {FcmNotification, _} = wait_for_push_request(FcmDeviceToken),
-            AliceJID = bare_jid(Alice),
-            Body = <<"Jingle message: propose, session ID: ", ?JINGLE_SESSION_ID/binary>>,
-            assert_push_notification(ApnsNotification, ~"apns", Opts, AliceJID, [{body, Body}]),
-            assert_push_notification(FcmNotification, ~"fcm", Opts, AliceJID, [{body, Body}]),
+            AliceJID = escalus_client:full_jid(Alice),
+            Data = #{~"jmi-from" => AliceJID, ~"jmi-sid" => ?JINGLE_SESSION_ID, ~"type" => ~"jmi"},
+            Expected = #{~"data" => Data},
+            ?assertEqual(Expected#{~"service" => ~"apns", ~"topic" => Topic}, ApnsNotification),
+            ?assertEqual(Expected#{~"service" => ~"fcm"}, FcmNotification),
             %% bodiless message with no-copy hint should be blocked
             escalus:send(Alice, add_message_hint(Msg, ~"no-copy")),
             ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
+        end).
+
+apns_notifications_use_matching_topics(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            RegularTopic = ~"com.example.app",
+            VoipTopic = ~"com.example.app.voip",
+            RegularOpts = [{~"topic", RegularTopic}],
+            VoipOpts = [{~"topic", VoipTopic}],
+            #{device_token := RegularDeviceToken} =
+                enable_push_for_user(Bob, ~"apns", RegularOpts, Config),
+            #{device_token := VoipDeviceToken} =
+                enable_push_for_user(Bob, ~"apns", VoipOpts, Config),
+            become_unavailable(Bob),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, ~"OH, HAI!")),
+            {RegularNotification, _} = wait_for_push_request(RegularDeviceToken),
+            assert_push_notification(RegularNotification, ~"apns", RegularOpts, bare_jid(Alice)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(VoipDeviceToken, 500)),
+
+            escalus:send(Alice, add_message_hint(dummy_jingle_propose_message(Bob), ~"store")),
+            {VoipNotification, _} = wait_for_push_request(VoipDeviceToken),
+            ?assertMatch(#{~"service" := ~"apns",
+                           ~"topic" := VoipTopic,
+                           ~"data" := #{~"type" := ~"jmi"}},
+                         VoipNotification),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(RegularDeviceToken, 500))
         end).
 
 bodiless_messages_are_not_pushed_by_default(Config) ->
@@ -850,31 +882,22 @@ assert_push_notification(Notification, Service, EnableOpts, SenderJID, Expected)
             ?assertMatch(#{<<"title">> := SenderJID}, Alert),
             ?assertMatch(#{<<"badge">> := Badge}, Alert),
             ?assertMatch(#{<<"tag">> := SenderJID}, Alert),
-
-            case proplists:get_value(<<"click_action">>, EnableOpts) of
-                undefined ->
-                    ?assertEqual(error, maps:find(<<"click_action">>, Alert));
-                Activity ->
-                    ?assertMatch(#{<<"click_action">> := Activity}, Alert)
-            end;
+            assert_push_notification_option(~"click_action", EnableOpts, Alert);
         <<"true">> ->
             ?assertMatch(#{<<"last-message-body">> := ExpectedBody}, Data),
             ?assertMatch(#{<<"last-message-sender">> := SenderJID}, Data),
             ?assertMatch(#{<<"message-count">> := UnreadCount}, Data)
     end,
 
-    case proplists:get_value(<<"priority">>, EnableOpts) of
-        undefined -> ok;
-        Priority ->
-            ?assertMatch(Priority, maps:get(<<"priority">>, Notification, undefined))
-    end,
+    assert_push_notification_option(~"priority", EnableOpts, Notification),
+    assert_push_notification_option(~"topic", EnableOpts, Notification).
 
-    case proplists:get_value(<<"topic">>, EnableOpts) of
-        undefined -> ok;
-        Topic ->
-            ?assertMatch(Topic, maps:get(<<"topic">>, Notification, undefined))
+assert_push_notification_option(OptionName, EnableOpts, Notification) ->
+    FindResult = maps:find(OptionName, Notification),
+    case proplists:get_value(OptionName, EnableOpts) of
+        undefined -> ?assertEqual(error, FindResult);
+        Value -> ?assertEqual({ok, Value}, FindResult)
     end.
-
 
 pm_msg_notify_on_apns_no_click_action(Config) ->
     pm_msg_notify_on_apns(Config, []).
