@@ -23,7 +23,9 @@ servers() ->
      mod_global_distrib_hosts_refresher,
      mod_offline,
      mongoose_batch_worker,
-     mongoose_aggregator_worker].
+     mongoose_aggregator_worker,
+     service_domain_db,
+     ejabberd_s2s].
 
 cases() ->
     [unexpected_call,
@@ -32,18 +34,26 @@ cases() ->
 
 init_per_suite(Config) ->
     log_helper:set_up(),
+    ok = mnesia:start(),
     mongoose_config:set_opts(opts()),
     meck:new(mongoose_domain_sql, [no_link]),
     meck:expect(mongoose_domain_sql, get_minmax_event_id, fun() -> {1, 1} end),
+    meck:expect(mongoose_domain_sql, get_event_ids_between, fun(Min, Max) -> lists:seq(Min, Max) end),
+    meck:expect(mongoose_domain_sql, select_updates_between, fun(_, _) -> [] end),
+    meck:expect(mongoose_domain_sql, select_from, fun(_, _) -> [] end),
     Config.
 
 end_per_suite(_Config) ->
+    mnesia:stop(),
     meck:unload(),
     mongoose_config:erase_opts(),
     log_helper:tear_down().
 
 opts() ->
-    #{instrumentation => config_parser_helper:default_config([instrumentation])}.
+    #{instrumentation => config_parser_helper:default_config([instrumentation]),
+      s2s_backend => mnesia,
+      host_types => [],
+      hosts => []}.
 
 init_per_group(Name, Config) ->
     [{server, Name} | Config].
@@ -52,6 +62,7 @@ end_per_group(_Name, _Config) ->
     ok.
 
 init_per_testcase(_Case, Config) ->
+    start_deps(?config(server, Config)),
     {ok, _Pid} = start_server(?config(server, Config)),
     log_helper:subscribe(),
     Config.
@@ -59,6 +70,17 @@ init_per_testcase(_Case, Config) ->
 end_per_testcase(_Case, Config) ->
     log_helper:unsubscribe(),
     gen_server:stop(?config(server, Config)).
+
+start_deps(ejabberd_s2s) ->
+    {ok, _} = mongoose_instrument:start_link(),
+    {ok, _} = gen_hook:start_link(),
+    ok;
+start_deps(service_domain_db) ->
+    {ok, _} = pg:start_link(mim_scope),
+    {ok, _} = mongoose_domain_core:start_link([], []),
+    ok;
+start_deps(_) ->
+    ok.
 
 start_server(mongoose_ets_heir) ->
     mongoose_ets_heir:start_link();
@@ -99,7 +121,11 @@ start_server(mongoose_aggregator_worker) ->
                             pool_id => test_pool,
                             request_callback => fun(_Task, _Extra) -> ok end,
                             aggregate_callback => fun(_Old, New, _Extra) -> {ok, New} end,
-                            flush_extra => #{}}, []).
+                            flush_extra => #{}}, []);
+start_server(service_domain_db) ->
+    service_domain_db:start_link();
+start_server(ejabberd_s2s) ->
+    ejabberd_s2s:start_link().
 
 %% Test cases
 
