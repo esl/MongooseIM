@@ -33,6 +33,7 @@ input(<<"MUCAffiliation">>, <<"ADMIN">>) -> {ok, admin};
 input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner};
 input(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
 input(<<"TelephoneTags">>, Name) -> {ok, Name};
+% safe-ignore binary_to_atom/1
 input(<<"LogLevel">>, Name) -> {ok, binary_to_atom(string:lowercase(Name))};
 input(<<"BroadcastRecipientGroup">>, <<"ALL_USERS_IN_DOMAIN">>) -> {ok, all_users_in_domain};
 input(<<"MetricType">>, Name) -> {ok, Name}.

@@ -345,6 +345,7 @@ lookup_query_name(Params) ->
     IDString = lists:flatmap(fun(Param) ->
                                      param_id(Param, maps:get(Param, Params, undefined))
                              end, lookup_param_keys()),
+    % safe-ignore list_to_atom/1
     list_to_atom("inbox_lookup" ++ IDString).
 
 -spec lookup_param_keys() -> [atom()].
@@ -417,6 +418,7 @@ update_query_name(Properties) ->
     IDString = lists:flatmap(fun(Prop) ->
                                      property_id(Prop, maps:get(Prop, Properties, undefined))
                              end, property_keys()),
+    % safe-ignore list_to_atom/1
     list_to_atom("inbox_update_properties" ++ IDString).
 
 property_keys() ->

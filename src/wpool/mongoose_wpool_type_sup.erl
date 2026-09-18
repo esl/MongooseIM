@@ -43,6 +43,7 @@ start_link(PoolType) ->
 
 -spec name(mongoose_wpool:pool_type()) -> mongoose_wpool:proc_name().
 name(PoolType) ->
+    % safe-ignore list_to_atom/1
     list_to_atom("mongoose_wpool_" ++ atom_to_list(PoolType) ++ "_sup").
 
 %%%===================================================================

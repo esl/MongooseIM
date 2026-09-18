@@ -80,6 +80,7 @@ parse(Content) ->
     handle([], Content, mongoose_config_spec:root()).
 
 %% TODO replace with binary_to_existing_atom where possible, prevent atom leak
+% safe-ignore binary_to_atom/2
 b2a(B) -> binary_to_atom(B, utf8).
 
 -spec ensure_keys([toml_key()], toml_section()) -> any().

@@ -54,6 +54,7 @@ execute(HookName, Tag) ->
 
 -spec event_name(gen_hook:hook_name()) -> mongoose_instrument:event_name().
 event_name(HookName) ->
+    % safe-ignore list_to_atom/1
     list_to_atom("hook_" ++ atom_to_list(HookName)).
 
 -spec labels(gen_hook:hook_tag()) -> mongoose_instrument:labels().

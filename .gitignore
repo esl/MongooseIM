@@ -117,6 +117,10 @@ asngen
 _build
 _checkouts
 
+# SAFE security scanner
+/_results/
+/fingerprint.json
+
 cover_test_preset.log
 get-deps.log
 big_tests/src/mim_ct_rest.erl

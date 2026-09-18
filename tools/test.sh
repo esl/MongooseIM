@@ -353,6 +353,13 @@ elif [ "$PRESET" == "edoc_only" ]; then
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
+elif [ "$PRESET" == "safe_only" ]; then
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
+  ./rebar3 safe analyse
+  RESULT=$?
+  tools/print-dots.sh stop
+  exit ${RESULT}
 elif [ "$PRESET" == "small_tests" ]; then
   time maybe_run_small_tests
   SMALL_RESULT=$?

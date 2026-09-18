@@ -53,10 +53,12 @@
 tcp_to_tls(Socket, Opts, client) ->
     TlsOpts = format_opts(Opts, client),
     inet:setopts(Socket, [{active, false}]),
+    % safe-ignore ssl:connect/3
     ssl:connect(Socket, TlsOpts, 5000);
 tcp_to_tls(Socket, Opts, server) ->
     TlsOpts = format_opts(Opts, server),
     inet:setopts(Socket, [{active, false}]),
+    % safe-ignore ssl:handshake/3
     ssl:handshake(Socket, TlsOpts, 5000).
 
 %% @doc Prepare SSL options for direct use of ssl:connect/2 (client side)
