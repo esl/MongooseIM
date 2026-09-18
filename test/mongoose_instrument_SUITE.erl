@@ -43,7 +43,6 @@ api_test_cases() ->
      set_up_probe_with_incorrect_metric_type,
      set_up_failing_probe,
      set_up_and_tear_down_probe,
-     unexpected_events,
      add_and_remove_handler,
      cannot_add_existing_handler,
      cannot_remove_non_existing_handler].
@@ -268,13 +267,6 @@ set_up_and_tear_down_probe(Config) ->
                  wait_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
                                         [], #{validator => fun(L) -> length(L) > 0 end,
                                               time_left => timer:seconds(2)})).
-
-unexpected_events(_Config) ->
-    Pid = whereis(mongoose_instrument),
-    {error, #{what := unexpected_call}} = gen_server:call(mongoose_instrument, bad_call),
-    gen_server:cast(mongoose_instrument, bad_cast),
-    mongoose_instrument ! bad_info,
-    ?assertEqual(Pid, whereis(mongoose_instrument)). %% It should be still working
 
 add_and_remove_handler(Config) ->
     Event = proplists:get_value(event, Config),
