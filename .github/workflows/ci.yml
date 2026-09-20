@@ -180,5 +180,11 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: _build/safe
-          key: safe-engine-${{ hashFiles('safe.lock') }}-v1
+          key: safe-binary-cache-${{ hashFiles('safe.lock') }}-v1
+      - uses: actions/cache@v3
+        with:
+          path: ~/.safe/data
+          key: safe-state-cache-${{ github.ref_name }}-${{ github.sha }}-v1
+          restore-keys: |
+            safe-state-cache-${{ github.ref_name }}-
       - run: tools/test.sh -p safe_only
