@@ -1,11 +1,10 @@
 {
   "output": [
-    "stdio",
-    "file"
+    "stdio"
   ],
   "version": "1.1",
   "project": {
-    "name": "mim",
+    "name": "mongooseim",
     "type": "beam",
     "config_env": "prod",
     "apps": [
