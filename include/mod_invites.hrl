@@ -8,7 +8,7 @@
 -define(NS_INVITE_INVITATION, <<"urn:xmpp:invite#invation">>).
 -define(NS_PARS, <<"urn:xmpp:pars:0">>).
 
--define(OVERUSE_LIMIT, 1000).
+-define(OVERUSE_LIMIT, 3).
 
 -define(SPEEDY_GOAT_LEVELS, 2).
 -define(SPEEDY_GOAT_SECONDS, 300).

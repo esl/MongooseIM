@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% trans "Invite" %} | {{ site_name }}{% endblock %}</title>
+    {% block rel_alternate %}{% endblock %}
+    <link rel="stylesheet" href="{{ static }}/bootstrap/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ static }}/favicon.png">
+    <meta name="msapplication-TileColor" content="#4acac3">
+    <meta name="theme-color" content="#4acac3">
+    <link rel="stylesheet" href="{{ static }}/invite.css" integrity="sha384-k6usDEL8f5OYugdzmHwAlWjdQA/YkOZre60c604zXvE9fSJpptDg2jzE2PaQ5/c+">
+  </head>
+  <body>
+    <div id="form" class="{% block form_class %}container col-md-10 col-md-offset-1 col-sm-8 col-sm-offset-2 col-lg-10 col-lg-offset-1 my-3 mt-md-5{% endblock %}">
+      <div class="card rounded-2 shadow">
+        <h1 class="card-header">{%block h1 %}{% blocktrans %}Invite to {{ site_name }}{% endblocktrans %}{% endblock %}</h1>
+        <div class="card-body">
+          {% block qr_button %}{% endblock %}
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+    </div>
+    {% block qr_code %}{% endblock %}
+    {% block extra_scripts %}{% endblock %}
+    <script src="{{ static }}/bootstrap/js/bootstrap.min.js" integrity="sha384-G/EV+4j2dNv+tEPo3++6LCgdCROaejBqfUeNjuKAiuXbjrxilcCdDz6ZAVfHWe1Y"></script>
+    <script src="{{ static }}/invite.js" integrity="sha384-DELy2ti586LKOGn5HDTdjg73HEkjZwynBNP7gBW55xktoykPMw3EWbw0SWZLl9w1"></script>
+  </body>
+</html>

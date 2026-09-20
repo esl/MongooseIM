@@ -97,14 +97,19 @@ config_spec() ->
                                                          validate = access_rule},
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_invites_db}},
+                 <<"landing_page">> => #option{type = binary},
                  <<"max_invites">> => #option{type = int_or_infinity,
                                               validate = positive},
+                 <<"site_name">> => #option{type = binary},
+                 <<"template_dir">> => #option{type = binary},
                  <<"token_expire_seconds">> => #option{type = int_or_infinity,
                                                        validate = positive}
                 },
        defaults = #{<<"access_create_account">> => none,
                     <<"backend">> => mnesia,
+                    <<"landing_page">> => <<"none">>,
                     <<"max_invites">> => ?DEFAULT_MAX_INVITES,
+                    <<"template_dir">> => filename:join([code:priv_dir(mongooseim), ?MODULE, <<>>]),
                     <<"token_expire_seconds">> => ?DEFAULT_TOKEN_EXPIRE_SECONDS
                    }
       }.
