@@ -749,14 +749,14 @@ invite_token_t(Type, Host, Inviter, AccountName0) ->
 create_reset_token(User, Host) ->
     maybe
         (#invite_token{} = ResetToken) ?= reset_token(User, Host),
-        F = fun() -> db_call(Host, create_invite_t, [ResetToken]) end,
+        F = fun() -> db_call(Host, create_invite_t, [Host, ResetToken]) end,
         transaction(Host, F)
     end.
 
 reset_token(User, Host) ->
     maybe
         true ?= lists:member(Host, ?MYHOSTS) orelse {error, host_unknown},
-        true ?= ejabberd_auth:user_exists(User, Host) orelse {error, user_not_exists},
+        true ?= ejabberd_auth:does_stored_user_exist(Host, jid:make_bare(User, Host)) orelse {error, user_not_exists},
         set_token_expires(#invite_token{token =
                                             p1_rand:get_alphanum_string(?DEFAULT_TOKEN_LENGTH),
                                         inviter = {<<>>, Host},
@@ -793,10 +793,8 @@ maybe_add_ibr_allowed(User, Host) ->
             <<>>
     end.
 
-landing_page(_Host, _Invite) ->
-    %% TODO
-    %%mod_invites_http:landing_page(Host, Invite).
-    <<"TBD">>.
+landing_page(Host, Invite) ->
+    mod_invites_http:landing_page(Host, Invite).
 
 -spec db_call(binary(), atom(), [any()]) -> any().
 db_call(Host, Fun, Args) ->

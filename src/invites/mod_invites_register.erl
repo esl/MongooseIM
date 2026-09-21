@@ -203,10 +203,10 @@ try_register_or_reset(#invite_token{type = reset_token} = Invite,
              Lang) ->
     case Invite#invite_token.account_name == User of
         true ->
-            ChPwF = fun() -> mod_register:try_set_password(User, Server, Password) end,
+            ChPwF = fun() -> mod_register:try_set_password(Server, jid:make_bare(User, Server), Password) end,
             NewInvite =
                 #invite_token{invitee = Invitee} =
-                    maybe_set_invitee(Invite, jid:make(User, Server)),
+                    maybe_set_invitee(Invite, jid:make_bare(User, Server)),
             case mod_invites:set_invitee(ChPwF, Server, Invite#invite_token.token, Invitee, User) of
                 ok ->
                     {ok, NewInvite};

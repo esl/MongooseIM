@@ -38,15 +38,10 @@ expire_invite_by_token(#{<<"host">> := Host, <<"token">> := Token}) ->
 -spec generate_invite(map()) -> {ok, map()} | {error, resolver_error()}.
 generate_invite(#{<<"host">> := Host, <<"username">> := Username0}) ->
     Username = null_to_bin(Username0),
-    case mod_invites:generate_invite(Host, Username) of
-        {error, _} = Error ->
-            make_error(Error, #{host => Host});
-        Invite ->
-            {ok, mod_invites:format_invite(Host, Invite)}
-    end.
+    handle_invite_result(mod_invites:generate_invite(Host, Username), Host).
 
 generate_reset_token(#{<<"host">> := Host, <<"username">> := Username}) ->
-    handle_cmd_result(mod_invites:generate_reset_token(Host, Username), Host).
+    handle_invite_result(mod_invites:generate_reset_token(Host, Username), Host).
 
 null_to_bin(null) -> <<>>;
 null_to_bin(Bin) when is_binary(Bin) -> Bin.
@@ -55,3 +50,8 @@ handle_cmd_result({error, _} = Error, Host) ->
     make_error(Error, #{host => Host});
 handle_cmd_result(Result, _) ->
     {ok, Result}.
+
+handle_invite_result({error, _} = Error, Host) ->
+    make_error(Error, #{host => Host});
+handle_invite_result(Invite, Host) ->
+    {ok, mod_invites:format_invite(Host, Invite)}.

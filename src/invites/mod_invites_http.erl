@@ -43,6 +43,7 @@
 -type method() :: 'GET' | 'HEAD' | 'DELETE' | 'OPTIONS' | 'PUT' | 'POST' | 'TRACE' | 'PATCH'.
 
 -export([init/2, routes/1]).
+-export([landing_page/2]).
 
 -define(HTTP(Code, Headers, CT, Cookies, Text), {Code, [{<<"Content-Type">>, CT} | Headers], Cookies, Text}).
 -define(HTTP(Code, Headers, CT, Text), ?HTTP(Code, Headers, CT, [], Text)).
@@ -145,10 +146,10 @@ process([Token | _] = LocalPath,
     try mod_invites:is_token_valid(Host, Token) of
         true ->
             case mod_invites:get_invite(Host, Token) of
-                %% #invite_token{type = reset_token} = Invite ->
-                %%     process_reset_token(Request, Invite, LocalPath);
-                %% #invite_token{type = roster_only} = Invite ->
-                %%     process_roster_token(LocalPath, Request, Invite);
+                #invite_token{type = reset_token} = Invite ->
+                    process_reset_token(Request, Invite, LocalPath);
+                #invite_token{type = roster_only} = Invite ->
+                    process_roster_token(LocalPath, Request, Invite);
                 Invite ->
                     process_valid_token(LocalPath, Request, Invite)
             end;
@@ -162,7 +163,73 @@ process([Token | _] = LocalPath,
             ?NOT_FOUND;
         _:{error, host_unknown} ->
             ?NOT_FOUND
-    end.
+    end;
+process([] = LocalPath,
+        #request{method = 'POST',
+                 q = Q,
+                 path = Path,
+                 host = Host,
+                 lang = Lang,
+                 headers = Headers}) ->
+    Username = proplists:get_value(<<"user">>, Q),
+    Password = proplists:get_value(<<"password">>, Q),
+    CSRFToken = proplists:get_value(<<"csrf_token">>, Q),
+    CookieVal = get_csrf_cookie(<<"gen-invite-id">>, Headers),
+    Jid = jid:make_bare(Username, Host),
+    try {check_csrf(CookieVal, CSRFToken),
+         ejabberd_auth:check_password(Jid, Password),
+         mod_invites:create_account_allowed(Host, Jid)}
+    of
+        {ok, true, ok} ->
+            AccountName = proplists:get_value(<<"account_name">>, Q, <<>>),
+            Subscribe = proplists:get_value(<<"subscribe">>, Q, <<"no">>) == <<"yes">>,
+            case mod_invites:create_account_invite(Host,
+                                                   {jid:nodeprep(Username), Host},
+                                                   AccountName,
+                                                   Subscribe)
+            of
+                #invite_token{} = Invite ->
+                    Ctx = [{uri, mod_invites:token_uri(Invite)},
+                           {landing_page, landing_page(Host, Invite)},
+                           {token, Invite#invite_token.token}
+                           | base_ctx(Host, Lang, Path, LocalPath)],
+                    ?HTTP_OK(render(Host, Lang, <<"index.html">>, Ctx));
+                {error, Reason} ->
+                    Ctx = [{username, Username},
+                           {csrf_token, CSRFToken},
+                           {error,
+                            [{text, reason_to_hr(Lang, Reason)}, {class, error_class(Reason)}]}
+                           | base_ctx(Host, Lang, Path, LocalPath)],
+                    render_bad_request(Host, true, <<"index.html">>, Ctx)
+            end;
+        {ok, true, {error, not_allowed}} ->
+            Ctx = [{username, Username},
+                   {csrf_token, CSRFToken},
+                   {error,
+                    [{text, translate(Lang, ?BIN("User is not allowed to create invites"))},
+                     {class, username}]}
+                   | base_ctx(Host, Lang, Path, LocalPath)],
+            render_bad_request(Host, true, <<"index.html">>, Ctx);
+        {ok, false, _} ->
+            Ctx = [{username, Username},
+                   {csrf_token, CSRFToken},
+                   {error, [{text, translate(Lang, ?BIN("Password invalid"))}, {class, password}]}
+                   | base_ctx(Host, Lang, Path, LocalPath)],
+            render_bad_request(Host, true, <<"index.html">>, Ctx)
+    catch
+        _:no_match ->
+            ?BAD_REQUEST
+    end;
+process([] = LocalPath,
+        #request{path = Path,
+                 host = Host,
+                 lang = Lang}) ->
+    CSRFCookie = gen_rand_id(),
+    Ctx = [{csrf_token, csrf_token(CSRFCookie)} | base_ctx(Host, Lang, Path, LocalPath)],
+    Cookie = csrf_cookie(<<"gen-invite-id">>, CSRFCookie),
+    ?HTTP_OK(maybe_add_hsts_header([], true),
+             [Cookie],
+             render(Host, Lang, <<"index.html">>, Ctx)).
 
 process_valid_token([_Token, AppID, ?REGISTRATION] = LocalPath,
                     #request{method = 'POST'} = Request,
@@ -196,10 +263,10 @@ process_valid_token([_Token] = LocalPath,
 process_valid_token(_, _, _) ->
     ?NOT_FOUND.
 
-%% process_reset_token(#request{method = 'POST'} = Request, Invite, LocalPath) ->
-%%     process_post(reset_token, Invite, <<>>, Request, LocalPath);
-%% process_reset_token(Request, Invite, LocalPath) ->
-%%     process_form(reset_token, Invite, <<>>, Request, LocalPath).
+process_reset_token(#request{method = 'POST'} = Request, Invite, LocalPath) ->
+    process_post(reset_token, Invite, <<>>, Request, LocalPath);
+process_reset_token(Request, Invite, LocalPath) ->
+    process_form(reset_token, Invite, <<>>, Request, LocalPath).
 
 process_register_form(Invite, AppID, Request, LocalPath) ->
     process_form(register, Invite, AppID, Request, LocalPath).
@@ -286,7 +353,7 @@ process_post(Form,
                     render_ok(Host, Invite, Lang, form_success(Form), Ctx);
                 {error,
                  #xmlel{name = <<"error">>, attrs = Attrs, children = Children} = Error} ->
-                    Type = maps:get(<<"Type">>, Attrs),
+                    Type = maps:get(<<"type">>, Attrs),
                     [#xmlel{name = Reason} | MaybeText] = Children,
                     Text = case MaybeText of
                                [#xmlel{name = <<"text">>, children = [#xmlcdata{content = Text0 }]} | _] ->
@@ -442,11 +509,80 @@ configured_base_path(Host, Path, LocalPath, Token) ->
             Tmpl ->
                 Url = render_url(Tmpl, [{invite, [{token, Token}]}, {host, Host}]),
                 #{path := OPath0} = uri_string:parse(Url),
-                {OPath, _Q} = ejabberd_http:url_decode_q_split_normalize(OPath0),
+                {OPath, _Q} = url_decode_q_split_normalize(OPath0),
                 OPath -- LocalPath
         end,
     iolist_to_binary(uri_string:normalize(
                          lists:join(<<"/">>, BasePath))).
+
+url_decode_q_split_normalize(Path) ->
+    {NPath, Query} = url_decode_q_split(Path),
+    LPath = normalize_path([NPE
+                            || NPE <- tokens(uri_string:percent_decode(NPath), <<"/">>)]),
+    {LPath, Query}.
+
+tokens(B1, B2) ->
+    [iolist_to_binary(T) ||
+        T <- string:tokens(binary_to_list(B1), binary_to_list(B2))].
+
+% Code below is taken (with some modifications) from the yaws webserver, which
+% is distributed under the following license:
+%
+% This software (the yaws webserver) is free software.
+% Parts of this software is Copyright (c) Claes Wikstrom <klacke@hyber.org>
+% Any use or misuse of the source code is hereby freely allowed.
+%
+% 1. Redistributions of source code must retain the above copyright
+%    notice as well as this list of conditions.
+%
+% 2. Redistributions in binary form must reproduce the above copyright
+%    notice as well as this list of conditions.
+
+%% @doc Split the URL and return {Path, QueryPart}
+url_decode_q_split(Path) ->
+    url_decode_q_split(Path, <<>>).
+
+url_decode_q_split(<<$?, T/binary>>, Acc) ->
+    %% Don't decode the query string here, that is parsed separately.
+    {path_norm_reverse(Acc), T};
+url_decode_q_split(<<H, T/binary>>, Acc) when H /= 0 ->
+    url_decode_q_split(T, <<H, Acc/binary>>);
+url_decode_q_split(<<>>, Ack) ->
+    {path_norm_reverse(Ack), <<>>}.
+
+path_norm_reverse(<<"/", T/binary>>) -> start_dir(0, <<"/">>, T);
+path_norm_reverse(T) -> start_dir(0, <<"">>, T).
+
+start_dir(N, Path, <<"..">>) -> rest_dir(N, Path, <<"">>);
+start_dir(N, Path, <<"/", T/binary>>) -> start_dir(N, Path, T);
+start_dir(N, Path, <<"./", T/binary>>) -> start_dir(N, Path, T);
+start_dir(N, Path, <<"../", T/binary>>) ->
+    start_dir(N + 1, Path, T);
+start_dir(N, Path, T) -> rest_dir(N, Path, T).
+
+rest_dir(_N, Path, <<>>) ->
+    case Path of
+      <<>> -> <<"/">>;
+      _ -> Path
+    end;
+rest_dir(0, Path, <<$/, T/binary>>) ->
+    start_dir(0, <<$/, Path/binary>>, T);
+rest_dir(N, Path, <<$/, T/binary>>) ->
+    start_dir(N - 1, Path, T);
+rest_dir(0, Path, <<H, T/binary>>) ->
+    rest_dir(0, <<H, Path/binary>>, T);
+rest_dir(N, Path, <<_H, T/binary>>) -> rest_dir(N, Path, T).
+
+normalize_path(Path) ->
+    normalize_path(Path, []).
+
+normalize_path([], Norm) -> lists:reverse(Norm);
+normalize_path([<<"..">>|Path], Norm) ->
+    normalize_path(Path, Norm);
+normalize_path([_Parent, <<"..">>|Path], Norm) ->
+    normalize_path(Path, Norm);
+normalize_path([Part | Path], Norm) ->
+    normalize_path(Path, [Part|Norm]).
 
 ctx(Invite,
     #request{host = Host,
