@@ -118,7 +118,6 @@ _build
 _checkouts
 
 # SAFE security scanner
-/_results/
 /fingerprint.json
 
 cover_test_preset.log
