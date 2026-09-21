@@ -10,37 +10,24 @@ execute(_Ctx, _Obj, <<"getMetrics">>, Args) ->
     mongoose_metrics_api:get_metrics(Name);
 execute(_Ctx, _Obj, <<"getMetricsAsDicts">>, Args) ->
     Name = get_name(Args),
-    Keys = get_keys2(Args),
+    Keys = get_metric_keys(Args),
     mongoose_metrics_api:get_metrics_as_dicts(Name, Keys);
 execute(_Ctx, _Obj, <<"getClusterMetricsAsDicts">>, Args) ->
     Name = get_name(Args),
-    Keys = get_keys2(Args),
+    Keys = get_metric_keys(Args),
     Nodes = get_nodes(Args),
     mongoose_metrics_api:get_cluster_metrics_as_dicts(Name, Keys, Nodes).
 
-%% get_keys is a BIF, so we have a name conflict
-get_keys2(Args) ->
-    Keys = get_list(<<"keys">>, Args),
-    lists:map(fun prepare_key/1, Keys).
+%% Internal
 
-%% Percentile datapoints are integers, e.g. 50, other datapoints are atoms
-prepare_key(X) when is_binary(X) ->
-    try binary_to_integer(X)
-    catch
-        error:badarg ->
-            try binary_to_existing_atom(X)
-            catch error:badarg -> ?MODULE
-            end
-    end.
-
-%% Name segments are passed as binaries; mongoose_metrics_api translates them for exometer.
 get_name(Args) ->
     get_list(<<"name">>, Args).
 
+get_metric_keys(Args) ->
+    get_list(<<"keys">>, Args).
+
 get_nodes(Args) ->
-    Nodes = get_list(<<"nodes">>, Args),
-    % safe-ignore binary_to_atom/1
-    lists:map(fun binary_to_atom/1, Nodes).
+    get_list(<<"nodes">>, Args).
 
 get_list(Key, Map) ->
     null_as_empty(maps:get(Key, Map, [])).

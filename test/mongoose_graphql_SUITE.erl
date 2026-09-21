@@ -33,6 +33,7 @@ all() ->
      admin_and_user_load_global_types,
      admin_schema_has_server_host_types,
      safe_int_scalar_accepts_the_safe_integer_range,
+     cluster_node_name_scalar_accepts_only_cluster_nodes,
      {group, operations},
      {group, unprotected_graphql},
      {group, protected_graphql},
@@ -405,6 +406,21 @@ safe_int_scalar_accepts_the_safe_integer_range(_Config) ->
          ?assertMatch({error, _}, mongoose_graphql_scalar:input(~"SafeInt", V)),
          ?assertMatch({error, _}, mongoose_graphql_scalar:output(~"SafeInt", V))
      end || V <- [Max + 1, -Max - 1, ~"1"]].
+
+cluster_node_name_scalar_accepts_only_cluster_nodes(_Config) ->
+    mongoose_graphql:init(),
+    AdminEp = mongoose_graphql:get_endpoint(admin),
+    ?assertMatch(#scalar_type{id = ~"ClusterNodeName", resolve_module = mongoose_graphql_scalar},
+                 graphql_schema:get(AdminEp, ~"ClusterNodeName")),
+    Node = node(),
+    ?assertEqual({ok, Node}, mongoose_graphql_scalar:input(~"ClusterNodeName", atom_to_binary(Node))),
+    ?assertEqual({ok, Node}, mongoose_graphql_scalar:input(~"ClusterNodeName", ~"self")),
+    %% Well-formed, but not a cluster node - rejected without creating an atom
+    Unknown = ~"zzz_never_registered_node_8e1b6a@nohost",
+    [?assertEqual({error, unknown_node}, mongoose_graphql_scalar:input(~"ClusterNodeName", V))
+     || V <- [Unknown, ~"not_a_node_name"]],
+    ?assertEqual({error, empty_node_name}, mongoose_graphql_scalar:input(~"ClusterNodeName", <<>>)),
+    ?assertError(badarg, binary_to_existing_atom(Unknown)).
 
 admin_schema_has_server_host_types(_Config) ->
     mongoose_graphql:init(),
