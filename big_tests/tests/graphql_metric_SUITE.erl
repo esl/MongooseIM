@@ -6,7 +6,8 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1,
-                         get_err_msg/1, get_err_code/1, get_not_loaded/1]).
+                         get_err_msg/1, get_err_code/1, get_not_loaded/1,
+                         get_coercion_err_msg/1]).
 -import(domain_helper, [host_type/0]).
 
 suite() ->
@@ -330,12 +331,7 @@ get_mim2_cluster_metrics(Config) ->
 
 get_cluster_metrics_for_nonexistent_nodes(Config) ->
     Result = get_cluster_metrics_as_dicts_for_nodes([<<"nonexistent">>], Config),
-    ?assertEqual(<<"metric_get_failed">>, get_err_code(Result)),
-    ?assertEqual(<<"Node is down">>, get_err_msg(Result)),
-    ?assertEqual(<<"nonexistent">>, graphql_helper:get_value([extensions, node],
-                                                             graphql_helper:get_error(1, Result))),
-    {_Code, Body} = Result,
-    ?assertEqual([null], graphql_helper:get_value([data, metric, getClusterMetricsAsDicts], Body)).
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Result), <<"unknown_node">>)).
 
 get_cluster_metrics_by_nonexistent_name(Config) ->
     Result = get_cluster_metrics_as_dicts_by_name([<<"nonexistent">>], Config),
@@ -382,10 +378,7 @@ get_cluster_metrics_empty_strings(Config) ->
     [#{<<"node">> := Node, <<"result">> := [_|_]}] = ParsedResult2,
     %% Node is an empty string
     Result3 = get_cluster_metrics_as_dicts([<<"_">>], [<<"median">>], [<<>>], Config),
-    ?assertEqual(<<"metric_get_failed">>, get_err_code(Result3)),
-    ?assertEqual(<<"Node is down">>, get_err_msg(Result3)),
-    {_Code, Body3} = Result3,
-    ?assertEqual([null], graphql_helper:get_value([data, metric, getClusterMetricsAsDicts], Body3)).
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Result3), <<"empty_node_name">>)).
 
 %% The CLI prints the error logged on RPC failure, so that case is HTTP only
 get_cluster_metrics_when_rpc_crashes(Config) ->
