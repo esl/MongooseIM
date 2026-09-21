@@ -27,7 +27,7 @@
 -author('stefan@strigler.de').
 
 -export([user_send_xmlel/3, stream_feature_register/2]).
-%% -export([try_register/6]).
+-export([try_register_or_reset/6]).
 
 -import(mod_invites, [roster_add/2, send_presence/3]).
 

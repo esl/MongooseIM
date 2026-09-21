@@ -33,45 +33,30 @@
 -record(request,
         {method            :: method(),
          path = []         :: [binary()],
-         raw_path          :: binary(),
          q = []            :: [{binary() | nokey, binary()}],
-         us = {<<>>, <<>>} :: {binary(), binary()},
-         auth              :: {binary(), binary()} | {oauth, binary(), []} | undefined | invalid,
          lang = <<"">>     :: binary(),
-         data = <<"">>     :: binary(),
          ip                :: {inet:ip_address(), inet:port_number()},
          host = <<"">>     :: binary(),
-         port = 5280       :: inet:port_number(),
-         opts = []         :: list(),
-         tp = http         :: protocol(),
-         headers = []      :: [{atom() | binary(), binary()}],
-         length = 0        :: non_neg_integer(),
-         sockmod           :: gen_tcp | fast_tls,
-         socket            :: inet:socket() | fast_tls:tls_socket()}).
+         headers = []      :: [{atom() | binary(), binary()}]
+        }).
 
 -type method() :: 'GET' | 'HEAD' | 'DELETE' | 'OPTIONS' | 'PUT' | 'POST' | 'TRACE' | 'PATCH'.
--type protocol() :: http | https.
--type http_request() :: #request{}.
 
 -export([init/2, routes/1]).
 
--define(HTTP(Code, Headers, CT, Text), {Code, [{<<"Content-Type">>, CT} | Headers], Text}).
--define(HTTP(Code, CT, Text), ?HTTP(Code, [], CT, Text)).
+-define(HTTP(Code, Headers, CT, Cookies, Text), {Code, [{<<"Content-Type">>, CT} | Headers], Cookies, Text}).
+-define(HTTP(Code, Headers, CT, Text), ?HTTP(Code, Headers, CT, [], Text)).
+-define(HTTP(Code, CT, Text), ?HTTP(Code, [], CT, [], Text)).
 -define(HTTP(Code, Text), ?HTTP(Code, <<"text/plain">>, Text)).
 -define(HTTP_OK(Text), ?HTTP_OK([], Text)).
--define(HTTP_OK(Headers, Text), ?HTTP(200, security_headers() ++ Headers, <<"text/html">>, Text)).
+-define(HTTP_OK(Headers, Cookies, Text), ?HTTP(200, security_headers() ++ Headers, <<"text/html">>, Cookies, Text)).
+-define(HTTP_OK(Headers, Text), ?HTTP_OK(Headers, [], Text)).
 -define(NOT_FOUND, ?HTTP(404, ?BIN("NOT FOUND"))).
 -define(NOT_FOUND(Text), ?HTTP(404, <<"text/html">>, Text)).
 -define(BAD_REQUEST, ?HTTP(400, ?BIN("BAD REQUEST"))).
 -define(BAD_REQUEST(Headers, Text), ?HTTP(400, security_headers() ++ Headers, <<"text/html">>, Text)).
 -define(BAD_REQUEST(Text), ?HTTP(400, security_headers(), <<"text/html">>, Text)).
 
--define(DEFAULT_CONTENT_TYPE, <<"application/octet-stream">>).
--define(CONTENT_TYPES,
-        [{<<".css">>, <<"text/css">>},
-         {<<".js">>, <<"application/javascript">>},
-         {<<".png">>, <<"image/png">>},
-         {<<".svg">>, <<"image/svg+xml">>}]).
 -define(STATIC, <<"static">>).
 -define(REGISTRATION, <<"registration">>).
 -define(STATIC_CTX, {static, <<"/", Base/binary, "/", ?STATIC/binary>>}).
@@ -80,11 +65,12 @@
 
 init(Req0, #{path := PathPrefix} = Opts) ->
     Path = make_local_path(PathPrefix, cowboy_req:path(Req0)),
-    {Code, Headers, Body} = process(Path, make_request(Req0)),
+    {Request, Req1} = make_request(Req0),
+    {Code, Headers, Cookies, Body} = process(Path, Request),
     Req = cowboy_req:reply(
             Code,
             maps:from_list(Headers),
-            cowboy_req:set_resp_body(Body, Req0)),
+            maybe_set_cookies(Cookies, cowboy_req:set_resp_body(Body, Req1))),
     {ok, Req, Opts}.
 
 make_local_path(PathPrefixS, BinPath) ->
@@ -92,12 +78,24 @@ make_local_path(PathPrefixS, BinPath) ->
     <<PathPrefix:(size(PathPrefix))/binary, LocalPathBin/binary>> = BinPath,
     binary:split(LocalPathBin, <<"/">>, [global, trim_all]).
 
-make_request(#{method := M, path := P, host := H} = Req) ->
-    L = maps:get(language, Req, <<"">>),
-    #request{host = H,
-             method = M,
-             path = binary:split(P, <<"/">>, [global, trim_all]),
-             lang = L}.
+make_request(#{method := M, path := P, host := H, peer := IP, headers := Headers} = Req0) ->
+    L = maps:get(language, Req0, <<"">>),
+    {ok, QS, Req1} = cowboy_req:read_urlencoded_body(Req0),
+    {#request{host = H,
+              method = binary_to_existing_atom(M),
+              path = binary:split(P, <<"/">>, [global, trim_all]),
+              q = QS,
+              lang = L,
+              ip = IP,
+              headers = maps:to_list(Headers)},
+     Req1}.
+
+maybe_set_cookies([], Req) ->
+    Req;
+maybe_set_cookies([{Name, Value} | T], Req) ->
+    maybe_set_cookies(T, cowboy_req:set_resp_cookie(Name, Value, Req));
+maybe_set_cookies([{Name, Value, Opts} | T], Req) ->
+    maybe_set_cookies(T, cowboy_req:set_resp_cookie(Name, Value, Req, Opts)).
 
 routes(Opts = #{path := Path}) ->
     [{Path ++ "/static/[...]", cowboy_static,
@@ -119,18 +117,18 @@ landing_page_tmpl(Host) ->
     case gen_mod:get_module_opt(Host, mod_invites, landing_page) of
         <<"none">> ->
             <<>>;
-        <<"auto">> ->
-            case ejabberd_http:get_auto_url(any, mod_invites) of
-                undefined ->
-                    ?WARNING_MSG(
-                       "'auto' URL configured for mod_invites but no "
-                       "request_handler found in your ~s listeners configuration.",
-                                 [Host]),
-                    <<>>;
-                AutoURL ->
-                    ExpandedAutoURL = misc:expand_keyword(<<"@HOST@">>, AutoURL, Host),
-                    <<ExpandedAutoURL/binary, "{{ invite.token }}">>
-            end;
+        %% <<"auto">> ->
+        %%     case ejabberd_http:get_auto_url(any, mod_invites) of
+        %%         undefined ->
+        %%             ?WARNING_MSG(
+        %%                "'auto' URL configured for mod_invites but no "
+        %%                "request_handler found in your ~s listeners configuration.",
+        %%                          [Host]),
+        %%             <<>>;
+        %%         AutoURL ->
+        %%             ExpandedAutoURL = misc:expand_keyword(<<"@HOST@">>, AutoURL, Host),
+        %%             <<ExpandedAutoURL/binary, "{{ invite.token }}">>
+        %%     end;
         Tmpl ->
             Tmpl
     end.
@@ -166,18 +164,18 @@ process([Token | _] = LocalPath,
             ?NOT_FOUND
     end.
 
-%% process_valid_token([_Token, AppID, ?REGISTRATION] = LocalPath,
-%%                     #request{method = 'POST'} = Request,
-%%                     Invite) ->
-%%     process_register_post(Invite, AppID, Request, LocalPath);
-%% process_valid_token([_Token, AppID, ?REGISTRATION] = LocalPath, Request, Invite) ->
-%%     process_register_form(Invite, AppID, Request, LocalPath);
-%% process_valid_token([_Token, ?REGISTRATION] = LocalPath,
-%%                     #request{method = 'POST'} = Request,
-%%                     Invite) ->
-%%     process_register_post(Invite, <<>>, Request, LocalPath);
-%% process_valid_token([_Token, ?REGISTRATION] = LocalPath, Request, Invite) ->
-%%     process_register_form(Invite, <<>>, Request, LocalPath);
+process_valid_token([_Token, AppID, ?REGISTRATION] = LocalPath,
+                    #request{method = 'POST'} = Request,
+                    Invite) ->
+    process_register_post(Invite, AppID, Request, LocalPath);
+process_valid_token([_Token, AppID, ?REGISTRATION] = LocalPath, Request, Invite) ->
+    process_register_form(Invite, AppID, Request, LocalPath);
+process_valid_token([_Token, ?REGISTRATION] = LocalPath,
+                    #request{method = 'POST'} = Request,
+                    Invite) ->
+    process_register_post(Invite, <<>>, Request, LocalPath);
+process_valid_token([_Token, ?REGISTRATION] = LocalPath, Request, Invite) ->
+    process_register_form(Invite, <<>>, Request, LocalPath);
 process_valid_token([_Token, AppID] = LocalPath,
                     #request{host = Host, lang = Lang} = Request,
                     Invite) ->
@@ -203,122 +201,127 @@ process_valid_token(_, _, _) ->
 %% process_reset_token(Request, Invite, LocalPath) ->
 %%     process_form(reset_token, Invite, <<>>, Request, LocalPath).
 
-%% process_register_form(Invite, AppID, Request, LocalPath) ->
-%%     process_form(register, Invite, AppID, Request, LocalPath).
+process_register_form(Invite, AppID, Request, LocalPath) ->
+    process_form(register, Invite, AppID, Request, LocalPath).
 
-%% process_form(Form,
-%%              Invite,
-%%              AppID,
-%%              #request{host = Host, lang = Lang} = Request,
-%%              LocalPath) ->
-%%     try app_ctx(Host, AppID, Lang, ctx(Invite, Request, LocalPath)) of
-%%         AppCtx ->
-%%             CSRFCookie = gen_rand_id(),
-%%             Ctx = [{csrf_token, csrf_token(CSRFCookie)} | maybe_add_username(AppCtx, Invite)],
-%%             Body = render_form(Form, Request, Ctx),
-%%             Headers =
-%%                 add_cookie_header(maybe_hsts_header(is_https_lp(Host, Invite)),
-%%                                   csrf_cookie_string(form_id(Form), CSRFCookie)),
-%%             ?HTTP_OK(Headers, Body)
-%%     catch
-%%         _:not_found ->
-%%             ?NOT_FOUND
-%%     end.
+process_form(Form,
+             Invite,
+             AppID,
+             #request{host = Host, lang = Lang} = Request,
+             LocalPath) ->
+    try app_ctx(Host, AppID, Lang, ctx(Invite, Request, LocalPath)) of
+        AppCtx ->
+            CSRFCookie = gen_rand_id(),
+            Ctx = [{csrf_token, csrf_token(CSRFCookie)} | maybe_add_username(AppCtx, Invite)],
+            Body = render_form(Form, Request, Ctx),
+            Headers = maybe_hsts_header(is_https_lp(Host, Invite)),
+            Cookie = csrf_cookie(form_id(Form), CSRFCookie),
+            ?HTTP_OK(Headers, [Cookie], Body)
+    catch
+        _:not_found ->
+            ?NOT_FOUND
+    end.
 
-%% render_form(Form, #request{host = Host, lang = Lang}, Ctx) ->
-%%     MinLength =
-%%         case mod_register_opt:password_strength(Host) of
-%%             0 ->
-%%                 0;
-%%             _ ->
-%%                 6
-%%         end,
-%%     render(Host, Lang, form(Form), [{password_min_length, MinLength} | Ctx]).
+render_form(Form, #request{host = Host, lang = Lang}, Ctx) ->
+    MinLength =
+        case gen_mod:get_module_opt(Host, mod_register, password_strength) of
+            0 ->
+                0;
+            _ ->
+                6
+        end,
+    render(Host, Lang, form(Form), [{password_min_length, MinLength} | Ctx]).
 
-%% form(register) ->
-%%     <<"register.html">>;
-%% form(reset_token) ->
-%%     <<"reset_token.html">>.
+form(register) ->
+    <<"register.html">>;
+form(reset_token) ->
+    <<"reset_token.html">>.
 
-%% form_success(register) ->
-%%     <<"register_success.html">>;
-%% form_success(reset_token) ->
-%%     <<"reset_success.html">>.
+form_success(register) ->
+    <<"register_success.html">>;
+form_success(reset_token) ->
+    <<"reset_success.html">>.
 
-%% form_error(register) ->
-%%     <<"register_error.html">>;
-%% form_error(reset_token) ->
-%%     <<"reset_error.html">>.
+form_error(register) ->
+    <<"register_error.html">>;
+form_error(reset_token) ->
+    <<"reset_error.html">>.
 
-%% form_id(register) ->
-%%     <<"register-id">>;
-%% form_id(reset_token) ->
-%%     <<"reset-id">>.
+form_id(register) ->
+    <<"register-id">>;
+form_id(reset_token) ->
+    <<"reset-id">>.
 
-%% process_register_post(Invite, AppID, Request, LocalPath) ->
-%%     process_post(register, Invite, AppID, Request, LocalPath).
+process_register_post(Invite, AppID, Request, LocalPath) ->
+    process_post(register, Invite, AppID, Request, LocalPath).
 
-%% process_post(Form,
-%%              Invite,
-%%              AppID,
-%%              #request{host = Host,
-%%                       q = Q,
-%%                       lang = Lang,
-%%                       path = Path,
-%%                       ip = {Source, _},
-%%                       headers = Headers} =
-%%                  Request,
-%%              LocalPath) ->
-%%     Username = proplists:get_value(<<"user">>, Q),
-%%     Password = proplists:get_value(<<"password">>, Q),
-%%     CSRFToken = proplists:get_value(<<"csrf_token">>, Q),
-%%     Token = Invite#invite_token.token,
-%%     CSRFCookie = get_csrf_cookie(form_id(Form), Headers),
-%%     try {app_ctx(Host, AppID, Lang, ctx(Invite, Request, LocalPath)),
-%%          ensure_same(Token, proplists:get_value(<<"token">>, Q)),
-%%          check_csrf(CSRFCookie, CSRFToken)}
-%%     of
-%%         {AppCtx, ok, ok} ->
-%%             case mod_invites_register:try_register(Invite, Username, Host, Password, Source, Lang)
-%%             of
-%%                 {ok, _UpdatedInvite} ->
-%%                     Ctx = maybe_add_webchat_url(Form,
-%%                                                 Host,
-%%                                                 [{username, Username}, {password, Password}
-%%                                                  | AppCtx]),
-%%                     render_ok(Host, Invite, Lang, form_success(Form), Ctx);
-%%                 {error,
-%%                  #stanza_error{text = Text,
-%%                                type = Type,
-%%                                reason = Reason} =
-%%                      Error} ->
-%%                     ?DEBUG("registration failed with error: ~p", [Error]),
-%%                     Msg = xmpp:get_text(Text, xmpp:prep_lang(Lang)),
-%%                     case Type of
-%%                         T when T == cancel; T == modify ->
-%%                             Ctx = [{username, Username},
-%%                                    {csrf_token, CSRFToken},
-%%                                    {error, [{text, Msg}, {class, error_class(Reason)}]}]
-%%                                   ++ AppCtx,
-%%                             Body = render_form(Form, Request, Ctx),
-%%                             ?BAD_REQUEST(Body);
-%%                         _ ->
-%%                             render_bad_request(Host,
-%%                                                is_https_lp(Host, Invite),
-%%                                                form_error(Form),
-%%                                                [{message, Msg} | base_ctx(Host,
-%%                                                                           Lang,
-%%                                                                           Path,
-%%                                                                           LocalPath,
-%%                                                                           Token)])
-%%                     end
-%%             end
-%%     catch
-%%         _:not_found ->
-%%             ?NOT_FOUND;
-%%         _:no_match ->
-%%             ?BAD_REQUEST
-%%     end.
+process_post(Form,
+             Invite,
+             AppID,
+             #request{host = Host,
+                      q = Q,
+                      lang = Lang,
+                      path = Path,
+                      ip = {Source, _},
+                      headers = Headers} =
+                 Request,
+             LocalPath) ->
+    Username = proplists:get_value(<<"user">>, Q),
+    Password = proplists:get_value(<<"password">>, Q),
+    CSRFToken = proplists:get_value(<<"csrf_token">>, Q),
+    Token = Invite#invite_token.token,
+    CSRFCookie = get_csrf_cookie(form_id(Form), Headers),
+    try {app_ctx(Host, AppID, Lang, ctx(Invite, Request, LocalPath)),
+         ensure_same(Token, proplists:get_value(<<"token">>, Q)),
+         check_csrf(CSRFCookie, CSRFToken)}
+    of
+        {AppCtx, ok, ok} ->
+            case mod_invites_register:try_register_or_reset(Invite, Username, Host, Password, Source, Lang)
+            of
+                {ok, _UpdatedInvite} ->
+                    Ctx = maybe_add_webchat_url(Form,
+                                                Host,
+                                                [{username, Username}, {password, Password}
+                                                 | AppCtx]),
+                    render_ok(Host, Invite, Lang, form_success(Form), Ctx);
+                {error,
+                 #xmlel{name = <<"error">>, attrs = Attrs, children = Children} = Error} ->
+                    Type = maps:get(<<"Type">>, Attrs),
+                    [#xmlel{name = Reason} | MaybeText] = Children,
+                    Text = case MaybeText of
+                               [#xmlel{name = <<"text">>, children = [#xmlcdata{content = Text0 }]} | _] ->
+                                   Text0;
+                               _ ->
+                                   <<>>
+                           end,
+                    ?DEBUG("registration failed with error: ~p", [Error]),
+                    %Msg = xmpp:get_text(Text, xmpp:prep_lang(Lang)),
+                    Msg = Text,
+                    case Type of
+                        T when T == cancel; T == modify ->
+                            Ctx = [{username, Username},
+                                   {csrf_token, CSRFToken},
+                                   {error, [{text, Msg}, {class, error_class(Reason)}]}]
+                                  ++ AppCtx,
+                            Body = render_form(Form, Request, Ctx),
+                            ?BAD_REQUEST(Body);
+                        _ ->
+                            render_bad_request(Host,
+                                               is_https_lp(Host, Invite),
+                                               form_error(Form),
+                                               [{message, Msg} | base_ctx(Host,
+                                                                          Lang,
+                                                                          Path,
+                                                                          LocalPath,
+                                                                          Token)])
+                    end
+            end
+    catch
+        _:not_found ->
+            ?NOT_FOUND;
+        _:no_match ->
+            ?BAD_REQUEST
+    end.
 
 check_csrf(_Token, undefined) ->
     throw(no_match);
@@ -337,28 +340,49 @@ check_csrf(Token, Could) ->
     end.
 
 csrf_token(Msg) when Msg /= <<>> ->
-    SecretKey = ejabberd_config:get_shared_key(),
+    SecretKey = get_shared_key(),
     base64:encode(
         crypto:mac(hmac,
                    sha256,
-                   str:to_hexlist(
+                   to_hexlist(
                        crypto:hash(sha256, SecretKey)),
                    Msg)).
 
+get_shared_key() ->
+    Cookie = erlang:get_cookie(),
+    sha(erlang:atom_to_binary(Cookie, latin1)).
+
+-spec sha(iodata()) -> binary().
+sha(Text) ->
+    Bin = crypto:hash(sha, Text),
+    to_hexlist(Bin).
+
+-spec to_hexlist(binary()) -> binary().
+
+to_hexlist(S) when is_list(S) ->
+    to_hexlist(iolist_to_binary(S));
+to_hexlist(Bin) when is_binary(Bin) ->
+    << <<(digit_to_xchar(N div 16)), (digit_to_xchar(N rem 16))>> || <<N>> <= Bin >>.
+
+digit_to_xchar(D) when (D >= 0) and (D < 10) -> D + $0;
+digit_to_xchar(D) -> D + $a - 10.
+
 maybe_add_webchat_url(register, Host, Ctx) ->
-    case mod_invites_opt:webchat_url(Host) of
-        none ->
+    case gen_mod:get_module_opt(Host, mod_invites, webchat_url) of
+        <<"none">> ->
             Ctx;
-        auto ->
-            case ejabberd_http:get_auto_url(any, mod_conversejs) of
-                undefined ->
-                    ?INFO_MSG("'auto' URL configured for webchat_url but no request_handler for mod_conversejs found in your ~s listeners configuration.",
-                              [Host]),
-                    Ctx;
-                WebchatUrlRaw ->
-                    WebchatUrl = misc:expand_keyword(<<"@HOST@">>, WebchatUrlRaw, Host),
-                    [{webchat_url, WebchatUrl} | Ctx]
-            end;
+        %% auto ->
+        %%     case ejabberd_http:get_auto_url(any, mod_conversejs) of
+        %%         undefined ->
+        %%             ?INFO_MSG(
+        %%                "'auto' URL configured for webchat_url but no request_handler "
+        %%                "for mod_conversejs found in your ~s listeners configuration.",
+        %%                       [Host]),
+        %%             Ctx;
+        %%         WebchatUrlRaw ->
+        %%             WebchatUrl = misc:expand_keyword(<<"@HOST@">>, WebchatUrlRaw, Host),
+        %%             [{webchat_url, WebchatUrl} | Ctx]
+        %%     end;
         WebchatUrl ->
             [{webchat_url, WebchatUrl} | Ctx]
     end;
@@ -438,7 +462,7 @@ ctx(Invite,
 apps_json(Host, Lang, Ctx) ->
     AppsBins = render(Host, Lang, <<"apps.json">>, Ctx),
     AppsBin = binary_join(AppsBins, <<>>),
-    AppsMap = jiffy:decode(AppsBin, [return_maps]),
+    AppsMap = json:decode(AppsBin),
     [app_id(App) || App <- AppsMap].
 
 app_id(App = #{<<"id">> := _ID}) ->
@@ -545,10 +569,6 @@ render_bad_request(Host, IsHttps, File, Ctx) ->
     {ok, Rendered} = Renderer:render(Ctx),
     ?BAD_REQUEST(Headers, Rendered).
 
--spec guess_content_type(binary()) -> binary().
-guess_content_type(FileName) ->
-    mod_http_fileserver:content_type(FileName, ?DEFAULT_CONTENT_TYPE, ?CONTENT_TYPES).
-
 maybe_add_username(Ctx, #invite_token{account_name = <<>>}) ->
     Ctx;
 maybe_add_username(Ctx, #invite_token{account_name = AccountName}) ->
@@ -579,19 +599,39 @@ security_headers() ->
      {<<"Referrer-Policy">>, <<"no-referrer">>}].
 
 gen_rand_id() ->
-    misc:strong_alphanum_token(32).
+    strong_alphanum_token(32).
 
-csrf_cookie_string(Key, CSRFCookie) ->
-    <<Key/binary, "=", CSRFCookie/binary, "; HttpOnly; SameSite=strict; Max-Age=86400">>.
+strong_alphanum_token(Len) ->
+    Bytes = ((Len + 4) div 5) *5,
+    Result = encode_alphanum(<<>>, crypto:strong_rand_bytes(Bytes)),
+    binary:part(Result, 1, Len).
 
-add_cookie_header(Headers, Cookie) ->
-    [{<<"Set-Cookie">>, Cookie} | Headers].
+encode_alphanum(A) when A >= $z-$a ->
+    $0 + A - $z + $a;
+encode_alphanum(A) ->
+    A + $a.
+
+encode_alphanum(Pfx, <<S1:5, S2:5, S3:5, S4:5, S5:5, S6:5, S7:5, S8:5, Rest/binary>>) ->
+    encode_alphanum(<<Pfx/binary,
+                      (encode_alphanum(S1)),
+                      (encode_alphanum(S2)),
+                      (encode_alphanum(S3)),
+                      (encode_alphanum(S4)),
+                      (encode_alphanum(S5)),
+                      (encode_alphanum(S6)),
+                      (encode_alphanum(S7)),
+                      (encode_alphanum(S8))>>, Rest);
+encode_alphanum(Pfx, <<>>) ->
+    Pfx.
+
+csrf_cookie(Key, CSRFCookie) ->
+    {Key, CSRFCookie, #{http_only => true, same_site => strict, max_age => 86400}}.
 
 get_csrf_cookie(Key, Headers) ->
     maps:get(Key, parse_cookie_header(Headers), <<>>).
 
 parse_cookie_header(Headers) ->
-    C = proplists:get_value('Cookie', Headers, <<>>),
+    C = proplists:get_value(<<"cookie">>, Headers, <<>>),
     lists:foldl(fun ([K, V], M) ->
                         M#{K => V};
                     (_, M) ->
