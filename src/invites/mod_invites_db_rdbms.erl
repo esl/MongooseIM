@@ -69,7 +69,7 @@ prepare_queries(_HostType) ->
     prepare(invites_get_invite, invites, [host, token],
            ?SELECT_INVITE("host = ? AND token = ?")),
     prepare(invites_get_invite_by_invitee, invites, [host, invitee, account_name],
-           ?SELECT_INVITE("host = ? AND (type != 'R' AND invitee = ?) OR (type = 'R' AND account_name = ?)")),
+           ?SELECT_INVITE("host = ? AND ((type != 'R' AND type != 'T') AND invitee = ?) OR (type = 'R' AND account_name = ?)")),
     prepare(invites_get_invites, invites, [host, user],
             ?SELECT_INVITE("host = ? AND username = ?")),
     prepare(invites_is_reserved, invites, [host, token, account_name],
