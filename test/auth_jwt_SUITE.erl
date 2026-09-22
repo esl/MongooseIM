@@ -60,11 +60,11 @@ init_per_group(public_key, Config) ->
     PrivkeyPath = filename:join([Root, "tools", "ssl", "mongooseim", "privkey.pem"]),
     PubkeyPath = filename:join([Root, "tools", "ssl", "mongooseim", "pubkey.pem"]),
     {ok, PrivKey} = file:read_file(PrivkeyPath),
-    set_auth_opts({file, PubkeyPath}, "RS256", bookingNumber),
+    set_auth_opts({file, PubkeyPath}, rs256, bookingNumber),
     ok = ejabberd_auth_jwt:start(?HOST_TYPE),
     [{priv_key, PrivKey} | Config];
 init_per_group(_, Config) ->
-    set_auth_opts({value, ?JWT_KEY}, "HS256", bookingNumber),
+    set_auth_opts({value, ?JWT_KEY}, hs256, bookingNumber),
     ok = ejabberd_auth_jwt:start(?HOST_TYPE),
     Config.
 

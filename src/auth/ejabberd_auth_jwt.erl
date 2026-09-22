@@ -41,10 +41,12 @@
         ]).
 
 %% Config spec callbacks
--export([process_jwt_secret/1]).
+-export([process_jwt_secret/1, process_algorithm/1]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
+
+-type algorithm() :: hs256 | rs256 | es256 | hs384 | rs384 | es384 | hs512 | rs512 | es512.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -66,7 +68,8 @@ config_spec() ->
     #section{
        items = #{<<"secret">> => jwt_secret_config_spec(),
                  <<"algorithm">> => #option{type = binary,
-                                            validate = {enum, algorithms()}},
+                                            validate = {enum, maps:keys(algorithms())},
+                                            process = fun ?MODULE:process_algorithm/1},
                  <<"username_key">> => #option{type = atom,
                                                validate = non_empty}
                 },
@@ -86,6 +89,8 @@ jwt_secret_config_spec() ->
 
 process_jwt_secret([V]) -> V.
 
+process_algorithm(Alg) -> maps:get(Alg, algorithms()).
+
 -spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 
@@ -103,8 +108,7 @@ check_password(HostType, LUser, LServer, Password) ->
               Key1 when is_binary(Key1) -> Key1;
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
-    BinAlg = mongoose_config:get_opt([{auth, HostType}, jwt, algorithm]),
-    Alg = binary_to_existing_atom(jid:str_tolower(BinAlg), utf8),
+    Alg = mongoose_config:get_opt([{auth, HostType}, jwt, algorithm]),
     case jwerl:verify(Password, Alg, Key) of
         {ok, TokenData} ->
             UserKey = mongoose_config:get_opt([{auth,HostType}, jwt, username_key]),
@@ -174,7 +178,9 @@ get_jwt_secret(HostType) ->
             JWTSecret
     end.
 
+%% Explicit mapping, because the atoms are owned by jwerl and might not exist yet
+-spec algorithms() -> #{binary() => algorithm()}.
 algorithms() ->
-    [<<"HS256">>, <<"RS256">>, <<"ES256">>,
-     <<"HS384">>, <<"RS384">>, <<"ES384">>,
-     <<"HS512">>, <<"RS512">>, <<"ES512">>].
+    #{<<"HS256">> => hs256, <<"RS256">> => rs256, <<"ES256">> => es256,
+      <<"HS384">> => hs384, <<"RS384">> => rs384, <<"ES384">> => es384,
+      <<"HS512">> => hs512, <<"RS512">> => rs512, <<"ES512">> => es512}.

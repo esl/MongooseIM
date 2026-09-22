@@ -693,7 +693,7 @@ extra_auth() ->
       http => #{basic_auth => "admin:admin"},
       external => #{instances => 1,
                     program => "/usr/bin/authenticator"},
-      jwt => #{algorithm => <<"RS256">>,
+      jwt => #{algorithm => rs256,
                secret => {value, <<"secret123">>},
                username_key => user},
       ldap => #{base => <<"ou=Users,dc=esl,dc=com">>,
