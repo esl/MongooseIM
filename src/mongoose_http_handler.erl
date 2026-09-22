@@ -52,6 +52,7 @@ common_handler_config_spec() ->
              required = [<<"host">>, <<"path">>],
              process = fun ?MODULE:process_config/2}.
 
+%% The atom exists, because 'validate_keys = module' has already loaded the handler module
 process_config([item, HandlerType | _], Opts) ->
     Module = binary_to_existing_atom(HandlerType),
     Opts#{module => Module}.
