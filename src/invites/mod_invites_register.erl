@@ -78,7 +78,7 @@ handle_unauthenticated_iq(Acc,
                     case try_register_or_reset(Invite, Username, LServer, Password, Address, Lang) of
                         {ok, UpdatedInvite} ->
                             NewAcc = mongoose_c2s_acc:to_acc(Acc, state_mod, {mod_invites, UpdatedInvite}),
-                            {stop, make_iq_response_acc(IQ, NewAcc, FromServer)};
+                            {stop, make_iq_response_acc(mongoose_iq:empty_result_iq(IQ), NewAcc, FromServer)};
                         {error, Err} ->
                             ResIQ = error_response(IQ, Err),
                             {stop, make_iq_response_acc(ResIQ, Acc, FromServer)}
@@ -182,7 +182,7 @@ create_account_allowed(#invite_token{type = roster_only} = Invite) ->
 create_account_allowed(#invite_token{inviter = {<<>>, _Host}}) ->
     true;
 create_account_allowed(#invite_token{inviter = {User, Host}}) ->
-    mod_invites:create_account_allowed(Host, jid:make(User, Host)) == ok.
+    mod_invites:create_account_allowed(Host, jid:make_bare(User, Host)) == ok.
 
 preauth_invalid(IQ, _Lang) ->
     Text = ?BIN("The token provided is either invalid or expired."),
