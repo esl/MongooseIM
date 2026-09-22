@@ -111,17 +111,21 @@ Determines whether a matching rule sends or skips the notification.
 * **Syntax:** string, one of `"message"`, `"jingle"`
 * **Default:** no default
 
-Determines the content of the last message body in the push notification:
+Determines the content of the push notification:
 
-* `"message"` includes the message body,
-* `"jingle"` builds it from a valid Jingle Message Initiation element in the format `Jingle message: <action>, session ID: <id>`.
+* `"message"` builds [XEP-0357: Push Notifications][XEP-0357] notification content from the message body, sender JID and unread count.
+* `"jingle"` builds JMI content from a valid [Jingle Message Initiation][XEP-0353] element and the sender JID:
+  `type` is `jmi`, `jmi-sid` is the element's `id`, and `jmi-from` is the sender's full JID.
 
 This option is mandatory when `action` is `"push"` and cannot be specified when `action` is `"skip"`.
 If the selected content cannot be built from the stanza, the notification is **not** sent and a warning is logged, so make sure to match `conditions` with `content`.
 
-!!! Warning
-    Jingle notifications are experimental and very likely to change in future versions.
-
+!!! Note "APNs topics and push content"
+    MongooseIM sends JMI content only to APNs registrations whose `topic` ends in `.voip`.
+    It sends non-JMI content only to APNs registrations with no `topic` or one that does not end in `.voip`.
+    To receive both types, a client must enable two registrations with different `node` values:
+    one using its regular APNs device token and one using its PushKit token and `.voip` topic.
+    This filtering does not apply to FCM registrations.
 #### Example
 
 This example configuration enables the module with the RDBMS backend, and using a virtual pubsub host.

@@ -6,14 +6,14 @@ Depending on whether you plan to use PubSub-full or PubSub-less configuration, s
 ## Registering with a Push Service provider
 
 First, the client application has to get a device-specific token from the Push Service Provider
-(FCM or APNS). This process is different, depending on the platform, so please consult your Push
+(FCM or APNs). This process is different, depending on the platform, so please consult your Push
 Service Provider's manual to see how to get this token. For example,
 [here](https://firebase.google.com/docs/cloud-messaging/android/client) you can learn about setting
 up _FCM_ on _Android_ platform and
 [here](https://developer.apple.com/library/content/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/HandlingRemoteNotifications.html#/apple_ref/doc/uid/TP40008194-CH6-SW1)
-you can learn about setting up _APNS_ on _iOS_ platform.
+you can learn about setting up _APNs_ on _iOS_ platform.
 
-After this step, your application shall be able to receive _FCM_ or _APNS_ token - it will be
+After this step, your application shall be able to receive _FCM_ or _APNs_ token - it will be
 required in the next step of this tutorial.
 
 ## Setting up an XMPP `pubsub` node
@@ -49,7 +49,7 @@ with the `push` node support. The client sends the following stanza to the serve
 ```
 
 The `pubsub.mypubsub.com` will be used as a gateway for all notifications
-and will pass them through to the APNS and/or FCM.
+and will pass them through to the APNs and/or FCM.
 
 The most important and only difference from the standard node creation
 is the `type='push'` part of the `create` element.
@@ -57,7 +57,7 @@ According to [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357
 required to route the push notification mechanism. This implies you need a node that will handle
 your push notifications, hence we create a node called `punsub_node_for_my_private_iphone`.
 This node should be unique to the device and you may reuse nodes already created this way.
-The token obtained from _APNS_ or _FCM_ is a good option to ensure this uniqueness,
+The token obtained from _APNs_ or _FCM_ is a good option to ensure this uniqueness,
 by either using it directly or within some custom node name generation.
 It is also important from the security perspective to configure the node with:
 
@@ -103,44 +103,23 @@ To enable push notifications in the simplest configuration, just send the follow
       <field var='device_id'><value>your_pns_device_token</value></field>
       <field var='silent'><value>false</value></field>
       <field var='topic'><value>some_apns_topic</value></field>
-      <field var='priority'><value>some_priority</value></field>
+      <field var='priority'><value>high</value></field>
     </x>
   </enable>
 </iq>
 ```
 
-We have now enabled push notifications to be send to the `pubsub.mypubsub.com` domain
+We have now enabled push notifications to be sent to the `pubsub.mypubsub.com` domain
 on the node `punsub_node_for_my_private_iphone` created previously, or in the case of PubSub-less,
 for whatever unique node name we give here, for example any variation of the token obtained from
-_APNS_ or _FCM_. Please note that `publish-options` are specific to various XMPP Push Services.
+_APNs_ or _FCM_. Please note that `publish-options` are specific to various XMPP Push Services.
 
-## Publish options
-For [mod_push_service_mongoosepush][] the next `publish-options` are mandatory:
+### Publish options
 
-  * `device_id` - device token (here: `your_pns_device_token`) that you received from your push notification service provider (as described in [Registering with Push Service provider](#registering-with-a-push-service-provider))
-  * `service` - push notification service provider name (`apns` or `fcm`)
-
-there are also some other `publish-options` supported:
-
-  * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool
-    type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is
-    configured to work with both production and development certificate.
-  * `click_action` - action to perform when notification is clicked on the device. `activity` on
-    _Android_ and `category` on _iOS_. Please refer to your platform / push notification service
-    provider for more info.
-  * `topic` - currently only used with _APNS_. The value is passed to _APNS_ as `topic` header. For
-    more information please refer to _APNS_ documentation.
-  * `silent` - if set to `true`, all notifications will be "silent". This means that only the data
-    payload will be send to the push notifications provider with no notification. The data payload
-    will contain all notification fields as defined in [XEP-0357: Push Notifications][XEP-0357].
-  * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
-    This value will set the push notification priority. Please refer to FCM / APNS documentation for
-    more details on those values.
-  * `sound` - sound that should be played when a notification arrives. Please refer to _FCM_/_APNS_ documentation for more details.
-  * `mutable_content` - only applicable to _APNS_. If set to `true`, sets "mutable-content=1" in the _APNS_ payload.
-  * `time_to_live` - only applicable to _FCM_. Maximum lifespan of an FCM notification. Please refer to the _FCM_ documentation for more details.
-
-Any other `publish-options` are ignored by [mod_push_service_mongoosepush][]
+When using [mod_push_service_mongoosepush][], see the MongoosePush
+[request parameters](../../modules/mod_push_service_mongoosepush.md#request-parameters)
+for the supported `publish-options` and how MongooseIM maps them to MongoosePush requests.
+In particular, `device_id` and `service` publish options are mandatory.
 
 ## Disabling push notifications
 
@@ -172,6 +151,3 @@ showing the typical communication when using push notifications:
 [mod_event_pusher_push]: ../../modules/mod_event_pusher_push.md
 [mod_pubsub_old]: ../../modules/mod_pubsub_old.md
 [mod_push_service_mongoosepush]: ../../modules/mod_push_service_mongoosepush.md
-[MongoosePush]: https://github.com/esl/MongoosePush
-[MongoosePushReadme]: https://github.com/esl/MongoosePush/blob/master/README.md
-[XEP-0357]: https://xmpp.org/extensions/xep-0357.html

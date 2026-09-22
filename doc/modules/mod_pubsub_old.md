@@ -228,10 +228,11 @@ Every node takes a place in a collection and becomes either a collection node (a
 
 ### `"push"`
 
-Special node type that may be used as a target node for [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_event_pusher_push`).
-For each published notification, a hook `push_notification` is run.
-You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`).
-This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.
+Special node type that may be used as a target node for [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) capable services, such as `mod_event_pusher_push`.
+For each published notification, the `push_notifications` hook is run.
+Modules handling this hook are named with the `mod_push_service_*` prefix.
+Required publish options depend on the selected push service.
+For `mod_push_service_mongoosepush`, see its [request parameter documentation](./mod_push_service_mongoosepush.md#request-parameters).
 
 ## Metrics
 
