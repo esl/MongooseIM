@@ -2,30 +2,29 @@
 Allow admin to get the metric values. Only works with Exometer enabled.
 """
 type MetricAdminQuery @protected{
-    """
-    Match metrics using a name pattern and return the metric values.
-    Return all metrics if the name is not provided.
-    Name is a list of name segments or an underscore (i.e. path).
-    Return an empty list if no metric matches the name.
-    """
-    getMetrics(name: [String!]): [MetricResult]!
+    "Get metric values"
+    getMetrics(
+      "Name segments, where \"_\" matches any segment. All metrics if omitted"
+      name: [String!]
+    ): [MetricResult]!
       @protected(type: GLOBAL)
-    """
-    Get metrics without using graphql unions.
-    The name is matched in the same way as in `getMetrics`.
-    Optionally returns only specified keys
-    (i.e. keys: ["one"] only returns key "one", but not key "count").
-    Percentile keys are given as numbers, e.g. "99". Return all keys if the keys are not provided.
-    """
-    getMetricsAsDicts(name: [String!], keys: [String!]): [MetricDictResult!]!
+    "Get metric values as key-value pairs"
+    getMetricsAsDicts(
+      "Name segments, where \"_\" matches any segment. All metrics if omitted"
+      name: [String!]
+      "Keys to return, e.g. \"count\" or \"99\" for a percentile. All keys if omitted"
+      keys: [String!]
+    ): [MetricDictResult!]!
       @protected(type: GLOBAL)
-    """
-    Gather metrics from multiple nodes.
-    The name and keys are handled in the same way as in `getMetricsAsDicts`.
-    Optionally returns only from specified nodes. Return the metrics from all nodes of the cluster
-    if the nodes are not provided.
-    """
-    getClusterMetricsAsDicts(name: [String!], keys: [String!], nodes: [ClusterNodeName!]): [MetricNodeResult]!
+    "Get metric values as key-value pairs from cluster nodes"
+    getClusterMetricsAsDicts(
+      "Name segments, where \"_\" matches any segment. All metrics if omitted"
+      name: [String!]
+      "Keys to return, e.g. \"count\" or \"99\" for a percentile. All keys if omitted"
+      keys: [String!]
+      "Nodes to query. All cluster nodes if omitted"
+      nodes: [ClusterNodeName!]
+    ): [MetricNodeResult]!
       @protected(type: GLOBAL)
 }
 
