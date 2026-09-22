@@ -5,12 +5,12 @@
 
 all() ->
     [
-        loglevel_valid_values_return_atoms,
-        loglevel_case_insensitive
+        loglevel_valid_values_return_atoms
     ].
 
 loglevel_valid_values_return_atoms(_Config) ->
     ValidLevels = [
+        {<<"ALL">>, all},
         {<<"DEBUG">>, debug},
         {<<"INFO">>, info},
         {<<"NOTICE">>, notice},
@@ -18,16 +18,10 @@ loglevel_valid_values_return_atoms(_Config) ->
         {<<"ERROR">>, error},
         {<<"CRITICAL">>, critical},
         {<<"ALERT">>, alert},
-        {<<"EMERGENCY">>, emergency}
+        {<<"EMERGENCY">>, emergency},
+        {<<"NONE">>, none}
     ],
     lists:foreach(fun({Input, Expected}) ->
         {ok, Result} = mongoose_graphql_enum:input(<<"LogLevel">>, Input),
         ?assertEqual(Expected, Result)
     end, ValidLevels).
-
-loglevel_case_insensitive(_Config) ->
-    {ok, debug} = mongoose_graphql_enum:input(<<"LogLevel">>, <<"DEBUG">>),
-    {ok, debug} = mongoose_graphql_enum:input(<<"LogLevel">>, <<"debug">>),
-    {ok, debug} = mongoose_graphql_enum:input(<<"LogLevel">>, <<"Debug">>),
-    {ok, info} = mongoose_graphql_enum:input(<<"LogLevel">>, <<"INFO">>),
-    {ok, info} = mongoose_graphql_enum:input(<<"LogLevel">>, <<"info">>).
