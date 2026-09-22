@@ -34,32 +34,17 @@ cases() ->
 
 init_per_suite(Config) ->
     log_helper:set_up(),
-    ok = mnesia:start(),
-    mongoose_config:set_opts(opts()),
-    meck:new(mongoose_domain_sql, [no_link]),
-    meck:expect(mongoose_domain_sql, get_minmax_event_id, fun() -> {1, 1} end),
-    meck:expect(mongoose_domain_sql, get_event_ids_between, fun(Min, Max) -> lists:seq(Min, Max) end),
-    meck:expect(mongoose_domain_sql, select_updates_between, fun(_, _) -> [] end),
-    meck:expect(mongoose_domain_sql, select_from, fun(_, _) -> [] end),
     Config.
 
 end_per_suite(_Config) ->
-    mnesia:stop(),
-    meck:unload(),
-    mongoose_config:erase_opts(),
     log_helper:tear_down().
 
-opts() ->
-    #{instrumentation => config_parser_helper:default_config([instrumentation]),
-      s2s_backend => mnesia,
-      host_types => [],
-      hosts => []}.
-
 init_per_group(Name, Config) ->
+    set_up(Name),
     [{server, Name} | Config].
 
-end_per_group(_Name, _Config) ->
-    ok.
+end_per_group(Name, _Config) ->
+    tear_down(Name).
 
 init_per_testcase(_Case, Config) ->
     start_deps(?config(server, Config)),
@@ -70,6 +55,43 @@ init_per_testcase(_Case, Config) ->
 end_per_testcase(_Case, Config) ->
     log_helper:unsubscribe(),
     gen_server:stop(?config(server, Config)).
+
+set_up(mongoose_instrument) ->
+    mongoose_config:set_opts(#{instrumentation => instrumentation_opts()});
+set_up(ejabberd_s2s) ->
+    ok = mnesia:start(),
+    mongoose_config:set_opts(#{instrumentation => instrumentation_opts(),
+                               s2s_backend => mnesia,
+                               host_types => [],
+                               hosts => []});
+set_up(mongoose_domain_db_cleaner) ->
+    mock_domain_sql();
+set_up(service_domain_db) ->
+    mock_domain_sql();
+set_up(_) ->
+    ok.
+
+tear_down(mongoose_instrument) ->
+    mongoose_config:erase_opts();
+tear_down(ejabberd_s2s) ->
+    mongoose_config:erase_opts(),
+    mnesia:stop();
+tear_down(mongoose_domain_db_cleaner) ->
+    meck:unload(mongoose_domain_sql);
+tear_down(service_domain_db) ->
+    meck:unload(mongoose_domain_sql);
+tear_down(_) ->
+    ok.
+
+instrumentation_opts() ->
+    config_parser_helper:default_config([instrumentation]).
+
+mock_domain_sql() ->
+    meck:new(mongoose_domain_sql, [no_link]),
+    meck:expect(mongoose_domain_sql, get_minmax_event_id, fun() -> {1, 1} end),
+    meck:expect(mongoose_domain_sql, get_event_ids_between, fun(Min, Max) -> lists:seq(Min, Max) end),
+    meck:expect(mongoose_domain_sql, select_updates_between, fun(_, _) -> [] end),
+    meck:expect(mongoose_domain_sql, select_from, fun(_, _) -> [] end).
 
 start_deps(ejabberd_s2s) ->
     {ok, _} = mongoose_instrument:start_link(),
