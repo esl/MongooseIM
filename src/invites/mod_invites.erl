@@ -487,13 +487,6 @@ user_send_xmlel(Acc, Params, Extras) ->
 get_invite(Host, Token) ->
     db_call(Host, get_invite, [Host, Token]).
 
--ifdef(TEST).
-
-get_invites(Host, Inviter) ->
-    transaction(Host, fun() -> get_invites_t(Host, Inviter) end).
-
--endif.
-
 get_invites_t(Host, Inviter) ->
     db_call(Host, get_invites_t, [Host, Inviter]).
 
