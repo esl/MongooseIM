@@ -1,4 +1,5 @@
 -module(mongoose_metrics_api).
+
 -export([get_metrics/1,
          get_metrics_as_dicts/2,
          get_cluster_metrics_as_dicts/3]).
@@ -6,37 +7,43 @@
 -include("mongoose_logger.hrl").
 -include("mongoose.hrl").
 
--type name() :: [atom() | integer()].
--type key() :: atom().
--type metric_result() ::
-    {ok, #{binary() => binary() | non_neg_integer()}}
-    | {error, atom()}.
--type dict_result() :: #{binary() => binary() | non_neg_integer()}.
--type metric_dict_result() ::
-    {ok, #{binary() => binary() | [dict_result()]}}.
--type metric_node_dict_result() ::
-    {ok, #{binary() => binary() | [metric_dict_result()]}}
-    | {error, binary()}.
+-type name() :: [binary()].
+-type key() :: binary().
+%% Binary-keyed maps; list elements are wrapped as {ok, Value} | {error, Reason}
+-type result_map() :: #{binary() => term()}.
+-type metric_result() :: {ok, result_map()} | {error, atom()}.
+-type metric_dict_result() :: {ok, result_map()}.
+-type metric_node_dict_result() :: {ok, result_map()} | {error, binary()}.
 
 -spec get_metrics(Name :: name()) -> {ok, [metric_result()]}.
 get_metrics(Name) ->
-    PrepName = prepare_host_types(Name),
-    Values = mongoose_instrument_exometer:get_metric_values(PrepName),
-    {ok, lists:map(fun make_metric_result/1, Values)}.
+    {ok, lists:map(fun make_metric_result/1, get_metric_values(Name))}.
 
 -spec get_metrics_as_dicts(Name :: name(), Keys :: [key()]) ->
     {ok, [metric_dict_result()]}.
 get_metrics_as_dicts(Name, Keys) ->
-    PrepName = prepare_host_types(Name),
-    Values = mongoose_instrument_exometer:get_metric_values(PrepName),
-    {ok, [make_metric_dict_result(V, Keys) || V <- Values]}.
+    {ok, [make_metric_dict_result(V, Keys) || V <- get_metric_values(Name)]}.
 
+%% An empty list of nodes means all nodes of the cluster
 -spec get_cluster_metrics_as_dicts(Name :: name(), Keys :: [key()],
                                    Nodes :: [node()]) ->
     {ok, [metric_node_dict_result()]}.
 get_cluster_metrics_as_dicts(Name, Keys, Nodes) ->
-    PrepName = prepare_host_types(Name),
     Nodes2 = prepare_nodes_arg(Nodes),
+    Results = get_node_values(prepare_name(Name), Nodes2),
+    {ok, [make_node_result(Node, Result, Keys)
+          || {Node, Result} <- lists:zip(Nodes2, Results)]}.
+
+%% A name that cannot match any metric is not passed on to exometer
+get_metric_values(Name) ->
+    case prepare_name(Name) of
+        {ok, PrepName} ->
+            mongoose_instrument_exometer:get_metric_values(PrepName);
+        error ->
+            []
+    end.
+
+get_node_values({ok, PrepName}, Nodes) ->
     F = fun(Node) ->
             case rpc:call(Node, mongoose_instrument_exometer, get_metric_values, [PrepName]) of
             {badrpc, Reason} ->
@@ -45,9 +52,9 @@ get_cluster_metrics_as_dicts(Name, Keys, Nodes) ->
                 Result
             end
         end,
-    Results = mongoose_lib:pmap(F, Nodes2),
-    {ok, [make_node_result(Node, Result, Keys)
-          || {Node, Result} <- lists:zip(Nodes2, Results)]}.
+    mongoose_lib:pmap(F, Nodes);
+get_node_values(error, Nodes) ->
+    [{ok, []} || _Node <- Nodes].
 
 make_node_result(Node, {ok, Values}, Keys) ->
     {ok, #{<<"node">> => Node,
@@ -60,10 +67,16 @@ make_node_result(Node, Other, _Keys) ->
 filter_keys(Dict, []) ->
     Dict;
 filter_keys(Dict, Keys) ->
-    [KV || KV = {Key, _} <- Dict, lists:member(Key, Keys)].
+    [KV || KV = {Key, _} <- Dict, lists:member(key_to_binary(Key), Keys)].
+
+%% Datapoint keys are atoms (e.g. count) or integers (e.g. histogram percentile 50)
+key_to_binary(Key) when is_atom(Key) ->
+    atom_to_binary(Key);
+key_to_binary(Key) when is_integer(Key) ->
+    integer_to_binary(Key).
 
 prepare_nodes_arg([]) ->
-    [node()|nodes()];
+    [node() | nodes()];
 prepare_nodes_arg(Nodes) ->
     Nodes.
 
@@ -123,14 +136,28 @@ format_histogram(#{n := N, mean := Mean, min := Min, max := Max, median := Media
       <<"p50">> => P50, <<"p75">> => P75, <<"p90">> => P90, <<"p95">> => P95,
       <<"p99">> => P99, <<"p999">> => P999}.
 
-prepare_host_types(Name) ->
-    lists:map(
-        fun(Ele) ->
-            case lists:member(atom_to_binary(Ele), ?ALL_HOST_TYPES) of
-                true ->
-                    binary:replace(atom_to_binary(Ele), <<" ">>, <<"_">>);
-                false ->
-                    Ele
+%% Host types are normalized binaries; metric/module segments become existing atoms.
+%% A segment that is neither cannot be a part of any metric name.
+-spec prepare_name(name()) -> {ok, [binary() | atom()]} | error.
+prepare_name(Segments) ->
+    prepare_name(Segments, []).
+
+prepare_name([], Acc) ->
+    {ok, lists:reverse(Acc)};
+prepare_name([Segment | Rest], Acc) ->
+    case prepare_name_segment(Segment) of
+        {ok, PreparedSegment} ->
+            prepare_name(Rest, [PreparedSegment | Acc]);
+        error ->
+            error
+    end.
+
+prepare_name_segment(S) ->
+    case lists:member(S, ?ALL_HOST_TYPES) of
+        true ->
+            {ok, binary:replace(S, <<" ">>, <<"_">>, [global])};
+        false ->
+            try {ok, binary_to_existing_atom(S)}
+            catch error:badarg -> error
             end
-        end,
-    Name).
+    end.

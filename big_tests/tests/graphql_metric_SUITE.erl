@@ -6,7 +6,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1,
-                         get_err_msg/1, get_err_code/1]).
+                         get_err_msg/1, get_err_code/1, get_coercion_err_msg/1]).
 -import(domain_helper, [host_type/0]).
 
 suite() ->
@@ -32,6 +32,7 @@ metrics_tests() ->
      get_metrics_by_name_empty_args,
      get_metrics_by_name_empty_string,
      get_metrics_by_nonexistent_name,
+     get_metrics_by_never_registered_name_segment,
      get_metrics_for_specific_host_type,
      get_process_queue_length,
      get_inet_stats,
@@ -43,6 +44,7 @@ metrics_tests() ->
      get_metrics_as_dicts_with_key_one,
      get_metrics_as_dicts_with_percentile_key,
      get_metrics_as_dicts_with_nonexistent_key,
+     get_metrics_as_dicts_with_never_registered_key,
      get_metrics_as_dicts_empty_args,
      get_metrics_as_dicts_empty_strings,
      get_cluster_metrics,
@@ -157,6 +159,11 @@ get_metrics_by_nonexistent_name(Config) ->
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     [] = ParsedResult.
 
+get_metrics_by_never_registered_name_segment(Config) ->
+    Result = get_metrics([<<"zzz_never_registered_metric_segment_9f3a1b">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
+    [] = ParsedResult.
+
 get_metrics_for_specific_host_type(Config) ->
     Result = get_metrics([<<"dummy auth">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
@@ -247,6 +254,13 @@ get_metrics_as_dicts_with_nonexistent_key(Config) ->
     RecvName = [metric_host_type(), <<"xmpp_element_in">>, <<"c2s">>, <<"byte_size">>],
     [] = maps:get(RecvName, Map).
 
+get_metrics_as_dicts_with_never_registered_key(Config) ->
+    Result = get_metrics_as_dicts_with_keys([<<"zzz_never_registered_metric_key_9f3a1b">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
+    Map = dict_objects_to_map(ParsedResult),
+    RecvName = [metric_host_type(), <<"xmpp_element_in">>, <<"c2s">>, <<"byte_size">>],
+    [] = maps:get(RecvName, Map).
+
 get_metrics_as_dicts_empty_args(Config) ->
     %% Empty name
     Result = get_metrics_as_dicts([], [<<"median">>], Config),
@@ -302,10 +316,7 @@ get_mim2_cluster_metrics(Config) ->
 
 get_cluster_metrics_for_nonexistent_nodes(Config) ->
     Result = get_cluster_metrics_as_dicts_for_nodes([<<"nonexistent">>], Config),
-    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
-    [#{<<"node">> := _, <<"result">> := ResList}] = ParsedResult,
-    [#{<<"dict">> := [], <<"name">> := ErrorResult}] = ResList,
-    ?assert(ErrorResult == [<<"error">>, <<"nodedown">>]).
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Result), <<"unknown_node">>)).
 
 get_cluster_metrics_by_nonexistent_name(Config) ->
     Result = get_cluster_metrics_as_dicts_by_name([<<"nonexistent">>], Config),
@@ -352,10 +363,7 @@ get_cluster_metrics_empty_strings(Config) ->
     [#{<<"node">> := Node, <<"result">> := [_|_]}] = ParsedResult2,
     %% Node is an empty string
     Result3 = get_cluster_metrics_as_dicts([<<"_">>], [<<"median">>], [<<>>], Config),
-    ParsedResult3 = get_ok_value([data, metric, getClusterMetricsAsDicts], Result3),
-    [#{<<"node">> := _, <<"result">> := ResList}] = ParsedResult3,
-    [#{<<"dict">> := [], <<"name">> := ErrorResult}] = ResList,
-    ?assert(ErrorResult == [<<"error">>, <<"nodedown">>]).
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Result3), <<"empty_node_name">>)).
 
 check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     %% Check that result contains something

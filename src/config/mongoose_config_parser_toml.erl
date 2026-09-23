@@ -79,7 +79,8 @@ config_error(Errors) ->
 parse(Content) ->
     handle([], Content, mongoose_config_spec:root()).
 
-%% TODO replace with binary_to_existing_atom where possible, prevent atom leak
+%% Converts TOML section keys and atom-typed option values; each is minted as an atom
+%% for the first time here, during startup config parsing.
 % safe-ignore binary_to_atom/2
 b2a(B) -> binary_to_atom(B, utf8).
 
