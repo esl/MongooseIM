@@ -41,6 +41,7 @@ all() ->
      {group, permissions},
      {group, domain_permissions},
      {group, use_directive},
+     {group, enum_output},
      {group, user_listener},
      {group, admin_listener},
      {group, domain_admin_listener}].
@@ -54,6 +55,7 @@ groups() ->
      {permissions, [parallel], permissions()},
      {domain_permissions, [parallel], domain_permissions()},
      {use_directive, [parallel], use_directive()},
+     {enum_output, [parallel], [contact_enums_cover_roster_values]},
      {admin_listener, [parallel], admin_listener()},
      {domain_admin_listener, [parallel], domain_admin_listener()},
      {user_listener, [parallel], user_listener()}].
@@ -1239,6 +1241,13 @@ make_error(Phase, Term) ->
 
 make_error(Path, Phase, Term) ->
     #{path => Path, phase => Phase, error_term => Term}.
+
+%% Every value the roster backends can decode must map to a non-null Contact field
+contact_enums_cover_roster_values(_Config) ->
+    [?assertMatch({ok, _}, mongoose_graphql_enum:output(<<"ContactAsk">>, Ask))
+     || Ask <- [subscribe, unsubscribe, both, out, in, none]],
+    [?assertMatch({ok, _}, mongoose_graphql_enum:output(<<"ContactSub">>, Sub))
+     || Sub <- [both, to, from, none]].
 
 make_dep_error(NotLoaded, Path) ->
     #{extensions => maps:merge(#{code => deps_not_loaded}, NotLoaded),
