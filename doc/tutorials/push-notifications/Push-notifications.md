@@ -2,8 +2,8 @@
 
 Push notifications are the bread and butter of the modern mobile experience, and MongooseIM has
 support for them. When used together with [MongoosePush][], you get out-of-the-box push
-notifications for FCM (**F**irebase **C**loud **M**essaging) and APNS (**A**pple **P**ush
-**N**otification **S**ervice) providers. And it's easy to extend it to any other protocols of your
+notifications for FCM (**F**irebase **C**loud **M**essaging) and APNs (**A**pple **P**ush
+**N**otification **s**ervice) providers. And it's easy to extend it to any other protocols of your
 choice.
 
 You might also want to read about the push notification's [client side configuration][client-side].
@@ -73,7 +73,7 @@ node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
 PubSub is completely bypassed and clients don't need to create a push node — if they attempt to
 do so, and PubSub is not configured, the server would respond with an error stanza.
 They only have to provide the virtual PubSub address in the enable stanza, and node name can be
-anything unique. In order to ensure uniqueness the APNS/FCM token can be used. Note that the token
+anything unique. In order to ensure uniqueness the APNs/FCM token can be used. Note that the token
 must be provided [as a publish option](https://xmpp.org/extensions/xep-0357.html#example-9) anyway.
 
 A direct connection to a push service (e.g. MongoosePush) must be configured on the same MongooseIM
@@ -127,7 +127,7 @@ A connector to [MongoosePush][] application. You can read more about it [here][W
 
 According to the [XEP-0357: Push Notifications][XEP-0357], all
 notifications generated via the module we have just enabled (i.e. [mod_event_pusher_push][]) have to
-be send to a push enabled publish-subscribe node. In order to allow clients to allocate such a
+be sent to a push enabled publish-subscribe node. In order to allow clients to allocate such a
 node, we need to enable it in our [mod_pubsub_old][] on the MongooseIM server that will communicate with
 the _XMPP Push Service_.
 

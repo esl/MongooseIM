@@ -4,15 +4,18 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
+-define(VOIP_SUFFIX, ~".voip").
+
 -export([publish_notification/3]).
 
 -spec publish_notification(Acc :: mongoose_acc:t(),
                            Payload :: mod_event_pusher_push_content:content(),
                            Services :: [mod_event_pusher_push:publish_service()]) ->
                               mongoose_acc:t().
-publish_notification(Acc, Payload, Services) ->
+publish_notification(Acc, Payload, Services0) ->
     To = mongoose_acc:to_jid(Acc),
     HostType = mongoose_acc:host_type(Acc),
+    Services = matching_services(Payload, Services0),
     lists:foreach(fun({PubsubJID, _Node, _Form} = Service) ->
                       case mod_event_pusher_push:is_virtual_pubsub_host(HostType,
                                                                         To#jid.lserver,
@@ -25,6 +28,31 @@ publish_notification(Acc, Payload, Services) ->
                   end, Services),
 
     mongoose_acc:append(event_pusher, published_services, Services, Acc).
+
+-spec matching_services(mod_event_pusher_push_content:content(),
+                        [mod_event_pusher_push:publish_service()]) ->
+          [mod_event_pusher_push:publish_service()].
+matching_services(Content, Services) ->
+    lists:filter(fun({_, _, Form}) -> match_service(Content, Form) end, Services).
+
+-spec match_service(mod_event_pusher_push_content:content(),
+                    mod_event_pusher_push:form()) -> boolean().
+match_service(Content, Form = #{~"service" := ~"apns"}) ->
+    is_jmi_type(Content) =:= is_voip_topic(Form);
+match_service(#{}, #{}) ->
+    true.
+
+-spec is_jmi_type(mod_event_pusher_push_content:content()) -> boolean().
+is_jmi_type(#{~"type" := ~"jmi"}) ->
+    true;
+is_jmi_type(#{}) ->
+    false.
+
+-spec is_voip_topic(mod_event_pusher_push:form()) -> boolean().
+is_voip_topic(#{~"topic" := Topic}) ->
+    binary:longest_common_suffix([Topic, ?VOIP_SUFFIX]) =:= byte_size(?VOIP_SUFFIX);
+is_voip_topic(#{}) ->
+    false.
 
 -spec publish_via_hook(Acc :: mongoose_acc:t(),
                        HostType :: mongooseim:host_type(),
