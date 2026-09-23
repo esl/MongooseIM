@@ -347,6 +347,7 @@ hosts_and_opts_with_module(Module) ->
 get_module_proc(Host, Base) when is_binary(Host) ->
     get_module_proc(binary_to_list(Host), Base);
 get_module_proc(Host, Base) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(atom_to_list(Base) ++ "_" ++ Host).
 
 -spec assert_loaded(mongooseim:host_type(), module()) -> ok.

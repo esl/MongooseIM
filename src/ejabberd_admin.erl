@@ -57,6 +57,7 @@ status() ->
                                        {mnesia_error, string()} |
                                        {rpc_error, string()}.
 remove_from_cluster(NodeString) ->
+    % safe-ignore list_to_atom/1
     Node = list_to_atom(NodeString),
     IsNodeAlive = mongoose_cluster:is_node_alive(Node),
     case IsNodeAlive of

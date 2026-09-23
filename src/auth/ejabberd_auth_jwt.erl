@@ -104,6 +104,7 @@ check_password(HostType, LUser, LServer, Password) ->
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
     BinAlg = mongoose_config:get_opt([{auth, HostType}, jwt, algorithm]),
+    % safe-ignore binary_to_atom/2
     Alg = binary_to_atom(jid:str_tolower(BinAlg), utf8),
     case jwerl:verify(Password, Alg, Key) of
         {ok, TokenData} ->

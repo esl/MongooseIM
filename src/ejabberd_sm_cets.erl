@@ -93,11 +93,13 @@ total_count() ->
 %% Counts merged by US
 -spec unique_count() -> integer().
 unique_count() ->
+    % safe-ignore ets:first/1
     compute_unique(ets:first(?TABLE), 0).
 
 compute_unique('$end_of_table', Sum) ->
     Sum;
 compute_unique({S, U, _, _} = Key, Sum) ->
+    % safe-ignore ets:next/2
     Key2 = ets:next(?TABLE, Key),
     case Key2 of
         {S, U, _, _} ->

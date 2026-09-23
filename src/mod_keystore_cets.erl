@@ -17,6 +17,7 @@
 -include("mongoose_logger.hrl").
 
 table_name(HostType) ->
+    % safe-ignore binary_to_atom/1
     binary_to_atom(<<"cets_keystore_", HostType/binary>>).
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
