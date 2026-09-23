@@ -175,11 +175,11 @@
   {{/bosh_backend}}
 
 {{#service_domain_db}}
-{{^skip_service_domain_db}}
+{{#host_types}}
 [services.service_domain_db]
 {{{service_domain_db}}}
 
-{{/skip_service_domain_db}}
+{{/host_types}}
 {{/service_domain_db}}
 [services.service_mongoose_system_metrics]
 
