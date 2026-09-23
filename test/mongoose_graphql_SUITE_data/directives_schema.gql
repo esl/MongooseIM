@@ -13,7 +13,8 @@ enum ProtectionType{
 }
 
 directive @use(modules: [String!] = [], services: [String!] = [],
-               internal_databases: [String!] = [], args: [String!] = []) on FIELD_DEFINITION | OBJECT
+               internal_databases: [String!] = [], instrumentation_handlers: [String!] = [],
+               args: [String!] = []) on FIELD_DEFINITION | OBJECT
 
 type UserQuery {
   catA: Category
@@ -21,6 +22,7 @@ type UserQuery {
   catC: CategoryC
   catD: CategoryD
   catE: CategoryE
+  catF: CategoryF
 }
 
 type Category @protected {
@@ -77,6 +79,14 @@ type CategoryE
     @use(args: ["domains"])
   command4(domains: [String]): String
     @use(modules: ["mod_b"], args: ["domains"])
+}
+
+type CategoryF
+  @use(instrumentation_handlers: ["handler_a"]) {
+  command: String
+    @use
+  command2: String
+    @use(instrumentation_handlers: ["handler_x"])
 }
 
 type UserMutation @protected{

@@ -6,7 +6,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1,
-                         get_err_msg/1, get_err_code/1]).
+                         get_err_msg/1, get_err_code/1, get_not_loaded/1]).
 -import(domain_helper, [host_type/0]).
 
 suite() ->
@@ -21,8 +21,9 @@ all() ->
       {group, domain_admin_metrics}].
 
 groups() ->
-     [{metrics_http, [], metrics_tests()},
-      {metrics_cli, [], metrics_tests()},
+     [{metrics_http, [], metrics_tests() ++ [{group, exometer_not_configured}]},
+      {metrics_cli, [], metrics_tests() ++ [{group, exometer_not_configured}]},
+      {exometer_not_configured, [], exometer_not_configured_tests()},
       {domain_admin_metrics, [], domain_admin_metrics_tests()}].
 
 metrics_tests() ->
@@ -54,6 +55,11 @@ metrics_tests() ->
      get_cluster_metrics_empty_args,
      get_cluster_metrics_empty_strings].
 
+exometer_not_configured_tests() ->
+    [get_metrics_not_configured,
+     get_metrics_as_dicts_not_configured,
+     get_cluster_metrics_not_configured].
+
 domain_admin_metrics_tests() ->
     [domain_admin_get_metrics,
      domain_admin_get_metrics_as_dicts,
@@ -76,8 +82,15 @@ init_per_group(metrics_http, Config) ->
 init_per_group(metrics_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(domain_admin_metrics, Config) ->
-    graphql_helper:init_domain_admin_handler(Config).
+    graphql_helper:init_domain_admin_handler(Config);
+init_per_group(exometer_not_configured, Config) ->
+    ExometerOpts = rpc(mim(), mongoose_config, get_opt, [[instrumentation, exometer]]),
+    ok = rpc(mim(), mongoose_instrument, remove_handler, [exometer]),
+    [{exometer_opts, ExometerOpts} | Config].
 
+end_per_group(exometer_not_configured, Config) ->
+    ok = rpc(mim(), mongoose_instrument, add_handler,
+             [exometer, proplists:get_value(exometer_opts, Config)]);
 end_per_group(_GroupName, _Config) ->
     graphql_helper:clean().
 
@@ -356,6 +369,15 @@ get_cluster_metrics_empty_strings(Config) ->
     [#{<<"node">> := _, <<"result">> := ResList}] = ParsedResult3,
     [#{<<"dict">> := [], <<"name">> := ErrorResult}] = ResList,
     ?assert(ErrorResult == [<<"error">>, <<"nodedown">>]).
+
+get_metrics_not_configured(Config) ->
+    get_not_loaded(get_metrics(Config)).
+
+get_metrics_as_dicts_not_configured(Config) ->
+    get_not_loaded(get_metrics_as_dicts(Config)).
+
+get_cluster_metrics_not_configured(Config) ->
+    get_not_loaded(get_cluster_metrics_as_dicts(Config)).
 
 check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     %% Check that result contains something

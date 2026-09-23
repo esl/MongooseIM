@@ -147,7 +147,9 @@ use_directive() ->
      use_dir_multiple_args_module_not_loaded,
      use_dir_arg_list_module_loaded,
      use_dir_arg_list_module_partially_not_loaded,
-     use_dir_arg_list_module_not_loaded
+     use_dir_arg_list_module_not_loaded,
+     use_dir_object_handler_loaded,
+     use_dir_handler_not_loaded
     ].
 
 user_listener() ->
@@ -183,7 +185,7 @@ common_tests() ->
 
 init_per_suite(Config) ->
     %% Register atoms for `binary_to_existing_atom`
-    [mod_x, mod_z, service_x, service_d, db_x],
+    [mod_x, mod_z, service_x, service_d, db_x, handler_x],
     application:ensure_all_started(cowboy),
     application:ensure_all_started(jid),
     Config.
@@ -235,7 +237,8 @@ init_per_group(domain_permissions, Config) ->
 init_per_group(Group, Config) when Group == operations;
                                    Group == use_directive ->
     Config1 = meck_domain_api(Config),
-    mongoose_config:set_opts(#{internal_databases => #{db_a => #{}}}),
+    mongoose_config:set_opts(#{internal_databases => #{db_a => #{}},
+                               instrumentation => #{handler_a => #{}}}),
     meck_module_and_service_checking(Config1);
 init_per_group(_G, Config) ->
     Config.
@@ -338,7 +341,9 @@ init_per_testcase(C, Config) when C =:= single_operation;
                                   C =:= use_dir_multiple_args_module_not_loaded;
                                   C =:= use_dir_arg_list_module_loaded;
                                   C =:= use_dir_arg_list_module_partially_not_loaded;
-                                  C =:= use_dir_arg_list_module_not_loaded ->
+                                  C =:= use_dir_arg_list_module_not_loaded;
+                                  C =:= use_dir_object_handler_loaded;
+                                  C =:= use_dir_handler_not_loaded ->
     {Mapping, Pattern} = example_directives_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -1065,6 +1070,19 @@ use_dir_db_not_loaded(Config) ->
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     ?assertEqual(make_dep_error(#{not_loaded_internal_databases => [<<"db_x">>]}, [<<"catA">>, <<"command5">>]), Error).
 
+use_dir_object_handler_loaded(Config) ->
+    Doc = <<"{catF { command } }">>,
+    {Ast, Ctx2} = check_directives(Config, #{}, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catF">> => #{<<"command">> => <<"command">>}}}, Res).
+
+use_dir_handler_not_loaded(Config) ->
+    Doc = <<"{catF { command2 } }">>,
+    {Ast, Ctx2} = check_directives(Config, #{}, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(make_dep_error(#{not_loaded_instrumentation_handlers => [<<"handler_x">>]},
+                                [<<"catF">>, <<"command2">>]), Error).
+
 use_dir_module_service_and_db_not_loaded(Config) ->
     Doc = <<"{catA { command6(domain: \"localhost\")} }">>,
     Ctx = #{},
@@ -1228,14 +1246,17 @@ make_dep_error(NotLoaded, Path) ->
       path => Path}.
 
 dep_error_message(NotLoaded) ->
-    Types = [dep_to_type(T) || T <- [not_loaded_modules, not_loaded_services, not_loaded_internal_databases],
+    Types = [dep_to_type(T) || T <- [not_loaded_modules, not_loaded_services,
+                                     not_loaded_internal_databases,
+                                     not_loaded_instrumentation_handlers],
                                maps:is_key(T, NotLoaded)],
     TypesStr = list_to_binary(string:join(Types, " and ")),
     <<"Some of the required ", TypesStr/binary, " are not loaded">>.
 
 dep_to_type(not_loaded_modules) -> "modules";
 dep_to_type(not_loaded_services) -> "services";
-dep_to_type(not_loaded_internal_databases) -> "internal databases".
+dep_to_type(not_loaded_internal_databases) -> "internal databases";
+dep_to_type(not_loaded_instrumentation_handlers) -> "instrumentation handlers".
 
 check_directives(Config, Ctx, Doc) ->
     Ep = ?config(endpoint, Config),
