@@ -74,6 +74,8 @@ end_per_group(_, Config) ->
 init_per_testcase(address_please_returns_ip, Config) ->
     start_cets_discovery(Config);
 init_per_testcase(address_please_returns_ip_fallbacks_to_resolve_with_file_backend, Config) ->
+    %% The file backend has no address pairs, so mongoose_epmd logs an error before the fallback
+    cth_error_report:expect({what, cets_no_address_pairs_set}, 1),
     start_cets_discovery_with_file_backnend(Config);
 init_per_testcase(address_please_returns_ip_127_0_0_1_from_db, Config) ->
     start_cets_discovery_with_real_ips(Config);
@@ -387,8 +389,8 @@ start_cets_discovery_with_real_ips(Config) ->
 start_cets_discovery_with_file_backnend(Config) ->
     set_cets_disco_config(mim()),
     set_cets_disco_config(mim2()),
-    start_disco(mim(), cets_disco_spec_for_file_backend()),
-    start_disco(mim2(), cets_disco_spec_for_file_backend()),
+    start_disco(mim(), cets_disco_spec_for_file_backend(Config)),
+    start_disco(mim2(), cets_disco_spec_for_file_backend(Config)),
     Config.
 
 stop_cets_discovery() ->
@@ -437,10 +439,10 @@ cets_disco_spec(Node, IP) ->
         name => mongoose_cets_discovery},
      cets_disco_spec(DiscoOpts).
 
-cets_disco_spec_for_file_backend() ->
+cets_disco_spec_for_file_backend(Config) ->
     DiscoOpts = #{
         backend_module => cets_discovery_file,
-        disco_file => "/tmp/does_not_exist",
+        disco_file => filename:join(?config(mim_data_dir, Config), "empty_nodes.txt"),
         name => mongoose_cets_discovery},
      cets_disco_spec(DiscoOpts).
 
