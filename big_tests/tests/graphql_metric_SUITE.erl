@@ -21,7 +21,8 @@ all() ->
       {group, domain_admin_metrics}].
 
 groups() ->
-     [{metrics_http, [], metrics_tests() ++ [{group, exometer_not_configured}]},
+     [{metrics_http, [], metrics_tests() ++ [get_cluster_metrics_when_rpc_crashes,
+                                             {group, exometer_not_configured}]},
       {metrics_cli, [], metrics_tests() ++ [{group, exometer_not_configured}]},
       {exometer_not_configured, [], exometer_not_configured_tests()},
       {domain_admin_metrics, [], domain_admin_metrics_tests()}].
@@ -315,10 +316,12 @@ get_mim2_cluster_metrics(Config) ->
 
 get_cluster_metrics_for_nonexistent_nodes(Config) ->
     Result = get_cluster_metrics_as_dicts_for_nodes([<<"nonexistent">>], Config),
-    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
-    [#{<<"node">> := _, <<"result">> := ResList}] = ParsedResult,
-    [#{<<"dict">> := [], <<"name">> := ErrorResult}] = ResList,
-    ?assert(ErrorResult == [<<"error">>, <<"nodedown">>]).
+    ?assertEqual(<<"metric_get_failed">>, get_err_code(Result)),
+    ?assertEqual(<<"Node is down">>, get_err_msg(Result)),
+    ?assertEqual(<<"nonexistent">>, graphql_helper:get_value([extensions, node],
+                                                             graphql_helper:get_error(1, Result))),
+    {_Code, Body} = Result,
+    ?assertEqual([null], graphql_helper:get_value([data, metric, getClusterMetricsAsDicts], Body)).
 
 get_cluster_metrics_by_nonexistent_name(Config) ->
     Result = get_cluster_metrics_as_dicts_by_name([<<"nonexistent">>], Config),
@@ -365,10 +368,29 @@ get_cluster_metrics_empty_strings(Config) ->
     [#{<<"node">> := Node, <<"result">> := [_|_]}] = ParsedResult2,
     %% Node is an empty string
     Result3 = get_cluster_metrics_as_dicts([<<"_">>], [<<"median">>], [<<>>], Config),
-    ParsedResult3 = get_ok_value([data, metric, getClusterMetricsAsDicts], Result3),
-    [#{<<"node">> := _, <<"result">> := ResList}] = ParsedResult3,
-    [#{<<"dict">> := [], <<"name">> := ErrorResult}] = ResList,
-    ?assert(ErrorResult == [<<"error">>, <<"nodedown">>]).
+    ?assertEqual(<<"metric_get_failed">>, get_err_code(Result3)),
+    ?assertEqual(<<"Node is down">>, get_err_msg(Result3)),
+    {_Code, Body3} = Result3,
+    ?assertEqual([null], graphql_helper:get_value([data, metric, getClusterMetricsAsDicts], Body3)).
+
+%% The CLI prints the error logged on RPC failure, so that case is HTTP only
+get_cluster_metrics_when_rpc_crashes(Config) ->
+    Mim2 = distributed_helper:mim2(),
+    Node2 = atom_to_binary(maps:get(node, Mim2)),
+    ok = rpc(Mim2, meck, new, [mongoose_instrument_exometer, [passthrough, no_link]]),
+    try
+        ok = rpc(Mim2, meck, expect, [mongoose_instrument_exometer, get_metric_values, 1,
+                                      meck:raise(error, simulated)]),
+        Result = get_cluster_metrics_as_dicts_for_nodes([Node2], Config),
+        ?assertEqual(<<"metric_get_failed">>, get_err_code(Result)),
+        ?assertEqual(<<"Failed to get metrics">>, get_err_msg(Result)),
+        ?assertEqual(Node2, graphql_helper:get_value([extensions, node],
+                                                     graphql_helper:get_error(1, Result))),
+        {_Code, Body} = Result,
+        ?assertEqual([null], graphql_helper:get_value([data, metric, getClusterMetricsAsDicts], Body))
+    after
+        rpc(Mim2, meck, unload, [mongoose_instrument_exometer])
+    end.
 
 get_metrics_not_configured(Config) ->
     get_not_loaded(get_metrics(Config)).

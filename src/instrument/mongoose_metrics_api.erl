@@ -16,7 +16,7 @@
     {ok, #{binary() => binary() | [dict_result()]}}.
 -type metric_node_dict_result() ::
     {ok, #{binary() => binary() | [metric_dict_result()]}}
-    | {error, binary()}.
+    | {metric_get_failed, node(), binary()}.
 
 -spec get_metrics(Name :: name()) -> {ok, [metric_result()]}.
 get_metrics(Name) ->
@@ -37,25 +37,20 @@ get_metrics_as_dicts(Name, Keys) ->
 get_cluster_metrics_as_dicts(Name, Keys, Nodes) ->
     PrepName = prepare_host_types(Name),
     Nodes2 = prepare_nodes_arg(Nodes),
-    F = fun(Node) ->
-            case rpc:call(Node, mongoose_instrument_exometer, get_metric_values, [PrepName]) of
-            {badrpc, Reason} ->
-                [{[error, Reason], []}];
-            Result ->
-                Result
-            end
-        end,
+    F = fun(Node) -> rpc:call(Node, mongoose_instrument_exometer, get_metric_values, [PrepName]) end,
     Results = mongoose_lib:pmap(F, Nodes2),
     {ok, [make_node_result(Node, Result, Keys)
           || {Node, Result} <- lists:zip(Nodes2, Results)]}.
 
-make_node_result(Node, {ok, Values}, Keys) ->
+make_node_result(Node, {ok, Values}, Keys) when is_list(Values) ->
     {ok, #{<<"node">> => Node,
            <<"result">> => [make_metric_dict_result(V, Keys) || V <- Values]}};
+make_node_result(Node, {ok, {badrpc, nodedown}}, _Keys) ->
+    {metric_get_failed, Node, <<"Node is down">>};
 make_node_result(Node, Other, _Keys) ->
     ?LOG_ERROR(#{what => metric_get_failed,
                  remote_node => Node, reason => Other}),
-    {error, <<"Failed to get metrics">>}.
+    {metric_get_failed, Node, <<"Failed to get metrics">>}.
 
 filter_keys(Dict, []) ->
     Dict;
