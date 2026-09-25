@@ -1,0 +1,12 @@
+type Invite{
+  account_name: String
+  created_at: String
+  expires: String
+  invitee: JID
+  inviter: JID!
+  landing_page: String
+  token: String!
+  token_uri: String
+  type: String
+  valid: Boolean
+}
