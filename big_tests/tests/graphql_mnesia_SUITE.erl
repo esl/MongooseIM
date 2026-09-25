@@ -49,6 +49,7 @@ admin_mnesia_tests() ->
      change_nodename_bad_file_error_test,
      get_info_test,
      get_all_info_test,
+     get_info_large_integer_test,
      install_fallback_error_test,
      set_master_test,
      set_master_self_test,
@@ -290,6 +291,21 @@ get_info_test(Config) ->
         (null) ->
             ok
     end, ParsedRes).
+
+%% Mnesia counters such as transaction_commits can exceed the 32-bit Int range
+get_info_large_integer_test(Config) ->
+    Key = <<"transaction_commits">>,
+    Value = 1 bsl 40,
+    ok = rpc(mim(), meck, new, [mnesia_api, [passthrough, no_link]]),
+    try
+        ok = rpc(mim(), meck, expect,
+                 [mnesia_api, mnesia_info, 1, {ok, [{ok, #{<<"result">> => Value, <<"key">> => Key}}]}]),
+        Res = get_info([Key], Config),
+        ?assertEqual([#{<<"result">> => Value, <<"key">> => Key}],
+                     get_ok_value([data, mnesia, systemInfo], Res))
+    after
+        rpc(mim(), meck, unload, [mnesia_api])
+    end.
 
 get_all_info_test(Config) ->
     Res = get_info(null, Config),

@@ -5,6 +5,8 @@
 
 -ignore_xref([execute/4]).
 
+-import(mongoose_graphql_helper, [make_error/3]).
+
 execute(_Ctx, _Obj, <<"getMetrics">>, Args) ->
     Name = get_name(Args),
     mongoose_metrics_api:get_metrics(Name);
@@ -16,7 +18,13 @@ execute(_Ctx, _Obj, <<"getClusterMetricsAsDicts">>, Args) ->
     Name = get_name(Args),
     Keys = get_keys2(Args),
     Nodes = get_nodes(Args),
-    mongoose_metrics_api:get_cluster_metrics_as_dicts(Name, Keys, Nodes).
+    {ok, Results} = mongoose_metrics_api:get_cluster_metrics_as_dicts(Name, Keys, Nodes),
+    {ok, lists:map(fun format_node_result/1, Results)}.
+
+format_node_result({metric_get_failed, Node, Msg}) ->
+    make_error(metric_get_failed, Msg, #{node => Node});
+format_node_result(Result) ->
+    Result.
 
 %% get_keys is a BIF, so we have a name conflict
 get_keys2(Args) ->
