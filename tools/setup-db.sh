@@ -232,8 +232,8 @@ function setup_db(){
     elif [ "$db" = 'ldap' ]; then
         tools/setup-ldap.sh
 
-    elif [ "$db" = "minio" ]; then
-        tools/setup_minio.sh
+    elif [ "$db" = "rustfs" ]; then
+        tools/setup-rustfs.sh
 
     elif [ "$db" = "rmq" ]; then
         tools/setup-rmq.sh

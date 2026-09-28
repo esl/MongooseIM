@@ -12,9 +12,9 @@
 -define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
 
 -define(S3_HOSTNAME, <<"http://bucket.s3-eu-east-25.example.com">>).
--define(MINIO_HOSTNAME, <<"http://127.0.0.1:9000/mybucket/">>).
+-define(RUSTFS_HOSTNAME, <<"http://127.0.0.1:9000/mybucket/">>).
 
--define(MINIO_TEST_DATA, "qwerty").
+-define(RUSTFS_TEST_DATA, "qwerty").
 
 -export([all/0, groups/0, suite/0,
 	 init_per_suite/1, end_per_suite/1,
@@ -22,8 +22,8 @@
 	 init_per_testcase/2, end_per_testcase/2]).
 
 -export([
-	 test_minio_upload_without_content_type/1,
-	 test_minio_upload_with_content_type/1,
+	 test_rustfs_upload_without_content_type/1,
+	 test_rustfs_upload_with_content_type/1,
 	 http_upload_item_discovery/1,
 	 http_upload_feature_discovery/1,
 	 advertises_max_file_size/1,
@@ -51,10 +51,10 @@ all() ->
      {group, real_upload_without_acl}].
 
 groups() ->
-    [{real_upload_with_acl, [], [test_minio_upload_without_content_type,
-                                 test_minio_upload_with_content_type]},
-     {real_upload_without_acl, [], [test_minio_upload_without_content_type,
-                                    test_minio_upload_with_content_type]},
+    [{real_upload_with_acl, [], [test_rustfs_upload_without_content_type,
+                                 test_rustfs_upload_with_content_type]},
+     {real_upload_without_acl, [], [test_rustfs_upload_without_content_type,
+                                    test_rustfs_upload_with_content_type]},
      {mod_http_upload_s3, [], [
                                http_upload_item_discovery,
                                http_upload_feature_discovery,
@@ -87,19 +87,19 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(real_upload_without_acl, Config) ->
-    case mongoose_helper:should_minio_be_running(Config) of
+    case mongoose_helper:should_rustfs_be_running(Config) of
         true ->
             dynamic_modules:start(host_type(), mod_http_upload,
-                create_opts(?MINIO_HOSTNAME, false)),
+                create_opts(?RUSTFS_HOSTNAME, false)),
             escalus:create_users(Config, escalus:get_users([bob]));
-        false -> {skip, "minio is not running"}
+        false -> {skip, "rustfs is not running"}
     end;
 init_per_group(real_upload_with_acl, Config) ->
-    case mongoose_helper:should_minio_be_running(Config) of
+    case mongoose_helper:should_rustfs_be_running(Config) of
         true ->
-            dynamic_modules:start(host_type(), mod_http_upload, create_opts(?MINIO_HOSTNAME, true)),
+            dynamic_modules:start(host_type(), mod_http_upload, create_opts(?RUSTFS_HOSTNAME, true)),
             [{with_acl, true} | escalus:create_users(Config, escalus:get_users([bob]))];
-        false -> {skip, "minio is not running"}
+        false -> {skip, "rustfs is not running"}
     end;
 init_per_group(_, Config) ->
     dynamic_modules:start(host_type(), mod_http_upload, create_opts(?S3_HOSTNAME, true)),
@@ -254,27 +254,27 @@ urls_contain_s3_hostname(Config) ->
               escalus:assert(fun url_contains/3, [<<"put">>, ?S3_HOSTNAME], Result)
       end).
 
-test_minio_upload_without_content_type(Config) ->
-    test_minio_upload(Config, undefined).
+test_rustfs_upload_without_content_type(Config) ->
+    test_rustfs_upload(Config, undefined).
 
-test_minio_upload_with_content_type(Config) ->
-    test_minio_upload(Config, <<"text/plain">>).
+test_rustfs_upload_with_content_type(Config) ->
+    test_rustfs_upload(Config, <<"text/plain">>).
 
-test_minio_upload(Config, ContentType) ->
+test_rustfs_upload(Config, ContentType) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Bob) ->
             ServJID = upload_service(Bob),
-            FileSize = length(?MINIO_TEST_DATA),
+            FileSize = length(?RUSTFS_TEST_DATA),
             Request = create_slot_request_stanza(ServJID, <<"file.txt">>, FileSize, ContentType),
             Result = escalus:send_and_wait(Bob, Request),
             GetUrl = binary_to_list(extract_url(Result, <<"get">>)),
             PutUrl = binary_to_list(extract_url(Result, <<"put">>)),
             Header = generate_header(Config, ContentType),
-            PutRetValue = request(put, PutUrl, Header, ?MINIO_TEST_DATA),
+            PutRetValue = request(put, PutUrl, Header, ?RUSTFS_TEST_DATA),
             ?assertMatch({200, _}, PutRetValue),
             GetRetValue = request(get, GetUrl, [], []),
-            ?assertMatch({200, ?MINIO_TEST_DATA}, GetRetValue)
+            ?assertMatch({200, ?RUSTFS_TEST_DATA}, GetRetValue)
         end).
 
 request(Method, PutUrl, Header, Data) ->

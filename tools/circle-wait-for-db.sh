@@ -40,7 +40,7 @@ function wait_for_db {
             ./tools/wait-for-it.sh -p 9142 # proxy
         ;;
 
-        minio)
+        rustfs)
             ./tools/wait-for-it.sh -p 9000
         ;;
 
