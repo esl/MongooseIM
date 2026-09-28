@@ -128,7 +128,10 @@ init_per_group(dialback, Config) ->
     %% Tell mnesia that mim and mim2 nodes are clustered
     distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config);
 init_per_group(both_tls_enforced, Config) ->
-    meck_dns_srv_lookup("fed1", srv_ssl),
+    %% Enforced TLS skips predefined non-TLS addresses, so both nodes resolve each other via DNS
+    mongoose_helper:inject_module(rpc_spec(fed), ?MODULE, reload),
+    meck_dns_srv_lookup(mim, "fed1", fed, srv_ssl),
+    meck_dns_srv_lookup(fed, "localhost", mim, srv_ssl),
     Config1 = s2s_helper:configure_s2s(both_tls_enforced, Config),
     [{requires_tls, group_with_tls(both_tls_enforced)}, {group, both_tls_enforced} | Config1];
 init_per_group(start_stream_errors, Config) ->
@@ -163,14 +166,15 @@ init_per_group_default(GroupName, Config) ->
     [{requires_tls, group_with_tls(GroupName)}, {group, GroupName} | Config1].
 
 end_per_group(both_tls_enforced, _Config) ->
-    rpc(mim(), meck, unload, []);
+    rpc(mim(), meck, unload, []),
+    rpc(rpc_spec(fed), meck, unload, []);
 end_per_group(proxy_protocol, Config) ->
     mongoose_helper:restart_listener(mim(), ?config(s2s_listener, Config));
 end_per_group(_GroupName, _Config) ->
     ok.
 
 init_per_testcase(dns_srv_discovery = CaseName, Config) ->
-    meck_dns_srv_lookup("fed2", srv),
+    meck_dns_srv_lookup(mim, "fed2", fed, srv),
     Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
     escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(dns_ip_discovery = CaseName, Config) ->
@@ -181,7 +185,7 @@ init_per_testcase(dns_ip_discovery = CaseName, Config) ->
             %% fed2 has no SRV record. The A record is mocked and resolves, so
             %% no address lookup error is expected on top of it.
             cth_error_report:expect({service, "_xmpp-server._tcp.fed2"}),
-            meck_dns_srv_lookup("fed2", ip),
+            meck_dns_srv_lookup(mim, "fed2", fed, ip),
             Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
             escalus:init_per_testcase(CaseName, Config1)
     end;
@@ -192,7 +196,7 @@ init_per_testcase(dns_discovery_fail = CaseName, Config) ->
         false ->
             cth_error_report:expect({service, "_xmpp-server._tcp.fed3"}),
             cth_error_report:expect({server, "fed3"}),
-            meck_dns_srv_lookup("fed3", none),
+            meck_dns_srv_lookup(mim, "fed3", fed, none),
             escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(unknown_domain = CaseName, Config) ->
@@ -210,38 +214,38 @@ init_per_testcase(malformed_jid = CaseName, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-meck_dns_srv_lookup(Domain, Which) ->
-    FedPort = ct:get_config({hosts, fed, incoming_s2s_port}),
-    ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect, [inet_res, lookup, inet_res_lookup_fun(Domain, FedPort, Which)]).
+meck_dns_srv_lookup(NodeKey, Domain, TargetNodeKey, Which) ->
+    TargetPort = ct:get_config({hosts, TargetNodeKey, incoming_s2s_port}),
+    ok = rpc(rpc_spec(NodeKey), meck, new, [inet_res, [no_link, unstick, passthrough]]),
+    ok = rpc(rpc_spec(NodeKey), meck, expect,
+             [inet_res, lookup, inet_res_lookup_fun(Domain, TargetPort, Which)]).
 
-inet_res_lookup_fun(Domain, FedPort, srv_ssl) ->
-    fun("_xmpps-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
-            [{30, 0, FedPort, "localhost"}];
-       (Name, Class, Type, Opts, Timeout) ->
-            meck:passthrough([Name, Class, Type, Opts, Timeout])
-    end;
-inet_res_lookup_fun(Domain, FedPort, srv) ->
-    fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
-            [{30, 0, FedPort, "localhost"}];
-       ("localhost", in, a, _Opts, _Timeout) ->
-            [{127, 0, 0, 1}];
-       ("localhost", in, aaaa, _Opts, _Timeout) ->
-            [];
-       (Name, Class, Type, Opts, Timeout) ->
-            meck:passthrough([Name, Class, Type, Opts, Timeout])
-    end;
-inet_res_lookup_fun(Domain, _FedPort, ip) ->
+inet_res_lookup_fun(Domain, TargetPort, srv_ssl) ->
+    srv_lookup_fun("_xmpps-server._tcp." ++ Domain, TargetPort);
+inet_res_lookup_fun(Domain, TargetPort, srv) ->
+    srv_lookup_fun("_xmpp-server._tcp." ++ Domain, TargetPort);
+inet_res_lookup_fun(Domain, _TargetPort, ip) ->
     fun(Domain1, in, a, _Opts, _Timeout) when Domain1 =:= Domain ->
             [{127, 0, 0, 1}];
        (Name, Class, Type, Opts, Timeout) ->
             meck:passthrough([Name, Class, Type, Opts, Timeout])
     end;
-inet_res_lookup_fun(Domain, _FedPort, none) ->
+inet_res_lookup_fun(Domain, _TargetPort, none) ->
     fun("_xmpp-server._tcp." ++ Domain1, in, srv, _Opts, _Timeout) when Domain1 =:= Domain ->
             {error, nxdomain};
        (Domain1, in, inet, _Opts, _Timeout) when Domain1 =:= Domain ->
             {error, nxdomain};
+       (Name, Class, Type, Opts, Timeout) ->
+            meck:passthrough([Name, Class, Type, Opts, Timeout])
+    end.
+
+srv_lookup_fun(Service, TargetPort) ->
+    fun(Service1, in, srv, _Opts, _Timeout) when Service1 =:= Service ->
+            [{30, 0, TargetPort, "localhost"}];
+       ("localhost", in, a, _Opts, _Timeout) ->
+            [{127, 0, 0, 1}];
+       ("localhost", in, aaaa, _Opts, _Timeout) ->
+            [];
        (Name, Class, Type, Opts, Timeout) ->
             meck:passthrough([Name, Class, Type, Opts, Timeout])
     end.
