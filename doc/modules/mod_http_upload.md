@@ -159,19 +159,15 @@ curl -i "$get_url"
 
 [Content-Type]: https://www.rfc-editor.org/rfc/rfc7231.html#section-3.1.1.5
 
-## Using S3 backend with [min.io][minio]
+## Using S3 backend with [RustFS][rustfs]
 
-[min.io][minio] doesn't support [ObjectACL][minio-limits], so enabling `add_acl`
-makes no sense. The [bucket policies][bucket-policies] must be used instead,
-it is enough to set the bucket policy to `download`.
+[RustFS][rustfs] ignores the `x-amz-acl` header, so enabling `add_acl` has no effect.
+Use a [bucket policy][bucket-policies] allowing anonymous `s3:GetObject` instead.
 
-Please note that there is no error if you keep `add_acl` enabled. [min.io][minio] just
-ignores the `x-amz-acl` header. This might be useful to simplify the migration from [S3][s3]
-to [min.io][minio]
+Keeping `add_acl` enabled causes no errors, which might simplify the migration from [S3][s3] to [RustFS][rustfs].
 
-[minio]: https://min.io
-[minio-limits]: https://docs.minio.io/docs/minio-server-limits-per-tenant.html
-[bucket-policies]: https://docs.min.io/docs/minio-client-complete-guide#policy
+[rustfs]: https://rustfs.com
+[bucket-policies]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-policies.html
 
 ## Metrics
 

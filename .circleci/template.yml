@@ -125,12 +125,11 @@ containers:
       - ENV_FILE_CACERT_PATH: "/certs/cacert.pem"
       - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
     entrypoint: *ENTRYPOINT
-  - &minio_container
-    image: quay.io/minio/minio:__MINIO_VERSION__
+  - &rustfs_container
+    image: rustfs/rustfs:__RUSTFS_VERSION__
     environment:
-      - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
-      - MINIO_SECRET_KEY: "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"
-    command: ["server", "/data"]
+      - RUSTFS_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
+      - RUSTFS_SECRET_KEY: "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"
   - &elasticsearch_container
     image: docker.elastic.co/elasticsearch/elasticsearch:__ELASTICSEARCH_VERSION__
     environment:
@@ -185,11 +184,11 @@ executors:
     docker:
       - image: *LATEST_OTP
       - *redis_container
-  latest_otp_redis_minio_rmq:
+  latest_otp_redis_rustfs_rmq:
     docker:
       - image: *LATEST_OTP
       - *redis_container
-      - *minio_container
+      - *rustfs_container
       - *rabbit_container
   latest_otp_pgsql_redis:
     docker:
@@ -378,22 +377,13 @@ commands:
             dbs="$(./tools/test_runner/presets_to_dbs.sh "$PRESET")"
             echo "export DBS=\"$dbs\"" >> "$BASH_ENV"
 
-  maybe_prepare_minio:
+  maybe_prepare_rustfs:
     steps:
       - run:
-          name: Install minio client, prepare minio
-          environment:
-            - MINIO_HOSTNAME: "mongooseim-minio"
-            - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
-            - MINIO_SECRET_KEY: "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"
-            - MINIO_BUCKET: "mybucket"
+          name: Prepare RustFS bucket
           command: |
-            if [[ "$DBS" == *minio* ]]; then
-                curl -fsSL https://github.com/minio/mc/releases/download/__MINIO_MC_VERSION__/mc.linux-amd64.__MINIO_MC_VERSION__ -o ./mc
-                chmod +x ./mc
-                ./mc config host add ${MINIO_HOSTNAME} http://127.0.0.1:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
-                ./mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET}
-                ./mc policy set download "${MINIO_HOSTNAME}/${MINIO_BUCKET}"
+            if [[ "$DBS" == *rustfs* ]]; then
+                ./tools/prepare-rustfs-bucket.sh http://127.0.0.1:9000
             fi
 
   maybe_prepare_ldap:
@@ -617,7 +607,7 @@ jobs:
           name: Wait for databases
           command: ./tools/circle-wait-for-db.sh
       - presets_to_dbs
-      - maybe_prepare_minio
+      - maybe_prepare_rustfs
       - maybe_prepare_ldap
       - maybe_setup_elasticsearch
       - prepare_etc_hosts

@@ -440,9 +440,9 @@ send_local_proxy_header(Conn, UnusedFeatures) ->
     escalus_connection:send_raw(Conn, iolist_to_binary(Header)),
     {Conn, UnusedFeatures}.
 
-should_minio_be_running(Config) ->
+should_rustfs_be_running(Config) ->
     DBs = ct_helper:get_preset_var(Config, dbs, []),
-    lists:member(minio, DBs).
+    lists:member(rustfs, DBs).
 
 %% It is useful to debug dynamic IQ handler registration
 print_debug_info_for_module(Module) ->
