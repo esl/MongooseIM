@@ -177,10 +177,12 @@ is_service({FromServer, ToServer} = _FromTo) ->
         {ok, s2s} -> % bypass RFC 3920 10.3
             false;
         {error, not_found} ->
-            Hosts = ?MYHOSTS,
-            P = fun(ParentDomain) -> lists:member(ParentDomain, Hosts) end,
-            lists:any(P, parent_domains(ToServer))
+            lists:any(fun is_local_domain/1, parent_domains(ToServer))
     end.
+
+-spec is_local_domain(jid:lserver()) -> boolean().
+is_local_domain(Domain) ->
+    mongoose_domain_api:get_domain_host_type(Domain) =/= {error, not_found}.
 
 -spec parent_domains(jid:lserver()) -> [jid:lserver()].
 parent_domains(Domain) ->
