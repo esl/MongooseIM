@@ -975,12 +975,7 @@ search_not_allowed(Config) ->
               Res = escalus:send_and_wait(Client,
                            escalus_stanza:search_iq(DirJID,
                                escalus_stanza:search_fields(Fields))),
-              escalus:assert(fun(Packet) ->
-                                     escalus_pred:is_error(<<"cancel">>, <<"service-unavailable">>, Packet)
-                                     orelse
-                                     %% A case for dynamic domains
-                                     escalus_pred:is_error(<<"cancel">>, <<"remote-server-not-found">>, Packet)
-                             end, [], Res)
+              escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Res)
       end).
 
 %% disco#items to no.search.domain doesn't say vjud.no.search.domain exists
