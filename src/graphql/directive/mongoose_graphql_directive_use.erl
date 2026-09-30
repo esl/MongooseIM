@@ -42,20 +42,23 @@
     #{modules := [binary()],
       services := [binary()],
       internal_databases := [binary()],
+      instrumentation_handlers := [binary()],
       args => [binary()],
       atom => term()}.
--type dependency_type() :: internal_databases | modules | services.
+-type dependency_type() :: internal_databases | modules | services | instrumentation_handlers.
 -type dependency_name() :: binary().
 
 %% @doc Check the collected modules and services and swap the field resolver if any of them
 %% is not loaded. The new field resolver returns the error that some modules or services
 %% are not loaded.
 handle_directive(#directive{id = <<"use">>, args = Args}, #schema_field{} = Field, Ctx) ->
-    #{modules := Modules, services := Services, internal_databases := DB} =
+    #{modules := Modules, services := Services, internal_databases := DB,
+      instrumentation_handlers := Handlers} =
         UseCtx = aggregate_use_ctx(Args, Ctx),
         Items = [{modules, filter_unloaded_modules(UseCtx, Ctx, Modules)},
                  {services, filter_unloaded_services(Services)},
-                 {internal_databases, filter_unloaded_db(DB)}],
+                 {internal_databases, filter_unloaded_db(DB)},
+                 {instrumentation_handlers, filter_unloaded_handlers(Handlers)}],
     case lists:filter(fun({_, List}) -> List =/= [] end, Items) of
         [] ->
             Field;
@@ -81,20 +84,23 @@ get_args(_UseCtx, #{admin := #jid{lserver = Domain}}) ->
 
 -spec aggregate_use_ctx(list(), ctx()) -> use_ctx().
 aggregate_use_ctx(Args, #{use_dir := #{modules := Modules0, services := Services0,
-                                       internal_databases := Databases0}}) ->
-    #{modules := Modules, services := Services, internal_databases := Databases} =
-        UseCtx = prepare_use_dir_args(Args),
+                                       internal_databases := Databases0,
+                                       instrumentation_handlers := Handlers0}}) ->
+    #{modules := Modules, services := Services, internal_databases := Databases,
+      instrumentation_handlers := Handlers} = UseCtx = prepare_use_dir_args(Args),
     UpdatedModules = Modules0 ++ Modules,
     UpdatedServices = Services0 ++ Services,
     UpdatedDatabases = Databases0 ++ Databases,
+    UpdatedHandlers = Handlers0 ++ Handlers,
     UseCtx#{modules => UpdatedModules, services => UpdatedServices,
-            internal_databases => UpdatedDatabases};
+            internal_databases => UpdatedDatabases, instrumentation_handlers => UpdatedHandlers};
 aggregate_use_ctx(Args, _Ctx) ->
     prepare_use_dir_args(Args).
 
 -spec prepare_use_dir_args([{graphql:name(), term()}]) -> use_ctx().
 prepare_use_dir_args(Args) ->
-    Default = #{modules => [], services => [], internal_databases => []},
+    Default = #{modules => [], services => [], internal_databases => [],
+                instrumentation_handlers => []},
     RdyArgs = maps:from_list([{binary_to_existing_atom(name(N)), V} || {N, V} <- Args]),
     maps:merge(Default, RdyArgs).
 
@@ -138,6 +144,16 @@ filter_unloaded_services(Services) ->
 -spec filter_unloaded_db([binary()]) -> [binary()].
 filter_unloaded_db(DBs) ->
     lists:filter(fun(DB) -> is_database_unloaded(DB) end, DBs).
+
+%% Exometer and other handlers are started only when configured
+-spec filter_unloaded_handlers([binary()]) -> [binary()].
+filter_unloaded_handlers(Handlers) ->
+    lists:filter(fun(Handler) -> is_handler_unloaded(Handler) end, Handlers).
+
+-spec is_handler_unloaded(binary()) -> boolean().
+is_handler_unloaded(Handler) ->
+    mongoose_config:lookup_opt([instrumentation,
+                                binary_to_existing_atom(Handler)]) == {error, not_found}.
 
 -spec is_database_unloaded(binary()) -> boolean().
 is_database_unloaded(DB) ->

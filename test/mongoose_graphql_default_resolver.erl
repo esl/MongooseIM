@@ -15,6 +15,7 @@ execute(_Ctx, _Obj, Cmd, _Attrs) when Cmd =:= <<"catA">>;
                                       Cmd =:= <<"catC">>;
                                       Cmd =:= <<"catD">>;
                                       Cmd =:= <<"catE">>;
+                                      Cmd =:= <<"catF">>;
                                       Cmd =:= <<"command">>;
                                       Cmd =:= <<"command2">>;
                                       Cmd =:= <<"command3">>;

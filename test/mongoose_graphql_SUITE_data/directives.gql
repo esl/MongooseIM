@@ -13,7 +13,8 @@ enum ProtectionType{
 }
 
 directive @use (modules: [String!] = [], services: [String!] = [],
-                internal_databases: [String!] = []) on FIELD_DEFINITION | OBJECT
+                internal_databases: [String!] = [],
+                instrumentation_handlers: [String!] = []) on FIELD_DEFINITION | OBJECT
 
 type UserQuery @use{
   field: String

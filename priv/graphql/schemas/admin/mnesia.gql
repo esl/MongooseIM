@@ -62,7 +62,7 @@ type MnesiaListResponse {
 "Mnesia response in the form of an integer"
 type MnesiaIntResponse {
   "Result as an integer"
-  result: Int!
+  result: SafeInt!
   "Result's key"
   key: String!
 }

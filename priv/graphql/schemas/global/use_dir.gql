@@ -8,6 +8,8 @@ directive @use(
   services: [String!] = [],
   "The list of internal databases used by the category or command"
   internal_databases: [String!] = [],
+  "The list of instrumentation handlers used by the category or command"
+  instrumentation_handlers: [String!] = [],
   "The argument names that contains domains or host types"
   args: [String!] = []
 ) on FIELD_DEFINITION | OBJECT

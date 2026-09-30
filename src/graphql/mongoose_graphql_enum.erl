@@ -60,7 +60,7 @@ output(<<"ContactSub">>, Type) when Type =:= both;
                                     Type =:= to;
                                     Type =:= none ->
     {ok, string:uppercase(atom_to_binary(Type))};
-output(<<"ContactAsk">>, Type) when Type =:= subscrube;
+output(<<"ContactAsk">>, Type) when Type =:= subscribe;
                                     Type =:= unsubscribe;
                                     Type =:= in;
                                     Type =:= out;
