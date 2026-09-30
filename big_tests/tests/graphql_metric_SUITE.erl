@@ -102,6 +102,10 @@ init_per_testcase(get_cets_system = CaseName, Config) ->
          false ->
              {skip, cets_not_enabled}
      end;
+init_per_testcase(get_cluster_metrics_when_rpc_crashes = CaseName, Config) ->
+     %% The mocked crash on mim2 is reported by mim1 when aggregating cluster metrics
+     cth_error_report:expect({what, metric_get_failed}, 1),
+     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
      escalus:init_per_testcase(CaseName, Config).
 
