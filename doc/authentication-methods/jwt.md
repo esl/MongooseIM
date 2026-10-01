@@ -26,7 +26,7 @@ It requires the `SASL PLAIN` mechanism listed in `sasl_mechanisms`.
 This is the JWT secret used for the authentication. You can store it in a file, as an environment variable or specify it directly.
 
 ### `auth.jwt.algorithm`
-* **Syntax:** string, one of: `"HS256"`, `"RS256"`, `"ES256"`, `"HS386"`, `"RS386"`, `"ES386"`, `"HS512"`, `"RS512"`, `"ES512"`
+* **Syntax:** string, one of: `"HS256"`, `"RS256"`, `"ES256"`, `"HS384"`, `"RS384"`, `"ES384"`, `"HS512"`, `"RS512"`, `"ES512"`
 * **Default:** no default, this option is mandatory
 * **Example:** `algorithm = "HS512"`
 

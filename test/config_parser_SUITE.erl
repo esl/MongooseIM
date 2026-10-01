@@ -842,7 +842,7 @@ auth_jwt(_Config) ->
     Opts = #{<<"secret">> => #{<<"value">> => <<"secret123">>},
              <<"algorithm">> => <<"HS512">>,
              <<"username_key">> => <<"user">>}, % tested together as all options are required
-    Config = #{algorithm => <<"HS512">>,
+    Config = #{algorithm => hs512,
                secret => {value, <<"secret123">>},
                username_key => user},
     ?cfgh([auth, jwt], Config,
@@ -851,6 +851,8 @@ auth_jwt(_Config) ->
           auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"priv/jwt_secret">>}})),
     ?cfgh([auth, jwt, secret], {env, "SECRET"},
           auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
+    ?cfgh([auth, jwt, algorithm], es384,
+          auth_raw(<<"jwt">>, Opts#{<<"algorithm">> := <<"ES384">>})),
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<>>}})),
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<>>}})),

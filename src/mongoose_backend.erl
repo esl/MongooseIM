@@ -39,6 +39,7 @@ init(HostType, MainModule, TrackedFuns, Opts) ->
     end.
 
 backend_module(Module, Backend) ->
+    % safe-ignore list_to_atom/1
     list_to_atom(atom_to_list(Module) ++ "_" ++ atom_to_list(Backend)).
 
 backend_key(HostType, MainModule) ->

@@ -228,6 +228,8 @@ extract_permanent_fields(null) ->
     []; %% This is needed in transition period when upgrading to MongooseIM above 3.5.0
 extract_permanent_fields(Escaped) ->
     Bin = mongoose_rdbms:unescape_binary(global, Escaped),
+    %% Permanent fields may contain Pids/Refs with node name atoms from other cluster nodes.
+    % safe-ignore binary_to_term/1
     binary_to_term(Bin).
 
 updated_ok({updated, Count}) -> {ok, Count}.

@@ -72,7 +72,7 @@ handle_object_directive(#directive{id = <<"protected">>},
 -spec protected_dir_args_to_map(graphql:directive()) -> map().
 protected_dir_args_to_map(#directive{args = Args}) ->
     Default = #{type => {enum, <<"DEFAULT">>}, args => []},
-    ArgsMap = maps:from_list([{binary_to_atom(name(N)), V} || {N, V} <- Args]),
+    ArgsMap = maps:from_list([{binary_to_existing_atom(name(N)), V} || {N, V} <- Args]),
     maps:merge(Default, ArgsMap).
 
 -spec check_field_args(binary(), map(), [binary()], map()) -> ok.

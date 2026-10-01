@@ -1088,6 +1088,7 @@ process_sasl_external(M) ->
     {mod, M}.
 
 process_sasl_mechanism(V) ->
+    % safe-ignore list_to_atom/1
     list_to_atom("cyrsasl_" ++ atom_to_list(V)).
 
 process_auth(Opts = #{methods := Methods}) ->
@@ -1138,6 +1139,8 @@ process_ldap_connection(ConnOpts = #{port := _}) -> ConnOpts;
 process_ldap_connection(ConnOpts = #{tls := _}) -> ConnOpts#{port => 636};
 process_ldap_connection(ConnOpts) -> ConnOpts#{port => 389}.
 
+%% Custom pool tags and extension keys in TOML are minted as atoms for the first time during startup.
+% safe-ignore binary_to_atom/2
 b2a(B) -> binary_to_atom(B, utf8).
 
 a2b(A) -> atom_to_binary(A, utf8).

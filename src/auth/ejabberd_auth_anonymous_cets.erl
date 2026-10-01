@@ -34,4 +34,5 @@ stop(HostType) ->
     ok.
 
 table_name(HostType) ->
+    % safe-ignore binary_to_atom/1
     binary_to_atom(<<"cets_auth_anonymous_", HostType/binary>>).

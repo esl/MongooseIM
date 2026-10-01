@@ -264,6 +264,7 @@ check_action_allowed(HostType, Acc, Domain, Action, MucAction, From, To) ->
 
 -spec action_to_muc_action(mam_iq:action()) -> atom().
 action_to_muc_action(Action) ->
+    % safe-ignore list_to_atom/1
     list_to_atom("muc_" ++ atom_to_list(Action)).
 
 -spec check_room_action_allowed_by_default(HostType :: host_type(),

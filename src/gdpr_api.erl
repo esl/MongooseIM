@@ -112,6 +112,7 @@ remove_tmp_dir(TmpDir) ->
 -type cmd() :: string() | binary().
 -spec run(cmd(), [cmd()], timeout()) -> non_neg_integer() | timeout.
 run(Cmd, Args, Timeout) ->
+    % safe-ignore open_port/2
     Port = erlang:open_port({spawn_executable, Cmd}, [exit_status, {args, Args}]),
     receive
         {Port, {exit_status, ExitStatus}} -> ExitStatus

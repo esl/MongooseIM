@@ -14,7 +14,7 @@ encode(Packet) ->
     term_to_binary(Packet).
 
 decode(Bin) ->
-    Term = binary_to_term(Bin),
+    Term = binary_to_term(Bin, [safe]),
     maybe_convert_old_exml_format(Term).
 
 -spec maybe_convert_old_exml_format(exml:element() | old_xmlel_format()) ->

@@ -46,6 +46,7 @@ get_cookie() ->
 -spec join_cluster(string()) -> {ok, iolist()}
                               | {pang | already_joined | mnesia_error | error, iolist()}.
 join_cluster(NodeString) ->
+    % safe-ignore list_to_atom/1
     NodeAtom = list_to_atom(NodeString),
     NodeList = mnesia:system_info(db_nodes),
     case lists:member(NodeAtom, NodeList) of
@@ -105,6 +106,7 @@ do_leave_cluster() ->
 -spec remove_from_cluster(string()) -> {ok, iolist()} |
                                        {node_is_alive | mnesia_error | rpc_error, iolist()}.
 remove_from_cluster(NodeString) ->
+    % safe-ignore list_to_atom/1
     Node = list_to_atom(NodeString),
     IsNodeAlive = mongoose_cluster:is_node_alive(Node),
     case IsNodeAlive of
@@ -159,5 +161,6 @@ restart() ->
 
 -spec remove_node(string()) -> {ok, iolist()}.
 remove_node(Node) ->
+    % safe-ignore list_to_atom/1
     mnesia:del_table_copy(schema, list_to_atom(Node)),
     {ok, "MongooseIM node removed from the Mnesia schema"}.
