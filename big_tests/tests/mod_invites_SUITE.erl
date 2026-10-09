@@ -250,11 +250,17 @@ max_invites(Config) ->
       Config, [{alice, 1}],
        fun(Alice) ->
                Server = escalus_client:server(Alice),
+               User = escalus_client:username(Alice),
+               ct:pal("Max invites (~s): ~p",
+                      [User, rpc(mim(), mod_invites, get_max_invites, [domain_helper:host_type(), {User, Server}])]),
                lists:foreach(
                  fun(_) ->
                          escalus:assert(is_iq_result,
                                         send_adhoc_create_account(Alice, <<>>, <<"0">>))
                  end, lists:seq(1, ?MAX_INVITES)),
+               ct:pal("num invites: ~p",
+                      [length(rpc(mim(), mod_invites, get_invites, [domain_helper:host_type(), {User, Server}]))]),
+               %% FIXME there's an issue with this test where it sometimes fails here, user is able to create more invites than allowed, that's why those debug prints were added
                escalus:assert(is_iq_error,
                               send_adhoc_create_account(Alice, <<>>, <<"0">>)),
                Token = token_from_uri(send_adhoc_invite(Alice)),

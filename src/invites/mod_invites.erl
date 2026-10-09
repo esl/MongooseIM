@@ -72,6 +72,7 @@
 %% exported for testing
 -export([create_reset_token/3,
          create_roster_invite/2,
+         get_invites/2,
          get_max_invites/2,
          set_invitee/4
         ]).
@@ -84,6 +85,7 @@
 
 -ignore_xref([create_reset_token/3,
               create_roster_invite/2,
+              get_invites/2,
               get_max_invites/2,
               set_invitee/4
              ]).
@@ -531,6 +533,9 @@ user_send_xmlel(Acc, Params, Extras) ->
 %%| helpers
 get_invite(HostType, Host, Token) ->
     db_call(HostType, get_invite, [Host, Token]).
+
+get_invites(HostType, Inviter) ->
+    transaction(HostType, fun() -> get_invites_t(HostType, Inviter) end).
 
 get_invites_t(HostType, {_User, Host} = Inviter) ->
     db_call(HostType, get_invites_t, [Host, Inviter]).
