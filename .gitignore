@@ -45,6 +45,7 @@ ELDAPv3.asn1db
 ELDAPv3.erl
 ELDAPv3.hrl
 priv/lib/
+priv/mod_invites/static/bootstrap/
 *.asn1db
 src/XmppAddr.erl
 src/XmppAddr.hrl
@@ -147,3 +148,5 @@ doc/graphql-api/*.html
 .vscode
 .venv/
 .tool-versions
+node_modules/
+package-lock.json

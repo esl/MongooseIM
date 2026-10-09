@@ -20,7 +20,8 @@ BaseApps = [kernel, stdlib, sasl,
             {prometheus, none},
             {prometheus_httpd, none},
             {prometheus_cowboy, none},
-            {bbmustache, none}
+            {bbmustache, none},
+            {erlydtl, none}
            ],
 
 Apps = case os:getenv("DEVNODE") of

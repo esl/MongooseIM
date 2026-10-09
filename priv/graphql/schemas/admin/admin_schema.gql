@@ -47,6 +47,8 @@ type AdminQuery{
   broadcast: BroadcastAdminQuery
   "Blocklist management"
   blocklist: BlocklistAdminQuery
+  "Invites management"
+  invites: InvitesAdminQuery
 }
 
 """
@@ -92,6 +94,8 @@ type AdminMutation @protected{
   broadcast: BroadcastAdminMutation
   "Blocklist management"
   blocklist: BlocklistAdminMutation
+  "Invites management"
+  invites: InvitesAdminMutation
 }
 
 type AdminSubscription {
