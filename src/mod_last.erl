@@ -52,7 +52,8 @@
 %% API
 -export([store_last_info/5,
          get_last_info/3,
-         count_active_users/3]).
+         count_active_users/3,
+         new_timestamp/0]).
 
 -export([config_metrics/1]).
 
@@ -66,7 +67,7 @@
 
 -export_type([timestamp/0, status/0]).
 
--type timestamp() :: non_neg_integer().
+-type timestamp() :: integer().
 -type status() :: binary().
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -143,7 +144,7 @@ process_local_iq(Acc, _From, _To, #iq{type = Type, sub_el = SubEl} = IQ, _Extra)
 get_node_uptime() ->
     case mongoose_config:lookup_opt(node_start) of
         {ok, {node_start, Seconds}} ->
-            erlang:system_time(second) - Seconds;
+            new_timestamp() - Seconds;
         {error, not_found} ->
             trunc(element(1, erlang:statistics(wall_clock)) / 1000)
     end.
@@ -179,39 +180,31 @@ make_response(_HostType, IQ, SubEl, _, deny) ->
     IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
 make_response(HostType, IQ, SubEl, JID, allow) ->
     #jid{luser = LUser, lserver = LServer} = JID,
-    case ejabberd_sm:get_user_resources(JID) of
-        [] ->
-            case get_last(HostType, LUser, LServer) of
-                {error, _Reason} ->
-                    IQ#iq{type = error,
-                        sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]};
-                not_found ->
-                    IQ#iq{type = error,
-                        sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]};
-                {ok, TimeStamp, Status} ->
-                    TimeStamp2 = erlang:system_time(second),
-                    Sec = TimeStamp2 - TimeStamp,
-                    IQ#iq{type = result,
-                        sub_el =
-                        [#xmlel{name = <<"query">>,
-                            attrs = #{<<"xmlns">> => ?NS_LAST,
-                                      <<"seconds">> => integer_to_binary(Sec)},
-                            children = [#xmlcdata{content = Status}]}]}
-            end;
-        _ ->
+    case get_last_info(HostType, LUser, LServer) of
+        {error, _Reason} ->
+            IQ#iq{type = error,
+                  sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]};
+        not_found ->
+            IQ#iq{type = error,
+                  sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]};
+        {ok, TimeStamp, Status} ->
+            Sec = integer_to_binary(new_timestamp() - TimeStamp),
             IQ#iq{type = result,
-                sub_el =
-                [#xmlel{name = <<"query">>,
-                        attrs = #{<<"xmlns">> => ?NS_LAST,
-                                  <<"seconds">> => <<"0">>}}]}
+                  sub_el = [#xmlel{name = ~"query",
+                                   attrs = #{~"xmlns" => ?NS_LAST, ~"seconds" => Sec},
+                                   children = [#xmlcdata{content = Status}]}]};
+        online ->
+            IQ#iq{type = result,
+                  sub_el = [#xmlel{name = ~"query",
+                                   attrs = #{~"xmlns" => ?NS_LAST, ~"seconds" => ~"0"}}]}
     end.
 
 -spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver())
-        -> 'not_found' | {'ok', timestamp(), status()}.
+        -> {error, term()} | not_found | {ok, timestamp(), status()} | online.
 get_last_info(HostType, LUser, LServer) ->
-    case get_last(HostType, LUser, LServer) of
-        {error, _Reason} -> not_found;
-        Res -> Res
+    case ejabberd_sm:get_user_present_resources(jid:make_noprep(LUser, LServer, ~"")) of
+        [] -> get_last(HostType, LUser, LServer);
+        _ -> online
     end.
 
 %%%
@@ -283,15 +276,13 @@ sessions_cleanup(Acc = #{host_type := HostType}, #{sessions := Sessions}, _) ->
 -spec store_last_info(mongoose_acc:t(), jid:luser(), jid:lserver(), status()) -> mongoose_acc:t().
 store_last_info(Acc, LUser, LServer, Status) ->
     HostType = mongoose_acc:host_type(Acc),
-    TimeStamp = erlang:system_time(second),
-    store_last_info(HostType, LUser, LServer, TimeStamp, Status),
+    store_last_info(HostType, LUser, LServer, new_timestamp(), Status),
     Acc.
 
 -spec session_cleanup(mongoose_acc:t(), jid:luser(), jid:lserver(), status()) -> mongoose_acc:t().
 session_cleanup(Acc, LUser, LServer, Status) ->
     HostType = mongoose_acc:host_type(Acc),
-    TimeStamp = erlang:system_time(second),
-    session_cleanup(HostType, LUser, LServer, TimeStamp, Status),
+    session_cleanup(HostType, LUser, LServer, new_timestamp(), Status),
     Acc.
 
 -spec store_last_info(mongooseim:host_type(), jid:luser(), jid:lserver(),
@@ -334,3 +325,7 @@ count_active_users(HostType, LServer, Timestamp) ->
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
+
+-spec new_timestamp() -> timestamp().
+new_timestamp() ->
+    erlang:system_time(second).

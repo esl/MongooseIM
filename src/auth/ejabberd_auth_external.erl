@@ -364,29 +364,20 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
 %% @doc Code copied from mod_configure.erl
 %% Code copied from web/ejabberd_web_admin.erl
 -spec get_last_access(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
-          online | never | mod_last_required | integer().
+          online | never | mod_last_required | mod_last:timestamp().
 get_last_access(HostType, LUser, LServer) ->
-    JID = jid:make_noprep(LUser, LServer, <<>>),
-    case ejabberd_sm:get_user_resources(JID) of
-        [] ->
-            case get_last_info(HostType, LUser, LServer) of
-                mod_last_required ->
-                    mod_last_required;
-                not_found ->
-                    never;
-                {ok, Timestamp, _Status} ->
-                    Timestamp
-            end;
-        _ ->
-            online
-    end.
-
--spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
-          {ok, mod_last:timestamp(), mod_last:status()} | not_found | mod_last_required.
-get_last_info(HostType, LUser, LServer) ->
     case gen_mod:is_loaded(HostType, mod_last) of
-        true -> mod_last:get_last_info(HostType, LUser, LServer);
-        _ -> mod_last_required
+        true ->
+            case mod_last:get_last_info(HostType, LUser, LServer) of
+                online ->
+                    online;
+                {ok, Timestamp, _Status} ->
+                    Timestamp;
+                _ ->
+                    never
+            end;
+        false ->
+            mod_last_required
     end.
 
 -spec get_mod_last_configured(mongooseim:host_type()) -> mod_last | mod_last_rdbms | no_mod_last.
