@@ -76,6 +76,7 @@ user_last_not_configured() ->
 
 admin_last_tests() ->
     [admin_set_last,
+     admin_set_online_user_last,
      admin_try_set_nonexistent_user_last,
      admin_try_set_last_invalid_timestamp,
      admin_get_last,
@@ -232,22 +233,39 @@ required_modules(Backend) ->
 %% Admin test cases
 
 admin_set_last(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_set_last_story/2).
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_utils:jid_to_lower(escalus_users:get_jid(Config1, alice)),
+    Status = ~"First status",
 
-admin_set_last_story(Config, Alice) ->
-    Status = <<"First status">>,
-    JID = escalus_utils:jid_to_lower(user_to_bin(Alice)),
     % With timestamp provided
-    Res = admin_set_last(Alice, Status, ?DEFAULT_DT, Config),
-    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
+    Res = admin_set_last(AliceJid, Status, ?DEFAULT_DT, Config1),
+    #{~"user" := AliceJid, ~"status" := Status, ~"timestamp" := ?DEFAULT_DT} =
         get_ok_value(p(setLast), Res),
+
     % Without timestamp provided
-    Status2 = <<"Second status">>,
-    Res2 = admin_set_last(Alice, Status2, null, Config),
-    #{<<"user">> := JID, <<"status">> := Status2, <<"timestamp">> := DateTime2} =
+    Status2 = ~"Second status",
+    Res2 = admin_set_last(AliceJid, Status2, null, Config1),
+    #{~"user" := AliceJid, ~"status" := Status2, ~"timestamp" := DateTime2} = Val =
         get_ok_value(p(setLast), Res2),
-    ?assert(os:system_time(second) - dt_to_unit(DateTime2, second) < 2).
+    ?assert(os:system_time(second) - dt_to_unit(DateTime2, second) < 2),
+
+    % Check that it is stored
+    ?assertEqual(Val, get_ok_value(p(getLast), admin_get_last(AliceJid, Config))).
+
+admin_set_online_user_last(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_set_online_user_last_story/2).
+
+admin_set_online_user_last_story(Config, Alice) ->
+    Status = ~"Ignored status",
+    Res = admin_set_last(Alice, Status, ?DEFAULT_DT, Config),
+    JID = escalus_utils:jid_to_lower(user_to_bin(Alice)),
+    #{~"user" := JID, ~"status" := Status, ~"timestamp" := ?DEFAULT_DT} =
+        get_ok_value(p(setLast), Res),
+
+    % Regardless of what was set, online status is returned
+    OnlineBefore = erlang:system_time(second),
+    OnlineRes = admin_get_last(Alice, Config),
+    assert_last(JID, ~"Online", OnlineBefore, OnlineRes).
 
 admin_try_set_nonexistent_user_last(Config) ->
     Res = admin_set_last(?NONEXISTENT_JID, <<"status">>, null, Config),
@@ -268,16 +286,18 @@ admin_try_set_last_invalid_timestamp_story(Config, Alice) ->
     get_coercion_err_msg(Res).
 
 admin_get_last(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_get_last_story/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_get_last_story/2).
 
 admin_get_last_story(Config, Alice) ->
-    Status = <<"I love ducks">>,
     JID = escalus_utils:jid_to_lower(user_to_bin(Alice)),
-    admin_set_last(Alice, Status, ?DEFAULT_DT, Config),
-    Res = admin_get_last(Alice, Config),
-    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
-        get_ok_value(p(getLast), Res).
+    OnlineBefore = erlang:system_time(second),
+    OnlineRes = admin_get_last(Alice, Config),
+    assert_last(JID, ~"Online", OnlineBefore, OnlineRes),
+
+    OfflineBefore = erlang:system_time(second),
+    mongoose_helper:logout_user(Config, Alice),
+    OfflineRes = admin_get_last(Alice, Config),
+    assert_last(JID, ~"Shutdown by reason: stream_end", OfflineBefore, OfflineRes).
 
 admin_get_nonexistent_user_last(Config) ->
     Res = admin_get_last(?NONEXISTENT_JID, Config),
@@ -290,12 +310,10 @@ admin_get_nonexistent_user_last(Config) ->
     get_coercion_err_msg(Res3).
 
 admin_try_get_nonexistent_last(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_try_get_nonexistent_last_story/2).
-
-admin_try_get_nonexistent_last_story(Config, Alice) ->
-    Res = admin_get_last(Alice, Config),
-    ?assertErrMsg(Res, <<"not found">>),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_utils:jid_to_lower(escalus_users:get_jid(Config1, alice)),
+    Res = admin_get_last(AliceJid, Config1),
+    ?assertErrMsg(Res, ~"not found"),
     ?assertErrCode(Res, last_not_found).
 
 admin_count_active_users(Config) ->
@@ -502,44 +520,53 @@ domain_admin_logged_user_is_not_old_user_story(Config, _Alice) ->
 %% User test cases
 
 user_set_last(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_set_last_story/2).
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    JID = escalus_utils:jid_to_lower(escalus_users:get_jid(Config1, alice)),
+    Status = ~"My first status",
 
-user_set_last_story(Config, Alice) ->
-    Status = <<"My first status">>,
-    JID = escalus_utils:jid_to_lower(user_to_bin(Alice)),
-    Res = user_set_last(Alice, Status, ?DEFAULT_DT, Config),
-    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
+    % With timestamp provided
+    Res = user_set_last(alice, Status, ?DEFAULT_DT, Config1),
+    #{~"user" := JID, ~"status" := Status, ~"timestamp" := ?DEFAULT_DT} =
         get_ok_value(p(setLast), Res),
-    Status2 = <<"Quack Quack">>,
-    Res2 = user_set_last(Alice, Status2, null, Config),
-    #{<<"user">> := JID, <<"status">> := Status2, <<"timestamp">> := DateTime2} =
+    Status2 = ~"Quack Quack",
+
+    % Without timestamp provided
+    Res2 = user_set_last(alice, Status2, null, Config1),
+    #{~"user" := JID, ~"status" := Status2, ~"timestamp" := DateTime2} = Val =
         get_ok_value(p(setLast), Res2),
-    ?assert(os:system_time(second) - dt_to_unit(DateTime2, second) < 2).
+    ?assert(os:system_time(second) - dt_to_unit(DateTime2, second) < 2),
+
+    % Check that it is stored
+    ?assertEqual(Val, get_ok_value(p(getLast), user_get_last(alice, JID, Config1))).
 
 user_get_last(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_get_last_story/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_get_last_story/2).
+
 user_get_last_story(Config, Alice) ->
-    Status = <<"I love ducks">>,
     JID = escalus_utils:jid_to_lower(user_to_bin(Alice)),
-    user_set_last(Alice, Status, ?DEFAULT_DT, Config),
-    Res = user_get_last(Alice, Alice, Config),
-    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
-        get_ok_value(p(getLast), Res).
+    OnlineBefore = erlang:system_time(second),
+    OnlineRes = user_get_last(Alice, Alice, Config),
+    assert_last(JID, ~"Online", OnlineBefore, OnlineRes),
+
+    OfflineBefore = erlang:system_time(second),
+    mongoose_helper:logout_user(Config, Alice),
+    OfflineRes = user_get_last(Alice, Alice, Config),
+    assert_last(JID, ~"Shutdown by reason: stream_end", OfflineBefore, OfflineRes).
 
 user_get_other_user_last(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun user_get_other_user_last_story/3).
 
 user_get_other_user_last_story(Config, Alice, Bob) ->
-    Status = <<"In good mood">>,
     JID = escalus_utils:jid_to_lower(user_to_bin(Bob)),
-    user_set_last(Bob, Status, ?DEFAULT_DT, Config),
-    Res = user_get_last(Alice, Bob, Config),
-    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
-        get_ok_value(p(getLast), Res).
+    OnlineBefore = erlang:system_time(second),
+    OnlineRes = user_get_last(Alice, Bob, Config),
+    assert_last(JID, ~"Online", OnlineBefore, OnlineRes),
 
+    OfflineBefore = erlang:system_time(second),
+    mongoose_helper:logout_user(Config, Bob),
+    OfflineRes = user_get_last(Alice, Bob, Config),
+    assert_last(JID, ~"Shutdown by reason: stream_end", OfflineBefore, OfflineRes).
 
 admin_set_last_not_configured(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -582,19 +609,15 @@ admin_list_old_users_global_last_not_configured(Config) ->
     get_ok_value([], Res).
 
 user_set_last_not_configured(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_set_last_not_configured_story/2).
-
-user_set_last_not_configured_story(Config, Alice) ->
-    Status = <<"My first status">>,
-    Res = user_set_last(Alice, Status, ?DEFAULT_DT, Config),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    Status = ~"My first status",
+    Res = user_set_last(alice, Status, ?DEFAULT_DT, Config1),
     get_not_loaded(Res).
 
 user_get_last_not_configured(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_get_last_not_configured_story/2).
-user_get_last_not_configured_story(Config, Alice) ->
-    Res = user_get_last(Alice, Alice, Config),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    JID = escalus_utils:jid_to_lower(escalus_users:get_jid(Config1, alice)),
+    Res = user_get_last(alice, JID, Config1),
     get_not_loaded(Res).
 
 %% Helpers
@@ -615,6 +638,13 @@ assert_err_msg(Contains, Res) ->
 
 assert_err_code(Code, Res) ->
     ?assertEqual(atom_to_binary(Code), get_err_code(Res)).
+
+assert_last(JID, Status, Before, Res) ->
+    #{~"user" := JID, ~"status" := Status, ~"timestamp" := DateTime} =
+        get_ok_value(p(getLast), Res),
+    Timestamp = dt_to_unit(DateTime, second),
+    ?assert(Timestamp >= Before),
+    ?assert(Timestamp =< erlang:system_time(second)).
 
 p(Cmd) when is_atom(Cmd) ->
     [data, last, Cmd];
