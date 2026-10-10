@@ -3,6 +3,8 @@
 set -e
 password=fake_server
 
+CASSANDRA_CONFIG="${CASSANDRA_CONFIG:-/etc/cassandra}"
+
 cat - >>"${CASSANDRA_CONFIG}/cassandra.yaml" <<-EOF
 
 	client_encryption_options:
