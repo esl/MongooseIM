@@ -17,8 +17,6 @@ all_tests() ->
      remove_user_ok,
      set_password_ok,
      does_user_exist,
-     get_password_returns_false_if_no_cache,
-     get_password_s_returns_empty_bin_if_no_cache,
      supported_sasl_mechanisms
     ].
 
@@ -58,12 +56,6 @@ set_password_ok(_C) ->
 does_user_exist(_C) ->
     {U, _P} = given_user_registered(),
     true = ejabberd_auth_external:does_user_exist(host_type(), U, domain()).
-
-get_password_returns_false_if_no_cache(_C) ->
-    false = ejabberd_auth_external:get_password(host_type(), random_binary(8), domain()).
-
-get_password_s_returns_empty_bin_if_no_cache(_C) ->
-    <<"">> = ejabberd_auth_external:get_password_s(host_type(), random_binary(8), domain()).
 
 supported_sasl_mechanisms(_C) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
