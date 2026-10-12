@@ -14,8 +14,10 @@ groups() ->
 
 all_tests() ->
     [try_register_ok,
+     try_register_twice,
      remove_user_ok,
      set_password_ok,
+     set_password_for_unknown_user,
      does_user_exist,
      supported_sasl_mechanisms
     ].
@@ -41,6 +43,10 @@ try_register_ok(_C) ->
     {U, P} = given_user_registered(),
     true = ejabberd_auth_external:check_password(host_type(), U, domain(), P).
 
+try_register_twice(_C) ->
+    {U, P} = given_user_registered(),
+    {error, not_allowed} = ejabberd_auth_external:try_register(host_type(), U, domain(), P).
+
 remove_user_ok(_C) ->
     {U, P} = given_user_registered(),
     ok = ejabberd_auth_external:remove_user(host_type(), U, domain()),
@@ -52,6 +58,10 @@ set_password_ok(_C) ->
     ok = ejabberd_auth_external:set_password(host_type(), U, domain(), NewP),
     false = ejabberd_auth_external:check_password(host_type(), U, domain(), P),
     true = ejabberd_auth_external:check_password(host_type(), U, domain(), NewP).
+
+set_password_for_unknown_user(_C) ->
+    {error, not_allowed} =
+        ejabberd_auth_external:set_password(host_type(), ~"stranger", domain(), ~"pass").
 
 does_user_exist(_C) ->
     {U, _P} = given_user_registered(),
