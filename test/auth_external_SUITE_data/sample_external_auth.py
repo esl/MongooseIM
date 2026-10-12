@@ -15,6 +15,8 @@ else:
 
 def from_ejabberd():
     input_length = sys.stdin.read(2)
+    if not input_length:
+        sys.exit(0)
     (size,) = unpack('>h', input_length.encode())
     return sys.stdin.read(size).split(':')
 
@@ -36,6 +38,8 @@ def isuser(username, server):
     return username in users
 
 def setpass(username, server, password):
+    if username not in users:
+        return False
     users[username] = password
     return True
 
