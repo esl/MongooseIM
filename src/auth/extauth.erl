@@ -97,10 +97,13 @@ does_user_exist(HostType, User, Server) ->
     call_port(HostType, [<<"isuser">>, User, Server]).
 
 
--spec set_password(mongooseim:host_type(), jid:user(), jid:server(), binary()) -> any().
+-spec set_password(mongooseim:host_type(), jid:user(), jid:server(), binary()) ->
+          ok | {error, not_allowed}.
 set_password(HostType, User, Server, Password) ->
-    call_port(HostType, [<<"setpass">>, User, Server, Password]).
-
+    case call_port(HostType, [<<"setpass">>, User, Server, Password]) of
+        true -> ok;
+        false -> {error, not_allowed}
+    end.
 
 -spec try_register(mongooseim:host_type(), jid:user(), jid:server(), binary()) ->
           ok | {error, not_allowed}.

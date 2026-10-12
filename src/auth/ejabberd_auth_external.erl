@@ -87,7 +87,6 @@ authorize(Creds) ->
 check_password(HostType, LUser, LServer, Password) ->
     extauth:check_password(HostType, LUser, LServer, Password) andalso Password =/= ~"".
 
-
 -spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
@@ -97,17 +96,12 @@ check_password(HostType, LUser, LServer, Password) ->
 check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
     check_password(HostType, LUser, LServer, Password).
 
-
 -spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed}.
 set_password(HostType, LUser, LServer, Password) ->
-    case extauth:set_password(HostType, LUser, LServer, Password) of
-        true -> ok;
-        _ -> {error, unknown_problem}
-    end.
-
+    extauth:set_password(HostType, LUser, LServer, Password).
 
 -spec try_register(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
@@ -116,7 +110,6 @@ set_password(HostType, LUser, LServer, Password) ->
                    ) -> ok | {error, not_allowed}.
 try_register(HostType, LUser, LServer, Password) ->
     extauth:try_register(HostType, LUser, LServer, Password).
-
 
 -spec does_user_exist(HostType :: mongooseim:host_type(),
                       LUser :: jid:luser(),
@@ -127,7 +120,6 @@ does_user_exist(HostType, LUser, LServer) ->
     catch
         _:Error -> {error, Error}
     end.
-
 
 -spec remove_user(HostType :: mongooseim:host_type(),
                   User :: jid:luser(),
