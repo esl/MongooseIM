@@ -14,11 +14,11 @@ groups() ->
 
 all_tests() ->
     [try_register_ok,
+     try_register_twice,
      remove_user_ok,
      set_password_ok,
+     set_password_for_unknown_user,
      does_user_exist,
-     get_password_returns_false_if_no_cache,
-     get_password_s_returns_empty_bin_if_no_cache,
      supported_sasl_mechanisms
     ].
 
@@ -43,6 +43,10 @@ try_register_ok(_C) ->
     {U, P} = given_user_registered(),
     true = ejabberd_auth_external:check_password(host_type(), U, domain(), P).
 
+try_register_twice(_C) ->
+    {U, P} = given_user_registered(),
+    {error, not_allowed} = ejabberd_auth_external:try_register(host_type(), U, domain(), P).
+
 remove_user_ok(_C) ->
     {U, P} = given_user_registered(),
     ok = ejabberd_auth_external:remove_user(host_type(), U, domain()),
@@ -55,15 +59,13 @@ set_password_ok(_C) ->
     false = ejabberd_auth_external:check_password(host_type(), U, domain(), P),
     true = ejabberd_auth_external:check_password(host_type(), U, domain(), NewP).
 
+set_password_for_unknown_user(_C) ->
+    {error, not_allowed} =
+        ejabberd_auth_external:set_password(host_type(), ~"stranger", domain(), ~"pass").
+
 does_user_exist(_C) ->
     {U, _P} = given_user_registered(),
     true = ejabberd_auth_external:does_user_exist(host_type(), U, domain()).
-
-get_password_returns_false_if_no_cache(_C) ->
-    false = ejabberd_auth_external:get_password(host_type(), random_binary(8), domain()).
-
-get_password_s_returns_empty_bin_if_no_cache(_C) ->
-    <<"">> = ejabberd_auth_external:get_password_s(host_type(), random_binary(8), domain()).
 
 supported_sasl_mechanisms(_C) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
