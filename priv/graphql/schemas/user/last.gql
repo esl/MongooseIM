@@ -2,7 +2,10 @@
 Allow user to manage last activity.
 """
 type LastUserQuery @use(modules: ["mod_last"]) @protected{
-  "Get the user's last activity information"
+  """
+  Get the user's last activity information.
+  Returns "Online" status and the current timestamp for an online user.
+  """
   getLast(user: JID): LastActivity @use
 }
 
