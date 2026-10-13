@@ -41,8 +41,10 @@ get_last(#jid{luser = User, lserver = Server} = JID) ->
             case mod_last:get_last_info(HostType, User, Server) of
                 {ok, Timestamp, Status} ->
                     {ok, #{timestamp => Timestamp, status => Status}};
-                not_found ->
-                    {last_not_found, <<"Given user's last info not found">>}
+                online ->
+                    {ok, #{timestamp => mod_last:new_timestamp(), status => ~"Online"}};
+                _ ->
+                    {last_not_found, ~"Given user's last info not found"}
             end;
         false ->
             ?USER_NOT_FOUND_RESULT(User, Server)
@@ -104,17 +106,12 @@ list_old_users(HostType, Domain, Timestamp) ->
 -spec prepare_old_user(host_type(), jid:simple_bare_jid(), timestamp()) ->
     false | {true, old_user()}.
 prepare_old_user(HostType, {LU, LS}, Timestamp) ->
-    JID = jid:make_bare(LU, LS),
-    case ejabberd_sm:get_user_resources(JID) of
-        [] ->
-            case mod_last:get_last_info(HostType, LU, LS) of
-                {ok, UserTimestamp, _} when UserTimestamp < Timestamp ->
-                    {true, {JID, UserTimestamp}};
-                not_found ->
-                    {true, {JID, null}};
-                _ ->
-                    false
-            end;
+    JID = jid:make_noprep(LU, LS, ~""),
+    case mod_last:get_last_info(HostType, LU, LS) of
+        {ok, UserTimestamp, _Status} when UserTimestamp < Timestamp ->
+            {true, {JID, UserTimestamp}};
+        not_found ->
+            {true, {JID, null}};
         _ ->
             false
     end.

@@ -2,7 +2,10 @@
 Allow admin to manage last activity.
 """
 type LastAdminQuery @use(modules: ["mod_last"]) @protected{
-  "Get the user's last status and timestamp"
+  """
+  Get the user's last status and timestamp.
+  Returns "Online" status and the current timestamp for an online user.
+  """
   getLast(user: JID!): LastActivity
     @use(args: ["user"]) @protected(type: DOMAIN, args: ["user"])
   "Get the number of users active from the given timestamp"

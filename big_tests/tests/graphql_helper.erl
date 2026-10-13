@@ -132,13 +132,13 @@ maybe_override_admin_creds(NormalCreds, Config) ->
 
 execute_user(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Creds = make_creds(User),
+    Creds = make_creds(User, Config),
     #{node := Node} = mim(),
     execute(Node, Ep, Body, Creds).
 
 execute_user_sse(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Creds = make_creds(User),
+    Creds = make_creds(User, Config),
     #{node := Node} = mim(),
     execute_sse(Node, Ep, Body, Creds).
 
@@ -287,6 +287,13 @@ make_creds(#client{props = Props} = Client) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),
     Password = proplists:get_value(password, Props),
     {JID, Password}.
+
+make_creds(#client{} = Client, _Config) ->
+    make_creds(Client);
+make_creds(User, Config) when is_atom(User) ->
+    JID = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, User)),
+    UserSpec = escalus_users:get_userspec(Config, User),
+    {JID, proplists:get_value(password, UserSpec)}.
 
 user_to_full_bin(#client{} = Client) -> escalus_client:full_jid(Client);
 user_to_full_bin(Bin) when is_binary(Bin) -> Bin.

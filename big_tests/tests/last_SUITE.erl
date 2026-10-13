@@ -31,21 +31,21 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, valid_queries},
-     {group, invalid_queries},
+    [{group, queries},
      {group, sessions_cleanup}].
 
 groups() ->
-    [{valid_queries, [sequence], valid_test_cases()},
-     {invalid_queries, invalid_test_cases()},
+    [{queries, [parallel], query_test_cases()},
      {sessions_cleanup, [], [sessions_cleanup]}].
 
-valid_test_cases() -> [online_user_query,
-                       last_online_user,
-                       last_offline_user,
-                       last_server].
-
-invalid_test_cases() -> [user_not_subscribed_receives_error].
+query_test_cases() ->
+    [online_user_query,
+     last_online_user,
+     last_offline_user,
+     last_info_not_found,
+     last_info_backend_error,
+     last_server,
+     user_not_subscribed_receives_error].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]) ++ escalus:suite().
@@ -62,122 +62,143 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(valid_queries, Config0) ->
-    Config1 = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
-    Config2 = escalus:make_everyone_friends(Config1),
-    %% This check ensures that there are no registered sessions.
-    %% But in mongoose_c2s we first unset session,
-    %% then broadcast presence unavailable.
-    %% This check uses ejabberd_sm to get information about sessions.
-    mongoose_helper:wait_for_session_count(0),
-    %% Kick "friendly" users
-    %% kick_everyone uses mongoose_c2s_sup to information about client processes.
-    mongoose_helper:kick_everyone(),
-    Config2;
-init_per_group(invalid_queries, Config) ->
+init_per_group(queries, Config) ->
+    ok = distributed_helper:rpc(distributed_helper:mim(), meck, new,
+                                [mod_last_backend, [passthrough, no_link]]),
     Config;
 init_per_group(sessions_cleanup, Config) ->
     Config.
 
-end_per_group(_GroupName, _Config) ->
+end_per_group(queries, _Config) ->
+    distributed_helper:rpc(distributed_helper:mim(), meck, unload, [mod_last_backend]),
+    escalus_fresh:clean();
+end_per_group(_, _Config) ->
     escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    mongoose_helper:kick_everyone(),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
 %% Last tests
 %%--------------------------------------------------------------------
 online_user_query(Config) ->
-    %% Alice and Bob are friends
-    escalus:story(Config, [{alice, 1}, {bob, 1}],
-                  fun(Alice, Bob) ->
-                          %% Alice asks about Bob's last activity
-                          BobJid = escalus_utils:get_jid(Bob),
-                          escalus_client:send(Alice, escalus_stanza:last_activity(BobJid)),
-                          %% Bob gets IQ and answers
-                          BobGetsIQ = escalus_client:wait_for_stanza(Bob),
-                          escalus_client:send(Bob, answer_last_activity(BobGetsIQ)),
-                          Stanza = escalus_client:wait_for_stanza(Alice),
-                          escalus:assert(is_last_result, Stanza),
-                          0 = get_last_activity(Stanza)
-                  end).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun online_user_query_story/2).
+
+online_user_query_story(Alice, Bob) ->
+    escalus_story:make_all_clients_friends([Alice, Bob]),
+    %% Alice asks about Bob's last activity
+    BobJid = escalus_utils:get_jid(Bob),
+    escalus_client:send(Alice, escalus_stanza:last_activity(BobJid)),
+    %% Bob gets IQ and answers
+    BobGetsIQ = escalus_client:wait_for_stanza(Bob),
+    escalus_client:send(Bob, answer_last_activity(BobGetsIQ)),
+    Stanza = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_last_result, Stanza),
+    0 = get_last_activity(Stanza).
 
 last_online_user(Config) ->
-    %% Alice and Bob are friends
-    escalus:story(Config, [{alice, 1}, {bob, 1}],
-                  fun(Alice, Bob) ->
-                          %% Alice asks about Bob's last activity
-                          BobShortJID = escalus_client:short_jid(Bob),
-                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun last_online_user_story/2).
 
-                          %% server replies on Bob's behalf
-                          Stanza = escalus_client:wait_for_stanza(Alice),
-                          escalus:assert(is_last_result, Stanza),
-                          0 = get_last_activity(Stanza)
-                  end).
+last_online_user_story(Alice, Bob) ->
+    escalus_story:make_all_clients_friends([Alice, Bob]),
+    %% Alice asks about Bob's last activity
+    BobShortJID = escalus_client:short_jid(Bob),
+    escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+
+    %% server replies on Bob's behalf
+    Stanza = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_last_result, Stanza),
+    0 = get_last_activity(Stanza).
 
 last_offline_user(Config) ->
-    %% Alice and Bob are friends
-    escalus:story(Config, [{alice, 1}],
-                  fun(Alice) ->
-                          %% Bob logs in
-                          {ok, Bob} = escalus_client:start_for(Config, bob, <<"bob">>),
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun last_offline_user_story/3).
 
-                          %% Bob logs out with a status
-                          Status = escalus_stanza:tags([{<<"status">>, <<"I am a banana!">>}]),
-                          Presence = escalus_stanza:presence(<<"unavailable">>, Status),
-                          escalus_client:send(Bob, Presence),
-                          escalus_client:stop(Config, Bob),
-                          timer:sleep(1024), % more than a second
+last_offline_user_story(Config, Alice, Bob) ->
+    escalus_story:make_all_clients_friends([Alice, Bob]),
 
-                          %% Alice asks for Bob's last availability
-                          BobShortJID = escalus_client:short_jid(Bob),
-                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+    %% Bob logs out with a status
+    Status = escalus_stanza:tags([{~"status", ~"I am a banana!"}]),
+    Presence = escalus_stanza:presence(~"unavailable", Status),
+    escalus_client:send(Bob, Presence),
+    mongoose_helper:logout_user(Config, Bob),
+    escalus:assert(is_presence_with_type, [~"unavailable"], escalus:wait_for_stanza(Alice)),
+    timer:sleep(1024), % more than a second
 
-                          %% Alice receives Bob's status and last online time > 0
-                          Stanza = escalus_client:wait_for_stanza(Alice),
-                          escalus:assert(is_last_result, Stanza),
-                          true = (1 =< get_last_activity(Stanza)),
-                          <<"I am a banana!">> = get_last_status(Stanza)
-                  end).
+    %% Alice asks for Bob's last availability
+    BobShortJID = escalus_client:short_jid(Bob),
+    escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+
+    %% Alice receives Bob's status and last online time > 0
+    Stanza = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_last_result, Stanza),
+    true = (1 =< get_last_activity(Stanza)),
+    ~"I am a banana!" = get_last_status(Stanza).
+
+last_info_not_found(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun last_info_not_found_story/3).
+
+last_info_not_found_story(Config, Alice, Bob) ->
+    make_friends_and_logout(Config, Alice, Bob),
+    BobJID = escalus_client:short_jid(Bob),
+    #jid{luser = LUser, lserver = LServer} = jid:from_binary(BobJID),
+    Node = distributed_helper:mim(),
+    HostType = domain_helper:host_type(),
+    %% Remove the activity stored on logout, keeping the account and roster.
+    ok = distributed_helper:rpc(Node, mod_last_backend, remove_user, [HostType, LUser, LServer]),
+    assert_last_error(Alice, BobJID, ~"cancel", ~"service-unavailable").
+
+last_info_backend_error(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun last_info_backend_error_story/3).
+
+last_info_backend_error_story(Config, Alice, Bob) ->
+    make_friends_and_logout(Config, Alice, Bob),
+    BobJID = escalus_client:short_jid(Bob),
+    #jid{luser = LUser, lserver = LServer} = jid:from_binary(BobJID),
+    Node = distributed_helper:mim(),
+    HostType = domain_helper:host_type(),
+    Expectation = [{[HostType, LUser, LServer], {error, simulated}},
+                   {['_', '_', '_'], meck:passthrough()}],
+    ok = distributed_helper:rpc(Node, meck, expect, [mod_last_backend, get_last, Expectation]),
+    assert_last_error(Alice, BobJID, ~"wait", ~"internal-server-error").
 
 last_server(Config) ->
-    %% This story can be fresh_story
-    escalus:fresh_story(Config, [{alice, 1}],
-                  fun(Alice) ->
-                          %% Alice asks for server's uptime
-                          Server = escalus_users:get_server(Config, alice),
-                          escalus_client:send(Alice, escalus_stanza:last_activity(Server)),
+    escalus:fresh_story(Config, [{alice, 1}], fun last_server_story/1).
 
-                          %% Server replies with the uptime > 0
-                          Stanza = escalus_client:wait_for_stanza(Alice),
-                          escalus:assert(is_last_result, Stanza),
-                          true = (get_last_activity(Stanza) > 0)
-                  end).
+last_server_story(Alice) ->
+    %% Alice asks for server's uptime
+    Server = escalus_client:server(Alice),
+    escalus_client:send(Alice, escalus_stanza:last_activity(Server)),
+
+    %% Server replies with the uptime > 0
+    Stanza = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_last_result, Stanza),
+    true = (get_last_activity(Stanza) > 0).
 
 user_not_subscribed_receives_error(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        %% Alice asks about Bob's last activity
-        BobShortJID = escalus_client:short_jid(Bob),
-        escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun user_not_subscribed_receives_error_story/2).
 
-        %% server replies with an error, since there is no subscription
-        Error = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error),
+user_not_subscribed_receives_error_story(Alice, Bob) ->
+    %% Alice asks about Bob's last activity
+    BobShortJID = escalus_client:short_jid(Bob),
+    escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
 
-        %% Alice asks Bob directly for last activity
-        BobFullJID = escalus_client:full_jid(Bob),
-        escalus_client:send(Alice, escalus_stanza:last_activity(BobFullJID)),
+    %% server replies with an error, since there is no subscription
+    Error = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Error),
 
-        Error1 = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error1),
-        ok
-    end).
+    %% Alice asks Bob directly for last activity
+    BobFullJID = escalus_client:full_jid(Bob),
+    escalus_client:send(Alice, escalus_stanza:last_activity(BobFullJID)),
+
+    Error1 = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_error, [~"auth", ~"forbidden"], Error1),
+    ok.
 
 %% Runs sessions_cleanup and check if it was done by checking last_seen timestamp.
 sessions_cleanup(_Config) ->
@@ -218,6 +239,22 @@ sessions_cleanup(_Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
+
+make_friends_and_logout(Config, Alice, Bob) ->
+    escalus_story:make_all_clients_friends([Alice, Bob]),
+    mongoose_helper:logout_user(Config, Bob),
+    Presence = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_presence_with_type, [~"unavailable"], Presence),
+    escalus:assert(is_stanza_from, [Bob], Presence).
+
+assert_last_error(Client, JID, Type, Condition) ->
+    Request = escalus_stanza:last_activity(JID),
+    escalus:send(Client, Request),
+    Response = escalus:wait_for_stanza(Client),
+    escalus:assert(is_iq_error, [Request], Response),
+    escalus:assert(is_error, [Type, Condition], Response),
+    ?assertEqual(exml_query:subelement(Request, ~"query"),
+                 exml_query:subelement(Response, ~"query")).
 
 create_sessions(HostType, Server, NumberOfUsers) ->
     [create_session(HostType, Server, Num)

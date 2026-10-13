@@ -316,7 +316,9 @@ setup_meck(exometer) ->
 setup_meck(ejabberd_sm) ->
     meck:new(ejabberd_sm, [no_link]),
     meck:expect(ejabberd_sm, register_iq_handler,
-                fun(_A1, _A2, _A3) -> ok end);
+                fun(_A1, _A2, _A3) -> ok end),
+    meck:expect(ejabberd_sm, get_user_present_resources,
+                fun(_JID) -> [] end);
 setup_meck(ejabberd_local) ->
     meck:new(ejabberd_local, [no_link]),
     meck:expect(ejabberd_local, register_iq_handler,
