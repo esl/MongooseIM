@@ -142,12 +142,8 @@ process_local_iq(Acc, _From, _To, #iq{type = Type, sub_el = SubEl} = IQ, _Extra)
 
 -spec get_node_uptime() -> non_neg_integer().
 get_node_uptime() ->
-    case mongoose_config:lookup_opt(node_start) of
-        {ok, {node_start, Seconds}} ->
-            new_timestamp() - Seconds;
-        {error, not_found} ->
-            trunc(element(1, erlang:statistics(wall_clock)) / 1000)
-    end.
+    {TotalMilliseconds, _} = erlang:statistics(wall_clock),
+    TotalMilliseconds div 1000.
 
 %%%
 %%% Serve queries about user last online
