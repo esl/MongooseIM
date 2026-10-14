@@ -1,3 +1,47 @@
+# [MongooseIM 6.10.0](https://github.com/esl/MongooseIM/releases/tag/6.10.0) - 2026-10-15
+
+## Highlights
+- Introduced a new format for Jingle Message Initiation push notifications.
+- Improved GraphQL metric queries and last-activity results for online users.
+- Hardened atom conversion and Erlang term decoding, and added the SAFE scanner to CI.
+- Fixed connection handling, dynamic-domain S2S routing, and run-time ETS table ownership.
+
+## Changed
+- Jingle push notifications carry JMI session data, use data-only MongoosePush requests, and route to APNs topics ending in `.voip` (#4802)
+- Upgraded `fast_scram` to 0.7.3 and `fast_pbkdf2` to 2.1.0, fixing a potential memory leak (#4816)
+
+## Fixed
+- Fixed crashes on unusable PROXY protocol headers, including address-less proxy health checks (#4795)
+- Fixed crashes when an SSE handler terminates before its state is initialized (#4796)
+- Run-time ETS tables now use a dedicated heir process, avoiding unexpected transfer messages to `ejabberd_sup` (#4798)
+- Fixed GraphQL resolver errors for roster subscription states, large Mnesia integer results and metric queries (#4806)
+- Dynamic domains and their subdomains are now treated as local when checking S2S routing targets (#4809)
+- GraphQL last-activity queries now return the current timestamp and `Online` status for users with available presence (#4814)
+- Removed a console warning from `nodetool` (#4817)
+- Prevented possible crash errors logged when a client disconnected too early (#4819)
+
+## Removed
+- Removed the unused StatsD reporter dependency and startup code (#4813)
+- Removed unreachable external-authentication cache code and the dead `extauth_cache` option (#4815)
+
+## Other
+- Added the SAFE scanner to CircleCI and GitHub Actions, hardened atom conversion and stored MAM message decoding, introduced `ClusterNodeName` validation for GraphQL cluster metric queries, and corrected JWT algorithm names (#4783)
+- Replaced MinIO with RustFS in the test infrastructure and updated HTTP upload documentation (#4797, #4808)
+- Expanded unexpected-message tests for `gen_server` processes (#4800)
+- Fixed unexpected errors in tests (#4804, #4805, #4807, #4810)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+base%3Amaster+milestone%3A6.10.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-09-10..2026-10-15)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-09-10&to=2026-10-15&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+base%3Amaster+milestone%3A6.10.0+sort%3Aupdated-desc)
+
+## Special thanks to our contributors
+- [@fen-pl](https://github.com/fen-pl) for the original StatsD reporter cleanup (#4812)
+
 # [MongooseIM 6.9.0](https://github.com/esl/MongooseIM/releases/tag/6.9.0) - 2026-09-10
 
 ## Highlights
