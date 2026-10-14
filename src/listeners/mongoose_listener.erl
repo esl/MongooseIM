@@ -67,6 +67,7 @@
 -type init_args() :: {transport_module(), ranch:ref(), options()}.
 -type connection_type() :: c2s | s2s | component | http.
 
+-type proxy_details() :: #{proxy := false} | #{proxy := true, version := 1 | 2}.
 -type connection_details() :: #{
         proxy        := boolean(),
         version      => 1 | 2,
@@ -229,9 +230,7 @@ broadcast_c2s_shutdown_to_regular_c2s_connections(TypedListeners) ->
     (ranch:ref(), ranch_tcp, options()) ->
         {ok, inet:socket(), connection_details()} | {error, term()};
     (ranch:ref(), ranch_ssl, options()) ->
-        {ok, ssl:sslsocket(), connection_details()} | {error, term()};
-    (ranch:ref(), module(), options()) ->
-        {ok, term(), connection_details()} | {error, term()}.
+        {ok, ssl:sslsocket(), connection_details()} | {error, term()}.
 read_connection_details(Ref, Transport, #{proxy_protocol := true}) ->
     case ranch:recv_proxy_header(Ref, 1000) of
         {ok, #{src_address := PeerIp, src_port := PeerPort, dest_address := DestAddr,
@@ -246,40 +245,29 @@ read_connection_details(Ref, Transport, #{proxy_protocol := true}) ->
         %% A header relaying no addresses, like the v2 LOCAL one a proxy sends for its
         %% own health checks.
         {ok, #{version := Version}} ->
-            {ok, Socket} = ranch:handshake(Ref),
-            {ok, {DestAddr, DestPort}} = Transport:sockname(Socket),
-            {ok, {SrcAddr, SrcPort}} = Transport:peername(Socket),
-            {ok, Socket, #{proxy => true,
-                           src_address => SrcAddr,
-                           src_port => SrcPort,
-                           dest_address => DestAddr,
-                           dest_port => DestPort,
-                           version => Version}};
+            connection_details(Ref, Transport, #{proxy => true, version => Version});
         {error, protocol_error, Reason} ->
             {error, {proxy_protocol, Reason}};
         {error, Reason} ->
             {error, {proxy_protocol, Reason}}
     end;
-read_connection_details(Ref, ranch_tcp, _Opts) ->
+read_connection_details(Ref, Transport, _Opts) ->
+    connection_details(Ref, Transport, #{proxy => false}).
+
+-spec connection_details(ranch:ref(), ranch_tcp, proxy_details()) ->
+                            {ok, inet:socket(), connection_details()} | {error, term()};
+                        (ranch:ref(), ranch_ssl, proxy_details()) ->
+                            {ok, ssl:sslsocket(), connection_details()} | {error, term()}.
+connection_details(Ref, Transport, Details) ->
     {ok, Socket} = ranch:handshake(Ref),
-    {ok, {DestAddr, DestPort}} = ranch_tcp:sockname(Socket),
-    {ok, {SrcAddr, SrcPort}} = ranch_tcp:peername(Socket),
-    ranch_tcp:setopts(Socket, [{active, once}]),
-    {ok, Socket, #{proxy => false,
-                   src_address => SrcAddr,
-                   src_port => SrcPort,
-                   dest_address => DestAddr,
-                   dest_port => DestPort}};
-read_connection_details(Ref, ranch_ssl, _Opts) ->
-    {ok, Socket} = ranch:handshake(Ref),
-    {ok, {DestAddr, DestPort}} = ranch_ssl:sockname(Socket),
-    {ok, {SrcAddr, SrcPort}} = ranch_ssl:peername(Socket),
-    ranch_ssl:setopts(Socket, [{active, once}]),
-    {ok, Socket, #{proxy => false,
-                   src_address => SrcAddr,
-                   src_port => SrcPort,
-                   dest_address => DestAddr,
-                   dest_port => DestPort}}.
+    maybe
+        {ok, {DestAddr, DestPort}} ?= Transport:sockname(Socket),
+        {ok, {SrcAddr, SrcPort}} ?= Transport:peername(Socket),
+        {ok, Socket, Details#{src_address => SrcAddr,
+                              src_port => SrcPort,
+                              dest_address => DestAddr,
+                              dest_port => DestPort}}
+    end.
 
 %% @doc Create a unique ID based on the listening socket address
 -spec listener_id(options()) -> id().
