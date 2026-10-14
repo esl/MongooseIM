@@ -411,8 +411,32 @@ matches_pattern(Value, Pattern) ->
 
 %% 'port', 'ip_tuple' and 'proto' options need to stay unchanged for a successful restart
 restart_listener(Spec, Listener) ->
+    case Listener of
+        #{module := mongoose_c2s_listener} -> expect_session_probe_failure();
+        _ -> ok
+    end,
     rpc(Spec, mongoose_listener, stop_listener, [Listener]),
     rpc(Spec, mongoose_listener, start_listener, [Listener]).
+
+expect_session_probe_failure() ->
+    %% The session-count probe can race with C2S listener removal in Ranch.
+    %% This helper is also used without the big-test error-report hook.
+    case ets:whereis(cth_error_report_patterns) of
+        undefined ->
+            ok;
+        _ ->
+            cth_error_report:expect(
+                fun({report, #{what := probe_failed,
+                               probe_mod := ejabberd_sm,
+                               event_name := sm_node_sessions,
+                               class := error,
+                               reason := badarg}}, _Meta) ->
+                        true;
+                   (_, _) ->
+                        false
+                end),
+            ok
+    end.
 
 change_listener_idle_timeout(Listener, Timeout) ->
     #{protocol := ProtocolOpts} = Listener,

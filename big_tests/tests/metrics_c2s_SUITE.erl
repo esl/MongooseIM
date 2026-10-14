@@ -113,6 +113,7 @@ restart_listener(Listener) ->
     [_ | Rest] = rpc(mim(), mongoose_config, get_opt, [[listen]]),
     rpc(mim(), mongoose_config, set_opt, [[listen], [Listener | Rest]]),
     % Instrumentation is set up again only when all listeners are restarted
+    mongoose_helper:expect_session_probe_failure(),
     rpc(mim(), mongoose_listener, stop, []),
     rpc(mim(), mongoose_listener, start, []).
 
