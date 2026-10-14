@@ -108,7 +108,7 @@ start_epmd() ->
     Port = open_port({spawn_executable, epmd_path()},
                      [exit_status, stderr_to_stdout, {args, ["-daemon"]}]),
     [] = wait_epmd(Port, []),
-    catch port_close(Port),
+    try port_close(Port) catch _:_ -> ok end,
     ok.
 
 wait_epmd(Port, Data) ->
