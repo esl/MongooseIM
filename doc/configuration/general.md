@@ -120,6 +120,8 @@ See the section about [redis connection setup](./outgoing-connections.md#redis-s
 
 When a user's session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
 
+The check that produces that warning is diagnostic only. Diagnostic failures are caught and do not request termination of the new connection. Remote RPC waits share a 1000 ms timeout budget across the batch; this is not a hard wall-clock latency guarantee. When the old session lived on a node that is no longer reachable - a rolling restart, for instance - the check cannot confirm anything either way. That outcome is reported as `c2s_replaced_probe_inconclusive` at debug level (so a rolling restart does not flood the logs when debug logging is disabled) and, for a node that is still connected but does not answer within the probe's budget, at info level. Neither is an error, and neither disconnects anybody.
+
 ## XMPP federation (S2S)
 
 ### `general.s2s_backend`
