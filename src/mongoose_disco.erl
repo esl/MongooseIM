@@ -158,7 +158,10 @@ items_to_xml(Items) ->
     %% For each JID, leave only the rightmost item with that JID (the one which was added first).
     %% This is needed as extension modules might add more detailed information about an item
     %% than the default which is obtained from the registered routes and contains only the JID.
-    maps:values(maps:from_list([{JID, item_to_xml(Item)} || #{jid := JID} = Item <- Items])).
+    %% For ad-hoc commands for instance the key identifier though is not just the jid but a
+    %% combination of jid and node, so we need to keep those too.
+    maps:values(maps:from_list([{{JID, maps:get(node, Item, <<>>)}, item_to_xml(Item)}
+                                || #{jid := JID} = Item <- Items])).
 
 -spec features_to_xml([feature()]) -> [exml:element()].
 features_to_xml(Features) ->

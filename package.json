@@ -1,0 +1,12 @@
+{
+  "name": "ejabberd",
+  "version": "1.0.0",
+  "dependencies": {
+    "bootstrap": "^5.3.8"
+  },
+  "scripts": {
+    "postinstall": "npm run -s clean && npm run -s cp-bootstrap",
+    "clean": "rm -rf priv/mod_invites/static/bootstrap",
+    "cp-bootstrap": "cp -r node_modules/bootstrap/dist priv/mod_invites/static/bootstrap"
+  }
+}

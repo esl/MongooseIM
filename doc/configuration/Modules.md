@@ -119,6 +119,9 @@ Implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.htm
 ### [mod_inbox](../modules/mod_inbox.md)
 Implements custom inbox XEP
 
+### [mod_invites](../modules/mod_invites.md)
+Implementation of [Great Invitations](https://blog.prosody.im/great-invitations/), allows to invite people to connect, create accounts on your system and more.
+
 ### [mod_global_distrib](../modules/mod_global_distrib.md)
 Enables sharing a single XMPP domain between distinct datacenters (**experimental**).
 

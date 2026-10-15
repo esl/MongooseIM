@@ -12,7 +12,7 @@ REBAR=./rebar3
 
 all: rel
 
-clean:
+clean: invites-deps-clean
 	-$(REBAR) clean
 	-rm -rf _build
 	-rm -rf asngen
@@ -28,8 +28,27 @@ ct:
 eunit:
 	@$(RUN) $(REBAR) eunit $(REBAR_EUNIT_EXTRA_ARGS)
 
+ifeq (, $(shell which npm))
+  INSTALL_INVITES_DEPS=tools/dl_invites_page_deps.sh priv/mod_invites/static
+else
+  INSTALL_INVITES_DEPS=npm install
+endif
+
+invites-deps: priv/mod_invites/static/bootstrap/
+
+invites-deps-clean:
+	-rm -rf priv/mod_invites/static/bootstrap/
+
+priv/mod_invites/static/bootstrap/:
+	$(INSTALL_INVITES_DEPS)
+
+ifneq ($(SKIP_INVITES_DEPS), 1)
+rel: certs configure.out rel/configure.vars.config invites-deps
+	. ./configure.out && $(REBAR) as prod release
+else
 rel: certs configure.out rel/configure.vars.config
 	. ./configure.out && $(REBAR) as prod release
+endif
 
 shell: certs
 	$(REBAR) shell

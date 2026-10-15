@@ -49,6 +49,7 @@
          process_iq/5,
          get_roster_entry/4,
          set_roster_entry/5,
+         set_roster_item/5,
          remove_from_roster/3,
          item_to_xml/1
         ]).
