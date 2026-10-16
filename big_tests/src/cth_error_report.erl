@@ -39,7 +39,7 @@ Usage in tests:
 -export([terminate/1]).
 
 %% API for tests
--export([expect/1, expect/2, max_unexpected_errors_logged/1]).
+-export([expect/1, expect/2, allow_unexpected_errors/0]).
 -export([get_pattern_allowances/0]).
 
 -define(PATTERNS_TABLE, cth_error_report_patterns).
@@ -111,14 +111,13 @@ expect(Pattern, N) when is_integer(N), N > 0 ->
     ets:insert(?PATTERNS_TABLE, {expect_count, Pattern, N}).
 
 -doc """
-Sets the maximum allowed unexpected errors for the current suite. If
-the count exceeds this limit, `end_per_suite` returns
-`{error, too_many_unexpected_errors}`. Should be called from
-`init_per_suite` or `init_per_group`.
+Disables the unexpected errors check for the current suite. By default,
+a suite that logs any unexpected error fails the test run. Should be
+called from `init_per_suite` or `init_per_group`.
 """.
--spec max_unexpected_errors_logged(non_neg_integer()) -> true.
-max_unexpected_errors_logged(N) when is_integer(N), N >= 0 ->
-    ets:insert(?PATTERNS_TABLE, {max_unexpected_errors_logged, N}).
+-spec allow_unexpected_errors() -> true.
+allow_unexpected_errors() ->
+    ets:insert(?PATTERNS_TABLE, {allow_unexpected_errors}).
 
 %% CT hook callbacks
 
@@ -209,14 +208,14 @@ post_end_per_suite(Suite, _Config, Return, #state{report_dir = undefined} = Stat
     {Return, State};
 post_end_per_suite(Suite, _Config, Return, State) ->
     SuiteResult = try
-        MaxUnexp = get_max_unexpected_errors_logged(),
+        Allowed = unexpected_errors_allowed(),
         State1 = collect_errors({end_per_suite}, State),
         ok = cth_error_report_sink:unwatch(),
         delete_patterns_table(),
         write_report(Suite, State1),
         Unexp = State1#state.unexpected_total,
-        check_unexpected_limit(Suite, Unexp, MaxUnexp,
-                               State1#state.report_dir),
+        check_unexpected_errors(Suite, Unexp, Allowed,
+                                State1#state.report_dir),
         {Suite, State1#state.all_total, Unexp}
     catch Class:Reason:Stacktrace ->
         ct:pal("cth_error_report: failed for ~p: ~p:~p~n~p",
@@ -242,16 +241,15 @@ terminate(#state{summary_dir = Dir, suite_results = RevResults}) ->
     _ = try cth_error_report_sink:stop() catch _:_ -> ok end,
     ok.
 
-%% Unexpected errors limit check
+%% Unexpected errors check
 
-check_unexpected_limit(_Suite, _Unexp, undefined, _Dir) ->
+check_unexpected_errors(_Suite, 0, _Allowed, _Dir) ->
     ok;
-check_unexpected_limit(_Suite, Unexp, Max, _Dir) when Unexp =< Max ->
+check_unexpected_errors(_Suite, _Unexp, true, _Dir) ->
     ok;
-check_unexpected_limit(Suite, Unexp, Max, ReportDir) ->
-    Msg = io_lib:format("~p: ~p unexpected ~s logged,"
-                        " max allowed: ~p~n",
-                        [Suite, Unexp, plural(Unexp, "error"), Max]),
+check_unexpected_errors(Suite, Unexp, false, ReportDir) ->
+    Msg = io_lib:format("~p: ~p unexpected ~s logged~n",
+                        [Suite, Unexp, plural(Unexp, "error")]),
     MarkerFile = filename:join(ReportDir, "limit_exceeded"),
     file:write_file(MarkerFile, Msg, [append]).
 
@@ -313,16 +311,8 @@ build_allowance({expect_count, P, N}, Acc) ->
 build_allowance(_, Acc) ->
     Acc.
 
-get_max_unexpected_errors_logged() ->
-    case ets:whereis(?PATTERNS_TABLE) of
-        undefined ->
-            undefined;
-        _Tid ->
-            case ets:match(?PATTERNS_TABLE, {max_unexpected_errors_logged, '$1'}) of
-                [[N] | _] -> N;
-                [] -> undefined
-            end
-    end.
+unexpected_errors_allowed() ->
+    ets:member(?PATTERNS_TABLE, allow_unexpected_errors).
 
 %% Error collection
 

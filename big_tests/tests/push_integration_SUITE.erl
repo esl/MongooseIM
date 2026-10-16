@@ -173,7 +173,6 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    cth_error_report:max_unexpected_errors_logged(0),
     logger_ct_backend:start(),
     % 3 errors per each top-level group (from 500/503 codes in failure_cases)
     cth_error_report:expect({what, push_send_failed}, length(all()) * 3),

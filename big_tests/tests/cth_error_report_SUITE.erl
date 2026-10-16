@@ -65,6 +65,8 @@ groups() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    %% Unexpected errors are logged on purpose to test their classification
+    cth_error_report:allow_unexpected_errors(),
     mongoose_helper:inject_module(log_error_test_helper),
     Config.
 
