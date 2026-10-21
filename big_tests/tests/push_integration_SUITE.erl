@@ -1423,7 +1423,7 @@ extra_modules(_Group) ->
 push_modules(API, PubSubHost, PushMode, Group) ->
     PubSubHostOpts = virtual_pubsub_hosts_opts(PubSubHost),
     PushOpts = maps:merge(push_options(PushMode, Group), PubSubHostOpts),
-    pubsub_modules(PubSubHost) ++ event_pusher_modules(API, PushOpts).
+    pubsub_modules(PubSubHost) ++ event_pusher_modules(API, PushOpts, PubSubHost).
 
 push_options(plugins, enhanced_integration_with_sm) ->
     #{plugin_module => mod_event_pusher_push_plugin_enhanced};
@@ -1441,11 +1441,12 @@ pubsub_modules(real) ->
                    host => subhost_pattern("pubsub.@HOST@")},
     [{mod_pubsub_old, mod_config(mod_pubsub_old, PubSubOpts)}].
 
-event_pusher_modules(API, ExtraPushOpts) ->
+event_pusher_modules(API, ExtraPushOpts, PubSubHost) ->
     PushOpts = ExtraPushOpts#{backend => mongoose_helper:mnesia_or_rdbms_backend()},
     [{mod_push_service_mongoosepush, mod_config(mod_push_service_mongoosepush,
                                                 #{pool_name => mongoose_push_http,
-                                                  api_version => API})},
+                                                  api_version => API,
+                                                  async_sender => #{enabled => (PubSubHost /= real)}})},
      {mod_event_pusher, mod_config(mod_event_pusher, #{push => PushOpts})}].
 
 virtual_pubsub_hosts_opts(virtual) ->

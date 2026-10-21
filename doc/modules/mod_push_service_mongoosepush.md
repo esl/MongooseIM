@@ -78,12 +78,33 @@ The name of the pool to use (as defined in [`outgoing_pools`](../configuration/o
 
 REST API version to be used.
 
-### `modules.mod_push_service_mongoosepush.max_http_connections`
-* **Syntax:** non-negative integer
-* **Default:** `100`
-* **Example:** `max_http_connections = 100`
+### `modules.mod_push_service_mongoosepush.async_sender.enabled`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `modules.mod_push_service_mongoosepush.async_sender.enabled = false`
 
-The maximum amount of concurrent HTTP connections.
+Enables asynchronous, batched push notification delivery. When disabled, push requests are sent synchronously, which may increase message processing time.
+
+### `modules.mod_push_service_mongoosepush.async_sender.flush_interval`
+* **Syntax:** non-negative integer
+* **Default:** `2000`
+* **Example:** `modules.mod_push_service_mongoosepush.async_sender.flush_interval = 1000`
+
+How often (in milliseconds) the buffered push notifications are sent.
+
+### `modules.mod_push_service_mongoosepush.async_sender.batch_size`
+* **Syntax:** non-negative integer
+* **Default:** `30`
+* **Example:** `modules.mod_push_service_mongoosepush.async_sender.batch_size = 20`
+
+Maximum number of messages in a batch before the queue is considered full and push notifications are sent. When the buffer is full, push notifications are sent immediately and the flush timer is reset.
+
+### `modules.mod_push_service_mongoosepush.async_sender.pool_size`
+* **Syntax:** non-negative integer
+* **Default:** `4 * erlang:system_info(schedulers_online)`
+* **Example:** `modules.mod_push_service_mongoosepush.async_sender.pool_size = 32`
+
+Number of workers in the pool. Increasing the number of workers can improve throughput by allowing more messages to be processed concurrently. The optimal pool size depends on the deployment and can be fine-tuned to achieve the best performance.
 
 ## Example configuration
 
@@ -100,8 +121,35 @@ The maximum amount of concurrent HTTP connections.
 [modules.mod_push_service_mongoosepush]
   pool_name = "mongoose_push_http"
   api_version = "v3"
-  max_http_connections = 100
+
+  [modules.mod_push_service_mongoosepush.async_sender]
+    flush_interval = 2000
+    batch_size = 30
+    pool_size = 100
 ```
+
+## Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
+
+Prometheus metrics have a `host_type` label associated with these metrics.
+Since Exometer doesn't support labels, the host types, or word `global`, are part of the metric names, depending on the [`instrumentation.exometer.all_metrics_are_global`](../configuration/instrumentation.md#instrumentationexometerall_metrics_are_global) option.
+
+=== "Prometheus"
+
+    | Name | Type | Description |
+    | ---- | ---- | ----------- |
+    | `mod_push_service_mongoosepush_sent_success_count` | counter | MongoosePush HTTP notification requests completed successfully. |
+    | `mod_push_service_mongoosepush_sent_failed_count` | counter | MongoosePush HTTP notification requests that failed. |
+    | `mod_push_service_mongoosepush_sent_time` | histogram | Time spent on each MongoosePush HTTP notification request. |
+
+=== "Exometer"
+
+    | Name | Type | Description |
+    | ---- | ---- | ----------- |
+    | `[Host, mod_push_service_mongoosepush_sent, success_count]` | spiral | MongoosePush HTTP notification requests completed successfully. |
+    | `[Host, mod_push_service_mongoosepush_sent, failed_count]` | spiral | MongoosePush HTTP notification requests that failed. |
+    | `[Host, mod_push_service_mongoosepush_sent, time]` | histogram | Time spent on each MongoosePush HTTP notification request. |
 
 [XEP-0353]: https://xmpp.org/extensions/xep-0353.html
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html

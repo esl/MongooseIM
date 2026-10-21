@@ -546,9 +546,8 @@ all_modules() ->
                                       rooms_per_page => 5,
                                       rooms_per_user => 10}),
       mod_push_service_mongoosepush =>
-          #{api_version => <<"v3">>,
-            max_http_connections => 100,
-            pool_name => mongoose_push_http},
+          mod_config(mod_push_service_mongoosepush,
+                     #{pool_name => mongoose_push_http}),
       mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
       mod_stanzaid => default_mod_config(mod_stanzaid),
       mod_inbox => default_mod_config(mod_inbox),
@@ -974,7 +973,9 @@ default_mod_config(mod_pubsub_old) ->
       default_node_config => [], item_publisher => false, sync_broadcast => false,
       wpool => default_config([modules, mod_pubsub_old, wpool])};
 default_mod_config(mod_push_service_mongoosepush) ->
-    #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
+    #{pool_name => undefined,
+      api_version => <<"v3">>,
+      async_sender => default_config([modules, mod_push_service_mongoosepush, async_sender])};
 default_mod_config(mod_register) ->
     #{iqdisc => one_queue, access => all, registration_watchers => [],
       password_strength => 0, ip_access => []};
@@ -1204,6 +1205,11 @@ default_config([modules, mod_mam, async_writer]) ->
 default_config([modules, mod_muc_light, cache_affs]) ->
     #{module => internal, strategy => fifo,
       time_to_live => 2, number_of_segments => 3};
+default_config([modules, mod_push_service_mongoosepush, async_sender]) ->
+    #{enabled => true,
+      batch_size => 30,
+      flush_interval => 2000,
+      pool_size => 4 * erlang:system_info(schedulers_online)};
 default_config([modules, mod_stream_management, stale_h]) ->
     #{enabled => false,
       repeat_after => 1800,

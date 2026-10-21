@@ -258,7 +258,6 @@
 [modules.mod_push_service_mongoosepush]
   pool_name = "mongoose_push_http"
   api_version = "v3"
-  max_http_connections = 100
 
 [modules.mod_register]
   welcome_message = {subject = "Subject", body = "Body"}
