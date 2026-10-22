@@ -122,7 +122,7 @@ Determines the content of the push notification:
   `last-message-sender` is the bare room JID, `message-count` is the unread count,
   `last-message-body` is a JSON object describing the event, with the fields listed below, and `type` is `muc_light`.
   The `type` key only reaches the client in silent (data) notifications; in alert notifications the JSON becomes the visible message text,
-  so either register such devices with the `silent` publish option, set [`silent`](#modulesmod_event_pusherpushrulessilent) on the rule,
+  so either register such devices with the `silent` publish option
   or make sure the client application rewrites the notification before it is displayed (e.g. with an APNs notification service extension).
   A regular message whose body looks like this JSON is pushed by the `message` content with the sender's JID, so a client should treat
   the body as a MUC Light event only when `last-message-sender` equals its `room` field.
@@ -143,15 +143,6 @@ Determines the content of the push notification:
 
 This option is mandatory when `action` is `"push"` and cannot be specified when `action` is `"skip"`.
 If the selected content cannot be built from the stanza, the notification is **not** sent and a warning is logged, so make sure to match `conditions` with `content`.
-
-#### `modules.mod_event_pusher.push.rules.silent`
-* **Syntax:** boolean
-* **Default:** not set
-
-When set to `true`, notifications sent by this rule are published as silent (data-only) notifications,
-overriding the `silent` publish option of the recipient's push registration.
-Use it for content the application should process rather than display, such as `"muc_light"`.
-This option can be specified only when `action` is `"push"`.
 
 !!! Note "APNs topics and push content"
     MongooseIM sends JMI content only to APNs registrations whose `topic` ends in `.voip`.
@@ -185,7 +176,6 @@ For other messages with non-empty body, they are sent when the recipient is eith
 ```
 
 This example additionally notifies users added to or removed from a [MUC Light](./mod_muc_light.md) room and members of a destroyed room, while skipping the system messages received by other members and configuration changes.
-These notifications are silent, so the JSON body is handed to the application instead of being displayed.
 The `skip` rule is only needed when a later rule could match system messages; the regular message rule below does not, because their body is empty.
 
 ```toml
@@ -202,7 +192,6 @@ The `skip` rule is only needed when a later rule could match system messages; th
     ]
     action = "push"
     content = "muc_light"
-    silent = true
 
   [[modules.mod_event_pusher.push.rules]]
     conditions = [{ muc_light = "affiliations" }, { muc_light = "configuration" }]
