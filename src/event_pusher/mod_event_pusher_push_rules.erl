@@ -4,18 +4,21 @@
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include("mod_event_pusher_events.hrl").
+-include("mod_muc_light.hrl").
 
 -export([config_spec/0, push_event/4]).
 
 -export([process_rule/1]).
 
 -type event() :: #msg_event{} | #unack_msg_event{}.
--type content_source() :: message | jingle.
+-type content_source() :: message | jingle | muc_light.
 -type condition_map() :: #{event => msg | unack_msg,
                            type => chat | groupchat,
                            body => absent | empty | non_empty,
                            hint => no_store | store,
                            jingle => boolean(),
+                           muc_light => mod_event_pusher_push_content:muc_light_kind(),
+                           recipient_affected => boolean(),
                            user_status => online | offline,
                            client_state => active | inactive}.
 -type conditions() :: [condition_map()].
@@ -56,7 +59,7 @@ rule_config_spec() ->
                        ~"action" => #option{type = atom,
                                             validate = {enum, [push, skip]}},
                        ~"content" => #option{type = atom,
-                                             validate = {enum, [message, jingle]}}},
+                                             validate = {enum, [message, jingle, muc_light]}}},
              defaults = #{~"conditions" => [#{}]}, % always matches
              required = [~"action"],
              process = fun ?MODULE:process_rule/1}.
@@ -76,6 +79,10 @@ condition_config_spec() ->
                        ~"hint" => #option{type = atom,
                                           validate = {enum, [no_store, store]}},
                        ~"jingle" => #option{type = boolean},
+                       ~"muc_light" => #option{type = atom,
+                                               validate = {enum, [affiliations, configuration,
+                                                                  destroy]}},
+                       ~"recipient_affected" => #option{type = boolean},
                        ~"user_status" => #option{type = atom,
                                                   validate = {enum, [online, offline]}},
                        ~"client_state" => #option{type = atom,
@@ -137,12 +144,50 @@ check_condition(hint, store, Event) ->
 check_condition(jingle, Expected, Event) ->
     Packet = packet(Event),
     Expected =:= (exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) =/= undefined);
+check_condition(muc_light, Expected, Event) ->
+    Expected =:= mod_event_pusher_push_content:muc_light_kind(packet(Event));
+check_condition(recipient_affected, Expected, Event) ->
+    Expected =:= recipient_affected(Event);
 check_condition(_Condition, _Expected, _Event) ->
     false.
 
 -spec packet(event()) -> exml:element().
 packet(#msg_event{packet = Packet}) -> Packet;
 packet(#unack_msg_event{packet = Packet}) -> Packet.
+
+-spec recipient(event()) -> jid:jid().
+recipient(#msg_event{to = To}) -> To;
+recipient(#unack_msg_event{to = To}) -> To.
+
+%% True when the MUC Light affiliation change lists the recipient: newcomer, leaver, kicked,
+%% own affiliation changed, or room destroyed (every member is listed with 'none').
+-spec recipient_affected(event()) -> boolean().
+recipient_affected(Event) ->
+    Packet = packet(Event),
+    case mod_event_pusher_push_content:muc_light_kind(Packet) of
+        undefined ->
+            false;
+        _Kind ->
+            recipient_listed(recipient(Event), Packet)
+    end.
+
+-spec recipient_listed(jid:jid(), exml:element()) -> boolean().
+recipient_listed(Recipient, Packet) ->
+    case exml_query:subelement_with_ns(Packet, ?NS_MUC_LIGHT_AFFILIATIONS) of
+        undefined ->
+            false;
+        AffEl ->
+            RecipientLUS = jid:to_lus(Recipient),
+            lists:any(fun(UserEl) -> user_lus(UserEl) =:= RecipientLUS end,
+                      exml_query:subelements(AffEl, ~"user"))
+    end.
+
+-spec user_lus(exml:element()) -> jid:simple_bare_jid() | error.
+user_lus(UserEl) ->
+    case jid:from_binary(exml_query:cdata(UserEl)) of
+        error -> error;
+        Jid -> jid:to_lus(Jid)
+    end.
 
 -spec body_state(exml:element()) -> absent | empty | non_empty.
 body_state(Packet) ->

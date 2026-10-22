@@ -43,6 +43,12 @@ with the parameters defined in [XEP-0357: Push Notifications][XEP-0357]:
 | `data.last-message-sender` | Message sender JID | Carries the sender JID as custom data |
 | `data.message-count` | Unread message count | Carries the unread message count as custom data |
 
+Notifications for [MUC Light](./mod_muc_light.md) system messages, triggered by the [`content = "muc_light"`](./mod_event_pusher_push.md#modulesmod_event_pusherpushrulescontent) rule,
+use the same parameters: the sender is the bare room JID and the message body is a JSON object describing the event, as documented for the rule.
+Silent notifications additionally carry `data.type` set to `muc_light`.
+In alert notifications the JSON is the visible text, so such rules usually set [`silent`](./mod_event_pusher_push.md#modulesmod_event_pusherpushrulessilent),
+which publishes the notification as silent regardless of the registration's `silent` option.
+
 For [Jingle Message Initiation][XEP-0353] (JMI) notifications triggered by the [`content = "jingle"`](./mod_event_pusher_push.md#modulesmod_event_pusherpushrulescontent) rule, regardless of the `silent` option,
 MongooseIM sends requests containing `data` and no `alert`, with the following parameters:
 
