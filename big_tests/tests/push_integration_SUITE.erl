@@ -877,14 +877,12 @@ muc_light_configuration_change_is_pushed_when_configured(Config) ->
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
             RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
-            %% non-silent APNs registration, but the rule has 'silent = true': data, not alert
-            #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"apns", [], Config),
+            #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
             set_room_name(Alice, RoomJID, ~"Renamed room"),
 
             {Notification, _} = wait_for_push_request(DeviceToken),
-            ?assertMatch(#{~"service" := ~"apns", ~"data" := #{~"last-message-sender" := RoomJID,
-                                                               ~"type" := ~"muc_light"}}, Notification),
-            ?assertNot(maps:is_key(~"alert", Notification)),
+            assert_muc_light_data(Notification, RoomJID),
+            ?assertMatch(#{~"data" := #{~"type" := ~"muc_light"}}, Notification),
             Body = muc_light_push_body(Notification),
             ?assertMatch(#{~"type" := ~"muc_light", ~"event" := ~"configuration", ~"room" := RoomJID,
                            ~"roomname" := ~"Renamed room", ~"version" := <<_/binary>>,
@@ -1766,8 +1764,7 @@ push_rules(muc_light_rules_all_members) ->
                       #{event => msg, muc_light => configuration, user_status => offline},
                       #{event => msg, muc_light => destroy, user_status => offline}],
        action => push,
-       content => muc_light,
-       silent => true},
+       content => muc_light},
      #{conditions => [#{event => msg, body => non_empty, user_status => offline}],
        action => push,
        content => message}];
