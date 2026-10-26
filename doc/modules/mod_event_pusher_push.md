@@ -135,11 +135,16 @@ Determines the content of the push notification:
     | `roomname` | affiliations, configuration | the `roomname` field of the room configuration, if the room still exists and the field is configured |
     | `version` | affiliations, configuration | the new room version, if the message contains it |
     | `prev_version` | affiliations, configuration | the previous room version, if the message contains it |
-    | `users` | affiliations | array of `{"jid": "...", "affiliation": "owner" | "member" | "none"}` objects listed in the message: only the recipient for users added to or removed from the room, all changed users for the remaining members |
-    | `config` | configuration | object with the changed configuration fields |
+    | `users` | affiliations | array of `{"jid": "...", "affiliation": "owner" | "member" | "none"}` objects listed in the message: only the recipient for users added to or removed from the room, all changed users for the remaining members, at most 20 entries |
+    | `users_truncated` | affiliations | `true` when the message listed more than 20 users, so `users` is incomplete |
+    | `changed` | configuration | array with the names of the changed configuration fields |
 
     For example, a user added to a room while offline receives
     `{"type":"muc_light","event":"affiliations","room":"room@muclight.example.com","roomname":"Project","version":"1","users":[{"jid":"bob@example.com","affiliation":"member"}]}`.
+
+    The body carries the names of changed configuration fields rather than their values, and at most 20 users,
+    to stay within the payload size limit of the push services (4 KB for both APNs and FCM).
+    A client that needs the details should fetch the room configuration or affiliations.
 
 This option is mandatory when `action` is `"push"` and cannot be specified when `action` is `"skip"`.
 If the selected content cannot be built from the stanza, the notification is **not** sent and a warning is logged, so make sure to match `conditions` with `content`.

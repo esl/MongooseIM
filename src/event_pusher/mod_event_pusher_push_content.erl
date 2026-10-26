@@ -12,6 +12,8 @@
 -type room() :: #{bin := binary(), lus := jid:simple_bare_jid()}.
 -export_type([content/0, muc_light_kind/0]).
 
+-define(MAX_PUSHED_USERS, 20).
+
 -spec build(message | jingle | muc_light, mongoose_acc:t()) -> result().
 build(message, Acc) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
@@ -128,19 +130,28 @@ muc_light_fields(destroy, _Room, _Packet) ->
     []; % the room is already gone, nothing to look up
 muc_light_fields(affiliations, Room, Packet) ->
     AffEl = exml_query:subelement_with_ns(Packet, ?NS_MUC_LIGHT_AFFILIATIONS),
-    Users = [{[{~"jid", exml_query:cdata(UserEl)},
-               {~"affiliation", exml_query:attr(UserEl, ~"affiliation")}]}
-             || UserEl <- exml_query:subelements(AffEl, ~"user")],
-    room_name(Room) ++ versions(AffEl) ++ [{~"users", Users}];
+    room_name(Room) ++ versions(AffEl) ++ users(AffEl);
 muc_light_fields(configuration, Room, Packet) ->
     ConfigEl = exml_query:subelement_with_ns(Packet, ?NS_MUC_LIGHT_CONFIGURATION),
-    Config = [{Name, exml_query:cdata(El)} || #xmlel{name = Name} = El <- ConfigEl#xmlel.children,
-                                             Name =/= ~"version", Name =/= ~"prev-version"],
-    RoomName = case lists:keyfind(~"roomname", 1, Config) of
-                   {_, Name} -> [{~"roomname", Name}]; % renamed: the stanza has the new name
-                   false -> room_name(Room)
+    Changed = [Name || #xmlel{name = Name} <- ConfigEl#xmlel.children,
+                       Name =/= ~"version", Name =/= ~"prev-version"],
+    RoomName = case exml_query:path(ConfigEl, [{element, ~"roomname"}, cdata]) of
+                   undefined -> room_name(Room);
+                   Name -> [{~"roomname", Name}] % renamed: the stanza has the new name
                end,
-    RoomName ++ versions(ConfigEl) ++ [{~"config", {Config}}].
+    RoomName ++ versions(ConfigEl) ++ [{~"changed", Changed}].
+
+%% Push services reject payloads over 4 KB; one request may change any number of affiliations.
+-spec users(exml:element()) -> [{binary(), jiffy:json_value()}].
+users(AffEl) ->
+    UserEls = exml_query:subelements(AffEl, ~"user"),
+    {Pushed, Dropped} = case length(UserEls) > ?MAX_PUSHED_USERS of
+                            true -> lists:split(?MAX_PUSHED_USERS, UserEls);
+                            false -> {UserEls, []}
+                        end,
+    Users = [{[{~"jid", exml_query:cdata(UserEl)},
+               {~"affiliation", exml_query:attr(UserEl, ~"affiliation")}]} || UserEl <- Pushed],
+    [{~"users", Users} | [{~"users_truncated", true} || Dropped =/= []]].
 
 %% The room may live on another host type than the recipient, or on another server.
 -spec room_name(room()) -> [{binary(), binary()}].

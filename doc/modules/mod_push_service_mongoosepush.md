@@ -47,6 +47,9 @@ Notifications for [MUC Light](./mod_muc_light.md) system messages, triggered by 
 use the same parameters: the sender is the bare room JID and the message body is a JSON object describing the event, as documented for the rule.
 Silent notifications additionally carry `data.type` set to `muc_light`; in alert notifications the JSON is the visible text.
 
+Push services reject notifications over their payload size limit (4 KB for APNs and FCM), and MongooseIM does not truncate the message body.
+A rejected notification is dropped and logged as `push_send_failed`, while the device registration is kept.
+
 For [Jingle Message Initiation][XEP-0353] (JMI) notifications triggered by the [`content = "jingle"`](./mod_event_pusher_push.md#modulesmod_event_pusherpushrulescontent) rule, regardless of the `silent` option,
 MongooseIM sends requests containing `data` and no `alert`, with the following parameters:
 

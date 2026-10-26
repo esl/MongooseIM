@@ -81,6 +81,7 @@ groups() ->
                                 muc_light_unacknowledged_system_message_is_pushed,
                                 muc_light_forged_system_message_is_pushed_as_regular_message]},
          {muc_light_rules_all_members, [], [muc_light_remaining_member_is_pushed_when_configured,
+                                            muc_light_users_list_is_truncated_when_configured,
                                             muc_light_configuration_change_is_pushed_when_configured]},
          {type_condition, [], [only_chat_messages_are_pushed,
                                only_unacknowledged_chat_messages_are_pushed]},
@@ -869,7 +870,30 @@ muc_light_remaining_member_is_pushed_when_configured(Config) ->
             Body = muc_light_push_body(Notification),
             ?assertMatch(#{~"event" := ~"affiliations", ~"room" := RoomJID, ~"roomname" := <<_/binary>>,
                            ~"version" := <<_/binary>>, ~"prev_version" := <<_/binary>>}, Body),
-            ?assertEqual([#{~"jid" => bare_jid(Kate), ~"affiliation" => ~"none"}], maps:get(~"users", Body))
+            ?assertEqual([#{~"jid" => bare_jid(Kate), ~"affiliation" => ~"none"}], maps:get(~"users", Body)),
+            ?assertNot(maps:is_key(~"users_truncated", Body))
+        end).
+
+%% Push services reject payloads over 4 KB, so the users list is capped at 20 entries.
+muc_light_users_list_is_truncated_when_configured(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
+            #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
+            Domain = ct:get_config({hosts, mim, domain}),
+            Newcomers = [{<<"newcomer", (integer_to_binary(N))/binary, "@", Domain/binary>>, member}
+                         || N <- lists:seq(1, 21)],
+            set_affiliations(Alice, RoomJID, Newcomers, [Alice]),
+
+            {Notification, _} = wait_for_push_request(DeviceToken),
+            assert_muc_light_data(Notification, RoomJID),
+            Body = muc_light_push_body(Notification),
+            ?assertMatch(#{~"event" := ~"affiliations", ~"room" := RoomJID, ~"users_truncated" := true}, Body),
+            Users = maps:get(~"users", Body),
+            ?assertEqual(20, length(Users)),
+            ?assertEqual(20, length(lists:usort(Users))),
+            [?assert(lists:member({JID, member}, Newcomers)) || #{~"jid" := JID, ~"affiliation" := ~"member"} <- Users]
         end).
 
 muc_light_configuration_change_is_pushed_when_configured(Config) ->
@@ -886,8 +910,7 @@ muc_light_configuration_change_is_pushed_when_configured(Config) ->
             Body = muc_light_push_body(Notification),
             ?assertMatch(#{~"type" := ~"muc_light", ~"event" := ~"configuration", ~"room" := RoomJID,
                            ~"roomname" := ~"Renamed room", ~"version" := <<_/binary>>,
-                           ~"prev_version" := <<_/binary>>, ~"config" := #{~"roomname" := ~"Renamed room"}},
-                         Body),
+                           ~"prev_version" := <<_/binary>>, ~"changed" := [~"roomname"]}, Body),
             ?assertNot(maps:is_key(~"users", Body))
         end).
 
@@ -962,7 +985,10 @@ set_affiliations(Owner, RoomJID, AffUsers, OnlineMembers) ->
 
 aff_user_els(AffUsers) ->
     [#xmlel{name = ~"user", attrs = #{~"affiliation" => atom_to_binary(Aff)},
-            children = [#xmlcdata{content = bare_jid(User)}]} || {User, Aff} <- AffUsers].
+            children = [#xmlcdata{content = user_jid(User)}]} || {User, Aff} <- AffUsers].
+
+user_jid(JID) when is_binary(JID) -> JID;
+user_jid(Client) -> bare_jid(Client).
 
 set_room_name(Owner, RoomJID, Name) ->
     NameEl = #xmlel{name = ~"roomname", children = [#xmlcdata{content = Name}]},
