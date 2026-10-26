@@ -60,7 +60,8 @@ rule_groups() ->
      {group, content_build_failure},
      {group, type_condition},
      {group, muc_light_rules},
-     {group, muc_light_rules_all_members}].
+     {group, muc_light_rules_all_members},
+     {group, muc_light_rules_custom_schema}].
 
 groups() ->
     G = [
@@ -79,10 +80,14 @@ groups() ->
                                 muc_light_configuration_change_is_not_pushed,
                                 muc_light_destroy_is_pushed,
                                 muc_light_unacknowledged_system_message_is_pushed,
-                                muc_light_forged_system_message_is_pushed_as_regular_message]},
+                                muc_light_forged_system_message_is_pushed_as_regular_message,
+                                muc_light_remote_room_system_message_is_pushed]},
          {muc_light_rules_all_members, [], [muc_light_remaining_member_is_pushed_when_configured,
                                             muc_light_users_list_is_truncated_when_configured,
-                                            muc_light_configuration_change_is_pushed_when_configured]},
+                                            muc_light_configuration_change_is_pushed_when_configured,
+                                            muc_light_subject_change_is_pushed_when_configured,
+                                            muc_light_member_message_is_pushed_when_configured]},
+         {muc_light_rules_custom_schema, [], [muc_light_newcomer_is_pushed_without_roomname]},
          {type_condition, [], [only_chat_messages_are_pushed,
                                only_unacknowledged_chat_messages_are_pushed]},
          {integration_with_sm_and_offline_storage,[],
@@ -836,7 +841,7 @@ muc_light_configuration_change_is_not_pushed(Config) ->
         fun(Alice, Bob) ->
             RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
             #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
-            set_room_name(Alice, RoomJID, ~"Renamed room"),
+            set_room_config(Alice, RoomJID, [{~"roomname", ~"Renamed room"}]),
             ?assertExit({test_case_failed, _}, wait_for_push_request(DeviceToken, 500))
         end).
 
@@ -846,9 +851,7 @@ muc_light_destroy_is_pushed(Config) ->
         fun(Alice, Bob) ->
             RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
             #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
-            escalus:send(Alice, escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), RoomJID)),
-            escalus:assert(is_groupchat_message, escalus:wait_for_stanza(Alice)),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            destroy_room(Alice, RoomJID),
 
             {Notification, _} = wait_for_push_request(DeviceToken),
             assert_muc_light_data(Notification, RoomJID),
@@ -902,7 +905,7 @@ muc_light_configuration_change_is_pushed_when_configured(Config) ->
         fun(Alice, Bob) ->
             RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
             #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
-            set_room_name(Alice, RoomJID, ~"Renamed room"),
+            set_room_config(Alice, RoomJID, [{~"roomname", ~"Renamed room"}]),
 
             {Notification, _} = wait_for_push_request(DeviceToken),
             assert_muc_light_data(Notification, RoomJID),
@@ -912,6 +915,57 @@ muc_light_configuration_change_is_pushed_when_configured(Config) ->
                            ~"roomname" := ~"Renamed room", ~"version" := <<_/binary>>,
                            ~"prev_version" := <<_/binary>>, ~"changed" := [~"roomname"]}, Body),
             ?assertNot(maps:is_key(~"users", Body))
+        end).
+
+muc_light_subject_change_is_pushed_when_configured(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
+            #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
+            set_room_config(Alice, RoomJID, [{~"subject", ~"New subject"}]),
+
+            {Notification, _} = wait_for_push_request(DeviceToken),
+            assert_muc_light_data(Notification, RoomJID),
+            Body = muc_light_push_body(Notification),
+            ?assertMatch(#{~"event" := ~"configuration", ~"room" := RoomJID, ~"roomname" := <<_/binary>>,
+                           ~"changed" := [~"subject"]}, Body),
+            ?assertNotEqual(~"New subject", maps:get(~"roomname", Body))
+        end).
+
+%% recipient_affected = false also holds for messages that are not system messages
+muc_light_member_message_is_pushed_when_configured(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
+            #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
+            escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, ~"hello")),
+            escalus:assert(is_groupchat_message, [~"hello"], escalus:wait_for_stanza(Alice)),
+
+            {Notification, _} = wait_for_push_request(DeviceToken),
+            SenderJID = <<RoomJID/binary, "/", (bare_jid(Alice))/binary>>,
+            ?assertMatch(#{~"data" := #{~"last-message-sender" := SenderJID, ~"last-message-body" := ~"hello"}},
+                         Notification),
+            ?assertNot(maps:is_key(~"type", maps:get(~"data", Notification)))
+        end).
+
+muc_light_newcomer_is_pushed_without_roomname(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
+            RoomName = fresh_room_name(),
+            escalus:send(Alice, muc_light_helper:stanza_create_room(RoomName, [], [{Bob, member}])),
+            escalus:assert(is_groupchat_message, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+            {Notification, _} = wait_for_push_request(DeviceToken),
+            RoomJID = muc_light_helper:room_bin_jid(RoomName),
+            assert_muc_light_data(Notification, RoomJID),
+            Body = muc_light_push_body(Notification),
+            ?assertMatch(#{~"event" := ~"affiliations", ~"room" := RoomJID, ~"version" := <<_/binary>>}, Body),
+            ?assertNot(maps:is_key(~"roomname", Body))
         end).
 
 muc_light_unacknowledged_system_message_is_pushed(Config) ->
@@ -936,6 +990,8 @@ muc_light_unacknowledged_system_message_is_pushed(Config) ->
 
     set_affiliations(Alice, RoomJID, [{Bob, none}], [Alice]),
     escalus:assert(is_groupchat_message, escalus_connection:get_stanza(Bob, msg)),
+    %% the room may be gone by the time the unacknowledged message is pushed
+    destroy_room(Alice, RoomJID),
 
     C2SPid = mongoose_helper:get_session_pid(Bob, distributed_helper:mim()),
     escalus_connection:kill(Bob),
@@ -944,6 +1000,7 @@ muc_light_unacknowledged_system_message_is_pushed(Config) ->
     Body = muc_light_push_body(Notification),
     ?assertMatch(#{~"event" := ~"affiliations", ~"room" := RoomJID}, Body),
     ?assertEqual([#{~"jid" => bare_jid(Bob), ~"affiliation" => ~"none"}], maps:get(~"users", Body)),
+    ?assertNot(maps:is_key(~"roomname", Body)),
 
     rpc(?RPC_SPEC, sys, terminate, [C2SPid, normal]),
     ?assertExit({test_case_failed, _}, wait_for_push_request(DeviceToken, 500)),
@@ -973,6 +1030,32 @@ muc_light_forged_system_message_is_pushed_as_regular_message(Config) ->
             ?assertNot(maps:is_key(~"type", maps:get(~"data", Notification)))
         end).
 
+%% A room on another server is not in the local database and nothing validates what it sends.
+muc_light_remote_room_system_message_is_pushed(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            #{device_token := DeviceToken} = enable_push_and_become_unavailable(Bob, ~"fcm", silent(), Config),
+            RoomJID = ~"room@muclight.remote.example",
+            AffEl = #xmlel{name = ~"x", attrs = #{~"xmlns" => ?NS_MUC_LIGHT_AFFILIATIONS},
+                           children = aff_user_els([{~"not a jid@@", member}, {Bob, member}])},
+            route_from_room(RoomJID, Bob, [AffEl]),
+
+            {Notification, _} = wait_for_push_request(DeviceToken),
+            assert_muc_light_data(Notification, RoomJID),
+            ?assertEqual(#{~"type" => ~"muc_light", ~"event" => ~"affiliations", ~"room" => RoomJID,
+                           ~"users" => [#{~"jid" => ~"not a jid@@", ~"affiliation" => ~"member"},
+                                        #{~"jid" => bare_jid(Bob), ~"affiliation" => ~"member"}]},
+                         muc_light_push_body(Notification)),
+
+            %% without a MUC Light element it is an ordinary groupchat message
+            route_from_room(RoomJID, Bob, [#xmlel{name = ~"body", children = [#xmlcdata{content = ~"hello"}]}]),
+            {Notification2, _} = wait_for_push_request(DeviceToken),
+            ?assertMatch(#{~"data" := #{~"last-message-sender" := RoomJID, ~"last-message-body" := ~"hello"}},
+                         Notification2),
+            ?assertNot(maps:is_key(~"type", maps:get(~"data", Notification2)))
+        end).
+
 silent() ->
     [{~"silent", ~"true"}].
 
@@ -990,11 +1073,24 @@ aff_user_els(AffUsers) ->
 user_jid(JID) when is_binary(JID) -> JID;
 user_jid(Client) -> bare_jid(Client).
 
-set_room_name(Owner, RoomJID, Name) ->
-    NameEl = #xmlel{name = ~"roomname", children = [#xmlcdata{content = Name}]},
-    escalus:send(Owner, escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_CONFIGURATION, [NameEl]), RoomJID)),
+set_room_config(Owner, RoomJID, Fields) ->
+    Els = [#xmlel{name = Name, children = [#xmlcdata{content = Value}]} || {Name, Value} <- Fields],
+    escalus:send(Owner, escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_CONFIGURATION, Els), RoomJID)),
     escalus:assert(is_groupchat_message, escalus:wait_for_stanza(Owner)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Owner)).
+
+destroy_room(Owner, RoomJID) ->
+    escalus:send(Owner, escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), RoomJID)),
+    escalus:assert(is_groupchat_message, escalus:wait_for_stanza(Owner)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Owner)).
+
+%% Delivers a groupchat message from a bare room JID the way a stanza from another server arrives.
+route_from_room(RoomJID, Client, Children) ->
+    From = rpc(?RPC_SPEC, jid, from_binary, [RoomJID]),
+    To = rpc(?RPC_SPEC, jid, from_binary, [bare_jid(Client)]),
+    Packet = #xmlel{name = ~"message", children = Children,
+                    attrs = #{~"type" => ~"groupchat", ~"from" => RoomJID, ~"to" => bare_jid(Client)}},
+    rpc(?RPC_SPEC, ejabberd_sm, route, [From, To, Packet]).
 
 assert_muc_light_data(Notification, RoomJID) ->
     ?assertMatch(#{~"service" := ~"fcm",
@@ -1669,6 +1765,10 @@ extra_modules(muc_light_rules) ->
       mod_config(mod_stream_management, #{ack_freq => never, backend => MemBackend})}];
 extra_modules(muc_light_rules_all_members) ->
     [{mod_muc_light, muc_light_opts()}];
+extra_modules(muc_light_rules_custom_schema) ->
+    Schema = [{~"background", ~"white", background, binary}], % no roomname
+    [{mod_muc_light, mod_config(mod_muc_light, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                                 config_schema => Schema})}];
 extra_modules(type_condition) ->
     MemBackend = ct_helper:get_internal_database(),
     [{mod_muc_light, muc_light_opts()},
@@ -1785,13 +1885,16 @@ push_rules(muc_light_rules) ->
                       #{event => msg, user_status => online, client_state => inactive}],
        action => push,
        content => message}];
+push_rules(muc_light_rules_custom_schema) ->
+    push_rules(muc_light_rules);
 push_rules(muc_light_rules_all_members) ->
     [#{conditions => [#{event => msg, muc_light => affiliations, user_status => offline},
-                      #{event => msg, muc_light => configuration, user_status => offline},
+                      #{event => msg, muc_light => configuration, recipient_affected => false,
+                        user_status => offline},
                       #{event => msg, muc_light => destroy, user_status => offline}],
        action => push,
        content => muc_light},
-     #{conditions => [#{event => msg, body => non_empty, user_status => offline}],
+     #{conditions => [#{event => msg, body => non_empty, recipient_affected => false, user_status => offline}],
        action => push,
        content => message}];
 push_rules(type_condition) ->
