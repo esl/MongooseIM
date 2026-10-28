@@ -28,6 +28,7 @@ generic_tests() ->
      check_password_fails_for_correct_token_but_wrong_username,
      authorize,
      does_user_exist,
+     remove_user_returns_ok,
      supported_sasl_mechanisms
     ].
 
@@ -106,6 +107,9 @@ authorize(_C) ->
 
 does_user_exist(_Config) ->
     true = ejabberd_auth_jwt:does_user_exist(?HOST_TYPE, <<"madhatter">>, ?DOMAIN).
+
+remove_user_returns_ok(_Config) ->
+    ok = ejabberd_auth_jwt:remove_user(?HOST_TYPE, <<"alice">>, ?DOMAIN).
 
 supported_sasl_mechanisms(_C) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
