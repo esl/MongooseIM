@@ -259,6 +259,11 @@
   pool_name = "mongoose_push_http"
   api_version = "v3"
 
+  [modules.mod_push_service_mongoosepush.async_sender]
+    flush_interval = 5000
+    batch_size = 100
+    pool_size = 32
+
 [modules.mod_register]
   welcome_message = {subject = "Subject", body = "Body"}
   access = "all"

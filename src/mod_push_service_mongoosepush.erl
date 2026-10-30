@@ -43,22 +43,22 @@
 
 -type task() :: {[mod_event_pusher_push_content:content()],
                  mod_event_pusher_push:form(),
-                 fun((ok | {error, term()}) -> ok)}.
+                 mod_event_pusher_push:disable_fun()}.
 
 %%--------------------------------------------------------------------
 %% Module callbacks
 %%--------------------------------------------------------------------
 
 -spec start(Host :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> any().
-start(HostType, #{async_sender := SenderOpts}) ->
+start(HostType, Opts) ->
     ?LOG_INFO(#{what => push_service_starting, host_type => HostType}),
-    maybe_start_pool(HostType, SenderOpts),
+    maybe_start_pool(HostType, Opts),
     %% Hooks
     gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec maybe_start_pool(mongooseim:host_type(), gen_mod:module_opts()) -> term().
-maybe_start_pool(HostType, #{enabled := true} = SenderOpts) ->
+maybe_start_pool(HostType, #{async_sender := SenderOpts}) ->
     PoolOpts = pool_opts(SenderOpts, #{host_type => HostType}),
     {ok, _} = mongoose_async_pools:start_pool(HostType, mongoosepush_service, PoolOpts);
 maybe_start_pool(_HostType, _Opts) ->
@@ -101,15 +101,12 @@ config_spec() ->
 
 async_sender_config_spec() ->
     #section{
-        items = #{<<"enabled">> => #option{type = boolean},
-                  <<"flush_interval">> => #option{type = integer, validate = non_negative},
-                  <<"batch_size">> => #option{type = integer, validate = non_negative},
-                  <<"pool_size">> => #option{type = integer, validate = non_negative}},
-        defaults = #{<<"enabled">> => true,
-                     <<"flush_interval">> => 2000,
+        items = #{<<"flush_interval">> => #option{type = integer, validate = positive},
+                  <<"batch_size">> => #option{type = integer, validate = positive},
+                  <<"pool_size">> => #option{type = integer, validate = positive}},
+        defaults = #{<<"flush_interval">> => 2000,
                      <<"batch_size">> => 30,
-                     <<"pool_size">> => 4 * erlang:system_info(schedulers_online)},
-        include = always
+                     <<"pool_size">> => 4 * erlang:system_info(schedulers_online)}
     }.
 
 -spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
@@ -137,7 +134,7 @@ hooks(HostType) ->
     Acc :: ok | mongoose_acc:t(),
     Params :: #{notification_forms := [mod_event_pusher_push_content:content()],
                 options := mod_event_pusher_push:form(),
-                disable_fun := fun((ok | {error, term()}) -> ok)},
+                disable_fun := mod_event_pusher_push:disable_fun()},
     Extra :: gen_hook:extra().
 push_notifications(AccIn,
                    #{notification_forms := Notifications, options := Options, disable_fun := DisableFun},
@@ -284,4 +281,4 @@ config_metrics(Host) ->
 
 -spec async_sender(mongooseim:host_type()) -> boolean().
 async_sender(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, [async_sender, enabled]).
+    gen_mod:lookup_module_opt(HostType, ?MODULE, [async_sender]) /= {error, not_found}.

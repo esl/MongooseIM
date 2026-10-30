@@ -78,10 +78,10 @@ The name of the pool to use (as defined in [`outgoing_pools`](../configuration/o
 
 REST API version to be used.
 
-### `modules.mod_push_service_mongoosepush.async_sender.enabled`
-* **Syntax:** boolean
-* **Default:** `true`
-* **Example:** `modules.mod_push_service_mongoosepush.async_sender.enabled = false`
+### `modules.mod_push_service_mongoosepush.async_sender`
+* **Syntax:** TOML section
+* **Default:** not declared
+* **Example:** `[modules.mod_push_service_mongoosepush.async_sender]`
 
 Enables asynchronous, batched push notification delivery. When disabled, push requests are sent synchronously, which may increase message processing time.
 
@@ -123,8 +123,8 @@ Number of workers in the pool. Increasing the number of workers can improve thro
   api_version = "v3"
 
   [modules.mod_push_service_mongoosepush.async_sender]
-    flush_interval = 2000
-    batch_size = 30
+    flush_interval = 5000
+    batch_size = 50
     pool_size = 100
 ```
 

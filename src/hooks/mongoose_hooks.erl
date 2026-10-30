@@ -329,7 +329,7 @@ get_user_status(HostType, Sessions) ->
     Acc :: ok | mongoose_acc:t(),
     NotificationForms :: [#{binary() => binary()}],
     Options :: #{binary() => binary()},
-    DisableFun :: fun((Result) -> ok),
+    DisableFun :: mod_event_pusher_push:disable_fun(),
     Result :: ok | {error, any()}.
 push_notifications(HostType, Acc, NotificationForms, Options, DisableFun) ->
     Params = #{options => Options, notification_forms => NotificationForms, disable_fun => DisableFun},

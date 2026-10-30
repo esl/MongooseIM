@@ -436,8 +436,7 @@ required_modules(APIVersion) ->
     })},
      {mod_push_service_mongoosepush,
       config_parser_helper:mod_config(mod_push_service_mongoosepush, #{pool_name => mongoose_push_http,
-                                                                       api_version => APIVersion,
-                                                                       async_sender => #{enabled => false}})
+                                                                       api_version => APIVersion})
      }].
 
 restart_modules(Config, APIVersion) ->
