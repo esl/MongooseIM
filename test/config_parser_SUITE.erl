@@ -2696,11 +2696,17 @@ mod_push_service_mongoosepush(_Config) ->
           T(#{<<"pool_name">> => <<"test_pool">>})),
     ?cfgh(P ++ [api_version], <<"v2">>,
           T(#{<<"api_version">> => <<"v2">>})),
-    ?cfgh(P ++ [max_http_connections], 999,
-          T(#{<<"max_http_connections">> => 999})),
+    ?cfgh(P ++ [async_sender, flush_interval], 100,
+          T(#{<<"async_sender">> => #{<<"flush_interval">> => 100}})),
+    ?cfgh(P ++ [async_sender, batch_size], 10,
+          T(#{<<"async_sender">> => #{<<"batch_size">> => 10}})),
+    ?cfgh(P ++ [async_sender, pool_size], 2,
+          T(#{<<"async_sender">> => #{<<"pool_size">> => 2}})),
     ?errh(T(#{<<"pool_name">> => 1})),
     ?errh(T(#{<<"api_version">> => <<"v4">>})),
-    ?errh(T(#{<<"max_http_connections">> => -1})).
+    ?errh(T(#{<<"async_sender">> => #{<<"flush_interval">> => 0}})),
+    ?errh(T(#{<<"async_sender">> => #{<<"batch_size">> => 0}})),
+    ?errh(T(#{<<"async_sender">> => #{<<"pool_size">> => 0}})).
 
 mod_register(_Config) ->
     check_module_defaults(mod_register),

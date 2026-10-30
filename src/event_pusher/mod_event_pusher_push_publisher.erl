@@ -64,12 +64,13 @@ publish_via_hook(Acc0, HostType, To, {PubsubJID, Node, Form}, PushPayload) ->
     %% Acc is ignored by mod_push_service_mongoosepush, added here only for
     %% traceability purposes and push_SUITE code unification
     Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
-    case mongoose_hooks:push_notifications(HostType, Acc, [PushPayload], Form) of
-        {error, device_not_registered} ->
-            %% We disable the push node in case the error type is device_not_registered
-            mod_event_pusher_push:disable_node(HostType, To, PubsubJID, Node);
-        _ -> ok
-    end.
+    DisableFun = fun({error, device_not_registered}) ->
+                     %% We disable the push node in case the error type is device_not_registered
+                     mod_event_pusher_push:disable_node(HostType, To, PubsubJID, Node);
+                    (_Result) ->
+                     ok
+                 end,
+    mongoose_hooks:push_notifications(HostType, Acc, [PushPayload], Form, DisableFun).
 
 -spec publish_via_pubsub(mongooseim:host_type(), To :: jid:jid(),
                          Service :: mod_event_pusher_push:publish_service(),

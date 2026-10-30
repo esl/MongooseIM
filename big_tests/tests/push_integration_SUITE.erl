@@ -63,8 +63,8 @@ groups() ->
     G = [
          {pubsub_ful, [], basic_groups()},
          {pubsub_ful_with_rules, [], basic_groups() ++ rule_groups()},
-         {pubsub_less, [], basic_groups()},
-         {pubsub_less_with_rules, [], basic_groups() ++ rule_groups()},
+         {pubsub_less, [], basic_groups() ++ async_cases()},
+         {pubsub_less_with_rules, [], basic_groups() ++ rule_groups() ++ async_cases()},
          {content_build_failure, [], [missing_message_content_is_not_pushed,
                                       missing_jingle_element_is_not_pushed,
                                       invalid_jingle_element_is_not_pushed]},
@@ -159,6 +159,13 @@ groups() ->
         ],
     G.
 
+async_cases() ->
+    [
+     async_pools_batch_flush,
+     async_pools_timed_flush,
+     async_pool_queue_lengths_are_updated
+    ].
+
 failure_cases() ->
     [
      no_push_notification_for_expired_device,
@@ -179,6 +186,9 @@ init_per_suite(Config) ->
     cth_error_report:expect({what, push_send_failed}, length(all()) * 3),
     try mongoose_push_mock:stop() catch _:_ -> ok end,
     mongoose_push_mock:start(Config),
+    Config1 = instrument_helper:ensure_frequent_probes(Config),
+    instrument_helper:start(instrument_helper:declared_events([mongoose_async_pools],
+                                                              [host_type(), mongoosepush_service])),
     Port = mongoose_push_mock:port(),
     PoolOpts = #{strategy => available_worker, workers => 20},
     ConnOpts = #{host => "https://localhost:" ++ integer_to_list(Port), request_timeout => 2000,
@@ -186,10 +196,12 @@ init_per_suite(Config) ->
     Pool = config([outgoing_pools, http, mongoose_push_http],
                   #{opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools, [[Pool]]),
-    ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
+    ConfigWithModules = dynamic_modules:save_modules(host_type(), Config1),
     escalus:init_per_suite(ConfigWithModules).
 
 end_per_suite(Config) ->
+    instrument_helper:stop(),
+    instrument_helper:ensure_frequent_probes(Config),
     logger_ct_backend:stop(),
     escalus_fresh:clean(),
     rpc(?RPC_SPEC, mongoose_wpool, stop, [http, global, mongoose_push_http]),
@@ -232,9 +244,17 @@ end_per_group(disco, Config) ->
 end_per_group(_, Config) ->
     dynamic_modules:restore_modules(Config).
 
-init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
-    init_modules(disco, Config),
-    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(CaseName, Config) when CaseName == push_notifications_listed_disco_when_available;
+                                         CaseName == async_pools_batch_flush;
+                                         CaseName == async_pools_timed_flush ->
+    Config1 = init_modules(disco, Config),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(async_pool_queue_lengths_are_updated = CaseName, Config) ->
+    Config1 = init_modules(disco, Config),
+    PoolName = rpc(?RPC_SPEC, mongoose_async_pools, pool_name, [host_type(), mongoosepush_service]),
+    Workers = rpc(?RPC_SPEC, wpool, get_workers, [PoolName]),
+    Config2 = [{workers, Workers} | Config1],
+    escalus:init_per_testcase(CaseName, Config2);
 init_per_testcase(CaseName, Config) ->
     %% unfortunately meck:reset(Module) doesn't result
     %% in 'valid' flag resetting (see meck_proc module),
@@ -244,7 +264,14 @@ init_per_testcase(CaseName, Config) ->
     rpc(?RPC_SPEC, meck, new, [mod_event_pusher, [no_link, passthrough]]),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
+end_per_testcase(CaseName, Config) when CaseName == push_notifications_listed_disco_when_available;
+                                        CaseName == async_pools_batch_flush;
+                                        CaseName == async_pools_timed_flush ->
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(async_pool_queue_lengths_are_updated = CaseName, Config) ->
+    Workers = proplists:get_value(workers, Config),
+    [rpc(?RPC_SPEC, sys, resume, [rpc(?RPC_SPEC, erlang, whereis, [W])]) || W <- Workers],
     dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
@@ -1178,6 +1205,56 @@ muclight_aff_change_fcm(Config) ->
 muclight_aff_change_apns(Config) ->
     muclight_aff_change(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
 
+async_pools_batch_flush(Config) ->
+    TS = instrument_helper:timestamp(),
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := DeviceToken} =
+                enable_push_and_become_unavailable(Bob, ~"fcm", [], Config),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, ~"First")),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, ~"Second")),
+            AliceJID = bare_jid(Alice),
+            verify_notification(DeviceToken, ~"fcm", [], [{AliceJID, ~"First"},
+                                                          {AliceJID, ~"Second"}])
+        end),
+        assert_async_flush_event(fun(#{batch := 1}) -> true end, TS).
+
+async_pools_timed_flush(Config) ->
+    TS = instrument_helper:timestamp(),
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := DeviceToken} =
+                enable_push_and_become_unavailable(Bob, ~"fcm", [], Config),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, ~"Hello!")),
+            verify_notification(DeviceToken, ~"fcm", [], bare_jid(Alice), ~"Hello!")
+        end),
+        assert_async_flush_event(fun(#{timed := 1}) -> true end, TS).
+
+assert_async_flush_event(Fun, TS) ->
+    instrument_helper:assert(
+        async_pool_flush,
+        #{host_type => host_type(), pool_id => mongoosepush_service},
+        Fun,
+        #{min_timestamp => TS, expected_count => 1}).
+
+async_pool_queue_lengths_are_updated(Config) ->
+    Workers = proplists:get_value(workers, Config),
+
+    PoolId = mongoosepush_service,
+    HostType = host_type(),
+    Event = async_pool_queue_lengths,
+    Labels = #{pool_id => PoolId, host_type => HostType},
+
+    #{total := Total} = rpc(?RPC_SPEC, mongoose_async_pools, probe, [Event, Labels, #{}]),
+
+    [rpc(?RPC_SPEC, sys, suspend, [rpc(?RPC_SPEC, erlang, whereis, [W])]) || W <- Workers],
+    rpc(?RPC_SPEC, mongoose_async_pools, put_task, [HostType, PoolId, {}]),
+
+    F = fun(#{total := NewTotal}) -> NewTotal > Total end,
+    instrument_helper:wait_and_assert_new(Event, Labels, F).
+
 no_push_notification_for_expired_device(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
@@ -1188,7 +1265,6 @@ no_push_notification_for_expired_device(Config) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
             {_, Response} = wait_for_push_request(DeviceToken),
             maybe_check_if_push_node_was_disabled(?config(api_v, Config), Bob, PushNode)
-
         end).
 
 mongoose_push_unregistered_device_resp(Config) ->
@@ -1423,7 +1499,7 @@ extra_modules(_Group) ->
 push_modules(API, PubSubHost, PushMode, Group) ->
     PubSubHostOpts = virtual_pubsub_hosts_opts(PubSubHost),
     PushOpts = maps:merge(push_options(PushMode, Group), PubSubHostOpts),
-    pubsub_modules(PubSubHost) ++ event_pusher_modules(API, PushOpts).
+    pubsub_modules(PubSubHost) ++ event_pusher_modules(API, PushOpts, PubSubHost).
 
 push_options(plugins, enhanced_integration_with_sm) ->
     #{plugin_module => mod_event_pusher_push_plugin_enhanced};
@@ -1441,12 +1517,20 @@ pubsub_modules(real) ->
                    host => subhost_pattern("pubsub.@HOST@")},
     [{mod_pubsub_old, mod_config(mod_pubsub_old, PubSubOpts)}].
 
-event_pusher_modules(API, ExtraPushOpts) ->
+event_pusher_modules(API, ExtraPushOpts, PubSubHost) ->
     PushOpts = ExtraPushOpts#{backend => mongoose_helper:mnesia_or_rdbms_backend()},
+    MongoosePushOpts = maps:merge(#{pool_name => mongoose_push_http, api_version => API},
+                                  async_sender_opts(PubSubHost)),
     [{mod_push_service_mongoosepush, mod_config(mod_push_service_mongoosepush,
-                                                #{pool_name => mongoose_push_http,
-                                                  api_version => API})},
+                                                MongoosePushOpts)},
      {mod_event_pusher, mod_config(mod_event_pusher, #{push => PushOpts})}].
+
+async_sender_opts(virtual) ->
+    #{async_sender => #{batch_size => 2,
+                        flush_interval => 1000,
+                        pool_size => 1}};
+async_sender_opts(real) ->
+    #{}.
 
 virtual_pubsub_hosts_opts(virtual) ->
     #{virtual_pubsub_hosts => [subhost_pattern("virtual.@HOST@")]};
