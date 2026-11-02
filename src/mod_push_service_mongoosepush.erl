@@ -53,7 +53,6 @@
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => push_service_starting, host_type => HostType}),
     maybe_start_pool(HostType, Opts),
-    %% Hooks
     gen_hook:add_handlers(hooks(HostType)),
     ok.
 

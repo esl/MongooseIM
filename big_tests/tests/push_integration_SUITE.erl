@@ -201,7 +201,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     instrument_helper:stop(),
-    instrument_helper:ensure_frequent_probes(Config),
+    instrument_helper:restore_probe_interval(Config),
     logger_ct_backend:stop(),
     escalus_fresh:clean(),
     rpc(?RPC_SPEC, mongoose_wpool, stop, [http, global, mongoose_push_http]),

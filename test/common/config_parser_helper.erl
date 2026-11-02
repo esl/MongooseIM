@@ -974,8 +974,7 @@ default_mod_config(mod_pubsub_old) ->
       default_node_config => [], item_publisher => false, sync_broadcast => false,
       wpool => default_config([modules, mod_pubsub_old, wpool])};
 default_mod_config(mod_push_service_mongoosepush) ->
-    #{pool_name => undefined,
-      api_version => <<"v3">>};
+    #{pool_name => undefined, api_version => <<"v3">>};
 default_mod_config(mod_register) ->
     #{iqdisc => one_queue, access => all, registration_watchers => [],
       password_strength => 0, ip_access => []};

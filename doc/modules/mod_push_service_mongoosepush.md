@@ -85,21 +85,21 @@ REST API version to be used.
 
 Enables asynchronous, batched push notification delivery. When disabled, push requests are sent synchronously, which may increase message processing time.
 
-### `modules.mod_push_service_mongoosepush.async_sender.flush_interval`
+#### `modules.mod_push_service_mongoosepush.async_sender.flush_interval`
 * **Syntax:** non-negative integer
 * **Default:** `2000`
 * **Example:** `modules.mod_push_service_mongoosepush.async_sender.flush_interval = 1000`
 
 How often (in milliseconds) the buffered push notifications are sent.
 
-### `modules.mod_push_service_mongoosepush.async_sender.batch_size`
+#### `modules.mod_push_service_mongoosepush.async_sender.batch_size`
 * **Syntax:** non-negative integer
 * **Default:** `30`
 * **Example:** `modules.mod_push_service_mongoosepush.async_sender.batch_size = 20`
 
 Maximum number of messages in a batch before the queue is considered full and push notifications are sent. When the buffer is full, push notifications are sent immediately and the flush timer is reset.
 
-### `modules.mod_push_service_mongoosepush.async_sender.pool_size`
+#### `modules.mod_push_service_mongoosepush.async_sender.pool_size`
 * **Syntax:** non-negative integer
 * **Default:** `4 * erlang:system_info(schedulers_online)`
 * **Example:** `modules.mod_push_service_mongoosepush.async_sender.pool_size = 32`
