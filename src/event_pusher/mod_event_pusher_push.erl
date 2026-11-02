@@ -55,8 +55,9 @@
 -type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
 -type pubsub_node() :: binary().
 -type form() :: #{binary() => binary()}.
+-type disable_fun() :: fun((ok | {error, term()}) -> term()).
 
--export_type([pubsub_node/0, form/0]).
+-export_type([pubsub_node/0, form/0, disable_fun/0]).
 -export_type([publish_service/0]).
 
 %%--------------------------------------------------------------------

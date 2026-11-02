@@ -86,7 +86,7 @@ do_publish_item(ServerHost, PublishOptions,
                 [#xmlel{name = <<"notification">>} | _] = Notifications) ->
     NotificationForms = [parse_form(El) || El <- Notifications],
     OptionMap = parse_form(PublishOptions),
-    Result = mongoose_hooks:push_notifications(ServerHost, ok, NotificationForms, OptionMap),
+    Result = mongoose_hooks:push_notifications(ServerHost, ok, NotificationForms, OptionMap, fun(_) -> ok end),
     handle_push_hook_result(Result);
 do_publish_item(_ServerHost, _PublishOptions, _Payload) ->
     {error, mongoose_xmpp_errors:bad_request()}.

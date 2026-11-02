@@ -23,7 +23,7 @@
          packet_to_component/3,
          presence_probe/5,
          get_user_status/2,
-         push_notifications/4,
+         push_notifications/5,
          register_subhost/2,
          register_user/3,
          remove_user/3,
@@ -324,14 +324,15 @@ get_user_status(HostType, Sessions) ->
     run_hook_for_host_type(get_user_status, HostType, #{}, Params).
 
 %%% @doc The `push_notifications' hook is called to push notifications.
--spec push_notifications(HostType, Acc, NotificationForms, Options) -> Result when
+-spec push_notifications(HostType, Acc, NotificationForms, Options, DisableFun) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: ok | mongoose_acc:t(),
     NotificationForms :: [#{binary() => binary()}],
     Options :: #{binary() => binary()},
+    DisableFun :: mod_event_pusher_push:disable_fun(),
     Result :: ok | {error, any()}.
-push_notifications(HostType, Acc, NotificationForms, Options) ->
-    Params = #{options => Options, notification_forms => NotificationForms},
+push_notifications(HostType, Acc, NotificationForms, Options, DisableFun) ->
+    Params = #{options => Options, notification_forms => NotificationForms, disable_fun => DisableFun},
     run_hook_for_host_type(push_notifications, HostType, Acc, Params).
 
 %%% @doc The `register_subhost' hook is called when a component
