@@ -19,7 +19,8 @@ all() ->
     [
      {group, aff_changes},
      {group, rsm_disco},
-     {group, codec}
+     {group, codec},
+     {group, remove_user}
     ].
 
 groups() ->
@@ -32,7 +33,8 @@ groups() ->
                               rsm_disco_success,
                               rsm_disco_item_not_found
                              ]},
-     {codec, [sequence], [codec_calls]}
+     {codec, [sequence], [codec_calls]},
+     {remove_user, [sequence], [remove_user_skips_failed_rooms]}
     ].
 
 init_per_suite(Config) ->
@@ -66,9 +68,19 @@ init_per_testcase(codec_calls, Config) ->
     ets:insert(testcalls, {hooks, 0}),
     ets:insert(testcalls, {handlers, 0}),
     Config;
+init_per_testcase(remove_user_skips_failed_rooms, Config) ->
+    meck:new(mod_muc_light_db_backend, [non_strict]),
+    meck:new(mod_muc_light_codec, [non_strict]),
+    meck:new(mod_muc_light_room, [passthrough]),
+    meck:expect(mod_muc_light_codec, encode, fun(_, _, _, _, _) -> ok end),
+    meck:expect(mod_muc_light_room, maybe_forget, fun(_, _, _, _) -> ok end),
+    Config;
 init_per_testcase(_, Config) ->
     Config.
 
+end_per_testcase(remove_user_skips_failed_rooms, Config) ->
+    meck:unload(),
+    Config;
 end_per_testcase(codec_calls, Config) ->
     mongoose_modules:stop(),
     mnesia:stop(),
@@ -105,6 +117,24 @@ rsm_disco_success(_Config) ->
 
 rsm_disco_item_not_found(_Config) ->
     ?assert(proper:quickcheck(prop_rsm_disco_item_not_found())).
+
+%% ----------------- Remove user ----------------------
+
+remove_user_skips_failed_rooms(_Config) ->
+    Alice = jid:make_bare(<<"alice">>, ?DOMAIN),
+    FailedRoom = {<<"failed">>, <<"muclight.", ?DOMAIN/binary>>},
+    EmptiedRoom = {<<"emptied">>, <<"muclight.", ?DOMAIN/binary>>},
+    AliceUS = jid:to_lus(Alice),
+    meck:expect(mod_muc_light_db_backend, remove_user,
+                fun(_, _, _) ->
+                        [{FailedRoom, {error, {bad_request, <<"Cannot remove the last owner">>}}},
+                         {EmptiedRoom, {ok, [{AliceUS, owner}], [], [{AliceUS, none}], <<"v1">>}}]
+                end),
+    Acc = mongoose_acc:new(#{location => ?LOCATION, host_type => ?DOMAIN,
+                             lserver => ?DOMAIN, element => undefined}),
+    {ok, Acc} = mod_muc_light:remove_user(Acc, #{jid => Alice}, #{host_type => ?DOMAIN}),
+    ?assert(meck:called(mod_muc_light_room, maybe_forget, ['_', EmptiedRoom, [], '_'])),
+    ?assertNot(meck:called(mod_muc_light_room, maybe_forget, ['_', FailedRoom, '_', '_'])).
 
 %% ----------------- Codecs ----------------------
 
