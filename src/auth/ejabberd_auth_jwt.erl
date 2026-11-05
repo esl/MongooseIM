@@ -36,6 +36,7 @@
          check_password/4,
          check_password/6,
          does_user_exist/3,
+         remove_user/3,
          supports_sasl_module/2,
          supported_features/0
         ]).
@@ -156,6 +157,12 @@ check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
                       LServer :: jid:lserver()) -> boolean() | {error, atom()}.
 does_user_exist(_HostType, _LUser, _LServer) ->
     true.
+
+%% User records are not kept in MongooseIM for this backend, but this callback
+%% lets the remove_user hook run, so the user's associated data can be removed.
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user(_HostType, _LUser, _LServer) ->
+    ok.
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
