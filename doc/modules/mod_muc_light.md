@@ -6,6 +6,8 @@ This module implements [Multi-User Chat Light](../open-extensions/muc_light.md).
 It's an experimental XMPP group chat solution.
 This extension consists of several modules but only `mod_muc_light` needs to be enabled in the config file.
 
+Push notifications for room messages and for system messages (affiliation changes, configuration changes, room destruction) can be configured with [`mod_event_pusher` push rules](./mod_event_pusher_push.md#modulesmod_event_pusherpushrules), using the `muc_light` condition and content.
+
 ## Options
 
 ### `modules.mod_muc_light.host`

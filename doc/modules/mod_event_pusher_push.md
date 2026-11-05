@@ -98,6 +98,8 @@ The following condition fields are available:
 | `body` | `"absent"`, `"empty"`, `"non_empty"` | The state of the message `<body>` element. |
 | `hint` | `"no_store"`, `"store"` | Presence of the corresponding [XEP-0334: Message Processing Hints][XEP-0334] hint. |
 | `jingle` | `true`, `false` | Whether the stanza contains an [XEP-0353: Jingle Message Initiation][XEP-0353] element. |
+| `muc_light` | `"affiliations"`, `"configuration"`, `"destroy"` | The kind of a [MUC Light](./mod_muc_light.md) system message, determined by the namespace of its `<x/>` element. Only groupchat messages sent from the bare room JID count; a MUC Light element in a message relayed from a room member does not match. A room destruction message also carries an affiliation element, but matches only `"destroy"`. |
+| <nobr>`recipient_affected`</nobr> | `true`, `false` | Whether the affiliation element of a MUC Light system message lists the recipient: `true` for users added to or removed from a room, for users whose own affiliation changed, and for room destruction. `false` for the other members, for configuration changes and for messages that are not MUC Light system messages. |
 | <nobr>`user_status`</nobr> | `"online"`, `"offline"` | Recipient status at routing time; available for `msg` events. |
 | <nobr>`client_state`</nobr> | `"active"`, `"inactive"` | Recipient [XEP-0352: Client State Indication][XEP-0352] state; available for online `msg` events when [`mod_csi`](./mod_csi.md) is enabled. |
 
@@ -108,7 +110,7 @@ The following condition fields are available:
 Determines whether a matching rule sends or skips the notification.
 
 #### `modules.mod_event_pusher.push.rules.content`
-* **Syntax:** string, one of `"message"`, `"jingle"`
+* **Syntax:** string, one of `"message"`, `"jingle"`, `"muc_light"`
 * **Default:** no default
 
 Determines the content of the push notification:
@@ -116,6 +118,33 @@ Determines the content of the push notification:
 * `"message"` builds [XEP-0357: Push Notifications][XEP-0357] notification content from the message body, sender JID and unread count.
 * `"jingle"` builds JMI content from a valid [Jingle Message Initiation][XEP-0353] element and the sender JID:
   `type` is `jmi`, `jmi-sid` is the element's `id`, and `jmi-from` is the sender's full JID.
+* `"muc_light"` builds [XEP-0357: Push Notifications][XEP-0357] notification content from a [MUC Light](./mod_muc_light.md) system message:
+  `last-message-sender` is the bare room JID, `message-count` is the unread count,
+  `last-message-body` is a JSON object describing the event, with the fields listed below, and `type` is `muc_light`.
+  The `type` key only reaches the client in silent (data) notifications; in alert notifications the JSON becomes the visible message text,
+  so either register such devices with the `silent` publish option
+  or make sure the client application rewrites the notification before it is displayed (e.g. with an APNs notification service extension).
+  A regular message whose body looks like this JSON is pushed by the `message` content with the sender's JID, so a client should treat
+  the body as a MUC Light event only when `last-message-sender` equals its `room` field.
+
+    | Field | Present for | Value |
+    | --- | --- | --- |
+    | `type` | all events | `"muc_light"` |
+    | `event` | all events | `"affiliations"`, `"configuration"` or `"destroy"`, as for the `muc_light` condition |
+    | `room` | all events | bare room JID |
+    | `roomname` | affiliations, configuration | the `roomname` field of the room configuration, if the room still exists and the field is configured |
+    | `version` | affiliations, configuration | the new room version, if the message contains it |
+    | `prev_version` | affiliations, configuration | the previous room version, if the message contains it |
+    | `users` | affiliations | array of `{"jid": "...", "affiliation": "owner" | "member" | "none"}` objects listed in the message: only the recipient for users added to or removed from the room, all changed users for the remaining members, at most 20 entries |
+    | `users_truncated` | affiliations | `true` when the message listed more than 20 users, so `users` is incomplete |
+    | `changed` | configuration | array with the names of the changed configuration fields |
+
+    For example, a user added to a room while offline receives
+    `{"type":"muc_light","event":"affiliations","room":"room@muclight.example.com","roomname":"Project","version":"1","users":[{"jid":"bob@example.com","affiliation":"member"}]}`.
+
+    The body carries the names of changed configuration fields rather than their values, and at most 20 users,
+    to stay within the payload size limit of the push services (4 KB for both APNs and FCM).
+    A client that needs the details should fetch the room configuration or affiliations.
 
 This option is mandatory when `action` is `"push"` and cannot be specified when `action` is `"skip"`.
 If the selected content cannot be built from the stanza, the notification is **not** sent and a warning is logged, so make sure to match `conditions` with `content`.
@@ -146,6 +175,37 @@ For other messages with non-empty body, they are sent when the recipient is eith
       { event = "msg", body = "non_empty", user_status = "offline" },
       { event = "msg", body = "non_empty", user_status = "online", client_state = "inactive" },
       { event = "unack_msg", body = "non_empty" }
+    ]
+    action = "push"
+    content = "message"
+```
+
+This example additionally notifies users added to or removed from a [MUC Light](./mod_muc_light.md) room and members of a destroyed room, while skipping the system messages received by other members and configuration changes.
+The `skip` rule is only needed when a later rule could match system messages; the regular message rule below does not, because their body is empty.
+
+```toml
+[modules.mod_event_pusher.push]
+  backend = "rdbms"
+  virtual_pubsub_hosts = ["push.@HOST@"]
+
+  [[modules.mod_event_pusher.push.rules]]
+    conditions = [
+      { event = "msg", muc_light = "affiliations", recipient_affected = true, user_status = "offline" },
+      { event = "msg", muc_light = "affiliations", recipient_affected = true, user_status = "online", client_state = "inactive" },
+      { event = "msg", muc_light = "destroy", user_status = "offline" },
+      { event = "msg", muc_light = "destroy", user_status = "online", client_state = "inactive" }
+    ]
+    action = "push"
+    content = "muc_light"
+
+  [[modules.mod_event_pusher.push.rules]]
+    conditions = [{ muc_light = "affiliations" }, { muc_light = "configuration" }]
+    action = "skip"
+
+  [[modules.mod_event_pusher.push.rules]]
+    conditions = [
+      { event = "msg", body = "non_empty", user_status = "offline" },
+      { event = "msg", body = "non_empty", user_status = "online", client_state = "inactive" }
     ]
     action = "push"
     content = "message"
