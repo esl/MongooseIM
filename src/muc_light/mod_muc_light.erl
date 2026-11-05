@@ -796,6 +796,9 @@ maybe_forget_rooms(_Acc, [], _) ->
     ok;
 maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms], Version) ->
     mod_muc_light_room:maybe_forget(Acc, RoomUS, NewAffUsers, Version),
+    maybe_forget_rooms(Acc, RAffectedRooms, Version);
+maybe_forget_rooms(Acc, [{_RoomUS, _Error} | RAffectedRooms], Version) ->
+    %% Already logged by bcast_removed_user/5
     maybe_forget_rooms(Acc, RAffectedRooms, Version).
 
 make_handler_fun(Acc) ->
