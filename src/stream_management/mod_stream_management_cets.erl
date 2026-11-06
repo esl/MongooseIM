@@ -51,7 +51,10 @@ unregister_smid(_HostType, SID) ->
         [] ->
             {error, smid_not_found};
         [{_, SMID}] ->
-            cets:delete_many(?TABLE, [{sid, SID}, {smid, SMID}]),
+            %% A resumed session may already have registered this SMID with a new SID.
+            %% Exact-object deletion preserves that mapping when the old session exits,
+            %% regardless of the order in which replicas apply registration and cleanup.
+            cets:delete_objects(?TABLE, [{{sid, SID}, SMID}, {{smid, SMID}, SID}]),
             {ok, SMID}
     end.
 
