@@ -129,7 +129,7 @@ process_request({set, #config{} = ConfigReq},
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     {ok, Config, _RoomVersion} = mod_muc_light_db_backend:get_config(HostType, RoomUS),
     AllCanConfigure = all_can_configure(HostType, Config),
-    process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
+    process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, Config, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq},
                 From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
     UserUS = jid:to_lus(From),
@@ -176,23 +176,42 @@ get_config_or_module_opt(HostType, Config, Opt) ->
                          ConfigReq :: config_req_props(),
                          RoomUS :: jid:simple_bare_jid(),
                          UserAff :: member | owner, AffUsers :: aff_users(),
+                         PrevConfig :: mod_muc_light_room_config:kv(),
                          UserAllowedToConfigure :: boolean()) ->
     {set, config_req_props(), aff_users()} | {error, not_allowed} | validation_error().
 process_config_set(HostType, #config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, RoomUS, UserAff,
-                   AffUsers, false) ->
+                   AffUsers, PrevConfig, false) ->
     % Everyone is allowed to change subject
-    process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, true);
-process_config_set(_HostType, _ConfigReq, _RoomUS, member, _AffUsers, false) ->
+    process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, PrevConfig, true);
+process_config_set(_HostType, _ConfigReq, _RoomUS, member, _AffUsers, _PrevConfig, false) ->
     {error, not_allowed};
-process_config_set(HostType, ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
-    case mod_muc_light_room_config:from_binary_kv_diff(
-           ConfigReq#config.raw_config, mod_muc_light:config_schema(RoomS)) of
+process_config_set(HostType, ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, PrevConfig,
+                   _AllCanConfigure) ->
+    Schema = mod_muc_light:config_schema(RoomS),
+    case mod_muc_light_room_config:from_binary_kv_diff(ConfigReq#config.raw_config, Schema) of
         {ok, Config} ->
             NewVersion = mongoose_bin:gen_from_timestamp(),
             {ok, PrevVersion} = mod_muc_light_db_backend:set_config(HostType, RoomUS, Config, NewVersion),
-            {set, ConfigReq#config{ prev_version = PrevVersion, version = NewVersion }, AffUsers};
+            {set, ConfigReq#config{ prev_version = PrevVersion, version = NewVersion,
+                                    prev_raw_config = prev_raw_config(PrevConfig, Config, Schema) },
+             AffUsers};
         Error ->
             Error
+    end.
+
+-spec prev_raw_config(PrevConfig :: mod_muc_light_room_config:kv(),
+                      Config :: mod_muc_light_room_config:kv(),
+                      Schema :: mod_muc_light_room_config:schema()) ->
+    mod_muc_light_room_config:binary_kv().
+prev_raw_config(PrevConfig, Config, Schema) ->
+    Changed = [KV || {Key, _} = KV <- PrevConfig, lists:keymember(Key, 1, Config)],
+    case mod_muc_light_room_config:to_binary_kv_diff(Changed, Schema) of
+        {ok, PrevRawConfig} ->
+            PrevRawConfig;
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => muc_light_prev_config_not_encoded, reason => Reason,
+                           prev_config => Changed}),
+            []
     end.
 
 %% --------- Affiliation set ---------
@@ -255,8 +274,19 @@ process_aff_set(_AffReq, _RoomUS, Error, _Acc) ->
 send_response(From, RoomJID, OrigPacket, {error, _} = Err, Acc) ->
     mod_muc_light_codec:encode_error(Err, From, RoomJID, OrigPacket, Acc);
 send_response(From, RoomJID, _OriginalPacket, Response, Acc) ->
-    F = make_handler_fun(Acc),
-    mod_muc_light_codec:encode(Response, From, RoomJID, F, Acc).
+    Acc1 = remember_prev_config(Response, Acc),
+    F = make_handler_fun(Acc1),
+    mod_muc_light_codec:encode(Response, From, RoomJID, F, Acc1).
+
+%% Permanent, so it reaches the recipients' accumulators and survives the stream management buffer;
+%% push notifications read it to report the previous room name.
+-spec remember_prev_config(packet_processing_result(), mongoose_acc:t()) -> mongoose_acc:t().
+remember_prev_config({set, #config{ prev_raw_config = [] }, _AffUsers}, Acc) ->
+    Acc;
+remember_prev_config({set, #config{ prev_raw_config = PrevRawConfig }, _AffUsers}, Acc) ->
+    mongoose_acc:set_permanent(mod_muc_light, prev_config, PrevRawConfig, Acc);
+remember_prev_config(_Response, Acc) ->
+    Acc.
 
 %%====================================================================
 %% Internal functions

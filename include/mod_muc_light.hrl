@@ -64,7 +64,8 @@
           id = <<>> :: binary(),
           prev_version = <<>> :: binary(),
           version = <<>> :: binary(),
-          raw_config = [] :: mod_muc_light_room_config:binary_kv()
+          raw_config = [] :: mod_muc_light_room_config:binary_kv(),
+          prev_raw_config = [] :: mod_muc_light_room_config:binary_kv()
          }).
 
 -type config_req_props() :: #config{}.
