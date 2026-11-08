@@ -45,6 +45,11 @@ with the parameters defined in [XEP-0357: Push Notifications][XEP-0357]:
 | `data.message-count` | Unread message count | Carries the unread message count as custom data |
 | `data.*` | Any other notification field | Carries the custom fields of the notification, if any |
 
+Notifications for [MUC Light](./mod_muc_light.md) system messages, triggered by the [`content = "muc_light"`](./mod_event_pusher_push.md#modulesmod_event_pusherpushrulescontent) rule,
+use the same two layouts as message notifications: the sender is the bare room JID, the body is the fallback text, and the `type` and `muc-light-*` fields documented for the rule
+are the custom fields carried in `data`, next to the `alert` or together with the standard fields.
+MongoosePush delivers custom data as top-level keys of the APNs payload, next to `aps`, and as `data` of the FCM message.
+
 For [Jingle Message Initiation][XEP-0353] (JMI) notifications triggered by the [`content = "jingle"`](./mod_event_pusher_push.md#modulesmod_event_pusherpushrulescontent) rule, regardless of the `silent` option,
 MongooseIM sends requests containing `data` and no `alert`, with the following parameters:
 

@@ -10,12 +10,14 @@
 -export([process_rule/1]).
 
 -type event() :: #msg_event{} | #unack_msg_event{}.
--type content_source() :: message | jingle.
+-type content_source() :: message | jingle | muc_light.
 -type condition_map() :: #{event => msg | unack_msg,
                            type => chat | groupchat,
                            body => absent | empty | non_empty,
                            hint => no_store | store,
                            jingle => boolean(),
+                           muc_light => mod_event_pusher_push_content:muc_light_kind(),
+                           recipient_affected => boolean(),
                            user_status => online | offline,
                            client_state => active | inactive}.
 -type conditions() :: [condition_map()].
@@ -41,6 +43,8 @@ perform_action(Acc, Event, BareRecipient, #{action := push, content := ContentSp
     case mod_event_pusher_push_content:build(ContentSpec, Acc) of
         {ok, Content} ->
             publish_content(Acc, BareRecipient, Content);
+        skip ->
+            Acc;
         {error, Reason} ->
             ?LOG_WARNING(#{what => mod_event_pusher_push_failed_to_build_content,
                            reason => Reason,
@@ -56,7 +60,7 @@ rule_config_spec() ->
                        ~"action" => #option{type = atom,
                                             validate = {enum, [push, skip]}},
                        ~"content" => #option{type = atom,
-                                             validate = {enum, [message, jingle]}}},
+                                             validate = {enum, [message, jingle, muc_light]}}},
              defaults = #{~"conditions" => [#{}]}, % always matches
              required = [~"action"],
              process = fun ?MODULE:process_rule/1}.
@@ -76,6 +80,9 @@ condition_config_spec() ->
                        ~"hint" => #option{type = atom,
                                           validate = {enum, [no_store, store]}},
                        ~"jingle" => #option{type = boolean},
+                       ~"muc_light" => #option{type = atom,
+                                               validate = {enum, [affiliations, roomname, destroy]}},
+                       ~"recipient_affected" => #option{type = boolean},
                        ~"user_status" => #option{type = atom,
                                                   validate = {enum, [online, offline]}},
                        ~"client_state" => #option{type = atom,
@@ -137,12 +144,28 @@ check_condition(hint, store, Event) ->
 check_condition(jingle, Expected, Event) ->
     Packet = packet(Event),
     Expected =:= (exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) =/= undefined);
+check_condition(muc_light, Expected, Event) ->
+    Expected =:= mod_event_pusher_push_content:muc_light_kind(packet(Event));
+check_condition(recipient_affected, Expected, Event) ->
+    Expected =:= recipient_affected(Event);
 check_condition(_Condition, _Expected, _Event) ->
     false.
 
 -spec packet(event()) -> exml:element().
 packet(#msg_event{packet = Packet}) -> Packet;
 packet(#unack_msg_event{packet = Packet}) -> Packet.
+
+-spec recipient(event()) -> jid:jid().
+recipient(#msg_event{to = To}) -> To;
+recipient(#unack_msg_event{to = To}) -> To.
+
+%% True when the MUC Light affiliation change lists the recipient: newcomer, leaver, kicked,
+%% own affiliation changed, or room destroyed (every member is listed with 'none').
+-spec recipient_affected(event()) -> boolean().
+recipient_affected(Event) ->
+    Packet = packet(Event),
+    mod_event_pusher_push_content:muc_light_kind(Packet) =/= undefined andalso
+        mod_event_pusher_push_content:recipient_affiliation(recipient(Event), Packet) =/= undefined.
 
 -spec body_state(exml:element()) -> absent | empty | non_empty.
 body_state(Packet) ->
