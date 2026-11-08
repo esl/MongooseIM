@@ -256,18 +256,24 @@ make_notification(Notification0, Options) ->
     JSON = maps:merge(NotificationParams, DataOrAlert),
     jiffy:encode(JSON).
 
--spec data_or_alert(map(), mod_event_pusher_push:form()) -> #{data | alert := map()}.
+-spec data_or_alert(map(), mod_event_pusher_push:form()) -> #{data => map(), alert => map()}.
 data_or_alert(#{~"type" := ~"jmi"} = Notification, _Options) ->
     #{data => Notification};
 data_or_alert(Notification, #{~"silent" := ~"true"}) ->
     #{data => Notification};
 data_or_alert(Notification, Options) ->
+    AlertKeys = [~"last-message-body", ~"last-message-sender", ~"message-count"],
     BasicAlert = #{body => maps:get(~"last-message-body", Notification),
                    title => maps:get(~"last-message-sender", Notification),
                    tag => maps:get(~"last-message-sender", Notification),
                    badge => maps:get(~"message-count", Notification)},
     OptionalAlert = maps:with([~"click_action", ~"sound"], Options),
-    #{alert => maps:merge(BasicAlert, OptionalAlert)}.
+    Alert = #{alert => maps:merge(BasicAlert, OptionalAlert)},
+    %% custom fields, e.g. MUC Light event details, travel next to the alert
+    case maps:without(AlertKeys, Notification) of
+        Data when map_size(Data) =:= 0 -> Alert;
+        Data -> Alert#{data => Data}
+    end.
 
 %% at the moment there's only one field to normalize
 normalize_notification(#{~"message-count" := MC} = N) when is_binary(MC) ->

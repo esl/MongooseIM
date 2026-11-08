@@ -33,6 +33,7 @@ By default, it is set to `false`, resulting in `alert` notifications with the fo
 | `alert.badge` | Unread message count | Sets the APNs app icon badge count |
 | `alert.click_action` | `click_action` publish option | Selects the FCM activity or APNs category used on interaction |
 | `alert.sound` | `sound` publish option | Selects the sound played when the notification arrives |
+| `data.*` | Any other notification field | Carries the custom fields of the notification, if any, as custom data next to the alert; this includes additional fields of a form published to a PubSub push node |
 
 When `silent` is set to `true`, MongooseIM sends silent (data-only) notifications
 with the parameters defined in [XEP-0357: Push Notifications][XEP-0357]:
@@ -42,6 +43,7 @@ with the parameters defined in [XEP-0357: Push Notifications][XEP-0357]:
 | `data.last-message-body` | Message `<body>` | Carries the message text as custom data |
 | `data.last-message-sender` | Message sender JID | Carries the sender JID as custom data |
 | `data.message-count` | Unread message count | Carries the unread message count as custom data |
+| `data.*` | Any other notification field | Carries the custom fields of the notification, if any |
 
 For [Jingle Message Initiation][XEP-0353] (JMI) notifications triggered by the [`content = "jingle"`](./mod_event_pusher_push.md#modulesmod_event_pusherpushrulescontent) rule, regardless of the `silent` option,
 MongooseIM sends requests containing `data` and no `alert`, with the following parameters:
