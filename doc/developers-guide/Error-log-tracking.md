@@ -145,32 +145,25 @@ init_per_testcase(_, Config) ->
     Config.
 ```
 
-## Asserting a maximum number of unexpected errors
+## Failing on unexpected errors
 
-Use `cth_error_report:max_unexpected_errors_logged/1` to set a limit on
-unexpected errors for a suite. If the limit is exceeded, the test run
-fails with a non-zero exit code.
+By default, every suite must log no unexpected errors. The check runs after
+all testcases of a suite complete. If any unexpected error was logged, the
+test run exits with code 1 and prints:
+
+```
+**** Failing due to unexpected errors logged:
+my_SUITE: 8 unexpected errors logged
+```
+
+Use `cth_error_report:allow_unexpected_errors/0` to opt a suite out of this
+check. Its errors are still collected and reported.
 
 ```erlang
 init_per_suite(Config) ->
-    %% Allow at most 5 unexpected errors in this suite
-    cth_error_report:max_unexpected_errors_logged(5),
-
-    %% Declare known expected errors
-    cth_error_report:expect({what, known_flaky_error}),
-
+    cth_error_report:allow_unexpected_errors(),
     Config.
 ```
-
-The check runs after all testcases complete. If the unexpected error count
-exceeds the limit, the test run exits with code 1 and prints:
-
-```
-**** Failing due to unexpected error log limit exceeded:
-my_SUITE: 8 unexpected errors logged, max allowed: 5
-```
-
-Suites without `max_unexpected_errors_logged` are not checked.
 
 ## Multi-node collection
 
