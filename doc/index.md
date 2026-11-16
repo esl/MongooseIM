@@ -1,10 +1,10 @@
 # MongooseIM Documentation
 
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.8.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.8)
-[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.8/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.8)
-[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.8)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.8)
-[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.8)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.8)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.11.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.11)
+[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.11/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.11)
+[![GitHub Actions](https://github.com/esl/MongooseIM/actions/workflows/ci.yml/badge.svg?branch=rel-6.11)](https://github.com/esl/MongooseIM/actions/workflows/ci.yml?query=branch%3Arel-6.11)
+[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.11)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.11)
 
 * Home: [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
@@ -79,6 +79,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [6.11.0](https://esl.github.io/MongooseDocs/6.11.0/)
 * [6.10.0](https://esl.github.io/MongooseDocs/6.10.0/)
 * [6.9.0](https://esl.github.io/MongooseDocs/6.9.0/)
 * [6.8.1](https://esl.github.io/MongooseDocs/6.8.1/)

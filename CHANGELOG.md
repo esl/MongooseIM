@@ -1,3 +1,28 @@
+# [MongooseIM 6.11.0](https://github.com/esl/MongooseIM/releases/tag/6.11.0) - 2026-11-19
+
+## Highlights
+- Improved push notification delivery with async handling through MongoosePush
+
+## Changed
+- Push notification delivery in `mod_push_service_mongoosepush` can now buffer requests and dispatch them asynchronously (#4820)
+
+## Fixed
+- Allow user removal with JWT auth and properly clean up user data when removed (#4822)
+- Skip failed rooms when forgetting rooms of a removed user to prevent crashes (#4823)
+- Trigger incoming call notifications only for the JMI `propose` event (#4826)
+
+## Other
+- Improved CI scripts for starting and monitoring CircleCI pipelines (#4828, #4831)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+base%3Amaster+milestone%3A6.11.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2026-10-14..2026-11-19)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2026-10-14&to=2026-11-19&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+base%3Amaster+milestone%3A6.11.0+sort%3Aupdated-desc)
+
 # [MongooseIM 6.10.0](https://github.com/esl/MongooseIM/releases/tag/6.10.0) - 2026-10-15
 
 ## Highlights
