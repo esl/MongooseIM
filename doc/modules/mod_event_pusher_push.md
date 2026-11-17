@@ -97,7 +97,7 @@ The following condition fields are available:
 | `type` | `"chat"`, `"groupchat"` | The XMPP message type. |
 | `body` | `"absent"`, `"empty"`, `"non_empty"` | The state of the message `<body>` element. |
 | `hint` | `"no_store"`, `"store"` | Presence of the corresponding [XEP-0334: Message Processing Hints][XEP-0334] hint. |
-| `jingle` | `true`, `false` | Whether the stanza contains an [XEP-0353: Jingle Message Initiation][XEP-0353] element. |
+| `jingle` | `true`, `false` | Whether the stanza contains an [XEP-0353: Jingle Message Initiation][XEP-0353] `propose` element. |
 | <nobr>`user_status`</nobr> | `"online"`, `"offline"` | Recipient status at routing time; available for `msg` events. |
 | <nobr>`client_state`</nobr> | `"active"`, `"inactive"` | Recipient [XEP-0352: Client State Indication][XEP-0352] state; available for online `msg` events when [`mod_csi`](./mod_csi.md) is enabled. |
 
