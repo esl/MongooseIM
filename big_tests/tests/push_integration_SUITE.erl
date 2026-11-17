@@ -101,7 +101,8 @@ groups() ->
               immediate_notification,
               double_notification_with_two_sessions_in_resume,
               hints_filtering,
-              jmi_notifications_are_pushed_with_rules,
+              jmi_propose_is_pushed_with_rules,
+              jmi_retract_is_not_pushed_with_rules,
               apns_notifications_use_matching_topics
           ]},
          {pm_msg_notifications, [],
@@ -672,7 +673,7 @@ hints_filtering(Config) ->
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
         end).
 
-jmi_notifications_are_pushed_with_rules(Config) ->
+jmi_propose_is_pushed_with_rules(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
@@ -682,7 +683,7 @@ jmi_notifications_are_pushed_with_rules(Config) ->
             #{device_token := ApnsDeviceToken} =
                 enable_push_for_user(Bob, ~"apns", [{~"topic", Topic}], Config),
             become_unavailable(Bob),
-            Msg = dummy_jingle_propose_message(Bob),
+            Msg = jingle_propose_message(Bob),
             %% bodiless message with store hint should pass
             escalus:send(Alice, add_message_hint(Msg, ~"store")),
             {ApnsNotification, _} = wait_for_push_request(ApnsDeviceToken),
@@ -696,6 +697,17 @@ jmi_notifications_are_pushed_with_rules(Config) ->
             escalus:send(Alice, add_message_hint(Msg, ~"no-copy")),
             ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
+        end).
+
+jmi_retract_is_not_pushed_with_rules(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := DeviceToken} = enable_push_for_user(Bob, ~"fcm", [], Config),
+            become_unavailable(Bob),
+            Msg = jingle_message(Bob, ~"retract", []),
+            escalus:send(Alice, add_message_hint(Msg, ~"store")),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(DeviceToken, 500))
         end).
 
 apns_notifications_use_matching_topics(Config) ->
@@ -717,7 +729,7 @@ apns_notifications_use_matching_topics(Config) ->
             assert_push_notification(RegularNotification, ~"apns", RegularOpts, bare_jid(Alice)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(VoipDeviceToken, 500)),
 
-            escalus:send(Alice, add_message_hint(dummy_jingle_propose_message(Bob), ~"store")),
+            escalus:send(Alice, add_message_hint(jingle_propose_message(Bob), ~"store")),
             {VoipNotification, _} = wait_for_push_request(VoipDeviceToken),
             ?assertMatch(#{~"service" := ~"apns",
                            ~"topic" := VoipTopic,
@@ -732,20 +744,19 @@ bodiless_messages_are_not_pushed_by_default(Config) ->
         fun(Bob, Alice) ->
             #{device_token := FcmDeviceToken} = enable_push_for_user(Bob, ~"fcm", [], Config),
             become_unavailable(Bob),
-            escalus:send(Alice, dummy_jingle_propose_message(Bob)),
+            escalus:send(Alice, jingle_propose_message(Bob)),
             ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500))
         end).
 
 missing_message_content_is_not_pushed(Config) ->
-    assert_content_build_failure(Config, fun dummy_jingle_propose_message/1, missing_message_body).
+    assert_content_build_failure(Config, fun jingle_propose_message/1, missing_message_body).
 
 missing_jingle_element_is_not_pushed(Config) ->
     MessageFun = fun(Recipient) -> escalus_stanza:chat_to(Recipient, ~"Message without Jingle") end,
     assert_content_build_failure(Config, MessageFun, missing_jingle_element).
 
 invalid_jingle_element_is_not_pushed(Config) ->
-    assert_content_build_failure(Config, fun dummy_invalid_jingle_message/1,
-                                 invalid_jingle_element).
+    assert_content_build_failure(Config, fun invalid_jingle_message/1, invalid_jingle_element).
 
 assert_content_build_failure(Config, MessageFun, ExpectedReason) ->
     Filter = log_filter("mod_event_pusher_push_failed_to_build_content", ExpectedReason),
@@ -823,23 +834,26 @@ add_message_hint(#xmlel{children = Children} = Msg, HintType) when is_binary(Hin
                        children = []},
     Msg#xmlel{children = [MsgHintEl | Children]}.
 
-dummy_jingle_propose_message(Recipient) ->
-    Propose = #xmlel{name = <<"propose">>,
-                     attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle-message:0">>,
-                               <<"id">> => ?JINGLE_SESSION_ID},
-                     children = [
-                        #xmlel{name = <<"description">>,
-                               attrs = #{<<"xmlns">> => <<"urn:xmpp:jingle:apps:rtp:1">>,
-                                         <<"media">> => <<"audio">>}}]},
-    #xmlel{name = <<"message">>,
-           attrs = #{<<"type">> => <<"chat">>, <<"to">> => escalus_utils:get_jid(Recipient)},
-           children = [Propose]}.
+jingle_propose_message(Recipient) ->
+    DescriptionElement = #xmlel{name = ~"description",
+                                attrs = #{~"xmlns" => ~"urn:xmpp:jingle:apps:rtp:1",
+                                          ~"media" => ~"audio"}},
+    jingle_message(Recipient, ~"propose", [DescriptionElement]).
 
-dummy_invalid_jingle_message(Recipient) ->
+invalid_jingle_message(Recipient) ->
     Message = #xmlel{children = Children} =
         escalus_stanza:chat_to(Recipient, ~"Message with invalid Jingle"),
     InvalidPropose = #xmlel{name = ~"propose", attrs = #{~"xmlns" => ~"urn:xmpp:jingle-message:0"}},
     Message#xmlel{children = [InvalidPropose | Children]}.
+
+jingle_message(Recipient, Action, Children) ->
+    ActionElement = #xmlel{name = Action,
+                           attrs = #{~"xmlns" => ~"urn:xmpp:jingle-message:0",
+                                     ~"id" => ?JINGLE_SESSION_ID},
+                           children = Children},
+    #xmlel{name = ~"message",
+           attrs = #{~"type" => ~"chat", ~"to" => escalus_utils:get_jid(Recipient)},
+           children = [ActionElement]}.
 
 verify_notification(DeviceToken, Service, EnableOpts, Jid, Msg) ->
     verify_notification(DeviceToken, Service, EnableOpts, [{Jid, Msg}]).
