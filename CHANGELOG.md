@@ -4,7 +4,7 @@
 - Improved push notification delivery with async handling through MongoosePush
 
 ## Changed
-- Push notification delivery in `mod_push_service_mongoosepush` now buffers requests and dispatches them asynchronously (#4820)
+- Push notification delivery in `mod_push_service_mongoosepush` can now buffer requests and dispatch them asynchronously (#4820)
 
 ## Fixed
 - Allow user removal with JWT auth and properly clean up user data when removed (#4822)
