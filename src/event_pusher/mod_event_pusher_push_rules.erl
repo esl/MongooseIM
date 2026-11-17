@@ -136,7 +136,8 @@ check_condition(hint, store, Event) ->
     exml_query:subelement_with_name_and_ns(Packet, ~"store", ?NS_HINTS) =/= undefined;
 check_condition(jingle, Expected, Event) ->
     Packet = packet(Event),
-    Expected =:= (exml_query:subelement_with_ns(Packet, ?JINGLE_MSG_NS) =/= undefined);
+    ProposeEl = exml_query:subelement_with_name_and_ns(Packet, ~"propose", ?JINGLE_MSG_NS),
+    Expected =:= (ProposeEl =/= undefined);
 check_condition(_Condition, _Expected, _Event) ->
     false.
 
