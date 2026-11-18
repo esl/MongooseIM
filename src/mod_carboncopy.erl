@@ -174,8 +174,11 @@ user_receive_message(Acc, #{c2s_data := C2SData}, _) ->
     Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 remove_connection(Acc, #{jid := JID}, _) ->
-    disable(JID, Acc),
-    {ok, Acc}.
+    OriginSID = mongoose_acc:get(c2s, origin_sid, Acc),
+    %% Clear local and stored carbon metadata before queued presence events run.
+    Cleanup = {async_with_state, fun ejabberd_sm:store_info_async/5,
+               [OriginSID, JID, ?CC_KEY, undefined]},
+    {ok, mongoose_c2s_acc:to_acc(Acc, actions, {next_event, cast, Cleanup})}.
 
 % Check if the traffic is local.
 % Modified from original version:
@@ -391,13 +394,16 @@ get_cc_enabled_resources(JID) ->
 filter_cc_enabled_resources(AllSessions) ->
     lists:filtermap(fun fun_filter_cc_enabled_resource/1, AllSessions).
 
-fun_filter_cc_enabled_resource(Session = #session{usr = {_, _, R}}) ->
+fun_filter_cc_enabled_resource(Session = #session{usr = {_, _, R}, priority = P})
+  when is_integer(P) ->
     case mongoose_session:get_info(Session, ?CC_KEY, undefined) of
         {?CC_KEY, V} when is_integer(V) ->
             {true, {cc_ver_from_int(V), R}};
         _ ->
             false
-    end.
+    end;
+fun_filter_cc_enabled_resource(_) ->
+    false.
 
 filter_priority_resources(AllSessions) ->
     lists:filtermap(fun fun_filter_priority_resources/1, AllSessions).
