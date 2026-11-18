@@ -759,9 +759,6 @@ jobs:
       - run:
           name: Wait for pipeline
           command: |
-            # Wait a few seconds for the pipeline to become available; otherwise, the request may return a 404.
-            sleep 3
-
             ./tools/circleci-wait-pipeline.sh "$PIPELINE_ID"
 
 filters:

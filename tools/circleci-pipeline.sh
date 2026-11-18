@@ -7,7 +7,12 @@ if [ -z "${CIRCLECI_TOKEN:-}" ]; then
   exit 1
 fi
 
-branch="$1"
+branch="${1:-}"
+
+if [ -z "$branch" ]; then
+  echo "Branch is empty or not provided" >&2
+  exit 1
+fi
 
 echo "Branch: $branch" >&2
 
