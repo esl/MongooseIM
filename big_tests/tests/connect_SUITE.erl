@@ -786,7 +786,10 @@ cannot_connect_with_proxy_header(Config) ->
 
     StreamError = escalus:wait_for_stanza(ConnResult),
     escalus:assert(is_stream_error, [<<"xml-not-well-formed">>, <<>>], StreamError),
-    escalus_connection:stop(ConnResult).
+    %% The server is already closing after rejecting the malformed stream.
+    escalus:assert(is_stream_end,
+                   escalus_connection:get_stanza(ConnResult, no_stream_end_stanza_received)),
+    true = escalus_connection:wait_for_close(ConnResult, timer:seconds(5)).
 
 cannot_connect_without_proxy_header(Config) ->
     %% GIVEN proxy protocol is enabled
