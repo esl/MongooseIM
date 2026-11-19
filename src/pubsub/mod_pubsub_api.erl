@@ -7,9 +7,6 @@
 -include("jlib.hrl").
 -include("mod_pubsub.hrl").
 
-%% Until the GraphQL frontend is added.
--ignore_xref([get_item/3, publish_item/4, retract_item/4]).
-
 -type error_code() :: domain_not_found | user_not_found |
                       mod_pubsub:generic_error_reason().
 -type result(T) :: {ok, T} | {error_code(), iolist()}.
