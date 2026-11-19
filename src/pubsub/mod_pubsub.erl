@@ -49,12 +49,11 @@
 -type result(T) :: {ok, T} | error_result().
 -type ok_result() :: ok | error_result().
 
--type iq_request() :: #{acc := mongoose_acc:t(),
-                        iq := jlib:iq(),
-                        from_jid := jid:jid(),
-                        service_jid := jid:jid()}.
+-type request() :: #{acc := mongoose_acc:t(),
+                     from_jid := jid:jid(),
+                     service_jid := jid:jid()}.
 
--type iq_action() ::
+-type action() ::
         #{action := create, node_id := node_id(), config := node_config(),
           result => ok}
       | #{action := get_configuration, node_id := node_id(),
@@ -78,7 +77,7 @@
 -export_type([item/0, pubsub_node/0, subscription/0, node_key/0, node_id/0, item_id/0,
               get_items_opts/0, max_items/0, max_items_node/0, item_payload/0,
               access_model/0, node_config/0, generic_error_reason/0, error_reason/0,
-              error_result/0, result/1, ok_result/0, iq_request/0, iq_action/0]).
+              error_result/0, result/1, ok_result/0, request/0, action/0]).
 
 %% gen_mod callbacks
 
@@ -285,15 +284,15 @@ delete_iq_handlers(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PUBSUB_OWNER, ejabberd_sm),
     ok.
 
--spec handle_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq()) -> iq_action() | error_result().
+-spec handle_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq()) -> action() | error_result().
 handle_iq(Acc, From, To, IQ) ->
-    Request = #{acc => Acc, iq => IQ, from_jid => From, service_jid => To},
+    Request = #{acc => Acc, from_jid => From, service_jid => To},
     case mod_pubsub_xml:iq_action(IQ) of
         {error, _} = Error ->
-            ?LOG_INFO(#{what => pubsub_iq_error, request => Request, error => Error}),
+            ?LOG_INFO(#{what => pubsub_iq_error, iq => IQ, request => Request, error => Error}),
             Error;
         Action ->
-            ?LOG_DEBUG(#{what => pubsub_iq_action, request => Request, action => Action}),
+            ?LOG_DEBUG(#{what => pubsub_iq_action, iq => IQ, request => Request, action => Action}),
             perform_action(Request, Action)
     end.
 
@@ -304,7 +303,7 @@ make_iq_response(Acc, IQ, {IQType, Els}) ->
 
 %% Action helpers
 
--spec perform_action(iq_request(), iq_action()) -> iq_action() | error_result().
+-spec perform_action(request(), action()) -> action() | error_result().
 perform_action(Request, Action = #{action := create}) ->
     #{acc := Acc, service_jid := ServiceJid} = Request,
     #{node_id := NodeId, config := Config} = Action,
@@ -415,7 +414,7 @@ perform_action(Request, Action = #{action := publish}) ->
 
 %% Assertions
 
--spec assert_owner(iq_request()) -> ok_result().
+-spec assert_owner(request()) -> ok_result().
 assert_owner(Request) ->
     case is_owner(Request) of
         true -> ok;
@@ -429,21 +428,21 @@ assert_node_does_not_exist(HostType, NodeKey) ->
         _ -> {error, conflict}
     end.
 
--spec assert_subscriber_jid(iq_request(), jid:jid()) -> ok_result().
+-spec assert_subscriber_jid(request(), jid:jid()) -> ok_result().
 assert_subscriber_jid(#{from_jid := FromJid}, SubscriberJid) ->
     case jid:are_bare_equal(FromJid, SubscriberJid) of
         true -> ok;
         false -> {error, {bad_request, ~"invalid-jid"}}
     end.
 
--spec assert_can_unsubscribe(iq_request(), jid:jid()) -> ok_result().
+-spec assert_can_unsubscribe(request(), jid:jid()) -> ok_result().
 assert_can_unsubscribe(#{from_jid := FromJid}, SubscriberJid) ->
     case jid:are_bare_equal(FromJid, SubscriberJid) of
         true -> ok;
         false -> {error, forbidden} % can't unsubscribe someone else
     end.
 
--spec assert_access(pubsub_node(), iq_request()) -> ok_result().
+-spec assert_access(pubsub_node(), request()) -> ok_result().
 assert_access(#pubsub_node{node_key = {OwnerJid, _}} = Node, #{acc := Acc} = Request) ->
     case is_owner(Request) orelse is_open(Node) orelse is_subscribed_to_presence(OwnerJid, Acc) of
         true -> ok;
@@ -452,7 +451,7 @@ assert_access(#pubsub_node{node_key = {OwnerJid, _}} = Node, #{acc := Acc} = Req
 
 %% Helpers for nodes, subscriptions, items
 
--spec is_owner(iq_request()) -> boolean().
+-spec is_owner(request()) -> boolean().
 is_owner(#{from_jid := FromJid, service_jid := ServiceJid}) ->
     jid:are_bare_equal(FromJid, ServiceJid).
 
@@ -485,7 +484,7 @@ delete_subscription(HostType, NodeKey, SubscriberJid) ->
         not_found -> {error, {unexpected_request, ~"not-subscribed"}}
     end.
 
--spec get_items(mongooseim:host_type(), node_key(), iq_action()) -> [item()].
+-spec get_items(mongooseim:host_type(), node_key(), action()) -> [item()].
 get_items(HostType, NodeKey, #{opts := Opts}) ->
     mod_pubsub_backend:get_items(HostType, NodeKey, Opts).
 
@@ -528,7 +527,7 @@ apply_node_config(Node, Config) ->
 
 %% Notification helpers
 
--spec recipient_jids(pubsub_node(), iq_request()) -> [jid:jid()].
+-spec recipient_jids(pubsub_node(), request()) -> [jid:jid()].
 recipient_jids(Node, #{acc := Acc}) ->
     Subs = lists:usort(implicit_subscribers(Node, Acc) ++ explicit_subscribers(Node, Acc)),
     lists:foldl(fun drop_bare_jid_shadowed_by_full_jid/2, [], Subs).
@@ -572,7 +571,7 @@ broadcast_node_deletion(HostType, FromJid, ToJids, NodeId) ->
     Notification = mod_pubsub_xml:deletion_notification_message_el(NodeId),
     broadcast_notification(HostType, FromJid, ToJids, Notification).
 
--spec maybe_notify_item_retraction(boolean(), mongooseim:host_type(), iq_request(), pubsub_node(),
+-spec maybe_notify_item_retraction(boolean(), mongooseim:host_type(), request(), pubsub_node(),
                                    item_id()) -> ok.
 maybe_notify_item_retraction(true, HostType, Request, Node, ItemId) ->
     #pubsub_node{node_key = {ServiceJid, NodeId}} = Node,
