@@ -23,6 +23,9 @@
 %% IQ handlers
 -export([iq_sm/5]).
 
+%% For mod_pubsub_api
+-export([perform_action/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_ns.hrl").
