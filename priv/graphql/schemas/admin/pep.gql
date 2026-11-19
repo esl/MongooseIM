@@ -1,0 +1,27 @@
+"Manage users' PEP items."
+type PepAdminMutation @protected @use(modules: ["mod_pubsub"]) {
+  "Publish or replace a PEP item's XML payload"
+  publishItem(
+    owner: BareJID!
+    node: NonEmptyString!
+    itemId: NonEmptyString!
+    payload: XmlElement!
+  ): NonEmptyString
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Remove a PEP item, optionally notifying subscribers"
+  retractItem(
+    owner: BareJID!
+    node: NonEmptyString!
+    itemId: NonEmptyString!
+    notify: Boolean!
+  ): Boolean
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+}
+
+"Read users' PEP items."
+type PepAdminQuery @protected @use(modules: ["mod_pubsub"]) {
+  "Get a PEP item's XML payload"
+  getItem(owner: BareJID!, node: NonEmptyString!, itemId: NonEmptyString!): XmlElement
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+}

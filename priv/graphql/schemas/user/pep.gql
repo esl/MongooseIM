@@ -1,0 +1,18 @@
+"Manage the authenticated user's own PEP items."
+type PepUserMutation @protected @use(modules: ["mod_pubsub"]) {
+  "Publish or replace a PEP item's XML payload"
+  publishItem(
+    node: NonEmptyString!
+    itemId: NonEmptyString!
+    payload: XmlElement!
+  ): NonEmptyString @use
+
+  "Remove a PEP item, optionally notifying subscribers"
+  retractItem(node: NonEmptyString!, itemId: NonEmptyString!, notify: Boolean!): Boolean @use
+}
+
+"Read the authenticated user's own PEP items."
+type PepUserQuery @protected @use(modules: ["mod_pubsub"]) {
+  "Get a PEP item's XML payload"
+  getItem(node: NonEmptyString!, itemId: NonEmptyString!): XmlElement @use
+}
