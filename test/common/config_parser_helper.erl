@@ -885,6 +885,16 @@ default_mod_config(mod_inbox) ->
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue,
       max_result_limit => infinity};
+default_mod_config(mod_invites) ->
+    #{ access_create_account => account_invite,
+       backend => mnesia,
+       landing_page => <<"none">>,
+       max_invites => infinity,
+       site_name => <<"big_tests site">>,
+       template_dir => <<"priv/mod_invites">>,
+       token_expire_seconds => 3600,
+       webchat_url => <<"none">>
+     };
 default_mod_config(mod_keystore) ->
     #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->

@@ -211,6 +211,8 @@ admin_mapping_rules() ->
         'Domain' => mongoose_graphql_domain,
         'DomainWithType' => mongoose_graphql_domain,
         'MetricAdminQuery' => mongoose_graphql_metric_admin_query,
+        'InvitesAdminMutation' => mongoose_graphql_invites_admin_mutation,
+        'InvitesAdminQuery' => mongoose_graphql_invites_admin_query,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
       scalars => #{default => mongoose_graphql_scalar},
