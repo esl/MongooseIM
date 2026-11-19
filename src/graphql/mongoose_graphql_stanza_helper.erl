@@ -23,7 +23,7 @@ get_last_messages(Caller, Limit, With, Before, CheckUser) ->
             Error
     end.
 
--spec handle_event(term()) -> {ok, map() | null}.
+-spec handle_event(term()) -> {ok, map() | null} | {ok, null, [{stream, close}]}.
 handle_event({route, Acc}) ->
     {From, _To, Packet} = mongoose_acc:packet(Acc),
     case Packet of
@@ -37,6 +37,12 @@ handle_event({route, Acc}) ->
 handle_event({message, Dir, {UserPid, Jid}, Stanza}) ->
     Timestamp = os:system_time(microsecond),
     trace_result(Timestamp, UserPid, Jid, Dir, Stanza);
+handle_event({'$gen_cast', {exit, Reason}}) ->
+    %% ejabberd_sm ends a session with mongoose_c2s:exit/2, e.g. when the session is kicked,
+    %% the user is removed or another session takes over the resource.
+    %% Closing the stream runs 'terminate', which closes the session.
+    ?LOG_INFO(#{what => graphql_sse_session_terminated, reason => Reason}),
+    {ok, null, [{stream, close}]};
 handle_event(Msg) ->
     ?UNEXPECTED_INFO(Msg),
     {ok, null}.

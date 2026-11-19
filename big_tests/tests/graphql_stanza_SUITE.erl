@@ -53,7 +53,9 @@ admin_stanza_cases() ->
 
 admin_sse_cases() ->
     [admin_subscribe_for_messages,
-     admin_subscribe_for_messages_to_unknown_user].
+     admin_subscribe_for_messages_to_unknown_user,
+     admin_subscription_closed_on_kick,
+     admin_subscription_closed_on_user_removal].
 
 admin_mam_cases() ->
     [admin_get_last_messages,
@@ -188,6 +190,39 @@ admin_subscribe_for_messages_story(Config, Alice, Bob) ->
         graphql_helper:get_value([data, stanza, subscribeForMessages], Event),
     {ok, Stanza} = exml:parse(StanzaBin),
     escalus:assert(is_message, Stanza),
+    sse_helper:stop_sse(Stream).
+
+%% Ending the session closes the stream, and no more messages are delivered over it
+admin_subscription_closed_on_kick(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{bob, 1}]),
+    BobJid = escalus_users:get_jid(Config1, bob),
+    {200, Stream} = subscribe_for_messages(BobJid, Config1),
+    [SessionJid] = wait_for_sse_session(BobJid),
+    {ok, _} = rpc(mongoose_session_api, kick_session, [SessionJid, <<"kicked">>]),
+    assert_sse_closed(Stream),
+    ?assertEqual([], rpc(ejabberd_sm, get_user_resources, [jid:from_binary(BobJid)])).
+
+admin_subscription_closed_on_user_removal(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{bob, 1}]),
+    BobJid = escalus_users:get_jid(Config1, bob),
+    {200, Stream} = subscribe_for_messages(BobJid, Config1),
+    [_] = wait_for_sse_session(BobJid),
+    [LUser, LServer] = binary:split(BobJid, <<"@">>),
+    {ok, _} = rpc(mongoose_account_api, unregister_user, [LUser, LServer]),
+    assert_sse_closed(Stream),
+    ?assertEqual([], rpc(ejabberd_sm, get_user_resources, [jid:from_binary(BobJid)])).
+
+wait_for_sse_session(BareJid) ->
+    Jid = jid:from_binary(BareJid),
+    wait_helper:wait_until(fun() -> length(rpc(ejabberd_sm, get_user_resources, [Jid])) end, 1,
+                           #{name => sse_session_opened}),
+    [jid:replace_resource(Jid, Resource) || Resource <- rpc(ejabberd_sm, get_user_resources, [Jid])].
+
+rpc(M, F, A) ->
+    distributed_helper:rpc(mim(), M, F, A).
+
+assert_sse_closed(Stream) ->
+    ?assertEqual(fin, lists:last([started | sse_helper:wait_for_events(Stream, 5000)])),
     sse_helper:stop_sse(Stream).
 
 user_send_message(Config) ->
