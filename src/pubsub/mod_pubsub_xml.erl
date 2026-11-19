@@ -25,14 +25,14 @@
 is_iq_relevant(#iq{xmlns = NS}) ->
     NS =:= ?NS_PUBSUB orelse NS =:= ?NS_PUBSUB_OWNER.
 
--spec iq_action(jlib:iq()) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
+-spec iq_action(jlib:iq()) -> mod_pubsub:action() | mod_pubsub:error_result().
 iq_action(#iq{type = IQType, xmlns = NS, sub_el = #xmlel{name = ~"pubsub", children = Children}}) ->
     iq_action(IQType, NS, jlib:remove_cdata(Children));
 iq_action(_) ->
     {error, bad_request}.
 
 -spec iq_action(get | set, binary(), [exml:element()]) ->
-          mod_pubsub:iq_action() | mod_pubsub:error_result().
+          mod_pubsub:action() | mod_pubsub:error_result().
 iq_action(set, ?NS_PUBSUB, Children) ->
     iq_pubsub_set(Children);
 iq_action(get, ?NS_PUBSUB, Children) ->
@@ -42,7 +42,7 @@ iq_action(set, ?NS_PUBSUB_OWNER, Children) ->
 iq_action(get, ?NS_PUBSUB_OWNER, Children) ->
     iq_pubsub_owner_get(Children).
 
--spec iq_pubsub_set([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
+-spec iq_pubsub_set([exml:element()]) -> mod_pubsub:action() | mod_pubsub:error_result().
 iq_pubsub_set([#xmlel{name = ~"create", attrs = #{~"node" := NodeId}} | Rest]) ->
     maybe
         {ok, Config} ?= parse_create_config(Rest),
@@ -86,7 +86,7 @@ parse_retract_item([]) ->
 parse_retract_item(_) ->
     {error, bad_request}.
 
--spec iq_pubsub_get([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
+-spec iq_pubsub_get([exml:element()]) -> mod_pubsub:action() | mod_pubsub:error_result().
 iq_pubsub_get([#xmlel{name = ~"items", attrs = #{~"node" := NodeId} = Attrs,
                       children = Children}]) ->
     maybe
@@ -122,7 +122,7 @@ binary_to_pos_integer(BinValue) ->
     true = IntValue > 0,
     IntValue.
 
--spec iq_pubsub_owner_set([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
+-spec iq_pubsub_owner_set([exml:element()]) -> mod_pubsub:action() | mod_pubsub:error_result().
 iq_pubsub_owner_set([#xmlel{name = ~"delete", attrs = #{~"node" := NodeId}}]) ->
     #{action => delete, node_id => NodeId};
 iq_pubsub_owner_set([ConfigureEl = #xmlel{name = ~"configure",
@@ -136,7 +136,7 @@ iq_pubsub_owner_set([#xmlel{name = Name}]) when Name =:= ~"configure" ->
 iq_pubsub_owner_set(_) ->
     {error, bad_request}.
 
--spec iq_pubsub_owner_get([exml:element()]) -> mod_pubsub:iq_action() | mod_pubsub:error_result().
+-spec iq_pubsub_owner_get([exml:element()]) -> mod_pubsub:action() | mod_pubsub:error_result().
 iq_pubsub_owner_get([#xmlel{name = ~"configure", attrs = #{~"node" := NodeId}}]) ->
     #{action => get_configuration, node_id => NodeId};
 iq_pubsub_owner_get([#xmlel{name = Name}]) when Name =:= ~"configure" ->
@@ -274,7 +274,7 @@ binary_to_non_neg_integer(BinValue) ->
 
 %% XML Construction
 
--spec make_reply(mod_pubsub:iq_action() | mod_pubsub:error_result()) ->
+-spec make_reply(mod_pubsub:action() | mod_pubsub:error_result()) ->
           {result | error, [exml:child()]}.
 make_reply({error, {GenericReason, PubSubReason}}) ->
     {error, [exml:append_children(error_el(GenericReason), [pubsub_error_el(PubSubReason)])]};
