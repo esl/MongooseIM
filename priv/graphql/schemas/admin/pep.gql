@@ -14,7 +14,7 @@ type PepAdminMutation @protected @use(modules: ["mod_pubsub"]) {
     owner: BareJID!
     node: NonEmptyString!
     itemId: NonEmptyString!
-    notify: Boolean!
+    notify: Boolean = false
   ): Boolean
     @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
 }

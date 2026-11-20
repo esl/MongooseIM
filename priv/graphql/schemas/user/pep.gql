@@ -8,7 +8,7 @@ type PepUserMutation @protected @use(modules: ["mod_pubsub"]) {
   ): NonEmptyString @use
 
   "Remove a PEP item, optionally notifying subscribers"
-  retractItem(node: NonEmptyString!, itemId: NonEmptyString!, notify: Boolean!): Boolean @use
+  retractItem(node: NonEmptyString!, itemId: NonEmptyString!, notify: Boolean = false): Boolean @use
 }
 
 "Read the authenticated user's own PEP items."

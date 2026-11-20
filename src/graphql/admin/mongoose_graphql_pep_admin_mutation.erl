@@ -5,7 +5,7 @@
 
 -ignore_xref([execute/4]).
 
--import(mongoose_graphql_helper, [make_error/2]).
+-import(mongoose_graphql_helper, [make_error/2, null_to_default/2]).
 
 execute(_Ctx, _Obj, ~"publishItem",
         #{~"owner" := OwnerJid, ~"node" := NodeId, ~"itemId" := ItemId,  ~"payload" := Payload}) ->
@@ -16,7 +16,7 @@ execute(_Ctx, _Obj, ~"publishItem",
     end;
 execute(_Ctx, _Obj, ~"retractItem",
         #{~"owner" := OwnerJid, ~"node" := NodeId, ~"itemId" := ItemId, ~"notify" := Notify}) ->
-    case mod_pubsub_api:retract_item(OwnerJid, NodeId, ItemId, Notify) of
+    case mod_pubsub_api:retract_item(OwnerJid, NodeId, ItemId, null_to_default(Notify, false)) of
         {ok, _} = Result -> Result;
         Error -> make_error(Error, #{owner => jid:to_binary(OwnerJid),
                                      node => NodeId, itemId => ItemId})
