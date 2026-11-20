@@ -1,7 +1,7 @@
 %% @doc Provide an interface for frontends (like graphql or ctl) to manage PEP items.
 -module(mod_pubsub_api).
 
--export([get_item/3, publish_item/4, retract_item/4]).
+-export([get_item/3, publish_item/5, retract_item/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -18,10 +18,11 @@ get_item(OwnerJid, NodeId, ItemId) ->
     fold(M, [fun check_user/1, fun do_get_item/1]).
 
 -spec publish_item(jid:jid(), mod_pubsub:node_id(), mod_pubsub:item_id(),
-                   mod_pubsub:item_payload()) -> result(mod_pubsub:item_id()).
-publish_item(OwnerJid, NodeId, ItemId, Payload) ->
+                   mod_pubsub:item_payload(), mod_pubsub:node_config()) ->
+          result(mod_pubsub:item_id()).
+publish_item(OwnerJid, NodeId, ItemId, Payload, Config) ->
     M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId, item_id => ItemId,
-          payload => Payload},
+          payload => Payload, config => Config},
     fold(M, [fun check_user/1, fun do_publish_item/1]).
 
 -spec retract_item(jid:jid(), mod_pubsub:node_id(), mod_pubsub:item_id(), boolean()) ->
@@ -52,8 +53,9 @@ do_get_item(M = #{node_id := NodeId, item_id := ItemId}) ->
         {error, Reason} -> format_error(Reason)
     end.
 
-do_publish_item(M = #{node_id := NodeId, item_id := ItemId, payload := Payload}) ->
-    Action = #{action => publish, node_id => NodeId, item_id => ItemId, payload => Payload},
+do_publish_item(M = #{node_id := NodeId, item_id := ItemId, payload := Payload, config := Config}) ->
+    Action = #{action => publish, node_id => NodeId, item_id => ItemId, payload => Payload,
+               config => Config},
     case perform_action(M, Action) of
         #{result := PublishedItemId} -> {ok, PublishedItemId};
         {error, Reason} -> format_error(Reason)

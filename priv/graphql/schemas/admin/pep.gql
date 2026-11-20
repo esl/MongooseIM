@@ -6,6 +6,7 @@ type PepAdminMutation @protected @use(modules: ["mod_pubsub"]) {
     node: NonEmptyString!
     itemId: NonEmptyString!
     payload: XmlElement!
+    publishOptions: PepPublishOptionsInput
   ): NonEmptyString
     @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
 
