@@ -14,6 +14,12 @@ type PepNodeConfig {
   maxItems: PepMaxItems!
 }
 
+"A PEP item and its XML payload"
+type PepItem {
+  itemId: NonEmptyString!
+  payload: XmlElement!
+}
+
 "Access models supported by PEP nodes"
 enum PepAccessModel {
   OPEN

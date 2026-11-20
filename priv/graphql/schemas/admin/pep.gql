@@ -38,7 +38,14 @@ type PepAdminQuery @protected @use(modules: ["mod_pubsub"]) {
   getConfiguration(owner: BareJID!, node: NonEmptyString!): PepNodeConfig
     @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
 
-  "Get a PEP item's XML payload"
-  getItem(owner: BareJID!, node: NonEmptyString!, itemId: NonEmptyString!): XmlElement
+  "Get all PEP items, selected IDs, or the most recent items"
+  getItems(
+    owner: BareJID!
+    node: NonEmptyString!
+    "Return matching items; an empty list returns no items"
+    itemIds: [NonEmptyString!]
+    "Return the most recent N items; cannot be combined with itemIds"
+    maxItems: PosInt
+  ): [PepItem!]
     @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
 }

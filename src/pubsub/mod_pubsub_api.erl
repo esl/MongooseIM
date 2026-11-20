@@ -2,7 +2,7 @@
 -module(mod_pubsub_api).
 
 -export([create_node/3, delete_node/2, get_configuration/2, configure/3,
-         get_item/3, publish_item/5, retract_item/4]).
+         get_items/3, publish_item/5, retract_item/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -32,11 +32,11 @@ configure(OwnerJid, NodeId, Config) ->
     M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId, config => Config},
     fold(M, [fun check_user/1, fun do_configure/1]).
 
--spec get_item(jid:jid(), mod_pubsub:node_id(), mod_pubsub:item_id()) ->
-          result(mod_pubsub:item_payload()).
-get_item(OwnerJid, NodeId, ItemId) ->
-    M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId, item_id => ItemId},
-    fold(M, [fun check_user/1, fun do_get_item/1]).
+-spec get_items(jid:jid(), mod_pubsub:node_id(), mod_pubsub:get_items_opts()) ->
+          result([mod_pubsub:item()]).
+get_items(OwnerJid, NodeId, Opts) ->
+    M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId, opts => Opts},
+    fold(M, [fun check_user/1, fun do_get_items/1]).
 
 -spec publish_item(jid:jid(), mod_pubsub:node_id(), mod_pubsub:item_id(),
                    mod_pubsub:item_payload(), mod_pubsub:node_config()) ->
@@ -94,11 +94,10 @@ do_configure(M = #{node_id := NodeId, config := Config}) ->
         {error, Reason} -> format_error(Reason)
     end.
 
-do_get_item(M = #{node_id := NodeId, item_id := ItemId}) ->
-    Action = #{action => get_items, node_id => NodeId, opts => #{item_ids => [ItemId]}},
+do_get_items(M = #{node_id := NodeId, opts := Opts}) ->
+    Action = #{action => get_items, node_id => NodeId, opts => Opts},
     case perform_action(M, Action) of
-        #{result := [#item{payload = Payload}]} -> {ok, Payload};
-        #{result := []} -> format_error(item_not_found);
+        #{result := Items} -> {ok, Items};
         {error, Reason} -> format_error(Reason)
     end.
 
