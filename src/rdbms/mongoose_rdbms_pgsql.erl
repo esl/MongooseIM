@@ -27,10 +27,17 @@
                      password := string(),
                      atom() => any()}.
 
--export([escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
+-export([escape_string/1, escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
          query/3, prepare/5, execute/4]).
 
 %% API
+
+-spec escape_string(iodata()) -> iolist().
+escape_string(Iolist) ->
+    Bin = iolist_to_binary(Iolist),
+    [$',
+     binary:replace(Bin, ~"'", ~"''", [global]),
+     $'].
 
 -spec escape_binary(binary()) -> iodata().
 escape_binary(Bin) when is_binary(Bin) ->
@@ -48,7 +55,6 @@ connect(Options, QueryTimeout) ->
     case epgsql:connect(db_opts(Options)) of
         {ok, Pid} ->
             epgsql:squery(Pid, [<<"SET statement_timeout=">>, integer_to_binary(QueryTimeout)]),
-            epgsql:squery(Pid, <<"SET standard_conforming_strings=off">>),
             {ok, Pid};
         Error ->
             Error
