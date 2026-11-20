@@ -18,6 +18,11 @@ execute(#{user := OwnerJid}, _Obj, ~"deleteNode", #{~"node" := NodeId}) ->
         {ok, _} = Result -> Result;
         Error -> make_error(Error, #{owner => jid:to_binary(OwnerJid), node => NodeId})
     end;
+execute(#{user := OwnerJid}, _Obj, ~"configure", #{~"node" := NodeId, ~"config" := Config}) ->
+    case mod_pubsub_api:configure(OwnerJid, NodeId, config_to_map(Config)) of
+        {ok, _} = Result -> Result;
+        Error -> make_error(Error, #{owner => jid:to_binary(OwnerJid), node => NodeId})
+    end;
 execute(#{user := OwnerJid}, _Obj, ~"publishItem",
         #{~"node" := NodeId, ~"itemId" := ItemId, ~"payload" := Payload,
           ~"publishOptions" := PublishOptions}) ->

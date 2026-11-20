@@ -1,7 +1,8 @@
 %% @doc Provide an interface for frontends (like graphql or ctl) to manage PEP nodes and items.
 -module(mod_pubsub_api).
 
--export([create_node/3, delete_node/2, get_item/3, publish_item/5, retract_item/4]).
+-export([create_node/3, delete_node/2, get_configuration/2, configure/3,
+         get_item/3, publish_item/5, retract_item/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -20,6 +21,16 @@ create_node(OwnerJid, NodeId, Config) ->
 delete_node(OwnerJid, NodeId) ->
     M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId},
     fold(M, [fun check_user/1, fun do_delete_node/1]).
+
+-spec get_configuration(jid:jid(), mod_pubsub:node_id()) -> result(mod_pubsub:node_config()).
+get_configuration(OwnerJid, NodeId) ->
+    M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId},
+    fold(M, [fun check_user/1, fun do_get_configuration/1]).
+
+-spec configure(jid:jid(), mod_pubsub:node_id(), mod_pubsub:node_config()) -> result(true).
+configure(OwnerJid, NodeId, Config) ->
+    M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId, config => Config},
+    fold(M, [fun check_user/1, fun do_configure/1]).
 
 -spec get_item(jid:jid(), mod_pubsub:node_id(), mod_pubsub:item_id()) ->
           result(mod_pubsub:item_payload()).
@@ -64,6 +75,20 @@ do_create_node(M = #{node_id := NodeId, config := Config}) ->
 
 do_delete_node(M = #{node_id := NodeId}) ->
     Action = #{action => delete, node_id => NodeId},
+    case perform_action(M, Action) of
+        #{result := ok} -> {ok, true};
+        {error, Reason} -> format_error(Reason)
+    end.
+
+do_get_configuration(M = #{node_id := NodeId}) ->
+    Action = #{action => get_configuration, node_id => NodeId},
+    case perform_action(M, Action) of
+        #{result := #pubsub_node{config = Config}} -> {ok, Config};
+        {error, Reason} -> format_error(Reason)
+    end.
+
+do_configure(M = #{node_id := NodeId, config := Config}) ->
+    Action = #{action => configure, node_id => NodeId, config => Config},
     case perform_action(M, Action) of
         #{result := ok} -> {ok, true};
         {error, Reason} -> format_error(Reason)
