@@ -44,7 +44,9 @@ input(<<"LogLevel">>, <<"INFO">>) -> {ok, info};
 input(<<"LogLevel">>, <<"DEBUG">>) -> {ok, debug};
 input(<<"LogLevel">>, <<"ALL">>) -> {ok, all};
 input(<<"BroadcastRecipientGroup">>, <<"ALL_USERS_IN_DOMAIN">>) -> {ok, all_users_in_domain};
-input(<<"MetricType">>, Name) -> {ok, Name}.
+input(<<"MetricType">>, Name) -> {ok, Name};
+input(~"PepAccessModel", ~"OPEN") -> {ok, open};
+input(~"PepAccessModel", ~"PRESENCE") -> {ok, presence}.
 
 output(<<"DomainStatus">>, Type) ->
     {ok, string:uppercase(atom_to_binary(Type))};
@@ -91,4 +93,5 @@ output(<<"BroadcastJobState">>, finished) -> {ok, <<"FINISHED">>};
 output(<<"BroadcastJobState">>, abort_error) -> {ok, <<"ABORT_ERROR">>};
 output(<<"BroadcastJobState">>, abort_admin) -> {ok, <<"ABORT_ADMIN">>};
 output(<<"MetricType">>, Type) -> {ok, Type};
-output(<<"StatusCode">>, Code) -> {ok, Code}.
+output(<<"StatusCode">>, Code) -> {ok, Code};
+output(~"PepAccessModel", Model) -> {ok, string:uppercase(atom_to_binary(Model))}.
