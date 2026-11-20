@@ -1,11 +1,11 @@
 -module(mongoose_graphql_pep_helper).
 
--export([publish_options_to_config/1]).
+-export([config_to_map/1]).
 
--spec publish_options_to_config(null | map()) -> mod_pubsub:node_config().
-publish_options_to_config(null) ->
+-spec config_to_map(null | map()) -> mod_pubsub:node_config().
+config_to_map(null) ->
     #{};
-publish_options_to_config(Options) ->
+config_to_map(Options) ->
     #{config_key(Key) => Value || Key := Value <- Options, Value =/= null}.
 
 config_key(~"accessModel") -> access_model;

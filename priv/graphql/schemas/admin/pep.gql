@@ -1,12 +1,20 @@
-"Manage users' PEP items."
+"Manage users' PEP nodes and items."
 type PepAdminMutation @protected @use(modules: ["mod_pubsub"]) {
+  "Create a PEP node with optional configuration"
+  createNode(owner: BareJID!, node: NonEmptyString!, config: PepNodeConfigInput): Boolean
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Delete a PEP node and notify subscribers"
+  deleteNode(owner: BareJID!, node: NonEmptyString!): Boolean
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
   "Publish or replace a PEP item's XML payload"
   publishItem(
     owner: BareJID!
     node: NonEmptyString!
     itemId: NonEmptyString!
     payload: XmlElement!
-    publishOptions: PepPublishOptionsInput
+    publishOptions: PepNodeConfigInput
   ): NonEmptyString
     @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
 

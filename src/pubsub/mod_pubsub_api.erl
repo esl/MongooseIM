@@ -1,7 +1,7 @@
-%% @doc Provide an interface for frontends (like graphql or ctl) to manage PEP items.
+%% @doc Provide an interface for frontends (like graphql or ctl) to manage PEP nodes and items.
 -module(mod_pubsub_api).
 
--export([get_item/3, publish_item/5, retract_item/4]).
+-export([create_node/3, delete_node/2, get_item/3, publish_item/5, retract_item/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -10,6 +10,16 @@
 -type error_code() :: domain_not_found | user_not_found |
                       mod_pubsub:generic_error_reason().
 -type result(T) :: {ok, T} | {error_code(), iolist()}.
+
+-spec create_node(jid:jid(), mod_pubsub:node_id(), mod_pubsub:node_config()) -> result(true).
+create_node(OwnerJid, NodeId, Config) ->
+    M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId, config => Config},
+    fold(M, [fun check_user/1, fun do_create_node/1]).
+
+-spec delete_node(jid:jid(), mod_pubsub:node_id()) -> result(true).
+delete_node(OwnerJid, NodeId) ->
+    M = #{owner => jid:to_bare(OwnerJid), node_id => NodeId},
+    fold(M, [fun check_user/1, fun do_delete_node/1]).
 
 -spec get_item(jid:jid(), mod_pubsub:node_id(), mod_pubsub:item_id()) ->
           result(mod_pubsub:item_payload()).
@@ -43,6 +53,20 @@ check_user(M = #{owner := OwnerJid = #jid{lserver = LServer}}) ->
             end;
         {error, not_found} ->
             {domain_not_found, "User's domain does not exist"}
+    end.
+
+do_create_node(M = #{node_id := NodeId, config := Config}) ->
+    Action = #{action => create, node_id => NodeId, config => Config},
+    case perform_action(M, Action) of
+        #{result := ok} -> {ok, true};
+        {error, Reason} -> format_error(Reason)
+    end.
+
+do_delete_node(M = #{node_id := NodeId}) ->
+    Action = #{action => delete, node_id => NodeId},
+    case perform_action(M, Action) of
+        #{result := ok} -> {ok, true};
+        {error, Reason} -> format_error(Reason)
     end.
 
 do_get_item(M = #{node_id := NodeId, item_id := ItemId}) ->

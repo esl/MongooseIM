@@ -1,11 +1,17 @@
-"Manage the authenticated user's own PEP items."
+"Manage the authenticated user's own PEP nodes and items."
 type PepUserMutation @protected @use(modules: ["mod_pubsub"]) {
+  "Create a PEP node with optional configuration"
+  createNode(node: NonEmptyString!, config: PepNodeConfigInput): Boolean @use
+
+  "Delete a PEP node and notify subscribers"
+  deleteNode(node: NonEmptyString!): Boolean @use
+
   "Publish or replace a PEP item's XML payload"
   publishItem(
     node: NonEmptyString!
     itemId: NonEmptyString!
     payload: XmlElement!
-    publishOptions: PepPublishOptionsInput
+    publishOptions: PepNodeConfigInput
   ): NonEmptyString @use
 
   "Remove a PEP item, optionally notifying subscribers"

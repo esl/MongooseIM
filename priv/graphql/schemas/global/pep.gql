@@ -1,5 +1,5 @@
-"Configure a new PEP node or require matching settings on an existing node."
-input PepPublishOptionsInput {
+"PEP node configuration; publish options require existing settings to match."
+input PepNodeConfigInput {
   "Who can access the node"
   accessModel: PepAccessModel
   "Maximum stored items; 0 disables storage, and \"max\" uses the server limit"
