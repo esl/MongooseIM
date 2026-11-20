@@ -21,8 +21,11 @@ type PepUserMutation @protected @use(modules: ["mod_pubsub"]) {
   retractItem(node: NonEmptyString!, itemId: NonEmptyString!, notify: Boolean = false): Boolean @use
 }
 
-"Read the authenticated user's own PEP node configuration and items."
+"List the authenticated user's own PEP nodes and read their configuration and items."
 type PepUserQuery @protected @use(modules: ["mod_pubsub"]) {
+  "List your PEP node IDs"
+  getNodes: [NonEmptyString!] @use
+
   "Get a PEP node's configuration"
   getConfiguration(node: NonEmptyString!): PepNodeConfig @use
 

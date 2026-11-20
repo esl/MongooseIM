@@ -1,7 +1,7 @@
 %% @doc Provide an interface for frontends (like graphql or ctl) to manage PEP nodes and items.
 -module(mod_pubsub_api).
 
--export([create_node/3, delete_node/2, get_configuration/2, configure/3,
+-export([get_nodes/1, create_node/3, delete_node/2, get_configuration/2, configure/3,
          get_items/3, publish_item/5, retract_item/4]).
 
 -include("mongoose.hrl").
@@ -11,6 +11,14 @@
 -type error_code() :: domain_not_found | user_not_found |
                       mod_pubsub:generic_error_reason().
 -type result(T) :: {ok, T} | {error_code(), iolist()}.
+
+-spec get_nodes(jid:jid()) -> result([mod_pubsub:node_id()]).
+get_nodes(OwnerJid) ->
+    maybe
+        {ok, HostType} ?= check_user(OwnerJid),
+        Nodes = mod_pubsub_backend:get_nodes(HostType, jid:to_bare(OwnerJid)),
+        {ok, [NodeId || #pubsub_node{node_key = {_, NodeId}} <- Nodes]}
+    end.
 
 -spec create_node(jid:jid(), mod_pubsub:node_id(), mod_pubsub:node_config()) -> result(true).
 create_node(OwnerJid, NodeId, Config) ->

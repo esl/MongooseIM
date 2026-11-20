@@ -32,8 +32,12 @@ type PepAdminMutation @protected @use(modules: ["mod_pubsub"]) {
     @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
 }
 
-"Read users' PEP node configuration and items."
+"List users' PEP nodes and read their configuration and items."
 type PepAdminQuery @protected @use(modules: ["mod_pubsub"]) {
+  "List a user's PEP node IDs"
+  getNodes(owner: BareJID!): [NonEmptyString!]
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
   "Get a PEP node's configuration"
   getConfiguration(owner: BareJID!, node: NonEmptyString!): PepNodeConfig
     @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
