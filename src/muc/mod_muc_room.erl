@@ -46,6 +46,13 @@
          can_access_room/2,
          can_access_identity/2]).
 
+%% Hats (XEP-0317)
+-export([set_hat/4,
+         remove_hat/2,
+         assign_hat/3,
+         unassign_hat/3,
+         get_hats/1]).
+
 %% gen_fsm callbacks
 -export([init/1,
          normal_state/2,
@@ -111,7 +118,11 @@
 %%%----------------------------------------------------------------------
 %%% Types
 %%%----------------------------------------------------------------------
--export_type([config/0, user/0, activity/0]).
+-export_type([config/0, user/0, activity/0, hat/0, hat_uri/0]).
+
+-type hat_uri() :: binary().
+-type hat() :: #{uri := hat_uri(), title := binary(), hue => binary()}.
+-type hats_info() :: #{hats := [hat()], assignments := [{jid:jid(), [hat_uri()]}]}.
 
 -type statename() :: 'locked_state' | 'normal_state'.
 -type fsm_return() :: {'next_state', statename(), state()}
@@ -285,6 +296,45 @@ can_access_room(RoomJID, UserJID) ->
             Error
     end.
 
+%% @doc Defines a hat in the room, or updates its title and hue.
+%% The occupants wearing an updated hat get their presence broadcast again.
+-spec set_hat(jid:jid(), hat_uri(), binary(), binary() | undefined) ->
+    ok | {error, not_found | hats_disabled}.
+set_hat(RoomJID, Uri, Title, Hue) ->
+    Hat = maps:merge(#{uri => Uri, title => Title}, maps:filter(fun(_, V) -> V =/= undefined end,
+                                                                 #{hue => Hue})),
+    sync_hats_event(RoomJID, {set_hat, Hat}).
+
+%% @doc Removes a hat from the room, and from everyone wearing it.
+-spec remove_hat(jid:jid(), hat_uri()) -> ok | {error, not_found | hat_not_found | hats_disabled}.
+remove_hat(RoomJID, Uri) ->
+    sync_hats_event(RoomJID, {remove_hat, Uri}).
+
+%% @doc Gives a hat defined in the room to the user (bare JID).
+-spec assign_hat(jid:jid(), jid:jid(), hat_uri()) ->
+    ok | {error, not_found | hat_not_found | hats_disabled | not_affiliated}.
+assign_hat(RoomJID, UserJID, Uri) ->
+    sync_hats_event(RoomJID, {assign_hat, jid:to_lower(jid:to_bare(UserJID)), Uri}).
+
+%% @doc Takes a hat off the user (bare JID).
+-spec unassign_hat(jid:jid(), jid:jid(), hat_uri()) ->
+    ok | {error, not_found | hat_not_found | hats_disabled}.
+unassign_hat(RoomJID, UserJID, Uri) ->
+    sync_hats_event(RoomJID, {unassign_hat, jid:to_lower(jid:to_bare(UserJID)), Uri}).
+
+%% @doc Returns the hats defined in the room, and who wears them.
+-spec get_hats(jid:jid()) -> {ok, hats_info()} | {error, not_found | hats_disabled}.
+get_hats(RoomJID) ->
+    sync_hats_event(RoomJID, get_hats).
+
+sync_hats_event(RoomJID, Event) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:sync_send_all_state_event(Pid, {hats, Event});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
 %% @doc Return true if UserJID can read real user JIDs
 -spec can_access_identity(RoomJID :: jid:jid(), UserJID :: jid:jid()) ->
     {ok, boolean()} | {error, not_found}.
@@ -356,16 +406,18 @@ init_restored(#{init_type := start_restored,
     process_flag(trap_exit, true),
     Shaper = mongoose_shaper:new(RoomShaper),
     RoomJid = jid:make_bare(Room, Host),
-    State = set_opts(Opts, #state{host = Host, host_type = HostType,
-                                  server_host = ServerHost,
-                                  access = Access,
-                                  room = Room,
-                                  history = lqueue_new(HistorySize),
-                                  jid = RoomJid,
-                                  room_shaper = Shaper,
-                                  http_auth_pool = HttpAuthPool,
-                                  hibernate_timeout = read_hibernate_timeout(HostType)
-                                 }),
+    %% Affiliations removed while the room was stopped (e.g. by removing the user) take the hats along
+    State = prune_hat_assignments(
+              set_opts(Opts, #state{host = Host, host_type = HostType,
+                                    server_host = ServerHost,
+                                    access = Access,
+                                    room = Room,
+                                    history = lqueue_new(HistorySize),
+                                    jid = RoomJid,
+                                    room_shaper = Shaper,
+                                    http_auth_pool = HttpAuthPool,
+                                    hibernate_timeout = read_hibernate_timeout(HostType)
+                                   })),
     mongoose_instrument:execute(mod_muc_process_recreations, #{host_type => HostType},
                                 #{count => 1, jid => RoomJid}),
     {ok, normal_state, State, State#state.hibernate_timeout}.
@@ -639,7 +691,8 @@ handle_event({remove_user, UserU, UserS}, StateName, StateData) ->
 
 handle_event({set_affiliations, Affiliations},
              #state{hibernate_timeout = Timeout} = StateName, StateData) ->
-    {next_state, StateName, StateData#state{affiliations = Affiliations}, Timeout};
+    {next_state, StateName, prune_hat_assignments(StateData#state{affiliations = Affiliations}),
+     Timeout};
 
 handle_event(_Event, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
     {next_state, StateName, StateData, Timeout}.
@@ -664,6 +717,12 @@ handle_sync_event({can_access_identity, UserJID}, _From, StateName, StateData) -
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
     reply_with_timeout({ok, NSD#state.config}, StateName, NSD);
+handle_sync_event({hats, Event}, _From, StateName, StateData) ->
+    {Reply, NewStateData} = case is_hats_enabled(StateData) of
+                                true -> handle_hats_event(Event, StateData);
+                                false -> {{error, hats_disabled}, StateData}
+                            end,
+    reply_with_timeout(Reply, StateName, NewStateData);
 handle_sync_event({change_state, NewStateData}, _From, StateName, _StateData) ->
     reply_with_timeout({ok, NewStateData}, StateName, NewStateData);
 handle_sync_event(_Event, _From, StateName, StateData) ->
@@ -1411,7 +1470,9 @@ access_persistent(#state{access=Access}) ->
                       state()) -> state().
 set_affiliation(JID, none, StateData) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
-    StateData#state{affiliations = maps:remove(LJID, StateData#state.affiliations)};
+    %% Hats are worn only by users with an affiliation
+    StateData#state{affiliations = maps:remove(LJID, StateData#state.affiliations),
+                    hat_assignments = maps:remove(LJID, StateData#state.hat_assignments)};
 set_affiliation(JID, AffOrAffReason, StateData) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
     StateData#state{affiliations = maps:put(LJID, AffOrAffReason, StateData#state.affiliations)}.
@@ -1733,7 +1794,7 @@ strip_status(#xmlel{name = <<"presence">>, attrs = Attrs,
 -spec add_user_presence(jid:jid(), exml:element(), state()) -> state().
 add_user_presence(JID, Presence, StateData) ->
     LJID = jid:to_lower(JID),
-    FPresence = filter_presence(Presence),
+    FPresence = strip_hats(filter_presence(Presence)),
     Users =
     maps:update_with(
       LJID,
@@ -1747,7 +1808,7 @@ add_user_presence(JID, Presence, StateData) ->
                         state()) -> state().
 add_user_presence_un(JID, Presence, StateData) ->
     LJID = jid:to_lower(JID),
-    FPresence = filter_presence(Presence),
+    FPresence = strip_hats(filter_presence(Presence)),
     Users =
     maps:update_with(
       LJID,
@@ -2299,7 +2360,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
                       Status
               end,
     Packet = jlib:append_subtags(
-               Presence,
+               set_hats(RealJID, Presence, StateData),
                [#xmlel{name = <<"x">>, attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                           children = ItemEls} | Status2]}]),
@@ -2343,7 +2404,7 @@ send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
               <<"role">> => role_to_binary(FromRole)}
     end,
     Packet = jlib:append_subtags(
-               Presence,
+               set_hats(FromJID, Presence, StateData),
                [#xmlel{name = <<"x">>,
                        attrs = #{<<"xmlns">> => ?NS_MUC_USER},
                        children = [#xmlel{name = <<"item">>,
@@ -2432,8 +2493,8 @@ send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
                          Info#user.jid,
                          Unavailable,
                          ?LOCATION)),
-    Available = nick_available_presence(Presence, MaybePublicJID, Affiliation,
-                                        Role, MaybeSelfPresenceCode),
+    Available = set_hats(RealJID, nick_available_presence(Presence, MaybePublicJID, Affiliation,
+                                                          Role, MaybeSelfPresenceCode), S),
     mongoose_router:route(
         mongoose_acc:new(jid:replace_resource(S#state.jid, Nick),
                          Info#user.jid,
@@ -2506,6 +2567,156 @@ presence(<<"unavailable">> = Type, Children) ->
            attrs = #{<<"type">> => Type || Type /= <<"available">>},
            children = Children}.
 
+
+%%%----------------------------------------------------------------------
+%%% Hats (XEP-0317)
+
+-spec is_hats_enabled(state()) -> boolean().
+is_hats_enabled(StateData) ->
+    get_opt(StateData, hats).
+
+-spec hats_features(state()) -> [mongoose_disco:feature()].
+hats_features(StateData) ->
+    case is_hats_enabled(StateData) of
+        true -> [?NS_HATS];
+        false -> []
+    end.
+
+-spec handle_hats_event(term(), state()) -> {term(), state()}.
+handle_hats_event(get_hats, StateData = #state{hats = Hats, hat_assignments = Assignments}) ->
+    AssignmentList = [{jid:make_noprep(LJID), Uris} || {LJID, Uris} <- maps:to_list(Assignments)],
+    {{ok, #{hats => Hats, assignments => lists:sort(AssignmentList)}}, StateData};
+handle_hats_event({set_hat, Hat = #{uri := Uri}}, StateData = #state{hats = Hats}) ->
+    NewHats = case find_hat(Uri, Hats) of
+                  {ok, _} -> [case H of #{uri := Uri} -> Hat; _ -> H end || H <- Hats];
+                  error -> Hats ++ [Hat]
+              end,
+    hats_changed(wearers([Uri], StateData), StateData#state{hats = NewHats});
+handle_hats_event({remove_hat, Uri}, StateData = #state{hats = Hats, hat_assignments = Assignments}) ->
+    case find_hat(Uri, Hats) of
+        {ok, _} ->
+            Wearers = wearers([Uri], StateData),
+            NewAssignments = maps:filtermap(fun(_LJID, Uris) ->
+                                                    case lists:delete(Uri, Uris) of
+                                                        [] -> false;
+                                                        NewUris -> {true, NewUris}
+                                                    end
+                                            end, Assignments),
+            hats_changed(Wearers, StateData#state{hats = [H || H = #{uri := U} <- Hats, U =/= Uri],
+                                                  hat_assignments = NewAssignments});
+        error ->
+            {{error, hat_not_found}, StateData}
+    end;
+handle_hats_event({assign_hat, LJID, Uri}, StateData = #state{hats = Hats, hat_assignments = Assignments}) ->
+    case {find_hat(Uri, Hats), has_affiliation(LJID, StateData)} of
+        {{ok, _}, false} ->
+            {{error, not_affiliated}, StateData};
+        {{ok, _}, true} ->
+            Uris = maps:get(LJID, Assignments, []),
+            NewUris = Uris ++ [Uri || not lists:member(Uri, Uris)],
+            hats_changed([LJID], StateData#state{hat_assignments = Assignments#{LJID => NewUris}});
+        {error, _} ->
+            {{error, hat_not_found}, StateData}
+    end;
+handle_hats_event({unassign_hat, LJID, Uri}, StateData = #state{hat_assignments = Assignments}) ->
+    Uris = maps:get(LJID, Assignments, []),
+    case lists:member(Uri, Uris) of
+        true ->
+            NewAssignments = case lists:delete(Uri, Uris) of
+                                 [] -> maps:remove(LJID, Assignments);
+                                 NewUris -> Assignments#{LJID => NewUris}
+                             end,
+            hats_changed([LJID], StateData#state{hat_assignments = NewAssignments});
+        false ->
+            {{error, hat_not_found}, StateData}
+    end.
+
+%% Stores the room, and broadcasts the presences of the occupants whose hats changed
+-spec hats_changed([jid:simple_jid()], state()) -> {ok, state()}.
+hats_changed(LJIDs, StateData) ->
+    store_room_if_persistent(StateData),
+    maps_foreach(fun(_LJID, #user{jid = JID}) ->
+                         case lists:member(jid:to_bare(jid:to_lower(JID)), LJIDs) of
+                             true -> send_new_presence(JID, StateData);
+                             false -> ok
+                         end
+                 end, StateData#state.users),
+    {ok, StateData}.
+
+-spec has_affiliation(jid:simple_jid(), state()) -> boolean().
+has_affiliation(LJID, #state{affiliations = Affiliations}) ->
+    lookup_affiliation([LJID], Affiliations) =/= none.
+
+%% Hats are worn only by users with an affiliation, so that they are removed with it
+-spec prune_hat_assignments(state()) -> state().
+prune_hat_assignments(StateData = #state{hat_assignments = Assignments}) ->
+    StateData#state{hat_assignments = maps:filter(fun(LJID, _) -> has_affiliation(LJID, StateData) end,
+                                                  Assignments)}.
+
+-spec wearers([hat_uri()], state()) -> [jid:simple_jid()].
+wearers(Uris, #state{hat_assignments = Assignments}) ->
+    [LJID || {LJID, WornUris} <- maps:to_list(Assignments),
+             lists:any(fun(Uri) -> lists:member(Uri, WornUris) end, Uris)].
+
+-spec find_hat(hat_uri(), [hat()]) -> {ok, hat()} | error.
+find_hat(Uri, Hats) ->
+    case [Hat || Hat = #{uri := U} <- Hats, U =:= Uri] of
+        [Hat] -> {ok, Hat};
+        [] -> error
+    end.
+
+%% @doc Replaces any hats sent by the occupant with the hats the occupant wears in the room.
+%% Clients can't put on hats themselves.
+-spec set_hats(jid:jid(), exml:element(), state()) -> exml:element().
+%% Hats sent by clients are removed even when hats are disabled, so that they can't be forged.
+set_hats(JID, Presence, StateData) ->
+    Stripped = #xmlel{children = Children} = strip_hats(Presence),
+    case is_hats_enabled(StateData) of
+        true -> Stripped#xmlel{children = Children ++ hats_elements(JID, StateData)};
+        false -> Stripped
+    end.
+
+-spec strip_hats(exml:element()) -> exml:element().
+strip_hats(Presence = #xmlel{children = Children}) ->
+    Presence#xmlel{children = [Child || Child <- Children, not is_hats_element(Child)]}.
+
+is_hats_element(#xmlel{name = <<"hats">>, attrs = #{<<"xmlns">> := ?NS_HATS}}) -> true;
+is_hats_element(_) -> false.
+
+-spec hats_elements(jid:jid(), state()) -> [exml:element()].
+hats_elements(JID, #state{hats = Hats, hat_assignments = Assignments}) ->
+    LJID = jid:to_bare(jid:to_lower(JID)),
+    case maps:get(LJID, Assignments, []) of
+        [] ->
+            [];
+        Uris ->
+            HatEls = [hat_element(Hat) || Uri <- Uris, {ok, Hat} <- [find_hat(Uri, Hats)]],
+            [#xmlel{name = <<"hats">>, attrs = #{<<"xmlns">> => ?NS_HATS}, children = HatEls}]
+    end.
+
+-spec hat_element(hat()) -> exml:element().
+hat_element(Hat = #{uri := Uri, title := Title}) ->
+    Attrs = #{<<"uri">> => Uri, <<"title">> => Title},
+    #xmlel{name = <<"hat">>, attrs = case Hat of
+                                         #{hue := Hue} -> Attrs#{<<"hue">> => Hue};
+                                         _ -> Attrs
+                                     end}.
+
+%% Hats are stored as lists, so that the options can be encoded as JSON by the RDBMS backend
+-spec hats_opts(state()) -> [{atom(), list()}].
+hats_opts(#state{hats = [], hat_assignments = Assignments}) when map_size(Assignments) =:= 0 ->
+    [];
+hats_opts(#state{hats = Hats, hat_assignments = Assignments}) ->
+    [{hats, [[Uri, Title, maps:get(hue, Hat, null)] || Hat = #{uri := Uri, title := Title} <- Hats]},
+     {hat_assignments, [[jid:to_binary(LJID) | Uris] || {LJID, Uris} <- maps:to_list(Assignments)]}].
+
+decode_hat([Uri, Title, null]) -> #{uri => Uri, title => Title};
+decode_hat([Uri, Title, Hue]) -> #{uri => Uri, title => Title, hue => Hue}.
+
+%% Malformed JIDs are skipped, so that bad stored data can't stop the room from starting
+decode_hat_assignments(Val) ->
+    maps:from_list([{jid:to_lower(Jid), Uris} || [JID | Uris] <- Val,
+                                                 Jid <- [jid:from_binary(JID)], Jid =/= error]).
 
 -spec lqueue_new(integer()) -> lqueue().
 lqueue_new(Max) ->
@@ -3606,6 +3817,10 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
             SD#state{subject = Val};
         subject_author ->
             SD#state{subject_author = Val};
+        hats ->
+            SD#state{hats = [decode_hat(Hat) || Hat <- Val]};
+        hat_assignments ->
+            SD#state{hat_assignments = decode_hat_assignments(Val)};
         subject_timestamp ->
             SD#state{subject_timestamp = Val};
         _ ->
@@ -3643,7 +3858,7 @@ make_opts(StateData) ->
      {affiliations, maps:to_list(StateData#state.affiliations)},
      {subject, StateData#state.subject},
      {subject_author, StateData#state.subject_author}
-    ].
+    ] ++ hats_opts(StateData).
 
 -spec destroy_room(exml:element(), state()) -> {result, [], stop}.
 destroy_room(DestroyEl, StateData) ->
@@ -3728,7 +3943,8 @@ process_iq_disco_info(From, get, Lang, StateData) ->
     HostType = StateData#state.host_type,
     IdentityXML = mongoose_disco:identities_to_xml([identity(get_title(StateData))]),
     FeatureXML =  mongoose_disco:get_muc_features(HostType, From, RoomJID, <<>>, Lang,
-                                                  room_features(Config)),
+                                                  room_features(Config)
+                                                  ++ hats_features(StateData)),
     InfoXML = iq_disco_info_extras(StateData),
     {result, IdentityXML ++ FeatureXML ++ InfoXML, StateData}.
 

@@ -409,5 +409,9 @@ kv_to_opt({<<"subject">>, Value}) ->
     {true, {subject, Value}};
 kv_to_opt({<<"subject_author">>, Value}) ->
     {true, {subject_author, Value}};
+kv_to_opt({<<"hats">>, Value}) ->
+    {true, {hats, Value}};
+kv_to_opt({<<"hat_assignments">>, Value}) ->
+    {true, {hat_assignments, Value}};
 kv_to_opt({_Key, _Value}) ->
     false.

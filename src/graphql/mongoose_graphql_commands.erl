@@ -158,7 +158,15 @@ parse_arg(Value, ArgSpec = #{type := Type}) ->
 convert_input_type(Type, Value) when Type =:= <<"Int">>;
                                      Type =:= <<"PosInt">>;
                                      Type =:= <<"NonNegInt">> -> binary_to_integer(Value);
+convert_input_type(<<"Float">>, Value) -> binary_to_number(Value);
 convert_input_type(_, Value) -> Value.
+
+%% GraphQL accepts integers as Float input, and binary_to_float/1 requires a decimal point
+-spec binary_to_number(binary()) -> number().
+binary_to_number(Value) ->
+    try binary_to_float(Value)
+    catch error:badarg -> binary_to_integer(Value)
+    end.
 
 %% Complex argument values should be provided in JSON
 -spec is_json_arg(arg_spec()) -> boolean().

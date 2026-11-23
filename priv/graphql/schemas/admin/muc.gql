@@ -35,6 +35,18 @@ type MUCAdminMutation @protected @use(modules: ["mod_muc"]){
   "Make a user with the given nick exit the room"
   exitRoom(room: BareJID!, user: FullJID!, nick: ResourceName!): String
     @protected(type: DOMAIN, args: ["user"]) @use(args: ["room"])
+  "Define a hat (XEP-0317) in a MUC room, or update the title and hue of an existing one"
+  setRoomHat(room: BareJID!, uri: String!, title: String!, hue: Float): String
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
+  "Remove a hat from a MUC room, and from every user wearing it"
+  removeRoomHat(room: BareJID!, uri: String!): String
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
+  "Give a hat defined in a MUC room to a user"
+  assignRoomHat(room: BareJID!, user: BareJID!, uri: String!): String
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
+  "Take a hat off a user in a MUC room"
+  unassignRoomHat(room: BareJID!, user: BareJID!, uri: String!): String
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
 }
 
 """
@@ -56,4 +68,7 @@ type MUCAdminQuery @protected @use(modules: ["mod_muc"]){
   "Get the MUC room archived messages"
   getRoomMessages(room: BareJID!, pageSize: PosInt, before: DateTime): StanzasPayload
     @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"], modules: ["mod_mam_muc"])
+  "Get the hats (XEP-0317) defined in a MUC room, and who wears them"
+  listRoomHats(room: BareJID!): MUCRoomHats
+    @protected(type: DOMAIN, args: ["room"]) @use(args: ["room"])
 }

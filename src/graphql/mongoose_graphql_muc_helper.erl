@@ -1,7 +1,8 @@
 -module(mongoose_graphql_muc_helper).
 
 -export([make_rooms_payload/2, make_room_desc/1, muc_room_config_to_map/1, make_muc_room_config/2,
-         format_user/1, format_users/1, add_user_resource/2, format_affs/1]).
+         format_user/1, format_users/1, add_user_resource/2, format_affs/1,
+         format_hats/1]).
 
 -export([default_kick_reason/1, default_invite_reason/1, default_room_removal_reason/1]).
 
@@ -58,6 +59,24 @@ format_affs(Affs) ->
 
 format_aff({JID, Aff}) ->
     #{<<"jid">> => JID, <<"affiliation">> => Aff}.
+
+-spec format_hats(mod_muc_api:hats_result()) -> map().
+format_hats(#{hats := Hats, assignments := Assignments}) ->
+    #{<<"hats">> => [{ok, format_hat(Hat)} || Hat <- Hats],
+      <<"assignments">> => [{ok, #{<<"jid">> => JID, <<"hats">> => [{ok, Uri} || Uri <- Uris]}}
+                            || {JID, Uris} <- Assignments]}.
+
+format_hat(Hat = #{uri := Uri, title := Title}) ->
+    Hue = case Hat of
+              #{hue := HueBin} -> binary_to_number(HueBin);
+              _ -> null
+          end,
+    #{<<"uri">> => Uri, <<"title">> => Title, <<"hue">> => Hue}.
+
+binary_to_number(Bin) ->
+    try binary_to_float(Bin)
+    catch error:badarg -> float(binary_to_integer(Bin))
+    end.
 
 -spec muc_room_config_to_map(mod_muc_room:config()) -> map().
 muc_room_config_to_map(Conf) ->
