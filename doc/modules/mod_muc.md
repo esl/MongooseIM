@@ -165,6 +165,19 @@ this option specifies the HTTP pool name to use (see [External HTTP Authenticati
 Load all rooms at startup. Because it can be unsafe when there are many rooms,
 it is disabled by default.
 
+### `modules.mod_muc.occupant_id`
+ * **Syntax:** boolean
+ * **Default:** `false`
+ * **Example:** `occupant_id = true`
+
+Enables [XEP-0421: Occupant identifiers for semi-anonymous MUCs](https://xmpp.org/extensions/xep-0421.html) in all rooms.
+The room then adds an `<occupant-id xmlns='urn:xmpp:occupant-id:0'/>` element to every presence and message it sends on behalf of an occupant, replacing any such element sent by the client.
+The ID stays the same for a user (identified by the real bare JID) in a room, also when they change their nickname or join again, and differs between rooms.
+It is derived from the real JID with a random salt stored with the room, so other occupants can't learn the real JID from it.
+It lets clients tell whether two messages come from the same person, e.g. for message corrections and retractions.
+Both the rooms and the MUC service advertise the `urn:xmpp:occupant-id:0` feature.
+When this option is disabled, `occupant-id` elements sent by clients are still removed, so that they cannot be forged.
+
 ### `modules.mod_muc.hibernate_timeout` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `90000` (milliseconds, 90 seconds)

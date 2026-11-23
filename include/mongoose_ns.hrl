@@ -113,6 +113,7 @@
 -define(NS_CHAT_MARKERS,        <<"urn:xmpp:chat-markers:0">>).
 
 -define(NS_FASTEN,              <<"urn:xmpp:fasten:0">>).
+-define(NS_OCCUPANT_ID,         <<"urn:xmpp:occupant-id:0">>).
 -define(NS_RETRACT,             <<"urn:xmpp:message-retract:0">>).
 -define(NS_RETRACT_TOMBSTONE,   <<"urn:xmpp:message-retract:0#tombstone">>).
 

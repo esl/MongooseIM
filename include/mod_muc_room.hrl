@@ -88,6 +88,8 @@
                 room_queue = queue:new(),
                 http_auth_pool = none :: none | mongoose_http_client:pool(),
                 http_auth_pids = [] :: [pid()],
+                %% Secret salt of the room's occupant IDs (XEP-0421)
+                occupant_id_salt :: binary() | undefined,
                 hibernate_timeout = 90000 :: timeout()
                }).
 
