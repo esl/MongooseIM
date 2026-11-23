@@ -25,7 +25,12 @@
          set_role/4,
          set_role/3,
          delete_room/2,
-         delete_room/3]).
+         delete_room/3,
+         get_room_hats/1,
+         set_room_hat/4,
+         remove_room_hat/2,
+         assign_room_hat/3,
+         unassign_room_hat/3]).
 
 -ignore_xref([get_rooms/4, get_rooms/5, delete_room/3,
               get_room_config/2, get_room_users/2]).
@@ -51,7 +56,10 @@
 
 -type aff_item() :: {jid:simple_jid(), mod_muc:affiliation()}.
 
--export_type([user_map/0, short_room_desc/0]).
+-type hats_result() :: #{hats := [mod_muc_room:hat()],
+                         assignments := [{jid:jid(), [mod_muc_room:hat_uri()]}]}.
+
+-export_type([user_map/0, short_room_desc/0, hats_result/0]).
 
 -define(ROOM_DELETED_SUCC_RESULT, {ok, "Room deleted successfully"}).
 -define(USER_CANNOT_ACCESS_ROOM_RESULT,
@@ -65,6 +73,10 @@
 -define(MODERATOR_RES_NOT_FOUND_RESULT,
         {moderator_not_found, "Resource with moderator role not found"}).
 -define(SET_ROLE_SUCC_RESULT, {ok, "Role set successfully"}).
+-define(HATS_DISABLED_RESULT, {hats_disabled, "Hats are not enabled for this MUC service"}).
+-define(HAT_NOT_FOUND_RESULT, {hat_not_found, "Hat not found"}).
+-define(NOT_AFFILIATED_RESULT,
+        {not_affiliated, "Hats can only be assigned to users with an affiliation in the room"}).
 
 -spec get_rooms(jid:lserver(), jid:jid(), non_neg_integer() | undefined,
                 non_neg_integer()) -> {ok, get_rooms_result()} | {muc_server_not_found, iolist()}.
@@ -242,6 +254,43 @@ kick_user_from_room(RoomJID, UserJID, Nick, ReasonIn) ->
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
+
+%% Hats (XEP-0317)
+
+-spec get_room_hats(jid:jid()) -> {ok, hats_result()} | {room_not_found | hats_disabled, iolist()}.
+get_room_hats(RoomJID) ->
+    format_hats_result(mod_muc_room:get_hats(RoomJID), undefined).
+
+%% @doc Defines a hat in the room, or updates the title and hue of an existing one.
+-spec set_room_hat(jid:jid(), binary(), binary(), number() | undefined) ->
+    {ok | room_not_found | hats_disabled | bad_request, iolist()}.
+set_room_hat(_RoomJID, <<>>, _Title, _Hue) ->
+    {bad_request, "Hat URI cannot be empty"};
+set_room_hat(_RoomJID, _Uri, <<>>, _Hue) ->
+    {bad_request, "Hat title cannot be empty"};
+set_room_hat(_RoomJID, _Uri, _Title, Hue) when is_number(Hue), (Hue < 0 orelse Hue >= 360) ->
+    {bad_request, "Hat hue must be at least 0 and less than 360"};
+set_room_hat(RoomJID, Uri, Title, Hue) ->
+    Res = mod_muc_room:set_hat(RoomJID, Uri, Title, format_hue(Hue)),
+    format_hats_result(Res, "Hat set successfully").
+
+-spec remove_room_hat(jid:jid(), binary()) ->
+    {ok | room_not_found | hats_disabled | hat_not_found, iolist()}.
+remove_room_hat(RoomJID, Uri) ->
+    format_hats_result(mod_muc_room:remove_hat(RoomJID, Uri), "Hat removed successfully").
+
+%% @doc Assigns a hat to a user with an affiliation (member or higher) in the room.
+%% The hats are removed with the affiliation, e.g. when the user is removed.
+-spec assign_room_hat(jid:jid(), jid:jid(), binary()) ->
+    {ok | room_not_found | hats_disabled | hat_not_found | not_affiliated, iolist()}.
+assign_room_hat(RoomJID, UserJID, Uri) ->
+    format_hats_result(mod_muc_room:assign_hat(RoomJID, UserJID, Uri), "Hat assigned successfully").
+
+-spec unassign_room_hat(jid:jid(), jid:jid(), binary()) ->
+    {ok | room_not_found | hats_disabled | hat_not_found, iolist()}.
+unassign_room_hat(RoomJID, UserJID, Uri) ->
+    format_hats_result(mod_muc_room:unassign_hat(RoomJID, UserJID, Uri),
+                       "Hat unassigned successfully").
 
 -spec delete_room(jid:jid(), binary()) -> {ok | room_not_found, iolist()}.
 delete_room(RoomJID, Reason) ->
@@ -609,3 +658,14 @@ format_affs(AffsMap) ->
                   ({K, {V, <<>>}}) -> {K, V};
                   ({K, V}) -> {K, V}
               end, maps:to_list(AffsMap)).
+
+%% A decimal without an exponent (xs:decimal), and adding 0.0 turns -0.0 into 0.0
+format_hue(undefined) -> undefined;
+format_hue(Hue) -> float_to_binary(float(Hue) + 0.0, [{decimals, 6}, compact]).
+
+format_hats_result(ok, Msg) -> {ok, Msg};
+format_hats_result({ok, Hats}, _Msg) -> {ok, Hats};
+format_hats_result({error, not_found}, _Msg) -> ?ROOM_NOT_FOUND_RESULT;
+format_hats_result({error, hats_disabled}, _Msg) -> ?HATS_DISABLED_RESULT;
+format_hats_result({error, hat_not_found}, _Msg) -> ?HAT_NOT_FOUND_RESULT;
+format_hats_result({error, not_affiliated}, _Msg) -> ?NOT_AFFILIATED_RESULT.

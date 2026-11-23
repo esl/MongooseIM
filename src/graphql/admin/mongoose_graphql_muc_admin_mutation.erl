@@ -31,7 +31,15 @@ execute(_Ctx, _Obj, <<"setUserAffiliation">>, Args) ->
 execute(_Ctx, _Obj, <<"enterRoom">>, Args) ->
     enter_room(Args);
 execute(_Ctx, _Obj, <<"exitRoom">>, Args) ->
-    exit_room(Args).
+    exit_room(Args);
+execute(_Ctx, _Obj, <<"setRoomHat">>, Args) ->
+    set_room_hat(Args);
+execute(_Ctx, _Obj, <<"removeRoomHat">>, Args) ->
+    remove_room_hat(Args);
+execute(_Ctx, _Obj, <<"assignRoomHat">>, Args) ->
+    assign_room_hat(Args);
+execute(_Ctx, _Obj, <<"unassignRoomHat">>, Args) ->
+    unassign_room_hat(Args).
 
 -spec create_instant_room(map()) -> {ok, map()} | {error, resolver_error()}.
 create_instant_room(#{<<"room">> := RoomJID, <<"owner">> := OwnerJID, <<"nick">> := Nick}) ->
@@ -104,3 +112,25 @@ enter_room(#{<<"room">> := RoomJID, <<"user">> := UserJID, <<"nick">> := Nick,
 exit_room(#{<<"room">> := RoomJID, <<"user">> := UserJID, <<"nick">> := Nick}) ->
     RoomJIDRes = jid:replace_resource(RoomJID, Nick),
     mod_muc_api:exit_room(RoomJIDRes, UserJID).
+
+-spec set_room_hat(map()) -> {ok, binary()} | {error, resolver_error()}.
+set_room_hat(#{<<"room">> := RoomJID, <<"uri">> := Uri, <<"title">> := Title, <<"hue">> := Hue}) ->
+    Res = mod_muc_api:set_room_hat(RoomJID, Uri, Title, null_to_undefined(Hue)),
+    format_result(Res, #{room => jid:to_binary(RoomJID), uri => Uri}).
+
+-spec remove_room_hat(map()) -> {ok, binary()} | {error, resolver_error()}.
+remove_room_hat(#{<<"room">> := RoomJID, <<"uri">> := Uri}) ->
+    Res = mod_muc_api:remove_room_hat(RoomJID, Uri),
+    format_result(Res, #{room => jid:to_binary(RoomJID), uri => Uri}).
+
+-spec assign_room_hat(map()) -> {ok, binary()} | {error, resolver_error()}.
+assign_room_hat(#{<<"room">> := RoomJID, <<"user">> := UserJID, <<"uri">> := Uri}) ->
+    Res = mod_muc_api:assign_room_hat(RoomJID, UserJID, Uri),
+    format_result(Res, #{room => jid:to_binary(RoomJID), user => jid:to_binary(UserJID),
+                         uri => Uri}).
+
+-spec unassign_room_hat(map()) -> {ok, binary()} | {error, resolver_error()}.
+unassign_room_hat(#{<<"room">> := RoomJID, <<"user">> := UserJID, <<"uri">> := Uri}) ->
+    Res = mod_muc_api:unassign_room_hat(RoomJID, UserJID, Uri),
+    format_result(Res, #{room => jid:to_binary(RoomJID), user => jid:to_binary(UserJID),
+                         uri => Uri}).

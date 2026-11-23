@@ -97,6 +97,7 @@ arg_name_to_binary(Name) when is_atom(Name) -> atom_to_binary(Name);
 arg_name_to_binary(Name) when is_binary(Name) -> Name.
 
 arg_value_to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
+arg_value_to_binary(Value) when is_float(Value) -> float_to_binary(Value, [short]);
 arg_value_to_binary(Value) when is_atom(Value) -> atom_to_binary(Value);
 arg_value_to_binary(Value) when is_binary(Value) -> Value;
 arg_value_to_binary(Value) when is_list(Value);

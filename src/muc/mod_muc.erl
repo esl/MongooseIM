@@ -27,6 +27,7 @@
 -author('alexey@process-one.net').
 -xep([{xep, 45}, {version, "1.34.5"}]).
 -xep([{xep, 249}, {version, "1.2"}]).
+-xep([{xep, 317}, {version, "0.3.1"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
@@ -249,6 +250,7 @@ config_spec() ->
                  <<"http_auth_pool">> => #option{type = atom,
                                                  validate = pool_name},
                  <<"load_permanent_rooms_at_startup">> => #option{type = boolean},
+                 <<"hats">> => #option{type = boolean},
                  <<"hibernate_timeout">> => #option{type = int_or_infinity,
                                                     validate = non_negative},
                  <<"hibernated_room_check_interval">> => #option{type = int_or_infinity,
@@ -282,6 +284,7 @@ defaults() ->
       <<"max_user_conferences">> => 10,
       <<"http_auth_pool">> => none,
       <<"load_permanent_rooms_at_startup">> => false,
+      <<"hats">> => false,
       <<"hibernate_timeout">> => timer:seconds(90),
       <<"hibernated_room_check_interval">> => infinity,
       <<"hibernated_room_timeout">> => infinity,

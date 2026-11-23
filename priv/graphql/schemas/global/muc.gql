@@ -40,6 +40,32 @@ type MUCRoomAffiliation{
   affiliation: MUCAffiliation!
 }
 
+"A hat (XEP-0317) defined in a MUC room"
+type MUCRoomHat{
+  "Unique URI of the hat"
+  uri: String!
+  "Human-readable title of the hat"
+  title: String!
+  "Hue of the hat in degrees, used by clients to color it"
+  hue: Float
+}
+
+"Hats worn by a user in a MUC room"
+type MUCRoomHatAssignment{
+  "Bare JID of the user"
+  jid: JID!
+  "URIs of the hats the user wears"
+  hats: [String!]!
+}
+
+"Hats defined in a MUC room, and who wears them"
+type MUCRoomHats{
+  "Hats defined in the room"
+  hats: [MUCRoomHat!]!
+  "Users wearing hats"
+  assignments: [MUCRoomHatAssignment!]!
+}
+
 "MUC room description"
 type MUCRoomDesc{
   "Room's JID"

@@ -19,7 +19,9 @@ execute(_Ctx, _Obj, <<"listRoomAffiliations">>, Args) ->
 execute(_Ctx, _Obj, <<"getRoomMessages">>, Args) ->
     get_room_messages(Args);
 execute(_Ctx, _Obj, <<"getRoomConfig">>, Args) ->
-    get_room_config(Args).
+    get_room_config(Args);
+execute(_Ctx, _Obj, <<"listRoomHats">>, Args) ->
+    list_room_hats(Args).
 
 -spec list_rooms(map()) -> {ok, map()}.
 list_rooms(#{<<"mucDomain">> := MUCDomain, <<"from">> := FromJID,
@@ -71,4 +73,13 @@ get_room_messages(#{<<"room">> := RoomJID, <<"pageSize">> := PageSize, <<"before
             {ok, #{<<"stanzas">> => Maps, <<"limit">> => PageSize2}};
         Err ->
             make_error(Err, #{room => RoomJID})
+    end.
+
+-spec list_room_hats(map()) -> {ok, map()} | {error, resolver_error()}.
+list_room_hats(#{<<"room">> := RoomJID}) ->
+    case mod_muc_api:get_room_hats(RoomJID) of
+        {ok, Hats} ->
+            {ok, mongoose_graphql_muc_helper:format_hats(Hats)};
+        Error ->
+            make_error(Error, #{room => jid:to_binary(RoomJID)})
     end.

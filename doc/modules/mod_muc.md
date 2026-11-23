@@ -165,6 +165,14 @@ this option specifies the HTTP pool name to use (see [External HTTP Authenticati
 Load all rooms at startup. Because it can be unsafe when there are many rooms,
 it is disabled by default.
 
+### `modules.mod_muc.hats`
+  * **Syntax:** boolean
+  * **Default:** `false`
+  * **Example:** `hats = true`
+
+Enables [XEP-0317: Hats](https://xmpp.org/extensions/xep-0317.html) in the rooms of this service.
+See [Hats](#hats-xep-0317) below.
+
 ### `modules.mod_muc.hibernate_timeout` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `90000` (milliseconds, 90 seconds)
@@ -446,6 +454,27 @@ The improvement works as follows:
 If the owner is online, a presence of a type unavailable is sent to it indicating that the room's process is being terminated.
 
 The room's process can be recreated on demand, for example when a presence sent to it, or the owner wants to add more users to the room.
+
+## Hats (XEP-0317)
+
+When the `hats` option is enabled, each room can define hats: roles with a URI, a title and an optional hue,
+such as "Host" or "Moderator on duty".
+Hats are given to users by their bare JID, so they apply to every session of that user in the room.
+A hat can only be given to a user who has an affiliation in the room (member, admin or owner),
+and the user's hats are taken off when that affiliation is removed, for example when the account is deleted.
+The room adds a `<hats xmlns='urn:xmpp:hats:0'/>` element listing the user's hats to every presence it broadcasts
+for that user, and advertises the `urn:xmpp:hats:0` feature in its disco#info.
+Any `hats` element sent by a client in its own presence is always removed, including on nick changes,
+so users cannot put on hats themselves.
+When a hat is defined, changed or taken off, the room broadcasts the new presence of every affected occupant.
+
+Hats are stored together with the room configuration, so they persist with persistent rooms.
+
+Hats are managed with the admin GraphQL API in the `muc` category:
+`setRoomHat`, `removeRoomHat`, `assignRoomHat`, `unassignRoomHat` and `listRoomHats`.
+The ad-hoc commands described in the XEP are not supported.
+Like other room administration operations, these only work on rooms whose process is running,
+so a room stopped by [deep hibernation](#room-deep-hibernation) has to be woken up first.
 
 ## External HTTP Authentication
 
