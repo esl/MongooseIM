@@ -1,0 +1,27 @@
+"PEP node configuration; publish options require existing settings to match."
+input PepNodeConfigInput {
+  "Who can access the node"
+  accessModel: PepAccessModel
+  "Maximum stored items; 0 disables storage, and \"max\" uses the server limit"
+  maxItems: PepMaxItems
+}
+
+"A PEP node's current configuration"
+type PepNodeConfig {
+  "Who can access the node"
+  accessModel: PepAccessModel!
+  "Maximum stored items; 0 disables storage, and \"max\" uses the server limit"
+  maxItems: PepMaxItems!
+}
+
+"A PEP item and its XML payload"
+type PepItem {
+  itemId: NonEmptyString!
+  payload: XmlElement!
+}
+
+"Access models supported by PEP nodes"
+enum PepAccessModel {
+  OPEN
+  PRESENCE
+}

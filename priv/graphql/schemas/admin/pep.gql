@@ -1,0 +1,55 @@
+"Manage users' PEP nodes and items."
+type PepAdminMutation @protected @use(modules: ["mod_pubsub"]) {
+  "Create a PEP node with optional configuration"
+  createNode(owner: BareJID!, node: NonEmptyString!, config: PepNodeConfigInput): Boolean
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Delete a PEP node and notify subscribers"
+  deleteNode(owner: BareJID!, node: NonEmptyString!): Boolean
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Update a PEP node's configuration"
+  configure(owner: BareJID!, node: NonEmptyString!, config: PepNodeConfigInput!): Boolean
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Publish or replace a PEP item's XML payload"
+  publishItem(
+    owner: BareJID!
+    node: NonEmptyString!
+    itemId: NonEmptyString!
+    payload: XmlElement!
+    publishOptions: PepNodeConfigInput
+  ): NonEmptyString
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Remove a PEP item, optionally notifying subscribers"
+  retractItem(
+    owner: BareJID!
+    node: NonEmptyString!
+    itemId: NonEmptyString!
+    notify: Boolean = false
+  ): Boolean
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+}
+
+"List users' PEP nodes and read their configuration and items."
+type PepAdminQuery @protected @use(modules: ["mod_pubsub"]) {
+  "List a user's PEP node IDs"
+  getNodes(owner: BareJID!): [NonEmptyString!]
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Get a PEP node's configuration"
+  getConfiguration(owner: BareJID!, node: NonEmptyString!): PepNodeConfig
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+
+  "Get all PEP items, selected IDs, or the most recent items"
+  getItems(
+    owner: BareJID!
+    node: NonEmptyString!
+    "Return matching items; an empty list returns no items"
+    itemIds: [NonEmptyString!]
+    "Return the most recent N items; cannot be combined with itemIds"
+    maxItems: PosInt
+  ): [PepItem!]
+    @protected(type: DOMAIN, args: ["owner"]) @use(args: ["owner"])
+}

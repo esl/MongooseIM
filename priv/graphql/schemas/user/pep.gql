@@ -1,0 +1,40 @@
+"Manage the authenticated user's own PEP nodes and items."
+type PepUserMutation @protected @use(modules: ["mod_pubsub"]) {
+  "Create a PEP node with optional configuration"
+  createNode(node: NonEmptyString!, config: PepNodeConfigInput): Boolean @use
+
+  "Delete a PEP node and notify subscribers"
+  deleteNode(node: NonEmptyString!): Boolean @use
+
+  "Update a PEP node's configuration"
+  configure(node: NonEmptyString!, config: PepNodeConfigInput!): Boolean @use
+
+  "Publish or replace a PEP item's XML payload"
+  publishItem(
+    node: NonEmptyString!
+    itemId: NonEmptyString!
+    payload: XmlElement!
+    publishOptions: PepNodeConfigInput
+  ): NonEmptyString @use
+
+  "Remove a PEP item, optionally notifying subscribers"
+  retractItem(node: NonEmptyString!, itemId: NonEmptyString!, notify: Boolean = false): Boolean @use
+}
+
+"List the authenticated user's own PEP nodes and read their configuration and items."
+type PepUserQuery @protected @use(modules: ["mod_pubsub"]) {
+  "List your PEP node IDs"
+  getNodes: [NonEmptyString!] @use
+
+  "Get a PEP node's configuration"
+  getConfiguration(node: NonEmptyString!): PepNodeConfig @use
+
+  "Get all PEP items, selected IDs, or the most recent items"
+  getItems(
+    node: NonEmptyString!
+    "Return matching items; an empty list returns no items"
+    itemIds: [NonEmptyString!]
+    "Return the most recent N items; cannot be combined with itemIds"
+    maxItems: PosInt
+  ): [PepItem!] @use
+}

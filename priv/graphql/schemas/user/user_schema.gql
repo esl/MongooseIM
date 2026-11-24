@@ -27,6 +27,8 @@ type UserQuery{
   vcard: VcardUserQuery
   "User's private storage management"
   private: PrivateUserQuery
+  "Personal Eventing Protocol management"
+  pep: PepUserQuery
 }
 
 """
@@ -52,6 +54,8 @@ type UserMutation @protected{
   vcard: VcardUserMutation
   "User's private storage management"
   private: PrivateUserMutation
+  "Personal Eventing Protocol management"
+  pep: PepUserMutation
   "Http upload"
   httpUpload: HttpUploadUserMutation
   "OAUTH token management"
