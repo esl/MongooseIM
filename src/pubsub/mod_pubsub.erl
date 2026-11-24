@@ -206,8 +206,7 @@ disco_sm_items(DiscoAcc, _, _) ->
       Acc :: mongoose_acc:t().
 caps_recognised(Acc, #{c2s_data := C2SData, features := Features}, _Extra) ->
     SubscriberJid = mongoose_acc:from_jid(Acc),
-    Acc1 = mod_presence:put_state_in_acc(C2SData, Acc),
-    Owners = presence_subscriptions(s_to, Acc1),
+    Owners = get_subscribed_to(C2SData),
     lists:foreach(fun(OwnerJid) -> send_last_items(OwnerJid, SubscriberJid, Features) end, Owners),
     {ok, Acc}.
 
@@ -537,7 +536,7 @@ recipient_jids(Node, #{acc := Acc}) ->
 
 -spec implicit_subscribers(pubsub_node(), mongoose_acc:t()) -> [jid:jid()].
 implicit_subscribers(#pubsub_node{node_key = NodeKey = {OwnerJid, _}}, Acc) ->
-    filter_recipients([OwnerJid | presence_subscriptions(s_from, Acc)], NodeKey).
+    filter_recipients([OwnerJid | get_subscribed_from(Acc, OwnerJid)], NodeKey).
 
 -spec explicit_subscribers(pubsub_node(), mongoose_acc:t()) -> [jid:jid()].
 explicit_subscribers(#pubsub_node{node_key = NodeKey}, Acc) ->
@@ -560,11 +559,23 @@ filter_recipients(RecipientJids, NodeKey) ->
         {LRes, Features} <- resources_with_features(RecipientJid),
         lists:member(Feature, Features)].
 
--spec presence_subscriptions(s_from | s_to, mongoose_acc:t()) -> [jid:jid()].
-presence_subscriptions(Type, Acc) ->
+-spec get_subscribed_to(mongoose_c2s:data()) -> [jid:jid()].
+get_subscribed_to(C2SData) ->
+    case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
+        {ok, State} -> maps:keys(mod_presence:get(State, s_to));
+        _ -> []
+    end.
+
+-spec get_subscribed_from(mongoose_acc:t(), jid:jid()) -> [jid:jid()].
+get_subscribed_from(Acc, OwnerJid) ->
     case mod_presence:get_state_from_acc(Acc) of
-        undefined -> [];
-        State -> maps:keys(mod_presence:get(State, Type))
+        undefined ->
+            HostType = mongoose_acc:host_type(Acc),
+            Acc1 = mongoose_hooks:roster_get_subscription_lists(HostType, Acc, OwnerJid),
+            {Fs, _Ts, _Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
+            lists:map(fun jid:make/1, Fs);
+        State ->
+            maps:keys(mod_presence:get(State, s_from))
     end.
 
 -spec broadcast_node_deletion(mongooseim:host_type(), jid:jid(), [jid:jid()], node_id()) -> ok.
