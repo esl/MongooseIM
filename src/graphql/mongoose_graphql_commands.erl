@@ -155,9 +155,11 @@ parse_arg(Value, ArgSpec = #{type := Type}) ->
     end.
 
 %% Used input types that are not parsed from binaries should be handled here
-convert_input_type(Type, Value) when Type =:= <<"Int">>;
-                                     Type =:= <<"PosInt">>;
-                                     Type =:= <<"NonNegInt">> -> binary_to_integer(Value);
+convert_input_type(~"Bool", ~"true") -> true;
+convert_input_type(~"Bool", ~"false") -> false;
+convert_input_type(Type, Value) when Type =:= ~"Int";
+                                     Type =:= ~"PosInt";
+                                     Type =:= ~"NonNegInt" -> binary_to_integer(Value);
 convert_input_type(_, Value) -> Value.
 
 %% Complex argument values should be provided in JSON

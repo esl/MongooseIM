@@ -27,6 +27,7 @@ input(~"ClusterNodeName", Node) -> cluster_node_from_binary(Node);
 input(~"NonEmptyString", Value) -> non_empty_string_to_binary(Value);
 input(~"PosInt", Value) -> validate_pos_integer(Value);
 input(~"NonNegInt", Value) -> validate_non_neg_integer(Value);
+input(~"PepMaxItems", Value) -> parse_pep_max_items(Value);
 input(~"SafeInt", Value) -> validate_safe_integer(Value);
 input(Ty, V) ->
     error_logger:info_report({coercing_generic_scalar, Ty, V}),
@@ -48,6 +49,8 @@ output(~"ResourceName", Res) -> {ok, Res};
 output(~"NonEmptyString", Value) -> binary_to_non_empty_string(Value);
 output(~"PosInt", Value) -> validate_pos_integer(Value);
 output(~"NonNegInt", Value) -> validate_non_neg_integer(Value);
+output(~"PepMaxItems", infinity) -> {ok, ~"max"};
+output(~"PepMaxItems", Value) -> validate_non_neg_integer(Value);
 output(~"SafeInt", Value) -> validate_safe_integer(Value);
 output(Ty, V) ->
     error_logger:info_report({output_generic_scalar, Ty, V}),
@@ -180,6 +183,13 @@ validate_non_neg_integer(NonNegInt) when is_integer(NonNegInt), NonNegInt >= 0 -
     {ok, NonNegInt};
 validate_non_neg_integer(_Value) ->
     {error, "Value is not a non-negative integer"}.
+
+parse_pep_max_items(~"max") ->
+    {ok, infinity};
+parse_pep_max_items(Value) when is_integer(Value), Value >= 0 ->
+    {ok, Value};
+parse_pep_max_items(_) ->
+    {error, "Value is not a non-negative integer or 'max'"}.
 
 validate_safe_integer(SafeInt) when is_integer(SafeInt),
                                     SafeInt =< ?MAX_SAFE_INT,

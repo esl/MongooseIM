@@ -27,6 +27,8 @@ execute(_Ctx, _Obj, <<"offline">>, _Args) ->
     {ok, offline};
 execute(_Ctx, _Obj, <<"private">>, _Args) ->
     {ok, private};
+execute(_Ctx, _Obj, <<"pep">>, _Args) ->
+    {ok, pep};
 execute(_Ctx, _Obj, <<"roster">>, _Args) ->
     {ok, roster};
 execute(_Ctx, _Obj, <<"session">>, _Args) ->
