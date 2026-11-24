@@ -37,6 +37,7 @@
 {suites, "tests", graphql_muc_light_SUITE}.
 {suites, "tests", graphql_offline_SUITE}.
 {suites, "tests", graphql_private_SUITE}.
+{suites, "tests", graphql_pep_SUITE}.
 {suites, "tests", graphql_roster_SUITE}.
 {suites, "tests", graphql_session_SUITE}.
 {suites, "tests", graphql_stanza_SUITE}.
