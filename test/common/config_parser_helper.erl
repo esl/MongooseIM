@@ -650,6 +650,7 @@ custom_mod_event_pusher_rabbit() ->
 custom_mod_event_pusher_sns() ->
     #{access_key_id => "AKIAIOSFODNN7EXAMPLE",
       account_id => "123456789012",
+      credentials => static,
       muc_messages_topic => "user_messagegroup_sent",
       plugin_module => mod_event_pusher_sns_defaults,
       pm_messages_topic => "user_message_sent",
@@ -1165,7 +1166,8 @@ default_config([modules, mod_event_pusher, rabbit, groupchat_msg_exchange]) ->
     #{name => <<"groupchat_msg">>, type => <<"topic">>, durable => false,
       sent_topic => <<"groupchat_msg_sent">>, recv_topic => <<"groupchat_msg_recv">>};
 default_config([modules, mod_event_pusher, sns]) ->
-    #{plugin_module => mod_event_pusher_sns_defaults,
+    #{credentials => static,
+      plugin_module => mod_event_pusher_sns_defaults,
       pool_size => 100,
       publish_retry_count => 2,
       publish_retry_time_ms => 50};

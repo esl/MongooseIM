@@ -7,6 +7,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("erlcloud/include/erlcloud_aws.hrl").
 
 -define(ACC_PARAMS, #{location => ?LOCATION,
                       host_type => host_type(),
@@ -29,8 +30,16 @@ all() ->
      does_not_forward_presences_when_topic_is_unset,
      calls_callback_module_to_get_user_id,
      calls_callback_module_to_retrieve_attributes_for_presence,
-     calls_callback_module_to_retrieve_attributes_for_message
+     calls_callback_module_to_retrieve_attributes_for_message,
+     {group, web_identity}
     ].
+
+groups() ->
+    [{web_identity, [], [web_identity_exchanges_token_with_sts,
+                         web_identity_signs_with_session_token,
+                         web_identity_uses_refreshed_session_and_rotated_token,
+                         web_identity_keeps_session_when_refresh_fails,
+                         web_identity_fails_publish_without_session]}].
 
 %% Tests
 
@@ -102,27 +111,84 @@ calls_callback_module_to_retrieve_attributes_for_message(Config) ->
     send_packet_callback(Config, <<"groupchat">>, <<"message">>),
     ?assert(meck:called(Module, message_attributes, ['_', '_', '_', '_', '_'])).
 
+web_identity_exchanges_token_with_sts(_Config) ->
+    {Url, [], "application/x-www-form-urlencoded", Body} =
+        meck:capture(first, httpc, request, '_', 2),
+    ?assertEqual("https://sts.eu-west-1.amazonaws.com/", Url),
+    Params = uri_string:dissect_query(Body),
+    ?assertEqual("AssumeRoleWithWebIdentity", proplists:get_value("Action", Params)),
+    ?assertEqual(role_arn(), proplists:get_value("RoleArn", Params)),
+    ?assertEqual("mongooseim", proplists:get_value("RoleSessionName", Params)),
+    ?assertEqual("token-1", proplists:get_value("WebIdentityToken", Params)),
+    SslOpts = proplists:get_value(ssl, meck:capture(first, httpc, request, '_', 3)),
+    ?assertEqual(verify_peer, proplists:get_value(verify, SslOpts)).
+
+web_identity_signs_with_session_token(Config) ->
+    meck:expect(erlcloud_sns, publish, fun(_, _, _, _, _, _) -> ok end),
+    send_packet_callback(Config, <<"chat">>, <<"message">>),
+    assert_signed_with("token-1").
+
+web_identity_uses_refreshed_session_and_rotated_token(Config) ->
+    meck:expect(erlcloud_sns, publish, fun(_, _, _, _, _, _) -> ok end),
+    ok = file:write_file(?config(token_file, Config), <<"token-2\n">>),
+    refresh_web_identity_session(),
+    send_packet_callback(Config, <<"chat">>, <<"message">>),
+    assert_signed_with("token-2").
+
+web_identity_keeps_session_when_refresh_fails(Config) ->
+    meck:expect(erlcloud_sns, publish, fun(_, _, _, _, _, _) -> ok end),
+    meck:expect(httpc, request, fun(_, _, _, _) -> sts_error_response() end),
+    refresh_web_identity_session(),
+    send_packet_callback(Config, <<"chat">>, <<"message">>),
+    assert_signed_with("token-1").
+
+web_identity_fails_publish_without_session(_Config) ->
+    ?assertError(#{what := sns_web_identity_session_unavailable},
+                 mod_event_pusher_sns_web_identity:aws_config(host_type(),
+                                                              "sns.eu-west-1.amazonaws.com")).
+
 %% Fixtures
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     mongoose_config:set_opts(opts()),
     async_helper:start(Config, [{mongoose_instrument, start_link, []},
-                                {mongooseim_helper, start_link_loaded_hooks, []}]).
+                                {mongooseim_helper, start_link_loaded_hooks, []},
+                                {mim_ct_sup, start_link, [ejabberd_sup]}]).
 
 end_per_suite(Config) ->
     async_helper:stop_all(Config),
     mongoose_config:erase_opts().
 
-init_per_testcase(CaseName, Config) ->
+init_per_testcase(CaseName, Config0) ->
+    Config = init_web_identity(CaseName, Config0),
     meck:new(erlcloud_sns, [non_strict, passthrough]),
-    meck:expect(erlcloud_sns, new, fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end),
+    case is_web_identity_case(CaseName) of
+        true -> ok; % uses the real erlcloud_sns:new/3 to check the signing config
+        false -> meck:expect(erlcloud_sns, new,
+                             fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end)
+    end,
     meck:expect(mongoose_wpool, start, fun(_, _, _, _) -> {ok, mocked} end),
     meck:expect(mongoose_wpool, cast, fun(_, _, _, {M, F, A}) -> erlang:apply(M, F, A) end),
-    start_modules(sns_config(CaseName)),
+    start_modules(sns_config(CaseName, Config)),
     [{sender, jid:from_binary(<<"sender@localhost">>)},
      {recipient, jid:from_binary(<<"recipient@localhost">>)} |
      Config].
+
+init_web_identity(CaseName, Config) ->
+    case is_web_identity_case(CaseName) of
+        true ->
+            TokenFile = filename:join(?config(priv_dir, Config), "web-identity-token"),
+            ok = file:write_file(TokenFile, <<"token-1\n">>),
+            meck:new(httpc, [passthrough]),
+            meck:expect(httpc, request, sts_mock(CaseName)),
+            [{token_file, TokenFile} | Config];
+        false ->
+            Config
+    end.
+
+is_web_identity_case(CaseName) ->
+    lists:prefix("web_identity_", atom_to_list(CaseName)).
 
 end_per_testcase(_, _Config) ->
     stop_modules(),
@@ -153,6 +219,47 @@ push_event(Event) ->
     mod_event_pusher_sns:push_event(HookAcc, HookParams, HookExtra).
 
 %% Helpers
+
+refresh_web_identity_session() ->
+    Proc = gen_mod:get_module_proc(host_type(), mod_event_pusher_sns_web_identity),
+    Proc ! refresh,
+    _ = sys:get_state(Proc), % wait until the refresh is done
+    ok.
+
+assert_signed_with(WebIdentityToken) ->
+    #aws_config{access_key_id = KeyId, security_token = SessionToken, sns_host = Host} =
+        meck:capture(last, erlcloud_sns, publish, '_', 6),
+    ?assertEqual("key-" ++ WebIdentityToken, KeyId),
+    ?assertEqual("session-" ++ WebIdentityToken, SessionToken),
+    ?assertEqual("sns.eu-west-1.amazonaws.com", Host).
+
+sts_mock(web_identity_fails_publish_without_session) ->
+    fun(_, _, _, _) -> sts_error_response() end;
+sts_mock(_) ->
+    fun(post, {_Url, _, _, Body}, _, _) ->
+            Token = proplists:get_value("WebIdentityToken", uri_string:dissect_query(Body)),
+            sts_response(Token)
+    end.
+
+sts_response(Token) ->
+    Expiration = calendar:system_time_to_rfc3339(erlang:system_time(second) + 3600,
+                                                 [{offset, "Z"}]),
+    Xml = ["<AssumeRoleWithWebIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">"
+           "<AssumeRoleWithWebIdentityResult><Credentials>"
+           "<AccessKeyId>key-", Token, "</AccessKeyId>"
+           "<SecretAccessKey>secret</SecretAccessKey>"
+           "<SessionToken>session-", Token, "</SessionToken>"
+           "<Expiration>", Expiration, "</Expiration>"
+           "</Credentials></AssumeRoleWithWebIdentityResult>"
+           "</AssumeRoleWithWebIdentityResponse>"],
+    {ok, {{"HTTP/1.1", 200, "OK"}, [], iolist_to_binary(Xml)}}.
+
+sts_error_response() ->
+    {ok, {{"HTTP/1.1", 403, "Forbidden"}, [],
+          <<"<ErrorResponse><Error><Code>AccessDenied</Code></Error></ErrorResponse>">>}}.
+
+role_arn() ->
+    "arn:aws:iam::251423380551:role/mongooseim".
 
 custom_callback_module(UserId, Attributes) ->
     Module = custom_callback_module(),
@@ -188,6 +295,17 @@ expect_attributes(Key, Value) ->
     meck:expect(
       erlcloud_sns, publish,
       fun(_, _, _, _, Attrs, _) -> Value = proplists:get_value(Key, Attrs) end).
+
+sns_config(CaseName, Config) ->
+    case is_web_identity_case(CaseName) of
+        true ->
+            (maps:without([access_key_id, secret_access_key], common_sns_opts()))#{
+              credentials => web_identity,
+              role_arn => role_arn(),
+              web_identity_token_file => ?config(token_file, Config)};
+        false ->
+            sns_config(CaseName)
+    end.
 
 sns_config(does_not_forward_messages_when_topic_is_unset) ->
     maps:remove(pm_messages_topic, common_sns_opts());
