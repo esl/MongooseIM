@@ -46,4 +46,6 @@ execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
 execute(_Ctx, _Obj, <<"stat">>, _Args) ->
     {ok, stats};
 execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
-    {ok, vcard}.
+    {ok, vcard};
+execute(_Ctx, _Obj, <<"invites">>, _Args) ->
+    {ok, invites}.

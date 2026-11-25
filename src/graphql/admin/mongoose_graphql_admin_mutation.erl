@@ -17,6 +17,8 @@ execute(_Ctx, _Obj, <<"externalServices">>, _Args) ->
     {ok, externalServices};
 execute(_Ctx, _Obj, <<"inbox">>, _Args) ->
     {ok, inbox};
+execute(_Ctx, _Obj, <<"invites">>, _Args) ->
+    {ok, invites};
 execute(_Ctx, _Obj, <<"last">>, _Args) ->
     {ok, last};
 execute(_Ctx, _Obj, <<"muc">>, _Args) ->
