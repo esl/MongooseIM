@@ -31,6 +31,8 @@ type AdminQuery{
   vcard: VcardAdminQuery
   "User private storage management"
   private: PrivateAdminQuery
+  "Personal Eventing Protocol management"
+  pep: PepAdminQuery
   "Browse metrics"
   metric: MetricAdminQuery
   "Server statistics"
@@ -76,6 +78,8 @@ type AdminMutation @protected{
   vcard: VcardAdminMutation
   "User private storage management"
   private: PrivateAdminMutation
+  "Personal Eventing Protocol management"
+  pep: PepAdminMutation
   "Generating upload/download URLs for the files"
   httpUpload: HttpUploadAdminMutation
   "External service management"

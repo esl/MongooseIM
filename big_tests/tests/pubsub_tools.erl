@@ -16,6 +16,25 @@
 
 -type pubsub_node() :: {binary(), binary()}.
 
+%% Presence subscriptions
+
+set_up_presence_subscription(Subscriber, Owner, ExpectedMessageCount) ->
+    send_presence(Subscriber, ~"subscribe", Owner),
+    escalus:assert(is_iq, escalus_client:wait_for_stanza(Subscriber)),
+    escalus:assert(is_presence, escalus_client:wait_for_stanza(Owner)),
+    send_presence(Owner, ~"subscribed", Subscriber),
+    escalus:assert(is_iq, escalus_client:wait_for_stanza(Owner)),
+    Preds = [is_iq] ++ lists:duplicate(ExpectedMessageCount, is_message)
+        ++ lists:duplicate(2, is_presence),
+    Stanzas = escalus_client:wait_for_stanzas(Subscriber, length(Preds)),
+    escalus:assert_many(Preds, Stanzas),
+    lists:filter(fun escalus_pred:is_message/1, Stanzas). % return only messages
+
+send_presence(From, Type, To) ->
+    ToJid = escalus_client:short_jid(To),
+    Stanza = escalus_stanza:presence_direct(ToJid, Type),
+    escalus_client:send(From, Stanza).
+
 %%-----------------------------------------------------------------------------
 %% Request functions with (optional) built-in response handlers
 %%-----------------------------------------------------------------------------

@@ -674,8 +674,8 @@ build_subs_and_pendings(HostType, Acc0, Jid) ->
     Acc1 = mongoose_hooks:roster_get_subscription_lists(HostType, Acc0, Jid),
     {Fs0, Ts0, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     BareJid = jid:to_bare(Jid),
-    Fs = maps:from_list([{jid:make(BJ), from} || BJ <- Fs0]),
-    Ts = maps:from_list([{jid:make(BJ), to} || BJ <- Ts0]),
+    Fs = #{jid:make(BJ) => from || BJ <- Fs0},
+    Ts = #{jid:make(BJ) => to || BJ <- Ts0},
     Subs = maps:merge_with(fun(_, _, _) -> both end, Fs, Ts),
     {Acc1, Subs#{BareJid => both}, Pending}.
 
