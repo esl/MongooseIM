@@ -133,28 +133,12 @@ refresh(#{host_type := HostType, opts := Opts}) ->
     end.
 
 -spec fetch_session(gen_mod:module_opts()) -> {ok, session()} | {error, term()}.
-fetch_session(#{region := Region} = Opts) ->
+fetch_session(#{region := Region, role_arn := RoleArn, web_identity_token_file := TokenFile} = Opts) ->
     maybe
-        {ok, RoleArn} ?= setting(Opts, role_arn, "AWS_ROLE_ARN"),
-        {ok, TokenFile} ?= setting(Opts, web_identity_token_file, "AWS_WEB_IDENTITY_TOKEN_FILE"),
         {ok, Token} ?= read_token(TokenFile),
         SessionName = maps:get(role_session_name, Opts, ?DEFAULT_ROLE_SESSION_NAME),
         StsHost = maps:get(sts_host, Opts, "sts." ++ Region ++ ".amazonaws.com"),
         assume_role_with_web_identity(StsHost, RoleArn, SessionName, Token)
-    end.
-
-%% @doc A value from the module options, or else the environment variable
-%% that the AWS SDKs read and that EKS sets for a service account with an IAM role.
--spec setting(gen_mod:module_opts(), atom(), string()) -> {ok, string()} | {error, term()}.
-setting(Opts, Key, EnvVar) ->
-    case Opts of
-        #{Key := Value} ->
-            {ok, Value};
-        #{} ->
-            case os:getenv(EnvVar) of
-                [_ | _] = Value -> {ok, Value};
-                _ -> {error, {missing_setting, Key, EnvVar}}
-            end
     end.
 
 -spec read_token(string()) -> {ok, string()} | {error, term()}.

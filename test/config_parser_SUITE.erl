@@ -1919,19 +1919,23 @@ mod_event_pusher_sns(_Config) ->
     mod_event_pusher_sns_web_identity(P, T, RequiredOpts).
 
 mod_event_pusher_sns_web_identity(P, T, StaticOpts) ->
-    RequiredOpts = (maps:without([<<"access_key_id">>, <<"secret_access_key">>], StaticOpts))#{
-                     <<"credentials">> => <<"web_identity">>},
+    WebIdentityOpts = #{<<"credentials">> => <<"web_identity">>,
+                        <<"role_arn">> => <<"arn:aws:iam::123456789012:role/mongooseim">>,
+                        <<"web_identity_token_file">> => <<"/var/run/secrets/token">>},
+    RequiredOpts = maps:merge(maps:without([<<"access_key_id">>, <<"secret_access_key">>],
+                                           StaticOpts),
+                              WebIdentityOpts),
     ExpectedCfg = #{sns_host => "sns.eu-west-1.amazonaws.com",
                     region => "eu-west-1",
                     account_id => "123456789012",
-                    credentials => web_identity},
+                    credentials => web_identity,
+                    role_arn => "arn:aws:iam::123456789012:role/mongooseim",
+                    web_identity_token_file => "/var/run/secrets/token"},
     ?cfgh(P, config(P, ExpectedCfg), T(RequiredOpts)),
     %% Static keys can stay in the config, e.g. for a rollback, but they are not used
-    ?cfgh(P, config(P, ExpectedCfg), T(StaticOpts#{<<"credentials">> => <<"web_identity">>})),
-    ?cfgh(P ++ [role_arn], "arn:aws:iam::123456789012:role/mongooseim",
-          T(RequiredOpts#{<<"role_arn">> => <<"arn:aws:iam::123456789012:role/mongooseim">>})),
-    ?cfgh(P ++ [web_identity_token_file], "/var/run/secrets/token",
-          T(RequiredOpts#{<<"web_identity_token_file">> => <<"/var/run/secrets/token">>})),
+    ?cfgh(P, config(P, ExpectedCfg), T(maps:merge(StaticOpts, WebIdentityOpts))),
+    [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- [<<"role_arn">>,
+                                                        <<"web_identity_token_file">>]],
     ?cfgh(P ++ [role_session_name], "mim-node-1",
           T(RequiredOpts#{<<"role_session_name">> => <<"mim-node-1">>})),
     ?cfgh(P ++ [sts_host], "sts.cn-north-1.amazonaws.com.cn",

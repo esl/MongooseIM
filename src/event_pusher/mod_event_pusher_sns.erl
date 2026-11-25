@@ -127,8 +127,8 @@ config_spec() ->
        process = fun ?MODULE:process_opts/1
     }.
 
-%% Static keys are required only when they are used to sign requests.
-%% With web identity, any keys that are still configured are ignored.
+%% Each credentials mode requires its own options.
+%% With web identity, any static keys that are still configured are ignored.
 -spec process_opts(gen_mod:module_opts()) -> gen_mod:module_opts().
 process_opts(#{credentials := static, access_key_id := _, secret_access_key := _} = Opts) ->
     Opts;
@@ -136,8 +136,12 @@ process_opts(#{credentials := static}) ->
     error(#{what => missing_sns_static_credentials,
             text => <<"'access_key_id' and 'secret_access_key' are required "
                        "when 'credentials' is \"static\"">>});
-process_opts(#{credentials := web_identity} = Opts) ->
-    maps:without([access_key_id, secret_access_key], Opts).
+process_opts(#{credentials := web_identity, role_arn := _, web_identity_token_file := _} = Opts) ->
+    maps:without([access_key_id, secret_access_key], Opts);
+process_opts(#{credentials := web_identity}) ->
+    error(#{what => missing_sns_web_identity_settings,
+            text => <<"'role_arn' and 'web_identity_token_file' are required "
+                       "when 'credentials' is \"web_identity\"">>}).
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
                  gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.

@@ -82,17 +82,17 @@ Selects how requests to Amazon SNS are authorized:
 
 ### `modules.mod_event_pusher.sns.role_arn`
 * **Syntax:** non-empty string
-* **Default:** the value of the `AWS_ROLE_ARN` environment variable
+* **Default:** no default is given
 * **Example:** `role_arn = "arn:aws:iam::123456789012:role/mongooseim"`
 
-ARN of the IAM role to assume when `credentials` is `"web_identity"`.
+ARN of the IAM role to assume. Mandatory when `credentials` is `"web_identity"`.
 
 ### `modules.mod_event_pusher.sns.web_identity_token_file`
 * **Syntax:** non-empty string
-* **Default:** the value of the `AWS_WEB_IDENTITY_TOKEN_FILE` environment variable
+* **Default:** no default is given
 * **Example:** `web_identity_token_file = "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"`
 
-Path to the file with the web identity (OIDC) token, used when `credentials` is `"web_identity"`.
+Path to the file with the web identity (OIDC) token. Mandatory when `credentials` is `"web_identity"`.
 
 ### `modules.mod_event_pusher.sns.role_session_name`
 * **Syntax:** non-empty string
@@ -157,7 +157,7 @@ Base exponential backoff time (in ms) for publish errors.
   account_id = "123456789012"
 ```
 
-With web identity, the role and the token file are taken from the `AWS_ROLE_ARN` and `AWS_WEB_IDENTITY_TOKEN_FILE` environment variables, unless they are configured:
+With web identity credentials:
 
 ```toml
 [modules.mod_event_pusher.sns]
@@ -166,6 +166,8 @@ With web identity, the role and the token file are taken from the `AWS_ROLE_ARN`
   region = "eu-west-1"
   account_id = "123456789012"
   credentials = "web_identity"
+  role_arn = "arn:aws:iam::123456789012:role/mongooseim"
+  web_identity_token_file = "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
 ```
 
 ## JSON Schema examples
