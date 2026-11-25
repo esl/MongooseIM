@@ -56,19 +56,57 @@ URL to the Amazon SNS service. The URL may be in [virtual host form][aws-virtual
 
 The [AWS region][aws-region] to use for requests.
 
+### `modules.mod_event_pusher.sns.credentials`
+* **Syntax:** string, one of `"static"`, `"web_identity"`
+* **Default:** `"static"`
+* **Example:** `credentials = "web_identity"`
+
+Selects how requests to Amazon SNS are authorized:
+
+* `"static"` - long-term [access keys][aws-keys] given by `access_key_id` and `secret_access_key`.
+* `"web_identity"` - temporary credentials of an IAM role, obtained by exchanging a web identity token with [AssumeRoleWithWebIdentity][aws-web-identity], e.g. for a Kubernetes service account associated with an IAM role. The token file is read again for each exchange, so the token can be rotated without a restart. The session is refreshed 5 minutes before it expires. When a refresh fails, the current session is kept, and the exchange is retried every 10 seconds. The `access_key_id` and `secret_access_key` options are ignored.
+
 ### `modules.mod_event_pusher.sns.access_key_id`
 * **Syntax:** string
-* **Default:** none, this option is mandatory
+* **Default:** no default is given
 * **Example:** `access_key_id = "AKIAIOSFODNN7EXAMPLE"`
 
-[ID of the access key][aws-keys] to use for authorization.
+[ID of the access key][aws-keys] to use for authorization. Mandatory when `credentials` is `"static"`.
 
 ### `modules.mod_event_pusher.sns.secret_access_key`
 * **Syntax:** string
-* **Default:** none, this option is mandatory
+* **Default:** no default is given
 * **Example:** `secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`
 
-[Secret access key][aws-keys] to use for authorization.
+[Secret access key][aws-keys] to use for authorization. Mandatory when `credentials` is `"static"`.
+
+### `modules.mod_event_pusher.sns.role_arn`
+* **Syntax:** non-empty string
+* **Default:** no default is given
+* **Example:** `role_arn = "arn:aws:iam::123456789012:role/mongooseim"`
+
+ARN of the IAM role to assume. Mandatory when `credentials` is `"web_identity"`.
+
+### `modules.mod_event_pusher.sns.web_identity_token_file`
+* **Syntax:** non-empty string
+* **Default:** no default is given
+* **Example:** `web_identity_token_file = "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"`
+
+Path to the file with the web identity (OIDC) token. Mandatory when `credentials` is `"web_identity"`.
+
+### `modules.mod_event_pusher.sns.role_session_name`
+* **Syntax:** non-empty string
+* **Default:** `"mongooseim"`
+* **Example:** `role_session_name = "mongooseim-node-1"`
+
+Name of the role session, visible in AWS CloudTrail. Used when `credentials` is `"web_identity"`.
+
+### `modules.mod_event_pusher.sns.sts_host`
+* **Syntax:** non-empty string
+* **Default:** `"sts.{region}.amazonaws.com"`, where `{region}` is the value of the `region` option
+* **Example:** `sts_host = "sts.cn-north-1.amazonaws.com.cn"`
+
+Host of the AWS STS endpoint, used when `credentials` is `"web_identity"`.
 
 ### `modules.mod_event_pusher.sns.account_id`
 * **Syntax:** string
@@ -103,6 +141,7 @@ Base exponential backoff time (in ms) for publish errors.
 [aws-region]: https://docs.aws.amazon.com/general/latest/gr/rande.html#regional-endpoints
 [aws-keys]: https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html?shortFooter=true#access-keys-and-secret-access-keys
 [aws-arn]: http://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html
+[aws-web-identity]: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
 
 ## Example configuration
 
@@ -116,6 +155,19 @@ Base exponential backoff time (in ms) for publish errors.
   access_key_id = "AKIAIOSFODNN7EXAMPLE"
   secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
   account_id = "123456789012"
+```
+
+With web identity credentials:
+
+```toml
+[modules.mod_event_pusher.sns]
+  pm_messages_topic = "user_message_sent"
+  sns_host = "sns.eu-west-1.amazonaws.com"
+  region = "eu-west-1"
+  account_id = "123456789012"
+  credentials = "web_identity"
+  role_arn = "arn:aws:iam::123456789012:role/mongooseim"
+  web_identity_token_file = "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
 ```
 
 ## JSON Schema examples

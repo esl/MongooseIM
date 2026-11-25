@@ -36,10 +36,13 @@
 %% API
 -export([try_publish/5]).
 
+%% Config processing
+-export([process_opts/1]).
+
 %% hook handlers
 -export([push_event/3]).
 
--ignore_xref([behaviour_info/1, try_publish/5]).
+-ignore_xref([behaviour_info/1, try_publish/5, process_opts/1]).
 
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
@@ -47,7 +50,14 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     {ok, _} = application:ensure_all_started([erlcloud], permanent),
+    start_credentials(HostType, Opts),
     start_pool(HostType, Opts),
+    ok.
+
+-spec start_credentials(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start_credentials(HostType, #{credentials := web_identity} = Opts) ->
+    mod_event_pusher_sns_web_identity:start(HostType, Opts);
+start_credentials(_HostType, #{credentials := static}) ->
     ok.
 
 -spec start_pool(mongooseim:host_type(), gen_mod:module_opts()) -> term().
@@ -66,6 +76,7 @@ get_worker_num(Opts) ->
 -spec stop(HostType :: jid:server()) -> ok.
 stop(HostType) ->
     mongoose_wpool:stop(generic, HostType, pusher_sns),
+    mod_event_pusher_sns_web_identity:stop(HostType),
     ok.
 
 -spec supported_features() -> [atom()].
@@ -86,8 +97,18 @@ config_spec() ->
                                                 validate = module},
                  <<"sns_host">> => #option{type = string},
                  <<"region">> => #option{type = string},
+                 <<"credentials">> => #option{type = atom,
+                                              validate = {enum, [static, web_identity]}},
                  <<"access_key_id">> => #option{type = string},
                  <<"secret_access_key">> => #option{type = string},
+                 <<"role_arn">> => #option{type = string,
+                                           validate = non_empty},
+                 <<"web_identity_token_file">> => #option{type = string,
+                                                          validate = non_empty},
+                 <<"role_session_name">> => #option{type = string,
+                                                    validate = non_empty},
+                 <<"sts_host">> => #option{type = string,
+                                           validate = non_empty},
                  <<"account_id">> => #option{type = string},
                  <<"pool_size">> => #option{type = integer,
                                             validate = positive},
@@ -96,14 +117,31 @@ config_spec() ->
                  <<"publish_retry_time_ms">> => #option{type = integer,
                                                         validate = non_negative}
                 },
-       required = [<<"sns_host">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>,
-                   <<"account_id">>],
-       defaults = #{<<"plugin_module">> => mod_event_pusher_sns_defaults,
+       required = [<<"sns_host">>, <<"region">>, <<"account_id">>],
+       defaults = #{<<"credentials">> => static,
+                    <<"plugin_module">> => mod_event_pusher_sns_defaults,
                     <<"pool_size">> => 100,
                     <<"publish_retry_count">> => 2,
                     <<"publish_retry_time_ms">> => 50
-                   }
+                   },
+       process = fun ?MODULE:process_opts/1
     }.
+
+%% Each credentials mode requires its own options.
+%% With web identity, any static keys that are still configured are ignored.
+-spec process_opts(gen_mod:module_opts()) -> gen_mod:module_opts().
+process_opts(#{credentials := static, access_key_id := _, secret_access_key := _} = Opts) ->
+    Opts;
+process_opts(#{credentials := static}) ->
+    error(#{what => missing_sns_static_credentials,
+            text => <<"'access_key_id' and 'secret_access_key' are required "
+                       "when 'credentials' is \"static\"">>});
+process_opts(#{credentials := web_identity, role_arn := _, web_identity_token_file := _} = Opts) ->
+    maps:without([access_key_id, secret_access_key], Opts);
+process_opts(#{credentials := web_identity}) ->
+    error(#{what => missing_sns_web_identity_settings,
+            text => <<"'role_arn' and 'web_identity_token_file' are required "
+                       "when 'credentials' is \"web_identity\"">>}).
 
 -spec push_event(mod_event_pusher:push_event_acc(), mod_event_pusher:push_event_params(),
                  gen_hook:extra()) -> {ok, mod_event_pusher:push_event_acc()}.
@@ -204,12 +242,17 @@ publish(HostType, TopicARN, Content, Attributes) ->
     erlcloud_sns:publish(topic, TopicARN, maps:to_list(Content),
                          undefined, maps:to_list(Attributes), aws_handle(HostType)).
 
-%% @doc Returns AWS SNS handle base on configured AWS credentials
+%% @doc Returns AWS SNS handle based on the configured AWS credentials.
+%% It is built for each publish attempt, so that retries use the current web identity session.
 -spec aws_handle(mongooseim:host_type()) -> aws_config().
 aws_handle(HostType) ->
-    Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
-    #{access_key_id := AccessKeyId, secret_access_key := SecretKey, sns_host := SNSHost} = Opts,
-    erlcloud_sns:new(AccessKeyId, SecretKey, SNSHost).
+    case gen_mod:get_loaded_module_opts(HostType, ?MODULE) of
+        #{credentials := static, access_key_id := AccessKeyId, secret_access_key := SecretKey,
+          sns_host := SNSHost} ->
+            erlcloud_sns:new(AccessKeyId, SecretKey, SNSHost);
+        #{credentials := web_identity, sns_host := SNSHost} ->
+            mod_event_pusher_sns_web_identity:aws_config(HostType, SNSHost)
+    end.
 
 %% @doc Returns notification topic based on packet type and module configuration
 -spec get_topic(mongooseim:host_type(), Packet :: exml:element()) -> topic() | undefined.
