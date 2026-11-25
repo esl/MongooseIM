@@ -95,6 +95,8 @@
          mam_ns_binary_extended/0,
          retract_ns/0,
          retract_tombstone_ns/0,
+         retract_1_ns/0,
+         retract_1_tombstone_ns/0,
          groupchat_field_ns/0,
          groupchat_available_ns/0,
          data_validate_ns/0,
@@ -372,10 +374,15 @@ stanzaid_cases() ->
 retract_cases() ->
     [retract_message,
      retract_wrong_message,
-     ignore_bad_retraction].
+     ignore_bad_retraction,
+     retract_message_v1,
+     retract_message_v1_on_origin_id,
+     retract_message_v1_reusing_id,
+     retract_wrong_message_v1].
 
 disabled_retract_cases() ->
-    [retract_message].
+    [retract_message,
+     retract_message_v1].
 
 nostore_cases() ->
     [offline_message,
@@ -404,10 +411,13 @@ muc_stanzaid_cases() ->
 muc_retract_cases() ->
     [retract_muc_message,
      retract_muc_message_on_stanza_id,
-     retract_wrong_muc_message].
+     retract_wrong_muc_message,
+     retract_muc_message_v1,
+     retract_muc_message_v1_on_origin_id].
 
 disabled_muc_retract_cases() ->
-    [retract_muc_message].
+    [retract_muc_message,
+     retract_muc_message_v1].
 
 muc_configurable_archiveid_cases() ->
     [
@@ -912,7 +922,13 @@ maybe_skip(C, Config) when C =:= retract_message;
                            C =:= retract_message_on_stanza_id;
                            C =:= retract_muc_message;
                            C =:= retract_muc_message_on_stanza_id;
-                           C =:= retract_wrong_muc_message ->
+                           C =:= retract_wrong_muc_message;
+                           C =:= retract_message_v1;
+                           C =:= retract_message_v1_on_origin_id;
+                           C =:= retract_message_v1_reusing_id;
+                           C =:= retract_wrong_message_v1;
+                           C =:= retract_muc_message_v1;
+                           C =:= retract_muc_message_v1_on_origin_id ->
     ConfList = rdbms_configs(true, ct_helper:get_internal_database()),
     skip_if(not lists:member(?config(configuration, Config), ConfList),
             "message retraction not supported");
@@ -2341,6 +2357,65 @@ test_retract_message(Config) ->
     end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
+%% XEP-0424 version 1 refers to a chat message by its 'id' attribute
+retract_message_v1(Config) ->
+    test_retract_message_v1(Config, message_id, fun(Msg) -> Msg end).
+
+%% Clients may also send an origin-id equal to the message 'id'
+retract_message_v1_on_origin_id(Config) ->
+    test_retract_message_v1(Config, message_id, fun add_origin_id_equal_to_id/1).
+
+retract_wrong_message_v1(Config) ->
+    test_retract_message_v1(Config, <<"wrong-id">>, fun(Msg) -> Msg end).
+
+%% A retraction that reuses the ID of the message it retracts still finds that message
+retract_message_v1_reusing_id(Config) ->
+    test_retract_message_v1(Config, message_id, fun(Msg) -> Msg end,
+                            fun(RetractMsg, MsgId) -> escalus_stanza:set_id(RetractMsg, MsgId) end).
+
+test_retract_message_v1(Config, RetractOn, PrepareMsg) ->
+    test_retract_message_v1(Config, RetractOn, PrepareMsg, fun(RetractMsg, _MsgId) -> RetractMsg end).
+
+test_retract_message_v1(Config, RetractOn, PrepareMsg, PrepareRetractMsg) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        %% GIVEN Alice sends a message to Bob
+        Body = <<"OH, HAI!">>,
+        MsgId = escalus_stanza:id(),
+        Msg = PrepareMsg(escalus_stanza:set_id(escalus_stanza:chat_to(Bob, Body), MsgId)),
+        escalus:send(Alice, Msg),
+        escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Bob)),
+        mam_helper:wait_for_archive_size(Alice, 1),
+
+        %% WHEN Alice retracts the message
+        RetractId = case RetractOn of
+                        message_id -> MsgId;
+                        WrongId -> WrongId
+                    end,
+        RetractMsg = PrepareRetractMsg(
+                       retraction_message_v1(<<"chat">>, escalus_utils:get_jid(Bob), RetractId), MsgId),
+        escalus:send(Alice, RetractMsg),
+
+        %% THEN Bob receives the retraction ...
+        RecvRetract = escalus:wait_for_stanza(Bob),
+        ?assertEqual(RetractId, exml_query:path(RecvRetract, [{element_with_ns, <<"retract">>,
+                                                               retract_1_ns()},
+                                                              {attr, <<"id">>}])),
+        maybe_wait_for_archive(Config),
+
+        %% ... and Alice and Bob have both messages in their archives
+        ShouldRetract = message_retraction_is_enabled(Config) andalso RetractOn =:= message_id,
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        check_archive_after_retraction_v1(ShouldRetract, Alice, RetractMsg, Body),
+        escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
+        check_archive_after_retraction_v1(ShouldRetract, Bob, RetractMsg, Body)
+    end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+add_origin_id_equal_to_id(Msg = #xmlel{children = Children}) ->
+    MsgId = exml_query:attr(Msg, <<"id">>),
+    Msg#xmlel{children = Children ++ [origin_id_element(MsgId)]}.
+
 filter_forwarded(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
@@ -2494,6 +2569,55 @@ test_retract_muc_message(Config) ->
         check_archive_after_retraction(Config, Bob, ApplyToElement, Body),
 
         ok
+    end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+%% XEP-0424 version 1 refers to a group chat message by the stanza ID assigned by the room
+retract_muc_message_v1(Config) ->
+    test_retract_muc_message_v1(Config, stanza_id).
+
+%% Group chat messages are retracted only by their stanza ID, so an origin ID does nothing
+retract_muc_message_v1_on_origin_id(Config) ->
+    test_retract_muc_message_v1(Config, origin_id).
+
+test_retract_muc_message_v1(Config, RetractOn) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+        %% Bob receives two presences and the room's subject, and Alice does as well
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanzas(Alice, 3),
+
+        %% GIVEN Alice sends a message with 'origin-id' to the room
+        Body = <<"Hi, Bob!">>,
+        OriginId = origin_id(),
+        Msg = #xmlel{children = Children} = escalus_stanza:groupchat_to(RoomAddr, Body),
+        escalus:send(Alice, Msg#xmlel{children = Children ++ [origin_id_element(OriginId)]}),
+        AliceCopyOfMessage = escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
+
+        %% WHEN Alice retracts the message
+        RetractId = case RetractOn of
+                        stanza_id -> stanza_id_from_msg(AliceCopyOfMessage);
+                        origin_id -> OriginId
+                    end,
+        RetractMsg = retraction_message_v1(<<"groupchat">>, RoomAddr, RetractId),
+        escalus:send(Alice, RetractMsg),
+
+        %% THEN Bob receives the retraction ...
+        RecvRetract = escalus:wait_for_stanza(Bob),
+        ?assertEqual(RetractId, exml_query:path(RecvRetract, [{element_with_ns, <<"retract">>,
+                                                               retract_1_ns()},
+                                                              {attr, <<"id">>}])),
+        maybe_wait_for_archive(Config),
+
+        %% ... and finds both messages in the room archive
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        ShouldRetract = message_retraction_is_enabled(Config) andalso RetractOn =:= stanza_id,
+        check_archive_after_retraction_v1(ShouldRetract, Bob, RetractMsg, Body)
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -3887,11 +4011,14 @@ discover_features(Config, Client, Service) ->
     escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
     escalus:assert(has_feature, [mam_ns_binary_extended()], Stanza),
     escalus:assert(has_feature, [retract_ns()], Stanza),
+    escalus:assert(has_feature, [retract_1_ns()], Stanza),
     check_include_groupchat_features(Stanza,
                                      ?config(configuration, Config),
                                      ?config(basic_group, Config)),
     ?assert_equal(message_retraction_is_enabled(Config),
-                  escalus_pred:has_feature(retract_tombstone_ns(), Stanza)).
+                  escalus_pred:has_feature(retract_tombstone_ns(), Stanza)),
+    ?assert_equal(message_retraction_is_enabled(Config),
+                  escalus_pred:has_feature(retract_1_tombstone_ns(), Stanza)).
 
 messages_filtered_when_prefs_default_policy_is_always(Config) ->
     run_prefs_cases(always, Config).
@@ -4194,6 +4321,40 @@ then_pm_message_is_received(Receiver, Body) ->
     escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Receiver)).
 
 %% Message retraction helpers
+
+retraction_message_v1(Type, To, RetractId) ->
+    #xmlel{name = <<"message">>,
+           attrs = #{<<"type">> => Type,
+                     <<"to">> => To,
+                     <<"id">> => escalus_stanza:id()},
+           children = [#xmlel{name = <<"retract">>,
+                              attrs = #{<<"xmlns">> => retract_1_ns(), <<"id">> => RetractId}},
+                       #xmlel{name = <<"fallback">>,
+                              attrs = #{<<"xmlns">> => <<"urn:xmpp:fallback:0">>,
+                                        <<"for">> => retract_1_ns()}},
+                       #xmlel{name = <<"body">>,
+                              children = [#xmlcdata{content = <<"/me retracted a message">>}]},
+                       #xmlel{name = <<"store">>,
+                              attrs = #{<<"xmlns">> => <<"urn:xmpp:hints">>}}]}.
+
+check_archive_after_retraction_v1(ShouldRetract, Client, RetractMsg, Body) ->
+    [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
+    #forwarded_message{message_body = Body1, message_children = Children1} =
+        parse_forwarded_message(ArcMsg1),
+    case ShouldRetract of
+        true ->
+            ?assertEqual(undefined, Body1),
+            [Retracted] = Children1,
+            ?assertEqual(<<"retracted">>, Retracted#xmlel.name),
+            ?assertEqual(retract_1_ns(), exml_query:attr(Retracted, <<"xmlns">>)),
+            ?assertEqual(exml_query:attr(RetractMsg, <<"id">>),
+                         exml_query:attr(Retracted, <<"id">>));
+        false ->
+            ?assertEqual(Body, Body1)
+    end,
+    %% The retraction itself is archived as well
+    #forwarded_message{message_children = Children2} = parse_forwarded_message(ArcMsg2),
+    ?assertMatch([_], [El || El = #xmlel{name = <<"retract">>} <- Children2]).
 
 check_archive_after_retraction(Config, Client, ApplyToElement, Body) ->
     case message_should_be_retracted(Config) of

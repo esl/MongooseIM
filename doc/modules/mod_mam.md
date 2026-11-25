@@ -18,15 +18,23 @@ Configure MAM with different storage backends:
 `mod_mam` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
 ### Message retraction
-This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone.
+This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#usecase) is received, the MAM module finds the message to retract and replaces it with a tombstone. The retraction message itself is archived as well.
 
-The following criteria are used to find the original message:
+Both versions of the XEP are supported:
 
-* The `id` attribute specified in the `apply-to` element of the retraction message has to be the same as the `id` attribute of the `origin-id` (or `stanza-id` when configured, see [below](#retraction-on-the-stanza-id)) element of the original message.
+* The current version (`urn:xmpp:message-retract:1`) uses a top-level `retract` element. Its `id` attribute refers to:
+    * the `stanza-id` assigned by the room, for messages of type `groupchat`, as the XEP requires,
+    * the `id` attribute of the original message, for other messages. The archive stores it as the origin ID when the message has no `origin-id` element. IDs longer than 250 bytes are not stored, and neither is the ID of a retraction message, so a retraction that reuses the retracted message's ID still finds that message.
+
+    The tombstone is a `<retracted xmlns='urn:xmpp:message-retract:1'/>` element whose `id` attribute is the `id` of the retraction message. It keeps the author's `muc#user` item, occupant ID and message correction element, if any.
+* The older version (`urn:xmpp:message-retract:0`) wraps the `retract` element in an `apply-to` element (XEP-0422). Its `id` attribute has to be the same as the `id` attribute of the `origin-id` (or `stanza-id` when configured, see [below](#retraction-on-the-stanza-id)) element of the original message.
+
+In both cases:
+
 * Both messages need to originate from the same user.
 * Both messages need to be addressed to the same user.
 
-If more than one message matches the criteria, only the most recent one is retracted. To avoid this case, it is recommended to use a unique identifier (UUID) as the origin ID.
+If more than one message matches the criteria, only the most recent one is retracted. To avoid this case, it is recommended to use a unique identifier (UUID) as the message ID or origin ID.
 
 #### Retraction on the stanza-id
 This module also implements an extension to the XEP, where it allows to specify the [`stanza-id`](https://xmpp.org/extensions/xep-0359.html#stanza-id) as [created by](https://xmpp.org/extensions/xep-0313.html#archives_id) the server's MAM, instead of the `origin-id` that the original [XEP-0424](https://xmpp.org/extensions/xep-0424.html) specifies. It announces this capability under the namespace `urn:esl:message-retract-by-stanza-id:0`. This is specially useful in groupchats where the `stanza-id` of a message is shared and known for all participants.

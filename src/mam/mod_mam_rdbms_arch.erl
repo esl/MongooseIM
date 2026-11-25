@@ -320,7 +320,7 @@ make_tombstone(HostType, ArcID, _RetractionId,
                RetractionInfo = #{message_id := MessID}, Params,
                #{archive_jid := ArcJID} = Env) ->
     RetractionInfo1 = mongoose_hooks:mam_retraction(HostType, RetractionInfo, Params),
-    Tombstone = mod_mam_utils:tombstone(RetractionInfo1, ArcJID),
+    Tombstone = mod_mam_utils:tombstone(RetractionInfo1, maps:get(packet, Params), ArcJID),
     TombstoneData = mam_encoder:encode_packet(Tombstone, Env),
     execute_make_tombstone(HostType, TombstoneData, ArcID, MessID).
 
@@ -328,9 +328,14 @@ execute_select_messages_to_retract(HostType, ArcID, BareRemJID, {origin_id, Orig
     mongoose_rdbms:execute_successfully(HostType, mam_select_messages_to_retract_on_origin_id,
                                       [ArcID, BareRemJID, OriginID, Dir]);
 execute_select_messages_to_retract(HostType, ArcID, BareRemJID, {stanza_id, BinStanzaId}, Dir) ->
-    StanzaId = mod_mam_utils:external_binary_to_mess_id(BinStanzaId),
-    mongoose_rdbms:execute_successfully(HostType, mam_select_messages_to_retract_on_stanza_id,
-                                      [ArcID, BareRemJID, StanzaId, Dir]).
+    %% A retraction can name any ID, so one that is not a stanza ID just finds nothing
+    try mod_mam_utils:external_binary_to_mess_id(BinStanzaId) of
+        StanzaId ->
+            mongoose_rdbms:execute_successfully(
+              HostType, mam_select_messages_to_retract_on_stanza_id, [ArcID, BareRemJID, StanzaId, Dir])
+    catch throw:invalid_stanza_id ->
+            {selected, []}
+    end.
 
 execute_make_tombstone(HostType, TombstoneData, ArcID, MessID) ->
     mongoose_rdbms:execute_successfully(HostType, mam_make_tombstone,
