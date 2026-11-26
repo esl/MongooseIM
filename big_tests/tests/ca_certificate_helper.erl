@@ -5,6 +5,15 @@
 -include_lib("common_test/include/ct.hrl").
 
 generate_cert(Config, #{cn := User} = CertSpec, BasicTemplateValues) ->
+    UserConfig = certificate_config(Config, CertSpec, BasicTemplateValues),
+    MaybeCritical = maps:get(with_critical_extension, CertSpec, false),
+    ExtraOpts = maps:get(opts, CertSpec, []),
+    case maps:get(signed, CertSpec, ca) of
+        ca -> generate_ca_signed_cert(Config, User, UserConfig, MaybeCritical, ExtraOpts);
+        self -> generate_self_signed_cert(Config, User, UserConfig, MaybeCritical, ExtraOpts)
+    end.
+
+certificate_config(Config, #{cn := User} = CertSpec, BasicTemplateValues) ->
     ConfigTemplate = filename:join(?config(mim_data_dir, Config), "openssl-user.cnf"),
     {ok, Template} = file:read_file(ConfigTemplate),
     XMPPAddrs = maps:get(xmpp_addrs, CertSpec, undefined),
@@ -12,15 +21,8 @@ generate_cert(Config, #{cn := User} = CertSpec, BasicTemplateValues) ->
     OpenSSLConfig = bbmustache:render(Template, TemplateValues),
     UserConfig = filename:join(?config(priv_dir, Config), User ++ ".cfg"),
     ct:log("OpenSSL config: ~ts~n~ts", [UserConfig, OpenSSLConfig]),
-    file:write_file(UserConfig, OpenSSLConfig),
-    UserKey = filename:join(?config(priv_dir, Config), User ++ "_key.pem"),
-    MaybeCritical = maps:get(with_critical_extension, CertSpec, false),
-    case maps:get(signed, CertSpec, ca) of
-	    ca -> 
-	        generate_ca_signed_cert(Config, User, UserConfig, UserKey, MaybeCritical);
-	    self -> 
-	        generate_self_signed_cert(Config, User, UserConfig, UserKey, MaybeCritical)
-    end.
+    ok = file:write_file(UserConfig, OpenSSLConfig),
+    UserConfig.
 
 prepare_template_values(User, XMPPAddrsIn) ->
     XMPPAddrs = maybe_prepare_xmpp_addresses(XMPPAddrsIn),
@@ -37,46 +39,51 @@ make_xmpp_addr_entry(I, Addr) ->
     % id-on-xmppAddr OID is specified in the openssl-user.cnf config file
     "otherName." ++ integer_to_list(I) ++ " = id-on-xmppAddr;UTF8:" ++ Addr.
 
+generate_ca_signed_cert(Config, User, ConfigCfg, MaybeCritical, ExtraOpts) ->
+    {Csr, Key, Cert} = file_paths(Config, User),
+    Args = ["-config", ConfigCfg | extensions(ca_signed, MaybeCritical)],
+    generate_certificate_request(Key, Csr, Args),
+    sign_certificate_request(Config, Csr, Cert, ExtraOpts),
+    #{key => Key, cert => Cert}.
 
-generate_ca_signed_cert(Config, Filename, ConfigCfg, KeyFilename, MaybeCritical) ->
-    Csr = filename:join(?config(priv_dir, Config), Filename ++ ".csr"),
-    Cmd = ["openssl req -config ", ConfigCfg, " -newkey rsa:2048 -sha256 -nodes -out ",
-           Csr, " -keyout ", KeyFilename, " -outform PEM" | extensions(ca_signed, MaybeCritical)],
-    Out = os:cmd(Cmd ++ " && echo CREATED"),
-    verify_created(Cmd, Out),
-    ct:log("generate_ca_signed_cert 1:~nCmd ~p~nOut ~ts", [Cmd, Out]),
-    Cert = filename:join(?config(priv_dir, Config), Filename ++ "_cert.pem"),
-    SignCmd = filename:join(?config(mim_data_dir, Config), "sign_cert.sh"),
-    Cmd2 = [SignCmd, " --req ", Csr, " --out ", Cert],
+generate_self_signed_cert(Config, User, ConfigCfg, MaybeCritical, ExtraOpts) ->
+    {_, Key, Cert} = file_paths(Config, User ++ "_self_signed"),
+    openssl(["req", "-config", ConfigCfg, "-newkey", "rsa:2048", "-sha256", "-nodes",
+             "-out", Cert, "-keyout", Key, "-x509", "-outform", "PEM"
+             | extensions(self_signed, MaybeCritical) ++ ExtraOpts]),
+    #{key => Key, cert => Cert}.
+
+file_paths(Config, Prefix) ->
+    PrivDir = ?config(priv_dir, Config),
+    CSR = filename:join(PrivDir, Prefix ++ ".csr"),
+    Key = filename:join(PrivDir, Prefix ++ "_key.pem"),
+    Cert = filename:join(PrivDir, Prefix ++ "_cert.pem"),
+    {CSR, Key, Cert}.
+
+generate_certificate_request(KeyFile, RequestFile, Options) ->
+    openssl(["req", "-new", "-newkey", "rsa:2048", "-nodes", "-sha256",
+             "-keyout", KeyFile, "-out", RequestFile, "-outform", "PEM" | Options]).
+
+sign_certificate_request(Config, RequestFile, CertFile, Options) ->
     SSLDir = filename:join([path_helper:repo_dir(Config), "tools", "ssl"]),
-    OutLog = os:cmd("cd " ++ SSLDir ++ " && " ++ Cmd2),
-    ct:log("generate_ca_signed_cert 2:~nCmd ~p~nOut ~ts", [Cmd2, OutLog]),
-    #{key => KeyFilename,
-      cert => Cert}.
+    openssl(["ca", "-config", "openssl-ca-clients.cnf", "-policy", "signing_policy",
+             "-extensions", "signing_req", "-in", RequestFile, "-out", CertFile, "-batch"
+             | Options], [{cd, SSLDir}]).
 
-generate_self_signed_cert(Config, Filename, ConfigCfg, KeyFilename, MaybeCritical) ->
-    Cert = filename:join(?config(priv_dir, Config), Filename ++ "_self_signed_cert.pem"),
-    Cmd = ["openssl req -config ", ConfigCfg, " -newkey rsa:2048 -sha256 -nodes -out ",
-           Cert, " -keyout ", KeyFilename, " -x509 -outform PEM", extensions(self_signed, MaybeCritical)],
-    OutLog = os:cmd(Cmd ++ " && echo CREATED"),
-    verify_created(Cmd, OutLog),
-    ct:log("generate_self_signed_cert:~nCmd ~p~nOut ~ts", [Cmd, OutLog]),
-    #{key => KeyFilename,
-      cert => Cert}.
+openssl(Args) ->
+    openssl(Args, []).
 
-verify_created(Cmd, Output) ->
-    case lists:suffix("CREATED\n", Output) of
-        true ->
-            ok;
-        false ->
-            ct:fail({failed_to_create_certificate, Cmd, Output})
+openssl(Args, Opts) ->
+    case mongooseimctl_helper:run(os:find_executable("openssl"), Args, [stderr_to_stdout | Opts]) of
+        {_Output, 0} -> ok;
+        {Output, Status} -> ct:fail({openssl_failed, Args, Status, Output})
     end.
 
 extensions(ca_signed, false) ->
     [];
 extensions(ca_signed, true) ->
-    " -extensions critical_extensions";
+    ["-extensions", "critical_extensions"];
 extensions(self_signed, false) ->
-    " -extensions client_req_extensions";
+    ["-extensions", "client_req_extensions"];
 extensions(self_signed, true) ->
-    " -extensions self_signed_critical_extensions".
+    ["-extensions", "self_signed_critical_extensions"].
