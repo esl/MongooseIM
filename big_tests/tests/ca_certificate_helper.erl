@@ -53,6 +53,28 @@ generate_self_signed_cert(Config, User, ConfigCfg, MaybeCritical, ExtraOpts) ->
              | extensions(self_signed, MaybeCritical) ++ ExtraOpts]),
     #{key => Key, cert => Cert}.
 
+generate_intermediate_signed_cert(Config, #{cn := User} = CertSpec, TemplateValues) ->
+    % Generate intermediate cert
+    {ICSR, IKey, ICert} = file_paths(Config, User ++ "_intermediate"),
+    CAConfig = filename:join(?config(mim_data_dir, Config), "openssl-intermediate.cnf"),
+    generate_certificate_request(IKey, ICSR, ["-subj", "/CN=" ++ User ++ " intermediate"]),
+    sign_certificate_request(
+      Config, ICSR, ICert, ["-extfile", CAConfig, "-extensions", "intermediate_ca"]),
+
+    % Generate user cert
+    UserConfig = certificate_config(Config, CertSpec, TemplateValues),
+    {CSR, Key, Cert} = file_paths(Config, User),
+    generate_certificate_request(Key, CSR, ["-config", UserConfig]),
+    sign_certificate_request(Config, CSR, Cert, ["-cert", ICert, "-keyfile", IKey]),
+    #{key => Key, cert => Cert, intermediate_cert => ICert}.
+
+generate_chain(Config, User, Certs) ->
+    PrivDir = ?config(priv_dir, Config),
+    Chain = filename:join(PrivDir, User ++ "_chain.pem"),
+    Content = [PEM || File <- Certs, {ok, PEM} <:- [file:read_file(File)]],
+    ok = file:write_file(Chain, Content),
+    Chain.
+
 file_paths(Config, Prefix) ->
     PrivDir = ?config(priv_dir, Config),
     CSR = filename:join(PrivDir, Prefix ++ ".csr"),
