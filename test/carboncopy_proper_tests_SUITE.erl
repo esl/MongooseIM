@@ -11,12 +11,14 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("exml/include/exml.hrl").
+-include("jlib.hrl").
+-include("mongoose_logger.hrl").
+-include("session.hrl").
 
 -import(xmlel_gen, [xmlel/3]).
 
 all() ->
-    [{group, mod_message_carbons_proper_tests}].
+    [{group, mod_message_carbons_proper_tests}, {group, session_metadata}].
 
 all_tests() ->
     [
@@ -34,7 +36,36 @@ all_tests() ->
     ].
 
 groups() ->
-    [{mod_message_carbons_proper_tests, [parallel], all_tests()}].
+    [{mod_message_carbons_proper_tests, [parallel], all_tests()},
+     {session_metadata, [], [unavailable_session_with_stale_carbons_is_skipped,
+                            unset_presence_queues_cleanup_before_external_events]}].
+
+init_per_group(session_metadata, Config) ->
+    {ok, _} = application:ensure_all_started(jid),
+    mongoose_config:set_opts(#{default_server_domain => <<"localhost">>, language => <<"en">>}),
+    Config;
+init_per_group(_, Config) ->
+    Config.
+
+end_per_group(session_metadata, _Config) ->
+    mongoose_config:erase_opts();
+end_per_group(_, _Config) ->
+    ok.
+
+init_per_testcase(Name, Config)
+  when Name =:= unavailable_session_with_stale_carbons_is_skipped;
+       Name =:= unset_presence_queues_cleanup_before_external_events ->
+    meck:new([ejabberd_sm, ejabberd_sm_backend, mongoose_router], [passthrough]),
+    Config;
+init_per_testcase(_, Config) ->
+    Config.
+
+end_per_testcase(Name, _Config)
+  when Name =:= unavailable_session_with_stale_carbons_is_skipped;
+       Name =:= unset_presence_queues_cleanup_before_external_events ->
+    meck:unload([ejabberd_sm, ejabberd_sm_backend, mongoose_router]);
+end_per_testcase(_, _Config) ->
+    ok.
 
 private_message_test(_) ->
     property(private_message_test, ?FORALL(Msg, private_carbon_message(),
@@ -138,3 +169,52 @@ direct_invitation() ->
 
 badarg_message() ->
     xmlel("message", #{<<"type">> =>  <<"123">>},[]).
+
+%% Session metadata regressions
+
+unavailable_session_with_stale_carbons_is_skipped(_) ->
+    Sender = jid:from_binary(<<"alice@localhost/res2">>),
+    Recipient = jid:from_binary(<<"bob@localhost/res1">>),
+    Sessions = [session(<<"res1">>, undefined, #{cc => 2}),
+                session(<<"res2">>, 0, #{cc => 2}),
+                session(<<"res3">>, -1, #{cc => 2}),
+                session(<<"res4">>, 0, #{})],
+    meck:expect(ejabberd_sm, get_raw_sessions, fun(_) -> Sessions end),
+    meck:expect(mongoose_router, route, fun(Acc) -> Acc end),
+    Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = <<"hello">>}]},
+    Packet = #xmlel{name = <<"message">>, attrs = #{<<"type">> => <<"chat">>},
+                    children = [Body]},
+    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => <<"localhost">>,
+                             host_type => <<"localhost">>, from_jid => Sender,
+                             to_jid => Recipient, element => Packet}),
+    {ok, _} = mod_carboncopy:user_send_message(Acc, #{}, #{}),
+    ?assertEqual(1, meck:num_calls(mongoose_router, route, '_')),
+    Routed = meck:capture(first, mongoose_router, route, '_', 1),
+    ?assertEqual(<<"alice@localhost/res3">>, jid:to_binary(mongoose_acc:to_jid(Routed))).
+
+unset_presence_queues_cleanup_before_external_events(_) ->
+    JID = jid:from_binary(<<"alice@localhost/res1">>),
+    State0 = mongoose_c2s:create_data(#{host_type => <<"localhost">>, jid => JID}),
+    State = mongoose_c2s:set_info(State0, #{cc => 2, retained => true}),
+    SID = mongoose_c2s:get_sid(State),
+    Acc0 = mongoose_acc:new(#{location => ?LOCATION, lserver => <<"localhost">>,
+                              host_type => <<"localhost">>}),
+    Acc = mongoose_acc:set(c2s, origin_sid, SID, Acc0),
+    meck:expect(ejabberd_sm_backend, set_session, fun(_, _, _, _) -> ok end),
+    {ok, UpdatedAcc} = mod_carboncopy:remove_connection(Acc, #{jid => JID}, #{}),
+    PresenceAcc = mongoose_c2s_acc:to_acc(UpdatedAcc, set_priority, undefined),
+    %% Apply the unavailable transition, then its priority cleanup event.
+    {next_state, session_established, UnavailableState, [{next_event, cast, Cleanup}]} =
+        mongoose_c2s:handle_state_after_packet(State, session_established, PresenceAcc),
+    {keep_state, UpdatedState} =
+        mongoose_c2s:handle_event(cast, Cleanup, session_established, UnavailableState),
+    ?assertEqual(#{retained => true}, mongoose_c2s:get_info(UpdatedState)),
+    ?assertEqual(1, meck:num_calls(ejabberd_sm_backend, set_session, '_')),
+    Stored = meck:capture(first, ejabberd_sm_backend, set_session, '_', 4),
+    ?assertEqual(#{retained => true}, Stored#session.info),
+    ?assertEqual(undefined, Stored#session.priority),
+    ?assertEqual(undefined, mongoose_c2s:get_session_priority(UpdatedState)).
+
+session(Resource, Priority, Info) ->
+    #session{sid = {1, self()}, usr = {<<"alice">>, <<"localhost">>, Resource},
+             us = {<<"alice">>, <<"localhost">>}, priority = Priority, info = Info}.
