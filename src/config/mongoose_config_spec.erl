@@ -664,9 +664,11 @@ tls(common) ->
              process = fun validate_tls_options/1};
 tls(server) ->
     #section{items = #{<<"dhfile">> => #option{type = string, validate = filename},
+                       <<"partial_chain">> => #option{type = boolean},
                        <<"early_data">> => #option{type = boolean},
                        <<"session_tickets">> => #option{type = atom,
-                                                        validate = {enum, [stateless]}}}};
+                                                        validate = {enum, [stateless]}}},
+             defaults = #{<<"partial_chain">> => false}};
 tls(client) ->
     #section{items = #{<<"server_name_indication">> => server_name_indication()}};
 tls(xmpp) ->

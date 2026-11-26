@@ -26,6 +26,7 @@
                      keep_secrets => boolean(),
                      keyfile => string(),
                      password => string(),
+                     partial_chain => boolean(), % server-only
                      versions => [atom()],
                      server_name_indication => sni_options(), % client-only
                      early_data => boolean(),
@@ -92,7 +93,8 @@ ssl_option_keys() ->
 mode_funs(client) ->
     [fun sni_opts/2];
 mode_funs(server) ->
-    [fun session_tickets_opt/2,
+    [fun partial_chain_opt/2,
+     fun session_tickets_opt/2,
      fun early_data_opt/2,
      fun fail_if_no_peer_cert_opt/2].
 
@@ -117,6 +119,26 @@ maybe_keep_secrets(Opts, #{}) ->
 keylog_fun(Filename) ->
     fun(#{items := Items}) ->
         file:write_file(Filename, [[I, "\n"] || I <- Items], [append])
+    end.
+
+%% When enabled, allow CA certificates from cacertfile to be trust anchors
+%% even if they are not self-signed.
+partial_chain_opt(Opts, #{partial_chain := true, cacertfile := CACertFile, verify_mode := Mode})
+  when Mode =:= peer; Mode =:= selfsigned_peer ->
+    [{partial_chain, fun(Chain) -> find_partial_chain(Chain, CACertFile) end} | Opts];
+partial_chain_opt(Opts, #{}) ->
+    Opts.
+
+find_partial_chain(Chain, CACertFile) ->
+    PemCache = ssl_pem_cache:name(normal),
+    FileNameBin = unicode:characters_to_binary(CACertFile, utf8, file:native_name_encoding()),
+    maybe
+        {ok, PemEntries} ?= ssl_manager:cache_pem_file(FileNameBin, PemCache),
+        CACerts = #{DerCert => [] || {'Certificate', DerCert, not_encrypted} <- PemEntries},
+        {value, TrustedDerCert} ?= lists:search(fun(DerCert) -> maps:is_key(DerCert, CACerts) end, Chain),
+        {trusted_ca, TrustedDerCert}
+    else
+        _ -> unknown_ca
     end.
 
 %% accept empty peer certificate if explicitly requested not to fail
