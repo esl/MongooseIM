@@ -82,7 +82,20 @@ Path to the X509 PEM file with a certificate (not protected by a password). If t
 * **Default:** not set
 * **Example:** `tls.cacertfile = "ca.pem"`
 
-Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_mode` is `"none"`.
+Path to an X509 PEM file containing one or more CA certificates used to verify clients.
+Multiple certificates can be concatenated in the same file.
+It won't have any effect if `verify_mode` is `"none"`.
+To trust an intermediate CA without including its root CA, enable [`partial_chain`](#listenc2stlspartial_chain).
+
+### `listen.c2s.tls.partial_chain`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `tls.partial_chain = true`
+
+Allows non-self-signed CA certificates from `cacertfile`, such as intermediate CAs, to serve as trust anchors when verifying client certificates.
+The client certificate chain is validated up to a matching CA certificate from that file, without requiring its issuer or root CA.
+When set to `false`, a CA-signed client certificate must have a chain leading to a trusted self-signed root CA.
+This option only has an effect when `cacertfile` is set and `verify_mode` is `"peer"` or `"selfsigned_peer"`.
 
 ### `listen.c2s.tls.dhfile`
 * **Syntax:** string, path in the file system
