@@ -219,41 +219,10 @@ It means that disabled endpoints are periodically verified and if Global Distrib
 !!! Note
     By default `tls` is disabled and all data will be sent via standard TCP connections.
 
-To enable TLS support, the `cacertfile`, `certfile` and `keyfile` options have to be present.
-These options will be passed to the [Erlang SSL](https://www.erlang.org/doc/apps/ssl/ssl.html) library.
+To enable TLS, add a `connections.tls` table with the `certfile` and `keyfile` options.
 
-#### `modules.mod_global_distrib.connections.tls.certfile`
-* **Syntax:** string, path in the file system
-* **Default:** none, this options is mandatory to enable TLS support
-* **Example:** `certfile = "priv/cert.pem"`
-
-Path to the X.509 PEM file with a certificate. If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together.
-
-#### `modules.mod_global_distrib.connections.tls.cacertfile`
-* **Syntax:** string, path in the file system
-* **Default:** none, this options is mandatory to enable TLS support
-* **Example:** `cacertfile = "priv/ca.pem"`
-
-Path to the X.509 PEM file with a CA chain.
-
-#### `modules.mod_global_distrib.connections.tls.keyfile`
-* **Syntax:** string, path in the file system
-* **Default:** none, this options is mandatory to enable TLS support
-* **Example:** `keyfile = "priv/key.pem"`
-
-Path to the X.509 PEM file with the private key.
-
-#### `modules.mod_global_distrib.connections.tls.ciphers`
-* **Syntax:** string
-* **Default:** this option is not set by default - all supported suites are accepted.
-* **Example:** `ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
-
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://docs.openssl.org/master/man1/openssl-ciphers/) for the cipher string format. See the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#t:ciphers/0) for allowed values.
-
-#### `modules.mod_global_distrib.connections.tls.dhfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `dhfile = "dh.pem"`
+The supported TLS options are `verify_mode`, `certfile`, `cacertfile`, `partial_chain`, `ciphers`, `keyfile`, `password`, `versions`, `disconnect_on_failure` and `server_name_indication`.
+See the [C2S TLS options](../listeners/listen-c2s.md#tls-options-for-c2s) and [outgoing SNI options](../configuration/outgoing-connections.md#outgoing_poolsconnectiontlsserver_name_indicationenabled) for details.
 
 ### Redis session storage options
 
