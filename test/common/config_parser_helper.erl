@@ -1122,24 +1122,24 @@ default_config([listen, http, transport]) ->
 default_config([listen, http, protocol]) ->
     #{compress => false};
 default_config([listen, http, tls]) ->
-    default_tls();
+    (default_tls())#{partial_chain => false};
 default_config([listen, c2s]) ->
     (common_xmpp_listener_config())#{module => mongoose_c2s_listener,
                                      backwards_compatible_session => true,
                                      access => all,
                                      connection_type => c2s};
 default_config([listen, c2s, tls]) ->
-    default_xmpp_tls();
+    (default_xmpp_tls())#{partial_chain => false};
 default_config([listen, s2s]) ->
     (common_xmpp_listener_config())#{module => mongoose_s2s_listener,
                                      connection_type => s2s};
 default_config([listen, s2s, tls]) ->
-    default_xmpp_tls();
+    (default_xmpp_tls())#{partial_chain => false};
 default_config([listen, component]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_component_listener_config()),
     Extra#{module => mongoose_component_listener};
 default_config([listen, component, tls]) ->
-    default_xmpp_tls_tls();
+    (default_xmpp_tls_tls())#{partial_chain => false};
 default_config([modules, M]) ->
     default_mod_config(M);
 default_config([modules, mod_csi, buffer]) ->
@@ -1175,7 +1175,7 @@ default_config([modules, mod_global_distrib, connections]) ->
       endpoint_refresh_interval_when_empty => 3,
       disabled_gc_interval => 60};
 default_config([modules, mod_global_distrib, connections, tls]) ->
-    maps:merge(default_tls(), #{server_name_indication => default_sni()});
+    maps:merge(default_tls(), #{server_name_indication => default_sni(), partial_chain => false});
 default_config([modules, mod_global_distrib, redis]) ->
     #{pool => global_distrib,
       expire_after => 120,

@@ -36,7 +36,6 @@
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
 -import(config_parser_helper, [mod_event_pusher_http_handler/0,
-                               default_xmpp_tls/0,
                                mod_config/2, default_mod_config/1,
                                config/2, default_config/1]).
 
@@ -493,7 +492,7 @@ listen_c2s_just_tls(_Config) ->
                                        <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
     M = tls_ca_raw(),
-    ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
+    ?cfg(P, config([listen, c2s, tls], tls_ca()), T(M)),
     test_just_tls_xmpp(P, T),
     ?cfg(P ++ [mode], tls, T(M#{<<"mode">> => <<"tls">>})),
     ?cfg(P ++ [disconnect_on_failure], false, T(M#{<<"disconnect_on_failure">> => false})),
@@ -520,7 +519,7 @@ listen_s2s_tls(_Config) ->
     T = fun(Opts) -> listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
     M = tls_ca_raw(),
-    ?cfg(P, maps:merge(default_xmpp_tls(), tls_ca()), T(M)),
+    ?cfg(P, config([listen, s2s, tls], tls_ca()), T(M)),
     test_just_tls_xmpp(P, T).
 
 listen_component(_Config) ->
@@ -549,7 +548,7 @@ listen_component_tls(_Config) ->
                                              <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
     M = tls_ca_raw(),
-    ?cfg(P, maps:merge(config_parser_helper:default_xmpp_tls_tls(), tls_ca()), T(M)),
+    ?cfg(P, config([listen, component, tls], tls_ca()), T(M)),
     test_just_tls_xmpp(P, T).
 
 listen_http(_Config) ->
@@ -1156,20 +1155,24 @@ test_just_tls_client(P, T) ->
     test_just_tls_common(P, T),
     test_just_tls_client_sni(P, T),
     M = tls_ca_raw(),
+    ?err(T(M#{<<"partial_chain">> => true})), % server-only
     ?err(T(M#{<<"dhfile">> => <<"priv/dh.pem">>})). % server-only
 
 test_just_tls_server(P, T) ->
     test_just_tls_common(P, T),
     M = tls_ca_raw(),
+    ?cfg(P ++ [partial_chain], false, T(M)),
+    ?cfg(P ++ [partial_chain], true, T(M#{<<"partial_chain">> => true})),
+    ?cfg(P ++ [partial_chain], false, T(M#{<<"partial_chain">> => false})),
+    ?err(T(M#{<<"partial_chain">> => <<"true">>})),
+    ?err(T(M#{<<"partial_chain">> => 1})),
     ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
     ?err(T(M#{<<"dhfile">> => <<"no_such_file.pem">>})).
 
 test_just_tls_xmpp(P, T) ->
-    test_just_tls_common(P, T),
+    test_just_tls_server(P, T),
     M = tls_ca_raw(),
-    ?cfg(P ++ [dhfile], "priv/dh.pem", T(M#{<<"dhfile">> => <<"priv/dh.pem">>})),
     ?cfg(P ++ [keep_secrets], true, T(M#{<<"keep_secrets">> => true})),
-    ?err(T(M#{<<"dhfile">> => <<"no_such_file.pem">>})),
     ?err(T(M#{<<"keep_secrets">> => <<"sslkeylog.txt">>})).
 
 test_just_tls_common(P, T) ->

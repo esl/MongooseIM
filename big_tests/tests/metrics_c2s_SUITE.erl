@@ -84,13 +84,18 @@ init_per_group(invalid_cert, Config) ->
     restart_listener(Listener#{tls => Tls#{certfile => <<"priv/ssl/fake_key.pem">>}}),
     Config;
 init_per_group(Group, Config) when Group == not_yet_valid_cert; Group == expired_cert ->
-    CertSpec = #{cn => atom_to_list(Group)},
+    CertSpec = #{cn => atom_to_list(Group), opts => validity_options(Group)},
     #{key := Keyfile, cert := Certfile} = ca_certificate_helper:generate_cert(Config, CertSpec, #{}),
     #{tls := Tls} = Listener = proplists:get_value(c2s_listener_backup, Config),
     restart_listener(Listener#{tls => Tls#{certfile => Certfile, keyfile => Keyfile}}),
     Config;
 init_per_group(_Group, Config) ->
     Config.
+
+validity_options(not_yet_valid_cert) ->
+    ["-startdate", "30000101000000Z"];
+validity_options(expired_cert) ->
+    ["-startdate", "20240101000000Z", "-enddate", "20241231000000Z"].
 
 end_per_group(_Group, Config) ->
     Listener = proplists:get_value(c2s_listener_backup, Config),

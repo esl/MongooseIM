@@ -12,7 +12,8 @@
 all() ->
     [
      {group, self_signed},
-     {group, ca_signed}
+     {group, ca_signed},
+     {group, intermediate_ca}
     ].
 
 groups() ->
@@ -27,9 +28,39 @@ groups() ->
      {demo_verification_module, [parallel], demo_verification_module_test_cases()},
      {self_signed_certs_allowed, [parallel], self_signed_certs_allowed_test_cases()},
      {self_signed_certs_not_allowed, [parallel], self_signed_certs_not_allowed_test_cases()},
+     {intermediate_ca, [], [{group, Name} || {Name, _, _} <- intermediate_ca_groups()]},
      {ca_signed, [self_signed_certs_not_allowed_group() | base_groups()]},
-     {self_signed, [self_signed_certs_allowed_group() | base_groups()]}
+     {self_signed, [self_signed_certs_allowed_group() | base_groups()]},
+     {intermediate_only, [parallel], intermediate_only_test_cases()},
+     {intermediate_only_partial_chain, [parallel], intermediate_partial_chain_test_cases()},
+     {intermediate_only_partial_chain_forced_cert, [], intermediate_forced_cert_test_cases()},
+     {intermediate_and_root, [parallel], intermediate_allowed_test_cases()},
+     {intermediate_and_root_partial_chain, [parallel], intermediate_allowed_test_cases()}
     ].
+
+intermediate_ca_groups() ->
+    [{intermediate_only, [parallel], intermediate_only_test_cases()},
+     {intermediate_only_partial_chain, [parallel], intermediate_partial_chain_test_cases()},
+     {intermediate_only_partial_chain_forced_cert, [], intermediate_forced_cert_test_cases()},
+     {intermediate_and_root, [parallel], intermediate_allowed_test_cases()},
+     {intermediate_and_root_partial_chain, [parallel], intermediate_allowed_test_cases()}].
+
+intermediate_only_test_cases() ->
+    [intermediate_ca_connection_not_allowed,
+     other_intermediate_ca_connection_not_allowed,
+     intermediate_ca_connection_not_allowed_with_ws].
+
+intermediate_partial_chain_test_cases() ->
+    [intermediate_ca_connection_allowed,
+     other_intermediate_ca_connection_not_allowed,
+     intermediate_ca_connection_allowed_with_ws].
+
+intermediate_forced_cert_test_cases() ->
+    [other_intermediate_ca_connection_not_allowed].
+
+intermediate_allowed_test_cases() ->
+    [intermediate_ca_connection_allowed,
+     other_intermediate_ca_connection_allowed].
 
 self_signed_certs_allowed_group() ->
     {group, self_signed_certs_allowed}.
@@ -107,6 +138,19 @@ init_per_group(ca_signed, Config) ->
     [{signed, ca} | Config];
 init_per_group(self_signed, Config) ->
     [{signed, self} | Config];
+init_per_group(intermediate_ca, Config) ->
+    TemplateValues = #{"xmppOids" => xmpp_oids()},
+    NewCerts = #{User => generate_intermediate_signed_cert(Config, User, TemplateValues)
+                 || User <- ["intermediate-client", "other-intermediate-client"]},
+    Certs = maps:merge(?config(certs, Config), NewCerts),
+    [{signed, intermediate} | lists:keystore(certs, 1, Config, {certs, Certs})];
+init_per_group(intermediate_only_partial_chain_forced_cert = GroupName, Config) ->
+    Config1 = configure(GroupName, Config),
+    % Send the configured client chain even when its CA is absent from the server's CA list.
+    ok = meck:new(ssl_certificate, [passthrough, no_link, unstick]),
+    ok = meck:expect(ssl_certificate, handle_cert_auths,
+                     fun(Chain, _Authorities, _Db, _Ref) -> {ok, Chain} end),
+    Config1;
 init_per_group(registered, Config) ->
     escalus:create_users(Config, [{bob, generate_user_tcp(Config, username("bob", Config))}]);
 init_per_group(not_registered, Config) ->
@@ -128,10 +172,20 @@ init_per_group(demo_verification_module = GroupName, Config) ->
 init_per_group(GroupName, Config) ->
     configure(GroupName, Config).
 
+generate_intermediate_signed_cert(Config, User, TemplateValues) ->
+    #{cert := Cert, intermediate_cert := ICert} = CertMap =
+        ca_certificate_helper:generate_intermediate_signed_cert(
+          Config, #{cn => User, xmpp_addrs => [add_domain_str(User)]}, TemplateValues),
+    Certs = [Cert, ICert, root_ca_cert(Config)],
+    ChainFiles = [ca_certificate_helper:generate_chain(
+                    Config, User ++ "_" ++ integer_to_list(N), lists:sublist(Certs, N))
+                  || N <- [1, 2, 3]],
+    CertMap#{chain_files => ChainFiles}.
+
 configure(GroupName, Config) ->
     AuthOpts = auth_opts(GroupName),
     Config1 = mongoose_helper:backup_and_set_config(Config, config_opts(AuthOpts)),
-    TLSOpts = tls_opts(Config1),
+    TLSOpts = tls_opts(GroupName, Config1),
     HTTPSOpts = maps:remove(disconnect_on_failure, TLSOpts), % there is no such option for HTTPS
     OrigListeners = [restart_listener(c2s_port, mongoose_c2s_listener, TLSOpts),
                      restart_listener(cowboy_secure_port, ejabberd_cowboy, HTTPSOpts)],
@@ -144,13 +198,37 @@ restart_listener(PortName, Module, NewOpts) ->
     ok = mongoose_helper:restart_listener(mim(), NewListener),
     Listener.
 
-tls_opts(Config) ->
-    #{disconnect_on_failure => false,
-      verify_mode => verify_mode(proplists:get_value(signed, Config)),
-      cacertfile => filename:join([path_helper:repo_dir(Config),
-                                   "tools", "ssl", "ca-clients", "cacert.pem"])}.
+tls_opts(GroupName, Config) ->
+    Signed = ?config(signed, Config),
+    Opts = #{disconnect_on_failure => false, verify_mode => verify_mode(Signed)},
+    maps:merge(Opts, ca_opts(Signed, GroupName, Config)).
+
+ca_opts(intermediate, GroupName, Config) ->
+    #{intermediate_cert := ICert} = maps:get("intermediate-client", ?config(certs, Config)),
+    {CAName, CAs} = case include_root_cert(GroupName) of
+                       true -> {"intermediate_and_root", [ICert, root_ca_cert(Config)]};
+                       false -> {"intermediate_only", [ICert]}
+                    end,
+    CAFile = ca_certificate_helper:generate_chain(Config, CAName, CAs),
+    #{cacertfile => CAFile, partial_chain => partial_chain(GroupName)};
+ca_opts(_Signed, _GroupName, Config) ->
+    #{cacertfile => root_ca_cert(Config)}.
+
+root_ca_cert(Config) ->
+    filename:join([path_helper:repo_dir(Config), "tools", "ssl", "ca-clients", "cacert.pem"]).
+
+include_root_cert(intermediate_only) -> false;
+include_root_cert(intermediate_only_partial_chain) -> false;
+include_root_cert(intermediate_only_partial_chain_forced_cert) -> false;
+include_root_cert(_) -> true.
+
+partial_chain(intermediate_only_partial_chain) -> true;
+partial_chain(intermediate_only_partial_chain_forced_cert) -> true;
+partial_chain(intermediate_and_root_partial_chain) -> true;
+partial_chain(_) -> false.
 
 verify_mode(ca) -> peer;
+verify_mode(intermediate) -> peer;
 verify_mode(self) -> selfsigned_peer.
 
 add_tls_opts(C2SListener = #{tls := TLS}, Extra) ->
@@ -186,6 +264,11 @@ end_per_group(ca_signed, _Config) ->
     ok;
 end_per_group(self_signed, _Config) ->
     ok;
+end_per_group(intermediate_ca, _Config) ->
+    ok;
+end_per_group(intermediate_only_partial_chain_forced_cert, Config) ->
+    ok = meck:unload(ssl_certificate),
+    restore(Config);
 end_per_group(registered, Config) ->
     escalus:delete_users(Config, [{bob, generate_user_tcp(Config, username("bob", Config))}]);
 end_per_group(not_registered, _Config) ->
@@ -295,6 +378,58 @@ cert_one_xmpp_addr_wrong_hostname(C) ->
     User = username("bob", C),
     UserSpec = [{requested_name, requested_name(User)} |
                 generate_user_tcp(C, User)],
+    cert_fails_to_authenticate(UserSpec).
+
+intermediate_ca_connection_allowed(Config) ->
+    intermediate_ca_connection(Config, escalus_tcp, true).
+
+intermediate_ca_connection_not_allowed(Config) ->
+    intermediate_ca_connection(Config, escalus_tcp, false).
+
+intermediate_ca_connection_allowed_with_ws(Config) ->
+    intermediate_ca_connection(Config, escalus_ws, true).
+
+intermediate_ca_connection_not_allowed_with_ws(Config) ->
+    intermediate_ca_connection(Config, escalus_ws, false).
+
+other_intermediate_ca_connection_allowed(Config) ->
+    other_intermediate_ca_connection(Config, escalus_tcp, true).
+
+other_intermediate_ca_connection_not_allowed(Config) ->
+    other_intermediate_ca_connection(Config, escalus_tcp, false).
+
+other_intermediate_ca_connection(Config, Transport, Allowed) ->
+    User = "other-intermediate-client",
+    #{chain_files := [LeafFile | ChainFiles]} = maps:get(User, ?config(certs, Config)),
+    % The server can only build the sibling's chain when the client sends its intermediate.
+    test_intermediate_ca_connection(Config, User, LeafFile, Transport, false),
+    [test_intermediate_ca_connection(Config, User, ChainFile, Transport, Allowed)
+     || ChainFile <- ChainFiles],
+    ok.
+
+intermediate_ca_connection(Config, Transport, Allowed) ->
+    User = "intermediate-client",
+    #{chain_files := ChainFiles} = maps:get(User, ?config(certs, Config)),
+    [test_intermediate_ca_connection(Config, User, ChainFile, Transport, Allowed)
+     || ChainFile <- ChainFiles],
+    ok.
+
+test_intermediate_ca_connection(C, User, ChainFile, Transport, Allowed) ->
+    Certs = ?config(certs, C),
+    CertMap = maps:get(User, Certs),
+    Config = [{certs, Certs#{User => CertMap#{cert => ChainFile}}} | C],
+    UserSpec = generate_user(Config, User, Transport),
+    check_intermediate_ca_connection(UserSpec, Transport, Allowed).
+
+check_intermediate_ca_connection(UserSpec, _Transport, true) ->
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+    ?assertEqual(proplists:get_value(username, UserSpec), escalus_client:username(Client)),
+    escalus_connection:stop(Client);
+check_intermediate_ca_connection(UserSpec, escalus_tcp, false) ->
+    ?assertMatch({error, {connection_step_failed, _,
+                         {auth_failed, _, #xmlel{name = ~"failure"}}}},
+                 escalus_connection:start(UserSpec));
+check_intermediate_ca_connection(UserSpec, escalus_ws, false) ->
     cert_fails_to_authenticate(UserSpec).
 
 ca_signed_cert_is_allowed_with_ws(C) ->
